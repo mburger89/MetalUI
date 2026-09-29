@@ -187,6 +187,11 @@ final class AccessKitAdapter: @unchecked Sendable {
             }
             if node.isDisabled { accesskit_node_set_disabled(out) }
             if node.isSelected { accesskit_node_set_selected(out, true) }
+            if let toggled = node.toggled {
+                accesskit_node_set_toggled(out, accesskit_toggled(
+                    toggled ? ACCESSKIT_TOGGLED_TRUE.rawValue : ACCESSKIT_TOGGLED_FALSE.rawValue))
+            }
+            if let number = node.numericValue { accesskit_node_set_numeric_value(out, number) }
             accesskit_tree_update_push_node(update, node.id, out)
         }
         return update
@@ -203,6 +208,11 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .row: ACCESSKIT_ROLE_ROW.rawValue
         case .textInput: ACCESSKIT_ROLE_TEXT_INPUT.rawValue
         case .multilineTextInput: ACCESSKIT_ROLE_MULTILINE_TEXT_INPUT.rawValue
+        case .checkBox: ACCESSKIT_ROLE_CHECK_BOX.rawValue
+        case .radioButton: ACCESSKIT_ROLE_RADIO_BUTTON.rawValue
+        case .radioGroup: ACCESSKIT_ROLE_RADIO_GROUP.rawValue
+        case .slider: ACCESSKIT_ROLE_SLIDER.rawValue
+        case .spinButton: ACCESSKIT_ROLE_SPIN_BUTTON.rawValue
         }
         return UInt8(value)
     }

@@ -372,6 +372,39 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }.cssWidth(px(100)).cssHeight(px(100))
     }
 
+    // Plan task 10 part 2, lane 1: the three control click targets (spec §10's
+    // registry arms). A `Button`'s action and a `Toggle`'s write are its
+    // `onClick`; a segment is found 8 in past an empty title.
+    try arm("button") { d in
+        Row { Button("x") { log.names.append("button") }.disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("toggle") { d in
+        Row {
+            Toggle("x", isOn: Binding(get: { false }, set: { _ in log.names.append("toggle") })).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("segment", at: pt(20, 50)) { d in
+        Row {
+            Picker("", selection: Binding(get: { 0 }, set: { _ in log.names.append("segment") })) {
+                Text("x").tag(1)
+            }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    // Plan task 10 part 2, lane 2: a `Slider`'s track (a press writes the value
+    // under the pointer, through `Handlers.valueTrack`) and a `Stepper`'s
+    // increment half, 8 + 10 in past an empty title and in its top 12 points.
+    try arm("slider") { d in
+        Row {
+            Slider(value: Binding(get: { 0.5 }, set: { _ in log.names.append("slider") })).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("stepper-half", at: pt(18, 44)) { d in
+        Row {
+            Stepper("", value: Binding(get: { 1 }, set: { _ in log.names.append("stepper-half") }),
+                    in: 0...5).disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
     let after = try fired("after", at: pt(10, 50)) {
@@ -971,7 +1004,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// stands at integration (environment track, second verification round):
 /// `Frame.registerScrollRegion` inserts its hitbox directly, not through
 /// `registerHandlers`, so the disabled gate never sees it. SwiftUI's answer is
-/// **unmeasured** (ruling EV-Q's task-10 item); this pins MetalUI's, so a change
+/// **unmeasured** (ruling EV-Q's task-10 item; plan task 10's `DD-I` item 3 kept
+/// MetalUI's answer — the probe's enabled control, W0, read 0 with the screen
+/// locked — and owes a human look); this pins MetalUI's, so a change
 /// either way is a decision rather than an accident. Control: the same scroller
 /// enabled reads the same offset, and a wheel that misses reads 0, so the
 /// instrument can tell a scroll from none.
@@ -1007,5 +1042,5 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
     let enabled = try offset(disabled: false, at: pt(20, 100))
     try #require(missed == 0 && enabled > 0, "the instrument: a miss reads \(missed), a hit \(enabled)")
     let disabled = try offset(disabled: true, at: pt(20, 100))
-    #expect(disabled == enabled, "a disabled ScrollView scrolls as an enabled one does (unpinned choice, EV-Q)")
+    #expect(disabled == enabled, "a disabled ScrollView scrolls as an enabled one does (kept by DD-I item 3; SwiftUI unmeasured, EV-Q)")
 }

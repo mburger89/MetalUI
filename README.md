@@ -122,19 +122,30 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-9` (2026-09-24 — plan task 7 stage 9, engine deletion,
-not yet merged with `master`) the suite reports **1409 tests** (1452 − 93 +
-50: 44 retired, 49 renamed, 1 added), in one summary line over three suites.
-That total includes **79** `swiftc -typecheck` guards and no goldens: stage
-7a retired all 97 (record §48), stage 7b retired the CSS engine's remaining
-non-golden tests (record §49), stage 8 deprecated the eight `StyledElement`
-sizing modifiers toward `.frame` (record §50), and **stage 9 deletes the CSS
-engine, the legacy registrars and the layout authority itself** — `FlexEngine`
-and its supporting files, `LayoutPass.requestNode`/`requestLeaf`,
-`Frame.layoutAuthority` and `Frame.legacyRootLayoutCounter` are all gone
-(record §51). Every legacy element (`Box`, `Row`, `Column`, `Stack`,
-`ScrollView`, `List`, legacy `.frame`) keeps working, through the lowering
-that is now its only path.
+On `feat/engine-stage-11` (2026-09-25 — plan task 7 stage 11, modifier
+unification, **task 7's last stage**, from `47c0d98` — stage 10's tip,
+already carrying master's `TextEditor` merge — not yet merged with
+`master`) the suite reports **1444 tests** (1426 + 18: lane 1 +4, lane 2 +9,
+lane 3 +5, none retired), in one summary line over three suites. That total
+includes **84** `swiftc -typecheck` guards (82 + 2, the new
+`UnifiedModifiedContentCompileGuards`) and no goldens: stage 7a retired all
+97 (record §48), stage 7b retired the CSS engine's remaining non-golden
+tests (record §49), stage 8 deprecated the eight `StyledElement` sizing
+modifiers toward `.frame` (record §50), stage 9 deleted the CSS engine, the
+legacy registrars and the layout authority itself (record §51), stage 10
+deleted `Style`'s CSS fields and narrowed every surviving one to `package`
+(record §53), and **stage 11 unifies `ModifiedElement`/`ModifiedContent`
+into one flat `ModifiedContent<Content, Modifier>`**, generalizes the legacy
+`.overlay` from `OverlayModifier` over `ElementGroup`, and fixes divergence
+45 (a legacy `.opacity` reaching a background or border written after it) on
+both paths (record §54). **This closes task 7**: no production layout
+request passes through the legacy engine, the CSS layout paths and dead
+`Style` fields are gone, and the two modifier vocabularies are unified — the
+plan's checkbox moves once the adversarial branch check confirms every row
+of the parent spec's exit table on this branch. Every legacy element (`Box`,
+`Row`, `Column`, `Stack`, `ScrollView`, `List`, legacy `.frame`) keeps
+working, through the lowering that is now its only path, and keeps its
+CSS-derived spelling even though `Style` itself is no longer public API.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
@@ -206,7 +217,11 @@ Environment values are scoped with `.environment(_:_:)`,
 `.transformEnvironment`, `.disabled`, `.dynamicTypeSize` and `.theme`, read
 with `@Environment` or `pass.environment`, and rooted at `Window.environment`.
 A modifier written after a scope sits outside it, as in SwiftUI. The keymap's
-type is `KeyBinding` (`Binding` is a deprecated alias).
+type is `KeyBinding`, unrelated to `Binding<Value>` — SwiftUI's own value
+binding, landed on plan task 10 part 1 (`@State`'s `$` projection, a
+key-path-derived binding, `.constant`, `TextField`/`TextEditor` binding
+initialisers) — the deprecated `Binding = KeyBinding` alias is deleted in the
+same change (record §57).
 
 A counter in the proposal vocabulary. Every ancestor up to the window root must
 be a proposal element as well. Nested in a legacy container it still compiles,
@@ -290,15 +305,13 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Fifty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
-placed twice shares a `@State` box); the rest are deliberate decisions or known
-limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
-(40's `percent:` modifiers are now spelled `fraction:`); 59 was retired by task
-7 stage 2, which clamps a text answer to its proposal as SwiftUI does.
-[`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
-original eleven in full and index tables for 20–34, 35–50, 51–58, 59 and 60–70;
-divergence 19 is recorded only in `CLAUDE.md`.
+Fifty-six measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 17, 18,
+19, 24, 36, 37, 40, 45, 48, 59, 69, 74) are never reused — most retirements
+are a later task's own fix landing SwiftUI's answer, not a correction of the
+original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
+holds the original eleven in full and a dated index of every later addition,
+amendment and retirement.
 
 ## Milestones
 
@@ -309,8 +322,9 @@ input and focus, `@State` and `@Observable` reactivity, windowed `List`,
 
 In progress: SwiftUI behavioural alignment. The replacement inventory is
 published; the proposal-layout kernel (task 2), typed modifier composition
-(task 3), scoped environment values with a disabled state (task 9, with carried
-items) and a macOS accessibility bridge (task 12's bridge half) exist beside
+(task 3), scoped environment values — disabled state, display scale, and
+control active state/size (task 9, closed) — and a macOS accessibility
+bridge (task 12's bridge half) exist beside
 the legacy engine. No legacy container has been ported yet. The decisions
 documents are prefixed `SA-`, `MC-`, `EV-` and `AB-`.
 
@@ -360,7 +374,16 @@ transforms, and text colour animation.
   for its 6b stage — the root switch: production's default layout authority
   becomes `.proposal` — and
   [`48-engine-replacement-stage-7a.md`](docs/record/48-engine-replacement-stage-7a.md)
-  for its 7a stage — the 97 WebKit goldens retired. Five files are
+  for its 7a stage — the 97 WebKit goldens retired — and
+  [`57-data-and-scrolling.md`](docs/record/57-data-and-scrolling.md) for plan
+  task 10's **part 1** — `ForEach` and loop identity, `Binding<Value>`, a
+  `List`'s own scroller origin, and `ScrollViewReader`/`scrollTo`/indicators;
+  part 2 (common controls and selection) is the next run.
+  **This list runs behind `docs/record/README.md`**: task 7's stages 7b
+  through 11 (records `49`–`54`) and plan tasks 8 and 9 (records `55`–`56`)
+  landed between `48` and `57` above and are not yet described here — read
+  `docs/record/README.md`'s own index for every record file, which is kept
+  current. Five files listed by name above are
   not task tracks:
   [`19-claude-md-full-2026-09-21.md`](docs/record/19-claude-md-full-2026-09-21.md)
   is the root `CLAUDE.md` as it read before it was cut to rules only,
@@ -400,10 +423,13 @@ transforms, and text colour animation.
     [stage 6b](docs/superpowers/specs/2026-09-23-engine-stage-6b-design.md)
     [stage 7a](docs/superpowers/specs/2026-09-23-engine-stage-7a-design.md)
     [stage 7b](docs/superpowers/specs/2026-09-23-engine-stage-7b-design.md)
-    [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md) and
-    [stage 9](docs/superpowers/specs/2026-09-24-engine-stage-9-design.md)
-    specs (plan task 7, stages 1, 2, G, 3, 4, 5, 6a, 6b, 7a, 7b, 8 and 9 of 14
-    landed —
+    [stage 8](docs/superpowers/specs/2026-09-24-engine-stage-8-design.md),
+    [stage 9](docs/superpowers/specs/2026-09-24-engine-stage-9-design.md),
+    [stage 10](docs/superpowers/specs/2026-09-24-engine-stage-10-design.md) and
+    [stage 11](docs/superpowers/specs/2026-09-25-engine-stage-11-design.md)
+    specs (plan task 7, all fourteen stages — 1, 2, G, 3, 4, 5, 6a, 6b, 7a,
+    7b, 8, 9, 10 and 11 — landed, task 7 substantively complete on this
+    branch —
     legacy elements lower onto the kernel, with SwiftUI's flex-item
     semantics, scrolling, `Component` distribution, a windowed `List` and
     `Deferred`'s absolute content as a presentation root; the public
@@ -412,9 +438,17 @@ transforms, and text colour animation.
     stage 6b's root switch, `Frame.defaultLayoutAuthority = .proposal`; the
     97 WebKit goldens are retired — stage 7a; the CSS engine's remaining
     non-golden tests are retired — stage 7b; the eight `StyledElement` sizing
-    modifiers are deprecated toward `.frame` — stage 8; **the CSS engine, the
-    legacy registrars and the layout authority itself are deleted** — stage 9,
-    not yet merged with `master`)
+    modifiers are deprecated toward `.frame` — stage 8; the CSS engine, the
+    legacy registrars and the layout authority itself are deleted — stage 9;
+    `Style`'s CSS fields are deleted or narrowed to `package`, and the
+    mechanical closing check lands (a `dlsym` check that the deleted
+    engine's mangled names are absent from the test process, plain-import
+    guards and a recorded grep) — stage 10; **`ModifiedElement` and
+    `ModifiedContent` are unified into one flat `ModifiedContent<Content,
+    Modifier>`, the legacy `.overlay` is generalized, and divergence 45's
+    write-order bug is fixed on both paths** — stage 11, not yet merged with
+    `master`; the plan's checkbox moves once the adversarial branch check
+    confirms every row of the parent spec's exit table on this branch)
   - [grids spec](docs/superpowers/specs/2026-09-17-grids-design.md)
     (plan task 7 stage G, delivered: SwiftUI's `Grid` and `GridRow` on the
     proposal path as a kernel node; lazy grids are proposed as stage G2)

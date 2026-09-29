@@ -6,8 +6,9 @@ import MetalUILayout
 ///
 /// `.theme` is a case of its own, not a transform, because it is the one
 /// write allowed to change `theme`: `Frame.scopedValues(applying:)` re-stamps
-/// `theme` and `pixelLength` after every `.transform`, so a `\.self` write
-/// cannot reset either.
+/// `theme` after every `.transform`, so a `\.self` write cannot reset it.
+/// Nothing else is re-stamped (ruling EV-AA): a `\.self` write resets
+/// `displayScale` to 1, as in SwiftUI.
 enum EnvironmentWrite {
     case transform(@MainActor (inout EnvironmentValues) -> Void)
     case theme(Theme)
@@ -167,6 +168,14 @@ extension ElementGroup {
     /// SwiftUI on macOS (ruling EV-I).
     public func dynamicTypeSize(_ size: DynamicTypeSize) -> EnvironmentScope<Self> {
         environment(\.dynamicTypeSize, size)
+    }
+
+    /// Sets `controlSize`, SwiftUI's spelling of
+    /// `.environment(\.controlSize, size)` (ruling EV-AC, probe
+    /// `swiftui-environment-control-state.swift` Z1). Carried; no built-in
+    /// element reads it (divergence 76).
+    public func controlSize(_ size: ControlSize) -> EnvironmentScope<Self> {
+        environment(\.controlSize, size)
     }
 
     /// Resolves every token below against `theme` — the only public theme

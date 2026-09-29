@@ -42,6 +42,12 @@ public final class Window {
     /// it from `Tests/MetalUITests`.
     let stateTable = StateTable()
 
+    /// The pending `ScrollViewProxy.scrollTo` requests (ruling `DD-G` item 3),
+    /// handed to each `Frame` before it renders. An enqueue dirties the window
+    /// (below, in `init`), so a request made from a handler while the display
+    /// link is paused still draws the frame that resolves it.
+    let scrollRequests = ScrollRequestQueue()
+
     /// The shaping cache (spec §3.2), owned here for the same reason
     /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
     /// it would re-shape every string through CoreText on every frame, with the
@@ -128,16 +134,44 @@ public final class Window {
     /// the display link awake, `@State`'s rule. Pinned as a stated cost by
     /// `theWindowsEnvironmentReachesTheFrameAndASetRepaints`.
     ///
-    /// **Two fields are not taken from here.** The frame re-stamps `theme`
-    /// from `theme` above and `pixelLength` from the surface's scale factor, so
-    /// `window.environment.theme = .dark` — which compiles inside this module —
-    /// changes nothing (`Frame.rootEnvironment`).
+    /// **Three fields are not taken from here** (ruling EV-AB; two before
+    /// it). The frame re-stamps `theme` from `theme` above and `displayScale`
+    /// from the scale the frame is drawn at (`WindowRenderer.beginFrame()`'s,
+    /// ruling EV-AA; `pixelLength` derives from it), and this window stamps
+    /// `controlActiveState` from `controlActiveState` below, over this value, at
+    /// every draw. So `window.environment.theme = .dark` (which compiles inside
+    /// this module), `window.environment.displayScale = 3` and
+    /// `window.environment.controlActiveState = .key` (which compile anywhere)
+    /// change nothing at the root (`Frame.rootEnvironment`,
+    /// `aScopeWriteOfControlActiveStateWinsBelowItAndTheWindowsEnvironmentDoesNot`).
+    /// A scope below the root can write all three but `theme`, as in SwiftUI.
     ///
     /// **Starts at `EnvironmentValues()` with `Locale.current` stamped over its
     /// bare locale** (ruling EV-Y): a bare value holds `Locale(identifier: "")`,
     /// as SwiftUI's does, and a window stamps the user's, as a SwiftUI host does.
     public var environment = EnvironmentValues.windowDefault() {
         didSet { setNeedsRedraw() }
+    }
+
+    /// The platform window's key state (ruling EV-AB), the root source of
+    /// every frame's `controlActiveState`: read from
+    /// `PlatformWindow.controlActiveState` at construction and updated through
+    /// `PlatformWindow.onControlActiveStateChange`, and stamped over
+    /// `environment` at every draw.
+    ///
+    /// **Guarded, unlike `environment`**: a change repaints and a report of the
+    /// state the window already has does not — the platform can report a key
+    /// or activation change that leaves this window's state where it was (an
+    /// application activation with the window already key), and a window that
+    /// repainted for each would wake the display for nothing, `theme`'s reason.
+    /// Kept here rather than in `environment` for exactly that: `environment`'s
+    /// writes cannot be guarded (EV-H). Pinned by
+    /// `theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints`.
+    public private(set) var controlActiveState: ControlActiveState {
+        didSet {
+            guard controlActiveState != oldValue else { return }
+            setNeedsRedraw()
+        }
     }
 
     /// Whether every frame this window builds records its element bounds
@@ -472,6 +506,7 @@ public final class Window {
         #endif
         self.platformWindow = platformWindow
         self.theme = Theme.forAppearance(platformWindow.appearance)
+        self.controlActiveState = platformWindow.controlActiveState
         self.renderRoot = { frame in
             var root = content()
             frame.render(&root)
@@ -484,7 +519,12 @@ public final class Window {
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+        scrollRequests.onEnqueue = { [weak self] in self?.setNeedsRedraw() }
 
+        // Also the backing-scale path (ruling EV-AA): both platforms report a
+        // move between displays through `onResize`, and the next frame's
+        // `displayScale` is the drawable's scale that `beginFrame()` returns.
+        // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
@@ -494,6 +534,11 @@ public final class Window {
             // window dirty — §7.9's "swap the active theme and mark §4.4's
             // dirty flag".
             self?.theme = Theme.forAppearance(appearance)
+        }
+        platformWindow.onControlActiveStateChange = { [weak self] state in
+            // Assigning drives `controlActiveState`'s guarded `didSet`, which
+            // is what marks the window dirty (ruling EV-AB).
+            self?.controlActiveState = state
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
@@ -536,6 +581,14 @@ public final class Window {
             // goes to the focused one. Ahead of click dispatch — a field has
             // no `onClick` — and of the raw handler.
             if self.dispatchTextInput(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // A slider's track (ruling `DD-W` item 5): a press writes the value
+            // under the pointer and a drag from it writes again. Beside the
+            // text fields and on their footing — ahead of click dispatch, and
+            // it does not focus.
+            if self.dispatchValueTrack(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -921,7 +974,13 @@ public final class Window {
                           transaction: transaction,
                           collectsAccessibility: accessibility.isActive,
                           recordsElementBounds: recordsElementBounds)
-        frame.rootEnvironment = environment
+        // The window's key state is stamped OVER `environment` (ruling EV-AB):
+        // `environment.controlActiveState` is not the root's source, as its
+        // `theme` and `displayScale` are not (the frame re-stamps those two).
+        var rootEnvironment = environment
+        rootEnvironment.controlActiveState = controlActiveState
+        frame.rootEnvironment = rootEnvironment
+        frame.scrollRequestQueue = scrollRequests
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1033,7 +1092,8 @@ public final class Window {
     }
 
     /// Applies a wheel delta to the topmost **opaque hitbox** under the
-    /// pointer, if that hitbox is a scroller.
+    /// pointer if that hitbox is a scroller, and otherwise to that hitbox's
+    /// nearest enclosing scroller on the same layer (ruling `DD-Y`).
     ///
     /// **One list, one ranking** (design spec §3.1). This used to walk a
     /// separate `lastScrollRegions` with its own copy of the ranking closure;
@@ -1043,46 +1103,48 @@ public final class Window {
     /// the most deeply nested hitbox containing the point, which is the
     /// visually topmost one.
     ///
-    /// **An opaque hitbox that is NOT a scroller swallows the event**, which is
-    /// the entire point of the fold and the limitation three milestones
-    /// recorded: before it, a non-scrolling `Deferred` scrim registered nothing
-    /// a wheel event could see, so the list underneath a modal scrolled through
-    /// it. The walk stops at the topmost opaque record whatever that record is;
-    /// it does not keep descending looking for something scrollable.
+    /// **An opaque hitbox that is NOT a scroller stops the walk**, which is the
+    /// entire point of the fold and the limitation three milestones recorded:
+    /// before it, a non-scrolling `Deferred` scrim registered nothing a wheel
+    /// event could see, so the list underneath a modal scrolled through it. The
+    /// walk does not keep descending through what the hitbox covers.
     ///
-    /// **It is CLAIMED rather than merely dropped**, and the two are different.
-    /// Returning `false` here would leave an event that landed on an element
-    /// which consumed the point being re-offered to the window's own fallback
-    /// handler as though nothing had taken it — half a swallow, the shape
-    /// ruling AP-I warns about for the portal's two halves. So the answer is
-    /// "this was consumed", and nothing scrolled.
+    /// **But the wheel passes a non-scrolling hitbox to its nearest enclosing
+    /// scroller** (ruling `DD-Y`, plan task 10 part 2 — **divergence 16
+    /// retired**): the nearest ancestor of its id that registered a scroll
+    /// region containing the point **on the same layer**
+    /// (`enclosingScroller(of:at:)`). Until then a click target inside a
+    /// `ScrollView` swallowed that scroller's wheel over its own rect, where a
+    /// browser scrolls (a wheel event bubbles up the DOM to the first
+    /// scrollable ancestor) — pinned as today's behaviour by
+    /// `aClickTargetInsideAScrollViewSwallowsTheWheel`, whose doc asked whoever
+    /// fixed it to invert it; it is now
+    /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`. A selectable
+    /// `List` — rows of click targets edge to edge — is what made it due. The
+    /// fix this doc once named (prefer the topmost scroller whenever its layer
+    /// is not lower, "no ancestor walk") is **narrowed by an ancestry test**:
+    /// by layer alone a click target merely *overlaid* on a scroller (a `Stack`
+    /// sibling) would pass the wheel to what it covers. **The two clauses** are
+    /// pinned apart: ancestry by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`,
+    /// the layer — a `Deferred` scrim hoisted to layer 1 while the scroller
+    /// that declared it paints on 0 — by
+    /// `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`. **A
+    /// single-line `TextField` is such a click target** (a pointer target
+    /// through `Handlers.textInput`), so its wheel reaches its scroller too — a
+    /// changed `TextField` answer (`DD-AC` item 3), pinned by
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`. The
+    /// multi-line editor's own branch stays first. SwiftUI's and AppKit's
+    /// answers are unmeasured (the probe's wheel control WH0 failed); a human
+    /// look is owed.
     ///
-    /// **What it costs, and something in production pays it now.** That
-    /// sentence read "nothing in production pays it yet" until `onClick`
-    /// landed: `StyledElement.onClick(_:)` registers this framework's first
-    /// non-scrolling production hitbox, opaque, so **a click target inside a
-    /// `ScrollView` swallows that scroller's wheel over its own rect** where a
-    /// browser would scroll (a wheel event bubbles up the DOM to the first
-    /// scrollable ancestor). Accepted, not fixed here, and pinned by
-    /// `aClickTargetInsideAScrollViewSwallowsTheWheel` so the cost is a
-    /// decision a reader can find. Opaque was not optional: a non-opaque click
-    /// target would stop a `Deferred` scrim swallowing clicks aimed at what it
-    /// covers, which is the sibling property of the wheel swallow this
-    /// milestone's exit criterion 4 is about.
-    ///
-    /// **The named fix, so whoever needs it is not starting from a mystery.**
-    /// A wheel should stop at an opaque hitbox only when that hitbox is on a
-    /// **higher layer** than the topmost *scroller* under the same point. That
-    /// distinguishes the two cases with no ancestor walk and no new field:
-    /// `Deferred` hoists a scrim to the root layer, so it outranks the scroller
-    /// it covers and rightly swallows; a button inside a `ScrollView` shares
-    /// its scroller's layer, so it would not. Concretely: find the topmost
-    /// opaque record as now, and — when it is not itself a scroller — look for
-    /// the topmost scroller under the same point and prefer it whenever its
-    /// layer is not lower. It is deliberately NOT implemented here, because
-    /// this method is the site of two shipped intermittent defects that only a
-    /// human found, and it does not get an unreviewed refinement bolted on in a
-    /// task about click handlers. Whoever makes the change inverts that test.
+    /// **It is CLAIMED rather than merely dropped**, whether or not anything
+    /// scrolled. Returning `false` here would leave an event that landed on an
+    /// element which consumed the point being re-offered to the window's own
+    /// fallback handler as though nothing had taken it — half a swallow, the
+    /// shape ruling AP-I warns about for the portal's two halves. Opaque was not
+    /// optional for a click target: a non-opaque one would stop a `Deferred`
+    /// scrim swallowing clicks aimed at what it covers.
     ///
     /// **The layer is what registration order cannot express, and it is the
     /// whole reason `PrepaintPass.deferred` hoists at all.** A `Deferred`
@@ -1168,9 +1230,53 @@ public final class Window {
             }
             return true
         }
-        // Opaque, and not a scroller: it consumed the point, so the event stops
-        // here rather than falling through to whatever it covers.
-        guard let axis = region.scroll else { return true }
+        // Opaque, and not a scroller (ruling `DD-Y`, divergence 16 retired):
+        // the wheel goes to the nearest ancestor scroller under the point on
+        // the same layer; with none it stops here, claimed, rather than falling
+        // through to whatever the hitbox covers.
+        guard region.scroll != nil else {
+            if let scroller = enclosingScroller(of: region, at: event.position) {
+                scroll(lastHitboxes[scroller], by: event)
+            }
+            return true
+        }
+        scroll(region, by: event)
+        return true
+    }
+
+    /// The index in `lastHitboxes` of the scroll region a wheel over the
+    /// non-scrolling hitbox `hit` passes to (ruling `DD-Y`): the **nearest
+    /// ancestor** of `hit.id` (by `GlobalElementID.parent`) that registered a
+    /// scroll region containing `point` **on `hit`'s layer**.
+    ///
+    /// **Ancestry** keeps a click target merely *overlaid* on a scroller (a
+    /// `Stack` sibling) stopping its wheel; **the layer** keeps a `Deferred`
+    /// scrim — hoisted to layer 1 while the scroller that declared it paints on
+    /// 0 — stopping it too. Pinned by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`
+    /// and `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`; the
+    /// rule itself by `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`
+    /// and, for a single-line `TextField` (a pointer target through
+    /// `Handlers.textInput`, `DD-AC` item 3), by
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`.
+    private func enclosingScroller(of hit: Hitbox, at point: Point<Pixels>) -> Int? {
+        let candidates = lastHitboxes.indices.filter {
+            let region = lastHitboxes[$0]
+            return region.scroll != nil && region.layer == hit.layer && region.bounds.contains(point)
+        }
+        guard !candidates.isEmpty else { return nil }
+        var ancestor = hit.id.parent
+        while let id = ancestor {
+            if let match = candidates.last(where: { lastHitboxes[$0].id == id }) { return match }
+            ancestor = id.parent
+        }
+        return nil
+    }
+
+    /// Moves `region`'s stored offset by the wheel's component on its axis.
+    /// See `applyScroll` for why the write is unbounded.
+    private func scroll(_ region: Hitbox, by event: ScrollEvent) {
+        guard let axis = region.scroll else { return }
         let componentDelta = axis == .horizontal ? event.delta.x : event.delta.y
         stateTable.withState(region.id, initial: ScrollState()) {
             // Natural scrolling: a positive scrollingDelta means content moves
@@ -1196,7 +1302,6 @@ public final class Window {
             // current.
             $0.lastScrollTime = event.timestamp
         }
-        return true
     }
 
     /// Updates `lastMousePosition` and `active` from a raw input event —
@@ -1278,25 +1383,18 @@ public final class Window {
     /// and falls through unchanged, which is every event in every window that
     /// has no `onClick` in it.
     ///
-    /// **Comparing by `GlobalElementID` inherits the vanishing-`if` adoption,
-    /// so a click here can run the WRONG element's handler.** Identity is
-    /// structural (CLAUDE.md's identity bullet): drop a conditional sibling
-    /// between the `mouseDown` and the `mouseUp` and the **trailing** sibling
-    /// takes over the vacated `.positional(_:)` — and slides into the vacated
-    /// screen position with it, so the same release point is now over it. The
-    /// guard above then passes on two different elements and runs the trailing
-    /// one's `onClick`. Measured, not reasoned; and it is that element's own
-    /// closure, because the handler rides on `Hitbox.handlers`, which the
-    /// rebuild replaced.
-    ///
-    /// **Emergent rather than a defect in this function, and the differential
-    /// is what says so**: naming the trailing sibling replaces its position,
-    /// nothing is adopted, and the identical release correctly clicks nothing —
-    /// with not one line here behaving differently. Fixing it would mean giving
-    /// dispatch a second notion of sameness that disagrees with the one
-    /// `StateTable`, focus and hover all share, which is a change to identity
-    /// and not to clicks. Both halves pinned by
-    /// `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`.
+    /// **Comparing by `GlobalElementID` — structural `==`, not `===` — is what
+    /// lets a press survive a rebuild.** Every frame mints new id objects, so a
+    /// release after a redraw finds its target only through `==` walking the
+    /// chain. Since plan task 8 (`ID-B`) a conditional sibling vanishing between
+    /// `mouseDown` and `mouseUp` moves no other element's id: a pressed element
+    /// that vanished clicks nothing, even when another element has slid under
+    /// the pointer, and a pressed element that survived clicks itself at its new
+    /// place. Until `ID-B` the trailing sibling took the vacated `.positional(_:)`
+    /// and the release ran ITS `onClick` — identity's behaviour, not this
+    /// function's, which is unchanged. Both arms pinned by
+    /// `aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing`,
+    /// whose second arm is what `hit.id === pressed` reddens.
     private func dispatchClick(_ event: InputEvent,
                                pressedBefore pressed: GlobalElementID?) -> Bool {
         guard case .mouseUp(let mouse) = event, let pressed else { return false }
@@ -1305,8 +1403,21 @@ public final class Window {
         }
         let hit = lastHitboxes[index]
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
-        handler()
+        runClick(handler, on: hit.id, modifiers: mouse.modifiers)
         return true
+    }
+
+    /// Runs a click handler — a mouse click's or an accessibility `.press`'s —
+    /// with `ClickDispatch` set for it, then honours the focus request it left
+    /// (ruling `DD-Z` item 9). The one place both click paths run a handler, so
+    /// the two cannot drift.
+    func runClick(_ handler: @MainActor () -> Void, on id: GlobalElementID, modifiers: Modifiers) {
+        let request = ClickDispatch.running(modifiers: modifiers) {
+            // The clicked element owns the dispatch, so an aliased `@State` box
+            // writes this occurrence (ruling ID-F, `StateDispatch`).
+            StateDispatch.dispatching(to: id) { handler() }
+        }
+        if let request { focus(request) }
     }
 
     /// Dispatches a key event from the focused element **outward through its
@@ -1417,7 +1528,7 @@ public final class Window {
     private func applyEdit(_ id: GlobalElementID, _ target: TextInputTarget, _ text: String) {
         guard text != currentText(id, target) else { return }
         editedText[id] = text
-        target.onChange(text)
+        StateDispatch.dispatching(to: id) { target.onChange(text) }   // ID-F: the edited field
     }
 
     /// After each frame: text input is on exactly while a field is focused,
@@ -1437,6 +1548,30 @@ public final class Window {
 
     private func setEditState(_ id: GlobalElementID, _ state: TextEditState) {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
+    }
+
+    /// A slider's pointer events (ruling `DD-W` item 5); see the call site.
+    /// The press resolves against `lastHitboxes` exactly as `mouseDown` does,
+    /// and the drag follows the id `active` holds — the one the press made
+    /// active — wherever the pointer goes, as a field's drag does.
+    private func dispatchValueTrack(_ event: InputEvent) -> Bool {
+        switch event {
+        case .mouseDown(let mouse):
+            guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
+                  let track = lastHitboxes[index].handlers.valueTrack else { return false }
+            StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
+                track.track(toWindowX: Double(mouse.position.x.value))
+            }
+            return true
+        case .mouseDragged(let mouse):
+            guard let id = active,
+                  let track = lastHitboxes.last(where: { $0.id == id && $0.handlers.valueTrack != nil })?
+                      .handlers.valueTrack else { return false }
+            StateDispatch.dispatching(to: id) { track.track(toWindowX: Double(mouse.position.x.value)) }
+            return true
+        default:
+            return false
+        }
     }
 
     /// Pointer and text events for fields; see the call site.
@@ -1524,7 +1659,7 @@ public final class Window {
         if let text = outcome.text { applyEdit(id, target, text) }
         if outcome.submitted {
             guard let onSubmit = target.onSubmit else { return false }
-            onSubmit()
+            StateDispatch.dispatching(to: id) { onSubmit() }   // ID-F: the submitting field
         }
         return true
     }

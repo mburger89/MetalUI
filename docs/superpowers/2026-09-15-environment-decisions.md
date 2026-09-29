@@ -6,7 +6,7 @@ scoped environment values, add a disabled control state, and clear the keymap's
 `Binding` name for task 10.
 
 Prefixed **`EV-`** and **lettered** (`EV-A`, `EV-B`, …). **A bare `EV-3` is a
-typo, not a citation.** The next unused letter is `EV-AA`.
+typo, not a citation.** The next unused letter is `EV-AG`.
 
 Read alongside:
 
@@ -21,6 +21,9 @@ Read alongside:
   - `docs/probes/swiftui-environment-api-shape.swift` (compile-only);
   - `docs/probes/swiftui-disabled-ancestor-and-order.swift` (arms N, O);
   - `docs/probes/swiftui-environment-pixel-length.swift` (arms V, X).
+- Task 9's closing rulings, `EV-AA`…`EV-AE`, and the critic pass on them,
+  `EV-AF` (2026-09-25, at the end of this file): `docs/superpowers/specs/2026-09-25-environment-control-state-design.md`
+  and `docs/probes/swiftui-environment-control-state.swift` (arms V, S, C, Z).
 
 ## How to read the letters
 
@@ -45,6 +48,10 @@ applies or rejects each. The rulings below are already amended.
 - **`EV-S`** — what a SwiftUI claim in this track may and may not rest on.
 - **`EV-W`** — collisions with the two parallel tracks, and how each is kept
   loud.
+- **`EV-AA`…`EV-AE`** — task 9's closing half (2026-09-25): `displayScale`,
+  `controlActiveState`, `controlSize`, the rounding divergence, and the
+  `EV-Q` disposition. **`EV-AF`** — the critic pass on them, applied and
+  rejected findings.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces that line with the mutations it ran and the
@@ -2014,3 +2021,394 @@ written and run in this pass (record 11, "Third design pass").
 | 10 | `$disabled` is a new reserved id suffix with no distinctness pin | **Applied by removal.** Finding 1's fix registers no hitbox, so no derived id is minted and no suffix is reserved; the CLAUDE.md reserved-name sentence is withdrawn from the owed list. `theSevenRetentionSlotsAreMutuallyDistinct` needs no extension from this track |
 | 11 | An internal `rootEnvironment` write during render silently discards open scopes | **Applied** (`EV-Z`): an `isRendering` precondition in the setter, pinned by a `.failure` exit test with one arm per phase and a `.success` exit test that writes before and between renders of a scoped tree |
 
+
+---
+
+## Task 9 closing rulings (2026-09-25, `feat/environment-control-state` from `e732d98`)
+
+The unfinished half of plan task 9: "control state" apart from the enabled
+state, and "scale". Spec
+`docs/superpowers/specs/2026-09-25-environment-control-state-design.md` (three
+lanes, every test and mutation); record `docs/record/56-environment-control-state.md`.
+Evidence: `docs/probes/swiftui-environment-control-state.swift` (arms V, S, C,
+Z; macOS 27.0, one 2x display, **screen locked**; compiled and interpreted
+output byte-identical), and a re-run of `swiftui-environment-pixel-length.swift`
+whose V and X lines are byte-identical to its 2026-09-15 header. Every ruling
+below ends with a Mutations line **owed by** the lane the spec names.
+
+## EV-AA — `displayScale` is exposed and writable; `pixelLength` is derived from it; divergence 24 retires
+
+**What.** `EnvironmentValues.displayScale: Double` is `public var`, 1 in a bare
+value. `pixelLength` becomes a get-only computed property,
+`displayScale == 0 ? 1 : 1 / displayScale`. `Frame` stamps the root's
+`displayScale` from its `scaleFactor` — the drawable's, from
+`WindowRenderer.beginFrame()` — in `init` and in the `rootEnvironment` setter,
+using the existing "1 unless finite and positive" guard (moved from
+`pixelLength`). `Frame.scopedValues` **no longer** re-stamps anything but
+`theme`: a scope may write `displayScale`, and a `\.self` reset resets it to 1
+and `pixelLength` with it. `Window.environment.displayScale` is not the root's
+source (the frame re-stamps it), as `theme` is not. No new `PlatformWindow`
+requirement: a backing-scale change already fires `onResize` on AppKit
+(`viewDidChangeBackingProperties` → `syncSurfaceGeometry`) and on SDL
+(`DISPLAY_SCALE_CHANGED`/`PIXEL_SIZE_CHANGED` → `MUI_EVENT_RESIZE`), which
+dirties the window, and the next frame is built at the new drawable's scale.
+**On SDL the drawable's scale is `SDL_GetWindowPixelDensity`, not SDL's
+content (display) scale** (amended by `EV-AF`): at 150% on Windows or X11 a
+window is typically density 1, so `displayScale` reads 1 — what MetalUI
+draws at, since it does not follow the system UI scale there at all. Owner of
+that: plan task 14. Both pre-existing scale paths were unpinned at `e732d98`;
+the spec's T2.3 (SDL `translate`) and T2.6 (AppKit
+`viewDidChangeBackingProperties`) pin them.
+
+**Why.**
+
+- S0 and S1: SwiftUI's value is the **host's rendering scale** — a hosted
+  view reads `backingScaleFactor`, an `ImageRenderer`'s content reads the
+  renderer's scale, and changing that scale re-evaluates the content with the
+  new value on the next render. MetalUI's equivalent of "the host's rendering
+  scale" is the frame's `scaleFactor`, which is exactly what `PaintPass.fill`
+  multiplies by; stamping from it keeps number and drawing in step for any
+  unscoped reader, and `renderFrame(scaleFactor:)` is the `ImageRenderer`
+  analogue.
+- S2, X1: a scope can write it and `pixelLength` follows. X2: a `\.self` reset
+  reads 1 and 1. V1: the derivation is `1 / displayScale` with a 0 case, and
+  SwiftUI rejects no write (so neither do we, `SA-K`'s rule: nothing internal
+  reads `pixelLength`, so no stored rect can go non-finite through it).
+- **S3 refutes the reason `EV-J` and `EV-U` gave for withholding it.** Both
+  said a writable scale would, here, "change only the number" while `PaintPass`
+  kept scaling by the device, and implied SwiftUI's write changes the scale
+  rendering uses. Measured: at renderer scale 2 a `pixelLength`-wide hairline
+  is 1 device pixel with no write and **2** under `displayScale = 1`. SwiftUI's
+  write changes the number and not the drawing scale — MetalUI's behaviour
+  under this ruling. The double-scaling hazard `PaintPass`'s doc names
+  (pre-scaling by a scale that `fill` applies again) is SwiftUI's too, with the
+  same API; the doc is amended to say so, and `pass.frame` stays unreachable.
+
+**Divergence 24 retires**: every clause of it (no `displayScale`; no scope
+changes `pixelLength`; a `\.self` reset keeps it) becomes aligned. The label
+joins the retired list.
+
+**The retained test that changes its answer.** E19,
+`aWholeValueWriteCannotResetTheThemeOrThePixelLength`, is renamed
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`: its theme half stands
+(`theme` is MetalUI's own key, `EV-U`'s first half), its `pixelLength == 0.5`
+half becomes `displayScale == 1` and `pixelLength == 1`. `EV-J`'s "Cost if
+wrong" named this flip in advance. Record §56 carries the rename row.
+
+**Superseded text.** `EV-J`'s "`displayScale` is NOT exposed" and its "Why no
+`displayScale`" paragraph; `EV-U`'s `pixelLength` half and its "In SwiftUI the
+reset changes the scale rendering uses as well" sentence (refuted by S3);
+`EV-Q`'s `displayScale` row. They stay in place as history; this ruling is the
+current one.
+
+**Rejected: read-only `displayScale`, re-stamped like `pixelLength` today.** It
+would expose the number and keep divergence 24's two behavioural clauses — the
+design would diverge from X1/X2/S2 for a hazard S3 shows SwiftUI shares.
+
+**Cost if wrong.** An author who writes `displayScale` expecting a subtree to
+be *drawn* at another scale gets only the number, as in SwiftUI (S3). If a
+later SwiftUI changes S3's answer, T1.4 is the pin that faces it.
+
+**Mutations:** lane 1 **ran** its set at `1f5c221` (each committed first,
+restored from a copy, full unfiltered suite of 1498, `git status --short` clean
+after each; record §56 carries the issue counts):
+M1.1 (`Frame.displayScale(forScaleFactor:)` returns 1 for every usable scale —
+applied to the shared helper, so both the `init` and the `rootEnvironment`
+stamp) reddened `theRootDisplayScaleIsTheFramesScaleFactorAndThePixelLengthFollows`,
+`aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows`,
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses`,
+`theFramesRootEnvironmentCarriesItsThemeAndScale` and
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (14 issues);
+M1.2 (`scopedValues` re-stamps `displayScale` after a transform) reddened
+`aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows`,
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses` and
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (9);
+M1.3a (`1 / displayScale`, no 0 case) and M1.3b (`displayScale <= 0 ? 1 : …`)
+each reddened `aPixelLengthIsSwiftUIsFunctionOfTheDisplayScale` alone (1 each);
+M1.4 (`Frame.fill`'s `bounds` scaled by `environmentTop.displayScale`; mask,
+radii and borders left on `scaleFactor`) reddened
+`aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses` and
+`layoutRoundsToWholePointsWhateverTheDisplayScale` (2);
+M1.9 (the `rootEnvironment` setter stops re-stamping `displayScale`) reddened
+`theFramesRootEnvironmentCarriesItsThemeAndScale` alone (2);
+M1.10 (`scopedValues` stops re-stamping `theme`) reddened
+`aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` alone (2);
+MG1 (`displayScale` internal) reddened `environmentValuesAreReadableInEveryPhase`
+and `theEnvironmentsPublicWritersCompileFromOutsideTheModule`;
+MG3 (`pixelLength` given a public setter) reddened
+`pixelLengthIsNotWritableFromOutsideButAWholeValueWriteCompiles` alone — so the
+negative half's message still names `WritableKeyPath` for a computed get-only
+property, as the spec asked lane 1 to verify;
+MG6a (`public internal(set) var displayScale`) reddened
+`theEnvironmentsPublicWritersCompileFromOutsideTheModule` alone (G1+ green: the
+pair separates read from write).
+Lane 2 **ran** the scale paths at `8418d43` (each committed first, restored
+from a copy, `git status --short` clean after each): M2.7 (`translate` drops
+the `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` case) reddened
+`aScaleOrPixelSizeChangeReachesOnResize` alone (2 issues; the whole
+`Backends/SDL` suite, 21 + 22); M2.12 (`MetalHostView.viewDidChangeBackingProperties`
+stops calling `onGeometryChange`) reddened `aBackingPropertiesChangeReachesOnResize`
+alone (1 issue; the full unfiltered root suite of 1501). Lane 3 **ran** its
+two at `d860bdb` (committed first, restored from a copy, full unfiltered root
+suite of 1506, `git status --short` clean after each): M3.5 (`Window`'s
+`onResize` closure does nothing) reddened
+`aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame` (3 issues) and the
+two pre-existing resize tests, `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize`
+and `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` (4 each) — 11;
+M3.6 (`Frame(scaleFactor: platformWindow.scaleFactor)` in place of the
+drawable's) reddened `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`
+alone (2: the separating arm's two lines).
+
+## EV-AB — `controlActiveState` comes from the platform window, through a new `PlatformWindow` pair; a scope can write it
+
+**What.** `ControlActiveState` (`key`, `active`, `inactive`) lives in
+`MetalUICore`. `EnvironmentValues.controlActiveState` is `public var`, `.key`
+in a bare value — so a windowless `Frame` and `renderFrame` read `.key`.
+`PlatformWindow` gains `var controlActiveState: ControlActiveState { get }` and
+`var onControlActiveStateChange: ((ControlActiveState) -> Void)? { get set }`,
+**with no default implementation**. `Window` holds `public private(set) var
+controlActiveState`, read from the platform at construction, set by the
+callback, `didSet` guarded by `!=` and then `setNeedsRedraw()`, and stamped over
+`Window.environment` into the root at draw. Scopes may write it; nothing
+re-stamps it after a scoped write.
+
+**Mapping — MetalUI's choice, not a SwiftUI claim (`EV-S`).** AppKit:
+`isKeyWindow` → `.key`, else `NSApp.isActive` → `.active`, else `.inactive`,
+re-read on `NSWindow.didBecomeKey`/`didResignKey` and on
+`NSApplication.didBecomeActive`/`didResignActive`, the callback fired only on a
+change. (Amended by `EV-AF`: the getter is a live read; the notifications are
+observed explicitly, selector-based, on an internal injectable
+`NotificationCenter` defaulting to `.default` — not through `NSWindowDelegate`
+methods; the last-reported value used for de-duplication is updated on every
+re-read whether or not a callback is set.) SDL: this window has keyboard focus → `.key`; another window of the same
+`SDLPlatform` has it → `.active`; none → `.inactive`, tracked from
+`SDL_EVENT_WINDOW_FOCUS_GAINED`/`LOST` (two `MUI_EVENT_*` kinds appended, none
+renumbered). (Amended by `EV-AF`: the getter reads a platform-owned
+`focusedID`, not `SDL_GetWindowFlags`, which a pushed event does not update;
+`GAINED` for an unowned id is ignored, a closed window's focus is forgotten,
+and states are recomputed and callbacks fired once after `pumpEvents()`
+drains, so a switch between two own windows reports no transient `.inactive`.)
+
+**Why.**
+
+- C0: in an inactive app a hosted SwiftUI reader reads `inactive` while a bare
+  value holds `key` (V0), so SwiftUI's host stamps the value from window/app
+  state — a platform seam, not a constant. C4: a scope write is read below it.
+- **A requirement pair, not a default**, for `AB-R`'s reason: a default of
+  `.key` would be a lie for every window of an inactive app, and a conformer
+  that forgot the pair would compile into a window whose readers never learn.
+  The pair mirrors `appearance`/`onAppearanceChange` (a live getter plus a
+  callback carrying the value).
+- **The window's guarded copy, not `Window.environment`**: that property
+  dirties on every write, a no-op included (`EV-H`), and a platform reports
+  many activations that change nothing for a window. The enum is `Equatable`,
+  so the copy can guard, as `theme` does.
+
+**What the probe could not tell.** C1–C3 and C5 did not run: the screen was
+locked, the app never became active and no window — a non-activating panel
+included — became key, so C1's control (`key`) never moved. SwiftUI's mapping
+of key/main/app-active onto the three cases, and when a reader sees a key
+change, are **unmeasured**. The lanes re-run the C arms when the lock probe
+reads unlocked, and if SwiftUI's mapping differs, amend this ruling and T3.5 to
+the measured one.
+
+**No built-in consumer.** MetalUI's controls do not change in an inactive
+window. SwiftUI's look there is unprobed; owner plan task 12, with the disabled
+look (`EV-Q`). An inert row owed to the Record phase.
+
+**Cost if wrong.** A reader sees `.active` or `.inactive` where SwiftUI would
+say otherwise in some window arrangement; no built-in element reads it, so no
+pixel moves. A new `PlatformWindow` conformer outside this repo stops compiling
+until it implements the pair — the point of having no default.
+
+**Mutations:** lane 1 **ran** M1.8 at `1f5c221` (the bare default
+`.inactive`): reddened
+`controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt`
+alone (3 issues). Lane 2 **ran** M2.1–M2.12 at `8418d43` (each committed
+first, restored from a copy, `git status --short` clean after each; SDL
+mutations against the whole `Backends/SDL` suite, 21 + 22 tests; AppKit ones
+against the full unfiltered root suite, 1501): M2.1 (another window focused
+maps to `.inactive`) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` and
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` (5
+issues — the second through its `.active` `#require`); M2.2 (`FOCUS_LOST`
+ignored) reddened `focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive`
+alone (4); M2.3 (the callback without the change guard) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` and
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` (3) —
+**at `e42dfdc` it reddened only the second (1 issue)**: every pump of T2.1
+changed both windows, so an unguarded callback wrote the same logs; T2.1
+gained an idle pump before its log check (`8418d43`) and the spec's claim
+now holds; M2.4 (`GAINED` without the ownership check) reddened
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` alone
+(3); M2.5 (recompute after every event, not after the drain) reddened
+`focusEventsMakeAWindowKeyItsSiblingActiveAndNeitherInactive` alone (2: A's
+log gains the transient `inactive`); M2.6 (closing does not clear
+`focusedID`) reddened
+`focusTrackingIgnoresWindowsThePlatformDoesNotOwnAndForgetsAClosedOne` alone
+(1); M2.8 (both application-activation observers removed) reddened
+`theAppKitWindowReportsKeyChangesThroughItsCallback` alone (3: the
+`.inactive` arm, the repeat arm and the final log); M2.9 (the change guard
+dropped) the same test alone (2: the repeat arm and the final log); M2.10
+(`notificationCenter` defaults to a fresh `NotificationCenter()`) the same
+test alone (1: the wiring arm); M2.11 (application activity checked first,
+`!isApplicationActive → .inactive`) reddened
+`theAppKitMappingPutsKeyBeforeActiveBeforeInactive` alone (1: the key
+non-activating-panel row). M2.7 and M2.12 are under `EV-AA`. Lane 3 **ran**
+M3.1–M3.4, MG7 and MG8 at `d860bdb` (each committed first, restored from a
+copy, full unfiltered root suite of 1506, `git status --short` clean after
+each; M3.5 and M3.6 are under `EV-AA`): M3.1 (`Window.init` does not assign
+`onControlActiveStateChange`) reddened
+`theWindowStampsItsPlatformsControlActiveStateAndAChangeRepaints` alone (5);
+M3.2 (the stamp line omitted at draw) reddened that test (2) and
+`aScopeWriteOfControlActiveStateWinsBelowItAndTheWindowsEnvironmentDoesNot`
+(2); M3.3 (`controlActiveState`'s `didSet` without its `!=` guard) reddened
+the first alone (1: the no-op arm); M3.4 (the stamp applied to the frame's
+root **before** `frame.rootEnvironment = environment`, so `Window.environment`
+lands over it) reddened the same two tests on the same four lines as M3.2 —
+because `Window.environment.controlActiveState` holds the bare `.key` and the
+fake starts `.inactive`, the first arm of each already sees `Window.environment`
+win; T3.2's `Window.environment` write arm (its last root read) is among the
+four, as the spec named; MG7 (a protocol-extension default for both
+requirements) reddened `aPlatformWindowWithoutTheControlActiveStatePairDoesNotCompile`
+alone (1: the negative compiled); MG8 (`public var controlActiveState` on
+`Window`) reddened `theWindowsControlActiveStateIsReadableButNotSettableOutsideTheModule`
+alone (1: the write compiled).
+
+## EV-AC — `controlSize` is carried with SwiftUI's five sizes and no built-in reader (divergence 76)
+
+**What.** `ControlSize` (`mini`, `small`, `regular`, `large`, `extraLarge`) in
+`MetalUI`; `EnvironmentValues.controlSize`, `.regular` in a bare value;
+`.controlSize(_:)` on `ElementGroup`, returning an `EnvironmentScope` like
+`.dynamicTypeSize(_:)`. No built-in element reads it.
+
+**Why carried.** V0 and Z0: default `regular`; Z1: both spellings write it and
+the nearest writer wins — MetalUI's scope mechanism as it stands.
+
+**Why no reader: divergence 76, pinned wrong on purpose.** SwiftUI's built-ins
+**do** read it on macOS: a `Text`'s default font shrinks under `.mini` and
+`.small` (Z2: 53×11 and 63×14 against 72×16; an explicit font does not, Z2e/f),
+a `TextField` is 19/21/24 pt tall and a `Button` 30×13…55×36 across the sizes
+(Z3). Aligning is not cheap here: `Text` stores `fontSize = 13` with no
+"default font" state (`Text.swift:81`), so following Z2's default-only rule
+needs a change to the text model, and `TextField`/`TextEditor` take their
+height from their font. That is text and control work, not environment work.
+Owners: **plan task 11** for `Text`'s default font ("font metrics … dynamic
+type response"); **plan task 10** for `TextField` and the common controls.
+`controlSizeReachesNoBuiltInMeasurement` (T1.7) is the pin those changes flip.
+
+**Label 75 is skipped.** Record §04's task 8 closeout says "label 75 stays
+unused" and tells a reader looking for 75 that the row was closed, not
+numbered; giving 75 a different meaning now would make that note wrong.
+
+**Cost if wrong.** A port of SwiftUI code that shrinks a toolbar with
+`.controlSize(.small)` lays out at regular size here. The pin names where.
+
+**Mutations:** lane 1 **ran** these at `1f5c221`: M1.6 (`.controlSize(_:)`
+writes `.regular`) reddened `controlSizeIsScopedByTheNearestWriter` alone (2
+issues); M1.7 (the lowered `Text` resolves its font at `fontSize * 0.7` under
+`.mini`, in `Text.requestLayout`) reddened
+`controlSizeReachesNoBuiltInMeasurement` alone (2); **M1.7b**, added by lane 1
+because M1.7 leaves the pin's `TextField` arm unmutated (the same shrink in
+`TextField.requestLayout`), reddened `controlSizeReachesNoBuiltInMeasurement`
+alone (1); MG6b (`.controlSize(_:)` internal) reddened
+`theEnvironmentsPublicWritersCompileFromOutsideTheModule` alone (1).
+
+## EV-AD — layout rounds to whole points, not to the `displayScale` pixel grid (divergence 77, found by S4)
+
+**What.** No change. Recorded as divergence 77 and pinned wrong on purpose by
+`layoutRoundsToWholePointsWhateverTheDisplayScale` (T1.5).
+
+**Why a divergence.** S4: SwiftUI rounds each view's absolute position to the
+`displayScale` pixel grid, and a scoped write changes the grid (62.65 → 63 /
+62.5 / 62.667 at 1 / 2 / 3). MetalUI's `roundLayout` rounds every stored rect
+to whole points at every scale (`Rounding.swift`), so a `displayScale` write
+changes no MetalUI layout, and at 2x MetalUI's grid is twice as coarse as
+SwiftUI's.
+
+**Why not here.** Rounding to device pixels moves every fractional layout's
+pixels: the fourteen demo images, `Expected.swift`'s pinned frame (Linux and
+Windows CI re-confirm it), and every test with a derived fractional literal.
+That is a rendering-semantics change with its own blast radius. Owner: **plan
+task 11** (rendering-facing semantics).
+
+**Cost if wrong.** Content at 2x sits up to half a point from where SwiftUI
+places it; an author who writes `displayScale` to change snapping sees no
+change. T1.5 flips in the change that implements this.
+
+**Mutations:** lane 1 **ran** M1.5 at `1f5c221` (`roundLayout` rounds all
+four edges to half points, `(v * 2).rounded() / 2`): 68 issues in 27 tests,
+`layoutRoundsToWholePointsWhateverTheDisplayScale` among them and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` another; the full list, grouped
+by file, is record §56's.
+
+## EV-AE — plan task 9 closes; which `EV-Q` items move and which stay
+
+**What.** With `EV-AA` (scale) and `EV-AB`/`EV-AC` (control state), both
+clauses of the progress note land, and the plan's task 9 box is ticked in the
+Record phase — not before every lane is verified.
+
+`EV-Q`'s rows:
+
+| row | disposition |
+|---|---|
+| `displayScale`, and a `pixelLength` a scope can change | **done** (`EV-AA`) |
+| `controlActiveState`, `controlSize` | **values done** (`EV-AB`, `EV-AC`); the consumers stay: an inactive-window look with **task 12**, `Text`'s default font with **task 11**, `TextField`/controls with **task 10** (divergence 76) |
+| Following the system's layout direction and locale, and locale changes while running | **stays**, task 14. The new pair is the precedent such a requirement would follow |
+| A consumer for `locale` | stays, none named |
+| Every other row | unchanged |
+
+**Items addressed to "task 9" in other decisions docs.** The accessibility
+bridge's doc and spec were written when the interaction work was numbered
+task 9. **Corrected by `EV-AF`** (the first wording sent all of them to task
+10): the plan's current task 12 is "gesture composition, button semantics,
+disabled behaviour, keyboard focus, pointer hit testing and content shapes",
+so **button semantics, the non-button click absorber (the panel), `AB-H`'s
+`allowsHitTesting(false)` press question (divergence 28),
+`accessibilityElement(children:)`, disabled behaviour and content shapes go to
+task 12**; only a `Button` *control's existence* is task 10's ("common
+controls"). None is delivered here. The Record phase re-points those notes
+(`AB-` doc lines naming "task 9"; the bridge spec's header) accordingly.
+
+**Cost if wrong.** If a reviewer reads "control state" as including the
+consumers, the box is ticked early; the progress note and this table say
+exactly which half landed.
+
+**Mutations:** none (a disposition, no behaviour).
+
+## EV-AF — critic pass on `EV-AA`…`EV-AE` and the spec (applied and rejected findings)
+
+**What.** One critic-and-revise pass over `a4a7f03` (spec, `EV-AA`…`EV-AE`,
+probe). The probe was re-run compiled (`/usr/bin/swiftc`, then
+`OS_ACTIVITY_DT_MODE=1`, the header's filter) on the same machine: **all 49
+filtered lines byte-identical to the header**, V, S, C and Z alike; the lock
+probe still read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, so
+C1–C3/C5 still did not run and `EV-AB`'s mapping remains MetalUI's choice.
+Rejections are recorded here, under this track's own prefix, rather than as
+`LR-` rulings: `LR-` is the engine-replacement track's doc, which this track
+does not own.
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | `EV-AE` sent every accessibility-bridge "task 9" item to task 10. The plan's task 12 text is "gesture composition, button semantics, disabled behaviour, keyboard focus, pointer hit testing and content shapes" | **Applied**: `EV-AE` corrected in place — button semantics, the panel's non-button click absorber, `AB-H`'s press question (divergence 28), `accessibilityElement(children:)`, disabled behaviour and content shapes → task 12; a `Button` control's existence → task 10. None is pulled into task 9 |
+| 2 | The AppKit window was to re-read key state from `NSWindowDelegate` methods while T3.4 **posted notifications** — a test path that holds only because AppKit auto-registers a delegate, and posting `NSApplication.didResignActiveNotification` on the default center reaches AppKit's own observers in the shared test process | **Applied**: explicit selector-based observers on an internal injectable `NotificationCenter` (default `.default`); application notifications posted only on a private center; one production-wiring arm posts only a window-scoped notification on the default center (M2.10) |
+| 3 | The AppKit de-duplication value was unspecified across `openWindow`'s `makeKeyAndOrderFront`, which can report before `Window` assigns the callback | **Applied**: the getter is a live read; the last-reported value updates on every re-read, callback or not; `Window`'s `!=` guard absorbs a duplicate |
+| 4 | SDL: an `SDL_PushEvent`ed focus event does not update `SDL_GetWindowFlags`, so a getter reading flags would make T2.1 unreachable; and per-event recomputation reports a transient `.inactive` to the window losing focus in a switch between two own windows | **Applied**: the getter reads a platform-owned `focusedID`; states recomputed and callbacks fired once after `pumpEvents()` drains; T2.1 pins the exact logs; **M2.5** (per-event recompute) must redden it |
+| 5 | T2.2 said "if no honest spelling reddens it, delete the test" — a deferral that could delete the only ownership pin | **Applied**: §4 spells the recompute (`focusedID == id ? .key : (focusedID != nil ? .active : .inactive)`), under which M2.4 is red by construction; the test gains a closed-window arm (M2.6) |
+| 6 | Both pre-existing scale paths — AppKit's `viewDidChangeBackingProperties` → `onGeometryChange`, SDL's `DISPLAY_SCALE_CHANGED`/`PIXEL_SIZE_CHANGED` → `MUI_EVENT_RESIZE` — are pinned by nothing at `e732d98`; either could go and leave `displayScale` stale after a display move with the suite green. T3.3 exercises only the fake | **Applied**: T2.3 (a test-only raw-event push helper) and T2.6; mutations M2.7, M2.12 |
+| 7 | SDL's drawable scale is the **pixel density**, not SDL's content scale; at 150% on Windows/X11 `displayScale` reads 1 | **Applied as a named platform limit**, not a change: the value reports what is drawn (S1's rule); following the system UI scale is plan task 14's (`EV-AA` amended) |
+| 8 | Lane 3 carried the protocol, `Window`, the fakes **and** the AppKit conformer and its tests | **Applied**: the AppKit conformer and its three tests move to lane 2 (disjoint files; both real conformers gain the pair before lane 3 requires it). Counts: lane 2 +3 root tests, lane 3 +3 tests +2 guards, total **1506 tests, 90 guards** (was 1505: T2.6 added) |
+| 9 | "The platform tests' AppKit window count is unchanged" was false (T3.4 opens a window) | **Applied**: the spec states three new AppKit windows (T2.4 two, T2.6 one), each `isReleasedWhenClosed = false`, and an unfiltered run |
+| 10 | The Windows 1 MB stack budget: `EnvironmentValues` is copied on the scope stack and changes shape | **Applied as a measurement**: lane 1 records `MemoryLayout<EnvironmentValues>.size`/`.stride` before and after in §56; `everyProductionTreeBuildsOnAOneMegabyteThread` stays the gate (Windows CI on push) |
+| 11 | `pixelLength` stored → computed is a public API break | **Rejected**: outside the module it was get-only (`public internal(set)`) and stays get-only; every spelling an external caller could write still compiles (G3 re-verifies its message). The only change is ABI/stored layout across modules, which the spec's `swift package clean` already covers |
+| 12 | Built-in `Text` should follow `controlSize` now, since Z2 measured it | **Rejected**: `Text.init` stores `fontSize = 13` with no default-font state (`Text.swift:81`, re-read), so Z2's default-only rule needs a text-model change; `EV-AC`'s owners (tasks 11, 10) stand |
+| 13 | Reuse divergence label 75 instead of skipping to 76 | **Rejected**: record §04's closeout says "label 75 stays unused"; `EV-AC`'s reason stands |
+| 14 | M1.5 (`roundLayout` to half points) reddens a large set, so its named list is unwieldy | **Rejected as a defect**: no mutation that makes layout follow `displayScale` exists without plumbing the scale into `MetalUILayout`; the spec now says every reddened name goes to §56 grouped by file |
+| 15 | `EV-AB` rests on unrun arms | **Rejected as stated**: the seam rests on C0 (host-stamped, bare `key` vs hosted `inactive` — a separating pair) and C4; only the mapping is unmeasured, ruled as MetalUI's choice with the C arms owed on an unlocked screen, and the `(false, false)` row agrees with C0 |
+| 16 | Scope creep into task 12 | **None found**: no focus, hit-testing, key-routing or look change; `controlActiveState` has no built-in consumer |
+
+**Cost if wrong.** Finding 4's coalescing hides a real two-pump transient
+from a reader; nothing reads it and it costs one redraw. Finding 2's injected
+center could drift from production; M2.10 is the pin.
+
+**Mutations:** none of its own; the applied findings add M2.5–M2.12 to lane 2.

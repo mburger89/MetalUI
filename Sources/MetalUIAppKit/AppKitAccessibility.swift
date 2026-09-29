@@ -335,7 +335,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
 
     override func accessibilityRole() -> NSAccessibility.Role? { mainActorAnswer(self, fallback: nil) { $0.role } }
     override func accessibilityLabel() -> String? { mainActorAnswer(self, fallback: nil) { $0.node.label } }
-    override func accessibilityValue() -> Any? { mainActorAnswer(self, fallback: nil) { $0.node.value } }
+    override func accessibilityValue() -> Any? { mainActorAnswer(self, fallback: nil) { $0.value } }
     override func isAccessibilityElement() -> Bool { true }
     override func isAccessibilityEnabled() -> Bool { mainActorAnswer(self, fallback: false) { $0.node.isEnabled } }
     override func isAccessibilitySelected() -> Bool { mainActorAnswer(self, fallback: false) { $0.node.isSelected } }
@@ -378,6 +378,27 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .row: .row
         case .textField: .textField
         case .textArea: .textArea
+        case .checkBox: .checkBox
+        case .radioButton: .radioButton
+        case .radioGroup: .radioGroup
+        case .slider: .slider
+        case .incrementor: .incrementor
+        }
+    }
+
+    /// The node's value — **an `NSNumber` for a check box, radio button,
+    /// slider or incrementor whose string parses as a number** (ruling `DD-U`
+    /// item 1: SwiftUI's values there are numbers, TA0 0/1, SA0 5, STA0 1), the
+    /// string otherwise.
+    private var value: Any? {
+        let node = node
+        guard let string = node.value else { return nil }
+        switch node.role {
+        case .checkBox, .radioButton, .slider, .incrementor:
+            if let number = Double(string) { return NSNumber(value: number) }
+            return string
+        default:
+            return string
         }
     }
 

@@ -6,7 +6,11 @@ import MetalUIPlatform
 /// the window's physical pixels. A plain value — the adapter turns it into an
 /// `accesskit_tree_update`, on whatever thread AccessKit asks from.
 public struct AccessKitSnapshot: Equatable, Sendable {
-    public enum Role: Equatable, Sendable { case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput }
+    public enum Role: Equatable, Sendable {
+        case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput
+        /// The five control roles (ruling `DD-U` item 1).
+        case checkBox, radioButton, radioGroup, slider, spinButton
+    }
     public enum Action: Equatable, Hashable, Sendable { case click, focus, increment, decrement }
 
     public struct Node: Equatable, Sendable {
@@ -20,12 +24,19 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         public var actions: Set<Action>
         public var isDisabled: Bool
         public var isSelected: Bool
+        /// A check box's or radio button's state, from its `"1"`/`"0"` value
+        /// (`DD-U` item 1); `nil` for every other role.
+        public var toggled: Bool? = nil
+        /// A slider's or stepper's value as a number, when it parses (`DD-U`
+        /// item 1); `nil` otherwise.
+        public var numericValue: Double? = nil
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
                 && a.bounds.map { [$0.0, $0.1, $0.2, $0.3] } == b.bounds.map { [$0.0, $0.1, $0.2, $0.3] }
                 && a.children == b.children && a.actions == b.actions
                 && a.isDisabled == b.isDisabled && a.isSelected == b.isSelected
+                && a.toggled == b.toggled && a.numericValue == b.numericValue
         }
     }
 
@@ -98,7 +109,8 @@ extension AccessKitSnapshot {
                     return (x, y, x + Double(f.size.width.value) * scale, y + Double(f.size.height.value) * scale)
                 },
                 children: node.children.map(ids.number(for:)), actions: actions,
-                isDisabled: !node.isEnabled, isSelected: node.isSelected))
+                isDisabled: !node.isEnabled, isSelected: node.isSelected,
+                toggled: toggled(node), numericValue: numericValue(node)))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -115,7 +127,30 @@ extension AccessKitSnapshot {
         case .row: .row
         case .textField: .textInput
         case .textArea: .multilineTextInput
+        case .checkBox: .checkBox
+        case .radioButton: .radioButton
+        case .radioGroup: .radioGroup
+        case .slider: .slider
+        case .incrementor: .spinButton
         }
+    }
+
+    /// A check box's or radio button's toggled state from its `"1"`/`"0"`
+    /// value (ruling `DD-U` item 1); `nil` for any other role or value.
+    static func toggled(_ node: AccessibilityNode) -> Bool? {
+        guard node.role == .checkBox || node.role == .radioButton else { return nil }
+        switch node.value {
+        case "1": return true
+        case "0": return false
+        default: return nil
+        }
+    }
+
+    /// A slider's or stepper's value as a number when it parses (`DD-U` item
+    /// 1); `nil` for any other role.
+    static func numericValue(_ node: AccessibilityNode) -> Double? {
+        guard node.role == .slider || node.role == .incrementor else { return nil }
+        return node.value.flatMap(Double.init)
     }
 
     /// The MetalUI request an AccessKit action on node `number` means, if any.

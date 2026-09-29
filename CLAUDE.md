@@ -6,8 +6,9 @@ idiomatic Swift. **macOS with AppKit and Metal by default; the framework also
 builds on Linux and Windows** (`XP-A`), drawing through `Backends/SDL`
 (`App(platform:textSystem:)`, `XP-B`) with the portable text system — see
 `plans/2026-09-23-cross-platform-roadmap.md` for what is left. No UIKit, no
-`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest` and
-`publishAccessibilityTree(_:)` have no default implementations (`AB-R`).
+`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest`,
+`publishAccessibilityTree(_:)`, `controlActiveState` and
+`onControlActiveStateChange` have no default implementations (`AB-R`, `EV-AB`).
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
 test name, divergence row, inert row, human-verification row, performance
@@ -34,8 +35,8 @@ milestones append their record to `docs/record/` and put only the rule here.
   assigned); lettered: `CS-`, `SI-`, `TX-`, `CL-`, `ST-`, `AP-`, `MP-`, `IN-`,
   `SZ-`, `TB-`, `RX-`, `CO-` (next `CO-AA`), `AN-` (next `AN-X`; its letters do
   not track its ledger's), `SA-` (next `SA-V`), `MC-` (next `MC-T`), `EV-`
-  (next `EV-AA`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
-  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-FM`), `GR-` (next `GR-AU`),
+  (next `EV-AG`), `AB-` (next `AB-AH`), `FR-` (next `FR-W`), `OM-` (next
+  `OM-AN`), `CN-` (next `CN-V`), `LR-` (next `LR-GH`), `GR-` (next `GR-AU`),
   `PS-` (next `PS-H`; rulings in its spec, no separate decisions doc), `FT-`
   (next `FT-L`; rulings in its spec, no separate decisions doc), `SH-` (next
   `SH-L`; rulings in its spec, no separate decisions doc), `PT-` (next `PT-K`;
@@ -48,8 +49,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
   its spec), `TI-` (next `TI-K`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
-  spec). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`) is a typo; sweep
+  spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
+  `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
+  rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
+  plan task 10, both parts). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -57,7 +61,10 @@ milestones append their record to `docs/record/` and put only the rule here.
 - **SwiftUI-alignment plan:** `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`.
   Its 2026-09-12 kernel/modifier specs describe types never built; **the
   source is the authority**. Per task: spec in `specs/`, decisions doc, record
-  file — task 2 `SA-` (§09), 3 `MC-` (§10), 9 `EV-` (§11), 12 `AB-` (§12),
+  file — task 2 `SA-` (§09), 3 `MC-` (§10), 9 `EV-` (§11; task 9's closing
+  half — `displayScale`, `controlActiveState`, `controlSize` — `EV-AA`…`EV-AF`,
+  §56, spec `specs/2026-09-25-environment-control-state-design.md`), 12 `AB-`
+  (§12),
   3/9/12 integration (§13), 4 `FR-` (§14), 5 `OM-` (§15), 4/5 integration
   (§16), 6 `CN-` (§17), 7 stage 1 of 14 `LR-` (§18, spec
   `specs/2026-09-17-engine-replacement-design.md`), 7 stage 2 `LR-AB`…`LR-BA`
@@ -116,6 +123,35 @@ milestones append their record to `docs/record/` and put only the rule here.
   legacy `.frame`) keeps working through the lowering, now its only path;
   **no new SwiftUI probe** — the stage claims no new SwiftUI behaviour
   (`LR-FH` item 4)),
+  7 stage 10 `LR-FM`…`LR-FU` (§53, spec
+  `specs/2026-09-24-engine-stage-10-design.md`, same decisions doc — `Style`'s
+  CSS fields resolved field by field (deleted, narrowed to `package`, or
+  moved into `MetalUI`), every inherited `Style`-field report made a
+  permanent refusal by name, the mechanical closing check
+  (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, three plain-import
+  guards, a recorded grep); **no new SwiftUI probe** — the stage claims no
+  new SwiftUI behaviour),
+  7 stage 11 `LR-FV`…`LR-GG` (§54, spec
+  `specs/2026-09-25-engine-stage-11-design.md`, same decisions doc —
+  **task 7's last stage**: `ModifiedElement`/`ModifiedContent` unified into
+  one flat `ModifiedContent<Content, Modifier>`, the second parameter a
+  per-vocabulary witness (`ModifierLayerKind`), with `ModifiedElement` now a
+  typealias for its legacy arm; the legacy `.overlay` generalized from
+  `OverlayModifier<Content, Overlay>` over `ElementGroup` (both vocabularies,
+  lowered like a frame layer's child through `AttachmentLowering.swift`); the
+  write-order bug behind divergence 45 fixed on both paths
+  (`Decoration.escapesOpacity`, one member per slot) so whatever is written
+  after `.opacity` is outside it everywhere, retiring the divergence;
+  `deferred.amended` now lowers exactly as a `.frame` layer already did
+  (no report); `Component.width`/`height` and `.frame` reconciled by ruling,
+  no API change; probes re-run byte for byte
+  (`swiftui-outer-modifier-order.swift`, `swiftui-overlay-primary-shape.swift`)
+  and extended (`swiftui-border-clip-paint.swift` group H); every id path,
+  hit-testing, accessibility, animation and focus rule **unchanged** (measured,
+  not merely asserted). **No production layout request passes through the
+  legacy engine (stage 9), the CSS layout paths and dead `Style` fields are
+  gone (stages 9–10), and the two modifier vocabularies are unified (this
+  stage) — task 7's own three clauses all hold on this branch.**),
   7 stage G grids
   `GR-` (§22, spec `specs/2026-09-17-grids-design.md`,
   `2026-09-17-grids-decisions.md`, ten runnable probes), stage 2 / stage G
@@ -176,6 +212,47 @@ milestones append their record to `docs/record/` and put only the rule here.
   `2cc763d` and renumbered 42→48 at its merge, because `master` had already
   published §42–§47 (font fallback through text undo, `6e01d9e`; record
   §48's header).
+  **§53 (stage 10) was written as §52** on `feat/engine-stage-10` from
+  `8095fd9` and renumbered 52→53 at its merge, because `master` had already
+  published §52 (`TextEditor`, `TI-H`, PR #29, `0843866`; record §53's
+  header). Master's own §52 citations are the text editor's. **§54 (stage
+  11) needed no renumbering**: written directly on `feat/engine-stage-11`
+  from `47c0d98` (stage 10's own merge tip), with no other line publishing a
+  §54 first.
+  Task 8 `ID-` (§55, spec `specs/2026-09-25-composition-identity-design.md`,
+  decisions doc `2026-09-25-composition-identity-decisions.md`, probe
+  `swiftui-composition-identity.swift`) — audits `Group`, conditional
+  content, explicit identity, `Component` and modifier placement against
+  SwiftUI, disposing of every item task 7 stages 3, 4, 9, 11 and the grids
+  track hand it (record §54 §10.3, `LR-GA`, grids record §22).
+  Task 10, **part 1**, `DD-A`…`DD-P` (§57, spec
+  `specs/2026-09-25-data-and-scrolling-design.md`, decisions doc
+  `2026-09-25-data-and-scrolling-decisions.md`, probes
+  `swiftui-data-and-scrolling.swift` and, from the critic round,
+  `swiftui-scrollviewreader-scope.swift`) — `ForEach` and loop identity
+  (divergence 74 retires, 79 added), a `Binding<Value>` (`KeyBinding`'s
+  deprecated alias deleted, divergence 78 added), a `List`'s own scroller
+  origin (divergence 14 retires, 13 amended) and `ScrollViewReader`/
+  `scrollTo(_:anchor:)`/indicators. **Part 2**, `DD-Q`…`DD-AI` (§58, spec
+  `specs/2026-09-26-controls-and-selection-design.md`, same decisions doc,
+  probe `swiftui-controls-and-selection.swift`) — `Button`, `Toggle`,
+  `Slider`, `Stepper`, `Picker`/`.tag(_:)`/`PickerStyle` and
+  `List(selection:)` single and multi selection, each on `Binding`,
+  `StyledElement`'s handler/focus/accessibility machinery and the
+  `.disabled` gate; `ForEach(_: Binding<C>)`; divergence 16 retires (the
+  wheel now passes to the nearest enclosing scroller, `DD-Y`); divergences
+  80–84 added (control keys need no system setting, `DD-T`; the AX partial
+  fold's accessible name where SwiftUI publishes a sibling title, `DD-U`;
+  the automatic picker is segmented, not a pop-up menu, `DD-V`; a
+  selection client presses a row rather than setting `AXSelected`, `DD-Z`;
+  `List` stays virtualized and data-driven, `DD-AB`); divergence 76 amended
+  (`Button`'s chrome reads `controlSize`, `DD-R`). Three lanes plus two
+  verifier fix rounds, all verified `ok`; the Record phase's own close
+  (`DD-AI`) resolves the one item the lanes left open — a pre-existing
+  optional-`@State` bug the controls demo found (`StateTable.peek` reads an
+  absent entry as a present `nil`) — as divergence 85, added, owner **plan
+  task 15** (closeout), not fixed on this branch. **Task 10 is ticked**:
+  every clause of both parts is closed.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -191,18 +268,380 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
+METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
-- **Counts (2026-09-24, `feat/text-page` — `TI-I`, `TI-J`): 1430 tests, 0
-  goldens, 79 typecheck guards**, taken the same way; **1430 = 1423 + 7**
-  (`TextEditingTests` +2, `TextEditorTests` +1, `FocusTraversalTests` +4);
-  record §53.
-- **Counts (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
+- **Counts (2026-09-28, `feat/text-page` — `TI-I`, `TI-J` — merged with
+  `master` at `169d166`): 1652 tests, 0 goldens, 100 typecheck guards**, 0
+  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1652 tests in 3 suites passed`; the FR-J line
+  present). **1652 = 1644 + 7 + 1**: master's 1644, the branch's 7
+  (`TextEditingTests` +2, `TextEditorTests` +1, `FocusTraversalTests` +4) and
+  the merge's own 1 (`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`,
+  Tab reaching master's focusable controls, `TI-J` amended). No guard, no
+  golden; `Backends/SDL` 21 + 23. Record §59 (written as §53, renumbered).
+- **Counts (2026-09-28, `test/covered-slider` — the branch check's MX2
+  pin): 1644 tests, 0 goldens, 100 typecheck guards**, taken the same way
+  (`Test run with 1644 tests in 3 suites passed`; the FR-J line present).
+  **1644 = 1643 + 1**: `aPressOnASliderCoveredByAnOpaqueClickTargetRunsTheClickAndWritesNothing`,
+  which MX2 now reddens. History: record §58 §11.
+- **Counts (2026-09-28, `feat/controls-and-selection` — plan task 10, part 2,
+  from `27b2fcc`): 1643 tests, 0 goldens, 100 typecheck guards**, 0 `error:`
+  on both build systems, the one `warning:` SwiftPM's deprecation notice
+  under native (0 under the default one), taken after `swift package clean`
+  with `swift build --build-system native --build-tests` then unfiltered
+  `swift test --build-system native --no-parallel` (**one summary line**,
+  `Test run with 1643 tests in 3 suites passed`; the guards ran — the log
+  carries `FR-J no-argument frame: succeeded=` and the three new `CONTROLS
+  GUARD`/`SLIDER STEPPER GUARD`/`SELECTION GUARD` lines). **1643 = 1556 + 26
+  + 6 + 24 + 9 + 22**: lane 1's 26 (`Button`/`Toggle`/`Picker`/`.tag` + 2
+  guards) plus its fix round's 6, lane 2's 24 (`Slider`/`Stepper` +
+  `ClickDispatch` + 1 guard) plus its fix round's 9, lane 3's 22
+  (`List(selection:)`/`ForEach(Binding)`/the controls demo + 1 guard); the
+  design's own running total (1628) did not carry the two fix rounds' 15
+  (`DD-AG` item 4). Guards **100 = 96 + 2 + 1 + 1**: `ControlsCompileGuards`
+  (new, G1.1/G1.2), `SliderStepperCompileGuards` (new, G2.1),
+  `SelectionCompileGuards` (new, G3.1) — **the design's baseline was right
+  the whole time**: lane 1 flagged "94, not 96" by summing `grep -c
+  canTypecheck` over `Tests/MetalUITests` alone, which excludes
+  `UnitSafetyTests` (`Tests/MetalUICoreTests`, 3 hits, one a comment); the
+  canonical count this file's own "Guards" bullet defines spans both
+  targets and reads 96 at `27b2fcc`, 100 now. **No test retired; one
+  renamed with its answer changed** (`aClickTargetInsideAScrollViewSwallowsTheWheel`
+  → `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, its first
+  arm 0 → 37 by `DD-Y`, record §58 §2.5 — not counted in the 87; the
+  Record phase's write-up read "none renamed", corrected by the branch
+  checker, record §58 §11). New public API: `Button(action:label:)`/`Button(_:action:)`,
+  `Toggle(isOn:label:)`/`Toggle(_:isOn:)`, `Slider(value:in:step:)`,
+  `Stepper` (three initialisers), `Picker(_:selection:content:)`/`.tag(_:)`/
+  `PickerStyle`, `List(_:selection:rowHeight:row:)` over `Binding<ID?>` or
+  `Binding<Set<ID>>`, `ForEach(_: Binding<C>)`. **Divergence 16 retires**
+  (the wheel now passes to the nearest enclosing scroller registered on the
+  same layer, so a button, toggle, slider, selectable `List` row or
+  single-line `TextField` inside a `ScrollView` no longer blocks it,
+  `DD-Y`); **divergences 80–84 are added** (a focused control takes its
+  keys whether or not a system full-keyboard-access setting would allow it
+  in SwiftUI, unmeasured there, `DD-T`; the accessibility partial fold gives
+  `.incrementor`/`.radioGroup` an accessible name where SwiftUI publishes a
+  sibling static text beside an unlabelled control, `DD-U`; the automatic
+  `Picker` is segmented, not SwiftUI's pop-up menu, `DD-V`; a selection
+  client selects a row by pressing it — `AXSelected`/`AXSelectedRows` write
+  nothing, where SwiftUI's do, `DD-Z`; a `List` stays virtualized,
+  uniform-row and data-driven rather than SwiftUI's greedy self-scrolling
+  one, `DD-AB`); **divergence 76 is amended, kept** (`Button`'s chrome now
+  reads `controlSize`; every other consumer — `Text`'s default font and
+  every other control's metrics — stays plan task 11's, `DD-R` item 4) —
+  live count **56 → 61** (one retires, six are added: 80, 81, 82, 83, 84,
+  and 85 below). **The Record phase closes the one item the lanes left
+  open** (`DD-AG` item 3, `DD-AH` item 4, ruling `DD-AI`): a pre-existing
+  bug in `StateTable.peek`/`State.wrappedValue` reads an optional `@State`
+  with a non-`nil` initial value as `nil` until its first write (the cast
+  of an absent entry to an optional type succeeds as `.some(nil)`, so `??
+  initialValue` never runs) — a real, measured divergence from SwiftUI
+  (which shows the initial value), not merely an untested corner; **added
+  as divergence 85**, kept, owner **plan task 15** (closeout) — a one-line
+  fix changes every optional `@State` with a non-`nil` default and wants
+  its own ruling, red-first test and migration note, not a docs-phase edit.
+  The controls demo works around it with a `Set` (record §58 §3.4b, §4).
+  **0 px against `27b2fcc` in all fourteen offscreen images**, scene
+  identical, independently re-taken by this Record phase; `Backends/SDL`
+  `ReplayFixtureTests` 21 + `MetalUISDLTests` 23 (22 + 1, the five new AX
+  roles) on macOS, 21 + 22 in a `swift:6.4-noble` aarch64 container (no
+  NSAccessibility test there); the root package builds with 0
+  `error:`/`warning:` in a `swift:6.4-noble` container and runs
+  `MetalUILayoutTests` + `MetalUICoreTests` + `MetalUICrossPlatformTests`
+  **188 + 22 + 10**, unmoved. **Native depth, measured through a real
+  `Window`** (`DD-AG` item 5): each control alone in its own root —
+  `Button` 6, `Toggle` 5, `Slider` 3, `Stepper` 10, `Picker` segmented 10,
+  `Picker` `.radioGroup` 7, `List(selection:)` in a `ScrollView` 13 — and
+  the controls demo **15**, all well inside `maxDepth` 72.
+  `everyProductionTreeBuildsOnAOneMegabyteThread` (now building the
+  controls demo too) and `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  green. **Task 10 is ticked**: part 1 (`ForEach`, `Binding`,
+  `ScrollViewReader`/`scrollTo`, indicators, the `List` origin fix) and
+  part 2 (this run) close every clause of the task's text — `List`'s own
+  scrolling/greedy answer, non-uniform rows, `List { ForEach }`, two-axis
+  scrolling and divergence 54, `scrollPosition(id:)`, and every style
+  protocol/gesture-composition item are each re-owned by name rather than
+  left implicit (`DD-AB`). **The real-window capture is still owed**,
+  unmoved from part 1 and the tasks before it — the screen was locked at
+  every lane's own check and at this Record phase's close (lock probe:
+  `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`) — and this task
+  adds the controls demo's own pointer rules (a slider press/drag, stepper
+  halves, the wheel over a button, a field or a selectable row, ⌘/⇧-click
+  and arrow selection, the reveal) and VoiceOver on the five new roles to
+  it: none of SwiftUI's click/wheel/full-keyboard-access controls ran in
+  either lane's probe session (CK0, WH0, the FKA setting), so every pointer
+  rule and the "no system setting" reading of `DD-T` are MetalUI's own
+  until a human looks. History: record §58.
+- **Counts (2026-09-25, `feat/data-and-scrolling` — plan task 10, part 1,
+  from `e7bc2e7`): 1556 tests, 0 goldens, 96 typecheck guards**, 0 `error:`
+  on both build systems, the one `warning:` SwiftPM's deprecation notice
+  under native (0 under the default one), taken after `swift package clean`
+  with `swift build --build-system native --build-tests` then unfiltered
+  `swift test --build-system native --no-parallel` (**one summary line**,
+  `Test run with 1556 tests in 3 suites passed`; the guards ran — the log
+  carries `FR-J no-argument frame: succeeded=`). **1556 = 1506 + 18 + 18 +
+  14**: lane 1's 18 (`ForEach`'s 15 tests + 2 guards, plus 1.14b, a pin
+  `DD-C` item 3 needed beyond the design table), lane 2's 18 (`Binding`'s 15
+  tests + 3 guards − 1 guard `EV-N`'s deleted −1 retired test, plus 2 tests
+  the verifier round added, 3.6 and 2.3b), lane 3's 14 (the scroll APIs' 11
+  tests + 2 guards, plus 3.13b, a fix-round pin for a second, unpinned copy
+  of the reader-scope check). Guards **96 = 90 + 2 + 2 (+3 − 1)**:
+  `ForEachCompileGuards` 2 (new), `BindingCompileGuards` 3 (new),
+  `EnvironmentCompileGuards` 8 → 7 (`EV-N`'s deprecated-alias guard deleted
+  with the alias, `DD-D` item 6), `ScrollCompileGuards` 2 (new). **One test
+  retired** (`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`
+  — its synthetic harness had no scroller, so it could never see a measured
+  origin and would have stayed green asserting the retired wrong answer,
+  replaced by 3.1 through a real `ScrollView`), **one renamed**
+  (`aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` →
+  `…AndInsideALoop`, its loop arm's value inverted 175 → 200 by ruling, not
+  a retirement — `DD-N`). `ForEach<Data, ID, Content>` (SwiftUI's three
+  initialisers), a `Binding<Value>` (`@MainActor`, divergence 78), and
+  `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)`/`UnitPoint` are
+  new public API; **the deprecated `typealias Binding = KeyBinding` is
+  deleted** (`EV-N`'s announced break — `Binding("cmd-k", A())` no longer
+  typechecks). **Divergence 74 retires** (an element a `for` loop or
+  `ForEach` stops producing now starts fresh on return, matching SwiftUI);
+  **divergence 14 retires** (a `List` inside a scroller now windows against
+  its own measured origin, so a header or other sibling above it no longer
+  blanks it); **divergence 13 is amended, kept** (a `List` now asks for
+  exactly one more frame when its window goes stale, so the frame *after*
+  a resize is drawn correct); **divergences 78 and 79 are added** (`Binding`
+  is main-actor isolated where SwiftUI's is not; a `ForEach` whose ids
+  collide in description produces only the first, where SwiftUI evaluates
+  both) — live count **56 → 56** (two retire, two are added; the branch's
+  first write-up read 56 → 57, omitting 14's retirement from the arithmetic). **0 px against `e7bc2e7` in all fourteen
+  offscreen images**, scene identical, independently re-taken by this Record
+  phase; `Backends/SDL` 21 + 22 on macOS, 21 + 21 in a `swift:6.4-noble`
+  aarch64 container (unmoved — no source in `Backends/SDL` touched); the
+  root package builds with 0 `error:`/`warning:` in a `swift:6.4-noble`
+  container too. **Plan task 10's box stays unticked at this point**: part 2
+  (common controls and selection, and every item `DD-J` re-owns to it) is
+  the next run — superseded above (2026-09-28): part 2 landed and task 10 is
+  now ticked (record §58). **A new look is owed**: wheel scrolling under
+  `.disabled` (`EV-Q`'s
+  item for this task) — SwiftUI's own answer is unmeasured, the screen
+  locked at every check across all three lanes and this phase's own close;
+  MetalUI's disabled `ScrollView` still scrolls, unchanged. History: record
+  §57.
+- **Counts (2026-09-25, `feat/environment-control-state` — plan task 9's
+  closing half, from `e732d98`): 1506 tests, 0 goldens, 90 typecheck guards**,
+  0 `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1506 tests in 3 suites passed after 85.157 seconds`;
+  eleven gated tests skipped, unchanged; the guards ran — the log carries
+  `FR-J no-argument frame: succeeded=` and both new `EV-AB` guard lines).
+  **1506 = 1490 + 16**: lane 1's 8 (`displayScale`, derived `pixelLength`,
+  `controlActiveState`, `controlSize`, `EV-AA`…`EV-AC`; E13 extended, E19
+  renamed, not added), lane 2's 3 (`AppKitControlStateTests`; three more are
+  in `Backends/SDL`, not this count), lane 3's 3 tests + 2 guards (the
+  `PlatformWindow` pair and `Window`'s stamp, `EV-AB`;
+  `ControlStateCompileGuards`). Guards **90 = 88 + 2**
+  (`ControlStateCompileGuards`, new, both whole-file `typecheckFile`
+  fixtures). **One retained test renamed, none deleted** (`goldensUnchanged`):
+  E19 `aWholeValueWriteCannotResetTheThemeOrThePixelLength` →
+  `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` (`EV-AA`). **Divergence
+  24 retires** (a scoped `displayScale` write and a `\.self` reset now agree
+  with SwiftUI, S3 refuting the old withholding reason); **76 and 77 are
+  added** (`controlSize` and layout rounding reach no built-in SwiftUI-shaped
+  behaviour, `EV-AC`, `EV-AD`) — live count **55 → 56**. **0 px against
+  `e732d98` in all fourteen offscreen images**, scene identical, independently
+  re-taken by this Record phase; `Backends/SDL` 21 + 22 on macOS, 21 + 21 in a
+  `swift:6.4-noble` aarch64 container. **Plan task 9 is ticked**: both halves
+  of the 2026-09-15 progress note (control state, scale) have landed; their
+  built-in consumers stay distributed to tasks 10, 11, 12 and 14 (`EV-AE`).
+  **The real-window capture is still owed**, and this task adds two more
+  looks to it — the probe's key/active mapping arms and a `displayScale`
+  change from moving the window between displays — screen locked at every
+  check across all three lanes and the Record phase's own close. History:
+  record §56.
+- **Counts (2026-09-25, `feat/composition-identity-closeout` — the sweep's
+  cost, `ID-R` items 8–9): 1490 tests, 0 goldens, 88 typecheck guards**, 0
+  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` the same way (`Test run with 1490 tests in 3 suites passed`).
+  **1490 = 1488 + 2**: E3.13 `theResetsScanTheTableOncePerSweep` and C2.13
+  `focusOutlivesARenameAndAnIfUntilItsElementReturns`. No guard, no golden;
+  0 px against `89a8337` in all fourteen. History: record §55 §10.6.
+- **Counts (2026-09-25, `feat/composition-identity-closeout` — plan task 8's
+  closeout, from `89a8337`): 1488 tests, 0 goldens, 88 typecheck guards**, 0
+  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
+  notice under native (0 under the default one), taken after `swift package
+  clean` the same way (`Test run with 1488 tests in 3 suites passed`; eleven
+  gated tests skipped; the guards ran). **1488 = 1483 + 5**: `ID-R`'s three
+  (`anIDThatReturnsToAnEarlierNameStartsFresh`,
+  `aNameThatMovesToASiblingsPositionKeepsItsState`,
+  `everyNamingSiteStartsAReturningNameFresh`) and `ID-F`'s generation clause
+  pinned on both copies (`O1.11`, `O1.12`). No guard, no golden; 0 px against
+  `89a8337` in all fourteen offscreen images. History: record §55 §10.
+- **Counts (2026-09-25, `feat/composition-identity` — plan task 8, composition
+  and identity, from `e3cb3e9`, merged at `89a8337`): 1483 tests, 0
+  goldens, 88 typecheck guards**, 0 `error:` on both build systems, the one
+  `warning:` SwiftPM's deprecation notice under native (0 under the default
+  one, `swift build --build-tests`), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1483 tests in 3 suites passed`; eleven gated tests skipped, unchanged;
+  the guards ran — the log carries `FR-J no-argument frame: succeeded=`).
+  **1483 = 1444 + 10 + 12 + 17**: lane 1 (`ID-E`, `ID-F`) +10 (`O1.1`–`O1.8`,
+  the review round's `O1.9`–`O1.10`), lane 2 (`ID-B`, `ID-C`, `ID-D`) +12
+  (`C2.2`–`C2.12`, `G2.1`, the review round's `C2.13`), lane 3 (`ID-G`,
+  `ID-J`) +17 (`E3.1`–`E3.9`, `B3.1`–`B3.3`, `N3.1`, `G3.1`–`G3.3`, the fix
+  round's `B3.4`); no test deleted outright, nine retirement rows
+  (`goldensUnchanged`: one in lane 1, eight in lane 2). Guards **88 = 84 + 1
+  + 3** (`ConditionalIdentityCompileGuards`, new, `G2.1`; then
+  `ExplicitIdentityCompileGuards`, new, `G3.1`–`G3.3`). **Fixed to SwiftUI's
+  answer**: an `if`/`for` each take one structural slot so a vanishing `if`'s
+  trailing sibling keeps its own state (`ID-B`); an evaluated conditional's
+  content resets on return, `$focus`/`$ax` exempted (`ID-C`); `if`/`else`/
+  `switch` compile in every proposal container (`ID-D`); `@State`/
+  `@Environment` bind inside an `AnyElement` (`ID-E`); a handler run by input
+  dispatch resolves the occurrence that dispatched it, new
+  `StateDispatch.swift` (`ID-F`); `.id(_:)` on every element group via
+  `IdentifiedGroup` (`ID-G`); a legacy `.background(alignment:content:)`
+  (`ID-J`). **Divergences 18, 19, 48 and 69 retire; 71–74 are added; 56 is
+  amended** (its cross-axis alignment sub-row pinned, `N3.1`) — live count
+  stays **55** (record §04). **0 px against `e3cb3e9` in all fourteen
+  offscreen images**, scene identical, independently re-taken by this Record
+  phase; `Backends/SDL` 21 + 19; a `swift:6.4-noble` aarch64 container builds
+  with 0 `error:`/`warning:` and runs **188 + 10 + 22**. **The real-window
+  capture is still owed** (screen locked at every check across all three
+  lanes and the Record phase's own close, unrelated to stage 6b's own
+  still-open real-window debt). History: record §55 (§1–§4 design audit
+  table and divergence plan, §5 lane 1, §6 lane 2, §7 lane 3, §8 the Record
+  phase's independent close).
+- **Counts (2026-09-25, `feat/engine-stage-11` — plan task 7 stage 11,
+  modifier unification, from `47c0d98`, not yet merged with `master`): 1444
+  tests, 0 goldens, 84 typecheck guards**, 0 `error:` on both build systems,
+  the one `warning:` SwiftPM's deprecation notice under native (0 under the
+  default one, `swift build --build-tests`), taken after `swift package
+  clean` with `swift build --build-system native --build-tests` then
+  unfiltered `swift test --build-system native --no-parallel` (**one summary
+  line**, `Test run with 1444 tests in 3 suites passed`; eleven gated tests
+  skipped, unchanged; the guards ran — the log carries `FR-J no-argument
+  frame: succeeded=`). **1444 = 1426 + 18**: lane 1 +4 (`N1.1`, `N1.2`,
+  `G1.1`, `G1.2`), lane 2 +9 (`N1.3`–`N1.7`, its fix round's `N1.8`–`N1.11`),
+  lane 3 +5 (`N2.1`–`N2.4`, its fix round's `N2.5`); no test retired. Guards
+  **84 = 82 + 2** (`UnifiedModifiedContentCompileGuards`). `ModifiedElement`/
+  `ModifiedContent` are now one flat `ModifiedContent<Content, Modifier>`,
+  the second parameter a per-vocabulary witness (`ModifierLayerKind`);
+  `ModifiedElement` is a typealias for its legacy arm. The legacy `.overlay`
+  is `OverlayModifier<Content, Overlay>` generalized over `ElementGroup`,
+  lowered like a frame layer's child. **Divergence 45 retires**
+  (`Decoration.escapesOpacity`, one member per slot, fixes the write-order
+  bug on both paths — whatever is written after `.opacity` is outside it
+  everywhere); `deferred.amended` now lowers exactly as a `.frame` layer
+  already did, with no report. **0 px against `47c0d98` in all fourteen
+  offscreen images**, scene identical, independently re-taken by this Record
+  phase; `Backends/SDL` 21 + 19; `Tests/PortableTests` 18 + 6 + 5; a
+  `swift:6.4-noble` aarch64 container builds with 0 `error:`/`warning:` and
+  runs **22 + 188 + 10**. **This closes task 7**: no production layout
+  request passes through the legacy engine (stage 9), the CSS layout paths
+  and dead `Style` fields are gone (stages 9–10), and the two modifier
+  vocabularies are unified (this stage) — task 7's own three clauses all hold
+  on this branch, and the adversarial branch check (`LR-GG`, record §54
+  §11) confirmed every row of the parent spec's §4.1 (1–11 and G) and every
+  clause of the stage spec's §9.1 on the branch, re-owning three stage-11
+  hand-offs the inventory missed (two `ProposalScrollView` items → plan task
+  10, the per-member row's alignment → plan task 8). History: record §54
+  (§1–§6 design, skeleton probe, three scratch measurements and critic round;
+  §7 lane 1, §8 lane 2, §9 lane 3, §10 the Record phase's independent close,
+  §11 the adversarial branch check).
+- **Counts (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10 —
+  merged with `master` at `0843866`, PR #29, `TextEditor`): 1426 tests, 0
+  goldens, 82 typecheck guards**, 0 `error:` on both build systems, the one
+  `warning:` SwiftPM's deprecation notice under native (0 under the default
+  one, `swift build --build-tests`), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1426 tests in 3 suites passed`; eleven gated tests skipped; the guards
+  ran — the log carries `FR-J no-argument frame: succeeded=`). **1426 = 1423
+  − 1411 + 1414**: master's 1423 (its `TextEditor` 12 over the shared
+  stage-9 base 1411) plus stage 10's net +3; no test was added or removed by
+  the merge. **Three merge edits beyond the conflict markers**: `TextEditor`
+  is a ninth leaf/recording site, so `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s
+  `TextEditor` arm is re-spelled from `.position(.relative)` (a spelling
+  stage 10 deleted) to `.inset(px(1))`, reporting `textEditor.inset`, and
+  `everyReportNamesALiveOwnerOrIsRefusedByName`'s table gains `.textEditor`
+  in its leaf sites (**218 → 242** entries: +4 leaf, +11 item, +9
+  unconsumed, every one a permanent refusal by name — `owner` decides by
+  site `deferred` and the baseline prefixes, never by leaf site, so
+  `LayoutAuthority.swift` needed no arm for it); and the text-input demo's
+  `TextEditor` `.height(Pixels(160))` (deprecated since stage 8, `LR-ES`, and
+  a `warning:` on both build systems on the merged tree) becomes
+  `.frame(height: Pixels(160))` — its rects, glyphs and hitboxes read
+  identical to the `.height` spelling through a real `Window` (136 lines, the
+  editor's 352×160 box among them). `Expected.swift` unedited;
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. **0 px against `0843866` in all fourteen offscreen images**, scene
+  identical (`docs/probes/demo-pixels/compare.sh`, controls non-zero).
+  `Backends/SDL` 21 + 19 on macOS; a `swift:6.4-noble` aarch64 container
+  builds with 0 `error:`/`warning:` and runs **22 + 188 + 10** (the closing
+  check and the demo frame green off Apple). Record §53's header.
+- **Stage 10's counts before the merge (2026-09-24, `feat/engine-stage-10` — plan task 7 stage 10,
+  `Style`'s CSS fields and the closing check, from `8095fd9`, stage 9's tip,
+  not yet merged with `master`): 1414 tests, 0 goldens, 82 typecheck
+  guards**, 0 `error:` on both build systems, the one `warning:` SwiftPM's
+  deprecation notice under native (0 under the default one), taken after
+  `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1414 tests in 3
+  suites passed`; **eleven** gated tests skipped, unchanged; the guards ran —
+  the log carries `FR-J no-argument frame: succeeded=`). **1414 = 1411 − 3 +
+  2 + 4**: lane 1 (`LR-FS`) retires `D1.1`
+  `aWrapReverseContainerIsReportedByNameAsAWrappingOneIs`, `D1.2`
+  `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` and `T1.16`'s old name,
+  and adds `N1.1` `everyReportNamesALiveOwnerOrIsRefusedByName` and `T1.16`'s
+  new name, `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`;
+  lane 2 (`LR-FT`) adds `N2.1` `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `G1` `aPlainImportCannotWriteAStyleField`, `G2`
+  `theDeletedStyleSpellingsDoNotCompile` and `G3`
+  `theLayoutKernelDeclaresNoStyle`, removing none. Guards **82 = 79 + 3**
+  (`StyleSurfaceCompileGuards`, new). No goldens to move (`find
+  Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0, as at `8095fd9`).
+  **`Style`'s CSS fields are resolved field by field**: `aspectRatio`,
+  `overflow`, `Style.border` (`Box(style:)` its only writer), `flexWrap`,
+  `alignContent` and `Position.relative` deleted with the enums
+  `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+  `flexWrap(_:)`/`alignContent(_:)`; every surviving stored field (seventeen)
+  and `Display`/`JustifyItems` narrowed to `package`; `Style.swift` moved
+  from `MetalUILayout` to `MetalUI`. Every inherited `Style`-field report
+  becomes a permanent refusal by name (`LR-FO`); the mechanical closing check
+  lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym`, macOS
+  and Linux, compiled out on Windows), three plain-import guards
+  (`StyleSurfaceCompileGuards`, a fix round widening `G1` to pin all
+  seventeen narrowed fields rather than one) and a recorded grep (`LR-FP`).
+  **0 px against `8095fd9` in all fourteen offscreen images**, scene
+  identical, independently re-taken by the Record phase along with the
+  suite, guard and golden counts, `Backends/SDL` (21 + 19), `Tests/PortableTests`
+  (18 + 6 + 5), a `swift:6.4-noble` container (**22 + 188 + 10**, unmoved
+  from stage 9) and the recorded greps (record §53 §6). **The Windows stack
+  budget improves, measured**: `MemoryLayout<Style>.size` 226 → 178, the
+  smallest thread building every production tree on macOS arm64 debug 528 →
+  484 KB. **Not done, owners already assigned**:
+  `ModifiedElement`/`ModifiedContent` unification, legacy `.overlay`,
+  `.opacity` G4 and `deferred.amended` with `Component.width` over a
+  presentation member stay for **stage 11**; divergence 52, the eight
+  deprecated sizing modifiers and the `fraction:` spellings, and whether
+  `Box`'s public `style:` parameter (inert outside the package
+  since narrowing) is deprecated or removed, stay for **plan task 15**
+  (closeout). History: record §53 (§1–§3 baseline and critic round, §4 lane
+  1, §5 lane 2, §6 the Record phase's independent close).
+- **Master's counts before stage 10 met it (2026-09-24, `feat/text-editor` — `TI-H` — merged with `master`
   at `8095fd9`): 1423 tests, 0 goldens, 79 typecheck guards**, 0 `error:`,
   the same one `warning:` under native, taken the same way; **1423 = 1411 +
   12** (`TextEditingTests` +4, `TextEditorTests` +7, `TextSystemSeamTests`
   +1); record §52.
-- **Counts (2026-09-24, `feat/engine-stage-9` merged with `master` at
+- **Stage 9's counts, merged with `master` (2026-09-24, `feat/engine-stage-9`
+  merged with `master` at
   `1895e4a`, PR #30 — the Windows demo-stack fix): 1411 tests, 0 goldens, 79
   typecheck guards**, 0 `error:` on both build systems, the one `warning:`
   SwiftPM's deprecation notice under native (0 under the default one), taken
@@ -349,7 +788,13 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   every `Style`-field report this stage inherited (percentages, a non-greedy
   `maxSize`, a length `flexBasis`, a root's auto-axis min/max and margin, a
   floored `space-*`, `…absolute` on a `Style`-written box) **stays reported**
-  and dies with its field at stage 10 (`LR-ER` item 4). Divergence 52
+  and — this paragraph predicted — dies with its field at stage 10 (`LR-ER`
+  item 4). **Refuted at stage 10**: none of these fields (`size`, `padding`,
+  `margin`, `minSize`, `maxSize`, `gap`, `flexBasis`, `justifyContent`) is
+  itself deleted — only `aspectRatio`, `overflow`, `border`, `flexWrap`,
+  `alignContent` and `Position.relative` are — so every one of these reports
+  instead becomes a **permanent refusal by name** (`LR-FO` item 1); `css*`
+  and its ≈ 1411 sites stay too, for the same reason (`LR-FO` item 6). Divergence 52
   (`Row`/`Column` default spacing) moves from stage 10 to **plan task 15**
   (closeout), because both stages' exit is "0 px against the prior stage" and
   a public default under every default-gap caller's pixels cannot satisfy
@@ -668,21 +1113,57 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   fixture, ever (TX-B).
 - **Guards:** `grep -c canTypecheck` per file across `PhaseSeparationTests`,
   `ErasureCompileGuards`, `ElementGroupTrapTests`, `ProposalLayoutCompileGuards`,
-  `ModifiedElementCompileGuards`, `ProposalNodeIDCompileGuards`,
+  `ModifiedElementCompileGuards`, `UnifiedModifiedContentCompileGuards`
+  (stage 11), `ProposalNodeIDCompileGuards`,
   `EnvironmentCompileGuards`, `FrameSizingCompileGuards`,
   `DecorationCompileGuards`, `ContainerCompileGuards`,
   `LayoutAuthorityCompileGuards`, `GridCompileGuards`,
   `UnitSafetyTests` (one hit is a comment),
-  `AXNodeTests`, `SceneBoundaryCompileGuards`; `Typecheck.swift` holds only
-  the declaration. Two helpers, 40 and 39 (38 before stage 8's N3.1, 37
+  `AXNodeTests`, `SceneBoundaryCompileGuards`, `StyleSurfaceCompileGuards`
+  (stage 10), `ConditionalIdentityCompileGuards`,
+  `ExplicitIdentityCompileGuards` (plan task 8),
+  `ControlStateCompileGuards` (plan task 9), `ForEachCompileGuards`,
+  `BindingCompileGuards` and `ScrollCompileGuards` (plan task 10 part 1) and,
+  new at plan task 10 part 2, `ControlsCompileGuards`,
+  `SliderStepperCompileGuards` and `SelectionCompileGuards`;
+  `Typecheck.swift` holds
+  only
+  the declaration. Two helpers, 39 and 61 (57 before task 10 part 2's four;
+  40 and 50 before task 10 part 1's
+  net −1/+7; 48 before task 9's two; 44 before
+  task 8's four; 42 before
+  stage 11's two; 39
+  before stage 10's three; 38
+  before stage 8's N3.1, 37
   before stage 6a's): `typecheck(_:importing:)` wraps the fixture in a
   function (Swift 5, nothing `public`/file-scope compiles);
   `typecheckFile(_:importing:)` is whole-file
   Swift 6 — the six/two/six of `ProposalLayout`/`ModifiedElement`/
-  `ProposalNodeID`, **three** `FrameSizing` (stage 8's N3.1 the
+  `ProposalNodeID`, **two** `UnifiedModifiedContentCompileGuards` (stage 11,
+  both whole-file: `aProposalModifierChainInfersOneFlatModifiedContent`,
+  `anExternalModifierLayerKindCannotBuildAModifiedContent`), **three**
+  `FrameSizing` (stage 8's N3.1 the
   third), three `Decoration`, four `Container`,
-  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary` and seven of
-  `EnvironmentCompileGuards`'. A guard about what an external module can write
+  four `Grid`, **two** `LayoutAuthority`, two `SceneBoundary`,
+  **three** `StyleSurfaceCompileGuards` (stage 10, all three plain-import
+  `typecheckFile` guards: `aPlainImportCannotWriteAStyleField`,
+  `theDeletedStyleSpellingsDoNotCompile`, `theLayoutKernelDeclaresNoStyle`),
+  **one** `ConditionalIdentityCompileGuards` (plan task 8, `G2.1`,
+  `anIfElseAndASwitchCompileInEveryProposalContainer`), **three**
+  `ExplicitIdentityCompileGuards` (plan task 8, `G3.1`–`G3.3`, all
+  whole-file), **two** `ControlStateCompileGuards` (plan task 9, `T3.4`
+  plain-import `import MetalUIPlatform`, `T3.5` plain-import `import MetalUI`,
+  both whole-file), **all seven** of `EnvironmentCompileGuards`' (its one
+  `typecheck`-based guard, `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`,
+  is deleted this task with the alias it pinned, `DD-D` item 6 — every
+  guard left in the file already used `typecheckFile`), and, new this task,
+  **two** `ForEachCompileGuards` (`G1.1`/`G1.2`, both whole-file), **three**
+  `BindingCompileGuards` (`G2.1`–`G2.3`, all whole-file) and **two**
+  `ScrollCompileGuards` (`G3.1`/`G3.2`, both whole-file); new at plan task 10
+  part 2, **two** `ControlsCompileGuards` (`G1.1`/`G1.2`), **one**
+  `SliderStepperCompileGuards` (`G2.1`) and **one** `SelectionCompileGuards`
+  (`G3.1`), all four whole-file. A guard about what an
+  external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
   (default swiftbuild system, `--scratch-path`, `-c release`) — the total
@@ -706,7 +1187,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**192 + 22 + 5**
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**188 + 22 + 10**
+  since stage 10, measured in `swift:6.4-noble` — `StyleTests.swift` moved
+  from `MetalUILayoutTests` to `MetalUICrossPlatformTests` (`git mv`, its
+  four tests following it, `LR-FT` §5.2) and `LegacyEngineSymbolTests`'
+  `N2.1` joins the latter too: 192 − 4 = 188, 5 + 4 + 1 = 10; **192 + 22 + 5**
   since stage 9 met PR #30, measured in `swift:6.4-noble` at the merge —
   `DemoStackBudgetTests`' two join `MetalUICrossPlatformTests`; **192 + 22 +
   3** at stage 9 alone; **200 + 22 + 3** measured in `swift:6.4-noble` after stage 7b; the WebKit goldens' 96
@@ -724,7 +1209,11 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
   `MetalUITests`, which Linux and Windows CI do not run (record §49 §6.1,
   `LR-EM` item 5); **stage 9 drops it again, 200 to 192**, lane 2's eight
   `MetalUILayoutTests` retirements, measured in `swift:6.4-noble` at the
-  stage-9 head, record §51 §7.6 and §9), the last pinning the demo's
+  stage-9 head, record §51 §7.6 and §9); **stage 10 moves four from
+  `MetalUILayoutTests` to `MetalUICrossPlatformTests` and adds one there**
+  (`StyleTests.swift`'s `git mv`, `LegacyEngineSymbolTests`' `N2.1`), giving
+  188 + 22 + 10 (record §53 §5.6, independently re-taken record §53 §6.2 item
+  6), the last pinning the demo's
   whole frame byte-for-byte against
   macOS (`XP-C`). Inside `MetalUI`, CoreText stays behind `#if
   canImport(MetalUIText)`; off Apple a `Frame`/`Window` without a text system
@@ -831,7 +1320,9 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 Eight constraints that fail silently:
 
 - `MetalUILayout` imports only `MetalUICore` (anchored grep; since `PC-A`
-  an Apple import also fails the Linux and Windows builds).
+  an Apple import also fails the Linux and Windows builds), and since stage 10
+  declares no `Style` (`LR-FM` item 3; plain-import guard
+  `theLayoutKernelDeclaresNoStyle`, which skips silently where guards skip).
 - `MetalUIScene` imports only `MetalUIShaderTypes` — no Foundation, CoreText,
   CoreGraphics or Metal (`PS-A`). macOS cannot see a violation; the Swift
   workflow's `scene-linux` job can (`PS-G`). An initialiser that must stay
@@ -871,9 +1362,10 @@ Eight constraints that fail silently:
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (gamma-space compositing, §7.8).
-- Percentage `padding`/`border` resolve against the containing block's
+- Percentage `padding` resolves against the containing block's
   **width** on every edge; `Style.inset` is horizontal-vs-width,
-  vertical-vs-height (AP-D).
+  vertical-vs-height (AP-D). (`Style.border` had the same rule; the field is
+  deleted, `LR-FM` item 1, stage 10.)
 
 ## Architecture rules
 
@@ -885,18 +1377,92 @@ paint-only query gains a guard and a bullet in `PhaseSeparationTests.swift`'s
 header in the same change.
 
 **Identity is structural; `.id()` overrides a position, never joins it.**
-- A vanishing `if` makes the **trailing sibling adopt** its state, focus and
-  click dispatch. Remedy: name the trailing sibling.
+- **An `if` with no `else` and a `for` loop each take ONE structural slot**
+  (plan task 8, `ID-B`): `OptionalGroup`/`ArrayGroup` (both the untyped and
+  typed copies) reserve one cursor index whether or not they produce
+  content, numbering their content from 0 under it — the shape `EitherGroup`
+  already had. **A vanishing `if`'s trailing sibling keeps its own state**,
+  matching SwiftUI (probe V1); naming the trailing sibling is no longer a
+  remedy anything needs. **Content an evaluated conditional removes is
+  reset on return** (`ID-C`): when an `OptionalGroup`'s slot or an
+  `EitherGroup`'s untaken branch was produced the previous frame, every
+  `StateTable` entry under it is deleted, except a `.named("$focus")`/
+  `.named("$ax")` component — focus and accessibility retention through a
+  toggle are unaffected. **One retention is kept, by design**: a conditional
+  that is **not evaluated** (a `List` row out of its window) is untouched
+  (`TB-AH`). **A `for` loop's dropped tail is reset on return too, since plan
+  task 10** (divergence 74 retired, `DD-C`) — the loop-level twin of `ID-C`'s
+  rule: `StateTable.noteLoop` records the slot and the extent each loop
+  consumed (four minting copies — `ArrayGroup`'s untyped and typed
+  `requestGroupLayout`, `ForEach`'s untyped and typed entries), and `sweep()`
+  resets a positional child past this frame's extent and below last frame's,
+  or a named child the slot held last frame that this frame produced
+  nowhere — `$focus`/`$ax` exempted as `ID-C` exempts them. `ForEach` (new,
+  `DD-B`) gets the identical rule, and its own dedupe keeps a duplicate id
+  (by value or by minted name) from being produced twice (divergence 79,
+  added, `DD-L`). `if`/`else`/`switch` now compile inside every proposal
+  container too (`ID-D`). **Migration note**: every element inside a bare
+  `if` or a `for` loop moved one identity level deeper at plan task 8; code
+  that built a `GlobalElementID` through one by hand needs the slot level.
+- **`.id(_:)` now works on every element group**, not only a `StyledElement`
+  (`ID-G`, plan task 8): `IdentifiedGroup<Content>` (`ExplicitIdentity.swift`)
+  wraps a proposal element, `Grid`, `GridRow` or a `Component`, consuming one
+  cursor index named after the string and numbering its content from 0 under
+  it — layout-transparent, forwarding `prepaint`/`paint`. A `StyledElement`'s
+  own `id(_:) -> Self` is untouched and still wins for `Box`/`Stack`/`Text`/
+  `ModifiedElement` (more specific); a changed name resets exactly as the
+  legacy spelling does, and `.id()` must still be the outermost modifier.
+  **A name an evaluated position leaves is reset** (`ID-R`, the task-8
+  closeout): every site that mints a named id notes it at `(parent, cursor
+  index)` (`StateTable.noteNamed`); a position holding a different name than
+  last frame departs the old one, and `sweep()` resets it (at and under its
+  id, `$focus`/`$ax` kept) **unless the frame produced it elsewhere** — so
+  `.id` over a, b, a starts the returning name fresh, as SwiftUI does (probe
+  X9–X11), and a swap or a loop reorder keeps each name's state. Only an
+  EVALUATED position departs a name **through this mechanism**: a name →
+  no-name change depart nothing here, and **a `List`'s rows are exempt**
+  (`noteWindowedParent`; a row out of its window is not evaluated, `TB-AH`).
+  A loop shrinking at its tail is **not** this mechanism's business either —
+  since plan task 10 it is reset by the loop-specific rule above
+  (`StateTable.noteLoop`, `DD-C`), which retired divergence 74 rather than
+  extending `ID-R`'s own position-departure scan to reach it. **A new site
+  that mints a named id owes a
+  `noteNamed` call and an arm in `everyNamingSiteStartsAReturningNameFresh`**
+  — a site without one keeps a departed name's state silently. **Both resets
+  (a departed name, `ID-C`'s absent slot) are queued and run in ONE pass over
+  the table per `sweep()`** (`ID-R` item 8; `StateTable.lastResetScanWork`,
+  pinned by E3.13 `theResetsScanTheTableOncePerSweep`): a per-name or
+  per-slot scan costs (departures × table) — 3 002 000 entries a frame for
+  1000 renamed rows — and the resets now run after the frame's
+  `resolveFocus`, so an exemption test reads a SECOND away frame (C2.13).
+  **Focus outlives both resets** (`$focus` is exempt): after `a` → `b` focus
+  stays on `a`'s unproduced id and returns with `a`, where SwiftUI drops it —
+  a known, unnumbered, unprobed difference owned by plan task 12 (`ID-R` item
+  9).
 - `.padding(_:)` and every legacy `.frame(...)` return one flat
   `ModifiedElement<LayerBase>` (`MC-A`); each modifier is one layer = one node
   = one id level; outermost layer takes the parent's slot, inner layers are
   `positional(0)`, content numbers from 0 under the innermost (`MC-C`).
-  **`.id()` must be the outermost modifier.** Changing layer 1430 resets the
+  **`.id()` must be the outermost modifier.** Changing layer COUNT resets the
   wrapped element's `@State`/focus/`$anim`/AX node; changing VALUES does not.
   A decoration/handler written after a wrapper configures the outermost layer
-  (`.padding(8).background` fills the padded box, `OM-C`).
+  (`.padding(8).background` fills the padded box, `OM-C`). **Since stage 11,
+  `ModifiedElement` is a typealias for the unified `ModifiedContent<Content,
+  Modifier>`**, and the same recursion (one shared `innermostID`, `wrapLayers`,
+  `prepaintLayerBody`, `paintLayer`) walks a proposal chain's `LayoutModifier`
+  layers too — every id path above is unchanged and now measured on both
+  vocabularies, byte-identical to before unification (`LR-FV`).
 - An `.overlay`'s primary numbers under the modifier's id, the overlay under
-  `.child(of: id, at: -1)` (`MC-P`); nothing else may mean `-1`.
+  `.child(of: id, at: -1)` (`MC-P`); nothing else may mean `-1`. **Since
+  stage 11 the legacy `.overlay` is `OverlayModifier<Content, Overlay>`
+  generalized over `ElementGroup`** (both vocabularies), with the primary and
+  overlay sides each lowered like a frame layer's child
+  (`AttachmentLowering.swift`); the `-1` numbering is unmoved (`LR-FX`). **A
+  legacy `.background(alignment:content:)` exists too** (plan task 8, `ID-J`):
+  `BackgroundModifier<Content, Background>`, the overlay's recipe line for
+  line — the background side numbered under `.child(of: id, at: -1)` too,
+  painted and prepainted first. A primary of zero or several nodes traps
+  naming the count (divergence 73) on both the overlay and the background.
 - `GlobalElementID.cachedHash` and `==` are safe alone, unsafe together; do not
   simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ above the engine (EP-5).
@@ -952,8 +1518,13 @@ node can itself be a `Deferred`'s presentation content, discharging the two
 state is re-derived, one asserted as a value keeps its site (R7); an animated
 size interpolates as before, nothing snaps (R8). `Component.width`/`height`
 and `StyledComponent.width`/`height` are **not** deprecated — they neither
-write an element's own box nor return `Self` — reconciliation is stage 11's
-(`LR-ER` item 2). **There is no automatic minimum
+write an element's own box nor return `Self`. **Reconciled at stage 11 by
+ruling, with no API change** (`LR-FY` §6.2): `.width`/`.height` are one
+native frame per member (`LR-BG`, SwiftUI's `Group` shape), `.frame` is one
+layer over the members' row (`LR-BH`); they are different modifiers, both
+stay undeprecated with their doc comments saying so, and making `.frame`
+distribute per member (SwiftUI's `Group` answer) is plan task 8's, not a
+sizing-vocabulary question. **There is no automatic minimum
 to cancel** (`LR-ET`, amending `FR-G`): a greedy frame's lower bound is its
 content unless it declares one, SwiftUI's rule (probe
 `swiftui-engine-stage-8.swift` F), so a growing box that must answer below its
@@ -964,12 +1535,24 @@ The demo's own FR-G caller has been inert since stage 6b (its box holds a
 lowered `ScrollView`, whose viewport fills its proposal, `LR-BB`). `fraction: 0.5` is half; `percent:` is a
 deprecated rename that still takes a fraction (`CN-O`).
 
-**`List`** is a windowed `Box`: needs `Identifiable` data, uniform `rowHeight`,
-an enclosing `ScrollView`, and being that scroller's **only**
-layout-contributing child (else blank, divergence 14). Frame 0 builds every
-row. Rows out of window >2 generations lose `@State` once the table exceeds
-256 entries (TB-AH) — keep durable values in data. Publishes an `AXTable` of
-realized rows only.
+**`List`** is a windowed `Box`: needs `Identifiable` data and uniform
+`rowHeight`, inside an enclosing `ScrollView`. **Since plan task 10 it windows
+against its own measured origin, not the scroller's** (`DD-F`, divergence 14
+retired): in `prepaint` it stores its bounds' origin within the scroller's
+content at its own id through `withState` (never a dirtying `write`) and
+reads `[offset − origin, offset − origin + viewport)` against it — a header
+or any other sibling above it in the scroller no longer blanks it (the old
+"must be that scroller's only layout-contributing child" requirement is
+gone). It asks for exactly one more frame, via `requestAnotherFrame()`, when
+a fresh origin, viewport or resolved offset would give a window not
+contained in the one it built — closing divergence 13's *effect* (a grown
+viewport staying blank with no input) while divergence 13 itself (the first
+frame after a resize still windows against last frame's extent) is
+**amended, kept**. Frame 0 builds every row. Rows out of window >2
+generations lose `@State` once the table exceeds 256 entries (TB-AH; one
+entry sooner per scrolled `List` since `DD-F` added its own `ListOrigin`
+entry, `DD-O` item 2) — keep durable values in data. Publishes an `AXTable`
+of realized rows only.
 
 **A `List` lowers** (stage 4, `LR-BQ`…`LR-CG`; its only path since stage 9
 deleted the legacy CSS engine): its rows are a `ListRows` group whose realized
@@ -985,7 +1568,102 @@ entry, records no `elementBounds` row and does not animate, one fewer
 their loss past the bound, the `AXTable` and its `AXIndex`es, the
 unbounded-window and one-more-frame rules, `MP-I`'s cold frame, wheel
 routing, hit testing and the disabled gate are all measured against this
-lowering (stage 9 collapsed the "both authorities" pins onto it alone); **divergences 13 and 14 survive**.
+lowering (stage 9 collapsed the "both authorities" pins onto it alone); **divergence 13 survives, amended; divergence 14 retires** (`DD-F`).
+
+**`List(selection:)`** (plan task 10 part 2, `DD-Z`, divergence 83): the
+initialisers `List(_:selection:rowHeight:row:)` take `Binding<ID?>` or
+`Binding<Set<ID>>`, `ID = Data.Element.ID`. The list reads the binding fresh
+every frame and never prunes it (removing a selected datum writes nothing; it
+re-selects when the datum returns). A selected row's `Box` gets `.accent`
+(one `$anim-color` slot per selected *realised* row, `TB-AH`'s crossing
+`2n + 6 + s`) and the internal `AXNode.selectionHint` (`isSelected` for a
+client, no `$ax` write — `DD-U` item 4). A click selects the row (replacing
+the set in a multi list); the platform shortcut modifier (⌘ on Apple, ctrl
+elsewhere, via `ControlKeys`) toggles it; ⇧ selects the range from the
+anchor; a single list always selects the clicked row. A click also focuses
+the list (`ClickDispatch.focusRequest`, the second exception to "clicking
+does not focus" after `TextField`), so its arrows work next. Lead and anchor
+live in `ListOrigin`, the list's one `StateTable` entry (shared with `DD-F`'s
+scroll origin, written with `withState` from input only); a lead the model
+drops is re-derived as the first selected row in data order, and every range
+or re-derivation happens in the input handlers, not `requestLayout`, so a
+selectable list's warm frame stays O(window) at any row count. A focused
+list's ↓/↑ move the lead (⇧ extends/shrinks from the anchor in a multi
+list); the new lead is revealed through `ScrollViewReader`'s queue
+(`ListLeadReveal(list:row:)`, an internal key scoped to the list's parent so
+only that list's own reveal resolves it). An accessibility client selects a
+row only by **pressing** it — `AXSelected`/`AXSelectedRows` write nothing
+(divergence 83; a settable-selection request is plan task 12's). A row
+carries `logicalIndex`, and publishes as `.row`, only while its window is
+bounded; while it can never be bounded (no enclosing vertical scroller, or a
+zero `rowHeight`) a selected row publishes as a `.button` labelled by its
+content — **not** while a bounded scroller's viewport is merely still
+unmeasured on frame 0, which keeps `AB-X` rule 1 (the table, no rows)
+exactly as an unselected list does.
+
+**Every control** (`Button`, `Toggle`, `Slider`, `Stepper`, `Picker`, a
+selectable `List`; plan task 10 part 2, `DD-R`…`DD-AA`) is built on
+`Binding<Value>` and today's element/handler machinery, not a new subsystem:
+one hitbox (`onClick` for `Button`/`Toggle`/`Picker` options/`List` rows, the
+internal `Handlers.valueTrack` — the tenth member, `TI-B`'s precedent — for a
+`Slider`'s press/drag, dispatched by `Window` ahead of click dispatch and
+riding the same hitbox, so `.disabled`/`allowsHitTesting(false)` remove it
+too); `isFocusable` set on every one of them (**a click still does not focus
+any of them**, `List`'s row click excepted, but Tab reaches every one,
+`TI-J` — divergence 80: SwiftUI's own
+controls take none of these keys without Full Keyboard Access, an
+unmeasured setting, so no claim is made about that state); one keyboard
+table, `ControlKeys.swift`, keyed on `TextEditing.platform` — Button
+Space/Return (Apple)/Space and Return (elsewhere), Toggle Space, Slider
+←↓/→↑ by the accessibility step, Stepper ↓/↑, Picker ←↑/→↓ with no wrap,
+`List` per the paragraph above — each running **after** a caller's own
+`onKey` declines and, for `Button`/`Toggle`, replacing rather than adding to
+a caller's `onClick` (the one-field rule `Handlers.onClick`'s doc already
+states); the `.disabled` environment gate in `Frame.registerHandlers` (no
+hitbox, nothing in the focus registry, published to accessibility disabled
+with no actions); accessibility through five new roles
+(`.checkBox`/`.radioButton`/`.radioGroup`/`.slider`/`.incrementor`,
+`AXNode`/`AccessibilityRole` on both bridges) with two folds (`AB-G`'s full
+fold now covers `.checkBox`/`.radioButton`; a new **partial** fold for
+`.incrementor`/`.radioGroup` makes a non-interactive, non-control descendant
+the label and keeps an interactive-or-control one, disabled included, as a
+child — `DD-U`); the existing animation helpers (a `Slider`'s thumb is drawn
+in its own `paint`, so an animated value **snaps** — added to the snaps
+list); theme colours. `controlSize`/`controlActiveState` are read only where
+named (`Button`'s chrome reads `controlSize`, divergence 76 amended; nothing
+reads `controlActiveState` yet, plan task 12). **Not built**: any style but
+the one automatic look per control (`ButtonStyle`, `.toggleStyle`,
+`.pickerStyle(.menu)` — a closed `PickerStyle` struct, not SwiftUI's
+protocol, so the call site compiles the same way later), a pressed look, the
+focus ring, gesture composition, `Button(role:)`, `.keyboardShortcut` — all
+plan task 12's (`DD-AB` item 7). `PickerStyle`'s options are found through an
+internal picker scope pushed around the content's layout phase only
+(`Picker.swift`'s `@MainActor` static stack), not by walking the content;
+`TaggedElement` (from `.tag(_:)`) forwards every `Element` requirement, and a
+tag outside a `Picker` is transparent. `ClickDispatch` (internal) carries a
+completing click's modifiers and a handler's optional focus request through
+`Window.dispatchClick`/an accessibility `.press`, both paths honouring a
+focus request the same way — a public tap-with-modifiers API stays plan task
+12's.
+
+**`ScrollViewReader`/`scrollTo` (`DD-G`…`DD-I`, `DD-K`; plan task 10 part 1).**
+`ScrollViewReader` is one slot with its own identity level, exactly as a
+`GridRow` or a `ForEach` element is — its content numbers from 0 under it,
+and a `ScrollViewProxy`'s reach is its own subtree only (probe S2: the key
+only under another reader moves nothing). `scrollTo(_:anchor:)` enqueues a
+request on a window-owned queue; the next frame's prepaint resolves it
+against the **first** element recorded at or under a matching key within
+the reader's scope — **keys compared by value** (`AnyHashable`, `DD-K`: SwiftUI
+distinguishes `10` from `"10"`, so does MetalUI), matched against a
+`ForEach` element's typed key, a `List` row's `datum.id`, or an `.id(_:)`
+name, in that order, noted only while a request is pending so a steady
+frame pays nothing. With an anchor the target lands at `minY − anchor.y ×
+(viewport − height)`; with none, the least distance. Only the nearest
+enclosing scroller moves, and the resolved offset lands one frame after the
+call (`requestAnotherFrame()`), same as `scrollTo`'s own asynchrony in
+SwiftUI. `ScrollIndicatorVisibility` gains `.visible` (SwiftUI's overlay
+scrollers treat it as `.automatic`) and `.never` (as `.hidden`) — measured
+macOS behaviour, not new inert state (`DD-H`).
 
 **`Deferred`** is a portal: one child, no layout node, hoists to the root
 layer, resets clip and scroll offset (AP-I) but **not opacity** (`OM-AA`).
@@ -1009,31 +1687,67 @@ whatever surrounds the presentation** — stage 9 deleted the
 `deferred.containingBlock`/`.nested`/`.root` reports along with the legacy
 engine whose containing block they protected (`LR-FF`;
 `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`). An absolute
-box **outside** a `Deferred` (`position`/`inset` at the consumer, owner
-stage 10), `minSize`/`maxSize` on an absolute box's `auto` axis (`…absolute`,
-owner stage 10 since stage 8's `LR-EZ` item 3, and only on a `Style`-written
-box: a `.frame` written before `.position(.absolute)` over at most one node
-answers SwiftUI's frame bounds and never reports, `LR-EV`), and a
-`Component`'s amend over a presentation member (`deferred.amended`, owner
-**stage 11**, `LR-FF`) each **report by name** rather than lower to a
-different answer.
+box **outside** a `Deferred` (`position`/`inset` at the consumer) and
+`minSize`/`maxSize` on an absolute box's `auto` axis (`…absolute`, and only
+on a `Style`-written box: a `.frame` written before `.position(.absolute)`
+over at most one node answers SwiftUI's frame bounds and never reports,
+`LR-EV`) are **permanent refusals since stage 10** (`LR-FO` item 2:
+`owner: nil`, no lowering will ever answer them — the kernel's only absolute
+layout is a presentation's) each **report by name** rather than lower to a
+different answer. **A `Component`'s amend over a presentation member no
+longer reports, since stage 11** (`deferred.amended` deleted, `LR-FY` §6.1):
+it answers exactly as a legacy `.frame` **layer** over the same member
+already did — the placeholder handed on and dropped, the presentation's
+containing block the window whatever surrounds it.
 
 **`Component`** is layout-transparent and identity-opaque: no layout node, one
 cursor index, `@State` under its own id. Its `.padding` wraps each top-level
-node (`OM-D`); `.width`/`.height` **overwrite** each member (divergence 48);
-`.frame` wraps the body in one layer. No `.background`/`.id()` (declare `var
-elementID`) — by type only, and `anyComponent.frame(...)` is a side door. A
-caller's modifier on a component never animates (B-7): declare animated sizes
-inside it. Over proposal content declare `some ProposalElementGroup`.
+node (`OM-D`); `.width`/`.height` **frame** each member (one frame per
+member, `LR-BG`), SwiftUI's own answer (`ID-K`, divergence 48 retired —
+overwriting was the CSS engine's); `.frame` wraps the body in one layer,
+one flex item in its parent rather than SwiftUI's per-member `Group`
+distribution — kept, divergence 56 (`ID-I`). **`.id(_:)` now works** via
+`IdentifiedGroup` (plan task 8, `ID-G`; `var elementID` is still how a
+`Component` names itself by type). **`.background(alignment:content:)` is
+now offered too, exactly as `.overlay { }` already was** (`ID-J`) — a
+one-member component attaches, a multi-member one traps naming the count
+(divergence 73). The decoration-backed `background(_ token:)`/`onClick`/
+`focusable` are still **not** offered (declare them on the members) — by
+type only, and `anyComponent.frame(...)` is a side door. A caller's modifier
+on a component never animates (B-7): declare animated sizes inside it. Over
+proposal content declare `some ProposalElementGroup`.
 
 **`@State`** is a box seeded by reflection per element per frame; slots are
 `.named("$state<n>")`. Seven reserved names (`$state<n>`, `$focus`, `$ax`,
 `$anim`, `$anim-color` slots; `$anim-content`/`$anim-viewport` id prefixes),
 pinned by `theSevenRetentionSlotsAreMutuallyDistinct`. **Write from input,
-never from a phase** (keeps the link awake forever). Inert inside
-`AnyElement`. `prepaintGroup`/`paintGroup` re-bind, so a group-entry bind is
-observable only at layout time. One element VALUE placed twice shares one box
-(divergence 19) — build two values.
+never from a phase** (keeps the link awake forever). **`@State`/`@Environment`
+bind inside an `AnyElement`** (plan task 8, `ID-E`): `AnyElementBox` binds its
+concrete element before `requestLayout`, `prepaint` and `paint` — no longer
+inert. `prepaintGroup`/`paintGroup` re-bind, so a group-entry bind is
+observable only at layout time. **One element VALUE placed twice, read or
+written by a handler under input dispatch, resolves its own occurrence**
+(`ID-F`, `StateDispatch.swift`, divergence 19 retired); a write from
+**outside** dispatch — a phase, or a raw closure call — still reaches the
+*last-bound* occurrence (divergence 71, kept) — build two values there.
+**`$state` projects a `Binding<Value>`** through the box (`State.projectedValue`,
+plan task 10, `DD-D`), so a write through any number of `@Binding` hops
+resolves the slot at call time, exactly as a direct `$state` write does.
+
+**`Binding<Value>`** (plan task 10, `DD-D`) is SwiftUI's own surface —
+`init(get:set:)`, `.constant(_:)`, `wrappedValue`/`projectedValue`, the
+dynamic-member subscript for a key-path-derived binding, and the two
+optional initialisers (`init?(Binding<Value?>)` nil over nil; `init(Binding<V>)
+as V?` ignores a nil write, returning the last non-nil value it read) — but
+**`@MainActor`, where SwiftUI's is nonisolated and `Sendable`** (divergence
+78, added: `State` is already main-actor-only in MetalUI and a binding's
+whole job is to reach it). **A binding write is a `@State` write**: it
+dirties the window and fires `onWrite` through `State.wrappedValue`'s own
+setter, so the same rule applies — write from input, never from a phase.
+`TextField`/`TextEditor` gain `Binding<String>` initialisers forwarding to
+the controlled ones (`DD-E`); nothing controlled moves. **The deprecated
+`typealias Binding = KeyBinding` is deleted in the same change** (`EV-N`);
+`KeyBinding` is unrelated to it and unchanged — see "Environment" below.
 
 **`@Observable`**: the whole frame build is tracked. The `RedrawSentinel`, the
 flush ordering in `drawFrameIfNeeded`, the `isFlushing` guard and
@@ -1042,8 +1756,13 @@ collapsing either branch breaks the suite. A phase-time `@Observable` write is
 silently stale.
 
 **Hit testing.** One hitbox list; ranking is `topmostOpaqueHitbox(in:at:)` —
-no second copy. `onClick` alone makes an opaque pointer target; the keyboard
-gate (`onKey || isFocusable || actions || keyContext`) stays separate.
+no second copy. `onClick`, a `TextField`'s `textInput` or a `Slider`'s
+`valueTrack` makes an opaque pointer target (`Handlers.isPointerTarget`); the
+keyboard gate (`onKey || isFocusable || actions || keyContext`) stays separate.
+**A wheel over a non-scrolling opaque hitbox passes to its nearest ancestor
+scroller on the same layer** (`DD-Y`, divergence 16 retired,
+`Window.enclosingScroller(of:at:)`); an overlaid-but-not-enclosed target or a
+`Deferred` scrim still stops it.
 `allowsHitTesting(false)` gates only `registerHandlers`' pointer hitbox —
 scroll regions and raw `insertHitbox` bypass it (`OM-AK`); it is per layer
 (divergence 44). `contentShape(inset:)` moves the pointer region only and
@@ -1061,8 +1780,9 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has nine members (the ninth, `textInput`, internal
-and set only by `TextField`, `TI-B`); `HandlerShape` (`ModifierTests`) and
+`LR-AA`). `Handlers` has ten members (the ninth, `textInput`, internal
+and set only by `TextField`, `TI-B`; the tenth, `valueTrack`, internal and
+set only by `Slider`, `DD-W` item 5); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -1071,14 +1791,31 @@ identity-transparent; nearest writer wins; transforms run once per frame in
 layout and are re-pushed (`EV-V`). Readable in every phase except `theme`
 (`PaintPass` only). `@Environment` binds like `@State`; unbound it silently
 reads defaults. `Window.environment` writes always dirty — write from input.
-`theme`/`pixelLength` are re-stamped each frame. **A modifier written after a
+Only `theme` is re-stamped over a scope's write each frame; `displayScale`,
+`controlActiveState` and `controlSize` are not (`EV-U`'s `pixelLength` half is
+withdrawn by `EV-AA`). **A modifier written after a
 scope sits outside it** (`EV-X`). `.disabled(d)` is
 `transformEnvironment(\.isEnabled) { $0 = $0 && !d }` (`EV-D`); the one gate
 is in `Frame.registerHandlers`' **5-argument** implementation. Disabled: no
 hitbox, nothing in the focus registry, still published to AX as disabled.
-Scroll regions are outside the gate. A new handler-registering site gains an
-arm in the D2 guard. `Binding` is a deprecated alias of `KeyBinding`, deleted
-by task 10.
+Scroll regions are outside the gate — including under `.disabled` (`EV-E`;
+whether SwiftUI's disabled `ScrollView` agrees is unmeasured, `DD-I` item 3,
+a human look owed). A new handler-registering site gains an
+arm in the D2 guard. `KeyBinding` is the keymap's own type, unrelated to
+`Binding<Value>` (see "`Binding<Value>`" above) — **the deprecated
+`typealias Binding = KeyBinding` alias is gone since plan task 10**
+(`DD-D` item 6). **`displayScale`** is `public var`, 1 in a bare value;
+`pixelLength` is now derived (`displayScale == 0 ? 1 : 1 / displayScale`),
+never stored; `Frame` stamps the root's `displayScale` from its own
+`scaleFactor` (`EV-AA`) — a scope can write it, and a write changes only the
+number, never the scale `Frame.fill` draws at (S3, `EV-AA`). **`controlActiveState`**
+(`key`/`active`/`inactive`, `MetalUICore`) comes from `PlatformWindow`'s
+defaultless `controlActiveState`/`onControlActiveStateChange` pair, stamped
+by `Window` over its own guarded copy at draw, before `Window.environment`
+(`EV-AB`) — so `Window.environment`'s `controlActiveState`, like its `theme`
+and `displayScale`, is **not** the root's source (three fields, not two).
+**`controlSize`** (SwiftUI's five sizes) is carried and scoped
+(`.controlSize(_:)`) with no built-in reader (`EV-AC`, divergence 76).
 
 **Accessibility (`AB-`).** Nothing recorded until a client activates the
 window (sticky). Synthesized nodes are records (`Frame.axEmissions`), never
@@ -1090,18 +1827,27 @@ text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
 **Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
-**except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`) — and
-**Tab / shift-Tab traverse** every focusable element in tree order, wrapping
-(`FocusRegistry.tabOrder`, `TI-J`; tabbing into a field selects its text).
-Keys go to the `Keymap` first, then to a focused field's editing keys, then
-bubble raw `onKey` up the parent chain, and only then does an unclaimed,
-unmodified (shift aside) Tab traverse — so a binding or `onKey` for Tab wins.
-`onKey` bubbles from the focused element, so with nothing focused it sees
-nothing. `focusBorder(_:width:)` is the (opt-in) ring;
+**except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`), and a
+selectable `List` (`DD-Z`) — and **Tab / shift-Tab (or `U+0019`) traverse**
+every focusable element in tree order, wrapping (`FocusRegistry.tabOrder`,
+`TI-J`; tabbing into a field selects its text; ⌘/⌃/⌥-Tab is not traversal).
+**Tab reaches every control too** (`Button`, `Toggle`, `Slider`, `Stepper`,
+`Picker`, a selectable `List` — all focusable, `DD-T`): AppKit's Tab with
+keyboard navigation on, since MetalUI reads no system setting — inside
+divergence 80's scope, `TI-J`'s merge amendment, record §59 §Merge. Keys go
+to the `Keymap` first, then to a focused field's editing keys, then bubble raw
+`onKey` up the parent chain (a control's own `ControlKeys` run there, after a
+caller's `onKey` declines), and only then does an unclaimed Tab traverse — so
+a binding or `onKey` for Tab wins, and no control claims it. `onKey` bubbles
+from the focused element, so with nothing focused it sees nothing.
+`focusBorder(_:width:)` is the (opt-in) ring;
 background and border resolve `focus ?? hover ?? plain`.
 
-**Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** (there
-is no value `Binding`; `Binding` is still `KeyBinding`'s alias) and one line.
+**Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** and
+one line; since plan task 10 it and `TextEditor` also take a
+`Binding<String>` (`TextField(_:text:)`, `TextEditor(_:text:)`, `DD-E`),
+forwarding to the controlled initialiser — nothing controlled moves, and a
+field bound to `.constant` shows its text and drops every edit.
 Its selection, composition and scroll live in `StateTable` under its own id.
 While a field is focused, `Window` calls `PlatformWindow.setTextInputArea`
 with its caret (nil otherwise), and a printable key arrives as
@@ -1125,7 +1871,12 @@ up/down all read the same `TextLineModel`, so a caret at a wrap sits at the
 next line's start. Up and down keep a remembered column (`goalX`), and return
 inserts `\n`. Its vertical scroll follows the caret unless the wheel moved
 it (`revealsCaret`). The wheel over an editor is routed in
-`Window.applyScroll`, ahead of the opaque-hitbox stop.
+`Window.applyScroll`, ahead of the opaque-hitbox stop. **Page Up/Down
+(`TI-I`)** page an editor by its visible height less one line
+(`TextLineModel.pageHeight`, from the heights `TextEditor` hands it): on a
+Mac they scroll and leave the caret, as NSTextView does; elsewhere they move
+the caret that many lines at its column. `TextField` does not claim them, and
+neither field claims Tab.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
@@ -1166,14 +1917,21 @@ back unless a frame build is coming; both clauses are measured fixes.
 Layout-phase helper `animated(_:_:for:pass:)` (`AnimatedStyle.swift`); colour
 helper `animatedBackground` in paint (`AnimatedColor.swift`, needs the theme).
 A site that skips its helper is silently unanimated — guards
-`everyRegisteringSiteAnimatesItsStyle`, `everyBackgroundPaintingSiteAnimatesItsColour`.
+`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (which
+replaced `everyRegisteringSiteAnimatesItsStyle` at stage 7b, record §49 row
+241), `everyBackgroundPaintingSiteAnimatesItsColour`.
 Interpolation is per-component RGB, never hue; slots store tokens. "Live" is
 `Frame.noteActiveAnimation()` → `hasActiveAnimations`, copied after the whole
 render; **not** `wantsAnotherFrame` — never raise both. **Snaps:** any
 `Dimension`/`Length` case change (incl. anything touching `.auto` — declare a
 real baseline), the five paint-only `Decoration` fields, a caller's modifier
 on a `Component`, everything on the proposal path (`Grid` and `GridRow`
-included). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
+included), and an element returning inside an `if` **or a `for` loop or
+`ForEach`** (its `$anim` baseline is reset with the rest of the removed
+content, `ID-C`/`ID-P` item 1 for the `if`; the loop case matches since plan
+task 10, `DD-C` — divergence 74's retirement, which changed one existing
+animation test's own answer, `DD-N`), and a `Slider`'s thumb (drawn in its
+own `paint`, so a value written under `withAnimation` jumps, `DD-W`). **An animated flex-item field snaps its STRUCTURE** (`LR-AS`): the
 lowering reads which wrappers exist from the *declared* style and only their
 values from the animated one, so a grow that appears or vanishes mid-flight
 jumps and two equal declared factors stay equal mid-flight
@@ -1224,15 +1982,17 @@ out through the propose/measure/place kernel. Detail: §19
   `flexShrink: 0` as `fixedSize` and any positive shrink as SwiftUI's
   compression; px/rem `minSize`/`maxSize` folded into a declared size as
   `max(min, min(size, max))`; `Style.border` as insets inside the declared
-  size; a `Text`'s `Style.padding` around **its leaf** (glyphs paint and wrap
+  size (until stage 10 deleted the field, `LR-FM` item 1); a `Text`'s `Style.padding` around **its leaf** (glyphs paint and wrap
   at the leaf); `margin` as a native padding outside the item frame, unaliased,
   `.auto` as 0, negative accepted; `justifyContent`'s three distributions as
   native spacers plus a rigid gap leaf, with a declared main size only;
   `.rowReverse`/`.columnReverse` as the children's **nodes** reversed with the
   main factor mirrored (identity, paint, hit and accessibility order
-  untouched). Still reported by name, each with an owner: percentages, unequal
+  untouched). Still reported by name: percentages, unequal
   grow weights, a length `flexBasis`, a non-greedy `maxSize`, `space-*` on an
-  unsized container a parent grows, `baseline`, `hidden()`. **Structure reads
+  unsized container a parent grows, `baseline` — since stage 10 each a
+  **permanent refusal** (`owner: nil`, `LR-FO`) except `baseline` (owner plan
+  task 11); `hidden()` lowers since stage 6b (`LR-DH`). **Structure reads
   the declared style, values the animated one** (`LR-AS`); a new read of
   `Style` in the lowering owes an animated arm, or it is unpinned. A `Stack`
   and a `.frame` layer ignore a child's margin, as the legacy engine did. A
@@ -1336,8 +2096,9 @@ out through the propose/measure/place kernel. Detail: §19
   `nativeLayoutPreviewContent()` from `MetalUIDemoContent`, `LR-S`, and a
   `List`, each through a real `Window`, bumping `Frame.legacyRootLayoutCounter`
   zero times) is **retired at stage 9** along with the counter it read —
-  there is no longer a legacy engine to reach; stage 10 replaces it with
-  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. Record §41.
+  there is no longer a legacy engine to reach; **stage 10 replaces it** with
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (a `dlsym` check, macOS
+  and Linux, compiled out on Windows). Record §41.
 - **Stage 7a retires the 97 WebKit goldens** (`LR-DS`…`LR-EB`). Verdicts
   (`LR-DS`): **R** (44) — the golden's own tree, transcribed field for field
   into `Box(style:)` with each `data-id` on `.id(_:)`, reproduces its rounded
@@ -1368,12 +2129,51 @@ out through the propose/measure/place kernel. Detail: §19
   or a registration site's own handler/decoration/focus/accessibility
   (`LR-EW`, `LR-FB` — R2's move onto a frame layer would silently re-point
   such a pin at `ModifiedElement`). A new test that sizes a box writes
-  `.frame`; `css*` dies with the fields at stage 10. A framed absolute box is
+  `.frame`. **`css*` was expected to die with the fields at stage 10; it did
+  not** — `Style.size`/`minSize`/`maxSize`, the only fields it writes, survive
+  stage 10 as the lowering's own inputs (`LR-FM` item 2), so `CSSSizing.swift`
+  stays, the reason above still holds, and only its narrower doc comment was
+  corrected (`LR-FO` item 6). A framed absolute box is
   a presentation root (`LR-EV`, one node only); unconsumed as the root it
   reports `position`/`inset` `.unconsumed` (`LR-FA`). Stage 8 pre-empted
   nothing of 9–11: at 8, no engine file, `Style` field, legacy registrar or
   the legacy authority was deleted (stage 9 did); `Component.width`/`height`
   stay undeprecated (stage 11). Record §50.
+- **Stage 10 resolves `Style`'s CSS fields field by field, and closes the
+  deletion mechanically** (`LR-FM`…`LR-FU`). **Deleted**: `aspectRatio`,
+  `overflow` (read by nothing), `Style.border` (`Box(style:)` its only
+  writer), `flexWrap`, `alignContent` (read only to be reported) and
+  `Position.relative` (read only to be reported), with the enums
+  `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+  `flexWrap(_:)`/`alignContent(_:)`. **Narrowed**: every surviving stored
+  field (seventeen) and `Display`/`JustifyItems` become `package` — outside
+  the package `Style` is opaque (`init()`, `default`, `==`), pinned by
+  `aPlainImportCannotWriteAStyleField`; `Box`'s public `style:`
+  initialiser parameter is therefore inert outside the package (record §05).
+  **Moved**: `Style.swift` from `MetalUILayout` to `MetalUI`, its only reader
+  since stage 9 — `MetalUILayout` declares no CSS vocabulary at all.
+  **`UnlowerableField.owningStage: String` becomes `owner: String?`**
+  (`LR-FO` item 3): every report this stage inherited becomes a **permanent
+  refusal by name**, not work owed to a later stage — percentages, a
+  non-greedy `maxSize`, a length `flexBasis`, a floored `space-*`, a root's
+  auto-axis min/max and margin, `…absolute` on a `Style`-written box, unequal
+  grow weights, a negative `flexGrow`/`flexShrink`, an absolute box outside a
+  `Deferred` (`position`/`inset` at the consumer) and `inset` on a static box
+  all read `owner: nil` and the trap message
+  `"…and is refused by name (plan task 7, LR-FO)"`; `deferred.amended`
+  (`"plan task 7, stage 11"`) and a `baseline` field (`"plan task 11"`) are
+  the only two with a live owner left. The mechanical closing check lands:
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym`, macOS and
+  Linux, compiled out on Windows) in place of the retired
+  `noProductionFrameReachesTheLegacyEngine`, three plain-import guards
+  (`StyleSurfaceCompileGuards`) and a recorded grep (`LR-FP`). No production
+  behaviour moves: no production tree wrote a deleted field, and
+  `paddedAndSized`'s insets are the padding alone now that `Style.border` is
+  gone (the border fold is deleted with it, not kept at `.zero` — `LR-FU`).
+  Stage 10 pre-empts nothing of 11:
+  `ModifiedElement`/`ModifiedContent` stay separate, legacy `.overlay` and
+  `.opacity` G4 are untouched, and `deferred.amended` stays stage 11's.
+  Record §53.
 - **`ProposalLayout`** (`SA-A`…`SA-F`): `sizeThatFits` + `placeSubviews`, no
   cache. Measurement cannot place (compile-time); `place` only records, last
   wins, unplaced is centred. Migration: leaf → `requestNativeLeaf`; algorithm
@@ -1454,10 +2254,14 @@ out through the propose/measure/place kernel. Detail: §19
   - **Spacing `nil` is the largest platform-default pair spacing meeting at
     each boundary**, not one number for the grid (`GR-D`); a given value is
     used verbatim on every gap of that axis, negative included.
-  - **A vanishing `if` inside a grid moves the cells after it** — the
-    framework's universal trailing-sibling adoption, inside a row and between
-    rows — and no built-in proposal element has `.id()`, so the documented
-    remedy cannot be spelled until task 8.
+  - **A vanishing cell or row's state no longer hands on to the next one**
+    (plan task 8, `ID-B`; divergence 69 retired): an `if` around a cell in a
+    `GridRow`, or around a row in a `Grid`, takes one structural slot whether
+    or not it produces content, so the cell or row after it keeps its index
+    and there is no "next one" left to adopt the vanished state. `.id(_:)` is now
+    spellable on a `Grid`/`GridRow` too, via `IdentifiedGroup` (`ID-G`),
+    closing the remedy this row used to say could not be spelled until
+    task 8.
   - A grid registers and paints nothing of its own, publishes nothing to
     accessibility and never animates (`GR-K`). It **consumes no `LoweredItem`**,
     so a legacy item field on a top-level cell reports
@@ -1468,8 +2272,20 @@ out through the propose/measure/place kernel. Detail: §19
   `ProposalScrollView`, `ProposalText`, `ProposalLayoutContainer`,
   `Grid(alignment:horizontalSpacing:verticalSpacing:)` and `GridRow(alignment:)`
   with the four cell modifiers `.gridCellColumns(_:)`, `.gridCellAnchor(_:)`,
-  `.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`. Modifiers
-  on `ProposalElementGroup` return `ModifiedContent`. `Native…` types and
+  `.gridColumnAlignment(_:)` and `.gridCellUnsizedAxes(_:)`, and, since plan
+  task 10 part 1, `ForEach` (`extension ForEach: ProposalElementGroup where
+  Content: ProposalElementGroup`, `DD-B` — legacy content inside a `ForEach`
+  inside a proposal stack does not compile, `DD-B`'s guard G1.2) and
+  `ScrollViewReader`/`ScrollViewProxy`/`UnitPoint` (`DD-G`). **`.id(_:)` on any
+  `ElementGroup`** (plan task 8, `ID-G`) wraps it in `IdentifiedGroup<Content>`
+  (`ExplicitIdentity.swift`); a `StyledElement`'s own `id(_:) -> Self` wins
+  where both apply. **A legacy `.background(alignment:content:)`**
+  (`ID-J`, `BackgroundModifier<Content, Background>`) joins the token
+  `background(_:)` overloads, the overlay's recipe line for line. Modifiers
+  on `ProposalElementGroup` return `ModifiedContent<ProposalBase,
+  LayoutModifier>` — the unified type's proposal arm since stage 11
+  (`LR-FV`), the same struct a legacy `.padding`/`.frame` chain returns with
+  `Modifier == ModifierLayer`. `Native…` types and
   `native…` methods are deprecated aliases (except the two `nativeFrame`
   overloads — deprecating them breaks the 0-warning baseline); the kernel's
   `requestNative*`/`newNative*`/`computeNativeLayout` are primary API — 13
@@ -1579,8 +2395,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**56 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 15, 17, 36, 37, 40, 59) — record §04 is current (its
+- **Known divergences** (**61 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
+  59, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -1629,12 +2446,123 @@ expected, measured facts:
   renamed pin (record §04's 2026-09-24 stage-9 section names each);
   **18** is untouched (it was never about the authority);
   §19 "Known divergences" is the frozen 48-row copy. Many are *pinned wrong on
-  purpose*; a test named for one reddening may be a fix, not a bug.
+  purpose*; a test named for one reddening may be a fix, not a bug. **Stage 10
+  moves no divergence number** — 9, 10 and 54 were re-read for the
+  permanent-refusal wording (`UnlowerableField.owner`) and hold unchanged in
+  substance (record §04's 2026-09-24 stage-10 section, added by the branch
+  check, `LR-FU`, which also names 54's live pin,
+  `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem` — the
+  table's name retired at 7b). **Stage 11 retires 45** (56 → 55 live; 45
+  joins the never-reused list): the write-order bug behind it
+  (`.opacity`/`.background`/`.opacity` sharing one `Decoration` with the
+  order lost, `OM-H`/`OM-N`) is fixed on both paths by
+  `Decoration.escapesOpacity`, so a fill or border written after `.opacity`
+  is outside its scope everywhere — SwiftUI's own answer — and the row that
+  pinned it wrong on purpose is renamed to pin the fix instead
+  (`aBackgroundOrBorderWrittenAfterOpacityEscapesIt`, `LR-FW`, record §04's
+  2026-09-25 stage-11 section). Divergence **54** (a lowered `ScrollView`
+  takes its cross axis from its parent) is re-owned from "stage 11 / task
+  10's" to **plan task 10 alone**, and **56**'s remainder (a `.frame` on a
+  multi-member `Component` stays one flex item, `TB-M`) to **plan task 8**
+  (`Group` semantics) — neither is a modifier question, so stage 11 disposes
+  of neither by closing it (`LR-GA` item 5). **Plan task 8 retires 18, 19, 48
+  and 69 and adds 71–74** (55 → 55 live, net zero; record §04's 2026-09-25
+  task-8 section): 18 (a `@State` behind a removed `if` is retained) and 69
+  (a vanishing grid cell/row hands on its state) both retire under
+  `ID-B`/`ID-C`'s one-structural-slot fix and reset-on-return rule, which now
+  match SwiftUI (probes V1, V5, V7–V9); 19 (a handler writing one value
+  placed twice writes the last-bound occurrence) retires under `ID-F`'s
+  `StateDispatch`, which resolves the occurrence actually dispatching; 48 (a
+  `Component`'s width overwrote its members' under the CSS engine; framing
+  each member is SwiftUI's answer and the proposal path's
+  since stage 3) retires by `ID-K`'s bookkeeping alone, no code change.
+  **Added**: 71 (a write from *outside* input dispatch — a phase, a raw
+  closure — still reaches the last-bound occurrence, `ID-F`'s deliberate
+  remainder), 72 (two siblings with the same name/`.id` still share one
+  identity, kept, `ID-H`), 73 (`.overlay`/`.background { }` on a zero- or
+  multi-member primary traps, naming the count, kept, `ID-I` item 3), 74 (an
+  element a `for` loop stops producing keeps its state and gets it back if
+  the loop regrows, kept, owner plan task 10's `ForEach`). **56 is amended,
+  not retired**: its remainder (above) now also names the row's cross-axis
+  alignment as the frame's own where SwiftUI's is the parent's (probe L8,
+  kept, pinned by new `N3.1`) — task 8's audit closes the row's "owner: none"
+  clause with a pin rather than a fix. **Task 8's closeout adds no row**
+  (`ID-R`, record §04's closeout section): a name that returns after a
+  detour now starts fresh, SwiftUI's answer, so label 75 stays unused.
+  **Plan task 9's closing half retires 24 and adds 76 and 77** (55 → 56 live;
+  record §04's 2026-09-25 task-9 section): 24 (no `displayScale`; no scope
+  could change `pixelLength`; a `\.self` reset kept it) retires under `EV-AA`
+  — `displayScale` is now `public var`, `pixelLength` derives from it, a scope
+  write moves both, and a `\.self` reset reads 1 and 1, with S3 showing that a
+  write changing only the *number* (not the scale `Frame.fill` draws at) is
+  SwiftUI's own behaviour, not the MetalUI-only hazard the old ruling named.
+  **Added**: 76 (`controlSize` is carried and scoped but reaches no built-in
+  measurement, where SwiftUI's `Text`, `TextField` and `Button` all read it,
+  kept, owners plan tasks 11 and 10, `EV-AC`), 77 (layout rounds every stored
+  rectangle to whole points, not the `displayScale` pixel grid SwiftUI rounds
+  to, found by probe S4, kept, owner plan task 11, `EV-AD`). **`controlActiveState`
+  gets no row**: its AppKit/SDL mapping is stated as MetalUI's own choice, not
+  a measured SwiftUI fact — the probe's C1–C3/C5 arms never ran (screen
+  locked), so there is nothing yet to diverge *from* (`EV-AB`).
+  **Plan task 10 part 1 retires 74 and 14, amends 13, and adds 78 and 79** (56 → 56 live, net zero; record
+  §04's 2026-09-25 task-10-part-1 section, rulings `DD-A`…`DD-P`): 74 (an
+  element a `for` loop stops producing kept its state and got it back if the
+  loop regrew) retires under `DD-C` — a loop now notes its slot and the
+  extent it consumed and resets a dropped positional tail or a dropped named
+  child exactly as `ID-C`'s evaluated-conditional reset already does; `ForEach`
+  (new, `DD-B`) gets the identical rule. **14** (a `List` below a flow sibling in its
+  scroller windowed against the scroller's origin and rendered blank) retires
+  under `DD-F` — the list windows against its own origin, last frame's
+  measurement; **13** is amended, kept (the first frame after a resize is
+  still stale, but the list asks for exactly one more frame). **Added**: 78 (`Binding` is
+  `@MainActor`, where SwiftUI's is nonisolated and `Sendable`, kept, `DD-D`
+  item 4), 79 (a `ForEach` whose ids collide in description but differ in
+  value produces only the first of them, where SwiftUI evaluates both, kept,
+  found by probe S6, `DD-L`). **`ScrollIndicatorVisibility`'s new `.visible`/
+  `.never` cases get no row**: they are SwiftUI's own measured macOS
+  behaviour (`DD-H`), not stored-but-unread state — superseding the enum's
+  own doc comment that a third case would be inert. **`KeyBinding`'s
+  deprecated `Binding` alias is deleted, not a divergence**: `EV-N` announced
+  the break, `DD-D` item 6 lands it.
+  **Plan task 10 part 2 retires 16 and adds 80–85** (56 → 61 live; record
+  §04's 2026-09-28 task-10-part-2 section, rulings `DD-Q`…`DD-AI`): 16 (a
+  click target inside a `ScrollView` swallowed the wheel over itself)
+  retires under `DD-Y` — the wheel now passes to the nearest ancestor
+  hitbox on the same layer that registered a scroll region, so a button, a
+  toggle, a slider, a selectable `List` row or a single-line `TextField`
+  no longer blocks it; an overlay sibling and a `Deferred`-hoisted scrim
+  still stop it (the ancestry and layer clauses, both pinned). **Added**: 80
+  (every control takes its keys once focused whether or not SwiftUI's own
+  Full Keyboard Access setting would allow it — unmeasured there, kept,
+  `DD-T` item 3), 81 (the automatic `Picker` is segmented, where SwiftUI's
+  is a pop-up menu on macOS, kept, owner plan task 12 for the menu
+  presentation, `DD-V` item 4), 82 (the accessibility partial fold gives
+  `.incrementor`/`.radioGroup` an accessible name from its non-interactive
+  descendants, where SwiftUI publishes a sibling static text beside an
+  unlabelled control — also missing a slider's `AXValueIndicator` child and
+  a stepper's arrows published DISABLED while enabled — kept, owner plan
+  task 12's VoiceOver validation, `DD-U` items 3 and 9), 83 (an
+  accessibility client selects a `List` row only by pressing it;
+  `AXSelected`/`AXSelectedRows` write nothing, where SwiftUI's do, kept,
+  owner plan task 12, `DD-Z` item 8), 84 (a `List` answers its content
+  height as `rowHeight × count`, needs an enclosing `ScrollView`, is
+  data-driven only and shares one row height, where SwiftUI's is greedy,
+  self-scrolling and blank beside a header — kept, owner **none**, `DD-AB`
+  item 3), 85 (an optional `@State` with a non-`nil` initial value reads
+  `nil` until its first write — `StateTable.peek`/`State.wrappedValue` casts
+  an absent entry to the optional type as a present `.some(nil)` before the
+  `?? initialValue` fallback runs — kept, owner **plan task 15** closeout,
+  found by the controls demo and disposed of by the Record phase rather
+  than fixed on this branch, `DD-AG` item 3, `DD-AH` item 4, `DD-AI`).
+  Divergence 76 is **amended again, not retired** (`Button`'s chrome now
+  reads `controlSize`; every other consumer stays plan task 11's, `DD-R`
+  item 4).
 - **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
-  `Style.aspectRatio`/`overflow`, `Position.relative` offset, `hidden()` on
-  drawing/focusable subtrees, `AnyElement`'s `@State`, `PaintPass.isActive`,
+  `hidden()` on
+  drawing/focusable subtrees, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
-  `locale`/`layoutDirection`/`dynamicTypeSize`, one axis each of
+  `locale`/`layoutDirection`/`dynamicTypeSize`, `controlActiveState`,
+  `controlSize`, `displayScale`, one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
   carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
@@ -1661,7 +2589,51 @@ expected, measured facts:
   survives (re-owned to stage 11). **`LayoutAuthority.proposal` in production
   is no longer inert — its row is deleted** (stage 6b, `LR-DF`: production
   now runs it by default); the
-  entry above listed it until this stage.
+  entry above listed it until this stage. **`Style.aspectRatio`, `overflow`,
+  `Style.border` on a container and `Position.relative`'s offset are DELETED
+  at stage 10, not merely inert — removed from the inline example list above,
+  not narrowed to it** (`LR-FM` item 1, record §05's 2026-09-24 stage-10
+  section): the fields themselves, the enums `FlexWrap`/`AlignContent`/
+  `Overflow` and the modifiers `flexWrap(_:)`/`alignContent(_:)` no longer
+  exist. `margin: .auto`'s row (kept, since `margin` survives) is narrowed
+  further: `Style.margin` is no longer public, so the case is unreachable
+  from outside the package by any route, not only through
+  `StyledElement.margin(_:)`'s `Length` parameter. **A row is added**:
+  `Box`'s public `style:` initialiser parameter, inert outside the
+  package now that every field it could set is `package` (`LR-FR` F5).
+  **Stage 11 deletes `deferred.amended`'s row**: a `Component`'s amend over a
+  presentation member no longer reports at all — it lowers exactly as a
+  legacy `.frame` layer over the same member already did — so the report
+  mechanism has nothing left to answer here, not merely nothing new to say
+  (`LR-FY` §6.1, record §05's 2026-09-25 stage-11 section). **Plan task 8
+  deletes the `@State`-inside-`AnyElement` row** (`ID-E`, record §05's
+  2026-09-25 task-8 section): `AnyElementBox` now binds its concrete element
+  before every phase, so the row is fixed rather than merely reassigned —
+  the same shape as `deferred.amended` above, not a narrowing. **Plan task
+  9's closing half adds three rows, deletes none** (record §05's 2026-09-25
+  task-9 section): `controlActiveState` (owner plan task 12, with the
+  disabled look), `controlSize` (owner plan task 11 for `Text`'s default
+  font, plan task 10 for `TextField`/`Button` and the other common
+  controls — divergence 76) and `displayScale` (**no owner named**: it exists
+  for an author to read, as `pixelLength` always has, not for a framework
+  consumer — `Frame.fill` still scales by the frame's own `scaleFactor`, never
+  by `environmentTop.displayScale`, and `roundLayout` still rounds to whole
+  points regardless, divergence 77).
+  **Plan task 10 part 1 adds no row and deletes none** (record §05's
+  2026-09-25 task-10-part-1 section): `ScrollIndicatorVisibility`'s two new
+  cases are wired to already-live paths (`.visible` as `.automatic`, `.never`
+  as `.hidden`), not new unread state, and `KeyBinding`'s deprecated alias is
+  deleted outright, never having held a row here.
+  **Plan task 10 part 2 narrows the `controlSize` row, adds no other, deletes
+  none** (record §05's 2026-09-28 task-10-part-2 section): `Button`'s
+  automatic chrome now reads it (`DD-R` item 4), so the row is no longer a
+  flat "inert" example above — narrowed to "reaches `Button`'s chrome only,
+  divergence 76 amended"; `Text`'s default font (plan task 11) and every
+  other control's metrics (also plan task 10's own remaining consumers, none
+  built this part) still read nothing from it. `controlActiveState` and
+  `displayScale`'s rows are untouched: neither control this part built reads
+  either (`DD-Q`'s table re-points `controlActiveState`'s consumers at plan
+  task 12 unchanged).
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -1708,7 +2680,54 @@ expected, measured facts:
   at the demo's own 920×560),
   the animation panel at 320, the modal card's new height, and the list rows'
   labels now centred in their declared 28 pt row — none of these was ever seen
-  on a real display.
+  on a real display. **No look was added by engine-replacement stage 7a,
+  stage 11 or plan task 8** (record §03's own dated sections for each — stages
+  7b, 8, 9 and 10 recorded no §03 section, so this file makes no claim about
+  them): plan task 8 and stage 11 each touch no pixel the demo paints (0
+  differing in all fourteen offscreen images) and neither reopens or closes
+  the five looks above. Plan task 8's own lock probe ran six times across its
+  lanes and Record phase, and a seventh time at its branch check, and read locked every time — the same
+  still-owed capture, not a new one. **Plan task 9's closing half adds no
+  look but adds two more to the still-owed capture** (record §03's 2026-09-25
+  section): `displayScale`, `controlActiveState` and `controlSize` reach no
+  built-in element, so 0 px against `e732d98` in all fourteen offscreen
+  images at every lane and again at the Record phase's close — but the task's
+  own probe could not run its C1–C3/C5 arms (the screen was locked at every
+  check), so **the key/active mapping against SwiftUI, and a `displayScale`
+  change from moving the window between displays**, are now owed alongside
+  the still-open real-window capture, neither reachable without an unlocked
+  screen and, for the second, two displays of different scale.
+  **Plan task 10 part 1 adds no demo look but adds one more look of its own**
+  (record §03's 2026-09-25 task-10-part-1 section): `ForEach`, `Binding`,
+  `ScrollViewReader` and the `List`/indicator fixes touch no tree the demo
+  builds, so 0 px against `e7bc2e7` in all fourteen offscreen images, taken
+  at this task's own close; the lock probe read locked again (a third
+  reading this task, after design time and the critic round), so
+  `capture.sh` was never run. **Wheel scrolling under `.disabled`**
+  (`EV-Q`'s item for this task, `DD-I` item 3) is owed: SwiftUI's positive
+  control never ran (screen locked), so whether its disabled scroll view
+  scrolls is unmeasured — MetalUI's still does, pinned, unchanged.
+  **Plan task 10 part 2 adds one new demo look and a long list of pointer
+  and accessibility looks, all still owed** (record §03's 2026-09-28
+  task-10-part-2 section): the controls demo
+  (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) is a tree the existing
+  demo never built, so it is its own look, not a reopening of the five still
+  owed above; the fourteen-image offscreen comparison stands in for the
+  ordinary demo (0 px against `27b2fcc`) but says nothing about a tree it
+  never renders. The lock probe read locked at every lane's own check and
+  again at this Record phase's close (`CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1`), so `capture.sh` never ran and SwiftUI's own
+  click/wheel/keyboard controls never did either (CK0, WH0 failed in every
+  probe session) — **owed**: the controls demo on screen (every control by
+  pointer and by key — a slider press and drag, stepper halves, the wheel
+  over a button/field/selectable row, ⌘/⇧-click and arrow selection on a
+  `List`, the lead reveal); VoiceOver on the five new roles (the partial
+  fold's accessible name vs. SwiftUI's sibling title, divergence 82; a
+  slider's missing `AXValueIndicator` child and a stepper's arrows read
+  DISABLED by AppKit while enabled); and whether SwiftUI's controls take
+  Space/Return/arrows without Full Keyboard Access, which the design's own
+  probe run never turned on (divergence 80). None of these was ever seen on
+  a real display or a real accessibility client.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -1717,7 +2736,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **79** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **100** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
@@ -1768,3 +2787,11 @@ expected, measured facts:
     `assumeIsolated`). swift-corelibs Foundation silently ignores a
     `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
     or more. Record §50 §14.
+  - **Stage 10's closing check is compiled out on Windows.**
+    `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+    (`Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`) is
+    `#if canImport(Darwin) || canImport(Glibc)` — it runs on macOS and Linux,
+    where `dlsym` resolves each mangled name against the test process, and
+    does not exist on Windows, which has neither C library.
+    `root-windows` CI never runs it; its absence there is by design, not a
+    skip to investigate. Record §53 §6.2 item 6.

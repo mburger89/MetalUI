@@ -886,3 +886,39 @@ func hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake() throws {
             "nothing dirtied the window after the scroll settled, so no further frame may draw")
     #expect(platformWindow.pauseCalls.last == true, "the display link must pause — a hidden indicator must not hold it awake")
 }
+
+// MARK: - 8. `.visible` and `.never` (plan task 10, part 1, ruling `DD-H`)
+
+/// **3.15 (probe I1–I5).** `.visible` paints and asks for frames exactly as
+/// `.automatic` does, and `.never` paints nothing and asks for nothing, as
+/// `.hidden` — SwiftUI's macOS answers on overlay scrollers. Same fixture as
+/// section 7 (content overflowing, age 0), whose `.automatic`/`.hidden` pair is
+/// `#require`d to differ first, so the equalities below cannot pass on a
+/// fixture that paints nothing. **M3o**: `.never` falls through to the
+/// automatic path.
+@Test @MainActor
+func visibleIndicatorsPaintAsAutomaticAndNeverAsHidden() throws {
+    func rendered(_ visibility: ScrollIndicatorVisibility) -> (rects: Int, asks: Bool, thumb: [[Float]]) {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedSize(120, 200))
+        }
+        .scrollIndicators(visibility)
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                       stateTable: scrolledState(offset: 20, lastScrollTime: 100),
+                                       timestamp: 100)
+        return (frame.scene.rects.count, frame.wantsAnotherFrame, frame.scene.rects.map {
+            [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height]
+        })
+    }
+    let automatic = rendered(.automatic)
+    let hidden = rendered(.hidden)
+    try #require(automatic.rects == 1 && automatic.asks, "control: `.automatic` paints the thumb and asks for the fade")
+    try #require(hidden.rects == 0 && !hidden.asks, "control: `.hidden` paints nothing and asks for nothing")
+
+    let visible = rendered(.visible)
+    #expect(visible.rects == automatic.rects && visible.asks == automatic.asks
+            && visible.thumb == automatic.thumb, "`.visible` is `.automatic` (I1, I2)")
+    let never = rendered(.never)
+    #expect(never.rects == hidden.rects && never.asks == hidden.asks,
+            "`.never` is `.hidden` (I3–I5): no thumb and no frame requested")
+}

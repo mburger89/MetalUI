@@ -167,8 +167,8 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// - a **wrap** lowers `paddingWrapperStyle`, whose every field is a default
 ///   except a pixel `padding`, and it too has exactly one child.
 ///
-/// So `LoweringSite.component` survives for `UnlowerableField.owningStage`'s
-/// trap message and for whatever field a later stage puts on it, and these two
+/// So `LoweringSite.component` survives for `UnlowerableField`'s (since stage
+/// 10, `owner`'s) trap message and for whatever field a later stage puts on it, and these two
 /// arms are what would notice a regression that made either op report again.
 /// The amend arm stays a **child process** for the reason above: in-process a
 /// regression that removed the branch entirely reached `SA-G`'s `setStyle`
@@ -182,6 +182,15 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// cannot edit this file, and its N3.1 carries the same tree's new answer, the
 /// window rect with nothing reported). Eleven arms become nine.
 ///
+/// **Stage 10** (record §53, lane 1; `LR-FM` item 1 deletes `Position.relative`
+/// in lane 2): every `.position(.relative)` arm is re-spelled as `.inset(px(1))`
+/// on the same static element, expecting `<site>.inset` — an inset on a
+/// non-absolute box is a leaf row every site runs (`legacyLeafDiagnostics`), and
+/// the test's subject is every SITE reporting by name, not `position`. The
+/// inner-layer arm's inner layer declares a percentage width instead
+/// (`<modifierLayer>.size.percent`, again a leaf row), the outermost still
+/// `inset`, so the two registrars stay told apart by name and by order.
+///
 /// Mutations that must redden it: **M1e**, `ScrollView`'s record dropped;
 /// **M1e′**, `List`'s check moved after its `Box` is built (row boxes appear);
 /// **M4a′**, either component op's lowered branch put back to
@@ -191,23 +200,27 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 @Test func everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn() async throws {
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
-    arms.append(("Box", diagnostics { Box().cssWidth(px(10)).cssHeight(px(10)).position(.relative) },
-                 [field(.box, "position")]))
-    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.position(.relative) },
-                 [field(.stack, "position")]))
-    arms.append(("Text", diagnostics { Text("a").position(.relative) }, [field(.text, "position")]))
+    arms.append(("Box", diagnostics { Box().cssWidth(px(10)).cssHeight(px(10)).inset(px(1)) },
+                 [field(.box, "inset")]))
+    arms.append(("Stack", diagnostics { Stack { ProbeLeaf(width: 10, height: 10) }.inset(px(1)) },
+                 [field(.stack, "inset")]))
+    arms.append(("Text", diagnostics { Text("a").inset(px(1)) }, [field(.text, "inset")]))
     // Roadmap item 14: `TextField` is its own site, lowered as `text` is.
-    arms.append(("TextField", diagnostics { TextField("a", text: "", onChange: { _ in }).position(.relative) },
-                 [field(.textField, "position")]))
-    arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).position(.relative) },
-                 [field(.textEditor, "position")]))
-    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).position(.relative) },
-                 [field(.modifierLayer, "position")]))
-    // The inner layer declares `position`, the outermost `inset`, so the two
-    // registrars' entries are told apart by name and by order (inner first).
+    arms.append(("TextField", diagnostics { TextField("a", text: "", onChange: { _ in }).inset(px(1)) },
+                 [field(.textField, "inset")]))
+    arms.append(("TextEditor", diagnostics { TextEditor(text: "", onChange: { _ in }).inset(px(1)) },
+                 [field(.textEditor, "inset")]))
+    // Plan task 10 part 2 (`DD-W`): `Slider` is its own site, lowered as
+    // `textField` is.
+    arms.append(("Slider", diagnostics { Slider(value: .constant(0.5)).inset(px(1)) },
+                 [field(.slider, "inset")]))
+    arms.append(("ModifiedElement, outermost registrar", diagnostics { Box().padding(px(4)).inset(px(1)) },
+                 [field(.modifierLayer, "inset")]))
+    // The inner layer declares a percentage width, the outermost `inset`, so the
+    // two registrars' entries are told apart by name and by order (inner first).
     arms.append(("ModifiedElement, inner-layer registrar",
-                 diagnostics { Box().padding(px(4)).position(.relative).padding(px(8)).inset(px(3)) },
-                 [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
+                 diagnostics { Box().padding(px(4)).cssWidth(fraction: 0.5).padding(px(8)).inset(px(3)) },
+                 [field(.modifierLayer, "size.percent"), field(.modifierLayer, "inset")]))
     arms.append(("ScrollView", diagnostics {
         ScrollView {
             Box().cssWidth(px(10)).cssHeight(px(10)).flexGrow(1)
@@ -224,7 +237,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     // `List.requestLayout`, which sets no `flexGrow`), and a caller's closure
     // builds the row's CONTENT one level below, whose records are planned at the
     // row `Box`'s own site. So the site survives for
-    // `UnlowerableField.owningStage`'s trap message and for whatever field a
+    // `UnlowerableField`'s trap message (stage 10: `owner`) and for whatever field a
     // later stage puts on a row, and this arm is what would notice a regression
     // that made `List` report again. The rows here are real: `ProbeLeaf`
     // registers a native leaf directly, which records no `LoweredItem` and so
@@ -246,9 +259,111 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     #expect(amendOut.contains("AMEND-ENTRIES []\n"),
             "Component amend: stdout \(amendOut)\nstderr \(amendErr)")
     arms.append(("Component wrap", diagnostics { ProposalProbeComponent().padding(px(4)) }, []))
-    try #require(arms.count == 10)
+    try #require(arms.count == 11)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
+    }
+}
+
+// MARK: - N1.1 — every report's owner (stage 10, `LR-FO`)
+
+/// **N1.1** (stage 10, lane 1; `LR-FO` items 1–3, spec §4.3). Every `(site,
+/// field)` the lowering can raise at lane 1's head — except the three lane 2
+/// deletes with their fields (`flexWrap`, `alignContent`, `border.percent`) —
+/// names a **live** owner or none: a baseline field is plan task 11's
+/// (`"plan task 11"`, parent spec §8), and everything else is a **permanent
+/// refusal** (`owner == nil`) whose trap message says so and names no stage.
+/// (Until stage 11, `deferred.amended` was stage 11's, `"plan task 7, stage
+/// 11"`, `LR-FF`; stage 11 deletes the report and `owner`'s branch for it,
+/// `LR-FY` item 1, so the row leaves the table.)
+///
+/// The table was found by grepping `entry(`, `reports.append(`, `names.append(`
+/// and `UnlowerableField(` in `LegacyLowering.swift`, `LoweringState.swift`,
+/// `Component.swift` and `Deferred.swift` at `8095fd9`, and crossing each field
+/// with the sites that raise it:
+///
+/// - **container rows** (`legacyContainerDiagnostics`: `gap.percent`,
+///   `alignItems.baseline`) at every site that lowers a container — `box`,
+///   `stack`, `scrollView` (its content), `modifierLayer` (an unframed layer),
+///   `component` (a `.padding` wrap);
+/// - **leaf rows** (`legacyLeafDiagnostics`: `size.percent`, `padding.percent`,
+///   `position`, `inset`) at those and at `text`, `textField` and `textEditor`
+///   (`TI-H`, merged from `master` after the table was taken: a leaf lowered as
+///   `textField` is, through `lowerLegacyLeaf` at site `textEditor`);
+/// - **item rows** (`planLegacyItems`, raised at the child's `item.site`: a
+///   negative `flexGrow`/`flexShrink`, a length `flexBasis`,
+///   `alignSelf.baseline`, `minSize.percent`, `maxSize.percent`, a non-greedy
+///   `maxSize`, `margin.percent`, the three floored `space-*`, and `position`/
+///   `inset` from `.absolute`) at every recording site, `list` (a row) included;
+///   `flexGrow.weights` at each `parentSite:` (`box`, `stack`, `scrollView`,
+///   `modifierLayer`, `component`, `list`);
+/// - **presentation rows** (`lowerPresentation`: `minSize.absolute`,
+///   `maxSize.absolute`) at every site whose record a `Deferred` consumes;
+/// - **unconsumed rows** (`reportUnconsumedLoweredItems`: each of `flexGrow`,
+///   `flexShrink`, `flexBasis`, `alignSelf`, `minSize`, `maxSize`, `margin`,
+///   `position`, `inset` + `.unconsumed`) at every recording site;
+/// - `modifierLayer.style` (`legacyFrameLayerDiagnostics`).
+///
+/// **241** distinct entries (10 container, 32 leaf, 101 item — 99 at the nine
+/// recording sites plus `position`/`inset` at `list` — 6 weights, 10
+/// presentation, 81 unconsumed, 1 singleton), derived before the run. Stage 10
+/// took it as 218 over eight recording sites; `master`'s `TextEditor` (`TI-H`)
+/// adds the ninth, +4 leaf, +11 item and +9 unconsumed rows (the merge), 242;
+/// stage 11 removes the second singleton, `deferred.amended` (`LR-FY` item 1).
+/// Plan task 10 part 2 (`DD-W`) adds `slider`, a leaf lowered through
+/// `lowerLegacyLeaf` as `textField` is — a tenth recording site, +4 leaf, +11
+/// item and +9 unconsumed rows: **265**.
+///
+/// Red before: `owner` did not exist (build); with a scratch `owner` forwarding
+/// to the old `owningStage`, every permanent row read a stage number. Mutation
+/// **M1a** (the `nil` arm returns `"plan task 7, stage 10"` for a `position`/
+/// `inset` field) must redden this test and
+/// `anAbsoluteBoxOutsideADeferredTrapsAProductionProposalFrame`. The table is
+/// a pure function of `UnlowerableField` — it pins the owner scheme, not which
+/// entries a tree raises — so **M1d** (the leaf `inset` row deleted from
+/// `legacyLeafDiagnostics`) does not redden it; spec §6 predicted it would, and
+/// `LR-FS` corrects the prediction (the raising half is
+/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`'s).
+@Test func everyReportNamesALiveOwnerOrIsRefusedByName() throws {
+    let containerSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component]
+    let leafSites: [LoweringSite] = containerSites + [.text, .textField, .textEditor, .slider]
+    let recordingSites: [LoweringSite] = leafSites + [.list]
+    let parentSites: [LoweringSite] = [.box, .stack, .scrollView, .modifierLayer, .component, .list]
+    let presentedSites: [LoweringSite] = [.box, .stack, .text, .modifierLayer, .component]
+
+    let task11 = "plan task 11"
+    var expected: [UnlowerableField: String?] = [:]
+    func add(_ fields: [String], at sites: [LoweringSite], owner: String?) {
+        for site in sites {
+            for name in fields { expected[UnlowerableField(site: site, field: name)] = .some(owner) }
+        }
+    }
+    add(["gap.percent"], at: containerSites, owner: nil)
+    add(["alignItems.baseline"], at: containerSites, owner: task11)
+    add(["size.percent", "padding.percent", "position", "inset"], at: leafSites, owner: nil)
+    add(["flexGrow", "flexShrink", "flexBasis", "minSize.percent", "maxSize.percent", "maxSize",
+         "margin.percent", "justifyContent.spaceBetween", "justifyContent.spaceAround",
+         "justifyContent.spaceEvenly", "position", "inset"], at: recordingSites, owner: nil)
+    add(["alignSelf.baseline"], at: recordingSites, owner: task11)
+    add(["flexGrow.weights"], at: parentSites, owner: nil)
+    add(["minSize.absolute", "maxSize.absolute"], at: presentedSites, owner: nil)
+    add(["flexGrow", "flexShrink", "flexBasis", "alignSelf", "minSize", "maxSize", "margin",
+         "position", "inset"].map { "\($0).unconsumed" }, at: recordingSites, owner: nil)
+    add(["style"], at: [.modifierLayer], owner: nil)
+    try #require(expected.count == 265, "the table holds \(expected.count) entries")
+
+    let permanent = "and is refused by name (plan task 7, LR-FO)"
+    for (field, owner) in expected.sorted(by: { $0.key.description < $1.key.description }) {
+        #expect(field.owner == owner, "\(field): owner \(field.owner ?? "nil"), expected \(owner ?? "nil")")
+        let message = field.trapMessage
+        #expect(message.hasPrefix("MetalUI: \(field.description) has no proposal lowering"),
+                "\(field): \(message)")
+        if let owner {
+            #expect(message.contains("(\(owner))"), "\(field): \(message)")
+        } else {
+            #expect(message.contains(permanent), "\(field): \(message)")
+            #expect(!message.contains("stage "), "\(field) names a stage: \(message)")
+        }
     }
 }
 

@@ -3,23 +3,29 @@ import MetalUILayout
 
 public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 
-/// Whether `ScrollView` paints its fading overlay indicator.
+/// Whether `ScrollView` and `ProposalScrollView` paint their fading overlay
+/// indicator.
 ///
-/// **SwiftUI's spelling, deliberately narrowed to two cases** (ruling EP-5):
-/// SwiftUI's `ScrollIndicatorVisibility` also has `.visible` and `.never`,
-/// but those distinctions only pay off with nested scroll views and
-/// platform-level defaults this framework does not have. `.automatic` is
-/// this element's only behaviour today, so a third case would be a case
-/// that does nothing — the exact shape CLAUDE.md's declared-but-inert table
-/// exists to keep out. Add one later if a caller needs it; that is
-/// source-compatible, unlike shipping an inert case now.
+/// **SwiftUI's four cases, each with SwiftUI's measured macOS answer** (plan
+/// task 10, part 1, ruling `DD-H`, probe I0–I5): on overlay scrollers SwiftUI
+/// leaves the `NSScrollView` identical under `.automatic` and `.visible`, and
+/// removes the scroller under `.hidden`, `.never` and `showsIndicators: false`
+/// alike — so `.visible` paints as `.automatic` and `.never` as `.hidden`.
+/// This supersedes the `EP-5` note that narrowed the enum to two cases ("a
+/// third case would be inert"): the new cases are SwiftUI's spellings with
+/// SwiftUI's answers, not stored-but-unread state. Whether the "always show
+/// scroll bars" system setting separates them is unmeasured, and MetalUI reads
+/// no such setting.
 public enum ScrollIndicatorVisibility: Sendable, Equatable {
-    /// Today's behaviour: the thumb appears while scrolling and fades out
-    /// afterward. The default.
+    /// The thumb appears while scrolling and fades out afterward. The default.
     case automatic
+    /// As `.automatic` on macOS's overlay scrollers (probe I1, I2).
+    case visible
     /// No indicator is ever painted, and no frame is ever requested to fade
     /// one — `ScrollChrome.paintIndicator` returns before either happens.
     case hidden
+    /// As `.hidden` (probe I3–I5).
+    case never
 }
 
 /// Cross-frame scroll position, in logical points along the scroll axis.
@@ -104,9 +110,8 @@ public struct ScrollContext: Sendable, Equatable {
 /// A clipped, scrollable viewport over content taller (or wider) than itself.
 ///
 /// **SwiftUI's shape, not CSS's** (ruling EP-5): `ScrollView { … }` rather than
-/// `Box.overflow(.scroll)`. `Style.overflow` stays the substrate this element
-/// writes into, the way `Column.init` writes `alignItems` without `Style`'s
-/// default moving (ruling EP-8).
+/// `Box.overflow(.scroll)`. (It wrote an inert `Style.overflow` until stage 10
+/// deleted the field, `LR-FM` item 1.)
 ///
 /// **Two layout nodes**: a content node — stage 2's container lowering, so its
 /// children's stretch, grow, margins, gaps and `justifyContent` lower as under
@@ -124,13 +129,12 @@ public struct ScrollContext: Sendable, Equatable {
 /// (`ScrollViewTests.swift`) still pins the answer; the measurements are in
 /// this doc's git history (before `LR-FC`).
 ///
-/// **Scroll position is `StateTable` state, so it inherits §4.3's adoption
-/// rule**: a `ScrollView` inside a vanishing `if` hands its offset to the
-/// trailing sibling, not to a fresh zero — a list silently inheriting another
-/// list's scroll position is a confusing thing to meet cold. The remedy is the
-/// counter-intuitive one CLAUDE.md records — name the **trailing sibling**, not
-/// the conditional content, to keep this element's offset from drifting onto
-/// whatever renders after it vanishes.
+/// **Scroll position is `StateTable` state, so it follows the conditional
+/// rules** (plan task 8): a `ScrollView` inside an `if` that goes false and
+/// comes back returns at offset 0 (`ID-C` resets content an evaluated
+/// conditional removes), and no trailing sibling inherits its offset (`ID-B`:
+/// an `if` takes one slot whether or not it has content). Until then the offset
+/// was handed to the trailing sibling and naming that sibling was the remedy.
 public struct ScrollView<Content: ElementGroup>: Element {
     public var axis: ScrollAxis
     public var elementID: ElementID?
@@ -194,8 +198,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     }
 
     /// Sets whether the fading overlay indicator is ever painted.
-    /// `.hidden` suppresses it entirely, including the frame requests it
-    /// makes while fading — see `ScrollChrome.paintIndicator`'s guard.
+    /// `.hidden` and `.never` suppress it entirely, including the frame
+    /// requests it makes while fading — see `ScrollChrome.paintIndicator`'s
+    /// guard; `.visible` paints as `.automatic` (ruling `DD-H`).
     public func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
         var copy = self
         copy.indicatorVisibility = visibility
@@ -316,9 +321,6 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
         var viewportStyle = Style()
         viewportStyle.flexDirection = axis == .vertical ? .column : .row
-        // Inert (CLAUDE.md's table): the kernel reads `overflow` nowhere, and
-        // the lowering does not carry it.
-        viewportStyle.overflow = Axes(both: .scroll)
         (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
                                       pass: &pass)
         let node = pass.frame.requestNativeScrollViewport(
@@ -355,10 +357,17 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // with the fix reverted, a wheel at (100, 120) reached the OUTER
         // scroller and one at (100, 170) still reached the inner one.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
+        // `DD-F` item 2: the content prepaints inside this scroller's frame.
+        let scroller = ScrollerFrame(scrollerID: id, axis: axis,
+                                     contentOrigin: pass.bounds(of: layout.contentNode).origin,
+                                     viewport: bounds, offset: offset,
+                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size))
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {
-            result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
+            pass.inScroller(scroller) {
+                result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
+            }
         }
         return result
     }

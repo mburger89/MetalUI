@@ -1083,7 +1083,7 @@ import MetalUIRender
 ///    this test, like every other one in this file, calls `animated(...)`
 ///    *inside* that closure to see a transaction at all. Once Task 5 makes
 ///    the transaction ambient for a whole frame build, the ungated mutant
-///    puts **all 28 fields of every element in the tree** into `inFlight` on
+///    puts **all 24 fields (28 before stage 10) of every element in the tree** into `inFlight` on
 ///    every transaction frame, reinstating exactly the allocation ruling U
 ///    removed.
 ///
@@ -1115,10 +1115,10 @@ import MetalUIRender
 ///
 /// Two honest negatives, stated because a bare "it reddens" hides them:
 /// this test does **not** redden under the 25-field-deletion mutation that
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
 /// (it drives `flexGrow`, one of the three fields that survive it), and that
 /// test does not redden under the gate mutation (its transaction frames
-/// change all 28 fields, so the gates never fire in it). The two tests cover
+/// change all 24 fields — 28 before stage 10 — so the gates never fire in it). The two tests cover
 /// different lines and neither subsumes the other.
 @Test @MainActor func theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField() throws {
     let table = StateTable()
@@ -1195,11 +1195,26 @@ import MetalUIRender
     let underIdleTransaction = try inFlightKeys("unchanged frame under a live transaction")
     #expect(underIdleTransaction.isEmpty, """
             an unchanged frame under a live transaction must enrol NOTHING — the fast-path \
-            gates are what keep all 28 fields out of inFlight, got \(underIdleTransaction)
+            gates are what keep all 24 fields out of inFlight, got \(underIdleTransaction)
             """)
 }
 
-/// **All 28 animatable fields, in one table — because the suite pins three.**
+/// **All 24 animatable fields, in one table — because the suite pins three.**
+///
+/// **Stage 10** (record §53, lane 1, row T1.16; renamed from
+/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`):
+/// `Style.border` is deleted (`LR-FM` item 1, lane 2), and its four animated
+/// edges with it, so the four `border.*` keys leave this test's table,
+/// `animatableFieldOrder` and `allAnimatableFields` — 28 fields become **24**.
+/// `aspectRatio`, the one non-animatable numeric field whose differing fixture
+/// values armed the key-set assertion's `unexpected` half, is deleted too, so
+/// that arm goes with it. The three non-animatable colour fields are still in
+/// the fixture, but unmeasured here — both call sites of
+/// `allAnimatableDecoration` leave them at `Decoration()`'s `nil` (its own doc
+/// comment below), so nothing today shows they can arm the `unexpected` half
+/// the way `aspectRatio` did. The history below speaks of 28 fields and of
+/// `aspectRatio` as it was measured.
+///
 /// Measured by the fix round 1 re-review: instrumenting `animateField` to
 /// print its key and running the unfiltered suite showed only **6 of the 28
 /// keys are ever reached at all** (`size.width`, `size.height`, `flexGrow`,
@@ -1230,7 +1245,7 @@ import MetalUIRender
 /// distinct fixture the same mutation reddens this test and names both fields.
 ///
 /// Both halves are asserted: every field reads **exactly** halfway at t = 0.5,
-/// and all 28 leave `inFlight` on the settle frame — the same lifecycle
+/// and all 24 leave `inFlight` on the settle frame — the same lifecycle
 /// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` pins
 /// for one field, taken across the whole table.
 ///
@@ -1261,7 +1276,7 @@ import MetalUIRender
 /// reproduced with this test as the only difference. Re-taken at `18a137d`
 /// against the distinct fixture rather than carried, because a fixture change
 /// can move a mutation figure recorded under the old one.
-@Test @MainActor func allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
+@Test @MainActor func allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
     let dimensionFields: [(key: String, read: (Style) -> Dimension)] = [
         ("inset.top", { $0.inset.top }),
         ("inset.right", { $0.inset.right }),
@@ -1284,10 +1299,6 @@ import MetalUIRender
         ("padding.right", { $0.padding.right }),
         ("padding.bottom", { $0.padding.bottom }),
         ("padding.left", { $0.padding.left }),
-        ("border.top", { $0.border.top }),
-        ("border.right", { $0.border.right }),
-        ("border.bottom", { $0.border.bottom }),
-        ("border.left", { $0.border.left }),
         ("gap.horizontal", { $0.gap.horizontal }),
         ("gap.vertical", { $0.gap.vertical }),
     ]
@@ -1307,18 +1318,18 @@ import MetalUIRender
     // literals a few lines above it, so it cannot observe `Sources/` or spec
     // §4 moving, only someone editing one of these lists. The assertion that
     // observes `animated(...)` is the key-set one below.
-    #expect(expectedKeys.count == 28, "expected 28 animatable fields, listed \(expectedKeys.count)")
+    #expect(expectedKeys.count == 24, "expected 24 animatable fields, listed \(expectedKeys.count)")
 
     let table = StateTable()
     let id = eid("all-fields")
     let slot = animRetentionSlot(for: id)
 
-    // Frame 1: an explicit, per-field distinct pixel baseline for all 28 —
-    // field `i` starts at `i`, not all 28 at 0.
+    // Frame 1: an explicit, per-field distinct pixel baseline for all 24 —
+    // field `i` starts at `i`, not all 24 at 0.
     var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
     _ = animated(allAnimatableFields(0), allAnimatableDecoration(0), for: id, pass: &pass1)
 
-    // Frame 2: all 28 change to `100 + i` inside one transaction.
+    // Frame 2: all 24 change to `100 + i` inside one transaction.
     let target = allAnimatableFields(100)
     let targetDecoration = allAnimatableDecoration(100)
     var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
@@ -1360,7 +1371,7 @@ import MetalUIRender
             \(midDecoration.cornerRadius.value)
             """)
 
-    // Frame 4: the settle frame empties `inFlight` for all 28 at once.
+    // Frame 4: the settle frame empties `inFlight` for all 24 at once.
     var pass4 = LayoutPass(frame: animFrame(table, timestamp: 1))
     _ = animated(target, targetDecoration, for: id, pass: &pass4)
     let settled = try #require(table.peek(slot, as: AnimatedElementState.self)).inFlight
@@ -1370,9 +1381,10 @@ import MetalUIRender
             """)
 }
 
-/// Spec §4's 28 animatable fields in one canonical order, so that every fixture
+/// Spec §4's animatable fields — 28, 24 since stage 10 deleted `Style.border` — in
+/// one canonical order, so that every fixture
 /// value and every expected midpoint in
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` can be
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` can be
 /// **distinct per field**: the *i*-th field animates `i -> 100 + i` and reads
 /// `50 + i` at the midpoint.
 ///
@@ -1393,7 +1405,6 @@ private let animatableFieldOrder: [String] = [
     "margin.top", "margin.right", "margin.bottom", "margin.left",
     "flexBasis",
     "padding.top", "padding.right", "padding.bottom", "padding.left",
-    "border.top", "border.right", "border.bottom", "border.left",
     "gap.horizontal", "gap.vertical",
     "flexGrow", "flexShrink",
     "cornerRadius",
@@ -1414,10 +1425,10 @@ private func fieldOffset(_ key: String) -> Float {
     return Float(index)
 }
 
-/// Every one of spec §4's 28 animatable fields at a concrete, non-`.auto`,
+/// Every one of spec §4's animatable fields (24 since stage 10) at a concrete, non-`.auto`,
 /// **per-field distinct** value: field *i* of `animatableFieldOrder` gets
 /// `base + i`. Used by
-/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` as both
+/// `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` as both
 /// baseline (`base` 0) and target (`base` 100); the five `.auto`-defaulting
 /// fields are the reason a concrete baseline exists at all, and the crossed-
 /// field measurement is the reason the values are distinct (see that test's
@@ -1435,31 +1446,24 @@ private func fieldOffset(_ key: String) -> Float {
                      bottom: dim("margin.bottom"), left: dim("margin.left"))
     s.padding = Edges(top: len("padding.top"), right: len("padding.right"),
                       bottom: len("padding.bottom"), left: len("padding.left"))
-    s.border = Edges(top: len("border.top"), right: len("border.right"),
-                     bottom: len("border.bottom"), left: len("border.left"))
     s.gap = Axes(horizontal: len("gap.horizontal"), vertical: len("gap.vertical"))
     s.flexGrow = base + fieldOffset("flexGrow")
     s.flexShrink = base + fieldOffset("flexShrink")
     s.flexBasis = dim("flexBasis")
-    // NOT animatable, and the plan's Global Constraints say it must not become
-    // so — it is in CLAUDE.md's declared-but-inert table, and animating a
-    // property nothing reads is that table's trap doubled. It carries two
-    // DIFFERING values across this helper's two call sites purely so the
-    // key-set assertion can catch it being wired: every wiring in
-    // `animated(...)` mints its key only when the field differs from its
-    // baseline, so a field left equal in both fixtures mints nothing and
-    // passes. Measured at `18a137d` — with `aspectRatio` nil in both fixtures,
-    // wiring it into `animated(...)` left the suite green at 843, 0 issues.
-    s.aspectRatio = 1 + base / 100
+    // Until stage 10 an `aspectRatio` line stood here: NOT animatable, it carried
+    // two DIFFERING values across this helper's two call sites so the key-set
+    // assertion could catch it being wired (measured at `18a137d`: with it nil in
+    // both fixtures, wiring it left the suite green). Stage 10 deleted
+    // `Style.aspectRatio` (`LR-FM` item 1), and the line with it.
     return s
 }
 
 /// `Decoration`'s one animatable field (`cornerRadius`, offset from
-/// `animatableFieldOrder` like the other 27) plus its three non-animatable
+/// `animatableFieldOrder` like the other 23) plus its three non-animatable
 /// colour fields.
 ///
 /// The colours differ between this helper's two call sites for exactly the
-/// reason `aspectRatio` does: `background`, `hoverBackground` and
+/// reason `aspectRatio` did until stage 10 deleted it: `background`, `hoverBackground` and
 /// `focusBackground` pass through `animated(...)` untouched today, and the
 /// key-set assertion's `unexpected` half is the only thing that would notice
 /// one of them being interpolated instead — which it cannot do while both
@@ -2518,34 +2522,81 @@ final class AnimationDriveModel {
             "and nothing is left interpolating, so the link is free to idle")
 }
 
-/// Spec §6's free consequence of `StateTable` tombstones: an animating element
-/// that vanishes and returns within the retention window RESUMES on its
-/// original trajectory rather than restarting.
+/// **An animating element that vanishes and returns comes back fresh and snaps,
+/// inside an `if` and inside a `for` loop alike** (plan task 8, ruling `ID-C`;
+/// `ID-P` records this row, which the design did not list; the loop arm
+/// inverted by plan task 10, ruling `DD-C`, recorded by `DD-N`).
 ///
-/// 175 at t = 100.75 is the resumption. A restart from the value it vanished at
-/// would read 125 there (a fresh 125 → 200 second, at elapsed 0), and a restart
-/// from the declared baseline would read 100.
-@MainActor @Test func anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting() throws {
-    let model = AnimationDriveModel()
-    let (window, platformWindow) = try makeDriveWindow(model)
+/// **Renamed again, from `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop`**
+/// (plan task 10, lane 1): its second arm pinned divergence 74's tombstone
+/// resumption (175), which `DD-C` retires.
+///
+/// **Renamed from `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`**,
+/// which pinned the animation spec's §6 "free consequence of `StateTable`
+/// tombstones" through the `if` in `makeDriveWindow`: the `$anim` entry survived
+/// the excursion and the element resumed its trajectory (175 at t = 100.75).
+/// `ID-C` deletes every entry under a slot an evaluated `if` stops producing, the
+/// `$anim` baseline included (only `$focus` and `$ax` are exempt), so the
+/// returning element has no baseline and its first frame snaps to the declared
+/// 200 — `ID-C`'s migration note ("a returning element's first frame snaps
+/// rather than animating from where it left off"), SwiftUI's lifetime rule
+/// (probe V5: a returning view's state is new).
+///
+/// **The loop arm resets too, since `DD-C`**: an element a `for` loop stops
+/// producing is reset like one an `if` removes (the loop notes its slot, and the
+/// sweep resets a named iteration it produced nowhere), so the second arm — the
+/// same subject, `.id("subject")`, inside `for _ in 0..<(show ? 1 : 0)` — snaps
+/// to 200 as well. Until `DD-C` it read **175** (divergence 74: the loop kept
+/// the `$anim` entry and the element resumed its original trajectory); a restart
+/// from the vanish-time value would read 125, from the declared baseline 100.
+/// Mutation **M1h** (lane 1: the sweep's named-children half of the loop rule
+/// removed) reads 175 here again.
+@MainActor @Test func aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop() throws {
+    /// Drives the shared excursion and returns the width on the return frame.
+    func excursion(_ model: AnimationDriveModel, _ window: Window,
+                   _ platformWindow: FakePlatformWindow) throws -> Float? {
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up")
 
-    platformWindow.simulateTick(timestamp: 100)
-    try #require(subjectWidth(window) == 100, "set up")
+        withAnimation(.linear(duration: 1)) { model.width = 200 }
+        platformWindow.simulateTick(timestamp: 100)
+        platformWindow.simulateTick(timestamp: 100.25)
+        try #require(subjectWidth(window) == 125, "set up: mid-flight before it vanishes")
 
-    withAnimation(.linear(duration: 1)) { model.width = 200 }
-    platformWindow.simulateTick(timestamp: 100)
-    platformWindow.simulateTick(timestamp: 100.25)
-    try #require(subjectWidth(window) == 125, "set up: mid-flight before it vanishes")
+        model.show = false
+        platformWindow.simulateTick(timestamp: 100.5)
+        try #require(subjectWidth(window) == nil, "set up: the element is genuinely gone")
 
-    model.show = false
-    platformWindow.simulateTick(timestamp: 100.5)
-    try #require(subjectWidth(window) == nil, "set up: the element is genuinely gone")
+        model.show = true
+        platformWindow.simulateTick(timestamp: 100.75)
+        return subjectWidth(window)
+    }
 
-    model.show = true
-    platformWindow.simulateTick(timestamp: 100.75)
-    #expect(subjectWidth(window) == 175, """
-            resumed on the ORIGINAL trajectory (elapsed 0.75 of the animation started at \
-            t = 100), not restarted; got \(String(describing: subjectWidth(window)))
+    // Arm 1: the subject inside an `if` (`makeDriveWindow`) — reset, so it snaps.
+    let ifModel = AnimationDriveModel()
+    let (ifWindow, ifPlatform) = try makeDriveWindow(ifModel)
+    let fresh = try excursion(ifModel, ifWindow, ifPlatform)
+    #expect(fresh == 200, """
+            the `if` removed the subject, so its `$anim` baseline was reset (ID-C) and the \
+            return frame snaps to the declared width; got \(String(describing: fresh))
+            """)
+
+    // Arm 2: the same subject inside a `for` loop — reset since `DD-C`, so it snaps.
+    let loopModel = AnimationDriveModel()
+    let (loopWindow, loopPlatform) = try makeFakeWindowOnDefaultDevice(size: 300, startsDisplayLink: true) {
+        Column {
+            for _ in 0..<(loopModel.show ? 1 : 0) {
+                Box().background(.background)
+                    .cssWidth(Pixels(loopModel.width)).cssHeight(Pixels(40))
+                    .id("subject")
+            }
+        }
+    }
+    let resumed = try excursion(loopModel, loopWindow, loopPlatform)
+    #expect(resumed == 200, """
+            a loop's dropped element is reset (DD-C), so its `$anim` baseline is gone and the \
+            return frame snaps to the declared width (175 is divergence 74's resumption); got \
+            \(String(describing: resumed))
             """)
 }
 

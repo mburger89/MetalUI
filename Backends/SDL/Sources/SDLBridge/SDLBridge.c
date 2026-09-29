@@ -579,6 +579,10 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_RESIZE; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_EXPOSED:
         out->kind = MUI_EVENT_EXPOSED; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+        out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
         if (e->button.button != SDL_BUTTON_LEFT) return false;
@@ -670,10 +674,30 @@ bool mui_push_event(const MUIEvent *in) {
     case MUI_EVENT_RESIZE:
         e.type = SDL_EVENT_WINDOW_RESIZED; e.window.windowID = in->window_id; break;
     case MUI_EVENT_THEME: e.type = SDL_EVENT_SYSTEM_THEME_CHANGED; break;
+    case MUI_EVENT_FOCUS_GAINED: case MUI_EVENT_FOCUS_LOST:
+        e.type = in->kind == MUI_EVENT_FOCUS_GAINED ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_WINDOW_FOCUS_LOST;
+        e.window.windowID = in->window_id; break;
     default: return SDL_SetError("unsupported synthetic event");
     }
     e.common.timestamp = SDL_GetTicksNS();
     return SDL_PushEvent(&e);
+}
+
+const uint32_t mui_sdl_event_window_display_scale_changed = SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED;
+const uint32_t mui_sdl_event_window_pixel_size_changed = SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
+
+bool mui_push_raw_window_event(uint32_t sdl_type, uint32_t window_id) {
+    if (sdl_type < SDL_EVENT_WINDOW_FIRST || sdl_type > SDL_EVENT_WINDOW_LAST)
+        return SDL_SetError("not a window event");
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = sdl_type; e.window.windowID = window_id;
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
+bool mui_window_has_input_focus(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_INPUT_FOCUS) != 0;
 }
 
 void *mui_window_create(const char *title, int32_t w, int32_t h, bool hidden) {

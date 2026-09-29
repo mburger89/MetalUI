@@ -1450,3 +1450,190 @@ differing and scene identical in all fourteen**, every control at its `2cc763d`
 value (`LR-DZ`). The stage-6b looks above (the real-window capture and the four
 named demo-layout changes) are **still open and still owed**; this stage neither
 closes nor adds to them.
+
+## 2026-09-25: no look added at engine replacement stage 11
+
+Record §54 §7.6, §8.4, §9.4, §10.2. **Nothing a human needs to see changed.**
+The stage unifies `ModifiedElement`/`ModifiedContent`, generalizes the legacy
+`.overlay`, and fixes divergence 45's write-order bug (`.opacity` reaching a
+background or border written after it) on both paths — a paint-order
+correctness fix, not a new visible feature, and no demo site writes a legacy
+`.opacity` before a `.background` or `.border` (the demo's own two `.opacity`
+calls are on proposal chains, already SwiftUI-shaped, so the fix touches
+nothing the demo paints). The fourteen-image offscreen comparison against
+`47c0d98` (`docs/probes/demo-pixels/compare.sh`) reads **0 differing and
+scene identical in all fourteen**, taken independently at each lane's own
+head and again by the Record phase at `774e775` — four readings in all, all
+zero. No real-window capture was taken or attempted this stage (none of the
+three lanes' verdicts or the Record phase's own close mention
+`appkit-screen-lock-state.swift` or `capture.sh`); none was owed, since 0 px
+means nothing a real window would show differs either. The stage-6b looks
+above (the real-window capture and the four named demo-layout changes) are
+**still open and still owed**; this stage neither closes nor adds to them.
+
+## 2026-09-25: no look added at composition and identity (plan task 8), and the capture attempt itself recorded
+
+Record §55 §5.3, §6.3, §7.3, §8.3, §8.5. **Nothing a human needs to see
+changed.** The task fixes identity — one structural slot per `if`/`for`, an
+evaluated conditional's reset, `if`/`else` in proposal containers, `@State`/
+`@Environment` inside `AnyElement`, one-value-placed-twice dispatch, `.id(_:)`
+on every element group and a legacy `.background(alignment:content:)` — none
+of which the demo tree exercises except lane 2's `if`/`for` fix, which moves
+the demo's `List`-toggling modal one identity level deeper without moving a
+pixel (the images are static frames, the demo's own comment says the `List`
+holds no cross-frame state, and the modal's elements are fresh either way).
+The fourteen-image offscreen comparison against `e3cb3e9`
+(`docs/probes/demo-pixels/compare.sh`) reads **0 differing and scene
+identical in all fourteen**, taken independently at each lane's own head
+(§5.3, §6.3, §7.3) and again by the Record phase at `ea95cc4` (§8.3) — four
+readings in all, all zero, every control at its recorded `e3cb3e9` value.
+
+**Unlike stage 11, the capture attempt itself is recorded here, not skipped.**
+`docs/probes/appkit-screen-lock-state.swift` was run at the end of every lane
+(§5.3, §6.3, §7.3) and twice more by the Record phase — once before its own
+rebuild, once after (§8.5) — six readings in all, every one
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
+0`. `capture.sh` was never run. **This is not a new debt**: it is the same
+screen-locked condition stage 6b's own real-window capture (above) has been
+waiting on since 2026-09-23, on the same machine, across every stage since —
+stage 11's section above happened not to mention the probe because 0 px made
+the capture moot there too, and this task's lane sections make a point of
+running the probe anyway so that "the screen was locked" is a measurement,
+not an assumption carried forward silently. The stage-6b looks (the
+real-window capture and the four named demo-layout changes) are **still open
+and still owed**; this task neither closes nor adds to them, and adds no new
+look of its own.
+
+**Addendum, 2026-09-25 (plan task 8's adversarial branch check, record §55
+§9.1).** A seventh lock-probe reading, on `da2d820`: `CGSSessionScreenIsLocked
+= 1`, `displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` not run;
+the offscreen fourteen re-taken, all `differing=0`. Nothing above changes.
+
+## 2026-09-25: no look shown, but two new looks owed at environment control state and scale (plan task 9)
+
+Record §56 §1.7, §2.4, §3.4, §4.3, §4.6. **Nothing a human needs to see
+changed.** `displayScale`, `controlActiveState` and `controlSize` are all
+exposed and writable now, but no built-in element reads any of them (record
+§05's new section), and the demo sets none of them, so the fourteen-image
+offscreen comparison against `e732d98` (`docs/probes/demo-pixels/compare.sh`)
+reads **0 differing and scene identical in all fourteen**, taken
+independently at each lane's own head (§1.7, §2.4, §3.4) and again by the
+Record phase at `fb92808` (§4.3) — four readings in all, all zero, every
+control at its recorded `e732d98` value. `Expected.swift`
+(`DemoFrameDeterminismTests`) is unedited.
+
+**The lock probe was run at the end of every lane and once more by the Record
+phase** (`docs/probes/appkit-screen-lock-state.swift`) — four readings in all,
+every one `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`,
+`displayActive main: 0`. `capture.sh` was never run, and the SwiftUI probe's
+C1–C3/C5 arms could not run either (they need a window to become key and the
+app to become active, which a locked session never produces). **This task
+neither closes nor adds to stage 6b's still-open real-window capture and its
+four named demo-layout changes** (above) — but it does add **two new looks of
+its own**, distinct from stage 6b's and reachable only with an unlocked
+screen:
+
+- **The key/active mapping** (`EV-AB`). MetalUI's platform mapping (AppKit:
+  key window → active app → else inactive; SDL: this window's keyboard focus
+  → another of the platform's own windows → else inactive) is stated as
+  MetalUI's own choice, not a measured SwiftUI fact, because the probe's C1
+  (a window made key in an active app must read `key`) never moved: every
+  reading printed `NSApp.isActive=false`, `A.isKey=false` throughout. Once a
+  human can unlock the screen, re-run the probe's C arms and, if SwiftUI's
+  mapping disagrees, amend `EV-AB` and its pin (`theAppKitMappingPutsKeyBefore
+  ActiveBeforeInactive`) to the measured one — no divergence is numbered for
+  this row for exactly the reason it might still change (record §04's new
+  section).
+- **A `displayScale` change from moving the window between displays.** Pinned
+  today only through the fakes (`FakeRenderSurface.scaleFactor`,
+  `simulateBackingScaleChange`) and a synthetic raw SDL event push
+  (`mui_push_raw_window_event`); no test in the suite drags a real
+  `NSWindow`/SDL window across two displays of different backing scale to
+  confirm `viewDidChangeBackingProperties`/`DISPLAY_SCALE_CHANGED` fire in
+  practice and the next frame's `displayScale` follows. `docs/probes/window-
+  capture/capture.sh` cannot exercise this on one display; it needs a second
+  display of a different scale connected, or the same machine's external
+  display swapped in.
+
+Both looks are owed to whoever next has this machine (or an equivalent one)
+with an unlocked screen and, for the second, two displays of different
+scale — no other owner is named, the same shape as the still-open real-window
+debt above.
+
+## 2026-09-25: no demo look shown, but one new look owed at data and scrolling (plan task 10, part 1)
+
+Record §57 §5, §8; rulings `DD-A`…`DD-P`. **Nothing a human needs to see
+changed.** `ForEach`, `Binding`, `ScrollViewReader` and the `List`/indicator
+fixes touch no tree the demo builds, so the fourteen-image offscreen
+comparison against `e7bc2e7` (`docs/probes/demo-pixels/compare.sh`) reads
+**0 differing and scene identical in all fourteen**, taken by this Record
+phase at `71251e4`. `Expected.swift` (`DemoFrameDeterminismTests`) is
+unedited.
+
+**The lock probe was run twice more this task** (design time and the critic
+round, per the decisions doc's own header; a third time by this Record
+phase, at `71251e4`): all three readings `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`. `capture.sh` was never
+run. **This task neither closes nor adds to stage 6b's still-open
+real-window capture and its four named demo-layout changes, and adds no new
+look to task 9's two** (above) — but it does owe **one look of its own**:
+
+- **Wheel scrolling under `.disabled`** (`EV-Q`'s item for this task,
+  `DD-I` item 3). `docs/probes/swiftui-data-and-scrolling.swift`'s W0
+  (the enabled control) read 0 under five delivery strategies with the
+  screen locked, so its W1/W2 arms (a `ScrollView { … }.disabled(true)`)
+  mean nothing — the positive control itself never ran. MetalUI's disabled
+  `ScrollView` still scrolls on the wheel
+  (`aDisabledScrollViewStillScrollsOnTheWheel`, unchanged — scroll regions
+  are outside the disabled gate, `EV-E`), a behaviour that predates this
+  task and is simply re-cited here. Once a human can unlock the screen:
+  build and run the probe's W arms against a real
+  `ScrollView { … }.disabled(true)`; if SwiftUI's disabled scroll view does
+  not scroll, the fix is moving `registerScrollRegion` inside the gate, one
+  line, with a pinned test to invert (record §04 gets no new divergence
+  number unless and until this is measured, for the same reason
+  `controlActiveState`'s mapping got none at task 9).
+
+This look is owed to whoever next has this machine (or an equivalent one)
+with an unlocked screen — no other owner is named, the same shape as the
+still-open debts above.
+
+## 2026-09-28: no demo look shown, but the controls demo and its pointer and accessibility looks owed at controls and selection (plan task 10, part 2)
+
+Record §58 §4, §8; rulings `DD-Q`…`DD-AI`. (This section was cited by
+`CLAUDE.md` and record §58 from the Record phase's commit `c9a741e` but not
+written there; the branch checker wrote it, record §58 §11.) **Nothing the
+ordinary demo shows changed**: the fourteen-image offscreen comparison
+against `27b2fcc` reads **0 differing and scene identical in all fourteen**,
+taken by the Record phase at `87e3f9c` and again by the branch checker at
+`c9a741e`; `Expected.swift` is unedited. The only demo-source changes are
+comments (`DemoContent.swift`, divergence 16's retirement) and a new, gated
+tree (`ControlsDemo.swift`, `METALUI_CONTROLS_DEMO=1`), which no offscreen
+image renders.
+
+**The lock probe read locked at every lane's own check, at the Record
+phase's close and at the branch check** (`CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`), so `capture.sh` never ran. SwiftUI's own click and
+wheel positive controls (probe CK0, WH0) failed in every probe session,
+locked and unlocked alike (the critic round re-ran them unlocked, `DD-AC`),
+so no pointer rule below is SwiftUI-measured. **Owed**, to whoever next has
+this machine with an unlocked screen:
+
+- **The controls demo on screen** (`METALUI_CONTROLS_DEMO=1 swift run
+  MetalUIDemo`): every control by pointer and by key — a slider press and
+  drag, a stepper's two halves, a segmented and a radio-group picker, a
+  toggle, a button by Space/Return.
+- **The wheel rule** (`DD-Y`, divergence 16 retired): the wheel over a
+  button, a single-line field and a selectable row inside a scroller scrolls
+  it; over a modal scrim it does not.
+- **Selection by pointer and key**: ⌘-click (toggle), ⇧-click (range from
+  the anchor), ↓/↑ and ⇧↓/⇧↑, and the reveal of an off-screen lead.
+- **VoiceOver on the five new roles** (`.checkBox`, `.radioButton`,
+  `.radioGroup`, `.slider`, `.incrementor`) and a selected row's `isSelected`
+  — including the two shapes divergence 82 names (a partial fold's
+  accessible name; a stepper's arrows) and divergence 83 (a client presses a
+  row rather than setting `AXSelected`).
+
+These join, and neither close nor reopen, the still-owed real-window capture
+and its four demo-layout changes from stage 6b, task 9's two looks and part
+1's wheel-under-`.disabled` look (above).

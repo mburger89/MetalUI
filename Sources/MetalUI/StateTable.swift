@@ -159,6 +159,252 @@ final class StateTable {
 
     func noteAliasedStateBox() { aliasedStateBoxes += 1 }
 
+    // MARK: Evaluated removal (plan task 8, ruling `ID-C`)
+
+    /// Every conditional slot noted produced by the frame being built: an
+    /// `OptionalGroup`'s own slot while it has content, an `EitherGroup`'s taken
+    /// branch id. Swapped into `previouslyProducedSlots` by `sweep()`.
+    private var producedSlots: Set<GlobalElementID> = []
+
+    /// `producedSlots` as the last COMPLETED frame (`Frame.render`'s sweep) left
+    /// it. `noteAbsent` resets a slot only when it is here — the transition from
+    /// produced to evaluated-and-absent, never the steady absent state.
+    private var previouslyProducedSlots: Set<GlobalElementID> = []
+
+    /// How many subtree resets `noteAbsent` queued: once per produced → absent
+    /// transition, never per absent frame — and, since plan task 10 (`DD-C`),
+    /// once per evaluated loop whose extent shrank (`queueLoopResets`). A work
+    /// counter (spec C2.9; lane 1's 1.15); nothing in production reads it. The table itself is walked once per sweep for all of
+    /// them together (`lastResetScanWork`, `ID-R` item 8).
+    private(set) var subtreeResetScans = 0
+
+    /// Slots `noteAbsent` found on their produced → absent transition this frame:
+    /// every entry strictly under one is deleted by `sweep()`'s one pass.
+    private var absentSlots: Set<GlobalElementID> = []
+
+    /// A conditional slot produced its content this frame.
+    ///
+    /// A slot this frame already noted absent (evaluated twice before a sweep,
+    /// absent first) is reset NOW, before its content writes, so the content
+    /// starts fresh exactly as the immediate reset left it before `ID-R` item 8
+    /// moved the resets into `sweep()`.
+    func noteProduced(_ slot: GlobalElementID) {
+        producedSlots.insert(slot)
+        if absentSlots.remove(slot) != nil {
+            resetScanWork += storage.count
+            removeEntries { Self.descends($0, from: slot) }
+        }
+    }
+
+    /// A conditional slot was EVALUATED and produced nothing this frame — an
+    /// `if` whose condition is false, the branch of an `if`/`else` not taken.
+    ///
+    /// **Resets only on the transition**: when the last completed frame produced
+    /// `slot`, every entry whose id has `slot` as a proper ancestor is deleted
+    /// (by this frame's `sweep()`, in its one pass over the table), so content that returns starts fresh (SwiftUI's lifetime rule, probe
+    /// V5/V9; ruling `ID-C`). **Two retention slots are exempt** — an entry whose
+    /// own component is `.named("$focus")` or `.named("$ax")` — because their
+    /// lifetime is the window's (focus retention, the accessibility node's
+    /// republish; `TB-J`, `AB-U`), not the element's. **Only an evaluated
+    /// conditional calls this**: a subtree nothing evaluates (a `List` row out of
+    /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets a
+    /// conditional slot (it resets only a departed NAME, `noteNamed`).
+    func noteAbsent(_ slot: GlobalElementID) {
+        // `remove`, not `contains`: a second note in the same frame (a slot
+        // evaluated twice before a sweep) finds nothing and scans nothing.
+        guard previouslyProducedSlots.remove(slot) != nil else { return }
+        subtreeResetScans += 1
+        absentSlots.insert(slot)
+    }
+
+    // MARK: A name that returns (the closeout, ruling `ID-R`)
+
+    /// One structural position a name can sit at: the parent's id and the
+    /// cursor index the named element consumed there (the index a name
+    /// replaces, `GlobalElementID.child(of:at:name:)`). A plain value, so
+    /// keying on it allocates nothing once the tables are warm.
+    struct NamedPosition: Hashable {
+        let parent: GlobalElementID?
+        let index: Int
+    }
+
+    /// Which name each position held in the frame being built, and in the last
+    /// COMPLETED frame (swapped by `sweep()`, as `producedSlots` is).
+    private var namedPositions: [NamedPosition: GlobalElementID] = [:]
+    private var previousNamedPositions: [NamedPosition: GlobalElementID] = [:]
+
+    /// Every named id the frame being built produced, anywhere.
+    private var producedNames: Set<GlobalElementID> = []
+
+    /// Names an evaluated position held last frame and replaced this frame —
+    /// the candidates `sweep()` resets unless they were produced elsewhere.
+    private var departedNames: [GlobalElementID] = []
+
+    /// Parents whose named children are a WINDOW over their data, not the
+    /// data (a `List`'s rows, `ListRows`): a row's name leaving a position
+    /// because the window moved is not the row going away (`TB-AH`).
+    private var windowedParents: Set<GlobalElementID> = []
+
+    /// How many names `sweep()` reset (a test observable; nothing in production
+    /// reads it).
+    private(set) var departedNameResets = 0
+
+    /// Table entries the resets (`noteAbsent`'s and the departed names') visited
+    /// since the last sweep, and what the last COMPLETED sweep left there — a
+    /// work counter in `LayoutTree.lastNativeLayoutWork`'s shape (`SA-M`); nothing
+    /// in production reads it.
+    private var resetScanWork = 0
+    private(set) var lastResetScanWork = 0
+
+    /// `id` was just minted at cursor `index` under its parent. A no-op unless
+    /// its component is `.named` — an unnamed id IS its position, so it cannot
+    /// be replaced by a different one there.
+    ///
+    /// **When the position held a DIFFERENT name in the last completed frame,
+    /// that name departs**, and `sweep()` resets it (every entry at it or
+    /// under it, except `$focus`/`$ax`) **unless the frame produced it
+    /// somewhere else** — a name that moved to a sibling's position (a swap, a
+    /// loop reorder) keeps its state. So `.id(n)` over a, b, a starts the
+    /// returning a fresh, as SwiftUI's does (probe X9–X11; ruling `ID-R`).
+    /// Only an EVALUATED position replaces a name: a position nothing
+    /// evaluates (an `if` that went false — its own `noteAbsent` resets it; a
+    /// loop that shrank — `noteLoop` resets its dropped names, `DD-C`; anything
+    /// under an element no longer produced) departs nothing here, and a
+    /// `List`'s rows are exempt (`noteWindowedParent`).
+    func noteNamed(_ id: GlobalElementID, at index: Int) {
+        guard case .named = id.component else { return }
+        if let parent = id.parent, windowedParents.contains(parent) { return }
+        producedNames.insert(id)
+        let position = NamedPosition(parent: id.parent, index: index)
+        if let previous = previousNamedPositions[position], previous != id {
+            departedNames.append(previous)
+        }
+        namedPositions[position] = id
+    }
+
+    /// `parent`'s named children this frame are a window over its data (a
+    /// `List`'s rows): `noteNamed` ignores them, so a row scrolled out keeps
+    /// `TB-AH`'s bounded retention.
+    func noteWindowedParent(_ parent: GlobalElementID) {
+        windowedParents.insert(parent)
+    }
+
+    // MARK: A loop that stops producing an element (plan task 10, ruling `DD-C`)
+
+    /// Every loop slot the frame being built evaluated, with the inner-cursor
+    /// extent it consumed; and the same for the last COMPLETED frame (swapped by
+    /// `sweep()`, as `producedSlots` is).
+    private var loopExtents: [GlobalElementID: Int] = [:]
+    private var previousLoopExtents: [GlobalElementID: Int] = [:]
+
+    /// A loop — a `for` loop's `ArrayGroup` or a `ForEach`, each in its untyped
+    /// and typed copy — was EVALUATED at `slot` and consumed `extent` indices of
+    /// its inner cursor.
+    ///
+    /// **`sweep()` resets what the loop stopped producing** (divergence 74
+    /// retired; SwiftUI's `ForEach`, probe F2, F3, F8): the positional children
+    /// at an index from this frame's extent up to last frame's (the tail an
+    /// unnamed `for` loop dropped), and every named child the slot held last
+    /// frame that this frame produced nowhere (a `ForEach` element dropped
+    /// anywhere, a `for` iteration carrying `.id()` dropped at the tail). Both
+    /// go through the one reset pass (`resetQueuedEntries`), `$focus`/`$ax`
+    /// exempted as there. **Only the loop's DIRECT children are considered**:
+    /// a `List` inside a surviving element keeps `TB-AH`'s retention for its
+    /// rows. **Only an evaluated loop calls this**: a loop inside an element
+    /// not produced notes nothing, and a loop with no extent recorded last
+    /// frame compares nothing — which holds only because `sweep()` clears
+    /// `loopExtents` after its swap (pinned by
+    /// `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`: a loop inside
+    /// an out-of-window `List` row keeps `TB-AH`'s retention; mutation V11).
+    func noteLoop(_ slot: GlobalElementID, extent: Int) {
+        loopExtents[slot] = extent
+    }
+
+    /// Queues the loop rule's resets for `sweep()`: the positional tail each
+    /// shrunk loop dropped, then — in ONE pass over last frame's named positions
+    /// for all the loops together — every named direct child produced nowhere.
+    /// Counted in `subtreeResetScans` (one per shrunk loop) and
+    /// `departedNameResets` (one per name not already departed by `ID-R`).
+    private func queueLoopResets() {
+        guard !loopExtents.isEmpty else { return }
+        for (slot, extent) in loopExtents {
+            guard let previous = previousLoopExtents[slot], previous > extent else { continue }
+            subtreeResetScans += 1
+            for index in extent..<previous {
+                departedRoots.insert(GlobalElementID(component: .positional(index), parent: slot))
+            }
+        }
+        for (position, name) in previousNamedPositions {
+            guard let parent = position.parent, loopExtents[parent] != nil,
+                  !producedNames.contains(name) else { continue }
+            if departedRoots.insert(name).inserted { departedNameResets += 1 }
+        }
+    }
+
+    /// The departed names `sweep()` resets this frame (filled from
+    /// `departedNames` minus the names produced elsewhere).
+    private var departedRoots: Set<GlobalElementID> = []
+
+    /// Keys one reset pass collected, removed after the walk — never while
+    /// iterating `storage.keys`, which would copy the whole table. Kept between
+    /// sweeps so a warm pass allocates nothing.
+    private var doomedKeys: [GlobalElementID] = []
+
+    /// The one deletion both resets share, run ONCE per sweep for every reset
+    /// the frame queued (`ID-R` item 8): an entry goes when its id is a departed
+    /// name, or has a departed name or an absent slot as a PROPER ancestor —
+    /// `noteAbsent`'s slot holds no entry of its own, while a renamed element's
+    /// own id carries entries too (`ScrollView`'s offset, an element's
+    /// `withState(id, …)`) — except the window-owned retention slots. Cost: one
+    /// visit per table entry plus its ancestor walk, however many names departed;
+    /// the per-name scan it replaced cost (departures × table).
+    private func resetQueuedEntries() {
+        guard !departedRoots.isEmpty || !absentSlots.isEmpty else { return }
+        resetScanWork += storage.count
+        removeEntries { id in
+            if departedRoots.contains(id) { return true }
+            var cursor = id.parent
+            while let ancestor = cursor {
+                if departedRoots.contains(ancestor) || absentSlots.contains(ancestor) { return true }
+                cursor = ancestor.parent
+            }
+            return false
+        }
+        departedRoots.removeAll(keepingCapacity: true)
+        absentSlots.removeAll(keepingCapacity: true)
+    }
+
+    /// Deletes every entry `doomed` selects, except `$focus`/`$ax`: collected in
+    /// one walk of the keys, then removed.
+    private func removeEntries(where doomed: (GlobalElementID) -> Bool) {
+        for id in storage.keys where !Self.isWindowRetained(id) && doomed(id) {
+            doomedKeys.append(id)
+        }
+        for id in doomedKeys {
+            storage.removeValue(forKey: id)
+            marked.remove(id)
+        }
+        doomedKeys.removeAll(keepingCapacity: true)
+    }
+
+    /// Whether `slot` is a PROPER ancestor of `id`.
+    private static func descends(_ id: GlobalElementID, from slot: GlobalElementID) -> Bool {
+        var cursor = id.parent
+        while let ancestor = cursor {
+            if ancestor == slot { return true }
+            cursor = ancestor.parent
+        }
+        return false
+    }
+
+    private static let focusRetentionName = PathComponent.named(ElementID("$focus"))
+    private static let axRetentionName = PathComponent.named(ElementID("$ax"))
+
+    /// `$focus` and `$ax`: the window-owned retention slots `noteAbsent` keeps.
+    private static func isWindowRetained(_ id: GlobalElementID) -> Bool {
+        id.component == focusRetentionName || id.component == axRetentionName
+    }
+
     /// An entry survives being unmarked for this many generations before
     /// `sweep()` will reap it — same shape and same value as
     /// `ShapingCache.staleAfterGenerations` (`Sources/MetalUIText/ShapingCache.swift:141`),
@@ -238,7 +484,8 @@ final class StateTable {
     /// would be unreachable dead code, not a fix. Kept anyway — this is what
     /// this task's own tests read, two of which construct no `Window` at
     /// all — and listed in CLAUDE.md's declared-but-inert table under the
-    /// `Style.overflow` shape: a production write with no production read.
+    /// shape `Style.overflow` had until stage 10 deleted it (`LR-FM` item 1):
+    /// a production write with no production read.
     ///
     /// **Deliberately NOT raised by `withState`.** `ScrollView`'s per-frame
     /// offset bookkeeping (`ScrollChrome.resolvedOffset`) goes through
@@ -530,6 +777,26 @@ final class StateTable {
     /// either of those changes later and something will, silently, unless
     /// this line is still here to catch it.
     func sweep() {
+        // `ID-R`: a name an evaluated position replaced, and that this frame
+        // produced nowhere, is reset before the next frame can return to it.
+        // Both resets — these names and `noteAbsent`'s slots — share one pass.
+        for name in departedNames where !producedNames.contains(name) {
+            departedNameResets += 1
+            departedRoots.insert(name)
+        }
+        // `DD-C`: what an evaluated loop stopped producing joins the same pass.
+        queueLoopResets()
+        resetQueuedEntries()
+        departedNames.removeAll(keepingCapacity: true)
+        lastResetScanWork = resetScanWork
+        resetScanWork = 0
+        swap(&namedPositions, &previousNamedPositions)
+        namedPositions.removeAll(keepingCapacity: true)
+        producedNames.removeAll(keepingCapacity: true)
+        windowedParents.removeAll(keepingCapacity: true)
+        swap(&loopExtents, &previousLoopExtents)
+        loopExtents.removeAll(keepingCapacity: true)
+
         generation += 1
         for id in storage.keys {
             let isMarked = marked.contains(id)
@@ -539,6 +806,10 @@ final class StateTable {
             }
         }
         marked.removeAll(keepingCapacity: true)
+        // `ID-C`: this frame's produced conditional slots become the set the next
+        // frame's `noteAbsent` compares against. A swap, so no allocation once warm.
+        swap(&producedSlots, &previouslyProducedSlots)
+        producedSlots.removeAll(keepingCapacity: true)
 
         if storage.count > Self.sweepThreshold {
             for (id, entry) in storage

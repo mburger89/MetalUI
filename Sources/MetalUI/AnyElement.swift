@@ -140,6 +140,14 @@ public struct AnyElementBox<E: Element>: ElementObject {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> LayoutNodeID {
+        // **Binds `@State` and `@Environment`** (plan task 8, ruling ID-E): the
+        // box is generic over the concrete element, so the `Mirror` that
+        // `AnyElement` itself cannot offer is available here. Bound in all
+        // three phases, as `Element`'s group defaults do, so one erased value
+        // placed twice reads its own occurrence in each. Pinned by
+        // `stateInsideAnAnyElementPersistsAcrossFrames` and
+        // `stateInsideAnAnyElementIsReboundForPrepaintAndPaint`.
+        StateBinder.bind(element, in: pass.frame, id: id)
         let (node, state) = element.requestLayout(id, pass: &pass)
         layoutState = state
         return node
@@ -150,6 +158,7 @@ public struct AnyElementBox<E: Element>: ElementObject {
         guard var layout = layoutState else {
             preconditionFailure("AnyElement.prepaint before requestLayout: no LayoutState to pass")
         }
+        StateBinder.bind(element, in: pass.frame, id: id)   // ID-E: re-bind per phase
         // Written back because `Element.prepaint` takes its layout state
         // `inout` — §4.1 threads it that way so an element can mutate it in
         // place rather than copy it, and dropping the write-back would discard
@@ -166,6 +175,7 @@ public struct AnyElementBox<E: Element>: ElementObject {
         guard var prepaint = prepaintState else {
             preconditionFailure("AnyElement.paint before prepaint: no PrepaintState to pass")
         }
+        StateBinder.bind(element, in: pass.frame, id: id)   // ID-E: re-bind per phase
         element.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
         layoutState = layout
         prepaintState = prepaint

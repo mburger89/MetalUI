@@ -15,6 +15,11 @@ public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
     private let hidden: Bool
     private var running = false
+    /// The window of this platform with keyboard focus, if any (ruling EV-AB,
+    /// amended by EV-AF). Tracked from SDL's focus events rather than read
+    /// from `SDL_GetWindowFlags`, which a pushed event does not update; the
+    /// flags seed it once, when a window opens.
+    private var focusedID: UInt32?
 
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
@@ -41,7 +46,27 @@ public final class SDLPlatform: Platform {
             throw error
         }
         windows[window.id] = window
+        window.platform = self
+        if mui_window_has_input_focus(handle) { focusedID = window.id }
+        window.noteControlActiveState()
+        publishControlActiveStates()
         return window
+    }
+
+    /// `.key` for the focused window, `.active` for another of this
+    /// platform's windows while one has focus, `.inactive` when none does —
+    /// SDL has no application-activation state apart from window focus
+    /// (ruling EV-AB).
+    func controlActiveState(of id: UInt32) -> ControlActiveState {
+        focusedID == id ? .key : (focusedID != nil ? .active : .inactive)
+    }
+
+    /// Fires each window's callback whose state changed since it last
+    /// reported — once per drain, so a switch between two of this platform's
+    /// windows (`FOCUS_LOST(A)` then `FOCUS_GAINED(B)`) reports no transient
+    /// `.inactive` to A (ruling EV-AF).
+    private func publishControlActiveStates() {
+        for window in windows.values { window.publishControlActiveStateIfChanged() }
     }
 
     /// Runs until every window has closed or ``stop()`` is called: events are
@@ -82,6 +107,7 @@ public final class SDLPlatform: Platform {
     public func pumpEvents() {
         var event = MUIEvent()
         while mui_poll_event(&event) { dispatch(event) }
+        publishControlActiveStates()
     }
 
     private func dispatch(_ event: MUIEvent) {
@@ -92,7 +118,14 @@ public final class SDLPlatform: Platform {
             for window in windows.values { window.appearanceChanged() }
         case Int(MUI_EVENT_CLOSE):
             guard let window = windows.removeValue(forKey: event.window_id) else { return }
+            if focusedID == event.window_id { focusedID = nil }
             window.close()
+        case Int(MUI_EVENT_FOCUS_GAINED):
+            // A window this platform does not own is not ours to focus.
+            guard windows[event.window_id] != nil else { return }
+            focusedID = event.window_id
+        case Int(MUI_EVENT_FOCUS_LOST):
+            if focusedID == event.window_id { focusedID = nil }
         case Int(MUI_EVENT_ACCESSIBILITY):
             windows[event.window_id]?.deliverAccessibilityRequests()
         default:
@@ -157,6 +190,34 @@ public final class SDLWindow: PlatformWindow {
     public var onResize: ((Size<Pixels>, Float) -> Void)?
     public var onAppearanceChange: ((Appearance) -> Void)?
     public var onClose: (() -> Void)?
+
+    // MARK: Control active state (ruling EV-AB, amended by EV-AF)
+
+    /// The platform whose focus tracking this window reads.
+    weak var platform: SDLPlatform?
+    /// The state last reported through ``onControlActiveStateChange`` (or
+    /// noted before anyone listened) — what a change is measured against.
+    private var reportedControlActiveState: ControlActiveState = .inactive
+
+    /// This window's key state: `.key` while it has keyboard focus, `.active`
+    /// while another window of its platform does, `.inactive` otherwise. Read
+    /// from the platform's tracked focus, not SDL's window flags.
+    public var controlActiveState: ControlActiveState {
+        platform?.controlActiveState(of: id) ?? .inactive
+    }
+
+    /// Fired with the new value when ``controlActiveState`` changes — once per
+    /// ``SDLPlatform/pumpEvents()``, and never for an unchanged state.
+    public var onControlActiveStateChange: ((ControlActiveState) -> Void)?
+
+    func noteControlActiveState() { reportedControlActiveState = controlActiveState }
+
+    func publishControlActiveStateIfChanged() {
+        let state = controlActiveState
+        guard state != reportedControlActiveState else { return }
+        reportedControlActiveState = state
+        onControlActiveStateChange?(state)
+    }
 
     /// Called with AccessKit's requests (ruling AX-C): `.activate` when a
     /// screen reader first asks for the tree, then the actions it performs.

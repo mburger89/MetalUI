@@ -81,6 +81,164 @@ public final class Frame {
     /// Ask for another frame after this one — for an animation in progress.
     func requestAnotherFrame() { wantsAnotherFrame = true }
 
+    /// Where a ``ScrollViewProxy`` built in this frame enqueues its
+    /// `scrollTo` requests (ruling `DD-G` item 3). `Window` replaces this with
+    /// its own queue before rendering, so a request outlives the frame whose
+    /// proxy made it; a bare `Frame`'s own queue dies with it.
+    var scrollRequestQueue = ScrollRequestQueue()
+
+    // MARK: - `scrollTo` resolution (plan task 10, part 1, rulings `DD-G`, `DD-K`)
+
+    /// The requests this frame resolves, taken from `scrollRequestQueue` when
+    /// the frame starts rendering. Anything still unresolved after prepaint is
+    /// dropped (T8): a request never outlives the frame that looked for it.
+    private var scrollRequests: [ScrollRequest] = []
+    private var scrollRequestResolved: [Bool] = []
+    private var unresolvedScrollRequestCount = 0
+
+    /// Whether any request is still looking for its target — the one flag
+    /// `recordElementBounds` and `List.prepaint` read before doing any work.
+    var hasUnresolvedScrollRequests: Bool { unresolvedScrollRequestCount > 0 }
+
+    /// Whether this frame notes typed keys (`DD-K`): true only while a request
+    /// is pending, so a steady frame pays one flag read per `ForEach` and per
+    /// `List` and notes nothing (`scrollKeyCount` reads 0).
+    private(set) var notesScrollKeys = false
+
+    /// The typed keys noted this frame (`DD-K`): each `ForEach` element scope's
+    /// key and each realised `List` row's `datum.id`, by the scope's or row's
+    /// id. `recordElementBounds`' match reads an id's key here first and falls
+    /// back to its `String` name, so `scrollTo(10)` does not reach a `ForEach`
+    /// element keyed `"10"` or an `.id("10")`.
+    private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
+
+    /// How many typed keys this frame noted — a work counter.
+    var scrollKeyCount: Int { scrollKeys.count }
+
+    /// Each resolved request's scroller and the offset it moves to, in
+    /// resolution order — applied after paint (`applyScrollResolutions`).
+    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double)] = []
+
+    /// Notes `id`'s typed key. Callers check `notesScrollKeys` first.
+    func noteScrollKey(_ id: GlobalElementID, _ key: AnyHashable) {
+        scrollKeys[id] = key
+    }
+
+    /// Takes the window's pending requests at the start of a render.
+    private func beginScrollRequests() {
+        scrollRequests = scrollRequestQueue.take()
+        scrollRequestResolved = Array(repeating: false, count: scrollRequests.count)
+        unresolvedScrollRequestCount = scrollRequests.count
+        notesScrollKeys = !scrollRequests.isEmpty
+    }
+
+    /// The unresolved requests whose reader encloses `id`, as (index, key).
+    func unresolvedScrollRequests(enclosing id: GlobalElementID) -> [(index: Int, key: AnyHashable)] {
+        guard hasUnresolvedScrollRequests else { return [] }
+        return scrollRequests.indices.compactMap { index in
+            guard !scrollRequestResolved[index],
+                  Self.isStrictDescendant(id, of: scrollRequests[index].scope) else { return nil }
+            return (index, scrollRequests[index].key)
+        }
+    }
+
+    /// Whether request `index` has already found its target (first match wins).
+    func isScrollRequestResolved(_ index: Int) -> Bool { scrollRequestResolved[index] }
+
+    /// Resolves request `index` against `target` (layout space) and the
+    /// innermost scroller frame in effect — the target's nearest scroller
+    /// (T14). A target in no scroller resolves to nothing, and the request is
+    /// spent either way.
+    func resolveScrollRequest(_ index: Int, target: Bounds<Pixels>) {
+        guard !scrollRequestResolved[index] else { return }
+        scrollRequestResolved[index] = true
+        unresolvedScrollRequestCount -= 1
+        guard let scroller = activeScrollerFrame else { return }
+        let offset = Self.scrollOffset(bringing: target, into: scroller,
+                                       anchor: scrollRequests[index].anchor)
+        scrollResolutions.append((scroller.scrollerID, offset))
+    }
+
+    /// Matches every unresolved request against `id` and its ancestors — the
+    /// first element recorded at or under a key equal to the request's, inside
+    /// the request's reader (`DD-G` item 2, `DD-K`). Called by
+    /// `recordElementBounds`, which the four element-bounds sites already call
+    /// in document order, so the first match is the first such element.
+    private func matchScrollRequests(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        var ancestor: GlobalElementID? = id
+        while let candidate = ancestor, hasUnresolvedScrollRequests {
+            if let key = scrollKey(of: candidate) {
+                for index in scrollRequests.indices
+                where !scrollRequestResolved[index] && scrollRequests[index].key == key
+                    && Self.isStrictDescendant(candidate, of: scrollRequests[index].scope) {
+                    resolveScrollRequest(index, target: bounds)
+                }
+            }
+            ancestor = candidate.parent
+        }
+    }
+
+    /// `id`'s key: its typed key when one was noted, else its `String` name
+    /// (an `.id(_:)`, `ID-G`), else none.
+    private func scrollKey(of id: GlobalElementID) -> AnyHashable? {
+        if let typed = scrollKeys[id] { return typed }
+        if case .named(let name) = id.component { return AnyHashable(name.name) }
+        return nil
+    }
+
+    /// Whether `scope` is a proper ancestor of `id` — a proxy's reach (S0–S2).
+    private static func isStrictDescendant(_ id: GlobalElementID, of scope: GlobalElementID) -> Bool {
+        var ancestor = id.parent
+        while let candidate = ancestor {
+            if candidate == scope { return true }
+            ancestor = candidate.parent
+        }
+        return false
+    }
+
+    /// The offset that brings `target` into `scroller` (`DD-G` item 2):
+    /// with an anchor, `minY − anchor.y × (viewport − height)` (T1–T3, T9;
+    /// `x`/`width` horizontally, T11); with none, the least distance — above
+    /// → top-aligned, below → bottom-aligned, visible → unmoved (T4–T6).
+    /// Clamped to the content (T7).
+    static func scrollOffset(bringing target: Bounds<Pixels>, into scroller: ScrollerFrame,
+                             anchor: UnitPoint?) -> Double {
+        let vertical = scroller.axis == .vertical
+        let start = Double(vertical ? target.origin.y.value - scroller.contentOrigin.y.value
+                                    : target.origin.x.value - scroller.contentOrigin.x.value)
+        let length = Double(vertical ? target.size.height.value : target.size.width.value)
+        let viewport = scroller.viewportExtent
+        let offset: Double
+        if let anchor {
+            offset = start - (vertical ? anchor.y : anchor.x) * (viewport - length)
+        } else if start < scroller.offset {
+            offset = start
+        } else if start + length > scroller.offset + viewport {
+            offset = start + length - viewport
+        } else {
+            offset = scroller.offset
+        }
+        return ScrollChrome.clamp(offset: offset, content: scroller.contentExtent, viewport: viewport)
+    }
+
+    /// Writes each resolved scroller's offset — after paint, so the frame that
+    /// resolved a request paints the old offset consistently with its
+    /// hitboxes, and the next frame shows the new one — through `withState`
+    /// (as `ScrollChrome.resolvedOffset`'s write-back does: no `onWrite`), and
+    /// asks for that next frame. Then drops every request, resolved or not.
+    private func applyScrollResolutions() {
+        for resolution in scrollResolutions {
+            stateTable.withState(resolution.scroller, initial: ScrollState()) {
+                $0.offset = resolution.offset
+            }
+        }
+        if !scrollResolutions.isEmpty { requestAnotherFrame() }
+        scrollResolutions = []
+        scrollRequests = []
+        scrollRequestResolved = []
+        unresolvedScrollRequestCount = 0
+    }
+
     /// True once anything in this frame has reported an `Animation` that is
     /// still interpolating **after this frame's own update** — the property
     /// M4 spec 1 refused to declare without a writer (ruling `RX-O`), and the
@@ -106,8 +264,10 @@ public final class Frame {
     ///
     /// **Distinct from `wantsAnotherFrame` above, and after this task nothing
     /// raises both.** `wantsAnotherFrame` means "mark the window DIRTY next
-    /// frame" and its one caller is `ScrollView`'s scroll-indicator fade, which
-    /// predates the `Animation` type and drives itself by dirtying. This means
+    /// frame" and its callers are `ScrollView`'s scroll-indicator fade, which
+    /// predates the `Animation` type and drives itself by dirtying, and — since
+    /// plan task 10's `DD-F` — a `List` whose window went stale, once; neither
+    /// raises `noteActiveAnimation()`. This means
     /// "an `Animation` is interpolating", and it keeps the loop running
     /// *without* dirtying the window — so a window mid-fade reports
     /// `needsRedraw == false`, which is true: nobody changed anything.
@@ -195,11 +355,13 @@ public final class Frame {
     /// `Frame` built without a window (every test) keeps `EnvironmentValues()`,
     /// whose locale is the root locale `Locale(identifier: "")` (ruling EV-Y).
     ///
-    /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
-    /// from the `theme:` this frame was built with, and `pixelLength` from its
-    /// scale factor. `Window.theme` stays the root theme's only source, and no
-    /// value can lie about the device, so `window.environment.theme = .dark` —
-    /// which compiles inside the module — changes nothing.
+    /// **The setter re-stamps two fields** (rulings EV-H, EV-U, EV-AA):
+    /// `theme` from the `theme:` this frame was built with, and `displayScale`
+    /// from its scale factor. `Window.theme` stays the root theme's only
+    /// source, and the root's scale is the drawable's, so
+    /// `window.environment.theme = .dark` and
+    /// `window.environment.displayScale = 3` — which compile — change nothing
+    /// at the root. A scope below the root may write `displayScale` (EV-AA).
     ///
     /// **It also resets the top, so it traps while `render` runs** (ruling
     /// EV-Z). From inside a phase it would replace every open scope's values
@@ -215,18 +377,19 @@ public final class Frame {
                          "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
             var values = newValue
             values.theme = rootTheme
-            values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+            values.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
             storedRootEnvironment = values
             environmentTop = values
         }
     }
 
-    /// One device pixel in points, or 1 when the surface has not reported a
-    /// usable scale — a 0 or NaN from a backend still configuring itself would
-    /// otherwise hand every reader an infinity.
-    private static func pixelLength(forScaleFactor scale: Float) -> Double {
+    /// The root's `displayScale`: the surface's scale factor, or 1 when it has
+    /// not reported a usable one — a 0 or NaN from a backend still configuring
+    /// itself would otherwise hand every reader a nonsense scale (ruling EV-AA;
+    /// the guard that protected `pixelLength` before it was derived).
+    private static func displayScale(forScaleFactor scale: Float) -> Double {
         guard scale.isFinite, scale > 0 else { return 1 }
-        return 1 / Double(scale)
+        return Double(scale)
     }
 
     /// A writer's values: `write` applied to a copy of the **current top**, so
@@ -234,11 +397,13 @@ public final class Frame {
     /// (ruling EV-A). Called once per scope per frame, by
     /// `EnvironmentScope.requestGroupLayout` only (ruling EV-V).
     ///
-    /// **A `.transform` cannot change `theme` or `pixelLength`**: both are put
-    /// back from the top it copied, after the transform runs, because
+    /// **A `.transform` cannot change `theme`**: it is put back from the top
+    /// it copied, after the transform runs, because
     /// `.environment(\.self, EnvironmentValues())` compiles outside the module
-    /// and would otherwise reset them (ruling EV-U). `.theme` is the one write
-    /// that sets a theme.
+    /// and would otherwise reset it (ruling EV-U). `.theme` is the one write
+    /// that sets a theme. **`displayScale` is not re-stamped** (ruling EV-AA,
+    /// which withdrew `EV-U`'s `pixelLength` half): a scope may write it, and a
+    /// `\.self` reset reads 1, as in SwiftUI.
     func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues {
         environmentTransformCount += 1
         var values = environmentTop
@@ -246,7 +411,6 @@ public final class Frame {
         case .transform(let transform):
             transform(&values)
             values.theme = environmentTop.theme
-            values.pixelLength = environmentTop.pixelLength
         case .theme(let theme):
             values.theme = theme
         }
@@ -506,6 +670,28 @@ public final class Frame {
     func popScrollContext() {
         scrollContextStack.removeLast()
     }
+
+    /// The innermost scroller whose content is being prepainted — ruling
+    /// `DD-F` item 2's prepaint frame. `ScrollView` and `ProposalScrollView`
+    /// push one around their content's prepaint (`PrepaintPass.inScroller`);
+    /// `List` reads it to measure its own origin within the scroller's content
+    /// and to see whether the window it built is stale.
+    ///
+    /// **`ScrollerFrame?`, for `scrollContextStack`'s reason**: `Deferred`
+    /// pushes the ABSENCE of one (`PrepaintPass.deferred`), since a portal has
+    /// escaped its scroller — popping the entry instead would expose the next
+    /// scroller out, a different wrong answer. Prepaint-only; empty between
+    /// phases.
+    private var scrollerFrameStack: [ScrollerFrame?] = []
+
+    /// The scroller frame in effect, or `nil` outside every scroller (or
+    /// inside a `Deferred`).
+    var activeScrollerFrame: ScrollerFrame? { scrollerFrameStack.last ?? nil }
+
+    /// Balanced by `popScrollerFrame`, reached only through a `defer`.
+    func pushScrollerFrame(_ frame: ScrollerFrame?) { scrollerFrameStack.append(frame) }
+
+    func popScrollerFrame() { scrollerFrameStack.removeLast() }
 
     /// The axis-aligned intersection of two bounds. Either dimension can go to
     /// zero (or below, clamped to zero) when the two do not overlap; it never
@@ -956,7 +1142,10 @@ public final class Frame {
         //
         // **A row hint is not a declaration** (ruling AB-L): `logicalIndex` is
         // stripped before the test, so a `List` row that carries only its index
-        // emits nothing here and writes no `$ax` slot (AB-U).
+        // emits nothing here and writes no `$ax` slot (AB-U). **A selection
+        // hint is stripped the same way** (ruling `DD-U` item 4): a selected
+        // `List(selection:)` row records `isSelected` for a client and writes
+        // neither `axNodes` nor a `$ax` slot, so retention does not move.
         //
         // **A disabled element's declared node gains `.disabled`** (ruling
         // EV-E). Presence and role still come from the ungated `handlers`: a
@@ -964,6 +1153,7 @@ public final class Frame {
         // `isEnabled: enabled` (ruling EV-W item 4).
         var declaration = handlers.axNode
         declaration.logicalIndex = nil
+        declaration.selectionHint = false
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -980,6 +1170,7 @@ public final class Frame {
         if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
             let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
+                || handlers.axNode.selectionHint
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
                         || accessibleText != nil))
@@ -1509,7 +1700,7 @@ public final class Frame {
         self.rootTheme = theme
         var root = EnvironmentValues()
         root.theme = theme
-        root.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+        root.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
         self.storedRootEnvironment = root
         self.environmentTop = root
         self.timestamp = timestamp
@@ -1574,7 +1765,12 @@ public final class Frame {
     private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
 
     /// Records `bounds` for `id` when this frame records element bounds.
+    ///
+    /// **Also where a pending `scrollTo` finds its target** (ruling `DD-G`
+    /// item 3), whether or not the frame records bounds: one flag read per
+    /// element while no request is pending.
     func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
     }
@@ -1748,7 +1944,7 @@ public final class Frame {
     /// `NativeModifiedContent`'s `.border` (proposal path) and
     /// `Decoration.border`/`hoverBorder`/`focusBorder` (legacy path, rulings
     /// `OM-B`/`OM-L`) both carry `Pixels`, which paint can pair with a colour
-    /// directly. `Style.border` remains engine-side and is still discarded.
+    /// directly. `Style.border` was deleted by stage 10 (`LR-FM` item 1).
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
               borderColor: Hsla = .transparent,
@@ -1879,13 +2075,21 @@ public final class Frame {
     /// one contributes its own positional component instead of stopping the
     /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
+        // A build reads each phase's own bind, never a dispatching owner's
+        // occurrence (ID-O item 2, `StateDispatch.outsideDispatch`).
+        StateDispatch.outsideDispatch { renderOutsideDispatch(&element) }
+    }
+
+    private func renderOutsideDispatch<E: Element>(_ element: inout E) {
         isRendering = true
+        beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
         // into a frame an identity for its children to hang from. A named root
         // takes `.named` instead — the constructor decides, here as everywhere.
         let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+        stateTable.noteNamed(rootID, at: 0)  // `ID-R`: a renamed root departs its old name
 
         // `Frame.render` calls the root's `requestLayout` directly rather than
         // through `ElementGroup`'s default `requestGroupLayout` — that method
@@ -1964,6 +2168,7 @@ public final class Frame {
         }
         glyphAtlas.endFrame()
         textSystem.endFrame()
+        applyScrollResolutions()
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the
@@ -1985,7 +2190,10 @@ public final class Frame {
         // assumed after a review caught the stale claim.** Moving this call
         // to right after `StateBinder.bind` above reddens 3, not 1:
         // the pin above, plus `flippingAnEitherBranchResetsTheBranchesState`
-        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState` (renamed
+        // `anElementAfterAVanishingIfKeepsItsOwnState` by plan task 8, whose
+        // `ID-C` deletes the entries these `isLive` lines read — re-measure
+        // before relying on this count)
         // (`IdentityTests.swift`). Both are two-frame `IdentityTests` cases
         // whose tombstones-milestone inversion added an `isLive` assertion on
         // an abandoned branch's entry — the same one-frame liveness lag this

@@ -102,6 +102,7 @@ extension Component {
         // whether that is a `.named` component or a `.positional` one — the
         // name-replaces-position rule lives in the constructor, not here.
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`
 
         // Binds the COMPONENT's own `@State`. Nothing else does this for a
         // component: `Element`'s default `requestGroupLayout` is not reached,
@@ -195,10 +196,10 @@ extension Component {
         var innerCursor = 0
         // `requestGroupLayout`, never `requestLayout` — this is what reaches
         // `StateBinder.bind` for every element inside `content`. Calling
-        // `requestLayout` directly is the live `AnyElement` defect in
-        // CLAUDE.md's declared-but-inert table: `@State` returns its initial
-        // value forever, with NO diagnostic, because nothing ever seeds its
-        // box.
+        // `requestLayout` directly would skip that bind — the shape
+        // `AnyElement` had before plan task 8's ID-E: `@State` returns its
+        // initial value forever, with NO diagnostic, because nothing ever
+        // seeds its box.
         // MUTATION (Task 2 Step 4, second mutation — RE-TAKEN fix round 2
         // against the full 806-test file): calling this recursive step
         // TWICE on `materialized` (discarding the first call, resetting
@@ -492,7 +493,12 @@ extension Component {
     /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
-    /// target. Its reconciliation with `.frame` is stage 11's.
+    /// target. **Reconciled with `.frame` by ruling, not by API** (plan task 7,
+    /// stage 11, `LR-FY` item 2): the two are different modifiers and both stay
+    /// — this one frames each member, `.frame` wraps the members' row in one
+    /// layer. A `.frame` that distributes per member is SwiftUI's `Group`
+    /// semantics, plan task 8's (`CN-Q`). Over a presentation member it frames
+    /// nothing and reports nothing, as a `.frame` layer does (`LR-FY` item 1).
     public func width(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentWidth(points))])
     }
@@ -506,7 +512,12 @@ extension Component {
     /// member (`LR-BG` — SwiftUI's
     /// answer, component distribution probe G7/G8); and `Component.frame` over
     /// several members is a horizontal row (`LR-BH`), so it is not a rename
-    /// target. Its reconciliation with `.frame` is stage 11's.
+    /// target. **Reconciled with `.frame` by ruling, not by API** (plan task 7,
+    /// stage 11, `LR-FY` item 2): the two are different modifiers and both stay
+    /// — this one frames each member, `.frame` wraps the members' row in one
+    /// layer. A `.frame` that distributes per member is SwiftUI's `Group`
+    /// semantics, plan task 8's (`CN-Q`). Over a presentation member it frames
+    /// nothing and reports nothing, as a `.frame` layer does (`LR-FY` item 1).
     public func height(_ points: Pixels) -> StyledComponent<Self> {
         StyledComponent(component: self, ops: [.amend(componentHeight(points))])
     }
@@ -532,7 +543,8 @@ extension Component {
 ///
 /// `width`/`height` here are **not deprecated**, though the `StyledElement`
 /// modifiers of the same names are since plan task 7's stage 8 — for the
-/// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; stage 11's).
+/// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; reconciled with
+/// `.frame` by stage 11's `LR-FY` item 2).
 extension StyledComponent {
     public func padding(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.wrap(paddingWrapperStyle(points))])

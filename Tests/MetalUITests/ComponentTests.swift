@@ -245,8 +245,9 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
 // MARK: - Identity opacity: `@State` inside a component
 
-/// `@Binding` does not exist in this framework — `grep -rn "propertyWrapper"
-/// Sources/MetalUI/` finds exactly one `@propertyWrapper`, `State.swift:39`.
+/// `@Binding` did not exist in this framework when this was written (it
+/// arrived with plan task 10, ruling `DD-D`; the fixture below predates it and
+/// is kept as written, since the property it isolates does not need one).
 /// So this component takes the brief's stated fallback: it increments its own
 /// `@State` directly inside `content`'s getter, rather than handing a binding
 /// down to a child leaf. That is safe only because `content` is materialized
@@ -361,9 +362,11 @@ private struct Wrapper: Component {
 }
 
 /// Spec §6 assertion 5, both halves in one test, because the ASYMMETRY is the
-/// evidence — the pattern `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`
-/// already uses. A named component keeps its own count through a swap; an
-/// unnamed one's count follows the position.
+/// evidence — the pattern
+/// `namingEitherSideOfAVanishingIfLeavesTheTrailingSiblingsStateAlone`
+/// (`namingTheLaterSiblingIsWhatSurvivesAVanishingIf` before `ID-B`) already
+/// uses. A named component keeps its own count through a swap; an unnamed
+/// one's count follows the position.
 @MainActor
 @Test func aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot() {
     let size = Size<Pixels>(width: px(100), height: px(100))
@@ -435,9 +438,9 @@ private struct Wrapper: Component {
 
 /// Spec §4.2's load-bearing line: the content is reached through
 /// `requestGroupLayout`, which is what calls `StateBinder.bind` for every
-/// element inside it. Forwarding to `requestLayout` instead is the live
-/// `AnyElement` defect — `@State` returns its initial value forever, with no
-/// diagnostic.
+/// element inside it. Forwarding to `requestLayout` instead would skip
+/// `StateBinder.bind` — the shape `AnyElement` had before plan task 8's ID-E —
+/// and `@State` would return its initial value forever, with no diagnostic.
 ///
 /// **This and `aComponentsOwnStateSurvivesAcrossFrames` must be reddened by
 /// DIFFERENT mutations**, or one of the two is proving less than it claims.

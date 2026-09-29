@@ -308,9 +308,14 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     let componentChain = ChainComp().frame(width: 60).padding(4)
     let groupChain = ChainGroup(ChainLeaf()).frame(width: 30)
 
-    #expect(name(leafChain) == "ModifiedElement<ChainLeaf>", "leaf chain: \(name(leafChain))")
-    #expect(name(componentChain) == "ModifiedElement<ChainComp>", "component chain: \(name(componentChain))")
-    #expect(name(groupChain) == "ModifiedElement<ChainGroup<ChainLeaf>>", "group chain: \(name(groupChain))")
+    // Since stage 11 `ModifiedElement<X>` is a typealias of
+    // `ModifiedContent<X, ModifierLayer>` (ruling `LR-FV`), and a type's name
+    // prints the aliased type.
+    #expect(name(leafChain) == "ModifiedContent<ChainLeaf, ModifierLayer>", "leaf chain: \(name(leafChain))")
+    #expect(name(componentChain) == "ModifiedContent<ChainComp, ModifierLayer>",
+            "component chain: \(name(componentChain))")
+    #expect(name(groupChain) == "ModifiedContent<ChainGroup<ChainLeaf>, ModifierLayer>",
+            "group chain: \(name(groupChain))")
     for chain in [name(leafChain), name(componentChain), name(groupChain)] {
         #expect(!chain.contains("AnyElement"), "an ordinary modifier path introduced AnyElement: \(chain)")
     }

@@ -108,25 +108,30 @@ private func lane4Rect(_ r: LayoutDifferential.Report, _ arm: String, _ id: Glob
             "\(arm): \(String(describing: r.bounds[id]))", sourceLocation: sourceLocation)
 }
 
-// MARK: - 4.1 The amend frames each member where the legacy amend overwrites it
+// MARK: - 4.1 The amend frames each member
 
-/// **Test 4.1** (`LR-BG`), a **divergence pin**. A caller's `.width(70)` on a
-/// component OVERWRITES each member's own declared width under the legacy
-/// authority (divergence 48; its own CSS-engine pin,
-/// `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, was retired by
-/// stage 7b as a D row — this test is now divergence 48's legacy-arm pin
-/// until stage 9, record §49 row 219) and FRAMES each member under the
-/// proposal one, which is SwiftUI's answer.
+/// **Test 4.1** (`LR-BG`). A caller's `.width(70)` on a component FRAMES each
+/// member — each member at its own width, centred in its own 70 — which is
+/// SwiftUI's answer.
 ///
-/// | arm | legacy | lowered | SwiftUI |
-/// |---|---|---|---|
-/// | **C1** `Pair().width(70)` | members **70**×10 at x 0 and 70 | 30 and 50 wide, centred at x **20** and **80** | probe W1 (a at 96, b at 164 in a 300pt host — each member centred in its own 70) and component-distribution G7 |
-/// | **C2** `Solo().width(70)` | member **70**×10 at x 0 | 30 wide at x **20** | component-distribution G8 (a at x 20 in a 70pt outer) |
+/// | arm | framed (asserted) | SwiftUI |
+/// |---|---|---|
+/// | **C1** `Pair().width(70)` | 30 and 50 wide, centred at x **20** and **80** | probe W1 (a at 96, b at 164 in a 300pt host — each member centred in its own 70) and component-distribution G7 |
+/// | **C2** `Solo().width(70)` | 30 wide at x **20** | component-distribution G8 (a at x 20 in a 70pt outer) |
 ///
 /// **The member rects are the assertion, not the group's outer size**: a frame
 /// registered around the whole group rather than per member reads the same
 /// OUTER 70 (C2) or 140 (C1) and only the members tell the two apart — which is
 /// mutation **M4a**.
+///
+/// **History.** Until stage 9 this was a divergence pin with a legacy arm: the
+/// CSS engine OVERWROTE each member's declared width (members 70×10 at x 0 and
+/// 70 in C1, 70×10 at x 0 in C2) — divergence 48, whose own CSS-engine pin
+/// (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`) stage 7b retired
+/// as a D row (record §49 row 219). The legacy arm went with the legacy
+/// authority at stage 9 (record §51), and plan task 8 retired divergence 48
+/// itself (`ID-K`, record §04's 2026-09-25 section): this test now pins only
+/// the one answer, SwiftUI's.
 ///
 /// **Renamed at stage 9** from `aComponentsWidthFramesEachMemberWhereTheLegacyAmendOverwritesIt` (`LR-FE` item 6).
 @MainActor
@@ -514,4 +519,49 @@ private struct Lane5FieldPair: Component {
     }
     #expect(one.unlowerable.isEmpty, "one member compare: \(one.unlowerable)")
     lane4Rect(one, "one member", lane5MemberA, bnd(20, 15, 30, 10))
+}
+
+/// A pair whose members DISAGREE in height (30×10 and 50×30), so a row's
+/// cross-axis alignment moves the short one.
+private struct TallPair: Component {
+    var content: some ElementGroup {
+        Box().cssWidth(px(30)).cssHeight(px(10))
+        Box().cssWidth(px(50)).cssHeight(px(30))
+    }
+}
+
+/// **N3.1** (plan task 8, lane 3; ruling `ID-I` item 1), a **divergence pin**
+/// (divergence 56's `LR-BP` sub-row). The row of per-member frames a `.frame`
+/// over a multi-member component lowers to aligns its members on the cross axis
+/// by **the frame's own alignment**. `TallPair().frame(width: 70, alignment:
+/// .top)` in a 300×60 `Box`: each member framed 70 wide and as tall as itself,
+/// rowed at spacing 0, `.top` — so the short member's top is the tall member's
+/// top (0 apart), and each is centred horizontally in its own 70 (a at 20, b at
+/// 80 from the layer's left).
+///
+/// SwiftUI (probe `swiftui-composition-identity.swift` L8, revision 2): the
+/// frames are per member, and each member takes the **parent's** alignment —
+/// in an `HStack` the short member sits at minY **10**, the parent's centre,
+/// exactly as with no frame (L9); L10 (`HStack(alignment: .top)`, 0) shows the
+/// instrument can see a top-aligned member. Kept (`ID-I` item 1): the
+/// per-member answer is `.width`/`.height`, one frame per member (`LR-BG`).
+///
+/// Green before (pin). Mutation **M3k** (`alignment: .center` on the row in
+/// `lowerShownLegacyFrameLayer`, stage 3's `M5g`, which reddened nothing until
+/// now) puts the short member 10 below the tall one's top.
+@MainActor
+@Test func aMultiMemberFrameRowAlignsItsMembersByTheFramesOwnAlignment() throws {
+    let r = LayoutDifferential.report(width: 400, height: 100) {
+        Box { TallPair().frame(width: px(70), alignment: .top) }.cssWidth(px(300)).cssHeight(px(60))
+    }
+    #expect(r.unlowerable.isEmpty, "report: \(r.unlowerable)")
+    let layer = try #require(r.bounds[lane5Layer], "the frame layer was not laid out")
+    let a = try #require(r.bounds[lane5MemberA], "member a was not laid out")
+    let b = try #require(r.bounds[lane5MemberB], "member b was not laid out")
+    #expect([a.size.width.value, a.size.height.value, b.size.width.value, b.size.height.value] == [30, 10, 50, 30],
+            "the members keep their own sizes: a \(a), b \(b)")
+    #expect(a.origin.y.value - b.origin.y.value == 0,
+            "the short member is top-aligned with the tall one (SwiftUI: 10 below): a \(a), b \(b)")
+    #expect([a.origin.x.value - layer.origin.x.value, b.origin.x.value - layer.origin.x.value] == [20, 80],
+            "each member centred in its own 70: a \(a), b \(b), layer \(layer)")
 }

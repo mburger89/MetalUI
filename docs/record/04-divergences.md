@@ -1289,3 +1289,513 @@ live**.
 renames above are the fix. 11's row looks orphaned without this section's
 note that it is a genuine retirement, not another "no pin left" correction
 like 4's.
+
+## 2026-09-24: no row changed; 54's live pin named (plan task 7 stage 10)
+
+Record §53; rulings `LR-FM`…`LR-FU` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
+stays at fifty-six; no number is retired, added or amended.** Stage 10 deletes
+`Style`'s fields no lowering reads (`aspectRatio`, `overflow`, `flexWrap`,
+`alignContent`, `border`, `Position.relative`), narrows the rest to `package`
+and makes every inherited `Style`-field report a permanent refusal by name
+(`UnlowerableField.owner`, `LR-FO`). Spec §9 asked for 9, 10 and 54 to be
+re-read against that wording; the stage's Record phase said it had (record
+§53 §6.4) but no commit touched this file, so the branch check (`LR-FU`) made
+the re-read and wrote this section:
+
+- **9** (an all-`auto`-inset absolute box sits at its containing block's
+  origin). **Unchanged.** Its pin,
+  `PresentationLoweringTests.aDeferredAbsoluteBoxLowersAgainstTheWindowOnEveryInsetShape`,
+  is not in either lane's T list and its body is unedited; the only
+  `PresentationLoweringTests` change (`T1.2`) is to
+  `aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`, whose
+  `.relative` arm goes with `Position.relative` and whose `…absolute` owner
+  reads `nil`. An absolute box outside a `Deferred` still reports
+  `[box.position, box.inset]` — now a permanent refusal, not stage 10's work.
+- **10** (`Deferred` escapes every ancestor clip). **Unchanged.**
+  `PresentationWindowTests` and `DeferredTests` are unedited; the offscreen
+  fourteen images and a real-window capture read 0 differing against
+  `8095fd9` (record §53 §7).
+- **54** (a `ScrollView` takes its cross axis from its parent where SwiftUI's
+  takes its content's). **Unchanged in fact; the table's pin name is stale
+  since 7b, not since this stage.** The row above names
+  `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`,
+  retired at 7b (record §49 row 228, R) and replaced by
+  `LoweringScrollTests.divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem`
+  (the stage-3 section above already names it) and
+  `aLoweredScrollViewFillsItsProposalOnTheScrollingAxis`. Both are green and
+  unedited at stage 10; `T1.3` changes only the neighbouring
+  `aLoweredScrollViewRecordsItsViewportAsItsItemAndKeepsItsSiteReachable`'s
+  owner line (`owningStage == "3"` → `owner == nil`).
+
+**What it costs if wrong.** A reader following 54 by the table's name finds no
+such test; the name above is the fix. A reader expecting a stage-10 section
+because record §53 §6.4 promised one found none until this one.
+
+## 2026-09-25: 45 retired; 54 and 56's remainder re-owned (plan task 7 stage 11, modifier unification)
+
+Record §54; rulings `LR-FV`…`LR-GG` in
+`docs/superpowers/2026-09-17-engine-replacement-decisions.md`. **The table
+moves from fifty-six to fifty-five live; 45 joins the never-reused list.**
+
+- **45 retires** (a legacy `.opacity(0.5).background(x)` left the fill
+  faded, where SwiftUI leaves it outside the scope, `OM-N`/`OM-AA` a). The
+  write-order bug — `.opacity` and `.background` are fields of one
+  `Decoration` whose write order was lost — is fixed on both paths by
+  `Decoration.escapesOpacity` (one member per slot, inserted by a write only
+  while `opacity < 1`, emptied by `.opacity`), and `paintDecoration` now
+  emits an escaped fill before its opacity scope opens and an escaped border
+  after it closes (`LR-FW`). The old pin,
+  `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`, is renamed
+  `aBackgroundOrBorderWrittenAfterOpacityEscapesIt` and now asserts the fix
+  rather than the bug (T2.1, record §54 §9.1); its H2 arm (the border's own
+  divergence) retires with it, so the row's citation moving to "G3/G4, H1/H2,
+  now retired" is one row's worth of two SwiftUI arms, not two divergences.
+  `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType`
+  (`OpacityOrderTests`, N2.1) is the new cross-path pin `OM-AA` a's clause
+  asked for. Divergence 46 (a second `.opacity` replaces the first,
+  `OM-AH`) is untouched — `OM-AH`'s reasons stand, and no row of this stage
+  hands it here.
+- **54's remainder re-owned.** Spec §6.5 (`LR-GA` item 5) hands it from
+  "stage 11 / task 10's" (record §04's 2026-09-22 section) to **plan task 10
+  alone**: the fix is a scrolling answer that moves every legacy
+  `ScrollView`'s cross axis, not a modifier question, so stage 11 disposes
+  of nothing here. Its pins are unedited by this stage.
+- **56's remainder re-owned.** A `.frame` on a multi-member `Component`
+  stays one flex item in its parent (`TB-M`), where SwiftUI's `Group` makes
+  each framed member its own. Spec §6.2 reconciles `Component.width`/`height`
+  versus `.frame` by ruling with no API change, but making `.frame` itself
+  distribute per member is `Group` semantics — **re-owned to plan task 8**
+  (`CN-Q`), not closed here.
+
+- **35's pin named** (the adversarial branch check, `LR-GG` item 5 b). The
+  row's listed pin, `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`,
+  was retired at 7b (record §49 row 196, "divergence 35's legacy side") and
+  no later section said what pins the row. Its live pin is
+  `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`
+  (`LoweringStackAndLayerTests`): the lowered flexible frame is greedy,
+  SwiftUI's answer, in the only engine since stage 9. Its owner is no longer
+  task 7 (`CN-Q`'s hand-off is answered, `LR-L`); whether it — like 53 and 55,
+  "SwiftUI's answer … already" — leaves the live count is a counting decision
+  left to **plan task 15**. The count stays fifty-five.
+
+**What it costs if wrong.** A reader who still expects 45 to be pinned wrong
+on purpose will find its test now asserting the opposite fact and conclude a
+regression where there is a fix; the renamed test name is the tell.
+
+## 2026-09-25: 18, 19, 48 and 69 retire; 71–74 added; 56 amended (plan task 8, composition and identity)
+
+Record §55; rulings `ID-A`…`ID-Q` in
+`docs/superpowers/2026-09-25-composition-identity-decisions.md`. **The table
+moves from fifty-five to fifty-five live**: four retire, four are added.
+
+- **18 retires** (a `@State` behind a removed `if` is retained rather than
+  reset). SwiftUI resets an evaluated conditional's content (probe V5, V9);
+  `ID-C` makes `OptionalGroup`/`EitherGroup` do the same when the absent slot
+  **was produced the previous frame**, deleting every `StateTable` entry under
+  it except a `.named("$focus")`/`.named("$ax")` component (focus and
+  accessibility retention are untouched, by design — `TB-J`/`AB-U`). The old
+  pin is gone; the new one is
+  `anElementAfterAVanishingIfKeepsItsOwnState`/the animation row's
+  `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` (record §55
+  §6.3's retirement table). **Two retentions are kept, by design, and neither
+  is 18's old shape**: an element a `for` loop stops producing keeps its state
+  (new divergence **74**, below) and a conditional that is **not evaluated**
+  (a `List` row out of its window) is untouched (`TB-AH`, unchanged).
+  **Correction, 2026-09-25 (plan task 10 part 1, `DD-C`):** divergence 74 is
+  no longer kept — it **retires** (this file's own later section, below,
+  dated 2026-09-25) — and the test named here is **renamed**
+  `aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, its loop arm's
+  value inverted 175 → 200. This paragraph is left as written because it
+  states what task 8 measured and ruled at the time; read the later section
+  for the current fact.
+- **19 retires** (a handler that writes one element value placed twice writes
+  the *last-bound* occurrence, not its own). SwiftUI resolves each occurrence
+  independently (probe S1, S4). `ID-F`: a `State.Box`/`Environment.Box` bound
+  to more than one slot in a generation remembers every slot, and
+  `StateDispatch.owner` (new; `Sources/MetalUI/StateDispatch.swift`) lets
+  `wrappedValue`'s get/set resolve to the occurrence that is actually
+  dispatching — every enumerated handler path (click, key, action, the two
+  accessibility handlers, edit, submit) wraps its callback in
+  `StateDispatch.dispatching(to:)`. The old pin,
+  `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`, is renamed
+  `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence` (assertions
+  unchanged) because its old name now describes the *fixed* behaviour, not
+  the bug; the fixed behaviour is pinned by `O1.1`–`O1.8`
+  (`OccurrenceIdentityTests.swift`). **Divergence 71 is added for what
+  `ID-F` deliberately leaves alone**: a write from **outside** input dispatch
+  (a phase, or a raw closure call with no `StateDispatch.dispatching`
+  wrapper) still reaches the *last-bound* occurrence, where SwiftUI writes
+  each occurrence's own storage there too (probe S5, with S6 as its
+  two-different-values control; *corrected 2026-09-25 by the branch check,
+  record §55 §9 — this bullet first said "SwiftUI has no analogue"*) — pinned
+  by the renamed test itself (1 / 102) and by
+  `aComponentsEnvironmentKeepsTheFirstOccurrencesSnapshot`/
+  `aFrameBuiltInsideADispatchedHandlerReadsEachOccurrencesBinding` (lane 1's
+  review round, `ID-O`).
+- **48 retires** (a `Component`'s `.width`/`.height` overwrote each member's
+  own declared width — the CSS engine's answer — where SwiftUI frames each
+  member, probe component-distribution G7/G8; the proposal path has framed
+  each member since stage 3, so this was already agreement, kept on the books
+  past its own fix). `ID-K` retires it explicitly as this task's to count: the fact
+  (`aComponentsWidthFramesEachMember`) has been SwiftUI's answer since plan
+  task 7 stage 3 (`LR-BG`) and needed only this audit's bookkeeping to close.
+- **69 retires** (a vanishing grid cell or row hands its state to the next
+  one). `ID-B`'s one-structural-slot fix for `if`/`for` extends to
+  `GridRow`'s untaken cell and `Grid`'s untaken row exactly as `EitherGroup`'s
+  branch already worked (`SI-F`): the vanished cell/row no longer hands
+  anything on, because there is no "next one" left holding its slot. Old
+  pins `removingACellFromARowHandsItsStateToTheNextCell`/
+  `removingAWholeGridRowHandsItsStateToTheNextRow` are renamed
+  `removingACellFromARowLeavesTheNextCellsStateAlone`/
+  `removingAWholeGridRowLeavesTheNextRowsStateAlone` (record §55 §6.3),
+  asserting the opposite fact.
+- **72 is added** (kept, `ID-H`): two siblings with the same `.id`/name still
+  share one `GlobalElementID`, one `StateTable` entry, one hitbox id and one
+  accessibility node, and it is still not a trap — where SwiftUI's explicit
+  id keeps two same-named siblings distinct (probe X2). MetalUI's name
+  **replaces** its structural position (the same mechanism a reordered named
+  `for`-loop item relies on to keep its state, `ID-H`'s reasoning), so scoping
+  the name by position would reset every named loop item on reorder. Pinned
+  by `twoSiblingsWithTheSameIDShareOneStateEntry` and, for element groups,
+  lane 3's E3.7.
+- **73 is added** (kept, `ID-I` item 3): the content-taking `.overlay { }`
+  and `.background { }` on a primary of zero or several nodes
+  **traps**, naming the count, where SwiftUI attaches one instance **per
+  member**, each with its own state (probe G3–G6). A modifier layer is one
+  node and one identity level (`MC-A`); distributing per member is available
+  as `.width`/`.height` (one frame per member, unchanged since stage 3) and
+  inside the component's own body. Pinned by the legacy overlay's N1.7 and
+  the new legacy background's B3.3.
+- **74 is added** (kept, owner **plan task 10**, `ForEach`): an element a
+  `for` loop stops producing keeps its state, and gets it back if the loop
+  regrows to the same index, where SwiftUI's `ForEach` gives a shrunk-then-
+  regrown element new state (probe V10 — a residual serial survives). This
+  is `18`'s "not evaluated" cousin rather than 18 itself: an `ArrayGroup`'s
+  member count shrinking does not evaluate-away any one member's slot the
+  way an `if` going false does, so `ID-C`'s reset rule does not reach it, and
+  data identity (a `ForEach`-style keyed loop) is where a scoped answer
+  belongs — plan task 10's, not this task's, to fix.
+- **56 is amended, kept, owner none** (`ID-I` items 1–2): a `.frame` on a
+  multi-member `Component` is one layer over a row of per-member frames. In a
+  horizontal parent that equals SwiftUI (probe L3, 140×10); in a vertical one
+  SwiftUI stacks the framed members (L1/L2, 70×20) where MetalUI rows them;
+  over **zero** members MetalUI's frame still occupies its parent (70×0)
+  where SwiftUI's adds nothing (L5, `EmptyView` control L6). **The row's
+  cross-axis alignment** is the frame's own in MetalUI, the **parent's** in
+  SwiftUI: probe L8 — `.frame(width: 70, alignment: .top)` in a
+  centre-aligned `HStack` leaves the short member at minY **10**, the
+  parent's centre, as with no frame (L9), while L10 (`HStack(alignment:
+  .top)`, minY 0) shows the instrument can see a top-aligned member;
+  MetalUI's row puts it at 0. New test `N3.1`
+  (`aMultiMemberFrameRowAlignsItsMembersByTheFramesOwnAlignment`,
+  `LoweringComponentTests.swift`) pins MetalUI's kept answer (`TB-M`,
+  re-owned to this task by record §54 §10.3 and closed here with no fix).
+  *Corrected 2026-09-25 by the branch check (record §55 §9): this bullet
+  first described only the alignment sub-row, and misread L8 as a
+  top-aligned parent.*
+
+**What it costs if wrong.** A reader following 18, 19, 48 or 69 by an older
+section's name finds no such test, or a test that now asserts the opposite of
+what the row used to describe; the renamed/new names above are the fix. A
+reader who does not know 71 exists might read `O1.1`–`O1.8`'s green run as
+"19 unfixed" — it fixes only the dispatched half; 71 is the two-values
+control (S5/S6) that shows the residual case is real, not a leftover bug.
+
+**Corrections by the branch check (2026-09-25, record §55 §9).** Four bullets
+above were re-worded against the probe header and the tests: 48 had said the
+width "overwrites" each member "where a custom view's SwiftUI modifier does
+the same" (SwiftUI frames each member; overwriting was the CSS engine's
+answer); 71 had said SwiftUI "has no analogue" (probe S5: SwiftUI writes each
+occurrence's own storage outside dispatch too); 73 had named "both the token
+and content-taking forms" (no token `.overlay` exists, and the token
+`.background(_:)` is not offered on a multi-member `Component`); 56 had
+described only the alignment sub-row. **One state-retention difference is
+not in this table yet**: a group or element whose `.id` changes and then
+**returns** to an earlier name gets its old state back within `TB-AH`'s
+bound, where SwiftUI gives it new state (probe X9–X11, revision 3; MetalUI
+measured by a throwaway test at `da2d820`, record §55 §9.3). It owes a ruling
+(fix or keep) and, if kept, a number (next unused label **75**) and a pin.
+
+## 2026-09-25 (closeout): no row added — the returning-name row is fixed (plan task 8, `ID-R`)
+
+Record §55 §10; ruling `ID-R`. **The table stays at fifty-five live; label 75
+stays unused.** The state-retention difference the section above left open —
+a name that changes and then **returns** got its old state back within
+`TB-AH`'s bound, where SwiftUI gives it new state (probe X9–X11, revision 3,
+re-run byte-identical at `89a8337`) — is **fixed to SwiftUI's answer**, so it
+never became a numbered row: a name an evaluated position leaves is reset
+unless the frame produced it elsewhere (`StateTable.noteNamed`, `sweep()`),
+`$focus`/`$ax` kept as `ID-C` keeps them. Pinned by
+`anIDThatReturnsToAnEarlierNameStartsFresh`,
+`aNameThatMovesToASiblingsPositionKeepsItsState` and
+`everyNamingSiteStartsAReturningNameFresh` (`ExplicitIdentityTests.swift`).
+**74 is unchanged**: a loop shrinking at its tail evaluates no position, so its
+dropped element — named or not — departs nothing and keeps its state (plan task
+10). **`TB-AH` is unchanged**: a `List`'s rows are exempt, because a row out of
+its window is not evaluated (mutation MRc, the exemption dropped, reddens the
+two `List` excursion tests).
+
+**What it costs if wrong.** A reader looking for divergence 75 finds nothing —
+by design; the row this section's predecessor named is closed here, not
+numbered.
+
+**Amended the same day (`ID-R` item 9, the verifier's Note A; record §55
+§10.6): still no row.** After `a` → `b`, focus stays on `a`'s no-longer-produced
+id and returns with `a` (fresh `@State`); SwiftUI drops focus when the identity
+goes away. It is the same `$focus`-exempt retention as `ID-C`'s `if` reset
+(C2.8, C2.12), which was never numbered, and SwiftUI's side is unprobed (no arm
+observes focus across an identity change), so it is recorded as a known
+difference, **owner plan task 12**, pinned as today's behaviour by
+`focusOutlivesARenameAndAnIfUntilItsElementReturns` (C2.13) — not given label 75.
+
+## 2026-09-25: 24 retires; 76 and 77 added (plan task 9, environment control state and scale)
+
+Record §56; rulings `EV-AA`…`EV-AF` in
+`docs/superpowers/2026-09-15-environment-decisions.md`. **The table moves from
+fifty-five to fifty-six live**: one retires, two are added.
+
+- **24 retires** (`EV-AA`): `displayScale` was neither exposed nor writable,
+  and a `\.self` reset was claimed to change the scale rendering uses as well
+  as the number. All three clauses are now aligned: `EnvironmentValues.displayScale`
+  is `public var`, `pixelLength` derives from it
+  (`displayScale == 0 ? 1 : 1 / displayScale`), a scope can write it and
+  `pixelLength` follows (probe S2, X1), and a `\.self` reset reads `displayScale`
+  1 and `pixelLength` 1 (X2). **S3 refutes the reason the old ruling gave for
+  withholding it**: at a hosted renderer scale of 2, a `pixelLength`-wide
+  hairline is 1 device pixel with no write and **2** device pixels under
+  `.environment(\.displayScale, 1)` — SwiftUI's own write changes the *number*,
+  not the scale its renderer draws at, exactly the shape MetalUI now has
+  (`Frame.fill` still scales by the frame's `scaleFactor`, never by the
+  environment's `displayScale`; T1.4 pins the two disagree only in the number).
+  The label joins the never-reused list. **The retained test that changed its
+  answer**: E19 `aWholeValueWriteCannotResetTheThemeOrThePixelLength` is
+  renamed `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme` — its `theme`
+  half stands, its old `pixelLength == 0.5` half becomes `displayScale == 1`
+  and `pixelLength == 1` (record §56 §1.3).
+- **76 is added** (kept, pinned wrong on purpose, `EV-AC`): `controlSize` is
+  carried (`ControlSize`, `.controlSize(_:)`, `EnvironmentValues.controlSize`,
+  default `.regular`) but **reaches no built-in measurement**. SwiftUI's
+  built-ins on macOS do read it: a `Text`'s default font shrinks under `.mini`/
+  `.small` (probe Z2: 53×11 / 63×14 against 72×16; an explicit font is
+  unaffected, Z2e/f), and `TextField`/`Button` resize across all five sizes
+  (Z3). MetalUI's `Text` stores a fixed `fontSize` with no "default font"
+  state, so aligning needs a text-model change: owner **plan task 11** for
+  `Text`'s default font, **plan task 10** for `TextField`/`Button` and the
+  other common controls. Pinned by `controlSizeReachesNoBuiltInMeasurement`
+  (T1.7).
+- **77 is added** (kept, pinned wrong on purpose, found by probe S4, `EV-AD`):
+  layout rounds every stored rectangle to **whole points**
+  (`Rounding.swift`'s `roundLayout`) whatever `displayScale` reads, where
+  SwiftUI rounds each view's absolute position to the `displayScale` pixel
+  grid and follows a scoped write (S4: a fractional position of 62.65 rounds
+  to 63 / 62.5 / 62.667 at scale 1 / 2 / 3). A `displayScale` write therefore
+  changes no MetalUI layout today. Not changed here: moving it moves every
+  fractional layout's pixels, the fourteen demo images and
+  `Expected.swift`'s pinned frame. Owner: **plan task 11** (rendering-facing
+  semantics). Pinned by `layoutRoundsToWholePointsWhateverTheDisplayScale`
+  (T1.5), which also names divergence 77 in its own doc comment.
+- **`controlActiveState` gets no numbered row** (`EV-AB`): SwiftUI's own
+  key/active/inactive mapping is **unmeasured** here (the probe's C1–C3/C5
+  arms did not run — the screen was locked at every check across all three
+  lanes and the Record phase's own close, record §56 §4.6), so the platform
+  mapping (AppKit: `isKeyWindow` → `.key`, else `NSApp.isActive` → `.active`,
+  else `.inactive`; SDL: keyboard focus of this window → `.key`, another of
+  the platform's own windows → `.active`, none → `.inactive`) is stated as
+  MetalUI's own choice, not a divergence from a measured SwiftUI answer — the
+  one measured row, C0 (app not active, no window key: every hosted SwiftUI
+  reader reads `inactive`), agrees with it. **No built-in consumer either**
+  (MetalUI's controls do not dim in an inactive window): owner **plan task
+  12**, with the disabled look.
+- **Label 75 stays unused**, as record §04's closeout section (above) already
+  told a reader looking for it: giving it a different meaning here would
+  contradict that note (`EV-AF` finding 13, rejecting the suggestion to reuse
+  it for 76).
+
+**What it costs if wrong.** A reader following divergence 24 by its old text
+finds a test that now asserts the *opposite* — E19's new name and its flipped
+half are the fix, not a further break; the rename row above is what to read
+instead. A reader who assumes `controlActiveState`'s mapping is a *measured*
+SwiftUI fact (as most divergence rows are) would be wrong to cite it as one:
+it is MetalUI's own choice pending the C-arm re-run, stated as such in `EV-AB`
+and not given a divergence number for exactly that reason.
+
+## 2026-09-25: 74 and 14 retire; 13 amended; 78 and 79 added (plan task 10, part 1 — data and scrolling)
+
+Record §57; rulings `DD-A`…`DD-P` in
+`docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`. **The table
+stays at fifty-six live**: two retire, two are added. (The branch's first
+write-up of this section read "moves from fifty-six to fifty-seven live: one
+retires, two are added" — it left out 14, which `DD-F` retires; corrected by
+the branch checker.)
+
+- **74 retires** (`DD-C`): an element a `for` loop stops producing was kept —
+  it got its old state back if the loop regrew. It is now **fixed to
+  SwiftUI's answer**: a loop notes its slot and the extent it consumed
+  (`StateTable.noteLoop`, four minting copies — `ArrayGroup`'s untyped and
+  typed `requestGroupLayout`, and `ForEach`'s untyped and typed entries, new
+  this task); at `sweep()`, a positional child past this frame's extent and
+  below last frame's, or a named child the slot held last frame that this
+  frame produced nowhere, is reset — the one reset pass `ID-R` built,
+  `$focus`/`$ax` exempted as there. `ForEach` (new, `DD-B`) gets the same
+  rule as a bare `for` (probes F2, F3, F8; K2 — SwiftUI has no `for` in a
+  builder, so `ForEach(0..<n)` is its nearest spelling and it resets too).
+  The label joins the never-reused list. **The retained test that changed
+  its answer**: `AnimationTests.swift`'s
+  `aReturningAnimatingElementSnapsInsideAnIfAndResumesInsideALoop` pinned the
+  retired tombstone-resumption behaviour (a returning animating loop element
+  read its old `$anim` baseline, 175, rather than the declared 200) — a
+  **second** changed answer the design did not list (`DD-N`), found only
+  because the test's own doc comment cites "divergence 74, owner plan task
+  10" outside the grep the design ran for the pin's own name. **The test is
+  renamed** `aReturningAnimatingElementSnapsInsideAnIfAndInsideALoop`, its
+  assertion count unmoved, the loop arm's value inverted 175 → 200 by ruling
+  — a rename, not a retirement. **`TB-AH` is unchanged**: only the loop's
+  direct children are considered, so a `List` inside a surviving element
+  keeps its rows' retention (rows are not the loop's children), and a
+  `List`'s own rows stay exempt from this rule too (they are not a loop).
+- **14 retires** (`DD-F`): a `List` with anything in flow above it in its
+  scroller windowed against the SCROLLER's origin and so built rows off
+  screen, rendering blank (300pt header, 40 rows at 28, viewport 112, offset
+  300: rows 8…16 built where 0…3 are visible). The list now stores its own
+  origin within the scroller's content in `prepaint` (last frame's
+  measurement, at its own id through `withState`) and windows against it —
+  `MP-L`'s "requestLayout has no position" met as `ScrollState.viewportExtent`
+  already meets the viewport. The retired pin
+  `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` (a synthetic
+  harness with no scroller) is replaced by `aListBelowAHeaderWindowsTheRowsOnScreen`
+  and `aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen`. The label
+  joins the never-reused list.
+- **13 is amended, kept** (`DD-F` items 3–4): the first frame after a resize
+  still windows against last frame's extent (the two rows of overscan remain
+  its only cover), but the list now calls `requestAnotherFrame()` once when
+  the fresh window is not contained in the one it built, so the next frame is
+  drawn and correct with no input (`aGrownViewportIsFilledOnTheNextFrameWithoutInput`).
+- **78 is added** (kept, pinned wrong on purpose, `DD-D` item 4): `Binding`
+  is `@MainActor`, where SwiftUI's is nonisolated and `Sendable` with
+  `@isolated(any)` closures — `State` is already main-actor-only in MetalUI
+  and a binding's whole job is to reach it. Pinned by
+  `aBindingIsMainActorIsolated` (guard G2.3: a `nonisolated func` reading
+  `b.wrappedValue` fails to typecheck under Swift 6).
+- **79 is added** (kept, pinned wrong on purpose, found by probe S6 —
+  `docs/probes/swiftui-scrollviewreader-scope.swift` — `DD-L`, critic round):
+  a `ForEach` whose ids collide in **description** but differ in **value**
+  (`AnyHashable(1)` and `AnyHashable("1")`) produces only the **first** of
+  them; SwiftUI evaluates both. `ElementID` is a `String` (`ID-G`), and
+  producing both elements would put two members at one `GlobalElementID` —
+  the aliasing `ID-F` exists to repair for one element placed twice, and
+  which here would be silent. `List`'s own rows already carry the same
+  collision (documented in its type doc) and are unchanged by this task.
+  Pinned by `aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst`
+  (mutation M1l: the dedupe's name half removed reddens this test alone;
+  1.8, the equal-*value* case, stays green on the value half).
+
+**What it costs if wrong.** A caller who relied on a shrunk-then-regrown
+`for` loop keeping its state (the retired behaviour, pinned as divergence 74
+and never documented as a feature) now sees it reset — the migration note
+`DD-C` item 4 states. A caller with description-colliding `ForEach` ids
+loses the second element where SwiftUI shows it (divergence 79); the fix
+(type-qualified names) would change every `ForEach` id path and is not taken
+now.
+
+## 2026-09-28: 16 retires; 76 amended again; 80–85 added (plan task 10, part 2 — controls and selection)
+
+Record §58 (§6); rulings `DD-Q`…`DD-AI` in
+`docs/superpowers/2026-09-25-data-and-scrolling-decisions.md`. **The table
+moves from fifty-six to sixty-one live**: one retires, six are added. (This
+section was cited by `CLAUDE.md` and record §58 from the Record phase's
+commit `c9a741e` but not written there; the branch checker wrote it, record
+§58 §11.)
+
+- **16 retires** (`DD-Y`): a click target inside a `ScrollView` swallowed
+  that scroller's wheel over its own rect, because a wheel stopped at the
+  topmost opaque hitbox and scrolled only if it was itself a scroller. The
+  wheel over a non-scrolling hitbox now passes to the **nearest ancestor**
+  (by id) that registered a scroll region containing the point **on the same
+  layer** (`Window.enclosingScroller(of:at:)`). The ancestry clause keeps a
+  click target merely overlaid on a scroller stopping its wheel
+  (`aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`);
+  the layer clause keeps a `Deferred`-hoisted scrim stopping it
+  (`aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
+  `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`). **The retained
+  test that changed its answer**: `aClickTargetInsideAScrollViewSwallowsTheWheel`
+  is renamed `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, its
+  first arm inverted (0 → 37) — a rename, not a retirement, as that test's
+  own doc comment asked. A single-line `TextField` is such a click target, so
+  its wheel reaches its scroller too (`DD-AC` item 3,
+  `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`); the
+  nearest of nested scrollers wins
+  (`aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest`). SwiftUI's
+  and AppKit's own answers are unmeasured (probe control WH0 read 0); a human
+  look is owed (record §03's 2026-09-28 section). The label joins the
+  never-reused list.
+- **76 is amended again, kept** (`DD-R` item 4): `Button`'s automatic chrome
+  (padding and height) now reads `controlSize`, its label's font does not;
+  every other consumer (`Text`'s default font, `TextField`/`TextEditor`, the
+  other controls' metrics) stays unread — owner plan task 11 (`DD-AB` item
+  2). `controlSizeReachesNoBuiltInMeasurement` still pins the remainder.
+- **80 is added** (kept, `DD-T` item 3): every control is focusable and takes
+  its keys once focused (`ControlKeys.swift`), whether or not SwiftUI's own
+  controls would take them — on macOS they need Full Keyboard Access, a
+  system setting the probe could print but not vary, so SwiftUI's answer with
+  it off is unmeasured and no claim is made about that state. Pinned by the
+  per-control key tests (`aFocusedButtonActivatesOnSpaceAndOnReturnOnlyOffApple`,
+  `aToggleClickSpaceAndPressEachWriteTheNegationOnce`,
+  `aFocusedSliderAdjustsByTheAccessibilityStepOnTheArrows`,
+  `aFocusedStepperStepsOnTheUpAndDownArrows`,
+  `aFocusedPickerMovesItsSelectionWithTheArrowsAndDoesNotWrap`).
+- **81 is added** (kept, owner plan task 12 for the menu presentation,
+  `DD-V` item 4): `PickerStyle.automatic` is `.segmented`; SwiftUI's
+  automatic picker on macOS is a pop-up menu (probe PK0/PK1: 139×24, the
+  `.menu` size). `PickerStyle` is a closed struct, not SwiftUI's protocol,
+  so `.pickerStyle(.menu)` does not typecheck (guard G1.2).
+- **82 is added** (kept, owner plan task 12's VoiceOver validation, `DD-U`
+  items 3 and 9): the accessibility **partial fold** gives `.incrementor`/
+  `.radioGroup` an accessible name from their non-interactive descendants,
+  where SwiftUI publishes a sibling static text beside an unlabelled control;
+  MetalUI also publishes no `AXValueIndicator` child under a slider, and a
+  stepper's two arrow buttons are enabled where AppKit reads SwiftUI's as
+  disabled while the stepper is enabled. Pinned by
+  `aPickerPublishesARadioGroupTitledByItsTitle` and
+  `aStepperPublishesALabelledIncrementorWithTwoArrowButtons`.
+- **83 is added** (kept, owner plan task 12, `DD-Z` item 8): an
+  accessibility client selects a `List` row only by **pressing** it;
+  `AXSelected`/`AXSelectedRows` writes change nothing, where SwiftUI's do.
+  Pinned by
+  `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly`.
+- **84 is added** (kept, owner **none**, `DD-AB` item 3): a `List` answers
+  its content height as `rowHeight × count`, needs an enclosing `ScrollView`,
+  is data-driven only (no `List { … }` content) and shares one row height,
+  where SwiftUI's is greedy (probe LS0: 300×200 in a 300×200 window) and
+  self-scrolling. Retaining virtualization is plan task 10's own text, so
+  this is the ruled shape, not a debt; its pins are `List`'s existing ones
+  (the `List` paragraph of `CLAUDE.md`, `LR-BQ`).
+- **85 is added** (kept, owner **plan task 15** closeout, `DD-AI`, found by
+  the controls demo, `DD-AG` item 3): an optional `@State` with a non-`nil`
+  initial value reads `nil` until its first write —
+  `StateTable.peek`/`State.wrappedValue` casts an absent entry to the
+  optional `Value` as a present `.some(nil)`, so `?? initialValue` never
+  runs; SwiftUI shows the initial value. **Unpinned**: the red-first test is
+  owed with the fix (`DD-AI`), which changes every such `@State`'s
+  observable behaviour and so wants its own ruling and migration note.
+
+**What it costs if wrong.** A caller who relied on a button inside a scroll
+view blocking its wheel (divergence 16, never documented as a feature) now
+sees the wheel scroll there. A caller writing `@State var x: Int? = 2` sees
+`nil` until the first write (85) — the controls demo works around it with a
+`Set`.
+
+## 2026-09-28: 80's scope widened to Tab; no number moves (`feat/text-page` merge, `TI-J` amended)
+
+`TI-J`'s Tab traversal (record §59) met plan task 10 part 2's focusable
+controls at the merge with `master` `169d166`. Tab visits every focusable
+element, the controls included, and a control Tab focused takes its own keys.
+AppKit's documented default moves Tab only between text fields and lists
+unless keyboard navigation (Full Keyboard Access) is on; MetalUI reads no such
+setting (`DD-T` item 3), so its Tab is AppKit's with keyboard navigation on
+(and Windows' and GTK's). **Divergence 80 now covers Tab reaching a control
+as well as the control taking its keys** — same cause, same owner (plan task
+12, if it rules focus to follow the system setting), no new number. SwiftUI's
+own Tab answer is unmeasured, so no SwiftUI claim is made. Pinned by
+`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`. Live count stays
+**61**.

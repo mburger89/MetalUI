@@ -479,8 +479,11 @@ than an item, labelled leaves take an extra keystroke. The fix is one map entry.
 
 **Why.**
 
-- MetalUI has no `Button` until task 9, so `onClick` is the only way to make
+- MetalUI has no `Button` until task 10, so `onClick` is the only way to make
   something activatable. The dispatch requires "press → the element's onClick".
+  (*Re-pointed 2026-09-25, `EV-AE`/`EV-AF`: this doc was written when the
+  interaction work was numbered task 9; a `Button` control's own existence is
+  the plan's current task 10.*)
 - An unlabelled button with text children is the anti-pattern screen-reader
   users hit most.
 
@@ -631,8 +634,10 @@ goes to the named element even under a `Deferred` scrim. That is deferred with
 modal isolation (`AB-Q` item 4).
 
 **Cost if wrong.** `AXNode.actions` becomes a declared-but-inert field. The
-integration step should add it to the inert table until task 9 either reads it
-or removes it.
+integration step should add it to the inert table until task 12 either reads
+it or removes it. (*Re-pointed 2026-09-25, `EV-AE`/`EV-AF`: written when the
+interaction work was numbered task 9; it is the plan's current task 12
+("gesture composition, button semantics, disabled behaviour, …").*)
 
 ## AB-I — adjustment is an `Action`, with SwiftUI's modifier name
 
@@ -984,7 +989,7 @@ AppKit alone.
 | scroll areas, and scrolling to unrealized rows | task 10 |
 | `Stack` order | `AB-P` |
 | modal isolation and press occlusion | task 12's interaction half |
-| hidden and children-combination modifiers, extra traits, custom actions, declared actions, a non-button click absorber | task 9's button half |
+| hidden and children-combination modifiers, extra traits, custom actions, declared actions, a non-button click absorber | task 12's button half (*re-pointed 2026-09-25, `EV-AE`/`EV-AF`; written when this work was numbered task 9*) |
 | system settings | task 13 |
 | iOS | task 14 |
 | reading `Frame.axNode(for:)` | `AB-D` |
@@ -1147,7 +1152,9 @@ map is the named fix.
 
 - **Repetition.** R3's answer, "L, L", reads worse than one labelled group, and
   a MetalUI author may expect the group. `accessibilityElement(children:)`
-  (task 9) is SwiftUI's own escape, and it is not in this track.
+  (task 12, re-pointed 2026-09-25 by `EV-AE`/`EV-AF` from "task 9", this
+  work's number when this doc was written) is SwiftUI's own escape, and it is
+  not in this track.
 - **Clickable wrappers.** If the modifier-composition merge ever makes a
   wrapper layer clickable when the content is, a label on that wrapper stops
   distributing. Arms 2–5 of lane 3's distribution test are the merge's joint
@@ -1381,7 +1388,8 @@ until input; the zero-height arm is the instrument that would have to change.
 - **The panel.** Labelling it would drop its children's text from the combined
   label, making the modal unreadable. Not labelling it reads the text, at the
   cost of an inert "button". The honest fix is a non-button click absorber,
-  which is task 9's.
+  which is task 12's (re-pointed 2026-09-25 by `EV-AE`/`EV-AF` from "task 9",
+  this work's number when this doc was written).
 - **The row string.** The modifier-composition track captures the default demo
   and requires it unchanged. Changing a string on this branch would move that
   capture at merge. Inspector's `AXIndex` is unambiguous where hearing
@@ -2070,7 +2078,7 @@ cites it.
 |---|---|---|
 | 1 | `AB-Z` written against the environment track's superseded design; synthesis contradicts `EV-W` item 4 | **Applied.** `AB-Z` and the spec's merge contract rewritten against `f4dcad8`: registration skipped when disabled, derived-id blocker, gated `$focus` write, no `Frame.init` parameter. Synthesis reads the ungated handlers; actions and focusability come from the gated registries with no builder edit. The joint test gains focusable-only and adjustable-only arms, with four mutations. Arm P2 committed |
 | 2 | `display: none` on an inner `ModifiedElement` layer escapes `AB-O`; `ElementGroup.swift` collision unlisted | **Applied.** The layer loop's suppression is specified, with a code shape (`AB-Z` item 4, `AB-O`); `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` written now, green here, reddened by M20; the adjacent `StateBinder.bind` line listed (`AB-Z` item 3) |
-| 3 | `allowsHitTesting(false)` removing the press is the opposite of SwiftUI | **Applied as a recorded divergence**, not a behaviour change (`AB-H`, arms P0/P1): no store holds the handler outside the hitbox list, no legacy spelling reaches it, and task 9 owns the question. `aPressIsRefusedWhereHitTestingIsDisabled` is now named a divergence pin; M16 is SwiftUI's side |
+| 3 | `allowsHitTesting(false)` removing the press is the opposite of SwiftUI | **Applied as a recorded divergence**, not a behaviour change (`AB-H`, arms P0/P1): no store holds the handler outside the hitbox list, no legacy spelling reaches it, and task 12 owns the question (re-pointed 2026-09-25 by `EV-AE`/`EV-AF` from "task 9", this work's number when this row was written). `aPressIsRefusedWhereHitTestingIsDisabled` is now named a divergence pin; M16 is SwiftUI's side |
 | 4 | distribution exclusions for focusable/adjustable unprobed and opposite to SwiftUI | **Applied as a recorded divergence** (`AB-T`, arms C1, C2, C5, and the session's C5i, which showed SwiftUI copies the adjustable action to each child). Actions route by the node's own id, and focus needs a node; lane 3's arm 7 renamed a divergence pin |
 | 5 | `VoiceOverSignal` as spelled warns, and the probe's exit code could not catch it | **Applied.** `AB-AB`: synchronous initial read after observing, later changes through a main-actor `Task`, no `assumeIsolated`; the probe calls the handler, is read by grep, and carries the spec's first spelling as a negative control and an unused-variable control. Pending activation is delivered when `onRequest` is assigned (the bridge exists before `Window.init` wires it), with a mutation for that |
 | 6 | end-to-end tests cannot force the signal `false` | **Applied.** `AB-AC`: an internal `AppKitPlatform(device:accessibilitySignal:)`, the tests build `Window(platformWindow:…)` over it; the arm-Q test's machine dependency stated in its doc and failure message |

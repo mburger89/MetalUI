@@ -350,6 +350,70 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
+    // MARK: Control active state (ruling EV-AB, amended by EV-AF)
+
+    /// `isKeyWindow` → `.key`; else the application active → `.active`; else
+    /// `.inactive`. MetalUI's choice: SwiftUI's mapping is measured only for
+    /// the last row (probe `swiftui-environment-control-state.swift` C0).
+    nonisolated static func controlActiveState(isKeyWindow: Bool,
+                                               isApplicationActive: Bool) -> ControlActiveState {
+        if isKeyWindow { return .key }
+        return isApplicationActive ? .active : .inactive
+    }
+
+    /// The two facts the state is read from — live reads of `isKeyWindow` and
+    /// `NSApp.isActive` in production. Internal so a test can script them: a
+    /// locked or headless session cannot make a window key.
+    var keyStatus: @MainActor () -> (isKeyWindow: Bool, isApplicationActive: Bool)
+
+    /// A live read, never a cache.
+    var controlActiveState: ControlActiveState {
+        let status = keyStatus()
+        return Self.controlActiveState(isKeyWindow: status.isKeyWindow,
+                                       isApplicationActive: status.isApplicationActive)
+    }
+
+    /// Fired with the new value when a re-read differs from the last one.
+    var onControlActiveStateChange: ((ControlActiveState) -> Void)?
+
+    /// The value the last re-read saw, updated **whether or not a callback is
+    /// set**: `makeKeyAndOrderFront` can post `didBecomeKey` before `Window`
+    /// assigns the callback, and `Window.init` reads the live getter anyway.
+    private var lastControlActiveState: ControlActiveState = .inactive
+
+    /// Where the key and activation notifications are observed — `.default`
+    /// in production; a test assigns a private center so it may post the
+    /// application notifications without reaching AppKit's own observers.
+    /// Observed explicitly, selector-based, not through `NSWindowDelegate`,
+    /// so the path a test drives by posting is the one production runs.
+    var notificationCenter: NotificationCenter = .default {
+        didSet {
+            oldValue.removeObserver(self)
+            observeControlActiveState()
+        }
+    }
+
+    private func observeControlActiveState() {
+        let center = notificationCenter
+        let selector = #selector(controlActiveStateNotification(_:))
+        center.addObserver(self, selector: selector, name: NSWindow.didBecomeKeyNotification, object: window)
+        center.addObserver(self, selector: selector, name: NSWindow.didResignKeyNotification, object: window)
+        center.addObserver(self, selector: selector, name: NSApplication.didBecomeActiveNotification, object: nil)
+        center.addObserver(self, selector: selector, name: NSApplication.didResignActiveNotification, object: nil)
+    }
+
+    @objc private func controlActiveStateNotification(_ notification: Notification) {
+        refreshControlActiveState()
+    }
+
+    /// Re-reads the state and reports it if it changed.
+    func refreshControlActiveState() {
+        let state = controlActiveState
+        guard state != lastControlActiveState else { return }
+        lastControlActiveState = state
+        onControlActiveStateChange?(state)
+    }
+
     /// Both accessibility requirements forward to the bridge, which answers
     /// clients on the host view (`AppKitAccessibility.swift`, lane 2 of the
     /// accessibility bridge). Assigning the handler delivers an activation the
@@ -417,9 +481,13 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.contentView = hostView
         window.center()
+        let nsWindow = window
+        keyStatus = { (nsWindow.isKeyWindow, NSApplication.shared.isActive) }
 
         super.init()
         window.delegate = self
+        lastControlActiveState = controlActiveState
+        observeControlActiveState()
         accessibilityBridge.hostView = hostView
         hostView.accessibilityBridge = accessibilityBridge
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }

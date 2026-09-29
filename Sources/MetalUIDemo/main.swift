@@ -18,11 +18,18 @@ func runDemo() throws {
     let nativeLayoutPreview = ProcessInfo.processInfo.environment["METALUI_NATIVE_LAYOUT_PREVIEW"] == "1"
     // Roadmap item 14's human look (TI-F): two text fields.
     let textInputDemo = ProcessInfo.processInfo.environment["METALUI_TEXT_INPUT_DEMO"] == "1"
+    // Plan task 10 part 2's human look (record §58): every control, a
+    // selectable list, a `ForEach` over a binding.
+    let controlsDemo = ProcessInfo.processInfo.environment["METALUI_CONTROLS_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if textInputDemo {
+    if controlsDemo {
+        window = try app.openWindow(title: "MetalUI — Controls",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: controlsDemoContent)
+    } else if textInputDemo {
         window = try app.openWindow(title: "MetalUI — Text Input",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: textInputDemoContent)

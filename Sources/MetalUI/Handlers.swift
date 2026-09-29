@@ -14,16 +14,19 @@
 /// **Empty is the default and it means "not a hit target".** A `Handlers` with
 /// no callback set registers no hitbox at all — see
 /// `PrepaintPass.registerHandlers(_:at:id:)` — which is what keeps an ordinary
-/// `Box` transparent to the pointer and, more sharply, keeps every box inside a
-/// `ScrollView` from swallowing that scroller's wheel.
+/// `Box` transparent to the pointer, so it shadows nothing it covers.
 ///
 /// **The pointer gate and the keyboard gate are SEPARATE, and conflating them
 /// would be a live defect rather than an untidiness.** `isPointerTarget` gates
 /// the hitbox and `isKeyTarget` gates the focus registry. A single "asked for
-/// something" gate would make every focusable element an *opaque* hitbox — and
-/// an opaque hitbox swallows the wheel of any `ScrollView` it sits inside
-/// (`Window.applyScroll`), so a list of focusable rows would stop scrolling.
-/// Pinned by `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
+/// something" gate would make every focusable element an *opaque* hitbox,
+/// shadowing clicks and hover aimed at whatever it covers. (Until divergence 16
+/// retired — ruling `DD-Y`, plan task 10 part 2 — an opaque hitbox also
+/// swallowed the wheel of any `ScrollView` it sat inside, so this gate was what
+/// kept a list of focusable rows scrolling; since then the wheel passes a
+/// non-scrolling hitbox to its nearest enclosing scroller on the same layer,
+/// `Window.applyScroll`.) Pinned by
+/// `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
 ///
 /// **Both gates sit behind a third, and that one IS shared: the environment's
 /// `isEnabled`** (rulings EV-E, EV-F). `Frame.registerHandlers` reads it once;
@@ -245,13 +248,25 @@ public struct Handlers {
     /// no caller can build a half-configured one.
     var textInput: TextInputTarget?
 
+    // MARK: Value tracking (plan task 10 part 2, ruling `DD-W` item 5)
+
+    /// Set only by `Slider`: makes the element a pointer target and hands
+    /// `Window` the track's geometry, bounds, step and write, so a press writes
+    /// the value under the pointer and a drag writes again. Internal, the tenth
+    /// member, on `textInput`'s precedent (`TI-B`). It rides the hitbox, so the
+    /// disabled gate and `allowsHitTesting(false)` remove it with the hitbox.
+    var valueTrack: ValueTrackTarget?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
     ///
-    /// `onClick` alone, deliberately: see the type's own doc comment for why
-    /// folding focus in here would stop a list of focusable rows scrolling.
-    var isPointerTarget: Bool { onClick != nil || textInput != nil }
+    /// `onClick`, a text field and a slider's track — never focusability: see
+    /// the type's own doc comment for why folding focus in here would make
+    /// every focusable element an opaque hitbox. (Since divergence 16 retired,
+    /// `DD-Y`, an opaque hitbox inside a `ScrollView` no longer blocks its
+    /// wheel; it still blocks a click, hover and a scroller it merely overlays.)
+    var isPointerTarget: Bool { onClick != nil || textInput != nil || valueTrack != nil }
 
     /// Whether this element has anything to say about the **keyboard** — the
     /// focus-registry gate (`FocusRegistry.register(_:id:)`).

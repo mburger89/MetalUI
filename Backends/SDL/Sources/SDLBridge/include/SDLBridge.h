@@ -57,7 +57,9 @@ enum {
     MUI_EVENT_NONE = 0, MUI_EVENT_QUIT, MUI_EVENT_CLOSE, MUI_EVENT_RESIZE,
     MUI_EVENT_MOUSE_DOWN, MUI_EVENT_MOUSE_UP, MUI_EVENT_MOUSE_MOVE, MUI_EVENT_WHEEL,
     MUI_EVENT_KEY_DOWN, MUI_EVENT_KEY_UP, MUI_EVENT_THEME, MUI_EVENT_EXPOSED,
-    MUI_EVENT_ACCESSIBILITY, MUI_EVENT_MOUSE_DRAG, MUI_EVENT_TEXT_INPUT, MUI_EVENT_TEXT_EDITING
+    MUI_EVENT_ACCESSIBILITY, MUI_EVENT_MOUSE_DRAG, MUI_EVENT_TEXT_INPUT, MUI_EVENT_TEXT_EDITING,
+    // Keyboard focus (ruling EV-AB). Appended, so no earlier kind renumbers.
+    MUI_EVENT_FOCUS_GAINED, MUI_EVENT_FOCUS_LOST
 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
@@ -81,6 +83,16 @@ bool mui_poll_event(MUIEvent *event);
 bool mui_wait_event(MUIEvent *event, int32_t timeout_ms);
 // Pushes a synthetic SDL event built from `event` — for tests.
 bool mui_push_event(const MUIEvent *event);
+// Pushes an unflattened SDL_EVENT_WINDOW_* of type `sdl_type` for `window_id`,
+// so a test reaches translate's arms for kinds mui_push_event cannot spell
+// (the scale and pixel-size changes, ruling EV-AA). For tests.
+bool mui_push_raw_window_event(uint32_t sdl_type, uint32_t window_id);
+// SDL's event types for the two window events above, for tests.
+extern const uint32_t mui_sdl_event_window_display_scale_changed;
+extern const uint32_t mui_sdl_event_window_pixel_size_changed;
+// Whether SDL reports the window as having keyboard focus
+// (SDL_WINDOW_INPUT_FOCUS) — read once, when a window opens (ruling EV-AB).
+bool mui_window_has_input_focus(void *window);
 void *mui_window_create(const char *title, int32_t width, int32_t height, bool hidden);
 void mui_window_destroy(void *window);
 uint32_t mui_window_id(void *window);

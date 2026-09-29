@@ -6,7 +6,7 @@ import MetalUICore
 /// (`OM-P`, spec §5.2).
 ///
 /// Its four callers are `Box.prepaint`, `Stack.prepaint`, `Text.prepaint` and
-/// `ModifiedElement.prepaintLayerBody`. Each of them called
+/// `ModifiedContent.prepaintLayerBody` (through `ModifierLayer._prepaint`, stage 11). Each of them called
 /// `pass.registerHandlers(_:at:id:)` directly before this existed; the
 /// difference is that a `Decoration` now carries a **scope** (`clipsContent`,
 /// and lane 3's `Handlers.allowsHitTesting`) as well as the fields that only
@@ -20,7 +20,7 @@ import MetalUICore
 /// (`OM-AI`). `everyDecorationPaintingSiteDrawsItsBorder` sees whether a site
 /// CALLS the helper. Nothing saw the shape of the call: passing `Decoration()`
 /// here — keeping the registration, dropping the scope — at `Stack.prepaint` or
-/// at `ModifiedElement.prepaintLayerBody` left the whole suite green, because
+/// at the legacy layer's prepaint (then `ModifiedElement.prepaintLayerBody`) left the whole suite green, because
 /// `clippedAlsoClipsTheHitboxesInsideIt` was one `Box` fixture. It is now a
 /// table with a `Box`, a `Stack` and a two-layer `ModifiedElement` arm, and each
 /// of those three mutations reddens its own arm. `Text` has no children, so its

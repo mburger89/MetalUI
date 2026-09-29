@@ -16,7 +16,10 @@ import MetalUILayout
 // (`LR-CV`). Each is ONE line with **the same closure body** as the public
 // modifier it stands in for (`Box.swift`), so identity, answers and sites are
 // unchanged by construction; `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite`
-// pins it. They die with `Style.size`/`minSize`/`maxSize` at stage 10 (spec §9).
+// pins it. Stage 8 wrote that they die with `Style.size`/`minSize`/`maxSize` at
+// stage 10 (its spec §9); those fields survive stage 10 as the lowering's inputs
+// (`LR-FM` item 2), so the helpers stay, and the reason above still holds
+// (`LR-FO` item 6).
 
 extension StyledElement {
     func cssWidth(_ points: Pixels) -> Self { modifying { $0.size.width = .length(.pixels(points)) } }

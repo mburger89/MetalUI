@@ -372,9 +372,12 @@ public struct PrepaintPass {
     /// carries a keyboard one, and nothing at all when it carries neither.
     ///
     /// **Two gates, not one, and the separation is load-bearing.** A hitbox is
-    /// opaque, and an opaque hitbox swallows the wheel of any `ScrollView` it
-    /// sits inside (`Window.applyScroll`) — so registering one for every
-    /// *focusable* element would stop a list of focusable rows scrolling. See
+    /// opaque, and an opaque hitbox shadows clicks and hover aimed at whatever
+    /// it covers — so registering one for every *focusable* element would make
+    /// a keyboard-only element a pointer target. (It also swallowed the wheel
+    /// of a `ScrollView` it sat inside until divergence 16 retired, ruling
+    /// `DD-Y`: the wheel now passes to the nearest enclosing scroller on the
+    /// same layer, `Window.applyScroll`.) See
     /// `Handlers` for both gates and `focusabilityAndKeyHandlingRegisterNoPointerHitbox`
     /// for the pin.
     ///
@@ -392,10 +395,10 @@ public struct PrepaintPass {
     ///
     /// **The empty-set gate is the load-bearing half.** An element with no
     /// handlers must not register: an opaque hitbox for every `Box` would
-    /// shadow whatever it covers and would swallow the wheel of any
-    /// `ScrollView` it sits inside, since Task 7 made a wheel event stop at the
-    /// topmost opaque hitbox whatever that hitbox is. So `onClick` is what
-    /// makes a box a hit target, and a box without one stays transparent.
+    /// shadow whatever it covers — a click, hover, and a scroller it overlays
+    /// without being inside it, which still stops the wheel (`DD-Y`'s ancestry
+    /// clause). So `onClick` is what makes a box a hit target, and a box
+    /// without one stays transparent.
     ///
     /// Public rather than internal because `StyledElement` and its `handlers`
     /// requirement are public: an element type outside this module can store a
@@ -492,13 +495,30 @@ public struct PrepaintPass {
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.
+    ///
+    /// **It also resets the scroller frame** (ruling `DD-F` item 2): a `List`
+    /// inside the portal has no scroller, so it measures no origin and asks
+    /// for no frame — the prepaint counterpart of `Deferred`'s layout-time
+    /// `withoutScrollContext`. Pinned by
+    /// `aListInADeferredInsideAScrollViewMeasuresNoScrollerOrigin`.
     public func deferred(_ body: () -> Void) {
         frame.pushLayer()
         frame.pushRootClip()
+        frame.pushScrollerFrame(nil)
         defer {
+            frame.popScrollerFrame()
             frame.popClip()
             frame.popLayer()
         }
+        body()
+    }
+
+    /// Runs `body` — a scroller's content prepaint — with `scroller` as the
+    /// innermost scroller frame (ruling `DD-F` item 2). Closure form, so an
+    /// unbalanced stack is not expressible.
+    func inScroller(_ scroller: ScrollerFrame, _ body: () -> Void) {
+        frame.pushScrollerFrame(scroller)
+        defer { frame.popScrollerFrame() }
         body()
     }
 }
@@ -578,6 +598,16 @@ public struct PaintPass {
     /// way to know it had already been applied, and pre-scaling its bounds
     /// double-scales them on any Retina display. `cornerRadii` is scaled with
     /// them, for the same reason.
+    ///
+    /// **`pass.environment.displayScale` does reveal the scale now, as a
+    /// writable value** (ruling EV-AA), exactly as SwiftUI's does, and with
+    /// SwiftUI's hazard: this method scales by the **frame's** factor, never by
+    /// the environment's, so a scope that writes `displayScale` changes the
+    /// number an author reads and not the scale drawing uses (probe
+    /// `swiftui-environment-control-state.swift` S3; pinned by
+    /// `aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses`). Draw in
+    /// points — a `pixelLength`-wide rect is one device pixel at the frame's
+    /// own scale — and never pre-scale by it. `pass.frame` stays unreachable.
     ///
     /// **The active clip/translate stack is applied here too, for the same
     /// reason.** `bounds` is offset by `clipped(to:offsetBy:)`'s accumulated

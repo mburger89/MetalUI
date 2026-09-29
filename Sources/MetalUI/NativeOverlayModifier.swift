@@ -13,7 +13,20 @@ import MetalUILayout
 /// one node. Prepaints and paints the primary before the overlay, so the
 /// overlay's hitboxes rank above the primary's (probe H2); `BackgroundModifier`
 /// is the reverse.
-public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalElementGroup>: Element {
+///
+/// **Either side may be legacy content** (plan task 7, stage 11, ruling
+/// `LR-FX`): `CN-Q` handed the legacy `.overlay` to the modifier unification,
+/// and this type already had the second generic parameter that needs. It is a
+/// `ProposalElementGroup` — so it enters an `HStack` — only when **both** sides
+/// are. Both sides' nodes pass through `lowerAttachmentChildren`
+/// (`AttachmentLowering.swift`): each legacy record is consumed and planned as
+/// a frame layer's child is (`LR-AZ` — a primary's `flexGrow` or an overlay's
+/// `margin` is dropped), a presentation placeholder is dropped, and a proposal
+/// node passes unwrapped. A primary that is a presentation (zero nodes) or a
+/// multi-member `Component` (two or more) traps by the attachment's
+/// precondition, naming the count (`LR-FX` item 4 as amended by `LR-GA` item
+/// 3); per-member distribution is plan task 8's `Group` semantics.
+public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
     public var content: Content
     public var overlay: Overlay
     public var alignment: ProposalAlignment
@@ -68,19 +81,39 @@ public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalEl
     /// shape, `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`
     /// (`ModifierCompositionProofTests.swift`). The shared-cursor-at-0 mutation
     /// reddens all four; the threaded cursor reddens the first and the last.
-    public mutating func requestProposalLayout(_ id: GlobalElementID,
-                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+    ///
+    /// **Two entries, one body** (stage 11, spec §3.2's split): the untyped
+    /// `requestLayout` — `Frame`'s root and a legacy parent — registers both
+    /// sides through `requestGroupLayout`; the typed `requestProposalLayout` — a
+    /// proposal parent, only when both sides are proposal content — through
+    /// `requestProposalGroupLayout`. Only the two side-entry lines are written
+    /// twice; the overlay side's id (`overlaySide(of:)`) and the attachment
+    /// (`attach`) are shared, so a mutation of either reaches both entries.
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var contentCursor = 0
-        let (contentNodes, contentLayout) = content.requestProposalGroupLayout(under: id, at: &contentCursor,
-                                                                                pass: &pass)
+        let (contentNodes, contentLayout) = content.requestGroupLayout(under: id, at: &contentCursor,
+                                                                       pass: &pass)
         var overlayCursor = 0
-        let overlaySide = GlobalElementID.child(of: id, at: -1, name: nil)
-        let (overlayNodes, overlayLayout) = overlay.requestProposalGroupLayout(under: overlaySide,
-                                                                                at: &overlayCursor,
-                                                                                pass: &pass)
-        let node = pass.requestSecondaryContentAttachment(primary: contentNodes, secondary: overlayNodes,
-                                                          alignment: alignment, modifier: "overlay")
-        return (node, Layout(node: node.layoutNodeID, content: contentLayout, overlay: overlayLayout))
+        let (overlayNodes, overlayLayout) = overlay.requestGroupLayout(under: Self.overlaySide(of: id),
+                                                                       at: &overlayCursor, pass: &pass)
+        let node = attach(contentNodes, overlayNodes, pass: &pass)
+        return (node, Layout(node: node, content: contentLayout, overlay: overlayLayout))
+    }
+
+    /// The id the overlay side numbers under: `MC-P`'s `-1`, which no cursor
+    /// can produce.
+    static func overlaySide(of id: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: id, at: -1, name: nil)
+    }
+
+    /// Both sides lowered (`lowerAttachmentChildren`), then the attachment.
+    func attach(_ contentNodes: [LayoutNodeID], _ overlayNodes: [LayoutNodeID],
+                pass: inout LayoutPass) -> LayoutNodeID {
+        let primary = pass.lowerAttachmentChildren(contentNodes)
+        let secondary = pass.lowerAttachmentChildren(overlayNodes)
+        return pass.requestSecondaryContentAttachment(primary: primary, secondary: secondary,
+                                                      alignment: alignment, modifier: "overlay")
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -97,13 +130,39 @@ public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalEl
     }
 }
 
-extension ProposalElementGroup {
-    public func overlay<Overlay: ProposalElementGroup>(alignment: ProposalAlignment = .center,
+extension OverlayModifier: ProposalElementGroup, ProposalElement
+    where Content: ProposalElementGroup, Overlay: ProposalElementGroup {
+    /// The typed entry — a proposal parent: both sides through
+    /// `requestProposalGroupLayout`, then the shared `attach`.
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        var contentCursor = 0
+        let (contentNodes, contentLayout) = content.requestProposalGroupLayout(under: id, at: &contentCursor,
+                                                                                pass: &pass)
+        var overlayCursor = 0
+        let (overlayNodes, overlayLayout) = overlay.requestProposalGroupLayout(under: Self.overlaySide(of: id),
+                                                                                at: &overlayCursor,
+                                                                                pass: &pass)
+        let node = attach(contentNodes.map(\.layoutNodeID), overlayNodes.map(\.layoutNodeID), pass: &pass)
+        return (ProposalNodeID(node), Layout(node: node, content: contentLayout, overlay: overlayLayout))
+    }
+}
+
+extension ElementGroup {
+    /// Places `content` over this view, proposed this view's size and
+    /// positioned by `alignment` (ruling CN-K). **One overload, on
+    /// `ElementGroup`** (plan task 7, stage 11, ruling `LR-FX` item 1): a legacy
+    /// primary or overlay is lowered as a frame layer's child
+    /// (`OverlayModifier`'s doc); the result enters a proposal container only
+    /// when both sides are proposal content.
+    public func overlay<Overlay: ElementGroup>(alignment: ProposalAlignment = .center,
                                                @ElementBuilder content: () -> Overlay)
         -> OverlayModifier<Self, Overlay> {
         OverlayModifier(content: self, alignment: alignment, overlay: content)
     }
+}
 
+extension ProposalElementGroup {
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "overlay")
     public func nativeOverlay<Overlay: ProposalElementGroup>(alignment: ProposalAlignment = .center,

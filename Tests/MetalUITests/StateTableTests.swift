@@ -240,8 +240,12 @@ struct CountingElement: Element {
 /// two `IdentityTests` cases the same sensitivity, incidentally.**
 /// `flippingAnEitherBranchResetsTheBranchesState` and
 /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
-/// (`IdentityTests.swift`) also added an `isLive` assertion on an abandoned
-/// branch's entry when Task 1 inverted them, and that assertion happens to be
+/// (`IdentityTests.swift`; the latter renamed
+/// `anElementAfterAVanishingIfKeepsItsOwnState` by `ID-B`, and since `ID-C`
+/// deletes the abandoned entry it asserts `peek == nil` rather than `isLive`,
+/// so what follows about it is history) also added an `isLive` assertion on an
+/// abandoned branch's entry when Task 1 inverted them, and that assertion
+/// happened to be
 /// sensitive to the same one-frame liveness lag this test exists to pin —
 /// moving `sweep()` reddens all three, not one. Neither of the two is a
 /// second ordering guard: what each test is actually *for* (branch state
@@ -263,13 +267,22 @@ struct CountingElement: Element {
     // The next frame produces a different element. `a` is not marked, so the
     // sweep at the end of that frame tombstones it — the value stays, the
     // liveness does not.
+    //
+    // **The second root is UNNAMED** (plan task 8's closeout, ruling `ID-R`):
+    // until then it was `CountingElement("b")`, a second NAME at the root's
+    // position, and since `ID-R` a name an evaluated position replaces with
+    // another name is reset (`anIDThatReturnsToAnEarlierNameStartsFresh`) — so
+    // that spelling now tests the rename, not the tombstone. An unnamed element
+    // at the position departs no name (`StateTable.noteNamed` notes names only),
+    // which is the "stops being produced" this test is about.
     let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
-    var b = CountingElement("b")
+    var b = CountingElement(nil)
     second.render(&b)
+    let bID = GlobalElementID.child(of: nil, at: 0, name: nil)
 
     #expect(table.peek(id("a"), as: Int.self) == 1, "the tombstone keeps its value")
     #expect(!table.isLive(id("a")), "but is no longer live — the load-bearing assertion")
-    #expect(table.peek(id("b"), as: Int.self) == 1)
-    #expect(table.isLive(id("b")))
+    #expect(table.peek(bID, as: Int.self) == 1)
+    #expect(table.isLive(bID))
     #expect(table.count == 2, "both the live entry and the tombstone are retained")
 }

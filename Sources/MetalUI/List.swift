@@ -150,38 +150,32 @@ import MetalUILayout
 /// context; a non-vertical one; a first-frame zero viewport; a zero or negative
 /// `rowHeight`).
 ///
-/// **A `List` must be its enclosing `ScrollView`'s only layout-contributing
-/// child, and violating that renders it BLANK rather than merely imprecise.**
-/// This is a requirement of the same rank as `Identifiable` and a uniform
-/// `rowHeight`, and unlike those two nothing enforces it: `ScrollView { Text(...);
-/// List(...) }` compiles, lays out, and paints nothing where the list should be.
-/// The ambient `ScrollContext` describes the SCROLLER — how far the scroller's
-/// content has moved under its viewport — and `visibleRange` reads it as though
-/// it described this `List`, i.e. as though row 0 sat exactly at the scroller's
-/// content origin. Put anything that occupies FLOW above the list — a header, a
-/// spacer, a second `List` — and the two differ by that thing's height, so the
-/// window slides off the rows actually on screen. Measured, with a 300pt header
-/// above a 40-row list at `rowHeight` 28, viewport 112, scrolled to 300: the
-/// rows visible are 0 through 3 and the rows built are **8 through 16**, every
-/// one of them painted below the viewport under a mask that shows none of them.
+/// **A `List` windows against its OWN origin within its scroller's content**
+/// (ruling `DD-F`, plan task 10; divergence 14 retired). Until then it read the
+/// ambient `ScrollContext` — which describes the SCROLLER — as though row 0 sat
+/// at the scroller's content origin, so anything in flow above the list (a
+/// header, a spacer, a second `List`) slid the window off the rows on screen and
+/// rendered it **blank**: a 300pt header above a 40-row list at `rowHeight` 28,
+/// viewport 112, scrolled to 300, built rows 8…16 where 0…3 were visible
+/// (`MP-L` called it unfixable because `requestLayout` has no position). The
+/// fix meets that blocker the way `ScrollState.viewportExtent` meets the
+/// viewport's: **last frame's measurement**. In `prepaint`, inside a vertical
+/// scroller (`Frame.activeScrollerFrame`, pushed by `ScrollView` and
+/// `ProposalScrollView`; reset by `Deferred`), the list stores its origin at its
+/// own id (`ListOrigin`, through `withState` — never `write`), and
+/// `requestLayout` windows against it. Pinned by
+/// `aListBelowAHeaderWindowsTheRowsOnScreen`.
 ///
-/// **Two measured refinements of that rule, in opposite directions.** An
-/// out-of-flow sibling costs nothing — a `.position(.absolute)` box declared
-/// before the list, which is what the demo's own `Deferred` modal is, leaves the
-/// rows at y = 0 — so the requirement is about flow rather than about sibling
-/// count. And making the `List` itself absolute does not save it: at
-/// `.position(.absolute)` with `inset(top: 300)` it builds the identical wrong
-/// rows, because the window comes from the ambient offset either way.
-///
-/// **Not fixable from inside this type, which is why it is a documented
-/// requirement rather than a bug with a fix pending** (ruling MP-L, CLAUDE.md
-/// divergence 14). Correcting the window needs this `List`'s own offset within
-/// the scroller's content, and `requestLayout` has no position — that is the
-/// phase's contract, not an oversight. Supplying one means either laying the
-/// scroller out twice or threading resolved geometry into a phase defined to run
-/// before geometry exists. Pinned by
-/// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, so the fix,
-/// when it comes, arrives as a red test rather than as a surprise.
+/// **One more frame when the window went stale, and only then** (`DD-F` item
+/// 3). The first frame after a resize, or after something above the list
+/// changed height, still windows against last frame's measurements — the two
+/// rows of overscan are the only cover for that frame (divergence 13, amended)
+/// — but `prepaint` sees the fresh window is not contained in the one it built
+/// and calls `requestAnotherFrame()`, so the next frame is drawn, and correct,
+/// with no input. Pinned by `aGrownViewportIsFilledOnTheNextFrameWithoutInput`
+/// and `aListWhoseOriginChangesIsReWindowedOnTheNextFrame`;
+/// `anUnboundedListFrameAsksForNoExtraFrame` pins that a frame that built
+/// every row asks for nothing.
 ///
 /// **`ListRows`' `WindowedRowsLayout` places the window**: built row *i* at
 /// `(firstIndex + i) × rowHeight`, directly (`LR-BQ`, `LR-BR`). Until stage 9 the
@@ -265,6 +259,14 @@ where Data.Element: Identifiable {
     /// frame (MP-I). The one unbounded case the next frame can fix (AB-X rule 3).
     private var windowAwaitsViewport = false
 
+    /// The window `requestLayout` built this frame, threaded to `prepaint`
+    /// like `box`, which compares it with the window this frame's fresh
+    /// measurements would give (ruling `DD-F` item 3).
+    private var builtWindow: Range<Int> = 0..<0
+
+    /// The selection model (`DD-Z` item 1): none, single or multi.
+    private var selection: ListSelection<Data.Element.ID> = .none
+
     /// `List`'s layout state, as a **public wrapper around an internal one**.
     ///
     /// `Element.LayoutState` is inferred from `requestLayout`'s return, and
@@ -346,19 +348,42 @@ where Data.Element: Identifiable {
     /// rest of the list fills in only once frame two has a real viewport —
     /// a visible one-frame flash. Building everything on that first frame
     /// costs one slow frame instead of a flash.
-    private func visibleRange(count: Int, pass: LayoutPass) -> Range<Int> {
+    ///
+    /// **Against this list's own origin within the scroller's content** (ruling
+    /// `DD-F` item 1; divergence 14 retired). `requestLayout` has no position,
+    /// so the origin is **last frame's measurement**, stored by `prepaint` at
+    /// this list's id — the way `ScrollState.viewportExtent` already carries
+    /// the viewport. With none stored (the list's first frame inside its
+    /// scroller) it is 0, today's answer. See `window(count:rowExtent:offset:viewport:origin:)`.
+    private func visibleRange(count: Int, origin: Double, pass: LayoutPass) -> Range<Int> {
         guard let context = pass.scrollContext, context.axis == .vertical,
               context.viewportExtent > 0, rowHeight.value > 0 else {
             return 0..<count
         }
-        let extent = Double(rowHeight.value) * Double(count)
-        // The ambient offset is raw and unclamped (`ScrollContext`'s own doc);
-        // this is the clamp `List` owns because it — unlike `LayoutPass` — knows
-        // its own exact content extent without waiting on a resolved layout.
-        let offset = min(max(0, context.offset), max(0, extent - context.viewportExtent))
-        let rowExtent = Double(rowHeight.value)
-        let rawFirst = Int((offset / rowExtent).rounded(.down)) - Self.overscan
-        let rawLast = Int(((offset + context.viewportExtent) / rowExtent).rounded(.up)) + Self.overscan
+        return Self.window(count: count, rowExtent: Double(rowHeight.value),
+                           offset: context.offset, viewport: context.viewportExtent,
+                           origin: origin)
+    }
+
+    /// The rows intersecting the viewport — the scroller's `offset` and
+    /// `viewport`, seen from a list whose row 0 sits `origin` down the
+    /// scroller's content — widened by `overscan` and clamped into `0..<count`.
+    /// Needs `rowExtent > 0` and `viewport > 0` (the callers' guards).
+    ///
+    /// **The list-local top is clamped into `0...max(0, extent − viewport)`**,
+    /// the clamp this type has always applied to the raw offset (the ambient
+    /// offset is raw and unclamped, `ScrollContext`'s own doc). At `origin` 0
+    /// that is exactly the pre-`DD-F` window; with an origin it keeps the
+    /// window a **superset** of the rows actually on screen when the list is
+    /// partly above or below the viewport (a band that starts above row 0, or
+    /// runs past the last row, is served by the nearest full viewport of rows),
+    /// so a list scrolled past never windows to nothing.
+    static func window(count: Int, rowExtent: Double, offset: Double, viewport: Double,
+                       origin: Double) -> Range<Int> {
+        let extent = rowExtent * Double(count)
+        let top = min(max(0, offset - origin), max(0, extent - viewport))
+        let rawFirst = Int((top / rowExtent).rounded(.down)) - Self.overscan
+        let rawLast = Int(((top + viewport) / rowExtent).rounded(.up)) + Self.overscan
         let first = min(max(0, rawFirst), count)
         let last = min(max(first, rawLast), count)
         return first..<last
@@ -385,7 +410,11 @@ where Data.Element: Identifiable {
         rowStyle.flexShrink = 0
 
         let count = data.count
-        let window = visibleRange(count: count, pass: pass)
+        // `DD-F` item 1: last frame's measured origin, read with `peek` so a
+        // list outside every scroller mints no entry. `prepaint` stores it.
+        let origin = pass.frame.stateTable.peek(id, as: ListOrigin.self)?.offset ?? 0
+        let window = visibleRange(count: count, origin: origin, pass: pass)
+        builtWindow = window
         // The same test `visibleRange`'s guard makes, kept rather than inferred
         // from `window`: a short list's real window can equal `0..<count`.
         let context = pass.scrollContext
@@ -416,6 +445,23 @@ where Data.Element: Identifiable {
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
         let windowEnd = data.index(data.startIndex, offsetBy: window.upperBound)
 
+        // `DD-K`: while a `scrollTo` is pending, each realised row's `datum.id`
+        // is its typed key, so a row keyed `2` is not reached by `"2"` through
+        // its `String` name. The row is named directly under the list.
+        if pass.frame.notesScrollKeys {
+            for datum in data[windowStart..<windowEnd] {
+                let rowID = GlobalElementID.child(of: id, at: 0,
+                                                  name: ElementID(String(describing: datum.id)))
+                pass.frame.noteScrollKey(rowID, AnyHashable(datum.id))
+            }
+        }
+
+        // `DD-Z` item 3 and `DD-AC` item 4: the selection is read ONCE, and each
+        // realised row asks one `==`/`contains` of it — nothing here scans
+        // `data`. A lead missing from the selection is re-derived in the
+        // handlers (input), never here.
+        let reader = selection.reader()
+        let table = pass.frame.stateTable
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `String(describing:)` is the collision the type doc names —
             // distinct `datum.id`s that describe the same string land here as
@@ -423,6 +469,19 @@ where Data.Element: Identifiable {
             var rowBox = Box(style: rowStyle, content: { row(datum) })
                 .id(String(describing: datum.id))
             if indexesRows { rowBox.handlers.axNode.logicalIndex = window.lowerBound + offset }
+            if let reader {
+                let selected = reader(datum.id)
+                if selected {
+                    // A row-`Box` background, so it animates through
+                    // `animatedBackground` and mints exactly one `$anim-color`
+                    // slot per selected realised row (`DD-AC` item 1); the hint
+                    // records `isSelected` and writes no `$ax` (`DD-U` item 4).
+                    rowBox.decoration.background = .accent
+                    rowBox.handlers.axNode.selectionHint = true
+                }
+                rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,
+                                                        selection: selection, table: table)
+            }
             return rowBox
         }
 
@@ -467,6 +526,17 @@ where Data.Element: Identifiable {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> PrepaintState {
+        noteOriginAndStaleness(id, bounds: bounds, pass: pass)
+        if pass.frame.hasUnresolvedScrollRequests { resolveScrollRequests(id, bounds: bounds, pass: pass) }
+        if !selection.isNone { composeSelectionKeys(id, pass: pass) }
+        // `DD-AC` item 6, as amended by `DD-AG` item 1: a selectable list whose
+        // window can never be bounded (no vertical scroller, or a zero
+        // `rowHeight`) publishes its rows — as buttons, having no index — so a
+        // client can press them. The scroller's first frame keeps AB-X rule 1.
+        if !selection.isNone, !windowIsBounded, !windowAwaitsViewport {
+            return PrepaintState(inner: box.prepaint(id, bounds: bounds,
+                                                     layout: &layout.inner, pass: &pass))
+        }
         // **An unbounded window publishes the table and no rows** (ruling AB-X
         // rule 1): it built every row, and a client active at frame 0 would
         // otherwise be handed a row and a text per datum, then see them all
@@ -487,9 +557,309 @@ where Data.Element: Identifiable {
         })
     }
 
+    /// Ruling `DD-F` items 1 and 3, inside a vertical scroller
+    /// (`Frame.activeScrollerFrame`; none inside a `Deferred`):
+    ///
+    /// 1. **Stores this list's origin** within the scroller's content — its
+    ///    own bounds' origin minus the content node's, both layout space — at
+    ///    its own id through `withState`, **never `write`**: `withState` raises
+    ///    no `isDirty` and fires no `onWrite` (`ScrollChrome.resolvedOffset`'s
+    ///    prepaint write-back is the precedent), so this cannot keep the
+    ///    display link awake. The subtraction is pinned by
+    ///    `aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen` (a
+    ///    scroller 88pt below the window origin; V3, the bounds alone, builds
+    ///    rows 5…13 where 10…14 are on screen). No new reserved name
+    ///    (`theSevenRetentionSlotsAreMutuallyDistinct` unmoved). Pinned by
+    ///    `anUnboundedListFrameAsksForNoExtraFrame`.
+    /// 2. **Asks for one more frame when the window it built is stale**: the
+    ///    window this frame's fresh inputs (the measured origin, this frame's
+    ///    viewport, the resolved offset) give is not contained in `builtWindow`
+    ///    — a grown viewport (divergence 13's effect, amended) or a list that
+    ///    moved within its content. A frame that built every row contains any
+    ///    window, so the unbounded first frame (`MP-I`) asks for nothing, and
+    ///    the next frame builds exactly the fresh window, so the request
+    ///    cannot repeat. `requestAnotherFrame()`, never `noteActiveAnimation()`.
+    private func noteOriginAndStaleness(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                        pass: PrepaintPass) {
+        guard let scroller = pass.frame.activeScrollerFrame, scroller.axis == .vertical else {
+            return
+        }
+        let origin = Double(bounds.origin.y.value - scroller.contentOrigin.y.value)
+        pass.withState(id, initial: ListOrigin()) { $0.offset = origin }
+
+        let count = data.count
+        let fresh: Range<Int>
+        if scroller.viewportExtent > 0, rowHeight.value > 0 {
+            fresh = Self.window(count: count, rowExtent: Double(rowHeight.value),
+                                offset: scroller.offset, viewport: scroller.viewportExtent,
+                                origin: origin)
+        } else {
+            fresh = 0..<count
+        }
+        let contained = fresh.isEmpty
+            || (builtWindow.lowerBound <= fresh.lowerBound && fresh.upperBound <= builtWindow.upperBound)
+        if !contained { pass.frame.requestAnotherFrame() }
+    }
+
+    /// Ruling `DD-G` item 2 (T15) and `DD-K`: a pending `scrollTo` whose key
+    /// equals a row's `datum.id` — realised or not — targets that row's rect,
+    /// computed from its index at the uniform `rowHeight`. Before the rows
+    /// prepaint, so the list's own answer is the first match for its rows.
+    private func resolveScrollRequests(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                       pass: PrepaintPass) {
+        let pending = pass.frame.unresolvedScrollRequests(enclosing: id)
+        guard !pending.isEmpty else { return }
+        // `DD-AC` item 2: this list's own lead reveals, matched by row. A
+        // `ListLeadReveal` equals no caller's key, so only this list takes it.
+        let reveals = pending.compactMap { request -> (index: Int, row: AnyHashable)? in
+            guard let reveal = request.key.base as? ListLeadReveal, reveal.list == id else { return nil }
+            return (request.index, reveal.row)
+        }
+        for (index, datum) in data.enumerated() {
+            let key = AnyHashable(datum.id)
+            let matching = pending.filter { $0.key == key }
+                + reveals.filter { $0.row == key }.map { (index: $0.index, key: key) }
+            for request in matching where !pass.frame.isScrollRequestResolved(request.index) {
+                let row = Bounds(origin: Point(x: bounds.origin.x,
+                                               y: bounds.origin.y + rowHeight * Float(index)),
+                                 size: Size(width: bounds.size.width, height: rowHeight))
+                pass.frame.resolveScrollRequest(request.index, target: row)
+            }
+        }
+    }
+
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout PrepaintState,
                                pass: inout PaintPass) {
         box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
+    }
+}
+
+extension List {
+    /// A list whose rows select into `selection`, one row at a time
+    /// (SwiftUI's `List(_:selection:rowContent:)`; ruling `DD-Z`).
+    public init(_ data: Data, selection: Binding<Data.Element.ID?>, rowHeight: Pixels,
+                @ElementBuilder row: @escaping (Data.Element) -> Row) {
+        self.init(data, rowHeight: rowHeight, row: row)
+        self.selection = .single(selection)
+    }
+
+    /// A list whose rows select into the set `selection` (ruling `DD-Z`).
+    public init(_ data: Data, selection: Binding<Set<Data.Element.ID>>, rowHeight: Pixels,
+                @ElementBuilder row: @escaping (Data.Element) -> Row) {
+        self.init(data, rowHeight: rowHeight, row: row)
+        self.selection = .multi(selection)
+    }
+}
+
+/// A `List`'s selection model (`DD-Z` item 1).
+enum ListSelection<ID: Hashable> {
+    case none
+    case single(Binding<ID?>)
+    case multi(Binding<Set<ID>>)
+}
+
+/// A `List`'s origin within its scroller's content, in points down the
+/// scrolling axis — last frame's measurement, stored at the list's own id
+/// (ruling `DD-F` item 1).
+///
+/// **It also holds a selectable list's lead and anchor rows** (`DD-Z` item 7),
+/// written from input only (the row clicks and the key handler, through
+/// `withState`, which fires no `onWrite`): the table keys by id alone, so a
+/// second type at the list's id would overwrite this one. No new reserved name.
+struct ListOrigin: @unchecked Sendable {
+    var offset: Double = 0
+    /// The row a keyboard move starts from (a datum id), or nil.
+    var lead: AnyHashable?
+    /// The row a ⇧-move or ⇧-click extends from (a datum id), or nil.
+    var anchor: AnyHashable?
+}
+
+/// The key a selectable list's keyboard move enqueues on the `DD-G` queue to
+/// reveal its new lead (`DD-AC` item 2): internal, so no caller's `scrollTo`
+/// key or `.id` can equal it, and matched only by the list it names.
+struct ListLeadReveal: Hashable {
+    let list: GlobalElementID
+    let row: AnyHashable
+}
+
+extension ListSelection {
+    var isNone: Bool {
+        if case .none = self { return true }
+        return false
+    }
+
+    /// Whether an id is selected, reading the binding once — nil for `.none`.
+    @MainActor
+    func reader() -> ((ID) -> Bool)? {
+        switch self {
+        case .none: return nil
+        case .single(let binding):
+            let current = binding.wrappedValue
+            return { $0 == current }
+        case .multi(let binding):
+            let current = binding.wrappedValue
+            return { current.contains($0) }
+        }
+    }
+}
+
+// MARK: - Selection input (`DD-Z` items 4–7; handlers only — input, never a phase)
+
+extension List {
+    /// The index of `id` in `data`, by a scan — input time only.
+    private static func index(of id: Data.Element.ID, in data: Data) -> Int? {
+        for (index, datum) in data.enumerated() where datum.id == id { return index }
+        return nil
+    }
+
+    /// The stored lead if it is still selected, else the first selected row in
+    /// data order (`DD-Z` item 7), else nil. Input time only (`DD-AC` item 4).
+    private static func leadIndex(stored: AnyHashable?, isSelected: (Data.Element.ID) -> Bool,
+                                  data: Data) -> Int? {
+        if let stored = stored?.base as? Data.Element.ID, isSelected(stored),
+           let index = index(of: stored, in: data) {
+            return index
+        }
+        for (index, datum) in data.enumerated() where isSelected(datum.id) { return index }
+        return nil
+    }
+
+    /// The ids of rows `a…b` (either order), inclusive.
+    private static func ids(from a: Int, to b: Int, in data: Data) -> Set<Data.Element.ID> {
+        let range = min(a, b)...max(a, b)
+        var result = Set<Data.Element.ID>()
+        for (index, datum) in data.enumerated() where range.contains(index) { result.insert(datum.id) }
+        return result
+    }
+
+    /// A row's click (`DD-Z` item 4): selects exactly the row; in a multi list
+    /// the platform's shortcut modifier toggles it and ⇧ selects the range
+    /// from the anchor; a single list selects it whatever the modifiers. A
+    /// write happens only when the selection changes. Focuses the list
+    /// (`DD-Z` item 5) through `ClickDispatch.focusRequest`.
+    private static func rowClick(list: GlobalElementID, row: Data.Element.ID, data: Data,
+                                 selection: ListSelection<Data.Element.ID>,
+                                 table: StateTable) -> @MainActor () -> Void {
+        { [weak table] in
+            ClickDispatch.focusRequest = list
+            guard let table else { return }
+            let modifiers = ClickDispatch.modifiers
+            let origin = table.peek(list, as: ListOrigin.self) ?? ListOrigin()
+            var anchor: AnyHashable = AnyHashable(row)
+            switch selection {
+            case .none:
+                return
+            case .single(let binding):
+                if binding.wrappedValue != row { binding.wrappedValue = row }
+            case .multi(let binding):
+                let current = binding.wrappedValue
+                var next: Set<Data.Element.ID>
+                if modifiers.contains(ControlKeys.selectionToggleModifier()) {
+                    next = current
+                    if next.remove(row) == nil { next.insert(row) }
+                } else if modifiers.contains(.shift) {
+                    let rowIndex = index(of: row, in: data) ?? 0
+                    let anchorIndex: Int
+                    if let stored = origin.anchor?.base as? Data.Element.ID, current.contains(stored),
+                       let found = index(of: stored, in: data) {
+                        anchorIndex = found
+                        anchor = AnyHashable(stored)
+                    } else if let lead = leadIndex(stored: origin.lead, isSelected: current.contains,
+                                                   data: data) {
+                        anchorIndex = lead
+                        anchor = AnyHashable(data[data.index(data.startIndex, offsetBy: lead)].id)
+                    } else {
+                        anchorIndex = rowIndex
+                    }
+                    next = ids(from: anchorIndex, to: rowIndex, in: data)
+                } else {
+                    next = [row]
+                }
+                if next != current { binding.wrappedValue = next }
+            }
+            table.withState(list, initial: ListOrigin()) {
+                $0.lead = AnyHashable(row)
+                $0.anchor = anchor
+            }
+        }
+    }
+
+    /// The list's own handlers for a selection (`DD-T`, `DD-Z` item 6):
+    /// focusable, and the arrows after a caller's own `onKey` declined. The
+    /// queue is captured here, in prepaint, from the frame (`DD-AC` item 2).
+    private mutating func composeSelectionKeys(_ id: GlobalElementID, pass: PrepaintPass) {
+        let data = self.data
+        let selection = self.selection
+        let callerKey = box.handlers.onKey
+        let table = pass.frame.stateTable
+        let queue = pass.frame.scrollRequestQueue
+        box.handlers.isFocusable = true
+        box.handlers.onKey = { [weak table, weak queue] event in
+            if let callerKey, callerKey(event) { return true }
+            guard let move = ControlKeys.listMove(event), let table else { return false }
+            guard let row = Self.move(list: id, move.direction, extends: move.extends, data: data,
+                                      selection: selection, table: table) else { return false }
+            if let scope = id.parent {
+                queue?.enqueue(ScrollRequest(scope: scope,
+                                             key: AnyHashable(ListLeadReveal(list: id, row: AnyHashable(row))),
+                                             anchor: nil))
+            }
+            return true
+        }
+    }
+
+    /// One keyboard move (KY6, KY8): the next/previous row from the lead —
+    /// with nothing selected ↓ the first and ↑ the last — clamped at the ends;
+    /// a multi list's plain move collapses to that row and ⇧ selects from the
+    /// anchor to it; a single list ignores ⇧. Writes only a changed selection;
+    /// stores the new lead (and anchor). Returns the new lead's id, or nil when
+    /// the list has no rows.
+    private static func move(list: GlobalElementID, _ direction: ControlKeys.Direction, extends: Bool,
+                             data: Data, selection: ListSelection<Data.Element.ID>,
+                             table: StateTable) -> Data.Element.ID? {
+        let count = data.count
+        guard count > 0 else { return nil }
+        let origin = table.peek(list, as: ListOrigin.self) ?? ListOrigin()
+        func id(at index: Int) -> Data.Element.ID { data[data.index(data.startIndex, offsetBy: index)].id }
+        func target(from lead: Int?) -> Int {
+            guard let lead else { return direction == .forward ? 0 : count - 1 }
+            return direction == .forward ? min(lead + 1, count - 1) : max(lead - 1, 0)
+        }
+        let row: Data.Element.ID
+        var anchor: AnyHashable
+        switch selection {
+        case .none:
+            return nil
+        case .single(let binding):
+            let current = binding.wrappedValue
+            let lead = leadIndex(stored: origin.lead, isSelected: { $0 == current }, data: data)
+            row = id(at: target(from: lead))
+            anchor = AnyHashable(row)
+            if current != row { binding.wrappedValue = row }
+        case .multi(let binding):
+            let current = binding.wrappedValue
+            let lead = leadIndex(stored: origin.lead, isSelected: current.contains, data: data)
+            let next = target(from: lead)
+            row = id(at: next)
+            anchor = AnyHashable(row)
+            var selected: Set<Data.Element.ID> = [row]
+            if extends {
+                if let stored = origin.anchor?.base as? Data.Element.ID, current.contains(stored),
+                   let found = index(of: stored, in: data) {
+                    anchor = AnyHashable(stored)
+                    selected = ids(from: found, to: next, in: data)
+                } else if let lead {
+                    anchor = AnyHashable(id(at: lead))
+                    selected = ids(from: lead, to: next, in: data)
+                }
+            }
+            if selected != current { binding.wrappedValue = selected }
+        }
+        table.withState(list, initial: ListOrigin()) {
+            $0.lead = AnyHashable(row)
+            $0.anchor = anchor
+        }
+        return row
     }
 }

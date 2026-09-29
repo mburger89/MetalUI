@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-FM`** (stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-GH`** (stage 11's design took `LR-FV`…`LR-FZ`, its critic round 1 `LR-GA`, its lane 1 `LR-GB`, its lane 2 `LR-GC`, lane 2's fix round `LR-GD`, its lane 3 `LR-GE`, lane 3's fix round `LR-GF` and its adversarial branch check `LR-GG`, appended at the end; stage-11 rulings amended by that round carry a paragraph headed **Amended, stage-11 critic round 1**; stage 10's design took `LR-FM`…`LR-FQ`, its critic round 1 `LR-FR`, its lane 1 `LR-FS`, its lane 2 `LR-FT` and its adversarial branch check `LR-FU`, appended at the end; stage-10 rulings amended by that round carry a paragraph headed **Amended, stage-10 critic round 1**; stage 9's design took `LR-FC`…`LR-FG`, its critic round 1 `LR-FH`, its lane 1 `LR-FI`, its lane 2 `LR-FJ`, its lane 3 `LR-FK` and its adversarial branch check `LR-FL`, appended at the end; stage-9 rulings amended by that round carry a paragraph headed **Amended, stage-9 critic round 1**; stage 8's design took `LR-ER`…`LR-EX`, its critic round 1 `LR-EY`, its lane 1 `LR-EZ`, lane 1's review round `LR-FA` and its lane 3 `LR-FB`, appended at the end; stage-8 rulings amended by that round carry a paragraph headed **Amended, stage-8 critic round 1**; stage 7b's design took `LR-EC`…`LR-EK`, its critic round 1 `LR-EL`, its lane 1 `LR-EM`, its lane 2 `LR-EN`, its lane 3 `LR-EO`, its Record phase `LR-EP` and its adversarial branch check `LR-EQ`, appended at the end; stage-7b rulings amended by that round carry a paragraph headed **Amended, stage-7b critic round 1**; stage 7a's design took `LR-DS`…`LR-DX`, its critic round 1 `LR-DY`, its lane 1 `LR-DZ`, its lane 2 `LR-EA` and its lane 3 `LR-EB`, appended at the end; stage-7a rulings amended by that round carry a paragraph headed **Amended, stage-7a critic round 1**; stage 6b's design took `LR-DF`…`LR-DN`, its critic round 1 `LR-DO`, its lane 1 `LR-DP`, its lane 2 `LR-DQ` and its lane 3 `LR-DR`, appended at the end; stage-6b rulings amended by that round carry a paragraph headed **Amended, stage-6b critic round 1**; stage 6a's design took `LR-CT`…`LR-CZ`, its critic round 1 `LR-DA`, its lane 1 `LR-DB`, its lane 2 `LR-DC`, its lane 3 `LR-DD` and lane 3's verification fix `LR-DE`, appended at the end; stage-6a rulings amended by that round carry a paragraph headed **Amended, stage-6a critic round 1**; stage 5's design took `LR-CH`…`LR-CO`, its critic round 1 `LR-CP`, its lane 1 `LR-CQ`, its lane 2 `LR-CR` and its lane 3 `LR-CS`, appended at the end; stage 4's design took `LR-BQ`…`LR-BW`, its critic round 1 `LR-BX`…`LR-CB`, its lane 1 `LR-CC`, its lane 2 `LR-CD`, its lane 3 `LR-CE`, its lane 4 `LR-CF` and its lane 5 `LR-CG`, appended at the end; stage-4 rulings amended by that round carry a paragraph headed **Amended, stage-4 critic round 1**; stage 3's design took `LR-BB`…`LR-BJ`, its critic round 1 `LR-BK`, its lane 1 `LR-BL`, its lane 2 `LR-BM`, its lane 3 `LR-BN`, its lane 4 `LR-BO` and its lane 5 `LR-BP`, appended at the end; rulings amended by that round carry a paragraph headed **Amended, stage-3 critic round 1**; stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY`, its lane 4 `LR-AZ` and its lane 5 `LR-BA`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -9491,3 +9491,1367 @@ deleted engine files in the present tense (item 7).
 
 **What it costs if wrong.** A reader taking `CLAUDE.md`'s prefix line at its
 word would have appended a second `LR-FC`; nothing else observable.
+
+---
+
+## LR-FM — stage 10: which `Style` fields are "CSS fields", the rest narrowed to the package, and `Style` out of the kernel
+
+**The question.** Row 10 (parent spec §4.1) says "`Style`'s CSS fields
+deleted; `StyledElement.style` narrowed to what paint/animation read". The
+row was written (stage 1, `LR-L`) when the lowering was expected to stop
+reading CSS fields by now. Stage 2 instead gave most of them a SwiftUI-backed
+lowering (`LR-AB`…`LR-BA`: grow → a greedy frame shared equally, stretch → a
+greedy cross-axis frame aliased as the element's rect, `margin` → padding
+outside the item frame, …), and the demo leans on that (`flexGrow` ×11,
+`alignItems` ×15 in `DemoContent.swift`). Deleting every field the word "CSS"
+covers would move production pixels, which stage 10's exit (0 px against 9)
+forbids.
+
+**Evidence.** Record §53 §2.1 (every field's readers and production writers),
+§2.2 (the deletion by the compiler: 7 + 40 errors for four fields, the three
+enums, `.relative` and two modifiers; 14 + 29 for `border`), §2.3 (the
+narrowing: 0 errors, 1411 passed), §2.4 (the move: 17 errors, all in one test
+file; 1411 passed once it moved).
+
+**The ruling.**
+
+1. **A field is deleted when no lowering reads it to produce a layout, or no
+   production code writes it.** That is `aspectRatio` (read by nothing),
+   `overflow` (read by nothing; one inert write), `flexWrap` and `alignContent`
+   (read only to be reported — no lowering exists, parent spec §8 lists both as
+   deleted concepts), `border` (read by `paddedAndSized` and animated, but
+   written by no production path: `Box.swift`'s `border(_:width:)` family
+   writes `Decoration.border`, and `Box(style:)` was its only public writer),
+   and the case `Position.relative` (read only to be reported since stage 9
+   made the window the only containing block, `LR-FF`). The enums `FlexWrap`,
+   `AlignContent` and `Overflow` go with them; `LR-FN` rules the public
+   modifiers.
+2. **Every other stored field stays, and becomes `package`**, as do the enums
+   `Display` and `JustifyItems`, which then have no public writer. Their
+   meaning is the lowering's answer (each with its ruling), not CSS's. Outside
+   the package `Style` is an opaque value — `init()`, `default` and `==` stay
+   public — so an element's layout is spelled only through its modifiers,
+   each with a lowering. **This is how row 10's "`StyledElement.style`
+   narrowed" is realised**: the requirement stays `var style: Style { get set }`
+   (a public protocol cannot have a narrower requirement, and every conformer
+   and every modifier body needs it), and what an external caller can do with
+   the value narrows to nothing. Every test compiles unchanged: tests are in
+   the package (record §53 §2.3, 1411 passed with the narrowing).
+3. **`Style` moves from `MetalUILayout` to `MetalUI`.** Since stage 9 the
+   kernel reads no `Style` (its placeholder rows and `setStyle` are gone);
+   `MetalUI` is its only reader. After the move the layout kernel declares no
+   CSS vocabulary; `MetalUI` re-exports `MetalUILayout`, so no app's imports
+   change. `StyleTests.swift` moves to `MetalUICrossPlatformTests` (the only
+   portable test target that sees `MetalUI`), keeping its four tests on Linux
+   and Windows CI.
+4. **Departures from row 10's wording, recorded**: (a) most CSS-named fields
+   survive (item 2's reason); (b) `StyledElement.style` is narrowed by access,
+   not to a field list "paint/animation read" — paint reads `Decoration`, not
+   `Style`, so the literal reading would leave nothing but animation's fields,
+   which are the lowering's too; (c) `LR-P` item 0 listed `Style.flexGrow`'s
+   getter among symbols that must be absent — it is present (package) in
+   `MetalUI` and absent from `MetalUILayout`, and the closing check uses both
+   facts (`LR-FP`).
+
+**What it costs if wrong.** If a later stage wants a field public again,
+`package` → `public` is additive. If a caller outside the package wrote
+`Style` fields, it breaks at compile time with the access message (none exists
+in this repository: `Backends/SDL`, `Tests/PortableTests`, `Experiments` name
+no `Style` member). If `Style.border` is wanted back, its lowering was
+`padding + border` insets and its animation four `Length` keys — both
+recoverable from `8095fd9`.
+
+---
+
+## LR-FN — stage 10: every public API change, with its migration
+
+**The question.** Removing public API is breaking; the stage task says each
+public modifier whose only meaning was a deleted field is deprecated or
+removed per a ruling, with the migration spelling.
+
+**The ruling.**
+
+1. **Removed, not deprecated**: `StyledElement.flexWrap(_:)` with `FlexWrap`,
+   `StyledElement.alignContent(_:)` with `AlignContent`, and
+   `Position.relative`. Each has been a **production trap** since stage 6b
+   (reported `flexWrap`, `alignContent`, `position`; production frames never
+   report, they trap), so no working caller exists to warn: removal turns a
+   run-time trap into a compile error. A deprecated modifier with its field
+   gone would compile and do nothing — the declared-but-inert shape CLAUDE.md's
+   table exists to keep out (and `Box.swift`'s own `StyledElement` doc: "a
+   modifier for an inert property is worse than no modifier"). Migrations:
+   `flexWrap` — none, delete the call (lay rows out explicitly, or use `Grid`);
+   `alignContent` — none, delete the call (it placed wrapped lines);
+   `.position(.relative)` — delete it (the window is the only containing block,
+   `LR-FF`).
+2. **Removed**: `Overflow`, `Style.overflow`, `Style.aspectRatio` (no public
+   modifier ever wrote them — CLAUDE.md's inert rows; `.clipped()` clips,
+   `ScrollView` scrolls, the proposal `.aspectRatio(_:)` is a different API and
+   untouched), and `Style.border` (migration: `.padding(_:)` for the inset —
+   the lowering added the border to the padding — and `.border(_:width:)` to
+   paint, which `Style.border` never did).
+3. **Narrowed to `package`**: every other `Style` stored field, `Display`,
+   `JustifyItems` (`LR-FM` item 2). Migration per field: `display` →
+   `Stack`/`hidden()`; `position`/`inset` → `.position(_:)`/`.inset(_:)`;
+   `size`/`minSize`/`maxSize` → `.frame(…)` (`LR-ES`); `margin` →
+   `.margin(_:)`; `padding` → `.padding(_:)` (a layer: `MC-A`, one more
+   identity level); `flexDirection` → `Row`/`Column`/`Box.flexDirection(_:)`;
+   `gap` → `.gap(_:)`; `justifyContent`/`alignItems`/`alignSelf`/`flexGrow`/
+   `flexShrink`/`flexBasis` → their modifiers; `justifyItems` →
+   `Stack(alignment:)`/`.frame(alignment:)`.
+4. **Moved**: `Style` to `MetalUI` (`LR-FM` item 3). `Box(style:…)`,
+   `Stack`'s initialiser and every `public var style` keep their spelling;
+   `Style()` is the one value an external caller can pass.
+
+   **Amended, stage-10 critic round 1** (`LR-FR` F5): that makes the public
+   `style:` parameter of `Box`'s three initialisers **inert outside the
+   package** — it configures nothing an external caller can choose. It is
+   kept, recorded as a declared-but-inert row in record §05 at the Record
+   phase, and its deprecation or removal is handed to plan task 15.
+5. **Unchanged**: the eight sizing modifiers stage 8 deprecated (`LR-EU`),
+   `width(fraction:)`/`height(fraction:)` and their `percent:` renames,
+   `flexBasis(fraction:)`/`flexBasis(percent:)`, `margin(_:)`'s `Length`
+   parameter. Their fields survive, so the task's clause ("only meaning was a
+   deleted field") does not reach them; a `fraction:` spelling's nonzero value
+   traps by name (`LR-FO` item 1), as it has since 6b. Removing deprecated API
+   is a release decision, handed to plan task 15.
+
+**What it costs if wrong.** Item 1 is the only removal of a spelling that
+compiled at `8095fd9` and had a writer; if an external caller existed it now
+fails to compile instead of trapping at run time. Item 5 leaves spellings that
+trap in production reachable until task 15.
+
+---
+
+## LR-FO — stage 10: every inherited `Style`-field report becomes a permanent refusal; the §29 items; `Style()` writes, `CSSSizing.swift` and `LegacyLowering` kept
+
+**The question.** Stage 8 (`LR-ER` item 4) left seven report families to "die
+with their field at stage 10"; stage 5 (record §29 §15) left an absolute box
+outside a `Deferred`, `Position.relative`, `inset` on a static box and the
+public spelling of a presentation's insets to stage 10; stage 8 re-owned
+`…absolute` here (`LR-EZ` item 3); 7a named `flexGrow.weights`' field stage
+10's. `LR-FM` keeps most of those fields, so most reports cannot die with them.
+And every trap message names a plan-task-7 stage as owner — after stage 10,
+"(plan task 7, stage 2)" names a finished stage as if it still owed work.
+
+**The ruling.**
+
+1. **Permanent refusals**: percentages (`size`, `padding`, `margin`, `minSize`,
+   `maxSize`, `gap`, a percent `flexBasis`), a non-greedy `maxSize`, a length
+   `flexBasis`, a floored `space-*` (`justifyContent.<case>` on an unsized
+   grown container), a root's auto-axis min/max and margin (their
+   `.unconsumed` forms), `…absolute` on a `Style`-written box, `LR-AQ`'s
+   `…unconsumed` item fields, unequal grow weights (`flexGrow.weights`, 7a
+   probe G0/G1: SwiftUI shares a surplus equally), a negative `flexGrow` or
+   `flexShrink`. Each keeps its report and its production trap, now as a
+   by-name refusal of a value the kernel has no answer for, not as work owed.
+   Where the value is still publicly spellable (the `fraction:` modifiers, a
+   deprecated sizing modifier, `margin(Edges<Length>)` with a percentage,
+   `flexBasis(_:)` with a nonzero length, unequal `flexGrow`s), the trap is
+   what a caller meets.
+2. **The §29 items**: an absolute box outside a `Deferred` (`position`/`inset`
+   at the consumer, `LR-CK`) and `inset` on a static box are **permanent
+   refusals** (item 1's footing: no lowering exists, and the only absolute
+   layout the kernel has is a presentation's, `LR-CH`); `…absolute` likewise;
+   `Position.relative` is **deleted** (`LR-FM` item 1).
+3. **The owner, and the message.** `UnlowerableField.owningStage: String`
+   becomes `owner: String?` — `"plan task 7, stage 11"` for site `deferred`
+   (`deferred.amended`, `LR-FF`), `"plan task 11"` for a field with the prefix
+   `alignItems.baseline` or `alignSelf.baseline` (baselines, parent spec §8),
+   `nil` otherwise. The trap message keeps its prefix `"MetalUI: <site>.<field>
+   has no proposal lowering"` (which every `stderr` assertion reads) and then
+   reads `(<owner>)` or `and is refused by name (plan task 7, LR-FO)`. Three
+   tests read the old owner (`AbsoluteOverlayTests`' exit test,
+   `PresentationLoweringTests`' `"10"`, `LoweringScrollTests`' `"3"`) plus
+   `PresentationContainingBlockTests`' `"11"`; each is a T row in lane 1, and
+   N1.1 pins the scheme over every field the lowering raises.
+4. **The public spelling of a presentation's insets stays**
+   `Deferred { … .position(.absolute).inset(…) }` — the demo's own spelling,
+   lowered and pinned since stage 5. A presentation modifier would be new API
+   with its own identity and animation questions (`inset` animates); nothing in
+   task 7 needs it.
+5. **`Style()` writes in tests** (`LR-ER` item 6's clause, re-owned here): a
+   write of a **surviving** field stays — it is the in-package spelling of that
+   field (every test is in the package, `@testable` or not), and the
+   container-field writes still have no one-to-one modifier (`LR-ER` item 6:
+   `Box(style:)` with `flexDirection = .column` stretches where `Column`
+   centres, EP-8). A write of a **deleted** field is moved off it or retired —
+   the compiler's list, record §53 §2.2, is spec §6's lane 1. LR-ER item 6's
+   premise ("stage 10 deletes the fields and must touch every writer once")
+   holds only for the deleted fields.
+6. **`CSSSizing.swift` stays.** Its helpers write `Style.size`/`minSize`/
+   `maxSize`, which survive; they are class K's spelling (`LR-EW`), chosen
+   because `.frame` would wrap the element in a layer and change the subject
+   (record §50 §5), and that reason stands. Its doc's "they die with
+   `Style.size`/`minSize`/`maxSize` at stage 10" is corrected in lane 1.
+   `theCSSSizingHelpersWriteWhatTheDeprecatedModifiersWrite` is unchanged (the
+   deprecated modifiers survive, `LR-FN` item 5).
+7. **`LegacyLowering`'s name stays** (`LR-FC` item 4's reason): every record
+   and ruling cites it, and its header already says it is the only path since
+   stage 9. Renaming is cosmetic churn with no behaviour.
+
+**What it costs if wrong.** If a later task lowers one of item 1's values
+(a percentage against a proposal, say), its report is deleted then and its
+owner question does not arise. If a reader wants the old stage numbers, they
+are in this doc's earlier rulings and in git; the message no longer carries
+them. Item 5 leaves `Box(style:)` writes throughout the tests, which a reader
+of the public API cannot write — they test the lowering's inputs, which is
+what the lowering's own sites feed it.
+
+---
+
+## LR-FP — stage 10: the closing check — `dlsym` on macOS and Linux, three guards, the grep
+
+**The question.** `LR-P` designed the check; stage 9 deleted its runtime
+predecessor (`noProductionFrameReachesTheLegacyEngine`) and handed the check
+here. What exactly it resolves, how it cannot skip, and what it does off Apple.
+
+**Evidence.** Record §53 §2.5 and `docs/probes/stage-10-legacy-symbols.txt`:
+the names, each printed by `nm -gU` from the commit that still had it
+(`b9a5d7f` for stage 9's, `8095fd9` for stage 10's), and `dlsym(RTLD_DEFAULT,
+…)` resolving a present name and not a deleted one in the test process on
+macOS (both build systems) and Linux (`swift:6.4-noble`).
+
+**The ruling.**
+
+1. **`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`** lives in
+   `Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`, the one
+   portable target that links `MetalUI`, so Linux CI runs it. It resolves 22
+   names that must be absent — stage 9's seven (`computeLayout`, both
+   `requestNode`/`requestLeaf` pairs on `LayoutPass` and `Frame`,
+   `LayoutAuthority`'s metadata accessor, `legacyRootLayoutCounter`), stage
+   10's eleven as they existed in `MetalUILayout` (the five deleted fields'
+   getters, `flexGrow`'s getter in the kernel module, the three deleted
+   enums' metadata accessors, the two removed modifiers), and four names a
+   regression re-adding a deleted field to the moved `Style` would export
+   (**amended by `LR-FR` F1: twelve, 30 names in all** — every block-A/B
+   name whose mangling names `Style`, `FlexWrap`, `AlignContent` or
+   `Overflow` gets its `MetalUI` twin) —
+   and five positive controls that must resolve (`MetalUI`'s
+   `Style.flexGrow` getter, `StyledElement.flexGrow(_:)`,
+   `LayoutTree.computeNativeLayout(root:proposal:in:)`, and both
+   `requestNativeLeaf`s).
+2. **It cannot skip**: no `.enabled(if:)`, no early return; the positive
+   controls are `try #require`d first, so a broken instrument (a stripped
+   binary, a wrong handle) reads red, not green. The names are literals in the
+   test with a comment naming the instrument file, whose blocks carry the
+   commands.
+3. **What it cannot see** (`LR-P` item 0 said so): a renamed entry point. The
+   guards and the grep cover that.
+4. **Windows: compiled out** (`#if canImport(Darwin) || canImport(Glibc)`
+   around the file), by `PC-B`'s rule for a test that needs a platform API
+   (compiled out per declaration, not skipped). Windows has no `dlsym`;
+   `GetProcAddress` sees only symbols an executable exports, which Swift does
+   not do by default for an executable, and no Windows host was available to
+   measure it. The names are platform-independent (Swift's mangling, the
+   same source), so Windows would add no information macOS and Linux lack.
+   `MetalUICrossPlatformTests` therefore reads one fewer test on Windows (9
+   against 10).
+5. **Three plain-import guards** (`typecheckFile`, `SA-P`), in
+   `Tests/MetalUITests/StyleSurfaceCompileGuards.swift`: G1 a `Style` field
+   cannot be written from outside the package (the access message; the
+   modifier control compiles); G2 every deleted spelling fails with its own
+   message (the kept spellings compile); G3 `MetalUILayout.Style` does not
+   exist (the `MetalUI` spelling compiles). They skip where the guards always
+   skip (CLAUDE.md's CI section); the `dlsym` test is the half that cannot.
+   `LR-P` item 1's four guards: `computeLayout`/`requestNode`/`requestLeaf`
+   were re-spelled by stage 9 (`LayoutAuthorityCompileGuards`); `Style().flexGrow
+   = 1` is G1, failing by access rather than absence (`LR-FM` item 4 (c)).
+6. **The grep** (`LR-P` item 3, widened): spec §8 item 1's four commands,
+   recorded with their output in the stage's record.
+
+**What it costs if wrong.** If Linux CI's test executable stops exporting
+symbols, the positive controls fail there — loudly, which is the point. If a
+Windows path to the same check is wanted later, `GetProcAddress` over an
+executable built with exported symbols is the measurement to take.
+
+---
+
+## LR-FQ — stage 10: two lanes, the deletion last; the accounting and the mutation plan
+
+**The ruling.**
+
+1. **Two lanes, in order.** Lane 1 moves every test off a deleted field or
+   retires it (the compiler's list, record §53 §2.2), and makes the reports
+   permanent (`LR-FO` item 3; its one `Sources` file, `LayoutAuthority.swift`).
+   Lane 2 deletes, narrows, moves and lands the closing check — a red-first
+   commit (N2.1, G1–G3) and then the deletion (stage 9's N3.1 precedent). No
+   file is in both lanes (spec §4.4). A third lane would split lane 1's test
+   files, which the two families (the four fields and `border`) share
+   (`LoweringContainerTests`, `LoweringLeafTests`,
+   `GoldenReplacementStackTests`, `AnimationTests`), so it would not be
+   disjoint.
+2. **The accounting**: lane 1 removes 3 names (D1.1, D1.2, the old name of
+   T1.16) and adds 2 (N1.1, T1.16's new name): 1411 − 3 + 2 = **1410**. Lane 2
+   adds 4 (N2.1, G1–G3): **1414**. Guards 79 → **82**. Portable targets 22 +
+   188 + 10 (Windows 22 + 188 + 9).
+3. **The mutations** (spec §6): M1a–M1d in lane 1; M2a–M2g in lane 2 (M2f,
+   M2g added by `LR-FR` F2), each
+   from a committed tree, restored from a copy, full unfiltered suite, every
+   reddened test named; M2a also prints the instrument file's three predicted
+   names.
+4. **The demo**: `compare.sh <scratch> 8095fd9 <head>` 0 differing in all
+   fourteen images at both heads; `DemoFrameDeterminismTests` and
+   `DemoStackBudgetTests` green unedited; `MemoryLayout<Style>.size` and the
+   demo's value size recorded at lane 2's head (226 and 34 808 before; 178
+   predicted for `Style`).
+
+**What it costs if wrong.** Between lane 1's head and lane 2's, the deleted
+fields' report lines and `border`'s lowering are live but unpinned (lane 1
+retired or re-spelled the tests that read them); lane 2 deletes them, so no
+merged state carries unpinned code.
+
+---
+
+## LR-FR — stage 10 critic round 1: the closing check's names after the move, the missing restore-a-symbol mutation, and `Box(style:)` made inert
+
+**The round.** 2026-09-24 (PDT), one agent, critic and reviser, over
+`07e7c49` (spec, `LR-FM`…`LR-FQ`, record §53 §1–§2, the instrument file). No
+`Sources/` or `Tests/` file touched; every measurement below was taken in the
+scratchpad. Findings applied (F1–F6) and rejected (R1–R4).
+
+**F1 — applied. Block A's and B's names that spell a moved type go vacuous
+after lane 2.** A Swift mangled name carries the module of every nominal type
+in the signature. Block A's `LayoutPass`/`Frame.requestNode(style:children:)`
+spell `MetalUILayout.Style` (`…0A8UILayout…AG5StyleV…`), and block B's two
+modifier names spell `MetalUILayout.FlexWrap`/`AlignContent`; once `Style` is
+in `MetalUI`, a regression re-adding either exports `…AA5StyleV…` /
+`…yxAA04FlexF0OF`, which N2.1 as designed would never have looked up — it
+would pass with the symbol back. **Measured**: standalone two-module compiles
+(`swiftc -emit-module -module-name MetalUILayout` then `-module-name MetalUI`,
+`nm -gU`) whose **control** variant (the type left in `MetalUILayout`)
+reproduced block A's two `requestNode` names, block B's two modifier names and
+block D's `StyledElement.flexGrow(_:)` and `Style.flexGrow` names byte for
+byte; the moved variant printed the twins. Block C grows from 4 to **12**
+(the four moved-`Style` getters, the two modifier twins, the three enum
+accessor twins, the two `requestNode` twins; the border getter was already
+there); the absent list is **30** (instrument file block C; spec §6 N2.1).
+`computeLayout` and both `requestLeaf` names are **not** twinned: they spell
+`AvailableSpace`, which stage 9 deleted (no `enum`/`struct AvailableSpace` in
+`Sources` at `8095fd9`), so no source can re-export them; those rows record
+the deletion, and a re-added engine under a new signature is `LR-FP` item 3's
+renamed-entry-point case.
+
+**F2 — applied. `LR-P` item 0's mandated mutation was missing.** `LR-P` item 0
+reads "Mutation at stage 10: restore `computeLayout` as a public function
+(red)". Spec §6 re-added only stage-10 names (M2a). `computeLayout`'s exact
+name is unrestorable (F1), so the mutation is taken on the two stage-9 symbols
+that are: **M2f** re-adds `LayoutPass.requestNode(style:children:)` over the
+moved `Style` (reddens N2.1 only through F1's twin — the separating arm for
+F1), and **M2g** re-adds `enum LayoutAuthority` (block A's
+`$s7MetalUI15LayoutAuthorityOMa`, unchanged by the move).
+
+**F3 — applied. Block C's three predicted getters were unverified.** The same
+compiles printed all three exactly as predicted (plus the overflow getter,
+now listed); the instrument file says so, and lane 2 still re-confirms from
+its mutants.
+
+**F4 — applied. M1b's predicted reddened set named T1.4, which cannot redden.**
+`aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt` asserts every
+arm's hitbox is `cbBounds(185, 85, 10, 10)` and its report empty, whatever
+surrounds the root (`PresentationContainingBlockTests.swift`, the arm loop):
+dropping the padding from `paddedAndSized` moves no presentation. Removed from
+M1b's list; its fold is pinned by its subject, not by M1b.
+
+**F5 — applied as a ruling. `Box(style:)` becomes inert outside the package.**
+`LR-FN` item 4 kept the `style:` parameter "for `decoration:`" — a separate
+parameter; the reason was wrong. With every field `package`, an external
+caller can pass only `Style()`, so `Box`'s three public `init(style:…)`
+spellings (`Box.swift:45`, `:53`, `:162` at `8095fd9`) carry a parameter that
+configures nothing — the declared-but-inert shape. **Kept anyway**: removing
+it breaks every in-package caller (251 `Box(style:`/`Stack(style:` sites in
+`Sources` and `Tests`), and deprecating the public spelling while keeping a
+package one duplicates three initialisers for a question plan task 15 owns
+(release-facing API removal, as `LR-FN` item 5). Recorded as a record §05
+inert row at the Record phase, handed to task 15. The demo's one
+`Box(style: row)` (`DemoContent.swift:301`) is likewise a spelling no external
+app can write after this stage; it stays (re-spelling its `padding` as a
+`.padding` layer adds an identity level and risks the 0 px exit), noted in
+the Record phase's §05 row.
+
+**F6 — applied. The grep's golden count changed spelling silently.** `LR-P`
+item 3 names `find Tests -name "*.json" | wc -l`; spec §8 used `git ls-files
+'Tests/*.json'`. Both read 0 at `8095fd9` in the worktree; the deviation's
+reason (`find` counts `Tests/PortableTests/.build`'s JSON artifacts once built,
+CLAUDE.md's goldens bullet) is now written in §8, and both outputs are
+recorded.
+
+**Rejected.**
+
+- **R1 — a third lane.** `LR-FQ` item 1's reason holds: lane 1's test files are
+  shared by both deleted-field families, and lane 2's red-first commit needs
+  the move it tests. Lane 2 grows by two mutations and eight literals, not by a
+  file.
+- **R2 — run the closing check on Windows.** `LR-FP` item 4 stands: no Windows
+  host to measure `GetProcAddress` against a Swift test executable, and the
+  names are the same strings; compiled out per `PC-B`, not skipped.
+- **R3 — stage-11 pre-emption.** Neither lane's file list (spec §4.4) names
+  `ModifiedElement`, `NativeModifiedContent`, the overlay or `.opacity`; the
+  removed modifiers live in `Box.swift`'s `StyledElement` extension. None.
+- **R4 — a SwiftUI claim needing a probe.** The spec makes none; `LR-FO` item
+  1's equal-share reason cites 7a's existing probe G0/G1, unchanged.
+
+**What it costs if wrong.** If F1's twins are mis-spelled the lane's M2a/M2f
+nm readings correct them before N2.1 lands; if F5's inert parameter matters
+to an external caller before task 15, making the fields `public` again is
+additive (`LR-FM`'s cost paragraph).
+
+## LR-FS — stage 10 lane 1: two of the spec's mutation predictions refuted by running them; M1b′ added
+
+**Lane 1**, 2026-09-24 (PDT), commits `51c288a` (red first) and `84ad1e6`
+(`UnlowerableField.owner`). Mutations taken in the worktree, each built and
+run unfiltered and restored from a copy, `git status --short` empty after
+each (record §53 §4).
+
+1. **M1b does not redden T1.14.** Dropping the padding from
+   `paddedAndSized`'s `inset(_:_:)` reddened
+   `paddingAndBorderInsetTheContentBoxEdgeByEdge` (T1.13, 10 issues) and
+   `aDeclaredMainSizeIsNeitherShrunkNorFlooredByContentOrPadding` (T1.15, 2)
+   among 50 tests (236 issues), but not
+   `aStretchedStackChildIsNotFlooredByItsPaddingAndBorder` (T1.14): its `f`
+   and `c` have no content, so no inset moves a rect it asserts — its subject
+   is the border-box floor. Its fold is pinned instead by **M1b′**, the
+   stretched axis's `lo` floored at the item's padding + border (stage 9's
+   M2f, re-run on the folded 70/60/70/60 fixture): reddens T1.14 alone (2
+   issues, `f` and `c`). The fold kept the test discriminating, which is
+   what the spec's M1b line was for.
+2. **M1d does not redden N1.1.** Deleting the leaf `inset` row from
+   `legacyLeafDiagnostics` reddened `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+   (T1.5, 6 issues — one per `inset` arm, so every re-spelled site arm is
+   live), `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (T1.6, 2)
+   and `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
+   (T1.9, 1). N1.1 is a static table of `UnlowerableField` values whose
+   `owner` and `trapMessage` it checks; it never runs the lowering. Its
+   instrument is M1a, which reddened it (96 issues) and T1.1 as predicted.
+   Whether each table row is actually raisable is not N1.1's claim — the
+   site tests' (T1.5, T1.6, T1.8, T1.9) and the unconsumed-report tests' are.
+3. M1a and M1c read as predicted (M1a: N1.1, T1.1; M1c: T1.9, 3 issues).
+
+**What it costs if wrong.** Nothing in `Sources/` rests on either
+prediction; they were claims about which test sees which mutation, now
+replaced by the measured sets.
+
+---
+
+## LR-FT — stage 10 lane 2: the deletion as designed; M2c reads at the positive control; the stack budget measured
+
+**Lane 2**, 2026-09-24 (PDT), commits `79cca7e` (red first: N2.1, G1–G3) and
+`133f634` (the deletion, the narrowing, the move), then one doc-comment
+commit. Mutations taken in the worktree, each built and run unfiltered and
+restored from a copy, `git status --short` empty after each (record §53 §5).
+
+1. **The design held.** The deletion needed no `Sources/` change beyond spec
+   §6's list (seven errors in `AnimatedStyle.swift`, `LegacyLowering.swift`,
+   `ScrollView.swift` once `Style.swift` was rewritten), and no test outside
+   lane 2's list (the only test errors were `StyleTests.swift`'s, after its
+   move). Suite **1410 + 4 = 1414**, guards **79 + 3 = 82**, portable
+   22 + 188 + 10 on Linux (`swift:6.4-noble`, N2.1 green there).
+2. **M2c reads at the positive control, not at block B.** With `Style.swift`
+   moved back to `MetalUILayout`, N2.1 fails at its first `try #require`
+   (`$s7MetalUI5StyleV8flexGrowSfvg does not resolve`), which ends the test
+   before the absent loop — by design (`LR-FP` item 2: a broken instrument, or
+   a moved type, reads red at the controls). Block B's
+   `$s13MetalUILayout5StyleV8flexGrowSfvg` is exported by the mutant (`nm -gU`
+   on the test binary: `T _$s13MetalUILayout5StyleV8flexGrowSfvg`), so the
+   spec's "block B's resolves" half is true of the binary but is not what the
+   test reports. G3 reddens with it, as predicted.
+3. **M2g needs no stored use.** An unused internal `enum LayoutAuthority {
+   case proposal }` in `MetalUI` exports `$s7MetalUI15LayoutAuthorityOMa` in
+   the debug test binary (`-enable-testing`), and N2.1 names it.
+4. **Block C's twins confirmed by `nm` on the real build** (`LR-FR` F1–F3):
+   M2a's three (`$s7MetalUI5StyleV8flexWrapAA04FlexE0Ovg`,
+   `$s7MetalUI13StyledElementPAAE8flexWrapyxAA04FlexF0OF`,
+   `$s7MetalUI8FlexWrapOMa`) and M2f's
+   `$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF`
+   byte for byte as the instrument file predicted; M2f also reddens stage 9's
+   `aPlainImportCallerOfTheLegacyRegistrarsNoLongerCompiles`.
+5. **The Windows stack budget improves, measured.** `MemoryLayout<Style>.size`
+   226 → **178** (as predicted), `Box<EmptyGroup>` 616 → 568,
+   `MemoryLayout.size(ofValue: demoContent())` 34 808 → **32 216** (54
+   `Style`s × 48 bytes), and the smallest thread stack that builds every
+   production tree on macOS arm64 (debug, the stack-budget harness in an exit
+   test, 16 KB steps then 4 KB) **> 512 and ≤ 528 KB at `8095fd9`, > 480 and
+   ≤ 484 KB at `133f634`** — both measured the same way in this session.
+
+**What it costs if wrong.** Nothing in `Sources/` rests on items 2–3; they
+are claims about which test reports which mutation, replaced by the measured
+readings.
+
+
+## LR-FU — stage 10's adversarial branch check: the stage stands; seven doc defects, two of them claimed edits that never landed
+
+**Context.** The adversarial branch check of `8095fd9..92ae50b` (record §53
+§7) re-took every exit criterion of spec §8 from a clean build, ran two
+mutations of its own design, took the offscreen comparison and — the screen
+being unlocked — a real-window capture, and resolved every ruling id and test
+name the changed docs cite.
+
+**Ruling.**
+
+1. **The stage stands; no code defect.** `Test run with 1414 tests in 3 suites
+   passed` after `swift package clean`; 82 guards (the log carries the
+   `FR-J` line and all three `StyleSurfaceCompileGuards`); 0 goldens; 0
+   `error:` and only SwiftPM's notice on both build systems; the fourteen
+   offscreen images and the real-window default/preview pair read 0 against
+   `8095fd9`; `Backends/SDL` 21 + 19; `Tests/PortableTests` 18 + 6 + 5; a
+   `swift:6.4-noble` container 22 + 188 + 10 with
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. Merge verdict:
+   **merge**, after these doc fixes.
+2. **Mutation MA** (`public var aspectRatio: Float? = nil` re-added to the
+   moved `Style`) reddens exactly
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, naming
+   `$s7MetalUI5StyleV11aspectRatioSfSgvg`: block C's twin for a field no lane
+   mutation re-added, so the twins are right beyond `flexWrap`. G2 does not
+   redden — it has no `Style().aspectRatio` fixture; N2.1 is that field's only
+   tripwire, which is sufficient and is recorded, not fixed. **Mutation MB**
+   (`newStyle.gap = …` deleted from `animated`) reddens exactly
+   `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` and
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`: the surviving
+   animated fields still animate and are pinned.
+3. **Doc defects, fixed in the check's commit:**
+   (a) record §05's stage-10 section and CLAUDE.md's stage-10 bullet said the
+   border fold "survives … a border that can only ever be `.zero`" —
+   refuted by `paddedAndSized`, whose insets are `resolvedLength(padding)`
+   alone since lane 2; (b) record §05 said `LegacyEngineSymbolTests`'
+   **positive control** names the deleted `overflow` accessor — it is in the
+   absent list; (c) record §05 said no caller loses behaviour from
+   `Style.border`'s deletion — an external writer loses its inset and migrates
+   to `.padding` (`LR-FN`); (d) record §53 §6.4 said record §04 was updated
+   (no commit touched it — the stage-10 section is written now, and names
+   divergence 54's live pin, stale in the table since 7b) and named
+   `08-ci.md` for `08-when-ci-lands.md`; (e) "`Box`'s/`Stack`'s public
+   `style:` parameter" in CLAUDE.md, record §05, §53, the plan and spec §9 —
+   `Stack` has no `style:` initialiser (only `Box`'s three `init(style:…)`;
+   every conformer's `public var style` is equally opaque), so `LR-FR` F5's
+   "251 `Box(style:`/`Stack(style:` sites" counts no `Stack(style:` site;
+   (f) spec §6 and CLAUDE.md's Animation paragraph cite
+   `everyRegisteringSiteAnimatesItsStyle`, retired at 7b (record §49 row 241)
+   — replaced by `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`;
+   (g) CLAUDE.md's stage-2 bullet still listed `Style.border` as lowered and
+   the reported fields as "each with an owner" (now permanent refusals but
+   `baseline`; `hidden()` lowers since 6b), its guard sentence called G2/G3
+   "whole-file compile fixtures" rather than plain-import guards, and the
+   "Eight constraints" lacked spec §9's "`MetalUILayout` declares no
+   `Style`". Three `AnimationTests` comments/messages still said 28 fields.
+4. **Not stage 10's, recorded:** the row-10 phrase "`StyledElement.style`
+   narrowed to what paint/animation read" is met by access (`LR-FM` item 2),
+   not by a shorter field list, and ≈ 1411 `css*` sites and the `Style()`
+   writes in tests stay because their fields survive (`LR-FO` items 5–6) —
+   both are rulings the check read and does not overturn; stage 11's
+   `ModifiedElement`/`ModifiedContent` files are untouched.
+
+**What it costs if wrong.** Nothing in `Sources/` rests on this ruling.
+
+
+---
+
+## LR-FV — stage 11: ONE flat `ModifiedContent<Content, Modifier>`, the second parameter a vocabulary; `ModifiedElement` a typealias; every id path unchanged
+
+**The question.** Parent spec §4.1 row 11 and outer-modifiers spec §9: unify
+`ModifiedElement` (legacy, flat since `MC-A`, `StyledElement`) and
+`ModifiedContent` (proposal, one nested value per modifier, `ProposalElement`)
+now that one engine remains. Which survives, with what generic shape, without
+moving an id path (`MC-A`/`MC-C`/`MC-P`) or a state-retention test?
+
+**Evidence.** The skeleton probe `docs/probes/stage-11-unified-modifier-skeleton/`
+(record §54 §2): MetalUI's protocol shapes as a separate module, Swift 6 mode.
+It compiles; the legacy chain infers `ModifiedContent<Box, ModifierLayer>`, the
+proposal chain `ModifiedContent<Rect, LayoutModifier>`, a legacy wrapper after a
+proposal chain `ModifiedContent<Rect, ModifierLayer>` with the proposal layer
+absorbed; `.background(token)` resolves on each without ambiguity; every
+layer's id is `.child(of: outer, at: 0)` and the content numbers from 0 under
+the innermost, reading exactly the ids nested `ModifiedContent`s (and
+`ModifiedElement<ModifiedContent<X>>`) produce; six negatives are rejected as
+predicted, and `extension ModifiedElement` over the typealias still compiles.
+Baseline sizes and the stack budget: record §54 §1.
+
+**The ruling.**
+
+1. **`ModifiedContent` survives and takes SwiftUI's second generic parameter**,
+   `ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind>`. The
+   parameter is the chain's vocabulary — `ModifierLayer` (legacy) or
+   `LayoutModifier` (proposal) — and both chains are flat: outermost layer
+   inline, the rest in an array, innermost first (`MC-K`'s storage), plus a
+   `prefix: [LayoutModifier]` for proposal layers a legacy wrapper absorbed.
+   `public typealias ModifiedElement<Content> = ModifiedContent<Content,
+   ModifierLayer>`, **undeprecated** (its fate is task 15's, with the other
+   spelling-only decisions).
+2. **Conformances by vocabulary**: `StyledElement where Modifier ==
+   ModifierLayer`; `ProposalElementGroup, ProposalElement where Content:
+   ProposalElementGroup, Modifier == LayoutModifier`. So no chain has two
+   candidates for `.background(token)`, `.opacity`, `.border` or
+   `.allowsHitTesting`.
+3. **Identity** — every id path byte-identical: legacy chains run
+   `ModifiedElement`'s code; a proposal layer's id is `.child(of: outer, at: 0,
+   name: nil)`, which is what entering a nested `ModifiedContent` as a group
+   member at cursor 0 produced; the absorbed prefix sits innermost, where
+   `ModifiedElement<ModifiedContent<X>>` put it. The state-retention and
+   identity tests spec §3.3 lists stay **unedited**.
+4. **`LayerBase == Content` for both vocabularies**, and `ProposalElementGroup`
+   gains `ProposalBase`/`_wrapLayout` (defaulted), `MC-A`'s design mirrored, so
+   every proposal modifier keeps one overload and appends.
+5. **One layer recursion** (`ModifiedElement`'s, moved), each layer's work
+   dispatched to its kind through `ModifierLayerKind`'s underscored
+   requirements; a proposal layer never calls `registerHandlers` and never
+   animates, as today; the `MC-B` per-layer mirrors now run for proposal layers
+   too, which got them from `Element`'s group defaults at every nested level.
+6. **Typed/untyped entry**: the untyped `requestLayout` registers the content
+   through `requestGroupLayout`, the conditional `requestProposalLayout`
+   through `requestProposalGroupLayout`, both into one shared body.
+7. **`OverlayModifier` stays its own two-subtree type** (`LR-FX`), and so do
+   `BackgroundModifier` and `OnTapModifier`.
+8. **Public breaks, each with its spelling** (spec §3.4): one-argument
+   `ModifiedContent<C>` → `ModifiedContent<C, LayoutModifier>` (or the
+   deprecated `NativeModifiedContent<C>`, retargeted); a nested proposal-chain
+   annotation → the flat type; `ModifiedContent.content` is the base content;
+   `String(describing:)` of a legacy chain type prints `ModifiedContent<X,
+   ModifierLayer>`; a legacy chain rejected by a proposal container is reported
+   as a same-type failure rather than by `ProposalElementGroup`.
+
+**Reasoning.** *Why flat for proposal too, when SwiftUI nests*: plan task 3
+asked for a type that does not grow, `MC-A` delivered it for legacy chains, and
+a unified type with two shapes would keep two implementations — the thing this
+row removes. *Why not SwiftUI's nesting for both*: a run-time layer count in one
+type is load-bearing (`growableChain(_:adding:)`, `labelledChain(adding:)`), and
+nesting would force the state tests this stage must not edit. *Why a second
+parameter at all*: a one-parameter flat type is `StyledElement` and
+conditionally `ProposalElement`, and its decoration calls go ambiguous on every
+proposal chain; choosing by base content moves `Rectangle().padding(Pixels(8))
+.background(x)` from one id level to two. *Why `LayerBase == Content` and not
+per vocabulary*: an associated type has one witness per conformance; absorbing
+the proposal layers keeps it one.
+
+**What it costs if wrong.** If the real overload set costs more solver work
+than the skeleton's, `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`
+reddens in lane 1 before anything else lands, and the fallback is keeping the
+proposal chain nested (`ProposalBase = Self`) with everything else intact — a
+one-line change that gives up flatness on that path only. If an id moved
+despite item 3, an unedited state test reddens; a lane that must edit one
+stops.
+
+---
+
+## LR-FW — stage 11: whatever is written after `.opacity` is outside it, on both paths; divergence 45 retires, 46 stays
+
+**The question.** G4 (divergence 45, `OM-N`) and `OM-AA` a: on the legacy path
+`.opacity(0.5).background(x)` fades the fill, where SwiftUI and MetalUI's own
+proposal path do not.
+
+**Evidence.** `swiftui-border-clip-paint.swift`, re-run 2026-09-24 byte for byte
+(G3 faded, G4 full) and extended with group H, run in both forms (record §54
+§1): H1 `border.opacity` faded, H2 `opacity.border` the full colour B2 reads,
+H3 a background between two opacities faded once. H1/H2 is the separating
+pair. At `47c0d98` the legacy path fades the fill and the border in every
+order (`opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` pins the
+fill; nothing pins the border — H2's MetalUI twin was unrecorded).
+
+**The ruling.**
+
+1. `Decoration` records the write order: `backgroundFollowsOpacity` and
+   `borderFollowsOpacity`, internal, default `false`. The three background
+   modifiers set the first, every border modifier the second, `.opacity`
+   clears both.
+2. `paintDecoration` emits a following fill before opening the opacity scope
+   and a following border after closing it; emission order is unchanged.
+3. Divergence **45 retires**, border twin included; `OM-AA` a is closed — both
+   paths answer G3, G4, H1, H2, H3 alike, asserted through a legacy and a
+   proposal `ModifiedContent` (spec N2.1).
+4. Divergence **46** is **kept**: two `.opacity` writes on one element still
+   replace (`OM-AH`); H3's legacy fill agrees with SwiftUI, its content does
+   not.
+
+**Reasoning.** A new layer for `.opacity` would add an id level to every chain
+that writes it and move `@State` (`MC-C`); recording order costs two bits and
+moves nothing else. SwiftUI's rule (H) is positional, so the fill and the
+border both follow it; one flag for both would get H1-with-G4 wrong.
+
+**Amended, stage-11 critic round 1** (`LR-GA` items 1–2). Items 1 and 2 are
+replaced: the two `Bool`s become one internal six-member `escapesOpacity`
+set, one member per slot (plain, hover, focus × fill, border); each modifier
+inserts its own member only while the decoration's `opacity < 1`; `.opacity`
+empties it; `paintDecoration` escapes the fill or border iff **the slot that
+won** is in the set. The design's one bit per three slots let
+`.background(red).opacity(0.5).hoverBackground(blue)` paint the unhovered red
+opaque, and its unconditional write reddened `ModifierTests`' one-field table.
+
+**What it costs if wrong.** A caller who wrote `.opacity(0.5).background(x)`
+meaning to fade the panel sees an opaque fill — SwiftUI's answer, and the
+spelling that fades it is `.background(x).opacity(0.5)`. No demo site writes
+that order (spec §8), so no pixel moves.
+
+---
+
+## LR-FX — stage 11: the legacy `.overlay` is `OverlayModifier` generalized, lowered like a frame layer's child
+
+**The question.** `CN-Q` and outer-modifiers §9 hand legacy `.overlay` to the
+unification, reasoning that a flat `ModifiedElement` cannot hold a second
+subtree and "a second needs a second generic parameter".
+
+**Evidence.** The skeleton (`LR-FV`): an overlay cannot be a vocabulary of the
+flat type — `LayerBase` has one witness, and a legacy wrapper after an overlay
+would have to return `ModifiedContent<Content, ModifierLayer>`, dropping the
+overlay's subtree — and erasing the subtree makes its `@State` inert, which is
+the overlay-primary-shape probe's whole answer. `OverlayModifier<Content,
+Overlay>` already has the second parameter; generalized, it works over legacy
+content and still enters an `HStack` over proposal content. The
+overlay-primary-shape probe re-ran byte for byte (P1–P5 kept, A/B/Q controls).
+
+**The ruling.**
+
+1. `OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>`, proposal
+   conformances conditional on both sides; one `.overlay(alignment:content:)`,
+   on `ElementGroup`.
+2. Identity: `MC-P` unchanged.
+3. Both sides' nodes pass through `lowerAttachmentChildren`: consumed and
+   planned at `parentKind: .stack`, `parentSite: .modifierLayer` (unreachable
+   in a report from a `.stack` plan, `LR-BM`), as a frame layer's single-node
+   arm (`LR-AZ`); a record-less proposal node is registered unwrapped.
+4. A presentation is dropped on either side; a presentation **primary** leaves
+   zero primary nodes and traps by the existing precondition's message.
+5. The exit's "overlay-primary-shape probe through the unified type" is met by
+   the probe's arms run over legacy primaries, a legacy `ModifiedContent`
+   primary and a proposal `ModifiedContent` primary (spec N1.3).
+6. A legacy `.background { content }` is **not** added (task 8).
+
+**Reasoning.** Generalizing the type that has the parameter is the smallest
+change that gives the answer; one overload keeps the solver where it is. The
+`.stack` planning is the rule a frame layer, a component amend and a `Stack`
+already follow for a child's flex fields — an overlay attachment is a
+one-primary stack. A trap for a portal primary is a named answer where the
+alternative is an overlay proposed 0×0 at an in-flow point nobody sees.
+
+**Amended, stage-11 critic round 1** (`LR-GA` item 3). Item 4 gains a
+sibling: a primary of **two or more** nodes (a multi-member `Component`)
+traps by the same precondition, pinned by exit test N1.7; per-member
+distribution is `Group` semantics, plan task 8's.
+
+**What it costs if wrong.** A primary's `flexGrow` is dropped under
+`.overlay` — the frame layer's known drop (`LR-AZ`, a rect disagreement, never a
+trap); the spelling that grows is the grow on a wrapper outside the overlay.
+
+---
+
+## LR-FY — stage 11: `deferred.amended`, `Component.width`, the multi-member absolute frame, and the exit citation
+
+**Evidence.** Record §54 §3–§4, two scratch measurements (reverted): a legacy
+`.frame(width: 70)` layer over a presenting `Component` reports nothing and
+leaves the presented hitbox at (5, 5) 10×10; `.width(70)` on the same
+component reports `deferred.amended` with the hitbox at the same (5, 5) 10×10.
+With `legacyFrameLayerDiagnostics`' `&& childCount <= 1` removed, a two-member
+`Component`'s `.frame(width: 20, height: 20).position(.absolute).inset(top: 10,
+left: 30)` in a `Deferred` reports nothing and places its members at (35, 15)
+and (55, 15) — `LR-BH`'s row, presented at the insets.
+
+**The ruling.**
+
+1. **`deferred.amended` is deleted**: an amend over a presentation member
+   answers as the `.frame` layer does (the placeholder handed on and dropped,
+   `LR-CK`; the window is the containing block whatever surrounds it, `N3.1`).
+   `UnlowerableField.owner` loses its stage-11 branch; `LoweringSite.deferred`
+   stays, as the placeholder record's site (`Deferred.swift:117`).
+2. **`Component.width`/`height` and `StyledComponent.width`/`height` stay,
+   undeprecated, reconciled by ruling**: `.width` is one frame per member
+   (`LR-BG`, SwiftUI's G7/G8), `.frame` one layer over the members' row
+   (`LR-BH`). A `.frame` that distributes per member is SwiftUI's `Group`
+   semantics, plan task 8's (`CN-Q`); it would add id levels and move members.
+3. **The one-node condition on the absolute-frame exemption is deleted**
+   (`LR-EV` as amended by `LR-EY` item 3): a multi-member absolute frame in a
+   `Deferred` is a presentation root whose element is `LR-BH`'s row.
+4. **The exit citation**: G3/G4 are `swiftui-border-clip-paint.swift`'s arms;
+   `swiftui-outer-modifier-order.swift` has no G group. Row 11 and `LR-V` are
+   read as border-clip-paint G3/G4 (and H) plus overlay-primary-shape; the
+   Record phase corrects the parent row, and both probe headers say so.
+
+**Reasoning.** Items 1 and 3 turn reports into the answers two existing
+rulings already compose to, each measured; neither adds a lowering concept.
+Item 2 is the only reconciliation that moves nothing, and `Group` distribution
+has an owner whose subject it is.
+
+**What it costs if wrong.** Item 1: an amend over a portal is silent — as a
+`.frame` over one has been since stage 5. Item 3: a presented component row
+sits at its insets with its members centred in their frames; a caller wanting
+one frame around both wraps them in a `Box`.
+
+---
+
+## LR-FZ — stage 11: two lanes, in order; the accounting; the demo; task 7's close
+
+**The ruling.**
+
+1. **Two lanes, run in order**, files disjoint (spec §7): lane 1 the unified
+   type and the legacy overlay (`LR-FV`, `LR-FX`); lane 2 the opacity order and
+   the owned lowering items (`LR-FW`, `LR-FY`), after lane 1 because its exit
+   test annotates lane 1's type. Opus for both.
+2. **Accounting**: 1426 → **1437** (+8, +3; one rename; nothing retired);
+   guards 82 → **84** (G1.1, G1.2, each mutated red once); goldens 0.
+3. **Demo**: 0 differing pixels in all fourteen images against `47c0d98`;
+   `Expected.swift` unmoved; `Backends/SDL` 0 px. Any difference is a finding.
+4. **Stack budget**: `MemoryLayout` sizes and the smallest-stack bisection
+   re-taken after lane 2 and recorded beside record §54 §1's.
+5. **Task 7 is ticked only on the adversarial check** of spec §9: every §4.1
+   row's exit criterion confirmed on the branch, a retired exit test by its
+   replacement. The Record phase writes task 7's closing summary in the plan
+   and CLAUDE.md.
+
+**What it costs if wrong.** Two lanes where three were allowed: lane 1 is the
+larger, and its failure modes (solver work, an id) redden early and loudly.
+
+**Amended, stage-11 critic round 1** (`LR-GA` items 4, 6, 7). Item 1: **three
+lanes**, in order — the unified type; the legacy overlay; the opacity order and
+the owned lowering items. Item 2: **1426 → 1439** (+4, +5, +4). Item 4: the
+stack bisection is taken after lane 1 and after lane 3, and a smallest stack
+above 544 KB blocks. Item 5: the check also covers spec §9.1 (the plan's own
+task-7 clauses, `CN-Q`'s hand-offs, and every divergence, inert row and
+`UnlowerableField.owner` still naming task 7), and spec §9's row 8 reads the
+branch, not record §50.
+
+
+---
+
+## LR-GA — stage 11, critic round 1: seven findings against the design, each applied
+
+**The round.** The critic re-ran `swiftui-border-clip-paint.swift` (script
+form, `/usr/bin/swift`, exit 0, empty stderr): G3, G4, H1, H2 and H3 are
+byte-identical to the header. It re-ran `swiftui-overlay-primary-shape.swift`:
+all eleven output lines occur verbatim in the header, controls A, B, P5, Q
+included. So the design's SwiftUI claims stand. The findings are about MetalUI
+itself, each read in source at `47c0d98`:
+
+1. **The opacity fix leaked across slots** (`LR-FW` items 1–2). `.background`,
+   `.hoverBackground` and `.focusBackground` wrote one shared fill flag
+   (`Box.swift:723, 741, 758`), but the painted fill is whichever slot wins,
+   `focus ?? hover ?? plain` (`AnimatedColor.swift:357`). So
+   `.background(red).opacity(0.5).hoverBackground(blue)` would have painted
+   the **unhovered** red opaque. That red was faded at `47c0d98` and is faded
+   in SwiftUI's G3. The borders had the same leak. **Applied**: one internal
+   six-member set, one member per slot; `paintDecoration` reads which slot won.
+   New test N2.4, mutation M2i (the design's one bit) reddens it.
+2. **The flag reddened a retained test the design did not list.**
+   `ModifierTests`' one-field table asserts `got.decoration ==
+   expectedDecoration` (`ModifierTests.swift:416`), where the `effect` closures
+   write the public field and set no flag. `Decoration` is `Hashable`
+   (`Box.swift:211`), so an unconditional write makes `Box().background(x)`
+   unequal to it. **Applied**: a member is inserted only while `opacity < 1`,
+   the one case where it changes paint. N2.4's equality arm and mutation M2j
+   pin it, and the table stays unedited.
+3. **A multi-member legacy primary under `.overlay` was unruled.** A
+   `Component` with two members hands the attachment two nodes, and
+   `NativeBackgroundModifier.swift:91`'s precondition traps at run time in
+   production. The design named only the zero-node case, a presentation.
+   **Applied**: ruled as the named answer (`LR-FX`, amended), with exit test
+   N1.7. `Group` distribution goes to task 8.
+4. **A retained test changes its answer without a T row.**
+   `PresentationLoweringTests.aPresentationWhoseContainingBlockIsNotTheWindowIsReportedByName`
+   has an arm expecting `["deferred.amended"]` (`PresentationLoweringTests.swift:440–442`).
+   Deleting the report reddens it. **Applied**: added to lane 3's T list, and
+   the arm moves to N2.2. N2.3 also gains the out-of-`Deferred` control and
+   mutation M2g′, so removing the one-node condition cannot widen the
+   exemption silently.
+5. **Two stage-11 hand-offs were missing from spec §2.** The design grepped
+   `Sources`, `Tests` and records §29, §38, §41, §48–§53, but not record §04.
+   Record §04's 2026-09-22 section hands divergence **54** to "stage 11 /
+   task 10", and **56**'s `TB-M` remainder ("framed members staying one flex
+   item") to "stage 11". Neither is a modifier question. 54's fix moves every
+   legacy `ScrollView`'s cross axis. 56's remainder is `Group` distribution,
+   which §6.2 already sends to task 8. **Applied, as re-ownings**: 54 goes to
+   **plan task 10**, and 56's remainder to **plan task 8**. Their pins are not
+   edited. Spec §6.5, and §10's table.
+6. **The task-7 tick could leave task-7 owners behind.** Spec §9 checked only
+   the §4.1 rows. Three things were outside it: the plan paragraph's own
+   clauses, `CN-Q`'s hand-off list (35, 52–56, legacy `ideal`, the greedy
+   maxima, a multi-member frame), and live record rows still owned by "task
+   7". Row 8 also cited "records §50", which is a record's claim, where the
+   check's rule is to read the branch. **Applied**: new spec §9.1, and a
+   rewritten row 8. Any unconfirmed clause leaves task 7 unticked. The
+   divergence count was stale too: record §04 reads **56** live after stage 9,
+   not CLAUDE.md's 58, so 45's retirement gives **55**.
+7. **Lane 1 was too large, and the stack budget had no threshold.** The
+   unified type and the legacy overlay touch disjoint files, and they fail in
+   different ways (solver budget or an id path, versus a new lowering helper).
+   **Applied**: **three lanes**, in order. The smallest-stack bisection is
+   taken after lane 1, where the recursion changes, and again at the end. A
+   result above **544 KB** (one step over `(512, 528]`) blocks the lane,
+   because Windows CI's 1 MB test is the only other signal, and it only
+   arrives after a push.
+
+**Rejected: none.** Items checked and found sound, with no change: the id-path
+argument (§3.3). A nested `ModifiedContent` enters its content through
+`enteringGroupMember` at cursor 0 with `name: nil`
+(`ProposalNodeID.swift:118`), which is the flat recursion's rule. Also sound:
+the decoration hooks per layer, since the `MC-B` mirrors match
+`Element.prepaintGroup`/`paintGroup` (`ElementGroup.swift:135–180`); and
+`animated(_:_:for:pass:)`, which copies the `Decoration` (`newDecoration =
+decoration`, `AnimatedStyle.swift:402`), so the new set survives animation.
+The `LR-FY` measurements are sound and not re-taken. The demo writes no
+legacy `.opacity` before a decoration: its two `.opacity` calls, at
+`DemoContent.swift:1073, 1178`, are both on proposal chains.
+
+**What it costs if wrong.** Item 2's condition means that
+`.opacity(0.5).background(x)`, and `.opacity(0.5)` followed later by a direct
+field write, compare as different decorations. They also paint differently,
+so the inequality is correct. Item 5's re-ownings leave 54 and 56 live after
+task 7. Each one names its task, and neither is a modifier question.
+
+---
+
+## LR-GB — stage 11, lane 1: the unified type as built; N1.2's spelling corrected; M1a re-spelled; the budget and the stack re-taken
+
+**The lane.** Commits `273bbd8` (red first) and `82c5ef9` (the type). Record
+§54 §7 has the red lines, the mutation table, the sizes, the bisection and the
+demo comparison. `LR-FV` holds **as ruled**: one flat `ModifiedContent<Content,
+Modifier>`, `ModifiedElement` a typealias, `ProposalBase`/`_wrapLayout`, every id
+path unchanged. Every state-retention and identity test that spec §3.3 lists
+stayed green **unedited**. The budget guard
+(`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`) was run first
+against the real overload set and stayed green at its literal 1000, with its
+negative still "unable to type-check". So `LR-FV`'s fallback (a nested proposal
+chain) was **not** taken.
+
+1. **N1.2's spelling was wrong in the spec, and is corrected.** Spec §3.1's
+   third row, `Rectangle().padding(e).padding(Pixels(8))`, "type at
+   `47c0d98`: `ModifiedElement<ModifiedContent<Rectangle>>`", **never
+   compiled**. The legacy `.padding(_: Pixels)`/`.padding(_: Edges<Length>)` are
+   declared on `StyledElement` (`Box.swift`'s `extension StyledElement`), and a
+   proposal chain is not a `StyledElement`, at `47c0d98` or now. Measured:
+   `cannot convert value of type 'Pixels' to expected argument type
+   'Edges<Pixels>'` at `47c0d98`. The only legacy wrappers on `ElementGroup`
+   are the two `.frame` overloads. On a concrete proposal receiver the proposal
+   `.frame` is more specialized and wins. So **a legacy wrapper reaches a
+   proposal chain only in generic code** (`func f<T: ElementGroup>(_ t: T) {
+   t.frame(…) }`, dispatched through `_wrap`), or through a direct `_wrap` call.
+   The absorbed `prefix` exists for exactly that path. It is what lets
+   `LayerBase == Content` have one witness (`LR-FV` item 4), and it keeps that
+   path's ids. N1.2 is re-spelled
+   `legacyFrame(leaf().padding(e)).background(.accent)`, where `legacyFrame` is
+   a generic `<T: ElementGroup>` `.frame(width: 40, height: 30)`. The literals
+   were taken at `47c0d98` from the same spelling, which there inferred
+   `ModifiedElement<ModifiedContent<Rectangle>>`. N1.2 gains **arm 2**,
+   `… .background(.accent).padding(Pixels(8))`, which holds a prefix, an inner
+   legacy layer and an outermost one. Arm 2 is what separates mutation M1d′.
+   With no inner legacy layer, "the prefix walked after the inner layers" is
+   the identity. Spec §3.1, §3.4 and §7 are amended in place.
+2. **M1a as spelled was a broken instrument, and is re-spelled.** Deleting
+   `typealias ProposalBase = Content` alone built and left the whole suite
+   green (1430 passed): associated-type inference reads `ProposalBase =
+   Content` back off the `_wrapLayout` witness's return type. The mutant is
+   identical to the implementation. **M1a is therefore the typealias AND the
+   appending `_wrapLayout` witness, deleted together**, so that the defaulted
+   `ProposalBase == Self` extension applies and chains nest. After a `swift
+   package clean`, that mutant fails to **compile** the test target at
+   `NativeLayoutIntegrationTests.swift:655`
+   (`nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder`'s flat
+   annotation, one of this lane's T rows). With that one annotation relaxed to
+   `var root = stored`, it reddens N1.1 (the type assertion, the layer count)
+   and G1.1 (the flat annotation fails, the nested one compiles).
+3. **An incremental build does not see an associated-type change.** The first
+   run of M1a's re-spelling, built incrementally over the green tree, compiled
+   the test target that the clean build rejects. It then ran a stale mixture,
+   in which `everyProductionTreeBuildsOnAOneMegabyteThread` exited on
+   `SIGSEGV` and the run truncated with no summary line. That is CLAUDE.md's
+   "`swift package clean` when the impossible happens", and it is now measured
+   for a conformance's associated type. Every mutation of this lane that
+   touches a public declaration (M1a, M1h) was run after `swift package
+   clean`. So was the first body mutation after each of them, and so was the
+   final green.
+4. **Two spellings the spec left open.** (a) `elementID`: the unconditional
+   `Element` witness is a **get-only** `elementID` reading
+   `outermost._elementID`. The settable one `StyledElement` needs is declared
+   again in the `Modifier == ModifierLayer` extension. So a proposal chain
+   gains no settable `elementID`. Both compile, and the constrained one wins at
+   a legacy call site. (b) `LayoutModifier`'s private `nativeWrapperNode` is
+   `@MainActor`, because `LayoutModifier` is a `Sendable` enum and not
+   main-actor isolated. The registrars it calls are.
+5. **Solver work, re-measured** against each commit's own module, with the
+   guard's positive fixture binary-searched on `-solver-scope-threshold`:
+   **186** at `47c0d98` (the figure `MC-A` recorded) and **214** at
+   `82c5ef9`. That is +28 (+15 %), still 4.7× under the guard's 1000.
+6. **Value sizes and the stack**, re-taken as spec §8 requires.
+   `ModifiedElement<Box<EmptyGroup>>` 1272 → 1280 (the empty `prefix`).
+   `ModifiedContent<Rectangle, LayoutModifier>` is 80 for any chain length,
+   against 62/110 for one or two nested levels. `demoContent()` 33 912 →
+   **34 064** (+0.45 %). `nativeLayoutPreviewContent()` 935 → **801**.
+   `textInputDemoContent()` 5 312 → 5 328. The smallest stack that builds every
+   production tree is **> 512 and ≤ 516 KB** (4 KB steps at 512–544). That is
+   inside the design's `(512, 528]` and under the 544 KB block, and
+   `everyProductionTreeBuildsOnAOneMegabyteThread` is green.
+
+**Reasoning.** Items 1 and 2 are spec errors of the "a confident claim that
+was not measured" shape. The table row was written from the skeleton, whose
+`ElementGroup` declared `padding(_: Pixels)`, while MetalUI declares it on
+`StyledElement`. The mutation was named for a declaration that inference
+supplies. Each is corrected where it was stated.
+
+**What it costs if wrong.** If generic code over proposal chains is rarer than
+assumed, the prefix is machinery for a rare path. It still costs one empty
+array (8 bytes) per legacy chain, and the absorbing path stays pinned by N1.2
+and by M1d/M1d′.
+
+---
+
+## LR-GC — stage 11, lane 2: the legacy overlay as built; two retained tests the design missed; N1.3's group arm; the controls' third step
+
+**The lane.** Commits `131fe16` (red first) and `540da08` (the overlay).
+Record §54 §8 has the red lines, the mutation table, the demo comparison and
+the container run. `LR-FX` holds **as ruled**: `OverlayModifier<Content:
+ElementGroup, Overlay: ElementGroup>`, a `ProposalElementGroup`/`ProposalElement`
+only when both sides are; one `.overlay(alignment:content:)`, on
+`ElementGroup` (`nativeOverlay` kept on `ProposalElementGroup`); both sides
+through `lowerAttachmentChildren` in the new `AttachmentLowering.swift`; `MC-P`'s
+ids unchanged — every identity test spec §3.3 lists stayed green **unedited**,
+and the proposal overlay mints exactly its `47c0d98` nodes (N1.6). Suite **1435**
+(1430 + N1.3–N1.7), 14 images 0 differing.
+
+1. **A retained guard the design did not list changes its answer, as `LR-FX`
+   item 1 rules.** `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`
+   (`ElementGroupTrapTests`, record §09) had `Text("legacy").overlay {
+   Rectangle() }` as its **negative**; with `.overlay` on `ElementGroup` that
+   spelling is a legacy overlay and compiles. Its body changes: the old
+   negative joins the positive, and the negative is that overlay entering a
+   proposal container, `HStack { Text("legacy").overlay { Rectangle() } }`,
+   rejected with a message naming `ProposalElementGroup` (measured). The name is
+   kept — the proposal overlay still rejects legacy content *where a proposal
+   parent would register it* — because a rename is a removal and a new test,
+   which would owe a retirement row for a test whose question survives. The
+   spec's T row for `proposalLayoutConstructorsRequireProposalContent` is
+   applied as written, plus one positive: `HStack { OverlayModifier(content:
+   Rectangle()) { Color(.accent) } }`, which proves the conditional conformance
+   still admits a both-proposal overlay to a container.
+2. **A second retained test the design did not list changes its answer, as
+   `LR-FX` item 3 rules.** `anItemFieldNoLoweredContainerConsumesIsReportedByName`
+   (1.13, `LoweringItemTests`, `LR-AQ`) had two arms — a `flexGrow(1)` box as
+   the `.overlay` **primary** and in the overlay **slot**, each under
+   `LegacyUnderProposal` — expecting `[box.flexGrow.unconsumed]`. The
+   attachment now consumes both sides' records at `.stack`, which drops the
+   grow as a frame layer does (`LR-AZ`), so each reads `[]` — the same move
+   that arm's `legacy ScrollView` sibling made at stage 3 (`LR-BB`). The
+   unconsumed mechanism itself stays pinned by the test's seven other
+   container arms; M1e and M1e′ turn these two arms red again.
+3. **N1.3 gains a fifth arm, L5 — a legacy group primary.** The spec's L1–L4
+   are each ONE element (a `Box`, a `ModifiedContent`), which consumes exactly
+   one index from the primary's cursor whatever its inner shape, so a threaded
+   cursor (M1c′) cannot move the overlay's index through a flip of any of
+   them. Measured: under M1c′, L1–L4 redden only on the id (the tally at
+   `.positional(1)` under the modifier, 3 taps at every step); only
+   `members { if flag { EmptyComponent() }; p }` — the probe's P2, `MC-E`'s
+   counterexample over legacy content — moves it (index 2, 1, 2) and loses the
+   state at the discriminating step (taps 3, **0**, 3). Every arm carries an
+   in-arm positive control: the primary's trailing member reads
+   `.positional(1)`, `.positional(0)`, `.positional(1)`.
+4. **The controls read MetalUI's retention on the third step, not SwiftUI's
+   reset.** B (`Box { tally }.id("g\(generation)")`) resets at every flip: 3,
+   0, 0. P5 (a tally inside the primary's own conditional) reads 3, `nil`
+   (absent, not painted), **3**; Q (the overlay's own `if`/`else`) reads 3, 0,
+   **3**. SwiftUI's P5 and Q reset at the third step too; MetalUI keeps an
+   absent id's `@State` below the sweep threshold (divergence 18), as
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` already
+   records for the threaded cursor. So the **second** step is the
+   discriminating one — no retained state can stand in there — and the test
+   says so.
+5. **Two spellings the spec left open.** (a) `lowerAttachmentChildren` plans
+   against a parent style aligning `.center` on both axes. A default `Style`
+   would stretch (`stretches(nil)` is true), and on a multi-node side (several
+   overlay views) the single-child exemption does not apply; a frame layer's
+   style is non-stretching by construction, so this is "exactly a frame
+   layer's arm". Under diagnostics a non-empty report replaces the side with
+   the one 0×0 leaf `Frame.unlowerable` returns; in production the first entry
+   traps. (b) `requestSecondaryContentAttachment` now takes and returns
+   `LayoutNodeID`s (the untyped entry has no `ProposalNodeID`s);
+   `BackgroundModifier` maps its proposal nodes and is **not** routed through
+   `lowerAttachmentChildren` — its sides are proposal-only and record-less, so
+   the call would be the identity, and a legacy `.background { }` is task 8's
+   (`LR-FX` item 6). Both entries of `OverlayModifier` share one `attach` and
+   one `overlaySide(of:)`, so M1c and the lowering mutations reach both.
+6. **Mutation spellings, recorded.** M1c′ was applied to the **untyped** entry
+   only (the one every legacy primary takes). M1e/M1e′ skip
+   `lowerAttachmentChildren` for one side entirely. M1f passes the primary
+   through with `dropsPresentations: false` (a parameter added to the mutant
+   only), leaving the overlay side's drop in place. M1g wraps every record-less
+   child in `requestNativeFrame(child:alignment: .center)`.
+
+**What it costs if wrong.** If a legacy primary's `flexGrow` under `.overlay`
+should grow (CSS's answer), the drop is a rect disagreement, never a trap, and
+the growing spelling is the grow on a wrapper outside the overlay (`LR-FX`).
+If the name kept in item 1 misleads, it is a doc-comment fix.
+
+## LR-GD — stage 11, lane 2's fix round: the attachment lowering's report path, parent style and overlay-side drop pinned; two citations corrected
+
+**The round.** Commit `58a4f5c`; record §54 §8.1 and §8.3 carry the lines and
+the mutation table. The lane's verifier applied three mutations to
+`lowerAttachmentChildren` that left the whole suite green, each with a
+scratch test proving the mutant differs. Each gets a pin, green on arrival (a
+pin of built behaviour, not new behaviour) and reddened by its mutation in a
+full unfiltered run.
+
+1. **The report block is pinned on both sides and in production.** The
+   `dropLast` / `unlowerable(last)` block is a third copy of the pattern in
+   `LegacyLowering.swift` and `ListRows.swift`, and a copy of a pinned
+   implementation is unpinned. N1.8 (diagnostics): an absolute primary
+   outside a `Deferred` and an overlay view with a px `maxWidth` on an `auto`
+   width report `["box.position", "box.maxSize"]`, primary side first. N1.9
+   (exit): the overlay side alone traps a production frame naming
+   `box.maxSize`. V5 (the block skipped) reddens both.
+2. **`LR-GC` item 5(a)'s `.center`/`.center` parent style is pinned.** N1.10:
+   a `.topLeading` overlay of a 10×`auto` and an `auto`×10 view on a 40×30
+   primary reads (0, 5) 10×0 and (5, 0) 0×10 relative to the primary (the
+   views' union, 10×10, placed top-leading, each view centred in it). Derived
+   before the run. V2 (a default, stretching parent) reddens it.
+3. **The overlay side's presentation drop is pinned by a node count, the only
+   reading it moves.** The spec cited an undefined `N3.1` twice. §5's
+   citation now names N1.11 (a `Deferred` overlay presents at the window's
+   (5, 5), and the tree has 7 nodes; with the drop skipped on the overlay side,
+   V4, it has 8 and the rect is unchanged). §6.1's citation, about
+   `deferred.amended`, now names N2.2's hitboxes, which is lane 3's pin of the
+   same containing-block claim.
+4. **Two doc comments cited the wrong `LR-GC` items.** L5 (N1.3) is item 3;
+   1.13's overlay arms are item 2. Both files are corrected.
+5. **L5's red lines are recorded** as the verifier re-took them at `131fe16`
+   (`:310:26`, `:311:13`, `:313:10`), replacing record §54 §8.1's "not
+   re-taken".
+
+**Accounting.** Suite 1435 → **1439** (+4, N1.8–N1.11); the design's 1426 →
+1439 becomes 1426 → 1443 once lane 3 adds its four. No test was retired and no
+retained test changed. Guards stay at 84. No source line changed.
+
+**What it costs if wrong.** N1.11's 7 is a measured literal. A later change
+that adds a node to a `Deferred` overlay's tree for another reason reddens it,
+and the test's doc says what the count stands for.
+
+---
+
+## LR-GE — stage 11, lane 3: the opacity order and the owned lowering items as built; one control's red line, three mutation spellings, one fixture addition
+
+**The lane.** Commits `dcdc415` (red first), `40e48bd` (implementation),
+`529b032` (a comment); record §54 §9. `LR-FW` (as amended by `LR-GA` items 1–2)
+and `LR-FY` items 1–3 are built as ruled: `Decoration.escapesOpacity`, an
+internal six-member `OptionSet` (`UInt8`), written by the six paint modifiers
+through `noteWrite(_:)` only while `opacity < 1` and emptied by `setOpacity`;
+`paintDecoration` resolves each winning slot through one resolver
+(`resolvedForPointerState`, which `effectiveForPointerState` now forwards to;
+`animatedResolvedBackground` and `resolvedBorder` return the slot beside the
+colour) and emits an escaped fill before the scope and an escaped border after
+it; `deferred.amended` and `owner`'s `"plan task 7, stage 11"` branch are
+deleted; `legacyFrameLayerDiagnostics`' `&& childCount <= 1` is deleted.
+`ModifierTests` is unedited and green. Five findings against the spec's text:
+
+1. **N2.3's control was not "still" reporting two entries.** At lane 2's head it
+   read `["modifierLayer.style", "modifierLayer.position",
+   "modifierLayer.inset"]`: the one-node condition that kept the `Deferred` arm
+   reporting `style` kept the control reporting it too. After the deletion it
+   reads the two entries the spec names — the answer is as ruled, only the
+   spec's "still" was unmeasured. The red line is recorded as taken.
+2. **N2.4's border twin carries `.onClick {}` as well as `.focusable()`**, only
+   so the element's id can be read off its one hitbox for `Window.focus(_:)`
+   (`BorderSubject`'s spelling in `DecorationPaintTests`). No arm reads hover.
+3. **M2e is a source inversion, not a test edit**: `fillEscapes` negated
+   (`!escapes.contains($0.slot.fill)`). An edited expectation reddens only the
+   edited test and pins no source; the spec's "(also
+   `opacityMultipliesAndFadesTheElementsOwnBackground`)" is reachable only by a
+   source mutation, and this one reddens it.
+4. **M2g′ is spelled on `planLegacyItems`' outside-a-`Deferred` report**
+   (`if d.position == .absolute && item.kind != .frameLayer`, with the node
+   count already gone): `legacyFrameLayerDiagnostics` has no `Deferred` check
+   to drop — the in/out distinction is that report. It reddens N2.3's control
+   and N1.4's arm 2.
+5. **M2h is spelled `case .opacity: inside()`** (the scope never opened). It
+   reddens N2.1 at the proposal arm's G3 ≠ G4 `#require`, and two retained
+   tests that also see the proposal opacity scope.
+
+**Accounting.** Suite 1439 → **1443** (+4: N2.1–N2.4; T2.1 is a rename) — the
+design's 1426 → 1439 is 1426 → 1443 by `LR-GD`. No `@Test` removed; the four T
+rows lose exactly the arms the spec moves (the owner table 242 → 241 entries).
+Guards 84, goldens 0. `Decoration` 77 → 78 bytes; every other value size and
+the smallest stack, **(512, 516] KB**, unchanged from lane 1.
+
+**What it costs if wrong.** Item 1: none — the control pins the ruled answer.
+Items 3–5 are spellings; a re-runner using another spelling of the same
+mutation gets a different reddened set, which is why each is written out.
+
+## LR-GF — stage 11, lane 3's fix round: the escaped fill's and border's emission order is pinned (N2.5)
+
+**The finding.** `LR-GE`'s lane said an escaped fill is emitted before the scope
+opens and an escaped border after it closes, "so emission order is unchanged",
+and no test pinned it: every opacity-order test (T2.1, N2.1, N2.4) used a
+childless subject, so the fill-versus-content order was invisible. The
+verifier's **V3** (the `if fillEscapes, let background { … }` block in
+`PaintPass.paintDecoration` moved after the `opacity(…)` scope) left the suite
+green at 1443; its twin **V4** (the `if borderEscapes` block moved before the
+scope) was pinned only incidentally, by `FrameDecorationInteractionTests`'
+Component-frame test.
+
+**Ruled.** One test, **N2.5** `anEscapedFillPaintsUnderTheContentAndAnEscapedBorderOverIt`
+(`OpacityOrderTests`, commit `d86cb4e`): a 20×20 child inside a 40×40 subject,
+in three shapes — a legacy `Box { child }`'s own decoration, a legacy
+`ModifiedContent<Box<EmptyGroup>, ModifierLayer>` padding layer, and a
+`ModifiedContent<Rectangle, LayoutModifier>` — each with G4
+(`.opacity(0.5).background(x)`) and H2 (`.opacity(0.5).border(c, 4)`). Set-up
+`#require`s: the fill and border read the opaque token's alpha (they escaped)
+and the child reads half its own opaque alpha (it did not). Asserted: the fill's
+`scene.rects` index is below the child's, the border's above it. Green at HEAD —
+it pins existing behaviour; the red is the mutations'. Record §54 §9.7.
+
+| id | mutation (spelling, branch) | suite | reddened |
+|---|---|---|---|
+| V3 | the `if fillEscapes` block moved to just after the `opacity(…)` scope, before the escaped-border block | 1444, 2 issues | N2.5 (`OpacityOrderTests.swift:325` ×2 — legacy element and legacy layer G4; the proposal shape paints through `LayoutModifier`, not `paintDecoration`) |
+| V4 | the `if borderEscapes` block moved to just before the `opacity(…)` scope | 1444, 3 issues | N2.5 (`:333` ×2, legacy element and legacy layer H2); `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembersUnderTheProposalAuthority` (`FrameDecorationInteractionTests.swift:449`) |
+
+The proposal arm is reddened by neither, as expected: it pins the same order
+through `LayoutModifier`'s own layers, so the two paths agree on order as N2.1
+has them agree on alpha. T2.1's doc comment now spells M2e as the source
+inversion `LR-GE` item 3 records (it read "the test's G3 expectation
+inverted").
+
+**Accounting.** Suite 1443 → **1444** (+1: N2.5). No `@Test` removed, guards
+84, goldens 0, no source line changed.
+
+**What it costs if wrong.** Without N2.5 an escaped fill painted over the
+element's content — an opaque background hiding its children — passes the
+whole suite.
+
+## LR-GG — stage 11's adversarial branch check: the stage stands; every §4.1 row holds; three stage-11 hand-offs in record §25 re-owned; divergence 35's pin named
+
+**Context.** The adversarial branch check of `47c0d98..ff942bd` (record §54
+§11) re-took the stage's gates from a clean build, re-ran the three SwiftUI
+probes, ran two mutations of its own design, took the offscreen comparison,
+built `Backends/SDL` and a `swift:6.4-noble` container, and read every row of
+the parent spec's §4.1 and every clause of this stage's spec §9.1 on the
+branch — test or grep, not a record's claim.
+
+**Ruling.**
+
+1. **The stage stands; no code defect.** After `swift package clean`:
+   `Test run with 1444 tests in 3 suites passed after 81.280 seconds.`, the
+   `FR-J no-argument frame: succeeded=` line present, eleven gated tests
+   skipped; 0 `error:` and only SwiftPM's deprecation notice under native, 0
+   `warning:` under the default build system (`swift build --build-tests`);
+   84 guards (`grep -c canTypecheck`: 82 across the sixteen
+   `Tests/MetalUITests` guard files, `UnifiedModifiedContentCompileGuards` 2
+   among them, plus `UnitSafetyTests`' 3 hits less its one comment); 0 JSON under `Tests` outside `.build`; `cmp CLAUDE.md
+   AGENTS.md` equal; every backticked test name of 25+ characters added by
+   the branch (78) resolves under `Tests`/`Sources`/`Backends/SDL`.
+   `MetalUILayout` imports only `MetalUICore`; `Expected.swift` unmoved. The
+   three probes re-run under `/usr/bin/swift` (Apple Swift 6.4), exit 0,
+   stderr empty, each byte-identical to its header's recorded lines
+   (`swiftui-border-clip-paint.swift` 30 lines incl. K0/K1 and G3/G4/H1–H3;
+   `swiftui-outer-modifier-order.swift` 32; `swiftui-overlay-primary-shape.swift`
+   A, B, P1–P5, Q). Offscreen `compare.sh 47c0d98 HEAD`: controls at their
+   stage-9-corrected values (1048576, 1031003, 454895, 0, 1048576, 0,
+   544/216, 491221, 529, 0 indicator rects), **all fourteen `differing=0`,
+   scene identical**. Real window: not taken — `appkit-screen-lock-state.swift`
+   printed `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`.
+   `Backends/SDL` 21 + 19; `swift:6.4-noble` (aarch64, `git archive HEAD`)
+   0 `error:`/`warning:`, **22 + 188 + 10**, `theDemoFrameMatchesTheValuesRecordedOnMacOS`
+   and `everyProductionTreeBuildsOnAOneMegabyteThread` green. Merge verdict:
+   **merge**.
+2. **Mutation MA** — `innermostID`'s inner-layer component `name:
+   inner[k]._elementID` → `name: nil` (the only site; a legacy inner layer's
+   `.id(_:)` dropped from its path, layout and later phases alike): **1444,
+   10 issues**, reddening exactly
+   `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`
+   (`ModifiedElementTests.swift:479/481/483`, ×2 each),
+   `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
+   (`ModifierCompositionProofTests.swift:685/687/689`) and
+   `theStageOneCorpusLowersWithNoDiagnostic` (`LoweringCorpusTests.swift:319`).
+   A named inner layer's id is pinned by both nested-`Box` oracles, not only
+   by `M1b`'s positional arm. **Mutation MB** — `prepaintLayer`'s
+   `disablingHitTestingIfHidden(node)` wrap removed for inner layers (the
+   `LR-DH` pointer mirror, `MC-B`/`LR-AA`, moved into the unified recursion):
+   **1444, 2 issues**, exactly `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`
+   (`HiddenLoweringTests.swift:227`, `:228`). Both restored from a copy;
+   `git status --short` empty after each.
+3. **Identity, hit testing, accessibility and animation unchanged, read on
+   the branch.** Green and in files the branch does not touch:
+   `stateSurvivesFramesUnderAProposalModifierChain`,
+   `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`,
+   `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`,
+   `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`
+   (`ModifierCompositionProofTests`), `theSevenRetentionSlotsAreMutuallyDistinct`,
+   `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`,
+   `aHiddenInnerModifierLayerSkipsPaintAndHitsPerLayer`,
+   `everyBackgroundPaintingSiteAnimatesItsColour`,
+   `everyBackgroundPaintingSiteHonoursHoverAndFocus`. Green in
+   `ModifiedElementTests`, whose only edit is `name(_:)`'s printed type
+   (`ModifiedContent<X, ModifierLayer>`, one hunk at `:311`):
+   `addingALayerAtRunTimeResetsTheWrappedElementsState`,
+   `changingALayersValueKeepsTheWrappedElementsState`,
+   `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`. The only retained
+   test whose **answer** changed is `LoweringItemTests`' two overlay arms
+   (`[box.flexGrow.unconsumed]` → `[]`), ruled by `LR-FX` item 3 and
+   `LR-GC` item 2; the rest are type spellings and the moved overlay
+   boundary (`ElementGroupTrapTests`, `LR-FX` item 1). No `@Test` removed.
+4. **Every §4.1 row's exit criterion holds on the branch** (spec §9's table):
+   1 — `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement`
+   retired with the two-engine harness (`LR-FE`, named in
+   `LoweringCorpusTests.swift:253`); `theStageOneCorpusLowersWithNoDiagnostic`
+   green (and live: MA reddens it). 2 —
+   `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` green, asserting
+   `report.unlowerable.isEmpty`. 3 — `ScrollRoutingTests`,
+   `ScrollIndicatorTests` present and green under the only authority. 4 —
+   `aListsWorkIsTheSameFor100kRowsAsFor500` run gated
+   (`METALUI_RUN_100K_LIST_TEST=1`): passed, 27.1 s. 5 — `DeferredTests`,
+   `AbsoluteOverlayTests` green. G — the `Grid*` suites green (`GridElementTests`,
+   `GridPipelineTests`, `GridRegistrarTests`, `GridTrapTests`,
+   `GridLoweringInteractionTests`, four `GridCompileGuards`). 6a — the
+   registrars deleted, the exit test's retirement row record §51 row 7
+   (`G6a`); 0 `warning:`. 6b/10 — `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+   green, no `.enabled(if:)` or early return (`LR-FP` item 2), green off Apple
+   too. 7a — 0 JSON. 7b — `grep -rn "computeLayout(" Tests` empty. 8 — 0
+   `warning:` at the head on both build systems; the ten sizing modifiers'
+   `@available(*, deprecated` in `Sources/MetalUI`; pixels chained 0 px
+   record §50 §8.5/§11.9 → §51 → §53 (and its `0843866` merge) → this
+   check's `47c0d98 → ff942bd`. 9 — `git ls-files Sources/MetalUILayout`
+   holds no CSS engine file (`LayoutTree`, `MeasureFunction` — now only
+   `SizeD` — `NativeGrid`, `NativeLayoutRun`, `ProposalLayout`,
+   `ProposalSpacing`, `ProposedSize`, `Rounding`). 11 —
+   `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape` (N1.3)
+   and `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType` (N2.1)
+   green, their mutations in record §54 §8.3/§9.3, the three probe headers
+   carrying this stage's re-run (and re-run again here, item 1).
+5. **Spec §9.1's clauses hold, after two record-level dispositions this
+   ruling makes.** The plan's three clauses: engine files gone and the
+   symbol check green; `Style` narrowed (`StyleSurfaceCompileGuards` 3);
+   0 goldens. `UnlowerableField.owner` names no task-7 stage (`grep -n "plan
+   task 7" Sources` hits only `trapMessage`'s `LR-FO` citation, a ruling, not
+   an owner). `CN-Q`'s list: 35, 53, 55 answered in the only engine since 6b
+   (`LR-L`), 52 → task 15 (`LR-ER`), 54 → task 10 and 56's remainder → task 8
+   (`LR-GA` item 5), legacy `ideal` and the two maxima lowered since stage 1
+   (`LR-H`, 6b), the multi-member frame answered (`LR-BH`). **Two findings
+   the stage-11 inventory missed**, because spec §2's grep covered records
+   §29, §38, §41, §48–§53 but not §25 or this doc's stage-3 rulings:
+   (a) **three hand-offs addressed to stage 11 had no disposition** —
+   `LR-BJ`'s deferral table and record §25 §8.10 and its closing "Deferred,
+   each with an owner" table ("`ProposalScrollView` publishing a
+   `ScrollContext`" → "stage 11 / task 10"; "`ProposalScrollView`'s
+   animation" → "stage 11"), and `LR-BP` with record §25 §11.5/§11.10 ("the
+   per-member row's cross-axis `alignment: spec.alignment`", M5g green,
+   unprobed → "stage 11, with the siblings question `TB-M` owns"). **Re-owned
+   here**: the two `ProposalScrollView` items to **plan task 10** (scrolling
+   and data-driven controls; nothing reads a proposal `ScrollContext`,
+   `LR-BF`, and nothing in the engine's deletion needs one), and the
+   per-member row's alignment to **plan task 8** with divergence 56's
+   remainder, whose siblings question it is (`LR-GA` item 5's reasoning:
+   `Group` semantics, not a modifier question). No code changes; each item
+   stays exactly as recorded. (b) **Divergence 35's row names a deleted
+   pin**: `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`
+   was retired at 7b (record §49 row 196, "divergence 35's legacy side") and
+   no later record §04 section named what pins the row;
+   `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`
+   (`LoweringStackAndLayerTests`, green) is its live pin. Whether 35 (like
+   53 and 55, "SwiftUI's answer … already") should leave the live count is a
+   counting question, not a task-7 owner — **left to plan task 15**'s
+   closeout with the other count-only decisions; the live count stays 55.
+   Both written into record §04's and §54's stage-11 sections in this
+   ruling's commit.
+6. **Task 7's tick.** With items 4 and 5 every §4.1 row and every §9.1 clause
+   is confirmed on this branch, so the condition the plan's note sets for
+   moving the checkbox is met. The checkbox itself is left for the Record
+   phase that owns it (spec §9); the note now says the check has run and
+   names this ruling.
+7. **Doc defects fixed in this commit**: the decisions doc's and
+   `CLAUDE.md`/`AGENTS.md`'s next-unused `LR-` letter (`LR-GG` → `LR-GH`;
+   "`LR-FV`…`LR-GG`", cited in five places before this ruling existed, now
+   resolves); record §04 (item 5 b) and record §54 §11; the plan note
+   (item 6).
+
+**What it costs if wrong.** Nothing in `Sources/` rests on this ruling; a
+wrong re-owning in item 5 leaves a recorded gap at the named task instead of
+at a closed stage.

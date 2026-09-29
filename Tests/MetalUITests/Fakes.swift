@@ -14,6 +14,13 @@ final class FakeRenderSurface: RenderSurface {
     /// "no drawable this tick" condition of spec 3.2, not an error.
     var failsNextFrame = false
 
+    /// The drawable's device scale factor, which `nextFrame()` reports and so
+    /// `WindowRenderer.beginFrame()` returns — the scale a frame is drawn at
+    /// and its root `displayScale` (ruling EV-AA). Settable apart from
+    /// `FakePlatformWindow.scaleFactor` so a test can make the two disagree
+    /// (`aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`).
+    var scaleFactor: Float = 1
+
     private(set) var nextFrameCalls = 0
     private(set) var presentCalls = 0
 
@@ -65,7 +72,7 @@ final class FakeRenderSurface: RenderSurface {
                                   width: Double(size), height: Double(size),
                                   znear: 0, zfar: 1),
             projection: matrix_identity_float4x4)
-        return SurfaceFrame(views: [view], scaleFactor: 1)
+        return SurfaceFrame(views: [view], scaleFactor: scaleFactor)
     }
 
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {
@@ -120,6 +127,12 @@ final class FakePlatformWindow: PlatformWindow {
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
+    /// Settable, unlike AppKit's live read of key status (ruling EV-AB);
+    /// `.key` by default, the bare value's, so no existing test sees a change.
+    /// `AppKitControlStateTests` drives the real one.
+    var controlActiveState: ControlActiveState = .key
+    var onControlActiveStateChange: ((ControlActiveState) -> Void)?
+
     /// The accessibility seam (ruling AB-A): every tree `Window` published, in
     /// order, so a test asserts exactly what a platform would have been handed.
     var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
@@ -149,6 +162,26 @@ final class FakePlatformWindow: PlatformWindow {
     func simulateAppearanceChange(to newAppearance: Appearance) {
         appearance = newAppearance
         onAppearanceChange?(newAppearance)
+    }
+
+    /// Change the key state and notify, the getter already reporting it.
+    ///
+    /// **Fires on every call, a no-op included** — `AppKitWindow` and
+    /// `SDLWindow` fire only on a change — so a test of `Window`'s own change
+    /// guard can report a state the window already has.
+    func simulateControlActiveStateChange(to state: ControlActiveState) {
+        controlActiveState = state
+        onControlActiveStateChange?(state)
+    }
+
+    /// Move to a display of another backing scale, the way
+    /// `AppKitWindow.viewDidChangeBackingProperties` → `syncSurfaceGeometry`
+    /// does: the platform's and the drawable's scales are both the new one when
+    /// `onResize` fires, carrying it.
+    func simulateBackingScaleChange(to scale: Float) {
+        scaleFactor = scale
+        fakeSurface.scaleFactor = scale
+        onResize?(contentSize, scale)
     }
 
     /// Resize the way `AppKitWindow.syncSurfaceGeometry` does: the reported

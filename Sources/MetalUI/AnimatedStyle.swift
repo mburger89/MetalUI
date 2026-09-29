@@ -21,12 +21,12 @@ import MetalUILayout
 ///
 /// ## What is NOT animated here, and why each is a real decision
 ///
-/// - **`aspectRatio`.** Spec §4: it is CLAUDE.md's declared-but-inert `Style`
-///   row — read by no production code — and animating a property that does
-///   nothing is that table's exact trap, doubled. `newStyle.aspectRatio` is
-///   simply never assigned below, so it carries `style.aspectRatio` through
-///   unchanged, on every other untouched field's footing (`display`,
-///   `position`, and the rest of spec §4's snapping list).
+/// - **`aspectRatio`** (history). Spec §4: it was CLAUDE.md's
+///   declared-but-inert `Style` row — read by no production code — so it was
+///   never assigned below and carried through unchanged, on every other
+///   untouched field's footing (`display`, `position`, and the rest of spec
+///   §4's snapping list). Stage 10 deleted the field (`LR-FM` item 1), and
+///   `Style.border`'s four animated keys with it.
 /// - **`Decoration.background` / `hoverBackground` / `focusBackground`.**
 ///   Spec §4 lists these as animatable, through their theme-*resolved* `Hsla`
 ///   — and the SUFFICIENT reason this helper does not is the type, not
@@ -386,19 +386,15 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
                              right: length("padding.right", style.padding.right, p.padding.right),
                              bottom: length("padding.bottom", style.padding.bottom, p.padding.bottom),
                              left: length("padding.left", style.padding.left, p.padding.left))
-    newStyle.border = Edges(top: length("border.top", style.border.top, p.border.top),
-                            right: length("border.right", style.border.right, p.border.right),
-                            bottom: length("border.bottom", style.border.bottom, p.border.bottom),
-                            left: length("border.left", style.border.left, p.border.left))
     newStyle.gap = Axes(horizontal: length("gap.horizontal", style.gap.horizontal, p.gap.horizontal),
                         vertical: length("gap.vertical", style.gap.vertical, p.gap.vertical))
     newStyle.flexGrow = Float(number("flexGrow", Double(style.flexGrow), Double(p.flexGrow)))
     newStyle.flexShrink = Float(number("flexShrink", Double(style.flexShrink), Double(p.flexShrink)))
     newStyle.flexBasis = dimension("flexBasis", style.flexBasis, p.flexBasis)
 
-    // `aspectRatio` and every snapping field (`display`, `position`,
-    // `overflow`, `flexDirection`, `flexWrap`, `justifyContent`, `alignItems`,
-    // `alignContent`, `justifyItems`, `alignSelf`) are never assigned above,
+    // Every snapping field (`display`, `position`, `flexDirection`,
+    // `justifyContent`, `alignItems`, `justifyItems`, `alignSelf`) is never
+    // assigned above,
     // so `newStyle` carries `style`'s own current value through untouched —
     // which IS "snap": always the caller's latest declared value, on every
     // frame, transaction or not.

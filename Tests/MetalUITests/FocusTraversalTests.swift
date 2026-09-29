@@ -28,9 +28,9 @@ private func formWindow(_ form: Form, onKey: KeyHandler? = nil) throws -> (Windo
     return try makeFakeWindow(device: device, size: 300) {
         let column = Column {
             TextField("Name", text: form.name) { form.name = $0 }
-            Box().width(Pixels(20)).height(Pixels(20)).focusable()
+            Box().frame(width: Pixels(20), height: Pixels(20)).focusable()
             TextField("Email", text: form.email) { form.email = $0 }.disabled(form.disabled)
-            TextEditor("Notes", text: form.notes) { form.notes = $0 }.height(Pixels(60))
+            TextEditor("Notes", text: form.notes) { form.notes = $0 }.frame(height: Pixels(60))
         }
         .alignItems(.stretch)
         return Box { column }.onKey(onKey ?? { _ in false })
@@ -122,4 +122,50 @@ private func focusIndex(_ window: Window) -> Int? {
     window.onAction = { _ in form.log.append("keymap"); return true }
     platform.simulateInput(key("\t"))
     #expect(form.log.last == "keymap" && window.focusedElement == name, "a keymap binding wins")
+}
+
+// MARK: - The merge with plan task 10 part 2's controls (TI-J amendment)
+
+@MainActor
+private final class Controls {
+    var name = ""
+    var presses = 0
+    var isOn = false
+    var level = 0.5
+}
+
+/// Master's controls are focusable (`DD-T`) and a click focuses none of them,
+/// so Tab is the keyboard's only way to them: it visits each in tree order,
+/// a Tab-focused control then takes its own keys (`ControlKeys`, through its
+/// `onKey`, which runs before traversal), and no control's keys claim Tab — a
+/// focused slider passes it on.
+@Test @MainActor func tabVisitsTheControlsAndAControlItFocusedTakesItsKeys() throws {
+    let model = Controls()
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 300) {
+        Column {
+            TextField("Name", text: model.name) { model.name = $0 }
+            Button("Go") { model.presses += 1 }
+            Toggle("On", isOn: Binding(get: { model.isOn }, set: { model.isOn = $0 }))
+            Slider(value: Binding(get: { model.level }, set: { model.level = $0 }))
+        }
+        .alignItems(.stretch)
+    }
+    window.drawFrameIfNeeded()
+    try #require(window.lastFocusRegistry.tabOrder.count == 4)
+    platform.simulateInput(key("\t")); window.drawFrameIfNeeded()     // the field
+    #expect(window.lastFocusRegistry.textTarget(for: try #require(window.focusedElement)) != nil)
+    platform.simulateInput(key("\t")); window.drawFrameIfNeeded()     // the button
+    #expect(focusIndex(window) == 1)
+    platform.simulateInput(key(" ")); window.drawFrameIfNeeded()
+    #expect(model.presses == 1 && focusIndex(window) == 1, "Space presses the Tab-focused button")
+    platform.simulateInput(key("\t")); window.drawFrameIfNeeded()     // the toggle
+    platform.simulateInput(key(" ")); window.drawFrameIfNeeded()
+    #expect(model.isOn && focusIndex(window) == 2, "Space flips the Tab-focused toggle")
+    platform.simulateInput(key("\t")); window.drawFrameIfNeeded()     // the slider
+    #expect(focusIndex(window) == 3)
+    platform.simulateInput(key("\t", .shift)); window.drawFrameIfNeeded()
+    #expect(focusIndex(window) == 2, "a focused slider does not claim shift-Tab")
+    platform.simulateInput(key("\t")); platform.simulateInput(key("\t")); window.drawFrameIfNeeded()
+    #expect(focusIndex(window) == 0 && model.level == 0.5, "Tab from the slider wraps to the field")
 }

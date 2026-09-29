@@ -4,7 +4,7 @@
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
 (`TI-A`…`TI-J`, next `TI-K`; rulings here; `TI-G` added by
 `feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §52;
-`TI-I` and `TI-J` by `feat/text-page`, record §53). The user chose a full
+`TI-I` and `TI-J` by `feat/text-page`, record §59 — written as §53, renumbered at the merge). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -242,6 +242,19 @@ registered, so they are skipped.
   one.
 - Tabbing into a text field or editor selects its whole text, as AppKit's
   fields do.
+
+**Amended at the merge with `master` `169d166` (record §59 §Merge).** Plan
+task 10 part 2's controls — `Button`, `Toggle`, `Slider`, `Stepper`,
+`Picker`, a selectable `List` — are focusable (`DD-T`), so Tab visits them
+too, and a control Tab focused takes its own keys (`ControlKeys`, run from
+its `onKey` before traversal; none claims Tab). **Kept deliberately**: AppKit
+moves Tab between text fields and lists only unless keyboard navigation (Full
+Keyboard Access) is on, but MetalUI reads no system setting (`DD-T` item 3,
+divergence 80), and Tab is the keyboard's only route to a control, which a
+click does not focus. MetalUI's Tab is AppKit's with keyboard navigation on,
+and Windows' and GTK's; SwiftUI's own Tab answer is unmeasured, so this sits
+inside divergence 80's scope rather than making a claim. Pinned by
+`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`.
 
 ## Not in scope
 

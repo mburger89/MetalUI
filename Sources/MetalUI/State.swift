@@ -32,18 +32,28 @@
 ///   `ElementGroup.prepaintGroup`/`paintGroup` now re-bind to `layout.id`,
 ///   which is each occurrence's own id.
 ///
-/// - **Handlers are still wrong, and re-binding cannot fix them.** A closure
+/// - **Handlers were wrong, and re-binding could not fix them.** A closure
 ///   registered by one occurrence captures this box by reference; one box
 ///   holds one `slotID`; by the time a click arrives it holds whatever the last
-///   phase bound. Measured: occurrence 0 clicked once reads **1** while
-///   occurrence 1, never clicked, reads **102** — correct is 101 and 2. Pinned
-///   wrong on purpose by `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`
-///   and counted by `StateTable.aliasedStateBoxes`.
+///   phase bound. Measured: occurrence 0 clicked once read **1** while
+///   occurrence 1, never clicked, read **102** — correct is 101 and 2.
 ///
-/// The real fix is a per-copy slot rather than a shared box, which the
-/// reflection-driven binding currently forbids: `StateBinder.bind` walks a
-/// `Mirror`, and `Mirror` cannot write a stored struct field. **Until then, do
-/// not place one element value twice — build two.**
+/// **Fixed for input dispatch by plan task 8 (ruling ID-F)** without a per-copy
+/// slot (`Mirror` still cannot write a stored struct field): the box remembers
+/// every slot it was bound to in one generation (`Box.occurrences`), and each
+/// input dispatch site names the element it is dispatching to
+/// (`StateDispatch.owner`), so a dispatched handler reads and writes the
+/// occurrence whose element is the owner or an ancestor of it — SwiftUI's
+/// answer (probe `swiftui-composition-identity.swift` S1, S4). Pinned by
+/// `OccurrenceIdentityTests` (one arm per dispatch site).
+///
+/// **Outside dispatch it is still the last-bound slot — divergence 71.** A
+/// closure called directly, from a timer or a task, has no owner; SwiftUI
+/// writes each occurrence's own storage there too (probe S5). Pinned by
+/// `IdentityTests`' `aClosureRunOutsideInputDispatchWritesTheLastBoundOccurrence`
+/// (occurrence 0's handler called directly reads 1 / 102), and still counted by
+/// `StateTable.aliasedStateBoxes`. **So a value placed twice is safe for
+/// input handlers; for anything else, build two values.**
 ///
 @propertyWrapper
 @MainActor
@@ -55,6 +65,26 @@ public struct State<Value> {
         /// SECOND binding to a DIFFERENT slot within one generation can be
         /// told from the ordinary re-binding that happens once per phase.
         var boundGeneration: UInt64?
+        /// Every slot this box was bound to in `boundGeneration`, once a
+        /// SECOND, different slot is bound in one generation — one element
+        /// value placed twice (ruling ID-F). `nil` in the common case, so an
+        /// unaliased box allocates nothing; cleared by the first bind of a
+        /// later generation.
+        var occurrences: [GlobalElementID]?
+
+        /// The slot `wrappedValue` reads and writes: while input dispatch runs
+        /// a handler (`StateDispatch.owner`), an aliased box serves the
+        /// occurrence whose element is the owner or its nearest ancestor;
+        /// otherwise — and outside dispatch, divergence 71 — the last-bound
+        /// `slotID`.
+        @MainActor var resolvedSlot: GlobalElementID? {
+            guard let occurrences, StateDispatch.owner != nil else { return slotID }
+            // A slot's parent is its element (`bind`'s `child(of: id, …)`).
+            guard let index = StateDispatch.resolve(among: occurrences.map { $0.parent! }) else {
+                return slotID
+            }
+            return occurrences[index]
+        }
     }
 
     let box = Box()
@@ -64,18 +94,35 @@ public struct State<Value> {
 
     public var wrappedValue: Value {
         get {
-            guard let table = box.table, let slotID = box.slotID else {
+            guard let table = box.table, let slotID = box.resolvedSlot else {
                 return initialValue
             }
             return table.peek(slotID, as: Value.self) ?? initialValue
         }
         nonmutating set {
-            guard let table = box.table, let slotID = box.slotID else { return }
+            guard let table = box.table, let slotID = box.resolvedSlot else { return }
             // `write`, not `withState` — §2.6: a `@State` write must mark the
             // window dirty, and `withState` is also `ScrollView`'s per-frame
             // offset path, which must NOT (see `StateTable.write`'s doc).
             table.write(slotID, newValue)
         }
+    }
+
+    /// `$name` on a `@State var name`: a ``Binding`` that reads and writes this
+    /// state's slot **at call time** (ruling `DD-D` item 3), so a write from a
+    /// dispatched handler reaches the occurrence the handler belongs to
+    /// (`ID-F`, `Box.resolvedSlot`) and a write from anywhere else reaches the
+    /// last-bound one (divergence 71). It goes through ``wrappedValue``, so it
+    /// is a `@State` write in every respect — it dirties the window, and it
+    /// belongs in input, never in a phase (`DD-D` item 7).
+    ///
+    /// Declared here rather than beside `Binding` because a property wrapper's
+    /// projection must be in the wrapper's own body (measured: from an
+    /// extension, `$n` is "cannot find in scope").
+    public var projectedValue: Binding<Value> {
+        let state = self
+        return Binding(get: { state.wrappedValue },
+                       set: { state.wrappedValue = $0 })
     }
 }
 
@@ -108,9 +155,17 @@ extension State {
         // measured: occurrence 0 clicked once, occurrence 1's slot moved.
         // Counted rather than trapped: a trap here aborts the process, and the
         // shape is silent corruption rather than a crash today.
-        if let previous = box.slotID, previous != slotID,
-           box.boundGeneration == table.generation {
+        //
+        // **Since ID-F the box remembers each occurrence's slot**, and input
+        // dispatch resolves a handler's write to its own occurrence
+        // (`resolvedSlot`, `StateDispatch`). The count stays: the shape is
+        // resolved for dispatched handlers, not removed.
+        if box.boundGeneration != table.generation {
+            box.occurrences = nil
+        } else if let previous = box.slotID, previous != slotID {
             table.noteAliasedStateBox()
+            if box.occurrences == nil { box.occurrences = [previous] }
+            if !box.occurrences!.contains(slotID) { box.occurrences!.append(slotID) }
         }
         box.slotID = slotID
         box.boundGeneration = table.generation

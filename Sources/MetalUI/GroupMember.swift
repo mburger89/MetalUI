@@ -36,6 +36,7 @@ extension GlobalElementID {
                                        at cursor: inout Int,
                                        pass: inout LayoutPass) -> GlobalElementID {
         let id = GlobalElementID.child(of: parent, at: cursor, name: name)
+        pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`
         StateBinder.bind(element, in: pass.frame, id: id)
         cursor += 1
         return id

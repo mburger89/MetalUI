@@ -127,11 +127,75 @@ in all fourteen offscreen images; divergence 11 retires (57 → 56 live) and
 pre-empts nothing of 10–11: `Style`'s CSS fields, `CSSSizing.swift` and every
 `Style`-field report this stage inherited stay for stage 10, and
 `ModifiedElement`/`ModifiedContent` are not unified (stage 11).
+**Stage 10 (`Style`'s CSS fields and the closing check) has landed on its
+branch, not yet merged** (2026-09-24): `feat/engine-stage-10` from `8095fd9`,
+record §53, spec
+[`2026-09-24-engine-stage-10-design.md`](2026-09-24-engine-stage-10-design.md),
+rulings `LR-FM`…`LR-FT`. It meets §4.1 row 10's exit, read field by field
+rather than as a blanket deletion (`LR-FM`): `aspectRatio`, `overflow`,
+`Style.border` (no production writer since `Box(style:)` is its only one),
+`flexWrap`, `alignContent` and `Position.relative` are deleted along with the
+enums `FlexWrap`/`AlignContent`/`Overflow` and the modifiers
+`flexWrap(_:)`/`alignContent(_:)`; every surviving stored field of `Style`
+(seventeen) is narrowed to `package`, as are `Display` and `JustifyItems`, so
+`StyledElement.style` reads as an opaque value outside the package; `Style.swift`
+moves from `MetalUILayout` to `MetalUI`, its only reader since stage 9 —
+`MetalUILayout` declares no CSS vocabulary at all. Every inherited
+`Style`-field report becomes a permanent refusal by name (`LR-FO`), and the
+mechanical closing check lands: `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+(`dlsym`, macOS and Linux, compiled out on Windows), three plain-import
+guards (`StyleSurfaceCompileGuards`) and the recorded grep (`LR-FP`). Two
+lanes, each red first, both verified `ok`: lane 1 (`LR-FS`) re-spells the
+tests off the deleted fields and makes every `Style`-field report permanent;
+lane 2 (`LR-FT`) does the deletion, the narrowing and the move, and lands the
+closing check, with a fix round widening guard G1 to pin all seventeen
+narrowed fields rather than one. Suite **1414** (1411 − 3 + 2 + 4: 2 rows
+retired, `T1.16` renamed, `N1.1`/`N2.1`/`G1`/`G2`/`G3` added), guards
+**82** (79 + 3), goldens 0; 0 px against `8095fd9` in all fourteen offscreen
+images, independently re-taken by the Record phase along with the suite,
+guard and golden counts, `Backends/SDL`, `Tests/PortableTests`, a
+`swift:6.4-noble` container and the recorded greps (record §53 §6). Stage 10
+pre-empts nothing of 11: `ModifiedElement`/`ModifiedContent` stay separate,
+legacy `.overlay` and `.opacity` G4 are untouched, and `deferred.amended`
+stays stage 11's.
+**Stage 11 (modifier unification) has landed on its branch, not yet merged**
+(2026-09-25): `feat/engine-stage-11` from `47c0d98`, record §54, spec
+[`2026-09-25-engine-stage-11-design.md`](2026-09-25-engine-stage-11-design.md),
+rulings `LR-FV`…`LR-GG`. It meets §4.1 row 11's exit (the row's own citation
+corrected above, `LR-FY` item 4): `ModifiedElement`/`ModifiedContent` are one
+flat `ModifiedContent<Content, Modifier>`, the second parameter a
+per-vocabulary witness (`ModifierLayerKind`), with `ModifiedElement` a
+typealias for its legacy arm and one shared layer recursion walking both
+vocabularies (`LR-FV`); the legacy `.overlay` is `OverlayModifier<Content,
+Overlay>` generalized over `ElementGroup`, both sides lowered like a frame
+layer's child (`LR-FX`); divergence 45's write-order bug is fixed on both
+paths by `Decoration.escapesOpacity`, one member per slot, so whatever is
+written after `.opacity` is outside it everywhere and the divergence retires
+(`LR-FW`); `deferred.amended` now lowers exactly as a `.frame` layer already
+did, with no report, and `Component.width`/`height` versus `.frame` is
+reconciled by ruling with no API change (`LR-FY`). Three lanes, each red
+first, all verified `ok`, two fix rounds (lane 2's report path and
+overlay-side presentation drop, lane 3's escaped-fill/border emission order,
+N2.5). Suite **1444** (1426 + 18: lane 1 +4, lane 2 +9, lane 3 +5), guards
+**84** (82 + 2), goldens 0; 0 px against `47c0d98` in all fourteen offscreen
+images, independently re-taken by the Record phase along with the suite,
+guard and golden counts, `Backends/SDL`, `Tests/PortableTests` and a
+`swift:6.4-noble` container (record §54 §10). **This is task 7's last
+stage**: nothing is left owed to a later stage of task 7 itself — the
+remaining items handed here (`Component`/`.frame` per-member distribution,
+divergences 54 and 56's remainder, a `Group`-style overlay) are each
+re-owned to plan task 8 or task 10, not to task 7 (spec §10). Task 7's
+checkbox is moved only by the adversarial branch check confirming every
+§4.1 row's exit criterion on this branch (spec §9).
 §4.1's
-table below is still the plan of record for the remaining stages; the **live** per-stage status is the
+table below is still the plan of record for the stages that delivered it;
+the **live** per-stage status is the
 stage list under task 7 in
-`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, and task 7's box there
-is still open. **Production now runs the proposal engine by default as of
+`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`. **As of stage 11,
+every row of §4.1 has a stage that claims it delivered** — the adversarial branch check confirmed each row's exit criterion on the
+branch (`LR-GG` item 4, record §54 §11), and **task 7's box is ticked**
+(2026-09-25, at the stage-11 merge).
+**Production now runs the proposal engine by default as of
 stage 6b** — every earlier "production still runs the legacy authority"
 sentence in this document describes history up to that stage, not the
 present.
@@ -389,7 +453,7 @@ on, the two-authority chrome pair).
 | 8 | **Sizing vocabulary** (`FR-F`/`FR-G`'s recipe) | 6b | `width`/`height`/`min*`/`max*` converted to `.frame` by the recipe (demo 10/13/1, tests 557/519/13), deprecated in the same change; `Style()` writes of CSS fields in tests (651 `Style()` uses) moved onto modifiers or deleted with their tests | 0 `warning:`, and the demo pixel comparison against 6b reads 0 (the recipe's reordering is what it can see) | 0 | 0 px against 6b |
 | 9 | **Engine deletion** | 6b, 7a, 7b, 8 | `FlexEngine.swift`, `ResolveFlexibleLengths.swift`, `FlexBaseSize.swift`, `FlexLines.swift`, `Alignment.swift`'s flex half, `LayoutContext.swift`, `Resolve.swift`'s percentage half, the legacy `MeasureFunction`, `textMeasure` and tokenizer min-content, the legacy registrars and the legacy authority; `LayoutTree`'s placeholder `styles` rows | the suite green with the files gone; `noProductionFrameReachesTheLegacyEngine` deleted with the branch it counted, replaced by 10's symbol check | — | 0 px against 8 |
 | 10 | **`Style`'s CSS fields and the closing check** (`LR-P`) | 9 | `Style`'s CSS fields deleted; `StyledElement.style` narrowed to what paint/animation read; the mechanical check | `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` (`dlsym`, cannot skip) + plain-import guards + the recorded grep | — | 0 px against 9 |
-| 11 | **Modifier unification** (`LR-V`) | 9 | `ModifiedElement` and `ModifiedContent` unified (outer-modifiers spec §9); legacy `.overlay` (`CN-Q`); `.opacity` reaching a background written after it (G4, divergence 45) and answering the same on both paths (`OM-AA` a) | the outer-modifier-order probe's G3/G4 arms and the overlay-primary-shape probe through the unified type | 0 | named per change |
+| 11 | **Modifier unification** (`LR-V`) — **delivered, stage 11** | 9 | `ModifiedElement` and `ModifiedContent` unified (outer-modifiers spec §9, `LR-FV`); legacy `.overlay` generalized from `OverlayModifier` (`CN-Q`, `LR-FX`); `.opacity` reaching a background written after it (G4, divergence 45, now retired) and answering the same on both paths (`OM-AA` a, `LR-FW`) | *corrected by the Record phase, `LR-FY` item 4/§6.4 — the citation named the wrong probe*: **`swiftui-border-clip-paint.swift`'s G3/G4 arms** (plus new group H) and `swiftui-overlay-primary-shape.swift`'s P1–P5/A/B/Q, each re-run through the unified type; `swiftui-outer-modifier-order.swift` has groups C, L, A, B, D, E, F and no G | 0 | named per change; record §54 |
 
 Task 7's other clauses are already met on the proposal path — unspecified,
 ideal, min/max, fixed-size, layout priority (task 2, task 4), compression and

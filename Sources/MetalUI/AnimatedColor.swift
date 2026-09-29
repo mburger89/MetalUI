@@ -240,10 +240,51 @@ struct RgbaVelocity: Equatable {
 @MainActor
 func animatedBackground(_ decoration: Decoration, for id: GlobalElementID,
                         pass: inout PaintPass) -> Hsla? {
-    let effective = effectiveForPointerState(decoration.focusBackground,
-                                             decoration.hoverBackground,
-                                             decoration.background, for: id, pass: pass)
-    return animatedColor(effective, for: id, pass: &pass)
+    animatedResolvedBackground(decoration, for: id, pass: &pass)?.color
+}
+
+/// `animatedBackground`, with **the slot that won** beside the colour (plan
+/// task 7, stage 11, `LR-FW` as amended by `LR-GA` item 1) — what
+/// `paintDecoration` reads to decide whether the fill escapes the element's
+/// opacity scope. One resolution, not a second copy of the precedence:
+/// `animatedBackground` is this with the slot dropped.
+@MainActor
+func animatedResolvedBackground(_ decoration: Decoration, for id: GlobalElementID,
+                                pass: inout PaintPass) -> (color: Hsla, slot: PointerStateSlot)? {
+    // A `nil` token would return from `animatedColor` without touching the
+    // state table; returning here first is the same answer.
+    guard let effective = resolvedForPointerState(decoration.focusBackground,
+                                                  decoration.hoverBackground,
+                                                  decoration.background, for: id, pass: pass),
+          let color = animatedColor(effective.value, for: id, pass: &pass)
+    else { return nil }
+    return (color, effective.slot)
+}
+
+/// Which of an element's three pointer-state slots a resolution chose (plan
+/// task 7, stage 11): the fill's or the border's winning slot, whose
+/// `Decoration.escapesOpacity` member decides whether that emission sits inside
+/// the element's opacity scope.
+enum PointerStateSlot: Sendable {
+    case plain, hover, focus
+
+    /// The `escapesOpacity` member for this slot's fill.
+    var fill: Decoration.OpacityEscapes {
+        switch self {
+        case .plain: .plainFill
+        case .hover: .hoverFill
+        case .focus: .focusFill
+        }
+    }
+
+    /// The `escapesOpacity` member for this slot's border.
+    var border: Decoration.OpacityEscapes {
+        switch self {
+        case .plain: .plainBorder
+        case .hover: .hoverBorder
+        case .focus: .focusBorder
+        }
+    }
 }
 
 /// The `focus ?? hover ?? plain` selection, **extracted so two chains cannot
@@ -259,10 +300,26 @@ func animatedBackground(_ decoration: Decoration, for id: GlobalElementID,
 ///
 /// **`pass` is not `inout`.** `isFocused` and `isHovered` are both non-mutating
 /// reads of `Frame`; taking it `inout` would claim a write this makes no use of.
+///
+/// Since stage 11 it forwards to `resolvedForPointerState`, the one copy of the
+/// precedence, which also names the slot that won.
 @MainActor
 func effectiveForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
                                  for id: GlobalElementID, pass: PaintPass) -> T? {
-    (pass.isFocused(id) ? focused : nil) ?? (pass.isHovered(id) ? hovered : nil) ?? plain
+    resolvedForPointerState(focused, hovered, plain, for: id, pass: pass)?.value
+}
+
+/// `focus ?? hover ?? plain`, returning the value **and the slot it came from**
+/// — the one implementation of the precedence (`OM-L`); every chain reads it
+/// through here or through `effectiveForPointerState`.
+@MainActor
+func resolvedForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
+                                for id: GlobalElementID,
+                                pass: PaintPass) -> (value: T, slot: PointerStateSlot)? {
+    if pass.isFocused(id), let focused { return (focused, .focus) }
+    if pass.isHovered(id), let hovered { return (hovered, .hover) }
+    if let plain { return (plain, .plain) }
+    return nil
 }
 
 /// The border to draw for `id`, resolved through the **same** precedence and the
@@ -279,21 +336,26 @@ func effectiveForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
 /// baseline, so a border change would retarget the fill's fade. Spec §9 defers
 /// it to task 13; `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` pins
 /// the snap so the deferral is visible rather than assumed.
+///
+/// **Returns the winning slot too** (stage 11, `LR-FW`), for `paintDecoration`'s
+/// opacity escape.
 @MainActor
 func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
-                    pass: PaintPass) -> (color: Hsla, widths: Edges<Pixels>)? {
-    guard let style = effectiveForPointerState(decoration.focusBorder, decoration.hoverBorder,
-                                               decoration.border, for: id, pass: pass)
+                    pass: PaintPass) -> (color: Hsla, widths: Edges<Pixels>, slot: PointerStateSlot)? {
+    guard let resolved = resolvedForPointerState(decoration.focusBorder, decoration.hoverBorder,
+                                                 decoration.border, for: id, pass: pass)
     else { return nil }
-    return (pass.theme[style.color], style.widths)
+    return (pass.theme[resolved.value.color], resolved.value.widths, resolved.slot)
 }
 
 /// **The one paint-side entry point for everything a `Decoration` draws or
 /// scopes** — background, border, opacity and clip — wrapped around this
 /// element's `content()` (`OM-P`, `OM-V`).
 ///
-/// Its four callers are `Box.paint`, `Stack.paint`, `Text.paint` and
-/// `ModifiedElement`'s per-layer `paintLayer`. A site that called `pass.fill`
+/// Its callers are `Box.paint`, `Stack.paint`, `Text.paint`, `TextField` and
+/// `TextEditor`'s paint, and the unified `ModifiedContent`'s legacy layer
+/// (`ModifierLayer._paint`, reached per layer from `paintLayer`; stage 11,
+/// `LR-FV`). A site that called `pass.fill`
 /// itself would be silently unbordered, unfaded and unclipped with no
 /// diagnostic — the failure `everyBackgroundPaintingSiteHonoursHoverAndFocus`
 /// was written for, one field over.
@@ -310,7 +372,14 @@ func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
 /// **The order, and each step's reason:**
 ///
 /// 1. `pass.opacity(decoration.opacity)` around **everything below**, this
-///    element's own fill and border included (`OM-N`). Opened only when the
+///    element's own fill and border included (`OM-N`) — **except** a fill or a
+///    border whose winning slot was written after the opacity
+///    (`Decoration.escapesOpacity`; plan task 7, stage 11, `LR-FW` as amended by
+///    `LR-GA` items 1–2, probe `swiftui-border-clip-paint` G4/H2): that fill is
+///    emitted just before the scope opens, that border just after it closes, so
+///    **emission order is unchanged** and only the escaped emission's alpha
+///    differs. A hover or focus change that moves the winning slot across the
+///    scope snaps that emission's alpha (its colour still interpolates). Opened only when the
 ///    value is below 1, so an ordinary element pushes nothing — and so an
 ///    out-of-range value that somehow escaped `Decoration.setOpacity` would
 ///    never reach `PaintPass.opacity`'s own precondition, which is why
@@ -354,18 +423,35 @@ extension PaintPass {
         // same pass, and `animatedColor`'s signature is what fifty test call
         // sites are written against.
         var resolving = self
-        let background = animatedBackground(decoration, for: id, pass: &resolving)
-        let border = resolvedBorder(decoration, for: id, pass: self)
+        let background = animatedResolvedBackground(decoration, for: id, pass: &resolving)
+        let resolved = resolvedBorder(decoration, for: id, pass: self)
+        let border = resolved.map { (color: $0.color, widths: $0.widths) }
         let radii = Corners(all: decoration.cornerRadius)
 
         guard decoration.opacity < 1 else {
-            paintDecorationBody(bounds, radii: radii, background: background, border: border,
+            paintDecorationBody(bounds, radii: radii, background: background?.color, border: border,
                                 clips: decoration.clipsContent, content: content)
             return
         }
+        // Stage 11 (`LR-FW` as amended): a fill or border whose WINNING slot was
+        // written after the opacity is outside the scope — emitted in the same
+        // position (fill first, border last), so only its alpha changes.
+        let escapes = decoration.escapesOpacity
+        let fillEscapes = background.map { escapes.contains($0.slot.fill) } ?? false
+        let borderEscapes = resolved.map { escapes.contains($0.slot.border) } ?? false
+        if fillEscapes, let background {
+            paintDecorationBody(bounds, radii: radii, background: background.color, border: nil,
+                                clips: false) {}
+        }
         opacity(decoration.opacity) {
-            paintDecorationBody(bounds, radii: radii, background: background, border: border,
+            paintDecorationBody(bounds, radii: radii,
+                                background: fillEscapes ? nil : background?.color,
+                                border: borderEscapes ? nil : border,
                                 clips: decoration.clipsContent, content: content)
+        }
+        if borderEscapes, let border {
+            paintDecorationBody(bounds, radii: radii, background: nil, border: border,
+                                clips: false) {}
         }
     }
 

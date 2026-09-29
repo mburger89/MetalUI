@@ -28,6 +28,29 @@ public protocol ProposalElementGroup: ElementGroup {
     mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                              at cursor: inout Int,
                                              pass: inout LayoutPass) -> ([ProposalNodeID], GroupLayout)
+
+    /// The type a proposal modifier (`.padding(_: Edges<Pixels>)`, `.frame`,
+    /// `.background`, …) wraps: `Self` for every conformer but a proposal
+    /// `ModifiedContent`, whose layers wrap its content, so a chain stays ONE
+    /// `ModifiedContent<Base, LayoutModifier>` however long it grows (plan task
+    /// 7, stage 11, ruling `LR-FV` item 4 — `ElementGroup.LayerBase`, ruling
+    /// MC-A, mirrored).
+    associatedtype ProposalBase: ProposalElementGroup = Self
+
+    /// Framework entry point for every proposal modifier: adds one outer layer.
+    /// **Not for conformers to implement.** A conformer that declares
+    /// `ProposalBase` and forwards this to another value compiles, and its
+    /// modifiers then silently drop the receiver — `MC-A`'s `_wrap` hole,
+    /// mirrored; no access-control spelling closes it.
+    func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<ProposalBase, LayoutModifier>
+}
+
+extension ProposalElementGroup where ProposalBase == Self {
+    /// Every conformer but a proposal `ModifiedContent`: the first proposal
+    /// modifier wraps.
+    public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<Self, LayoutModifier> {
+        ModifiedContent(content: self, modifier: modifier)
+    }
 }
 
 // MARK: - The builder's products, on the typed entry
@@ -38,9 +61,18 @@ public protocol ProposalElementGroup: ElementGroup {
 // the verifier round on lane 3, three of the four could lose a load-bearing line
 // with the whole suite green (ruling MC-H). `Pair`'s node order is pinned by the
 // native layout tests, `ArrayGroup`'s appends by
-// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`,
+// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot` and its
+// `noteLoop` (plan task 10, `DD-C`) by
+// `aForLoopInsideAProposalContainerResetsItsDroppedTail` (M1i), `ForEach`'s typed
+// copy (`ForEach.swift`) by
+// `aForEachInsideAProposalStackPlacesEveryElementAndResetsItsDroppedTail` (M1f),
 // `OptionalGroup`'s `wrapped = inner` by
-// `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites`, and
+// `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites` and its
+// one structural slot (plan task 8, `ID-B`) by
+// `removingACellFromARowLeavesTheNextCellsStateAlone` and
+// `removingAWholeGridRowLeavesTheNextRowsStateAlone` (mutation M2a′),
+// `EitherGroup`'s typed entry (`ID-D`) by
+// `anIfElseInsideAProposalStackTakesItsBranchIdentity` (M2i), and
 // `Component`'s typed default (`ProposalNodeID.swift`) by
 // `aProposalComponentsContentIsPositionZeroUnderItsOwnID`.
 
@@ -70,10 +102,44 @@ extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGrou
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], Wrapped.GroupLayout?) {
-        guard var inner = wrapped else { return ([], nil) }
-        let (nodes, layout) = inner.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        cursor += 1
+        guard var inner = wrapped else {
+            pass.frame.stateTable.noteAbsent(slot)
+            return ([], nil)
+        }
+        pass.frame.stateTable.noteProduced(slot)
+        var innerCursor = 0
+        let (nodes, layout) = inner.requestProposalGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
         return (nodes, layout)
+    }
+}
+
+extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, Second: ProposalElementGroup {
+    public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
+                                                    at cursor: inout Int,
+                                                    pass: inout LayoutPass) -> ([ProposalNodeID], Layout) {
+        let branchIndex = cursor
+        cursor += 2
+        let firstBranch = GlobalElementID(component: .positional(branchIndex), parent: parent)
+        let secondBranch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
+        switch self {
+        case .first(var group):
+            pass.frame.stateTable.noteProduced(firstBranch)
+            pass.frame.stateTable.noteAbsent(secondBranch)
+            var inner = 0
+            let (nodes, layout) = group.requestProposalGroupLayout(under: firstBranch, at: &inner, pass: &pass)
+            self = .first(group)
+            return (nodes, .first(layout))
+        case .second(var group):
+            pass.frame.stateTable.noteProduced(secondBranch)
+            pass.frame.stateTable.noteAbsent(firstBranch)
+            var inner = 0
+            let (nodes, layout) = group.requestProposalGroupLayout(under: secondBranch, at: &inner, pass: &pass)
+            self = .second(group)
+            return (nodes, .second(layout))
+        }
     }
 }
 
@@ -82,16 +148,20 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], [Group.GroupLayout]) {
+        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        cursor += 1
+        var innerCursor = 0
         var nodes: [ProposalNodeID] = []
         var layouts: [Group.GroupLayout] = []
         layouts.reserveCapacity(groups.count)
         for index in groups.indices {
-            let (childNodes, childLayout) = groups[index].requestProposalGroupLayout(under: parent,
-                                                                                    at: &cursor,
+            let (childNodes, childLayout) = groups[index].requestProposalGroupLayout(under: slot,
+                                                                                    at: &innerCursor,
                                                                                     pass: &pass)
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
         }
+        pass.frame.stateTable.noteLoop(slot, extent: innerCursor)  // `DD-C`, the copy's own
         return (nodes, layouts)
     }
 }
@@ -108,7 +178,11 @@ extension FixedSize: ProposalElement {}
 extension Spacer: ProposalElement {}
 extension Rectangle: ProposalElement {}
 extension Color: ProposalElement {}
-extension ModifiedContent: ProposalElement {}
+// `ModifiedContent` is a `ProposalElement` only over the proposal vocabulary,
+// declared with it in `ModifiedContent.swift` (ruling `LR-FV` item 2).
 extension OnTapModifier: ProposalElement {}
-extension OverlayModifier: ProposalElement {}
-extension BackgroundModifier: ProposalElement {}
+// `OverlayModifier` is a `ProposalElement` only when both of its sides are
+// proposal content, declared with it in `NativeOverlayModifier.swift` (ruling
+// `LR-FX` item 1).
+// `BackgroundModifier` likewise, since plan task 8's `ID-J`
+// (`NativeBackgroundModifier.swift`).

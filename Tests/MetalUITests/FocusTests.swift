@@ -249,7 +249,12 @@ private final class Label {
         .id("root")
     }
     window.drawFrameIfNeeded()
-    let a = GlobalElementID.child(of: rootID("root"), at: 0, name: ElementID("a"))
+    // Plan task 8, `ID-B` (T row): the `if` takes one slot, `root/0`, and its
+    // content numbers inside it, so "a" is `root/0/named(a)` — it was
+    // `root/named(a)` before. The `$focus` retention slot under it is exempt
+    // from `ID-C`'s reset, which is what keeps this test's answer unchanged.
+    let ifSlot = GlobalElementID.child(of: rootID("root"), at: 0, name: nil)
+    let a = GlobalElementID.child(of: ifSlot, at: 0, name: ElementID("a"))
     window.focus(a)
     // The frame that CONFIRMS the focus — "a" is both produced and
     // `window.focusedElement` this frame — is what creates the retention
@@ -391,11 +396,14 @@ private final class Toggle {
 /// target.
 ///
 /// **The gate that must not move.** `Frame.registerHandlers` registers an
-/// *opaque* hitbox, and an opaque hitbox swallows the wheel of any `ScrollView`
-/// it sits inside — that is the measured cost `onClick` pays and
-/// `aClickTargetInsideAScrollViewSwallowsTheWheel` pins. A keyboard-only
-/// element must not pay it: folding focus into the same `isEmpty` gate would
-/// make every focusable row in a list block that list's own scrolling.
+/// *opaque* hitbox, and an opaque hitbox shadows clicks and hover aimed at what
+/// it covers — the cost `onClick` pays. A keyboard-only element must not pay
+/// it. (Until divergence 16 retired — ruling `DD-Y`, which renamed
+/// `aClickTargetInsideAScrollViewSwallowsTheWheel` to
+/// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller` — an opaque
+/// hitbox also swallowed the wheel of a `ScrollView` it sat inside, so folding
+/// focus into the same gate would have made every focusable row block its
+/// list's scrolling.)
 @Test @MainActor func focusabilityAndKeyHandlingRegisterNoPointerHitbox() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (keyboardOnly, _) = try makeFakeWindow(device: device, size: 100) {
@@ -476,13 +484,15 @@ private func rootID2() -> GlobalElementID {
 /// silent — a list that quietly stops scrolling the day its rows become
 /// focusable, with every other test in the suite still green.
 ///
-/// **The differential is the neighbouring file's test.** Swap `focusable()` and
-/// `onKey` for `onClick` and this fixture becomes
-/// `aClickTargetInsideAScrollViewSwallowsTheWheel` in `InputDispatchTests`,
-/// which asserts the opposite outcome (offset 0) — deliberately, because an
-/// `onClick` registers an opaque hitbox and this does not. Two fixtures one
-/// modifier apart, disagreeing, is what pins that the gate is the thing making
-/// the difference.
+/// **No longer a differential against the neighbouring file.** Swap
+/// `focusable()` and `onKey` for `onClick` and this fixture becomes
+/// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller` in
+/// `InputDispatchTests` (renamed from `…SwallowsTheWheel` when divergence 16
+/// retired, `DD-Y`), which now asserts the same outcome (offset 37) by a
+/// different route: the click target registers an opaque hitbox whose wheel
+/// passes to its scroller, where this registers none. The two used to
+/// disagree; the gate itself is pinned by its mechanism test,
+/// `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
 @Test @MainActor func aFocusableRowInsideAScrollViewDoesNotSwallowTheWheel() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = KeyLog()

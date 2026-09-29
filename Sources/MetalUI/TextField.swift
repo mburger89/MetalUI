@@ -40,6 +40,20 @@ public struct TextField: Element, StyledElement {
         self.fontSize = 13
     }
 
+    /// Bound to `text` (ruling `DD-E`): shows `text.wrappedValue` and writes
+    /// every edit back through the binding. Builds exactly the element the
+    /// controlled initialiser builds; bound to `.constant`, it shows the text
+    /// and drops every edit. The write happens in the edit dispatch — input —
+    /// as a `Binding` write must (`DD-D` item 7).
+    ///
+    /// ```swift
+    /// @State var name = ""
+    /// … TextField("Name", text: $name)
+    /// ```
+    public init(_ placeholder: String, text: Binding<String>) {
+        self.init(placeholder, text: text.wrappedValue, onChange: { text.wrappedValue = $0 })
+    }
+
     public func font(family: String? = nil, size: Double) -> TextField {
         var copy = self
         copy.fontFamily = family

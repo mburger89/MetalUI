@@ -154,7 +154,13 @@ struct ScrollChrome {
         // `requestAnotherFrame()` below — a hidden indicator that kept
         // asking would hold the display link awake forever, exactly the
         // failure `guard alpha > 0` exists to prevent for a faded one.
-        guard indicatorVisibility != .hidden else { return }
+        //
+        // `.never` is `.hidden` and `.visible` is `.automatic` (ruling `DD-H`,
+        // probe I1–I5: SwiftUI's macOS answers on overlay scrollers).
+        switch indicatorVisibility {
+        case .hidden, .never: return
+        case .automatic, .visible: break
+        }
         let content = extent(pass.bounds(of: contentNode).size)
         let viewport = extent(bounds.size)
         let scrollable = max(0, content - viewport)
@@ -219,5 +225,32 @@ struct ScrollChrome {
                               y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
                 size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
         }
+    }
+}
+
+/// What a scroller tells the content it is prepainting (ruling `DD-F` item 2):
+/// pushed by `ScrollView` and `ProposalScrollView` around their content's
+/// prepaint, read by `List` (`Frame.activeScrollerFrame`).
+///
+/// Every rect is **layout space** — `PrepaintPass.bounds(of:)`'s untranslated
+/// geometry — so a descendant's own `bounds` minus `contentOrigin` is its
+/// position within the scroller's content, whatever the offset.
+struct ScrollerFrame {
+    /// The scroller's own element id.
+    var scrollerID: GlobalElementID
+    var axis: ScrollAxis
+    /// The content node's origin, layout space.
+    var contentOrigin: Point<Pixels>
+    /// The viewport's bounds this frame, layout space.
+    var viewport: Bounds<Pixels>
+    /// The offset `ScrollChrome.resolvedOffset` resolved (clamped) this frame.
+    var offset: Double
+    /// The content's extent on the scrolling axis — what a `scrollTo`
+    /// resolution clamps against (`DD-G` item 2, T7).
+    var contentExtent: Double
+
+    /// The viewport's extent on the scrolling axis.
+    var viewportExtent: Double {
+        Double(axis == .vertical ? viewport.size.height.value : viewport.size.width.value)
     }
 }
