@@ -685,3 +685,67 @@ milestone, not this one).
 **Spec status**: `docs/superpowers/specs/2026-09-28-shapes-and-rendering-design.md`
 marked "lanes 1–3 landed; Record phase close applied; task 11 ticked
 (both parts close every clause)".
+
+## §7 Adversarial branch check (2026-09-29)
+
+Against `ff2ae92..8b09f80`, independently of §3–§6.
+
+**Suite**: after `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one SwiftPM deprecation `warning:`), then
+unfiltered `swift test --build-system native --no-parallel` → **`Test run
+with 1763 tests in 3 suites passed after 110.256 seconds`**, one summary
+line, `FR-J no-argument frame: succeeded=` present. Default build system
+(`swift build --build-tests`): 0 `error:`, 0 `warning:`. Goldens 0; guards
+**108** (110 raw `canTypecheck` hits less `Typecheck.swift`'s declaration and
+`UnitSafetyTests`' comment). `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` (`Expected.swift` unedited)
+and `theSevenRetentionSlotsAreMutuallyDistinct` green. `MetalUILayout`
+imports only `MetalUICore`. No diff under `StateTable.swift`,
+`StateDispatch.swift`, `ExplicitIdentity.swift`, `MetalUIDemoContent` or
+`Tests/MetalUICrossPlatformTests`. `Frame.insertHitbox` intersects with the
+clip's box alone, so `TE-AJ` item 5's new contained-radius case cannot move
+a hitbox (read, and the hit-testing suites green). `cmp CLAUDE.md AGENTS.md`
+clean. Every `TE-` id added to a changed doc resolves to a `## TE-` heading
+(`TE-AW`, the next unused, excepted); all 89 camel-case test/symbol names
+added to the record, spec, decisions doc, plan and CLAUDE.md resolve in
+`git grep` over `Tests`, `Sources`, `Backends/SDL` and `Experiments`.
+
+**Two mutations of this check's own** (committed tree, file restored from a
+copy, full unfiltered native suite, `git status --short` clean after each):
+
+| id | mutation | reddened |
+|---|---|---|
+| B1 | `paintShapeStroke`'s `grown(r)` returns `r` — a centred stroke's outer radius not grown by `w/2` (K6, K7, K12) | `aStrokeRoundsItsOuterEdgeByHalfTheWidthOnlyOverACurve`, `aShapeBackgroundOrOverlayTakesTheContentsSize` (4 issues) |
+| B2 | `LayoutTree.aspectRatioProposal`'s nil-ratio branch divides `height / width` — the ideal ratio inverted (`TE-AM`) | `aspectRatioWithNoRatioTakesTheChildsIdealRatio`, `scaledToFitAndScaledToFillAreAspectRatioNil`, `aFillImageOverflowsItsFrameUnlessClipped` (5 issues) |
+
+**Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> ff2ae92 HEAD`,
+fresh archives — controls as §6 reads them (1048576, 1031003, 454895, 0,
+1048576, 0, 544, 216, 491221, 529, 0); **0 differing, scene identical, in
+all fourteen**. **Probe**: `swiftui-shapes-and-rendering.swift` recompiled
+(`-O`) and run: 78 lines, every one present verbatim in the header.
+**`Backends/SDL`** (`PKG_CONFIG_PATH=.accesskit`): 22 + 25 passed.
+**`swift:6.4-noble`** (aarch64, fresh `git archive`): root package builds
+with 0 `error:`/`warning:`, `MetalUILayoutTests` + `MetalUICoreTests` +
+`MetalUICrossPlatformTests` **199 + 22 + 10**. **Real window**: lock probe
+06:54 PDT, `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — not
+taken, still owed.
+
+**Doc defects fixed** (commit `8b09f80`): the spec's header read next unused
+`TE-AV` (now `TE-AW`); spec §10 stopped at "as landed 1762" (1763 after
+3.12c); §6's count arithmetic explained §4's two guards as a fix round and
+left four `+ 1` terms unexplained (the total was right); §6's verifier labels
+(S-A, V1–V9) resolved nowhere and collided with §5's V5/V9 (note added);
+CLAUDE.md (twice) and the plan's progress note said frame 6 was checked
+"byte-for-byte … on Metal, llvmpipe and D3D12" — measured is 0 px on SDL's
+Metal backend, within `ParityTolerance` on llvmpipe (Δ1/Δ2, §3), and D3D12
+only on push, which this branch has not had; the plan note said "four"
+lane-1 gaps and listed three (the two untested `TE-AR` claims added).
+
+**Verdict**: no code defect found. The four §6 coverage gaps stand as owed.
+One note, not a defect: `LayoutModifier` is a public enum and gains
+`.clipShape(any Shape)`, so an outside exhaustive `switch` over it stops
+compiling — the same shape as every earlier case this enum has gained.
+Task 11's tick stands: parts 1 and 2 close every clause of its text, the
+renderer constraints listed in spec §9. **Merge: yes**, with Windows
+(D3D12) parity and Linux CI to be read on push.
