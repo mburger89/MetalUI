@@ -50,3 +50,32 @@ testing). Live count 65 → 68 if every lane lands.
 **Lanes** (spec §8): 1 renderer (both), 2 shapes/fill/stroke/clip/backgrounds,
 3 image/`aspectRatio(nil)`/grid anchor; run in order. Lock probe at design
 time: locked, so the real-window capture is owed.
+
+## §2 Critic round (2026-09-29)
+
+Attacked the committed design (`08499e0`); ruling `TE-AQ`, next unused
+`TE-AR`. **Re-runs**: the probe's revision 2 compiled and run unchanged, all
+77 lines byte-identical to its header; `swiftui-grid.swift` compiled `-O`,
+GL14's line byte-identical (the design had only re-read it). **O4 was not
+separating** (white on white): revision 3 adds O6 over a red canvas with a
+blue control — `background(in:)` paints (white, 5968 px), so `TE-AK`'s token
+fill stands and its evidence is amended as an erratum; revision 3 re-ran
+compiled twice and interpreted once, byte-identical, 78 lines. Lock probe
+00:31 PDT: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — the
+real-window capture stays owed.
+
+**Fixed in the spec** (`TE-AQ` items 1–12): `Shape` refines
+`ProposalElement, Sendable` with default phase implementations (a
+`Shape: Element` outside conformer could neither compile from `geometry(in:)`
+alone nor sit in an `HStack`); `Rectangle.color` becomes `ColorToken?`, a
+ruled public break with its migration; the legacy `clipShape` is
+`<S: Shape & Hashable>` because `Decoration` is `Sendable, Hashable`; a clip's
+hitbox clipping is stated as MetalUI's rule (square, `activeClip`), owner
+plan task 12, no number (unmeasured); the ellipse distance is the trig-free
+three-iteration method on both shader languages (loose transcendental
+precision on Vulkan/D3D); the `MUIRect._reserved` rename's memberwise call
+sites are listed for lane 1; `Image`'s `scale: Float` and missing
+`orientation:` ruled; three stale "task 11" source comments assigned to lanes
+2 and 3; 3.10/2.20 are single `@Test`s; the new `intersect` case runs after
+the existing two. **Rejected**: splitting lane 1, replacing `intersect`'s
+case 2, numbering an unmeasured hit-testing divergence (reasons in `TE-AQ`).

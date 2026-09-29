@@ -4,12 +4,12 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AP`; next unused is **`TE-AQ`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AQ`; next unused is **`TE-AR`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
-**Part 2 status, 2026-09-29: DESIGNED** (`TE-AC`…`TE-AP`; three lanes, not
-yet run).
+**Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`;
+three lanes, not yet run).
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -1387,8 +1387,11 @@ separates a fixed leaf from `Color` at every proposal), S (shape sizing and
 placement), F (fill defaults), K (strokes), C (clipping), O (overlays and
 backgrounds), I (images), A (`aspectRatio(nil)`). Headless — `ImageRenderer`
 at scale 1 and a recording `Layout`, no window ordered front; screen locked;
-compiled twice and interpreted once, byte-identical, 77 lines.
-`docs/probes/swiftui-grid.swift` GL14 (grids track), re-read, not re-run.
+compiled twice and interpreted once, byte-identical, 77 lines. **Revision 3**
+(the critic round, `TE-AQ`) adds O6 and re-ran the whole the same three ways,
+byte-identical, 78 lines. `docs/probes/swiftui-grid.swift` GL14 (grids
+track) — re-read at design time; **re-run** by the critic round (compiled,
+the GL14 line byte-identical to its header).
 
 ---
 
@@ -1466,7 +1469,9 @@ borderWidths.top`: the fill region `d(p, h) ≤ 0`; for `w > 0`, the **band**
 edge in the background colour; `d` is the **exact** signed distance to an
 ellipse (a closed-form or a fixed-iteration solver — one algorithm, the same
 in MSL and HLSL — with a circle branch when the axes agree within 1e-4, where
-the closed form divides by zero). Coverage uses the rect edge's half-pixel
+the closed form divides by zero). **Amended by `TE-AQ` item 6**: the
+algorithm is fixed as the trig-free three-iteration closest-point method, not
+left to the lane. Coverage uses the rect edge's half-pixel
 threshold. `cornerRadii` is ignored for shape 1. A stroke is shape 1 over the
 outset bounds (spec §5).
 
@@ -1529,7 +1534,9 @@ at r 20; `Capsule` 230 px).
 
 **The ruling.**
 
-1. `public protocol Shape: Element` with `geometry(in:) -> ShapeGeometry` —
+1. `public protocol Shape: Element` (**amended by `TE-AQ` item 1**:
+   `Shape: ProposalElement, Sendable`, with default phase implementations)
+   with `geometry(in:) -> ShapeGeometry` —
    SwiftUI's `path(in:)` narrowed to the two geometries the renderer draws
    (`.roundedRectangle(_:cornerRadii:style:)`, `.ellipse(_:)`) — and
    `sizeThatFits(_:)` defaulting to S1's rule. An outside type conforms with
@@ -1612,7 +1619,8 @@ C5 (an ellipse clip), C6 (a capsule clip then a circle = the circle alone,
    as today); `.clipped()` is `.clip()`; `.cornerRadius(r)` is
    `.clipShape(RoundedRectangle(cornerRadius: r))`. `ProposalScrollView`'s
    own `cornerRadius(_:) -> Self` stays more specific.
-2. Legacy path: `StyledElement.clipShape(_:) -> Self` stores the shape on the
+2. Legacy path: `StyledElement.clipShape(_:) -> Self` (**amended by `TE-AQ`
+   item 3**: `<S: Shape & Hashable>`) stores the shape on the
    `Decoration` and clips through the existing clip halves
    (`registerAndScopeBody`, `paintDecoration`); no layer, no id level.
 3. **The legacy `StyledElement.cornerRadius(_:)` stays paint-only —
@@ -1650,6 +1658,10 @@ the capsule is 80×40), O3 (`overlay(Circle().stroke(4))` on 100×60: a centred
 60×60 circle, band 64×64), O5 (a shape background changes no layout), O2
 (`background(blue, in: Capsule())` = O1, 0 px), O4 (`background(in: RR 8)`'s
 default fill on a white canvas: no ink — the window background style).
+**Erratum (`TE-AQ` item 5):** O4 cannot separate "paints white" from "paints
+nothing"; O6 (revision 3) re-takes it over a red canvas and reads white
+(255,255,255) covering the rounded rectangle, the blue control covering it
+blue — the default style **paints**, which is what the ruling below does.
 
 **The ruling.** The existing `.overlay(alignment:content:)` and
 `.background(alignment:content:)` (both vocabularies, `LR-FX`, `ID-J`) already
@@ -1660,9 +1672,10 @@ with the new shapes, no code change. Added: `background(_ token:, in:)` =
 adds the attachment's identity level (`MC-P`'s `-1`), as the spelled-out form
 does.
 
-**Cost if wrong.** O4's evidence is a white-on-white read; if SwiftUI's
-default style is not the window background, `background(in:)` paints the
-wrong token — visible, one line to change.
+**Cost if wrong.** O4's evidence was a white-on-white read, now separated by
+O6 (it paints); which *token* SwiftUI's background style corresponds to in a
+real window is a token mapping (spec §7.9), not measured by a headless
+renderer — visible, one line to change.
 
 ---
 
@@ -1768,3 +1781,106 @@ capture follows the lock probe; locked at design time, so owed.
 
 **Cost if wrong.** A tick with a clause open overclaims; the condition is
 checkable row by row.
+
+---
+
+## TE-AQ — the critic round: twelve findings fixed in the design, three rejections
+
+**Evidence.** Re-runs by this round, 2026-09-29, screen locked
+(`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`):
+`swiftui-shapes-and-rendering.swift` revision 2 compiled and run unchanged —
+all 77 lines byte-identical to its header (every arm, not two); revision 3
+adds O6 and re-ran compiled twice and interpreted once, byte-identical, 78
+lines. `swiftui-grid.swift` compiled `-O` and run: GL14's line byte-identical
+to its header. Reads of `Element.swift`, `ProposalNodeID.swift`,
+`NativeElements.swift` (`Rectangle`), `Box.swift` (`Decoration: Sendable,
+Hashable`), `Frame.swift` (`insertHitbox`, `intersect`),
+`MetalUIShaderTypes.h`, and `git grep -n _reserved`.
+
+**The ruling — each item amends the spec in this commit.**
+
+1. **`Shape` refines `ProposalElement` and `Sendable`**, not `Element`.
+   `Element` has three phase requirements and two associated types; a
+   `Shape: Element` whose outside conformer writes only `geometry(in:)`
+   (G2.1) cannot compile unless an extension supplies them, and a type
+   conforming to a protocol cannot be made a `ProposalElement` retroactively
+   by a protocol extension — so a custom shape would not sit in an `HStack`.
+   `extension Shape` supplies `requestProposalLayout` (a native leaf over
+   `sizeThatFits`), `prepaint` and `paint` (the bare fill) with concrete
+   state types. `Sendable` is SwiftUI's own `Shape` refinement. G2.1 gains an
+   `HStack` arm and a second mutation (`Shape: Element`).
+2. **`Rectangle.color` becomes `ColorToken?`** — a public break, ruled: a
+   bare `Rectangle()` must record "no colour" to paint the foreground style,
+   and a non-optional field could only lie about it. `nil` is the foreground
+   style; `Rectangle(width:height:color:)` keeps its `.surface` default and
+   stores it (its paint does not move). `git grep` finds no in-repo reader of
+   `Rectangle.color`. **Migration**: a reader writes `rect.color ?? <token>`;
+   a writer is unchanged (a `ColorToken` assigns to the optional). A
+   `ShapeView`'s layers never read the shape's stored colour.
+3. **The legacy `clipShape` is `<S: Shape & Hashable>`**, stored in a
+   package `Hashable` box over `any Shape & Hashable` on `Decoration`, which
+   is `Sendable, Hashable` with public stored fields — an unconstrained
+   `any Shape` field would break both. Every built-in shape is `Hashable`.
+   The proposal-path `clipShape` keeps SwiftUI's unconstrained signature
+   (`LayoutModifier` stores what it likes). The new field **snaps** under
+   animation. A departure from SwiftUI's signature on the legacy vocabulary
+   only; a custom shape adds `Hashable` to use it there.
+4. **`clipShape` clips hitboxes to its geometry's bounding rect — MetalUI's
+   rule, stated, not claimed as SwiftUI's.** `insertHitbox` intersects with
+   `activeClip` alone (square), as `.clipped()` and `.clip(cornerRadius:)`
+   already do (`clippedAlsoClipsTheHitboxesInsideIt`); `OM-AJ` records that
+   SwiftUI's `.clipped()` is visual only (divergence 43's family). SwiftUI's
+   hit behaviour under `clipShape` is **not measured** by this headless probe,
+   so no number is added; owner **plan task 12** (its text names pointer hit
+   testing and content shapes). Nothing about existing hit testing moves.
+5. **O4 re-taken as O6.** `background(in:)` paints its default style (white
+   over red, 5968 px; blue control 5900 px). `TE-AK`'s ruling (fill the
+   `.background` token) was right; its evidence was not separating, now
+   amended in place as an erratum.
+6. **The ellipse distance algorithm is fixed**, not left to lane 1: the
+   trig-free three-iteration closest-point method (`sqrt` and arithmetic
+   only), identical constants in MSL and HLSL. The analytic cubic and an
+   angle Newton need `acos`/`cbrt`/`pow`/`sin`/`cos`, which Vulkan and D3D
+   specify loosely — at the ≤ 1 parity tolerance outside images, an edge
+   pixel is exactly where they would disagree. Test 1.2's instrument is
+   unchanged.
+7. **Renaming `MUIRect._reserved` to `shape` re-spells every memberwise
+   call** (a Swift-visible C struct field): the rect sites in
+   `ShaderTypesBridge.swift`, six `Tests/MetalUIRenderTests` files,
+   `SDLWindowRendererTests.swift` and `Experiments/SDLGPU`'s `Replay` — named
+   in lane 1's files. A spelling; no answer moves; no T row.
+8. **GL14 re-run** (see Evidence) — the design had re-read it only.
+9. **`Image(decorative:scale:)`'s spelling departures, ruled:** `scale` is
+   `Float` (MetalUI's scale-factor type, `Frame.scaleFactor`), and SwiftUI's
+   `orientation:` parameter is not offered (a renderer that samples the whole
+   texture upright; a constraint joining spec §9's image row).
+10. **Three stale source comments are named for their lanes**:
+    `Box.swift:1339` (the bare `cornerRadius` gap "is task 11's" → divergence
+    47 kept, `TE-AJ`; lane 2), `UnitPoint.swift:11` and `Grid.swift:338` (the
+    nine-point anchor gap owned by task 11 → divergence 64 retired; lane 3).
+11. **Count arithmetic made explicit**: 3.10 and 2.20 are one `@Test` each
+    (arms inside), so ≈ 1756 stands.
+12. **`Frame.intersect`'s new exact case runs after the two existing cases**,
+    so case 2's documented inexactness (containment against `outer`'s
+    bounding box) keeps its answer; see rejection (b).
+
+**Rejected, with reasons** (the workflow asks rejections to be `LR-`
+rulings; this branch's rulings live under `TE-`, so they are recorded here):
+
+- (a) **Splitting lane 1** (two primitives × two renderers is the largest
+  lane). Rejected: the ellipse and the image share one shader recompile
+  (`compile-shaders.py`, `SOURCE.sha256`), one fixture version bump and one
+  parity frame; splitting would bump the fixture format twice and run the
+  `shadercross` setup twice. Lane 3 stays small by design.
+- (b) **Replacing `intersect`'s case 2 with the exact disc test.** Rejected:
+  it would change answers today's code gives (a small inner clip tucked into
+  an outer corner) — a silent pixel move in a frozen area, for a case no
+  test or production tree reaches (`Frame.swift`'s doc comment). The new
+  case only adds answers where the old code fell back.
+- (c) **Numbering a clipShape hit-testing divergence now.** Rejected: no probe
+  arm measures SwiftUI's hit region under `clipShape` (the screen is locked
+  and the probe is headless); item 4 states the rule and its owner instead.
+
+**Cost if wrong.** Item 2 breaks an outside reader of `Rectangle.color` at
+compile time, with the migration above; item 3 rejects a non-`Hashable`
+custom shape on the legacy path at compile time, never silently.

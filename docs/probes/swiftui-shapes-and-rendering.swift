@@ -49,6 +49,10 @@
 //   I11 `.medium` against default and `.high`, I12 a half-alpha premultiplied
 //   image composited over white, K11/K12 a stroke wider than twice the corner
 //   radius (the outer corner of `strokeBorder` and of `stroke`).
+// - Revision 3 (2026-09-29, the critic round, TE-AQ): O6 — O4 read white on a
+//   white canvas, which cannot separate "paints white" from "paints nothing";
+//   O6 draws the same view over a RED canvas, with an explicit
+//   `background(blue, in:)` as its positive control.
 //
 // RECORDED 2026-09-28 by the plan task 11 part 2 design, macOS 27.0 (26A428),
 // Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen locked (lock probe:
@@ -136,6 +140,20 @@
 //   K12 RR(3).stroke(10) corner (-5,-5) (255,255,255) (-4,-4) (255,255,255)
 //   done
 //
+// REVISION 3, RECORDED 2026-09-29 by the critic round (same machine and
+// toolchain, screen locked: `CGSSessionScreenIsLocked = 1`, `displayAsleep
+// main: 1`): revision 2 was first re-run unchanged, compiled, and read
+// byte-identical to the 77 lines above; then O6 was added and the whole run
+// again — compiled twice and interpreted once, byte-identical, 78 lines: the
+// first 76 are the lines above unchanged, then this, then `done`:
+//
+//   O6 on red: background(in: RR8) centre (255,255,255) red-covered x0 y0 w100 h60 n5968 | control background(blue, in: RR8) centre (0,0,255) blue x0 y0 w100 h60 n5900
+//
+// O6's reading: `background(in:)` PAINTS — its default style covers the red
+// canvas over the rounded rectangle's area (5968 px, antialiased corners
+// included) in white, the background style of ImageRenderer's light
+// appearance — rather than drawing nothing. O4's "ink none" was white on white.
+//
 // READING (rulings TE-AC onward): see the decisions doc; the short form —
 // every shape answers its proposal (nil → 10), except Circle, which answers
 // the square of the smaller proposed side (and a nil axis takes the other's
@@ -150,7 +168,7 @@
 // continuous default (C1, C4). A bare shape fills with the foreground style
 // (F1, F2); `.fill` wins (F3); `.fill(...).stroke(...)` strokes over the
 // fill (F4). A shape background takes the content's size and does not change
-// layout (O1, O5). An image answers its point size (pixels ÷ scale) until
+// layout (O1, O5); `background(in:)` fills the background style (O6). An image answers its point size (pixels ÷ scale) until
 // `.resizable()`, which answers the proposal (nil → its point size);
 // fit/fill are `aspectRatio` of its point size and a fill image overflows
 // its frame unless `.clipped()` (I3–I5, I10); default interpolation is
@@ -451,5 +469,21 @@ MainActor.assumeIsolated {
     print("K11 RR(3).strokeBorder(10) corner (0,0) \(px(k11, 50, 40)) vs RR(3) fill \(px(k11f, 50, 40)); outer-edge pixels differing from the fill's: \(differing(k11, k11f))px")
     let k12 = render(RoundedRectangle(cornerRadius: 3, style: .circular).stroke(R, lineWidth: 10).frame(width: 100, height: 60))
     print("K12 RR(3).stroke(10) corner (-5,-5) \(px(k12, 45, 35)) (-4,-4) \(px(k12, 46, 36))")
+    // O6 (revision 3, the critic round) — O4 read white on white, which cannot
+    // tell "paints white" from "paints nothing". The same view over a RED
+    // canvas separates them; the control is an explicit blue fill in the same
+    // shape, which must cover the red.
+    @MainActor func renderOnRed(_ v: some View) -> Bitmap {
+        let c = ZStack(alignment: .topLeading) {
+            SwiftUI.Color(red: 1, green: 0, blue: 0)
+            v.fixedSize().offset(x: 50, y: 40)
+        }.frame(width: CGFloat(canvasW), height: CGFloat(canvasH))
+        let r = ImageRenderer(content: c)
+        r.scale = 1
+        return bytes(of: r.cgImage!)
+    }
+    let o6 = renderOnRed(SwiftUI.Color.clear.frame(width: 100, height: 60).background(in: RoundedRectangle(cornerRadius: 8)))
+    let o6c = renderOnRed(SwiftUI.Color.clear.frame(width: 100, height: 60).background(B, in: RoundedRectangle(cornerRadius: 8)))
+    print("O6 on red: background(in: RR8) centre \(px(o6, 100, 70)) red-covered \(bbox(o6) { r, g, bl in !(r == 255 && g == 0 && bl == 0) }) | control background(blue, in: RR8) centre \(px(o6c, 100, 70)) blue \(blue(o6c))")
     print("done")
 }

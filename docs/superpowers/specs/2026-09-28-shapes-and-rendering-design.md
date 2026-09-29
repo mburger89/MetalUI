@@ -1,14 +1,15 @@
 # Shapes and rendering — design (plan task 11, part 2)
 
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
-Rulings `TE-AC`…`TE-AP`, appended to part 1's decisions doc,
+Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AQ`**). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
-(**new**, revision 2; arm ids `S1`, `K8`, `I8`, `A3` …; its header carries the
+(next unused **`TE-AR`**). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
+(**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
-`GL14` (grids track, re-read). Record: `docs/record/60-shapes-and-rendering.md`.
+`GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
+byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED.** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`).** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -25,7 +26,10 @@ live divergences, next label **90**. Re-taken by this design session.
 The probe needs no window (`ImageRenderer` at scale 1 and a recording
 `Layout`); it ran with the screen **locked** (lock probe:
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), compiled twice and
-interpreted once, byte-identical, 77 lines.
+interpreted once, byte-identical, 77 lines. The critic round re-ran
+revision 2 unchanged (byte-identical), added **O6** (revision 3: `O4`'s
+white-on-white read re-taken over a red canvas, with a blue positive control)
+and re-ran the whole the same three ways, byte-identical, 78 lines.
 
 ## 2. What the renderer draws today (`TE-AD`)
 
@@ -73,19 +77,25 @@ Every spelling is SwiftUI's; each departure is named. Colours are `ColorToken`s
 
 ```swift
 // Shapes (lane 2)
-public protocol Shape: Element {
+public protocol Shape: ProposalElement, Sendable {       // TE-AQ item 1
     /// SwiftUI's `path(in:)`, narrowed to what the renderer draws (TE-AG).
     func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry
     /// SwiftUI's `sizeThatFits(_:)`. Default: the proposal, nil → 10 (S1).
     func sizeThatFits(_ proposal: ProposedSize) -> SizeD
 }
+// `extension Shape` supplies requestProposalLayout / prepaint / paint (the
+// bare fill, TE-AH) with concrete LayoutState/PrepaintState, so an outside
+// conformer writes geometry(in:) alone and sits in an HStack (G2.1).
+// Every built-in below is also Hashable (TE-AQ item 3).
 public struct ShapeGeometry: Sendable, Equatable {
     public static func roundedRectangle(_ rect: Bounds<Pixels>, cornerRadii: Corners<Pixels>,
                                         style: RoundedCornerStyle = .continuous) -> ShapeGeometry
     public static func ellipse(_ rect: Bounds<Pixels>) -> ShapeGeometry
 }
 public enum RoundedCornerStyle: Sendable, Hashable { case circular, continuous }
-public struct Rectangle: Shape      // existing type, now a Shape (TE-AH)
+public struct Rectangle: Shape, Hashable   // existing type, now a Shape (TE-AH)
+    // public var color: ColorToken  →  ColorToken?  (nil = the foreground
+    // style; a public break, ruled with its migration, TE-AQ item 2)
 public struct RoundedRectangle: Shape { public init(cornerRadius: Pixels, style: RoundedCornerStyle = .continuous) }
 public struct Circle: Shape { public init() }
 public struct Capsule: Shape { public init(style: RoundedCornerStyle = .continuous) }
@@ -115,7 +125,8 @@ extension ProposalElementGroup {
         // = clipShape(RoundedRectangle(cornerRadius: radius)), C4
 }
 extension StyledElement {
-    public func clipShape<S: Shape>(_ shape: S) -> Self                 // a Decoration clip, like clipped()
+    public func clipShape<S: Shape & Hashable>(_ shape: S) -> Self      // a Decoration clip, like clipped();
+        // `& Hashable` because `Decoration` is Hashable (TE-AQ item 3)
 }
 extension ElementGroup {
     public func background<S: Shape>(_ token: ColorToken, in shape: S) -> …  // = background { shape.fill(token) }, O2
@@ -132,7 +143,8 @@ public struct ImageBitmap: Sendable {                           // not SwiftUI's
     public var height: Int { get }
 }
 public struct Image: Element {
-    public init(decorative bitmap: ImageBitmap, scale: Float)   // SwiftUI's Image(decorative:scale:)
+    public init(decorative bitmap: ImageBitmap, scale: Float)   // SwiftUI's Image(decorative:scale:orientation:);
+        // Float is Frame.scaleFactor's type; no orientation: (TE-AQ item 9)
     public func resizable() -> Image
     public func interpolation(_ interpolation: Interpolation) -> Image
     public enum Interpolation: Sendable, Hashable { case none, low, medium, high }
@@ -191,7 +203,11 @@ is one `MUIRect` (shape 0) with its radii; an ellipse is one `MUIRect`
 at r = 20 in 100×60).
 
 **Fill and stroke** (F1–F5, K1–K12): a bare shape fills with
-`foregroundStyle ?? .textPrimary`, part 1's resolution; `.fill` wins. A
+`foregroundStyle ?? .textPrimary`, part 1's resolution; `.fill` wins.
+`Rectangle.color` becomes `ColorToken?`: `Rectangle()` stores `nil` (the
+foreground style), `Rectangle(width:height:color:)` keeps its `.surface`
+default and stores it, and a `ShapeView`'s layers paint their own colours,
+never the shape's stored one (`TE-AQ` item 2). A
 `ShapeView`'s layers paint in declaration order, so `.fill(a).stroke(b)`
 strokes over the fill. **`strokeBorder(w)`** is one `MUIRect` over the shape's
 own bounds with border `w`, transparent background, outer radius `r` when
@@ -207,25 +223,38 @@ the fragment computes an **exact** ellipse distance (§6).
 
 **Clipping** (C0–C8): `.clipShape(s)` pushes the clip `s.geometry(in: bounds)`
 names — a rounded-rect geometry's rect and radii — in prepaint and paint, as
-`.clip(cornerRadius:)` does (so a hitbox inside is clipped to the rect, as
-today's `.clipped()`); an **ellipse geometry traps** naming divergence 91.
+`.clip(cornerRadius:)` does (so a hitbox inside is clipped to the geometry's
+**bounding rect**, square — `insertHitbox` intersects with `activeClip` alone
+— as today's `.clipped()` and `.clip(cornerRadius:)` do; this is MetalUI's
+existing rule, `OM-AJ`/divergence 43's family, not a SwiftUI claim: SwiftUI's
+hit behaviour under `clipShape` is unmeasured here, owner **plan task 12**,
+`TE-AQ` item 4); an **ellipse geometry traps** naming divergence 91.
 `.clipped()` is `.clip()`; the proposal `.cornerRadius(r)` is
 `.clipShape(RoundedRectangle(cornerRadius: r))` (C4). `clipShape` changes no
 layout (C8). The legacy `StyledElement.clipShape(s)` stores the shape on the
-`Decoration` and clips through `registerAndScope`/`paintDecoration`'s existing
-clip halves; **the legacy `.cornerRadius(r)` stays paint-only** (divergence 47
+`Decoration` (a package `Hashable` box over `any Shape & Hashable`, `TE-AQ`
+item 3; the field **snaps** under animation, joining the paint-only
+`Decoration` fields) and clips through `registerAndScope`/`paintDecoration`'s
+existing clip halves; **the legacy `.cornerRadius(r)` stays paint-only** (divergence 47
 kept, `TE-AJ`). `Frame.intersect(_:radii:_:radii:)` gains one exact case
 before its square fallback: **an inner rounded rect contained in the outer
 rounded rect keeps its own radii** — tested exactly as "each inner corner disc
 lies inside the outer shape" (`rect_sdf(outer, cᵢ) ≤ −rᵢ` for the four inner
 corner centres; both shapes are convex hulls of their corner discs), and the
-mirror case; C6 then reads SwiftUI's answer. Two rounded clips that **cross**
-still intersect as the square box (**divergence 92**).
+mirror case; it runs **after** the two existing cases, whose answers do not
+move — including case 2's documented inexactness (containment tested against
+`outer`'s bounding box, `Frame.swift`'s own doc comment), which is kept, not
+replaced by the exact test (`TE-AQ` item 12). C6 then reads SwiftUI's answer.
+Two rounded clips that **cross** still intersect as the square box
+(**divergence 92**).
 
 **Overlays and backgrounds** (O1–O5): unchanged; `.background { shape }` and
 `.overlay { shape }` already offer the shape the content's size and change no
 layout. `.background(t, in: s)` is `.background { s.fill(t) }` (O2, 0 px);
-`.background(in: s)` fills token `.background` (O4).
+`.background(in: s)` fills token `.background` (O6: SwiftUI's default style
+**paints** — white over a red canvas under `ImageRenderer`'s light appearance —
+so MetalUI fills its own canvas token, the analogue under §7.9's tokens; O4's
+"ink none" was white on white, `TE-AQ` item 5).
 
 **Images** (I1–I12): `Image(decorative:scale:)` answers `pixels ÷ scale` at
 every proposal until `.resizable()`, which answers the proposal (nil → its
@@ -254,9 +283,12 @@ still resolve by leading dot (the new overload is `@_disfavoredOverload`,
 - **Ellipse kind.** `rect_fragment`/`replay.hlsl`: `shape == 1` computes the
   exact signed distance to the ellipse with semi-axes `h` (fill) and the band
   `|d(p, h − w/2)| − w/2` (border `w`), a circle branch when the axes are
-  equal within 1e-4, the same algorithm and constants in MSL and HLSL (the
-  analytic cubic of Quílez's `sdEllipse`, or a fixed four-iteration Newton on
-  the angle — the lane chooses one and uses it on both). Coverage on the same
+  equal within 1e-4, the same algorithm and constants in MSL and HLSL: the
+  **trig-free fixed-iteration** closest-point method (Chatfield's "simple
+  method": three iterations over a unit direction, `sqrt`, `*`, `+`, `/`
+  only) — **not** Quílez's analytic cubic nor a Newton on the angle, whose
+  `acos`/`cbrt`/`pow`/`sin`/`cos` Vulkan and D3D leave at loose precision, a
+  parity risk at the ≤ 1 tolerance outside images (`TE-AQ` item 6). Coverage on the same
   half-pixel threshold as the rect edge; background inside the band's inner
   edge, border in the band, then the mask. `cornerRadii` is ignored.
 - **Image primitive.** Metal: `image_vertex`/`image_fragment`, sampler
@@ -338,6 +370,13 @@ and new `drawImage`, `Passes.swift`'s `PaintPass.fill`/`drawImage`;
 `Backends/SDL/{Shaders/replay.hlsl,Shaders/compiled/*,scripts/compile-shaders.py,Sources/SDLBridge/*,Sources/MetalUISDL/SDLWindowRenderer.swift,Sources/ReplayFixture/ReplayFixture.swift,Sources/SDLReplay/SDLReplayer.swift}`;
 `Experiments/SDLGPU/Sources/Replay/main.swift`;
 `.github/workflows/sdl-gpu-linux.yml` (`--expect 7`).
+**The rename re-spells every `MUIRect(…, _reserved: 0)` memberwise call**
+(`TE-AQ` item 7; `git grep -n _reserved` at `ff2ae92`, rect sites only — the
+glyph's `_reserved` stays): `ShaderTypesBridge.swift`, `Tests/MetalUIRenderTests/{ClipTests,DrawListTests,RendererTests,SceneFinalizeIdentityTests,ShaderABITests,ShaderTypesTests}.swift`,
+`Backends/SDL/Tests/MetalUISDLTests/SDLWindowRendererTests.swift`,
+`Experiments/SDLGPU/Sources/Replay/main.swift` — a spelling, no test's answer
+moves, no T row; the lane greps `_reserved` after and lists what is left
+(glyph fields only).
 **Tests**: new `Tests/MetalUIRenderTests/{EllipsePrimitiveTests,ImagePrimitiveTests}.swift`,
 arms in `SceneTests.swift`, `DrawListTests.swift`, `ShaderABITests.swift`;
 new `Tests/MetalUITests/PaintPrimitiveTests.swift`; in `Backends/SDL`
@@ -367,7 +406,9 @@ new `Tests/MetalUITests/PaintPrimitiveTests.swift`; in `Backends/SDL`
 `NativeElements.swift` (`Rectangle`); `NativeModifiedContent.swift`
 (`LayoutModifier.clipShape`); `ModifiedContent.swift` (its prepaint/paint
 arms); `Box.swift`, `DecorationScope.swift`, `AnimatedColor.swift` (the legacy
-`Decoration` clip shape); `Frame.swift`'s `intersect`. **Tests**: new
+`Decoration` clip shape; and `Box.swift:1339`'s doc comment, which still
+says the bare `cornerRadius` gap "is task 11's" — re-pointed to divergence 47
+kept, `TE-AJ`); `Frame.swift`'s `intersect`. **Tests**: new
 `Tests/MetalUITests/{ShapeTests,ShapeStrokeTests,ClipShapeTests,ShapeCompileGuards}.swift`.
 Before the red commit, a **census** of every test that paints a bare
 `Rectangle()` (79 `Rectangle()` spellings in `Sources`/`Tests` at `ff2ae92`,
@@ -381,7 +422,7 @@ from `.surface` to `.textPrimary` is a T row with its literal re-derived
 | 2.2 | `aCircleDrawsCentredInItsFrame` — 100×60 → rect (20,0,60,60) radii 30; 40×90 → (0,25,40,40) | — | M2b: circle at the frame's origin |
 | 2.3 | `aCornerRadiusClampsToHalfTheShorterSideAndANegativeOneIsZero` — RR(50) on 100×60 → 30; RR(−5) → 0; `Capsule` 40×90 → 20 (S4–S6) | — | M2c: no clamp |
 | 2.4 | `anEllipseEmitsTheEllipseKind` | — | M2d: `Ellipse` as a rounded rectangle |
-| 2.5 | `aBareShapeFillsWithTheForegroundStyle` — `Rectangle()` → `.textPrimary`; under `.foregroundStyle(.accent)` → `.accent`; `Circle()` likewise (F1, F2, F5) | `Rectangle()` fills `.surface` | M2e: default `.surface` |
+| 2.5 | `aBareShapeFillsWithTheForegroundStyle` — `Rectangle()` → `.textPrimary`; under `.foregroundStyle(.accent)` → `.accent`; `Circle()` likewise (F1, F2, F5); `Rectangle(width: 10, height: 10)` still `.surface` under `.foregroundStyle(.accent)` (the fixed form's stored default, `TE-AQ` item 2) | `Rectangle()` fills `.surface` | M2e: default `.surface` |
 | 2.6 | `aFillWinsOverTheForegroundStyle` (F3) | — | M2f: environment read first |
 | 2.7 | `aStrokeDrawsOverTheFill` — `.fill(a).stroke(b, lineWidth: 10)` on 100×60: two rects, the fill first, the stroke's bounds (−5,−5,110,70), border 10, clear background (F4, K1) | — | M2g: layers painted reversed |
 | 2.8 | `aStrokeBorderIsInsideTheEdge` — bounds (0,0,100,60), border 10 (K2) | — | M2h: `strokeBorder` outset |
@@ -396,11 +437,11 @@ from `.surface` to `.textPrimary` is a T row with its literal re-derived
 | 2.17 | `clipShapeChangesNoLayout` (C8) | — | M2q: `clipShape` wraps a frame |
 | 2.18 | `aLegacyClipShapeClipsItsChildrenAndItsHitboxes` — `Box { … onClick }.clipShape(Capsule())`: child mask radii, hitbox clipped as `clippedAlsoClipsTheHitboxesInsideIt` | — | M2r: the prepaint half omitted (only the hitbox arm reddens) |
 | 2.19 | `clipShapeOfAnEllipseTrapsNamingDivergence91` (exit test) | — | M2s: trap removed |
-| 2.20 | `aRoundedClipContainedInARoundedClipKeepsItsRadii` — C6: capsule (0,0,100,60) r 30 then circle (20,0,60,60) r 30 → radii 30 (the fallback gave 0); the mirror case; one `Frame.intersect` unit arm per case | square box | M2t: containment case removed |
+| 2.20 | `aRoundedClipContainedInARoundedClipKeepsItsRadii` (one `@Test`) — C6: capsule (0,0,100,60) r 30 then circle (20,0,60,60) r 30 → radii 30 (the fallback gave 0); the mirror case; one `Frame.intersect` unit arm per case | square box | M2t: containment case removed |
 | 2.21 | `twoCrossingRoundedClipsIntersectAsTheSquareBox` — **divergence 92's pin** | — | M2u: return the inner radii unconditionally |
 | 2.22 | `aShapeBackgroundOrOverlayTakesTheContentsSize` — O1, O3, O5 through the existing `.background { }`/`.overlay { }`, both vocabularies | no shapes | M2v: `Circle` answers the proposal (O3's band moves) |
 | 2.23 | `backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken` (O2, O4) | — | M2w: default token `.surface` |
-| G2.1 | `anOutsideShapeNeedsOnlyItsGeometry` — plain `import MetalUI`: a struct conforming to `Shape` with only `geometry(in:)` compiles and `.fill(.accent)`s; control: one without it fails naming `geometry` | — | MG2a: `sizeThatFits`'s default removed |
+| G2.1 | `anOutsideShapeNeedsOnlyItsGeometry` — plain `import MetalUI`, whole-file: a struct conforming to `Shape` with only `geometry(in:)` compiles, `.fill(.accent)`s, **and sits bare in an `HStack`** (so it is a `ProposalElement`); control: one without it fails naming `geometry` | — | MG2a: `sizeThatFits`'s default removed; MG2a′: `Shape` refines `Element` instead of `ProposalElement` (the `HStack` arm fails) |
 | G2.2 | `theRectangleColorInitialiserIsDeprecatedTowardFill` — `Rectangle(color: .accent)` warns naming `fill`; control `Rectangle().fill(.accent)` warns nothing | — | MG2b: deprecation dropped |
 
 ### Lane 3 — `Image`, `aspectRatio(nil)`, the `UnitPoint` grid anchor
@@ -409,7 +450,9 @@ from `.surface` to `.textPrimary` is a T row with its literal re-derived
 `NativeModifiedContent.swift` (`aspectRatio(_:contentMode:)` optional ratio,
 `scaledToFit`/`scaledToFill`, `ContentMode`); `Sources/MetalUILayout/{LayoutTree,NativeGrid}.swift`
 (the nil-ratio node, the anchor factor pair); `Frame.swift`/`Passes.swift`'s
-aspect-ratio registrars; `Sources/MetalUI/{Grid,UnitPoint}.swift`.
+aspect-ratio registrars; `Sources/MetalUI/{Grid,UnitPoint}.swift` (including
+`UnitPoint.swift:11`'s and `Grid.swift:338`'s doc comments, which still name
+the nine-point gap as plan task 11's — re-pointed to divergence 64 retired).
 **Tests**: new `Tests/MetalUITests/{ImageTests,ImageCompileGuards}.swift`,
 new `Tests/MetalUILayoutTests/AspectRatioIdealTests.swift` (portable),
 an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
@@ -426,7 +469,7 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 | 3.7 | `aFillImageOverflowsItsFrameUnlessClipped` — I10: unclipped mask is the surface; `.clipped()` mask (0,0,100,60) | — | M3g: image clips itself to its frame |
 | 3.8 | `interpolationNoneIsNearestAndEveryOtherLinear` — **divergence 93's pin**: `.none` → filter 1; default, `.low`, `.medium`, `.high` → 0 (I8, I11) | — | M3h: `.none` → 0 |
 | 3.9 | `anImageBitmapPremultipliesStraightAlpha` — (200,100,50,128) → (100,50,25,128) | — | M3i: bytes copied as given |
-| 3.10 | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` (exit tests) | — | M3j: precondition removed |
+| 3.10 | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` — **one** `@Test` holding two `#expect(processExitsWith:)` arms (so the lane's count stays 12) | — | M3j: precondition removed |
 | 3.11 | `anImageBitmapDecodesAPNGThroughImageIO` (macOS) — a 2×1 PNG written by ImageIO in the test, decoded to the same straight bytes, premultiplied | — | M3k: rows read bottom-up |
 | 3.12 | `aGridCellAnchorTakesAUnitPoint` — GL14: `a` at (10,20), `b` (58,0), `c` (0,38) | nine-case only | M3l: anchor factors rounded to the nearest nine-point |
 | G3.1 | **G4 inverted and renamed**: `aGridCellAnchorIsNinePoint` → `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve` — `UnitPoint(x: 0.25, y: 1)` compiles; `.topLeading` still resolves to the `ProposalAlignment` overload (the control) | the old guard's answer | MG3a: `@_disfavoredOverload` removed (the leading-dot control stops compiling) |
@@ -444,7 +487,7 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 | an ellipse clip, `clipShape(Ellipse())` | the mask is a rounded rect on every primitive | none — divergence 91 (a trap) |
 | two crossing rounded clips | one mask per primitive | none — divergence 92 |
 | `.interpolation(.high)` | bilinear only | none — divergence 93 |
-| `Image(_:bundle:)`, `Image(nsImage:)`, `Image(systemName:)` (SF Symbols), `resizable(capInsets:resizingMode:)`, `renderingMode`, `symbolRenderingMode` | no asset catalog, no AppKit image type crosses the seam, SF Symbols are out of the task's scope | none |
+| `Image(_:bundle:)`, `Image(nsImage:)`, `Image(systemName:)` (SF Symbols), `resizable(capInsets:resizingMode:)`, `renderingMode`, `symbolRenderingMode`, `Image(decorative:scale:orientation:)`'s `orientation:` | no asset catalog, no AppKit image type crosses the seam, SF Symbols are out of the task's scope | none |
 | a labelled `Image(_:scale:label:)` and an image's accessibility | accessibility | **plan task 12** |
 | image decoding off Apple (`ImageBitmap(contentsOfFile:)`) | no decoder is vendored | none |
 | `colorScheme`/`appearance` environment value; the theme before paint | `EV-G`'s paint-only rule stands; a second appearance source needs a coupling rule to tokens no probe here measures | none (`TE-AO`) |
