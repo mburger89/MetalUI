@@ -719,6 +719,22 @@ private func fmt(_ v: DragGesture.Value) -> String {
         platform.simulateInput(up(100, 100))
         #expect(log.entries == ["p"], "hit testing off (N1)")
     }
+    // The proposal path's `GestureModifier` (`IX-Q` item 3): hit testing off
+    // leaves no target; the same tree with it on taps (the control). V2
+    // (registered through `insertHitbox`, past the gates) reddens it.
+    for enabled in [true, false] {
+        log.entries = []
+        let (window, platform) = try gestureWindow {
+            HStack {
+                Rectangle(width: px(200), height: px(200)).onTapGesture { log.entries.append("c") }
+                    .allowsHitTesting(enabled)
+            }
+        }
+        try requireHitboxes(window, enabled ? [rootRect] : [])
+        platform.simulateInput(down(100, 100))
+        platform.simulateInput(up(100, 100))
+        #expect(log.entries == (enabled ? ["c"] : []), "proposal, allowsHitTesting(\(enabled))")
+    }
 }
 
 /// A `Component` whose body is one tappable box writing its `@State`.
@@ -860,4 +876,150 @@ private struct TappingComponent: Component {
     platform.simulateInput(drag(200, 200))
     platform.simulateInput(up(200, 200))
     #expect(log.entries == [], "released outside the child: the drag was withheld and is cancelled")
+}
+
+// MARK: - 1.24–1.28: the fix round's pins (IX-Q)
+
+/// **1.24** (`IX-Q`, probe `swiftui-gesture-presentation-arena.swift` S1/S2,
+/// V1/V2). A `Deferred` presentation's content does not join its declarer's
+/// arena: a root's high-priority tap does not beat a modal's `onClick` hoisted
+/// above it, and a root's simultaneous tap does not run beside it. A press on
+/// the root outside the modal still runs the root's gesture (the control, so
+/// the arena is shown to exist). Mutation V4 (ancestors of any layer join, the
+/// lane-1 code) reddens both modal arms.
+@MainActor
+@Test func aDeferredPresentationsPressDoesNotJoinItsDeclarersArena() throws {
+    let log = GLog()
+    for simultaneous in [false, true] {
+        log.entries = []
+        let (window, platform) = try gestureWindow {
+            let column = Column {
+                Deferred {
+                    Box().frame(width: px(40), height: px(40)).onClick { log.entries.append("modal") }
+                        .position(.absolute)
+                        .inset(Edges(top: .length(.pixels(px(100))), right: .auto,
+                                     bottom: .auto, left: .length(.pixels(px(100)))))
+                }
+            }
+            .frame(width: px(200), height: px(200))
+            return simultaneous
+                ? column.simultaneousGesture(TapGesture().onEnded { log.entries.append("root") })
+                : column.highPriorityGesture(TapGesture().onEnded { log.entries.append("root") })
+        }
+        let modal = Bounds(origin: pt(100, 100), size: Size(width: px(40), height: px(40)))
+        try requireHitboxes(window, [rootRect, modal])
+        let layers = window.lastHitboxes.filter { $0.scroll == nil }.map(\.layer)
+        try #require(Set(layers).count == 2, "the modal is in a layer above the root's: \(layers)")
+        platform.simulateInput(down(120, 120))
+        platform.simulateInput(up(120, 120))
+        #expect(log.entries == ["modal"], "simultaneous=\(simultaneous): the modal's press is its own")
+        log.entries = []
+        platform.simulateInput(down(200, 200))
+        platform.simulateInput(up(200, 200))
+        #expect(log.entries == ["root"], "simultaneous=\(simultaneous): control — the root's own press")
+    }
+}
+
+/// **1.25** (`IX-D` item 1's region clause). A child overflowing its
+/// gesture-carrying ancestor, pressed where the ancestor's region does not
+/// reach, is not in the ancestor's arena: the ancestor's high-priority drag
+/// neither reports nor holds the child's `onClick` off. Pressed inside the
+/// ancestor, the drag takes the press (the control). Mutation V3 (ancestors
+/// join whether or not they contain the point) reddens the overflow arm.
+@MainActor
+@Test func anOverflowingChildsPressOutsideItsAncestorLeavesTheAncestorOut() throws {
+    let log = GLog()
+    let (window, platform) = try gestureWindow {
+        Box().frame(width: px(100), height: px(100)).onClick { log.entries.append("click") }
+            .frame(width: px(50), height: px(100))
+            .highPriorityGesture(DragGesture().onChanged { _ in log.entries.append("drag") })
+    }
+    let boxes = window.lastHitboxes.filter { $0.scroll == nil }
+    let ancestor = try #require(boxes.first { !$0.handlers.gestures.isEmpty })
+    let child = try #require(boxes.first { $0.handlers.onClick != nil })
+    try #require(ancestor.bounds.size.width == px(50) && child.bounds.size.width == px(100),
+                 "the child overflows the 50-wide ancestor: \(boxes.map(\.bounds))")
+    let y = child.bounds.origin.y.value + 50
+    let outside = child.bounds.origin.x.value + 5
+    let inside = ancestor.bounds.origin.x.value + 25
+    try #require(!ancestor.contains(pt(outside, y)) && child.contains(pt(outside, y)))
+    try #require(ancestor.contains(pt(inside, y)) && child.contains(pt(inside, y)))
+
+    platform.simulateInput(down(outside, y))
+    platform.simulateInput(drag(outside + 20, y))
+    platform.simulateInput(up(outside + 20, y))
+    #expect(log.entries == ["click"], "outside the ancestor: the child's click, no drag")
+
+    log.entries = []
+    platform.simulateInput(down(inside, y))
+    platform.simulateInput(drag(inside + 20, y))
+    platform.simulateInput(up(inside + 20, y))
+    #expect(log.entries == ["drag"], "control: inside it, the ancestor's high-priority drag wins")
+}
+
+/// **1.26** (`IX-P` item 4). A single tap waiting on a double ends when a press
+/// lands on another target within the deferral — at that press, not later and
+/// not never. Mutation V6 (the other target's press drops the arena without
+/// `abandon()`) reddens it.
+@MainActor
+@Test func aWaitingSingleTapEndsWhenThePressMovesToAnotherTarget() throws {
+    let log = GLog()
+    let (window, platform) = try gestureWindow {
+        Row {
+            Box().frame(width: px(100), height: px(100))
+                .onTapGesture(count: 2) { log.entries.append("double") }
+                .onTapGesture { log.entries.append("single") }
+            Box().frame(width: px(100), height: px(100)).onClick { log.entries.append("click") }
+        }
+    }
+    try requireHitboxes(window, [Bounds(origin: pt(50, 100), size: Size(width: px(100), height: px(100))),
+                                 Bounds(origin: pt(150, 100), size: Size(width: px(100), height: px(100)))])
+    platform.simulateInput(down(100, 150))
+    platform.simulateInput(up(100, 150))
+    platform.simulateTick(timestamp: stamp)
+    platform.simulateTick(timestamp: stamp + 0.1)
+    #expect(log.entries == [], "still inside the deferral")
+    platform.simulateInput(down(200, 150))
+    #expect(log.entries == ["single"], "the press elsewhere ends the waiting single tap")
+    platform.simulateInput(up(200, 150))
+    #expect(log.entries == ["single", "click"])
+    platform.simulateTick(timestamp: stamp + 1)
+    #expect(log.entries == ["single", "click"], "once")
+}
+
+/// **1.27** (`IX-P`'s `Hitbox.origin`). A drag's locations are relative to the
+/// element's own box, not to its content-shape-inset hit region: a press at the
+/// window's (150, 150) on the 200 × 200 root inset by 20 starts at (100, 100).
+/// Mutation V5 (the hitbox origin falls back to the inset region's) reddens it.
+@MainActor
+@Test func aDragOnAContentShapeInsetElementReadsTheElementsOwnSpace() throws {
+    let values = DragValues()
+    let (window, platform) = try gestureWindow(root {
+        $0.contentShape(inset: px(20)).gesture(DragGesture().onChanged { values.all.append($0) })
+    })
+    try requireHitboxes(window, [Bounds(origin: pt(70, 70), size: Size(width: px(160), height: px(160)))])
+    platform.simulateInput(down(150, 150))
+    platform.simulateInput(drag(160, 150))
+    platform.simulateInput(up(160, 150))
+    let first = try #require(values.all.first)
+    #expect(first.startLocation == pt(100, 100), "the element's box, not the inset region's (80, 80)")
+    #expect(first.location == pt(110, 100))
+}
+
+/// **1.28** (`IX-C` item 1). A tap released outside its element fails even when
+/// the pointer moved less than the 5-pt slop: pressed 2 pt inside the root's
+/// right edge and released 2 pt outside it (4 pt), no tap; the same 3-pt move
+/// released inside taps (the control). Mutation V7 (no region check at the
+/// release) reddens it.
+@MainActor
+@Test func aTapReleasedJustOutsideItsElementFailsInsideTheSlop() throws {
+    let log = GLog()
+    let (window, platform) = try gestureWindow(root { $0.onTapGesture { log.entries.append("tap") } })
+    try requireHitboxes(window, [rootRect])
+    platform.simulateInput(down(245, 150))
+    platform.simulateInput(up(248, 150))
+    #expect(log.entries == ["tap"], "control: a 3-pt move released inside taps")
+    platform.simulateInput(down(248, 150))
+    platform.simulateInput(up(252, 150))
+    #expect(log.entries == ["tap"], "a 4-pt move released outside the element does not tap")
 }

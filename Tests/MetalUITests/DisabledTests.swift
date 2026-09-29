@@ -352,6 +352,21 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
             Rectangle(width: px(100), height: px(100)).onTap { log.names.append("proposal") }.disabled(d)
         }
     }
+    // Plan task 12 part 1 (lane 1's fix round, `IX-Q` item 3): the gesture
+    // modifiers — the proposal path's `GestureModifier` is its own
+    // handler-registering site; the legacy spelling rides the layer's
+    // `Handlers.gestures`. Mutation V2 (`GestureModifier` registers through
+    // `insertHitbox`, past the gate) reddens `gesture`.
+    try arm("gesture", at: pt(50, 50)) { d in
+        HStack {
+            Rectangle(width: px(100), height: px(100)).onTapGesture { log.names.append("gesture") }.disabled(d)
+        }
+    }
+    try arm("gesture-legacy") { d in
+        Row {
+            Box().cssWidth(px(40)).cssHeight(px(40)).onTapGesture { log.names.append("gesture-legacy") }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
     try arm("component") { d in
         Row { ClickComponent(log: log).disabled(d) }.cssWidth(px(100)).cssHeight(px(100))
     }
