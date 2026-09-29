@@ -305,11 +305,11 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Fifty-six measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 17, 18,
-19, 24, 36, 37, 40, 45, 48, 59, 69, 74) are never reused — most retirements
-are a later task's own fix landing SwiftUI's answer, not a correction of the
-original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
+Sixty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 16, 17,
+18, 19, 24, 36, 37, 40, 45, 48, 59, 64, 69, 74) are never reused — most
+retirements are a later task's own fix landing SwiftUI's answer, not a
+correction of the original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
 holds the original eleven in full and a dated index of every later addition,
 amendment and retirement.
 
@@ -320,13 +320,23 @@ resolution, clipping and scrolling, `Stack`, absolute positioning and portals,
 input and focus, `@State` and `@Observable` reactivity, windowed `List`,
 `Component`, animation.
 
-In progress: SwiftUI behavioural alignment. The replacement inventory is
-published; the proposal-layout kernel (task 2), typed modifier composition
-(task 3), scoped environment values — disabled state, display scale, and
-control active state/size (task 9, closed) — and a macOS accessibility
-bridge (task 12's bridge half) exist beside
-the legacy engine. No legacy container has been ported yet. The decisions
-documents are prefixed `SA-`, `MC-`, `EV-` and `AB-`.
+In progress: SwiftUI behavioural alignment. **The legacy CSS layout engine is
+deleted** (task 7's closing stage) — every element, legacy or proposal, lays
+out through one proposal/measure/place kernel; there is no second engine
+left to port a container onto. Closed: the proposal-layout kernel (task 2),
+typed modifier composition (task 3), SwiftUI's container algorithms and the
+legacy-container audit (task 6), composition and identity (task 8), scoped
+environment values — disabled state, display scale, control active
+state/size (task 9), data-driven controls and scrolling — `ForEach`,
+`Binding<Value>`, common controls, selection (task 10), and text, shape and
+rendering-facing semantics — foreground style, font metrics, truncation,
+baselines, `Shape`/`Image`, fills/strokes, clipping (task 11). A macOS
+accessibility bridge (task 12's bridge half) exists, not yet validated with
+VoiceOver. Open: frame and sizing semantics (task 4), outer modifiers and
+modifier order (task 5), the rest of interaction/focus/accessibility
+(task 12), transaction and animation semantics (task 13) and platform
+completeness (task 14). The decisions documents are prefixed `SA-`, `MC-`,
+`EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-` and `TE-`.
 
 The accessibility bridge publishes text, click targets (as buttons), focusable
 and adjustable elements, and `List` as a table, through `NSAccessibility`, with

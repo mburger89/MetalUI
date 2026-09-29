@@ -52,9 +52,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
   `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
-  plan task 10, both parts), `TE-` (next `TE-AC`; rulings in its own
-  decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11 part
-  1). A numbered citation
+  plan task 10, both parts), `TE-` (next `TE-AW`; rulings in its own
+  decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11,
+  both parts). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -278,9 +278,47 @@ milestones append their record to `docs/record/` and put only the rule here.
   a `GridRow`'s own baseline-alignment factor, left unpinned by 2.1c because
   none of its arms give a row an `alignment:` — with a new test (2.1d)
   against a new SwiftUI probe arm, not fixed code (the implementation was
-  already right). Divergences 86–89 added, 76 amended a third time — **task
-  11's box stays unticked**: part 2 (shapes, images, fills/strokes, overlays,
-  clipping) is the next run.
+  already right). Divergences 86–89 added, 76 amended a third time — part 1
+  left task 11's box unticked pending part 2.
+  Task 11, **part 2**, `TE-AC`…`TE-AV` (§60, spec
+  `specs/2026-09-28-shapes-and-rendering-design.md`, the same decisions doc,
+  probes `swiftui-shapes-and-rendering.swift` and, from the critic round's
+  re-run, `swiftui-grid.swift`'s `GL14`) — **closes task 11**: SwiftUI's
+  `Shape` protocol and five built-ins (`Rectangle`, now a `Shape`;
+  `RoundedRectangle`, `Circle`, `Capsule`, `Ellipse`), `.fill`/`.stroke`/
+  `.strokeBorder` with `ColorToken`s, `.clipShape`/`.clipped()`/
+  `.cornerRadius` on the proposal path and a generalized legacy
+  `StyledElement.clipShape` (the legacy `.cornerRadius` stays paint-only,
+  divergence 47 kept — clipping it would move hit testing under every
+  rounded legacy box), `.background(_:in:)`/`.background(in:)` beside the
+  audited, unchanged `.overlay`/`.background(alignment:content:)`, `Image`/
+  `ImageBitmap` (a textured quad on **both** renderers, Metal and SDL, with
+  `.resizable()`/`.interpolation(_:)`/fit-fill), `aspectRatio(_:contentMode:)`
+  with no ratio (`scaledToFit`/`scaledToFill`), and `gridCellAnchor(UnitPoint)`
+  (divergence 64 retires). Two renderer primitives added — an ellipse kind on
+  `MUIRect` (its unused `_reserved` word renamed `shape`, stride and every
+  recorded scene's bytes unchanged) and `MUIImage` sampling a `Scene`-carried
+  texture, cached by identity and released when a frame's scene no longer
+  references it — both checked byte-for-byte (frame 6) through the SDL
+  replay-parity harness on Metal, llvmpipe and D3D12; everything else SwiftUI
+  offers here (continuous corners, an ellipse clip, crossing rounded clips,
+  `.interpolation(.high)`, `Path`, gradients, `StrokeStyle`, SF Symbols, a
+  labelled image) is a documented renderer constraint (spec §9), divergences
+  90–93 added for the four MetalUI still draws an answer for. Three lanes
+  plus two fix rounds, all verified `ok`; the Record phase's own close
+  re-took the suite, guard and golden counts, the fourteen-image comparison,
+  the probe, `Backends/SDL` and a `swift:6.4-noble` container, found four
+  lane-1 test-coverage gaps (owed, none blocking — an SDL texture-release
+  count, three Metal shader facts pinned only by the parity job, and a
+  latent per-window texture-cache note for a future multi-window image
+  consumer) and corrected a part-1 documentation slip (`Tests/PortableTests`
+  reads 21 + 6 + 5, not 20 + 6 + 5 — 18 + 3, not 18 + 2). Live divergence
+  count 65 → 68, next label 94. Counts 1763 / 0 / 108 tests/goldens/guards;
+  0 px against `ff2ae92` in all fourteen offscreen images; the real-window
+  capture stays owed (screen locked at every check across design, the
+  critic round and all three lanes). **Task 11 is ticked**: every row of the
+  spec's collection table is built, kept with a numbered divergence, or an
+  explicit renderer constraint the task's own text asks for.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -299,6 +337,87 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11, part 2,
+  from `ff2ae92`; closes task 11): 1763 tests, 0 goldens, 108 typecheck
+  guards**, 0 `error:` on both build systems, the one `warning:` SwiftPM's
+  deprecation notice under native (0 under the default one), taken after
+  `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1763 tests in 3
+  suites passed after 108.877 seconds`; the guards ran — the log carries
+  `FR-J no-argument frame: succeeded=`). **1763 = 1706 + 12 + 25 + 15 + 1**:
+  lane 1 (the renderer: an ellipse kind on `MUIRect`, an image primitive,
+  both on Metal and SDL) +12 (1.1–1.12, `Backends/SDL`'s S1.1/S1.2 outside
+  this count), lane 2 (`Shape`, the built-ins, fill/stroke, clipping,
+  backgrounds in a shape) +25 (2.1–2.23, G2.1, G2.2, the fix round's
+  2.13b/2.15b/2.18b/2.18c), lane 3 (`Image`, `aspectRatio(nil)`, the
+  `UnitPoint` grid anchor) +15 (3.1–3.12b, G3.2 — G3.1 renames
+  `GridCompileGuards`' G4, adding no test), and the fix round's 3.12c +1. No
+  `@Test` was removed; three retained tests re-answer or invert (T rows, one
+  per lane: `sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear`'s
+  side-table count 4 → 6, `theLegacyAndProposalDecorationModifiersDoNotCollide`'s
+  `crossed` fixture re-spelled for SwiftUI's proposal `.clipped()`, and guard
+  G4 → G3.1 inverted from "a `UnitPoint` anchor does not compile" to "it does,
+  and the nine-point spellings still resolve"). Guards **108 = 105 + 0 + 2 +
+  1**: `ShapeCompileGuards` (new, G2.1 `anOutsideShapeNeedsOnlyItsGeometry`,
+  G2.2 `theRectangleColorInitialiserIsDeprecatedTowardFill`) and
+  `ImageCompileGuards` (new, G3.2 `anImageHasNoSystemNameOrAssetInitialiser`).
+  No goldens to move (stage 7a). New public API: `Shape` (`ProposalElement,
+  Sendable`, `geometry(in:) -> ShapeGeometry`, `sizeThatFits(_:)` defaulted
+  and `nonisolated`), `RoundedRectangle`/`Circle`/`Capsule`/`Ellipse`,
+  `RoundedCornerStyle`, `ShapeView<S>` (`.fill`/`.stroke`/`.strokeBorder`),
+  `Rectangle: Shape` (`.color` now `ColorToken?`, a ruled public break;
+  `init(color:)` deprecated toward `.fill(_:)`); `clipShape(_:)`/
+  `.clipped()`/`.cornerRadius(_:)` on `ProposalElementGroup`,
+  `StyledElement.clipShape<S: Shape & Hashable>`; `background(_:in:)`/
+  `background(in:)` on `ElementGroup`; `Image`, `ImageBitmap`,
+  `Image.Interpolation`, `aspectRatio(_:contentMode:)`'s optional ratio,
+  `scaledToFit()`/`scaledToFill()`, `ContentMode`; `gridCellAnchor(UnitPoint)`
+  (`@_disfavoredOverload`); `MetalUIScene`'s `PrimitiveKind.image`,
+  `Scene.images`/`.textures`, `ImageTexture`; `PaintPass.fill(…, shape:)`/
+  `.drawImage(_:in:filter:)`. **Divergences 90–93 are added, 64 retires**
+  (65 → 68 live, next label 94; record §04's 2026-09-29 task-11-part-2
+  section, rulings `TE-AD`, `TE-AE`, `TE-AG`, `TE-AJ`, `TE-AL`, `TE-AN`): 90
+  (`RoundedCornerStyle.continuous` draws circular — the SDF has no closed
+  form for Apple's continuous curve, 196 px at r = 20 in 100×60 — kept,
+  owner none, `TE-AG` item 2), 91 (`clipShape(Ellipse())` traps naming the
+  divergence — the mask is a rounded rect on every primitive — kept, owner
+  none, `TE-AJ` item 4), 92 (two crossing rounded clips still intersect as
+  the square box — one mask per primitive — kept, owner none, `TE-AJ` item
+  5), 93 (`.interpolation(.high)` draws bilinear, same as `.low`/`.medium` —
+  880 px from SwiftUI's own `.high` — kept, owner none, `TE-AL`). **Divergence
+  64 retires** (a `gridCellAnchor` took only the nine `ProposalAlignment`
+  spellings; the kernel's anchor is now a factor pair, `ProposalAnchor`, and
+  a plain `UnitPoint` resolves too, `TE-AN`). **0 px against `ff2ae92` in all
+  fourteen offscreen images**, scene identical, independently re-taken by
+  this Record phase from a fresh `git archive`; no demo tree calls a new API
+  (the preview's `Rectangle(width:height:color:)` keeps its explicit
+  colour), so nothing could move. **The real-window capture is still owed**:
+  the lock probe read locked at design time, at every lane's own check, at
+  the critic round and at this Record phase's close. `Backends/SDL`
+  (`PKG_CONFIG_PATH=.accesskit`) **22 + 25** (21 + 23 at `ff2ae92`); a
+  `swift:6.4-noble` aarch64 container builds the root package with 0
+  `error:`/`warning:` and runs `MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests` **199 + 22 + 10** (198 before this task; lane
+  3's 3.4 is portable); `Tests/PortableTests` **21 + 6 + 5**, unaffected
+  (corrected from a stale "20 + 6 + 5" carried since task 11 part 1 — see
+  below). `Experiments/SDLGPU`'s `Replay --portable --record` records a
+  seventh frame (an ellipse fill, an ellipse band, a stroked circle, a
+  capsule, a linear and a nearest image, a half-alpha image, an image under
+  a rounded mask); `PortableReplay --expect 7` and `DemoCapture` PASS on
+  Metal and on Mesa llvmpipe Vulkan in the container; two positive shader
+  controls (the image stage forced to nearest, the ellipse branch dropped)
+  each fail frame 6 alone. **Task 11 is ticked**: parts 1 and 2 together
+  close every clause of its text — the text half (part 1) and shapes,
+  images, fills/strokes, overlays and clipping with every renderer
+  constraint stated explicitly (part 2, spec §9). **A part-1 documentation
+  slip is corrected here**: `Tests/PortableTests`' figure at task 11 part
+  1's close (below, and record §59) read "20 + 6 + 5"; the correct figure
+  is **21 + 6 + 5** (`PortableTextDeterminismTests.swift`'s pre-existing 18
+  plus `TruncationDeterminismTests.swift`'s 3 = 21, confirmed on macOS and
+  in a Linux container) — fixed at every occurrence in record §59 and in
+  this file's own task-11-part-1 entry below (`TE-AV`, record §60 §6).
+  History: record §60.
 - **Counts (2026-09-28, `feat/text-semantics` — plan task 11, part 1, from
   `169d166`): 1706 tests, 0 goldens, 105 typecheck guards**, 0 `error:` on
   both build systems, the one `warning:` SwiftPM's deprecation notice under
@@ -370,8 +489,11 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   0 `error:`/`warning:` and runs `MetalUILayoutTests` + `MetalUICoreTests` +
   `MetalUICrossPlatformTests` **198 + 22 + 10** (188 before this task; +2
   from 2.1c and this Record phase's own 2.1d, both in `MetalUILayoutTests`);
-  `Tests/PortableTests` 20 + 6 + 5 (`TruncationDeterminismTests`, 1.11).
-  **Plan task 11's box stays unticked**: part 2 (shapes, images, fills/
+  `Tests/PortableTests` 21 + 6 + 5 (`TruncationDeterminismTests`, 1.11;
+  corrected from a stale "20 + 6 + 5" by task 11 part 2's Record phase,
+  `TE-AV`, record §60 §6 — `PortableTextDeterminismTests.swift`'s
+  pre-existing 18 plus `TruncationDeterminismTests.swift`'s 3 is 21).
+  **Plan task 11's box stays unticked here**: part 2 (shapes, images, fills/
   strokes, overlays, clipping) is the next run. History: record §59.
 - **Counts (2026-09-28, `test/covered-slider` — the branch check's MX2
   pin): 1644 tests, 0 goldens, 100 typecheck guards**, taken the same way
@@ -1219,11 +1341,15 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `BindingCompileGuards` and `ScrollCompileGuards` (plan task 10 part 1),
   `ControlsCompileGuards`,
   `SliderStepperCompileGuards` and `SelectionCompileGuards` (plan task 10
-  part 2) and, new at plan task 11 part 1, `TextSystemCompileGuards`,
-  `BaselineCompileGuards` and `TextCompileGuards`;
+  part 2), `TextSystemCompileGuards`,
+  `BaselineCompileGuards` and `TextCompileGuards` (plan task 11 part 1) and,
+  new at plan task 11 part 2, `ShapeCompileGuards` and `ImageCompileGuards`
+  (`GridCompileGuards`' own count is unmoved — G3.1 renames its G4 in
+  place);
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 39 and 66 (39 and 61 before task 11 part 1's
+  the declaration. Two helpers, 39 and 69 (39 and 66 before task 11 part 2's
+  three; 39 and 61 before task 11 part 1's
   five; 57 before task 10 part 2's four;
   40 and 50 before task 10 part 1's
   net −1/+7; 48 before task 9's two; 44 before
@@ -1258,10 +1384,18 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `ScrollCompileGuards` (`G3.1`/`G3.2`, both whole-file); new at plan task 10
   part 2, **two** `ControlsCompileGuards` (`G1.1`/`G1.2`), **one**
   `SliderStepperCompileGuards` (`G2.1`) and **one** `SelectionCompileGuards`
-  (`G3.1`), all four whole-file; new at plan task 11 part 1, **two**
+  (`G3.1`), all four whole-file; at plan task 11 part 1, **two**
   `TextSystemCompileGuards` (`G1.1` lane 1, `G1.2` lane 2's fix round, both
   whole-file), **one** `BaselineCompileGuards` (`G2.1`, whole-file) and
-  **two** `TextCompileGuards` (`G3.1`/`G3.2`, both whole-file). A guard about
+  **two** `TextCompileGuards` (`G3.1`/`G3.2`, both whole-file); new at plan
+  task 11 part 2, **two** `ShapeCompileGuards` (`G2.1`
+  `anOutsideShapeNeedsOnlyItsGeometry`, `G2.2`
+  `theRectangleColorInitialiserIsDeprecatedTowardFill`, both whole-file) and
+  **one** `ImageCompileGuards` (`G3.2`
+  `anImageHasNoSystemNameOrAssetInitialiser`, whole-file) — `G3.1`, the
+  `UnitPoint` grid-anchor guard, is `GridCompileGuards`' own `G4` renamed and
+  answer-inverted in place, not a new file, so `GridCompileGuards`' count
+  stays four. A guard about
   what an
   external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
@@ -2035,6 +2169,65 @@ baseline row; everywhere else (a `display: .stack` container, any other
 (`owner: nil`) — `UnlowerableField.owner`'s `"plan task 11"` branch is
 gone, so no report in the kernel names this task as an owner any more.
 
+**Shapes and images (`TE-`, plan task 11 part 2).** What the renderer draws
+decides the surface, not the other way round (`TE-AD`): a new drawable
+capability is added only when both `Sources/MetalUIRender/Shaders/shaders.metal`
+and `Backends/SDL/Shaders/replay.hlsl` gain it identically, checked
+byte-for-byte through the SDL replay-parity harness (`ReplayFixture`,
+`Experiments/SDLGPU`'s `Replay --portable --record`, `PortableReplay`,
+`.github/workflows/sdl-gpu-linux.yml`'s `--expect N`) on Metal, llvmpipe and
+D3D12 — **every new primitive renders identically on both renderers, or it
+is a documented renderer constraint** (spec §9 of the relevant design,
+`docs/superpowers/specs/2026-09-28-shapes-and-rendering-design.md` §9 for
+this part's own table), never a silent approximation. `Shape` is
+`ProposalElement, Sendable` with one main-actor requirement,
+`geometry(in:) -> ShapeGeometry` (SwiftUI's `path(in:)` narrowed to what the
+renderer draws — a rounded rectangle or an ellipse, nothing else, `TE-AG`),
+and one `nonisolated` requirement, `sizeThatFits(_:)`, defaulted to the
+proposal (nil → 10); an outside conformer writes `geometry(in:)` alone and
+sits in an `HStack` like `Rectangle`. `RoundedRectangle`/`Circle`/`Capsule`/
+`Ellipse` are the built-ins; `Circle` alone answers the square of the
+smaller proposed side and draws centred. `ShapeView<S>` holds an ordered
+list of `.fill`/`.stroke`/`.strokeBorder` layers, painted in declaration
+order (a later layer paints over an earlier one); a bare shape fills with
+`foregroundStyle ?? .textPrimary` (`TE-AH`). `strokeBorder(w)` is inside the
+edge, `stroke(w)` is centred on it (`strokeBorder(w)` over the shape outset
+by `w/2`); a width wide enough to meet itself fills the whole shape (K10);
+an ellipse's stroke is the SwiftUI inset-band model, not a concentric hole
+518 px apart (K8, `TE-AE`) — the same exact-distance algorithm, a trig-free
+fixed-iteration closest-point method, in both shader languages, because the
+analytic alternatives need transcendentals Vulkan and D3D specify loosely
+(`TE-AQ` item 6). **Clipping precedence differs by vocabulary**: on the
+proposal path `.clipShape(_:)`/`.clipped()`/`.cornerRadius(_:)` are one
+`LayoutModifier` layer, exactly like `.clip(cornerRadius:)`, clipping
+hitboxes to the geometry's bounding rect (square — MetalUI's own rule,
+`activeClip` alone, not a measured SwiftUI fact, owner plan task 12,
+`TE-AQ` item 4); on the legacy path `StyledElement.clipShape<S: Shape &
+Hashable>` stores the shape on `Decoration` and **wins over
+`clipsContent`** when both are set (`TE-AS` item 4) — but the legacy
+`StyledElement.cornerRadius(_:)` itself stays paint-only, divergence 47
+kept: making it clip would move hit testing under every rounded legacy box
+in the demo, a frozen area (`TE-AJ` item 3). An ellipse geometry in a clip
+traps naming divergence 91 (the mask is a rounded rect on every primitive);
+two crossing rounded clips still intersect as the square box, divergence 92
+— `Frame.intersect` gains one exact case (an inner rounded rect *contained*
+in an outer one keeps its own radii, tested per corner disc against the
+outer SDF) before that fallback, and only there. `Image`/`ImageBitmap`
+stand in for SwiftUI's `Image`/`CGImage` (no Apple image type crosses the
+portable seam, `TE-AL`): a decorative image answers `pixels ÷ scale` until
+`.resizable()`; `aspectRatio(nil, contentMode:)`/`scaledToFit()`/
+`scaledToFill()` measure the child at nil×nil and use its own ratio
+(`TE-AM`); `.interpolation` is bilinear for `.low`/`.medium`/the default and
+nearest for `.none` — `.high` also draws bilinear, divergence 93, kept.
+`gridCellAnchor` now takes a plain `UnitPoint` too (the kernel's cell anchor
+is a factor pair, `ProposalAnchor`), retiring divergence 64 (`TE-AN`).
+**Not built, each a documented renderer constraint with an owner or
+`owner: none`**: continuous corners drawn exactly (divergence 90 covers the
+circular approximation), elliptical corners, `Path`, gradients,
+`StrokeStyle`, SF Symbols, a labelled image's accessibility (plan task 12),
+`colorScheme`/appearance as a readable environment value, colour glyphs
+(spec §9's own table names each).
+
 **Renderer.** No semaphore; the atlas texture is written only while
 `atlasTextureWasEncoded` is false, else replaced, and it is uploaded
 **before** encode (`MetalWindowRenderer.finishFrame`; mutation R1 reddens the
@@ -2042,7 +2235,26 @@ blank-first-frame test). The SDL renderer keeps its atlas texture between
 frames and re-uploads it whole when dirty; both clear the atlas' dirty rect
 after a frame. `Text.requestLayout` and
 `ProposalText`'s measure closures use unguarded `MainActor.assumeIsolated` —
-layout must stay synchronous on the main actor.
+layout must stay synchronous on the main actor. **`MUIRect.shape`** (plan
+task 11 part 2, renamed from an always-zero `_reserved` word — the struct's
+128-byte stride, the replay packing and every scene recorded before this
+change are unchanged) selects a rounded rectangle (0) or an ellipse (1); the
+ellipse fragment computes an exact signed distance, not an SDF gradient
+approximation (`TE-AE`). **`MUIImage`** (`Scene.images`, 64 bytes, no
+`_reserved` — four whole `float4` lanes) samples one `Scene.textures[texture]`
+entry, an immutable `ImageTexture` (premultiplied RGBA8, sRGB gamma space,
+no source rectangle — an image always samples its whole texture). **Each
+renderer caches one GPU texture per `ImageTexture` identity** (an
+`ObjectIdentifier`, the cache holding the object strongly so the identifier
+cannot be reused), **uploads on first sight, and releases every cached
+texture the frame's scene does not reference** — unlike the grow-only glyph
+atlas, an image stream must not accumulate (`TE-AF`). On Metal the cache
+belongs to one `Renderer`, shared across every window by `AppKitPlatform`
+(`RS-C`); two windows showing different images evict each other's texture
+every frame — no production code draws an image yet, so nothing regresses,
+but a future multi-window image consumer needs its own answer here (record
+§60 §6 item 4, owner: before one ships). `Scene.finalize()` breaks an image
+run where the texture changes, so the run count stays the draw-call count.
 
 **Animation (`AN-`).** `withAnimation` writes `pendingTransaction` (lexical)
 and `parkedTransaction` (handed to exactly one frame build). The park rolls
@@ -2417,7 +2629,14 @@ out through the propose/measure/place kernel. Detail: §19
   task 10 part 1, `ForEach` (`extension ForEach: ProposalElementGroup where
   Content: ProposalElementGroup`, `DD-B` — legacy content inside a `ForEach`
   inside a proposal stack does not compile, `DD-B`'s guard G1.2) and
-  `ScrollViewReader`/`ScrollViewProxy`/`UnitPoint` (`DD-G`). **`.id(_:)` on any
+  `ScrollViewReader`/`ScrollViewProxy`/`UnitPoint` (`DD-G`). Since plan task
+  11 part 2, `Shape`/`RoundedRectangle`/`Circle`/`Capsule`/`Ellipse`/
+  `ShapeView<S>`/`Image`/`ImageBitmap` (each a proposal leaf, `TE-AC`
+  onward) and `clipShape(_:)`/`.clipped()`/`.cornerRadius(_:)`/
+  `aspectRatio(_:contentMode:)`/`scaledToFit()`/`scaledToFill()` as
+  `ProposalElementGroup` modifiers; `gridCellAnchor(_: UnitPoint)` joins the
+  existing `ProposalAlignment` overload (`@_disfavoredOverload`, `TE-AN`).
+  **`.id(_:)` on any
   `ElementGroup`** (plan task 8, `ID-G`) wraps it in `IdentifiedGroup<Content>`
   (`ExplicitIdentity.swift`); a `StyledElement`'s own `id(_:) -> Self` wins
   where both apply. **A legacy `.background(alignment:content:)`**
@@ -2536,9 +2755,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**65 live**, stable labels; retired labels never
+- **Known divergences** (**68 live**, stable labels; retired labels never
   reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
-  59, 69, 74) — record §04 is current (its
+  59, 64, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -2718,6 +2937,29 @@ expected, measured facts:
   addition to `Button`'s chrome from task 10 part 2; it still reaches no
   other control's chrome (`TextField`'s own padding, `Toggle`, `Picker`,
   `Slider`, `Stepper`).
+  **Plan task 11 part 2 retires 64 and adds 90–93** (65 → 68 live; record
+  §04's 2026-09-29 task-11-part-2 section, rulings `TE-AG`, `TE-AJ`, `TE-AL`,
+  `TE-AN`): 64 (`gridCellAnchor` took only the nine `ProposalAlignment`
+  spellings, not an arbitrary `UnitPoint`) retires under `TE-AN` — the
+  kernel's cell anchor is now a factor pair (`ProposalAnchor`), the
+  nine-point spellings map onto it unmoved and a plain `UnitPoint` resolves
+  too (`@_disfavoredOverload` keeps the leading-dot spellings unambiguous).
+  **Added**: 90 (`RoundedCornerStyle.continuous`, the default corner style
+  on `RoundedRectangle`/`Capsule`, draws circular — the renderer's SDF has
+  no closed form for Apple's continuous curve, 196 px apart at r = 20 in
+  100×60 — kept, owner none, `TE-AG` item 2), 91 (`clipShape(Ellipse())`
+  traps naming the divergence — the mask is a rounded rect on every
+  primitive the renderer has — kept, owner none, `TE-AJ` item 4), 92 (two
+  rounded clips whose corners cross still intersect as the square
+  bounding-box fallback, not their exact geometric intersection — one mask
+  per primitive — kept, owner none, `TE-AJ` item 5), 93 (`Image.interpolation(.high)`
+  draws bilinear, identical to `.low`/`.medium` — 880 px from SwiftUI's own
+  `.high` sampling — kept, owner none, `TE-AL`). **A likely-looking fifth
+  divergence is NOT added**: `clipShape` clips hitboxes to its geometry's
+  bounding rect (square), which SwiftUI's own hit behaviour under
+  `clipShape` was never measured against (the probe is headless, no window
+  is ordered front) — stated as MetalUI's own rule instead, owner **plan
+  task 12** (`TE-AQ` item 4, `TE-AJ` item 1).
 - **Declared but inert** APIs (compile and do nothing:
   `hidden()` on
   drawing/focusable subtrees, `PaintPass.isActive`,
@@ -2811,6 +3053,14 @@ expected, measured facts:
   text-style table has no size column, so the value is carried and scoped but
   reaches no text style (`TE-E`, spec 3.9) — unlike `controlSize`, no built-in
   consumer is owed to a later task, so this row is not narrowed further.
+  **Plan task 11 part 2 adds no row and deletes none** (record §05's
+  2026-09-29 task-11-part-2 section): the colour-glyphs row is re-confirmed
+  unmoved (`TE-AO` item 2) — the new image primitive is now the draw path a
+  polychrome glyph would use, but rasterizing `COLR`/`sbix` into RGBA stays a
+  text-system milestone this task does not touch; nothing else this part
+  declares (`Shape`'s `cornerRadii` ignored on an ellipse, an image's `filter`
+  field, the anchor factor pair) reads as inert — each is read by exactly the
+  code that consumes it.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -2928,6 +3178,18 @@ expected, measured facts:
   (`displayScale`/`controlActiveState`/key-active mapping, the two-display
   `displayScale` change, the controls demo's pointer/keyboard/VoiceOver
   looks) — none of those is this task's to close.
+  **Plan task 11 part 2 adds no demo look and does not narrow the still-open
+  real-window capture** (record §03's 2026-09-29 task-11-part-2 section): no
+  demo tree calls a new shape, clip or image API, so the fourteen-image
+  offscreen comparison stands in unchanged (0 px against `ff2ae92`) and says
+  nothing new about a real window. The lock probe read locked at design
+  time, at the critic round, at every lane's own check and at this Record
+  phase's close — **owed, new here**: every shape, stroke, clip and image
+  look this part built has never been seen on a real display or through a
+  real renderer's antialiasing (an ellipse fill and band, a rounded/clipped
+  overlay, a resizable/fit/fill image, `.interpolation`'s four cases) —
+  pinned only by the offscreen renderer and the SDL replay-parity harness so
+  far; it joins, rather than replaces, the still-open capture above.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -2936,7 +3198,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **105** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **108** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

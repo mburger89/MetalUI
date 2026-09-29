@@ -1201,7 +1201,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   and VoiceOver on the five new roles to it, none of them SwiftUI-measured
   (CK0/WH0 failed in every probe session).
 
-- [ ] **11. Close text, shape and rendering-facing semantics.**
+- [x] **11. Close text, shape and rendering-facing semantics.**
   Add the overlapping SwiftUI text controls: foreground style, font metrics,
   line limit, truncation, multiline alignment, baseline alignment and dynamic
   type response. Then cover shapes, images, fills/strokes, overlays and
@@ -1243,7 +1243,59 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   round's one unlocked window (record §03's 2026-09-28 section) — the
   paragraph's own animation-state look and `TE-Q`'s drawn `controlSize` font
   stay owed. **Part 2** (shapes, images, fills/strokes, overlays, clipping)
-  is the next run; **this task's box stays unticked**.
+  is the next run; part 1 alone left this task's box unticked.
+  *Progress note, 2026-09-29 — part 2 delivered; task 11 ticked*
+  (`feat/shapes-and-rendering` from `ff2ae92`, part 1's tip, rulings
+  `TE-AC`…`TE-AV`, record §60): the task's second and third sentences —
+  shapes, images, fills/strokes, overlays and clipping, with renderer
+  constraints stated explicitly. SwiftUI's `Shape` protocol
+  (`ProposalElement, Sendable`, `geometry(in:)` narrowed to a rounded
+  rectangle or an ellipse, `TE-AG`) and five built-ins
+  (`Rectangle`, now a `Shape`, its stored colour a ruled-optional
+  `ColorToken?`; `RoundedRectangle`, `Circle`, `Capsule`, `Ellipse`);
+  `.fill`/`.stroke`/`.strokeBorder` layered in declaration order on a
+  `ShapeView<S>` (`TE-AI`); `.clipShape`/`.clipped()`/`.cornerRadius` on the
+  proposal path and a generalized legacy `StyledElement.clipShape<S: Shape &
+  Hashable>` that wins over `clipsContent` (`TE-AJ`) — the legacy
+  `.cornerRadius` itself stays paint-only, divergence 47 kept: clipping it
+  would move hit testing under every rounded legacy box, a frozen area;
+  `.background(_:in:)`/`.background(in:)` added beside the audited,
+  unchanged `.overlay`/`.background(alignment:content:)` (`TE-AK`); `Image`/
+  `ImageBitmap` (`TE-AL`) drawing a textured quad through a new render-seam
+  primitive on **both** Metal and SDL, `.resizable()`/`.interpolation(_:)`/
+  fit-fill; `aspectRatio(_:contentMode:)` with no ratio measuring the
+  child's own ideal (`TE-AM`); `gridCellAnchor` taking a plain `UnitPoint`
+  (`TE-AN`, retiring divergence 64). Two renderer primitives, both checked
+  byte-for-byte on Metal, llvmpipe and D3D12 through the SDL replay-parity
+  harness's new frame 6: an ellipse kind on `MUIRect` (its unused
+  `_reserved` word renamed `shape`, the struct's stride and every recorded
+  scene's bytes unchanged, `TE-AE`) and `MUIImage` sampling a `Scene`-carried,
+  identity-cached, evict-when-unreferenced texture (`TE-AF`). Everything
+  else SwiftUI offers here — continuous corners drawn exactly, elliptical
+  corners, an ellipse clip, crossing rounded clips, `.interpolation(.high)`,
+  `Path`, gradients, `StrokeStyle`, SF Symbols, a labelled image's
+  accessibility, `colorScheme` as a readable value, colour glyphs — is a
+  documented renderer constraint with an owner or `owner: none`, named row
+  by row in the spec's own table (`TE-AD`). Divergences 90–93 added (the
+  four still-drawn approximations above), 64 retires — live count 65 → 68,
+  next label 94. Three lanes plus two verifier fix rounds, all verified
+  `ok`; the Record phase's own close (record §60 §6) re-took the suite,
+  guard and golden counts (**1763 / 0 / 108**), the fourteen-image
+  comparison (0 px against `ff2ae92`), the probe (byte-identical to its
+  78-line recorded header), `Backends/SDL` (22 + 25) and a
+  `swift:6.4-noble` container (199 + 22 + 10; `Tests/PortableTests`
+  21 + 6 + 5), named four lane-1 test-coverage gaps as owed (none blocking:
+  an untested SDL texture-release count, three Metal shader facts pinned
+  only by the parity job, and a latent per-window Metal texture-cache note
+  for a future multi-window image consumer), and corrected a part-1
+  documentation slip found in passing (`Tests/PortableTests` reads
+  21 + 6 + 5, not 20 + 6 + 5 — `TE-AV`). The real-window capture stays owed
+  (screen locked at every check across design, the critic round and all
+  three lanes); every shape, stroke, clip and image look this part built is
+  new to that debt. **Task 11 is ticked**: every row of the collection table
+  spec §3 built for this part reads built, kept with a numbered divergence,
+  or an explicit renderer constraint the task's own text asks for — parts 1
+  and 2 together close every clause.
 
 - [ ] **12. Align interaction, focus and accessibility.**
   Specify gesture composition, button semantics, disabled behaviour, keyboard
