@@ -168,6 +168,44 @@ public struct EnvironmentValues {
     /// metrics): plan task 11 (`DD-AB` item 2).
     public var controlSize: ControlSize = .regular
 
+    /// The font a `Text`, `ProposalText`, `TextField` or `TextEditor` below
+    /// resolves when it names none — SwiftUI's `font` (ruling TE-B item 2).
+    /// `nil` in a bare value: the **default font**, `.system(size: 13)`, or 11
+    /// and 9 under `controlSize` `.small` and `.mini` (TE-F). Written by
+    /// `.font(_:)`; the nearest writer wins (probe F6e), and a text's own
+    /// font wins over it (F6b).
+    public var font: Font?
+
+    /// The largest number of lines a `Text` below draws — SwiftUI's
+    /// `lineLimit` (ruling TE-H): the upper bound of the pair `.lineLimit(_:)`
+    /// writes. `nil`: no limit. Writing it keeps the lower bound.
+    public var lineLimit: Int? {
+        get { textLineLimit.max }
+        set { textLineLimit.max = newValue }
+    }
+
+    /// Which end of a truncated line keeps its text (ruling TE-I). `.tail`.
+    public var truncationMode: Text.TruncationMode = .tail
+
+    /// How a multi-line text's lines sit in its box (ruling TE-J). `.leading`.
+    public var multilineTextAlignment: TextAlignment = .leading
+
+    /// The glyph colour of a `Text` or `ProposalText` below that names none
+    /// (ruling TE-D). **Internal**: SwiftUI has no public key; written by
+    /// `.foregroundStyle(_:)`/`.foregroundColor(_:)`.
+    var foregroundStyle: ColorToken?
+
+    /// `.fontWeight(_:)` over whichever font a text below resolves (TE-B
+    /// item 3). Internal, as SwiftUI's is.
+    var fontWeight: Font.Weight?
+
+    /// `.italic(_:)` over whichever font a text below resolves (TE-B item 3).
+    var italic: Bool = false
+
+    /// The line-limit pair (ruling TE-H): `lineLimit(n)` writes `(nil, n)`,
+    /// `lineLimit(n, reservesSpace: true)` `(n, n)`, a range its bounds.
+    var textLineLimit = TextLineLimit()
+
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
     /// public reader is `PaintPass.theme`, and the only public writer is
     /// `.theme(_:)` (ruling EV-G).
@@ -184,6 +222,12 @@ public struct EnvironmentValues {
         }
         set { custom[ObjectIdentifier(key)] = newValue }
     }
+}
+
+/// The lower and upper line bounds `.lineLimit(_:)` writes (ruling TE-H).
+struct TextLineLimit: Hashable, Sendable {
+    var min: Int?
+    var max: Int?
 }
 
 /// SwiftUI's twelve dynamic type sizes (ruling EV-I).

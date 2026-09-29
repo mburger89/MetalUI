@@ -13,22 +13,34 @@ import MetalUITextSystem
 /// it can participate in an otherwise proposal-only subtree today.
 public struct ProposalText: ProposalElement {
     public var string: String
-    public var fontFamily: String?
-    public var fontSize: Double
     public var foregroundColor: ColorToken?
+    /// This text's own font request, weight and slope (ruling TE-B), as
+    /// `Text`'s.
+    var fontRequest: TextFontRequest = .inherit
+    var fontWeight: Font.Weight?
+    var isItalic = false
+
+    /// The explicit font's family; computed over the request (TE-B item 5).
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size, 13 without one; computed (TE-B item 5).
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     public init(_ string: String) {
         self.string = string
-        fontFamily = nil
-        fontSize = 13
         foregroundColor = nil
     }
 
-    /// The face and size this run is shaped at.
+    /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
+    /// `nil` family (TE-B item 5).
     public func font(family: String? = nil, size: Double) -> ProposalText {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
@@ -109,8 +121,9 @@ extension Text {
     /// font or foreground-token configuration.
     public func proposalLayout() -> ProposalText {
         var result = ProposalText(string)
-        result.fontFamily = fontFamily
-        result.fontSize = fontSize
+        result.fontRequest = fontRequest
+        result.fontWeight = fontWeight
+        result.isItalic = isItalic
         result.foregroundColor = foregroundColor
         return result
     }

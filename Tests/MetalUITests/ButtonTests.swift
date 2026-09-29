@@ -130,30 +130,38 @@ final class ControlModel {
     #expect(label.size.width.value == text.width.value, "the label keeps its own width")
 }
 
-/// **1.2.** `controlSize` reaches the chrome — paddings 8/10/12/14/18 and
-/// strut heights 13/20/24/28/36 (BT4 − BT5, halved) — but not the label's font
-/// (divergence 76, amended): the label is the same size in every chrome. M1b
-/// (the chrome reads `.regular` whatever the environment) must redden it.
-@Test @MainActor func aButtonReadsControlSizeForItsChromeButNotItsLabelsFont() throws {
-    let text = try controlTextSize("Go")
-    let table: [(ControlSize, Float, Float)] = [
-        (.mini, 8, 13), (.small, 10, 20), (.regular, 12, 24), (.large, 14, 28), (.extraLarge, 18, 36),
+/// **1.2 (3.12, re-answered; ruling TE-F item 3).** `controlSize` reaches the
+/// chrome — paddings 8/10/12/14/18 and strut heights 13/20/24/28/36 (BT4 −
+/// BT5, halved) — **and the label's default font**, 9/11/13 pt (probe F8,
+/// Z3: SwiftUI's button widths shrink with the label): the label is the 9, 11
+/// or 13 pt text. **Renamed** from
+/// `aButtonReadsControlSizeForItsChromeButNotItsLabelsFont`, which pinned the
+/// label unshrunk (`DD-R` item 4, withdrawn by TE-F item 3); its retirement row
+/// is record §59 §4. M1b (the chrome reads `.regular` whatever the
+/// environment) and **M3k** (`controlSize` ignored by the default font) must
+/// redden it.
+@Test @MainActor func aButtonReadsControlSizeForItsChromeAndItsLabelsDefaultFont() throws {
+    let table: [(ControlSize, Float, Float, Double)] = [
+        (.mini, 8, 13, 9), (.small, 10, 20, 11), (.regular, 12, 24, 13), (.large, 14, 28, 13),
+        (.extraLarge, 18, 36, 13),
     ]
     var labelWidths: [Float] = []
-    for (size, padding, height) in table {
-        let frame = try controlRender(controlRoot { Button("Go") {}.controlSize(size) })
-        let button = try controlBounds(frame, controlID([0, 0]))
-        let label = try controlBounds(frame, controlID([0, 0, 0]))
+    for (size, padding, height, points) in table {
+        let frame = try controlRender(controlRoot { Text("Go").font(size: points) })
+        let text = try #require(frame.elementBounds[controlID([0, 0])]).size
+        let buttonFrame = try controlRender(controlRoot { Button("Go") {}.controlSize(size) })
+        let button = try controlBounds(buttonFrame, controlID([0, 0]))
+        let label = try controlBounds(buttonFrame, controlID([0, 0, 0]))
         #expect(button.size.width.value == text.width.value + 2 * padding,
                 "\(size): width textW + 2·\(padding), read \(button.size.width.value)")
         // The tallest child spans the button's edges, so this is exact.
         #expect(button.size.height.value == max(label.size.height.value, height),
                 "\(size): height max(textH, \(height)), read \(button.size.height.value)")
-        #expect(abs(label.size.height.value - text.height.value) <= 1, "\(size): the label's height")
+        #expect(label.size.height.value == text.height.value, "\(size): the label is the \(points) pt text")
+        #expect(label.size.width.value == text.width.value, "\(size): the label's width")
         labelWidths.append(label.size.width.value)
     }
-    #expect(Set(labelWidths).count == 1 && labelWidths.first == text.width.value,
-            "the label is its unshrunk self at every size: \(labelWidths)")
+    #expect(Set(labelWidths).count == 3, "three default fonts: \(labelWidths)")
 }
 
 // MARK: - 1.3–1.6 pointer and keys

@@ -321,37 +321,51 @@ private func fieldHeight<C: ElementGroup>(_ content: (TextField) -> C, _ field: 
     return try #require(f.elementBounds[fieldID], "the field recorded no bounds").size.height.value
 }
 
-/// **T1.7. PINNED WRONG ON PURPOSE — divergence 76** (ruling EV-AC).
-/// SwiftUI's built-ins read `controlSize` on macOS: a `Text`'s **default**
-/// font shrinks (probe Z2: 53×11 at `.mini`, 63×14 at `.small`, against 72×16
-/// at `.regular` and above), and a `TextField` is 19 pt tall at `.mini`
-/// against 24 at `.regular` (Z3). MetalUI's measure nothing differently: `Text`
-/// stores `fontSize = 13` with no "default font" state. Owners: plan task 11
-/// (`Text`), plan task 10 (`TextField`). This pin flips in those changes.
+/// **3.11 (T1.7 re-answered; ruling TE-F).** `controlSize` reaches a text's
+/// **default** font — 9 pt at `.mini`, 11 at `.small`, 13 at `.regular` and
+/// above (probe F8, Z2, R2) — and through it a `TextField`'s height, which is
+/// its font's line; an explicit font (`font(size: 26)`) and an environment font
+/// (`.font(.title)`, F8h) do not move. **Divergence 76 amended, kept**: no
+/// control's chrome follows it but `Button`'s — a `TextField` gains no padding
+/// at any size (SwiftUI's Z3 heights 19/22/24 are font plus a padding that
+/// also shrinks).
 ///
-/// **Positive control**: a 26 pt font measures differently, `#require`d first,
-/// for the `Text` and for the field.
+/// **Renamed** from `controlSizeReachesNoBuiltInMeasurement` (T1.7, record §56),
+/// which pinned the opposite — `Text` and `TextField` measuring nothing
+/// differently — wrong on purpose; its retirement row is record §59 §4.
 ///
-/// Red-before: does not compile at `e732d98`; at runtime, **M1.7** (the lowered
-/// `Text` measures at `fontSize * 0.7` under `.mini`).
+/// **Positive control**: a 26 pt font measures differently, `#require`d first.
+/// Mutation **M3k**: `controlSize` ignored by the default font.
 @MainActor
-@Test func controlSizeReachesNoBuiltInMeasurement() throws {
+@Test func controlSizeReachesTheDefaultFontButNoControlsChrome() throws {
     let text = Text("Hello, control size")
     let bare = try textMeasure({ $0 }, text)
     let control = try textMeasure({ $0 }, text.font(size: 26))
     try #require(control.ideal != bare.ideal && control.broken != bare.broken,
                  "the control font must measure differently: \(control) vs \(bare)")
-    for size in [ControlSize.mini, .small, .extraLarge] {
+    let table: [(ControlSize, Double)] = [(.mini, 9), (.small, 11), (.regular, 13), (.large, 13), (.extraLarge, 13)]
+    for (size, points) in table {
         let scoped = try textMeasure({ $0.controlSize(size) }, text)
-        #expect(scoped.ideal == bare.ideal, "\(size)")
-        #expect(scoped.broken == bare.broken, "\(size)")
+        let explicit = try textMeasure({ $0 }, text.font(size: points))
+        #expect(scoped.ideal == explicit.ideal, "\(size): the default font is \(points) pt")
+        #expect(scoped.broken == explicit.broken, "\(size)")
+        #expect(try textMeasure({ $0.controlSize(size) }, text.font(size: 26)).ideal == control.ideal,
+                "\(size): an explicit font does not move")
+        #expect(try textMeasure({ $0.environment(\.font, .title).controlSize(size) }, text).ideal
+                == textMeasure({ $0.environment(\.font, .title) }, text).ideal,
+                "\(size): an environment font does not move (F8h)")
     }
+    try #require(bare.ideal != (try textMeasure({ $0.controlSize(.mini) }, text)).ideal, "M3k separates")
 
     let field = TextField("Name", text: "Hello") { _ in }
     let regular = try fieldHeight({ $0.controlSize(.regular) }, field)
     let big = try fieldHeight({ $0 }, field.font(size: 26))
     try #require(big != regular, "the control field must measure differently: \(big) vs \(regular)")
-    #expect(try fieldHeight({ $0.controlSize(.mini) }, field) == regular)
+    for (size, points) in table {
+        #expect(try fieldHeight({ $0.controlSize(size) }, field) == fieldHeight({ $0 }, field.font(size: points)),
+                "\(size): the field is its \(points) pt default font's line, no padding")
+    }
+    #expect(try fieldHeight({ $0.controlSize(.mini) }, field.font(size: 26)) == big, "an explicit font")
 }
 
 // MARK: - T1.8: controlActiveState's value (EV-AB)

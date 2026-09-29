@@ -27,9 +27,21 @@ public struct TextField: Element, StyledElement {
     public var text: String
     public var onChange: @MainActor (String) -> Void
     public var submit: (@MainActor () -> Void)?
-    public var fontFamily: String?
-    public var fontSize: Double
     public var foregroundColor: ColorToken?
+    /// The field's own font request (ruling TE-F item 2): inherit the
+    /// environment's font, the default font, or an explicit one.
+    var fontRequest: TextFontRequest = .inherit
+
+    /// The explicit font's family; computed over the request (TE-F item 2).
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size, 13 without one; computed (TE-F item 2).
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     public init(_ placeholder: String, text: String, onChange: @escaping @MainActor (String) -> Void) {
         self.style = Style()
@@ -37,7 +49,6 @@ public struct TextField: Element, StyledElement {
         self.placeholder = placeholder
         self.text = text
         self.onChange = onChange
-        self.fontSize = 13
     }
 
     /// Bound to `text` (ruling `DD-E`): shows `text.wrappedValue` and writes
@@ -56,8 +67,7 @@ public struct TextField: Element, StyledElement {
 
     public func font(family: String? = nil, size: Double) -> TextField {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 

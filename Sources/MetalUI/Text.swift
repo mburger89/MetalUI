@@ -55,17 +55,36 @@ public struct Text: Element, StyledElement {
     /// model every other element follows.
     public var string: String
 
-    /// `nil` means the platform UI font. Resolution happens in `requestLayout`
-    /// and again in `paint`, both through the window's
-    /// `ShapingCache.resolveFont(family:size:)`, which memoizes `FontResolver`
-    /// — and `FontResolver` substitutes rather than failing, so see `FontKey`
-    /// for why nothing downstream may be keyed on this name.
-    public var fontFamily: String?
-    /// **Must be finite and positive.** Not checked here — this is a settable
-    /// property — but `FontResolver.resolve(family:size:)` traps on anything
-    /// else the first frame this `Text` is laid out, because CoreText would
-    /// otherwise substitute 12 or 13pt or keep a NaN.
-    public var fontSize: Double
+    /// This text's own font request (ruling TE-B item 2): inherit the
+    /// environment's font (the default), the default font whatever the
+    /// environment says (`font(nil)`), or an explicit font. Resolution happens
+    /// in `requestLayout` and again in `paint`, both through
+    /// `resolveTextStyle` and the window's text system, which memoizes the
+    /// face — and substitutes rather than failing, so see `FontKey` for why
+    /// nothing downstream may be keyed on a name.
+    var fontRequest: TextFontRequest = .inherit
+    /// `fontWeight(_:)`'s override, over whichever font this text resolves.
+    var fontWeight: Font.Weight?
+    /// `italic(_:)`: this text draws its font's italic face.
+    var isItalic = false
+
+    /// The explicit font's family (`nil`: the system face, or no explicit
+    /// font). **Computed since TE-B item 5**: writing it sets an explicit
+    /// `.custom`/`.system` font at ``fontSize``, as `font(family:size:)` does.
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size — 13 when this text inherits or asks for the
+    /// default font, exactly what an unconfigured `Text` read before (TE-B
+    /// item 5). Writing it sets an explicit font. **Must be finite and
+    /// positive**: the text system traps on anything else the first frame
+    /// this `Text` is laid out, because CoreText would otherwise substitute
+    /// 12 or 13pt or keep a NaN.
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     /// The colour the glyphs are tinted with. `nil` means
     /// ``ColorToken/textPrimary``, resolved against the frame's theme like any
@@ -77,16 +96,14 @@ public struct Text: Element, StyledElement {
         self.style = Style()
         self.decoration = Decoration()
         self.string = string
-        self.fontFamily = nil
-        self.fontSize = 13
     }
 
-    /// The face and size this run is shaped at. `family: nil` keeps the
-    /// platform UI font.
+    /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
+    /// `nil` family (ruling TE-B item 5, kept) — it wins over the environment's
+    /// font and ignores `controlSize`, as it always drew.
     public func font(family: String? = nil, size: Double) -> Text {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
