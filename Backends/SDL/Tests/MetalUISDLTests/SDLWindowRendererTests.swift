@@ -55,13 +55,13 @@ private func imageScene(_ first: ImageTexture, _ second: ImageTexture) -> Scene 
     scene.insert(MUIRect(bounds: bounds(8.5, 8.25, 90, 50), contentMask: mask, maskCornerRadii: corners(0),
                          background: color(0.3, 0.7, 0.5), borderColor: color(0.1, 0.8, 0.7),
                          cornerRadii: corners(0), borderWidths: MUIEdges(top: 9, right: 9, bottom: 9, left: 9),
-                         order: 0, shape: MUIShapeEllipse.rawValue))
+                         order: 0, shape: MUIUInt(MUIShapeEllipse.rawValue)))
     scene.insert(MUIImage(bounds: bounds(110, 10, 60, 40), contentMask: mask,
                           maskCornerRadii: corners(0), opacity: 1, texture: 0,
-                          filter: MUIImageFilterNearest.rawValue, order: 0), texture: first)
+                          filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 0), texture: first)
     scene.insert(MUIImage(bounds: bounds(120.25, 60.5, 100, 50), contentMask: bounds(120, 60, 100, 50),
                           maskCornerRadii: corners(14), opacity: 0.5, texture: 0,
-                          filter: MUIImageFilterLinear.rawValue, order: 0), texture: second)
+                          filter: MUIUInt(MUIImageFilterLinear.rawValue), order: 0), texture: second)
     scene.finalize()
     return scene
 }
