@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AS`; next unused is **`TE-AT`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AT`; next unused is **`TE-AU`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
@@ -2079,3 +2079,45 @@ the whole unfiltered suite).
 without `nonisolated` fails to compile, naming the isolation — loud. Item 5:
 a tolerance a hair too loose keeps an inner radius a hair past the outer
 edge, sub-pixel.
+
+## TE-AT — lane 2's fix round: four tests and an arm for five unpinned clauses, the tolerance stated as defensive (lane 2)
+
+**Evidence.** The lane-2 verifier's mutations X1, X2, X3, X7 and X9 each left
+the whole unfiltered suite green at `05d6ea0` (record §60 §4); `K10` had no
+test (`grep -rn K10 Tests` empty). Fix round `a420975`: 1747 = 1743 + 4, green;
+each new test red under its mutation on the whole unfiltered suite (record
+§60 §4's table).
+
+**The ruling.**
+
+1. **Five clauses gain a pin** (spec §8's lane-2 table gains the rows):
+   2.15b `aProposalClipShapeCutsTheHitboxesInsideIt` — the proposal
+   `.clipShape`'s **prepaint** half (`OM-AI`: a copy of the legacy half's
+   pinned hitbox cut is unpinned), through a `ProposalScrollView`'s
+   scroll-region hitbox, (0, 0, 100, 60) cut to (20, 0, 60, 60) under
+   `.clipShape(Circle())` (X7); 2.18b `aLegacyClipShapeWinsOverClipped` —
+   `TE-AS` item 4's precedence, in both spelling orders, against a
+   `clipped()`-alone control (X1); 2.18c
+   `aLegacyClipShapeComparesByItsConcreteShape` — `ClipShapeBox.==` by type
+   and by value (X3); an arm in 2.20 — `Frame.roundedRect(…liesInside…)`
+   chooses the container's radius by quadrant (X9); 2.13b
+   `aBorderWiderThanHalfTheShapeFillsIt` — K10 by pixels through a real
+   window, `Rectangle().strokeBorder(40)` on 100×60 byte-identical to its
+   `fill`, `strokeBorder(10)` the control (K10a, a shader mutation). K10
+   probes a **rectangle** only; an over-wide border on a rounded rectangle or
+   an ellipse is not claimed (an ellipse's inset band's outer edge is an
+   offset curve, not the ellipse — its `strokeBorder(40)` measured unequal to
+   its `fill` at the edge in this round's first draft).
+2. **`TE-AS` item 5's tolerance is defensive, not needed for C6** — amended:
+   C6's tangency is exact in integers, and removing the 1e-4 pt reddens
+   nothing (X2). It stays, unpinned, against a non-integer tangency rounding
+   a hair outside; the doc comment on `Frame.roundedRect(_:radii:liesInside:radii:)`
+   says so. No non-integer tangent case is added: whether one rounds outside
+   is a property of float arithmetic this round did not search for.
+3. **`TE-AS`'s citation of "the mutation table of record §60 §4" is made
+   true** by writing that section (it was missing when `TE-AS` landed).
+
+**Cost if wrong.** Item 2: a too-loose tolerance keeps an inner radius a
+sub-pixel past the outer edge; a too-tight one (none) falls back to the square
+box at a non-integer tangency — both sub-pixel or square-corner looks, no
+trap.

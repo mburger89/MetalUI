@@ -9,7 +9,7 @@ recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
 byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, record §60 §4).** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4).** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -219,7 +219,8 @@ own bounds with border `w`, transparent background, outer radius `r` when
 `r ≥ w/2` else **0** (K11: square outer corner), inner radius `max(r − w, 0)`
 (the shader's existing rule). **`stroke(w)`** is `strokeBorder(w)` over the
 bounds outset by `w/2` with radius `r > 0 ? r + w/2 : 0` (K1, K6, K7, K12).
-A width ≤ 0 draws nothing (K9); a border wider than half fills (K10); strokes
+A width ≤ 0 draws nothing (K9); a border wider than half fills (K10, a
+rectangle's pinned by pixels in 2.13b, `TE-AT` item 1); strokes
 change no layout (K5); the default width is 1 (K3). **An ellipse's
 `strokeBorder(w)`** is SwiftUI's inset-ellipse stroke — the band of half-width
 `w/2` around the ellipse inset by `w/2` (K8: **not** a concentric ellipse,
@@ -245,7 +246,7 @@ existing clip halves; **the legacy `.cornerRadius(r)` stays paint-only** (diverg
 kept, `TE-AJ`). `Frame.intersect(_:radii:_:radii:)` gains one exact case
 before its square fallback: **an inner rounded rect contained in the outer
 rounded rect keeps its own radii** (a 1e-4 pt tolerance at tangency,
-`TE-AS` item 5) — tested exactly as "each inner corner disc
+`TE-AS` item 5 — defensive and unpinned, `TE-AT` item 2) — tested exactly as "each inner corner disc
 lies inside the outer shape" (`rect_sdf(outer, cᵢ) ≤ −rᵢ` for the four inner
 corner centres; both shapes are convex hulls of their corner discs), and the
 mirror case; it runs **after** the two existing cases, whose answers do not
@@ -452,6 +453,11 @@ from `.surface` to `.textPrimary` is a T row with its literal re-derived
 | 2.21 | `twoCrossingRoundedClipsIntersectAsTheSquareBox` — **divergence 92's pin** | — | M2u: return the inner radii unconditionally |
 | 2.22 | `aShapeBackgroundOrOverlayTakesTheContentsSize` — O1, O3, O5 through the existing `.background { }`/`.overlay { }`, both vocabularies, plus a `.topLeading` overlay arm (band at (−2, −2), `TE-AS` item 6) | no shapes | M2v: `Circle` answers the proposal (the `.topLeading` band moves to (18, −2); the centred O3 cannot see it, `TE-AS` item 6) |
 | 2.23 | `backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken` (O2, O4) | — | M2w: default token `.surface` |
+| 2.13b | `aBorderWiderThanHalfTheShapeFillsIt` — K10: `Rectangle().strokeBorder(40)` on 100×60 renders byte-identical to its `fill` through a real window; control `strokeBorder(10)` differs (fix round, `TE-AT` item 1) | — | K10a: `rect_fragment`'s inner half-size `abs(halfSize − border)` |
+| 2.15b | `aProposalClipShapeCutsTheHitboxesInsideIt` — a `ProposalScrollView`'s scroll-region hitbox (0,0,100,60) cut to (20,0,60,60) under `.clipShape(Circle())` (fix round, `TE-AT` item 1) | — | X7: the proposal `.clipShape` prepaint returns `inside()` |
+| 2.18b | `aLegacyClipShapeWinsOverClipped` — `.clipped()` alone radius 0; with `.clipShape(Circle())` in either order radius 20 (`TE-AS` item 4; fix round) | — | X1: `clipRegion(in:)` reads `clipsContent` first |
+| 2.18c | `aLegacyClipShapeComparesByItsConcreteShape` — `ClipShapeBox.==` by type and value (fix round) | — | X3: `==` returns `true` |
+| 2.20 (arm) | the per-quadrant container radius: a radius-5 inner rect in a 100×100 outer's bottom-right corner is contained when that corner is square, not when it is 40 (fix round) | — | X9: always `containerRadii.topLeft` |
 | G2.1 | `anOutsideShapeNeedsOnlyItsGeometry` — plain `import MetalUI`, whole-file: a struct conforming to `Shape` with only `geometry(in:)` compiles, `.fill(.accent)`s, **and sits bare in an `HStack`** (so it is a `ProposalElement`); control: one without it fails naming `geometry` | — | MG2a: `sizeThatFits`'s default removed; MG2a′: `Shape` refines `Element` instead of `ProposalElement` (the `HStack` arm fails) |
 | G2.2 | `theRectangleColorInitialiserIsDeprecatedTowardFill` — `Rectangle(color: .accent)` warns naming `fill`; control `Rectangle().fill(.accent)` warns nothing | — | MG2b: deprecation dropped |
 
