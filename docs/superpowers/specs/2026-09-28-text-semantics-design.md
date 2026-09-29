@@ -3,12 +3,13 @@
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
 `TE-A`…`TE-U` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AB`**; lane 1 added `TE-T`…`TE-V`, lane 2 `TE-W`, `TE-X`, lane 3 `TE-Y`…`TE-AA`). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-AC`**; lane 1 added `TE-T`…`TE-V`, lane 2 `TE-W`, `TE-X`, lane 3 `TE-Y`…`TE-AA`, the Record phase's branch check `TE-AB`). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
 
-**Status: lanes 1–3 landed (record §59 §2–§4); DESIGNED; critic round applied** (`TE-Q`…`TE-S`: two new probes,
+**Status: lanes 1–3 landed (record §59 §2–§4); branch check applied
+(`TE-AB`); DESIGNED; critic round applied** (`TE-Q`…`TE-S`: two new probes,
 `swiftui-controlsize-text-render.swift` and `swiftui-text-in-stacks.swift`;
 lanes rebalanced; `TE-L`'s stack branch ruled; a stack-compression pin and
 census added).
@@ -321,7 +322,8 @@ edits to `LayoutAuthorityTests.swift`, `LoweringContainerTests.swift`,
 | # | test | red before | mutation |
 |---|---|---|---|
 | 2.1 | `everyNodeKindReportsItsBaselineAsSwiftUIDoes` — B1/X3 per kind: ZStack of 40×40 and a (16, first 13) leaf → 25 (B1k); overlay/background keep the primary's (X3g, X3h); fixedSize/priority/aspectRatio pass through; spacer/scroll `nil`; custom what its `sizeThatFits` returns (**`TE-X` item 1**: `nil` unless it reports one); stacks min/max at offsets (B1g 13/41, B1h 20/25, X3a 20/25, B1p 23); a one-cell grid 13 (X3i) | `nil` everywhere but frame/padding | M2a: stack takes its first child's (X3a → 25); M2b: attachment takes the overlay's (X3h); M2c: a text-less child counted as its height (B1p → 10) |
-| 2.1c | `aStacksGapsAndAGridsOffsetsMoveTheBaselinesItReports` (**added by `TE-X` item 2**, lane 2's fix round; probe `swiftui-baseline-offsets.swift`) — `VStack(spacing: 8){13; 26}` 13/49 (O1); two grid rows at vertical spacing 8, 25/73 centred (O2) and 13/73 at `.top` (O3); a bottom-anchored cell 37 (O4) | — (green on arrival: pins landed code) | V4: the vertical cursor drops its gaps; V5: every grid offset 0 |
+| 2.1c | `aStacksGapsAndAGridsOffsetsMoveTheBaselinesItReports` (**added by `TE-X` item 2**, lane 2's fix round; probe `swiftui-baseline-offsets.swift`) — `VStack(spacing: 8){13; 26}` 13/49 (O1); two grid rows at vertical spacing 8, 25/73 centred (O2) and 13/73 at `.top` (O3); a bottom-anchored cell 37 (O4) — the grid's own factor and a cell's anchor, **not** a row's own (`TE-AB`) | — (green on arrival: pins landed code) | V4: the vertical cursor drops its gaps; V5: every grid offset 0 |
+| 2.1d | `aRowsOwnAlignmentMovesTheBaselinesItReportsToo` (**added by `TE-AB`**, branch check; probe arm O5) — a `GridRow(alignment: .bottom)` with no cell anchor beside a 40-tall colour, in a `.top` grid, reads 37, the same as O4's cell anchor | — (green on arrival: pins landed code) | V5c: the row-alignment fallback dropped from `nativeGridCellOffsetsY` only |
 | 2.1b | `anInfiniteAnswerNeverMakesABaselineNaN` (**added by `TE-X` item 6**, exit `.success`) — one and two greedy frames over a text inside an `HStack` (factor, first, last) inside a two-child `VStack`: no NaN trap, and the row reports no baseline at its infinite probe | the run traps (checkpoint 2) | M2y: the frame's NaN guard dropped; M2x: the combination's finite guard dropped |
 | 2.2 | `anHStackAlignedByFirstTextBaselinePlacesAndSizesAsSwiftUI` — B2 first: 44 tall, offsets 12/0/12/15 | factor alignment | M2d: height = max child height; M2e: a text-less guard read as 0 |
 | 2.3 | `anHStackAlignedByLastTextBaselinePlacesAndSizesAsSwiftUI` — B2 last: 34, 16/4/0/19 | — | M2f: `.last` reads `firstBaseline` |

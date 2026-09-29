@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-AA`;
-next unused is **`TE-AB`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-AB`;
+next unused is **`TE-AC`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -1139,11 +1139,19 @@ green unedited; `baselineAlignmentAddsNoMeasurementWork` (new) pins it.
    by `nativeGridCellRects`; its baseline in the grid's answer is the solve's.
    Reachable only where a grid is a child of a baseline-aligned `HStack`; X3i
    (one cell, 13) pins the common case, and **2.1c** (lane 2's fix round) the
-   offsets themselves against `docs/probes/swiftui-baseline-offsets.swift`:
-   two rows at vertical spacing 8 report 25/73 centred (O2) and 13/73 at
-   `.top` (O3), a bottom-anchored cell 37 (O4) — every offset 0 (mutation V5)
-   reddens it. 2.1c also pins a vertical stack's gaps (O1, 13/49 at spacing 8;
-   V4, the cursor without its gaps, reddens it).
+   grid's own factor and a cell's anchor against
+   `docs/probes/swiftui-baseline-offsets.swift`: two rows at vertical spacing
+   8 report 25/73 centred (O2) and 13/73 at `.top` (O3), a bottom-anchored
+   cell 37 (O4) — every offset 0 (mutation V5) reddens it. 2.1c also pins a
+   vertical stack's gaps (O1, 13/49 at spacing 8; V4, the cursor without its
+   gaps, reddens it). **A `GridRow`'s own alignment (as opposed to a cell's
+   anchor or the grid's) was left unpinned by 2.1c** — none of its arms call
+   `markNativeGridRow` with an `alignment:`, so `nativeGridCellOffsetsY`'s
+   `?? plan.rowAlignments[cell.row]?.verticalFactor` fallback read `nil` in
+   every one, and dropping it reddened nothing (branch check, `TE-AB`); fixed
+   by **2.1d** against probe arm O5 (a `GridRow(alignment: .bottom)` with no
+   cell anchor beside a 40-tall colour, in a `.top` grid, reads 37 — the same
+   offset as O4's cell anchor, from the row's own factor alone).
 3. **Third T row, spec 2.13**: `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
    expected `[gap.percent, alignItems.baseline, size.percent, inset]`; a flex
    container's `alignItems.baseline` lowers since `TE-L` and no other flex
@@ -1308,3 +1316,47 @@ overflows that did not before.
 
 **Cost if wrong.** Each item is one line in `TextStyleResolution.swift` or
 `Font.swift`; a probe that separates it changes one test arm.
+
+---
+
+## TE-AB — a `GridRow`'s own alignment was unpinned by 2.1c; fixed by 2.1d (branch check)
+
+**Evidence.** Lane 2's own fix-round verifier ran `V5c` (dropping
+`?? plan.rowAlignments[cell.row]?.verticalFactor` from
+`nativeGridCellOffsetsY`, the row-alignment fallback, leaving the cell-anchor
+and grid-factor fallbacks in place) against the full unfiltered suite at
+`35eb357`: it reddened nothing. 2.1c's two grid tests
+(`twoRows(t, alignment:)`) call `markNativeGridRow(first)`/
+`markNativeGridRow(second)` with no `alignment:` argument, so
+`plan.rowAlignments[cell.row]` reads `nil` on every one of 2.1c's arms — the
+row-level branch of the offset's three-way fallback (a cell's own anchor,
+else its row's alignment, else the grid's) was never exercised, though TE-X
+item 2 read as if "the offsets themselves are pinned by 2.1c" covered it.
+
+New probe arm O5 (`docs/probes/swiftui-baseline-offsets.swift`,
+`Grid(alignment: .top){ GridRow(alignment: .bottom){ Text 13; Color 40 } }`,
+recompiled and re-run twice, byte-identical): SwiftUI reads `first=37
+last=37` — the same number as O4's per-cell `.gridCellAnchor(.bottom)`, from
+the row's own alignment alone, with no cell anchor set. New test **2.1d**
+`aRowsOwnAlignmentMovesTheBaselinesItReportsToo` pins the kernel's own answer
+at the same 37 (`markNativeGridRow(row, alignment: .bottom)` in a `.top`
+grid); `V5c`, re-run against the committed test, now reddens exactly this
+one test in the full unfiltered suite (`Test run with 1706 tests in 3 suites
+failed … with 1 issue`) and none of 2.1c's arms, confirming the gap and its
+fix.
+
+**The ruling.** TE-X item 2 is corrected to name what 2.1c pins (the grid's
+own factor and a cell's anchor, not a row's) and to cite 2.1d for the row
+case, disposed by this ruling. No new divergence: MetalUI's
+`nativeGridCellOffsetsY` already read the row-alignment fallback correctly
+(the census found a missing *test*, not a missing behaviour — the
+implementation was right, `V5c`'s mutant was the only thing this round made
+red). Live divergence count and spec row totals are unmoved. Next unused
+`TE-AC`.
+
+**Cost if wrong.** A `GridRow`'s own alignment silently not reaching
+`nativeGridCellOffsetsY` while still reaching `nativeGridCellRects` (the
+"copy of a pinned implementation is unpinned" shape — CLAUDE.md's practices)
+would place a row's cells correctly but report the wrong baseline for it
+under a baseline-aligned `HStack`; nothing in the demo or the repo's trees
+reaches this today.

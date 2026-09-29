@@ -616,3 +616,48 @@ written there; the branch checker wrote it, record §58 §11.)
 would miss that a `Button`'s size moves with it; a reader who takes it for
 wired everywhere would expect a `Text` or a `TextField` to follow it, and
 neither does.
+
+## 2026-09-28: `AlignItems.baseline`'s row deleted, `controlSize`'s narrowed further, `dynamicTypeSize`'s confirmed unmoved, at text semantics (plan task 11, part 1)
+
+Record §59; rulings `TE-L`, `TE-F`, `TE-E`.
+
+- **`AlignItems.baseline`'s row is deleted, not narrowed** (`TE-L`): the
+  legacy engine that ran CSS is gone (stage 9), so a row/column's
+  `alignItems.baseline` was, before this task, simply unimplemented rather
+  than measured-and-withheld — it compiled and did nothing, this table's
+  exact shape. It now **lowers**: a row's `alignItems.baseline` becomes
+  `baseline: .first` on its native stack, a column's `flexStart`, and a
+  child's own `alignSelf.baseline` under a baseline row is consumed without
+  a report. What is left — a `display: .stack` container's
+  `alignItems.baseline`, and any `alignSelf.baseline` outside a baseline
+  row — is not inert either: both are **permanent refusals by name**
+  (`owner: nil`, the same shape as the percentages/unequal-weights/
+  non-greedy-`maxSize` rows already reported by name elsewhere), not
+  stored-but-unread state. `UnlowerableField.owner`'s `"plan task 11"`
+  branch is deleted with the fix, so no report in the kernel names this task
+  as an owner any more. This row is removed from the table's inline example
+  list in `CLAUDE.md`, the same shape as the `deferred.amended` deletion at
+  stage 11 and the `@State`-inside-`AnyElement` deletion at plan task 8 — a
+  row **fixed**, not merely reassigned or narrowed.
+- **`controlSize`'s row is narrowed again, not deleted** (`TE-F` item 4):
+  it now reaches every text's default font too — `Text`, `ProposalText`,
+  `TextField`, `TextEditor`, and through `Button`'s label — in addition to
+  `Button`'s own chrome from task 10 part 2. `TextField`'s own padding and
+  every other control's chrome (`Toggle`, `Picker`, `Slider`, `Stepper`)
+  still read nothing from it — no owner is named for them (divergence 76,
+  amended a third time, record §04).
+- **`dynamicTypeSize`'s row is confirmed, not narrowed**: `Font`'s
+  eleven-case text-style table has no size column for it to scale (`TE-E`),
+  so the value stays carried and scoped but reaches no text style — a ruled
+  inertness by construction, pinned by spec 3.9, not an oversight this task
+  found and left open. Unlike `controlSize`, no built-in consumer is owed to
+  a later task; this row is not expected to narrow again the way
+  `controlSize`'s has three times running.
+
+**What it costs if wrong.** A reader who still expects `alignItems.baseline`
+to do nothing on a legacy row would miss that it now aligns exactly as a
+`VStack(alignment: .firstTextBaseline)`'s SwiftUI counterpart would; a reader
+who expects `controlSize` to reach only `Button` would miss a `Text`'s
+default font shrinking under `.controlSize(.small)`; a reader who expects
+`dynamicTypeSize` to gain a reader here, as most of this table's rows do
+eventually, would be waiting for something no ruling schedules.

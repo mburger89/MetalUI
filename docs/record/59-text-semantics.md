@@ -753,3 +753,128 @@ in place), guards 105 unmoved.
 | **X2** `ProposalText.paint`: `height: Double(bounds.size.height.value)` → `nil` | `aHeightCappedProposalTextDrawsOnlyTheLinesItsBoxHolds` (1 issue; before: none) |
 | **X1** `Text.paintGlyphs`: `textLines(…, height: height, …)` → `height: nil` | `aHeightCappedTextDrawsOnlyTheLinesItsBoxHolds`, `theDemoFrameMatchesTheValuesRecordedOnMacOS` (3 issues; before: the demo-frame hash alone) |
 | **X3** `Text.proposalLayout()`: the `result.fontWeight`/`result.isItalic` lines deleted | `aProposalTextReadsTheEnvironmentsFontAndForegroundStyle` (1 issue; before: none) |
+
+## 5. Branch check (Record phase)
+
+All three lane verdicts came back `ok: false` on minor findings only (lane 1
+and lane 3 `ok: true`; lane 2 `ok: false` on one minor). Both open items
+disposed here, each mutation committed first, applied from a copy, the whole
+suite unfiltered, `git status --short` empty after every restore. Commit
+`77ef83e`.
+
+1. **Lane 3's minor — a citation drift.** Two "record §59 §4.4" citations (in
+   the decisions doc and `Expected.swift`'s comment) named the wrong
+   subsection: the pixel comparison and the scene diff they point at are in
+   §4.5 "Close", not §4.4 "Red first". Fixed in both places (§4.4 stayed
+   correct where it already was — the census re-run sentence).
+
+2. **Lane 2's minor — a `GridRow`'s own alignment was unpinned by 2.1c.**
+   `TE-X` item 2 read as if "2.1c... the offsets themselves" pinned every
+   fallback `nativeGridCellOffsetsY` reads (a cell's own anchor, else its
+   row's alignment, else the grid's), but 2.1c's two grid arms
+   (`twoRows(t, alignment:)`) call `markNativeGridRow(first)`/
+   `markNativeGridRow(second)` with no `alignment:`, so
+   `plan.rowAlignments[cell.row]` reads `nil` on every one of 2.1c's arms —
+   lane 2's own verifier mutation `V5c` (dropping
+   `?? plan.rowAlignments[cell.row]?.verticalFactor` from
+   `nativeGridCellOffsetsY` only, leaving `nativeGridCellRects`'s copy at
+   line 368 untouched) reddened nothing against the full unfiltered suite at
+   `35eb357`.
+
+   New probe arm **O5** (`docs/probes/swiftui-baseline-offsets.swift`,
+   compiled and run twice, byte-identical to the first run): `Grid(alignment:
+   .top){ GridRow(alignment: .bottom){ Text("Hg"); Color 40 } }` reads
+   `first=37 last=37` — the same number as O4's per-cell
+   `.gridCellAnchor(.bottom)`, from the row's own alignment alone, with no
+   cell anchor set. New test **2.1d**
+   `aRowsOwnAlignmentMovesTheBaselinesItReportsToo`
+   (`Tests/MetalUILayoutTests/BaselineMeasurementTests.swift`) pins the
+   kernel's own answer at 37 (`markNativeGridRow(row, alignment: .bottom)` in
+   a `.top` grid); committed first at `77ef83e`, it passed unmutated. `V5c`,
+   re-applied against the committed tree, now reddens **exactly this one
+   test** (`Test run with 1706 tests in 3 suites failed after 104.977 seconds
+   with 1 issue`) and none of 2.1c's arms, confirming both the gap and the
+   fix; restored (`git status --short` clean).
+
+   **No behaviour changed** — `nativeGridCellOffsetsY` already read the
+   row-alignment fallback correctly; the gap was a missing *test*, the shape
+   CLAUDE.md's practices call "a copy of a pinned implementation is unpinned"
+   (here, of a pinned *fallback chain* within one function, not a second
+   copy of the function). Ruling **`TE-AB`** (decisions doc; TE-X item 2
+   corrected to name what 2.1c actually pins and to cite 2.1d for the row
+   case); spec row 2.1d added beside 2.1c. Next unused `TE-AC`. No divergence
+   moves; no guard added (2.1d has no compile-guard counterpart).
+
+Suite after both fixes: **`Test run with 1706 tests in 3 suites passed after
+105.602 seconds`**, the `FR-J` line present; 0 `error:` on both build
+systems, the one `warning:` SwiftPM's deprecation notice under native (0
+under the default one). **1706 = 1705 + 1** (2.1d). Guards unmoved (105).
+
+## 6. Close (Record phase)
+
+After `swift package clean` (no stored property crossing a module boundary
+changed shape since lane 3's close — the branch check adds one test, no new
+stored property): `swift build --build-system native --build-tests` 0
+`error:`, the one deprecation `warning:`; `swift build --build-tests` 0/0;
+unfiltered `swift test --build-system native --no-parallel` **`Test run with
+1706 tests in 3 suites passed after 105.602 seconds`**, the `FR-J` line
+present, **twelve** gated tests skip (the eleven carried from before this
+task plus `measureTruncationDifferences`, confirmed by name in the log).
+**1706 = 1644 + 62**: lane 1 close 1656 + lane-1 fix round 1657 (+13 over
+baseline), lane 2 close 1675 + lane-2 fix round 1678 (+21 more), lane 3 close
+1701 + lane-3 fix round 1705 (+27 more), the branch check 1706 (+1 more). 0
+goldens throughout. **Guards 105 = 100 + 2 (lane 1) + 2 (lane 2) + 2 (lane 3)
++ 1 (lane 2's fix round) + 0 (branch check)**, independently re-derived by
+`grep -c canTypecheck` across every guard file in `Tests/MetalUITests` and
+`Tests/MetalUICoreTests/UnitSafetyTests.swift` (106 raw hits, less
+`Typecheck.swift`'s own declaration and `UnitSafetyTests`' one comment hit =
+105) — the three new files are `TextSystemCompileGuards` (2: `G1.1` lane 1,
+`G1.2` lane 2's fix round), `BaselineCompileGuards` (1: `G2.1`) and
+`TextCompileGuards` (2: `G3.1`/`G3.2`).
+
+`compare.sh 169d166 <HEAD>`: controls as recorded since stage 6b (1048576,
+1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0); **0 differing
+pixels, scene identical, in all fourteen offscreen images**, independently
+re-taken. `Backends/SDL` (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`): **21 +
+23**, unmoved (no source it builds touched — the branch check's new test is
+in `Tests/MetalUILayoutTests`, part of the root package, not
+`Backends/SDL`). A `swift:6.4-noble` (aarch64) container, `docker run --rm -v
+"$PWD":/work -w /work swift:6.4-noble bash -c 'swift build --build-tests &&
+swift test --skip-build'`: 0 `error:`/`warning:`, and (summing every "Test
+run with N tests" line, per CLAUDE.md's own reading rule — the default build
+system on Linux runs each test target as its own process) `MetalUISystemFontsTests`
+6, `MetalUILayoutTests` **198**, `MetalUICrossPlatformTests` **10**,
+`MetalUICoreTests` **22** — **198 + 22 + 10** (188 + 22 + 10 before this
+task). **198 = 188 + 10**: `Tests/MetalUILayoutTests/BaselineMeasurementTests.swift`,
+lane 2's one new file, is the only text-semantics file in that target
+(`grep -c "@Test func"` reads 10 there, all ten `BaselineMeasurementTests.swift`
+declares — 2.1, 2.1c, 2.1d, the two `HStack` baseline-alignment tests, the
+control, the min/max test, the vertical-stack trap, the work pin and 2.1b).
+Every other lane-2 spec row (2.7–2.13, the `UnlowerableField`/legacy-lowering
+table and its `TE-L` refusal) lives in `Tests/MetalUITests`, which does not
+build off Apple; lane 1's and lane 3's files
+(`Tests/MetalUITests/TextSystemSeamTests.swift`,
+`Tests/MetalUIPortableTextTests/TruncationOracleTests.swift`,
+`Tests/MetalUITextTests/FontResolutionTests.swift`,
+`Tests/MetalUITests/ProposalTextPaintTests.swift`,
+`Tests/MetalUITests/TextAlignmentTests.swift`,
+`Tests/MetalUITests/EnvironmentScaleAndSizeTests.swift`, …) sit in
+macOS-only or CoreText-importing targets, so none of them reach
+`MetalUILayoutTests` either — the portable `TruncationDeterminismTests`
+(1.11) is `Tests/PortableTests`, a separate package, already counted in its
+own **20 + 6 + 5**.
+`Tests/PortableTests` unaffected by the branch check (no source under
+`MetalUIPortableText`/`MetalUITextSystem` touched); unmoved at **20 + 6 + 5**
+from lane 1's close.
+
+**Deferrals carried forward unchanged**: `TE-U` item 7 (right-to-left
+truncation, one cluster fewer than CoreText in 38 corpus cases, owner none);
+`TE-W` item 4 (ten font-selection rows, owner none); the real-window capture
+(the paragraph's look under **A** at 920×560, `TE-Y` item 3; `TE-Q`'s drawn
+`controlSize` font) — record §03's dated section carries both. **Plan task
+11's box stays unticked**: part 2 (shapes, images, fills/strokes, overlays,
+clipping) is the next run.
+
+**Spec status**: `docs/superpowers/specs/2026-09-28-text-semantics-design.md`
+marked "lanes 1–3 landed; branch check applied (`TE-AB`); DESIGNED; critic
+round applied".
