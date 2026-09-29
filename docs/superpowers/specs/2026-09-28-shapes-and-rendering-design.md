@@ -3,13 +3,13 @@
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
 Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AR`**). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
+(next unused **`TE-AS`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
 (**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
 byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`).** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3).** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -184,8 +184,10 @@ ImageTexture, layer:)`; `public final class ImageTexture: Sendable` (width,
 height, premultiplied RGBA8 pixels; immutable). `MetalUIShaderTypes.h`:
 `MUIRect.shape` (was `_reserved`), `MUIShapeRoundedRect = 0`,
 `MUIShapeEllipse = 1`; `MUIImage { bounds; contentMask; maskCornerRadii;
-float opacity; MUIUInt texture; MUIUInt filter; MUIUInt order; MUIUInt
-_reserved; }` (64 bytes, four `float4` lanes).
+float opacity; MUIUInt texture; MUIUInt filter; MUIUInt order; }` (64 bytes,
+four `float4` lanes — **no `_reserved`**: with it the list summed to 68,
+`TE-AR` item 1). `ImageTexture` has `init(width:height:premultipliedRGBA:)`
+and `init(width:height:straightRGBA:)`, which premultiplies (`TE-AR` item 2).
 
 ## 5. What each thing does
 
@@ -322,7 +324,10 @@ still resolve by leading dot (the new overload is `@_disfavoredOverload`,
   `--expect 7`. Frame 6's reference is the Metal renderer; Linux (llvmpipe)
   and Windows (D3D12) re-confirm on push within `ParityTolerance` — **images
   are judged at the glyph tolerance (≤ 8)** inside image quads for the same
-  sub-texel-precision reason, a mask built like `glyphMask()`; outside them ≤ 1.
+  sub-texel-precision reason, a mask built like `glyphMask()`
+  (`ReplayFixture.spriteMask()`, glyph and image quads); outside them ≤ 1.
+  The live comparison keeps frames 0–5 at one step everywhere and judges frame
+  6 by that parity (`TE-AR` item 8).
 
 ## 7. Demo, pixels, and what must not move
 
@@ -374,9 +379,10 @@ and new `drawImage`, `Passes.swift`'s `PaintPass.fill`/`drawImage`;
 (`TE-AQ` item 7; `git grep -n _reserved` at `ff2ae92`, rect sites only — the
 glyph's `_reserved` stays): `ShaderTypesBridge.swift`, `Tests/MetalUIRenderTests/{ClipTests,DrawListTests,RendererTests,SceneFinalizeIdentityTests,ShaderABITests,ShaderTypesTests}.swift`,
 `Backends/SDL/Tests/MetalUISDLTests/SDLWindowRendererTests.swift`,
-`Experiments/SDLGPU/Sources/Replay/main.swift` — a spelling, no test's answer
-moves, no T row; the lane greps `_reserved` after and lists what is left
-(glyph fields only).
+`Experiments/SDLGPU/Sources/Replay/main.swift` — and, found at the build,
+`Tests/MetalUIPortableTextTests/{EmitLinesTests,EmitParameterTests}.swift`
+(`TE-AR` item 9) — a spelling, no test's answer moves, no T row; the lane greps
+`_reserved` after and lists what is left (glyph fields only).
 **Tests**: new `Tests/MetalUIRenderTests/{EllipsePrimitiveTests,ImagePrimitiveTests}.swift`,
 arms in `SceneTests.swift`, `DrawListTests.swift`, `ShaderABITests.swift`;
 new `Tests/MetalUITests/PaintPrimitiveTests.swift`; in `Backends/SDL`
@@ -385,7 +391,7 @@ new `Tests/MetalUITests/PaintPrimitiveTests.swift`; in `Backends/SDL`
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
 | 1.1 | `anEllipseFillsItsInscribedEllipseAndNotTheCapsule` — 100×60, shape 1: centre filled, (1,1) empty, and pixel (10,10) — inside the radius-30 capsule of the same bounds, outside the ellipse — empty; the capsule arm (shape 0, radii 30) fills (10,10) (`#require` the arms disagree) | `shape` read by nothing | M1a: `rect_fragment` ignores `shape` |
-| 1.2 | `anEllipseBorderIsTheStrokeOfTheInsetEllipse` — 100×60, border 10: the test computes, on the CPU, a pixel where the inset-band model and the concentric-hole model (K8) disagree (`#require` one exists) and asserts the rendered pixel follows the inset band; the centre is background | — | M1b: band computed as the concentric ellipse `h − w` |
+| 1.2 | `anEllipseBorderIsTheStrokeOfTheInsetEllipse` — **120×40, border 16** (at K8's 100×60, border 10 the two models' pixel-centre classifications are at most 0.11 px apart, `TE-AR` item 3): the test computes, on the CPU, a pixel where the inset-band model and the concentric-hole model (K8) disagree by more than 0.9 px (`#require` one exists) and asserts the rendered pixel follows the inset band; the centre is background | — | M1b: band computed as the concentric ellipse `h − w` |
 | 1.3 | `aSceneHoldingOnlyAnImageIsNotEmpty` | `isEmpty` reads two arrays | M1c: `images` dropped from `isEmpty` |
 | 1.4 | `imageRunsBreakWhereTheTextureChanges` — images A, A, B then a rect, one layer → runs `[image 2, image 1, rect 1]`; `finalize()` twice gives the same list | no image kind | M1d: runs merged across textures |
 | 1.5 | `anImageSamplesBilinearlyWithClampedEdges` — a 2×1 red/blue texture over 100×10: the twelve x's of I8's default row within ±2 per channel ((0…24) red, 25 ≈ (252,0,3), 49 ≈ (130,0,125), (75…99) blue) | no image pipeline | M1e: `filter::nearest` in `image_fragment` |
@@ -393,7 +399,7 @@ new `Tests/MetalUITests/PaintPrimitiveTests.swift`; in `Backends/SDL`
 | 1.7 | `aTranslucentImageCompositesPremultipliedSourceOver` — straight (200,100,50,128) over white → (227,177,152) ±1, derived before the run; `ImageTexture` stores (100,50,25,128) | — | M1g: no premultiply in `ImageTexture` (reads (255,227,177)) |
 | 1.8 | `anImageUnderARoundedMaskIsClippedByIt` — mask radius 20: corner pixel is the clear colour, centre is the image | — | M1h: `image_fragment` skips the mask |
 | 1.9 | `aTextureTheSceneNoLongerReferencesIsReleased` — frame A then frame B: the renderer's cache (internal count and identities) holds only B; frame A again uploads once more | — | M1i: never evict |
-| 1.10 | `metalAndSwiftAgreeOnTheImageStructAndTheShapeField` — `abi_probe` reports `sizeof(MUIImage) == 64`, every field round-trips, and `MUIRect.shape` at `_reserved`'s old offset | — | M1j: `abi_probe` reads `order` for `shape` (the field swap reddens only this test) |
+| 1.10 | `metalAndSwiftAgreeOnTheImageStructAndTheShapeField` — `image_abi_probe` (its own kernel, `TE-AR` item 4) reports `sizeof(MUIImage) == 64`, every field round-trips, and `MUIRect.shape` at `_reserved`'s old offset | — | M1j: `abi_probe` reads `order` for `shape` (the field swap reddens only this test) |
 | 1.11 | `drawImageEmitsOneImageAtTheActiveOffsetClipOpacityAndLayer` — `PaintPass.drawImage` inside a scrolled clip at opacity 0.5 → one `MUIImage` with those fields, its texture in `scene.textures` once for two draws | no API | M1k: `activeOpacity` not applied |
 | 1.12 | `fillCarriesTheEllipseShapeKind` — `PaintPass.fill(…, shape: .ellipse)` → `MUIRect.shape == 1`; the default is 0 | — | M1l: `Frame.fill` drops `shape` |
 | S1.1 | (`Backends/SDL`) `aVersionTwoFixtureRoundTripsImagesAndTextures` and `thePrimitiveABIIsTheOneTheShadersRead` extended with the image stride | v1 only | M1m: textures not serialized |
@@ -493,6 +499,7 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 | `colorScheme`/`appearance` environment value; the theme before paint | `EV-G`'s paint-only rule stands; a second appearance source needs a coupling rule to tokens no probe here measures | none (`TE-AO`) |
 | colour glyphs | a polychrome rasterizer and atlas; the image pipeline is what would draw one, rasterization is the missing half | none (record §05's row) |
 | shapes' and `clipShape`'s hit regions (`contentShape`) | interaction | **plan task 12** |
+| a nearest-sampled texel boundary exactly on a pixel centre | which texel is read there is the backend's interpolation rounding (Metal and llvmpipe pick opposite sides: 55 px, Δ97 measured) — every renderer, SwiftUI's included; parity frames keep boundaries off pixel centres (`TE-AR` item 5) | none |
 
 ## 10. Verification (each lane, and the Record phase)
 

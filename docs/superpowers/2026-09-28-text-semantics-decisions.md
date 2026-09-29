@@ -4,12 +4,12 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AQ`; next unused is **`TE-AR`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AR`; next unused is **`TE-AS`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
-**Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`;
-three lanes, not yet run).
+**Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`);
+**lane 1 (the renderer) landed** (`TE-AR`); lanes 2 and 3 not yet run.
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -1884,3 +1884,108 @@ rulings; this branch's rulings live under `TE-`, so they are recorded here):
 **Cost if wrong.** Item 2 breaks an outside reader of `Rectangle.color` at
 compile time, with the migration above; item 3 rejects a non-`Hashable`
 custom shape on the legacy path at compile time, never silently.
+
+---
+
+## TE-AR — the renderer, as landed: a 64-byte `MUIImage` without `_reserved`, the premultiply in `ImageTexture`, a separating frame for 1.2, and nearest sampling on a texel boundary (lane 1)
+
+**Evidence.** Lane 1's red commit `afa7a98` and implementation `7e61deb`
+(record §60 §3): suite 1718 = 1706 + 12, green; the fourteen offscreen images
+0 px against `ff2ae92`, scenes identical; `Experiments/SDLGPU`'s `Replay
+--portable --record` 7 frames, frame 6 0 px on SDL's Metal backend through
+both the HLSL → SPIR-V → MSL stages and the adapted native MSL;
+`PortableReplay --expect 7` PASS on Metal and in a `swift:6.4-noble` aarch64
+container on Mesa llvmpipe Vulkan (frame 6: 1038 px Δ1 outside sprites,
+37 819 px Δ2 inside image quads); `DemoCapture` PASS; the two HLSL positive
+controls fail frame 6 only. A CPU search over K8's own frame
+(`anEllipseBorderIsTheStrokeOfTheInsetEllipse`'s instrument).
+
+**The ruling — each item amends the spec in this commit.**
+
+1. **`MUIImage` is 64 bytes with no `_reserved` word.** The spec's field
+   list (bounds, content mask, mask radii, then `opacity`, `texture`,
+   `filter`, `order`, `_reserved`) sums to 68 bytes, not the 64 it stated;
+   the four scalars after the three 16-byte blocks fill the fourth `float4`
+   lane exactly, so `_reserved` is dropped and the struct is four whole
+   lanes, uploaded by the SDL bridge as recorded (no repacking, unlike the
+   120 → 128 rect and 88 → 96 glyph). Pinned by
+   `metalAndSwiftAgreeOnTheImageStructAndTheShapeField` (Swift and MSL both
+   64) and `thePrimitiveABIIsTheOneTheShadersRead` (`imageStride == 64`).
+2. **`ImageTexture` has two initialisers, and the premultiply lives in it**:
+   `init(width:height:premultipliedRGBA:)` stores the bytes, and
+   `init(width:height:straightRGBA:)` premultiplies (`(c × a + 127) / 255`)
+   first — test 1.7 and mutation M1g name `ImageTexture` as the premultiply
+   site. Lane 3's `ImageBitmap` may build its texture through the straight
+   initialiser rather than premultiplying a second time.
+3. **Test 1.2 uses 120×40, border 16, not K8's 100×60, border 10.** At K8's
+   frame the inset-band model and the concentric-hole model classify pixel
+   centres at most **0.11 px** apart (measured by the test's own CPU search,
+   brute-force distance over 4000 curve points): K8's 518 px are antialiased
+   coverage summed over the edge, and no pixel there separates the models by
+   a margin a GPU's rounding cannot blur. At 120×40, border 16, the search
+   finds pixel (19, 19), classified oppositely with a 1.04 px margin (the
+   test requires 0.9), and the renderer follows the band. The instrument
+   is unchanged in kind — the test still `#require`s a separating pixel
+   before asserting — only its frame moved. M1b (the concentric band)
+   reddens it.
+4. **The ABI check for the new fields is its own kernel, `image_abi_probe`**
+   (out slots 0–13), so `abi_probe`'s two 32-slot readers
+   (`metalAndSwiftAgreeOnSharedStructLayout`,
+   `metalAndSwiftAgreeOnTheGlyphStructLayout`) keep their buffers. M1j (the
+   probe reading `order` for `shape`) is applied to that kernel.
+5. **A nearest-sampled texel boundary that falls exactly on a pixel centre
+   is backend-dependent — a renderer constraint, stated, not a divergence
+   from SwiftUI.** Frame 6's first draft put the nearest image's column
+   boundary at x = 250.5; Mesa llvmpipe and Apple's GPU picked opposite
+   texels there (55 px, Δ97 — a full-contrast texel pair). Which texel a
+   pixel centre exactly on the boundary reads is decided by the
+   implementation's interpolation rounding, on every backend including
+   SwiftUI's. Frame 6 now places the boundary at 250.25 (0 px on SDL Metal,
+   Δ2 on llvmpipe inside image quads), tests 1.6 and S1.2 keep their
+   boundaries between pixel centres, and spec §9 gains the row. Owner none.
+6. **An ellipse band at least as wide as the shorter diameter fills the
+   whole ellipse in the border colour** — the rounded rectangle's K10 rule
+   ("a border wider than half fills") carried to the ellipse kind, where the
+   inset ellipse would otherwise have a non-positive semi-axis. MetalUI's
+   choice: no probe arm measures SwiftUI's `Ellipse().strokeBorder` past
+   that width. The circle branch (axes equal within 1e-4, absolute, in
+   pixels) and a non-positive half size (no coverage) are the other two
+   guards; all three are the same statements in `shaders.metal` and
+   `replay.hlsl`.
+7. **The texture cache is updated before `Renderer.encode`'s empty-scene
+   return**, so a frame with nothing to draw releases every cached texture
+   too; the SDL renderer releases in `finishFrame` for the same reason. A
+   frame whose texture upload fails is not drawn (`finishFrame` returns
+   `false`) rather than drawn with a missing texture.
+8. **Parity**: `ReplayFixture.spriteMask()` is the glyph quads plus, since
+   version 2, the image quads; `parity(of:)` judges ≤ 8 inside it. The live
+   comparison in `Experiments/SDLGPU` keeps frames 0–5 at one UNORM step for
+   every pixel, as before, and judges frame 6 by fixture parity.
+   `PortableReplay`'s line now counts images and says "sprites".
+9. **Re-spellings beyond spec §8's list, no answer moved**: two more
+   `MUIRect` memberwise sites (`Tests/MetalUIPortableTextTests/EmitLinesTests.swift`,
+   `EmitParameterTests.swift`); an exhaustive-switch arm in
+   `SceneFinalizeIdentityTests`' `emit` and `DecorationPaintTests`'
+   `paintPositions` (neither emits an image). `git grep -n _reserved` after
+   the rename lists only `MUIGlyph` fields (its `_reserved`, the glyph
+   memberwise calls) and the header comment naming the old word.
+10. **One retained test's literal moves (a T row)**:
+    `sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear` counted four
+    `[Int]` side tables; the image kind adds a sequence and a layer table, so
+    it reads six, and it now emits images too (otherwise their tables' capacity
+    reads 0). Its subject — plain arrays keeping capacity across `clear()` —
+    is unchanged. `Backends/SDL`'s `ReplayFixtureTests` (outside the root
+    count) re-spell for version 2: the version bytes read 2, a truncated or
+    wrong version is `unsupportedVersion(1)`, the run-kind offset gains the
+    fifth stride and two empty sections, an unknown kind is 3 (2 is an image),
+    and `strideMismatch` carries the image stride.
+11. **The SDL workflow triggers on `Sources/MetalUIRender/**`** too: every
+    fixture's reference pixels are the Metal renderer's, and frame 6 is its
+    two new capabilities, so a shader change must re-run the replay.
+
+**Cost if wrong.** Item 1: a 68-byte struct would have needed repacking on
+SDL and broken the "four lanes" read in `replay.hlsl` — the ABI tests pin 64
+on both sides. Item 5: an image scaled so that a texel boundary lands on a
+pixel centre can differ between backends by a full texel contrast at those
+pixels; the parity mask does not hide it (Δ97 > 8), so a frame that did so
+would fail CI loudly rather than pass wrong.
