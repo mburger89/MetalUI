@@ -110,7 +110,11 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         box.content.second.content.equalWidth = pickerStyle.kind == .segmented
         box.style = style
         box.decoration = decoration
+        let environment = pass.frame.environmentTop
+        // The focus ring (`IX-H` item 2), unless the caller declared one.
+        if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(environment) }
         scope.kind = pickerStyle.kind
+        scope.accent = controlAccent(environment)
         scope.tags.removeAll()
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
@@ -137,7 +141,10 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout PrepaintState, pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
+        // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
+        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+            box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
+        }
     }
 }
 
@@ -160,6 +167,10 @@ final class PickerScope {
     let matches: @MainActor (AnyHashable) -> Bool
     let write: @MainActor (AnyHashable) -> Void
     var kind: PickerStyle.Kind = .segmented
+    /// The selected radio's fill: `.accent` in the key window, `.separator`
+    /// otherwise (`controlAccent(_:)`, `IX-H` item 1). A segmented picker's
+    /// selected segment is `.surface` in every window — it has no accent.
+    var accent: ColorToken = .accent
     /// This frame's options' tags, in declaration order.
     var tags: [AnyHashable] = []
 
@@ -334,7 +345,7 @@ public struct TaggedElement<Content: Element>: Element {
         case .radioGroup:
             row.gap = Axes(both: .pixels(Pixels(7)))
             lead.size = Size(width: .length(.pixels(Pixels(14))), height: .length(.pixels(Pixels(14))))
-            let circle = Decoration(background: selected ? .accent : .surface, cornerRadius: Pixels(7),
+            let circle = Decoration(background: selected ? scope.accent : .surface, cornerRadius: Pixels(7),
                                     border: selected ? nil : BorderStyle(.separator, width: Pixels(1)))
             chrome = Box(style: row, content: Pair(Box(style: lead, decoration: circle), content))
         }

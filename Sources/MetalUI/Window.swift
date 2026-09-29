@@ -631,6 +631,14 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // A `Button`'s keyboard shortcut (plan task 12 part 1, `IX-F` item
+            // 4): after the keymap, a focused field's editing keys and the raw
+            // `onKey` bubble, so each claims a key first (`B4i`, `X2`); before
+            // Tab traversal. Needs no focus (`B4e`).
+            if self.dispatchShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Tab and shift-Tab move focus (ruling TI-J) — last of the key
             // stages, so a keymap binding, a field and a raw `onKey` all see
             // the key first.

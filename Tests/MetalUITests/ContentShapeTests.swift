@@ -54,6 +54,8 @@ private func cornerAndCentre<Root: Element>(_ log: HitLog, requiring rect: Bound
     let atCorner = log.hits
     log.hits = []
     click(platform, centre)
+    // The platform window holds the window weakly: keep it to the last event.
+    withExtendedLifetime(window) {}
     return (atCorner, log.hits)
 }
 
@@ -97,6 +99,7 @@ private func tappable(_ log: HitLog) -> ModifiedElement<Box<EmptyGroup>> {
     #expect(log.hits == [], "C13: the inset rect's corner is outside the circle")
     click(platform, centre)
     #expect(log.hits == ["hit"], "C13: the centre hits")
+    withExtendedLifetime(window) {}
 }
 
 // MARK: - 2.15 proposal and Button
@@ -237,6 +240,7 @@ private func hitboxID(_ window: Window, _ bounds: Bounds<Pixels>) -> GlobalEleme
     #expect(log.hits == [], "outside the smaller clip: no hit (divergence 43)")
     click(platform, centre)
     #expect(log.hits == ["cut"], "inside it: the child")
+    withExtendedLifetime(window) {}
 }
 
 // MARK: - 2.18 divergence 57

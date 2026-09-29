@@ -33,8 +33,13 @@ import MetalUIPlatform
 /// `max(textH, 24)` at the default size. **The label's default font follows
 /// `controlSize` too** — 9/11/13 pt, because the label is a `Text` and a
 /// `Text`'s default font reads it (ruling TE-F item 3, withdrawing `DD-R` item
-/// 4's "its label's font does not"; probe F8, Z3). No pressed, hover or focus
-/// look (task 12).
+/// 4's "its label's font does not"; probe F8, Z3).
+///
+/// **Plan task 12 part 1, lane 2** (`IX-E`–`IX-H`): a role (stored, read by
+/// nothing), `.buttonStyle(_:)` (`.plain`/`.borderless` are the label alone),
+/// a pressed look (`isActive && isHovered`), `.keyboardShortcut`, the disabled
+/// look (one 0.5 opacity scope) and a 2-point focus ring in the key accent. No
+/// hover look.
 ///
 /// **Accessibility needs no declaration**: a clickable generic node is already
 /// a button that folds its label (`AB-G`; BA0, BA2).
@@ -74,16 +79,38 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
         }
     }
 
+    /// The bordered chrome's decoration fields, which `.plain`/`.borderless`
+    /// drop where they are still the chrome's own (`IX-E` item 2).
+    static var chromeBackground: ColorToken { .surfaceSecondary }
+    static var chromeCornerRadius: Pixels { Pixels(5) }
+    static var chromeBorder: BorderStyle { BorderStyle(.separator, width: Pixels(1)) }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Pair<Label, Box<EmptyGroup>>>.Layout) {
-        let metrics = Self.metrics(pass.environment.controlSize)
+        let environment = pass.environment
+        let bordered = buttonStyleValue.isBordered
+        let metrics = Self.metrics(environment.controlSize)
         var chrome = style
-        chrome.padding.left = .pixels(Pixels(metrics.padding))
-        chrome.padding.right = .pixels(Pixels(metrics.padding))
+        var decorated = decoration
         var strut = Style()
-        strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(metrics.height))))
+        if bordered {
+            chrome.padding.left = .pixels(Pixels(metrics.padding))
+            chrome.padding.right = .pixels(Pixels(metrics.padding))
+            strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(metrics.height))))
+        } else {
+            // `.plain`/`.borderless` (BT1): the label alone at its own size. The
+            // strut stays, zero by zero, so the label keeps index 0 and the
+            // strut 1 in every style. A chrome field a caller has not replaced
+            // is dropped; a caller's own fill or border survives.
+            strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(0))))
+            if decorated.background == Self.chromeBackground { decorated.background = nil }
+            if decorated.cornerRadius == Self.chromeCornerRadius { decorated.cornerRadius = Pixels(0) }
+            if decorated.border == Self.chromeBorder { decorated.border = nil }
+        }
+        // The focus ring (`IX-H` item 2), unless the caller declared one.
+        if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
         box.style = chrome
-        box.decoration = decoration
+        box.decoration = decorated
         box.content.second = Box(style: strut)
         return box.requestLayout(id, pass: &pass)
     }
@@ -102,6 +129,9 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             activate()
             return true
         }
+        // The shortcut runs whatever a click runs (`IX-F`); it rides the focus
+        // registry, behind the one disabled gate.
+        composed.keyboardShortcut = shortcut.map { ShortcutTarget($0, action: activate) }
         box.handlers = composed
         return box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
@@ -110,7 +140,27 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
                                layout: inout Box<Pair<Label, Box<EmptyGroup>>>.Layout,
                                prepaint: inout Pair<Label, Box<EmptyGroup>>.Prepaint,
                                pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        // Pressed is SwiftUI's rule (B0–B3): pressed and over the button —
+        // `isActive && isHovered`, both paint-only (`IX-E` item 3). The looks
+        // are MetalUI's (PX21/PX22 blind): a `.textPrimary` wash at 12 % over
+        // the bordered chrome; the label at 60 % for `.plain`/`.borderless`.
+        let pressed = pass.isActive(id) && pass.isHovered(id)
+        let bordered = buttonStyleValue.isBordered
+        let radius = box.decoration.cornerRadius
+        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+            if pressed && !bordered {
+                pass.opacity(0.6) {
+                    box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+                }
+            } else {
+                box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+            }
+            if pressed && bordered {
+                pass.opacity(0.12) {
+                    pass.fill(bounds, color: pass.theme[.textPrimary], cornerRadii: Corners(all: radius))
+                }
+            }
+        }
     }
 }
 
@@ -125,11 +175,12 @@ extension Button {
     }
 
     /// This button drawn in `style` — SwiftUI's `.buttonStyle(_:)` over a
-    /// closed set (`IX-E` item 2). `.plain` and `.borderless` drop the chrome's
-    /// fill, border and corner radius **where they are still the chrome's
-    /// own**, so a caller's `.background` written before or after survives,
-    /// and draw the label at its own size; `.bordered`/`.automatic` restore the
-    /// chrome's fields the same way.
+    /// closed set (`IX-E` item 2). `.plain` and `.borderless` draw the label at
+    /// its own size (BT1) and drop the chrome's fill, border and corner radius
+    /// **where they are still the chrome's own** — decided at layout, so a
+    /// caller's `.background` written before or after `.buttonStyle` survives
+    /// (a caller who writes the chrome's own `.surfaceSecondary` explicitly
+    /// cannot be told from the chrome, and loses it under `.plain`).
     public func buttonStyle(_ style: ButtonStyle) -> Self {
         var copy = self
         copy.buttonStyleValue = style

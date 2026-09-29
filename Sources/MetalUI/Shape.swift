@@ -66,6 +66,48 @@ public struct ShapeGeometry: Sendable, Equatable {
         return (rect, radii)
     }
 
+    /// Whether `point` lies in this geometry — the hit test of a declared
+    /// `.contentShape(_:)` (plan task 12 part 1, ruling `IX-L`). Half-open on
+    /// the rect's max edges, as `Bounds.contains` is; inside a rounded corner's
+    /// square the point must lie within the corner's circle (a `.continuous`
+    /// corner is tested circular, as it draws — divergence 90); an ellipse
+    /// tests `(dx/a)² + (dy/b)² ≤ 1`.
+    func contains(_ point: Point<Pixels>) -> Bool {
+        guard rect.contains(point) else { return false }
+        let x = point.x.value, y = point.y.value
+        let minX = rect.origin.x.value, minY = rect.origin.y.value
+        let w = rect.size.width.value, h = rect.size.height.value
+        switch kind {
+        case .ellipse:
+            let a = w / 2, b = h / 2
+            guard a > 0, b > 0 else { return false }
+            let dx = (x - (minX + a)) / a, dy = (y - (minY + b)) / b
+            return dx * dx + dy * dy <= 1
+        case let .roundedRectangle(radii, _):
+            func outside(_ r: Float, _ cx: Float, _ cy: Float, _ inCorner: Bool) -> Bool {
+                guard r > 0, inCorner else { return false }
+                let dx = x - cx, dy = y - cy
+                return dx * dx + dy * dy > r * r
+            }
+            let maxX = minX + w, maxY = minY + h
+            let tl = radii.topLeft.value, tr = radii.topRight.value
+            let br = radii.bottomRight.value, bl = radii.bottomLeft.value
+            if outside(tl, minX + tl, minY + tl, x < minX + tl && y < minY + tl) { return false }
+            if outside(tr, maxX - tr, minY + tr, x > maxX - tr && y < minY + tr) { return false }
+            if outside(br, maxX - br, maxY - br, x > maxX - br && y > maxY - br) { return false }
+            if outside(bl, minX + bl, maxY - bl, x < minX + bl && y > maxY - bl) { return false }
+            return true
+        }
+    }
+
+    /// This geometry moved by `(dx, dy)` — window space for a hitbox.
+    func offsetBy(dx: Float, dy: Float) -> ShapeGeometry {
+        ShapeGeometry(rect: Bounds(origin: Point(x: Pixels(rect.origin.x.value + dx),
+                                                 y: Pixels(rect.origin.y.value + dy)),
+                                   size: rect.size),
+                      kind: kind)
+    }
+
     /// The primitive kind the renderer draws (`MUIRect.shape`).
     var primitiveShape: PrimitiveShape {
         if case .ellipse = kind { return .ellipse }

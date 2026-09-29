@@ -998,7 +998,8 @@ public final class Frame {
     func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
                       opaque: Bool, scroll: ScrollAxis? = nil,
                       handlers: Handlers = Handlers(),
-                      origin: Point<Pixels>? = nil) -> HitboxID {
+                      origin: Point<Pixels>? = nil,
+                      shape: ShapeGeometry? = nil) -> HitboxID {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
@@ -1008,7 +1009,8 @@ public final class Frame {
                                id: id, layer: activeLayer, opaque: opaque, scroll: scroll,
                                handlers: handlers,
                                origin: Point(x: Pixels(elementOrigin.x.value + activeOffset.x.value),
-                                             y: Pixels(elementOrigin.y.value + activeOffset.y.value))))
+                                             y: Pixels(elementOrigin.y.value + activeOffset.y.value)),
+                               shape: shape?.offsetBy(dx: activeOffset.x.value, dy: activeOffset.y.value)))
         return HitboxID(index: hitboxes.count - 1)
     }
 
@@ -1174,8 +1176,12 @@ public final class Frame {
         // `ModifiedElement`, and a conformer that forgot would be silently
         // wrong.
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
-            _ = insertHitbox(Self.hitRegion(bounds, inset: handlers.contentShapeInset),
-                             id: id, opaque: true, handlers: handlers, origin: bounds.origin)
+            // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
+            // the shape's geometry in the same (inset) region, here and nowhere
+            // else, for the inset's reason above.
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: true, handlers: handlers, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and

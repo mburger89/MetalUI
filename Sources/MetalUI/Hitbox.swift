@@ -120,13 +120,23 @@ struct Hitbox {
     /// Written by `Frame.insertHitbox`; read only by the gesture arena.
     let origin: Point<Pixels>
 
+    /// A declared `.contentShape(_:)`'s geometry in window space — translated
+    /// like `bounds` and **not** clipped (the clip is `bounds`' job) — or `nil`
+    /// for the rect alone (plan task 12 part 1, ruling `IX-L`). Written by
+    /// `Frame.insertHitbox` from `Frame.registerHandlers`; a scroll region never
+    /// carries one.
+    let shape: ShapeGeometry?
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,
-    /// so a hit region is tested in one place. Half-open on the max edges, as
-    /// `Bounds.contains` is.
+    /// so a hit region is tested in one place — which is what makes a content
+    /// shape reach a click, the arena, hover, active and wheel routing alike
+    /// (`IX-L` item 1). Half-open on the max edges, as `Bounds.contains` is.
+    /// The clipped rect first, then the shape, so a content shape can only
+    /// shrink a hit region the clip already bounds (divergence 43).
     func contains(_ point: Point<Pixels>) -> Bool {
-        bounds.contains(point)
+        bounds.contains(point) && (shape?.contains(point) ?? true)
     }
 }
 

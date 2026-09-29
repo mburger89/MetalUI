@@ -8,9 +8,12 @@
 /// window's state over that (`PlatformWindow.controlActiveState`), and a scope
 /// may write it (probe C4).
 ///
-/// **No built-in consumer**: MetalUI's controls do not change in an inactive
-/// window. SwiftUI's look there is unprobed; owner plan task 12, with the
-/// disabled look.
+/// **The built-in controls consume it** (plan task 12 part 1, ruling `IX-H`):
+/// a control's accent — `Toggle`'s on indicator, `Slider`'s fill, a radio
+/// `Picker`'s selection and the focus ring — is painted only in the key window
+/// (probe `swiftui-interaction` PX17–PX20: accent at `.key`, none at
+/// `.inactive`); `.active` is treated as not key, MetalUI's choice (the probe's
+/// process is never active, PX23).
 ///
 /// **It lives in `MetalUICore`, not `MetalUI`**, so `MetalUIPlatform` (which
 /// imports only `MetalUICore` and `MetalUIScene`) and `Backends/SDL` can name

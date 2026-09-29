@@ -152,8 +152,12 @@ public struct EnvironmentValues {
     /// `swiftui-environment-control-state.swift` V0), so a windowless `Frame` and
     /// `renderFrame` read `.key`; a `Window` stamps its platform window's state
     /// into the root at draw, and `Window.environment.controlActiveState` is not
-    /// the root's source. A scope can write it (C4). **No built-in consumer**:
-    /// MetalUI's controls do not dim in an inactive window (owner plan task 12).
+    /// the root's source. A scope can write it (C4). **The built-in controls
+    /// read it** (plan task 12 part 1, ruling `IX-H`): `Toggle`, `Slider`, a
+    /// radio `Picker` and every control's focus ring paint `.accent` only when
+    /// it is `.key`, and `.separator` otherwise (`controlAccent(_:)`; probe
+    /// `swiftui-interaction` PX17–PX20 measure `.key` against `.inactive`;
+    /// `.active` is MetalUI's, never measured).
     public var controlActiveState: ControlActiveState = .key
 
     /// The size controls below should take — SwiftUI's `controlSize` (ruling

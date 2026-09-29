@@ -151,12 +151,21 @@ public struct Slider: Element, StyledElement {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
         let fraction = ValueStepping.fraction(of: read(), in: self.bounds)
-        pass.paintDecoration(decoration, in: bounds, for: id) {
-            paintTrack(bounds: bounds, fraction: fraction, pass: &pass)
+        let environment = pass.frame.environmentTop
+        var decorated = decoration
+        // The focus ring (`IX-H` item 2), unless the caller declared one.
+        if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
+        let accent = controlAccent(environment)
+        // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
+        pass.paintControl(disabled: !environment.isEnabled) {
+            pass.paintDecoration(decorated, in: bounds, for: id) {
+                paintTrack(bounds: bounds, fraction: fraction, accent: accent, pass: &pass)
+            }
         }
     }
 
-    private func paintTrack(bounds: Bounds<Pixels>, fraction: Double, pass: inout PaintPass) {
+    private func paintTrack(bounds: Bounds<Pixels>, fraction: Double, accent: ColorToken,
+                            pass: inout PaintPass) {
         let x = Double(bounds.origin.x.value), y = Double(bounds.origin.y.value)
         let w = Double(bounds.size.width.value), h = Double(bounds.size.height.value)
         let thumb = Self.thumbWidth
@@ -173,7 +182,7 @@ public struct Slider: Element, StyledElement {
                   cornerRadii: radius)
         let filled = thumbX + thumb / 2 - trackStart
         if filled > 0 {
-            pass.fill(rect(trackStart, centreY - 2, filled, 4), color: pass.theme[.accent], cornerRadii: radius)
+            pass.fill(rect(trackStart, centreY - 2, filled, 4), color: pass.theme[accent], cornerRadii: radius)
         }
         pass.fill(rect(thumbX, centreY - Self.height / 2, thumb, Self.height), color: pass.theme[.surface],
                   cornerRadii: Corners(all: Pixels(Float(Self.height / 2))),

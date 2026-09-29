@@ -5,7 +5,8 @@ import MetalUIPlatform
 /// SwiftUI's `Toggle(isOn:)` in its macOS automatic style, the checkbox (ruling
 /// `DD-S`; probe TG0 = TG1 `.checkbox`, 53×16 over a 32-point label).
 ///
-/// **One look**: a 14×14 indicator `Box` (corner radius 3, `.accent` when on,
+/// **One look**: a 14×14 indicator `Box` (corner radius 3, `.accent` when on —
+/// `.separator` when on outside the key window, `IX-H` item 1 —
 /// `.surface` with a 1-point `.separator` border when off), 7 points, then the
 /// label — `14 + 7 + textW` × `max(14, textH)`. Only the sum 21 is measured
 /// (TG0: 53 − 32; the radio row's 21 agrees, PK2/PK3); the 14/7 split is
@@ -46,12 +47,16 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Pair<Box<EmptyGroup>, Label>>.Layout) {
         let on = isOn.wrappedValue
+        let environment = pass.frame.environmentTop
         var indicator = Style()
         indicator.size = Size(width: .length(.pixels(Pixels(14))), height: .length(.pixels(Pixels(14))))
         box.style = style
         box.decoration = decoration
+        // The focus ring (`IX-H` item 2), unless the caller declared one.
+        if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(environment) }
+        // The on indicator's accent only in the key window (`IX-H` item 1).
         box.content.first = Box(style: indicator,
-                                decoration: Decoration(background: on ? .accent : .surface,
+                                decoration: Decoration(background: on ? controlAccent(environment) : .surface,
                                                        cornerRadius: Pixels(3),
                                                        border: on ? nil : BorderStyle(.separator, width: Pixels(1))))
         return box.requestLayout(id, pass: &pass)
@@ -83,7 +88,10 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
                                layout: inout Box<Pair<Box<EmptyGroup>, Label>>.Layout,
                                prepaint: inout Pair<Box<EmptyGroup>, Label>.Prepaint,
                                pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
+        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+            box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        }
     }
 }
 

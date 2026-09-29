@@ -128,6 +128,8 @@ public struct Stepper: Element, StyledElement {
         -> (LayoutNodeID, Box<Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout) {
         box.style = style
         box.decoration = decoration
+        // The focus ring (`IX-H` item 2), unless the caller declared one.
+        if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(pass.frame.environmentTop) }
         return box.requestLayout(id, pass: &pass)
     }
 
@@ -167,6 +169,9 @@ public struct Stepper: Element, StyledElement {
                                layout: inout Box<Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
                                prepaint: inout Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint,
                                pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
+        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+            box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        }
     }
 }

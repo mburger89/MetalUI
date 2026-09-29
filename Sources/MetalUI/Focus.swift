@@ -98,6 +98,7 @@ struct FocusRegistry {
         if !handlers.actions.isEmpty { actionHandlers[id] = handlers.actions }
         if let context = handlers.keyContext { contexts[id] = context }
         if let target = handlers.textInput { textTargets[id] = target }
+        if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
     }
 
     /// The first shortcut in tree order that `event` matches, and its owner.

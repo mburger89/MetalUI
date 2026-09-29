@@ -19,6 +19,9 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     try controlWindow(content)
 }
 
+// A test keeps its `Window` alive to the end: the platform window holds it
+// weakly, so a discarded window silently drops every event.
+
 // MARK: - 2.4 exact match, no focus
 
 /// **2.4** (B4e: ⌘K fires a `keyboardShortcut("k")`; B4f: plain K does not;
@@ -55,7 +58,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     #expect(KeyboardShortcut.defaultAction == KeyboardShortcut(.return, modifiers: []))
     #expect(KeyboardShortcut.cancelAction == KeyboardShortcut(.escape, modifiers: []))
     let model = ControlModel()
-    let (_, platform) = try shortcutWindow {
+    let (window, platform) = try shortcutWindow {
         controlRoot {
             Button("OK") { model.keys.append("ok") }.keyboardShortcut(.defaultAction)
             Button("Cancel") { model.keys.append("cancel") }.keyboardShortcut(.cancelAction)
@@ -65,6 +68,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     #expect(model.keys == ["ok"], "Return runs the default action (B4a)")
     platform.simulateInput(controlKey("\u{1b}"))
     #expect(model.keys == ["ok", "cancel"], "Escape runs the cancel action (B4b)")
+    withExtendedLifetime(window) {}
 }
 
 // MARK: - 2.6 tree order
@@ -73,7 +77,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
 /// tree order wins, once. M2f (the last registered wins) reddens it.
 @Test @MainActor func theFirstButtonInTreeOrderTakesASharedShortcut() throws {
     let model = ControlModel()
-    let (_, platform) = try shortcutWindow {
+    let (window, platform) = try shortcutWindow {
         controlRoot {
             Button("A") { model.keys.append("A") }.keyboardShortcut("k")
             Button("B") { model.keys.append("B") }.keyboardShortcut("k")
@@ -82,7 +86,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     platform.simulateInput(controlKey("k", .command))
     #expect(model.keys == ["A"], "the first button in tree order takes a shared shortcut (B4h)")
     // A `nil` shortcut removes it: the second button then owns ⌘K alone.
-    let (_, other) = try shortcutWindow {
+    let (otherWindow, other) = try shortcutWindow {
         controlRoot {
             Button("A") { model.keys.append("A2") }.keyboardShortcut("k").keyboardShortcut(nil)
             Button("B") { model.keys.append("B2") }.keyboardShortcut("k")
@@ -90,6 +94,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     }
     other.simulateInput(controlKey("k", .command))
     #expect(model.keys == ["A", "B2"], "keyboardShortcut(nil) removes the shortcut")
+    withExtendedLifetime((window, otherWindow)) {}
 }
 
 // MARK: - 2.7 order
@@ -143,7 +148,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
 /// reddens the disabled arm.
 @Test @MainActor func aDisabledButtonsShortcutIsSilentAndHitTestingOffIsNot() throws {
     let model = ControlModel()
-    let (_, platform) = try shortcutWindow {
+    let (window, platform) = try shortcutWindow {
         controlRoot {
             Button("K") { model.keys.append("disabled") }.keyboardShortcut("k").disabled(true)
             Button("J") { model.keys.append("untestable") }.keyboardShortcut("j").allowsHitTesting(false)
@@ -155,6 +160,7 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
     #expect(model.keys == [], "a disabled button's shortcut is silent (B4l, K4): \(model.keys)")
     platform.simulateInput(controlKey("j", .command))
     #expect(model.keys == ["untestable"], "allowsHitTesting(false) leaves the shortcut live (K1)")
+    withExtendedLifetime(window) {}
 }
 
 // MARK: - 2.9 invisible
@@ -163,11 +169,12 @@ private func shortcutWindow<Root: Element>(_ content: @escaping @MainActor () ->
 /// shortcut under an opacity-0 scope) reddens it.
 @Test @MainActor func anInvisibleButtonsShortcutStillFires() throws {
     let model = ControlModel()
-    let (_, platform) = try shortcutWindow {
+    let (window, platform) = try shortcutWindow {
         controlRoot { Button("K") { model.keys.append("k") }.keyboardShortcut("k").opacity(0) }
     }
     platform.simulateInput(controlKey("k", .command))
     #expect(model.keys == ["k"], "an opacity-0 button's shortcut fires (B4j)")
+    withExtendedLifetime(window) {}
 }
 
 // MARK: - 2.13 Return in a focused field
