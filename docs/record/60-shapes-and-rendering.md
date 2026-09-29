@@ -428,7 +428,39 @@ round's three doc files listed):
 | MG3a′ | MG3a, plus those 27 in-repo sites spelled `ProposalAlignment.…` so the package builds | `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve` (1: `4 nine-point control: succeeded=false`, `ambiguous use of 'topLeading'`) |
 | MG3b | `Image.init(systemName:)` stub added | `anImageHasNoSystemNameOrAssetInitialiser` (3) |
 
-Every mutation reddens its designed test; none reddened nothing.
+**17 rows, 16 of which build and redden** (MG3a does not build; MG3a′
+replaces it); every building mutation reddens its designed test, none
+reddened nothing.
+
+**Fix round** (review of lane 3, one major and two minors). The verifier's
+**V5** — `gridCellAnchors[index] = anchorPoint` unconditionally in
+`LayoutTree.markNativeGridCell`, the `UnitPoint` copy of the first-mark-stands
+rule (`TE-AU` item 4) — and **V9** — that path's finiteness precondition
+shrunk to `anchorPoint.horizontalFactor.isFinite` — each left the whole
+1762-test suite green: only the nine-point copy was pinned (GL16), and 3.12b
+fed a NaN x only; 3.10b fed scale 0 and +∞ but no negative or NaN. Added,
+green on arrival against the unmutated code and committed before mutating:
+**3.12c** `theInnerAnchorWinsThroughTheUnitPointOverload` (GL14's layout,
+GL16's inner-wins reading carried to a `UnitPoint` chain — in SwiftUI
+`.topLeading` is itself a `UnitPoint`, so GL16 already is such a chain; no new
+probe arm: two `UnitPoint`s → a at (10, 20), a nine-point inside a `UnitPoint`
+→ (0, 0), and the control, a `UnitPoint` inside a nine-point → (10, 20));
+3.12b gains a `UnitPoint(x: 0, y: .infinity)` child; 3.10b gains a scale −2
+and a NaN child. Counts: unfiltered `swift test --build-system native
+--no-parallel` → **`Test run with 1763 tests in 3 suites passed`**, the
+`FR-J no-argument frame: succeeded=` line present; **1763 = 1762 + 1** (3.12c,
+`MetalUITests`, so the container's figures do not move). Mutations, each on
+the fix commit from a copy of the committed file, whole unfiltered suite,
+restored, `git status --short` clean after:
+
+| id | mutation (spelling) | reddened (issues) |
+|---|---|---|
+| V5 | `if gridCellAnchors[index] == nil { gridCellAnchors[index] = anchorPoint }` → `gridCellAnchors[index] = anchorPoint` | `theInnerAnchorWinsThroughTheUnitPointOverload` (2: the two-`UnitPoint` arm and the nine-point-inside-`UnitPoint` arm; the control arm green, as designed) |
+| V9 + M3o | V9 in `LayoutTree.swift` together with **M3o**, `Image`'s `scale > 0` → `scale != 0`, in one run (disjoint files and disjoint tests) | V9: `aNonFiniteGridCellAnchorTraps` (1: the y child still aborts, but not at the anchor check); M3o: `anImageOfANonPositiveOrNonFiniteScaleTraps` (2: the scale −2 child exits 0) |
+
+The NaN-scale child is not separated by M3o (`NaN != 0` holds but `isFinite`
+still traps it); it pins the `isFinite` half against NaN, which zero and −2
+cannot.
 
 **Elsewhere**: `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds against
 `02f1e0f` and runs **22 + 25**, unmoved from §3 (lane 3 adds no primitive; its

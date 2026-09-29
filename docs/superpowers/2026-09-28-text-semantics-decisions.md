@@ -2133,8 +2133,10 @@ the whole unfiltered suite, 23 issues; 3.5 and both guards green by design)
 and implementation `02f1e0f`: after `swift package clean`, `Test run with 1762
 tests in 3 suites passed`, **1762 = 1747 + 15** (14 tests and 1 guard); the
 fourteen offscreen images 0 px against `ff2ae92`, scenes identical; the
-sixteen mutations of record §60 §5 each redden a named test on the whole
-unfiltered suite. Probe arms I1–I12, A1–A4 (`swiftui-shapes-and-rendering.swift`)
+mutation table of record §60 §5 — **17 rows, 16 of which build and redden a
+named test on the whole unfiltered suite** (MG3a does not build; MG3a′
+replaces it) — plus the fix round's V5 and V9 (record §60 §5, "Fix round"),
+which redden the fix round's additions, **1763** tests. Probe arms I1–I12, A1–A4 (`swiftui-shapes-and-rendering.swift`)
 and GL14 (`swiftui-grid.swift`, re-run by the critic round) — no new probe:
 every SwiftUI value asserted is one of those arms'; the two traps below are
 `SA-J`'s rule, not SwiftUI claims.
