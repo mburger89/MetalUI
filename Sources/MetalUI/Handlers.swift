@@ -257,6 +257,19 @@ public struct Handlers {
     /// disabled gate and `allowsHitTesting(false)` remove it with the hitbox.
     var valueTrack: ValueTrackTarget?
 
+    // MARK: Gestures (plan task 12 part 1, ruling `IX-B`)
+
+    /// The gestures attached to this element, in declaration order — inner
+    /// first, since a later modifier is an outer layer (`IX-D` item 3). Written
+    /// by `onTapGesture`, `onLongPressGesture`, `gesture(_:)`,
+    /// `simultaneousGesture(_:)` and `highPriorityGesture(_:)`, each of which
+    /// **appends** (unlike `onClick`, which replaces). Internal: the element
+    /// holds them, the window's arena runs them (`Window.dispatchGestures`).
+    ///
+    /// **One array — one reference in `Handlers`' stored layout** (`IX-N`'s
+    /// Windows stack budget).
+    var gestures: [GestureAttachment] = []
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
