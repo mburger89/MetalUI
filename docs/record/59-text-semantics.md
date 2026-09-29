@@ -610,7 +610,7 @@ through the portable system at 920×560 (not in the first census; found by
 At `ac8c87a` (the skeleton: `Font`, the environment values, the modifiers and
 the three-state request exist; every element still resolves
 `resolveFont(family: fontFamily, size: fontSize)` and measures unstyled),
-filtered to the 25 lane-3 tests: **79 issues** over 19 red tests — 3.1 2
+filtered to the 25 lane-3 tests: **81 issues** over 19 red tests (first written here as 79, a sum slip — the per-test figures below were right and add to 81; re-taken by the lane-3 verifier and again by the fix round, `swift build --build-system native --build-tests` at `ac8c87a`, then `swift test --build-system native --no-parallel --skip-build --filter` over the 25 names: `Test run with 25 tests in 0 suites failed … with 81 issues`, the same 19 red and 6 green) — 3.1 2
 (`drawn == want`: headline and caption2, the weights), 3.2 2, 3.3 2, 3.4 8
 (the four weight arms and three italic arms against the explicit italic face,
 plus F6d), 3.6 3 (C2, C3, C6), 3.7 2, 3.8 11, 3.10 6, 3.11 5
@@ -683,3 +683,73 @@ resolution):
 `displayAsleep main: 1` (18:09 PDT) — owed, now with `TE-Y` item 3's look
 (the paragraph under **A** at 920×560, four lines) and `TE-Q`'s drawn
 `controlSize` font.
+
+### 4.6 Retirement and re-answer rows
+
+Two `@Test` names are removed between `169d166` and the lane (the `@Test` name
+diff removes exactly these two and adds their renames); two more tests keep
+their names and change their answers; one fixture is re-recorded. Each row
+below is the retirement row the tests' doc comments and `TE-Y` item 4 point
+to ("record §59 §4"). No test is retired without a successor asserting the
+new answer.
+
+| test (old → new) | old answer | new answer | ruling |
+|---|---|---|---|
+| **T1.7** `controlSizeReachesNoBuiltInMeasurement` → `controlSizeReachesTheDefaultFontButNoControlsChrome` (spec 3.11; `EnvironmentScaleAndSizeTests`) | pinned wrong on purpose (divergence 76, `EV-AC`): under `.mini`/`.small`/`.extraLarge` a `Text`'s ideal and broken widths equal the bare text's, and a `TextField` is as tall at `.mini` as at `.regular` | the default font is 9 / 11 / 13 / 13 / 13 pt by `controlSize` — the scoped text measures as the explicit 9/11/13 pt text; an explicit font (26 pt) and an environment font (`.title`, F8h) do not move; the field is its default font's line at every size, no padding | `TE-F` items 1, 2, 4 (divergence 76 amended, kept; `EV-AC`'s "measures nothing differently" withdrawn) |
+| **ButtonTests 1.2** `aButtonReadsControlSizeForItsChromeButNotItsLabelsFont` → `aButtonReadsControlSizeForItsChromeAndItsLabelsDefaultFont` (spec 3.12) | the label is its unshrunk 13 pt self in every chrome — one label width across the five sizes, equal to the bare `Text("Go")` | the label is the 9 / 11 / 13 pt text (height and width equal to `Text("Go").font(size:)`), three distinct label widths; chrome paddings 8/10/12/14/18 and struts 13/20/24/28/36 unchanged | `TE-F` item 3 (`DD-R` item 4's "its label's font does not" withdrawn) |
+| `aProposalTextInAStackIsShapedOncePerDistinctWidth` (name kept; `ContainerIntegrationTests`) | finite root 12 misses / 12 lookups; scroll viewport 12 misses / 21 lookups | finite root **13 / 16** (one capped shape for "Charlie three words" at 0.5; paint's `measure` before `placeGlyphs` adds 3 × 2 lookups); scroll viewport **15 / 27** (three main-0 probes capped at one line; 9 + (9 + 3) + 6 lookups) — each re-derived by hand in the doc comment | `TE-Y` item 4, `TE-H` item 2 |
+| `proposalTextUsesWidthDrivenSwiftUIMeasurement` (name kept; `NativeLayoutIntegrationTests`) | its `heightControl` arm: at (30, 12) the measurement equals the unconstrained-height wrapped one — "a height proposal does not truncate or scale a SwiftUI Text measurement", unprobed | at (30, 12) one line: height the font's line height, width ≤ 30 (L5/X9: 100×20 → one line); a new `roomy` arm — a height of the run's own lines — equals the wrapped measurement (caps nothing) | `TE-Y` item 4, `TE-H` item 2 (the claim refuted by L5) |
+| `Tests/MetalUICrossPlatformTests/Expected.swift` (fixture of `theDemoFrameMatchesTheValuesRecordedOnMacOS`, `XP-C`) | scale 1 `0x93022181f7ac03d7` / `0x583ae5dca644fe93`, scale 2 `0x7000ee7e5d7a4bb9` / `0xd5a9cf3e477fb669`, 15710 glyphs | scale 1 `0x5e19107324162109` / `0x9f83d28ecad0a494`, scale 2 `0x26c7cd62eabf02ca` / `0xda828bbe0b230bbd`, 15677 glyphs — the paragraph's three lines and `…`, the `ScrollView` below it up 18 (§4.5's scene diff) | `TE-Y` item 2 |
+
+`goldensUnchanged` for the lane therefore reads: every removed `@Test` (two)
+has its row above, and the two re-answered tests and the fixture are the
+named changes of `TE-F` and `TE-Y`; no other retained test changed its answer.
+
+### 4.7 Fix round (review findings)
+
+The lane-3 review returned two majors and five minors. All seven were taken;
+tests red first against committed mutations, each mutation applied to the
+committed tree `a23df61`, the full unfiltered suite run, the file restored from
+a copy and `git status --short` read clean after each.
+
+1. **`ProposalText`'s drawing was unpinned** (major). New
+   `ProposalTextPaintTests.swift`: 3.17b
+   `aTruncatedProposalTextDrawsTheSameSpritesThroughEitherSystem` (3.17's
+   arms for a `ProposalText` in a `VStack`, the limit and mode through the
+   environment, `#require` fewer glyphs on both systems), 3.13c
+   `aHeightCappedProposalTextDrawsOnlyTheLinesItsBoxHolds` (3.23's K2 tree
+   with a 2.5-line share draws what it draws at `lineLimit(2)`, on both
+   systems); and in `TextAlignmentTests`, 3.18b
+   `multilineTextAlignmentPlacesAProposalTextsLinesInsideItsBox`.
+2. **Retirement rows** (major): §4.6 above.
+3. **The paint-time cap on `Text`** (minor): 3.13b
+   `aHeightCappedTextDrawsOnlyTheLinesItsBoxHolds`, CoreText and portable on
+   Noto Sans, a `Text` framed 2.5 lines tall against the same tree at
+   `lineLimit(2)` and against a tall frame.
+4. **`Text.proposalLayout()`'s weight and slope** (minor): 3.7 gains an arm —
+   `Text("Hg ag").fontWeight(.bold).italic().proposalLayout()` answers the
+   bold italic face's size (`#require`d to differ from the regular face's).
+5. **The red-first issue count** (minor): 81, not 79 — §4.4 corrected, with
+   the configuration.
+6. **Probe F8's `TextField` baselines** (minor): noted in
+   `swiftui-text-semantics.swift`'s header as not deterministic across runs;
+   no ruling or test rests on them.
+7. **The real-window capture** (minor): taken by the lane-3 verifier once the
+   screen unlocked (18:19 PDT): `capture.sh <scratch> 169d166 e39a9b4` read
+   `default: 1840x1176 differing=0` and `preview: differing=0`, each a-vs-b 0,
+   control 958986. So the default and preview looks are **taken, 0
+   differing**. `TE-Y` item 3's look — the paragraph under **A** at 920×560,
+   four lines where it drew five — is **still owed**: `capture.sh` shows only
+   the default and preview states. §4.5's closing sentence, written at 18:09
+   with the screen locked, is superseded by this item; the Record phase
+   carries it to record §03.
+
+Suite: **1705 tests** (1701 + 4 new: 3.13b, 3.13c, 3.17b, 3.18b; 3.7 extended
+in place), guards 105 unmoved.
+
+| mutation (applied at `a23df61`) | tests reddened (full unfiltered suite) |
+|---|---|
+| **M3p2** `ProposalText.paint`: `options: laid.options` → `TextLayoutOptions()` | `aTruncatedProposalTextDrawsTheSameSpritesThroughEitherSystem`, `aHeightCappedProposalTextDrawsOnlyTheLinesItsBoxHolds`, `multilineTextAlignmentPlacesAProposalTextsLinesInsideItsBox` (4 issues; before this round: none, 1701 passed) |
+| **X2** `ProposalText.paint`: `height: Double(bounds.size.height.value)` → `nil` | `aHeightCappedProposalTextDrawsOnlyTheLinesItsBoxHolds` (1 issue; before: none) |
+| **X1** `Text.paintGlyphs`: `textLines(…, height: height, …)` → `height: nil` | `aHeightCappedTextDrawsOnlyTheLinesItsBoxHolds`, `theDemoFrameMatchesTheValuesRecordedOnMacOS` (3 issues; before: the demo-frame hash alone) |
+| **X3** `Text.proposalLayout()`: the `result.fontWeight`/`result.isItalic` lines deleted | `aProposalTextReadsTheEnvironmentsFontAndForegroundStyle` (1 issue; before: none) |

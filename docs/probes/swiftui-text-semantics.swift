@@ -393,7 +393,15 @@
 //   explicit font — `.body` or `.caption` included — does not move (F8), and
 //   an environment font wins over the size (F8h). A `TextField`'s height
 //   follows its font (F8: `.system(20)` is 32 tall at every size) and its
-//   default font follows the size (19/22/24).
+//   default font follows the size (19/22/24). **F8's `TextField` baselines
+//   (`first=`/`last=` of the `TextField` fields) are not deterministic**: one
+//   re-run under load (the lane-3 verifier, 2026-09-28) read `F8 small`'s
+//   `TextField` as `first=15 last=24` against the recorded `14.5`/`14.5`, and
+//   two later runs matched the record; every other re-run arm (F1, F7, F8's
+//   other fields, L1, L2, L5, A1, B1) matched byte for byte. **No ruling rests
+//   on them**: `TE-F` reads F8's `Text` sizes and the `TextField` heights
+//   only, and no test or ruling cites a `TextField` baseline (grep of the
+//   decisions doc, the spec and `Tests/`).
 // - METRICS. A `Text`'s width is its widest line ceiled to the displayScale
 //   pixel grid (M1: 71.525 → 72 at 1 and 2, 71.667 at 3), capped by a finite
 //   width proposal (M2). Its height is lines × a line height that is NOT
