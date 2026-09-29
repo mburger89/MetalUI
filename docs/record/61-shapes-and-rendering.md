@@ -1017,8 +1017,9 @@ count 0, then the replay path's pixels), and
 the counter in and `mui_renderer_finish` still releasing unwaited (and,
 after the fix, with `retire_fence` in `finish` mutated back to
 `release_fence`), the image-texture test reads **2** and the new test **31**
-(31 of 31 releases before the GPU signalled), both red, three of three
-runs; with the fix, 0 and green. The hazard is therefore observable off
+(31 of 31 releases before the GPU signalled), both red — the image-texture
+test read 2 in each of four runs, the new test was red in both runs taken of
+it; with the fix, 0 and green. The hazard is therefore observable off
 Windows even though only Direct3D 12's fence reset turns it into a crash.
 
 **Results.** macOS (`PKG_CONFIG_PATH=$PWD/.accesskit`): `--no-parallel`
@@ -1029,5 +1030,9 @@ CI after the fix (commit `e9f558f`): SDL GPU runs **36589957513** (push) and
 **36589964381** (pull_request) — every job green, Windows x64 D3D12
 `MetalUISDLTests` `Test run with 25 tests … passed` in both (the new test
 2.1 s and 3.5 s under WARP with validation), Linux x86_64/aarch64 25 too
-(the two macOS-only tests absent). Further Windows D3D12 runs are listed
-below as they were taken.
+(the two macOS-only tests absent). Then two more Windows D3D12 runs, both
+green with `Test run with 25 tests … passed`: **36590985422** (pull_request,
+`4646994`, this record's commit; job 109484224053) and **36589957513
+attempt 2** (the push run's D3D12 job re-run, job 109483878968). **Four green
+Windows D3D12 runs after the fix, none failed**, against one crash in two
+before it.
