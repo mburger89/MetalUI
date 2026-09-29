@@ -3,7 +3,7 @@
 Branch `feat/interaction` from `31f2e7a` (master, task 11 closed, record §61).
 Rulings `IX-A`…`IX-O` in a new decisions doc,
 [`../2026-09-29-interaction-decisions.md`](../2026-09-29-interaction-decisions.md)
-(next unused **`IX-P`**; `IX-O` is the critic round's). Evidence: `docs/probes/swiftui-interaction.swift`
+(next unused **`IX-Q`**; `IX-O` is the critic round's, `IX-P` lane 1's landing). Evidence: `docs/probes/swiftui-interaction.swift`
 (**new**, arm ids `G…` gestures, `H…` hierarchy precedence, `B…` buttons, `PX…`
 looks, `F…`/`K0` focus, `C…` content shapes, `X1`–`X4` the critic round's;
 its header carries the recorded output, what the instrument cannot see, and
@@ -243,8 +243,9 @@ the decisions doc; the Record phase writes record §62.
 (`OuterModifierMatrixTests`) gain one field per new `Handlers` member, in the
 lane that adds it (CLAUDE.md "StyledElement"). **Every lane adding a
 `Handlers` member** records `MemoryLayout<Handlers>.size` before and after and
-the smallest thread building every production tree (528 KB at `31f2e7a`'s
-recorded figure; each new member one reference, array or small optional, a
+the smallest thread building every production tree (**592 KB** at `31f2e7a`,
+re-measured by lane 1 — the 528 KB first written here was CLAUDE.md's stale
+figure, record §59 had 592; 608 KB after lane 1, `IX-P`; each new member one reference, array or small optional, a
 `Shape` in a class box — `IX-N`); `everyProductionTreeBuildsOnAOneMegabyteThread`
 green. `Handlers` and `Hitbox` gain stored properties and `Handlers` is public and
 read across the test-module boundary, so such a lane takes its counts after

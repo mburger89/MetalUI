@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-P`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-Q`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -628,7 +628,7 @@ imports only `MetalUICore`; `Backends/SDL` builds (no source there is touched).
 (each new member is one reference, array or small optional — a `Shape` is
 held in a class box, never an existential stored inline) and re-measures the
 smallest thread that builds every production tree (528 KB, CLAUDE.md "CI
-hazards"); `everyProductionTreeBuildsOnAOneMegabyteThread` green is the exit,
+hazards" — *stale: 592 KB at `31f2e7a`, re-measured by lane 1, `IX-P`*); `everyProductionTreeBuildsOnAOneMegabyteThread` green is the exit,
 the measured figure the record.
 
 **Cost if wrong.** A lane that needs another's file says so in its record
@@ -707,3 +707,154 @@ human's; the real-window capture stays owed (screen locked).
 
 **Cost if wrong.** Each correction is one clause and one pin; the lane re-cut
 moves files between two agents, not behaviour.
+
+---
+
+## IX-P — lane 1 landed: gestures and the arena (and seven clauses the design left open)
+
+**Ruling.** Lane 1 (`IX-B`, `IX-C`, `IX-D`, `IX-O`'s `X4` rule) landed on
+`feat/interaction`: red `0d661fd`, green `95765d6`. `Gesture.swift` (the closed
+protocol, `TapGesture`/`LongPressGesture`/`DragGesture`, `ExclusiveGesture`/
+`SimultaneousGesture`, the pure `GestureArena`), `GestureModifiers.swift` (the
+five `StyledElement` modifiers, appending and returning `Self`; the proposal
+`GestureModifier`), `Handlers.gestures` (joins `isPointerTarget`),
+`Hitbox.contains(_:)` and `Hitbox.origin`, `Frame.insertHitbox`'s `origin:`,
+`Window.dispatchGestures`/`advanceGestures`, and doc corrections to `onClick`
+(`Box.swift`), `Handlers`, `ClickDispatch`, `StateDispatch` and — one sentence,
+doc only, in lane 2's file — `Button.swift` (it too called `onClick` "SwiftUI's
+`onTapGesture`", which `IX-D` item 2 refutes).
+
+**Clauses decided here** (each MetalUI's, none a SwiftUI claim):
+
+1. **"An internal requirement" is spelled SPI.** A public protocol cannot have
+   an internal requirement; `Gesture`'s one requirement,
+   `_recognizers() -> _GestureRecognizers`, and its result type are
+   `@_spi(MetalUIGesture)`. A plain importer can neither see the requirement
+   nor name the type, so it can neither implement nor forward it (guard G1.1;
+   measured first in a two-module scratch: without SPI on the *type* too, an
+   outside `func _recognizers() -> _GestureRecognizers { fatalError() }`
+   would satisfy the requirement). An `@_spi(MetalUIGesture) import` opens
+   it — underscored, not API.
+2. **A tap's count is counted from the arena's first press**:
+   `clickCount − (the first press's clickCount) + 1`. For every probe arm this
+   is the platform `clickCount` (`IX-C` item 2's wording); it differs only
+   when a new arena starts on the second click of a platform double click —
+   a lone `onTapGesture { }` clicked twice quickly then taps twice, where
+   comparing the raw `clickCount` would miss every second click.
+3. **The tick advance runs in the display-link callback, ahead of
+   `drawFrameIfNeeded`** — "at the start of `drawFrameIfNeeded`" (spec §5) in
+   effect, but a direct `drawFrameIfNeeded()` call (tests, a resize) advances
+   and stamps nothing, so a stamp is always a real tick, as `IX-C` item 4
+   requires. After each frame the window re-dirties itself only while
+   `GestureArena.needsTicks` (a tap sequence or an unmatured long press is
+   pending).
+4. **The arena lives from the press to the release, and past it only while a
+   tap sequence waits.** A press on the same target continues it (taps re-arm;
+   anything else still undecided is cancelled); a press on any other target —
+   or on nothing — abandons it first: every undecided member fails, and a
+   ready tap that was waiting only on them ends then.
+5. **The larger-count tap deferral is arena-wide**, simultaneous members
+   included (`IX-C` item 3 says "sharing an arena"), and a smaller tap ahead of
+   a larger one yields to it, so the two cannot hold each other off.
+6. **`LongPressGesture.onChanged` reports `true` when the press begins**, on
+   the same withholding as `onPressingChanged` (SwiftUI's is unmeasured).
+7. **`enclosingScroller(of:at:)` calls `Hitbox.contains` in this lane**
+   (`IX-O` correction 6), so `grep -n "bounds.contains(" Sources/MetalUI`
+   already finds only `Hitbox.contains` (recorded 2026-09-29, one hit,
+   `Hitbox.swift:129`). `topmostOpaqueHitbox` remains the only function
+   comparing `(layer, offset)` (one hit, `Hitbox.swift:174`); the arena's own
+   ordering compares `(depth, attachment index)`, which is declaration order,
+   not a second hit ranking.
+
+**Tests.** 1.1–1.23 and G1.1–G1.2 are all in
+`Tests/MetalUITests/GestureTests.swift` and `GestureCompileGuards.swift`,
+through a real `Window` on a `FakePlatformWindow` with `simulateTick`; the
+spec's separate `GestureArenaTests.swift` was not needed (every arena rule is
+reached through the window, which also covers the formation from the one
+ranking). **Red first**: before the surface existed the test target did not
+compile ("cannot find 'TapGesture' in scope"); with the surface storing
+attachments but no hitbox and no arena (`0d661fd`), all 23 were red — 22 at
+their geometry requirement ("the fixture's hitboxes: []", a gesture-only
+element registering nothing), 1.20 at `taps.count == 2`. **1.18 was
+therefore red too, not green-first**: its behaviour (a parent's `onClick`
+never sees a child's press) is today's, but its child is a gesture-only
+element, which cannot exist before the surface. G1.1/G1.2 were green once
+the surface existed; each was mutated red (below). `ModifierTests`'
+`everyPublicModifierWritesItsOwnFieldAndOnlyThatField` gains the five
+modifiers (45 → 50 rows, `HandlerShape.gestureCount`) and
+`OuterModifierMatrixTests`' `HandlerFingerprint` gains `gestureCount` — both
+existing tests extended, answers unchanged for every existing row.
+
+**Mutations** (each applied to the green tree from `95765d6`, restored from a
+copy, the whole suite run unfiltered — 1798 tests each time — `git status
+--short` empty after every one):
+
+| id | mutation | tests reddened |
+|---|---|---|
+| M1a | a tap ends at its press | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.16, 1.17, 1.21 |
+| M1b | slop 5 → 6 | 1.2 |
+| M1b′ | slop check removed (move and release) | 1.2, 1.3, 1.16 |
+| M1c | `taps == count` → `taps >= 1` | 1.4, 1.5, 1.6 |
+| M1d | deferral 0.33 → 0 | 1.5 |
+| M1e | arena-wide deferral removed (`if count > 0 { return false }`; the first spelling, `return false` before the unwrap, did not compile) | 1.6 |
+| M1f | a long press matures only at its release | 1.7, 1.8, 1.9, 1.16, 1.17, 1.22 |
+| M1g | maximum distance unchecked | 1.8 |
+| M1h | no `pressing=false` for a failed press | 1.9 |
+| M1i | `distance >= minimum` → `>` | 1.10, 1.21 |
+| M1i′ | drag values in window coordinates | 1.10, 1.12, 1.21 |
+| M1i″ | a drag that never started (or never activated) ends | 1.11, 1.16, 1.18, 1.23 |
+| M1j | a drag ends only inside its element | 1.12 |
+| M1k | normal members outermost first | 1.13, 1.16 |
+| M1l | high priority treated as normal | 1.14, 1.21 |
+| M1m | simultaneous roots resolved after the exclusive order | 1.15 |
+| M1n | only an *ended* member ahead blocks | 1.16, 1.23 |
+| M1o | `simultaneously` built as exclusive | 1.17 |
+| M1p | ancestors' `onClick` join (as normal members, ready on a release inside) | 1.18 |
+| M1q | a gesture-carrying element registers its hitbox outside the gates | 1.19 |
+| M1r | gesture callbacks run without `StateDispatch` | 1.20 |
+| M1s | `GestureModifier` stores no attachment | 1.21 |
+| M1t | frames requested while pressed, not only while pending | 1.22 |
+| M1u | a withheld drag's changes reported anyway | 1.23 |
+| G1.1 | `@_spi(MetalUIGesture)` removed from the requirement and its type | `anOutsideTypeCannotConformToGesture` (fabricated arm compiled) |
+| G1.2 | `StyledElement.highPriorityGesture` made internal | `theGestureSpellingsCompileFromAPlainImport` (positive arm failed) |
+
+No mutation reddened a test outside `GestureTests`/`GestureCompileGuards`.
+
+**Counts.** After `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation notice;
+`swift build --build-tests` under the default build system: 0 `warning:`),
+then unfiltered `swift test --build-system native --no-parallel`: **`Test run
+with 1798 tests in 3 suites passed`** (1773 + 23 + 2), the log carrying `FR-J
+no-argument frame: succeeded=true`; guards **108 + 2 = 110**
+(`GestureCompileGuards`, both whole-file `typecheckFile`).
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green; `Expected.swift`
+unedited. **Pixels**: `docs/probes/demo-pixels/compare.sh` against
+`31f2e7a` → `95765d6`: 0 differing, scene identical, in all fourteen images,
+controls non-zero as recorded (light vs dark 1048576, default vs modal
+1031003, default vs animation 454895, prod default vs modal 491221).
+`MetalUILayout` imports only `MetalUICore`. `Backends/SDL` builds
+(`PKG_CONFIG_PATH=.accesskit swift build --build-tests`, 0 `error:`; its
+existing SDL-dylib deployment `ld: warning`s are the machine's, untouched).
+A `swift:6.4-noble` container (a `git archive` of `95765d6`) builds with 0
+`error:`/`warning:` and runs 199 + 10 + 22, all passing (no portable test
+added by this lane).
+
+**Windows stack budget** (`IX-N`; a scratch exit-test file in
+`MetalUICrossPlatformTests`, deleted after, debug, macOS arm64, 16 KB steps):
+
+| | before (`31f2e7a`) | after (`95765d6`) |
+|---|---|---|
+| `MemoryLayout<Handlers>.size` | 408 | 416 |
+| smallest thread building every production tree | fails 576 KB, passes **592 KB** | fails 592 KB, passes **608 KB** |
+
+Spec §6's "528 KB at `31f2e7a`'s recorded figure" was stale: record §59 had
+already measured 592 KB, re-measured here. `everyProductionTreeBuildsOnAOneMegabyteThread`
+green.
+
+**Real-window capture**: not taken — the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` (10:17 PDT).
+
+**Cost if wrong.** Each clause is one comparison or one call site in
+`Gesture.swift`/`Window.swift`, pinned by the test its mutation reddens.
