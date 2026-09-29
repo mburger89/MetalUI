@@ -38,6 +38,16 @@
 // `swiftui-disabled-ancestor-and-order.swift` were re-run the same session and
 // read their recorded values.
 //
+// CRITIC ROUND, 2026-09-29 (ruling IX-O), screen still LOCKED (same lock-probe
+// reading). The revision above re-run first: its 156 lines byte-identical to
+// this header. Group X (X1-X4) then added and the whole probe run twice more:
+// stdout byte-identical (161 lines), exit 0, stderr empty; lines 1-156
+// unchanged. X1: a `.hidden()` button's shortcut fires (as B4j's opacity-0
+// one does). X2: Return in a focused `TextField` submits it and does not fire
+// the `.defaultAction` button. X3/X4: a plain `Button` child keeps its press
+// against a parent's normal `DragGesture`, even across a 30 pt move inside it,
+// and the drag reports no change at all.
+//
 // WHAT THE INSTRUMENT CANNOT SEE (recorded as unmeasured, never as SwiftUI's):
 // - TEXT AND BEZELS in the offscreen capture: the hosting layer renders
 //   without its text and the AppKit bezels. PX11 (a bare `Text`) reads pure
@@ -205,8 +215,13 @@
 //     C12 Circle over tappable Color (Circle no gesture) corner: under
 //     C13 Color.contentShape(Circle()).onHover-less .onTapGesture inside .padding(0) centre: hit
 //     C13 Color.contentShape(Circle()).onHover-less .onTapGesture inside .padding(0) corner: -
+//   --- X: critic round (hidden shortcut, Return in a field, drag over a Button)
+//     X1 keyboardShortcut("k") on a Button .hidden(), cmd-k: k
+//     X2 focused TextField + .defaultAction Button, Return: focused=true,|start,submit
+//     X3 .plain Button child, parent .gesture(drag): click child: button
+//     X4 .plain Button child, parent .gesture(drag): drag from child 30 (stays inside it): button
 //
-// THE READING (rulings IX-C, IX-D, IX-E, IX-F, IX-H, IX-I, IX-K, IX-L).
+// THE READING (rulings IX-C, IX-D, IX-E, IX-F, IX-H, IX-I, IX-K, IX-L, IX-O).
 // - G1: a tap ends on the release. G2: it fails once the pointer moves 5 pt
 //   (4 pt passes, 5 pt fails), out-and-back included (G2d).
 // - G3-G5: a count-2 tap ends on the second release; a count-1 tap sharing the
@@ -243,6 +258,9 @@
 //   `clipShape`, `clipped()` and `cornerRadius` do not restrict a hit; a
 //   filled shape is hit by its shape, a stroked one on its stroke; a
 //   gesture-less shape over a tappable swallows where it draws.
+// - X1-X4 (IX-O): `.hidden()` does not silence a shortcut; a focused field
+//   claims Return ahead of the default button; a member behind a pending one
+//   (a parent drag behind a child Button) neither changes nor ends.
 
 import SwiftUI
 import AppKit
@@ -880,8 +898,40 @@ struct ButtonFocus: View {
        Color.blue.contentShape(Circle()).padding(0).onTapGesture { Log.add("hit") })
 }
 
+
+// MARK: - X: the critic round's arms (added 2026-09-29, after the design commit)
+
+struct FieldAndDefault: View {
+    @State var text = ""
+    @FocusState var focused: Bool
+    var body: some View {
+        VStack {
+            TextField("f", text: $text).focused($focused)
+                .onSubmit { Log.add("submit") }
+                .onChange(of: focused) { _, v in Log.add("focused=\(v)") }
+            Button("OK") { Log.add("ok") }.keyboardShortcut(.defaultAction)
+        }
+        .onAppear { focused = true }
+    }
+}
+
+@MainActor func armX() {
+    print("--- X: critic round (hidden shortcut, Return in a field, drag over a Button)")
+    arm("X1 keyboardShortcut(\"k\") on a Button .hidden(), cmd-k", Button("K") { Log.add("k") }
+        .keyboardShortcut("k").hidden()) { key($0, "k", modifiers: .command, keyCode: 40) }
+    arm("X2 focused TextField + .defaultAction Button, Return", FieldAndDefault()) { w in
+        Log.add("|start"); key(w, "\r", keyCode: 36)
+    }
+    let buttonInDrag = ZStack { Color.gray; Button { Log.add("button") } label: { child() }.buttonStyle(.plain) }
+        .gesture(DragGesture().onChanged { _ in Log.add("chg") }.onEnded { _ in Log.add("pDrag") })
+    arm("X3 .plain Button child, parent .gesture(drag): click child", buttonInDrag) { click($0, at: centre) }
+    arm("X4 .plain Button child, parent .gesture(drag): drag from child 30 (stays inside it)", buttonInDrag) {
+        drag($0, from: centre, to: CGPoint(x: 130, y: 100), steps: 3)
+    }
+}
+
 @MainActor func run() {
-    armG(); armH(); armB(); armPX(); armF(); armC()
+    armG(); armH(); armB(); armPX(); armF(); armC(); armX()
 }
 
 MainActor.assumeIsolated {

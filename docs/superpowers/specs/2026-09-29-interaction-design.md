@@ -1,18 +1,19 @@
 # Interaction — design (plan task 12, part 1)
 
 Branch `feat/interaction` from `31f2e7a` (master, task 11 closed, record §61).
-Rulings `IX-A`…`IX-N` in a new decisions doc,
+Rulings `IX-A`…`IX-O` in a new decisions doc,
 [`../2026-09-29-interaction-decisions.md`](../2026-09-29-interaction-decisions.md)
-(next unused **`IX-O`**). Evidence: `docs/probes/swiftui-interaction.swift`
+(next unused **`IX-P`**; `IX-O` is the critic round's). Evidence: `docs/probes/swiftui-interaction.swift`
 (**new**, arm ids `G…` gestures, `H…` hierarchy precedence, `B…` buttons, `PX…`
-looks, `F…`/`K0` focus, `C…` content shapes; its header carries the recorded
-output, what the instrument cannot see, and the reading), and three existing
+looks, `F…`/`K0` focus, `C…` content shapes, `X1`–`X4` the critic round's;
+its header carries the recorded output, what the instrument cannot see, and
+the reading), and three existing
 probes **re-run** this session, compiled, reading their recorded values:
 `swiftui-content-shape-hit-region.swift`, `swiftui-disabled-interaction.swift`,
 `swiftui-disabled-ancestor-and-order.swift`. Record: `docs/record/62-interaction.md`
 (the Record phase writes it).
 
-**Status: DESIGNED.** This is the plan's task 12 **first sentence** —
+**Status: DESIGNED, critic round applied (`IX-O`).** This is the plan's task 12 **first sentence** —
 "Specify gesture composition, button semantics, disabled behaviour, keyboard
 focus, pointer hit testing and content shapes." The second sentence — deliver
 and validate the accessibility bridge with VoiceOver — is **part 2** (`IX-A`).
@@ -64,11 +65,12 @@ Collected by `grep -rn -i "task 12"` over `docs/superpowers/`, `docs/record/`
 | 15 | focus after an identity rename or an `if` (`ID-R` 9; record §55 §10.6, §04; C2.13; C2.8, C2.12's exemption) | F1, F2 | kept, returns with the element | **fixed** (behaviour change, migration note) | lane 3, `IX-I` |
 | 16 | Full Keyboard Access, divergence 80, Tab to controls (`DD-T` 3; record §60; `DD-` doc "focusable controls are task 12's") | F5, F6 (FKA off) | everything focusable | **kept, amended** (now measured) | owner none, `IX-K` 1 |
 | 17 | click-to-focus (`Window.focus(_:)`'s "a policy decision") | F3, F4 | a click never focuses | **divergence 94 added**, kept | owner none, `IX-K` 2 |
-| 18 | focus and keys under `hidden()` (`LR-AK`/`LR-AV`/`LR-DH`; `focusable()` doc) | F9 | a hidden focusable takes focus and keys | **fixed** | lane 3, `IX-K` 3 |
-| 19 | `.contentShape` taking a `Shape` (`OM-J`/`OM-AB`, outer-modifiers §; shapes spec §9; `DecorationCompileGuards`) | C1, C2, C10, C11, C13 | `contentShape(inset:)` only | **built** | lane 3, `IX-L` 1 |
+| 18 | focus and keys under `hidden()` (`LR-AK`/`LR-AV`/`LR-DH`; `focusable()` doc) | F9; X1 (a hidden button's shortcut fires) | a hidden focusable takes focus and keys | **fixed** (focus/keys out; shortcuts stay) | lane 3, `IX-K` 3 |
+| 18b | a hidden scroll region still takes the wheel (`LR-AV` item 5; `OM-AK`) | unmeasured | takes the wheel | **kept** | owner none, `IX-K` 3 |
+| 19 | `.contentShape` taking a `Shape` (`OM-J`/`OM-AB`, outer-modifiers §; shapes spec §9; `DecorationCompileGuards`) | C1, C2, C10, C11, C13 | `contentShape(inset:)` only | **built** | lane 2, `IX-L` 1 |
 | 20 | `contentShape(kind:)`, `eoFill` (outer-modifiers "deferred to task 12 by name") | — | — | not offered | owner none, `IX-L` 1 |
-| 21 | hit behaviour under `clipShape` (`TE-AQ` 4; shapes spec §4) | C3, C4, C8, C9 | clip rect intersects | **pinned**; divergence 43 amended | lane 3, `IX-L` 2 |
-| 22 | divergence 57: a non-clickable primary blocking its background's click (`CN-K`; containers carried table) | H18, C12 | passes through | **kept, pinned** (was unpinned) | lane 3, `IX-L` 3 |
+| 21 | hit behaviour under `clipShape` (`TE-AQ` 4; shapes spec §4) | C3, C4, C8, C9 | clip rect intersects | **pinned**; divergence 43 amended | lane 2, `IX-L` 2 |
+| 22 | divergence 57: a non-clickable primary blocking its background's click (`CN-K`; containers carried table) | H18, C12 | passes through | **kept, pinned** (was unpinned) | lane 2, `IX-L` 3 |
 | 23 | a shape's default hit region | C5–C7 | its frame | divergence 41 amended | owner none, `IX-L` 4 |
 | 24 | menus, `.contextMenu`, `.pickerStyle(.menu)`, divergence 81 (`DD-V` 4; `DD-AB` 7; `Picker.swift` doc) | — | none | **not built** | owner none, `IX-M` |
 | 25 | `ToggleStyle` `.switch`/`.button` (`DD-AB` 7) | — | — | not offered | owner none, `IX-M` |
@@ -76,7 +78,7 @@ Collected by `grep -rn -i "task 12"` over `docs/superpowers/`, `docs/record/`
 | 27 | the VoiceOver script (plan text; record §12) | human | — | — | **part 2** (a human) |
 | 28 | settable `AXSelected`/`AXSelectedRows`, divergence 83 (`DD-Z` 8) | LA2–LB3 | press only | — | **part 2** |
 | 29 | `accessibilityElement(children:)`, hidden/combination modifiers, extra traits, custom and declared actions, a non-button click absorber (`AB-` table; `EV-AE`) | — | — | — | **part 2** |
-| 30 | `AB-H`'s press question, divergence 28 | P0/P1 | refused under hit-testing-off | — | **part 2** |
+| 30 | `AB-H`'s press question, divergence 28; whether an accessibility press focuses (`DD-` doc, "if task 12 rules that a press must not focus") | P0/P1 | refused under hit-testing-off | — | **part 2** |
 | 31 | modal isolation and press occlusion (`AB-` table; `AB-H` "not checked") | — | — | — | **part 2** |
 | 32 | divergence 32; accessibility scrolling to unrealised rows (`DD-AB` 4, `AB-L`) | LA0 | — | — | **part 2** |
 | 33 | divergence 82 (`DD-U`) | — | — | — | **part 2** |
@@ -99,8 +101,10 @@ over it". A role binds no key; shortcuts match exactly, need no focus, lose to
 a focused key handler and to nothing disabled. Accent controls lose their
 accent when inactive. Focus drops with its identity and does not return; a
 click focuses a `.focusable()` view; with Full Keyboard Access off, Tab moves
-nothing; a hidden view cannot be focused. `contentShape` restricts a hit;
-`clipShape` does not.
+nothing; a hidden view cannot be focused, but a hidden button's shortcut still
+fires (`X1`). A focused text field takes Return ahead of the default button
+(`X2`); a parent drag behind a child `Button` neither changes nor ends (`X3`,
+`X4`). `contentShape` restricts a hit; `clipShape` does not.
 
 ## 4. Public API (spelling ruled against the SDK interfaces)
 
@@ -165,10 +169,10 @@ public struct KeyboardShortcut: Equatable, Sendable {
     public init(_ key: KeyEquivalent, modifiers: EventModifiers = .command)
     public let key: KeyEquivalent; public let modifiers: EventModifiers
     public static let defaultAction, cancelAction: KeyboardShortcut }
-public typealias EventModifiers = Modifiers
+public typealias EventModifiers = Modifiers                 // narrower than SwiftUI's (IX-F 1)
 ```
 
-**Lane 3 — focus and content shapes** (`IX-J`, `IX-L`):
+**Lane 3 — focus** (`IX-J`); **content shapes are lane 2's** (`IX-L`, moved by `IX-O`):
 
 ```swift
 @propertyWrapper public struct FocusState<Value: Hashable> {
@@ -200,7 +204,7 @@ editing keys → raw `onKey` bubble → **keyboard shortcuts** → Tab traversal
   `topmostOpaqueHitbox(in: lastHitboxes, at:)` and the target id's ancestor
   chain; its ancestor members are `lastHitboxes` entries matched by id and
   `Hitbox.contains(_:)`. `Hitbox.contains(_:)` (lane 1 adds it as
-  `bounds.contains`; lane 3 adds the shape) is the single region test, called by
+  `bounds.contains`; lane 2 adds the shape) is the single region test, called by
   `topmostOpaqueHitbox` and the arena. No second copy of the
   `(layer, registration index)` rule.
 - **Time.** The window stamps a pending long press or deferred tap at the first
@@ -210,12 +214,23 @@ editing keys → raw `onKey` bubble → **keyboard shortcuts** → Tab traversal
   `requestAnotherFrame`-equivalent dirtying only while something is pending.
   Tests drive `simulateTick(timestamp:)`; nothing sleeps.
 - **Shortcuts** ride `Handlers` into `FocusRegistry` (registration order = tree
-  order), so the one `isEnabled` gate (and lane 3's hidden condition on it)
-  covers them; `allowsHitTesting(false)` does not.
+  order), so the one `isEnabled` gate covers them; `allowsHitTesting(false)`
+  does not, and **neither does lane 3's hidden condition** (`X1`; `IX-K` 3
+  gates the keyboard focus half only).
+- **Withheld members** (`IX-D` 3, `X4`): a member behind a pending one reports
+  neither a change nor an end; `onClick` does not fail on a move, so a
+  target's `onClick` holds an ancestor's normal drag off for the whole press.
+- **One region test**: `topmostOpaqueHitbox` and
+  `Window.enclosingScroller(of:at:)` both call `Hitbox.contains(_:)` (the
+  latter calls `bounds.contains` itself at `31f2e7a`). The second call site is
+  a consistency edit with **no reachable difference** — a scroll region never
+  carries a content shape — so it is pinned by the recorded grep (no
+  `bounds.contains(` outside `Hitbox.contains`), not by a mutation that could
+  not redden.
 - **Focus.** Lane 3's `$focus` reset and `@FocusState` reconciliation both run
   at the frame boundary beside `Frame.resolveFocus()`.
 
-## 6. Lanes — AT MOST THREE, run in order 1, 2, 3 (`IX-N`)
+## 6. Lanes — AT MOST THREE, run in order 1, 2, 3 (`IX-N`, re-cut by `IX-O`)
 
 Every lane: tests red first (each test below names why it is red at the lane's
 start), then green; every **new** typecheck guard mutated red once; each named
@@ -226,7 +241,14 @@ the decisions doc; the Record phase writes record §62.
 
 `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) gain one field per new `Handlers` member, in the
-lane that adds it (CLAUDE.md "StyledElement").
+lane that adds it (CLAUDE.md "StyledElement"). **Every lane adding a
+`Handlers` member** records `MemoryLayout<Handlers>.size` before and after and
+the smallest thread building every production tree (528 KB at `31f2e7a`'s
+recorded figure; each new member one reference, array or small optional, a
+`Shape` in a class box — `IX-N`); `everyProductionTreeBuildsOnAOneMegabyteThread`
+green. `Handlers` and `Hitbox` gain stored properties and `Handlers` is public and
+read across the test-module boundary, so such a lane takes its counts after
+`swift package clean` (CLAUDE.md "Build and test").
 
 ### Lane 1 — gestures and the arena
 
@@ -249,7 +271,7 @@ only), `ClickDispatch.swift` (doc only). Tests: new
 | 1.2 | `aTapGestureFailsOnceThePointerMovesFivePoints` (G2g 4 pt fires; G2b 5 pt does not) | no API | M1b: slop 5 → 6 (reddens the 5-pt arm); M1b′: slop check removed |
 | 1.3 | `aTapReleasedAfterAnExcursionDoesNotFireWhereOnClickDoes` (G2d vs B1) | no API | M1b′ |
 | 1.4 | `aCountTwoTapEndsOnTheSecondReleaseByClickCount` (G3a, G3b) | no API | M1c: compare the tap count with `>=` 1 |
-| 1.5 | `aSingleTapBesideADoubleWaitsAThirdOfASecondThenFires` (G5e: nothing at a tick 0.30 s after release, fired at the first tick ≥ 0.33 s) | no API | M1d: deferral 0.33 → 0 |
+| 1.5 | `aSingleTapBesideADoubleWaitsAThirdOfASecondThenFires` (G5e: nothing at a tick 0.30 s after the release's stamp tick, fired at the first tick ≥ 0.33 s after it — `IX-C` 4) | no API | M1d: deferral 0.33 → 0 |
 | 1.6 | `aDoubleClickRunsOnlyTheDoubleWhicheverIsInner` (G4b, G5b, H15b) | no API | M1e: drop the count dependency (single ends at its release) |
 | 1.7 | `aLongPressEndsWhileHeldAtItsDuration` (G6a: ticks at 0.2 nothing, 0.35 fired, before the release) | no API | M1f: end the long press at the release |
 | 1.8 | `aLongPressFailsOnAQuickClickAndPastItsMaximumDistance` (G6b, G6c 30 pt, G6d 5 pt ends) | no API | M1g: max distance unchecked |
@@ -267,6 +289,7 @@ only), `ClickDispatch.swift` (doc only). Tests: new
 | 1.20 | `aGestureCallbackWritesTheOccurrenceThatDispatchedIt` (`ID-F`: one value placed twice) | no API | M1r: callback run without `StateDispatch` |
 | 1.21 | `aProposalGestureModifierRecognizesAsTheLegacyOneDoes` (1.1, 1.10, 1.14 on an `HStack` child) | no API | M1s: `GestureModifier` registers no gestures |
 | 1.22 | `aPendingGestureKeepsFramesComingOnlyWhilePending` (`framesDrawn` over ticks: frames while a long press is held, none after it ends) | no API | M1t: request frames unconditionally while pressed |
+| 1.23 | `aChildsOnClickHoldsOffAParentsDragWhichReportsNothing` (X3, X4: click and a 30-pt move inside the child both run the child's `onClick`, the parent drag's `onChanged`/`onEnded` never run; released outside the child: no callback at all — `IX-D` 3's unmeasured corner) | no API | M1u: withhold ends only (a behind member's `onChanged` runs) |
 | G1.1 | `anOutsideTypeCannotConformToGesture` (plain-import `typecheckFile`; control arm: `TapGesture()` compiles) | new guard | mutate red once (make the requirement public) |
 | G1.2 | `theGestureSpellingsCompileFromAPlainImport` (every §4 lane-1 spelling; negative arm: `sequenced(before:)` does not) | new guard | mutate red once |
 
@@ -274,7 +297,8 @@ only), `ClickDispatch.swift` (doc only). Tests: new
 `ClickDispatch` test (the arena with only an `onClick` is `dispatchClick`),
 `InputDispatchTests`, `aPressHeldAcrossARebuildClicksItsOwnTargetAndAVanishedTargetClicksNothing`,
 the `List` selection tests. **Grep check** (recorded): `topmostOpaqueHitbox`
-is still the only function comparing `(layer, offset)`.
+is still the only function comparing `(layer, offset)`; after lane 2,
+`grep -n "bounds.contains(" Sources/MetalUI` finds only `Hitbox.contains`.
 
 ### Lane 2 — buttons, shortcuts, the disabled and inactive looks, the ring
 
@@ -288,9 +312,16 @@ table in registration order), `Window.swift` (**one** call, between the raw
 `Stepper.swift`, `Picker.swift` (disabled scope, accent-when-key, ring), a
 shared helper in new `Sources/MetalUI/ControlLook.swift`
 (`controlAccent(_ environment:)`, `paintControl(disabled:)`), `EnvironmentValues.swift`
-and `ControlActiveState.swift` (doc comments only). Tests: new
-`ButtonSemanticsTests.swift`, `KeyboardShortcutTests.swift`,
-`ControlLookTests.swift`, `ButtonCompileGuards.swift`.
+and `ControlActiveState.swift` (doc comments only). **Content shapes (moved from
+lane 3 by `IX-O`)**: `Handlers.swift` (member `contentShape` — a shape box),
+`Hitbox.swift` (the geometry on the record, `contains(_:)`'s shape half),
+`Window.swift` (`enclosingScroller`'s filter through `Hitbox.contains`),
+`Shape.swift` (`ShapeGeometry.contains(_:)`), `Box.swift` (`contentShape(_:)`),
+`NativeTappable.swift` (`contentShape` on `OnTapModifier`),
+`GestureModifiers.swift` (`contentShape` on `GestureModifier`, one method).
+Tests: new `ButtonSemanticsTests.swift`, `KeyboardShortcutTests.swift`,
+`ControlLookTests.swift`, `ContentShapeTests.swift`, `ButtonCompileGuards.swift`;
+`DecorationCompileGuards.swift` gains one new guard `@Test` (G2.2).
 
 | id | test | red before because | mutation that must redden it |
 |---|---|---|---|
@@ -306,14 +337,21 @@ and `ControlActiveState.swift` (doc comments only). Tests: new
 | 2.10 | `aDisabledControlPaintsInsideOneHalfOpacityScope` (`Button` ×4 styles, `Toggle`, `Slider`, `Stepper`, `Picker`; enabled arms paint no such scope) | no look | M2j: gate on `!isFocused` instead of `!isEnabled` |
 | 2.11 | `aControlsAccentIsPaintedOnlyInTheKeyWindow` (`Toggle` on, `Slider` fill, `Picker` selection; `.key` accent, `.active` and `.inactive` `.separator`, driven through `FakePlatformWindow`'s active-state change) | inert | M2k: `!= .inactive` (reddens the `.active` arm) |
 | 2.12 | `aFocusedControlDrawsItsRingAndAnUnfocusedOneDoesNot` (each of the five controls) | no ring | M2l: ring token `.separator` always |
-| G2.1 | `theButtonSpellingsCompileFromAPlainImport` (role, style, the three shortcut overloads, `KeyEquivalent` literal; negative arms: `.buttonStyle(.link)`, `Text("x").keyboardShortcut("k")`) | new guard | mutate red once |
+| 2.13 | `aFocusedTextFieldClaimsReturnAheadOfTheDefaultButton` (X2: a focused `TextField` beside a `.defaultAction` `Button`, Return → the field's submit, the button silent; unfocused field → the button fires) | no API | M2m: shortcut stage before a focused field's editing keys |
+| 2.14 | `aCircularContentShapeRefusesTheCornerAndTakesTheCentre` (C1, C11 rounded, C13 with padding; legacy `onClick`) — was 3.15 | no API | M3i: `contains` ignores the shape |
+| 2.15 | `aContentShapeWrittenAfterAProposalTapShapesItsHit` (C2, C10) — was 3.16 | no API | M3i |
+| 2.16 | `hoverActiveAndTheGestureArenaFollowTheContentShape` (the corner neither hovers, presses nor starts a lane-1 drag; a wheel over the corner reaches the scroller beneath) — was 3.17 | no API | M3j: the shape tested in `Window.dispatchClick` only (a second copy) |
+| 2.17 | `aClipShapesCornersStayHittableAndItsRectBoundsTheHit` (C3, C4, C9 agree at a same-size clip's corners; a smaller clip cuts — divergence 43) — was 3.18 | green; **written first** | M3k: intersect with the clip's rounded geometry |
+| 2.18 | `aDrawnElementWithoutAPointerTargetDoesNotBlockAClickBeneathIt` (divergence **57**, wrong on purpose, H18, C12) — was 3.19 | green; **written first** | M3l: register a hitbox for every painted element |
+| G2.1 | `theButtonSpellingsCompileFromAPlainImport` (role, style, the three shortcut overloads, `KeyEquivalent` literal; negative arms: `.buttonStyle(.link)`, `Text("x").keyboardShortcut("k")`, `EventModifiers.function`) | new guard | mutate red once |
+| G2.2 | `aProposalElementCannotSpellContentShapeBeforeItsTap` (a new `@Test` in `DecorationCompileGuards`, beside the existing `contentShape(inset:)` refusal; control arm: `.onTap { }.contentShape(Circle())` compiles) — was G3.2 | new guard | mutate red once |
 
 **Must stay green, unedited**: `Button`'s BT0 chrome and `controlSize` metrics
 tests, every control key test, `controlSizeReachesNoBuiltInMeasurement`, the
 controls-demo tests. `PaintPass.isActive`'s "by reading, unpinned" note in
 `allowsHitTesting`'s doc becomes pinned by 2.3.
 
-### Lane 3 — focus and content shapes
+### Lane 3 — focus
 
 **Files.** `StateTable.swift` (`isWindowRetained` keeps `$ax` only; the
 cleared-focus report), `Frame.swift` (`resolveFocus` and the frame-boundary
@@ -321,50 +359,45 @@ cleared-focus report), `Frame.swift` (`resolveFocus` and the frame-boundary
 `registerHandlers`' 5-argument implementation), `Element.swift`,
 `ModifiedElement.swift`, `AnyElement.swift` (the hidden scope's keyboard
 counter, mirrored at each copy — `MC-B`), new `Sources/MetalUI/FocusState.swift`,
-`StateReflection.swift` (seeding the box), `Handlers.swift` (member
-`contentShape` — a shape box), `Hitbox.swift` (the geometry on the record,
-`contains(_:)`'s shape half), `Shape.swift` (`ShapeGeometry.contains(_:)`),
-`Box.swift` (`focused`, `contentShape(_:)`; `focusable()`'s doc, whose
-`hidden()` hazard is fixed), `NativeTappable.swift` (`contentShape` on
-`OnTapModifier`), `GestureModifiers.swift` (`contentShape` on `GestureModifier`,
-one method). Tests: new `FocusStateTests.swift`, `FocusIdentityTests.swift`,
-`ContentShapeTests.swift`, `FocusStateCompileGuards.swift`; edits to
-`ConditionalIdentityTests.swift` (C2.8, C2.12, C2.13 re-derived) and
-`DecorationCompileGuards.swift` (the proposal refusal extended).
+`StateReflection.swift` (seeding the box), `Box.swift` (`focused`;
+`focusable()`'s doc, whose `hidden()` hazard is fixed). Tests: new
+`FocusStateTests.swift`, `FocusIdentityTests.swift`,
+`FocusStateCompileGuards.swift`; edits to `ConditionalIdentityTests.swift`
+(C2.8, C2.12 re-derived, C2.13 retired), `FocusTests.swift`
+(`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` re-derived
+as 3.2) and `AccessibilityTreeTests.swift`
+(`hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`'s
+focus control re-derived, `IX-K` 3).
 
 | id | test | red before because | mutation that must redden it |
 |---|---|---|---|
 | 3.1 | `focusDropsWhenItsElementIsRenamedAndDoesNotReturn` (F1; **replaces C2.13**'s rename arm, retirement row: its answer inverts by `IX-I`) — after the first away frame `focusedElement == nil`; back to `a`: still nil, `@State` fresh | focus retained | MRk′: `$focus` exempt again |
-| 3.2 | `focusDropsWhenAnIfRemovesItsElement` (F2; **replaces C2.13**'s `if` arm) | retained | MRk′ |
+| 3.2 | `focusDropsWhenAnIfRemovesItsElement` (F2; **replaces C2.13**'s `if` arm) — **the re-derived and renamed** `FocusTests.focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` (its `if` removal inverts; `IX-I`, `IX-O` 5), not a new test | retained | MRk′ |
 | 3.3 | `aResetKeepsTheAccessibilitySlotButNotFocus` (**C2.8 re-derived**, renamed from `aResetKeepsTheFocusAndAccessibilityRetentionSlots`: `$ax` present, `$focus` and `$state0` gone, focus nil) | retained | MRk′; M2f of `ID-C` (no `$ax` exemption) still reddens the `$ax` half |
 | 3.4 | `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh` (**C2.12 re-derived**: focus nil, `setTextInputArea(nil)`, fresh `TextEditState`) | retained | MRk′ |
 | 3.5 | `aForEachThatDropsItsFocusedElementDropsFocus` (`DD-C`'s loop reset) | retained | MRk′ |
-| 3.6 | `aFocusedListRowScrolledOutOfItsWindowKeepsFocus` (`TB-J`/`TB-AH`; an existing test if one pins it — the lane names it — else new, **green first**) | green | MRl: reset unevaluated rows too (`noteWindowedParent` dropped) |
+| 3.6 | the **existing** `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne` (`FocusTests`, `TB-J`/`TB-AH`), unedited, green throughout | green | MRl: reset unevaluated rows too (`noteWindowedParent` dropped) |
 | 3.7 | `aFocusStateWriteFromInputMovesFocusOnTheNextFrame` (Bool and `equals:`) | no API | M3a: reconcile before `resolveFocus` validates (focuses a non-focusable) |
 | 3.8 | `aFocusStateReadsTheWindowsFocusAfterEveryMover` (Tab, `Window.focus`, a `TextField` press, `IX-I`'s drop — F1's `focused=false`) | no API | M3b: read only its own writes |
 | 3.9 | `writingFalseOrNilClearsFocusOnlyIfItsElementHoldsIt` | no API | M3c: clear unconditionally |
 | 3.10 | `focusedDoesNotMakeAnElementFocusable` (a `.focused` box without `.focusable()` never takes focus) | no API | M3d: `.focused` sets `isFocusable` |
 | 3.11 | `aFocusStateWriteNamingADisabledElementFocusesNothing` (K1) | no API | M3e: bypass `resolveFocus` |
 | 3.12 | `aFocusStateNeverWritesFromAPhase` (steady frames: no `StateTable` write, `needsRedraw` stays false; only a focus change writes, once) | no API | M3f: write the value every frame |
-| 3.13 | `aHiddenFocusableElementCannotTakeFocusOrKeys` (F9; and a focused element that becomes hidden loses focus at the next boundary) | registers | M3g: the hidden condition dropped from the gate; M3g′: dropped from `ModifiedElement`'s copy only |
+| 3.13 | `aHiddenFocusableElementCannotTakeFocusOrKeys` (F9; and a focused element that becomes hidden loses focus at the next boundary; the `AccessibilityTreeTests` control above re-derived in the same commit) | registers | M3g: the hidden condition dropped from the gate; M3g′: dropped from `ModifiedElement`'s copy only |
 | 3.14 | `clickingAFocusableElementDoesNotFocusIt` (divergence **94**, wrong on purpose, F3) | green; **written first and kept green** | M3h: a press focuses the target's focusable ancestor |
-| 3.15 | `aCircularContentShapeRefusesTheCornerAndTakesTheCentre` (C1, C11 rounded, C13 with padding; legacy `onClick`) | no API | M3i: `contains` ignores the shape |
-| 3.16 | `aContentShapeWrittenAfterAProposalTapShapesItsHit` (C2, C10) | no API | M3i |
-| 3.17 | `hoverActiveAndTheGestureArenaFollowTheContentShape` (the corner neither hovers, presses nor starts a lane-1 drag) | no API | M3j: the shape tested in `Window.dispatchClick` only (a second copy) |
-| 3.18 | `aClipShapesCornersStayHittableAndItsRectBoundsTheHit` (C3, C4, C9 agree at a same-size clip's corners; a smaller clip cuts — divergence 43) | green; **written first** | M3k: intersect with the clip's rounded geometry |
-| 3.19 | `aDrawnElementWithoutAPointerTargetDoesNotBlockAClickBeneathIt` (divergence **57**, wrong on purpose, H18, C12) | green; **written first** | M3l: register a hitbox for every painted element |
+| 3.14b | `aHiddenButtonsShortcutStillFires` (X1: `.hidden()` over a `Button` with ⌘K; control: the same button `.disabled(true)` is silent) | green at lane 3's start (lane 2's table ignores `hidden()`); **written first and kept green** | M3n: the shortcut table behind the hidden condition |
 | 3.20 | `aFocusStateSurvivesInsideAComponentAndAnAnyElement` (`ID-E`'s binding sites) | no API | M3m: skip seeding under `AnyElementBox` |
 | G3.1 | `theFocusStateSpellingsCompileFromAPlainImport` (`@FocusState var f: Bool`, `enum Field? `, `.focused($f)`, `.focused($g, equals: .a)`) | new guard | mutate red once |
-| G3.2 | `aProposalElementCannotSpellContentShapeBeforeItsTap` (extends `DecorationCompileGuards`' refusal; control arm: `.onTap { }.contentShape(Circle())` compiles) | new guard | mutate red once |
 
 **Retirement rows** (the Record phase's "goldensUnchanged" field): C2.13
 `focusOutlivesARenameAndAnIfUntilItsElementReturns` retired, replaced by 3.1
-and 3.2; C2.8 renamed and its focus clause inverted (3.3); C2.12 renamed and
-its focus clause inverted (3.4); every other test `MRk′`'s inverse reddens is
-named in the lane's record with its re-derived answer or the reason it holds —
-`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` among the
-candidates, which the lane classifies (evaluated reset → inverted; tombstone
-path → unchanged). **No other test changes its answer.**
+and 3.2; `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+renamed 3.2 and its focus clause inverted (T row); C2.8 renamed and its focus
+clause inverted (3.3); C2.12 renamed and its focus clause inverted (3.4);
+`hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`
+keeps its name, its focus control re-derived (T row, `IX-K` 3). **No other
+test changes its answer**; a test `MRk′`'s inverse or 3.13's gate reddens
+that is not in this list is a finding the lane records and stops on.
 
 ## 7. The demo
 
@@ -380,6 +413,8 @@ pixel exit.
 
 ## 8. For the Record phase
 
+- **Critic round** (`IX-O`): probe group `X` (X1–X4) added and recorded;
+  the audit gains row 18b; the lanes were re-cut (content shapes to lane 2).
 - **Divergences**: 94 **added** (`IX-K` 2); 80 **amended** (now measured,
   F5/F6), 43 **amended** (`clipShape`), 41 **amended** (shapes), 57 **pinned**
   (owner none), 81 **re-owned** (none), 21 and 22 **re-owned** (none, kept);
@@ -404,10 +439,12 @@ pixel exit.
 
 ## 9. Counts (expected, re-measured by each lane)
 
-Baseline 1773 tests / 108 guards. Lane 1: +22 tests, +2 guards. Lane 2: +12
-tests, +1 guard. Lane 3: +20 tests (3.3 and 3.4 are renames, not additions;
-3.1 and 3.2 replace one retired test: net +17 of 20 listed) and +2 guards (one
-new file's guard, one added to `DecorationCompileGuards`). Expected close:
-**1773 + 22 + 12 + 17 = 1824 tests, 108 + 5 = 113 guards** — each lane
-re-takes the count and corrects this line in its landing ruling if its own
-arithmetic differs.
+Baseline 1773 tests / 108 guards. Lane 1: **+23** tests (1.1–1.23), +2
+guards. Lane 2: **+18** tests (2.1–2.13 and 2.14–2.18, the last five moved from
+lane 3), +2 guards (G2.1; G2.2, a new `@Test` in `DecorationCompileGuards`).
+Lane 3: 16 rows listed (3.1–3.14, 3.14b, 3.20); 3.2, 3.3 and 3.4 are renames
+and 3.6 is an existing test, so **12 are new**, and C2.13 retires: **net +11**,
++1 guard (G3.1). Expected close: **1773 + 23 + 18 + 11 = 1825 tests, 108 + 5 =
+113 guards** (re-cut by `IX-O`; the first design read 1824) — each lane re-takes
+the count and corrects this line in its landing ruling if its own arithmetic
+differs.

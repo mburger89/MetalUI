@@ -5,14 +5,14 @@ semantics, disabled behaviour and looks, keyboard focus, pointer hit testing
 and content shapes. Spec:
 [`specs/2026-09-29-interaction-design.md`](specs/2026-09-29-interaction-design.md).
 Evidence: [`../probes/swiftui-interaction.swift`](../probes/swiftui-interaction.swift)
-(new; arm ids `G…`, `H…`, `B…`, `PX…`, `F…`, `C…`, its header carries the
-recorded output), and two existing probes **re-run this session**, compiled,
+(new; arm ids `G…`, `H…`, `B…`, `PX…`, `F…`, `C…`, and the critic round's
+`X1`–`X4` (`IX-O`); its header carries the recorded output), and two existing probes **re-run this session**, compiled,
 reading their recorded values: `swiftui-disabled-interaction.swift` (P, K, R)
 and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-O`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-P`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -134,9 +134,15 @@ probe gives a bracket.
    or failure, and `perform` runs at the duration (`G6e`:
    `pressing=true,perform,|held,pressing=false`; `G6f`: `pressing=true,pressing=false`).
    **The press is stamped at the first tick after it** — `MouseEvent` carries
-   no timestamp, and adding one changes a public type on both backends; the
-   window keeps requesting frames only while a long press or a deferred tap is
-   pending.
+   no timestamp. (*Corrected by `IX-O`*: `ScrollEvent` does carry one, so a
+   `MouseEvent.timestamp` with a defaulted initialiser parameter would be
+   source-compatible; it is declined because both backends' mouse paths would
+   have to fill it for it to mean anything, and the tick stamp's error is at
+   most one frame, inside `G5e`'s own 0.31–0.35 s bracket.) The window keeps
+   requesting frames only while a long press or a deferred tap is pending.
+   Every duration in this ruling (the 0.33 s deferral, `minimumDuration`) is
+   measured from that **stamp tick**, not from the event, and the tests state
+   their tick times relative to it.
 5. **Drag.** Reports `onChanged` from the first move whose distance from the
    press is **at least** `minimumDistance` (`G8a`: the first change is
    `(10,0)`), then on every move; `onEnded` at the release **wherever it lands,
@@ -188,6 +194,19 @@ named test; nothing else moves.
    at the release lets the child's tap end (`H6a`); an inner tap beats an outer
    long press even when held (`G7b`: `|held,tap`), and an inner tap beats an
    outer drag on a click (`G9a`) and loses it on a drag (`G9b`).
+   **A member behind a pending one neither ends nor reports a change** (*added
+   by `IX-O`*, arm `X4`: a parent `.gesture(DragGesture())` over a child
+   `.plain` `Button`, dragged 30 pt inside the child, logs `button` and no
+   `chg`). So the target's `onClick` — which does not fail on a move (`B1`) —
+   holds a parent's normal drag off for the whole press and wins it at a
+   release inside (`X3`, `X4`); the parent's drag reports nothing. **MetalUI's
+   choice, unmeasured**: when the member ahead fails only **at the release**
+   (an `onClick` released outside its element), a drag behind it whose changes
+   were withheld is cancelled with no callback — it never activated during the
+   press — while a tap behind it ends on that release as `H6a` measured for a
+   failed high-priority drag. `onPressingChanged` of a withheld
+   `onLongPressGesture` is withheld the same way (MetalUI's extension of `X4`;
+   SwiftUI's is unmeasured).
 4. **Simultaneous members** stand outside the exclusive order and end on their
    own; **when a simultaneous member and the exclusive winner end on the same
    event, the simultaneous one's callback runs first** (`H3`: `p,c`; `H7`:
@@ -214,7 +233,7 @@ N0–N4 re-run.
 
 **Cost if wrong.** An ordering rule is one comparison in the arena, pinned by
 the H tests; the one-ranking rule is guarded by `hoverActiveAndTheGestureArenaFollowTheContentShape`
-(lane 3), which reddens if hit regions are tested in two places.
+(lane 2, spec 2.16), which reddens if hit regions are tested in two places.
 
 ---
 
@@ -240,6 +259,16 @@ the H tests; the one-ranking rule is guarded by `hoverActiveAndTheGestureArenaFo
    **none**): `.borderedProminent` (needs a contrasting on-accent label colour
    the theme lacks), `.link`, the `ButtonStyle`/`PrimitiveButtonStyle`
    protocols and `configuration.isPressed` for custom styles.
+   **The type name differs from SwiftUI's, ruled** (*added by `IX-O`*):
+   SwiftUI's `ButtonStyle` is a protocol (with `PrimitiveButtonStyle` holding
+   `.bordered`/`.plain` as `where Self ==` statics); MetalUI's is a closed
+   struct. Every `.buttonStyle(.plain)` call site spells identically, but
+   **adding the protocols later is a source break** for code that names the
+   type (`let s: ButtonStyle = .plain`), not an additive change — the same
+   break `DD-V`'s `PickerStyle` already carries. Migration spelling when that
+   happens: the statics move to `PrimitiveButtonStyle where Self ==
+   PlainButtonStyle` (SwiftUI's own shape), so a call site keeps compiling and
+   a stored value is re-typed to the concrete style.
 3. **Pressed** is SwiftUI's rule, measured: true from the press while the
    pointer is over the button, false while it is outside, true again on return,
    false at the release (`B0`–`B3`) — which is exactly `PaintPass.isActive(id)
@@ -269,7 +298,11 @@ token exists.
    no modifiers), `public typealias EventModifiers = Modifiers`, and on
    `Button`: `keyboardShortcut(_:modifiers:)` (default `.command`),
    `keyboardShortcut(_ shortcut: KeyboardShortcut)` and `keyboardShortcut(_:
-   KeyboardShortcut?)`. **Offered on `Button` only**: SwiftUI's is a `View`
+   KeyboardShortcut?)`. **`EventModifiers` is narrower than SwiftUI's**
+   (*ruled by `IX-O`*): it is `Modifiers` — `.shift`, `.control`, `.option`,
+   `.command` — with no `.capsLock`, `.numericPad`, `.function` or `.all`,
+   which no platform event MetalUI receives reports; adding them is additive
+   (owner none). **Offered on `Button` only**: SwiftUI's is a `View`
    modifier that a non-button ignores (`B4k`); MetalUI's does not compile
    there (guard) — same behaviour, narrower surface. Its `localization:`
    overload is not offered (owner none).
@@ -287,7 +320,19 @@ token exists.
 5. **Gates.** The shortcut rides `Handlers` into the focus registry, so the
    **one** disabled gate removes it (`B4l`, re-measured `K4`: a disabled button's
    shortcut is silent) and `allowsHitTesting(false)` does not (`swiftui-allows-hit-testing-side-effects`
-   K1). An invisible (opacity 0) button's shortcut fires (`B4j`).
+   K1). An invisible (opacity 0) button's shortcut fires (`B4j`), and so does
+   a **`.hidden()`** button's (*added by `IX-O`*, arm `X1`: `k`) — so `IX-K`
+   item 3's hidden condition gates the keyboard **focus** half of the registry
+   and never the shortcut table.
+6. **A focused text field claims Return** (*added by `IX-O`*, arm `X2`: a
+   focused `TextField` beside a `.defaultAction` button, Return →
+   `submit`, and the button does not fire). MetalUI's order already gives
+   this — a focused field's editing keys run before the shortcut stage, and
+   `TextEditing` handles `\r` (a `TextField` submits, a `TextEditor` inserts a
+   newline) — and it is pinned, not assumed. A printable shortcut with no
+   command modifier is silent while a field is focused for the reason
+   `Keymap` bindings are (the key arrives as `.textInput`, `TI-B`); a
+   command-modified one fires.
 
 **Evidence.** SDK `keyboardShortcut` overloads, `KeyboardShortcut`,
 `KeyEquivalent`; arms B4a–B4l; K3/K4 re-run.
@@ -375,9 +420,16 @@ frames never reaches a dead id.
 **Unchanged, by design**: a subtree nothing evaluates keeps its retention — a
 focused `List` row scrolled out of its window keeps focus and its `@State`
 until `TB-AH`'s bound (`TB-J`); a focused element not produced for a frame with
-no reset (the tombstone path, `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`'s
-mechanism when no evaluated reset is involved) is re-read by the lane, which
-names the arm each existing test takes.
+no reset keeps the tombstone path (`resolveFocus`'s fallback to a live
+`$focus` slot). **Named by `IX-O`, not left to the lane**:
+`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+(`FocusTests`) removes its element with an `if` — an evaluated reset — so its
+answer **inverts** (its own comment says the `$focus` exemption "is what keeps
+this test's answer unchanged"); it is re-derived and renamed
+`focusDropsWhenAnIfRemovesItsElement` (spec 3.2). The unevaluated half is
+pinned by the existing `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`
+(spec 3.6), unedited; `focusSetWithNoConfirmingFrameHasNothingToRetain` and
+`focusSurvivesAFrameInWhichTheFocusedElementIsRebuilt` are unaffected.
 
 **User-visible behaviour change, with a migration note**: a focused element
 (a `TextField` included) inside an `if` that goes false, a `ForEach` that drops
@@ -457,12 +509,28 @@ frame boundary.
    `.focusable().onKey { }.hidden()` box today registers, takes focus and claims
    keys (the hazard `focusable()`'s doc comment records). Now a node in
    `Frame.hiddenNodes` (or under `display: .none`) contributes nothing to the
-   focus registry — no focusability, no `onKey`, no actions, no key context,
-   no shortcut — through the **same** gate as `isEnabled` in
+   keyboard half of the focus registry — no focusability, no `onKey`, no
+   actions, no key context — through the **same** gate as `isEnabled` in
    `Frame.registerHandlers`' 5-argument implementation (one gate, two
-   conditions), so a focused element that becomes hidden loses focus at the
-   next frame boundary as a disabled one does. Accessibility suppression and
-   hit testing under `hidden()` are unchanged.
+   conditions, **keyboard half only**: the pointer hitbox is already withheld
+   under `hidden()` by the pointer-disable scope, `ElementGroup.swift`, and is
+   not re-gated), so a focused element that becomes hidden loses focus at the
+   next frame boundary as a disabled one does. **A keyboard shortcut is NOT
+   removed under `hidden()`** (*corrected by `IX-O`*: the design's first text
+   said "no shortcut"; arm `X1` measured a `.hidden()` button's shortcut
+   firing), so the shortcut table is gated by `isEnabled` alone.
+   Accessibility suppression and hit testing under `hidden()` are unchanged.
+   **A hidden scroll region still takes the wheel** (`LR-AV` item 5's inert
+   row, `OM-AK`): kept, owner **none** — SwiftUI's side is unmeasured (the
+   harness cannot read a scroll offset) and scroll regions stay outside every
+   gate, `.disabled`'s included (`EV-E`).
+   **One existing test changes its answer** (*named by `IX-O`*):
+   `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`
+   (`AccessibilityTreeTests`) requires, as a control, that "the hidden
+   focusable box kept focus"; under this item it does not. Its control is
+   re-derived (`frame.focusedElement == nil`, the hidden box refused focus) and
+   its subject clause (`tree.focused == nil`) holds; the lane records it as a
+   T row, not a retirement.
 
 **Evidence.** Arms F3–F6, F9; `NSApp.isFullKeyboardAccessEnabled` printed.
 
@@ -484,7 +552,13 @@ the setting is a platform API.
    refuses the corner and takes the centre (`C1`, `C2` — both orders agree —
    `C10`, `C11`, `C13`). `Hitbox` gains the geometry and `Hitbox.contains(_:)`
    tests it, and **every** consumer — click, the gesture arena, hover, active,
-   wheel routing — reads that one helper through `topmostOpaqueHitbox`. A
+   wheel routing — reads that one helper through `topmostOpaqueHitbox`,
+   **and** `Window.enclosingScroller(of:at:)`'s candidate filter, which today
+   calls `region.bounds.contains(point)` itself (*found by `IX-O`*: the one
+   region test outside `topmostOpaqueHitbox`), calls `Hitbox.contains(_:)` too
+   — a consistency edit with no reachable difference (a scroll region carries
+   no content shape), pinned by a recorded grep rather than by a mutation that
+   could not redden. A
    `.continuous` rounded rectangle hit-tests circular, as it draws (divergence
    90). Focus registration and the accessibility frame keep the element's own
    box, as `contentShape(inset:)`'s do. `contentShape(_:eoFill:)`'s `eoFill`
@@ -534,8 +608,10 @@ offered either (owner none; additive).
 ## IX-N — three lanes, in order, and the exits
 
 **Ruling.** Lanes **1** (gestures and the arena), **2** (buttons, shortcuts,
-the disabled and inactive looks, the focus ring), **3** (focus: the `IX-I` drop,
-`@FocusState`, the divergence pins; content shapes), run in that order, one
+the disabled and inactive looks, the focus ring; **content shapes and the
+pointer divergence pins**, moved here from lane 3 by `IX-O`), **3** (focus only:
+the `IX-I` drop, `@FocusState`, `hidden()` and the keyboard, divergence 94),
+run in that order, one
 agent at a time, each owning the files spec §6 lists; a file two lanes touch
 names each lane's region. Exits for every lane: the whole suite unfiltered,
 one summary line, 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
@@ -547,6 +623,87 @@ them); `DemoFrameDeterminismTests`' `Expected.swift` unedited;
 `everyProductionTreeBuildsOnAOneMegabyteThread` and
 `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green; `MetalUILayout`
 imports only `MetalUICore`; `Backends/SDL` builds (no source there is touched).
+**The Windows stack budget** (*added by `IX-O`*): every lane that adds a
+`Handlers` member records `MemoryLayout<Handlers>.size` before and after
+(each new member is one reference, array or small optional — a `Shape` is
+held in a class box, never an existential stored inline) and re-measures the
+smallest thread that builds every production tree (528 KB, CLAUDE.md "CI
+hazards"); `everyProductionTreeBuildsOnAOneMegabyteThread` green is the exit,
+the measured figure the record.
 
 **Cost if wrong.** A lane that needs another's file says so in its record
 section.
+
+---
+
+## IX-O — the critic round: four new probe arms, eleven corrections, two rejections
+
+**Ruling.** The committed design (`b8d7da9`) was attacked before any lane ran.
+**Re-run**: `swiftui-interaction.swift` compiled and run with the screen
+**locked** (lock probe: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`):
+all 156 recorded lines byte-identical to the header (every arm, not two). Four
+arms were then **added** (group `X`), the whole probe run twice more,
+byte-identical, 161 lines, exit 0, stderr empty; the first 156 lines unchanged:
+
+- `X1` `keyboardShortcut("k")` on a `.hidden()` `Button`, ⌘K: `k`.
+- `X2` a focused `TextField` (with `.onSubmit`) beside a `.defaultAction`
+  button, Return: `focused=true,|start,submit`.
+- `X3` a `.plain` `Button` child under a parent `.gesture(DragGesture())`,
+  click on the child: `button`.
+- `X4` the same, dragged 30 pt inside the child: `button` (no `chg`).
+
+**Corrections applied** (each marked in its ruling):
+
+1. `IX-K` 3 removed shortcuts under `hidden()` — refuted by `X1`; the hidden
+   condition gates the keyboard focus half only (`IX-F` 5, `IX-K` 3), with a
+   pin (spec 3.14b).
+2. `IX-D` 3 said when a member may **end**, not when it may **change** — `X4`
+   rules both, and the `onClick`-over-a-parent-drag interaction is stated and
+   pinned (spec 1.23), its one unmeasured corner ruled as MetalUI's.
+3. `IX-F` had no rule for Return in a focused field — `X2` measured it; pinned
+   (spec 2.13).
+4. `IX-K` 3 reddens an accessibility test's control
+   (`hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`)
+   that spec §6 did not name — named, re-derived (T row).
+5. `IX-I` left `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+   as "a candidate" — it is an `if` removal and inverts; named, renamed to spec
+   3.2. Spec 3.6 is the existing `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`.
+6. `IX-L` 1's "one region test" missed `Window.enclosingScroller(of:at:)`'s
+   own `bounds.contains` — routed through `Hitbox.contains(_:)`.
+7. `IX-E` 2's cost was wrong: a closed struct named `ButtonStyle` makes the
+   protocols a source break later, not additive — ruled with a migration
+   spelling.
+8. `EventModifiers` is narrower than SwiftUI's — ruled (`IX-F` 1).
+9. `IX-C` 4's reason for not timestamping `MouseEvent` was half wrong
+   (`ScrollEvent` has one) — corrected; durations run from the stamp tick.
+10. `hidden()`'s wheel (`LR-AV` item 5, "a hidden scroll region still takes
+    the wheel") was missing from the audit table — added, kept, owner none.
+11. The design named no Windows stack budget exit although it adds three
+    `Handlers` members to every `StyledElement` — added (`IX-N`).
+
+**Lanes re-cut** (`IX-N`): lane 3 carried focus **and** content shapes — two
+subsystems, 20 tests, and the run's one id-adjacent behaviour change (`IX-I`).
+Content shapes and the two pointer-divergence pins (43, 57) move to lane 2,
+which already owns `Handlers` and runs after lane 1's `Hitbox.contains`; lane 3
+is focus alone.
+
+**Rejected** (recorded here, under this task's prefix, not as `LR-` rulings:
+`LR-` is plan task 7's, closed at stage 11):
+
+- *"Make a click focus a `.focusable()` element (`F3`) instead of numbering
+  divergence 94."* Rejected: `IX-K` 2's reason holds — a focusable element is
+  not a pointer target, and making it one makes every focusable container
+  opaque to the pointer, a hit-testing change outside this run's
+  must-not-move set. The remedy (`onTapGesture` writing a `@FocusState`) is
+  spellable once lanes 1 and 3 land.
+- *"Read `NSApp.isFullKeyboardAccessEnabled` (`F5`/`F6`)."* Rejected: `IX-K`
+  1's reason holds, and following it would leave every control unreachable
+  from the keyboard on a default install, with no SDL equivalent.
+
+**Unchanged by this round**: every other ruling. No SwiftUI claim here rests
+on a locked-screen blind spot (`X1`–`X4` are dispatch logs, which the harness
+sees, read against `G0`/`K0`); the VoiceOver script is still part 2's and a
+human's; the real-window capture stays owed (screen locked).
+
+**Cost if wrong.** Each correction is one clause and one pin; the lane re-cut
+moves files between two agents, not behaviour.
