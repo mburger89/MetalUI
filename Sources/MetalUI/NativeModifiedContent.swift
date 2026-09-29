@@ -222,9 +222,15 @@ extension ProposalElementGroup {
     /// the ratio's shape. The modifier never read the legacy CSS
     /// `Style.aspectRatio` field, which stage 10 deleted (`LR-FM` item 1).
     ///
+    /// **A nil ratio — SwiftUI's default — is the content's ideal ratio**, its
+    /// answer at nil×nil (plan task 11, part 2, ruling `TE-AM`; probes A1–A3,
+    /// I3–I5): `Color().aspectRatio(contentMode: .fit)` in 100×60 is 60×60, a
+    /// resizable 40×20 image fits it as 100×50. A zero or non-finite ideal
+    /// ratio passes the proposal through.
+    ///
     /// **The kernel's rule, checked at construction** so the two layers cannot
-    /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a
-    /// negative ratio is accepted, as SwiftUI accepts it (P8).
+    /// disagree (ruling SA-K item 4): a given ratio must be finite and non-zero;
+    /// a negative ratio is accepted, as SwiftUI accepts it (P8).
     public func aspectRatio(_ ratio: Double? = nil,
                             contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<ProposalBase, LayoutModifier> {
         if let ratio {
@@ -241,9 +247,9 @@ extension ProposalElementGroup {
     }
 
     /// SwiftUI's `scaledToFill()`: `aspectRatio(nil, contentMode: .fill)`
-    /// (`TE-AM`; probes A2, I5). SKELETON.
+    /// (`TE-AM`; probes A2, I5).
     public func scaledToFill() -> ModifiedContent<ProposalBase, LayoutModifier> {
-        aspectRatio(nil, contentMode: .fit)
+        aspectRatio(nil, contentMode: .fill)
     }
 
     /// Prioritizes this subtree when a native `HStack` or `VStack` must divide

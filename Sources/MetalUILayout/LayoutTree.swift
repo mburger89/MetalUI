@@ -349,6 +349,13 @@ public final class LayoutTree {
     /// **A negative ratio is accepted**, as SwiftUI accepts it (P8, P8b; ruling
     /// SA-K item 2): −2 `.fit` at 100×80 proposes 100×−50, which a child that
     /// takes the offer answers.
+    ///
+    /// **A nil ratio is the child's ideal ratio** (plan task 11, part 2, ruling
+    /// `TE-AM`): its answer at nil×nil, `width / height`, measured each time the
+    /// node proposes — so SwiftUI's `aspectRatio(contentMode:)`, `scaledToFit()`
+    /// and `scaledToFill()` (A1: a `Color`, ideal 10×10, fits 100×60 as 60×60;
+    /// A3: an ideal 40×20 fits it as 100×50). A zero or non-finite ideal ratio
+    /// passes the proposal through unchanged.
     public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double?,
                                      contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
         _ = nativeNode(child)
@@ -1522,11 +1529,20 @@ public final class LayoutTree {
                      height: vertical ? nil : parent.height)
     }
 
-    /// The proposal a nil-ratio `aspectRatio` hands its child. SKELETON.
+    /// The proposal an `aspectRatio` node hands its child, a nil `ratio` read
+    /// from the child (ruling `TE-AM`; probes A1–A3, I3–I5): the child's answer
+    /// at nil×nil, `width / height`. An ideal ratio that is zero or not finite
+    /// (a zero or infinite ideal axis) passes the proposal through — AR2's
+    /// branch — rather than being divided by. One extra child measurement per
+    /// nil-ratio node per layout, and only in trees that spell it (`SA-M`).
     private func aspectRatioProposal(_ proposal: ProposedSize, ratio: Double?, child: LayoutNodeID,
                                      contentMode: AspectRatioContentMode,
                                      run: NativeLayoutRun) -> ProposedSize {
-        aspectRatioProposal(proposal, ratio: ratio ?? 1, contentMode: contentMode)
+        if let ratio { return aspectRatioProposal(proposal, ratio: ratio, contentMode: contentMode) }
+        let ideal = measureNative(child, proposal: ProposedSize(width: nil, height: nil), run: run).size
+        let idealRatio = ideal.width / ideal.height
+        guard idealRatio.isFinite && idealRatio != 0 else { return proposal }
+        return aspectRatioProposal(proposal, ratio: idealRatio, contentMode: contentMode)
     }
 
     /// The proposal `aspectRatio` hands its child (ruling CN-G). ∞ is a
@@ -1702,6 +1718,12 @@ extension LayoutTree {
     /// Marks `node` as a grid cell: `columns` is `gridCellColumns`, `anchor`
     /// `gridCellAnchor`, `columnAlignment` `gridColumnAlignment` and
     /// `unsizedAxes` `gridCellUnsizedAxes` (rulings GR-F, GR-G, GR-H, GR-S).
+    /// `anchorPoint` is `gridCellAnchor(_: UnitPoint)`'s factor pair (plan task
+    /// 11, part 2, ruling `TE-AN`); `anchor` is stored as its nine-point
+    /// factors, so both are one mark, and a call passing both writes `anchor`
+    /// first (the first mark on a node stands). A non-finite factor traps with
+    /// `gridCellAnchor` named (SA-J: it would store a NaN or infinite cell rect
+    /// at a finite proposal); one outside `0…1` is accepted.
     /// Every argument is optional and a call writes only what it is given, so
     /// one modifier is one call.
     ///
@@ -1740,7 +1762,12 @@ extension LayoutTree {
             }
         }
         if let anchor, gridCellAnchors[index] == nil { gridCellAnchors[index] = ProposalAnchor(anchor) }
-        if let anchorPoint, gridCellAnchors[index] == nil { gridCellAnchors[index] = anchorPoint }
+        if let anchorPoint {
+            precondition(anchorPoint.horizontalFactor.isFinite && anchorPoint.verticalFactor.isFinite,
+                         "gridCellAnchor must be finite (SA-J), got (\(anchorPoint.horizontalFactor), "
+                             + "\(anchorPoint.verticalFactor))")
+            if gridCellAnchors[index] == nil { gridCellAnchors[index] = anchorPoint }
+        }
         if let columnAlignment, gridCellColumnAlignments[index] == nil {
             gridCellColumnAlignments[index] = columnAlignment
         }

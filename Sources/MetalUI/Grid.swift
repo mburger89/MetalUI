@@ -236,10 +236,11 @@ public enum GridCellAttribute: Sendable, Hashable {
     /// contribute nothing, and 0 lays out as 1 (divergence `GR-O` 3).
     case columns(Int)
     /// `gridCellAnchor`: overrides the column's, the row's and the grid's
-    /// alignment on both axes. Nine-point, not a `UnitPoint` (divergence
-    /// `GR-O` 4).
+    /// alignment on both axes, at one of the nine points; `anchorPoint` below
+    /// takes any `UnitPoint` (divergence `GR-O` 4 / 64 retired, `TE-AN`).
     case anchor(ProposalAlignment)
-    /// SKELETON.
+    /// `gridCellAnchor(_: UnitPoint)`: the same override, at any factor pair
+    /// (plan task 11, part 2, `TE-AN`).
     case anchorPoint(UnitPoint)
     /// `gridColumnAlignment`: the first declaration in row order decides its
     /// column's horizontal alignment (GL6, GL7).
@@ -303,9 +304,8 @@ public struct GridCellModifier<Content: ProposalElementGroup>: ProposalElementGr
         case let .anchor(anchor):
             pass.markNativeGridCell(node, anchor: anchor)
         case let .anchorPoint(anchor):
-            func nearest(_ v: Double) -> Double { v < 0.25 ? 0 : v < 0.75 ? 0.5 : 1 }
-            pass.markNativeGridCell(node, anchorPoint: ProposalAnchor(horizontalFactor: nearest(anchor.x),
-                                                                      verticalFactor: nearest(anchor.y)))
+            pass.markNativeGridCell(node, anchorPoint: ProposalAnchor(horizontalFactor: anchor.x,
+                                                                      verticalFactor: anchor.y))
         case let .columnAlignment(alignment):
             pass.markNativeGridCell(node, columnAlignment: alignment.proposalAlignment)
         case let .unsizedAxes(axes):
@@ -340,15 +340,23 @@ extension ProposalElementGroup {
     /// overriding the column's, the row's and the grid's alignment on both axes
     /// (GL10, GL11, GL13) — a non-row child included.
     ///
-    /// Nine-point only: SwiftUI takes a `UnitPoint` and GL14 reads a fractional
-    /// one. MetalUI has a public `UnitPoint` since plan task 10 (`DD-G`, for
-    /// `scrollTo(_:anchor:)`), but this modifier does not take it (divergence
-    /// `GR-O` 4, guard `aGridCellAnchorIsNinePoint`; task 11 owns the gap).
+    /// The nine-point spelling; the `UnitPoint` overload below takes any
+    /// factor pair (plan task 11, part 2, `TE-AN`: the nine-point gap, `GR-O`
+    /// 4 / divergence 64, is retired — guard
+    /// `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve`).
     public func gridCellAnchor(_ anchor: ProposalAlignment) -> GridCellModifier<Self> {
         GridCellModifier(content: self, attribute: .anchor(anchor))
     }
 
-    /// SKELETON: rounded to the nearest nine-point.
+    /// SwiftUI's `gridCellAnchor(_:)` with its own `UnitPoint` (plan task 11,
+    /// part 2, ruling `TE-AN`; divergence 64 retired): the cell sits at its
+    /// slot's origin plus `(slot − answer) × anchor` on each axis — probe GL14,
+    /// `UnitPoint(x: 0.25, y: 1)` on a 10×10 cell in a 50×30 slot, at (10, 20).
+    /// **`@_disfavoredOverload`**, so a leading-dot nine-point spelling
+    /// (`.topLeading`, which `UnitPoint` also declares) still resolves to the
+    /// `ProposalAlignment` overload rather than going ambiguous (`DD-P` item 4;
+    /// guard `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve`).
+    /// A non-finite component traps (SA-J); one outside `0…1` is accepted.
     @_disfavoredOverload
     public func gridCellAnchor(_ anchor: UnitPoint) -> GridCellModifier<Self> {
         GridCellModifier(content: self, attribute: .anchorPoint(anchor))
