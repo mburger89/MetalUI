@@ -64,4 +64,10 @@ private func tokenColour(_ token: ColorToken) -> Set<[Float]> {
             == caption)
     #expect(teSize(try teBounds([0, 0]) { Text("Hg ag").font(.title).proposalLayout() }) == title,
             "Text.proposalLayout() carries the request")
+    // The weight and slope too (spec §6): a bold italic `Text` converted keeps
+    // the bold italic face's size, which differs from the regular face's.
+    let boldItalic = teExpectedSize("Hg ag", FontDescriptor(size: 13, weight: Font.Weight.bold.value, italic: true))
+    try #require(boldItalic != teExpectedSize("Hg ag", FontDescriptor(size: 13)))
+    #expect(teSize(try teBounds([0, 0]) { Text("Hg ag").fontWeight(.bold).italic().proposalLayout() }) == boldItalic,
+            "Text.proposalLayout() carries the weight and slope")
 }

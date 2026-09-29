@@ -58,3 +58,25 @@ private func lineStarts<C: ElementGroup>(@ElementBuilder _ content: () -> C) thr
     #expect(env[0] != env[1])
 }
 
+
+/// **3.18b.** 3.18's A1 and A4 for `ProposalText`: under `.center` and
+/// `.trailing` the short line moves by `(box − w₁) × ½` and `× 1` and the long
+/// line stays, the value read through the environment (a `ProposalText` has no
+/// own alignment).
+///
+/// Mutation **M3p2**: `ProposalText.paint` passes `TextLayoutOptions()`.
+@MainActor
+@Test func multilineTextAlignmentPlacesAProposalTextsLinesInsideItsBox() throws {
+    let system = teSystem()
+    let key = system.resolveFont(family: nil, size: 13)
+    let short = system.measure("Short line", font: key, wrappingAt: nil).widestLine
+    let box = system.measure(twoLines, font: key, wrappingAt: nil).widestLine
+    try #require(box - short > 40)
+    let leading = try lineStarts { VStack { ProposalText(twoLines) } }
+    for (alignment, factor) in [(TextAlignment.center, 0.5), (.trailing, 1.0)] {
+        let moved = try lineStarts { VStack { ProposalText(twoLines) }.multilineTextAlignment(alignment) }
+        let shift = Double(moved[0] - leading[0])
+        #expect(abs(shift - (box - short) * factor) <= 1, "A1 \(alignment): moved \(shift)")
+        #expect(moved[1] == leading[1], "A1 \(alignment): the long line spans the box")
+    }
+}
