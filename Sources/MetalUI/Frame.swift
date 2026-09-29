@@ -747,7 +747,11 @@ public final class Frame {
     /// applies — `outer` is itself rounded AND `inner` merely touches or
     /// crosses its bounding box, or is larger than it — this falls back to
     /// the plain intersected box (`intersect(_:_:)` above) with SQUARE
-    /// corners: the tighter box, rounding dropped rather than guessed at.
+    /// corners: the tighter box, rounding dropped rather than guessed at —
+    /// **unless** (since plan task 11 part 2, `TE-AJ` item 5) one rounded
+    /// rect lies exactly inside the other (case 3 below), when the contained
+    /// one's radii are the exact answer. Two that cross still get the square
+    /// box: divergence 92, pinned by `twoCrossingRoundedClipsIntersectAsTheSquareBox`.
     static func intersect(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
                           _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
         -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
@@ -773,7 +777,60 @@ public final class Frame {
                 < outer.origin.x.value + outer.size.width.value &&
             inner.origin.y.value + inner.size.height.value
                 < outer.origin.y.value + outer.size.height.value
-        return strictlyInside ? (bounds, innerRadii) : (bounds, Corners(all: Pixels(0)))
+        if strictlyInside { return (bounds, innerRadii) }
+
+        // 3. (plan task 11 part 2, `TE-AJ` item 5, run AFTER the two cases
+        //    above so every answer they gave stands — `TE-AQ` item 12) An
+        //    inner rounded rect CONTAINED in the outer rounded rect keeps its
+        //    radii, and the mirror keeps the outer's. Exact: a rounded rect
+        //    with circular corners is the convex hull of its four corner discs,
+        //    so it lies inside a convex shape iff each disc does —
+        //    `sdf(other, cᵢ) ≤ −rᵢ` at each corner centre. Probe C6 (a capsule
+        //    clip then a circle clip equals the circle alone) is the case the
+        //    square fallback drew wrong.
+        if Self.roundedRect(inner, radii: innerRadii, liesInside: outer, radii: outerRadii) {
+            return (bounds, innerRadii)
+        }
+        if Self.roundedRect(outer, radii: outerRadii, liesInside: inner, radii: innerRadii) {
+            return (bounds, outerRadii)
+        }
+        // Two rounded clips that CROSS: the square box (divergence 92).
+        return (bounds, Corners(all: Pixels(0)))
+    }
+
+    /// Whether `rect`'s rounded region lies inside `container`'s: each of
+    /// `rect`'s four corner discs (radius clamped to half its shorter side, as
+    /// the shader clamps) has its centre at least its radius inside
+    /// `container`'s signed distance field — the rounded-rect SDF the shaders
+    /// evaluate, radius chosen by quadrant. A 1e-4 pt tolerance absorbs float
+    /// rounding at an exact tangency (C6's circle touches the capsule).
+    static func roundedRect(_ rect: Bounds<Pixels>, radii: Corners<Pixels>,
+                            liesInside container: Bounds<Pixels>,
+                            radii containerRadii: Corners<Pixels>) -> Bool {
+        func clamp(_ r: Pixels, _ b: Bounds<Pixels>) -> Float {
+            min(max(r.value, 0), max(0, min(b.size.width.value, b.size.height.value) / 2))
+        }
+        let x0 = rect.origin.x.value, y0 = rect.origin.y.value
+        let x1 = x0 + rect.size.width.value, y1 = y0 + rect.size.height.value
+        let tl = clamp(radii.topLeft, rect), tr = clamp(radii.topRight, rect)
+        let br = clamp(radii.bottomRight, rect), bl = clamp(radii.bottomLeft, rect)
+        let discs: [(x: Float, y: Float, r: Float)] = [
+            (x0 + tl, y0 + tl, tl), (x1 - tr, y0 + tr, tr),
+            (x1 - br, y1 - br, br), (x0 + bl, y1 - bl, bl),
+        ]
+        let halfW = container.size.width.value / 2, halfH = container.size.height.value / 2
+        let cx = container.origin.x.value + halfW, cy = container.origin.y.value + halfH
+        for disc in discs {
+            let px = disc.x - cx, py = disc.y - cy
+            let corner = px >= 0 ? (py >= 0 ? containerRadii.bottomRight : containerRadii.topRight)
+                                 : (py >= 0 ? containerRadii.bottomLeft : containerRadii.topLeft)
+            let r = clamp(corner, container)
+            let qx = abs(px) - halfW + r, qy = abs(py) - halfH + r
+            let outside = (max(qx, 0) * max(qx, 0) + max(qy, 0) * max(qy, 0)).squareRoot()
+            let distance = outside + min(max(qx, qy), 0) - r
+            if distance > -disc.r + 1e-4 { return false }
+        }
+        return true
     }
 
     /// Scroll regions registered this frame, in prepaint order — a **derived

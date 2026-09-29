@@ -25,7 +25,7 @@ extension ProposalElementGroup {
     /// (probes C1, C4). The legacy `StyledElement.cornerRadius(_:)` stays
     /// paint-only (divergence 47, `TE-AJ` item 3).
     public func cornerRadius(_ radius: Pixels) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        _wrapLayout(.clipShape(Rectangle()))
+        clipShape(RoundedRectangle(cornerRadius: radius))
     }
 }
 
@@ -37,7 +37,7 @@ extension StyledElement {
     /// It clips hitboxes as ``clipped()`` does, snaps under animation, and an
     /// ellipse geometry traps (divergence 91).
     public func clipShape<S: Shape & Hashable>(_ shape: S) -> Self {
-        self
+        decorating { $0.clipShape = ClipShapeBox(shape) }
     }
 }
 
@@ -78,6 +78,6 @@ extension ElementGroup {
     /// behind this view — SwiftUI's `background(in:)`, whose default style
     /// paints (probe O6, `TE-AQ` item 5).
     public func background<S: Shape>(in shape: S) -> BackgroundModifier<Self, ShapeView<S>> {
-        BackgroundModifier(content: self) { shape.fill(.surface) }
+        BackgroundModifier(content: self) { shape.fill(.background) }
     }
 }

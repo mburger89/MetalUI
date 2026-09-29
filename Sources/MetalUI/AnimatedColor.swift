@@ -389,7 +389,8 @@ func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
 ///    background resolves. Emission order is paint order (`Scene.finalize()`
 ///    sorts stably at equal `order`), so a fill emitted after its children would
 ///    paint over them — `aContainerPaintsItsBackgroundBeneathItsChildren`.
-/// 3. `content()`, inside `pass.clipped(…)` when `clipsContent`.
+/// 3. `content()`, inside `pass.clipped(…)` when `clipsContent` or a `clipShape`
+///    names a clip (`Decoration.clipRegion(in:)`).
 /// 4. The **border rect, after the children** (`OM-V`). SwiftUI's `.border` is
 ///    an overlay (probe `swiftui-border-clip-paint` arm B3: a child filling the
 ///    whole box does not hide it), and MetalUI's children live inside the same
@@ -430,7 +431,7 @@ extension PaintPass {
 
         guard decoration.opacity < 1 else {
             paintDecorationBody(bounds, radii: radii, background: background?.color, border: border,
-                                clips: decoration.clipsContent, content: content)
+                                clip: decoration.clipRegion(in: bounds), content: content)
             return
         }
         // Stage 11 (`LR-FW` as amended): a fill or border whose WINNING slot was
@@ -441,17 +442,17 @@ extension PaintPass {
         let borderEscapes = resolved.map { escapes.contains($0.slot.border) } ?? false
         if fillEscapes, let background {
             paintDecorationBody(bounds, radii: radii, background: background.color, border: nil,
-                                clips: false) {}
+                                clip: nil) {}
         }
         opacity(decoration.opacity) {
             paintDecorationBody(bounds, radii: radii,
                                 background: fillEscapes ? nil : background?.color,
                                 border: borderEscapes ? nil : border,
-                                clips: decoration.clipsContent, content: content)
+                                clip: decoration.clipRegion(in: bounds), content: content)
         }
         if borderEscapes, let border {
             paintDecorationBody(bounds, radii: radii, background: nil, border: border,
-                                clips: false) {}
+                                clip: nil) {}
         }
     }
 
@@ -459,13 +460,14 @@ extension PaintPass {
     private func paintDecorationBody(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>,
                                      background: Hsla?,
                                      border: (color: Hsla, widths: Edges<Pixels>)?,
-                                     clips: Bool, content: () -> Void) {
+                                     clip: (bounds: Bounds<Pixels>, radii: Corners<Pixels>)?,
+                                     content: () -> Void) {
         if let background {
             fill(bounds, color: background, cornerRadii: radii)
         }
-        if clips {
-            clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                    cornerRadii: radii) {
+        if let clip {
+            clipped(to: clip.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                    cornerRadii: clip.radii) {
                 content()
             }
         } else {

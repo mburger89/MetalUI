@@ -81,10 +81,48 @@ public struct ShapeView<S: Shape>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout S.LayoutState, prepaint: inout Void,
                                pass: inout PaintPass) {
-        for case let .fill(token) in layers {
-            paintShapeFill(shape.geometry(in: bounds), token: token, pass: pass)
+        let geometry = shape.geometry(in: bounds)
+        for layer in layers {
+            switch layer {
+            case let .fill(token):
+                paintShapeFill(geometry, token: token, pass: pass)
+            case let .stroke(token, width):
+                paintShapeStroke(geometry, token: token, width: width, outset: true, pass: pass)
+            case let .strokeBorder(token, width):
+                paintShapeStroke(geometry, token: token, width: width, outset: false, pass: pass)
+            }
         }
     }
 }
 
 extension ShapeView: ProposalElement {}
+
+/// One stroke layer (`TE-AI`). **strokeBorder(w)**: one `MUIRect` over the
+/// geometry's rect, border `w`, a clear background, each outer radius kept
+/// when at least `w/2` and else 0 (probe K11: a square outer corner), the
+/// inner radius the shader's `max(r − w, 0)`. **stroke(w)**: the same over
+/// the rect outset by `w/2`, each radius `r > 0 ? r + w/2 : 0` (K1, K6, K7,
+/// K12) — which is at least `w/2`, so the strokeBorder rule keeps it. An
+/// ellipse takes the ellipse kind, whose band is the inset ellipse's stroke
+/// (K8, `TE-AE`). A width ≤ 0 emits nothing (K9).
+@MainActor
+func paintShapeStroke(_ geometry: ShapeGeometry, token: ColorToken, width: Pixels, outset: Bool,
+                      pass: PaintPass) {
+    let w = width.value
+    guard w > 0 else { return }
+    var rect = geometry.rect
+    var radii = geometry.cornerRadii
+    if outset {
+        rect = Bounds(origin: Point(x: Pixels(rect.origin.x.value - w / 2), y: Pixels(rect.origin.y.value - w / 2)),
+                      size: Size(width: Pixels(rect.size.width.value + w),
+                                 height: Pixels(rect.size.height.value + w)))
+        func grown(_ r: Pixels) -> Pixels { r.value > 0 ? Pixels(r.value + w / 2) : Pixels(0) }
+        radii = Corners(topLeft: grown(radii.topLeft), topRight: grown(radii.topRight),
+                        bottomRight: grown(radii.bottomRight), bottomLeft: grown(radii.bottomLeft))
+    }
+    func kept(_ r: Pixels) -> Pixels { r.value >= w / 2 ? r : Pixels(0) }
+    radii = Corners(topLeft: kept(radii.topLeft), topRight: kept(radii.topRight),
+                    bottomRight: kept(radii.bottomRight), bottomLeft: kept(radii.bottomLeft))
+    pass.fill(rect, color: .transparent, cornerRadii: radii, borderColor: pass.theme[token],
+              borderWidths: Edges(all: width), shape: geometry.primitiveShape)
+}

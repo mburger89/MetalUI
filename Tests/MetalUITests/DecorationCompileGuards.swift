@@ -166,6 +166,15 @@ func theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule() throws {
 /// `ElementGroup` — where a proposal element sees it too — makes the `crossed`
 /// fixture compile, the two fixtures agree, and the `#require` fires.
 ///
+/// **Re-answered by plan task 11 part 2 (a T row, `TE-AJ` item 1; record §60
+/// §4):** `clipped()` is no longer legacy-only — SwiftUI's `.clipped()` exists
+/// on the proposal path too (probe C3), as `.clip()`. So `HStack { … }.clipped()`
+/// now compiles and moves into `both`'s proposal half (still inferring the
+/// proposal wrapper, where the legacy half's `clipped()` still infers `Box`),
+/// and `crossed` is re-spelled with `hoverBackground(_:)`, still legacy-only.
+/// G3b's twin for the new spelling — `hoverBackground` declared on
+/// `ElementGroup` — makes `crossed` compile.
+///
 /// **The obvious mutation does NOT redden it, and that is worth knowing**
 /// (G3, measured): declaring the legacy `opacity(_:)` on `ElementGroup` rather
 /// than on `StyledElement` leaves `HStack { … }.opacity(0.5)` **unambiguous**,
@@ -183,14 +192,14 @@ func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
         }
         @MainActor func proposal() -> some Element {
             HStack { ProposalText("hi") }.border(.accent, width: Pixels(2)).opacity(0.5)
-                .allowsHitTesting(false)
+                .allowsHitTesting(false).clipped()
         }
         """, importing: "MetalUI")
     // The disagreeing half: a spelling that must NOT compile, so "it all
     // type-checks" is not the only thing this instrument can say.
     let crossed = try typecheckFile("""
         @MainActor func crossed() -> some Element {
-            HStack { ProposalText("hi") }.clipped()
+            HStack { ProposalText("hi") }.hoverBackground(.accent)
         }
         """, importing: "MetalUI")
     // The same, for lane 3's legacy-only modifier. A second fixture rather
@@ -225,7 +234,7 @@ func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
             \(both.output)
             """)
     #expect(!crossed.succeeded,
-            "`clipped()` is legacy-only; a proposal element must not see it:\n\(crossed.output)")
+            "`hoverBackground(_:)` is legacy-only; a proposal element must not see it:\n\(crossed.output)")
     #expect(!crossedShape.succeeded,
             """
             `contentShape(inset:)` is legacy-only until task 12; a proposal element must not \

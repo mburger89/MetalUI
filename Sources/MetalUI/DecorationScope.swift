@@ -117,15 +117,15 @@ extension PrepaintPass {
         // `handlers.contentShapeInset` is applied, to the hitbox bounds alone.
         registerHandlers(handlers, at: bounds, id: id, accessibleText: accessibleText,
                          synthesizesAccessibility: synthesizesAccessibility)
-        guard decoration.clipsContent else { return content() }
+        guard let region = decoration.clipRegion(in: bounds) else { return content() }
         // The prepaint half of `.clipped()`, at a ZERO offset: this element does
         // not translate its children, it only bounds them. `ScrollView.prepaint`
         // is the same call with a scroll offset, and `Frame.insertHitbox`
         // intersects an incoming rect with the active clip, so a hitbox declared
         // inside a clipped box is recorded at the visible part of itself.
         var result: R!
-        clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                cornerRadii: Corners(all: decoration.cornerRadius)) {
+        clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                cornerRadii: region.radii) {
             result = content()
         }
         return result

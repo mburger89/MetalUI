@@ -528,9 +528,11 @@ extension LayoutModifier: ModifierLayerKind {
                 result = inside()
             }
             return result!
-        case .clipShape:
+        case let .clipShape(shape):
+            let region = shape.geometry(in: bounds).clipRegion
             var result: R?
-            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
+            pass.clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                         cornerRadii: region.radii) {
                 result = inside()
             }
             return result!
@@ -552,8 +554,10 @@ extension LayoutModifier: ModifierLayerKind {
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: Corners(all: cornerRadius), inside)
-        case .clipShape:
-            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)), inside)
+        case let .clipShape(shape):
+            let region = shape.geometry(in: bounds).clipRegion
+            pass.clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                         cornerRadii: region.radii, inside)
         case let .border(token, width, cornerRadius):
             inside()
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),

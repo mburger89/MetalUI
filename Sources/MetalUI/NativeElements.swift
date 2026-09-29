@@ -472,11 +472,12 @@ public struct Rectangle: Shape, Hashable {
     public init() {
         width = Pixels(10)
         height = Pixels(10)
-        color = .surface
+        color = nil
         respondsToProposal = true
     }
 
     /// A proposal-responsive rectangle filled with `color`.
+    @available(*, deprecated, message: "use Rectangle().fill(_:)")
     public init(color: ColorToken) {
         width = Pixels(10)
         height = Pixels(10)

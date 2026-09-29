@@ -349,6 +349,26 @@ public struct Decoration: Sendable, Hashable {
     /// and `Hashable` stays synthesized. `paintDecoration` is the one reader.
     var escapesOpacity: OpacityEscapes = []
 
+    /// The shape a legacy `clipShape(_:)` clips this element's children to
+    /// (plan task 11, part 2, `TE-AJ` item 2), or `nil`. **Wins over
+    /// `clipsContent`** when both are set: the geometry lies inside the box, so
+    /// the shape alone is their intersection for every built-in. A
+    /// paint-and-prepaint field like `clipsContent`, it **snaps** under
+    /// animation (nothing interpolates it). Internal, like `escapesOpacity`:
+    /// a box over `any Shape & Hashable` keeps `Hashable` synthesized
+    /// (`TE-AQ` item 3). `clipRegion(in:)` is its one reader.
+    var clipShape: ClipShapeBox?
+
+    /// The rect and radii this decoration clips its children to, or `nil`
+    /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
+    /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.
+    /// Read by both clip halves (`registerAndScope`, `paintDecoration`).
+    @MainActor
+    func clipRegion(in bounds: Bounds<Pixels>) -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>)? {
+        if let clipShape { return clipShape.shape.geometry(in: bounds).clipRegion }
+        return clipsContent ? (bounds, Corners(all: cornerRadius)) : nil
+    }
+
     /// The six paint slots `escapesOpacity` can hold.
     struct OpacityEscapes: OptionSet, Sendable, Hashable {
         let rawValue: UInt8
@@ -1336,7 +1356,9 @@ extension StyledElement {
     /// clips its content and MetalUI's rounds a fill, so
     /// `.cornerRadius(12).clipped()` is the spelling for SwiftUI's
     /// `.cornerRadius(12)`. Making the radius clip on its own would move all
-    /// sixteen of the demo's call sites and is task 11's.
+    /// sixteen of the demo's call sites (and every hitbox under them), so it
+    /// stays paint-only: divergence 47, kept by plan task 11 (`TE-AJ` item 3).
+    /// `.clipShape(RoundedRectangle(cornerRadius: r))` is the other spelling.
     ///
     /// The clip is pushed in prepaint as well as paint, so a hitbox inside is
     /// registered against it — `clippedAlsoClipsTheHitboxesInsideIt`.

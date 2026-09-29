@@ -29,8 +29,23 @@ public struct RoundedRectangle: Shape, Hashable {
 public struct Circle: Shape, Hashable {
     public init() {}
 
+    public nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD {
+        switch (proposal.width, proposal.height) {
+        case let (width?, height?):
+            let side = min(width, height)
+            return SizeD(width: side, height: side)
+        case let (width?, nil): return SizeD(width: width, height: width)
+        case let (nil, height?): return SizeD(width: height, height: height)
+        case (nil, nil): return SizeD(width: 10, height: 10)
+        }
+    }
+
     public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
-        .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(0)), style: .circular)
+        let side = min(rect.size.width.value, rect.size.height.value)
+        let square = Bounds(origin: Point(x: Pixels(rect.origin.x.value + (rect.size.width.value - side) / 2),
+                                          y: Pixels(rect.origin.y.value + (rect.size.height.value - side) / 2)),
+                            size: Size(width: Pixels(side), height: Pixels(side)))
+        return .roundedRectangle(square, cornerRadii: Corners(all: Pixels(side / 2)), style: .circular)
     }
 }
 
@@ -45,7 +60,8 @@ public struct Capsule: Shape, Hashable {
     }
 
     public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
-        .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(0)), style: style)
+        let radius = min(rect.size.width.value, rect.size.height.value) / 2
+        return .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(radius)), style: style)
     }
 }
 

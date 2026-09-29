@@ -35,18 +35,35 @@ public struct ShapeGeometry: Sendable, Equatable {
     /// `0…min(width, height) / 2` (probes S4, S5).
     public static func roundedRectangle(_ rect: Bounds<Pixels>, cornerRadii: Corners<Pixels>,
                                         style: RoundedCornerStyle = .continuous) -> ShapeGeometry {
-        ShapeGeometry(rect: rect, kind: .roundedRectangle(cornerRadii, style))
+        let limit = max(0, min(rect.size.width.value, rect.size.height.value) / 2)
+        func clamped(_ radius: Pixels) -> Pixels { Pixels(min(max(radius.value, 0), limit)) }
+        let radii = Corners(topLeft: clamped(cornerRadii.topLeft), topRight: clamped(cornerRadii.topRight),
+                            bottomRight: clamped(cornerRadii.bottomRight),
+                            bottomLeft: clamped(cornerRadii.bottomLeft))
+        return ShapeGeometry(rect: rect, kind: .roundedRectangle(radii, style))
     }
 
     /// The ellipse inscribed in `rect`.
     public static func ellipse(_ rect: Bounds<Pixels>) -> ShapeGeometry {
-        ShapeGeometry(rect: rect, kind: .roundedRectangle(Corners(all: Pixels(0)), .circular))
+        ShapeGeometry(rect: rect, kind: .ellipse)
     }
 
     /// The radii the renderer draws: zero for an ellipse.
     var cornerRadii: Corners<Pixels> {
         if case let .roundedRectangle(radii, _) = kind { return radii }
         return Corners(all: Pixels(0))
+    }
+
+    /// The rect and radii a clip pushes (`TE-AJ` items 1–2). **An ellipse
+    /// traps** (divergence 91, `TE-AJ` item 4): every primitive's mask is a
+    /// rounded rectangle, and a custom `Shape` can return an ellipse at run
+    /// time, so the check is here, at the clip, not in the type.
+    var clipRegion: (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
+        guard case let .roundedRectangle(radii, _) = kind else {
+            preconditionFailure("clipShape(_:) of an ellipse cannot be drawn: every primitive's mask is "
+                                + "a rounded rectangle (divergence 91, TE-AJ item 4)")
+        }
+        return (rect, radii)
     }
 
     /// The primitive kind the renderer draws (`MUIRect.shape`).
@@ -107,7 +124,7 @@ extension Shape {
 /// over the geometry's rect, `nil` meaning the foreground style.
 @MainActor
 func paintShapeFill(_ geometry: ShapeGeometry, token: ColorToken?, pass: PaintPass) {
-    let resolved = token ?? .surface
+    let resolved = token ?? pass.environment.foregroundStyle ?? .textPrimary
     pass.fill(geometry.rect, color: pass.theme[resolved], cornerRadii: geometry.cornerRadii,
               shape: geometry.primitiveShape)
 }
