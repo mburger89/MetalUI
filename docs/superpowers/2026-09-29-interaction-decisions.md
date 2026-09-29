@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-Q`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-R`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -817,6 +817,12 @@ copy, the whole suite run unfiltered — 1798 tests each time — `git status
 | M1s | `GestureModifier` stores no attachment | 1.21 |
 | M1t | frames requested while pressed, not only while pending | 1.22 |
 | M1u | a withheld drag's changes reported anyway | 1.23 |
+| V2 (*`IX-Q`*) | `GestureModifier.prepaint` registers through `pass.frame.insertHitbox`, past the gates | `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` (arm `gesture`), 1.19 (its proposal arm) |
+| V3 (*`IX-Q`*) | an ancestor joins without `Hitbox.contains(point)` | 1.25 |
+| V4 (*`IX-Q`*) | an ancestor of any hit layer joins (the lane's first code) | 1.24 |
+| V5 (*`IX-Q`*) | `registerHandlers` passes no `origin:`, so a drag reads the inset region's space | 1.27 |
+| V6 (*`IX-Q`*) | a press elsewhere drops the arena without `abandon()` | 1.26 |
+| V7 (*`IX-Q`*) | a tap's release skips the region check | 1.28 |
 | G1.1 | `@_spi(MetalUIGesture)` removed from the requirement and its type | `anOutsideTypeCannotConformToGesture` (fabricated arm compiled) |
 | G1.2 | `StyledElement.highPriorityGesture` made internal | `theGestureSpellingsCompileFromAPlainImport` (positive arm failed) |
 
@@ -860,3 +866,64 @@ green.
 
 **Cost if wrong.** Each clause is one comparison or one call site in
 `Gesture.swift`/`Window.swift`, pinned by the test its mutation reddens.
+
+---
+
+## IX-Q — lane 1's fix round: a presentation keeps its own press, and five unpinned clauses pinned
+
+**Ruling.**
+
+1. **An arena's ancestors join only from the target's own hit layer.** A
+   `Deferred` presentation hoists its content to a higher layer while its id
+   stays under its declarer's; `Window.makeGestureArena` walked `id.parent`
+   without reading `layer`, so a declarer's `highPriorityGesture` took a
+   modal's `onClick` (a scratch window read `["root-high"]`) and its
+   `simultaneousGesture` ran on every press inside the modal. Now an ancestor
+   hitbox joins only when its `layer` equals the target's (`IX-D` item 1
+   amended). **Evidence**: new probe
+   `docs/probes/swiftui-gesture-presentation-arena.swift`, run twice,
+   byte-identical, screen locked (the synthesized-click harness works locked;
+   the presentation's own hosting view needed its `acceptsFirstMouse(for:)`
+   replaced, without which every S/V arm — controls included — read `-`, a
+   broken instrument discarded rather than read). An `.overlay` is in its
+   presenter's arena (P1 `presenter-high`, P2 `presenter-sim,modal`); a
+   `.sheet`'s or `.popover`'s content is not (S1/S2 and V1/V2 read exactly
+   their controls S0/V0, `modal`). A MetalUI `Deferred` is the presentation
+   shape (a portal to the root layer, the scrim and modal's spelling), not the
+   overlay's (`.overlay` is `OverlayModifier`, same layer, unaffected). An
+   in-flow `Deferred` (a tooltip) takes the same rule: it too is hoisted.
+   Nothing in the repository's trees attaches a gesture yet, so no existing
+   behaviour moves; the demo has none (0 px by construction).
+2. **Five clauses the lane stated and no test saw are pinned**, each by a test
+   its mutation reddens (table in `IX-P`, rows V2–V7): the arena's region
+   clause (1.25, a child overflowing a 50-wide gesture-carrying `.frame`);
+   `IX-P` item 4's abandon clause (1.26, a single tap beside a double ends at
+   a press on another target within the deferral); `Hitbox.origin` for a
+   content-shape inset (1.27, a drag's `startLocation` is the element's
+   (100, 100), not the inset region's (80, 80)); a tap released outside its
+   element inside the slop (1.28, pressed at x 248 and released at 252 on a
+   root ending at 250).
+3. **`GestureModifier` is a handler-registering site with its own gate arm**:
+   `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` gains `gesture`
+   (the proposal `GestureModifier`) and `gesture-legacy` (a `Box`'s
+   `onTapGesture`, which rides the layer's `Handlers` and is gated centrally),
+   and 1.19 gains a proposal `allowsHitTesting(false)` arm with its enabled
+   control — as CLAUDE.md "Environment" requires of a new site.
+
+**Red first.** 1.24 was committed red (`573ef7e`: high priority read
+`["root"]`, simultaneous `["root", "modal"]`) and greened by the layer check
+(`ee92939`). 1.25–1.28 and the gate arms pin behaviour lane 1 already had;
+each was shown red by its mutation (V2–V7), each applied to `ee92939`,
+restored from a copy, the whole suite run unfiltered (1803 each time), `git
+status --short` empty after every one; no mutation reddened a test it was not
+aimed at.
+
+**Counts.** `swift build --build-system native --build-tests`: 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice. Unfiltered `swift test
+--build-system native --no-parallel`: **`Test run with 1803 tests in 3 suites
+passed`** (1798 + 1.24–1.28; the gate arms extend two existing tests), the log
+carrying `FR-J no-argument frame: succeeded=`. Guards unmoved (110). `swift build --build-tests` under the default build system: 0 `warning:`.
+
+**Cost if wrong.** One comparison in `makeGestureArena`; if a presentation
+should join its declarer's arena after all, delete `$0.layer == hit.layer` and
+invert 1.24's two modal expectations.
