@@ -299,8 +299,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   `MUIRect` (its unused `_reserved` word renamed `shape`, stride and every
   recorded scene's bytes unchanged) and `MUIImage` sampling a `Scene`-carried
   texture, cached by identity and released when a frame's scene no longer
-  references it — both checked byte-for-byte (frame 6) through the SDL
-  replay-parity harness on Metal, llvmpipe and D3D12; everything else SwiftUI
+  references it — both checked (frame 6) through the SDL replay-parity
+  harness: 0 px on SDL's Metal backend, within `ParityTolerance` on Mesa
+  llvmpipe, D3D12 re-confirming on push; everything else SwiftUI
   offers here (continuous corners, an ellipse clip, crossing rounded clips,
   `.interpolation(.high)`, `Path`, gradients, `StrokeStyle`, SF Symbols, a
   labelled image) is a documented renderer constraint (spec §9), divergences
@@ -2173,10 +2174,11 @@ gone, so no report in the kernel names this task as an owner any more.
 decides the surface, not the other way round (`TE-AD`): a new drawable
 capability is added only when both `Sources/MetalUIRender/Shaders/shaders.metal`
 and `Backends/SDL/Shaders/replay.hlsl` gain it identically, checked
-byte-for-byte through the SDL replay-parity harness (`ReplayFixture`,
+through the SDL replay-parity harness (`ReplayFixture`,
 `Experiments/SDLGPU`'s `Replay --portable --record`, `PortableReplay`,
-`.github/workflows/sdl-gpu-linux.yml`'s `--expect N`) on Metal, llvmpipe and
-D3D12 — **every new primitive renders identically on both renderers, or it
+`.github/workflows/sdl-gpu-linux.yml`'s `--expect N`) — 0 px on SDL's Metal
+backend, within `ParityTolerance` on llvmpipe and D3D12 (CI, on push) —
+**every new primitive renders identically on both renderers, or it
 is a documented renderer constraint** (spec §9 of the relevant design,
 `docs/superpowers/specs/2026-09-28-shapes-and-rendering-design.md` §9 for
 this part's own table), never a silent approximation. `Shape` is

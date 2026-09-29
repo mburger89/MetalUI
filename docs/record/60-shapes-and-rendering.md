@@ -496,10 +496,14 @@ SwiftPM deprecation `warning:`; `swift build --build-tests` (default build
 system) → 0 `error:`, 0 `warning:`. Unfiltered `swift test --build-system
 native --no-parallel` → **`Test run with 1763 tests in 3 suites passed after
 108.877 seconds`**, one summary line, the `FR-J no-argument frame:
-succeeded=true` line present (guards ran). **1763 = 1706 + 12 + 25 + 15 + 1 +
-1 + 1 + 1 + 1**: §3's 12, §4's 23 + 2 fix-round (25), §5's 12 + 2 traps + 1
-guard (15) plus the fix round's 3.12c (1) — the same arithmetic as §3–§5's
-own close paragraphs, re-verified rather than re-derived. `goldensUnchanged`
+succeeded=true` line present (guards ran). **1763 = 1706 + 12 + 25 + 4 + 15 +
+1**: §3's 12, §4's 23 tests + 2 guards (25) and its fix round's 4, §5's 12 +
+2 traps + 1 guard (15), and §5's fix round's 3.12c (1) — the same arithmetic
+as §3–§5's own close paragraphs (1718, 1743, 1747, 1762, 1763), re-verified
+rather than re-derived. *(Corrected by the branch check: this paragraph first
+read "1706 + 12 + 25 + 15 + 1 + 1 + 1 + 1 + 1" with §4's 25 explained as
+"23 + 2 fix-round" — the total was right, the explanation miscounted §4's
+two guards as its fix round and left four `+ 1` terms unexplained.)* `goldensUnchanged`
 for the whole part: 0 goldens throughout (`find Tests/MetalUILayoutTests -name
 "*.json" | wc -l` reads 0); no `@Test` was removed by any lane (the T rows —
 one in §3, one in §4, one in §5 — are retained tests with a re-derived or
@@ -597,7 +601,11 @@ check across design, the critic round and all three lanes, and now at this
 close too; the real-window capture stays owed, as it has since task 8.
 
 **Lane 1's four open items, disposed** (none blocks the tick — each is a
-test-coverage gap or a latent contract note, not a defect; `ok: true` stands):
+test-coverage gap or a latent contract note, not a defect; `ok: true` stands).
+*(Branch-check note: the mutation labels in items 1–3 — S-A, V1, V6, V7, V8,
+V9 — are lane 1's verifier's own, not rows of §3's M1 table, and are recorded
+nowhere else; §5's V5 and V9 are lane 3's fix-round labels, a different
+mutation under the same name. Item 2's "V9" is not §5's V9.)*
 
 1. **SDL texture-eviction leak, untested.** Removing the release call in
    `SDLWindowRenderer.prepareTextures` (mutation S-A) leaves the whole

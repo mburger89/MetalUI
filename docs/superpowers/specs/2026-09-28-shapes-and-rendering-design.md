@@ -3,7 +3,7 @@
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
 Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AV`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed, lane 2's `TE-AS` §4, §5 and §8, lane 3's `TE-AU` §4, §5, §8 and §10). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
+(next unused **`TE-AW`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed, lane 2's `TE-AS` §4, §5 and §8, lane 3's `TE-AU` §4, §5, §8 and §10, the Record phase's `TE-AV` closes the task). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
 (**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
@@ -531,7 +531,8 @@ Full unfiltered suite, summary line read (≈ **1756** = 1706 + 12 (lane 1)
 + 23 + 2 guards (lane 2) + 12 + 1 guard (lane 3); G3.1 renames a guard,
 adding none; the `Backends/SDL` rows are outside this count; the lanes give
 the exact figure — **as landed 1762** = 1706 + 12 + (25 + 4, `TE-AT`) + (14 +
-1, `TE-AU` item 2)), guards **108**, `FR-J` line present, 0 `error:`, one
+1, `TE-AU` item 2), and **1763** after lane 3's fix round added 3.12c (record
+§60 §5, §6)), guards **108**, `FR-J` line present, 0 `error:`, one
 `warning:`; fourteen images 0 px; the probe re-run byte-identical to its
 header; `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds and tests;
 `Replay --portable` 7 frames PASS, `PortableReplay --expect 7` and

@@ -1266,8 +1266,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   fit-fill; `aspectRatio(_:contentMode:)` with no ratio measuring the
   child's own ideal (`TE-AM`); `gridCellAnchor` taking a plain `UnitPoint`
   (`TE-AN`, retiring divergence 64). Two renderer primitives, both checked
-  byte-for-byte on Metal, llvmpipe and D3D12 through the SDL replay-parity
-  harness's new frame 6: an ellipse kind on `MUIRect` (its unused
+  through the SDL replay-parity harness's new frame 6 — 0 px on SDL's Metal
+  backend, within `ParityTolerance` on Mesa llvmpipe, D3D12 re-confirming on
+  push: an ellipse kind on `MUIRect` (its unused
   `_reserved` word renamed `shape`, the struct's stride and every recorded
   scene's bytes unchanged, `TE-AE`) and `MUIImage` sampling a `Scene`-carried,
   identity-cached, evict-when-unreferenced texture (`TE-AF`). Everything
@@ -1286,8 +1287,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `swift:6.4-noble` container (199 + 22 + 10; `Tests/PortableTests`
   21 + 6 + 5), named four lane-1 test-coverage gaps as owed (none blocking:
   an untested SDL texture-release count, three Metal shader facts pinned
-  only by the parity job, and a latent per-window Metal texture-cache note
-  for a future multi-window image consumer), and corrected a part-1
+  only by the parity job, two `TE-AR` claims stated but untested — a
+  wide-band ellipse fill and empty-scene texture eviction — and a latent
+  per-window Metal texture-cache note for a future multi-window image
+  consumer), and corrected a part-1
   documentation slip found in passing (`Tests/PortableTests` reads
   21 + 6 + 5, not 20 + 6 + 5 — `TE-AV`). The real-window capture stays owed
   (screen locked at every check across design, the critic round and all
