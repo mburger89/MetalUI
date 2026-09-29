@@ -1,8 +1,8 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-X`;
-next unused is **`TE-Y`**. A bare `TE-3` is a typo, not a citation. **A round
+on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-AA`;
+next unused is **`TE-AB`**. A bare `TE-3` is a typo, not a citation. **A round
 that appends a ruling moves this line in the same commit.**
 
 **Status, 2026-09-28: DESIGNED; critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
@@ -1184,3 +1184,127 @@ would now align by it inside a baseline `HStack`; a grid cell that grows in
 its slot would misreport the grid's baseline by that growth — both only
 under a baseline alignment, which nothing in the demo or the repo's trees
 writes.
+
+---
+
+## TE-Y — the height census, as landed: no image of the fourteen moves; the cross-platform demo frame and one real-window look do, and two more tests re-answer (lane 3)
+
+**Evidence.** The `TE-R` item 2 census (`docs/probes/text-semantics-height-census.patch`,
+record §59 §4.1), taken before any source change over every tree and size
+the fourteen offscreen images use, the 920×560 window in every demo state and
+the controls demo, all through CoreText: **one row** — `demoMainPane()`'s
+wrapping paragraph ("CoreText shapes this paragraph…") under the **A** state
+at 920×560, placed at (524, 68.5) against its natural 80. After the
+implementation the full suite found a second configuration the census had not
+covered: `theDemoFrameMatchesTheValuesRecordedOnMacOS` (`XP-C`) renders
+`demoContent()` through the **portable** system on **Noto Sans** at 920×560,
+whose 18 pt line makes the same paragraph taller; the instrument, extended to
+that configuration and re-run (record §59 §4.3), read the same paragraph at
+(648, 66.5) against 72 at scales 1 and 2, and nothing else. The fourteen
+images read 0 px against `169d166` (record §59 §4.4).
+
+**The ruling.**
+
+1. **No image of the fourteen moves**, as the census predicted.
+2. **`Expected.swift` is re-recorded** (the only named change that moves it):
+   the portable Noto Sans demo frame draws the paragraph in **three** lines,
+   the third ending in `…`, where it drew four — 34 glyphs out, the token in,
+   15710 → 15677 glyphs — and the 18 pt it releases goes to the `ScrollView`
+   box below it in the same column, which grows 61 → 79 and moves up 18, so
+   its 500 content rects and their glyphs move up 18 (36 at scale 2). Nothing
+   else moves: a scene diff between `169d166` and the lane's commit, both
+   scales, explains every rect and glyph by those two causes (record §59
+   §4.4). SwiftUI's answer (`TE-H` item 2, `TE-R` item 1). Linux and Windows
+   CI owe the confirmation on push; `Backends/SDL`'s `PortableReplay` frame 5
+   and `DemoCapture` render the same configuration and are re-checked (record
+   §59 §4.5).
+3. **A real-window look is owed**: under **A** at the demo's own 920×560 the
+   paragraph draws four lines where it drew five. Not one of the fourteen
+   (their animation images are 1024², where the paragraph fits); added to the
+   still-owed real-window capture (record §03, Record phase).
+4. **Two existing tests re-answer, each a T row** (`TE-R` item 4) with its
+   retirement row in record §59 §4:
+   `aProposalTextInAStackIsShapedOncePerDistinctWidth` (a capped answer is a
+   second seam question at the same width, and paint asks `measure` before it
+   places: 12/12 → 13/16 at the finite root, 12/21 → 15/27 in the scroll
+   viewport, each re-derived by hand in its doc comment), and
+   `proposalTextUsesWidthDrivenSwiftUIMeasurement` (its "a height proposal
+   does not truncate" arm asserted the claim L5 refutes; now one line at
+   (30, 12), and a height of the run's own lines caps nothing). Together with
+   spec 3.11 and 3.12 that is **four** T rows for the lane, where spec §8 named
+   two.
+
+**Cost if wrong.** A production text squeezed below its lines in a stack now
+truncates; the remedy is room or a limit, as in SwiftUI. The paragraph is the
+only production text the census found squeezed.
+
+---
+
+## TE-Z — a text beside a `Spacer` is served before the spacer's share: divergence 89 (lane 3)
+
+**Evidence.** `swiftui-text-in-stacks.swift` K1 and K4 (`VStack(spacing: 0)
+{ Text(paragraph); Spacer() }` 100 wide: one line at 60, three at 100 — the
+height split evenly — with `minLength: 0` the same) against
+`swiftui-stack-algorithms.swift` SP8 (`HStack(0){a20; Spacer(); b20}` at 200:
+a and b offered (200 − 8) / 2 = 96, the spacer's minimum reserved first —
+`CN-C`'s priority −∞). Under the kernel's one rule a text beside a bare
+spacer is a group of one offered everything but the spacer's minimum: spec
+3.23's arms read **3** lines at 60 (52 offered) and **5** at 100 (92), where
+SwiftUI draws 1 and 3; K2 (a rigid 40-tall block beside the text, 2 lines at
+80) and K3 (two texts) agree, and so do the 200 arms (6 lines). `TE-R`'s "K1–K4
+are exactly that rule … needs no new mechanism" is wrong for the two spacer
+arms: SP8 and K1 cannot both hold under one priority rule, and which
+mechanism SwiftUI uses to reconcile them is unmeasured.
+
+**The ruling.** **Divergence 89, added, kept, owner none**: a wrapping text
+beside a bare `Spacer` in a height-limited stack is offered the height less
+the spacer's minimum (`CN-C`), where SwiftUI shares the height with the spacer.
+Changing `CN-C`'s priority would move every spacer allocation the demo's
+images rest on and is a stack question, not part of task 11's text; the
+line-limit rule itself (`TE-H` item 2) is unchanged. Pinned by spec 3.23's two
+spacer arms at MetalUI's answer (3 and 5 lines), its 200 arm and its K2 arms at
+SwiftUI's. Live count **64 → 65**; next label **90**.
+
+**Cost if wrong.** A paragraph above a `Spacer` in a short stack keeps more
+lines than in SwiftUI, and the spacer shrinks to its minimum; nothing
+overflows that did not before.
+
+---
+
+## TE-AA — the element surface, as landed (lane 3)
+
+**Evidence.** Spec rows 3.1–3.23 (record §59 §4), probe arms cited per item.
+
+**The ruling** (each a reading the design left implicit):
+
+1. **Weight precedence**: the text's own `fontWeight`, else the environment's,
+   else the font's own weight, else the text style's (headline bold, caption2
+   medium) — F6d, F2f, X1c. A `nil` own weight inherits the container's
+   (spec 3.4's arm).
+2. **Italic is additive**: the font's, the text's own or the environment's
+   (the nearest writer's `Bool`) makes it italic; `italic(false)` on a `Text`
+   adds nothing, so an italic font stays italic — SwiftUI's parameter is
+   "whether italic styling is added". Unprobed beyond F4/X2b.
+3. **An empty string reserves nothing** (X10: `Text("")` under
+   `lineLimit(2, reservesSpace: true)` is SwiftUI's one-empty-line height,
+   not two lines); implemented and pinned in spec 3.10. MetalUI's empty line
+   is its own 16 pt line (divergence 86), unchanged.
+4. **The line cap at paint** is re-derived from the placed node's rect height
+   (the leaf's, or a padded text's leaf, or the frame a declared size lowers
+   to) with the same function as measurement (`textLines`), so a text whose
+   rect is its answer draws exactly the lines measured and a reserved or
+   framed box caps nothing more. Its first `measure` repeats layout's shaping
+   key, so paint adds a cache lookup, not a shape, unless a cap applies
+   (`TE-Y` item 4).
+5. **`TextField`/`TextEditor` resolve through the same function** with only
+   their own font request — so an environment `fontWeight`/`italic` reaches
+   them too, as `.font(_:)` does; their colour stays their own (`TE-D`).
+6. **The `dynamicTypeSize` answer is unchanged by construction**: `Font`'s
+   text-style table has no size column (`TE-E`), pinned by spec 3.9.
+7. **`TextFontRequest.familyAndSize`** gives `fontFamily`/`fontSize` for a
+   text-style font too (`.title` reads `nil`/22); a write replaces the whole
+   request, weight and design included, with `.custom`/`.system` (`TE-B`
+   item 5).
+
+**Cost if wrong.** Each item is one line in `TextStyleResolution.swift` or
+`Font.swift`; a probe that separates it changes one test arm.

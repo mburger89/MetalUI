@@ -16,8 +16,10 @@
 // item 2), and in this configuration — Noto Sans through the portable system
 // at 920×560 — the main pane's wrapping paragraph is placed at (648, 66.5)
 // against its natural 72 (four 18 pt lines), so it draws three, the third
-// truncated with `…`: 15710 → 15677 glyphs. Every rect and every other glyph
-// is unmoved (record §59 §4's scene diff). The values before: scale 1
+// truncated with `…` (34 glyphs out, the token in: 15710 → 15677), and the
+// 18 pt it releases goes to the `ScrollView` box below it, which grows by 18
+// and moves up 18 with its content (500 rects and their glyphs). Nothing else
+// moves (record §59 §4.4's scene diff). The values before: scale 1
 // `0x93022181f7ac03d7` / `0x583ae5dca644fe93`, scale 2 `0x7000ee7e5d7a4bb9` /
 // `0xd5a9cf3e477fb669`, 15710 glyphs.
 let expectedDemoFrames: [(Float, DemoFrame)] = [
