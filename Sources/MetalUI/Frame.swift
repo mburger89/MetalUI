@@ -1861,9 +1861,10 @@ public final class Frame {
 
     func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                   spacing: Double? = 0,
-                                  alignment: ProposalAlignment = .center) -> LayoutNodeID {
+                                  alignment: ProposalAlignment = .center,
+                                  baseline: ProposalTextBaseline? = nil) -> LayoutNodeID {
         tree.newNativeLinearStack(children: children, axis: axis, spacing: spacing,
-                                  alignment: alignment)
+                                  alignment: alignment, baseline: baseline)
     }
 
     func requestNativeLayout(_ layout: some ProposalLayout,

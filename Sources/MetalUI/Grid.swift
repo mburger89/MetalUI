@@ -160,6 +160,9 @@ public struct GridRowLayout<ContentLayout> {
 /// `alignment` is a ``VerticalAlignment``: a row aligns its cells on the vertical
 /// axis only, so `GridRow(alignment: .leading)` does not compile (guard
 /// `aGridRowAlignmentIsAVerticalAlignment`), as `HStack`'s does not.
+/// `.firstTextBaseline`/`.lastTextBaseline` compile — the parameter is
+/// SwiftUI's type — and **trap at registration** (divergence 88, ruling TE-K
+/// item 4; `aGridRowWithATextBaselineAlignmentTraps`).
 ///
 /// **Every proposal modifier on a MULTI-CELL row traps** (divergence `GR-O` 6):
 /// `ModifiedContent` and `OnTapModifier` each precondition exactly one native
@@ -194,6 +197,10 @@ public struct GridRow<Content: ProposalElementGroup>: ProposalElementGroup {
         // AFTER the content, so an inner row's mark is already written and this
         // one overwrites it (ruling GR-T). `cells` may be empty: an empty row is
         // no row at all (GA7).
+        precondition(alignment?.textBaseline == nil, """
+            GridRow cannot align its cells by a text baseline (divergence 88, ruling TE-K item 4): \
+            SwiftUI keeps the row's height and overflows its cells, which MetalUI does not reproduce
+            """)
         pass.markNativeGridRow(nodes, alignment: alignment?.proposalAlignment)
         return (nodes, GridRowLayout(id: id, content: contentLayout))
     }

@@ -172,8 +172,9 @@ extension ElementGroup {
 
     /// Sets `controlSize`, SwiftUI's spelling of
     /// `.environment(\.controlSize, size)` (ruling EV-AC, probe
-    /// `swiftui-environment-control-state.swift` Z1). Carried; no built-in
-    /// element reads it (divergence 76).
+    /// `swiftui-environment-control-state.swift` Z1). Read by `Button`'s
+    /// chrome and by the default font of every text element (TE-F; divergence
+    /// 76, amended).
     public func controlSize(_ size: ControlSize) -> EnvironmentScope<Self> {
         environment(\.controlSize, size)
     }

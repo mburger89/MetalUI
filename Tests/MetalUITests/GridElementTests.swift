@@ -1224,3 +1224,41 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
                 "row \(row) recorded bounds: \(String(describing: frame.elementBounds[rowID]))")
     }
 }
+
+// MARK: - plan task 11 part 1, 2.8 — a grid row's text baselines
+
+/// **2.8** (exit test; ruling TE-K item 4, divergence 88). `GridRow(alignment:
+/// .firstTextBaseline)` and `.lastTextBaseline` trap at registration, naming
+/// the divergence: SwiftUI keeps the row's own height and lets a cell overflow
+/// it (`swiftui-text-semantics.swift` X11: the 26 pt cell at y −12 in a 16-tall
+/// row), which no rule measured reproduces — the explicit "not supportable
+/// yet". `GridRow`'s parameter is SwiftUI's `VerticalAlignment`, so the cases
+/// cannot be withheld from it alone. The control: `.top` renders.
+@Test func aGridRowWithATextBaselineAlignmentTraps() async {
+    do {
+        let first = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            await MainActor.run {
+                let probe = CellProbe()
+                _ = laidOut(100, 100) { Grid { GridRow(alignment: .firstTextBaseline) { probe.fx("a", 10, 10) } } }
+            }
+        }
+        let firstErr = String(decoding: first?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(firstErr.contains("GridRow cannot align its cells by a text baseline (divergence 88"),
+                "aborted, but not at the grid row's baseline check:\n\(firstErr)")
+        let last = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            await MainActor.run {
+                let probe = CellProbe()
+                _ = laidOut(100, 100) { Grid { GridRow(alignment: .lastTextBaseline) { probe.fx("a", 10, 10) } } }
+            }
+        }
+        let lastErr = String(decoding: last?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(lastErr.contains("GridRow cannot align its cells by a text baseline (divergence 88"),
+                "aborted, but not at the grid row's baseline check:\n\(lastErr)")
+        await #expect(processExitsWith: .success) {
+            await MainActor.run {
+                let probe = CellProbe()
+                _ = laidOut(100, 100) { Grid { GridRow(alignment: .top) { probe.fx("a", 10, 10) } } }
+            }
+        }
+    }
+}

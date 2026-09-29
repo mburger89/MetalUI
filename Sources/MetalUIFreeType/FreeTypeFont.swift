@@ -101,6 +101,21 @@ public final class FreeTypeFont {
         face.pointee.family_name.map { String(cString: $0) } ?? ""
     }
 
+    /// The face's style name (`FT_Face.style_name`), e.g. `"Bold Italic"`.
+    public var styleName: String {
+        face.pointee.style_name.map { String(cString: $0) } ?? ""
+    }
+
+    /// The face's OS/2 `usWeightClass` and `usWidthClass` (ruling TE-W), or 0
+    /// for a face with no OS/2 table.
+    public var weightAndWidthClass: (weight: Int, width: Int) { Self.classes(of: face) }
+
+    static func classes(of face: FT_Face) -> (weight: Int, width: Int) {
+        guard let table = FT_Get_Sfnt_Table(face, FT_SFNT_OS2) else { return (0, 0) }
+        let os2 = table.assumingMemoryBound(to: TT_OS2.self).pointee
+        return (Int(os2.usWeightClass), Int(os2.usWidthClass))
+    }
+
     /// The face's PostScript name, e.g. `"NotoSans-Regular"` — `FontKey`'s
     /// first component (FT-F).
     public var postScriptName: String { key.postScriptName }
@@ -164,13 +179,22 @@ public struct FreeTypeFaceNames: Equatable, Sendable {
     public let full: String
     /// The style, e.g. `"Regular"`, `"Bold Italic"` (`style_name`).
     public let style: String
+    /// OS/2 `usWeightClass` (100…900; 0 when the face has no OS/2 table) —
+    /// with ``style`` and ``widthClass``, what a resolver selects a weight by
+    /// without the face's bytes (ruling TE-W, SF-B).
+    public let weightClass: Int
+    /// OS/2 `usWidthClass` (1…9, 5 normal; 0 when absent).
+    public let widthClass: Int
 
-    public init(faceIndex: Int, postScript: String, family: String, full: String, style: String) {
+    public init(faceIndex: Int, postScript: String, family: String, full: String, style: String,
+                weightClass: Int = 0, widthClass: Int = 0) {
         self.faceIndex = faceIndex
         self.postScript = postScript
         self.family = family
         self.full = full
         self.style = style
+        self.weightClass = weightClass
+        self.widthClass = widthClass
     }
 
     /// Every scalable face in the file at `path` with a PostScript name, in
@@ -198,7 +222,9 @@ public struct FreeTypeFaceNames: Equatable, Sendable {
                 faceIndex: index, postScript: postScript,
                 family: face.pointee.family_name.map { String(cString: $0) } ?? "",
                 full: FreeTypeFont.name(id: 4, of: face),
-                style: face.pointee.style_name.map { String(cString: $0) } ?? ""))
+                style: face.pointee.style_name.map { String(cString: $0) } ?? "",
+                weightClass: FreeTypeFont.classes(of: face).weight,
+                widthClass: FreeTypeFont.classes(of: face).width))
         }
         return names
     }

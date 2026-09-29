@@ -289,7 +289,9 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 ///   — the legacy engine stretches the second child to 10 tall;
 /// - single-child stretch with a declared cross size (`.height(30)`):
 ///   `alignItems.stretch`;
-/// - `.baseline`: `alignItems.baseline`;
+/// - `.baseline`: `alignItems.baseline` — until plan task 11 (ruling TE-L, spec
+///   2.12, a T row): a row now lowers it as first-baseline alignment and a column
+///   as `flexStart`, and only a `display: .stack` container still reports it;
 /// - (history: `.wrap` reported `flexWrap` and an `alignContent` reported
 ///   `alignContent` until stage 10 deleted both fields, `LR-FN`);
 /// - a main-axis gap in percent: `gap.percent` (a cross-axis percent gap is read by
@@ -347,6 +349,13 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// `alignContent` arms go with their fields, and the "border percent on a
 /// container" arm becomes "padding percent on a container" (`box.padding.percent`)
 /// — the every-node row stays represented. Sixteen arms become fourteen.
+///
+/// **Plan task 11 part 1** (ruling TE-L, spec 2.12, a T row): the `baseline`
+/// arm becomes a row-lowering and a column-lowering arm, each reporting
+/// nothing, and a `display: .stack` arm that still reports `box.alignItems.baseline`
+/// — fourteen arms become sixteen. Mutations **M2m** (the flex container's
+/// `alignItems.baseline` row restored) and **M2n** (the stack branch's row
+/// deleted) each redden their arm.
 @MainActor
 @Test func everyContainerFieldEitherLowersOrIsReportedByName() throws {
     let single = LayoutDifferential.report(width: 100, height: 100) { Box { fixed(20, 10) } }
@@ -448,8 +457,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         ("sized spaceEvenly (lowered since lane 5)", sizedEvenly.unlowerable, []),
         ("rowReverse (lowered since lane 5)", rowReverse.unlowerable, []),
         ("columnReverse (lowered since lane 5)", columnReverse.unlowerable, []),
-        ("baseline", report { Row { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) },
-         [field(.box, "alignItems.baseline")]),
+        ("baseline on a row (lowered as first-baseline alignment since plan task 11, TE-L)",
+         report { Row { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) }, []),
+        ("baseline on a column (lowered as flexStart since plan task 11, TE-L)",
+         report { Column { fixed(20, 10); fixed(30, 10) }.alignItems(.baseline) }, []),
+        ("baseline on a display: .stack container (refused by name, TE-L, TE-S item 2)",
+         report { Box(style: { var s = Style(); s.display = .stack; s.alignItems = .baseline; return s }()) {
+             fixed(20, 10); fixed(30, 10)
+         } }, [field(.box, "alignItems.baseline")]),
         ("row main-axis gap percent",
          report { Box(style: percentGap(Axes(horizontal: .percent(0.1), vertical: .pixels(px(4))))) {
              fixed(20, 10); fixed(30, 10)
@@ -470,7 +485,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
          []),
     ]
-    try #require(arms.count == 14)
+    try #require(arms.count == 16)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
@@ -632,6 +647,12 @@ private func mixedTree() -> some ElementGroup {
             == [bounds(0, 0, 80, 18), bounds(4, 4, 10, 10), bounds(24, 4, 10, 10)], "half-way")
 }
 
+/// **Plan task 11 part 1** (ruling TE-X item 3, a T row): a flex container's
+/// `alignItems.baseline` lowers since TE-L, so this container now declares
+/// ONE container row a flex container can still raise (`gap.percent`) and the
+/// two every-node rows; its `alignItems` stays `.baseline`, which must now add
+/// nothing to the report.
+///
 /// A container declaring two container rows (`gap.percent`, `alignItems.baseline`)
 /// and two every-node rows (`size.percent`, `inset`). **Re-spelled in stage 2,
 /// lane 1** from `margin` and `flexGrow`, item fields its parent reads since then
@@ -652,10 +673,11 @@ private func fourFieldContainer() -> some ElementGroup {
 }
 
 /// **3.9.** `LR-Y`'s report order: a container's rows in §5.4's table order, then
-/// the every-node rows in theirs — `[gap.percent, alignItems.baseline,
-/// size.percent, inset]` since stage 10 (`[gap.percent, flexWrap, position,
-/// inset]` until then) — and in production (diagnostics off) the trap names the
-/// **first**, `box.gap.percent`.
+/// the every-node rows in theirs — `[gap.percent, size.percent, inset]` since
+/// plan task 11 (TE-X item 3: the flex container's `alignItems.baseline` lowers),
+/// `[gap.percent, alignItems.baseline, size.percent, inset]` from stage 10,
+/// `[gap.percent, flexWrap, position, inset]` before — and in production
+/// (diagnostics off) the trap names the **first**, `box.gap.percent`.
 ///
 /// Mutation that must redden it: **V2**, `legacyLeafDiagnostics(…) + fields` (the
 /// report reads `[size.percent, inset, gap.percent, alignItems.baseline]` and the
@@ -665,8 +687,8 @@ private func fourFieldContainer() -> some ElementGroup {
     let entries = LayoutDifferential.render(width: 100, height: 100) {
         fourFieldContainer()
     }.unlowerableFields
-    #expect(entries == [field(.box, "gap.percent"), field(.box, "alignItems.baseline"),
-                        field(.box, "size.percent"), field(.box, "inset")], "\(entries)")
+    #expect(entries == [field(.box, "gap.percent"), field(.box, "size.percent"), field(.box, "inset")],
+            "\(entries)")
 
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {

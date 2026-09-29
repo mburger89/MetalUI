@@ -26,9 +26,12 @@ let package = Package(
             .product(name: "MetalUIScene", package: "MetalUI"),
         ]),
         // PT-H. The whole portable text pipeline: string -> MUIGlyphs + atlas.
+        // TE-C: MetalUITextSystem for the layout options the truncation pins
+        // pass to `emitLines`.
         .testTarget(name: "PortableTextDeterminismTests", dependencies: [
             .product(name: "MetalUIPortableText", package: "MetalUI"),
             .product(name: "MetalUIScene", package: "MetalUI"),
+            .product(name: "MetalUITextSystem", package: "MetalUI"),
         ]),
     ]
 )

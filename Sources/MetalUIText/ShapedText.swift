@@ -1,5 +1,6 @@
 import CoreText
 import Foundation
+import MetalUITextSystem
 
 /// One display line: the `CTLine` CoreText produced for it, and how wide that
 /// line measures.
@@ -29,6 +30,25 @@ public struct ShapedLine {
     /// discussion quotes, so the two are comparable.
     public let advance: Double
 
+    /// The UTF-16 range of the shaped string this line stands for — the
+    /// range `CTLineGetStringRange` reports for a wrapped line, and for a line
+    /// a limit truncated (ruling TE-T item 5) everything from its start to the
+    /// string's end, which it stands for whatever part of it is drawn.
+    public let sourceRange: Range<Int>
+
+    /// `CTLineGetTrailingWhitespaceWidth`: the width of the whitespace that
+    /// hangs past the line's end — what alignment leaves out of the line's
+    /// width (ruling TE-J).
+    public let trailingWhitespace: Double
+
+    init(line: CTLine, advance: Double, sourceRange: Range<Int>? = nil) {
+        self.line = line
+        self.advance = advance
+        let range = CTLineGetStringRange(line)
+        self.sourceRange = sourceRange ?? range.location..<(range.location + range.length)
+        trailingWhitespace = CTLineGetTrailingWhitespaceWidth(line)
+    }
+
     // **The memberwise initialiser is internal on purpose, and the decision is
     // taken here rather than left to the first task that trips over it.** Both
     // fields are `public` so a consumer can walk a line's runs and place it —
@@ -56,10 +76,138 @@ public struct ShapedText {
     /// Uniform per spec §3.4, because a `Text` carries one font at one size
     /// (§2). Rich text makes line height per-line, and is out of M2.
     public let totalHeight: Double
+
+    /// Each line's x offset inside the text's box, in points (ruling TE-J):
+    /// `(box − (advance − trailingWhitespace)) × factor`, 0 for every line
+    /// under leading alignment — so the spelling without options places
+    /// exactly as it always did.
+    public let lineOffsets: [Double]
+
+    init(lines: [ShapedLine], widestLine: Double, totalHeight: Double, lineOffsets: [Double]? = nil) {
+        self.lines = lines
+        self.widestLine = widestLine
+        self.totalHeight = totalHeight
+        self.lineOffsets = lineOffsets ?? [Double](repeating: 0, count: lines.count)
+    }
 }
 
 /// Turns a string and a ``ResolvedFont`` into display lines.
 public enum Shaper {
+    /// `shape(_:font:wrappingAt:)` under a line limit, truncation and
+    /// alignment (ruling TE-C item 3).
+    ///
+    /// With more lines than `options.maxLines` (below 1 acts as 1): at a `nil`
+    /// width the first lines are kept and the rest cut (L4); at a width the
+    /// lines before the last kept one stand and the last is built from the
+    /// rest by ``truncatedLine(_:from:wraps:font:width:mode:)`` (rulings TE-C
+    /// item 3, TE-T). Each line's alignment offset is `(box − (advance −
+    /// trailing whitespace)) × factor`, `box` the width or, unwrapped, the
+    /// widest line (TE-J, measured on A5: a wrapped line centres without the
+    /// whitespace it ends in).
+    public static func shape(_ string: String, font: ResolvedFont, wrappingAt width: Double?,
+                             options: TextLayoutOptions) -> ShapedText {
+        let full = shape(string, font: font, wrappingAt: width)
+        var lines = full.lines
+        if let maxLines = options.maxLines.map({ max(1, $0) }), lines.count > maxLines {
+            if let width {
+                let last = lines[maxLines - 1].sourceRange
+                lines = Array(lines.prefix(maxLines - 1))
+                    + [truncatedLine(string, from: last.lowerBound, wraps: !endsParagraph(string, last),
+                                     font: font, width: width, mode: options.truncation)]
+            } else {
+                lines = Array(lines.prefix(maxLines))
+            }
+        }
+        let widest = lines.map(\.advance).max() ?? 0
+        let factor: Double = switch options.alignment {
+        case .leading: 0
+        case .center: 0.5
+        case .trailing: 1
+        }
+        let box = width ?? widest
+        return ShapedText(lines: lines, widestLine: widest,
+                          totalHeight: Double(lines.count) * font.metrics.lineHeight,
+                          lineOffsets: lines.map { factor == 0 ? 0 : alignmentOffset(box - ($0.advance - $0.trailingWhitespace), factor) })
+    }
+
+    /// `slack × factor`, rounded to 1/256 pt (ruling TE-U). Rounded because
+    /// the two text systems measure a line's width to within ~1e-13 pt, not
+    /// bit for bit, and an offset that differs in its last bit can move a pen
+    /// across a subpixel-variant boundary; on a 1/256 pt grid both systems
+    /// compute the same offset, and the pen arithmetic after it is the
+    /// unaligned pen's. The portable path's `PortableText.alignmentOffset` is
+    /// this function.
+    public static func alignmentOffset(_ slack: Double, _ factor: Double) -> Double {
+        (slack * factor * 256).rounded() / 256
+    }
+
+    /// Whether `line` (a range of `string`'s UTF-16 units) ends its paragraph:
+    /// its last unit is a hard break, or it reaches the string's end.
+    static func endsParagraph(_ string: String, _ line: Range<Int>) -> Bool {
+        let units = string.utf16
+        guard line.upperBound < units.count, let last = line.last else { return true }
+        return hardBreaks.contains(units[units.index(units.startIndex, offsetBy: last)])
+    }
+
+    /// UAX #14's hard-break characters (BK, CR, LF, NL) — the separators this
+    /// type's own doc lists as CoreText's.
+    static let hardBreaks: Set<UInt16> = [0x0A, 0x0B, 0x0C, 0x0D, 0x85, 0x2028, 0x2029]
+
+    /// The last line a limit keeps (ruling TE-T), from UTF-16 unit `start` of
+    /// `string`: built from the rest's first paragraph `P` (to the first hard
+    /// break, excluded, or the end), in a line of `P` alone.
+    ///
+    /// - The `…` token (U+2026, in `font`, CoreText's own fallback when the
+    ///   face lacks it) wider than `width`: the longest prefix of whole
+    ///   clusters that fits, at least one — `CTTypesetterSuggestClusterBreak`.
+    /// - `P` wraps (`wraps`): `CTLineCreateTruncatedLine` of `P` in `mode`.
+    /// - `P` fits, so text follows it: in tail mode a non-empty `P` takes the
+    ///   token anyway — `CTLineCreateTruncatedLine` of `P` followed by one
+    ///   glyph far wider than any width, so CoreText's own tail rule chooses
+    ///   the kept prefix; an empty `P`, and `P` in head and middle mode, is
+    ///   drawn whole (no token).
+    static func truncatedLine(_ string: String, from start: Int, wraps: Bool, font: ResolvedFont,
+                              width: Double, mode: TextTruncation) -> ShapedLine {
+        let source = string as NSString
+        var end = start
+        while end < source.length, !hardBreaks.contains(source.character(at: end)) { end += 1 }
+        let paragraph = source.substring(with: NSRange(location: start, length: end - start))
+        let fontKey = NSAttributedString.Key(kCTFontAttributeName as String)
+        let attributed = NSAttributedString(string: paragraph, attributes: [fontKey: font.ctFont])
+        let whole = CTLineCreateWithAttributedString(attributed)
+        let token = CTLineCreateWithAttributedString(NSAttributedString(string: "\u{2026}",
+                                                                        attributes: [fontKey: font.ctFont]))
+        let range = start..<source.length
+        func shaped(_ line: CTLine) -> ShapedLine {
+            ShapedLine(line: line, advance: CTLineGetTypographicBounds(line, nil, nil, nil), sourceRange: range)
+        }
+        let type: CTLineTruncationType = switch mode {
+        case .tail: .end
+        case .head: .start
+        case .middle: .middle
+        }
+        if CTLineGetTypographicBounds(token, nil, nil, nil) > width {
+            guard attributed.length > 0 else { return shaped(whole) }
+            let typesetter = CTTypesetterCreateWithAttributedString(attributed)
+            let count = max(1, CTTypesetterSuggestClusterBreak(typesetter, 0, width))
+            return shaped(CTTypesetterCreateLine(typesetter, CFRange(location: 0, length: count)))
+        }
+        if wraps {
+            return shaped(CTLineCreateTruncatedLine(whole, width, type, token) ?? whole)
+        }
+        // An EMPTY `P` takes no token in any mode, even with text after it
+        // (TE-T item 3, probe E5: SwiftUI draws "A" alone for "A\n\nB" at
+        // lineLimit(2), nothing for "\nB\nC" at lineLimit(1)).
+        guard mode == .tail, attributed.length > 0 else { return shaped(whole) }
+        // One glyph wider than any width follows `P`, in a run of its own (so
+        // it kerns with nothing), and is never kept.
+        let forced = NSMutableAttributedString(attributedString: attributed)
+        forced.append(NSAttributedString(string: "M", attributes: [
+            fontKey: CTFontCreateCopyWithAttributes(font.ctFont, 1e6, nil, nil)]))
+        let overflowing = CTLineCreateWithAttributedString(forced)
+        return shaped(CTLineCreateTruncatedLine(overflowing, width, .end, token) ?? whole)
+    }
+
     /// Shapes `string` in `font`, wrapping at `width`.
     ///
     /// `width: nil` means "no soft wrapping" — the max-content answer: **one

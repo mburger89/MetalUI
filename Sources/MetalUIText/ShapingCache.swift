@@ -1,4 +1,5 @@
 import Foundation
+import MetalUITextSystem
 
 /// A window-level cache over ``Shaper``, keyed on the CONTENT that determines
 /// a shape rather than on element identity (spec §3.2) — `(string, font,
@@ -48,21 +49,29 @@ public final class ShapingCache {
     /// fonts that shape differently under one equal `FontKey` share an entry,
     /// and the second is served the first's shape — reachable, and pinned
     /// wrong on purpose; see `fonts`.
+    ///
+    /// **`options` is part of the key** (ruling TE-C item 3): a line limit,
+    /// truncation mode or alignment is a different layout of the same string,
+    /// so `measure`, `placeGlyphs` and `lineRanges` under one set of options
+    /// read one entry and agree by construction.
     private struct Key: Hashable {
         var string: String
         var font: FontKey
         var width: Double?
+        var options: TextLayoutOptions
 
         static func == (lhs: Key, rhs: Key) -> Bool {
             lhs.string == rhs.string
                 && lhs.font == rhs.font
                 && lhs.width?.bitPattern == rhs.width?.bitPattern
+                && lhs.options == rhs.options
         }
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(string)
             hasher.combine(font)
             hasher.combine(width?.bitPattern)
+            hasher.combine(options)
         }
     }
 
@@ -251,17 +260,37 @@ public final class ShapingCache {
     /// probed standalone, they shaped Latin, Arabic, Devanagari, CJK and emoji
     /// to identical widths. Equal keys are not equal behaviour for every pair;
     /// see `fonts`.
+    ///
+    /// Since ruling TE-C the request also carries the descriptor's weight
+    /// (compared by `bitPattern` too), slope and design; the `(family, size)`
+    /// spelling is the descriptor with none of them.
     private struct FontRequest: Hashable {
         var family: String?
         var size: Double
+        var weight: Double?
+        var italic: Bool
+        var design: FontDesign
+
+        init(_ descriptor: FontDescriptor) {
+            family = descriptor.family
+            size = descriptor.size
+            weight = descriptor.weight
+            italic = descriptor.italic
+            design = descriptor.design
+        }
 
         static func == (lhs: FontRequest, rhs: FontRequest) -> Bool {
             lhs.family == rhs.family && lhs.size.bitPattern == rhs.size.bitPattern
+                && lhs.weight?.bitPattern == rhs.weight?.bitPattern && lhs.italic == rhs.italic
+                && lhs.design == rhs.design
         }
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(family)
             hasher.combine(size.bitPattern)
+            hasher.combine(weight?.bitPattern)
+            hasher.combine(italic)
+            hasher.combine(design)
         }
     }
 
@@ -303,9 +332,20 @@ public final class ShapingCache {
     /// for why it is not swept, and `Text.requestLayout` for the one caller
     /// that also needs ``registerFont(_:)``.
     public func resolveFont(family: String?, size: Double) -> ResolvedFont {
-        let request = FontRequest(family: family, size: size)
+        let request = FontRequest(FontDescriptor(family: family, size: size))
         if let font = resolvedFonts[request] { return font }
         let font = FontResolver.resolve(family: family, size: size)
+        resolvedFonts[request] = font
+        return font
+    }
+
+    /// ``FontResolver/resolve(_:)``, memoized per request (ruling TE-C item
+    /// 1) in the same never-swept memo as ``resolveFont(family:size:)``, whose
+    /// entries are this function's with no weight, slope or design.
+    public func resolveFont(_ descriptor: FontDescriptor) -> ResolvedFont {
+        let request = FontRequest(descriptor)
+        if let font = resolvedFonts[request] { return font }
+        let font = FontResolver.resolve(descriptor)
         resolvedFonts[request] = font
         return font
     }
@@ -318,9 +358,16 @@ public final class ShapingCache {
     /// look a font up *before* it has one to shape with (Task 4, across the
     /// isolation boundary) does.
     public func shaped(_ string: String, font: ResolvedFont, wrappingAt width: Double?) -> ShapedText {
+        shaped(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+
+    /// ``shaped(_:font:wrappingAt:)`` under a line limit, truncation mode and
+    /// alignment (ruling TE-C item 3), keyed on them too.
+    public func shaped(_ string: String, font: ResolvedFont, wrappingAt width: Double?,
+                       options: TextLayoutOptions) -> ShapedText {
         registerFont(font)
 
-        let key = Key(string: string, font: font.key, width: width)
+        let key = Key(string: string, font: font.key, width: width, options: options)
         // `index(forKey:)` plus an in-place `values[idx]` edit, rather than
         // reading the entry out and writing a whole new one back — measured,
         // the read-then-reassign form costs an extra ~0.11ms of a 4.5ms
@@ -334,7 +381,8 @@ public final class ShapingCache {
         }
 
         misses += 1
-        let result = Shaper.shape(string, font: font, wrappingAt: width)
+        let result = options == TextLayoutOptions() ? Shaper.shape(string, font: font, wrappingAt: width)
+            : Shaper.shape(string, font: font, wrappingAt: width, options: options)
         storage[key] = Entry(value: result, generation: currentGeneration)
         return result
     }

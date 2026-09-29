@@ -229,3 +229,29 @@ private func caret(_ platform: FakePlatformWindow) throws -> Bounds<Pixels> {
         #expect(notes.text.contains("\nxline \(1 + lines.linesPerPage)\n"))
     }
 }
+
+/// The merge with plan task 11 part 1 (`TE-F` item 2): the editor's font now
+/// resolves through the environment, so `.controlSize(_:)` on a container
+/// changes its default font (`.mini` is 9 pt; `.large` is 13 pt, as regular). A page (TI-I) is measured in that font's lines —
+/// the heights the editor hands the page keys come from the resolved face, not
+/// a fixed 13-point one.
+@Test @MainActor func aPageIsMeasuredInTheEnvironmentsResolvedFont() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    func pageModel(_ size: ControlSize) throws -> (TextLineModel, Double) {
+        let notes = Notes((1...40).map { "line \($0)" }.joined(separator: "\n"))
+        let (window, _) = try makeFakeWindow(device: device, size: 160) {
+            Box { Box { TextEditor("Notes", text: notes.text) { notes.text = $0 } }.controlSize(size) }
+        }
+        window.drawFrameIfNeeded()
+        let (bounds, t) = try target(window)
+        let lines = try #require(t.lines)
+        #expect(lines.visibleHeight == Double(bounds.size.height.value))
+        return (lines, t.lineHeight)
+    }
+    let (regular, regularLine) = try pageModel(.regular)
+    let (mini, miniLine) = try pageModel(.mini)
+    try #require(miniLine < regularLine, "the mini control size's default font (9 pt) is shorter: \(miniLine) vs \(regularLine)")
+    #expect(regular.lineHeight == regularLine && mini.lineHeight == miniLine)
+    #expect(mini.pageHeight == mini.visibleHeight - miniLine)
+    #expect(mini.linesPerPage > regular.linesPerPage, "\(mini.linesPerPage) vs \(regular.linesPerPage)")
+}

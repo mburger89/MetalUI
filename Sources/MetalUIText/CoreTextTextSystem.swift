@@ -18,14 +18,21 @@ public final class CoreTextTextSystem: TextSystem {
         self.cache = cache
     }
 
-    public func resolveFont(family: String?, size: Double) -> FontKey {
-        let font = cache.resolveFont(family: family, size: size)
+    public func resolveFont(_ descriptor: FontDescriptor) -> FontKey {
+        let font = cache.resolveFont(descriptor)
         cache.registerFont(font)
         return font.key
     }
 
-    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
-        let shaped = cache.shaped(string, font: registered(font), wrappingAt: width)
+    public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
+        let metrics = registered(font).metrics
+        return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
+                               lineHeight: metrics.lineHeight)
+    }
+
+    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> TextMeasurement {
+        let shaped = cache.shaped(string, font: registered(font), wrappingAt: width, options: options)
         return TextMeasurement(widestLine: shaped.widestLine, totalHeight: shaped.totalHeight)
     }
 
@@ -33,17 +40,16 @@ public final class CoreTextTextSystem: TextSystem {
         Shaper.caretOffsets(string, font: registered(font))
     }
 
-    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
-        cache.shaped(string, font: registered(font), wrappingAt: width).lines.map { shaped in
-            let range = CTLineGetStringRange(shaped.line)
-            return range.location..<(range.location + range.length)
-        }
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
+                           options: TextLayoutOptions) -> [Range<Int>] {
+        cache.shaped(string, font: registered(font), wrappingAt: width, options: options).lines.map(\.sourceRange)
     }
 
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                            options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let requested = registered(font)
-        return cache.shaped(string, font: requested, wrappingAt: width)
+        return cache.shaped(string, font: requested, wrappingAt: width, options: options)
             .placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
             .map { placed in
                 if placedFonts[placed.font.key] == nil { placedFonts[placed.font.key] = placed.font }
@@ -62,7 +68,7 @@ public final class CoreTextTextSystem: TextSystem {
     public func beginFrame() { cache.beginFrame() }
     public func endFrame() { cache.endFrame() }
 
-    /// The font `key` names, which ``resolveFont(family:size:)`` registered.
+    /// The font `key` names, which ``resolveFont(_:)`` registered.
     private func registered(_ key: FontKey) -> ResolvedFont {
         guard let font = cache.font(for: key) else {
             preconditionFailure("""

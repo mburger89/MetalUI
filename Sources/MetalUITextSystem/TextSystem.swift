@@ -11,18 +11,29 @@
 /// requests that resolve to one face are one font (the `FontKey` rule).
 @MainActor
 public protocol TextSystem: AnyObject, Sendable {
-    /// The face `family` names (`nil`: the system's default face) at `size`
-    /// points. A name that matches nothing substitutes a face; it never fails.
-    /// `size` must be finite and positive.
-    func resolveFont(family: String?, size: Double) -> FontKey
+    /// The face `descriptor` asks for (ruling TE-C item 1, TE-W): its
+    /// `family` (`nil`: the system's default face) at its `size` in points,
+    /// then the face of that family nearest its `weight`, then its italic
+    /// face, and, for the system face, its `design`. A name that matches
+    /// nothing substitutes a face; a weight, slope or design the family lacks
+    /// keeps the face it has — nothing is synthesised. It never fails. The
+    /// size must be finite and positive.
+    func resolveFont(_ descriptor: FontDescriptor) -> FontKey
+
+    /// `font`'s vertical metrics, in points (ruling TE-C item 2): the values
+    /// `measure` and `placeGlyphs` lay lines out with.
+    func fontMetrics(_ font: FontKey) -> TextFontMetrics
 
     /// `string` in `font`, wrapped at `width` points (`nil`: one line per hard
-    /// break).
-    func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement
+    /// break), laid out under `options` (ruling TE-C item 3): the widest kept
+    /// (or truncated) line, and `kept lines × lineHeight`.
+    func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
+                 options: TextLayoutOptions) -> TextMeasurement
 
-    /// Every glyph of `string` in `font` wrapped at `width`, in a text box
-    /// whose top-left is `origin` (points), placed at `scaleFactor`.
+    /// Every glyph of `string` in `font` wrapped at `width` under `options`, in
+    /// a text box whose top-left is `origin` (points), placed at `scaleFactor`.
     func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                     options: TextLayoutOptions,
                      origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph]
 
     /// The x offset, in points from the line's start, of every grapheme
@@ -43,8 +54,11 @@ public protocol TextSystem: AnyObject, Sendable {
     /// `width` (ruling TI-H), as UTF-16 ranges into `string`, each with its
     /// trailing whitespace and hard break — `CTLineGetStringRange`'s ranges.
     /// `nil` is one line per hard break; a trailing hard break opens no empty
-    /// line; an empty string is one empty line.
-    func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>]
+    /// line; an empty string is one empty line. Under a line limit (ruling
+    /// TE-C item 3), only the kept lines, the truncated last one standing for
+    /// the whole rest of the string (its range runs to the string's end).
+    func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
+                    options: TextLayoutOptions) -> [Range<Int>]
 
     /// The coverage for `key` — a key this system placed.
     func rasterize(_ key: GlyphKey) -> GlyphImage
@@ -52,6 +66,118 @@ public protocol TextSystem: AnyObject, Sendable {
     /// Brackets one frame's text work, for per-frame caches.
     func beginFrame()
     func endFrame()
+}
+
+extension TextSystem {
+    /// The face `family` names (`nil`: the system's default face) at `size`
+    /// points — ``resolveFont(_:)`` with no weight, slope or design, the
+    /// spelling every caller used before ruling TE-C.
+    public func resolveFont(family: String?, size: Double) -> FontKey {
+        resolveFont(FontDescriptor(family: family, size: size))
+    }
+
+    /// `measure` with no line limit, tail truncation and leading alignment —
+    /// the spelling every caller used before ruling TE-C.
+    public func measure(_ string: String, font: FontKey, wrappingAt width: Double?) -> TextMeasurement {
+        measure(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+
+    /// `placeGlyphs` under the default options (ruling TE-C).
+    public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
+                            origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
+        placeGlyphs(string, font: font, wrappingAt: width, options: TextLayoutOptions(),
+                    origin: origin, scaleFactor: scaleFactor)
+    }
+
+    /// `lineRanges` under the default options (ruling TE-C).
+    public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?) -> [Range<Int>] {
+        lineRanges(string, font: font, wrappingAt: width, options: TextLayoutOptions())
+    }
+}
+
+/// A system face's design (ruling TE-B item 1): SwiftUI's `Font.Design`
+/// at the seam. CoreText answers it with the system font's design trait
+/// (SF, New York, SF Rounded, SF Mono); the portable system with a family the
+/// app registered for it (`PortableFontResolver.register(design:family:)`),
+/// else the default face.
+public enum FontDesign: Hashable, Sendable {
+    case `default`, serif, rounded, monospaced
+}
+
+/// A font request at the seam (ruling TE-C item 1): a family (`nil`: the
+/// system face), a size in points, and optionally a weight, a slope and — for
+/// the system face only — a design.
+///
+/// `weight` is CoreText's weight-trait scale, −1…1 (SwiftUI's nine weights
+/// are −0.8, −0.6, −0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62); `nil` asks for no
+/// particular weight, so a named face keeps its own ("HelveticaNeue-Bold"
+/// stays bold), where `0` asks for the family's regular face. A request is
+/// not an identity: two descriptors can resolve to one ``FontKey``.
+public struct FontDescriptor: Hashable, Sendable {
+    public var family: String?
+    public var size: Double
+    public var weight: Double?
+    public var italic: Bool
+    public var design: FontDesign
+
+    public init(family: String? = nil, size: Double, weight: Double? = nil,
+                italic: Bool = false, design: FontDesign = .default) {
+        self.family = family
+        self.size = size
+        self.weight = weight
+        self.italic = italic
+        self.design = design
+    }
+}
+
+/// A face's vertical metrics at one size, in points (ruling TE-C item 2) —
+/// `FontMetrics` on the CoreText path, `PortableFontMetrics` on the portable
+/// one. `lineHeight` is `ceil(ascent + descent + leading)` on both (the line
+/// advance every multi-line layout uses; divergence 86).
+public struct TextFontMetrics: Hashable, Sendable {
+    public let ascent: Double
+    public let descent: Double
+    public let leading: Double
+    public let lineHeight: Double
+
+    public init(ascent: Double, descent: Double, leading: Double, lineHeight: Double) {
+        self.ascent = ascent
+        self.descent = descent
+        self.leading = leading
+        self.lineHeight = lineHeight
+    }
+}
+
+/// Which end of a line a truncation keeps (ruling TE-I): `.tail` keeps the
+/// start, `.head` the end, `.middle` both ends — `CTLineTruncationType`'s
+/// `.end`, `.start` and `.middle`.
+public enum TextTruncation: Hashable, Sendable {
+    case tail, head, middle
+}
+
+/// Where each line sits inside the text's box (ruling TE-J): left, centred or
+/// right, by the line's width without its trailing whitespace.
+public enum TextLineAlignment: Hashable, Sendable {
+    case leading, center, trailing
+}
+
+/// How `measure`, `placeGlyphs` and `lineRanges` lay a string out beyond
+/// wrapping (ruling TE-C item 3, amended by TE-T): at most `maxLines` lines
+/// (`nil`: no limit; below 1 acts as 1), the last one truncated with `…`
+/// (U+2026) in `truncation`'s mode when text is dropped at a definite width,
+/// and each line aligned by `alignment`. The defaults — no limit, tail,
+/// leading — lay out exactly as the spellings without `options:` always did.
+public struct TextLayoutOptions: Hashable, Sendable {
+    public var maxLines: Int?
+    public var truncation: TextTruncation
+    public var alignment: TextLineAlignment
+
+    public init(maxLines: Int? = nil, truncation: TextTruncation = .tail,
+                alignment: TextLineAlignment = .leading) {
+        self.maxLines = maxLines
+        self.truncation = truncation
+        self.alignment = alignment
+    }
 }
 
 /// A measured string: its widest line and its total height, both in points.

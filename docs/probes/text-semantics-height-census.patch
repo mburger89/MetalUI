@@ -1,0 +1,161 @@
+diff --git a/Sources/MetalUI/ProposalText.swift b/Sources/MetalUI/ProposalText.swift
+index 04e4e71..b35bbb0 100644
+--- a/Sources/MetalUI/ProposalText.swift
++++ b/Sources/MetalUI/ProposalText.swift
+@@ -51,6 +51,8 @@ public struct ProposalText: ProposalElement {
+                 proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
+             }
+         }
++        censusTextLeaves[node.layoutNodeID] = CensusTextLeaf(kind: "ProposalText", string: string,
++                                                             font: key, system: system)
+         return (node, Layout(node: node.layoutNodeID))
+     }
+ 
+diff --git a/Sources/MetalUI/Text.swift b/Sources/MetalUI/Text.swift
+index e8945a3..37f6282 100644
+--- a/Sources/MetalUI/Text.swift
++++ b/Sources/MetalUI/Text.swift
+@@ -22,6 +22,15 @@ import MetalUITextSystem
+ /// uses.
+ let smallestWrapWidth = 0.5
+ 
++/// TE-R census instrument (docs/probes/text-semantics-height-census.patch).
++public struct CensusTextLeaf {
++    public let kind: String
++    public let string: String
++    public let font: FontKey
++    public let system: any TextSystem
++}
++@MainActor public var censusTextLeaves: [LayoutNodeID: CensusTextLeaf] = [:]
++
+ /// A run of text: the framework's first leaf.
+ ///
+ /// **It measures through the frame's text system** (`TS-A`): a lowered leaf
+@@ -114,11 +123,13 @@ public struct Text: Element, StyledElement {
+         let string = self.string
+ 
+         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
+-            pass.frame.requestNativeLeaf { proposal in
++            let leaf = pass.frame.requestNativeLeaf { proposal in
+                 MainActor.assumeIsolated {
+                     proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
+                 }
+             }
++            censusTextLeaves[leaf] = CensusTextLeaf(kind: "Text", string: string, font: key, system: system)
++            return leaf
+         }
+         return (node, Layout(node: node))
+     }
+diff --git a/Sources/MetalUILayout/LayoutTree.swift b/Sources/MetalUILayout/LayoutTree.swift
+index 99ad279..9b472ac 100644
+--- a/Sources/MetalUILayout/LayoutTree.swift
++++ b/Sources/MetalUILayout/LayoutTree.swift
+@@ -14,6 +14,10 @@ import MetalUICore
+ /// `MetalUI` allocate a fresh `LayoutTree` per frame while elements are free to
+ /// stash a node id anywhere — including the cross-frame state table, which is
+ /// the carrier that made C-3 reachable in the first place.
++/// TE-R census instrument (docs/probes/text-semantics-height-census.patch):
++/// called with every leaf's placement proposal. Never committed to Sources/.
++public nonisolated(unsafe) var censusLeafPlacementHook: ((LayoutNodeID, ProposedSize, LayoutRect) -> Void)?
++
+ public struct LayoutNodeID: Hashable, Sendable {
+     /// The generation of the tree that issued this id.
+     public let generation: UInt64
+@@ -857,7 +861,10 @@ public final class LayoutTree {
+                      "native layout would store a non-finite rect \(bounds) at node \(id) (SA-J)")
+         setLayout(id, bounds)
+         switch nativeNode(id) {
+-        case .leaf, .spacer:
++        case .leaf:
++            censusLeafPlacementHook?(id, proposal, bounds)
++            return
++        case .spacer:
+             return
+         case .custom(let layout):
+             placeCustom(id, layout: layout, in: bounds, proposal: proposal, run: run)
+diff --git a/Tests/MetalUITests/ZZTextHeightCensus.swift b/Tests/MetalUITests/ZZTextHeightCensus.swift
+new file mode 100644
+index 0000000..ce8100f
+--- /dev/null
++++ b/Tests/MetalUITests/ZZTextHeightCensus.swift
+@@ -0,0 +1,80 @@
++// TE-R item 2's height census (docs/probes/text-semantics-height-census.patch).
++// Logs every Text/ProposalText leaf whose finite height placement proposal is
++// below its natural height at that proposal's width, over every tree and size
++// the fourteen offscreen images use, the 920x560 demo window, and the controls
++// demo. Skips without METALUI_TEXT_CENSUS=1. Never committed to Tests/.
++
++import Testing
++import Foundation
++import Metal
++import MetalUICore
++import MetalUILayout
++import MetalUITextSystem
++@testable import MetalUI
++@testable import MetalUIDemoContent
++
++@MainActor
++private func census(_ name: String, side: Int, height: Int? = nil, frames: Int,
++                    appearance: Appearance = .light,
++                    content: @escaping @MainActor () -> some Element) throws -> Int {
++    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device")
++    censusTextLeaves = [:]
++    var rows = Set<String>()
++    var leavesPlaced = 0
++    censusLeafPlacementHook = { id, proposal, bounds in
++        MainActor.assumeIsolated {
++            guard let leaf = censusTextLeaves[id] else { return }
++            leavesPlaced += 1
++            guard let h = proposal.height, h.isFinite else { return }
++            let width = proposal.width.map { max($0, 0.5) }
++            let natural = leaf.system.measure(leaf.string, font: leaf.font, wrappingAt: width).totalHeight
++            if h < natural {
++                let s = leaf.string.prefix(40).replacingOccurrences(of: "\n", with: "\\n")
++                rows.insert("CENSUS-ROW \(name) \(leaf.kind) \"\(s)\" proposal=(\(proposal.width.map { "\($0)" } ?? "nil"), \(h)) natural=\(natural) placed=\(bounds.width)x\(bounds.height)")
++            }
++        }
++    }
++    defer { censusLeafPlacementHook = nil }
++    let (window, platform) = try makeFakeWindow(device: device, size: side, appearance: appearance,
++                                                content: content)
++    if let height {
++        platform.simulateResize(to: Size(width: Pixels(Float(side)), height: Pixels(Float(height))))
++    }
++    for _ in 0..<frames {
++        window.setNeedsRedraw()
++        window.drawFrameIfNeeded()
++    }
++    for row in rows.sorted() { print(row) }
++    print("CENSUS \(name) \(side)x\(height ?? side) textLeafPlacements=\(leavesPlaced) rows=\(rows.count)")
++    return rows.count
++}
++
++@Test @MainActor func zzTextHeightCensus() throws {
++    guard ProcessInfo.processInfo.environment["METALUI_TEXT_CENSUS"] == "1" else { return }
++    demoModel.showModal = false
++    demoModel.animationDemoActive = false
++    var total = 0
++    for (suffix, appearance) in [("light", Appearance.light), ("dark", Appearance.dark)] {
++        total += try census("default-\(suffix)-f0", side: 1024, frames: 1, appearance: appearance) { demoContent() }
++        total += try census("default-\(suffix)-f3", side: 1024, frames: 4, appearance: appearance) { demoContent() }
++    }
++    demoModel.showModal = true
++    total += try census("modal-1024", side: 1024, frames: 1) { demoContent() }
++    total += try census("prod-modal-920x560", side: 920, height: 560, frames: 1) { demoContent() }
++    demoModel.showModal = false
++    demoModel.animationDemoActive = true
++    total += try census("animation-1024", side: 1024, frames: 1) { demoContent() }
++    total += try census("animation-920x560", side: 920, height: 560, frames: 1) { demoContent() }
++    demoModel.animationDemoActive = false
++    total += try census("prod-default-920x560", side: 920, height: 560, frames: 1) { demoContent() }
++    total += try census("preview-1024", side: 1024, frames: 1) { nativeLayoutPreviewContent() }
++    total += try census("preview-920x560", side: 920, height: 560, frames: 1) { nativeLayoutPreviewContent() }
++    total += try census("controls-920x560", side: 920, height: 560, frames: 2) { controlsDemoContent() }
++    total += try census("controls-1024", side: 1024, frames: 2) { controlsDemoContent() }
++    total += try census("chrome-560", side: 560, frames: 1) {
++        DifferentialRoot(width: 560, height: 560) {
++            Column { CounterPanel() }.width(Pixels(560))
++        }
++    }
++    print("CENSUS TOTAL rows=\(total)")
++}

@@ -1,17 +1,19 @@
-# 59 — Page keys in `TextEditor`, and Tab between inputs, 2026-09-24
+# 60 — Page keys in `TextEditor`, and Tab between inputs, 2026-09-24
 
-**Written as §53** on `feat/text-page` from `0843866` and **renumbered 53→59
-at its merge** with `master` at `169d166`, because `master` had already
-published §53–§58 (stage 10 through plan task 10 part 2) — the same shape as
-record §53's own 52→53 and §48's 42→48. Master's §53 citations are stage 10's;
-this file's are §59. The merge itself is §Merge at the end.
+**Written as §53** on `feat/text-page` from `0843866`, **renumbered 53→59**
+at its merge with `master` at `169d166` (which had already published
+§53–§58, stage 10 through plan task 10 part 2), and **renumbered 59→60** at
+its merge with `master` at `ff2ae92`, whose plan task 11 part 1 record
+(text semantics) had published §59 while this branch's CI ran — the same
+shape as record §53's own 52→53 and §48's 42→48, and §42's 40→41→42.
+Master's §53 citations are stage 10's and its §59 citations are task 11 part
+1's; this file's are §60. The merges are §Merge and §Merge 2 at the end.
 
 Branch `feat/text-page`, from `master` `0843866`. Rulings `TI-I` (page keys)
 and `TI-J` (Tab moves focus), added to
 `docs/superpowers/specs/2026-09-23-text-input-design.md` (next `TI-K`).
 Follow-ups to `TextEditor` (record §52). The user asked for Tab traversal
 while the page keys were in progress, and both land in one branch.
-
 ## What changed
 
 - **`TextEditing`:** the page keys (`U+F72C`/`U+F72D`, AppKit's and
@@ -83,7 +85,7 @@ tasks 8, 9 and 10 parts 1–2. Git merged every source file cleanly
 conflicts were docs only — `CLAUDE.md`/`AGENTS.md` (master's text kept, this
 branch's `TI-I`/`TI-J` rules re-added into its "Focus" and "Text input"
 paragraphs, `TI-` next `TI-K`) and `docs/record/README.md` (every row kept,
-this file's row renumbered to §59).
+this file's row renumbered to §59, now §60).
 
 **Key order after the merge**, unchanged in shape: `Keymap` → a focused
 field's editing keys (`dispatchTextKey`) → the raw `onKey` bubble
@@ -138,3 +140,50 @@ unmoved. `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) 21 + 23, as on
 | MJ2 | the rejected alternative: Tab order filtered to text inputs | `tabWalksTheFocusableElementsInTreeOrderAndWraps`, `aDisabledFieldIsSkipped`, `tabVisitsTheControlsAndAControlItFocusedTakesItsKeys` (9 issues) |
 
 Both restored; `git diff -- Sources` empty afterwards.
+
+## Merge 2 with `master` at `ff2ae92` (2026-09-28)
+
+`master` published plan task 11 part 1 (text semantics, record §59) while
+this branch's CI ran on the first merge (`3807dec`), and the PR read
+`CONFLICTING`. Merged again, the same way. Sources merged cleanly, including
+`TextEditor.swift`. The conflicts were docs only:
+- `CLAUDE.md`/`AGENTS.md`: this branch's counts bullet re-taken, above
+  master's.
+- `docs/record/04-divergences.md`: master's task-11 section kept, with this
+  branch's divergence-80 section after it and the live count read as
+  master's **65**.
+
+This file was renumbered 59→60. Only this branch's own §59 citations moved:
+the README row, the spec's `TI-J` header and amendment, the §04 section, the
+`DD-T` erratum, and `CLAUDE.md`'s Focus paragraph and counts bullet. Master's
+§59 citations are task 11's and stay.
+
+**The page keys against task 11's font resolution.** `TextEditor` now
+resolves its font through the environment: its own font, else the
+environment's, else the default font by `controlSize` (`TE-F` item 2). The
+line height the editor hands the page keys (`TextLineModel.lineHeight`) is
+the geometry's `g.lineHeight`, and the geometry now takes the resolved face.
+So a page is measured in the new default font with no edit.
+
+`pageDownPagesTheEditor` cannot see this. It compares the model's line
+height with the target's, and both come from the same geometry. So the
+merge adds `aPageIsMeasuredInTheEnvironmentsResolvedFont`: an editor under
+`.controlSize(.mini)` (9 pt) has a shorter line, and more lines per page,
+than one under `.regular` (13 pt). `.large` would not separate them: it
+resolves to 13 pt, as `.regular` does. Mutant MP1 hard-codes a 13-point line
+height on the model handed to the page keys; it reddens only the new test
+(3 issues).
+
+**Counts:** `Test run with 1715 tests in 3 suites passed`, the FR-J line
+present; 0 `error:`; 0 `warning:` under the default build system. **1715 =
+1706 + 7 + 1 + 1**: master's 1706, this branch's 7, the first merge's 1 and
+this merge's 1. Guards 105 and goldens 0 are master's, unmoved.
+`Backends/SDL` 21 + 23.
+
+**Mutations re-run on the merged tree:**
+- MJ1 reddens `anAppsHandlersSeeTabFirstAndAModifiedTabIsNotTraversal` (2
+  issues).
+- MJ2 reddens `tabWalksTheFocusableElementsInTreeOrderAndWraps`,
+  `aDisabledFieldIsSkipped` and
+  `tabVisitsTheControlsAndAControlItFocusedTakesItsKeys` (9 issues).
+- All three mutants were restored; `git diff -- Sources` is empty.

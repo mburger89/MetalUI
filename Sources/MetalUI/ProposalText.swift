@@ -13,22 +13,34 @@ import MetalUITextSystem
 /// it can participate in an otherwise proposal-only subtree today.
 public struct ProposalText: ProposalElement {
     public var string: String
-    public var fontFamily: String?
-    public var fontSize: Double
     public var foregroundColor: ColorToken?
+    /// This text's own font request, weight and slope (ruling TE-B), as
+    /// `Text`'s.
+    var fontRequest: TextFontRequest = .inherit
+    var fontWeight: Font.Weight?
+    var isItalic = false
+
+    /// The explicit font's family; computed over the request (TE-B item 5).
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size, 13 without one; computed (TE-B item 5).
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     public init(_ string: String) {
         self.string = string
-        fontFamily = nil
-        fontSize = 13
         foregroundColor = nil
     }
 
-    /// The face and size this run is shaped at.
+    /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
+    /// `nil` family (TE-B item 5).
     public func font(family: String? = nil, size: Double) -> ProposalText {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
@@ -41,14 +53,22 @@ public struct ProposalText: ProposalElement {
 
     public struct Layout { var node: LayoutNodeID }
 
+    var styleRequest: TextStyleRequest {
+        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundColor)
+    }
+
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let system = pass.textSystem
-        let key = system.resolveFont(family: fontFamily, size: fontSize)
+        // One resolution for layout and paint (spec §3): same environment,
+        // same answer. The closure captures the key and the resolved style —
+        // values — never the request.
+        let style = resolveTextStyle(styleRequest, in: pass.environment)
+        let key = system.resolveFont(style.descriptor)
         let string = string
         let node = pass.requestNativeLeaf { proposal in
             MainActor.assumeIsolated {
-                proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
+                proposalTextMeasurement(string, font: key, system: system, proposal: proposal, style: style)
             }
         }
         return (node, Layout(node: node.layoutNodeID))
@@ -60,10 +80,15 @@ public struct ProposalText: ProposalElement {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
         let system = pass.textSystem
-        let font = system.resolveFont(family: fontFamily, size: fontSize)
+        let style = resolveTextStyle(styleRequest, in: pass.environment)
+        let font = system.resolveFont(style.descriptor)
         let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
-        let color = pass.theme[foregroundColor ?? .textPrimary]
-        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width,
+        // The line cap from the box the leaf was placed in (TE-H item 2): its
+        // own answer, so the lines layout measured.
+        let laid = textLines(string, font: font, system: system, wrappingAt: width,
+                             height: Double(bounds.size.height.value), style: style)
+        let color = pass.theme[style.foreground]
+        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
                                         origin: (x: Double(bounds.origin.x.value),
                                                  y: Double(bounds.origin.y.value)),
                                         scaleFactor: pass.scaleFactor) {
@@ -72,10 +97,11 @@ public struct ProposalText: ProposalElement {
     }
 }
 
-/// Measures a text run from a SwiftUI-style proposal: a concrete width wraps
-/// the run, while an unspecified width asks for its intrinsic one-line width.
-/// The height proposal does not truncate or scale text, matching the measured
-/// SwiftUI custom-Layout behavior.
+/// Measures a run in a font resolved by the caller, unstyled: no line limit,
+/// tail, leading (spec §3's measurement with ``ResolvedTextStyle/unstyled``) —
+/// a finite height still limits its lines (ruling TE-H item 2, probe L5; the
+/// sentence "the height proposal does not truncate or scale text" this doc
+/// comment carried until TE-H was unprobed and is refuted).
 #if canImport(MetalUIText)
 @MainActor
 func proposalTextMeasurement(_ string: String, font: ResolvedFont,
@@ -89,19 +115,7 @@ func proposalTextMeasurement(_ string: String, font: ResolvedFont,
 @MainActor
 func proposalTextMeasurement(_ string: String, font: FontKey,
                              system: any TextSystem, proposal: ProposedSize) -> LayoutMeasurement {
-    let wrappingAt = proposal.width.map { max($0, smallestWrapWidth) }
-    let shaped = system.measure(string, font: font, wrappingAt: wrappingAt)
-    // The answer never exceeds a finite proposal (`LR-AU`; stage-2 probe group
-    // Y, and stage 1's T3/T4). The typesetter breaks inside a word it cannot
-    // fit, but the line it produces can still be wider than the proposal — one
-    // character plus the space the typesetter hangs on its line below a word's
-    // width (T3/T4: 11.18 against a 5 proposal), and 33.31 against 30 at Y8.
-    // SwiftUI answers the proposal there, and reports the widest line only
-    // while that line fits. SwiftUI ceils its answer and this does not (Y2
-    // reads 19 against 18.17), which `LR-F` leaves to the shaping cache rather
-    // than to a literal.
-    let width = proposal.width.map { Swift.min($0, shaped.widestLine) } ?? shaped.widestLine
-    return LayoutMeasurement(size: SizeD(width: width, height: shaped.totalHeight))
+    proposalTextMeasurement(string, font: font, system: system, proposal: proposal, style: .unstyled)
 }
 
 extension Text {
@@ -109,8 +123,9 @@ extension Text {
     /// font or foreground-token configuration.
     public func proposalLayout() -> ProposalText {
         var result = ProposalText(string)
-        result.fontFamily = fontFamily
-        result.fontSize = fontSize
+        result.fontRequest = fontRequest
+        result.fontWeight = fontWeight
+        result.isItalic = isItalic
         result.foregroundColor = foregroundColor
         return result
     }

@@ -1035,7 +1035,7 @@ platform.
 **Evidence.** KY0–KY8g and the printed setting.
 
 **Cost if wrong.** *(Erratum at the `feat/text-page` merge, 2026-09-28: Tab
-traversal now exists — `TI-J`, record §59 §Merge — and visits every control
+traversal now exists — `TI-J`, record §60 §Merge — and visits every control
 this ruling made focusable; the sentence below describes the tree before it.)*
 MetalUI has no Tab traversal (task 12), so focus reaches a
 control only programmatically or through an accessibility client; a control

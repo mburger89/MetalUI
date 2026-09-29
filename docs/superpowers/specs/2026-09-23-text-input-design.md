@@ -4,7 +4,7 @@
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TI-`
 (`TI-A`…`TI-J`, next `TI-K`; rulings here; `TI-G` added by
 `feat/text-undo`, record §47; `TI-H` by `feat/text-editor`, record §52;
-`TI-I` and `TI-J` by `feat/text-page`, record §59 — written as §53, renumbered at the merge). The user chose a full
+`TI-I` and `TI-J` by `feat/text-page`, record §60 — written as §53, renumbered 53→59→60 at its merges). The user chose a full
 `TextField`: caret, selection, editing keys, IME composition and the
 clipboard, on AppKit and on SDL3.
 
@@ -243,7 +243,7 @@ registered, so they are skipped.
 - Tabbing into a text field or editor selects its whole text, as AppKit's
   fields do.
 
-**Amended at the merge with `master` `169d166` (record §59 §Merge).** Plan
+**Amended at the merge with `master` `169d166` (record §60 §Merge).** Plan
 task 10 part 2's controls — `Button`, `Toggle`, `Slider`, `Stepper`,
 `Picker`, a selectable `List` — are focusable (`DD-T`), so Tab visits them
 too, and a control Tab focused takes its own keys (`ControlKeys`, run from

@@ -1637,3 +1637,50 @@ this machine with an unlocked screen:
 These join, and neither close nor reopen, the still-owed real-window capture
 and its four demo-layout changes from stage 6b, task 9's two looks and part
 1's wheel-under-`.disabled` look (above).
+
+## 2026-09-28: no demo-image look moves; half of the still-open real-window capture is taken, and one paragraph look is added at text semantics (plan task 11, part 1)
+
+Record §59 §4, §5; rulings `TE-Q`, `TE-R`, `TE-Y`, `TE-AB`. **A height census
+taken before any source change** (`docs/probes/text-semantics-height-census.patch`,
+a `censusLeafPlacementHook` over every tree and size the fourteen offscreen
+images use, plus the 920×560 window in every demo state and the controls
+demo) found exactly one text leaf placed below its natural height:
+`demoMainPane()`'s wrapping paragraph under the **A** (animation) state, at
+the demo's own 920×560 window — not one of the fourteen images (their
+animation images are 1024², where the paragraph still fits its natural
+height). The census predicted, and the fourteen-image offscreen comparison
+confirmed after the implementation, **0 differing pixels and scene identical
+in all fourteen** against `169d166`. The paragraph's **cross-platform** demo
+frame (Noto Sans through the portable system at 920×560,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`, `XP-C`) does move — the
+paragraph draws three lines where it drew four, and the `ScrollView` below
+it moves up 18 points — a byte-pinned, non-visual check confirmed on
+Linux/Windows CI on push, not a look.
+
+**The lock probe read locked at design time and at every lane's own check
+and close, but unlocked once, during lane 3's fix round** (18:19 PDT):
+`docs/probes/window-capture/capture.sh <scratch> 169d166 e39a9b4` ran and
+read `default: 1840x1176 differing=0` and `preview: differing=0` (control
+958986, each a-vs-b 0) — so **the default and preview states of the
+still-open real-window capture (owed since stage 6b) are now taken, 0
+differing**. The lock probe read locked again at the branch check's own
+close.
+
+**Still owed**, to whoever next has this machine with an unlocked screen:
+
+- **The paragraph's own look**: `demoMainPane()`'s wrapping paragraph under
+  the **A** (animation) state, at the demo's own 920×560 window, now drawing
+  four lines where it drew five (`TE-Y` item 3) — not shown by the default or
+  preview captures just taken, and not one of the fourteen offscreen images
+  (theirs are 1024²).
+- **`TE-Q`'s drawn `controlSize` font**: the critic round found `F8`'s
+  render field was `ImageRenderer`'s blind spot (it draws 13 pt at every
+  `controlSize`, confirmed by a positive control against a 2404 px 9-vs-13
+  difference), so `controlSize`'s effect on a *drawn* glyph — as opposed to
+  the *measured* layout `TE-F` pins by number — is still unconfirmed on a
+  real display.
+
+These join, and neither close nor reopen, the still-owed items above
+(stage 6b's four demo-layout changes, task 9's two looks, task 10 part 1's
+wheel-under-`.disabled` look, task 10 part 2's controls-demo and
+accessibility looks).

@@ -1,5 +1,6 @@
 import CUnibreak
 import MetalUIHarfBuzz
+import MetalUITextSystem
 
 /// What UAX #14 allows after one UTF-16 unit (ruling LB-B).
 public enum LineBreakOpportunity: Sendable, Equatable {
@@ -38,6 +39,10 @@ struct LinePlacedGlyph {
 struct LaidOutLine {
     let line: PortableLine
     let glyphs: [LinePlacedGlyph]
+    /// The width of the whitespace hanging past the line's logical end —
+    /// `CTLineGetTrailingWhitespaceWidth`'s answer, which alignment leaves out
+    /// of the line's width (ruling TE-J).
+    let trailingWhitespace: Double
 }
 
 /// `init_linebreak` fills libunibreak's lookup state once. A `static let` is
@@ -91,6 +96,25 @@ extension PortableText {
         try layOut(text, font: font, wrappingAt: width).map(\.line)
     }
 
+    /// `layOut` under a line limit (rulings TE-C item 3, TE-T): with more
+    /// lines than `options.maxLines` (below 1 acts as 1), at a `nil` width the
+    /// first lines are kept and the rest cut (L4); at a width the lines before
+    /// the last kept one stand, and the last is ``truncatedLine(_:units:from:wraps:font:width:mode:)``
+    /// — `Shaper.shape(_:font:wrappingAt:options:)`'s rule, measured equal by
+    /// `TruncationOracleTests`. Alignment is placement's (``placements``).
+    static func layOut(_ text: String, font: PortableFont, wrappingAt width: Double?,
+                       options: TextLayoutOptions) throws -> [LaidOutLine] {
+        let lines = try layOut(text, font: font, wrappingAt: width)
+        guard let maxLines = options.maxLines.map({ max(1, $0) }), lines.count > maxLines else { return lines }
+        guard let width else { return Array(lines.prefix(maxLines)) }
+        let units = Array(text.utf16)
+        let last = lines[maxLines - 1].line.range
+        let endsParagraph = last.upperBound >= units.count || isHardBreak(units[last.upperBound - 1])
+        return Array(lines.prefix(maxLines - 1))
+            + [try truncatedLine(text, units: units, from: last.lowerBound, wraps: !endsParagraph,
+                                 font: font, width: width, mode: options.truncation)]
+    }
+
     /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
     /// (ruling LB-H) are the ones this measured, so the two cannot drift.
     static func layOut(_ text: String, font: PortableFont,
@@ -101,7 +125,9 @@ extension PortableText {
         }
         let limit = width ?? .infinity
         let units = Array(text.utf16)
-        guard !units.isEmpty else { return [LaidOutLine(line: PortableLine(range: 0..<0, advance: 0), glyphs: [])] }
+        guard !units.isEmpty else {
+            return [LaidOutLine(line: PortableLine(range: 0..<0, advance: 0), glyphs: [], trailingWhitespace: 0)]
+        }
 
         let breaks = lineBreaks(in: text)
         // UAX #9 over the whole paragraph (ruling BD-A): the levels and scripts
@@ -168,10 +194,13 @@ extension PortableText {
                 if running > limit, index > start, !isBreakingWhitespace(units[index]) {
                     if let lastAllowed {
                         end = lastAllowed
-                    } else if let cluster = (start + 1...index).last(where: { clusterStart[$0] }),
+                    } else if let cluster = (start + 1...index).last(where: { clusterStart[$0] && graphemeStart[$0] }),
                               clusterStart[cluster] {
                         // No opportunity fits: break before the overflowing
-                        // cluster (everything before `index` fit).
+                        // cluster (everything before `index` fit) — a cluster
+                        // that starts a grapheme: HarfBuzz may give a mark a
+                        // cluster of its own, and CoreText never breaks between
+                        // a base and its marks (measured, TE-U).
                         end = cluster
                     } else {
                         end = try graphemeBreak(units: units, from: start, limit: limit, font: font,
@@ -179,7 +208,19 @@ extension PortableText {
                     }
                     break
                 }
-                if breaks[index] == .mandatory { end = index + 1; break }
+                if breaks[index] == .mandatory {
+                    end = index + 1
+                    // A line whose one cluster is wider than the width, ending
+                    // at a hard break straight after that cluster (no space,
+                    // no CR before it), takes the NEXT paragraph break too
+                    // when an empty paragraph follows: CoreText's "A\n\nB" at
+                    // 4 pt is "A\n\n", "B" (measured, ruling TE-V).
+                    if running > limit, index > start, !isBreakingWhitespace(units[index - 1]),
+                       end < units.count, isHardBreak(units[end]) {
+                        end += units[end] == 0x0D && end + 1 < units.count && units[end + 1] == 0x0A ? 2 : 1
+                    }
+                    break
+                }
                 if breaks[index] == .allowed { lastAllowed = index + 1 }
                 index += 1
             }
@@ -227,8 +268,11 @@ extension PortableText {
                 }
                 pen = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
             }
+            var trimmed = end
+            while trimmed > start, isBreakingWhitespace(units[trimmed - 1]) { trimmed -= 1 }
+            let visible = (start..<trimmed).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
             result.append(LaidOutLine(line: PortableLine(range: start..<end, advance: advance),
-                                      glyphs: placed))
+                                      glyphs: placed, trailingWhitespace: advance - visible))
             start = end
         }
         return result
@@ -240,7 +284,7 @@ extension PortableText {
     static func graphemeBreak(units: [UInt16], from start: Int, limit: Double, font: PortableFont,
                               graphemeStart: [Bool], clusterStart: [Bool]) throws -> Int {
         var clusterEnd = start + 1
-        while !clusterStart[clusterEnd] { clusterEnd += 1 }
+        while !(clusterStart[clusterEnd] && graphemeStart[clusterEnd]) { clusterEnd += 1 }
         var best = start + 1
         while !graphemeStart[best] { best += 1 }
         var candidate = best + 1

@@ -1785,9 +1785,78 @@ sees the wheel scroll there. A caller writing `@State var x: Int? = 2` sees
 `nil` until the first write (85) — the controls demo works around it with a
 `Set`.
 
+## 2026-09-28: text semantics adds 86–89, amends 76 a third time (plan task 11, part 1)
+
+Record §59; rulings `TE-F`, `TE-G`, `TE-I`, `TE-K`, `TE-Z`. Live count
+**61 → 65** (four added, none retired). §19 "Known divergences" is the frozen
+copy and makes no claim about this section.
+
+- **76 is amended a third time, kept** (`TE-F` item 4): `controlSize` now
+  reaches every text's default font — `Text`, `ProposalText`, `TextField`,
+  `TextEditor`, and through `Button`'s label — at 9/11/13 pt by size, in
+  addition to `Button`'s own chrome from task 10 part 2. An explicit font or
+  an environment font ignores it. **Still unread**: `TextField`'s own
+  padding, `Toggle`, `Picker`, `Slider`, `Stepper` — owner **none** (task
+  11's own remaining consumers named at task 10 part 2, `DD-AB` item 2, are
+  now the ones this amendment leaves; no later task is named to read
+  `controlSize` for them, so the row stays open with no owner rather than
+  moving to a task that has not claimed it).
+- **86 is added** (kept, owner none, `TE-G` item 3): MetalUI's line advance
+  is `ceil(ascent + descent + leading)` on both text systems, where SwiftUI's
+  TextKit line-fragment height fits no formula tried over those three
+  numbers (probe `swiftui-text-semantics.swift` X13, 21 sizes swept: 16
+  agrees at SF 13, but 14 vs 13 at SF 11, 30 vs 31 at SF 26, 23 vs 24 at Noto
+  Sans 17). A Noto Sans 17 pt line is 24 pt in MetalUI, 23 in SwiftUI.
+  Matching it would need a metric no public CoreText call returns and no
+  portable file carries; changing the formula moves every multi-line text's
+  pixels and the portable byte pins. Pinned by
+  `aNotoSansLineIsTwentyFourPointsWhereSwiftUIsIsTwentyThree` (spec 3.15).
+- **87 is added** (kept, owner none, `TE-I`): a single line truncated in the
+  **middle** keeps what `CTLineCreateTruncatedLine(.middle)` keeps, where
+  SwiftUI sometimes keeps more at the same width (probe X5: SwiftUI 97.5 pt
+  of content against CoreText's 85.12 pt at width 100; equal at 60). Tail
+  (the default) and head agree with SwiftUI in every probed arm; only middle
+  diverges, and only at some widths. The portable text system follows
+  CoreText here too, so both of MetalUI's text systems agree with each other
+  and disagree with SwiftUI the same way. Pinned by
+  `aMiddleTruncationKeepsCoreTextsStringWhereSwiftUIKeepsMore` (spec 3.16).
+- **88 is added** (kept, owner none, `TE-K` item 4): `GridRow(alignment:
+  .firstTextBaseline)`/`.lastTextBaseline` **traps** at registration, naming
+  the divergence, rather than reproducing SwiftUI's answer — a baseline
+  alignment on a `GridRow` keeps the row's ordinary height and overflows the
+  cell that does not fit it (probe X11: a 26 pt cell placed at y −12), a
+  shape no rule measured here (the `HStack` baseline rule, B2) reproduces. A
+  trap is the explicit form of "not supportable yet" the task's own text
+  asks for.
+- **89 is added** (kept, owner none, `TE-Z`): a wrapping text beside a bare
+  `Spacer` in a height-limited stack is offered the height less the spacer's
+  minimum (`CN-C`'s spacer priority), where SwiftUI shares the height between
+  the text and the spacer (probe `swiftui-text-in-stacks.swift` K1: one line
+  kept at 60 pt where MetalUI keeps three; K4 with `minLength: 0` the same).
+  Found reconciling the critic round's `TE-R` ruling (a wrapping text in a
+  tight stack is compressed like any other flexible child, `CN-C`) against
+  `swiftui-stack-algorithms.swift`'s SP8 (a spacer beside two fixed children
+  is offered its minimum last, not first) — the two probes cannot both hold
+  under one priority rule, so SwiftUI's reconciling mechanism for a spacer
+  beside a *flexible* sibling is unmeasured beyond what K1–K4 show.
+  Reachable only where a wrapping text sits beside a bare `Spacer` inside a
+  height-proposed, non-scrolling stack; `TE-H`'s own line-limit rule is
+  unaffected. Pinned by spec 3.23's two spacer arms at MetalUI's answer (3
+  and 5 lines) and its other arms (a rigid sibling, two texts, a taller
+  proposal) at SwiftUI's.
+
+**What it costs if wrong.** A `controlSize`-scoped tree now gets a smaller
+default font wherever it draws unstyled text, matching SwiftUI (76). A
+multi-line text is one to two points taller per line than SwiftUI's (86); a
+middle-truncated label may show fewer characters at some widths (87); a
+`GridRow` asking for baseline alignment traps rather than laying out wrong
+silently (88, `TE-K` item 4's own point); a paragraph above a `Spacer` in a
+short stack keeps more lines than SwiftUI's and the spacer shrinks to its
+minimum (89) — nothing overflows that did not before.
+
 ## 2026-09-28: 80's scope widened to Tab; no number moves (`feat/text-page` merge, `TI-J` amended)
 
-`TI-J`'s Tab traversal (record §59) met plan task 10 part 2's focusable
+`TI-J`'s Tab traversal (record §60) met plan task 10 part 2's focusable
 controls at the merge with `master` `169d166`. Tab visits every focusable
 element, the controls included, and a control Tab focused takes its own keys.
 AppKit's documented default moves Tab only between text fields and lists
@@ -1798,4 +1867,4 @@ as well as the control taking its keys** — same cause, same owner (plan task
 12, if it rules focus to follow the system setting), no new number. SwiftUI's
 own Tab answer is unmeasured, so no SwiftUI claim is made. Pinned by
 `tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`. Live count stays
-**61**.
+**65** (master's figure after task 11 part 1).

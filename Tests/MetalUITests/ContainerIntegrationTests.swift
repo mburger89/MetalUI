@@ -125,8 +125,8 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
     }
 }
 
-/// A `ProposalText` in a stack is shaped once per distinct width (CN-B's
-/// shaping cost; counted, never timed).
+/// A `ProposalText` in a stack is shaped once per distinct width **and line
+/// cap** (CN-B's shaping cost; counted, never timed).
 ///
 /// Three distinct strings in `HStack(spacing: 0)`, a fresh `ShapingCache`, one
 /// cold frame. Derived by hand before the run: the three texts form one
@@ -136,17 +136,25 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
 /// minus what the others answered, far wider than any of the three strings),
 /// and it answers its one-line width. Paint shapes at `measuredWidth`, the
 /// placed pre-rounding width, which is that answer and differs from ∞, 0.5 and
-/// the offer. So 3 × 4 = **12 misses**.
-/// - At the finite root the placement solve repeats measurement's proposals,
-///   all kernel-cache hits, so no text measures again: **12 lookups**.
+/// the offer: 3 × 4 = 12 shapes.
+///
+/// **Re-answered by plan task 11 part 1 (a T row, ruling TE-H item 2; record
+/// §59 §4)**: a finite height proposal now caps a text's lines, and a capped
+/// answer is a second seam question — the same width at `maxLines` — and paint
+/// asks `measure` (a hit) before it places, to re-derive the cap from its box.
+/// - At the finite root (height 200, 12 lines of 16) only "Charlie three
+///   words" at 0.5 wraps to more (17 graphemes' lines), so one capped shape:
+///   **13 misses**; lookups 9 + 1 + 3 × 2 in paint = **16** (were 12/12).
 /// - Inside a vertical `ProposalScrollView` the stack is measured at
-///   (600, nil) and placed after a second pass at its own height (CN-E): the
-///   same three widths per text again, now shaping-cache hits: 9 + 9 + 3 paint
-///   = **21 lookups**, still **12 misses**.
+///   (600, nil) — no cap — and placed after a second pass at its own height,
+///   16 (CN-E): there each text's main-0 probe (5, 8 and 17 lines) caps at one
+///   line, three new shapes, and paint shapes at `measuredWidth` as before:
+///   9 + 3 + 3 = **15 misses**; lookups 9 + (9 + 3) + 6 = **27** (were
+///   12/21).
 ///
 /// Before the lane each text is shaped at nil and at its placed width: 6
 /// misses. Mutations: shape without the cache (the scroll arm's misses read
-/// 21); key the shaping cache on width rounded to an integer.
+/// more); key the shaping cache on width rounded to an integer.
 @MainActor
 @Test func aProposalTextInAStackIsShapedOncePerDistinctWidth() {
     do {
@@ -159,8 +167,8 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
             ProposalText("Charlie three words")
         }
         frame.render(&root)
-        #expect(cache.misses == 12, "finite root: misses")
-        #expect(cache.lookups == 12, "finite root: lookups")
+        #expect(cache.misses == 13, "finite root: misses")
+        #expect(cache.lookups == 16, "finite root: lookups")
     }
     do {
         let cache = ShapingCache()
@@ -174,8 +182,8 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
             }
         }
         frame.render(&root)
-        #expect(cache.misses == 12, "scroll viewport: misses")
-        #expect(cache.lookups == 21, "scroll viewport: lookups")
+        #expect(cache.misses == 15, "scroll viewport: misses")
+        #expect(cache.lookups == 27, "scroll viewport: lookups")
     }
 }
 

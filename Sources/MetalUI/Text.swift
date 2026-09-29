@@ -55,17 +55,36 @@ public struct Text: Element, StyledElement {
     /// model every other element follows.
     public var string: String
 
-    /// `nil` means the platform UI font. Resolution happens in `requestLayout`
-    /// and again in `paint`, both through the window's
-    /// `ShapingCache.resolveFont(family:size:)`, which memoizes `FontResolver`
-    /// — and `FontResolver` substitutes rather than failing, so see `FontKey`
-    /// for why nothing downstream may be keyed on this name.
-    public var fontFamily: String?
-    /// **Must be finite and positive.** Not checked here — this is a settable
-    /// property — but `FontResolver.resolve(family:size:)` traps on anything
-    /// else the first frame this `Text` is laid out, because CoreText would
-    /// otherwise substitute 12 or 13pt or keep a NaN.
-    public var fontSize: Double
+    /// This text's own font request (ruling TE-B item 2): inherit the
+    /// environment's font (the default), the default font whatever the
+    /// environment says (`font(nil)`), or an explicit font. Resolution happens
+    /// in `requestLayout` and again in `paint`, both through
+    /// `resolveTextStyle` and the window's text system, which memoizes the
+    /// face — and substitutes rather than failing, so see `FontKey` for why
+    /// nothing downstream may be keyed on a name.
+    var fontRequest: TextFontRequest = .inherit
+    /// `fontWeight(_:)`'s override, over whichever font this text resolves.
+    var fontWeight: Font.Weight?
+    /// `italic(_:)`: this text draws its font's italic face.
+    var isItalic = false
+
+    /// The explicit font's family (`nil`: the system face, or no explicit
+    /// font). **Computed since TE-B item 5**: writing it sets an explicit
+    /// `.custom`/`.system` font at ``fontSize``, as `font(family:size:)` does.
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size — 13 when this text inherits or asks for the
+    /// default font, exactly what an unconfigured `Text` read before (TE-B
+    /// item 5). Writing it sets an explicit font. **Must be finite and
+    /// positive**: the text system traps on anything else the first frame
+    /// this `Text` is laid out, because CoreText would otherwise substitute
+    /// 12 or 13pt or keep a NaN.
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     /// The colour the glyphs are tinted with. `nil` means
     /// ``ColorToken/textPrimary``, resolved against the frame's theme like any
@@ -77,16 +96,14 @@ public struct Text: Element, StyledElement {
         self.style = Style()
         self.decoration = Decoration()
         self.string = string
-        self.fontFamily = nil
-        self.fontSize = 13
     }
 
-    /// The face and size this run is shaped at. `family: nil` keeps the
-    /// platform UI font.
+    /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
+    /// `nil` family (ruling TE-B item 5, kept) — it wins over the environment's
+    /// font and ignores `controlSize`, as it always drew.
     public func font(family: String? = nil, size: Double) -> Text {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
@@ -103,20 +120,28 @@ public struct Text: Element, StyledElement {
         public var node: LayoutNodeID
     }
 
+    /// What this text asked for itself, for `resolveTextStyle` (spec §3).
+    var styleRequest: TextStyleRequest {
+        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundColor)
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
         // Resolved and registered by the text system under its `Sendable`
-        // key; the closures below capture the key and the system, never a
-        // font or the request (`FontKey`'s rule). `paint` asks the same
-        // question and gets the same key back.
-        let key = system.resolveFont(family: fontFamily, size: fontSize)
+        // key; the closures below capture the key, the resolved style and the
+        // system, never a font or the request (`FontKey`'s rule). `paint`
+        // resolves again through the same function in the same environment
+        // (spec §3) and gets the same key back.
+        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
+        let key = system.resolveFont(textStyle.descriptor)
         let string = self.string
 
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
-                    proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
+                    proposalTextMeasurement(string, font: key, system: system, proposal: proposal,
+                                            style: textStyle)
                 }
             }
         }
@@ -238,7 +263,8 @@ public struct Text: Element, StyledElement {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let system = pass.textSystem
-        let font = system.resolveFont(family: fontFamily, size: fontSize)
+        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
+        let font = system.resolveFont(textStyle.descriptor)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.
@@ -284,9 +310,17 @@ public struct Text: Element, StyledElement {
         let glyphNode = pass.frame.lowering.textLeaves[layout.node]
         let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin
         let width = max(pass.measuredWidth(of: glyphNode ?? layout.node), smallestWrapWidth)
-        let color = pass.theme[foregroundColor ?? .textPrimary]
+        // **The line cap is re-derived from the box** (TE-H item 2): `max(1,
+        // ⌊h / lineHeight⌋)` of the node's final height, capped by the limit —
+        // the leaf's own answer where nothing frames it, so the lines layout
+        // measured; a reserved or framed box is taller or is the proposal, and
+        // caps nothing layout did not.
+        let height = Double(pass.bounds(of: glyphNode ?? layout.node).size.height.value)
+        let laid = textLines(string, font: font, system: system, wrappingAt: width, height: height,
+                             style: textStyle)
+        let color = pass.theme[textStyle.foreground]
 
-        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width,
+        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
                                         origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
                                         scaleFactor: pass.scaleFactor) {
             pass.draw(glyph, color: color)

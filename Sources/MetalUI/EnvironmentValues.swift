@@ -101,9 +101,11 @@ public struct EnvironmentValues {
     /// `aLocaleChangesNoTextMeasurementUnderTheProposalAuthority`).
     public var locale: Locale
 
-    /// Carried; changes no built-in text size, as in SwiftUI on macOS (ruling
-    /// EV-I, probe G, pinned by
-    /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority`).
+    /// Carried; changes no built-in text size — no text style, the default
+    /// font or a `relativeTo:` font — which is SwiftUI's macOS answer (rulings
+    /// EV-I, TE-E; probes G and F7, pinned by
+    /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority` and
+    /// `noFontRespondsToDynamicTypeSize`).
     public var dynamicTypeSize: DynamicTypeSize = .large
 
     /// Points to device pixels for the display this content is drawn on —
@@ -158,15 +160,55 @@ public struct EnvironmentValues {
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
     ///
-    /// **One built-in reader: `Button`'s chrome** (ruling `DD-R` item 4 —
-    /// its padding and height follow the size, its label's font does not).
-    /// Otherwise carried unread — **divergence 76, amended and kept, pinned
-    /// wrong on purpose** by `controlSizeReachesNoBuiltInMeasurement`: SwiftUI's
-    /// `Text` default font and `TextField` follow it on macOS (Z2, Z3);
-    /// MetalUI's measure nothing differently. Owner of the remainder (a
-    /// `Text`'s default font, `TextField`/`TextEditor`, the other controls'
-    /// metrics): plan task 11 (`DD-AB` item 2).
+    /// **Two built-in readers** (ruling TE-F): `Button`'s chrome (`DD-R` item
+    /// 4 — its padding and height follow the size), and the **default font**
+    /// every `Text`, `ProposalText`, `TextField` and `TextEditor` resolves when
+    /// neither it nor the environment names a font — 9 pt at `.mini`, 11 at
+    /// `.small`, 13 otherwise (probe F8, Z2, R2), so a `Button`'s label and a
+    /// field's height follow it too. An explicit or environment font ignores it
+    /// (F8h). **Divergence 76, amended again and kept, owner none**: no other
+    /// control's chrome reads it — `TextField`'s padding (SwiftUI's shrinks),
+    /// `Toggle`, `Picker`, `Slider`, `Stepper` — pinned by
+    /// `controlSizeReachesTheDefaultFontButNoControlsChrome`.
     public var controlSize: ControlSize = .regular
+
+    /// The font a `Text`, `ProposalText`, `TextField` or `TextEditor` below
+    /// resolves when it names none — SwiftUI's `font` (ruling TE-B item 2).
+    /// `nil` in a bare value: the **default font**, `.system(size: 13)`, or 11
+    /// and 9 under `controlSize` `.small` and `.mini` (TE-F). Written by
+    /// `.font(_:)`; the nearest writer wins (probe F6e), and a text's own
+    /// font wins over it (F6b).
+    public var font: Font?
+
+    /// The largest number of lines a `Text` below draws — SwiftUI's
+    /// `lineLimit` (ruling TE-H): the upper bound of the pair `.lineLimit(_:)`
+    /// writes. `nil`: no limit. Writing it keeps the lower bound.
+    public var lineLimit: Int? {
+        get { textLineLimit.max }
+        set { textLineLimit.max = newValue }
+    }
+
+    /// Which end of a truncated line keeps its text (ruling TE-I). `.tail`.
+    public var truncationMode: Text.TruncationMode = .tail
+
+    /// How a multi-line text's lines sit in its box (ruling TE-J). `.leading`.
+    public var multilineTextAlignment: TextAlignment = .leading
+
+    /// The glyph colour of a `Text` or `ProposalText` below that names none
+    /// (ruling TE-D). **Internal**: SwiftUI has no public key; written by
+    /// `.foregroundStyle(_:)`/`.foregroundColor(_:)`.
+    var foregroundStyle: ColorToken?
+
+    /// `.fontWeight(_:)` over whichever font a text below resolves (TE-B
+    /// item 3). Internal, as SwiftUI's is.
+    var fontWeight: Font.Weight?
+
+    /// `.italic(_:)` over whichever font a text below resolves (TE-B item 3).
+    var italic: Bool = false
+
+    /// The line-limit pair (ruling TE-H): `lineLimit(n)` writes `(nil, n)`,
+    /// `lineLimit(n, reservesSpace: true)` `(n, n)`, a range its bounds.
+    var textLineLimit = TextLineLimit()
 
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
     /// public reader is `PaintPass.theme`, and the only public writer is
@@ -186,6 +228,12 @@ public struct EnvironmentValues {
     }
 }
 
+/// The lower and upper line bounds `.lineLimit(_:)` writes (ruling TE-H).
+struct TextLineLimit: Hashable, Sendable {
+    var min: Int?
+    var max: Int?
+}
+
 /// SwiftUI's twelve dynamic type sizes (ruling EV-I).
 ///
 /// `Comparable` in declaration order, so `size >= .accessibility1` reads as it
@@ -200,8 +248,9 @@ public enum DynamicTypeSize: Sendable, Hashable, CaseIterable, Comparable {
 
 /// SwiftUI's five control sizes (ruling EV-AC).
 ///
-/// Carried in `EnvironmentValues.controlSize`; `Button`'s chrome is the one
-/// built-in reader (`DD-R` item 4; divergence 76, amended).
+/// Carried in `EnvironmentValues.controlSize`; `Button`'s chrome and the
+/// default font are its built-in readers (`DD-R` item 4, TE-F; divergence 76,
+/// amended).
 public enum ControlSize: Sendable, Hashable, CaseIterable {
     case mini, small, regular, large, extraLarge
 }

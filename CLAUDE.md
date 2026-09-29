@@ -52,8 +52,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
   `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
-  plan task 10, both parts). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`) is a typo; sweep
+  plan task 10, both parts), `TE-` (next `TE-AC`; rulings in its own
+  decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11 part
+  1). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -253,6 +255,32 @@ milestones append their record to `docs/record/` and put only the rule here.
   absent entry as a present `nil`) — as divergence 85, added, owner **plan
   task 15** (closeout), not fixed on this branch. **Task 10 is ticked**:
   every clause of both parts is closed.
+  Task 11, **part 1**, `TE-A`…`TE-AB` (§59, spec
+  `specs/2026-09-28-text-semantics-design.md`, its own decisions doc
+  `2026-09-28-text-semantics-decisions.md`, probes
+  `swiftui-text-semantics.swift` and, from the critic round,
+  `swiftui-controlsize-text-render.swift`/`swiftui-text-in-stacks.swift`, and
+  from the lane fix rounds, `swiftui-truncation-edges.swift`/
+  `swiftui-font-selection.swift`/`swiftui-baseline-offsets.swift`) — the
+  text half of the task's first sentence: `.foregroundStyle`/
+  `.foregroundColor`, `Font` (system sizes/weights/design, the eleven text
+  styles) and font metrics, `.lineLimit`, truncation
+  (`.truncationMode`/ellipsis) through the `TextSystem` seam on both text
+  systems, `.multilineTextAlignment`, baseline alignment in the kernel
+  (`VerticalAlignment.firstTextBaseline`/`.lastTextBaseline` in `HStack`,
+  and the legacy `AlignItems.baseline`/`alignSelf.baseline` fields lowered
+  or refused by name) and `dynamicTypeSize` ruled inert by construction
+  (`Font`'s text-style table has no size column). `controlSize` reaches
+  every text's default font, `TextField` and `TextEditor` too (divergence 76
+  amended a third time). Three lanes plus a lane-1 fix round, a lane-2 fix
+  round and a lane-3 fix round, all verified `ok`; the Record phase's own
+  branch check (`TE-AB`) resolves the one item lane 2's fix round left open —
+  a `GridRow`'s own baseline-alignment factor, left unpinned by 2.1c because
+  none of its arms give a row an `alignment:` — with a new test (2.1d)
+  against a new SwiftUI probe arm, not fixed code (the implementation was
+  already right). Divergences 86–89 added, 76 amended a third time — **task
+  11's box stays unticked**: part 2 (shapes, images, fills/strokes, overlays,
+  clipping) is the next run.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -272,17 +300,95 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
 ```
 
 - **Counts (2026-09-28, `feat/text-page` — `TI-I`, `TI-J` — merged with
-  `master` at `169d166`): 1652 tests, 0 goldens, 100 typecheck guards**, 0
-  `error:` on both build systems, the one `warning:` SwiftPM's deprecation
-  notice under native (0 under the default one), taken after `swift package
-  clean` with `swift build --build-system native --build-tests` then
-  unfiltered `swift test --build-system native --no-parallel` (**one summary
-  line**, `Test run with 1652 tests in 3 suites passed`; the FR-J line
-  present). **1652 = 1644 + 7 + 1**: master's 1644, the branch's 7
-  (`TextEditingTests` +2, `TextEditorTests` +1, `FocusTraversalTests` +4) and
-  the merge's own 1 (`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`,
-  Tab reaching master's focusable controls, `TI-J` amended). No guard, no
-  golden; `Backends/SDL` 21 + 23. Record §59 (written as §53, renumbered).
+  `master` at `ff2ae92`, plan task 11 part 1): 1715 tests, 0 goldens, 105
+  typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1715 tests in 3 suites
+  passed`; the FR-J line present). **1715 = 1706 + 7 + 1 + 1**: master's
+  1706, the branch's 7 (`TextEditingTests` +2, `TextEditorTests` +1,
+  `FocusTraversalTests` +4), the first merge's 1
+  (`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`, Tab reaching
+  master's focusable controls, `TI-J` amended) and the second merge's 1
+  (`aPageIsMeasuredInTheEnvironmentsResolvedFont`, a page measured in the
+  editor's environment-resolved font, `TE-F` item 2). No guard, no golden;
+  `Backends/SDL` 21 + 23. At the first merge (`169d166`) it read 1652 = 1644
+  + 7 + 1. Record §60 (written as §53, renumbered 53→59→60).
+- **Counts (2026-09-28, `feat/text-semantics` — plan task 11, part 1, from
+  `169d166`): 1706 tests, 0 goldens, 105 typecheck guards**, 0 `error:` on
+  both build systems, the one `warning:` SwiftPM's deprecation notice under
+  native (0 under the default one), taken after `swift package clean` with
+  `swift build --build-system native --build-tests` then unfiltered `swift
+  test --build-system native --no-parallel` (**one summary line**, `Test run
+  with 1706 tests in 3 suites passed after 105.602 seconds`; **twelve** gated
+  tests skip — the eleven below plus `measureTruncationDifferences`; the
+  guards ran — the log carries `FR-J no-argument frame: succeeded=`).
+  **1706 = 1644 + 13 + 21 + 27 + 1**: lane 1 (seam layout options and metrics
+  on both text systems) +13 (1.5–1.10, 1.7b, `TruncationOracleTests`' four,
+  G1.1), lane 2 (font selection on both systems; kernel baselines; the legacy
+  `baseline` fields) +21 (1.1–1.4, 2.1–2.13, G1.2, G2.1, the fix round's
+  2.11b/2.1c/1.1b), lane 3 (the element surface: `Font`, the text modifiers,
+  `TextStyleResolution`) +27 (3.1–3.23, G3.1, G3.2, the fix round's
+  3.13b/3.13c/3.17b/3.18b), and the Record phase's own branch check +1
+  (**2.1d**, pinning a `GridRow`'s own baseline-alignment factor in
+  `nativeGridCellOffsetsY`, which 2.1c's arms never gave a row — `TE-AB`); no
+  test retired outright, two renamed with new answers and one fixture
+  re-recorded (record §59 §4.6). Guards **105 = 100 + 2 + 3 + 2 + (no branch-check
+  guard)**: `TextSystemCompileGuards` (new, `G1.1` lane 1, `G1.2` lane 2's fix
+  round), `BaselineCompileGuards` (new, `G2.1`) and `TextCompileGuards` (new,
+  `G3.1`/`G3.2`). No goldens to move (stage 7a). New public API: `Font`
+  (`.system(size:weight:design:)`, `.system(_:design:weight:)`, the eleven
+  text-style statics, `.custom`, `.weight(_:)`, `.italic()`), `Font.Weight`,
+  `Font.Design`, `Font.TextStyle`, `TextAlignment`, `Text.TruncationMode`;
+  `.font`/`.fontWeight`/`.italic`/`.foregroundStyle`/`.foregroundColor` on
+  `ElementGroup` (environment writes) and on `Text`/`ProposalText` (own);
+  `.lineLimit`'s five spellings, `.truncationMode`, `.multilineTextAlignment`;
+  `VerticalAlignment.firstTextBaseline`/`.lastTextBaseline`; the seam's
+  `options:` overloads of `measure`/`placeGlyphs`/`lineRanges` and
+  `fontMetrics(_:)`/`resolveFont(_:)` (`MetalUITextSystem`, for an external
+  `TextSystem` conformer). **Divergences 86–89 are added, 76 amended a third
+  time** (61 → 65 live, next label 90; record §04's 2026-09-28
+  task-11-part-1 section, rulings `TE-G`, `TE-I`, `TE-K`, `TE-Z`, `TE-F`):
+  86 (MetalUI's line advance is `ceil(ascent + descent + leading)` on both
+  text systems, where SwiftUI's TextKit line-fragment height fits no formula
+  tried over those three numbers, `TE-G` item 3), 87 (a middle-truncated line
+  keeps what `CTLineCreateTruncatedLine(.middle)` keeps, where SwiftUI
+  sometimes keeps more at the same width, `TE-I`), 88
+  (`GridRow(alignment: .firstTextBaseline/.lastTextBaseline)` traps at
+  registration rather than reproducing SwiftUI's row-overflowing answer,
+  `TE-K` item 4), 89 (a wrapping text beside a bare `Spacer` in a
+  height-limited stack is offered the height less the spacer's minimum,
+  where SwiftUI shares the height with the spacer, `TE-Z`) — all kept, owner
+  none. Divergence 76 amended a third time, kept, owner none (`TE-F` item 4):
+  `controlSize` now reaches every text's default font (`Text`, `ProposalText`,
+  `TextField`, `TextEditor`) in addition to `Button`'s chrome from task 10
+  part 2; still reaches no other control's chrome. The legacy `baseline`
+  fields (`alignItems.baseline`, `alignSelf.baseline`) now lower on a row/
+  column or are permanent refusals by name (`owner: nil`) — `TE-L` deletes
+  `UnlowerableField.owner`'s `"plan task 11"` branch, so no report anywhere
+  in the kernel still names task 11 as an owner. **0 px against `169d166` in
+  all fourteen offscreen images**, scene identical, independently re-taken by
+  this Record phase — a height census taken before any source change
+  predicted this, and the one text leaf it found squeezed
+  (`demoMainPane()`'s wrapping paragraph under the **A** state at the demo's
+  own 920×560) is not in any of the fourteen (their animation images are
+  1024², where it still fits); the paragraph's **cross-platform** demo frame
+  (Noto Sans through the portable system at 920×560, `XP-C`) does move —
+  named by `TE-Y` item 2, `Expected.swift` re-recorded, Linux and Windows CI
+  confirming on push. **The real-window capture is half taken**: the lock
+  probe read locked at every check but once, during the lane-3 fix round,
+  when `capture.sh` read the default and preview states at 0 differing; the
+  paragraph's own look under **A** at 920×560 (four lines where it drew
+  five) and `TE-Q`'s drawn `controlSize` font are still owed.
+  `Backends/SDL` (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`) 21 + 23,
+  unmoved; a `swift:6.4-noble` aarch64 container builds the root package with
+  0 `error:`/`warning:` and runs `MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests` **198 + 22 + 10** (188 before this task; +2
+  from 2.1c and this Record phase's own 2.1d, both in `MetalUILayoutTests`);
+  `Tests/PortableTests` 20 + 6 + 5 (`TruncationDeterminismTests`, 1.11).
+  **Plan task 11's box stays unticked**: part 2 (shapes, images, fills/
+  strokes, overlays, clipping) is the next run. History: record §59.
 - **Counts (2026-09-28, `test/covered-slider` — the branch check's MX2
   pin): 1644 tests, 0 goldens, 100 typecheck guards**, taken the same way
   (`Test run with 1644 tests in 3 suites passed`; the FR-J line present).
@@ -1080,7 +1186,8 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
 - **Read the printed counts, never the exit status.** `--build-system native`
   prints ONE summary line even with three suites in the run (it says "in 3
   suites"); the default build system may print several (sum them).
-  **Eleven** gated tests count toward the total while skipped (twelve until
+  **Twelve** gated tests count toward the total while skipped (eleven before
+  plan task 11 part 1's `measureTruncationDifferences`; twelve until
   stage 7a removed `regenerateAllGoldens` with the goldens) —
   `aListsWorkIsTheSameFor100kRowsAsFor500`, the
   FreeType oracle's `measure(file:)`, the HarfBuzz oracle's `measure()`
@@ -1092,8 +1199,10 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   content sizes oracle's `measureContentSizeDifferences`
   (`METALUI_CONTENT_MEASURE=1`), `recordDemoFrames`
   (`METALUI_CROSSPLATFORM_RECORD=1`), `measureFallbackDifferences`
-  (`METALUI_FALLBACK_MEASURE=1`) and `measureBidiDifferences`
-  (`METALUI_BIDI_MEASURE=1`). **Tests that register fonts with CoreText
+  (`METALUI_FALLBACK_MEASURE=1`), `measureBidiDifferences`
+  (`METALUI_BIDI_MEASURE=1`) and the truncation oracle's
+  `measureTruncationDifferences` (`METALUI_TRUNCATION_MEASURE=1`). **Tests
+  that register fonts with CoreText
   process-wide race under a parallel run** (measured with a filtered run:
   the resolver oracle and the seam test fail together) — `--no-parallel`.
   The lone `warning:`
@@ -1123,12 +1232,15 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   (stage 10), `ConditionalIdentityCompileGuards`,
   `ExplicitIdentityCompileGuards` (plan task 8),
   `ControlStateCompileGuards` (plan task 9), `ForEachCompileGuards`,
-  `BindingCompileGuards` and `ScrollCompileGuards` (plan task 10 part 1) and,
-  new at plan task 10 part 2, `ControlsCompileGuards`,
-  `SliderStepperCompileGuards` and `SelectionCompileGuards`;
+  `BindingCompileGuards` and `ScrollCompileGuards` (plan task 10 part 1),
+  `ControlsCompileGuards`,
+  `SliderStepperCompileGuards` and `SelectionCompileGuards` (plan task 10
+  part 2) and, new at plan task 11 part 1, `TextSystemCompileGuards`,
+  `BaselineCompileGuards` and `TextCompileGuards`;
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 39 and 61 (57 before task 10 part 2's four;
+  the declaration. Two helpers, 39 and 66 (39 and 61 before task 11 part 1's
+  five; 57 before task 10 part 2's four;
   40 and 50 before task 10 part 1's
   net −1/+7; 48 before task 9's two; 44 before
   task 8's four; 42 before
@@ -1162,7 +1274,11 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `ScrollCompileGuards` (`G3.1`/`G3.2`, both whole-file); new at plan task 10
   part 2, **two** `ControlsCompileGuards` (`G1.1`/`G1.2`), **one**
   `SliderStepperCompileGuards` (`G2.1`) and **one** `SelectionCompileGuards`
-  (`G3.1`), all four whole-file. A guard about what an
+  (`G3.1`), all four whole-file; new at plan task 11 part 1, **two**
+  `TextSystemCompileGuards` (`G1.1` lane 1, `G1.2` lane 2's fix round, both
+  whole-file), **one** `BaselineCompileGuards` (`G2.1`, whole-file) and
+  **two** `TextCompileGuards` (`G3.1`/`G3.2`, both whole-file). A guard about
+  what an
   external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
   `.build/<triple>/debug/Modules` is not where `#filePath` expects
@@ -1815,7 +1931,14 @@ by `Window` over its own guarded copy at draw, before `Window.environment`
 (`EV-AB`) — so `Window.environment`'s `controlActiveState`, like its `theme`
 and `displayScale`, is **not** the root's source (three fields, not two).
 **`controlSize`** (SwiftUI's five sizes) is carried and scoped
-(`.controlSize(_:)`) with no built-in reader (`EV-AC`, divergence 76).
+(`.controlSize(_:)`); its built-in readers, added incrementally, are
+`Button`'s chrome (plan task 10 part 2, `DD-R`) and every text's default
+font — `Text`, `ProposalText`, `TextField`, `TextEditor`, and through
+`Button`'s label — at 9/11/13 pt (plan task 11 part 1, `TE-F`; divergence
+76, amended across both tasks). `TextField`'s own padding and every other
+control's chrome still read nothing from it. **`dynamicTypeSize`** is
+likewise carried and scoped but reaches no text style, by design —
+`Font`'s text-style table has no size column to scale (`TE-E`).
 
 **Accessibility (`AB-`).** Nothing recorded until a client activates the
 window (sticky). Synthesized nodes are records (`Frame.axEmissions`), never
@@ -1834,7 +1957,7 @@ every focusable element in tree order, wrapping (`FocusRegistry.tabOrder`,
 **Tab reaches every control too** (`Button`, `Toggle`, `Slider`, `Stepper`,
 `Picker`, a selectable `List` — all focusable, `DD-T`): AppKit's Tab with
 keyboard navigation on, since MetalUI reads no system setting — inside
-divergence 80's scope, `TI-J`'s merge amendment, record §59 §Merge. Keys go
+divergence 80's scope, `TI-J`'s merge amendment, record §60 §Merge. Keys go
 to the `Keymap` first, then to a focused field's editing keys, then bubble raw
 `onKey` up the parent chain (a control's own `ControlKeys` run there, after a
 caller's `onKey` declines), and only then does an unclaimed Tab traverse — so
@@ -1901,6 +2024,49 @@ two concepts were never the same fact, and only the deleted one used the
 tokenizer. Max-content is one line per hard break (TX-K, unaffected). The
 glyph atlas is grow-only; `evictUnusedSince` has no caller and would strand
 pixels.
+
+**Text semantics (`TE-`, plan task 11 part 1).** The seam's `measure`,
+`placeGlyphs` and `lineRanges` each gain an `options:` overload
+(`TextLayoutOptions`: `maxLines`, `truncation`, `alignment`) on both text
+systems, the old three-argument spellings a protocol extension passing
+`TextLayoutOptions()` — a new conformer outside CoreText and
+`PortableTextSystem` gets the defaulted spelling for free, but owes the
+`options:` one for a caller that needs it (`TS-A` is unmoved: still only
+through `Frame.textSystem`). Truncation is CoreText's own truncated line
+(`Shaper.truncatedLine`) on both systems — the portable path shapes its `…`
+token through `shapeCascading` too, so fallback still applies to the token
+(divergence 87 owns the one measured gap, a middle truncation at some
+widths). `Font` (`.system(size:weight:design:)`, the eleven text-style
+statics, `.custom`, `.weight(_:)`, `.italic()`) and the environment's
+`font`/`fontWeight`/`italic`/`foregroundStyle` resolve through **one**
+function, `resolveTextStyle` (`TextStyleResolution.swift`), which every
+text-drawing element calls for both measurement and paint — a new one that
+resolves its own font a different way puts it outside `controlSize`'s reach
+and outside `TE-AA`'s weight/italic precedence (the element's own value,
+else the environment's, else the font's, else the text style's; italic is
+additive, never a `false` override). **A finite height proposal now caps a
+text's lines** (`textLines`: the `lineLimit` pair's upper bound, else
+`max(1, ⌊height / lineHeight⌋)`) — refuting `ProposalText.swift`'s old,
+unprobed doc comment that a height proposal does not truncate or scale text
+(`TE-H` item 2, probe `swiftui-text-semantics.swift` L5/X9); the cap at
+paint is re-derived from the placed node's rect with the same function, so
+a text whose rect is its own measured answer draws exactly what it measured
+(`TE-AA` item 4). `controlSize` reaches every text's default font (9/11/13
+pt by size) and, through it, `TextField`/`TextEditor`'s and `Button`'s label
+(divergence 76, amended across tasks 10 part 2 and 11 part 1); an explicit
+or environment font ignores it. `dynamicTypeSize` stays carried and scoped
+but reaches no text style — `Font`'s text-style table has no size column
+(`TE-E`), a ruled inertness, not an oversight. `VerticalAlignment` gains
+`.firstTextBaseline`/`.lastTextBaseline` (a public `enum`, so an exhaustive
+external `switch` over it needs a `default:` case, `TE-K` item 1
+migration note); the kernel's `NativeNode` measures and aligns by them in a
+horizontal stack only — a vertical one traps, and `GridRow` traps naming
+divergence 88. The legacy `alignItems.baseline` lowers (row → `baseline:
+.first`, column → `flexStart`); `alignSelf.baseline` is consumed under a
+baseline row; everywhere else (a `display: .stack` container, any other
+`alignSelf` under a baseline row) both are **permanent refusals by name**
+(`owner: nil`) — `UnlowerableField.owner`'s `"plan task 11"` branch is
+gone, so no report in the kernel names this task as an owner any more.
 
 **Renderer.** No semaphore; the atlas texture is written only while
 `atlasTextureWasEncoded` is false, else replaced, and it is uploaded
@@ -1990,9 +2156,17 @@ out through the propose/measure/place kernel. Detail: §19
   main factor mirrored (identity, paint, hit and accessibility order
   untouched). Still reported by name: percentages, unequal
   grow weights, a length `flexBasis`, a non-greedy `maxSize`, `space-*` on an
-  unsized container a parent grows, `baseline` — since stage 10 each a
-  **permanent refusal** (`owner: nil`, `LR-FO`) except `baseline` (owner plan
-  task 11); `hidden()` lowers since stage 6b (`LR-DH`). **Structure reads
+  unsized container a parent grows — since stage 10 each a
+  **permanent refusal** (`owner: nil`, `LR-FO`). The legacy `baseline` fields
+  (`alignItems.baseline`, `alignSelf.baseline`) are no longer this list's
+  exception: plan task 11 part 1 lowers a row's `alignItems.baseline` to
+  `baseline: .first` on its native stack and a column's to `flexStart`, and
+  consumes a child's own `alignSelf.baseline` under a baseline row; a
+  `display: .stack` container's `alignItems.baseline` and any other
+  `alignSelf.baseline` are now permanent refusals too (`TE-L`), so
+  `UnlowerableField.owner`'s `"plan task 11"` branch is deleted and every
+  remaining report reads `owner: nil`. `hidden()` lowers since stage 6b
+  (`LR-DH`). **Structure reads
   the declared style, values the animated one** (`LR-AS`); a new read of
   `Style` in the lowering owes an animated arm, or it is unpinned. A `Stack`
   and a `.frame` layer ignore a child's margin, as the legacy engine did. A
@@ -2395,7 +2569,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**61 live**, stable labels; retired labels never
+- **Known divergences** (**65 live**, stable labels; retired labels never
   reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
   59, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
@@ -2557,7 +2731,27 @@ expected, measured facts:
   Divergence 76 is **amended again, not retired** (`Button`'s chrome now
   reads `controlSize`; every other consumer stays plan task 11's, `DD-R`
   item 4).
-- **Declared but inert** APIs (compile and do nothing: `AlignItems.baseline`,
+  **Plan task 11 part 1 adds 86–89, amends 76 a third time** (61 → 65 live;
+  record §04's 2026-09-28 task-11-part-1 section, rulings `TE-G`, `TE-I`,
+  `TE-K`, `TE-Z`): **added**: 86 (MetalUI's line advance is
+  `ceil(ascent + descent + leading)` on both text systems, where SwiftUI's
+  TextKit line-fragment height fits no formula tried over those three
+  numbers — a Noto Sans line is 24 pt where SwiftUI's is 23 — kept, owner
+  none, `TE-G` item 3), 87 (a single line truncated in the middle keeps what
+  `CTLineCreateTruncatedLine(.middle)` keeps, where SwiftUI sometimes keeps
+  more at the same width — equal in every other mode — kept, owner none,
+  `TE-I`), 88 (`GridRow(alignment: .firstTextBaseline/.lastTextBaseline)`
+  traps at registration, naming the divergence, rather than reproducing
+  SwiftUI's row-overflowing answer — kept, owner none, `TE-K` item 4), 89 (a
+  wrapping text beside a bare `Spacer` in a height-limited stack is offered
+  the height less the spacer's minimum, where SwiftUI shares the height with
+  the spacer — kept, owner none, `TE-Z`). Divergence 76 is **amended a third
+  time, kept, owner none** (`TE-F` item 4): `controlSize` now reaches every
+  text's default font (`Text`, `ProposalText`, `TextField`, `TextEditor`) in
+  addition to `Button`'s chrome from task 10 part 2; it still reaches no
+  other control's chrome (`TextField`'s own padding, `Toggle`, `Picker`,
+  `Slider`, `Stepper`).
+- **Declared but inert** APIs (compile and do nothing:
   `hidden()` on
   drawing/focusable subtrees, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
@@ -2634,6 +2828,22 @@ expected, measured facts:
   `displayScale`'s rows are untouched: neither control this part built reads
   either (`DD-Q`'s table re-points `controlActiveState`'s consumers at plan
   task 12 unchanged).
+  **Plan task 11 part 1 deletes the `AlignItems.baseline` row and narrows
+  `controlSize`'s further; `dynamicTypeSize`'s is confirmed, unmoved**
+  (record §05's 2026-09-28 task-11-part-1 section): `alignItems.baseline` on
+  a legacy row or column now lowers (to `baseline: .first` or `flexStart`)
+  instead of doing nothing, so it is no longer an example of this list — a
+  `display: .stack` container's `alignItems.baseline` and any
+  `alignSelf.baseline` outside a baseline row are still reported, but as
+  `TE-L`'s permanent refusals (`owner: nil`), the same shape as the rows
+  above, not as inert state. `controlSize`'s row narrows again: it now also
+  reaches every text's default font (`Text`, `ProposalText`, `TextField`,
+  `TextEditor`), in addition to `Button`'s chrome from task 10 part 2
+  (`TE-F`); `TextField`'s own padding and every other control's chrome still
+  read nothing from it. `dynamicTypeSize` is read by design and stays: `Font`'s
+  text-style table has no size column, so the value is carried and scoped but
+  reaches no text style (`TE-E`, spec 3.9) — unlike `controlSize`, no built-in
+  consumer is owed to a later task, so this row is not narrowed further.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -2728,6 +2938,29 @@ expected, measured facts:
   Space/Return/arrows without Full Keyboard Access, which the design's own
   probe run never turned on (divergence 80). None of these was ever seen on
   a real display or a real accessibility client.
+  **Plan task 11 part 1 adds no image-moving look, but adds one look of its
+  own and takes half of the still-open real-window capture** (record §03's
+  2026-09-28 task-11-part-1 section): a height census taken before any source
+  change (`docs/probes/text-semantics-height-census.patch`) predicted, and
+  the fourteen-image offscreen comparison confirmed, 0 px against `169d166`
+  in every one — the one text leaf the census found squeezed
+  (`demoMainPane()`'s wrapping paragraph under the **A** state, `TE-H` item 2)
+  is not in any of the fourteen (their animation images are 1024², where it
+  still fits). The lock probe read locked at design time, at every lane's own
+  check and at the lane-3 close (18:09 PDT), but **unlocked once during the
+  lane-3 fix round** (18:19 PDT): `capture.sh <scratch> 169d166 e39a9b4` was
+  run and read `default: 1840x1176 differing=0` and `preview: differing=0`
+  (control 958986) — so the default and preview states of the still-open
+  real-window capture are **now taken, 0 differing**, narrowing what is owed.
+  **Still owed**: the paragraph under **A** at the demo's own 920×560 window
+  (four lines where it drew five, `TE-Y` item 3) — the offscreen images never
+  show this state at that size; `TE-Q`'s drawn `controlSize` font (`F8`'s
+  render field was `ImageRenderer`'s blind spot, so `controlSize`'s effect on
+  a drawn glyph, as opposed to a measured layout, is still unconfirmed); and
+  everything task 9's and task 10's own sections above already owed
+  (`displayScale`/`controlActiveState`/key-active mapping, the two-display
+  `displayScale` change, the controls demo's pointer/keyboard/VoiceOver
+  looks) — none of those is this task's to close.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -2736,7 +2969,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **100** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **105** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

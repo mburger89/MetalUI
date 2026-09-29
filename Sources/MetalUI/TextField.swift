@@ -27,9 +27,21 @@ public struct TextField: Element, StyledElement {
     public var text: String
     public var onChange: @MainActor (String) -> Void
     public var submit: (@MainActor () -> Void)?
-    public var fontFamily: String?
-    public var fontSize: Double
     public var foregroundColor: ColorToken?
+    /// The field's own font request (ruling TE-F item 2): inherit the
+    /// environment's font, the default font, or an explicit one.
+    var fontRequest: TextFontRequest = .inherit
+
+    /// The explicit font's family; computed over the request (TE-F item 2).
+    public var fontFamily: String? {
+        get { fontRequest.familyAndSize.family }
+        set { fontRequest = .legacy(family: newValue, size: fontSize) }
+    }
+    /// The explicit font's size, 13 without one; computed (TE-F item 2).
+    public var fontSize: Double {
+        get { fontRequest.familyAndSize.size }
+        set { fontRequest = .legacy(family: fontFamily, size: newValue) }
+    }
 
     public init(_ placeholder: String, text: String, onChange: @escaping @MainActor (String) -> Void) {
         self.style = Style()
@@ -37,7 +49,6 @@ public struct TextField: Element, StyledElement {
         self.placeholder = placeholder
         self.text = text
         self.onChange = onChange
-        self.fontSize = 13
     }
 
     /// Bound to `text` (ruling `DD-E`): shows `text.wrappedValue` and writes
@@ -56,8 +67,7 @@ public struct TextField: Element, StyledElement {
 
     public func font(family: String? = nil, size: Double) -> TextField {
         var copy = self
-        copy.fontFamily = family
-        copy.fontSize = size
+        copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
@@ -78,6 +88,15 @@ public struct TextField: Element, StyledElement {
         public var node: LayoutNodeID
     }
 
+    /// The face this field draws in (ruling TE-F item 2): its own font, else
+    /// the environment's, else the default font by `controlSize` — `Text`'s
+    /// resolution, so `.font(_:)` on a container and `.controlSize(_:)` reach
+    /// it. Its colour and chrome are its own, unchanged.
+    @MainActor
+    func resolvedFont(in environment: EnvironmentValues, system: any TextSystem) -> FontKey {
+        system.resolveFont(resolveTextStyle(TextStyleRequest(font: fontRequest), in: environment).descriptor)
+    }
+
     /// The width a field asks for when offered none: its text or its
     /// placeholder, whichever is wider, plus the caret.
     @MainActor
@@ -96,7 +115,7 @@ public struct TextField: Element, StyledElement {
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
-        let key = system.resolveFont(family: fontFamily, size: fontSize)
+        let key = resolvedFont(in: pass.environment, system: system)
         let text = self.text, placeholder = self.placeholder
         // Greedy on the width, as SwiftUI's `TextField` is; one line tall.
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
@@ -129,8 +148,8 @@ public struct TextField: Element, StyledElement {
     }
 
     @MainActor
-    func geometry(bounds: Bounds<Pixels>, state: TextEditState, system: any TextSystem) -> Geometry {
-        let font = system.resolveFont(family: fontFamily, size: fontSize)
+    func geometry(bounds: Bounds<Pixels>, state: TextEditState, system: any TextSystem,
+                  font: FontKey) -> Geometry {
         let state = state.clamped(to: text.count)
         let characters = Array(text)
         let lineHeight = Self.lineHeight(font: font, system: system)
@@ -165,7 +184,8 @@ public struct TextField: Element, StyledElement {
         let system = pass.frame.textSystem
         var state = TextEditState()
         pass.withState(id, initial: TextEditState()) { state = $0 }
-        let geometry = geometry(bounds: bounds, state: state, system: system)
+        let geometry = geometry(bounds: bounds, state: state, system: system,
+                                font: resolvedFont(in: pass.environment, system: system))
         // The scroll follows the caret. Written here, in the phase, as
         // `ScrollChrome` writes its clamped offset back: it is a function of
         // the caret and the width, so it converges in one frame and writes
@@ -200,10 +220,10 @@ public struct TextField: Element, StyledElement {
 
     private func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, pass: inout PaintPass) {
         let system = pass.textSystem
-        let font = system.resolveFont(family: fontFamily, size: fontSize)
+        let font = resolvedFont(in: pass.environment, system: system)
         var state = TextEditState()
         pass.withState(id, initial: TextEditState()) { state = $0 }
-        let g = geometry(bounds: bounds, state: state, system: system)
+        let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
         let textColor = pass.theme[foregroundColor ?? .textPrimary]
         let x0 = g.contentX - g.scrollX

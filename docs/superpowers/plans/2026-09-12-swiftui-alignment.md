@@ -1207,6 +1207,43 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   type response. Then cover shapes, images, fills/strokes, overlays and
   clipping where MetalUI exposes them. Keep renderer constraints explicit when
   an exact effect is not supportable yet.
+  *Progress 2026-09-28, part 1 landed, part 2 open.* The task's first
+  sentence — the text half — is done on `feat/text-semantics` (`TE-A`…`TE-AB`,
+  record §59, spec `specs/2026-09-28-text-semantics-design.md`, decisions doc
+  `2026-09-28-text-semantics-decisions.md`): `.foregroundStyle`/
+  `.foregroundColor`, `Font` (system sizes/weights/design, the eleven text
+  styles) and font metrics through one resolution function
+  (`resolveTextStyle`), `.lineLimit`'s five spellings and truncation
+  (`.truncationMode`, CoreText's own truncated line adopted on the portable
+  path too) through the `TextSystem` seam's new `options:` overloads on both
+  text systems, `.multilineTextAlignment`, baseline alignment in the kernel
+  (every `NativeNode` kind, `VerticalAlignment.firstTextBaseline`/
+  `.lastTextBaseline` in `HStack`, the legacy `alignItems.baseline`/
+  `alignSelf.baseline` fields now lowered or permanently refused by name —
+  `UnlowerableField.owner`'s `"plan task 11"` branch is gone), and
+  `dynamicTypeSize` ruled inert by construction (`Font`'s text-style table
+  has no size column, `TE-E`). `controlSize` reaches every text's default
+  font, `TextField` and `TextEditor` too (divergence 76 amended a third
+  time). A finite height proposal now caps a text's lines, refuting an old,
+  unprobed `ProposalText.swift` doc comment (`TE-H`). Divergences 86–89
+  added (MetalUI's line-fragment height fits no CoreText formula tried; a
+  middle truncation sometimes keeps less than SwiftUI at the same width; a
+  `GridRow`'s own baseline alignment traps rather than reproducing SwiftUI's
+  row-overflowing answer; a wrapping text beside a bare `Spacer` is offered
+  the height less the spacer's minimum, where SwiftUI shares it) — live
+  count 61 → 65. Three lanes plus a fix round on each, all verified `ok`; the
+  Record phase's own branch check (`TE-AB`) pins a `GridRow`'s own alignment
+  factor that lane 2's fix round left untested (the kernel's answer was
+  already right — a missing test, not a bug) and fixes a citation drift.
+  Counts 1706 / 0 / 105 tests/goldens/guards; 0 px against `169d166` in all
+  fourteen offscreen images (the paragraph's cross-platform, portable Noto
+  Sans demo frame is the one named, byte-pinned exception, confirmed on
+  Linux/Windows CI on push); the still-open real-window capture's default
+  and preview states are now taken, 0 differing, during the lane-3 fix
+  round's one unlocked window (record §03's 2026-09-28 section) — the
+  paragraph's own animation-state look and `TE-Q`'s drawn `controlSize` font
+  stay owed. **Part 2** (shapes, images, fills/strokes, overlays, clipping)
+  is the next run; **this task's box stays unticked**.
 
 - [ ] **12. Align interaction, focus and accessibility.**
   Specify gesture composition, button semantics, disabled behaviour, keyboard
