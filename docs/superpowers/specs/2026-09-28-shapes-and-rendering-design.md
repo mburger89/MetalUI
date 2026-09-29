@@ -3,13 +3,13 @@
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
 Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AS`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
+(next unused **`TE-AT`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed, lane 2's `TE-AS` §4, §5 and §8). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
 (**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
 byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3).** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, record §60 §4).** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -81,10 +81,12 @@ public protocol Shape: ProposalElement, Sendable {       // TE-AQ item 1
     /// SwiftUI's `path(in:)`, narrowed to what the renderer draws (TE-AG).
     func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry
     /// SwiftUI's `sizeThatFits(_:)`. Default: the proposal, nil → 10 (S1).
-    func sizeThatFits(_ proposal: ProposedSize) -> SizeD
+    /// `nonisolated`: the kernel's leaf measure is a @Sendable closure (TE-AS item 1).
+    nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD
 }
 // `extension Shape` supplies requestProposalLayout / prepaint / paint (the
-// bare fill, TE-AH) with concrete LayoutState/PrepaintState, so an outside
+// bare fill, TE-AH) with concrete LayoutState (`ShapeLayout`, public;
+// `Rectangle.Layout` is a typealias of it, TE-AS item 2) and PrepaintState, so an outside
 // conformer writes geometry(in:) alone and sits in an HStack (G2.1).
 // Every built-in below is also Hashable (TE-AQ item 3).
 public struct ShapeGeometry: Sendable, Equatable {
@@ -195,8 +197,9 @@ and `init(width:height:straightRGBA:)`, which premultiplies (`TE-AR` item 2).
 proposal, a nil axis 10; **`Circle` answers the square of the smaller proposed
 side** (a nil axis takes the other's value; nil×nil → 10×10; ∞×∞ → ∞×∞) and
 draws **centred** in its frame. `RoundedRectangle`'s radius clamps to half the
-shorter side and a negative one is 0; `Capsule`'s radius is half the shorter
-side. A shape registers no hitbox, no focus entry and no accessibility record
+shorter side and a negative one is 0 — clamped in
+`ShapeGeometry.roundedRectangle`, so an outside shape's radii are too (`TE-AS`
+item 3); `Capsule`'s radius is half the shorter side. A shape registers no hitbox, no focus entry and no accessibility record
 (as `Rectangle` today), and snaps under animation (proposal path).
 
 **Geometry → primitive** (one function, `Shape.swift`): a rounded rectangle
@@ -236,11 +239,13 @@ hit behaviour under `clipShape` is unmeasured here, owner **plan task 12**,
 layout (C8). The legacy `StyledElement.clipShape(s)` stores the shape on the
 `Decoration` (a package `Hashable` box over `any Shape & Hashable`, `TE-AQ`
 item 3; the field **snaps** under animation, joining the paint-only
-`Decoration` fields) and clips through `registerAndScope`/`paintDecoration`'s
+`Decoration` fields; it wins over `clipsContent` when both are set, `TE-AS`
+item 4) and clips through `registerAndScope`/`paintDecoration`'s
 existing clip halves; **the legacy `.cornerRadius(r)` stays paint-only** (divergence 47
 kept, `TE-AJ`). `Frame.intersect(_:radii:_:radii:)` gains one exact case
 before its square fallback: **an inner rounded rect contained in the outer
-rounded rect keeps its own radii** — tested exactly as "each inner corner disc
+rounded rect keeps its own radii** (a 1e-4 pt tolerance at tangency,
+`TE-AS` item 5) — tested exactly as "each inner corner disc
 lies inside the outer shape" (`rect_sdf(outer, cᵢ) ≤ −rᵢ` for the four inner
 corner centres; both shapes are convex hulls of their corner discs), and the
 mirror case; it runs **after** the two existing cases, whose answers do not
@@ -445,7 +450,7 @@ from `.surface` to `.textPrimary` is a T row with its literal re-derived
 | 2.19 | `clipShapeOfAnEllipseTrapsNamingDivergence91` (exit test) | — | M2s: trap removed |
 | 2.20 | `aRoundedClipContainedInARoundedClipKeepsItsRadii` (one `@Test`) — C6: capsule (0,0,100,60) r 30 then circle (20,0,60,60) r 30 → radii 30 (the fallback gave 0); the mirror case; one `Frame.intersect` unit arm per case | square box | M2t: containment case removed |
 | 2.21 | `twoCrossingRoundedClipsIntersectAsTheSquareBox` — **divergence 92's pin** | — | M2u: return the inner radii unconditionally |
-| 2.22 | `aShapeBackgroundOrOverlayTakesTheContentsSize` — O1, O3, O5 through the existing `.background { }`/`.overlay { }`, both vocabularies | no shapes | M2v: `Circle` answers the proposal (O3's band moves) |
+| 2.22 | `aShapeBackgroundOrOverlayTakesTheContentsSize` — O1, O3, O5 through the existing `.background { }`/`.overlay { }`, both vocabularies, plus a `.topLeading` overlay arm (band at (−2, −2), `TE-AS` item 6) | no shapes | M2v: `Circle` answers the proposal (the `.topLeading` band moves to (18, −2); the centred O3 cannot see it, `TE-AS` item 6) |
 | 2.23 | `backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken` (O2, O4) | — | M2w: default token `.surface` |
 | G2.1 | `anOutsideShapeNeedsOnlyItsGeometry` — plain `import MetalUI`, whole-file: a struct conforming to `Shape` with only `geometry(in:)` compiles, `.fill(.accent)`s, **and sits bare in an `HStack`** (so it is a `ProposalElement`); control: one without it fails naming `geometry` | — | MG2a: `sizeThatFits`'s default removed; MG2a′: `Shape` refines `Element` instead of `ProposalElement` (the `HStack` arm fails) |
 | G2.2 | `theRectangleColorInitialiserIsDeprecatedTowardFill` — `Rectangle(color: .accent)` warns naming `fill`; control `Rectangle().fill(.accent)` warns nothing | — | MG2b: deprecation dropped |

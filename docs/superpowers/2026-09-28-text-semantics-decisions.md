@@ -4,12 +4,13 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AR`; next unused is **`TE-AS`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AS`; next unused is **`TE-AT`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
 **Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`);
-**lane 1 (the renderer) landed** (`TE-AR`); lanes 2 and 3 not yet run.
+**lane 1 (the renderer) landed** (`TE-AR`); **lane 2 (shapes, fill/stroke,
+clipping, backgrounds in a shape) landed** (`TE-AS`); lane 3 not yet run.
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -1989,3 +1990,92 @@ on both sides. Item 5: an image scaled so that a texel boundary lands on a
 pixel centre can differ between backends by a full texel contrast at those
 pixels; the parity mask does not hide it (Δ97 > 8), so a frame that did so
 would fail CI loudly rather than pass wrong.
+
+---
+
+## TE-AS — shapes, fill/stroke and clipping, as landed: a `nonisolated` `sizeThatFits`, the clamp in the geometry, M2v's instrument moved, and one retained guard re-answered (lane 2)
+
+**Evidence.** Lane 2's red commit `c73ab50` and implementation `05d6ea0`
+(record §60 §4): suite 1743 = 1718 + 23 + 2 guards, green after `swift
+package clean`; the fourteen offscreen images 0 px against `ff2ae92`, scenes
+identical; the mutation table of record §60 §4 (every named mutation run on
+the whole unfiltered suite).
+
+**The ruling — each item amends the spec in this commit.**
+
+1. **`Shape.sizeThatFits(_:)` is a `nonisolated` requirement** (spec §4 said
+   `func`). The kernel's leaf measure is a `@Sendable` nonisolated closure
+   (`ProposalMeasureFunction`), and `Shape` inherits `@MainActor` from
+   `Element`, so a main-actor requirement could not be called from it. The
+   default and every built-in override are `nonisolated`; an outside
+   conformer that overrides it writes `nonisolated` too. `geometry(in:)`
+   stays main-actor (read in prepaint and paint only). G2.1's positive
+   writes `geometry(in:)` alone and compiles.
+2. **`ShapeLayout` is the public `LayoutState` every shape shares**, and
+   `Rectangle.Layout` — a public nested struct until now — is a typealias of
+   it, so `Rectangle`'s own `requestProposalLayout`/`paint` and the `Shape`
+   defaults infer one associated type. No in-repo reader named
+   `Rectangle.Layout`'s members (it had one internal field); a public
+   spelling change, listed with `TE-AQ` item 2's break.
+3. **The radius clamp lives in `ShapeGeometry.roundedRectangle(_:cornerRadii:style:)`**,
+   not in `RoundedRectangle`: each radius clamps to `0…min(w, h)/2`, so an
+   outside shape's over-large radius is clamped as S4/S5 read for the
+   built-in (2.3's last arm). M2c (no clamp) is applied there.
+4. **A legacy `clipShape` wins over `clipsContent`** when both are set: the
+   geometry of every built-in lies inside the box, so the shape alone is the
+   intersection. `Decoration.clipShape` is internal (`escapesOpacity`'s
+   precedent), a `ClipShapeBox` over `any Shape & Hashable` whose `==` opens
+   the existential and compares by the concrete type's synthesized `==`;
+   `Decoration.clipRegion(in:)` is the one reader of both fields, called by
+   both clip halves. The field snaps under animation (nothing interpolates
+   it). Hitboxes inside are cut to the geometry's bounding rect (2.18),
+   `TE-AQ` item 4's rule.
+5. **`Frame.intersect`'s containment case** (`roundedRect(_:radii:liesInside:radii:)`)
+   evaluates the rounded-rect SDF at each corner-disc centre with radii
+   clamped to half the shorter side, as the shader clamps, and accepts a
+   disc reaching **1e-4 pt** past the boundary — C6's circle is tangent to
+   the capsule, and the tolerance absorbs float rounding there. The mirror
+   (outer inside inner) returns the outer's radii. Both run after cases 1
+   and 2, so their answers stand (2.20's case-2 arm).
+6. **M2v's instrument is moved** (spec §8 said "O3's band moves"). The
+   centred O3 cannot see a `Circle` answering its proposal: the geometry
+   centres its square in whatever rect it is given, so the band reads
+   (18, −2, 64, 64) either way. 2.22 gains a `.topLeading` overlay arm —
+   derived from S1 and the overlay's alignment (a kernel placement, not a
+   SwiftUI claim): the circle's own 60×60 at the corner, its band at
+   (−2, −2); a proposal-answering circle puts it at (18, −2). M2a (the
+   override removed) and M2v (its body answering the proposal) are the same
+   answer by two spellings and redden the same tests.
+7. **One retained guard re-answers — a T row**:
+   `theLegacyAndProposalDecorationModifiersDoNotCollide` asserted that
+   `HStack { … }.clipped()` does not compile ("`clipped()` stays
+   legacy-only"). `TE-AJ` item 1 adds SwiftUI's proposal `.clipped()` (probe
+   C3), so that spelling now compiles: it moves into the `both` fixture's
+   proposal half (still inferring the proposal wrapper, while the legacy
+   half's `clipped()` still infers `Box` — its `-> Box<EmptyGroup>` return
+   type is the assertion), and `crossed` is re-spelled with
+   `hoverBackground(_:)`, still legacy-only. Red on the skeleton
+   (`DecorationCompileGuards.swift:211`, the fixtures agreeing); the twin of
+   its G3b mutation for the new spelling (MG3b′, `hoverBackground` declared on
+   `ElementGroup`) reddens it again (record §60 §4).
+8. **The `Rectangle()` census gives no T row.** 79 spellings at `ff2ae92`: 5
+   in `Sources` comments, 38 in typecheck-guard fixtures (compile only), 19
+   in `ElementGroupTrapTests` (construction and traps), 9 in `HitRegionTests`
+   comments, 5 in `ProposalModifierValidationTests` (a render asserting a
+   probe leaf's bounds) and 3 in `ScrollToTests` (layout and offsets) — none
+   asserts a bare `Rectangle()`'s painted colour. The one `Rectangle(color:)`
+   caller (`rectangleUsesSwiftUIShapeProposalSizing`) is re-spelled
+   `Rectangle().fill(.accent)` and asserts bounds only; its answer does not
+   move.
+9. **Five tests are green on arrival**, each with a mutation that reddens it:
+   2.6 (the skeleton's `ShapeView` painted its fill layers — it had to, or
+   the re-spelled `rectangleUsesSwiftUIShapeProposalSizing` indexed an empty
+   scene and truncated the run), 2.14 (the skeleton already defaulted
+   `.continuous` and drew no style), 2.17 (the skeleton's `clipShape` was
+   already paint-only), 2.21 (divergence 92 pins the existing square
+   fallback) and G2.1 (the skeleton's protocol extension). 
+
+**Cost if wrong.** Item 1: an outside shape that overrides `sizeThatFits`
+without `nonisolated` fails to compile, naming the isolation — loud. Item 5:
+a tolerance a hair too loose keeps an inner radius a hair past the outer
+edge, sub-pixel.
