@@ -86,7 +86,7 @@ public final class LayoutTree {
     private var gridRowTokens: [Int: Int] = [:]
     private var gridRowAlignments: [Int: ProposalAlignment] = [:]
     private var gridCellColumns: [Int: Int] = [:]
-    private var gridCellAnchors: [Int: ProposalAlignment] = [:]
+    private var gridCellAnchors: [Int: ProposalAnchor] = [:]
     private var gridCellColumnAlignments: [Int: ProposalAlignment] = [:]
     private var gridCellUnsizedAxes: [Int: ProposalAxes] = [:]
     private var nextGridRowToken = 0
@@ -349,11 +349,13 @@ public final class LayoutTree {
     /// **A negative ratio is accepted**, as SwiftUI accepts it (P8, P8b; ruling
     /// SA-K item 2): −2 `.fit` at 100×80 proposes 100×−50, which a child that
     /// takes the offer answers.
-    public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+    public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double?,
                                      contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
         _ = nativeNode(child)
-        precondition(ratio.isFinite && ratio != 0,
-                     "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
+        if let ratio {
+            precondition(ratio.isFinite && ratio != 0,
+                         "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
+        }
         let id = appendNode(children: [child])
         recordParent(id, of: [child])
         nativeNodes[id.index] = .aspectRatio(ratio: ratio, contentMode: contentMode)
@@ -804,9 +806,10 @@ public final class LayoutTree {
                                    run: run)
         case .aspectRatio(let ratio, let contentMode):
             // CN-G: the child's answer to the ratio-shaped proposal.
-            result = measureNative(children(id)[0],
-                                   proposal: aspectRatioProposal(proposal, ratio: ratio,
-                                                                 contentMode: contentMode),
+            let child = children(id)[0]
+            result = measureNative(child,
+                                   proposal: aspectRatioProposal(proposal, ratio: ratio, child: child,
+                                                                 contentMode: contentMode, run: run),
                                    run: run)
         case .layoutPriority:
             result = measureNative(children(id)[0], proposal: proposal, run: run)
@@ -936,7 +939,8 @@ public final class LayoutTree {
                         proposal: childProposal, run: run)
         case .aspectRatio(let ratio, let contentMode):
             let child = children(id)[0]
-            let childProposal = aspectRatioProposal(proposal, ratio: ratio, contentMode: contentMode)
+            let childProposal = aspectRatioProposal(proposal, ratio: ratio, child: child,
+                                                    contentMode: contentMode, run: run)
             let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
@@ -1518,6 +1522,13 @@ public final class LayoutTree {
                      height: vertical ? nil : parent.height)
     }
 
+    /// The proposal a nil-ratio `aspectRatio` hands its child. SKELETON.
+    private func aspectRatioProposal(_ proposal: ProposedSize, ratio: Double?, child: LayoutNodeID,
+                                     contentMode: AspectRatioContentMode,
+                                     run: NativeLayoutRun) -> ProposedSize {
+        aspectRatioProposal(proposal, ratio: ratio ?? 1, contentMode: contentMode)
+    }
+
     /// The proposal `aspectRatio` hands its child (ruling CN-G). ∞ is a
     /// concrete axis here, never filtered to nil (K4d–K4h).
     private func aspectRatioProposal(_ proposal: ProposedSize, ratio: Double,
@@ -1605,6 +1616,30 @@ public enum ProposalAlignment: Sendable, Hashable {
     }
 }
 
+/// A grid cell's anchor as SwiftUI's `UnitPoint` holds it — a factor pair,
+/// `(0, 0)` top-leading and `(1, 1)` bottom-trailing (plan task 11, part 2,
+/// ruling `TE-AN`; probe GL14: `(0.25, 1)` puts a 10×10 cell at (10, 20) in its
+/// 50×30 slot). The cell is placed at `slot origin + (slot − answer) × factor`
+/// on each axis, the rule every nine-point alignment already used, so the nine
+/// ``ProposalAlignment`` cases are nine of its values (`init(_:)`) and no
+/// nine-point placement moves. A factor outside `0…1` is accepted, as SwiftUI
+/// accepts it; a non-finite one traps at `markNativeGridCell` (SA-J).
+public struct ProposalAnchor: Sendable, Hashable {
+    public var horizontalFactor: Double
+    public var verticalFactor: Double
+
+    public init(horizontalFactor: Double, verticalFactor: Double) {
+        self.horizontalFactor = horizontalFactor
+        self.verticalFactor = verticalFactor
+    }
+
+    /// The nine-point alignment's factors.
+    public init(_ alignment: ProposalAlignment) {
+        self.init(horizontalFactor: alignment.horizontalFactor,
+                  verticalFactor: alignment.verticalFactor)
+    }
+}
+
 private enum NativeNode {
     case leaf(ProposalMeasureFunction)
     case overlay(alignment: ProposalAlignment)
@@ -1614,7 +1649,7 @@ private enum NativeNode {
                maxHeight: Double?, alignment: ProposalAlignment)
     case padding(insets: Edges<Double>)
     case fixedSize(horizontal: Bool, vertical: Bool)
-    case aspectRatio(ratio: Double, contentMode: AspectRatioContentMode)
+    case aspectRatio(ratio: Double?, contentMode: AspectRatioContentMode)
     case layoutPriority(Double)
     case spacer(minLength: Double)
     case scrollViewport(axis: ProposalStackAxis)
@@ -1687,6 +1722,7 @@ extension LayoutTree {
     /// parent, as `markNativeGridRow` does.
     public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil,
                                    anchor: ProposalAlignment? = nil,
+                                   anchorPoint: ProposalAnchor? = nil,
                                    columnAlignment: ProposalAlignment? = nil,
                                    unsizedAxes: ProposalAxes = []) {
         let index = slot(node)
@@ -1703,7 +1739,8 @@ extension LayoutTree {
                 gridCellColumns[index] = sum
             }
         }
-        if let anchor, gridCellAnchors[index] == nil { gridCellAnchors[index] = anchor }
+        if let anchor, gridCellAnchors[index] == nil { gridCellAnchors[index] = ProposalAnchor(anchor) }
+        if let anchorPoint, gridCellAnchors[index] == nil { gridCellAnchors[index] = anchorPoint }
         if let columnAlignment, gridCellColumnAlignments[index] == nil {
             gridCellColumnAlignments[index] = columnAlignment
         }
@@ -1732,11 +1769,11 @@ extension LayoutTree {
     /// enumerates the node kinds and must gain an arm with it.
     private func gridChildMarks(_ id: LayoutNodeID)
         -> (rowToken: Int?, rowAlignment: ProposalAlignment?, columns: Int?,
-            anchor: ProposalAlignment?, columnAlignment: ProposalAlignment?, unsizedAxes: ProposalAxes) {
+            anchor: ProposalAnchor?, columnAlignment: ProposalAlignment?, unsizedAxes: ProposalAxes) {
         var rowToken: Int?
         var rowAlignment: ProposalAlignment?
         var columns = 0
-        var anchor: ProposalAlignment?
+        var anchor: ProposalAnchor?
         var columnAlignment: ProposalAlignment?
         var unsizedAxes: ProposalAxes = []
         var node = id

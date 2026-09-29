@@ -46,9 +46,11 @@ extension LayoutPass {
     /// `GridCellModifier` rather than a lane earlier.
     public func markNativeGridCell(_ node: ProposalNodeID, columns: Int? = nil,
                                    anchor: ProposalAlignment? = nil,
+                                   anchorPoint: ProposalAnchor? = nil,
                                    columnAlignment: ProposalAlignment? = nil,
                                    unsizedAxes: ProposalAxes = []) {
         frame.tree.markNativeGridCell(node.layoutNodeID, columns: columns, anchor: anchor,
+                                      anchorPoint: anchorPoint,
                                       columnAlignment: columnAlignment, unsizedAxes: unsizedAxes)
     }
 }
@@ -237,6 +239,8 @@ public enum GridCellAttribute: Sendable, Hashable {
     /// alignment on both axes. Nine-point, not a `UnitPoint` (divergence
     /// `GR-O` 4).
     case anchor(ProposalAlignment)
+    /// SKELETON.
+    case anchorPoint(UnitPoint)
     /// `gridColumnAlignment`: the first declaration in row order decides its
     /// column's horizontal alignment (GL6, GL7).
     case columnAlignment(HorizontalAlignment)
@@ -298,6 +302,10 @@ public struct GridCellModifier<Content: ProposalElementGroup>: ProposalElementGr
             pass.markNativeGridCell(node, columns: count)
         case let .anchor(anchor):
             pass.markNativeGridCell(node, anchor: anchor)
+        case let .anchorPoint(anchor):
+            func nearest(_ v: Double) -> Double { v < 0.25 ? 0 : v < 0.75 ? 0.5 : 1 }
+            pass.markNativeGridCell(node, anchorPoint: ProposalAnchor(horizontalFactor: nearest(anchor.x),
+                                                                      verticalFactor: nearest(anchor.y)))
         case let .columnAlignment(alignment):
             pass.markNativeGridCell(node, columnAlignment: alignment.proposalAlignment)
         case let .unsizedAxes(axes):
@@ -338,6 +346,12 @@ extension ProposalElementGroup {
     /// `GR-O` 4, guard `aGridCellAnchorIsNinePoint`; task 11 owns the gap).
     public func gridCellAnchor(_ anchor: ProposalAlignment) -> GridCellModifier<Self> {
         GridCellModifier(content: self, attribute: .anchor(anchor))
+    }
+
+    /// SKELETON: rounded to the nearest nine-point.
+    @_disfavoredOverload
+    public func gridCellAnchor(_ anchor: UnitPoint) -> GridCellModifier<Self> {
+        GridCellModifier(content: self, attribute: .anchorPoint(anchor))
     }
 
     /// SwiftUI's `gridColumnAlignment(_:)`: the horizontal alignment of this

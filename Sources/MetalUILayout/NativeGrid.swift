@@ -51,7 +51,7 @@ struct NativeGridChild {
     /// none (ruling GR-F; GX15's 3 and 2 span 5, GX16's 2 and 1 span 2).
     let columns: Int?
     /// The innermost `gridCellAnchor` on the chain (rulings GR-G, GR-I).
-    let anchor: ProposalAlignment?
+    let anchor: ProposalAnchor?
     /// The innermost `gridColumnAlignment` on the chain.
     let columnAlignment: ProposalAlignment?
     /// The union of the chain's `gridCellUnsizedAxes` (ruling GR-H).
@@ -74,7 +74,7 @@ struct NativeGridCell {
     /// `gridCellAnchor`: overrides the column's and the row's and the grid's
     /// alignment on BOTH axes, a non-row child included (ruling GR-G; GL10,
     /// GL11, GL13).
-    let anchor: ProposalAlignment?
+    let anchor: ProposalAnchor?
     /// `gridColumnAlignment` as this cell declares it. A **non-row** cell
     /// declares none (GX13's column half, the model's `where !c.isFull`), and a
     /// spanning cell declares for its first column without being aligned by it

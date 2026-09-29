@@ -103,7 +103,9 @@ public struct LayoutPass {
     }
 
     /// Registers native aspect-ratio proposal behavior around one native child.
-    public func requestNativeAspectRatio(child: ProposalNodeID, ratio: Double,
+    /// A nil `ratio` takes the child's ideal ratio, its answer at nil×nil
+    /// (`LayoutTree.newNativeAspectRatio`; ruling `TE-AM`).
+    public func requestNativeAspectRatio(child: ProposalNodeID, ratio: Double?,
                                          contentMode: AspectRatioContentMode = .fit) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeAspectRatio(child: child.layoutNodeID, ratio: ratio,
                                                       contentMode: contentMode))

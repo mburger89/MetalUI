@@ -116,41 +116,38 @@ func aGridColumnAlignmentIsAHorizontalAlignment() throws {
             "rejected, but not for the alignment argument:\n\(vertical.output)")
 }
 
-/// **G4 — a cell anchor is nine-point.** Divergence `GR-O` 4: SwiftUI's
-/// `gridCellAnchor` takes a `UnitPoint` and probe GL14 reads a fractional one;
-/// MetalUI takes the nine-case `ProposalAlignment`, so a fractional anchor is a
-/// compile error rather than a silent rounding. The owner of the gap is plan
-/// task 11 (`GR-N`). Since plan task 10's `DD-G` MetalUI HAS a public
-/// `UnitPoint` (for `scrollTo(_:anchor:)`), so the fixture below now fails on
-/// the argument's type rather than on an unknown name — still "for the anchor
-/// argument", which is what the message check reads.
+/// **G4 → G3.1 — a cell anchor takes a `UnitPoint`, and the nine-point
+/// spellings still resolve** (plan task 11, part 2, ruling `TE-AN`; divergence
+/// `GR-O` 4 / 64 retired). Inverted and renamed from `aGridCellAnchorIsNinePoint`,
+/// which asserted the fractional anchor did NOT compile (its retirement row is
+/// in record §60 §5): `gridCellAnchor(_: UnitPoint)` is now offered,
+/// `@_disfavoredOverload` — the very spelling that guard's MG4c mutation named
+/// — so `UnitPoint(x: 0.25, y: 1)` compiles and a leading-dot `.topLeading`
+/// still resolves to the `ProposalAlignment` overload rather than going
+/// ambiguous against `UnitPoint`'s statics (`DD-P` item 4) — the control
+/// uses four spellings both types declare (`.topLeading`, `.trailing`,
+/// `.bottom`, `.center`), so each one is a real overload choice.
 ///
-/// Mutation that must redden it: add a `@_disfavoredOverload`
-/// `gridCellAnchor(_: UnitPoint)` overload (MG4c, measured: `4 unit point:
-/// succeeded=true`). The plain overload (MG4) does not build at all:
-/// `UnitPoint`'s statics (`.top`, `.trailing`, `.topLeading`) make every
-/// existing leading-dot call site ambiguous (`Grid.swift`,
-/// `ModifierCompositionProofTests`, `GridElementTests`) — the hazard task 11
-/// faces when it adds the real overload.
+/// Mutation that must redden it: **MG3a** the `@_disfavoredOverload`
+/// attribute removed (the leading-dot control goes ambiguous).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aGridCellAnchorIsNinePoint() throws {
-    let control = try typecheckFile("""
-        @MainActor public func ok() -> GridCellModifier<Rectangle> {
-            Rectangle().gridCellAnchor(.topLeading)
-        }
-        """, importing: "MetalUI")
-    show("4 control", control)
-    try #require(control.succeeded,
-                 "the positive control must compile:\n\(control.output)")
-
+func aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve() throws {
     let unitPoint = try typecheckFile("""
-        @MainActor public func bad() {
-            _ = Rectangle().gridCellAnchor(UnitPoint(x: 0.25, y: 1))
+        @MainActor public func fractional() -> GridCellModifier<Rectangle> {
+            Rectangle().gridCellAnchor(UnitPoint(x: 0.25, y: 1))
         }
         """, importing: "MetalUI")
     show("4 unit point", unitPoint)
-    #expect(!unitPoint.succeeded,
-            "a fractional anchor must not compile:\n\(unitPoint.output)")
-    #expect(unitPoint.messages.contains("UnitPoint"),
-            "rejected, but not for the anchor argument:\n\(unitPoint.output)")
+    #expect(unitPoint.succeeded,
+            "a fractional anchor must compile:\n\(unitPoint.output)")
+
+    let ninePoint = try typecheckFile("""
+        @MainActor public func ninePoint() -> [GridCellModifier<Rectangle>] {
+            [Rectangle().gridCellAnchor(.topLeading), Rectangle().gridCellAnchor(.trailing),
+             Rectangle().gridCellAnchor(.bottom), Rectangle().gridCellAnchor(.center)]
+        }
+        """, importing: "MetalUI")
+    show("4 nine-point control", ninePoint)
+    #expect(ninePoint.succeeded,
+            "the leading-dot nine-point spellings must still resolve:\n\(ninePoint.output)")
 }

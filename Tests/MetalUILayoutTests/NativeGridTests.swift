@@ -962,7 +962,7 @@ private let none = ProposedSize(width: nil, height: nil)
         return try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [a, b])))
     }
     let anchor: (LayoutTree, LayoutNodeID) -> Void = { $0.markNativeGridCell($1, anchor: .topLeading) }
-    try #require(plan(anchor, staleMark: false).cells[0].anchor == .topLeading, "the anchor control")
+    try #require(plan(anchor, staleMark: false).cells[0].anchor == ProposalAnchor(.topLeading), "the anchor control")
     let staleAnchor = try plan(anchor, staleMark: true).cells[0].anchor
     #expect(staleAnchor == nil, "a stale anchor survived the reset: \(String(describing: staleAnchor))")
 
@@ -2477,7 +2477,7 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
             let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
             tree.markNativeGridRow([child, other])
             let plan = try #require(tree.nativeGridPlan(tree.newNativeGrid(children: [child, other])))
-            #expect(plan.cells[0].anchor == (kind.carriesAttribute ? .topLeading : nil), "anchor through \(kind.name)")
+            #expect(plan.cells[0].anchor == (kind.carriesAttribute ? ProposalAnchor(.topLeading) : nil), "anchor through \(kind.name)")
         }
         // Column alignment.
         do {

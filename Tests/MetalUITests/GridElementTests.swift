@@ -362,7 +362,7 @@ private func bareplan<W: ProposalElementGroup>(@ElementBuilder _ cell: () -> W) 
     func anchor(_ label: String, _ expected: ProposalAlignment?,
                 @ElementBuilder _ cell: () -> some ProposalElementGroup) throws {
         let plan = try rowPlan(cell)
-        #expect(plan.cells[0].anchor == expected,
+        #expect(plan.cells[0].anchor == expected.map(ProposalAnchor.init),
                 "anchor through \(label): \(String(describing: plan.cells[0].anchor))")
     }
     func column(_ label: String, _ expected: ProposalAlignment?,
@@ -1258,6 +1258,64 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
             await MainActor.run {
                 let probe = CellProbe()
                 _ = laidOut(100, 100) { Grid { GridRow(alignment: .top) { probe.fx("a", 10, 10) } } }
+            }
+        }
+    }
+}
+
+// MARK: - plan task 11, part 2, lane 3: a UnitPoint cell anchor (TE-AN)
+
+/// **3.12 — `gridCellAnchor` takes a `UnitPoint`** (ruling `TE-AN`;
+/// divergence 64 retired). GL14, re-run by the critic round
+/// (`docs/probes/swiftui-grid.swift`): `UnitPoint(x: 0.25, y: 1)` on a 10×10
+/// cell in its 50×30 slot puts it at (10, 20) — a quarter of the 40 free
+/// points before it, all 20 above — with b at (58, 0) and c at (0, 38), the
+/// grid 68×48. GL11's arm above is the nine-point control: a leading-dot
+/// `.trailing` still resolves to the `ProposalAlignment` overload and places
+/// as before.
+///
+/// Mutation: **M3l** the factors rounded to the nearest nine-point (a reads
+/// (20, 20)).
+@MainActor
+@Test func aGridCellAnchorTakesAUnitPoint() throws {
+    let p = CellProbe()
+    let frame = laidOut(88, 68) {
+        Grid {
+            GridRow { p.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: 0.25, y: 1)); p.fx("b", 10, 30) }
+            GridRow { p.fx("c", 50, 10) }
+        }.fixedSize()
+    }
+    #expect(try rootSize(frame) == size(68, 48), "GL14 size")
+    let rects = try cells(frame, p)
+    #expect(rects["a"] == r(10, 20, 10, 10), "GL14 a: \(String(describing: rects["a"]))")
+    #expect(rects["b"] == r(58, 0, 10, 30), "GL14 b: \(String(describing: rects["b"]))")
+    #expect(rects["c"] == r(0, 38, 50, 10), "GL14 c: \(String(describing: rects["c"]))")
+}
+
+/// **3.12b (exit) — a non-finite `UnitPoint` anchor traps, naming
+/// `gridCellAnchor`** (SA-J: a NaN or infinite factor would store a NaN or
+/// infinite cell rect at a finite proposal; `TE-AU`). SwiftUI's answer is
+/// unprobed; the rule is `SA-J`'s. Control: a finite factor outside `0…1`
+/// lays out (SwiftUI accepts one; the placement is the same formula).
+///
+/// Mutation: the precondition in `LayoutTree.markNativeGridCell` removed (the
+/// child exits 0).
+@Test func aNonFiniteGridCellAnchorTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let probe = CellProbe()
+            _ = laidOut(100, 100) {
+                Grid { GridRow { probe.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: .nan, y: 0)) } }
+            }
+        }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("gridCellAnchor must be finite"), "aborted, but not at the anchor check:\n\(stderr)")
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let probe = CellProbe()
+            _ = laidOut(100, 100) {
+                Grid { GridRow { probe.fx("a", 10, 10).gridCellAnchor(UnitPoint(x: 1.5, y: -1)) } }
             }
         }
     }

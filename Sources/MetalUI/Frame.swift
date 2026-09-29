@@ -1901,7 +1901,7 @@ public final class Frame {
         tree.newNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
     }
 
-    func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+    func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double?,
                                   contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
         tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
     }

@@ -21,7 +21,9 @@ public enum LayoutModifier: Sendable {
                        alignment: ProposalAlignment = .center)
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
-    case aspectRatio(Double, contentMode: AspectRatioContentMode = .fit)
+    /// SwiftUI's `aspectRatio(_:contentMode:)`; a nil ratio is the child's
+    /// ideal ratio (`TE-AM`).
+    case aspectRatio(Double?, contentMode: AspectRatioContentMode = .fit)
     case layoutPriority(Double)
     case background(ColorToken)
     case clip(cornerRadius: Pixels = Pixels(0))
@@ -223,11 +225,25 @@ extension ProposalElementGroup {
     /// **The kernel's rule, checked at construction** so the two layers cannot
     /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a
     /// negative ratio is accepted, as SwiftUI accepts it (P8).
-    public func aspectRatio(_ ratio: Double,
+    public func aspectRatio(_ ratio: Double? = nil,
                             contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        precondition(ratio.isFinite && ratio != 0,
-                     "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
+        if let ratio {
+            precondition(ratio.isFinite && ratio != 0,
+                         "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
+        }
         return _wrapLayout(.aspectRatio(ratio, contentMode: contentMode))
+    }
+
+    /// SwiftUI's `scaledToFit()`: `aspectRatio(nil, contentMode: .fit)`
+    /// (`TE-AM`; probe I5, 0 px apart in SwiftUI).
+    public func scaledToFit() -> ModifiedContent<ProposalBase, LayoutModifier> {
+        aspectRatio(nil, contentMode: .fit)
+    }
+
+    /// SwiftUI's `scaledToFill()`: `aspectRatio(nil, contentMode: .fill)`
+    /// (`TE-AM`; probes A2, I5). SKELETON.
+    public func scaledToFill() -> ModifiedContent<ProposalBase, LayoutModifier> {
+        aspectRatio(nil, contentMode: .fit)
     }
 
     /// Prioritizes this subtree when a native `HStack` or `VStack` must divide
@@ -245,6 +261,9 @@ extension ProposalElementGroup {
 /// Temporary source-compatible name for ``LayoutModifier``.
 @available(*, deprecated, renamed: "LayoutModifier")
 public typealias NativeLayoutModifier = LayoutModifier
+
+/// SwiftUI's name for ``AspectRatioContentMode`` (`TE-AM`).
+public typealias ContentMode = AspectRatioContentMode
 
 /// Temporary source-compatible name for ``ModifiedContent`` over the proposal
 /// vocabulary, retargeted by stage 11 (ruling `LR-FV` item 8): the
