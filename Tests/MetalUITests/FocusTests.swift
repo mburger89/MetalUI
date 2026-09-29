@@ -208,33 +208,28 @@ private final class Label {
     var name = ""
 }
 
-/// Focus on an element that stops being produced is **retained**, not
-/// cleared outright — as long as the id is still retained by the state
-/// table, live or tombstoned (design spec §5, closing CLAUDE.md's
-/// divergence 17).
+/// **3.2 (plan task 12 part 1, ruling `IX-I`) — focus drops when an `if`
+/// removes its element, and does not return with it** (probe arm F2: a focused
+/// view removed by an `if` and returned reads `focused=false` throughout).
 ///
-/// **Formerly `focusOnAnElementThatStopsBeingProducedIsCleared`, and it
-/// asserted the OPPOSITE** — `window.focusedElement == nil` the very next
-/// frame the element was missing, with the comment above (now corrected)
-/// claiming "there are no tombstones ... a focused id whose element was
-/// not produced has nothing behind it". That was true before this task and
-/// is not any more: `Frame.resolveFocus()` now falls back to the same
-/// tombstone mechanism `@State` rides (divergence 12's remedy) instead of
-/// clearing on the spot, per design §5's "one notion of 'still exists', not
-/// two" — a focus-specific grace period was explicitly rejected in favour
-/// of this. Inverted here, with this history kept, rather than deleted —
-/// this repo's rule for a reddened test that pins a decision rather than a
-/// regression.
+/// **Renamed and re-derived** from
+/// `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`, which
+/// asserted focus **retained** through the excursion (divergence 17's closure,
+/// then kept through plan task 8's `ID-C` reset only because `$focus` was
+/// exempt from it — its own comment said so). `IX-I` drops that exemption: the
+/// frame whose `sweep()` deletes the removed element's `$focus` slot clears
+/// focus in that same frame, so the first away frame reads `nil`, a key reaches
+/// `Window.onInput`, and the returning element is unfocused. That test was
+/// itself `focusOnAnElementThatStopsBeingProducedIsCleared` before the
+/// tombstones milestone, asserting `nil` for a different reason (no retention
+/// at all); an element that stops being produced WITHOUT an evaluated reset —
+/// a `List` row out of its window — still keeps focus (3.6,
+/// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, unedited).
 ///
-/// **A frame must actually confirm the focus while the element is present,
-/// or there is nothing to retain — see
-/// `focusSetWithNoConfirmingFrameHasNothingToRetain` below for that as its
-/// own pinned case.** `Frame.registerHandlers` only creates the state
-/// table's `$focus` retention slot for `focusedElement` the first time it
-/// sees that id actually produced; `window.focus(a)` alone does not render
-/// a frame, so this version inserts one extra `drawFrameIfNeeded()` between
-/// focusing and toggling the element away that the original did not need.
-@Test @MainActor func focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow() throws {
+/// **A frame must still confirm the focus while the element is present** —
+/// `focusSetWithNoConfirmingFrameHasNothingToRetain` below is that boundary.
+/// Mutation **MRk′** (`$focus` exempt from the resets again) reddens it.
+@Test @MainActor func focusDropsWhenAnIfRemovesItsElement() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = KeyLog()
     let toggle = Toggle()
@@ -250,16 +245,10 @@ private final class Label {
     }
     window.drawFrameIfNeeded()
     // Plan task 8, `ID-B` (T row): the `if` takes one slot, `root/0`, and its
-    // content numbers inside it, so "a" is `root/0/named(a)` — it was
-    // `root/named(a)` before. The `$focus` retention slot under it is exempt
-    // from `ID-C`'s reset, which is what keeps this test's answer unchanged.
+    // content numbers inside it, so "a" is `root/0/named(a)`.
     let ifSlot = GlobalElementID.child(of: rootID("root"), at: 0, name: nil)
     let a = GlobalElementID.child(of: ifSlot, at: 0, name: ElementID("a"))
     window.focus(a)
-    // The frame that CONFIRMS the focus — "a" is both produced and
-    // `window.focusedElement` this frame — is what creates the retention
-    // slot. Skip this and there is nothing for the table to retain; see
-    // `focusSetWithNoConfirmingFrameHasNothingToRetain`.
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
     #expect(window.focusedElement == a, "focus takes on the frame that confirms it")
@@ -269,11 +258,7 @@ private final class Label {
     toggle.isOn = false
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    #expect(window.focusedElement == a, """
-            the focused element was not produced this frame, but its \
-            retention slot is still within staleAfterGenerations — divergence \
-            17 closed
-            """)
+    #expect(window.focusedElement == nil, "the frame whose reset deletes `a`'s `$focus` slot drops focus (F2)")
 
     var raw: [String] = []
     window.onInput = { event in
@@ -281,14 +266,18 @@ private final class Label {
         return true
     }
     platformWindow.simulateInput(keyDown("x"))
-    #expect(log.names == ["element"],
-            "the vanished element has nothing left to run its own handler, retained or not")
-    #expect(raw == ["window"],
-            "with no handler along the retained-but-vanished focus chain, the event still reaches the window")
+    #expect(log.names == ["element"], "the vanished element runs nothing")
+    #expect(raw == ["window"], "with nothing focused, the event reaches the window")
+
+    toggle.isOn = true
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == nil, "focus does not return with the element (F2)")
 }
 
-/// **The half `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
-/// does NOT exercise**: `window.focus(_:)` alone renders no frame, so if the
+/// **The half `focusDropsWhenAnIfRemovesItsElement` (formerly
+/// `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`) does NOT
+/// exercise**: `window.focus(_:)` alone renders no frame, so if the
 /// focused element vanishes before any frame ever confirms it was produced,
 /// `Frame.registerHandlers` never created a `$focus` retention slot for it —
 /// there is nothing in the state table to retain, and this is the one shape

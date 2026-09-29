@@ -320,6 +320,25 @@ final class StateTable {
         loopExtents[slot] = extent
     }
 
+    // MARK: - `@FocusState` (plan task 12 part 1, ruling `IX-J`)
+
+    /// Every `@FocusState` bound since the window last took them, by slot —
+    /// filled by `FocusState.bind` (every phase re-binds; the dictionary keeps
+    /// one entry per slot) and taken by `Window` after each frame, which
+    /// reconciles them against the frame's focus between frames, never in a
+    /// phase.
+    private(set) var focusStates: [GlobalElementID: any FocusStateReconciling] = [:]
+
+    func noteFocusState(_ state: any FocusStateReconciling, at slot: GlobalElementID) {
+        focusStates[slot] = state
+    }
+
+    /// The focus states bound since the last call, emptied.
+    func takeFocusStates() -> [GlobalElementID: any FocusStateReconciling] {
+        defer { focusStates.removeAll(keepingCapacity: true) }
+        return focusStates
+    }
+
     /// Queues the loop rule's resets for `sweep()`: the positional tail each
     /// shrunk loop dropped, then — in ONE pass over last frame's named positions
     /// for all the loops together — every named direct child produced nowhere.

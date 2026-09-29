@@ -295,6 +295,17 @@ public struct Handlers {
     /// reference: a `Shape` existential is never stored inline (`IX-N`).
     var contentShape: ContentShape?
 
+    // MARK: Focus binding (plan task 12 part 1, lane 3, ruling `IX-J`)
+
+    /// The `@FocusState` a `.focused(_:)`/`.focused(_:equals:)` bound this
+    /// element to, and the value it stands for, or `nil`. **Not a keyboard
+    /// ask** — `isKeyTarget` does not count it, because `.focused` does not
+    /// make an element focusable (`IX-J` item 3); `Frame.registerHandlers`
+    /// records it in the focus registry ungated, and the frame's own focus
+    /// validation decides whether a write can focus the element. One
+    /// reference (`IX-N`).
+    var focusBinding: FocusBindingTarget?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.

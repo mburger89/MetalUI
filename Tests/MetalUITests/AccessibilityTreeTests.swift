@@ -607,9 +607,11 @@ private struct PressToRename: Component {
 /// occurrences straddle the divider, so first and last position publish
 /// different root orders.
 ///
-/// The hidden box is also focusable and focused: `hidden()` does not stop
-/// focus (CLAUDE.md's inert table), so the frame keeps that focus, and the
-/// published `focused` must still be `nil` because its node was not published.
+/// The hidden box is also focusable and handed focus. **Re-derived by plan task
+/// 12 part 1 (`IX-K` item 3, T row)**: this control read "the hidden focusable
+/// box kept focus" while `hidden()` did not stop focus; a hidden element is now
+/// out of the keyboard, so the frame REFUSES the focus (`frame.focusedElement
+/// == nil`), and the subject clause — the published `focused` is `nil` — holds.
 /// The hidden box is itself a click target, so the suppression scope's `nil`
 /// exception is observable: excepting the hidden element would publish it as a
 /// root (hunting mutant H14).
@@ -633,7 +635,7 @@ func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedO
     #expect(frame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden node is still emitted as today; only the record is suppressed")
     #expect(!tree.nodes.values.contains { $0.label == "in" }, "display: none content is not published")
-    try #require(frame.focusedElement == hiddenFocusable, "control: the hidden focusable box kept focus")
+    try #require(frame.focusedElement == nil, "control: the hidden focusable box refused focus (IX-K item 3)")
     #expect(tree.focused == nil, "focus on an element that published no node is not published")
 
     let divider = try #require(tree.id(labelled: "divider"))

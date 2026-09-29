@@ -7,7 +7,8 @@ import MetalUIPlatform
 // Plan task 8, lane 2 (`docs/superpowers/specs/2026-09-25-composition-identity-design.md`,
 // rulings `ID-B`, `ID-C`, `ID-D`): an `if` without `else` and a `for` loop take
 // ONE structural slot and number their content inside it; content an EVALUATED
-// conditional removes is reset (except the window-owned `$focus`/`$ax` slots);
+// conditional removes is reset (except the window-owned `$ax` slot — `$focus`
+// was exempt too until plan task 12's `IX-I`);
 // `if`/`else` compiles inside proposal containers. SwiftUI's answers are probe
 // arms V1–V10 and G7 of `docs/probes/swiftui-composition-identity.swift`.
 //
@@ -276,17 +277,21 @@ private final class Shown {
     var value = true
 }
 
-/// **C2.8 — a reset keeps the focus and accessibility retention slots.** A
-/// focused, accessibility-published element inside an `if` goes false for one
-/// frame: `window.focusedElement` is unchanged, its `$ax` entry is present, and
-/// its `$state0` entry is gone.
+/// **C2.8, re-derived as 3.3 (plan task 12 part 1, `IX-I`) — a reset keeps
+/// the accessibility slot but not focus.** A focused, accessibility-published
+/// element inside an `if` goes false for one frame: `window.focusedElement` is
+/// `nil`, its `$ax` entry is present, and its `$focus` and `$state0` entries
+/// are gone.
 ///
-/// `ID-C` exempts exactly `.named("$focus")` and `.named("$ax")`: their lifetime
-/// is the window's (`TB-J`, `AB-U`). Before `ID-C` the first two held and the
-/// `$state0` entry was retained. Mutation **M2f** (reset without the exemption)
-/// reddens this and `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`.
+/// **Renamed** from `aResetKeepsTheFocusAndAccessibilityRetentionSlots`, whose
+/// focus clause inverts (T row): `ID-C` exempted `.named("$focus")` and
+/// `.named("$ax")`; `IX-I` keeps only `$ax` (accessibility is part 2's, `AB-U`),
+/// and the frame whose sweep deletes the focused element's `$focus` slot clears
+/// focus in that frame (probe arm F2). Mutation **MRk′** (`$focus` exempt again)
+/// reddens the focus half; **M2f** of `ID-C` (no exemption at all) still reddens
+/// the `$ax` half.
 @MainActor
-@Test func aResetKeepsTheFocusAndAccessibilityRetentionSlots() throws {
+@Test func aResetKeepsTheAccessibilitySlotButNotFocus() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let reads = ConditionalReads()
     let shown = Shown()
@@ -303,113 +308,29 @@ private final class Shown {
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
     let axSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$ax"))
+    let focusSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$focus"))
     let stateSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$state0"))
     try #require(window.focusedElement == id, "set up: the confirming frame took focus")
     try #require(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "set up: the element published")
+    try #require(window.stateTable.peek(focusSlot, as: Bool.self) != nil, "set up: the focus retention slot exists")
     try #require(window.stateTable.peek(stateSlot, as: Int.self) != nil, "set up: the counter holds state")
 
     shown.value = false
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    #expect(window.focusedElement == id, "`$focus` is exempt: focus is retained through the excursion")
+    #expect(window.focusedElement == nil, "focus leaves with its identity (IX-I, F2)")
+    #expect(window.stateTable.peek(focusSlot, as: Bool.self) == nil, "`$focus` is no longer exempt")
     #expect(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "`$ax` is exempt")
     #expect(window.stateTable.peek(stateSlot, as: Int.self) == nil, "the element's own `@State` is reset")
 }
 
-@MainActor
-private final class CurrentName {
-    var value = "a"
-}
-
-/// **C2.13 — focus outlives a reset until its element returns: a rename and an
-/// `if`** (record §55 §10.6; `ID-R` item 9, the verifier's Note A). A focused
-/// element is taken away for TWO frames — its `Box`'s name changed `a` → `b`,
-/// or its `if` gone false — then brought back (`b` → `a`, the `if` true):
-///
-/// - while away, `window.focusedElement` stays on the id nothing produces (the
-///   `$focus` slot is exempt from both resets, so `resolveFocus` still finds it
-///   on the second frame) and the `$ax` entry is present;
-/// - on return, focus is on the element again, whose `@State` restarted (1).
-///
-/// **A known difference, not numbered** (`ID-R` item 9): SwiftUI drops focus
-/// when the identity goes away — unprobed here; owner plan task 12 (focus).
-/// This pins today's retention so that task sees it move.
-///
-/// Why two frames: since `ID-R` item 8 the resets run in `sweep()`, AFTER the
-/// frame's `resolveFocus`, so an exemption dropped (mutation **MRk′**) deletes
-/// `$focus` only at the first absent frame's end and focus clears on the
-/// second — C2.8, which reads one absent frame, no longer sees it on focus.
-@MainActor
-@Test func focusOutlivesARenameAndAnIfUntilItsElementReturns() throws {
-    let device = try #require(MTLCreateSystemDefaultDevice())
-
-    // The rename arm.
-    do {
-        let reads = ConditionalReads()
-        let name = CurrentName()
-        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
-            Row { Box { FocusableCounter(reads: reads) }.id(name.value) }
-        }
-        platform.simulateAccessibilityRequest(.activate)
-        window.drawFrameIfNeeded()
-        let id = try #require(reads.ids["f"], "rename: the element was laid out")
-        window.focus(id)
-        window.setNeedsRedraw()
-        window.drawFrameIfNeeded()
-        let axSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$ax"))
-        try #require(window.focusedElement == id, "rename, set up: the confirming frame took focus")
-        try #require((reads.values["f"] ?? 0) >= 2, "rename, set up: the counter ran twice")
-
-        name.value = "b"
-        for frame in 1...2 {
-            window.setNeedsRedraw()
-            window.drawFrameIfNeeded()
-            #expect(window.focusedElement == id, "rename, away frame \(frame): focus stays on `a`'s id")
-            #expect(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "rename, away frame \(frame): `$ax` kept")
-        }
-        try #require(reads.ids["f"] != id, "rename: `b`'s element is a different id")
-
-        name.value = "a"
-        window.setNeedsRedraw()
-        window.drawFrameIfNeeded()
-        #expect(reads.ids["f"] == id && reads.values["f"] == 1, "rename: `a` returns fresh: \(reads.values)")
-        #expect(window.focusedElement == id, "rename: focus is on the returned element")
-    }
-
-    // The `if` arm (C2.8's tree, one more absent frame).
-    do {
-        let reads = ConditionalReads()
-        let shown = Shown()
-        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
-            Box {
-                if shown.value { FocusableCounter(reads: reads) }
-            }
-            .id("root")
-        }
-        platform.simulateAccessibilityRequest(.activate)
-        window.drawFrameIfNeeded()
-        let id = try #require(reads.ids["f"], "if: the element was laid out")
-        window.focus(id)
-        window.setNeedsRedraw()
-        window.drawFrameIfNeeded()
-        let axSlot = GlobalElementID.child(of: id, at: 0, name: ElementID("$ax"))
-        try #require(window.focusedElement == id, "if, set up: the confirming frame took focus")
-
-        shown.value = false
-        for frame in 1...2 {
-            window.setNeedsRedraw()
-            window.drawFrameIfNeeded()
-            #expect(window.focusedElement == id, "if, away frame \(frame): focus stays on the absent id")
-            #expect(window.stateTable.peek(axSlot, as: AXNode.self) != nil, "if, away frame \(frame): `$ax` kept")
-        }
-
-        shown.value = true
-        window.setNeedsRedraw()
-        window.drawFrameIfNeeded()
-        #expect(reads.values["f"] == 1, "if: the element returns fresh: \(reads.values)")
-        #expect(window.focusedElement == id, "if: focus is on the returned element")
-    }
-}
+// **C2.13 `focusOutlivesARenameAndAnIfUntilItsElementReturns` is retired**
+// (plan task 12 part 1, `IX-I`): it pinned focus retained through a rename and
+// an `if` until the element returned — `ID-R` item 9's known, unprobed
+// difference. Probe arms F1/F2 measured SwiftUI dropping focus for good, and
+// `IX-I` fixes it; its two arms are replaced by 3.1
+// `focusDropsWhenItsElementIsRenamedAndDoesNotReturn` (`FocusIdentityTests`)
+// and 3.2 `focusDropsWhenAnIfRemovesItsElement` (`FocusTests`).
 
 /// **C2.9 — a reset scans the table only on a transition.** An `if` true for 3
 /// frames, false for 3, true for 3: `StateTable.subtreeResetScans` reads exactly
@@ -549,18 +470,20 @@ private final class FieldModel {
     var shown = true
 }
 
-/// **C2.12 — a focused `TextField` inside a toggled `if` keeps focus and starts
-/// its edit state fresh** (`ID-C`'s migration note, `ID-M` item 4). Through a
+/// **C2.12, re-derived as 3.4 (plan task 12 part 1, `IX-I`) — a focused
+/// `TextField` inside a toggled `if` loses focus and starts fresh.** Through a
 /// real `Window`: the field is focused, holds a selection and marked text; its
 /// `if` goes false for one frame and back. While absent, `setTextInputArea(nil)`
-/// is recorded (the `e3cb3e9` behaviour); `window.focusedElement` is the field's
-/// id throughout (`$focus` is exempt); on return its `TextEditState` equals
-/// `TextEditState()` and the recorded input area is the fresh caret's.
+/// is recorded and `window.focusedElement` is `nil`; on return the field is
+/// still unfocused (text input stays off) and its `TextEditState` equals
+/// `TextEditState()`.
 ///
-/// Before `ID-C` the old selection and marked text came back. **M2d** (no
-/// reset) reddens the state half; **M2f** (no exemption) the focus half.
+/// **Renamed** from `aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh`,
+/// whose focus clause inverts (T row; `IX-I`'s migration note names a
+/// `TextField` in an `if` that goes false). **M2d** (no reset) reddens the
+/// state half; **MRk′** (`$focus` exempt again) the focus half.
 @MainActor
-@Test func aFocusedTextFieldInsideAToggledIfKeepsFocusAndStartsItsEditStateFresh() throws {
+@Test func aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let model = FieldModel()
     let (window, platform) = try makeFakeWindow(device: device, size: 200) {
@@ -593,16 +516,15 @@ private final class FieldModel {
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
     #expect(platform.textInputAreas.last == .some(nil), "an absent field switches text input off")
-    #expect(window.focusedElement == field, "focus is retained while the field is absent")
+    #expect(window.focusedElement == nil, "focus leaves with the field (IX-I)")
 
     model.shown = true
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    #expect(window.focusedElement == field, "focus is retained on the field's return")
+    #expect(window.focusedElement == nil, "focus does not return with the field (F2)")
     let after = window.stateTable.peek(field, as: TextEditState.self)
-    #expect(after == TextEditState(), "the returning field's edit state is fresh: \(String(describing: after))")
-    let area = try #require(platform.textInputAreas.last ?? nil, "text input is back on")
-    let fresh = try target().input
-    #expect(area.origin.x.value == Float(fresh.originX + fresh.caretOffsets[0]),
-            "the input area is the fresh caret's, at boundary 0")
+    #expect(after == nil || after == TextEditState(),
+            "the returning field's edit state is fresh: \(String(describing: after))")
+    #expect(platform.textInputAreas.last == .some(nil), "an unfocused field leaves text input off")
+    _ = try target()
 }
