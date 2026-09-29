@@ -102,6 +102,39 @@ struct FocusRegistry {
     }
 
     /// The first shortcut in tree order that `event` matches, and its owner.
+    /// A hidden element's keyboard shortcut, and nothing else of its keyboard
+    /// asks (plan task 12 part 1, `IX-K` item 3; arm X1).
+    mutating func registerShortcut(_ handlers: Handlers, id: GlobalElementID) {
+        if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
+    }
+
+    /// A `.focused` binding (ruling `IX-J`), recorded for every produced
+    /// element that carries one, focusable or not.
+    @MainActor mutating func registerFocusBinding(_ binding: FocusBindingTarget, id: GlobalElementID) {
+        guard let slot = binding.state.currentSlot else { return }
+        focusBindings[id] = (slot, binding.value)
+        focusBindingOwners[FocusBindingKey(slot: slot, value: binding.value)] = id
+    }
+
+    /// The `@FocusState` slot and value `id` is bound with, if any.
+    func focusBinding(for id: GlobalElementID) -> (slot: GlobalElementID, value: AnyHashable)? {
+        focusBindings[id]
+    }
+
+    /// The element bound to `slot` with `value` — the LAST in tree order when
+    /// several are (SwiftUI does not specify one).
+    func element(boundTo slot: GlobalElementID, value: AnyHashable) -> GlobalElementID? {
+        focusBindingOwners[FocusBindingKey(slot: slot, value: value)]
+    }
+
+    private struct FocusBindingKey: Hashable {
+        let slot: GlobalElementID
+        let value: AnyHashable
+    }
+
+    private var focusBindings: [GlobalElementID: (slot: GlobalElementID, value: AnyHashable)] = [:]
+    private var focusBindingOwners: [FocusBindingKey: GlobalElementID] = [:]
+
     func shortcut(matching event: KeyEvent) -> (GlobalElementID, ShortcutTarget)? {
         shortcuts.first { $0.target.shortcut.matches(event) }.map { ($0.id, $0.target) }
     }

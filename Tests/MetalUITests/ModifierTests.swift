@@ -116,6 +116,10 @@ private struct HandlerShape: Equatable {
     /// writes the boxed shape (`IX-L`).
     var keyboardShortcut = false
     var contentShape = false
+    /// Plan task 12 part 1, lane 3 (`IX-J`): the `.focused` binding. No case
+    /// below writes it — a `FocusState` box needs a body to bind in — so a
+    /// modifier that wrote it by accident is a mismatch here.
+    var focusBinding = false
 }
 
 @MainActor
@@ -461,7 +465,8 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
                              valueTrack: got.handlers.valueTrack != nil,
                              gestureCount: got.handlers.gestures.count,
                              keyboardShortcut: got.handlers.keyboardShortcut != nil,
-                             contentShape: got.handlers.contentShape != nil) == expectedHandlers,
+                             contentShape: got.handlers.contentShape != nil,
+                             focusBinding: got.handlers.focusBinding != nil) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

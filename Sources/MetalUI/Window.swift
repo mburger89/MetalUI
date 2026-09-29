@@ -461,6 +461,52 @@ public final class Window {
         setNeedsRedraw()
     }
 
+    // MARK: - `@FocusState` (plan task 12 part 1, ruling `IX-J`)
+
+    /// Every `@FocusState` the last frame bound, by slot.
+    private var lastFocusStates: [GlobalElementID: any FocusStateReconciling] = [:]
+
+    /// Applies each `@FocusState` write input made since the last frame, before
+    /// the next frame is built (`IX-J` item 2):
+    ///
+    /// - `false`/`nil` clears focus **only if** the focused element was bound
+    ///   to that state on the last frame;
+    /// - any other value moves focus to the element the last frame registered
+    ///   with that value — **only if that element was focusable on the last
+    ///   frame** (enabled, not hidden, `.focusable()` or a control); otherwise
+    ///   focus stays where it is, and the write-back after the frame restores
+    ///   the state's value (`IX-S`). Removing this check is mutation M3a.
+    ///
+    /// A plain assignment, not `focus(_:)`: a frame is already being drawn.
+    private func applyPendingFocusStateWrites() {
+        guard !lastFocusStates.isEmpty else { return }
+        for (slot, state) in lastFocusStates {
+            guard let write = state.takePendingWrite(in: stateTable, slot: slot) else { continue }
+            if write.clears {
+                if let focused = focusedElement, lastFocusRegistry.focusBinding(for: focused)?.slot == slot {
+                    focusedElement = nil
+                }
+            } else if let target = lastFocusRegistry.element(boundTo: slot, value: write.value),
+                      lastFocusRegistry.isFocusable(target) {
+                focusedElement = target
+            }
+        }
+    }
+
+    /// Writes each `@FocusState` the frame bound to the value the window's
+    /// focus implies — the focused element's bound value for its own state,
+    /// the default for every other — only where it changed (`IX-J` items 1, 4).
+    /// A write dirties the window, so the body reads the new value on the
+    /// frame after the move. Writing unconditionally is mutation M3f; skipping
+    /// this is M3b.
+    private func reconcileFocusStates() {
+        guard !lastFocusStates.isEmpty else { return }
+        let bound = focusedElement.flatMap { lastFocusRegistry.focusBinding(for: $0) }
+        for (slot, state) in lastFocusStates {
+            state.reconcile(in: stateTable, slot: slot, focusedValue: bound?.slot == slot ? bound?.value : nil)
+        }
+    }
+
     /// The most recent display-link tick, in seconds — `0` until the first
     /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
     /// the clipping/scroll design): a borrowed M4 primitive, read once here so
@@ -967,6 +1013,9 @@ public final class Window {
         // `renderRoot` returns, because the read-back below applies the frame's
         // *decision* rather than its value — see there for why a plain copy
         // loses a `focus(_:)` call made from inside the render.
+        // A `@FocusState` write made from input since the last frame moves focus
+        // now, before the frame that validates it is built (ruling `IX-J`).
+        applyPendingFocusStateWrites()
         let focusHandedIn = focusedElement
         // Spec §3's hand-off, and the whole reason production can animate at
         // all. `withAnimation` parked this and returned; the mutation inside
@@ -1046,6 +1095,11 @@ public final class Window {
         if focusedElement == focusHandedIn {
             focusedElement = frame.focusedElement
         }
+        // Every `@FocusState` the frame bound follows the focus it settled on —
+        // between frames, never in a phase, and writing only a changed value
+        // (ruling `IX-J` item 4).
+        lastFocusStates = stateTable.takeFocusStates()
+        reconcileFocusStates()
         // An element asked for another frame — an animation in progress. Marking
         // dirty here (rather than leaving the window to go clean) is what keeps
         // the display link running: without it, a fade stops the instant the

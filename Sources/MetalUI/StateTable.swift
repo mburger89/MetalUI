@@ -202,10 +202,11 @@ final class StateTable {
     /// **Resets only on the transition**: when the last completed frame produced
     /// `slot`, every entry whose id has `slot` as a proper ancestor is deleted
     /// (by this frame's `sweep()`, in its one pass over the table), so content that returns starts fresh (SwiftUI's lifetime rule, probe
-    /// V5/V9; ruling `ID-C`). **Two retention slots are exempt** — an entry whose
-    /// own component is `.named("$focus")` or `.named("$ax")` — because their
-    /// lifetime is the window's (focus retention, the accessibility node's
-    /// republish; `TB-J`, `AB-U`), not the element's. **Only an evaluated
+    /// V5/V9; ruling `ID-C`). **One retention slot is exempt** — an entry whose
+    /// own component is `.named("$ax")` — because its lifetime is the window's
+    /// (the accessibility node's republish, `AB-U`), not the element's.
+    /// `.named("$focus")` was exempt too until plan task 12 part 1's `IX-I`:
+    /// focus now leaves with its identity (`resetFocusSlots`). **Only an evaluated
     /// conditional calls this**: a subtree nothing evaluates (a `List` row out of
     /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets a
     /// conditional slot (it resets only a departed NAME, `noteNamed`).
@@ -262,7 +263,7 @@ final class StateTable {
     ///
     /// **When the position held a DIFFERENT name in the last completed frame,
     /// that name departs**, and `sweep()` resets it (every entry at it or
-    /// under it, except `$focus`/`$ax`) **unless the frame produced it
+    /// under it, except `$ax`) **unless the frame produced it
     /// somewhere else** — a name that moved to a sibling's position (a swap, a
     /// loop reorder) keeps its state. So `.id(n)` over a, b, a starts the
     /// returning a fresh, as SwiftUI's does (probe X9–X11; ruling `ID-R`).
@@ -307,8 +308,8 @@ final class StateTable {
     /// unnamed `for` loop dropped), and every named child the slot held last
     /// frame that this frame produced nowhere (a `ForEach` element dropped
     /// anywhere, a `for` iteration carrying `.id()` dropped at the tail). Both
-    /// go through the one reset pass (`resetQueuedEntries`), `$focus`/`$ax`
-    /// exempted as there. **Only the loop's DIRECT children are considered**:
+    /// go through the one reset pass (`resetQueuedEntries`), `$ax` exempted
+    /// as there. **Only the loop's DIRECT children are considered**:
     /// a `List` inside a surviving element keeps `TB-AH`'s retention for its
     /// rows. **Only an evaluated loop calls this**: a loop inside an element
     /// not produced notes nothing, and a loop with no extent recorded last
@@ -374,7 +375,7 @@ final class StateTable {
     /// name, or has a departed name or an absent slot as a PROPER ancestor —
     /// `noteAbsent`'s slot holds no entry of its own, while a renamed element's
     /// own id carries entries too (`ScrollView`'s offset, an element's
-    /// `withState(id, …)`) — except the window-owned retention slots. Cost: one
+    /// `withState(id, …)`) — except the window-owned `$ax` slot. Cost: one
     /// visit per table entry plus its ancestor walk, however many names departed;
     /// the per-name scan it replaced cost (departures × table).
     private func resetQueuedEntries() {
@@ -393,8 +394,9 @@ final class StateTable {
         absentSlots.removeAll(keepingCapacity: true)
     }
 
-    /// Deletes every entry `doomed` selects, except `$focus`/`$ax`: collected in
-    /// one walk of the keys, then removed.
+    /// Deletes every entry `doomed` selects, except `$ax`: collected in one walk
+    /// of the keys, then removed. A deleted `$focus` slot is reported in
+    /// `resetFocusSlots` (plan task 12 part 1, `IX-I`).
     private func removeEntries(where doomed: (GlobalElementID) -> Bool) {
         for id in storage.keys where !Self.isWindowRetained(id) && doomed(id) {
             doomedKeys.append(id)
@@ -402,9 +404,22 @@ final class StateTable {
         for id in doomedKeys {
             storage.removeValue(forKey: id)
             marked.remove(id)
+            if id.component == Self.focusRetentionName { resetFocusSlots.insert(id) }
         }
         doomedKeys.removeAll(keepingCapacity: true)
     }
+
+    /// The `$focus` retention slots the last `sweep()`'s resets deleted — a
+    /// focused element whose identity an evaluated reset took away (`ID-C`'s
+    /// absent slot, `ID-R`'s departed name, `DD-C`'s dropped loop element).
+    /// `Frame.render` reads it right after the sweep and clears focus **in that
+    /// same frame** (ruling `IX-I`), so no input event between frames reaches a
+    /// dead id. Emptied at the start of each sweep, so a reset `noteProduced`
+    /// runs mid-frame (content absent and produced again in one frame, which
+    /// keeps its focus) is never reported. **The reap is not a reset**: an
+    /// entry `sweep()` reaps past `sweepThreshold` is not reported, and focus on
+    /// it still clears one frame later through `resolveFocus` (`TB-J`, 3.6).
+    private(set) var resetFocusSlots: Set<GlobalElementID> = []
 
     /// Whether `slot` is a PROPER ancestor of `id`.
     private static func descends(_ id: GlobalElementID, from slot: GlobalElementID) -> Bool {
@@ -419,9 +434,14 @@ final class StateTable {
     private static let focusRetentionName = PathComponent.named(ElementID("$focus"))
     private static let axRetentionName = PathComponent.named(ElementID("$ax"))
 
-    /// `$focus` and `$ax`: the window-owned retention slots `noteAbsent` keeps.
+    /// `$ax`: the window-owned retention slot every reset keeps (`AB-U`;
+    /// accessibility is plan task 12's part 2). **`$focus` is no longer exempt**
+    /// (plan task 12 part 1, ruling `IX-I`; probe arms F1, F2): focus leaves
+    /// with its identity and does not come back when the identity returns.
+    /// Restoring `|| id.component == focusRetentionName` here is mutation
+    /// `MRk′`, which 3.1–3.5 redden.
     private static func isWindowRetained(_ id: GlobalElementID) -> Bool {
-        id.component == focusRetentionName || id.component == axRetentionName
+        id.component == axRetentionName
     }
 
     /// An entry survives being unmarked for this many generations before
@@ -796,6 +816,7 @@ final class StateTable {
     /// either of those changes later and something will, silently, unless
     /// this line is still here to catch it.
     func sweep() {
+        resetFocusSlots.removeAll(keepingCapacity: true)
         // `ID-R`: a name an evaluated position replaced, and that this frame
         // produced nowhere, is reset before the next frame can return to it.
         // Both resets — these names and `noteAbsent`'s slots — share one pass.

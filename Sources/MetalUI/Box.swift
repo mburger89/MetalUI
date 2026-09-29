@@ -626,26 +626,19 @@ extension StyledElement {
     /// focus ring in the framework at all today, which is why the milestone's
     /// human look asks specifically whether focus is *visible*.
     ///
-    /// **`.hidden()` does NOT hide an element from focus, and the consequence
-    /// is keystrokes vanishing into something nobody can see.** Measured
-    /// through a real `Window`: a `.focusable().onKey { … }.hidden()` box
-    /// registers as focusable, `Window.focus(_:)` on it sticks, it **claims**
-    /// the keystroke so `Window.onInput` never sees it, and it keeps focus
-    /// across the next frame — `Frame.resolveFocus()` cannot clear it, because
-    /// the element's `prepaint` really did run and really did register.
+    /// **`.hidden()` takes an element out of the keyboard** (plan task 12
+    /// part 1, ruling `IX-K` item 3; probe arm F9): a hidden `.focusable()`
+    /// element registers no focusability, `onKey`, actions or key context, so
+    /// `Window.focus(_:)` on it is cleared by the next frame and a focused
+    /// element that becomes hidden loses focus at the next boundary — the one
+    /// gate in `Frame.registerHandlers`, beside `isEnabled`. A hidden `Button`'s
+    /// keyboard shortcut still fires (arm X1). Until that ruling a hidden
+    /// focusable box took focus and swallowed keystrokes nobody could see.
     ///
-    /// **The pointer side is protected and this is not, which is the part that
-    /// surprises.** A hidden `onClick` box registers a hitbox at `(0, 0) 0×0`
-    /// — the engine leaves a `display: .none` node at the tree's zero rect — so
-    /// geometry makes it unhittable by accident. Focus registration reads no
-    /// geometry at all, deliberately (that is the design's own argument for
-    /// riding on `registerHandlers`), so `display: .none` is invisible to it.
-    ///
-    /// CLAUDE.md's `hidden()` row ends "safe on `Box`es and wrong on anything
-    /// that draws"; it is now also wrong on anything **focusable**. Not fixed
-    /// here: the standing blocker for that whole row is that nothing in paint
-    /// or prepaint consults `Style.display`, and the fix is one check in
-    /// `Element`'s group walk rather than a special case here.
+    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2): SwiftUI's
+    /// click focuses a `.focusable()` view (F3); making this element a pointer
+    /// target would make every focusable container opaque to the pointer. A
+    /// `@FocusState` written from an `onTapGesture` is the remedy.
     public func focusable() -> Self {
         handling { $0.isFocusable = true }
     }

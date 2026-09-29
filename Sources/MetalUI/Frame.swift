@@ -948,10 +948,28 @@ public final class Frame {
     /// anything inside it (stage-2 probe V3: a hidden view passes the tap to the view
     /// under it). Focus, keys and scroll regions are
     /// outside this gate, as they are outside `allowsHitTesting(false)`'s (`OM-AK`).
+    ///
+    /// **It is also the hidden scope for the keyboard's focus half** (plan task
+    /// 12 part 1, ruling `IX-K` item 3; probe arm F9): inside it
+    /// `registerHandlers` registers no focusability, `onKey`, actions or key
+    /// context — the same gate as `isEnabled`, keyboard half only — so a focused
+    /// element that becomes hidden loses focus at the next boundary. **A
+    /// keyboard shortcut is NOT gated by it** (arm X1: a hidden button's
+    /// shortcut fires), and scroll regions stay outside every gate. One helper,
+    /// so each of its callers — `Element.prepaintGroup`,
+    /// `ModifiedContent.prepaintLayer` (each inner layer, `MC-B`) and
+    /// `Frame.render`'s root — carries both scopes; `AnyElement`'s entry reaches
+    /// the first through its box's group default.
     func disablingHitTestingIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
         guard hiddenNodes.contains(node) else { return body() }
+        keyboardHiddenDepth += 1
+        defer { keyboardHiddenDepth -= 1 }
         return withHitTestingDisabled(body)
     }
+
+    /// Inside a hidden node's prepaint (`disablingHitTestingIfHidden`) — the
+    /// keyboard focus half's hidden condition (`IX-K` item 3).
+    private var keyboardHiddenDepth = 0
 
     /// Records a hitbox at the rect it actually **paints** at: translated by
     /// the active offset, then intersected with the active clip, carrying the
@@ -1078,12 +1096,27 @@ public final class Frame {
         // Read in place, not through `environmentSnapshot()`, so the gate costs
         // no counted snapshot (ruling EV-O).
         let enabled = environmentTop.isEnabled
+        // A hidden element is out of the keyboard's focus half (plan task 12
+        // part 1, ruling `IX-K` item 3): the second condition of this one gate.
+        let keyboardVisible = keyboardHiddenDepth == 0
+        // A `.focused` binding is recorded whatever the gates say (`IX-J`): it
+        // is not a keyboard ask, and a `@FocusState` write naming it is refused
+        // by the focusability it would need (`Window.applyPendingFocusStateWrites`).
+        if let binding = handlers.focusBinding {
+            focusRegistry.registerFocusBinding(binding, id: id)
+        }
         // The keyboard side first: focus registration is not gated on the
         // pointer gate below, and an element can ask for one without the
         // other. `register` gates itself on `isKeyTarget`; a disabled element
-        // does not reach it at all (ruling EV-F).
+        // does not reach it at all (ruling EV-F), and a hidden one registers
+        // its keyboard shortcut alone (`IX-K` item 3, arm X1 — the shortcut
+        // table is gated by `isEnabled` only).
         if enabled {
-            focusRegistry.register(handlers, id: id)
+            if keyboardVisible {
+                focusRegistry.register(handlers, id: id)
+            } else {
+                focusRegistry.registerShortcut(handlers, id: id)
+            }
         }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
         // currently-focused id produced this frame at all", not "did it ask
@@ -1154,7 +1187,7 @@ public final class Frame {
             // contract rather than a patch, and it does not go in unreviewed in
             // the last commit before a merge — the same judgement
             // `Window.applyScroll` was given during the input milestone.
-            if enabled {
+            if enabled && keyboardVisible {
                 stateTable.withState(Self.focusRetentionSlot(for: focused),
                                      initial: true) { _ in }
             }
@@ -2297,6 +2330,17 @@ public final class Frame {
         // not "reserved") depends on sweep ordering, and a future edit should
         // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
+        // **Focus leaves with its identity** (plan task 12 part 1, ruling
+        // `IX-I`; probe arms F1, F2): when this frame's sweep reset the focused
+        // element's `$focus` slot — an `if` removed it, a `.id` departed, a loop
+        // dropped it — focus clears in THIS frame, so `Window`'s read-back never
+        // hands the next input event a dead id and the next frame's
+        // `resolveFocus` finds nothing to retain. Not a reap (`resetFocusSlots`'s
+        // own doc): a `List` row out of its window keeps `TB-J`'s retention.
+        if let focused = focusedElement,
+           stateTable.resetFocusSlots.contains(Self.focusRetentionSlot(for: focused)) {
+            focusedElement = nil
+        }
         isRendering = false
     }
 }

@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-S`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-T`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1101,4 +1101,93 @@ human list beside a native SwiftUI window.
 the test its mutation reddens; the chrome-by-value rule (clause 1) becomes an
 explicit "caller wrote it" flag if a caller ever needs the chrome's own colour
 under `.plain`.
+
+---
+
+## IX-S — lane 3 stopped on a finding: `IX-I`'s reset closes the `if` route of the `$focus` hazard, and D13's instrument arm reddens
+
+**Status.** Lane 3's tests (spec §6, 3.1–3.14, 3.14b, 3.20, G3.1) were written
+red first (`48f0394`) and the implementation (`IX-I`, `IX-J`, `IX-K` item 3)
+turns every one green, but the unfiltered suite reads **`Test run with 1837
+tests in 3 suites failed … with 1 issue`**: a test **not** in spec §6's list
+reddens. Per spec §6 ("a test `MRk′`'s inverse or 3.13's gate reddens that is
+not in this list is a finding the lane records and stops on") the lane stops
+here; the test is **not** edited.
+
+**The finding.** `aFocusRequestWhileDisabledLeavesNoRetentionSlot` (D13,
+`DisabledTests.swift:803`, `EV-F`), its **instrument arm, pinned wrong on
+purpose**: "a non-focusable enabled element's slot makes the second request
+stick" — `Expectation failed: hazard`. The arm reaches the known hazard in
+`Frame.registerHandlers`' `$focus` paragraph (a `Window.focus` on a produced,
+enabled, non-focusable element writes a stray `$focus` slot; after the element
+is removed, a second `Window.focus` on its id sticks, because `resolveFocus`'s
+fallback only asks `peek != nil`). The arm removes the element **with an
+`if`** — an evaluated reset — and `IX-I` no longer exempts `$focus` from that
+reset, so the stray slot is deleted with the element and the second request
+is cleared: **the hazard's `if` route is closed by `IX-I`**, and the
+instrument no longer sees a sticky focus. Measured: restoring the exemption
+(mutation `MRk′`, `StateTable.isWindowRetained` `|| id.component ==
+focusRetentionName`) and running the test alone turns it green again; the
+disabled arm (its subject) is green either way.
+
+**The hazard is not gone**, only its reset routes: an element that stops being
+produced **without** an evaluated reset keeps its `$focus` slot (a `List` row
+windowed out, `TB-AH`), so the same sequence over a windowed-out row still
+sticks (by reading, not measured here).
+
+**Options for the continuation** (not decided by this lane):
+
+1. **Re-derive D13's instrument arm** onto a route `IX-I` does not reset — a
+   `List` row focused while produced, then windowed out, then `Window.focus`
+   again — keeping the arm's purpose (proving the instrument can see a sticky
+   focus) and recording it as a T row; or
+2. **retire the instrument arm** with a row naming `IX-I` as the change that
+   closed its route, and amend the `registerHandlers` paragraph and
+   `aFocusRequestWhileDisabledLeavesNoRetentionSlot`'s doc to say the hazard
+   survives only for an unevaluated subtree.
+
+**Everything else measured at this commit.** After `swift package clean`
+(`Handlers` gains a stored member, `focusBinding`), `swift build
+--build-system native --build-tests`: 0 `error:`, the one `warning:` SwiftPM's
+deprecation notice; unfiltered `swift test --build-system native
+--no-parallel`: **1837 tests** (1825 + lane 3's net 11 + G3.1), 1836 passing,
+the one failure above; the log carries `FR-J no-argument frame: succeeded=`.
+**Not yet done** (the lane stopped): the named mutations (MRk′, MRl, M3a–M3h,
+M3m, M3n, M3g′) with their reddened sets, G3.1 mutated red once, the
+fourteen-image offscreen comparison against `31f2e7a`, the `Backends/SDL`
+and container builds, the Windows stack-budget re-measure (`Handlers` +8
+bytes), the source docs that still describe `$focus` as exempt or the
+hidden-focus hazard as live (`Frame.resolveFocus`'s three measured
+consequences, `registerHandlers`' `$focus` paragraph; `Box.focusable()`'s is
+corrected), and the migration note's own text in this doc.
+
+**Implementation as landed** (for the continuation to verify, not re-design):
+
+- `StateTable.isWindowRetained` keeps `$ax` only; `removeEntries` reports a
+  deleted `$focus` slot in `resetFocusSlots` (emptied at the start of each
+  `sweep()`, so a mid-frame `noteProduced` reset is never reported; the reap is
+  not a reset). `Frame.render` clears `focusedElement` right after the sweep
+  when its slot is in that set — the frame whose sweep deletes it (`IX-I`).
+- `Frame.disablingHitTestingIfHidden` — the one helper `Element.prepaintGroup`,
+  `ModifiedContent.prepaintLayer` and `Frame.render`'s root already call —
+  also bumps a keyboard-hidden depth; `registerHandlers`' one gate registers
+  the keyboard half only while enabled **and** not hidden, a hidden element
+  registering its shortcut alone (`FocusRegistry.registerShortcut`, arm X1),
+  and the `$focus` retention write is gated on both (`IX-K` item 3). M3g′ is
+  therefore "`ModifiedContent.prepaintLayer` calls the pointer scope alone".
+- `@FocusState` (`Sources/MetalUI/FocusState.swift`): a box seeded by
+  `StateBinder` at the `$state<n>` sibling (no new reserved name), storing
+  `FocusStateValue { value, pending }`; `.focused(_:)`/`.focused(_:equals:)`
+  set a new internal `Handlers.focusBinding` (one reference; `HandlerShape`
+  and `HandlerFingerprint` gain the field), recorded in the focus registry
+  **ungated**. `Window.drawFrameIfNeeded` applies pending writes **before** the
+  frame is built — a value moves focus to the last frame's element bound with
+  it **only if that element was focusable on the last frame**, else focus stays
+  (this refines `IX-J` item 2's "focuses nothing": the previous focus is kept,
+  and M3a/M3e are one site, that check); `false`/`nil` clears only a focused
+  element bound to that state — and, after the frame's focus read-back, writes
+  each bound state's implied value **only where it changed** (a dirtying write
+  between frames, never in a phase). A focused element retained but not
+  produced this frame (a windowed-out `List` row) has no binding recorded, so
+  its state reads the default until it returns — stated, unpinned.
 

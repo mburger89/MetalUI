@@ -128,6 +128,8 @@ private struct HandlerFingerprint: Equatable {
     /// set only by `Button`) and the declared content shape.
     var keyboardShortcut = false
     var contentShape = false
+    /// Plan task 12 part 1, lane 3 (`IX-J`): the `.focused` binding.
+    var focusBinding = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -143,6 +145,7 @@ private struct HandlerFingerprint: Equatable {
         gestureCount = h.gestures.count
         keyboardShortcut = h.keyboardShortcut != nil
         contentShape = h.contentShape != nil
+        focusBinding = h.focusBinding != nil
     }
 }
 
