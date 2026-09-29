@@ -111,8 +111,30 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [UInt8] {
     try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: imageScene(checker, other), atlas: atlas))
     #expect(renderer.cachedTextureIdentities == [ObjectIdentifier(checker), ObjectIdentifier(other)], "ramp is released")
     #expect(renderer.textureUploadCount == 3)
+    #expect(renderer.textureReleaseCount == 1, "exactly ramp, once")
     let drawn = try renderer.readPixels(width: width, height: height)
     #expect(drawn == (try replayPixels(imageScene(checker, other), atlas: atlas)))
+    #expect(renderer.textureReleaseCount == 1)
+    #expect(renderer.unsignaledFenceReleaseCount == 0)
+}
+
+/// Record §61 §10 — back-to-back offscreen frames with no readback between
+/// them never release the previous frame's fence before the GPU signals it.
+/// SDL returns a released fence to its pool while the submitted command
+/// buffer still points at it; the next submission re-arms the same fence, so
+/// Direct3D 12 cleaned the newer frame early — resetting its allocator and
+/// destroying its buffers mid-flight — and the debug layer broke in
+/// `D3D12_INTERNAL_DestroyBuffer` (run 36588257167).
+@MainActor
+@Test func backToBackFramesNeverReleaseAnUnsignaledFence() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    let frame = try scene("Many frames, no readback", atlas: atlas)
+    for _ in 0..<32 {
+        try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: frame, atlas: atlas))
+    }
+    #expect(renderer.unsignaledFenceReleaseCount == 0)
+    #expect(try renderer.readPixels(width: width, height: height) == (try replayPixels(frame, atlas: atlas)))
 }
 
 private func replayPixels(_ scene: Scene, atlas: GlyphAtlas) throws -> [UInt8] {
