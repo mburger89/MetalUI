@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-R`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-S`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -927,3 +927,162 @@ carrying `FR-J no-argument frame: succeeded=`. Guards unmoved (110). `swift buil
 **Cost if wrong.** One comparison in `makeGestureArena`; if a presentation
 should join its declarer's arena after all, delete `$0.layer == hit.layer` and
 invert 1.24's two modal expectations.
+
+---
+
+## IX-R — lane 2 landed: buttons, shortcuts, the looks and content shapes (and eleven clauses the design left open)
+
+**Ruling.** Lane 2 (`IX-E`, `IX-F`, `IX-G` item 2, `IX-H`, `IX-L`) landed on
+`feat/interaction`: red `fb0053b`, green `68a33ec`. New
+`ButtonStyle.swift` (`ButtonRole`, the closed `ButtonStyle`),
+`KeyboardShortcut.swift` (`KeyEquivalent`, `KeyboardShortcut`,
+`EventModifiers = Modifiers`, the matcher, `ShortcutTarget`,
+`Window.dispatchShortcut`), `ControlLook.swift` (`controlAccent(_:)`,
+`controlRing(_:)`, `PaintPass.paintControl(disabled:_:)`); `Button`'s two role
+initialisers, `.buttonStyle`, the three `.keyboardShortcut` overloads, the
+pressed look; `Handlers.keyboardShortcut` (in `isKeyTarget`) and
+`Handlers.contentShape` (a `ContentShape` class box); `FocusRegistry`'s
+shortcut table in registration order; one `Window.onInput` call between the
+raw `onKey` bubble and Tab; `Hitbox.shape` (window space) tested by
+`Hitbox.contains`; `ShapeGeometry.contains(_:)`/`offsetBy`; `contentShape(_:)`
+on `StyledElement`, `OnTapModifier` and `GestureModifier`; the disabled scope,
+key-window accent and focus ring on `Button`, `Toggle`, `Slider`, `Stepper`
+and `Picker`; doc comments of `EnvironmentValues.controlActiveState` and
+`ControlActiveState` (they now have consumers).
+
+**Clauses decided here** (each MetalUI's, none a SwiftUI claim):
+
+1. **`.plain`/`.borderless` drop the chrome at layout, by value**: a
+   decoration field still equal to the chrome's own (`.surfaceSecondary`,
+   radius 5, the 1-pt `.separator` border) is dropped, so a caller's
+   `.background` survives in either order relative to `.buttonStyle`; a caller
+   who writes the chrome's own value explicitly cannot be told from it. The
+   strut stays (0 × 0) so the label is index 0 and the strut 1 in every style.
+2. **The pressed wash is painted after the chrome's content** — over the label
+   and border, not between the fill and the label (`Box.paint` has no seam
+   there); rounded to the chrome's corner radius.
+3. **The focus ring is on every `Button` style**, `.plain` included, and while
+   focused it replaces the chrome's 1-pt border (`focus ?? hover ?? plain`,
+   `OM-L`); a caller's own `focusBorder` wins on every control.
+4. **A segmented `Picker` has no accent to remove** (its selected segment is
+   `.surface`); only the radio group's selected circle follows
+   `controlActiveState`.
+5. **The key compares lower-cased** with `charactersIgnoringModifiers` (AppKit
+   reports a shifted letter upper-case there); the modifiers exactly.
+6. **A focused `TextField` with no `.onSubmit`** does not claim Return: its
+   editing stage returns unhandled on a submit with no handler (`TI-B`, as
+   before), so the default button fires. Unmeasured in SwiftUI (`X2` had an
+   `.onSubmit`); unpinned, stated. A focused `TextEditor` inserts `\n` and
+   claims it.
+7. **A shortcut runs whatever a click runs** (`composed.onClick ?? action`,
+   so a caller's `.onClick` replaces it too), dispatched under
+   `StateDispatch` to the button's id (`ID-F`).
+8. **The shortcut is registered whatever `hidden()` says** — lane 3's hidden
+   condition must gate the focus half only (`X1`, spec 3.14b).
+9. **A content shape composes with `contentShape(inset:)`**: the shape's
+   geometry is taken in the inset rect. It rides the layer's `Handlers`, so a
+   shape written before a wrapping modifier does not reach a click written
+   after it — `contentShape(inset:)`'s S1 divergence, unchanged in kind.
+10. **`Hitbox.contains` tests the clipped rect first, then the shape** (the
+    shape is never clipped itself), so a content shape only shrinks a region
+    the clip already bounds (divergence 43 as amended by `IX-L` item 2).
+11. **The looks read `environmentTop` in place** (`isEnabled`,
+    `controlActiveState`), costing no counted snapshot (`EV-O`); `Button`
+    keeps its one `pass.environment` read in layout, as before.
+
+**Red first — and one harness finding.** At `fb0053b` the test target
+compiled against the stored-but-unread surface: 2.2–2.16 red (13 tests); 2.1,
+2.17, 2.18, G2.1, G2.2 and the extended `ModifierTests` row green (2.1 pins an
+absence, 2.17/2.18 pin today's behaviour, written first). **Four shortcut
+tests discarded their `Window`** (`let (_, platform) = …`); the fake platform
+window holds it weakly, so no event reached it — 2.5, 2.6, 2.8's hit-testing
+arm and 2.9 were red at `fb0053b` for that reason as well as the missing
+dispatch, and **2.8's disabled arm read green vacuously**. Fixed in `68a33ec`
+(`withExtendedLifetime`, also added to `ContentShapeTests`' helpers), and the
+fixed tests re-shown red without the dispatch: mutation **M2x** (the one
+`dispatchShortcut` call removed) reddens all seven shortcut tests.
+
+**Tests.** 2.1–2.3 `ButtonSemanticsTests.swift`, 2.4–2.9 and 2.13
+`KeyboardShortcutTests.swift`, 2.10–2.12 `ControlLookTests.swift`,
+2.14–2.18 `ContentShapeTests.swift`, G2.1 `ButtonCompileGuards.swift`, G2.2 a
+new `@Test` in `DecorationCompileGuards.swift`. Existing tests extended,
+answers unchanged for every existing row: `ModifierTests`' table gains
+`contentShape(_:)` (50 → 51) and `HandlerShape` gains `keyboardShortcut` and
+`contentShape`; `OuterModifierMatrixTests`' `HandlerFingerprint` gains both.
+
+**Mutations** (each applied to `68a33ec`, restored from a copy, the whole
+suite run unfiltered — 1823 tests each time — `git status --short` empty
+after every one):
+
+| id | mutation | tests reddened |
+|---|---|---|
+| M2a | `.cancel` binds Escape | 2.1 |
+| M2b | `.plain` keeps the padding | 2.2, 2.15 (its `Button` arm's geometry) |
+| M2c | pressed = `isActive` alone | 2.3 |
+| M2d | modifiers compared as a superset | 2.4 |
+| M2e | `defaultAction`/`cancelAction` swapped | 2.5, 2.13 |
+| M2f | the last registered shortcut wins | 2.6 |
+| M2g | shortcut stage before the raw `onKey` bubble | 2.7 |
+| M2h | shortcut registered outside the `isEnabled` gate | 2.8 |
+| M2i | shortcut skipped under decoration opacity 0 | 2.9 |
+| M2j | disabled scope gated on `!isFocused` (all five call sites, whole-file) | 2.10, 2.11, 2.3 (its `.plain` arm), `aTogglesIndicatorColourAnimatesUnderWithAnimation` |
+| M2k | accent on `!= .inactive` | 2.11 |
+| M2l | ring token `.separator` always | 2.12 |
+| M2m | shortcut stage before a focused field's editing keys | 2.13, 2.7 |
+| M2x | the `dispatchShortcut` call removed | 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.13 |
+| M3i | `Hitbox.contains` ignores the shape | 2.14, 2.15, 2.16 |
+| M3j | the shape tested in `dispatchClick` only (a second copy) | 2.16, 2.15 (its gesture arm) |
+| M3k | a hit intersected with the clip's rounded geometry (own `clipShape` as a content shape; an ancestor clip's radii) | 2.17 |
+| M3l | a hitbox for every painted element (a filled legacy box, a bare `Shape`) | 2.18 and 21 more: `aClosureStepperRunsItsClosuresAndANilOneDisablesItsDirection`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aDisabledScopeAroundAFramedFocusRingSuppressesRingHoverAndClick`, `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredWindowDispatchesClicksFocusAndKeys`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`, `aStepperClampsIntoItsRangeAndWritesNothingWhenTheValueWouldNotMove`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, `anOutOfRangeStepperStepsFromItsClampedValue`, `anUnboundedStepperDoesNotClamp`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `hoverBackgroundWithoutAClickHandlerNeverPaints` |
+| G2.1 | `ButtonStyle.borderless` made internal | `theButtonSpellingsCompileFromAPlainImport` (positive arm failed) |
+| G2.2 | `contentShape(_:)` declared on `ProposalElementGroup` | `aProposalElementCannotSpellContentShapeBeforeItsTap` |
+
+**Recorded greps** (2026-09-29, `68a33ec`): `grep -rn "bounds.contains(" Sources/MetalUI`
+→ one hit, `Hitbox.swift:139` (`Hitbox.contains`); the `(layer, offset)`
+comparison → one hit, `Hitbox.swift:200` (`topmostOpaqueHitbox`);
+`grep -h '^import' Sources/MetalUILayout/*.swift | sort -u` → `import MetalUICore`.
+
+**Counts.** After `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation notice;
+`swift build --build-tests` under the default build system: 0 `warning:`),
+then unfiltered `swift test --build-system native --no-parallel`: **`Test run
+with 1823 tests in 3 suites passed`** (1803 + 18 + 2), the log carrying `FR-J
+no-argument frame: succeeded=`; guards **110 + 2 = 112**. Spec §9's "1825
+tests" did not count the guards' own `@Test`s and predates `IX-Q`'s five:
+the projected close is 1823 + lane 3's net 11 + 1 guard = **1835 tests, 113
+guards**. `everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` green; `Expected.swift`
+unedited. **Pixels**: `docs/probes/demo-pixels/compare.sh` `31f2e7a` →
+`68a33ec`: 0 differing, scene identical, in all fourteen images; controls as
+recorded (light vs dark 1048576, default vs modal 1031003, default vs
+animation 454895, prod default vs modal 491221). `Backends/SDL` builds
+(`PKG_CONFIG_PATH=.accesskit swift build --build-tests`, 0 `error:`; its
+`sdl` pkg-config rpath warning is the machine's). A `swift:6.4-noble`
+container (a `git archive` of `68a33ec`) builds with 0 `error:`/`warning:`
+and runs 199 + 10 + 22, all passing.
+
+**Windows stack budget** (`IX-N`; a scratch file of literal-size exit tests
+in `MetalUICrossPlatformTests`, deleted after, debug, macOS arm64, 16 KB
+steps):
+
+| | before (`d0de2e4`) | after (`68a33ec`) |
+|---|---|---|
+| `MemoryLayout<Handlers>.size` | 416 | 432 |
+| smallest thread building every production tree | fails 592 KB, passes **608 KB** | fails 592 KB, passes **608 KB** |
+
+**Real-window capture**: not taken — the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` (11:58 PDT).
+
+**Not done here** (unchanged owners): the hidden condition and `@FocusState`
+(lane 3); `TextField`/`TextEditor` take no disabled look (`IX-G` item 2);
+`List` and text selection keep their accent (`IX-H` item 1); the
+`METALUI_CONTROLS_DEMO` additions spec §7 allows were not made (no pixel exit
+needs them); the looks (pressed, disabled, inactive, ring) are owed to the
+human list beside a native SwiftUI window.
+
+**Cost if wrong.** Each clause is one comparison or one call site, pinned by
+the test its mutation reddens; the chrome-by-value rule (clause 1) becomes an
+explicit "caller wrote it" flag if a caller ever needs the chrome's own colour
+under `.plain`.
+
