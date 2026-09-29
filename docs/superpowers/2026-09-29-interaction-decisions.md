@@ -1270,7 +1270,7 @@ builds with 0 `error:`/`warning:` and runs **199 + 10 + 22**
 (`MetalUILayoutTests`, `MetalUICrossPlatformTests`, `MetalUICoreTests`), all
 passing.
 
-**Suite.** After a clean build at `96d5874`: `swift build --build-system native
+**Suite.** At `96d5874` (an incremental build over `53e09d3`'s clean one; no stored property changed since): `swift build --build-system native
 --build-tests` 0 `error:`, the one `warning:` SwiftPM's deprecation notice;
 unfiltered `swift test --build-system native --no-parallel` reads **`Test run
 with 1837 tests in 3 suites passed`**, the log carrying `FR-J no-argument
