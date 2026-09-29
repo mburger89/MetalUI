@@ -547,3 +547,139 @@ lines). It is **not one of the fourteen images** (`animation-light`/`-dark`
 are 1024², where the row is absent), so the census predicts **0 px in all
 fourteen**; the row is a real-window look, named by a ruling after the
 implementation re-runs the census (§4.3).
+
+Commits: `fc60d0c` (the census), `ac8c87a` (red, against an API skeleton),
+`96309cf` (the implementation, Expected.swift re-recorded), `fc395a6`
+(`TE-Y`, `TE-Z`, `TE-AA`), and the docs commit carrying this section.
+
+### 4.2 What landed
+
+- `MetalUI/Font.swift` (new): `Font` — `system(size:weight:design:)`,
+  `system(_:design:weight:)`, the eleven text-style statics (F1's macOS table,
+  one pure function on both text systems), `custom(_:size:)`,
+  `custom(_:fixedSize:)`, `custom(_:size:relativeTo:)`, `weight(_:)`,
+  `bold()`, `italic()`; `Font.Weight` (nine, CoreText's trait values),
+  `Font.Design`, `Font.TextStyle`; `TextAlignment`; `Text.TruncationMode`;
+  the internal three-state `TextFontRequest`.
+- `MetalUI/TextModifiers.swift` (new): on `ElementGroup` — `font`,
+  `fontWeight`, `italic`, `foregroundStyle`, `foregroundColor`, the five
+  `lineLimit` spellings, `truncationMode`, `multilineTextAlignment`, each an
+  `EnvironmentScope` write; on `Text`/`ProposalText` — own `font`,
+  `fontWeight`, `italic`, `foregroundStyle`; on `TextField`/`TextEditor` — own
+  `font(_:)`.
+- `MetalUI/TextStyleResolution.swift` (new): `resolveTextStyle` (the one
+  function layout and paint call), `defaultFont(for:)` (9/11/13 by
+  `controlSize`), `textLines` (the limit, then `max(1, ⌊h / lineHeight⌋)`),
+  and the styled `proposalTextMeasurement` (width the widest kept line capped
+  by the proposal, height padded to the lower bound, baselines `round(ascent)`
+  and `+ (lines − 1) × lineHeight`).
+- `EnvironmentValues`: public `font`, `lineLimit` (the pair's upper bound),
+  `truncationMode`, `multilineTextAlignment`; internal `foregroundStyle`,
+  `fontWeight`, `italic`, `textLineLimit` (`TextLineLimit`).
+- `Text`, `ProposalText`, `TextField`, `TextEditor`: `fontFamily`/`fontSize`
+  computed over the request (`TE-B` item 5); every font resolution through
+  `resolveTextStyle`; `Text`/`ProposalText` measure with the style and paint
+  with the options re-derived from the placed box (`TE-AA` item 4);
+  `Text.proposalLayout()` carries the request, weight and slope.
+- Doc comments corrected: `ProposalText.swift`'s "the height proposal does not
+  truncate or scale text" (kept once, quoted as the refuted sentence, in the
+  new doc of the unstyled `proposalTextMeasurement` — the one surviving grep
+  hit, by design); `EnvironmentValues.controlSize`/`dynamicTypeSize`,
+  `ControlSize`, `EnvironmentScope.controlSize(_:)` and `Button`'s label
+  sentence (`DD-R` item 4 withdrawn, `TE-F` item 3).
+
+### 4.3 Rulings
+
+`TE-Y` (the census as landed: no image of the fourteen moves; `Expected.swift`
+re-recorded; one real-window look owed; four T rows), `TE-Z` (divergence 89:
+a text beside a bare `Spacer` is offered all but the spacer's minimum, where
+SwiftUI shares the height — `TE-R`'s "exactly that rule" was wrong for K1/K4)
+and `TE-AA` (the element surface as landed). Next unused `TE-AB`. Live
+divergences **64 → 65**, next label **90**.
+
+**The census re-run after the implementation** (the same instrument, adapted
+to the landed `Text`/`ProposalText`, applied and reverted in this worktree):
+the CoreText rows are unchanged — the paragraph under **A** at 920×560, now
+placed at 64 (four lines) — and the configuration `XP-C` renders, Noto Sans
+through the portable system at 920×560 (not in the first census; found by
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`), adds the same paragraph at
+(648, 66.5) against 72, scales 1 and 2, now 54 (three lines). No other row.
+
+### 4.4 Red first
+
+At `ac8c87a` (the skeleton: `Font`, the environment values, the modifiers and
+the three-state request exist; every element still resolves
+`resolveFont(family: fontFamily, size: fontSize)` and measures unstyled),
+filtered to the 25 lane-3 tests: **79 issues** over 19 red tests — 3.1 2
+(`drawn == want`: headline and caption2, the weights), 3.2 2, 3.3 2, 3.4 8
+(the four weight arms and three italic arms against the explicit italic face,
+plus F6d), 3.6 3 (C2, C3, C6), 3.7 2, 3.8 11, 3.10 6, 3.11 5
+(`scoped.ideal == explicit.ideal` …), 3.12 7, 3.13 6, 3.16 2, 3.17 1 (the
+`#require` that the text is truncated), 3.18 3, 3.19 10 (`m.firstBaseline ==
+first` …), 3.20 4, 3.21 1, 3.22 2, 3.23 4. **Green on the skeleton, by
+design**: 3.5 (the storage it pins is the skeleton's; red before is "does not
+compile" at `35eb357`), 3.9 (SwiftUI's answer, pinned), 3.14 and 3.15 (pins of
+today's divergences 60 and 86), G3.1 and G3.2 (the API exists; their
+mutations below are what they catch). 3.23's two spacer arms were first
+written with SwiftUI's K1 counts (1, 3); the implementation read 3 and 5 —
+`TE-Z` — and they pin MetalUI's answer.
+
+### 4.5 Close
+
+`swift package clean` (the lane adds stored properties to `Text`,
+`ProposalText`, `TextField`, `TextEditor` and `EnvironmentValues`), then
+`swift build --build-system native --build-tests` 0 `error:`, the one
+deprecation `warning:`; unfiltered `swift test --build-system native
+--no-parallel` **`Test run with 1701 tests in 3 suites passed`**, the `FR-J`
+line present. **1701 = 1678 + 21 + 2**: 3.1–3.10 and 3.13–3.23 (21 tests,
+3.11 and 3.12 renamed T rows adding none) and G3.1, G3.2 (`TextCompileGuards`,
+new, both whole-file `typecheckFile`). Guards **103 → 105**.
+
+**Pixels.** `compare.sh 169d166 96309cf`: the controls as recorded since stage
+6b (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0); **0
+differing pixels, scene identical, in all fourteen**, as the census predicted.
+
+**The cross-platform demo frame moved, named by `TE-Y` item 2.** A scene dump
+of `renderDemoFrame`'s configuration (Noto Sans, portable, 920×560) at
+`169d166` and at `96309cf`, both scales, by a scratch test copied into
+`compare.sh`'s two archives: rects 518 and 518, 501 changed — the
+`ScrollView` box below the paragraph (y −18, height +18; ×2 at scale 2) and
+its 500 content rects (y −18), every other field equal; glyphs 15710 →
+15677 — the paragraph's fourth line's 34 glyphs gone, one `…` added at the end
+of its third, and every other changed glyph the same glyph 18 pt higher.
+Nothing else. `Expected.swift` re-recorded (`METALUI_CROSSPLATFORM_RECORD=1`):
+scale 1 `0x5e19107324162109` / `0x9f83d28ecad0a494`, scale 2
+`0x26c7cd62eabf02ca` / `0xda828bbe0b230bbd`, 15677 glyphs; the file's comment
+names the ruling and the old values. Linux and Windows CI owe the
+confirmation on push.
+
+**`Backends/SDL`** (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`): 21 + 23
+passed. Fixtures recorded on macOS (`Experiments/SDLGPU`, `swift run Replay
+--portable --record`, as CI records them per commit): frame 5 "518 rects,
+15677 glyphs, 1008 runs; differing pixels=0"; `PortableReplay --driver metal
+--expect 6` PASS; `DemoCapture --driver metal` "byte-for-byte macOS's: true",
+0 px, PASS — the fixture is re-recorded from the same commit in CI, so the
+paragraph's change reaches it consistently.
+
+**Size and the Windows stack budget** (`TE-S` item 7; a scratch test in
+`MetalUICrossPlatformTests`, deleted after, debug, macOS arm64, 16 KB pages —
+a 564 KB request passed where 566 failed before, so the page is the
+resolution):
+
+| | before (`fc60d0c`) | after (`96309cf`) |
+|---|---|---|
+| `MemoryLayout<Text>.size` | 713 | 747 |
+| `MemoryLayout<ProposalText>.size` | 41 | 82 |
+| `MemoryLayout<TextField>.size` | 761 | 786 |
+| `MemoryLayout<TextEditor>.size` | 745 | 770 |
+| `MemoryLayout<EnvironmentValues>.size` | 184 | 280 |
+| smallest thread building every production tree | fails 560 KB, passes 576 KB | fails 576 KB, passes **592 KB** |
+
+`everyProductionTreeBuildsOnAOneMegabyteThread` and
+`aThreadTooSmallForTheDemoFailsTheSameHarness` green unedited. (Stage 10's
+484 KB, record §53, predates plan task 10's controls demo.)
+
+**Real-window capture**: the lock probe read `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` (18:09 PDT) — owed, now with `TE-Y` item 3's look
+(the paragraph under **A** at 920×560, four lines) and `TE-Q`'s drawn
+`controlSize` font.

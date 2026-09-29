@@ -3,12 +3,12 @@
 Branch `feat/text-semantics` from `169d166` (plan task 10's tip). Rulings
 `TE-A`…`TE-U` in a new decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-Y`**; lane 1 added `TE-T`…`TE-V`, lane 2 `TE-W`, `TE-X`). Evidence: `docs/probes/swiftui-text-semantics.swift`
+(next unused **`TE-AB`**; lane 1 added `TE-T`…`TE-V`, lane 2 `TE-W`, `TE-X`, lane 3 `TE-Y`…`TE-AA`). Evidence: `docs/probes/swiftui-text-semantics.swift`
 (**new**, this design; arm ids `F1`, `L5`, `X8` …; its header carries the
 recorded output and the reading). Record: `docs/record/59-text-semantics.md`
 (written by the lanes and the Record phase).
 
-**Status: DESIGNED; critic round applied** (`TE-Q`…`TE-S`: two new probes,
+**Status: lanes 1–3 landed (record §59 §2–§4); DESIGNED; critic round applied** (`TE-Q`…`TE-S`: two new probes,
 `swiftui-controlsize-text-render.swift` and `swiftui-text-in-stacks.swift`;
 lanes rebalanced; `TE-L`'s stack branch ruled; a stack-compression pin and
 census added).
@@ -384,7 +384,7 @@ which.
 | 3.20 | `anHStackAlignsRealTextsByTheirBaselines` — B2's tree with real `Text`s: first-aligned 44 / 12, 0, 12, 15 (agrees with SwiftUI); last-aligned offsets from MetalUI's 26 pt line height (divergence 86) | — | M3s: `Text` reports no baseline |
 | 3.21 | `aLegacyBaselineRowAlignsRealTexts` — `Row { Text 13; Text 26 }.alignItems(.baseline)` | — | M3s reddens it too |
 | 3.22 | `aTextFieldAndATextEditorTakeTheEnvironmentFont` — `.font(.system(size: 20))` on a container grows both; the default environment draws what it drew | — | M3t: fields keep `fontSize` 13 |
-| 3.23 | `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes` — **`TE-R`**: probe K1 (60, 100, 200 → 1, 3, 6 lines) and K2 (80 → 2) on a `VStack(spacing: 0)` of `ProposalText` 100 wide; K2 on a legacy `Column` of a `Text` and a 40-tall `Box`; line counts, never SwiftUI's half-point heights | every arm 6 lines | M3u: the measure ignores a finite height proposal |
+| 3.23 | `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes` — **`TE-R`**, **amended by `TE-Z`**: K2 (80 → 2) on a `VStack(spacing: 0)` of `ProposalText` 100 wide and on a legacy `Column` of a `Text` and a 40-tall `Box` at SwiftUI's answer; K1's spacer arms at **MetalUI's** answer, divergence 89 (60 → 3, 100 → 5, where SwiftUI draws 1 and 3: the kernel's spacer priority −∞, `CN-C`); 200 → 6 on both; line counts, never SwiftUI's half-point heights | every arm 6 lines | M3u: the measure ignores a finite height proposal |
 | G3.1 | `theTextModifiersAreSwiftUIsSpellings` — plain import: every §3 spelling on `Text`, on a `ProposalText` inside an `HStack`, and on a container | — | MG3a: `lineLimit(_: ClosedRange<Int>)` made `internal` |
 | G3.2 | `textBoldIsNotOffered` — `Text("a").bold()` fails; control `Text("a").font(.body.bold())` compiles | — | MG3b: add `Text.bold()` |
 
@@ -393,7 +393,11 @@ which.
 `layoutRoundsToWholePointsWhateverTheDisplayScale`,
 `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing`,
 `textRowsTakeTheDefaultRowSpacing`, every `TextField`/`TextEditor` test and
-every existing text test stay green unedited except the two T rows.
+every existing text test stay green unedited except the two T rows — **four**
+since `TE-Y` item 4: `aProposalTextInAStackIsShapedOncePerDistinctWidth` and
+`proposalTextUsesWidthDrivenSwiftUIMeasurement` re-answer under `TE-H` item 2,
+and `Expected.swift` is re-recorded under `TE-Y` item 2 (the demo paragraph on
+Noto Sans at 920×560). Lane 3 landed **1701** (1678 + 21 + 2).
 
 ## 9. Verification (each lane, and the Record phase)
 
