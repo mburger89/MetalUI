@@ -878,3 +878,77 @@ clipping) is the next run.
 **Spec status**: `docs/superpowers/specs/2026-09-28-text-semantics-design.md`
 marked "lanes 1–3 landed; branch check applied (`TE-AB`); DESIGNED; critic
 round applied".
+
+## 7. Adversarial branch check (`169d166..9e71eac`)
+
+Taken independently of §5–§6, at `8044f43` and then `9e71eac` (docs only).
+
+- **Suite**: after `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, one `warning:`, SwiftPM's deprecation notice)
+  then unfiltered `swift test --build-system native --no-parallel`: `Test run
+  with 1706 tests in 3 suites passed after 117.491 seconds`; the guards ran
+  (`FR-J no-argument frame: succeeded=` in the log). The default build system:
+  `swift build --build-tests` 0 `error:`, 0 `warning:`.
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `theSevenRetentionSlotsAreMutuallyDistinct` passed.
+- **Goldens 0, guards 105** (`grep -c canTypecheck`: 103 in
+  `Tests/MetalUITests`, 3 in `UnitSafetyTests`, one a comment).
+  `cmp CLAUDE.md AGENTS.md` clean. All 93 backticked test/identifier names the
+  branch's doc diff adds resolve in tracked Swift sources; every `TE-` id cited
+  resolves (`TE-AC` only as "next unused"). **One miscite fixed**: `TE-W` item
+  5 said `resolvedFonts` stays unswept "as `TX-C` requires" — `TX-C` is the
+  `opsz` pin ruling; no ruling id carries the never-swept rule.
+- **Two further doc defects fixed**: the decisions doc's status line still read
+  "DESIGNED"; `TE-N`'s "`Expected.swift` unedited" clause, superseded by
+  `TE-Y` item 2, carried no amendment note.
+- **Probe re-run**: `docs/probes/swiftui-text-semantics.swift` recompiled and
+  run; its output matches the header's recorded output line for line (only the
+  `setup:` and `done` lines, which the header omits, differ).
+- **Mutation X1** (portable truncation, `Truncation.swift` `.tail`:
+  `cumulative[$0] + tokenAdvance <= width + allowance` → `cumulative[$0] <=
+  width + allowance`, the token's width dropped): `1706 tests … failed … with
+  87 issues`, reddening `aHardBreakEndsTheTruncatedLineAtItsParagraph`,
+  `aTruncatedProposalTextDrawsTheSameSpritesThroughEitherSystem`,
+  `aTruncatedTextDrawsTheSameSpritesThroughEitherSystem`,
+  `measureAnswersTheWidestKeptLine`, `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+  `theDroppedLinesAreTruncatedAsOneLineAfterTheKeptOnes`,
+  `thePortableTruncationKeepsCoreTextsStringInEveryMode`,
+  `theSeamsLayoutOptionsPlaceTheSameGlyphsOnBothSystems`. Restored from a
+  copy; `git status --short` clean.
+- **Mutation X2** (kernel baseline guide, `LayoutTree.swift`
+  `baselineGuide`: always the first baseline, so `.lastTextBaseline` reads the
+  first): `… failed … with 6 issues`, reddening
+  `aBaselineAlignedStackReportsTheMinAndMaxOfItsChildren`,
+  `anHStackAlignedByLastTextBaselinePlacesAndSizesAsSwiftUI`,
+  `anHStackAlignsRealTextsByTheirBaselines`,
+  `hStackTextBaselineCasesReachTheKernel`. Restored; clean. Baselines reach
+  the portable system through `fontMetrics` (`round(ascent)`, `TE-G`), pinned
+  equal on both systems by `theSeamsMetricsAgreeOnBothSystems`; the
+  real-text `HStack` arm itself runs on CoreText only.
+- **Pixels**: `compare.sh` `169d166` → `8044f43`: 0 differing, scene
+  identical, in all fourteen; controls as recorded (1048576, 1031003, 454895,
+  0, 1048576, 0; distinct 544/216/529; prod default vs modal 491221).
+- **Real window**: the lock probe read no `CGSSessionScreenIsLocked` line and
+  `displayAsleep main: 0`; `capture.sh` `169d166` `8044f43`: default and
+  preview a-vs-b 0 at both commits, `169d166 → 8044f43` 0 for both, control
+  default vs preview 958986. The paragraph's look under **A** at 920×560
+  (`TE-Y` item 3) and `TE-Q`'s drawn `controlSize` font are not among
+  `capture.sh`'s states and stay owed.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=.accesskit`): 21 + 23 passed.
+  **`swift:6.4-noble`** (aarch64): root package 0 `error:`/`warning:`,
+  198 + 10 + 22 (`MetalUILayoutTests`, `MetalUICrossPlatformTests` — the
+  re-recorded demo frame green off Apple — and `MetalUICoreTests`).
+- **Identity, hit testing, accessibility, animation**: every text modifier
+  the branch adds on an arbitrary group returns `EnvironmentScope<Self>`
+  (layout- and identity-transparent), and `Text`/`ProposalText`'s own
+  overloads return `Self`, so no id path moves; the suite's pins for each are
+  green. **One unpinned new case, not a regression**: a truncated `Text`
+  still publishes its full string as `accessibleText` (the unchanged
+  `Text.paint` path), which no test asserts for a truncated text, and no
+  probe measured what SwiftUI's accessibility label reads there.
+- **Plan task 11**: box unticked; the dated 2026-09-28 progress note names
+  part 2 (shapes, images, fills/strokes, overlays, clipping) as the next run.
+
+**Verdict: merge.** No code defect found.
