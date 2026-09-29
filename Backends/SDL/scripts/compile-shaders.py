@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the four HLSL stages and reflect the exact bindings used by SDL."""
+"""Compile the six HLSL stages and reflect the exact bindings used by SDL."""
 import argparse
 import hashlib
 import json
@@ -13,10 +13,10 @@ root = Path(__file__).resolve().parents[1]
 out = root / "Shaders" / "compiled"
 out.mkdir(parents=True, exist_ok=True)
 compiler = str(args.shadercross.resolve())
-for kind in ("rect", "glyph"):
+for kind in ("rect", "glyph", "image"):
     for stage in ("vertex", "fragment"):
         name = f"{kind}.{stage}"
-        defines = (["-DVERTEX_STAGE"] if stage == "vertex" else []) + (["-DGLYPH_STAGE"] if kind == "glyph" else [])
+        defines = (["-DVERTEX_STAGE"] if stage == "vertex" else []) + {"rect": [], "glyph": ["-DGLYPH_STAGE"], "image": ["-DIMAGE_STAGE"]}[kind]
         spirv = out / f"{name}.spv"
         subprocess.run([compiler, str(root / "Shaders/replay.hlsl"), "-s", "HLSL", "-d", "SPIRV", "-t", stage, *defines, "-o", str(spirv)], check=True)
         # Derive all backend formats from the same intermediate representation.
@@ -26,4 +26,4 @@ for kind in ("rect", "glyph"):
         print(name, reflection)
 # CI compares this with the source, so a stale compiled/ fails loudly.
 (out / "SOURCE.sha256").write_text(hashlib.sha256((root / "Shaders/replay.hlsl").read_bytes()).hexdigest() + "  replay.hlsl\n")
-print("Compiled four stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)
+print("Compiled six stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)

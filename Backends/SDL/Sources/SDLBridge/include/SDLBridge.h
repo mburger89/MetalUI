@@ -3,9 +3,13 @@
 #include <stdbool.h>
 
 typedef struct ReplayGPU ReplayGPU;
+// kind: 0 rect, 1 glyph, 2 image (ruling TE-AF). An image run samples one
+// texture: the one its first record's `texture` field names.
 typedef struct { uint32_t kind, start, count; } ReplayRun;
+// A texture an image record samples: premultiplied RGBA8, row-major, borrowed.
+typedef struct { const uint8_t *rgba; uint32_t width, height; } ReplayTexture;
 ReplayGPU *replay_create(const char *msl);
-// shader_dir contains four compiled stages; driver: metal, vulkan, direct3d12.
+// shader_dir contains six compiled stages; driver: metal, vulkan, direct3d12.
 ReplayGPU *replay_create_portable(const char *shader_dir, const char *driver);
 const char *replay_error(void);
 const char *replay_driver(ReplayGPU *gpu);
@@ -16,6 +20,7 @@ bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
 bool replay_render(ReplayGPU *gpu, uint32_t width, uint32_t height,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
+    const void *images, uint32_t image_bytes, const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
     const float *projection, uint8_t *bgra);
@@ -38,10 +43,18 @@ bool mui_renderer_set_offscreen_size(MUIRenderer *r, uint32_t width, uint32_t he
 // 1: a target was acquired, its pixel size written; 0: none this frame (retry);
 // -1: an error (replay_error()).
 int mui_renderer_begin(MUIRenderer *r, uint32_t *width, uint32_t *height);
+// An image texture the renderer keeps until released (ruling TE-AF): created
+// and uploaded at once (its own command buffer, submitted before the frame's),
+// never written again. Returns an SDL_GPUTexture *, or NULL (replay_error()).
+void *mui_renderer_create_texture(MUIRenderer *r, const uint8_t *rgba, uint32_t width, uint32_t height);
+// SDL frees it once no submitted frame uses it.
+void mui_renderer_release_texture(MUIRenderer *r, void *texture);
 // Draws into the target `begin` acquired and submits. The atlas is uploaded
-// whole when `atlas_dirty` is set or its size changed.
+// whole when `atlas_dirty` is set or its size changed. `textures[i]` is the
+// texture an image record's `texture` field `i` names (from create_texture).
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
+    const void *images, uint32_t image_bytes, void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height, bool atlas_dirty,
     const float *projection);

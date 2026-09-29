@@ -27,8 +27,9 @@ func run() throws {
         .filter { $0.hasSuffix(".muireplay") }.sorted()
     guard !names.isEmpty else { throw ReplayError("no .muireplay fixtures in \(directory)") }
     // --expect <n>: CI states how many frames the recorder writes, so a frame
-    // that stops being recorded — frame 4, the portable-text one (PT-G) — fails
-    // the replay instead of silently shrinking it.
+    // that stops being recorded — frame 4, the portable-text one (PT-G), or
+    // frame 6, shapes and images (TE-AF) — fails the replay instead of
+    // silently shrinking it.
     if let expected = option("--expect") {
         guard Int(expected) == names.count else {
             throw ReplayError("expected \(expected) fixtures, found \(names.count): \(names)")
@@ -59,7 +60,7 @@ func run() throws {
             }
         }
         let parity = fixture.parity(of: pixels)
-        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.runs.count) runs; outside glyphs: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyphs: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs))"
+        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.imageCount) images, \(fixture.runs.count) runs; outside sprites: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyph and image quads: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs))"
         print(line)
         if !parity.passes {
             parityFailures += 1

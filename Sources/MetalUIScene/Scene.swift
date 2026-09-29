@@ -43,13 +43,15 @@ public struct Scene: Sendable {
     /// Emission sequence per kind, so `finalize()` can tiebreak equal orders
     /// across types. Not public: it is bookkeeping for one method.
     ///
-    /// **Four plain arrays, not two `[PrimitiveKind: [Int]]` dictionaries.**
+    /// **Plain arrays — six since the image kind (ruling TE-AF), four
+    /// before — not `[PrimitiveKind: [Int]]` dictionaries.**
     /// The dictionary form did a subscript per `insert` and two per element in
     /// `finalize()`, each handing back a whole `[Int]` before the integer index,
     /// and `clear()` replaced both dictionaries outright, dropping their
     /// capacity. Pinned by `sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear`.
     private var rectSequence: [Int] = []
     private var glyphSequence: [Int] = []
+    private var imageSequence: [Int] = []
     private var nextSequence = 0
 
     /// Layer per primitive, parallel to `rectSequence`/`glyphSequence`.
@@ -60,15 +62,18 @@ public struct Scene: Sendable {
     /// within a layer.
     private var rectLayer: [Int] = []
     private var glyphLayer: [Int] = []
+    private var imageLayer: [Int] = []
 
     public init() {}
 
-    /// **Both arrays, and each of the three members below reads both.** A
-    /// `Scene` holding only glyphs is not empty: `Renderer.encode` returns early
-    /// on an empty scene, so a rects-only `isEmpty` would silently draw no text
-    /// in any frame whose paint emitted glyphs and no rect — a blank run with no
-    /// error anywhere. Pinned by `aSceneHoldingOnlyAGlyphIsNotEmpty`.
-    public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty }
+    /// **Every primitive array, and each of the three members below reads
+    /// all of them.** A `Scene` holding only glyphs, or only images, is not
+    /// empty: `Renderer.encode` returns early on an empty scene, so an
+    /// `isEmpty` that missed one array would silently draw nothing in any
+    /// frame whose paint emitted only that kind — a blank run with no error
+    /// anywhere. Pinned by `aSceneHoldingOnlyAGlyphIsNotEmpty` and
+    /// `aSceneHoldingOnlyAnImageIsNotEmpty` (ruling TE-AF item 4).
+    public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty }
 
     public mutating func insert(_ rect: MUIRect, layer: Int = 0) {
         rects.append(rect)
@@ -96,16 +101,23 @@ public struct Scene: Sendable {
             textures.append(texture)
         }
         images.append(image)
+        imageSequence.append(nextSequence)
+        imageLayer.append(layer)
+        nextSequence += 1
     }
 
     public mutating func clear() {
         rects.removeAll(keepingCapacity: true)
         glyphs.removeAll(keepingCapacity: true)
+        images.removeAll(keepingCapacity: true)
+        textures.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
         rectSequence.removeAll(keepingCapacity: true)
         glyphSequence.removeAll(keepingCapacity: true)
+        imageSequence.removeAll(keepingCapacity: true)
         rectLayer.removeAll(keepingCapacity: true)
         glyphLayer.removeAll(keepingCapacity: true)
+        imageLayer.removeAll(keepingCapacity: true)
         nextSequence = 0
     }
 
@@ -158,18 +170,29 @@ public struct Scene: Sendable {
     /// `finalizingTwiceWithDistinctLayersStaysStable`, neither reddens the
     /// other's test, and `aSecondFinalizeReproducesTheCapturedOutput` catches
     /// both.
+    ///
+    /// **An image run also breaks where the texture changes** (ruling TE-AF
+    /// item 4): a run is one instanced draw with one texture bound, so two
+    /// adjacent images sampling different textures are two runs, and the
+    /// number of runs stays the draw-call count. Images keep their
+    /// `texture` index through the permutation — it indexes ``textures``,
+    /// which is never reordered. Pinned by `imageRunsBreakWhereTheTextureChanges`.
     public mutating func finalize() {
         let rectCount = rects.count
         let glyphCount = glyphs.count
+        let imageCount = images.count
 
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
-        merged.reserveCapacity(rectCount + glyphCount)
+        merged.reserveCapacity(rectCount + glyphCount + imageCount)
         for i in 0..<rectCount {
             merged.append((rectLayer[i], rects[i].order, rectSequence[i], .rect, i))
         }
         for i in 0..<glyphCount {
             merged.append((glyphLayer[i], glyphs[i].order, glyphSequence[i], .glyph, i))
+        }
+        for i in 0..<imageCount {
+            merged.append((imageLayer[i], images[i].order, imageSequence[i], .image, i))
         }
         merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
 
@@ -183,6 +206,9 @@ public struct Scene: Sendable {
         var sortedGlyphSequence: [Int] = []
         var sortedRectLayer: [Int] = []
         var sortedGlyphLayer: [Int] = []
+        var sortedImages: [MUIImage] = []
+        var sortedImageSequence: [Int] = []
+        var sortedImageLayer: [Int] = []
         var runs: [DrawRun] = []
         sortedRects.reserveCapacity(rectCount)
         sortedRectSequence.reserveCapacity(rectCount)
@@ -190,6 +216,9 @@ public struct Scene: Sendable {
         sortedGlyphs.reserveCapacity(glyphCount)
         sortedGlyphSequence.reserveCapacity(glyphCount)
         sortedGlyphLayer.reserveCapacity(glyphCount)
+        sortedImages.reserveCapacity(imageCount)
+        sortedImageSequence.reserveCapacity(imageCount)
+        sortedImageLayer.reserveCapacity(imageCount)
 
         for entry in merged {
             let kind = entry.3
@@ -199,6 +228,9 @@ public struct Scene: Sendable {
             // arrays in place would desync from `rects`/`glyphs` after this
             // permutation.
             let start: Int
+            // An image continues the previous run only while it samples the
+            // same texture as that run's images.
+            var sameTexture = true
             switch kind {
             case .rect:
                 start = sortedRects.count
@@ -211,9 +243,14 @@ public struct Scene: Sendable {
                 sortedGlyphSequence.append(entry.2)
                 sortedGlyphLayer.append(entry.0)
             case .image:
-                preconditionFailure("images are not sorted yet")
+                start = sortedImages.count
+                let image = images[entry.4]
+                if let previous = sortedImages.last { sameTexture = previous.texture == image.texture }
+                sortedImages.append(image)
+                sortedImageSequence.append(entry.2)
+                sortedImageLayer.append(entry.0)
             }
-            if let last = runs.last, last.kind == kind {
+            if let last = runs.last, last.kind == kind, sameTexture {
                 runs[runs.count - 1] =
                     DrawRun(kind: kind, start: last.start, count: last.count + 1)
             } else {
@@ -227,6 +264,9 @@ public struct Scene: Sendable {
         glyphSequence = sortedGlyphSequence
         rectLayer = sortedRectLayer
         glyphLayer = sortedGlyphLayer
+        images = sortedImages
+        imageSequence = sortedImageSequence
+        imageLayer = sortedImageLayer
         drawList = runs
     }
 }

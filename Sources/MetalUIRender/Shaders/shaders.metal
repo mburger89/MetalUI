@@ -42,6 +42,42 @@ static float4 hsla_to_srgba(MUIHsla hsla) {
     return float4(rgb + m, hsla.a);
 }
 
+/// Signed distance from `p` to the ellipse with semi-axes `h`, centred at the
+/// origin: negative inside, positive outside, in the same units as `p`
+/// (ruling TE-AE). **Exact, not `f / |∇f|`**: the gradient estimate thins a
+/// thick band away from the axes, which is the concentric-looking band probe
+/// K8 separates from SwiftUI's by 518 px.
+///
+/// The trig-free fixed-iteration closest-point method (Chatfield's "simple
+/// method", ruling TE-AQ item 6): three iterations over a unit direction `t`,
+/// each moving the curve point to where the circle of curvature at the
+/// current guess, centred at its evolute point `e`, meets the ray to `p`.
+/// `sqrt` (via `length`), `*`, `+`, `/`, `clamp` only — no `acos`, `cbrt`,
+/// `pow`, `sin` or `cos`, which Vulkan and Direct3D specify loosely, and
+/// **the same statements and constants in `replay.hlsl`'s `ellipseSDF`**, so
+/// the three backends agree at the ≤ 1 parity tolerance an edge pixel is
+/// judged at. Equal axes (within 1e-4) take the circle branch: the evolute
+/// collapses to the centre there and the iteration would divide by zero.
+static float ellipse_sdf(float2 p, float2 h) {
+    if (min(h.x, h.y) <= 0.0) { return 1.0e9; }
+    if (abs(h.x - h.y) <= 1.0e-4) { return length(p) - h.x; }
+    float2 q = abs(p);
+    float2 t = float2(0.70710678, 0.70710678);
+    float c = h.x * h.x - h.y * h.y;
+    for (int i = 0; i < 3; i++) {
+        float2 e = float2(c, -c) * t * t * t / h;
+        float2 r = h * t - e;
+        float2 v = q - e;
+        float rl = length(r);
+        float vl = max(length(v), 1.0e-6);
+        t = clamp((v * (rl / vl) + e) / h, 0.0, 1.0);
+        t = t / max(length(t), 1.0e-6);
+    }
+    float d = length(q - h * t);
+    float2 n = q / h;
+    return dot(n, n) < 1.0 ? -d : d;
+}
+
 // Antialiased coverage of `p` inside an axis-aligned, optionally rounded mask,
 // in the same pixel space as `[[position]]`.
 //
@@ -121,16 +157,42 @@ fragment float4 rect_fragment(
     float2 center   = float2(r.bounds.origin.x, r.bounds.origin.y) + halfSize;
     float2 p        = in.pixelPosition - center;
 
-    float radius = pick_corner_radius(p, r.cornerRadii);
+    float outerAlpha;
+    float innerAlpha;
+    if (r.shape == MUIShapeEllipse) {
+        // The ellipse inscribed in `bounds` (ruling TE-AE). Its border is
+        // SwiftUI's `strokeBorder(w)` — `inset(by: w/2).stroke(w)`, probe
+        // K8 — the band of half-width w/2 around the ellipse inset by w/2,
+        // with one width, `borderWidths.top`; `cornerRadii` is ignored. The
+        // band's outer edge is the coverage and its inner edge the selector,
+        // exactly the roles `outerAlpha`/`innerAlpha` play for a rect. A band
+        // at least as wide as the shorter diameter covers the whole ellipse
+        // (K10's "a border wider than half fills"). Same half-pixel threshold.
+        float w = r.borderWidths.top;
+        float2 inset = halfSize - w * 0.5;
+        if (w <= 0.0) {
+            outerAlpha = saturate(0.5 - ellipse_sdf(p, halfSize));
+            innerAlpha = outerAlpha;
+        } else if (min(inset.x, inset.y) <= 0.0) {
+            outerAlpha = saturate(0.5 - ellipse_sdf(p, halfSize));
+            innerAlpha = 0.0;
+        } else {
+            float d = ellipse_sdf(p, inset);
+            outerAlpha = saturate(0.5 - (d - w * 0.5));
+            innerAlpha = saturate(0.5 - (d + w * 0.5));
+        }
+    } else {
+        float radius = pick_corner_radius(p, r.cornerRadii);
 
-    // Outer edge coverage. 0.5 is half a pixel: the antialiasing threshold.
-    float outerAlpha = saturate(0.5 - rect_sdf(p, halfSize, radius));
+        // Outer edge coverage. 0.5 is half a pixel: the antialiasing threshold.
+        outerAlpha = saturate(0.5 - rect_sdf(p, halfSize, radius));
 
-    // Inner edge separates border from background.
-    float2 border = float2(p.x < 0.0 ? r.borderWidths.left : r.borderWidths.right,
-                           p.y < 0.0 ? r.borderWidths.top  : r.borderWidths.bottom);
-    float innerRadius = max(radius - max(border.x, border.y), 0.0);
-    float innerAlpha = saturate(0.5 - rect_sdf(p, max(halfSize - border, 0.0), innerRadius));
+        // Inner edge separates border from background.
+        float2 border = float2(p.x < 0.0 ? r.borderWidths.left : r.borderWidths.right,
+                               p.y < 0.0 ? r.borderWidths.top  : r.borderWidths.bottom);
+        float innerRadius = max(radius - max(border.x, border.y), 0.0);
+        innerAlpha = saturate(0.5 - rect_sdf(p, max(halfSize - border, 0.0), innerRadius));
+    }
 
     float4 background  = hsla_to_srgba(r.background);
     float4 borderColor = hsla_to_srgba(r.borderColor);
@@ -275,6 +337,75 @@ fragment float4 glyph_fragment(
 }
 
 // ---------------------------------------------------------------------------
+// Image pipeline (ruling TE-AF)
+//
+// The whole of one premultiplied RGBA8 texture stretched over `bounds`, times
+// `opacity` and the mask. Linear filtering with clamped edges by default
+// (probe I8: SwiftUI's default row is exactly bilinear with texel centres at
+// the texel midpoints, and clamped outside them); `MUIImageFilterNearest`
+// reads the texel under the pixel with `read`, so the SDL port binds no
+// second sampler (`Texture2D.Load` there).
+// ---------------------------------------------------------------------------
+
+struct ImageVertexOut {
+    float4 position [[position]];
+    /// Unprojected position — see `RectVertexOut.pixelPosition`.
+    float2 pixelPosition;
+    /// 0…1 across the quad: normalised texture coordinates over the whole
+    /// texture, so the texel centres fall where probe I8 put them.
+    float2 uv;
+    uint   imageID [[flat]];
+};
+
+vertex ImageVertexOut image_vertex(
+    uint vertexID   [[vertex_id]],
+    uint instanceID [[instance_id]],
+    constant float2   *unitVertices [[buffer(MUIImageBufferVertices)]],
+    constant MUIImage *images       [[buffer(MUIImageBufferImages)]],
+    constant MUISize &viewport     [[buffer(MUIImageBufferViewport)]],
+    constant float4x4 &projection   [[buffer(MUIImageBufferProjection)]]
+) {
+    float2 unit = unitVertices[vertexID];
+    MUIImage m = images[instanceID];
+
+    float2 pos = float2(m.bounds.origin.x, m.bounds.origin.y)
+               + unit * float2(m.bounds.size.width, m.bounds.size.height);
+    // Identical to `rect_vertex`'s mapping, and it must stay identical.
+    float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
+               + float2(-1.0, 1.0);
+
+    ImageVertexOut out;
+    // Same POST-NDC projection contract as `rect_vertex` — see the note there.
+    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.pixelPosition = pos;
+    out.uv = unit;
+    out.imageID = instanceID;
+    return out;
+}
+
+fragment float4 image_fragment(
+    ImageVertexOut in [[stage_in]],
+    constant MUIImage *records [[buffer(MUIImageBufferImages)]],
+    texture2d<float>   image   [[texture(MUIImageTextureImage)]]
+) {
+    MUIImage m = records[in.imageID];
+    float4 texel;
+    if (m.filter == MUIImageFilterNearest) {
+        uint2 size = uint2(image.get_width(), image.get_height());
+        texel = image.read(min(uint2(in.uv * float2(size)), size - 1));
+    } else {
+        constexpr sampler image_sampler(coord::normalized,
+                                        address::clamp_to_edge,
+                                        filter::linear);
+        texel = image.sample(image_sampler, in.uv);
+    }
+    // Premultiplied already (`ImageTexture`), so opacity and the clip scale
+    // all four channels, to pair with a (one, oneMinusSourceAlpha) blend.
+    float clip = mask_coverage(in.pixelPosition, m.contentMask, m.maskCornerRadii);
+    return texel * (m.opacity * clip);
+}
+
+// ---------------------------------------------------------------------------
 // ABI probe
 //
 // Reports Metal's view of the shared structs so a host test can compare it with
@@ -330,4 +461,29 @@ kernel void abi_probe(
     out[29] = (MUIUInt)r.maskCornerRadii.topLeft;
     out[30] = (MUIUInt)r.maskCornerRadii.bottomRight;
     out[31] = (MUIUInt)g.maskCornerRadii.topLeft;
+}
+
+
+// Metal's view of `MUIImage` and of `MUIRect.shape`, read by
+// `metalAndSwiftAgreeOnTheImageStructAndTheShapeField`. Its own kernel, so
+// `abi_probe`'s 32-slot readers above are untouched.
+kernel void image_abi_probe(
+    device MUIUInt    *out [[buffer(MUIProbeBufferOut)]],
+    constant MUIRect  &r   [[buffer(MUIProbeBufferRect)]],
+    constant MUIImage &m   [[buffer(MUIProbeBufferImage)]]
+) {
+    out[0]  = (MUIUInt)sizeof(MUIImage);
+    out[1]  = (MUIUInt)m.bounds.origin.x;
+    out[2]  = (MUIUInt)m.bounds.size.height;
+    out[3]  = (MUIUInt)m.contentMask.origin.x;
+    out[4]  = (MUIUInt)m.contentMask.size.height;
+    out[5]  = (MUIUInt)m.maskCornerRadii.topLeft;
+    out[6]  = (MUIUInt)m.maskCornerRadii.bottomLeft;
+    out[7]  = (MUIUInt)(m.opacity * 1000.0);
+    out[8]  = m.texture;
+    out[9]  = m.filter;
+    out[10] = m.order;
+    out[11] = (MUIUInt)sizeof(MUIRect);
+    out[12] = r.order;
+    out[13] = r.shape;
 }

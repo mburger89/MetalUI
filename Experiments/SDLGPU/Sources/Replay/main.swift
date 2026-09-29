@@ -30,9 +30,9 @@ func sdlSource() throws -> String {
     try replace("constant MUISize &viewport", "constant ReplayViewport &viewport")
     try replace("constant MUISize  &viewport", "constant ReplayViewport &viewport")
     try replace("float2 unit = unitVertices[vertexID];", "instanceID += viewport.firstInstance;\n    float2 unit = unitVertices[vertexID];")
-    for prefix in ["MUIRect", "MUIGlyph"] {
+    for prefix in ["MUIRect", "MUIGlyph", "MUIImage"] {
         try replace("\(prefix)BufferVertices   = 0", "\(prefix)BufferVertices   = 2")
-        let data = prefix == "MUIRect" ? "Rects" : "Glyphs"
+        let data = prefix == "MUIRect" ? "Rects" : prefix == "MUIGlyph" ? "Glyphs" : "Images"
         let spaces = prefix == "MUIRect" ? "      " : "     "
         try replace("\(prefix)Buffer\(data)\(spaces)= 1", "\(prefix)Buffer\(data)\(spaces)= 3")
         try replace("\(prefix)BufferViewport   = 2", "\(prefix)BufferViewport   = 0")
@@ -46,6 +46,14 @@ func sdlSource() throws -> String {
                 "texture2d<float>   atlas    [[texture(MUIGlyphTextureAtlas)]], sampler sdlSampler [[sampler(0)]]")
     try replace("atlas.sample(atlas_sampler, in.atlasPosition)",
                 "atlas.sample(sdlSampler, in.atlasPosition / float2(atlas.get_width(), atlas.get_height()))")
+    // The image stage (ruling TE-AF): its fragment's records at buffer 0, and
+    // SDL's sampler in place of the constexpr one — both normalised, linear,
+    // clamped.
+    try replace("constant MUIImage *records [[buffer(MUIImageBufferImages)]]",
+                "constant MUIImage *records [[buffer(0)]]")
+    try replace("texture2d<float>   image   [[texture(MUIImageTextureImage)]]",
+                "texture2d<float>   image   [[texture(MUIImageTextureImage)]], sampler sdlImageSampler [[sampler(0)]]")
+    try replace("image.sample(image_sampler, in.uv)", "image.sample(sdlImageSampler, in.uv)")
     return source
 }
 
@@ -185,6 +193,63 @@ func portableFixture(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
     return scene
 }
 
+/// Frame 6 (plan task 11 part 2, rulings TE-AE and TE-AF): the two new
+/// capabilities on every backend — an ellipse fill, an ellipse band (the
+/// inset-ellipse stroke), a circle through the ellipse kind's circle branch,
+/// a stroked circle and a capsule (rounded rects), a linear and a nearest
+/// image, a half-opacity image with translucent texels, and an image under a
+/// rounded mask. Fractional positions throughout, so edges antialias.
+func shapesAndImagesFrame(width: Int, height: Int) -> Scene {
+    var scene = Scene()
+    let mask = bounds(0, 0, Float(width), Float(height))
+    func shape(_ b: MUIBounds, _ c: MUIHsla, ellipse: Bool, radius: Float = 0, border: Float = 0,
+               borderColor: MUIHsla = color(0.13, 0.85, 0.7)) {
+        scene.insert(MUIRect(bounds: b, contentMask: mask, maskCornerRadii: corners(0), background: c,
+            borderColor: borderColor, cornerRadii: corners(radius),
+            borderWidths: MUIEdges(top: border, right: border, bottom: border, left: border),
+            order: 0, shape: ellipse ? MUIShapeEllipse.rawValue : MUIShapeRoundedRect.rawValue))
+    }
+    func image(_ b: MUIBounds, _ texture: ImageTexture, nearest: Bool = false, opacity: Float = 1,
+               clip: MUIBounds? = nil, clipRadius: Float = 0) {
+        scene.insert(MUIImage(bounds: b, contentMask: clip ?? mask, maskCornerRadii: corners(clipRadius),
+                              opacity: opacity, texture: 0,
+                              filter: nearest ? MUIImageFilterNearest.rawValue : MUIImageFilterLinear.rawValue,
+                              order: 0), texture: texture)
+    }
+    // An 8×6 texture: a hue ramp across, a lightness ramp down, alpha falling
+    // along the diagonal — every channel varies, so a sampling error shows.
+    var gradient = [UInt8]()
+    for y in 0..<6 {
+        for x in 0..<8 {
+            gradient += [UInt8(x * 36), UInt8(y * 50), UInt8(255 - x * 30), UInt8(255 - (x + y) * 12)]
+        }
+    }
+    let ramp = ImageTexture(width: 8, height: 6, straightRGBA: gradient)
+    let checker = ImageTexture(width: 2, height: 2, straightRGBA: [240, 40, 40, 255, 40, 40, 240, 255,
+                                                                   40, 200, 60, 255, 250, 230, 40, 128])
+    shape(mask, color(0.62, 0.22, 0.12), ellipse: false)
+    shape(bounds(20.5, 20.25, 170, 100), color(0.08, 0.9, 0.55), ellipse: true)
+    shape(bounds(210.25, 20.5, 190, 90), color(0.55, 0.5, 0.4), ellipse: true, border: 14)
+    shape(bounds(420.5, 20.5, 80, 80), color(0.33, 0.6, 0.5), ellipse: true, border: 6)
+    shape(bounds(520.25, 20.25, 90, 90), color(0.0, 0, 0, 0), ellipse: false, radius: 45, border: 8)
+    shape(bounds(20.5, 140.5, 200, 50), color(0.75, 0.55, 0.5), ellipse: false, radius: 25, border: 3)
+    // A thick band on an eccentric ellipse: where the inset band and a
+    // concentric hole differ by more than a pixel (test 1.2's frame).
+    shape(bounds(240.5, 130.5, 120, 40), color(0.3, 0.7, 0.5), ellipse: true, border: 16,
+          borderColor: color(0.0, 1, 0.5))
+    image(bounds(20.25, 210.5, 150, 110), ramp)
+    // No texel boundary of the nearest image on a pixel centre (x 250.25,
+    // y 265.25): there the texel is chosen by the backend's interpolation
+    // rounding, and llvmpipe and Metal pick opposite sides (measured: at x
+    // 190.5 the boundary sat at 250.5 and 55 pixels differed by 97) — a
+    // property of nearest sampling, not of either renderer (ruling TE-AR).
+    image(bounds(190.25, 210.25, 120, 110), checker, nearest: true)
+    image(bounds(330.5, 210.5, 130, 110), ramp, opacity: 0.5)
+    image(bounds(480.25, 200.5, 140, 140), checker, clip: bounds(485, 205, 130, 130), clipRadius: 30)
+    scene.finalize()
+    return scene
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -262,12 +327,17 @@ func run() throws {
     // the portable text system over Noto Sans — the frame Backends/SDL's
     // DemoCapture rebuilds natively on Linux and Windows (ruling DC-B).
     let demoAtlas = GlyphAtlas(width: 1024, height: 1024)
-    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560)].enumerated() {
+    // Frame 6 draws no text; its atlas is only the fixture's required one.
+    let shapesAtlas = GlyphAtlas(width: 16, height: 16)
+    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380)].enumerated() {
         let (width, height) = dimensions
         let portable = index == 4
         let demo = index == 5
-        let frameAtlas = demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = demo
+        let shapes = index == 6
+        let frameAtlas = shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = shapes
+            ? shapesAndImagesFrame(width: width, height: height)
+            : demo
             ? try demoFrame(width: width, height: height, atlas: demoAtlas)
             : portable
             ? try portableFixture(width: width, height: height, atlas: portableAtlas)
@@ -277,15 +347,20 @@ func run() throws {
         let metal = try metalPixels(scene, atlas: frameAtlas, renderer: renderer, width: width, height: height, projection: projection)
         let sdl = try replayer.render(scene, atlas: frameAtlas, width: width, height: height, projection: floats(projection))
         let delta = pixelDifference(metal, sdl)
-        let line = "frame \(index)\(demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta)"
+        let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
+                                             projection: floats(projection), reference: metal)
+        let parity = frameFixture.parity(of: sdl)
+        let line = "frame \(index)\(shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
-        try require(delta.maxDelta <= 1, "Parity failed: \(line)")
+        // Frames 0–5 hold every pixel to one UNORM step on this device, as
+        // before. Frame 6's images are judged as glyphs are (ruling TE-AF item
+        // 6): ≤ 8 inside an image quad, ≤ 1 outside.
+        try require(shapes ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
-            try Data(ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
-                                   projection: floats(projection), reference: metal).encoded()).write(to: path)
+            try Data(frameFixture.encoded()).write(to: path)
         }
         // This tolerance only permits UNORM rounding, never misplaced edges.
         // The control below stays on frame 3, whose projection it assumes.

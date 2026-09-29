@@ -1,6 +1,11 @@
-// Portable replay shaders. Compile four times with VERTEX_STAGE and GLYPH_STAGE.
-// Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96).
-// Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing boundary.
+// Portable replay shaders. Compile six times: VERTEX_STAGE or not, times
+// no kind define (rects), GLYPH_STAGE or IMAGE_STAGE.
+// Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96),
+// image 4 (64, uploaded as recorded). Uniforms occupy 16 and 64 bytes. See
+// SDLBridge.c for the packing boundary.
+#if defined(GLYPH_STAGE) || defined(IMAGE_STAGE)
+#define SPRITE_STAGE
+#endif
 #ifdef VERTEX_STAGE
 cbuffer Viewport : register(b0, space1) { float2 viewport; uint firstInstance; uint viewportPadding; };
 cbuffer Projection : register(b1, space1) { column_major float4x4 projection; };
@@ -11,6 +16,10 @@ StructuredBuffer<float4> primitives : register(t1, space0);
 Texture2D<float> atlas : register(t0, space2);
 SamplerState atlasSampler : register(s0, space2);
 StructuredBuffer<float4> primitives : register(t1, space2);
+#elif defined(IMAGE_STAGE)
+Texture2D<float4> image : register(t0, space2);
+SamplerState imageSampler : register(s0, space2);
+StructuredBuffer<float4> primitives : register(t1, space2);
 #else
 StructuredBuffer<float4> primitives : register(t0, space2);
 #endif
@@ -19,7 +28,8 @@ StructuredBuffer<float4> primitives : register(t0, space2);
 struct VertexOut {
     float4 position : SV_Position;
     float2 pixelPosition : TEXCOORD0;
-#ifdef GLYPH_STAGE
+#ifdef SPRITE_STAGE
+    // Glyph: atlas texels. Image: 0...1 across the quad (normalised UVs).
     float2 atlasPosition : TEXCOORD1;
     nointerpolation uint primitiveID : TEXCOORD2;
 #else
@@ -32,6 +42,8 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
     uint id = instanceID + firstInstance;
 #ifdef GLYPH_STAGE
     uint base = id * 6;
+#elif defined(IMAGE_STAGE)
+    uint base = id * 4;
 #else
     uint base = id * 8;
 #endif
@@ -46,6 +58,8 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
 #ifdef GLYPH_STAGE
     float4 source = primitives[base + 1];
     result.atlasPosition = source.xy + unit * source.zw;
+#elif defined(IMAGE_STAGE)
+    result.atlasPosition = unit;
 #endif
     return result;
 }
@@ -53,6 +67,28 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
 float rectSDF(float2 p, float2 halfSize, float radius) {
     float2 d = abs(p) - halfSize + radius;
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - radius;
+}
+// shaders.metal's `ellipse_sdf`, statement for statement and constant for
+// constant (ruling TE-AQ item 6): the trig-free three-iteration closest-point
+// method, so Metal, Vulkan and Direct3D agree at the parity tolerance.
+float ellipseSDF(float2 p, float2 h) {
+    if (min(h.x, h.y) <= 0.0) { return 1.0e9; }
+    if (abs(h.x - h.y) <= 1.0e-4) { return length(p) - h.x; }
+    float2 q = abs(p);
+    float2 t = float2(0.70710678, 0.70710678);
+    float c = h.x * h.x - h.y * h.y;
+    for (int i = 0; i < 3; i++) {
+        float2 e = float2(c, -c) * t * t * t / h;
+        float2 r = h * t - e;
+        float2 v = q - e;
+        float rl = length(r);
+        float vl = max(length(v), 1.0e-6);
+        t = clamp((v * (rl / vl) + e) / h, 0.0, 1.0);
+        t = t / max(length(t), 1.0e-6);
+    }
+    float d = length(q - h * t);
+    float2 n = q / h;
+    return dot(n, n) < 1.0 ? -d : d;
 }
 float cornerRadius(float2 p, float4 corners) {
     return p.x < 0 ? (p.y < 0 ? corners.x : corners.w) : (p.y < 0 ? corners.y : corners.z);
@@ -86,17 +122,52 @@ float4 main(VertexOut input) : SV_Target0 {
     float clip = maskCoverage(input.pixelPosition, primitives[base + 2], primitives[base + 3]);
     float alpha = tint.a * coverage * clip;
     return float4(tint.rgb * alpha, alpha);
+#elif defined(IMAGE_STAGE)
+    // Lanes: bounds, contentMask, maskCornerRadii, (opacity, texture, filter, order).
+    uint base = input.primitiveID * 4;
+    float4 fields = primitives[base + 3];
+    float4 texel;
+    if (asuint(fields.z) == 1) {
+        // Nearest: the texel under the pixel, read, not sampled (no second sampler).
+        uint width, height;
+        image.GetDimensions(width, height);
+        uint2 size = uint2(width, height);
+        texel = image.Load(int3(min(uint2(input.atlasPosition * float2(size)), size - 1), 0));
+    } else {
+        texel = image.Sample(imageSampler, input.atlasPosition);
+    }
+    float clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
+    return texel * (fields.x * clip);
 #else
     uint base = input.primitiveID * 8;
     float4 bounds = primitives[base];
     float2 halfSize = bounds.zw * 0.5;
     float2 p = input.pixelPosition - (bounds.xy + halfSize);
-    float radius = cornerRadius(p, primitives[base + 5]);
-    float outerAlpha = saturate(0.5 - rectSDF(p, halfSize, radius));
     float4 widths = primitives[base + 6]; // top, right, bottom, left
-    float2 border = float2(p.x < 0 ? widths.w : widths.y, p.y < 0 ? widths.x : widths.z);
-    float innerRadius = max(radius - max(border.x, border.y), 0.0);
-    float innerAlpha = saturate(0.5 - rectSDF(p, max(halfSize - border, 0.0), innerRadius));
+    float outerAlpha;
+    float innerAlpha;
+    // Lane 7: (order, shape, padding, padding) — shape 1 is the ellipse (TE-AE).
+    if (asuint(primitives[base + 7].y) == 1) {
+        float w = widths.x;
+        float2 inset = halfSize - w * 0.5;
+        if (w <= 0.0) {
+            outerAlpha = saturate(0.5 - ellipseSDF(p, halfSize));
+            innerAlpha = outerAlpha;
+        } else if (min(inset.x, inset.y) <= 0.0) {
+            outerAlpha = saturate(0.5 - ellipseSDF(p, halfSize));
+            innerAlpha = 0.0;
+        } else {
+            float d = ellipseSDF(p, inset);
+            outerAlpha = saturate(0.5 - (d - w * 0.5));
+            innerAlpha = saturate(0.5 - (d + w * 0.5));
+        }
+    } else {
+        float radius = cornerRadius(p, primitives[base + 5]);
+        outerAlpha = saturate(0.5 - rectSDF(p, halfSize, radius));
+        float2 border = float2(p.x < 0 ? widths.w : widths.y, p.y < 0 ? widths.x : widths.z);
+        float innerRadius = max(radius - max(border.x, border.y), 0.0);
+        innerAlpha = saturate(0.5 - rectSDF(p, max(halfSize - border, 0.0), innerRadius));
+    }
     float borderMix = outerAlpha > 0 ? saturate(innerAlpha / outerAlpha) : 0;
     float4 color = lerp(hslaToRGBA(primitives[base + 4]), hslaToRGBA(primitives[base + 3]), borderMix);
     float clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);

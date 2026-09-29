@@ -41,6 +41,7 @@ public final class Renderer {
 
     private let rectPipeline: any MTLRenderPipelineState
     private let glyphPipeline: any MTLRenderPipelineState
+    private let imagePipeline: any MTLRenderPipelineState
     private let unitVertexBuffer: any MTLBuffer
 
     /// The GPU copy of a ``MetalUIText/GlyphAtlas``, maintained by
@@ -71,12 +72,24 @@ public final class Renderer {
     /// stays true if that changes.
     private var atlasTextureWasEncoded = false
 
+    /// The GPU copy of each `ImageTexture` a recent scene drew (ruling TE-AF
+    /// item 3), keyed by the object's identity **and holding the object**, so
+    /// the identifier cannot be reused by a new bitmap while the entry lives.
+    /// Uploaded on first sight into a fresh texture that no command buffer has
+    /// referenced — so, unlike the atlas, nothing here is ever written while
+    /// the GPU may read it — and dropped by ``prepareImageTextures(for:)`` as
+    /// soon as a scene stops referencing it: an image stream (a new bitmap
+    /// every frame) must not accumulate the way the grow-only atlas does. A
+    /// dropped texture an in-flight command buffer still reads stays alive
+    /// through that buffer's own retain, which is Metal's job.
+    private var imageTextures: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
+
     /// How many image textures have been uploaded to the GPU, ever. Test
     /// support for the cache (`TE-AF` item 3).
     private(set) var imageTextureUploadCount = 0
 
     /// The `ImageTexture` identities with a GPU copy cached right now.
-    var cachedImageTextureIdentities: Set<ObjectIdentifier> { [] }
+    var cachedImageTextureIdentities: Set<ObjectIdentifier> { Set(imageTextures.keys) }
 
     public init(device: any MTLDevice) throws {
         self.device = device
@@ -118,6 +131,7 @@ public final class Renderer {
 
         self.rectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_fragment")
         self.glyphPipeline = try makePipeline(vertex: "glyph_vertex", fragment: "glyph_fragment")
+        self.imagePipeline = try makePipeline(vertex: "image_vertex", fragment: "image_fragment")
 
         // Unit quad as a triangle strip: 4 vertices, no index buffer.
         var unitVertices: [SIMD2<Float>] = [
@@ -153,6 +167,10 @@ public final class Renderer {
             throw RendererError.encoderUnavailable
         }
         defer { encoder.endEncoding() }
+
+        // Before the empty-scene return, so a scene with no images releases
+        // every cached texture too.
+        let imageTextures = try prepareImageTextures(for: scene)
 
         guard !scene.isEmpty else { return }
         // **A scene with primitives and no draw list was never finalized.**
@@ -205,7 +223,10 @@ public final class Renderer {
                 try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
                                  into: encoder, viewport: &viewport, projection: &projection)
             case .image:
-                break
+                let images = Array(scene.images[run.start..<(run.start + run.count)])
+                // One texture per run: `Scene.finalize` breaks a run where it changes.
+                try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
+                                 into: encoder, viewport: &viewport, projection: &projection)
             }
         }
     }
@@ -310,6 +331,65 @@ public final class Renderer {
                                vertexStart: 0,
                                vertexCount: 4,
                                instanceCount: glyphs.count)
+    }
+
+    /// The GPU texture for each of `scene.textures`, in order, uploading the
+    /// ones not cached and releasing every cached one the scene does not
+    /// reference (see ``imageTextures``).
+    private func prepareImageTextures(for scene: Scene) throws -> [any MTLTexture] {
+        var kept: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
+        var result: [any MTLTexture] = []
+        result.reserveCapacity(scene.textures.count)
+        for source in scene.textures {
+            let key = ObjectIdentifier(source)
+            if let cached = imageTextures[key] ?? kept[key] {
+                kept[key] = cached
+                result.append(cached.gpu)
+                continue
+            }
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: .rgba8Unorm, width: source.width, height: source.height, mipmapped: false)
+            descriptor.usage = .shaderRead
+            descriptor.storageMode = .shared
+            guard let texture = device.makeTexture(descriptor: descriptor) else {
+                throw RendererError.bufferAllocationFailed
+            }
+            source.pixels.withUnsafeBytes { bytes in
+                texture.replace(region: MTLRegionMake2D(0, 0, source.width, source.height),
+                                mipmapLevel: 0, withBytes: bytes.baseAddress!,
+                                bytesPerRow: source.width * 4)
+            }
+            imageTextureUploadCount += 1
+            kept[key] = (source, texture)
+            result.append(texture)
+        }
+        imageTextures = kept
+        return result
+    }
+
+    private func encodeImages(_ images: [MUIImage],
+                              texture: any MTLTexture,
+                              into encoder: any MTLRenderCommandEncoder,
+                              viewport: inout MUISize,
+                              projection: inout simd_float4x4) throws {
+        encoder.setRenderPipelineState(imagePipeline)
+        // A fresh buffer per encode, for the reason `encodeRects` spells out.
+        guard let buffer = device.makeBuffer(bytes: images,
+                                             length: MemoryLayout<MUIImage>.stride * images.count,
+                                             options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+        encoder.setVertexBuffer(unitVertexBuffer, offset: 0,
+                                index: Int(MUIImageBufferVertices.rawValue))
+        encoder.setVertexBuffer(buffer, offset: 0, index: Int(MUIImageBufferImages.rawValue))
+        encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride,
+                               index: Int(MUIImageBufferViewport.rawValue))
+        encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
+                               index: Int(MUIImageBufferProjection.rawValue))
+        encoder.setFragmentBuffer(buffer, offset: 0, index: Int(MUIImageBufferImages.rawValue))
+        encoder.setFragmentTexture(texture, index: Int(MUIImageTextureImage.rawValue))
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4,
+                               instanceCount: images.count)
     }
 
     /// Brings the GPU's copy of `atlas` up to date, and clears the atlas's dirty

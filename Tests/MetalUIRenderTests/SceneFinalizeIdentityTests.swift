@@ -163,20 +163,26 @@ private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {
 /// `Dictionary` subscript per primitive and `finalize()` two per element, each
 /// handing back a whole `[Int]` before the integer index, and `clear()`
 /// replaced both dictionaries outright — dropping their arrays' capacity every
-/// time. The fix is four plain `[Int]` side tables emptied with
-/// `removeAll(keepingCapacity: true)`, like `rects`/`glyphs`/`drawList`.
+/// time. The fix is plain `[Int]` side tables emptied with
+/// `removeAll(keepingCapacity: true)`, like `rects`/`glyphs`/`drawList` —
+/// four when this was written, **six since the image kind** (plan task 11
+/// part 2, ruling TE-AF: a sequence and a layer table per kind), so the scene
+/// below emits images too, or their tables would read a capacity of 0.
 ///
 /// Read through `Mirror` because the tables are `private`: this counts
 /// `Dictionary`-typed and `[Int]`-typed stored properties and reads each
 /// `[Int]`'s capacity after a `clear()`. `clear()` has no production caller
 /// (`Frame` builds a fresh `Scene` per frame), so the capacity half pins the
 /// method's contract, not a measured frame cost.
+private let sideTableTexture = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 0, 0])
+
 @Test func sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear() throws {
     let primitivesPerKind = 64
     var scene = Scene()
     for i in 0..<primitivesPerKind {
         scene.insert(rect(id: Float(2 * i), order: 0), layer: i % 2)
         scene.insert(glyph(id: Float(2 * i + 1), order: 0), layer: i % 3)
+        scene.insert(MUIImage(), texture: sideTableTexture, layer: i % 2)
     }
     scene.finalize()
     scene.clear()
@@ -196,8 +202,8 @@ private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {
         guard type(of: child.value) == [Int].self, let array = child.value as? [Int] else { return nil }
         return (child.label ?? "?", array)
     }
-    try #require(intArrays.count == 4,
-                 "expected four [Int] side tables, found \(intArrays.map(\.label))")
+    try #require(intArrays.count == 6,
+                 "expected six [Int] side tables, found \(intArrays.map(\.label))")
     for table in intArrays {
         #expect(table.array.isEmpty, "\(table.label) is not empty after clear()")
         #expect(table.array.capacity >= primitivesPerKind,

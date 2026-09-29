@@ -1967,11 +1967,24 @@ public final class Frame {
                                 right: borderWidths.right.scaled(by: scaleFactor),
                                 bottom: borderWidths.bottom.scaled(by: scaleFactor),
                                 left: borderWidths.left.scaled(by: scaleFactor)),
-            order: 0), layer: activeLayer)
+            order: 0, shape: shape), layer: activeLayer)
     }
 
-    /// Emits one image quad sampling `texture` over `bounds` (ruling TE-AF).
+    /// Emits one image quad sampling the whole of `texture` over `bounds`
+    /// (ruling TE-AF) — `fill`'s arithmetic exactly: `bounds` in points,
+    /// translated by `activeOffset` then scaled, the mask `activeClip` with
+    /// its radii, scaled, the opacity `activeOpacity`, on `activeLayer`. The
+    /// scene carries `texture` once however often it is drawn.
     func drawImage(_ texture: ImageTexture, in bounds: Bounds<Pixels>, filter: ImageFilter) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        scene.insert(MUIImage(bounds: translated.scaled(by: scaleFactor),
+                              contentMask: activeClip.scaled(by: scaleFactor),
+                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                              opacity: activeOpacity, filter: filter, order: 0),
+                     texture: texture, layer: activeLayer)
     }
 
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing

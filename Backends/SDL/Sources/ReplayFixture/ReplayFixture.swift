@@ -4,11 +4,13 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding):
+// Layout (little-endian, no padding), version 2 (ruling TE-AF: images):
 //   "MUIRPLY\0"  u32 version
-//   u32 width, height, rectStride, glyphStride
+//   u32 width, height, rectStride, glyphStride, imageStride
 //   u32 rectByteCount,  rect bytes
 //   u32 glyphByteCount, glyph bytes
+//   u32 imageByteCount, image bytes
+//   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
 //   u32 runCount, runCount × (u32 kind, start, count)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
@@ -25,6 +27,18 @@ public struct FixtureRun: Equatable, Sendable {
     public init(kind: Kind, start: UInt32, count: UInt32) {
         self.kind = kind; self.start = start; self.count = count
     }
+
+    /// A scene's run, by an exhaustive switch: a new `PrimitiveKind` is a
+    /// compile error here, never a run silently drawn as rects.
+    public init(scene run: DrawRun) {
+        let kind: Kind
+        switch run.kind {
+        case .rect: kind = .rect
+        case .glyph: kind = .glyph
+        case .image: kind = .image
+        }
+        self.init(kind: kind, start: UInt32(run.start), count: UInt32(run.count))
+    }
 }
 
 /// A texture an image record samples: premultiplied RGBA8, row-major.
@@ -38,7 +52,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 1
+    public static let version: UInt32 = 2
     /// The primitive ABI, read off the real structs. `replay.hlsl` hard-codes
     /// the layout these imply (rect 8 lanes, glyph 6, after the bridge pads
     /// 120 → 128 and 88 → 96), so a changed struct must fail loudly:
@@ -52,8 +66,8 @@ public struct ReplayFixture: Equatable, Sendable {
     public var height: UInt32
     public var rects: [UInt8]
     public var glyphs: [UInt8]
-    public var images: [UInt8] = []
-    public var textures: [FixtureTexture] = []
+    public var images: [UInt8]
+    public var textures: [FixtureTexture]
     public var runs: [FixtureRun]
     public var atlasWidth: UInt32
     public var atlasHeight: UInt32
@@ -73,19 +87,12 @@ public struct ReplayFixture: Equatable, Sendable {
     }
 
     public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8],
-                images: [UInt8], textures: [FixtureTexture], runs: [FixtureRun],
-                atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
-                projection: [Float], reference: [UInt8]) throws(FixtureError) {
-        try self.init(width: width, height: height, rects: rects, glyphs: glyphs, runs: runs,
-                      atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
-                      projection: projection, reference: reference)
-    }
-
-    public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8], runs: [FixtureRun],
+                images: [UInt8] = [], textures: [FixtureTexture] = [], runs: [FixtureRun],
                 atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
                 projection: [Float], reference: [UInt8]) throws(FixtureError) {
         self.width = width; self.height = height
-        self.rects = rects; self.glyphs = glyphs; self.runs = runs
+        self.rects = rects; self.glyphs = glyphs; self.images = images; self.textures = textures
+        self.runs = runs
         self.atlasWidth = atlasWidth; self.atlasHeight = atlasHeight; self.atlas = atlas
         self.projection = projection; self.reference = reference
         try validate()
@@ -98,9 +105,11 @@ public struct ReplayFixture: Equatable, Sendable {
         try self.init(width: width, height: height,
             rects: scene.rects.withUnsafeBytes { Array($0) },
             glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
-            runs: scene.drawList.map {
-                FixtureRun(kind: $0.kind == .glyph ? .glyph : .rect, start: UInt32($0.start), count: UInt32($0.count))
+            images: scene.images.withUnsafeBytes { Array($0) },
+            textures: scene.textures.map {
+                FixtureTexture(width: UInt32($0.width), height: UInt32($0.height), pixels: $0.pixels)
             },
+            runs: scene.drawList.map { FixtureRun(scene: $0) },
             atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height), atlas: atlas.pixels,
             projection: projection, reference: reference)
     }
@@ -115,6 +124,19 @@ public struct ReplayFixture: Equatable, Sendable {
         try dimension(atlasWidth, "atlas width"); try dimension(atlasHeight, "atlas height")
         guard rects.count % Int(Self.rectStride) == 0 else { throw .invalid("rect bytes \(rects.count) not a multiple of \(Self.rectStride)") }
         guard glyphs.count % Int(Self.glyphStride) == 0 else { throw .invalid("glyph bytes \(glyphs.count) not a multiple of \(Self.glyphStride)") }
+        guard images.count % Int(Self.imageStride) == 0 else { throw .invalid("image bytes \(images.count) not a multiple of \(Self.imageStride)") }
+        for (index, texture) in textures.enumerated() {
+            try dimension(texture.width, "texture \(index) width"); try dimension(texture.height, "texture \(index) height")
+            guard texture.pixels.count == Int(texture.width) * Int(texture.height) * 4 else {
+                throw .invalid("texture \(index) bytes \(texture.pixels.count) ≠ \(texture.width)×\(texture.height)×4")
+            }
+        }
+        // The bridge binds one texture per run, the one its first record names,
+        // so every record of an image run must name that texture, and it must exist.
+        let imageTextures = imageRecords.map(\.texture)
+        for (index, texture) in imageTextures.enumerated() where Int(texture) >= textures.count {
+            throw .invalid("image \(index) names texture \(texture) of \(textures.count)")
+        }
         guard atlas.count == Int(atlasWidth) * Int(atlasHeight) else { throw .invalid("atlas bytes \(atlas.count) ≠ \(atlasWidth)×\(atlasHeight)") }
         guard projection.count == 16, projection.allSatisfy(\.isFinite) else { throw .invalid("projection must be 16 finite floats") }
         guard reference.count == Int(width) * Int(height) * 4 else { throw .invalid("reference bytes \(reference.count) ≠ \(width)×\(height)×4") }
@@ -122,6 +144,10 @@ public struct ReplayFixture: Equatable, Sendable {
             let records = run.kind == .rect ? rectCount : run.kind == .glyph ? glyphCount : imageCount
             guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
+            }
+            if run.kind == .image {
+                let run = imageTextures[Int(run.start)..<Int(run.start + run.count)]
+                guard Set(run).count == 1 else { throw .invalid("image run \(index) samples several textures") }
             }
         }
     }
@@ -163,8 +189,10 @@ extension ReplayFixture {
         func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { out += $0 } }
         func bytes(_ b: [UInt8]) { u32(UInt32(b.count)); out += b }
         u32(Self.version)
-        u32(width); u32(height); u32(Self.rectStride); u32(Self.glyphStride)
-        bytes(rects); bytes(glyphs)
+        u32(width); u32(height); u32(Self.rectStride); u32(Self.glyphStride); u32(Self.imageStride)
+        bytes(rects); bytes(glyphs); bytes(images)
+        u32(UInt32(textures.count))
+        for texture in textures { u32(texture.width); u32(texture.height); out += texture.pixels }
         u32(UInt32(runs.count))
         for run in runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
         u32(atlasWidth); u32(atlasHeight); out += atlas
@@ -189,12 +217,24 @@ extension ReplayFixture {
         let version = try u32()
         guard version == Self.version else { throw .unsupportedVersion(version) }
         let width = try u32(), height = try u32()
-        let rectStride = try u32(), glyphStride = try u32()
-        guard rectStride == Self.rectStride, glyphStride == Self.glyphStride else {
-            throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: Self.imageStride)
+        let rectStride = try u32(), glyphStride = try u32(), imageStride = try u32()
+        guard rectStride == Self.rectStride, glyphStride == Self.glyphStride, imageStride == Self.imageStride else {
+            throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: imageStride)
         }
         let rects = try bytes(Int(try u32()))
         let glyphs = try bytes(Int(try u32()))
+        let images = try bytes(Int(try u32()))
+        let textureCount = Int(try u32())
+        var textures: [FixtureTexture] = []
+        for _ in 0..<textureCount {
+            let textureWidth = try u32(), textureHeight = try u32()
+            // Check dimensions before multiplying them into a read length.
+            guard textureWidth <= Self.maxDimension, textureHeight <= Self.maxDimension else {
+                throw .invalid("texture dimension exceeds \(Self.maxDimension)")
+            }
+            textures.append(FixtureTexture(width: textureWidth, height: textureHeight,
+                                           pixels: try bytes(Int(textureWidth) * Int(textureHeight) * 4)))
+        }
         let runCount = Int(try u32())
         var runs: [FixtureRun] = []
         for _ in 0..<runCount {
@@ -213,7 +253,8 @@ extension ReplayFixture {
         for _ in 0..<16 { projection.append(Float(bitPattern: try u32())) }
         let reference = try bytes(Int(width) * Int(height) * 4)
         guard offset == data.count else { throw .trailingBytes(data.count - offset) }
-        try self.init(width: width, height: height, rects: rects, glyphs: glyphs, runs: runs,
+        try self.init(width: width, height: height, rects: rects, glyphs: glyphs,
+                      images: images, textures: textures, runs: runs,
                       atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
                       projection: projection, reference: reference)
     }
@@ -244,7 +285,9 @@ public func pixelDifference(_ a: [UInt8], _ b: [UInt8], above threshold: Int = 0
 /// depends on the implementation's texture-coordinate and filter-weight
 /// precision. Vulkan requires only 4 sub-texel bits, so a weight may be off
 /// by 1/32 and a full-contrast texel pair then moves the result by ~8 steps.
-/// Measured on Mesa llvmpipe vs Apple M1 Max: 3 (README, "Linux").
+/// Measured on Mesa llvmpipe vs Apple M1 Max: 3 (README, "Linux"). Image
+/// quads are judged inside too (`spriteMask()`, ruling TE-AF item 6): a
+/// texture is sampled the same way, for the same reason.
 public enum ParityTolerance {
     public static let outsideGlyphs = 1
     public static let insideGlyphs = 8
@@ -285,9 +328,22 @@ extension ReplayFixture {
         return ((cx / cw + 1) / 2 * w, (1 - cy / cw) / 2 * h)
     }
 
+    /// Image bounds (`MUIImage.bounds`), as recorded, before the projection.
+    public var imageBounds: [(x: Float, y: Float, width: Float, height: Float)] {
+        imageRecords.map { ($0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height) }
+    }
+
     /// Pixels a glyph quad may touch after projection, grown by one pixel
     /// for anti-aliased coverage at its edge.
-    public func glyphMask() -> [Bool] {
+    public func glyphMask() -> [Bool] { mask(covering: glyphBounds) }
+
+    /// Pixels judged at the sprite tolerance: every glyph quad and, since
+    /// version 2, every image quad (ruling TE-AF item 6) — an image is
+    /// sampled wherever the projection puts a pixel centre, off texel centres,
+    /// for the same filter-weight-precision reason as the atlas.
+    public func spriteMask() -> [Bool] { mask(covering: glyphBounds + imageBounds) }
+
+    private func mask(covering quads: [(x: Float, y: Float, width: Float, height: Float)]) -> [Bool] {
         let w = Int(width), h = Int(height)
         var mask = [Bool](repeating: false, count: w * h)
         // Snap to 1/256 px, a rasterizer's sub-pixel grid, so float round-off
@@ -295,7 +351,7 @@ extension ReplayFixture {
         func snapped(_ p: (x: Float, y: Float)) -> (x: Float, y: Float) {
             ((p.x * 256).rounded() / 256, (p.y * 256).rounded() / 256)
         }
-        for b in glyphBounds {
+        for b in quads {
             let corners = [project(b.x, b.y), project(b.x + b.width, b.y),
                            project(b.x, b.y + b.height), project(b.x + b.width, b.y + b.height)].map(snapped)
             let x0 = max(0, Int((corners.map(\.x).min()! - 1).rounded(.down)))
@@ -308,12 +364,9 @@ extension ReplayFixture {
         return mask
     }
 
-    /// Pixels judged at the sprite tolerance.
-    public func spriteMask() -> [Bool] { glyphMask() }
-
     public func parity(of pixels: [UInt8]) -> Parity {
         precondition(pixels.count == reference.count, "output size differs from reference")
-        let mask = glyphMask()
+        let mask = spriteMask()
         var inside = (pixels: 0, maxDelta: 0), outside = (pixels: 0, maxDelta: 0)
         for p in 0..<mask.count {
             var delta = 0

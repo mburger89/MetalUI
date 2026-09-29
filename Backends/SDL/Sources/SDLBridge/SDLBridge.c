@@ -6,7 +6,7 @@
 
 struct ReplayGPU {
     SDL_GPUDevice *device;
-    SDL_GPUGraphicsPipeline *rect, *glyph;
+    SDL_GPUGraphicsPipeline *rect, *glyph, *image;
     SDL_GPUSampler *sampler;
     SDL_GPUTexture *target;
     uint32_t width, height;
@@ -18,8 +18,20 @@ struct ReplayGPU {
 const char *replay_error(void) { return SDL_GetError(); }
 const char *replay_driver(ReplayGPU *g) { return SDL_GetGPUDeviceDriver(g->device); }
 
+enum { KIND_RECT = 0, KIND_GLYPH = 1, KIND_IMAGE = 2 };
+static const char *const kind_names[] = {"rect", "glyph", "image"};
+
+/* An image record is 64 bytes, four float4 lanes (MUIImage): bounds,
+   contentMask, maskCornerRadii, then opacity, texture, filter, order. */
+enum { IMAGE_STRIDE = 64, IMAGE_TEXTURE_OFFSET = 52 };
+static uint32_t image_texture(const void *images, uint32_t index) {
+    uint32_t texture;
+    memcpy(&texture, (const uint8_t *)images + index * IMAGE_STRIDE + IMAGE_TEXTURE_OFFSET, sizeof(texture));
+    return texture;
+}
+
 static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry,
-                            bool fragment, bool glyph) {
+                            bool fragment, int kind) {
     void *loaded = NULL;
     size_t size = source ? strlen(source) : 0;
     if (g->portable) {
@@ -27,7 +39,7 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
             g->format == SDL_GPU_SHADERFORMAT_SPIRV ? "spv" : "dxil";
         char path[4096];
         int length = snprintf(path, sizeof(path), "%s/%s.%s.%s", g->shader_dir,
-            glyph ? "glyph" : "rect", fragment ? "fragment" : "vertex", extension);
+            kind_names[kind], fragment ? "fragment" : "vertex", extension);
         if (length < 0 || (size_t)length >= sizeof(path)) {
             SDL_SetError("shader path too long"); return NULL;
         }
@@ -42,17 +54,20 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
         .stage = fragment ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX,
         .num_storage_buffers = fragment ? 1 : 2,
         .num_uniform_buffers = fragment ? 0 : 2,
-        .num_samplers = fragment && glyph ? 1 : 0
+        .num_samplers = fragment && kind != KIND_RECT ? 1 : 0
     };
     SDL_GPUShader *result = SDL_CreateGPUShader(g->device, &info);
     SDL_free(loaded);
     return result;
 }
 
-static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, bool glyph) {
-    SDL_GPUShader *v = shader(g, source, glyph ? "glyph_vertex" : "rect_vertex", false, glyph);
+static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int kind) {
+    char vertex[32], fragment[32];
+    SDL_snprintf(vertex, sizeof(vertex), "%s_vertex", kind_names[kind]);
+    SDL_snprintf(fragment, sizeof(fragment), "%s_fragment", kind_names[kind]);
+    SDL_GPUShader *v = shader(g, source, vertex, false, kind);
     if (!v) return NULL;
-    SDL_GPUShader *f = shader(g, source, glyph ? "glyph_fragment" : "rect_fragment", true, glyph);
+    SDL_GPUShader *f = shader(g, source, fragment, true, kind);
     if (!f) { SDL_ReleaseGPUShader(g->device, v); return NULL; }
     SDL_GPUColorTargetDescription target = {
         .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
@@ -94,10 +109,12 @@ static ReplayGPU *create(const char *source, const char *directory, const char *
     else { SDL_SetError("unsupported driver: %s", driver); goto fail; }
     g->device = SDL_CreateGPUDevice(g->format, true, driver);
     if (!g->device) goto fail;
-    g->rect = pipeline(g, source, false);
+    g->rect = pipeline(g, source, KIND_RECT);
     if (!g->rect) goto fail;
-    g->glyph = pipeline(g, source, true);
+    g->glyph = pipeline(g, source, KIND_GLYPH);
     if (!g->glyph) goto fail;
+    g->image = pipeline(g, source, KIND_IMAGE);
+    if (!g->image) goto fail;
     SDL_GPUSamplerCreateInfo sampler = {
         .min_filter = SDL_GPU_FILTER_LINEAR, .mag_filter = SDL_GPU_FILTER_LINEAR,
         .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
@@ -142,19 +159,24 @@ void replay_destroy(ReplayGPU *g) {
         if (g->sampler) SDL_ReleaseGPUSampler(g->device, g->sampler);
         if (g->rect) SDL_ReleaseGPUGraphicsPipeline(g->device, g->rect);
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
+        if (g->image) SDL_ReleaseGPUGraphicsPipeline(g->device, g->image);
         SDL_DestroyGPUDevice(g->device);
     }
     free(g); SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
-static SDL_GPUTexture *texture(ReplayGPU *g, uint32_t w, uint32_t h, bool target) {
+static SDL_GPUTexture *texture_of(ReplayGPU *g, uint32_t w, uint32_t h, bool target, SDL_GPUTextureFormat sampled) {
     SDL_GPUTextureCreateInfo info = {
         .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = target ? SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM : SDL_GPU_TEXTUREFORMAT_R8_UNORM,
+        .format = target ? SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM : sampled,
         .usage = target ? SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER : SDL_GPU_TEXTUREUSAGE_SAMPLER,
         .width = w, .height = h, .layer_count_or_depth = 1, .num_levels = 1
     };
     return SDL_CreateGPUTexture(g->device, &info);
+}
+/* A target, or the R8 glyph atlas. */
+static SDL_GPUTexture *texture(ReplayGPU *g, uint32_t w, uint32_t h, bool target) {
+    return texture_of(g, w, h, target, SDL_GPU_TEXTUREFORMAT_R8_UNORM);
 }
 
 static SDL_GPUTransferBuffer *transfer(ReplayGPU *g, uint32_t size, bool download, const void *bytes) {
@@ -172,33 +194,64 @@ static SDL_GPUTransferBuffer *transfer(ReplayGPU *g, uint32_t size, bool downloa
     return result;
 }
 
+/* Records the bridge trusts, checked once: each image run's first record names
+   a texture that exists (ReplayFixture validates recorded ones too). */
+static bool images_valid(const void *images, uint32_t ib, uint32_t texture_count,
+                         const ReplayRun *runs, uint32_t count) {
+    if (ib % IMAGE_STRIDE) return SDL_SetError("unexpected MetalUI image ABI");
+    for (uint32_t i = 0; i < count; i++) {
+        if (runs[i].kind != KIND_IMAGE) continue;
+        if ((uint64_t)runs[i].start + runs[i].count > ib / IMAGE_STRIDE) return SDL_SetError("image run past its records");
+        if (image_texture(images, runs[i].start) >= texture_count) return SDL_SetError("image names a missing texture");
+    }
+    return true;
+}
+
 bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
+    const void *images, uint32_t ib, const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
     const float *projection, uint8_t *out) {
     // Diagnostic harness only: bounded fixtures, one completed frame at a time.
     if (!w || !h || w > 4096 || h > 4096 || !aw || !ah || aw > 4096 || ah > 4096)
         return SDL_SetError("invalid fixture dimensions");
-    SDL_GPUBuffer *buffers[3] = {0};
-    SDL_GPUTransferBuffer *uploads[4] = {0}, *download = NULL;
+    if (!images_valid(images, ib, texture_count, runs, count)) return false;
+    for (uint32_t t = 0; t < texture_count; t++)
+        if (!textures[t].width || !textures[t].height || textures[t].width > 4096 || textures[t].height > 4096)
+            return SDL_SetError("invalid image texture dimensions");
+    SDL_GPUBuffer *buffers[4] = {0};
+    SDL_GPUTransferBuffer *uploads[5] = {0}, *download = NULL;
     SDL_GPUTexture *atlas_texture = NULL;
+    SDL_GPUTexture **image_textures = NULL;
+    SDL_GPUTransferBuffer **image_uploads = NULL;
     SDL_GPUCommandBuffer *cmd = NULL;
     SDL_GPUFence *fence = NULL;
     bool ok = false;
     void *packed[2] = {0};
+    if (texture_count) {
+        image_textures = SDL_calloc(texture_count, sizeof(*image_textures));
+        image_uploads = SDL_calloc(texture_count, sizeof(*image_uploads));
+        if (!image_textures || !image_uploads) { SDL_SetError("allocation failed"); goto cleanup; }
+    }
     if (g->target) { SDL_ReleaseGPUTexture(g->device, g->target); g->target = NULL; }
     g->target = texture(g, w, h, true);
     g->width = w; g->height = h;
     atlas_texture = texture(g, aw, ah, false);
     if (!g->target || !atlas_texture) goto cleanup;
+    for (uint32_t t = 0; t < texture_count; t++) {
+        image_textures[t] = texture_of(g, textures[t].width, textures[t].height, false, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+        image_uploads[t] = transfer(g, textures[t].width * textures[t].height * 4, false, textures[t].rgba);
+        if (!image_textures[t] || !image_uploads[t]) goto cleanup;
+    }
     const float quad[] = {0,0, 1,0, 0,1, 1,1};
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {quad, rects, glyphs};
-    uint32_t sizes[] = {sizeof(quad), rb, gb};
+    const void *data[] = {quad, rects, glyphs, images};
+    uint32_t sizes[] = {sizeof(quad), rb, gb, ib};
     if (g->portable) {
         // The existing CPU ABI is scalar-packed (120/88 bytes). SDL storage
         // uses 16-byte lanes, so round each record up, never reinterpret it.
+        // Images (64 bytes) are already four whole lanes.
         const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
         data[0] = aligned_quad; sizes[0] = sizeof(aligned_quad);
         for (int i = 0; i < 2; i++) {
@@ -213,7 +266,7 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
             data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
         }
     }
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = {
             .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i]
@@ -222,23 +275,28 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
         uploads[i] = transfer(g, sizes[i], false, data[i]);
         if (!buffers[i] || !uploads[i]) goto cleanup;
     }
-    uploads[3] = transfer(g, aw * ah, false, atlas);
+    uploads[4] = transfer(g, aw * ah, false, atlas);
     // 256-byte pitch also works for a future D3D readback path.
     uint32_t pitch = (w * 4 + 255) & ~255u;
     download = transfer(g, pitch * h, true, NULL);
-    if (!uploads[3] || !download) goto cleanup;
+    if (!uploads[4] || !download) goto cleanup;
     cmd = SDL_AcquireGPUCommandBuffer(g->device);
     if (!cmd) goto cleanup;
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 3; i++) if (sizes[i]) {
+    for (int i = 0; i < 4; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[3] };
+    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[4] };
     SDL_GPUTextureRegion atlas_dst = { .texture = atlas_texture, .w = aw, .h = ah, .d = 1 };
     SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
+    for (uint32_t t = 0; t < texture_count; t++) {
+        SDL_GPUTextureTransferInfo image_src = { .transfer_buffer = image_uploads[t] };
+        SDL_GPUTextureRegion image_dst = { .texture = image_textures[t], .w = textures[t].width, .h = textures[t].height, .d = 1 };
+        SDL_UploadToGPUTexture(copy, &image_src, &image_dst, false);
+    }
     SDL_EndGPUCopyPass(copy);
     struct { float width, height; uint32_t first_instance, padding; } viewport = {(float)w, (float)h, 0, 0};
     SDL_PushGPUVertexUniformData(cmd, 1, projection, sizeof(float) * 16);
@@ -248,14 +306,17 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
     if (!pass) goto cleanup;
     for (uint32_t i = 0; i < count; i++) {
-        bool glyph = runs[i].kind == 1;
-        SDL_GPUBuffer *primitives = buffers[glyph ? 2 : 1];
+        uint32_t kind = runs[i].kind;
+        SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
         SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives};
-        SDL_BindGPUGraphicsPipeline(pass, glyph ? g->glyph : g->rect);
+        SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect);
         SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 2);
         SDL_BindGPUFragmentStorageBuffers(pass, 0, &primitives, 1);
-        if (glyph) {
+        if (kind == KIND_GLYPH) {
             SDL_GPUTextureSamplerBinding binding = {atlas_texture, g->sampler};
+            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+        } else if (kind == KIND_IMAGE) {
+            SDL_GPUTextureSamplerBinding binding = {image_textures[image_texture(images, runs[i].start)], g->sampler};
             SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
         }
         // SDL explicitly warns built-in instance IDs differ across APIs when
@@ -282,8 +343,13 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     if (fence) SDL_ReleaseGPUFence(g->device, fence);
-    for (int i = 0; i < 3; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
-    for (int i = 0; i < 4; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
+    for (int i = 0; i < 4; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
+    for (int i = 0; i < 5; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
+    for (uint32_t t = 0; t < texture_count && image_textures; t++) {
+        if (image_textures[t]) SDL_ReleaseGPUTexture(g->device, image_textures[t]);
+        if (image_uploads && image_uploads[t]) SDL_ReleaseGPUTransferBuffer(g->device, image_uploads[t]);
+    }
+    SDL_free(image_textures); SDL_free(image_uploads);
     if (download) SDL_ReleaseGPUTransferBuffer(g->device, download);
     if (atlas_texture) SDL_ReleaseGPUTexture(g->device, atlas_texture);
     free(packed[0]); free(packed[1]);
@@ -398,8 +464,41 @@ int mui_renderer_begin(MUIRenderer *r, uint32_t *w, uint32_t *h) {
     return 1;
 }
 
+void *mui_renderer_create_texture(MUIRenderer *r, const uint8_t *rgba, uint32_t w, uint32_t h) {
+    if (!w || !h || w > 8192 || h > 8192) { SDL_SetError("invalid image texture size"); return NULL; }
+    SDL_GPUDevice *d = r->gpu->device;
+    SDL_GPUTexture *result = texture_of(r->gpu, w, h, false, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+    SDL_GPUTransferBuffer *upload = transfer(r->gpu, w * h * 4, false, rgba);
+    SDL_GPUCommandBuffer *cmd = NULL;
+    SDL_GPUCopyPass *copy = NULL;
+    if (!result || !upload) goto fail;
+    /* Its own command buffer, submitted now: SDL runs submissions in order, so
+       it is uploaded before any frame submitted after this call samples it. */
+    cmd = SDL_AcquireGPUCommandBuffer(d);
+    if (!cmd) goto fail;
+    copy = SDL_BeginGPUCopyPass(cmd);
+    if (!copy) goto fail;
+    SDL_GPUTextureTransferInfo src = { .transfer_buffer = upload };
+    SDL_GPUTextureRegion dst = { .texture = result, .w = w, .h = h, .d = 1 };
+    SDL_UploadToGPUTexture(copy, &src, &dst, false);
+    SDL_EndGPUCopyPass(copy);
+    if (!SDL_SubmitGPUCommandBuffer(cmd)) { cmd = NULL; goto fail; }
+    SDL_ReleaseGPUTransferBuffer(d, upload);
+    return result;
+fail:
+    if (cmd) SDL_CancelGPUCommandBuffer(cmd);
+    if (upload) SDL_ReleaseGPUTransferBuffer(d, upload);
+    if (result) SDL_ReleaseGPUTexture(d, result);
+    return NULL;
+}
+
+void mui_renderer_release_texture(MUIRenderer *r, void *texture) {
+    if (texture) SDL_ReleaseGPUTexture(r->gpu->device, (SDL_GPUTexture *)texture);
+}
+
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
+    const void *images, uint32_t ib, void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah, bool atlas_dirty,
     const float *projection) {
@@ -407,16 +506,18 @@ bool mui_renderer_finish(MUIRenderer *r,
     SDL_GPUDevice *d = r->gpu->device;
     SDL_GPUCommandBuffer *cmd = r->cmd;
     r->cmd = NULL;
-    SDL_GPUBuffer *buffers[3] = {0};
-    SDL_GPUTransferBuffer *uploads[4] = {0};
+    SDL_GPUBuffer *buffers[4] = {0};
+    SDL_GPUTransferBuffer *uploads[5] = {0};
     void *packed[2] = {0};
     bool ok = false;
+    if (!images_valid(images, ib, texture_count, runs, count)) goto cleanup;
 
     /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
-       16-byte lanes, so each record is copied into a 128/96-byte slot. */
+       16-byte lanes, so each record is copied into a 128/96-byte slot. An
+       image (64 bytes) is already four whole lanes. */
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {aligned_quad, rects, glyphs};
-    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb};
+    const void *data[] = {aligned_quad, rects, glyphs, images};
+    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb, ib};
     const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
     for (int i = 0; i < 2; i++) {
         if (sizes[i + 1] % old_stride[i]) { SDL_SetError("unexpected MetalUI primitive ABI"); goto cleanup; }
@@ -429,7 +530,7 @@ bool mui_renderer_finish(MUIRenderer *r,
                    (const uint8_t *)data[i + 1] + j * old_stride[i], old_stride[i]);
         data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
     }
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = { .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i] };
         buffers[i] = SDL_CreateGPUBuffer(d, &info);
@@ -444,18 +545,18 @@ bool mui_renderer_finish(MUIRenderer *r,
         if (!r->atlas) goto cleanup;
     }
     if (atlas_new || atlas_dirty) {
-        uploads[3] = transfer(r->gpu, aw * ah, false, atlas);
-        if (!uploads[3]) goto cleanup;
+        uploads[4] = transfer(r->gpu, aw * ah, false, atlas);
+        if (!uploads[4]) goto cleanup;
     }
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 3; i++) if (sizes[i]) {
+    for (int i = 0; i < 4; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    if (uploads[3]) {
-        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[3] };
+    if (uploads[4]) {
+        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[4] };
         SDL_GPUTextureRegion atlas_dst = { .texture = r->atlas, .w = aw, .h = ah, .d = 1 };
         SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
     }
@@ -469,15 +570,18 @@ bool mui_renderer_finish(MUIRenderer *r,
     SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
     if (!pass) goto cleanup;
     for (uint32_t i = 0; i < count; i++) {
-        bool glyph = runs[i].kind == 1;
-        SDL_GPUBuffer *primitives = buffers[glyph ? 2 : 1];
+        uint32_t kind = runs[i].kind;
+        SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
         if (!primitives) continue;
         SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives};
-        SDL_BindGPUGraphicsPipeline(pass, glyph ? r->gpu->glyph : r->gpu->rect);
+        SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? r->gpu->glyph : kind == KIND_IMAGE ? r->gpu->image : r->gpu->rect);
         SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 2);
         SDL_BindGPUFragmentStorageBuffers(pass, 0, &primitives, 1);
-        if (glyph) {
+        if (kind == KIND_GLYPH) {
             SDL_GPUTextureSamplerBinding binding = {r->atlas, r->gpu->sampler};
+            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+        } else if (kind == KIND_IMAGE) {
+            SDL_GPUTextureSamplerBinding binding = {(SDL_GPUTexture *)textures[image_texture(images, runs[i].start)], r->gpu->sampler};
             SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
         }
         viewport.first_instance = runs[i].start;
@@ -496,8 +600,8 @@ bool mui_renderer_finish(MUIRenderer *r,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     /* SDL releases these once the GPU no longer uses them. */
-    for (int i = 0; i < 3; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
-    for (int i = 0; i < 4; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
+    for (int i = 0; i < 4; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
+    for (int i = 0; i < 5; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
     free(packed[0]); free(packed[1]);
     return ok;
 }
