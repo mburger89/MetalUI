@@ -362,11 +362,13 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `Expected.swift` unedited; `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
   `everyProductionTreeBuildsOnAOneMegabyteThread` and
   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. **0 px against
-  `0714528` in all fourteen offscreen images**, scene identical. `Backends/SDL` 22 + 25, all passing — read as 22 in one run plus
-  `MetalUISDLTests` as 24 with `theRunLoopTicksLinksAndEndsWhenTheLastWindowCloses`
-  skipped and 1 alone, because an unfiltered run truncates that target's
-  output (its summary line never prints, exit 0) — pre-existing, the
-  branch's own tip `3296e9e` does the same (record §61 §8).
+  `0714528` in all fourteen offscreen images**, scene identical. `Backends/SDL` 22 + 25 at the merge, whose
+  `--no-parallel` run truncated `MetalUISDLTests` (no summary line, exit 0)
+  — **fixed after the merge, 22 + 26** (record §61 §9: HIToolbox's wake
+  stopped Swift Testing's outermost run loop; `SDLPlatform` now runs
+  `NSApp.run()` once so AppKit installs its own signal; guard
+  `windowServerTrafficNeverStopsTheMainRunLoop`, macOS-only, so Linux stays
+  22 + 24); the root suite unmoved at 1773.
   Record §61 (written as §60, renumbered 60→61 at this merge, §61 §8).
 - **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11, part 2,
   from `ff2ae92`; closes task 11): 1763 tests, 0 goldens, 108 typecheck
@@ -3285,7 +3287,9 @@ expected, measured facts:
   fifteen files) and the `AccessibilityDefaultsTests`-recording-after-`#require`
   ordering hazard against that same registry. Neither registry nor roll call
   exists to be spuriously red any more. Two hazards survive, unrelated to
-  either (the second added by PR #30, merged at stage 9's close):
+  either (the second added by PR #30, merged at stage 9's close), and two
+  more follow them (stage 10's Windows-only absence and SDL's run-loop stop,
+  record §61 §9):
   - A proposal-authority regression that reports an `…unconsumed` field now
     **traps in a `Window` test and truncates the run with no summary line**
     (the first such test is #1251). Read the last lines of the log, not the
@@ -3322,3 +3326,20 @@ expected, measured facts:
     does not exist on Windows, which has neither C library.
     `root-windows` CI never runs it; its absence there is by design, not a
     skip to investigate. Record §53 §6.2 item 6.
+  - **A macOS test process that initialises SDL video can exit 0
+    mid-run** (record §61 §9). SDL reads events through
+    `nextEventMatchingMask` but never calls `-[NSApplication run]`, the only
+    path to AppKit's event-queue signal block (`NSUpdateCycleInitialize`);
+    without it HIToolbox's event thread wakes the main thread by queueing a
+    `CFRunLoopStop` of the main run loop, and when that reaches Swift
+    Testing's **outermost** `CFRunLoopRun` the executor returns and
+    `exit(0)`s — the last tests and the `Test run with` line vanish, exit
+    status 0. Timing decides whether it shows (`--no-parallel` 3/3 on the
+    branch, 0 of 36 parallel runs). `SDLPlatform.init` runs `NSApp.run()` once,
+    stopped at once (`SDLPlatform+AppKit.swift`); a new entry point that
+    initialises SDL video with windows on macOS owes the same call. Guards:
+    `windowServerTrafficNeverStopsTheMainRunLoop` (red 25–35 of 40 without
+    the call) and `armMainRunLoopExitCheck()`, an `atexit` that turns such an
+    exit into `exit(1)` with a message — **arm it in every new SDL test
+    helper that creates an `SDLPlatform`**. macOS CI does not run
+    `Backends/SDL`'s tests, so only a local run sees this.

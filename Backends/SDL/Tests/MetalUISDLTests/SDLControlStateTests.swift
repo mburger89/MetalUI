@@ -13,6 +13,9 @@ import SDLBridge
 
 @MainActor
 private func twoHiddenWindows() throws -> (SDLPlatform, SDLWindow, SDLWindow) {
+    #if os(macOS)
+    armMainRunLoopExitCheck()
+    #endif
     let platform = try SDLPlatform(hiddenWindows: true)
     let a = try platform.openSDLWindow(title: "control state A", size: Size(width: Pixels(120), height: Pixels(80)))
     let b = try platform.openSDLWindow(title: "control state B", size: Size(width: Pixels(120), height: Pixels(80)))

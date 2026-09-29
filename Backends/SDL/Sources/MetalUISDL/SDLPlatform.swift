@@ -26,6 +26,9 @@ public final class SDLPlatform: Platform {
     public init(hiddenWindows: Bool = false) throws {
         guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
         hidden = hiddenWindows
+        #if canImport(AppKit)
+        Self.installAppKitEventSignal()
+        #endif
     }
 
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {

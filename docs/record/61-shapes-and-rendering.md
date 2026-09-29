@@ -826,4 +826,127 @@ target prints `Test run with 24 tests in 0 suites passed`, and it alone
 prints `Test run with 1 test … passed` — so all 25 pass, read in two runs.
 §6's "Test run with 25 tests" reading is not reproduced here; the output
 loss is owed an investigation (the run loop ending the process's output
-when the last window closes is the suspect), not fixed on this branch.
+when the last window closes is the suspect), not fixed on this branch. *(Found and fixed after the merge, §9: the suspect was wrong — HIToolbox's
+wake stopped Swift Testing's outermost run loop.)*
+
+## §9 `MetalUISDLTests`' truncated run: HIToolbox's wake stops Swift Testing's run loop (2026-09-29)
+
+§8's open item, found and fixed. **Nothing in the texture work was at
+fault**; the branch's two new SDL tests only moved the timing.
+
+**Reproduced.** `PKG_CONFIG_PATH=$PWD/.accesskit swift test --skip-build
+--no-parallel --filter MetalUISDLTests` at `8d7526b`: exit 0, 24 `passed`
+lines of 25, no `Test run with` line, **three of three** runs. In the
+default (parallel) mode it did **not** reproduce — 36 runs (20 filtered, 6
+unfiltered, 10 filtered under eight busy-looping `yes` processes), every one
+`Test run with 25 tests … passed`. §8's runs were all `--no-parallel`.
+
+**Instrument.** An interposing dylib (`DYLD_INSERT_LIBRARIES`, the
+toolchain's `swift` rather than `/usr/bin/swift`, whose wrapper strips it)
+printing a backtrace at `exit`, `_exit`, `abort`, `CFRunLoopStop` and at every
+`CFRunLoopPerformBlock` on the main run loop (wrapping each block so a stop
+names the block that ran it, and naming the block's invoke function with
+`dladdr`):
+
+1. The test process's `exit(0)` comes from `swift_task_asyncMainDrainQueue`
+   after `CFMainExecutor.run` returned — i.e. Swift Testing's outermost
+   `CFRunLoopRun` **returned**, which it does only when stopped.
+2. The stop is `CFRunLoopStop(main)` from a block, **block #8 of 8**, queued
+   in common modes from **HIToolbox's event thread** (`_NSEventThread` →
+   `PullEventsFromWindowServerOnConnection` → `PushToCGEventQueue`), invoke
+   function `SignalMainThread()_block_invoke`. It was queued during
+   `aWindowRendererFrameIsTheReplayPathsFrame` while the main thread was
+   busy in the test (not inside `nextEventMatchingMask`, counted by a
+   swizzle: 0 in flight), and ran when the main thread next returned to the
+   executor's loop — the queued remainder of the run was never started.
+3. `dyld_info -disassemble` of HIToolbox: `PushToCGEventQueue` calls
+   `sCGEventEnqueueSignalBlock` if one is installed, and **only otherwise**
+   `SignalMainThread`, which (once per `pending` flag) queues `^{ pending =
+   0; CFRunLoopStop(main) }` and wakes the loop — a wake meant to break a
+   main thread blocked in `ReceiveNextEvent`, harmless in any nested run,
+   fatal to an outermost `CFRunLoopRun` whose return ends the process.
+4. The setter `_SetCGEventQueueEnqueueSignalBlock` is **never called** in the
+   test process (interposed, 0 calls). In a scratch AppKit program it is
+   called from `NSUpdateCycleInitialize` ← `-[NSApplication run]`, and only
+   there. SDL3 (3.4.16, Homebrew) calls `finishLaunching` and
+   `nextEventMatchingMask` but never `run`, so an SDL process always takes
+   HIToolbox's fallback.
+
+**Root cause.** SDL video on macOS without `-[NSApplication run]` leaves
+HIToolbox waking the main thread by stopping the main run loop. An SDL app's
+own loop (`SDLPlatform.run()`, synchronous) never notices; a host whose
+outermost loop is `CFRunLoopRun` — Swift Testing's main executor, or any
+`async` main driving SDL between awaits — returns from it and exits 0. On
+the branch the extra tests shifted when window-server traffic reached the
+event thread relative to the main thread's idle moments; master's 23 tests
+happened not to hit the window. Timing, not the texture path.
+
+**Fix** (`Backends/SDL/Sources/MetalUISDL/SDLPlatform+AppKit.swift`, called
+from `SDLPlatform.init` under `#if canImport(AppKit)`): once per process,
+unless `NSApp.isRunning` (an AppKit host's own `run` installed it), queue a
+common-modes block that calls `NSApp.stop(nil)` and posts an
+application-defined event, then call `NSApp.run()` — which runs
+`NSUpdateCycleInitialize`, installs AppKit's signal blocks, processes the
+posted event and returns at once. Its own file so AppKit's
+`AccessibilityRequest` stays out of `SDLPlatform.swift`'s type lookup (the
+first draft, in that file, failed on the ambiguity). Under the instrument,
+after the fix, a whole `--no-parallel` run reads **0** `SignalMainThread`
+blocks and two `CFRunLoopStop(main)` calls, **both inside the one-shot
+`-[NSApplication run]`** (its own stop, and UpdateCycle's
+`modeEventProcessingWaitEnter`), none on the executor's loop. The offscreen
+renderer alone (`SDLWindowRenderer(offscreenWidth:…)`, 20 created and
+drawn) never produced a stop in a probe, so it does not call the install;
+windows are what generate the traffic. Not by reordering or skipping tests:
+no test moved.
+
+**Guards, red first.**
+
+- `windowServerTrafficNeverStopsTheMainRunLoop`
+  (`Tests/MetalUISDLTests/SDLMainRunLoopTests.swift`, `#if os(macOS)`): 40
+  times, open a hidden window, pump, touch its renderer and drop it, then
+  `CFRunLoopRunInMode(.defaultMode, 0.05, false)`; expects no
+  `.stopped`. **Red before the fix**: stopped 35, 35 (twice, before the fix
+  existed) and, with the call commented out afterwards, 28, 31, 25, 25 of
+  40. Green after, three of three alone and in every full run below. It
+  reproduces the mechanism deterministically where the truncation itself was
+  timing-dependent — the nested run is harmless, so it observes the stop
+  instead of dying of it.
+- `armMainRunLoopExitCheck()` (same file): an `atexit` that, on the main
+  thread with **no current mode** on the main run loop (so `CFRunLoopRun`
+  has returned — Swift Testing's own exit runs inside a job the loop is
+  servicing), prints `error: the main run loop returned …` and `_exit(1)`s.
+  Armed by the new test and by each of the four `SDLPlatform`-creating
+  helpers (`AccessKitTests`, `SDLControlStateTests`, `SDLPlatformTests`,
+  `SDLTextInputTests`). **Its first draft trapped** (signal 5) at every
+  normal exit: the `atexit` closure written inside a `@MainActor` function
+  carried a main-actor isolation check; moved to a nonisolated function, it
+  is silent on a clean run (exit 0, three of three). **Mutation** (the
+  install call commented out): the whole `--no-parallel` run exits **1**
+  with the message, three of three, the new test red; with the new test also
+  skipped — the original bug's exact shape — exits **1** with the message
+  and no summary line (22, 24, 23 `passed` lines), three of three, where it
+  used to exit 0.
+
+**After the fix** (`PKG_CONFIG_PATH=$PWD/.accesskit`, macOS):
+
+| run | `ReplayFixtureTests` | `MetalUISDLTests` | exit |
+|---|---|---|---|
+| unfiltered `--no-parallel` ×3 | `Test run with 22 tests in 0 suites passed` | `Test run with 26 tests in 0 suites passed` (3.96, 3.91, 4.05 s) | 0 |
+| `--no-parallel --filter MetalUISDLTests` ×3 | — | `Test run with 26 tests in 0 suites passed` | 0 |
+| unfiltered, parallel ×3 | 22 passed | 26 passed | 0 |
+
+**26 = 25 + 1** (the new test). The build adds no `error:`/`warning:`
+beyond the pre-existing `-Wl,-rpath` prohibited-flag notice and the `ld`
+SDL-dylib version notices. **Linux** (`swift:6.4-noble` aarch64,
+`metalui-portable-ax`, `SDL_VIDEO_DRIVER=offscreen`, a copy of this working
+tree, `--scratch-path /tmp/sb`): 0 `error:`, `Test run with 22 tests … passed`
+and `Test run with 24 tests … passed`, exit 0, both parallel and
+`--no-parallel` — unmoved, the new test and the helper arming being
+macOS-only. **Root package**: `swift build --build-system native
+--build-tests` 0 `error:`, the one SwiftPM deprecation `warning:`; unfiltered
+`swift test --build-system native --no-parallel` → **`Test run with 1773
+tests in 3 suites passed after 110.254 seconds`**, the FR-J line present;
+`swift build --build-tests` (default) 0 `warning:`/`error:` — the root
+package has no file in this change. macOS CI does not run `Backends/SDL`'s
+tests (its macOS job only records fixtures), which is why a false green
+there was local-only; `CLAUDE.md` gains a CI-hazard bullet.

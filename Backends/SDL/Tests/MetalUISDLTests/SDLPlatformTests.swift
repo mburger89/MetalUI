@@ -34,6 +34,9 @@ import SDLBridge
 
 @MainActor
 private func hiddenWindow() throws -> (SDLPlatform, SDLWindow) {
+    #if os(macOS)
+    armMainRunLoopExitCheck()
+    #endif
     let platform = try SDLPlatform(hiddenWindows: true)
     let window = try platform.openSDLWindow(title: "MetalUI SDL test",
                                             size: Size(width: Pixels(320), height: Pixels(200)))
