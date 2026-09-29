@@ -441,10 +441,71 @@ status --short` empty after every restore:
   owner none.
 - `TE-X` item 2: a grid cell that answers its slot differently from its solve
   answer reports the solve's baseline; reachable only under a baseline
-  `HStack`; unpinned beyond X3i.
+  `HStack`; the offsets themselves are pinned by 2.1c since the fix round
+  (§3.7), the slot-versus-solve re-measure still is not.
 - The depth ceiling is not re-bisected (`SA-L` asks it only before raising
   `maxDepth`).
+- `TE-W` item 6: the OS/2 class fallback in `FaceTraits` decides one face
+  with a class on this install (Marker Felt Wide), and reading it as 0 moves
+  no answer (V9, §3.7) — pinned by synthetic rows, not by the oracle.
 - Nothing element-facing: `Text`/`ProposalText` report no baseline and pass
   no descriptor until lane 3 (`Font`, `fontWeight`, `italic`).
+
+### 3.7 Fix round (review findings)
+
+Four findings (one major, three minor), each disposed below; commit
+`561462a` (code and tests), then the docs commit carrying this section.
+
+1. **Major — a non-baseline `alignSelf` under a baseline row laid out
+   silently wrong** (`TE-L` item 5, new). Fixed: `planLegacyItems` reports
+   `alignSelf.flexStart`/`.center`/`.flexEnd`/`.stretch` under a baseline
+   **row**, a permanent refusal. `.stretch` was measured here, not only the
+   three the review named: a scratch arm read the row 110 tall at a 100
+   proposal with the text at y 80, the same failure as `.center`. Red first:
+   **2.11b** `aNonBaselineAlignSelfUnderABaselineRowIsRefusedByName`, 4
+   issues (`refused.unlowerable == [entry]`, one per arm) before the fix.
+   2.10's table 265 → **305** (the four names at the ten recording sites; the
+   design's "16 rows, 11 item sites" corrected to 15 and 10 in the test's doc,
+   `TE-L` item 5 and spec row 2.10).
+2. **Minor — the vertical-stack cursor's gaps were unpinned.** Fixed: a new
+   probe, `docs/probes/swiftui-baseline-offsets.swift` (headless, compiled
+   once; arms O1c/O1/O2/O3/O4, each prediction matched on the first run —
+   O1 13/49, O1c 13/41), and **2.1c**
+   `aStacksGapsAndAGridsOffsetsMoveTheBaselinesItReports` (green on arrival:
+   it pins landed code). V4 reddens it.
+3. **Minor — a grid's baseline offsets were unpinned.** Fixed by 2.1c's
+   three grid arms (O2 25/73, O3 13/73, O4 37). V5 reddens all three.
+4. **Minor — the class fallback on the lazy path was unpinned.** Measuring
+   it found a real disagreement first: the install's faces with no weight
+   word and a class other than ~400 are 43, of which 41 are Hiragino's
+   `W0`…`W9` styles, and CoreText weighs those by the number, not the class
+   (a scratch `CTFontCopyTraits` read: Hiragino Sans W0…W9 → −0.8, −0.6,
+   −0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62, 0.62; classes 100, 200, 250, 300,
+   400 … 900). Hiragino Sans added to 1.1's corpus read **20 unpinned
+   differences** (red), 0 after the number rule (`TE-W` item 6). The
+   remaining class-decided face, Marker Felt Wide (class 700, CoreText 0.4),
+   is not separated by V9 — its weight read as 0 still wins every request it
+   won — so V9 stays green **by equivalence over this install**, recorded,
+   and the fallback itself is pinned by **1.1b**'s synthetic `FaceTraits`
+   rows (MC below). 1.1b also pins one Marker Felt difference: CoreText
+   weighs "Thin" 0 (class 400) against its word and picks it at weight 0.
+   1.1's corpus: 31 families, 213 faces, 620 requests, the same ten pinned
+   rows.
+
+Suite: **`Test run with 1678 tests in 3 suites passed`** (1675 + 2.11b, 2.1c,
+1.1b); 0 `error:`, the one deprecation `warning:` under native, 0/0 under the
+default build system; the `FR-J` line present. Guards unmoved (103).
+
+Mutations (committed first, restored from a copy, whole suite unfiltered,
+`git status --short` empty after each):
+
+| # | mutation | reddened |
+|---|---|---|
+| ML5 | the baseline-row `alignSelf` refusal disabled | 2.11b (4) |
+| V4 | the vertical cursor in `measureLinearStack` drops its gaps | 2.1c (1) |
+| V5 | every `nativeGridCellOffsetsY` offset 0 | 2.1c (3) |
+| V9 | `FreeTypeFaceNames.read` passes `weightClass: 0` | none — equivalent over this install (item 4) |
+| MW | the `W0`…`W9` rule dropped | 1.1, 1.1b (9 issues) |
+| MC | the class fallback reads 0 | 1.1b (2: the synthetic `Wide`/700 and `Chancery`/300 rows) |
 
 Next unused `TE-Y`.

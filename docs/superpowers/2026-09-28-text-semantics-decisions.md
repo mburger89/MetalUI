@@ -526,8 +526,32 @@ be raised (`alignItems.baseline` by a stack-display container,
 counts). `everyContainerFieldEitherLowersOrIsReportedByName` gains a row and
 a column lowering arm and keeps a stack-display report arm.
 
+5. **Any other explicit `alignSelf` under a baseline row is a permanent
+   refusal by name** (lane 2's fix round, found by review): `alignSelf`
+   `.flexStart`, `.center`, `.flexEnd` and `.stretch` on a child of a row whose
+   `alignItems` is `.baseline` report `<site>.alignSelf.<case>` (`owner:
+   nil`). Lowered, each laid out silently wrong — a baseline stack has no
+   per-child alignment: `.flexStart` shares the container's factor (0), so no
+   alignment frame is built and the child sits baseline-aligned where CSS
+   puts it at the top; `.center`, `.flexEnd` and `.stretch` build a frame
+   greedy on the cross axis whose guide in a baseline stack is its whole
+   height (a text-less node's guide, `TE-K` item 2), so the row answered 110
+   at a 100 proposal and pushed its text down. At `169d166` every such row
+   reported `box.alignItems.baseline`, so no tree that ran before moves; a
+   child with no `alignSelf` (the container's alignment) and a column's
+   `alignSelf` (its baseline lowers as `flexStart`) are unaffected. Pinned by
+   **2.11b** `aNonBaselineAlignSelfUnderABaselineRowIsRefusedByName` (four
+   arms and a `flexStart`-row control reporting nothing); the owner table
+   (2.10) gains the four names at the ten recording sites, **265 → 305**. The
+   "16 baseline rows (5 container, 11 item)" above miscounted the recording
+   sites — there are ten (`box`, `stack`, `scrollView`, `modifierLayer`,
+   `component`, `text`, `textField`, `textEditor`, `slider`, `list`), so 15
+   rows (5 + 10); the table's 265 was right.
+
 **Cost if wrong.** A legacy tree with `.alignItems(.baseline)` that relied on
 the report (it trapped in production) now lays out; no in-repo tree uses it.
+A tree combining a baseline row with a child's own `alignSelf` still traps,
+by the child's name instead of the container's.
 
 ---
 
@@ -1062,6 +1086,24 @@ static family of four or more faces, 68 families × ten weights × two slopes.
    its own face through the seam (1.3's seam arm; `FontRequest`); it stays
    never swept, as `TX-C`/`fonts` require.
 
+6. **A `W0`…`W9` style takes its weight from the number; the class decides
+   only a style with neither a word nor a number** (lane 2's fix round).
+   Measured by a scratch CoreText read (record §59 §3.7): Hiragino Sans's ten
+   faces are CoreText's −0.8, −0.6, −0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62, 0.62
+   for W0…W9, where their OS/2 classes (100, 200, 250, 300, 400 … 900) put W3
+   at −0.4 and W4 at 0 — adding the family to 1.1's corpus read **20
+   differences** under the class rule, 0 under the number rule. Over the whole
+   install the class fallback then decides exactly one face with a class
+   (Marker Felt "Wide", class 700, CoreText 0.4; Apple Chancery's "Chancery"
+   has no class and is 0), and reading that class as 0 moves no request's
+   answer (mutation V9: 1678 green) — so the fallback is **pinned by
+   synthetic `FaceTraits` rows**, not by the oracle (1.1b). One more
+   difference, pinned in 1.1b: Marker Felt at weight 0 is "Thin" on CoreText,
+   which weighs it 0 (class 400) against its own style word, and "Wide" here,
+   which reads "thin" as −0.6. Item 4's corpus becomes **31** families, 213
+   faces (Hiragino's collection lists faces of other families too) and **620**
+   requests; the ten pinned rows are unchanged.
+
 **Cost if wrong.** A portable app asking a Hoefler Text, Futura or Sukhumvit
 Set weight in the ten pinned rows draws a neighbouring face of the same
 family where macOS draws another; every other row of the corpus is macOS's
@@ -1096,7 +1138,12 @@ green unedited; `baselineAlignmentAddsNoMeasurementWork` (new) pins it.
    move. A cell placed at a slot it answers differently is re-measured there
    by `nativeGridCellRects`; its baseline in the grid's answer is the solve's.
    Reachable only where a grid is a child of a baseline-aligned `HStack`; X3i
-   (one cell, 13) pins the common case.
+   (one cell, 13) pins the common case, and **2.1c** (lane 2's fix round) the
+   offsets themselves against `docs/probes/swiftui-baseline-offsets.swift`:
+   two rows at vertical spacing 8 report 25/73 centred (O2) and 13/73 at
+   `.top` (O3), a bottom-anchored cell 37 (O4) — every offset 0 (mutation V5)
+   reddens it. 2.1c also pins a vertical stack's gaps (O1, 13/49 at spacing 8;
+   V4, the cursor without its gaps, reddens it).
 3. **Third T row, spec 2.13**: `aContainersReportListsItsContainerRowsBeforeItsEveryNodeRowsAndTrapsOnTheFirst`
    expected `[gap.percent, alignItems.baseline, size.percent, inset]`; a flex
    container's `alignItems.baseline` lowers since `TE-L` and no other flex
