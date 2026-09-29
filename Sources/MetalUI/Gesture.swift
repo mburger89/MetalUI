@@ -432,7 +432,8 @@ struct GestureArena {
     private var callbacks: [GestureCallback] = []
 
     /// The arena for a press on `target`, with `ancestors` — each a hitbox of
-    /// a proper ancestor of the target's id containing the point, with its
+    /// a proper ancestor of the target's id, in the target's hit layer (`IX-Q`),
+    /// containing the point, with its
     /// distance from the target in id levels. `nil` when no gesture is
     /// attached to any of them: dispatch is then exactly `Window.dispatchClick`
     /// (`IX-D` item 2).

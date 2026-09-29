@@ -168,7 +168,9 @@ named test; nothing else moves.
    ranking, unchanged — picks the target, as today. The arena is the target's
    recognizers followed by its **ancestors'** gesture recognizers: every hitbox
    in `lastHitboxes` whose `GlobalElementID` is a proper ancestor of the
-   target's id and whose region contains the point (`Hitbox.contains(_:)`, one
+   target's id, **in the target's own hit layer** (*added by `IX-Q`*: a
+   `Deferred` presentation's press never joins its declarer's arena), and whose
+   region contains the point (`Hitbox.contains(_:)`, one
    helper that `topmostOpaqueHitbox` also calls). The ancestry comes from the
    id itself, as `focusChain(from:)`'s does — no parent link, no second list,
    no second ranking.

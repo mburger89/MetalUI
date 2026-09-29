@@ -1435,7 +1435,8 @@ public final class Window {
     /// **The arena is formed from the one ranking**: its target is
     /// `topmostOpaqueHitbox(in:at:)`'s answer — the same hitbox `mouseDown`
     /// made `active` — and its other members are the gesture-carrying hitboxes
-    /// of that id's proper ancestors that contain the point (`Hitbox.contains`),
+    /// of that id's proper ancestors, in its own hit layer (`IX-Q`), that
+    /// contain the point (`Hitbox.contains`),
     /// found through the id itself, as `focusChain(from:)` finds its chain —
     /// no parent link on a `Hitbox`, no second list, no second ranking (`IX-D`
     /// item 1). **An ancestor's `onClick` never joins** (`IX-D` item 2): with
@@ -1484,13 +1485,22 @@ public final class Window {
 
     /// The arena for a press on `lastHitboxes[target]`, or `nil` when neither
     /// it nor a containing ancestor carries a gesture.
+    ///
+    /// **An ancestor joins only from the target's own hit layer** (`IX-Q`): a
+    /// `Deferred` presentation's content is hoisted to a higher layer while its
+    /// id stays under its declarer's, and SwiftUI keeps a presentation's press
+    /// out of its presenter's arena (probe `swiftui-gesture-presentation-arena.swift`
+    /// S1/S2, V1/V2) — so a declarer's high-priority gesture cannot take a
+    /// modal's click, nor its simultaneous one run beside it. Pinned by
+    /// `aDeferredPresentationsPressDoesNotJoinItsDeclarersArena`.
     private func makeGestureArena(target: Int, at point: Point<Pixels>) -> GestureArena? {
         let hit = lastHitboxes[target]
         var ancestors: [(hitbox: Hitbox, depth: Int)] = []
         var depth = 1
         var cursor = hit.id.parent
         while let id = cursor {
-            if let box = lastHitboxes.last(where: { $0.id == id && !$0.handlers.gestures.isEmpty
+            if let box = lastHitboxes.last(where: { $0.id == id && $0.layer == hit.layer
+                                                        && !$0.handlers.gestures.isEmpty
                                                         && $0.contains(point) }) {
                 ancestors.append((box, depth))
             }
