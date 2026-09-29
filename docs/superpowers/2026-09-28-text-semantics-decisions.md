@@ -13,7 +13,7 @@ clause of its text). DESIGNED, critic round applied (`TE-AC`…`TE-AQ`);
 **lane 1 (the renderer) landed** (`TE-AR`); **lane 2 (shapes, fill/stroke,
 clipping, backgrounds in a shape) landed** (`TE-AS`, fix round `TE-AT`);
 **lane 3 (`Image`, `aspectRatio(nil)`, the `UnitPoint` grid anchor) landed**
-(`TE-AU`, fix round); **Record phase close** (`TE-AV`, record §60 §6).
+(`TE-AU`, fix round); **Record phase close** (`TE-AV`, record §61 §6).
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -1894,7 +1894,7 @@ custom shape on the legacy path at compile time, never silently.
 ## TE-AR — the renderer, as landed: a 64-byte `MUIImage` without `_reserved`, the premultiply in `ImageTexture`, a separating frame for 1.2, and nearest sampling on a texel boundary (lane 1)
 
 **Evidence.** Lane 1's red commit `afa7a98` and implementation `7e61deb`
-(record §60 §3): suite 1718 = 1706 + 12, green; the fourteen offscreen images
+(record §61 §3): suite 1718 = 1706 + 12, green; the fourteen offscreen images
 0 px against `ff2ae92`, scenes identical; `Experiments/SDLGPU`'s `Replay
 --portable --record` 7 frames, frame 6 0 px on SDL's Metal backend through
 both the HLSL → SPIR-V → MSL stages and the adapted native MSL;
@@ -1999,9 +1999,9 @@ would fail CI loudly rather than pass wrong.
 ## TE-AS — shapes, fill/stroke and clipping, as landed: a `nonisolated` `sizeThatFits`, the clamp in the geometry, M2v's instrument moved, and one retained guard re-answered (lane 2)
 
 **Evidence.** Lane 2's red commit `c73ab50` and implementation `05d6ea0`
-(record §60 §4): suite 1743 = 1718 + 23 + 2 guards, green after `swift
+(record §61 §4): suite 1743 = 1718 + 23 + 2 guards, green after `swift
 package clean`; the fourteen offscreen images 0 px against `ff2ae92`, scenes
-identical; the mutation table of record §60 §4 (every named mutation run on
+identical; the mutation table of record §61 §4 (every named mutation run on
 the whole unfiltered suite).
 
 **The ruling — each item amends the spec in this commit.**
@@ -2060,7 +2060,7 @@ the whole unfiltered suite).
    `hoverBackground(_:)`, still legacy-only. Red on the skeleton
    (`DecorationCompileGuards.swift:211`, the fixtures agreeing); the twin of
    its G3b mutation for the new spelling (MG3b′, `hoverBackground` declared on
-   `ElementGroup`) reddens it again (record §60 §4).
+   `ElementGroup`) reddens it again (record §61 §4).
 8. **The `Rectangle()` census gives no T row.** 79 spellings at `ff2ae92`: 5
    in `Sources` comments, 38 in typecheck-guard fixtures (compile only), 19
    in `ElementGroupTrapTests` (construction and traps), 9 in `HitRegionTests`
@@ -2086,10 +2086,10 @@ edge, sub-pixel.
 ## TE-AT — lane 2's fix round: four tests and an arm for five unpinned clauses, the tolerance stated as defensive (lane 2)
 
 **Evidence.** The lane-2 verifier's mutations X1, X2, X3, X7 and X9 each left
-the whole unfiltered suite green at `05d6ea0` (record §60 §4); `K10` had no
+the whole unfiltered suite green at `05d6ea0` (record §61 §4); `K10` had no
 test (`grep -rn K10 Tests` empty). Fix round `a420975`: 1747 = 1743 + 4, green;
 each new test red under its mutation on the whole unfiltered suite (record
-§60 §4's table).
+§61 §4's table).
 
 **The ruling.**
 
@@ -2117,7 +2117,7 @@ each new test red under its mutation on the whole unfiltered suite (record
    a hair outside; the doc comment on `Frame.roundedRect(_:radii:liesInside:radii:)`
    says so. No non-integer tangent case is added: whether one rounds outside
    is a property of float arithmetic this round did not search for.
-3. **`TE-AS`'s citation of "the mutation table of record §60 §4" is made
+3. **`TE-AS`'s citation of "the mutation table of record §61 §4" is made
    true** by writing that section (it was missing when `TE-AS` landed).
 
 **Cost if wrong.** Item 2: a too-loose tolerance keeps an inner radius a
@@ -2134,9 +2134,9 @@ the whole unfiltered suite, 23 issues; 3.5 and both guards green by design)
 and implementation `02f1e0f`: after `swift package clean`, `Test run with 1762
 tests in 3 suites passed`, **1762 = 1747 + 15** (14 tests and 1 guard); the
 fourteen offscreen images 0 px against `ff2ae92`, scenes identical; the
-mutation table of record §60 §5 — **17 rows, 16 of which build and redden a
+mutation table of record §61 §5 — **17 rows, 16 of which build and redden a
 named test on the whole unfiltered suite** (MG3a does not build; MG3a′
-replaces it) — plus the fix round's V5 and V9 (record §60 §5, "Fix round"),
+replaces it) — plus the fix round's V5 and V9 (record §61 §5, "Fix round"),
 which redden the fix round's additions, **1763** tests. Probe arms I1–I12, A1–A4 (`swiftui-shapes-and-rendering.swift`)
 and GL14 (`swiftui-grid.swift`, re-run by the critic round) — no new probe:
 every SwiftUI value asserted is one of those arms'; the two traps below are
@@ -2219,7 +2219,7 @@ every SwiftUI value asserted is one of those arms'; the two traps below are
    leading-dot `gridCellAnchor(.…)` sites in the package's own tests
    ambiguous — so the guard is mutated red by **MG3a′**: MG3a plus those
    sites spelled `ProposalAlignment.…`; its nine-point control then fails
-   with `ambiguous use of 'topLeading'` (record §60 §5).
+   with `ambiguous use of 'topLeading'` (record §61 §5).
 
 **Cost if wrong.** Item 2: a SwiftUI program passing scale 0 or a NaN anchor
 traps here where SwiftUI may draw something; the fix is additive. Item 3: a
@@ -2229,7 +2229,7 @@ exhaustive switch over `GridCellAttribute` breaks at compile time.
 
 ---
 
-## TE-AV — Record phase close: task 11 ticked, four lane-1 coverage gaps named and owed, a part-1 arithmetic slip corrected (record §60 §6)
+## TE-AV — Record phase close: task 11 ticked, four lane-1 coverage gaps named and owed, a part-1 arithmetic slip corrected (record §61 §6)
 
 **Evidence.** Independent re-take, from a clean tree: 1763 / 0 / 108 tests/
 goldens/guards, one summary line, `FR-J` present, 0 `error:`, the one
@@ -2251,7 +2251,7 @@ macOS; a `swift:6.4-noble` aarch64 container building the root package at 0
    exactly that third disposition ("keep renderer constraints explicit when
    an exact effect is not supportable yet"), so a constraint with no future
    owner is a closed clause, not an open one, provided it is named and
-   reasoned in §9 (record §60 §6's table walks all twelve rows). None of the
+   reasoned in §9 (record §61 §6's table walks all twelve rows). None of the
    three `owner: none` rows (`colorScheme`/appearance, colour glyphs, and the
    surface not offered at all — SF Symbols, `Path`, gradients, `StrokeStyle`,
    a labelled `Image`) was created by this task; each predates it (`EV-G`,
@@ -2266,7 +2266,7 @@ macOS; a `swift:6.4-noble` aarch64 container building the root package at 0
    Metal image cache's per-window eviction under `AppKitPlatform`'s one
    shared `Renderer` (`RS-C`) — latent, since no production tree draws an
    image yet, owner **before any multi-window image consumer ships**. Each
-   is named with its own test recommendation in record §60 §6, not fixed on
+   is named with its own test recommendation in record §61 §6, not fixed on
    this branch (this phase writes docs, not code).
 3. **A part-1 arithmetic slip is corrected**: record §59 and CLAUDE.md's
    task-11-part-1 entry both read "`Tests/PortableTests` 20 + 6 + 5"; the

@@ -1246,7 +1246,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   is the next run; part 1 alone left this task's box unticked.
   *Progress note, 2026-09-29 — part 2 delivered; task 11 ticked*
   (`feat/shapes-and-rendering` from `ff2ae92`, part 1's tip, rulings
-  `TE-AC`…`TE-AV`, record §60): the task's second and third sentences —
+  `TE-AC`…`TE-AV`, record §61): the task's second and third sentences —
   shapes, images, fills/strokes, overlays and clipping, with renderer
   constraints stated explicitly. SwiftUI's `Shape` protocol
   (`ProposalElement, Sendable`, `geometry(in:)` narrowed to a rounded
@@ -1280,7 +1280,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   by row in the spec's own table (`TE-AD`). Divergences 90–93 added (the
   four still-drawn approximations above), 64 retires — live count 65 → 68,
   next label 94. Three lanes plus two verifier fix rounds, all verified
-  `ok`; the Record phase's own close (record §60 §6) re-took the suite,
+  `ok`; the Record phase's own close (record §61 §6) re-took the suite,
   guard and golden counts (**1763 / 0 / 108**), the fourteen-image
   comparison (0 px against `ff2ae92`), the probe (byte-identical to its
   78-line recorded header), `Backends/SDL` (22 + 25) and a

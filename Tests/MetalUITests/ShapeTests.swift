@@ -195,7 +195,7 @@ private func size(_ w: Double, _ h: Double) -> SizeD { SizeD(width: w, height: h
 /// `Rectangle(width:height:)` keeps its stored `.surface` (`TE-AQ` item 2).
 ///
 /// **T-row note**: until this lane a bare `Rectangle()` painted `.surface`;
-/// no retained test asserted that colour (the census, record §60 §4).
+/// no retained test asserted that colour (the census, record §61 §4).
 ///
 /// Mutation: **M2e** the default `.surface`.
 @Test @MainActor func aBareShapeFillsWithTheForegroundStyle() throws {

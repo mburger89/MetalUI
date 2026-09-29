@@ -48,7 +48,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-K`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
   `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
@@ -221,6 +221,11 @@ milestones append their record to `docs/record/` and put only the rule here.
   11) needed no renumbering**: written directly on `feat/engine-stage-11`
   from `47c0d98` (stage 10's own merge tip), with no other line publishing a
   §54 first.
+  **§61 (task 11 part 2, shapes and rendering) was written as §60** on
+  `feat/shapes-and-rendering` from `ff2ae92` and renumbered 60→61 at its
+  merge, because `master` had already published §60 (`TI-I`/`TI-J`, text
+  page and Tab, PR #31, `0714528`; record §61's header). Master's own §60
+  citations are the text-page record's.
   Task 8 `ID-` (§55, spec `specs/2026-09-25-composition-identity-design.md`,
   decisions doc `2026-09-25-composition-identity-decisions.md`, probe
   `swiftui-composition-identity.swift`) — audits `Group`, conditional
@@ -280,7 +285,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   against a new SwiftUI probe arm, not fixed code (the implementation was
   already right). Divergences 86–89 added, 76 amended a third time — part 1
   left task 11's box unticked pending part 2.
-  Task 11, **part 2**, `TE-AC`…`TE-AV` (§60, spec
+  Task 11, **part 2**, `TE-AC`…`TE-AV` (§61, spec
   `specs/2026-09-28-shapes-and-rendering-design.md`, the same decisions doc,
   probes `swiftui-shapes-and-rendering.swift` and, from the critic round's
   re-run, `swiftui-grid.swift`'s `GL14`) — **closes task 11**: SwiftUI's
@@ -338,6 +343,31 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11 part 2
+  — merged with `master` at `0714528`, PR #31, `TI-I`/`TI-J`): 1773 tests, 0
+  goldens, 108 typecheck guards**, 0 `error:` on both build systems, the one
+  `warning:` SwiftPM's deprecation notice under native (0 under the default
+  one), taken after `swift package clean` with `swift build --build-system
+  native --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1773 tests in 3 suites
+  passed after 110.381 seconds`; the FR-J line present). **1773 = 1715 − 1706
+  + 1763 + 1**: master's 1715 over the shared base 1706 (the text-page
+  line's 9), the branch's 1763, and the merge's own 1
+  (`tabPassesOverImagesAndShapesAndStopsAtAFocusableClippedBox`,
+  `FocusTraversalTests`: Tab passes over an `Image`, a filled shape and a
+  clipped proposal rectangle, skips an unfocusable legacy `clipShape` box and
+  stops at a focusable one — red when that box is made `.focusable()`, the
+  tab order reading 4). Guards **108** (master added none). No source file
+  touched by both sides; the only conflicts were this file and `AGENTS.md`.
+  `Expected.swift` unedited; `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. **0 px against
+  `0714528` in all fourteen offscreen images**, scene identical. `Backends/SDL` 22 + 25, all passing — read as 22 in one run plus
+  `MetalUISDLTests` as 24 with `theRunLoopTicksLinksAndEndsWhenTheLastWindowCloses`
+  skipped and 1 alone, because an unfiltered run truncates that target's
+  output (its summary line never prints, exit 0) — pre-existing, the
+  branch's own tip `3296e9e` does the same (record §61 §8).
+  Record §61 (written as §60, renumbered 60→61 at this merge, §61 §8).
 - **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11, part 2,
   from `ff2ae92`; closes task 11): 1763 tests, 0 goldens, 108 typecheck
   guards**, 0 `error:` on both build systems, the one `warning:` SwiftPM's
@@ -417,8 +447,24 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   is **21 + 6 + 5** (`PortableTextDeterminismTests.swift`'s pre-existing 18
   plus `TruncationDeterminismTests.swift`'s 3 = 21, confirmed on macOS and
   in a Linux container) — fixed at every occurrence in record §59 and in
-  this file's own task-11-part-1 entry below (`TE-AV`, record §60 §6).
-  History: record §60.
+  this file's own task-11-part-1 entry below (`TE-AV`, record §61 §6).
+  History: record §61.
+- **Counts (2026-09-28, `feat/text-page` — `TI-I`, `TI-J` — merged with
+  `master` at `ff2ae92`, plan task 11 part 1): 1715 tests, 0 goldens, 105
+  typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1715 tests in 3 suites
+  passed`; the FR-J line present). **1715 = 1706 + 7 + 1 + 1**: master's
+  1706, the branch's 7 (`TextEditingTests` +2, `TextEditorTests` +1,
+  `FocusTraversalTests` +4), the first merge's 1
+  (`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`, Tab reaching
+  master's focusable controls, `TI-J` amended) and the second merge's 1
+  (`aPageIsMeasuredInTheEnvironmentsResolvedFont`, a page measured in the
+  editor's environment-resolved font, `TE-F` item 2). No guard, no golden;
+  `Backends/SDL` 21 + 23. At the first merge (`169d166`) it read 1652 = 1644
+  + 7 + 1. Record §60 (written as §53, renumbered 53→59→60).
 - **Counts (2026-09-28, `feat/text-semantics` — plan task 11, part 1, from
   `169d166`): 1706 tests, 0 goldens, 105 typecheck guards**, 0 `error:` on
   both build systems, the one `warning:` SwiftPM's deprecation notice under
@@ -492,7 +538,7 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   from 2.1c and this Record phase's own 2.1d, both in `MetalUILayoutTests`);
   `Tests/PortableTests` 21 + 6 + 5 (`TruncationDeterminismTests`, 1.11;
   corrected from a stale "20 + 6 + 5" by task 11 part 2's Record phase,
-  `TE-AV`, record §60 §6 — `PortableTextDeterminismTests.swift`'s
+  `TE-AV`, record §61 §6 — `PortableTextDeterminismTests.swift`'s
   pre-existing 18 plus `TruncationDeterminismTests.swift`'s 3 is 21).
   **Plan task 11's box stays unticked here**: part 2 (shapes, images, fills/
   strokes, overlays, clipping) is the next run. History: record §59.
@@ -1844,7 +1890,8 @@ internal `Handlers.valueTrack` — the tenth member, `TI-B`'s precedent — for 
 `Slider`'s press/drag, dispatched by `Window` ahead of click dispatch and
 riding the same hitbox, so `.disabled`/`allowsHitTesting(false)` remove it
 too); `isFocusable` set on every one of them (**a click still does not focus
-any of them**, `List`'s row click excepted — divergence 80: SwiftUI's own
+any of them**, `List`'s row click excepted, but Tab reaches every one,
+`TI-J` — divergence 80: SwiftUI's own
 controls take none of these keys without Full Keyboard Access, an
 unmeasured setting, so no claim is made about that state); one keyboard
 table, `ControlKeys.swift`, keyed on `TextEditing.platform` — Button
@@ -2067,10 +2114,21 @@ everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
 text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
-**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
-**except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
-`Keymap` first, then to a focused field's editing keys, then bubble raw
-`onKey` up the parent chain. `focusBorder(_:width:)` is the (opt-in) ring;
+**Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
+**except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`), and a
+selectable `List` (`DD-Z`) — and **Tab / shift-Tab (or `U+0019`) traverse**
+every focusable element in tree order, wrapping (`FocusRegistry.tabOrder`,
+`TI-J`; tabbing into a field selects its text; ⌘/⌃/⌥-Tab is not traversal).
+**Tab reaches every control too** (`Button`, `Toggle`, `Slider`, `Stepper`,
+`Picker`, a selectable `List` — all focusable, `DD-T`): AppKit's Tab with
+keyboard navigation on, since MetalUI reads no system setting — inside
+divergence 80's scope, `TI-J`'s merge amendment, record §60 §Merge. Keys go
+to the `Keymap` first, then to a focused field's editing keys, then bubble raw
+`onKey` up the parent chain (a control's own `ControlKeys` run there, after a
+caller's `onKey` declines), and only then does an unclaimed Tab traverse — so
+a binding or `onKey` for Tab wins, and no control claims it. `onKey` bubbles
+from the focused element, so with nothing focused it sees nothing.
+`focusBorder(_:width:)` is the (opt-in) ring;
 background and border resolve `focus ?? hover ?? plain`.
 
 **Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** and
@@ -2101,7 +2159,12 @@ up/down all read the same `TextLineModel`, so a caret at a wrap sits at the
 next line's start. Up and down keep a remembered column (`goalX`), and return
 inserts `\n`. Its vertical scroll follows the caret unless the wheel moved
 it (`revealsCaret`). The wheel over an editor is routed in
-`Window.applyScroll`, ahead of the opaque-hitbox stop.
+`Window.applyScroll`, ahead of the opaque-hitbox stop. **Page Up/Down
+(`TI-I`)** page an editor by its visible height less one line
+(`TextLineModel.pageHeight`, from the heights `TextEditor` hands it): on a
+Mac they scroll and leave the caret, as NSTextView does; elsewhere they move
+the caret that many lines at its column. `TextField` does not claim them, and
+neither field claims Tab.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
@@ -2255,7 +2318,7 @@ belongs to one `Renderer`, shared across every window by `AppKitPlatform`
 (`RS-C`); two windows showing different images evict each other's texture
 every frame — no production code draws an image yet, so nothing regresses,
 but a future multi-window image consumer needs its own answer here (record
-§60 §6 item 4, owner: before one ships). `Scene.finalize()` breaks an image
+§61 §6 item 4, owner: before one ships). `Scene.finalize()` breaks an image
 run where the texture changes, so the run count stays the draw-call count.
 
 **Animation (`AN-`).** `withAnimation` writes `pendingTransaction` (lexical)

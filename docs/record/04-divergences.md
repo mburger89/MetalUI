@@ -1853,3 +1853,18 @@ middle-truncated label may show fewer characters at some widths (87); a
 silently (88, `TE-K` item 4's own point); a paragraph above a `Spacer` in a
 short stack keeps more lines than SwiftUI's and the spacer shrinks to its
 minimum (89) — nothing overflows that did not before.
+
+## 2026-09-28: 80's scope widened to Tab; no number moves (`feat/text-page` merge, `TI-J` amended)
+
+`TI-J`'s Tab traversal (record §60) met plan task 10 part 2's focusable
+controls at the merge with `master` `169d166`. Tab visits every focusable
+element, the controls included, and a control Tab focused takes its own keys.
+AppKit's documented default moves Tab only between text fields and lists
+unless keyboard navigation (Full Keyboard Access) is on; MetalUI reads no such
+setting (`DD-T` item 3), so its Tab is AppKit's with keyboard navigation on
+(and Windows' and GTK's). **Divergence 80 now covers Tab reaching a control
+as well as the control taking its keys** — same cause, same owner (plan task
+12, if it rules focus to follow the system setting), no new number. SwiftUI's
+own Tab answer is unmeasured, so no SwiftUI claim is made. Pinned by
+`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`. Live count stays
+**65** (master's figure after task 11 part 1).

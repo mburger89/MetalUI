@@ -114,7 +114,7 @@ commit that carries this section.
 - `Tests/PortableTests`: `PortableTextDeterminismTests` depends on the
   `MetalUITextSystem` product; `TruncationDeterminismTests` (1.11) pins six
   emissions recorded on macOS — the package now runs 21 + 6 + 5 (corrected
-  by record §60 §6: 18 + 3 = 21, not 20 — a slip in this section, found
+  by record §61 §6: 18 + 3 = 21, not 20 — a slip in this section, found
   while task 11 part 2 re-verified the container).
 
 ### 2.2 Rulings
@@ -179,7 +179,7 @@ portable pin green unedited. Default build system (`swift build
 A `swift:6.4-noble` (aarch64) container: the root package builds with 0
 `error:`/`warning:` and runs **188 + 10 + 22**; `Tests/PortableTests` runs
 **21 + 6 + 5** there (18 + 6 + 5 before: 1.11 and its recorder, 18 + 3 = 21 —
-corrected by record §60 §6), the six truncation pins recorded on macOS
+corrected by record §61 §6), the six truncation pins recorded on macOS
 confirmed on Linux.
 
 Mutations (each committed first at `2737835`, applied from a copy, the whole
@@ -276,7 +276,7 @@ Close: `swift build --build-system native --build-tests` 0 `error:`, the
 one deprecation `warning:`; the default build system 0 `error:`/`warning:`;
 unfiltered `swift test --build-system native --no-parallel` **`Test run with
 1657 tests in 3 suites passed`** (1656 + 1.7b), the `FR-J` line present;
-`Tests/PortableTests` 21 + 6 + 5 on macOS (corrected by record §60 §6;
+`Tests/PortableTests` 21 + 6 + 5 on macOS (corrected by record §61 §6;
 unedited pins green over the
 portable wrapping change); `MetalUILayout` imports only `MetalUICore`;
 `compare.sh` 169d166 → 42e990d, controls as recorded, **0 differing pixels,
@@ -866,7 +866,7 @@ build off Apple; lane 1's and lane 3's files
 macOS-only or CoreText-importing targets, so none of them reach
 `MetalUILayoutTests` either — the portable `TruncationDeterminismTests`
 (1.11) is `Tests/PortableTests`, a separate package, already counted in its
-own **21 + 6 + 5** (corrected by record §60 §6).
+own **21 + 6 + 5** (corrected by record §61 §6).
 `Tests/PortableTests` unaffected by the branch check (no source under
 `MetalUIPortableText`/`MetalUITextSystem` touched); unmoved at **21 + 6 + 5**
 from lane 1's close.

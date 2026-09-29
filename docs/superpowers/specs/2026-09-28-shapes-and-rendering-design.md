@@ -7,9 +7,9 @@ Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 (**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
-byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
+byte-identical to its header line). Record: `docs/record/61-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4); lane 3 landed (`TE-AU`, fix round, record §60 §5); Record phase close applied (record §60 §6) — LANDED, task 11 ticked.** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §61 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §61 §4); lane 3 landed (`TE-AU`, fix round, record §61 §5); Record phase close applied (record §61 §6) — LANDED, task 11 ticked.** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -380,7 +380,7 @@ counts** after a lane changes a public type crossing a module boundary — lane
 `PrimitiveKind`'s case; lane 2's `Decoration` field and `LayoutModifier` case;
 lane 3's `NativeNode.aspectRatio` payload and the grid anchor storage. Each lane
 appends its readings to `TE-` as a new lettered ruling (moving the "next
-unused" line) and its section to record §60.
+unused" line) and its section to record §61.
 
 ### Lane 1 — the renderer: an ellipse kind and an image primitive, on Metal and SDL
 
@@ -437,7 +437,7 @@ Before the red commit, a **census** of every test that paints a bare
 `Rectangle()` (79 `Rectangle()` spellings in `Sources`/`Tests` at `ff2ae92`,
 most in guards and layout-only tests): each one whose asserted colour moves
 from `.surface` to `.textPrimary` is a T row with its literal re-derived
-(`TE-AH`), listed in record §60.
+(`TE-AH`), listed in record §61.
 
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
@@ -532,7 +532,7 @@ Full unfiltered suite, summary line read (≈ **1756** = 1706 + 12 (lane 1)
 adding none; the `Backends/SDL` rows are outside this count; the lanes give
 the exact figure — **as landed 1762** = 1706 + 12 + (25 + 4, `TE-AT`) + (14 +
 1, `TE-AU` item 2), and **1763** after lane 3's fix round added 3.12c (record
-§60 §5, §6)), guards **108**, `FR-J` line present, 0 `error:`, one
+§61 §5, §6)), guards **108**, `FR-J` line present, 0 `error:`, one
 `warning:`; fourteen images 0 px; the probe re-run byte-identical to its
 header; `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds and tests;
 `Replay --portable` 7 frames PASS, `PortableReplay --expect 7` and
@@ -540,7 +540,7 @@ header; `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds and tests;
 (and runs its portable suites: `MetalUILayoutTests` + 1); `goldensUnchanged`:
 every T row (lane 2's `Rectangle()` census, G3.1) has its retirement row and
 no other retained test changes its answer. The Record phase writes record
-§60's close, records §03/§04/§05 dated sections (64 retired; 90–93 added; 47
+§61's close, records §03/§04/§05 dated sections (64 retired; 90–93 added; 47
 re-read and kept; §05's colour-glyph row re-read), CLAUDE.md/AGENTS.md, the
 plan's progress note — **ticking task 11 if and only if every clause above
 landed** (`TE-AP`) — and `docs/record/README.md`.

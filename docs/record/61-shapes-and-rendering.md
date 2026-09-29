@@ -1,4 +1,11 @@
-# 60 — Shapes and rendering (plan task 11, part 2)
+# 61 — Shapes and rendering (plan task 11, part 2)
+
+*Written as §60 on `feat/shapes-and-rendering` from `ff2ae92` and renumbered
+60→61 at its merge with `master` `0714528` (PR #31), because `master` had
+already published §60 (`60-text-page-and-tab.md`, `TI-I`/`TI-J`) — the same
+shape as the 24→25, 26→27, 30→38 and 53→59→60 renumberings. Every §60 this
+branch wrote was swept to §61 in the merge; master's §60 citations name the
+text-page record and stay. The merge's own close is §8 below.*
 
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
 Spec `docs/superpowers/specs/2026-09-28-shapes-and-rendering-design.md`;
@@ -749,3 +756,74 @@ compiling — the same shape as every earlier case this enum has gained.
 Task 11's tick stands: parts 1 and 2 close every clause of its text, the
 renderer constraints listed in spec §9. **Merge: yes**, with Windows
 (D3D12) parity and Linux CI to be read on push.
+
+## §8 Merge with `master` `0714528` (2026-09-29)
+
+`master` had published §60 (`60-text-page-and-tab.md`, `TI-I` Page Up/Down in
+`TextEditor` and `TI-J` Tab between inputs, PR #31) first, so this record was
+renumbered 60→61 (`git mv`, header note) and every §60 this branch wrote was
+swept to §61 — found by `git grep '§60'` at `ff2ae92`, which reads nothing,
+so every §60 in a file only this branch touched was the branch's
+(`DecorationCompileGuards.swift`, `GridCompileGuards.swift`,
+`ShapeTests.swift`, record §59, the text-semantics decisions doc, the
+alignment plan, the shapes spec, this file). In the three files both sides
+touched (`CLAUDE.md`, `AGENTS.md`, `docs/record/README.md`) only the branch's
+lines moved; master's §60 citations name the text-page record and stay:
+`CLAUDE.md`'s text-page counts paragraph and its Focus paragraph (§60
+§Merge), the README's text-page row, record §04's 2026-09-28 section, record
+§60 itself, `2026-09-25-data-and-scrolling-decisions.md`'s erratum and
+`specs/2026-09-23-text-input-design.md`.
+
+**Conflicts**: only `CLAUDE.md`/`AGENTS.md` (the counts paragraphs, kept
+both, a merged one added above them). The prefix list auto-merged with
+master's `TI-` next `TI-K` and this branch's `TE-` next `TE-AW`. No source
+file was changed by both sides: master touched `Focus.swift`,
+`TextEditing.swift`, `TextEditor.swift`, `Window.swift`; this branch none of
+those. No divergence number collides — master added none (its 04 section
+widens 80), this branch added 90–93 and retired 64; live count **68**.
+
+**Semantic check.** Tab visits every *registered* focusable element
+(`FocusRegistry.tabOrder`). `Image` and every `Shape` are proposal leaves
+registering no hitbox, focus entry or accessibility record (`Image.swift`'s
+and `Shape.swift`'s doc comments; a grep of `Image`, `ImageBitmap`, `Shape`,
+`ShapeView`, `Shapes`, `ClipShape` finds no focus or handler registration),
+and the legacy `clipShape` returns `Self` and changes paint and the hitbox's
+clip only. Pinned by a new merge test,
+`tabPassesOverImagesAndShapesAndStopsAtAFocusableClippedBox`
+(`FocusTraversalTests`): a field, a `VStack` of an `Image`, a filled `Circle`
+and a `Rectangle` clipped to a `Capsule`, an unfocusable `Box` clipped to a
+`Circle`, a `.focusable()` `Box` clipped to a `RoundedRectangle`, a field —
+the tab order reads 3 and Tab visits 0, 1, 2, 0, the middle stop not a text
+target. Control: making the unfocusable clipped box `.focusable()` reddens it
+(`tabOrder.count == 3` fails — 4), so the count discriminates. The
+`FocusTraversal`/`TextEditorTests`/`TextEditingTests` filter ran 54 tests,
+all passing, before the clean re-take.
+
+**Re-take** after `swift package clean`: `swift build --build-system native
+--build-tests` 0 `error:`, the one SwiftPM deprecation `warning:`; `swift
+build --build-tests` (default) 0 `warning:`/`error:`; unfiltered `swift test
+--build-system native --no-parallel` → **`Test run with 1773 tests in 3
+suites passed after 110.381 seconds`**, the FR-J line present. **1773 = 1715
+− 1706 + 1763 + 1** (the expected 1772 plus the merge test). Guards 108,
+goldens 0. `Expected.swift` identical to both parents;
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green.
+`docs/probes/demo-pixels/compare.sh` from `0714528` to the merge tree:
+**0 differing, scene identical, in all fourteen**.
+
+**`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`): builds with 0
+`error:` (the pre-existing `-Wl,-rpath` prohibited-flag notice and two
+`ld` SDL-dylib version notices). `swift test` lists **22 + 25** = 47 tests;
+`ReplayFixtureTests` prints `Test run with 22 tests … passed`, but
+`MetalUISDLTests`' output is **truncated** in an unfiltered run — the last
+test or two and its summary line never print, exit status 0. Measured
+**pre-existing, not the merge's**: a detached worktree at this branch's own
+tip `3296e9e` truncates the same way in three of three runs (45, 46, 46
+`passed` lines of 47). It follows
+`theRunLoopTicksLinksAndEndsWhenTheLastWindowCloses`: with it skipped the
+target prints `Test run with 24 tests in 0 suites passed`, and it alone
+prints `Test run with 1 test … passed` — so all 25 pass, read in two runs.
+§6's "Test run with 25 tests" reading is not reproduced here; the output
+loss is owed an investigation (the run loop ending the process's output
+when the last window closes is the suspect), not fixed on this branch.

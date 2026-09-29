@@ -120,7 +120,7 @@ func aGridColumnAlignmentIsAHorizontalAlignment() throws {
 /// spellings still resolve** (plan task 11, part 2, ruling `TE-AN`; divergence
 /// `GR-O` 4 / 64 retired). Inverted and renamed from `aGridCellAnchorIsNinePoint`,
 /// which asserted the fractional anchor did NOT compile (its retirement row is
-/// in record §60 §5): `gridCellAnchor(_: UnitPoint)` is now offered,
+/// in record §61 §5): `gridCellAnchor(_: UnitPoint)` is now offered,
 /// `@_disfavoredOverload` — the very spelling that guard's MG4c mutation named
 /// — so `UnitPoint(x: 0.25, y: 1)` compiles and a leading-dot `.topLeading`
 /// still resolves to the `ProposalAlignment` overload rather than going

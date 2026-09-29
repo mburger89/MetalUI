@@ -403,3 +403,52 @@ private func model(_ ranges: [Range<Int>], hard: Set<Int> = []) -> TextLineModel
                                  clipboard: { "x\r\ny" }, platform: .mac, lines: lines)
     #expect(pasted.text == "x\ny")
 }
+
+// MARK: - Page keys (TI-I)
+
+/// Twenty 10-point lines of five graphemes in a 45-point view: a page is 35
+/// points, three lines.
+private func pagedModel() -> (text: String, lines: TextLineModel) {
+    let text = (0..<20).map { _ in "abcde" }.joined(separator: "\n")
+    var lines = model((0..<20).map { $0 * 6..<($0 * 6 + 5) }, hard: Set(0..<19))
+    lines.lineHeight = 10
+    lines.visibleHeight = 45
+    return (text, lines)
+}
+
+@Test func offApplePageKeysMoveTheCaretAPageAtItsColumn() {
+    let (text, lines) = pagedModel()
+    #expect(lines.linesPerPage == 3 && lines.pageHeight == 35 && lines.maxScrollY == 155)
+    var state = TextEditState()
+    state.anchor = 2; state.head = 2
+    func press(_ name: String, _ mods: Modifiers = []) {
+        state = TextEditing.key(key(name, mods), text: text, state: state, clipboard: { nil },
+                                platform: .other, lines: lines).state
+    }
+    press(TextEditing.pageDown)
+    #expect(state.head == 3 * 6 + 2 && state.revealsCaret, "three lines down, same column")
+    press(TextEditing.pageDown, .shift)
+    #expect(state.anchor == 20 && state.head == 6 * 6 + 2, "shift extends")
+    press(TextEditing.pageUp); press(TextEditing.pageUp); press(TextEditing.pageUp)
+    #expect(state.head == 0, "past the first line: the start")
+}
+
+@Test func onAMacPageKeysScrollAndLeaveTheCaret() {
+    let (text, lines) = pagedModel()
+    var state = TextEditState()
+    state.anchor = 2; state.head = 2
+    func press(_ name: String) {
+        state = TextEditing.key(key(name), text: text, state: state, clipboard: { nil },
+                                platform: .mac, lines: lines).state
+    }
+    press(TextEditing.pageDown)
+    #expect(state.head == 2 && state.scrollY == 35 && !state.revealsCaret)
+    for _ in 0..<10 { press(TextEditing.pageDown) }
+    #expect(state.scrollY == 155, "clamped at the content's end")
+    press(TextEditing.pageUp)
+    #expect(state.scrollY == 120 && state.head == 2)
+    // A single-line field does not claim them.
+    let single = TextEditing.key(key(TextEditing.pageDown), text: "abc", state: TextEditState(),
+                                 clipboard: { nil }, platform: .mac)
+    #expect(!single.handled)
+}

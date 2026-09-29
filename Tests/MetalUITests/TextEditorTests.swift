@@ -199,3 +199,59 @@ private func caret(_ platform: FakePlatformWindow) throws -> Bounds<Pixels> {
     #expect(abs(Double(content.size.height.value) - 3 * u.lineHeight) < 0.01,
             "three lines tall: \(content.size.height.value) vs \(3 * u.lineHeight)")
 }
+
+/// TI-I through a real `Window`: the editor hands the page keys its visible
+/// height. On a Mac Page Down scrolls a page and leaves the caret; elsewhere
+/// it moves the caret a page and scrolls to it.
+@Test @MainActor func pageDownPagesTheEditor() throws {
+    let notes = Notes((1...40).map { "line \($0)" }.joined(separator: "\n"))
+    let (window, platform) = try editorWindow(notes, size: 120)
+    window.drawFrameIfNeeded()
+    var (bounds, t) = try target(window)
+    let lines = try #require(t.lines)
+    #expect(lines.visibleHeight == Double(bounds.size.height.value) && lines.lineHeight == t.lineHeight)
+    // At the left edge: "l" is narrower than 2 points' offset from it.
+    platform.simulateInput(down(bounds.origin.x.value, bounds.origin.y.value + 2))
+    platform.simulateInput(up(bounds.origin.x.value, bounds.origin.y.value + 2))
+    window.drawFrameIfNeeded()
+    let caretBefore = try caret(platform)
+    platform.simulateInput(key(TextEditing.pageDown))
+    window.drawFrameIfNeeded()
+    (bounds, t) = try target(window)
+    let scrolled = Double(bounds.origin.y.value) - t.originY
+    if TextEditing.platform == .mac {
+        #expect(abs(scrolled - lines.pageHeight) < 0.01, "scrolled a page: \(scrolled)")
+        platform.simulateInput(.textInput("x"))
+        #expect(notes.text.hasPrefix("xline 1\n"), "the caret stayed at the start: \(notes.text.prefix(30).debugDescription)")
+    } else {
+        #expect(try caret(platform).origin.y.value > caretBefore.origin.y.value)
+        platform.simulateInput(.textInput("x"))
+        #expect(notes.text.contains("\nxline \(1 + lines.linesPerPage)\n"))
+    }
+}
+
+/// The merge with plan task 11 part 1 (`TE-F` item 2): the editor's font now
+/// resolves through the environment, so `.controlSize(_:)` on a container
+/// changes its default font (`.mini` is 9 pt; `.large` is 13 pt, as regular). A page (TI-I) is measured in that font's lines —
+/// the heights the editor hands the page keys come from the resolved face, not
+/// a fixed 13-point one.
+@Test @MainActor func aPageIsMeasuredInTheEnvironmentsResolvedFont() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    func pageModel(_ size: ControlSize) throws -> (TextLineModel, Double) {
+        let notes = Notes((1...40).map { "line \($0)" }.joined(separator: "\n"))
+        let (window, _) = try makeFakeWindow(device: device, size: 160) {
+            Box { Box { TextEditor("Notes", text: notes.text) { notes.text = $0 } }.controlSize(size) }
+        }
+        window.drawFrameIfNeeded()
+        let (bounds, t) = try target(window)
+        let lines = try #require(t.lines)
+        #expect(lines.visibleHeight == Double(bounds.size.height.value))
+        return (lines, t.lineHeight)
+    }
+    let (regular, regularLine) = try pageModel(.regular)
+    let (mini, miniLine) = try pageModel(.mini)
+    try #require(miniLine < regularLine, "the mini control size's default font (9 pt) is shorter: \(miniLine) vs \(regularLine)")
+    #expect(regular.lineHeight == regularLine && mini.lineHeight == miniLine)
+    #expect(mini.pageHeight == mini.visibleHeight - miniLine)
+    #expect(mini.linesPerPage > regular.linesPerPage, "\(mini.linesPerPage) vs \(regular.linesPerPage)")
+}

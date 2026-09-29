@@ -166,7 +166,7 @@ func theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule() throws {
 /// `ElementGroup` — where a proposal element sees it too — makes the `crossed`
 /// fixture compile, the two fixtures agree, and the `#require` fires.
 ///
-/// **Re-answered by plan task 11 part 2 (a T row, `TE-AJ` item 1; record §60
+/// **Re-answered by plan task 11 part 2 (a T row, `TE-AJ` item 1; record §61
 /// §4):** `clipped()` is no longer legacy-only — SwiftUI's `.clipped()` exists
 /// on the proposal path too (probe C3), as `.clip()`. So `HStack { … }.clipped()`
 /// now compiles and moves into `both`'s proposal half (still inferring the
