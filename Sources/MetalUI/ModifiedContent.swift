@@ -528,6 +528,12 @@ extension LayoutModifier: ModifierLayerKind {
                 result = inside()
             }
             return result!
+        case .clipShape:
+            var result: R?
+            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
+                result = inside()
+            }
+            return result!
         default:
             return inside()
         }
@@ -546,6 +552,8 @@ extension LayoutModifier: ModifierLayerKind {
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: Corners(all: cornerRadius), inside)
+        case .clipShape:
+            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)), inside)
         case let .border(token, width, cornerRadius):
             inside()
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
@@ -596,7 +604,7 @@ extension LayoutModifier: ModifierLayerKind {
             return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
         case let .layoutPriority(priority):
             return pass.requestNativeLayoutPriority(child: child, priority: priority)
-        case .background, .clip, .border, .opacity, .allowsHitTesting:
+        case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

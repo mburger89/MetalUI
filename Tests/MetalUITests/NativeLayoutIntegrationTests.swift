@@ -598,7 +598,7 @@ private struct NativeProposalProbe: ProposalElement {
             SizeD(width: 10, height: 80))
 
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var root = ZStack { Rectangle(color: .accent) }
+    var root = ZStack { Rectangle().fill(.accent) }
     frame.render(&root)
     let rect = frame.finalizedScene().rects[0]
     #expect(rect.bounds.size.width == 100)

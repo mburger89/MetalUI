@@ -439,17 +439,26 @@ public struct Spacer: Element {
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// A proposal-responsive rectangular shape for the native-layout migration.
+/// SwiftUI's `Rectangle`, a ``Shape`` since plan task 11 part 2 (`TE-AH`).
 ///
 /// Its no-argument form follows SwiftUI's `Rectangle`: it responds with the
 /// concrete dimensions a parent proposes and uses a 10pt ideal on an
-/// unspecified axis. `init(width:height:color:)` remains the explicit fixed
-/// leaf convenience used by the existing migration preview and tests.
-public struct Rectangle: Element {
+/// unspecified axis (probe S1), and it fills with the foreground style
+/// (`foregroundStyle ?? .textPrimary`, probes F1, F2). `init(width:height:color:)`
+/// remains the explicit fixed leaf convenience used by the existing migration
+/// preview and tests, and keeps its `.surface` default.
+///
+/// **`color` is `ColorToken?` since plan task 11 part 2** (`TE-AQ` item 2, a
+/// ruled public break): `nil` is the foreground style, which a bare
+/// `Rectangle()` stores. **Migration**: a reader writes `rect.color ?? token`;
+/// a writer is unchanged. A ``ShapeView``'s layers never read it.
+public struct Rectangle: Shape, Hashable {
     public var width: Pixels
     public var height: Pixels
-    public var color: ColorToken
+    public var color: ColorToken?
     private var respondsToProposal: Bool
+
+    public typealias Layout = ShapeLayout
 
     public init(width: Pixels, height: Pixels, color: ColorToken = .surface) {
         self.width = width
@@ -458,17 +467,34 @@ public struct Rectangle: Element {
         respondsToProposal = false
     }
 
-    public init(color: ColorToken = .surface) {
+    /// A rectangle that answers its proposal and fills with the foreground
+    /// style.
+    public init() {
+        width = Pixels(10)
+        height = Pixels(10)
+        color = .surface
+        respondsToProposal = true
+    }
+
+    /// A proposal-responsive rectangle filled with `color`.
+    public init(color: ColorToken) {
         width = Pixels(10)
         height = Pixels(10)
         self.color = color
         respondsToProposal = true
     }
 
-    public struct Layout { var node: LayoutNodeID }
+    public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
+        .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(0)))
+    }
+
+    public nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD {
+        Self.measurement(for: proposal, width: Double(width.value), height: Double(height.value),
+                         respondsToProposal: respondsToProposal).size
+    }
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
-                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+                                               pass: inout LayoutPass) -> (ProposalNodeID, ShapeLayout) {
         let width = Double(width.value)
         let height = Double(height.value)
         let respondsToProposal = respondsToProposal
@@ -476,7 +502,7 @@ public struct Rectangle: Element {
             Self.measurement(for: proposal, width: width, height: height,
                              respondsToProposal: respondsToProposal)
         }
-        return (node, Layout(node: node.layoutNodeID))
+        return (node, ShapeLayout(node: node.layoutNodeID))
     }
 
     nonisolated static func measurement(for proposal: ProposedSize, width: Double = 10,
@@ -490,11 +516,11 @@ public struct Rectangle: Element {
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Layout, pass: inout PrepaintPass) {}
+                                  layout: inout ShapeLayout, pass: inout PrepaintPass) {}
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
-        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
+                               layout: inout ShapeLayout, prepaint: inout Void, pass: inout PaintPass) {
+        paintShapeFill(geometry(in: bounds), token: color, pass: pass)
     }
 }
 

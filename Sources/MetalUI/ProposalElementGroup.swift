@@ -176,7 +176,7 @@ extension Padding: ProposalElement {}
 extension Background: ProposalElement {}
 extension FixedSize: ProposalElement {}
 extension Spacer: ProposalElement {}
-extension Rectangle: ProposalElement {}
+// `Rectangle` is a `ProposalElement` through `Shape` (plan task 11 part 2, `TE-AH`).
 extension Color: ProposalElement {}
 // `ModifiedContent` is a `ProposalElement` only over the proposal vocabulary,
 // declared with it in `ModifiedContent.swift` (ruling `LR-FV` item 2).
