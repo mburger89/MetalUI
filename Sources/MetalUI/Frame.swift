@@ -1159,17 +1159,28 @@ public final class Frame {
             // crash, and not reachable without an explicit `Window.focus` call
             // on an ENABLED, produced, non-focusable element.
             //
+            // **Since plan task 12 part 1 (`IX-I`) only an UNEVALUATED subtree
+            // reaches it.** `$focus` is no longer exempt from the evaluated
+            // resets (`ID-C`'s removed conditional, `DD-C`'s dropped loop tail,
+            // `ID-R`'s departed name), so an `x` removed by an `if` loses the
+            // stray slot with the rest of its entries in that frame's `sweep()`
+            // and the second request is cleared. What still keeps the slot is
+            // a subtree nothing evaluates — a `List` row out of its window
+            // (`TB-AH`) — so the hazard survives on exactly that route (`IX-T`).
+            //
             // **`.disabled` does not reach it** (ruling EV-F, critic finding 7):
             // every `.focusable()` element under `.disabled` is non-focusable,
             // so without the `if enabled` below a focus request on one would
-            // write the slot, and removing the element and focusing its id
+            // write the slot, and windowing the row out and focusing its id
             // again would stick. The write is gated on `enabled` alone — not on
             // `isKeyTarget`, which is the general fix below and a focus-contract
             // change — and `focusedElementProducedThisFrame` above stays
             // ungated, so the pre-existing hazard is exactly as reachable as it
             // was. Pinned both ways by
-            // `aFocusRequestWhileDisabledLeavesNoRetentionSlot`: its disabled arm
-            // leaves no slot, its instrument arm (enabled, not focusable) sticks.
+            // `aFocusRequestWhileDisabledLeavesNoRetentionSlot`, over a `List`
+            // row windowed out of its scroller (re-derived at `IX-T` from the
+            // `if` route `IX-I` closed): its disabled arm leaves no slot, its
+            // instrument arm (enabled, not focusable) sticks.
             //
             // **Deliberately not fixed, and the reason is the SHAPE of the fix
             // rather than its size.** The obvious patch — gate this write on
@@ -1615,29 +1626,31 @@ public final class Frame {
     /// behaviour an ordinary tree gets — and three consequences follow that
     /// nobody designed in.** The reap runs only on a sweep where
     /// `storage.count` exceeds `StateTable.sweepThreshold` (**256**), so below
-    /// that the `$focus` slot is never reaped and focus on a permanently
-    /// removed element is retained **indefinitely**. All three measured through
-    /// a real `Window` on 2026-09-02:
+    /// that a retained `$focus` slot is never reaped. All three were measured
+    /// through a real `Window` on 2026-09-02, when an `if` was the route; **since
+    /// plan task 12 part 1 (`IX-I`) they hold only for a subtree nothing
+    /// evaluates** — a `List` row out of its window (`TB-AH`). An element an
+    /// evaluated reset removes (an `if`, a loop's dropped tail, a departed
+    /// `.id`) loses its `$focus` slot in that frame's `sweep()` — `$focus` is
+    /// no longer exempt — and `render` clears focus in the same frame, right
+    /// after the sweep (`StateTable.resetFocusSlots`; probe arm F2: SwiftUI
+    /// drops focus and does not restore it). Pinned by
+    /// `focusDropsWhenAnIfRemovesItsElement` (renamed from
+    /// `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`).
     ///
-    /// 1. **Retained indefinitely.** Focus an element behind an `if`, remove
-    ///    it, render **60** more frames — `focusedElement` is still that id.
-    ///    Intended per design spec §5; the indefiniteness is what §5 did not
-    ///    say, and it is CLAUDE.md divergence 18's mechanism seen from the
-    ///    focus side rather than the `@State` side.
-    /// 2. **The dismissed subtree's still-produced ANCESTORS keep claiming its
-    ///    keystrokes**, and this is the consequence with no pin.
-    ///    `focusChain(from:)` walks the retained id's parent chain; those
-    ///    ancestors are produced and registered, so an ancestor's `onKey` and
-    ///    `keyContext` stay live for a subtree the user dismissed. Measured
-    ///    with a root carrying `onKey`: a keystroke after removal runs the
-    ///    ancestor's handler, where before this milestone it fell through to
-    ///    `Window.onInput`. **`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
-    ///    does not catch it, by accident rather than by design** — it asserts
-    ///    `raw == ["window"]`, which reads as "the event reached the window",
-    ///    and only holds because that fixture's ancestors carry no `onKey`.
-    /// 3. **Focus is RESTORED on return** — 60 absent frames, bring the element
-    ///    back, and its own `onKey` runs again. That half is divergence 17's
-    ///    closure working as intended.
+    /// 1. **Retained indefinitely, while unevaluated.** A focused `List` row
+    ///    windowed out keeps focus for as long as its slot survives — below
+    ///    the threshold, indefinitely.
+    /// 2. **The unevaluated subtree's still-produced ANCESTORS keep claiming
+    ///    its keystrokes.** `focusChain(from:)` walks the retained id's parent
+    ///    chain; those ancestors are produced and registered, so an ancestor's
+    ///    `onKey` and `keyContext` stay live while the row is out of its
+    ///    window. (Through an `if` this no longer happens: focus is `nil` by
+    ///    the end of the frame that removed the element, so a keystroke
+    ///    reaches `Window.onInput`.)
+    /// 3. **Focus is RESTORED on return** from the window —
+    ///    `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`. Through
+    ///    an `if` it is not (`IX-I`).
     ///
     /// **All three require a CONFIRMING FRAME, which is easy to trip over.**
     /// `registerHandlers` writes the `$focus` slot only while the focused id is

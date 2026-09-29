@@ -101,7 +101,6 @@ struct FocusRegistry {
         if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
     }
 
-    /// The first shortcut in tree order that `event` matches, and its owner.
     /// A hidden element's keyboard shortcut, and nothing else of its keyboard
     /// asks (plan task 12 part 1, `IX-K` item 3; arm X1).
     mutating func registerShortcut(_ handlers: Handlers, id: GlobalElementID) {
@@ -135,6 +134,7 @@ struct FocusRegistry {
     private var focusBindings: [GlobalElementID: (slot: GlobalElementID, value: AnyHashable)] = [:]
     private var focusBindingOwners: [FocusBindingKey: GlobalElementID] = [:]
 
+    /// The first shortcut in tree order that `event` matches, and its owner.
     func shortcut(matching event: KeyEvent) -> (GlobalElementID, ShortcutTarget)? {
         shortcuts.first { $0.target.shortcut.matches(event) }.map { ($0.id, $0.target) }
     }

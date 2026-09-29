@@ -762,8 +762,8 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 }
 
 /// **D13.** A focus request on a disabled element leaves no `$focus`
-/// retention slot (ruling EV-F), so after the element is removed a second
-/// request on its id does not stick.
+/// retention slot (ruling EV-F), so after the element stops being produced a
+/// second request on its id does not stick.
 ///
 /// **Instrument arm, PINNED WRONG ON PURPOSE**: the same sequence on an enabled
 /// element that is merely NOT `.focusable()` DOES stick — the known hazard in
@@ -772,42 +772,69 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// instrument can see a sticky focus; `.disabled` does not reach that hazard
 /// because the slot write is gated on `isEnabled`.
 ///
+/// **Re-derived onto a `List` row windowed out of its scroller** (plan task 12
+/// part 1, ruling `IX-T`, a T row naming `IX-I`). Until `IX-I` both arms
+/// removed the element with an `if`; `IX-I` no longer exempts `$focus` from
+/// the evaluated reset, so the `if` deletes the stray slot with the element and
+/// the instrument arm could no longer see the hazard (`IX-S`). The hazard now
+/// survives only for a subtree nothing evaluates — a `List` row out of its
+/// window keeps every entry under it (`TB-AH`) — so both arms take that route:
+/// the row is asked for focus while produced (offset 80 windows rows 2..<7
+/// with `visibleRange`'s overscan of 2), windowed out for two frames (offset 0
+/// windows 0..<3), then asked for focus again while still out. Driven through
+/// `Frame` directly, threading `focusedElement` forward exactly as `Window`
+/// does (`aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`'s idiom).
+///
 /// Both arms stay below `StateTable.sweepThreshold`, where a slot is never
 /// reaped (`try #require`d, or a reap would hide the difference).
 @MainActor
 @Test func aFocusRequestWhileDisabledLeavesNoRetentionSlot() throws {
-    let device = try device()
+    let data = (0..<12).map { Datum(id: $0) }
+    let index = 4
+    let scrollerID = GlobalElementID.child(of: nil, at: 0, name: ElementID("scroller"))
+    let listID = GlobalElementID.child(of: scrollerID, at: 0, name: nil)
+    let rowBox = GlobalElementID.child(of: listID, at: 0, name: ElementID(String(describing: data[index].id)))
+    // Each row is a `Box` wrapping the subject (a `.disabled` scope is an
+    // `EnvironmentScope`, not an `Element`), so the subject is the row
+    // content's child 0.
+    let target = GlobalElementID.child(of: GlobalElementID.child(of: rowBox, at: 0, name: nil), at: 0, name: nil)
 
-    func secondRequestSticks<Root: Element>(
-        _ content: @escaping @MainActor (FlagModel, ProbeLog) -> Root) throws -> Bool {
-        let model = FlagModel()
-        let probes = ProbeLog()
-        let (window, _) = try makeFakeWindow(device: device, size: 100) { content(model, probes) }
-        window.drawFrameIfNeeded()
-        let id = try #require(probes.ids["x"])
-        window.focus(id)
-        window.drawFrameIfNeeded()
-        try #require(window.focusedElement == nil, "produced but not focusable: the first request is cleared")
-
-        model.present = false
-        redraw(window)
-        window.focus(id)
-        window.drawFrameIfNeeded()
-        try #require(window.stateTable.count < StateTable.sweepThreshold)
-        return window.focusedElement == id
-    }
-
-    let hazard = try secondRequestSticks { model, probes in
-        Row { if model.present { TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20))) } }
-    }
-    #expect(hazard, "instrument (pinned wrong on purpose): a non-focusable enabled element's slot makes the second request stick")
-
-    let disabled = try secondRequestSticks { model, probes in
-        Row {
-            if model.present {
-                TargetProbe("x", probes, Box().cssWidth(px(20)).cssHeight(px(20)).focusable()).disabled(true)
-            }
+    func secondRequestSticks<RowContent: Element>(_ row: @escaping @MainActor () -> RowContent) throws -> Bool {
+        let table = StateTable()
+        var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+            List(data, rowHeight: px(20)) { _ in row() }
         }
+        var focus: GlobalElementID?
+        func render(offset: Double?) {
+            if let offset {
+                let current = table.peek(scrollerID, as: ScrollState.self) ?? ScrollState()
+                table.write(scrollerID, ScrollState(offset: offset,
+                                                    lastScrollTime: current.lastScrollTime,
+                                                    viewportExtent: current.viewportExtent))
+            }
+            let frame = Frame(contentSize: Size(width: px(100), height: px(20)), scaleFactor: 1,
+                              stateTable: table, focusedElement: focus)
+            frame.render(&tree)
+            focus = frame.focusedElement
+        }
+
+        render(offset: nil)                 // cold: every row built (MP-I)
+        focus = target
+        render(offset: 80)                  // row 4 produced: the first request
+        try #require(focus == nil, "produced but not focusable: the first request is cleared")
+        render(offset: 0)                   // windowed out, not reset (TB-AH)
+        render(offset: 0)
+        focus = target
+        render(offset: 0)                   // the second request, row 4 still out
+        try #require(table.count < StateTable.sweepThreshold)
+        return focus == target
+    }
+
+    let hazard = try secondRequestSticks { Box { Box().cssWidth(px(20)).cssHeight(px(20)) } }
+    #expect(hazard, "instrument (pinned wrong on purpose): a non-focusable enabled row's slot makes the second request stick")
+
+    let disabled = try secondRequestSticks {
+        Box { Box().cssWidth(px(20)).cssHeight(px(20)).focusable().disabled(true) }
     }
     #expect(!disabled, "a disabled element must leave no $focus slot, so the second request does not stick")
 }
