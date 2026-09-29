@@ -1,9 +1,15 @@
 # Text semantics decisions (plan task 11, part 1)
 
 Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-semantics-design.md),
-on `feat/text-semantics` from `169d166`. Ids are **lettered**, `TE-A`…`TE-AB`;
-next unused is **`TE-AC`**. A bare `TE-3` is a typo, not a citation. **A round
-that appends a ruling moves this line in the same commit.**
+on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
+[`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
+on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
+are **lettered**, `TE-A`…`TE-AP`; next unused is **`TE-AQ`**. A bare `TE-3` is
+a typo, not a citation. **A round that appends a ruling moves this line in the
+same commit.**
+
+**Part 2 status, 2026-09-29: DESIGNED** (`TE-AC`…`TE-AP`; three lanes, not
+yet run).
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -1369,3 +1375,396 @@ red). Live divergence count and spec row totals are unmoved. Next unused
 would place a row's cells correctly but report the wrong baseline for it
 under a baseline-aligned `HStack`; nothing in the demo or the repo's trees
 reaches this today.
+
+---
+
+# Part 2 — shapes and rendering (`TE-AC` onward)
+
+**Evidence, cited below by arm id:** `docs/probes/swiftui-shapes-and-rendering.swift`
+(**new**, revision 2, 2026-09-29): groups P (controls: the ink reader
+separates a 100×60 from a 60×60 fill and from nothing; the recording `Layout`
+separates a fixed leaf from `Color` at every proposal), S (shape sizing and
+placement), F (fill defaults), K (strokes), C (clipping), O (overlays and
+backgrounds), I (images), A (`aspectRatio(nil)`). Headless — `ImageRenderer`
+at scale 1 and a recording `Layout`, no window ordered front; screen locked;
+compiled twice and interpreted once, byte-identical, 77 lines.
+`docs/probes/swiftui-grid.swift` GL14 (grids track), re-read, not re-run.
+
+---
+
+## TE-AC — part 2's scope: every item re-owned to it, and three lanes
+
+**The collection** (`TE-O`'s table, re-grepped 2026-09-29 for `task 11` over
+`docs/superpowers/`, `docs/record/`, `Sources/`, `Tests/`, filtered to plan
+task 11 and to what part 1 did not dispose of — divergence 77 is `TE-G`'s,
+76's remainder `TE-F`'s): the disposition table in spec §3. Every row is
+built, kept with a reason, or re-owned with an owner that has the item in its
+own text (plan task 12: accessibility, content shapes).
+
+**Three lanes, run in order 1, 2, 3**: **1** the renderer (an ellipse kind on
+`MUIRect`, an image primitive, both renderers, the parity harness, the paint
+API); **2** the `Shape` surface, fill/stroke, clipping and backgrounds in a
+shape (consumes lane 1's ellipse kind); **3** `Image`, `aspectRatio(nil)` and
+the `UnitPoint` grid anchor (consumes lane 1's image primitive). Shared
+files are named in spec §8; lanes run one at a time.
+
+**Cost if wrong.** An item missed here is found by plan task 15's inventory;
+the grep is re-runnable.
+
+---
+
+## TE-AD — what the renderer can draw decides the surface; two capabilities are added, the rest are constraints
+
+**Evidence.** Inventory at `ff2ae92` (spec §2): `MUIRect`'s SDF draws a
+rounded rectangle with **circular** per-corner radii, a per-edge border
+**inside** the bounds and a rounded-rect mask; `MUIGlyph` draws a tinted R8
+sprite. S2, S3, K1–K7, K10–K12 and C1–C4, C7 are all within that primitive
+once corner radii are derived from the frame (a `Circle` is a centred square
+of radius side/2, a `Capsule` a rounded rect of radius shorter/2, S3 0 px each
+against `RoundedRectangle(…, .circular)`); S2's `Ellipse`, K8's ellipse band,
+C5's ellipse clip, I1–I12's textures are not.
+
+**The ruling.**
+
+1. **Add an ellipse shape kind** to `MUIRect` in its unused `_reserved` word
+   (renamed `shape`): the stride stays 128, `replay.hlsl`'s 8-lane packing
+   stays, every scene recorded before this reads shape 0 (a rounded rect), so
+   `Expected.swift` and the replay fixtures' rect bytes do not move.
+2. **Add an image primitive** (`MUIImage`, `PrimitiveKind.image`) sampling an
+   RGBA8 texture carried by the `Scene` (`TE-AF`).
+3. **Everything else in spec §9 is a documented renderer constraint**, not an
+   approximation drawn silently: continuous corners (divergence 90), an
+   ellipse clip (91, a trap), crossing rounded clips (92), `.high`
+   interpolation (93), and the not-offered spellings (`Path`, gradients,
+   `StrokeStyle`, `cornerSize:`).
+
+**Why not more.** Continuous corners need Apple's curve, which has no closed
+form the SDF can carry, and S3 shows it differs by 196 px at r = 20 — a
+drawn approximation would be a second, unmeasured divergence. A path
+primitive is a tessellator or a coverage rasterizer, a milestone by itself.
+An ellipse mask on every primitive (three structs, two shaders, and a mask
+intersection with no exact answer) buys one spelling (`clipShape(Ellipse())`)
+the task does not name.
+
+**Cost if wrong.** A renderer that could have drawn a constraint exactly is
+one later primitive's work; nothing drawn now is wrong without a numbered row.
+
+---
+
+## TE-AE — the ellipse kind: exact distance, SwiftUI's inset-ellipse band
+
+**Evidence.** K8: SwiftUI's `Ellipse().strokeBorder(10)` on 100×60 differs
+from "the ellipse minus a concentric 80×40 ellipse" by **518 px** of 2444 —
+`strokeBorder` is `inset(by: w/2).stroke(w)`, and the offset curve of an
+ellipse is not an ellipse. K7/K6: `stroke(w)` equals `strokeBorder(w)` over
+the shape grown by `w/2` (0 px, circle and rounded rect); for an ellipse this
+is true by construction (the inset of the outset rect is the original).
+
+**The ruling.** Shape 1 draws, with `h` the half size and `w =
+borderWidths.top`: the fill region `d(p, h) ≤ 0`; for `w > 0`, the **band**
+`|d(p, h − w/2)| ≤ w/2` in the border colour and the region inside its inner
+edge in the background colour; `d` is the **exact** signed distance to an
+ellipse (a closed-form or a fixed-iteration solver — one algorithm, the same
+in MSL and HLSL — with a circle branch when the axes agree within 1e-4, where
+the closed form divides by zero). Coverage uses the rect edge's half-pixel
+threshold. `cornerRadii` is ignored for shape 1. A stroke is shape 1 over the
+outset bounds (spec §5).
+
+**Cost if wrong.** An approximate distance (`f/|∇f|`) would draw K8's
+concentric-looking band on thick strokes — the 518 px the probe separates;
+test 1.2 is the instrument that tells the two apart.
+
+---
+
+## TE-AF — the image primitive: textures ride in the `Scene`, cached by identity, released when absent
+
+**The ruling.**
+
+1. `MUIImage` = bounds, content mask and its radii, `opacity`, `texture`
+   (index into `Scene.textures`), `filter` (0 linear, 1 nearest), `order`,
+   `_reserved` — 64 bytes. No source rectangle: an image always samples its
+   whole texture, and a `.fill` image's overflow is cut by the mask, not by
+   UVs (I10: SwiftUI draws the whole image unless clipped).
+2. `ImageTexture` (`MetalUIScene`, imports nothing new): an immutable
+   `final class`, width, height, **premultiplied** RGBA8 in sRGB gamma space
+   (no linearization, spec §7.8; I12's half-alpha red over white reads
+   (255,127,127), the premultiplied source-over answer).
+3. **The `Scene` carries its textures**, so `WindowRenderer.finishFrame(scene:
+   atlas:)` keeps its signature (`RS-A`) and neither renderer can receive an
+   image without its pixels. Each renderer caches one GPU texture per
+   `ImageTexture` identity, the cache holding the object strongly (an
+   `ObjectIdentifier` cannot be reused while its object lives), and releases
+   every entry the frame's scene does not reference — unlike the grow-only
+   glyph atlas, an image stream (a changing bitmap every frame) must not
+   accumulate.
+4. `finalize()` breaks an image run where the texture changes, so the run
+   count stays the draw-call count (`DrawListTests`' promise); `isEmpty` reads
+   all three arrays (the hazard `aSceneHoldingOnlyAGlyphIsNotEmpty` names).
+5. Sampling: linear with clamped edges is the default (I8: SwiftUI's default
+   row is exactly bilinear with texel centres at 25 and 75 of a 2-texel image
+   over 100 px, equal to `.low` and `.medium`, I11); nearest is a texel
+   **read** (`texture.read`/`Texture2D.Load`), so SDL needs no second sampler
+   binding.
+6. Parity is the replay harness's: fixture **version 2** carries image
+   records and textures; `Experiments/SDLGPU` records **frame 6**; CI's two
+   `--expect 6` become 7. Inside image quads the tolerance is the glyph one
+   (≤ 8, the same sub-texel filter-weight reason `ParityTolerance` records),
+   outside ≤ 1.
+
+**Cost if wrong.** A texture cache keyed by anything weaker than a retained
+identity can hand a new bitmap an old texture after deallocation — a wrong
+image with no error; 1.9 pins eviction, and holding the object pins the key.
+
+---
+
+## TE-AG — `Shape`: SwiftUI's protocol, its `path(in:)` narrowed to what the renderer draws
+
+**Evidence.** S1: every built-in answers its proposal, nil → 10; `Circle`
+answers the square of the smaller side (100×60 → 60×60; 100×nil → 100×100).
+S2: a `Circle` in 100×60 draws at x 20…80; tall 40×90 at y 25…65. S4: a
+radius clamps to half the shorter side (RR(50) on 100×60 = `Capsule`, 0 px);
+S5: a negative radius is 0. S3: `RoundedRectangle`'s and `Capsule`'s default
+style is `.continuous` (default vs `.continuous` 0 px, vs `.circular` 196 px
+at r 20; `Capsule` 230 px).
+
+**The ruling.**
+
+1. `public protocol Shape: Element` with `geometry(in:) -> ShapeGeometry` —
+   SwiftUI's `path(in:)` narrowed to the two geometries the renderer draws
+   (`.roundedRectangle(_:cornerRadii:style:)`, `.ellipse(_:)`) — and
+   `sizeThatFits(_:)` defaulting to S1's rule. An outside type conforms with
+   `geometry(in:)` alone (guard G2.1). No `Path` type (spec §9).
+2. `RoundedRectangle(cornerRadius:style:)`, `Circle()`, `Capsule(style:)`,
+   `Ellipse()`; `RoundedCornerStyle { circular, continuous }`, **default
+   `.continuous`**, SwiftUI's spelling and default. `.continuous` is drawn
+   circular: **divergence 90** (kept, owner none; pinned by 2.14).
+   `cornerSize:` (elliptical corners) and `UnevenRoundedRectangle` are not
+   offered (the second is drawable; the task does not name it).
+3. **`strokeBorder` is offered on every `Shape`**, where SwiftUI requires
+   `InsettableShape`: every geometry MetalUI can draw is insettable, so the
+   superset rejects nothing SwiftUI accepts.
+
+**Cost if wrong.** A custom `Shape` from SwiftUI code does not port (no
+`path(in:)`); that is the renderer's constraint stated at the type.
+
+---
+
+## TE-AH — `Rectangle` becomes a `Shape`; a bare shape fills with the foreground style
+
+**Evidence.** F1: a bare `Rectangle()` paints (39,39,39), the foreground
+style; F2: a container's `.foregroundStyle(blue)` reaches a `Circle`; F3:
+`.fill(red)` wins over it; F5: `Rectangle().foregroundColor(red)` is red.
+
+**The ruling.** `Rectangle` conforms to `Shape`. `Rectangle()` — today
+`init(color: .surface)` through a default argument — fills with
+`foregroundStyle ?? .textPrimary` (part 1's resolution, `TE-D`), closing
+`TE-O`'s C9 row. `init(color:)` is **deprecated** toward `.fill(_:)` (one
+in-repo caller, converted in the same change); `init(width:height:color:)`
+stays, undeprecated, the documented fixed-leaf convenience the demo's preview
+uses (its colour is explicit, so no demo pixel moves). **A `Rectangle()` whose
+paint a test asserts changes colour** from `.surface` to `.textPrimary` — lane
+2's census lists each as a T row with its literal re-derived, never a silent
+edit.
+
+**Cost if wrong.** An author who relied on `Rectangle()` painting `.surface`
+sees the text colour instead — SwiftUI's answer; the deprecation names the
+replacement for the explicit spelling.
+
+---
+
+## TE-AI — fill, stroke and strokeBorder
+
+**Evidence.** F4 (`fill(red).stroke(blue, 10)`: blue over red, the stroke's
+ink (−5,−5,110,70)); K1 (stroke centred, square outer corner on a
+`Rectangle`); K2 (strokeBorder inside); K3 (default width 1); K5 (layout
+unchanged); K6/K7 (stroke = strokeBorder over the outset shape at radius
+r + w/2, 0 px); K9 (width ≤ 0 draws nothing); K10 (strokeBorder 40 on 100×60
+fills); K11 (`RR(3).strokeBorder(10)`: square outer corner, (0,0) fully red);
+K12 (`RR(3).stroke(10)`: round outer corner, (−4,−4) empty, so radius 8).
+
+**The ruling.** `ShapeView<S>` holds its shape and an ordered list of layers
+(fill, stroke, strokeBorder), painted in declaration order. strokeBorder(w):
+one `MUIRect` over the bounds, border `w`, clear background, outer radius
+`r ≥ w/2 ? r : 0`, inner `max(r − w, 0)` (the shader's rule). stroke(w): the
+same over the bounds outset by `w/2` at radius `r > 0 ? r + w/2 : 0`. An
+ellipse uses shape 1 (`TE-AE`). A width ≤ 0 emits nothing. `StrokeStyle`,
+dashes and gradients are not offered (spec §9).
+
+**Cost if wrong.** Corner radii off by the half width at a thick stroke —
+what 2.9 and 2.10 pin against K11/K12.
+
+---
+
+## TE-AJ — clipping: `.clipShape`, `.clipped()` and `.cornerRadius` on the proposal path; the legacy `.cornerRadius` stays paint-only (divergence 47 kept)
+
+**Evidence.** C0 (control: an overflowing child paints outside), C1
+(`.cornerRadius(12)` clips, corner (1,1) white), C2 (`clipShape(Circle())` on
+100×60 → x 20…80), C3 (`.clipped()`), C4 (`cornerRadius(20)` =
+`clipShape(RoundedRectangle(cornerRadius: 20))`, 0 px; vs `.circular` 196 px),
+C5 (an ellipse clip), C6 (a capsule clip then a circle = the circle alone,
+0 px), C7 (capsule), C8 (`clipShape` changes no layout).
+
+**The ruling.**
+
+1. Proposal path: `clipShape(_:)` is one `LayoutModifier` layer, pushing
+   `geometry(in: bounds)`'s rect and radii in prepaint and paint exactly as
+   `.clip(cornerRadius:)` does (so hitboxes inside are clipped to the rect,
+   as today); `.clipped()` is `.clip()`; `.cornerRadius(r)` is
+   `.clipShape(RoundedRectangle(cornerRadius: r))`. `ProposalScrollView`'s
+   own `cornerRadius(_:) -> Self` stays more specific.
+2. Legacy path: `StyledElement.clipShape(_:) -> Self` stores the shape on the
+   `Decoration` and clips through the existing clip halves
+   (`registerAndScopeBody`, `paintDecoration`); no layer, no id level.
+3. **The legacy `StyledElement.cornerRadius(_:)` stays paint-only —
+   divergence 47 kept, owner none.** A clip is also a hitbox clip
+   (`clippedAlsoClipsTheHitboxesInsideIt`), so making the radius clip changes
+   hit testing under every rounded legacy box, the demo's sixteen among them
+   (`OM-G`) — a frozen area this task must not move. `.cornerRadius(r).clipped()`
+   and now `.clipShape(RoundedRectangle(cornerRadius: r))` are the legacy
+   spellings of SwiftUI's `.cornerRadius`.
+4. **An ellipse geometry in a clip traps** naming **divergence 91** (kept,
+   owner none): the mask is a rounded rect on every primitive (`TE-AD`).
+   A trap is the explicit form of "not supportable yet" (divergence 88's
+   precedent), and a custom `Shape` can return an ellipse at runtime, so the
+   check is at the clip, not in the type.
+5. `Frame.intersect(_:radii:_:radii:)` gains one **exact** case before its
+   square fallback: an inner rounded rect **contained** in the outer rounded
+   rect keeps its radii (and the mirror). A rounded rect with circular corners
+   is the convex hull of its four corner discs, so containment in a convex
+   outer shape is "each corner disc inside it", `sdf_outer(cᵢ) ≤ −rᵢ` — four
+   evaluations of the SDF the shaders already use. C6 then reads SwiftUI's
+   answer (the old fallback drew a square box). Every case that answered
+   before answers the same (the new case runs only where the old code fell
+   back). Two rounded clips that **cross** still intersect as the square box:
+   **divergence 92** (kept, owner none; one mask per primitive).
+
+**Cost if wrong.** A legacy author porting SwiftUI's `.cornerRadius` sees
+unclipped children — divergence 47's documented shape since `OM-G`.
+
+---
+
+## TE-AK — overlays and backgrounds with shapes: audited, two spellings added, nothing rebuilt
+
+**Evidence.** O1 (`background(Capsule().fill(blue))` on an 80×40 content:
+the capsule is 80×40), O3 (`overlay(Circle().stroke(4))` on 100×60: a centred
+60×60 circle, band 64×64), O5 (a shape background changes no layout), O2
+(`background(blue, in: Capsule())` = O1, 0 px), O4 (`background(in: RR 8)`'s
+default fill on a white canvas: no ink — the window background style).
+
+**The ruling.** The existing `.overlay(alignment:content:)` and
+`.background(alignment:content:)` (both vocabularies, `LR-FX`, `ID-J`) already
+offer their attachment the content's size; 2.22 pins O1, O3, O5 through them
+with the new shapes, no code change. Added: `background(_ token:, in:)` =
+`background { shape.fill(token) }` and `background(in:)` with token
+`.background` (the window's canvas, `ColorToken.background`'s own doc). Each
+adds the attachment's identity level (`MC-P`'s `-1`), as the spelled-out form
+does.
+
+**Cost if wrong.** O4's evidence is a white-on-white read; if SwiftUI's
+default style is not the window background, `background(in:)` paints the
+wrong token — visible, one line to change.
+
+---
+
+## TE-AL — `Image`: decorative, from pixels or (on macOS) a file
+
+**Evidence.** I1 (a 40×20 image answers 40×20 at every proposal), I9 (80×40
+pixels at scale 2 answer 40×20), I2 (`resizable()` answers the proposal, nil
+→ its point size), I3–I5 (fit/fill = `aspectRatio` of its point size;
+`scaledToFit`/`scaledToFill` equal them, 0 px), I6 (an explicit ratio), I7 (a
+non-resizable image keeps its size under `aspectRatio`), I8/I11 (default =
+`.low` = `.medium` = bilinear; `.none` nearest; `.high` differs by 880 px),
+I10 (a fill image overflows its frame; `.clipped()` cuts it), I12
+(premultiplied source-over).
+
+**The ruling.** `Image(decorative: ImageBitmap, scale: Float)` — SwiftUI's
+`Image(decorative:scale:)` with `ImageBitmap` standing in for `CGImage` (no
+Apple type crosses the portable module); `.resizable()`; `.interpolation(_:)`
+with SwiftUI's four cases, `.high` drawn bilinear (**divergence 93**, kept,
+owner none). `ImageBitmap(width:height:rgba:)` takes straight alpha (what an
+author writes) and premultiplies; `ImageBitmap(contentsOfFile:)` exists where
+`ImageIO` does. Not offered (spec §9): a labelled image and its accessibility
+(**plan task 12**), SF Symbols (out of the task's scope), asset names,
+`Image(nsImage:)`, cap insets and tiling, decoding off Apple. A decorative
+image publishes nothing to accessibility — the meaning of its SwiftUI name,
+not a new claim.
+
+**Cost if wrong.** A portable app cannot load a PNG without its own decoder;
+the pixel initialiser is the portable path.
+
+---
+
+## TE-AM — `aspectRatio` with no ratio takes the child's ideal ratio
+
+**Evidence.** A1 (`Color.aspectRatio(contentMode: .fit)`: ideal 10×10 →
+100×60 gives 60×60), A2 (`.scaledToFill()` → 100×100), A3 (a frame with ideal
+40×20 → 100×50), A4 (a fixed 40×20 child keeps 40×20), I5/I7 (images).
+
+**The ruling.** `aspectRatio(_ ratio: Double? = nil, contentMode:)`; the
+kernel's `NativeNode.aspectRatio` takes an optional ratio and, when nil,
+measures the child at nil×nil and uses `width / height`, then proposes
+exactly as `CN-G` does for a given ratio. An ideal with a zero or non-finite
+ratio passes the proposal through (AR2's branch) rather than dividing by it.
+`scaledToFit()`/`scaledToFill()` are `aspectRatio(nil, contentMode:)`.
+`public typealias ContentMode = AspectRatioContentMode`. A given ratio keeps
+`SA-K` item 4's checks.
+
+**Cost if wrong.** One extra child measurement per nil-ratio node per layout;
+`SA-M`'s work counters see it only in trees that use the spelling.
+
+---
+
+## TE-AN — `gridCellAnchor(UnitPoint)`: divergence 64 retires
+
+**Evidence.** GL14: `gridCellAnchor(UnitPoint(x: 0.25, y: 1))` puts a 10×10
+cell at (10, 20) in its 50×30 slot. `DD-P` item 4: a plain `UnitPoint`
+overload makes every leading-dot nine-point spelling ambiguous;
+`@_disfavoredOverload` does not.
+
+**The ruling.** The kernel's cell anchor becomes a factor pair (the nine
+`ProposalAlignment` cases map to their factors, so no nine-point placement
+moves); `gridCellAnchor(_: UnitPoint)` is added `@_disfavoredOverload`, so
+`.topLeading` still resolves to the `ProposalAlignment` overload. **Divergence
+64 retires.** Guard G4 (`aGridCellAnchorIsNinePoint`) is inverted and renamed
+(G3.1) with a retirement row; its old named mutation (MG4c, the
+`@_disfavoredOverload` spelling) is now the implementation.
+
+**Cost if wrong.** None to existing callers; a fractional anchor's placement
+is pinned by 3.12 against GL14.
+
+---
+
+## TE-AO — the rendering-facing leftovers: `colorScheme` and colour glyphs
+
+**The ruling.**
+
+1. **No `colorScheme`/`appearance` environment value** (`EV-G`'s item). The
+   theme stays scoped and paint-only (`EV-G`); `.theme(_:)` is MetalUI's
+   spelling of a subtree's appearance. A readable `colorScheme` would be a
+   second appearance source whose coupling to the theme (does a scoped
+   `.colorScheme(.dark)` switch tokens?) no probe here measures, and nothing
+   in this task reads it. A documented absence, owner none (plan task 15's
+   inventory lists it). Not a numbered divergence: nothing exists to diverge.
+2. **Colour glyphs stay record §05's row**, a renderer constraint, owner none.
+   The image primitive is now the draw path a polychrome sprite would use; the
+   missing half is rasterizing `COLR`/`sbix` into RGBA on both text systems,
+   a text-system milestone, not this one.
+
+**Cost if wrong.** An author who wants a light/dark-dependent layout reads the
+window's appearance themselves; the paint-only theme is unchanged.
+
+---
+
+## TE-AP — tick condition, the demo, pixels
+
+**The ruling.** Part 1 closed the task's first sentence; this part's three
+lanes close the second, and spec §9 states every renderer constraint the
+third asks for. **The Record phase ticks task 11 if and only if all three
+lanes land and every row of spec §3 reads built, kept with its numbered
+divergence, or re-owned to an owner that has it** — else a dated note. The
+demo is unchanged (spec §7): fourteen images 0 px against `ff2ae92`,
+`Expected.swift` unedited, the 1 MB-thread build green. The real-window
+capture follows the lock probe; locked at design time, so owed.
+
+**Cost if wrong.** A tick with a clause open overclaims; the condition is
+checkable row by row.
