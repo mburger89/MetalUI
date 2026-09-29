@@ -332,3 +332,117 @@ reading none are the verifier's findings, each closed by a fix-round test
 **Real window**: lock probe 04:03 PDT — `CGSSessionScreenIsLocked = 1`,
 `displayAsleep main: 1` — so `capture.sh` was not run; owed, as in §3. Lane 2
 touches no tree the demo builds (the fourteen read 0).
+
+## §5 Lane 3 — `Image`, `aspectRatio(nil)`, the `UnitPoint` grid anchor (2026-09-29)
+
+Commits: red `346c07d`, implementation `02f1e0f`, `TE-AU`, the spec's
+amendments and this section after them. Ruling **`TE-AU`** (what landed
+differently from the design); next unused `TE-AV`.
+
+**Red first** (`346c07d`, against a skeleton that compiled: `ImageBitmap`
+copying its bytes as given, `Image` answering its pixel size with
+`resizable()` a no-op and one filter, a nil ratio read as 1, `scaledToFill`
+mapped to `.fit`, the `UnitPoint` anchor rounded to the nearest nine-point):
+the unfiltered suite read `Test run with 1762 tests in 3 suites failed after
+108.424 seconds with 23 issues` — **13 of the 15 new tests red with 23
+issues**, no retained test red. Green on arrival by design, each with a
+mutation that reddens it below: 3.5 (a fixed child — the skeleton's ratio-1
+node already answered its child's answer), G3.1 (the inverted guard — the
+skeleton offered the overload; the retired guard it replaces would have been
+red) and G3.2. One line per red test (first failure; issues in brackets):
+
+| # | test | red line |
+|---|---|---|
+| 3.1 | `anImageAnswersItsPointSizeAtEveryProposal` (1) | `ImageTests.swift:63` the scale-2 image == 40×20 ×5 |
+| 3.2 | `aResizableImageAnswersItsProposal` (2) | `ImageTests.swift:74` I2's row |
+| 3.3 | `anImagePaintsOneTexturedQuadOverItsBoundsAtTheScale` (1) | `ImageTests.swift:91` bounds == (60, 40, 80, 40) |
+| 3.4 | `aspectRatioWithNoRatioTakesTheChildsIdealRatio` (4) | `AspectRatioIdealTests.swift:55` A3's row |
+| 3.6 | `scaledToFitAndScaledToFillAreAspectRatioNil` (2) | `ImageTests.swift:130` fit == (0, 5, 100, 50) |
+| 3.7 | `aFillImageOverflowsItsFrameUnlessClipped` (1) | `ImageTests.swift:149` the fill image's bounds (the skeleton's ratio-1 fill) |
+| 3.8 | `interpolationNoneIsNearestAndEveryOtherLinear` (1) | `ImageTests.swift:170` `.none` → filter 1 |
+| 3.9 | `anImageBitmapPremultipliesStraightAlpha` (1) | `ImageTests.swift:186` (100, 50, 25, 128) |
+| 3.10 | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` (2) | `ImageTests.swift:201` stderr names `ImageBitmap` (the child died in `ImageTexture`) |
+| 3.10b | `anImageOfANonPositiveOrNonFiniteScaleTraps` (4) | `ImageTests.swift:217` exit status success |
+| 3.11 | `anImageBitmapDecodesAPNGThroughImageIO` (1) | `ImageTests.swift:263` the PNG decodes (nil) |
+| 3.12 | `aGridCellAnchorTakesAUnitPoint` (1) | `GridElementTests.swift:1290` GL14's a at (10, 20) |
+| 3.12b | `aNonFiniteGridCellAnchorTraps` (2) | `GridElementTests.swift:1304` exit status success |
+
+**Counts** (`02f1e0f`, after `swift package clean` — `LayoutTree`'s
+anchor dictionary changed type, `GridCellAttribute` gained a case,
+`NativeNode.aspectRatio`'s payload became optional): unfiltered `swift test
+--build-system native --no-parallel` → **`Test run with 1762 tests in 3 suites
+passed after 108.568 seconds`**, the `FR-J no-argument frame: succeeded=` line
+present, 0 `error:`, the one SwiftPM deprecation `warning:`; the default build
+system (`swift build --build-tests`) 0 `error:`/`warning:`. **1762 = 1747 +
+15**: 14 tests (the spec's twelve plus 3.10b and 3.12b, `TE-AU` item 2) and 1
+guard (`ImageCompileGuards`' G3.2, whole-file `typecheckFile`; guards **107 →
+108**; G3.1 renames `GridCompileGuards`' G4 and adds none). One test lands in
+`MetalUILayoutTests` (3.4, portable), so Linux and Windows CI's figure for that
+target moves by one. No `@Test` removed. 0 goldens.
+
+**Retained tests.** One T row, by ruling (`TE-AN`, `TE-AU` item 5): guard
+`aGridCellAnchorIsNinePoint` → `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve`,
+its answer inverted (a fractional anchor compiled nowhere; it now compiles,
+and the nine-point leading-dot spellings still resolve). Three re-spellings
+whose answers do not move (`TE-AU` item 4): `NativeGridTests`'
+`resetClearsGridCellAttributeMarks` and
+`cellAttributesAndRowTokensAreReadThroughModifierNodesAndNotContainers` compare
+a plan's anchor with `ProposalAnchor(.topLeading)`, and `GridElementTests`'
+`everyProposalModifierCarriesAGridCellAttributeAsTheProbeReads`' `anchor`
+helper maps its expected alignment through `ProposalAnchor.init`.
+
+**Divergence 64 retires** (a fractional grid cell anchor, `GR-O` 4): pinned
+now by 3.12 at GL14's reading. Divergence 93's pin (`.high` drawn bilinear) is
+3.8. Live count after all three lanes: 65 + 90, 91, 92, 93 − 64 = **68**, as
+spec §3 planned.
+
+**Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> ff2ae92 02f1e0f` —
+controls as in §3 and §4 (light vs dark 1048576, default vs modal 1031003,
+default vs animation 454895, f0 vs f3 0, chrome pair 0, distinct 544 and 216,
+prod default vs modal 491221, prod distinct 529, indicator rects 0); **0
+differing, scene identical, in all fourteen**. The demo's own
+`.aspectRatio(16.0 / 9.0)` takes the given-ratio path, unchanged.
+
+**Mutations** (each on `02f1e0f`, one spelling applied from a copy of the
+committed file, build, whole unfiltered suite, the file restored from the
+copy, `git status --short` read clean of source after each — only this
+round's three doc files listed):
+
+| id | mutation (spelling) | reddened (issues) |
+|---|---|---|
+| M3a | `Image`'s point size `bitmap.width`/`height`, `scale` ignored | `anImageAnswersItsPointSizeAtEveryProposal`, `aResizableImageAnswersItsProposal`, `anImagePaintsOneTexturedQuadOverItsBoundsAtTheScale` (3) |
+| M3b | `resizable()` sets `isResizable = false` | `aResizableImageAnswersItsProposal`, `scaledToFitAndScaledToFillAreAspectRatioNil`, `aFillImageOverflowsItsFrameUnlessClipped` (5) |
+| M3c | the quad drawn at the bitmap's pixel size at the bounds' origin (`TE-AU` item 7) | `anImagePaintsOneTexturedQuadOverItsBoundsAtTheScale`, `scaledToFitAndScaledToFillAreAspectRatioNil`, `aFillImageOverflowsItsFrameUnlessClipped` (4) |
+| M3d | the kernel's ideal ratio `1.0` (no nil×nil measurement) | `aspectRatioWithNoRatioTakesTheChildsIdealRatio`, `scaledToFitAndScaledToFillAreAspectRatioNil`, `aFillImageOverflowsItsFrameUnlessClipped` (7) |
+| M3e | the node answers the ratio-shaped proposal when both axes are concrete (first spelling assigned the `let` twice and **did not build**; re-spelled with an `else`) | `aFixedChildKeepsItsSizeUnderAspectRatioNil`, `anAspectRatioAnswersItsChildsAnswerToTheRatioProposal`, `anAspectRatioTreatsInfinityAsAConcreteAxis`, `aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild`, `aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild`, `theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` (17) |
+| M3f | `scaledToFill()` → `aspectRatio(nil, contentMode: .fit)` | `scaledToFitAndScaledToFillAreAspectRatioNil`, `aFillImageOverflowsItsFrameUnlessClipped` (2) |
+| M3g | `Image.paint` wraps `drawImage` in `pass.clipped(to: bounds, …)` | `aFillImageOverflowsItsFrameUnlessClipped` (1) |
+| M3h | `filter` always `.linear` | `interpolationNoneIsNearestAndEveryOtherLinear` (1) |
+| M3i | `ImageBitmap` builds `ImageTexture(premultipliedRGBA:)` from the straight bytes | `anImageBitmapPremultipliesStraightAlpha` (1) |
+| M3j | `ImageBitmap`'s two preconditions removed | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` (2: both children still die, in `ImageTexture`, unnamed) |
+| M3k | `contentsOfFile:` reverses the decoded rows | `anImageBitmapDecodesAPNGThroughImageIO` (1) |
+| M3l | the `UnitPoint` factors rounded to the nearest nine-point in `GridCellModifier.mark` | `aGridCellAnchorTakesAUnitPoint`, `aNonFiniteGridCellAnchorTraps` (3: NaN rounds to 1, so the child exits 0) |
+| M3m | `Image`'s scale precondition removed | `anImageOfANonPositiveOrNonFiniteScaleTraps` (4) |
+| M3n | `markNativeGridCell`'s finite-anchor precondition removed | `aNonFiniteGridCellAnchorTraps` (1) |
+| MG3a | `@_disfavoredOverload` removed from `gridCellAnchor(_: UnitPoint)` | **did not build**: 26 leading-dot `gridCellAnchor(.…)` sites in `GridElementTests.swift` and 1 in `ModifierCompositionProofTests.swift` go ambiguous (`DD-P` item 4's hazard, in the package itself) |
+| MG3a′ | MG3a, plus those 27 in-repo sites spelled `ProposalAlignment.…` so the package builds | `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve` (1: `4 nine-point control: succeeded=false`, `ambiguous use of 'topLeading'`) |
+| MG3b | `Image.init(systemName:)` stub added | `anImageHasNoSystemNameOrAssetInitialiser` (3) |
+
+Every mutation reddens its designed test; none reddened nothing.
+
+**Elsewhere**: `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds against
+`02f1e0f` and runs **22 + 25**, unmoved from §3 (lane 3 adds no primitive; its
+image draws through lane 1's `drawImage`, whose parity frame 6 already
+covers a linear, a nearest, a half-alpha and a masked image). A
+`swift:6.4-noble` aarch64 container builds the root package at `02f1e0f` with
+0 `error:`/`warning:` (`ImageBitmap(contentsOfFile:)` compiled out, no
+ImageIO) and runs **199 + 10 + 22** (`MetalUILayoutTests` 198 → 199, 3.4;
+`MetalUICrossPlatformTests`, `MetalUICoreTests` unmoved).
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+`everyProductionTreeBuildsOnAOneMegabyteThread` green in both the macOS suite
+and the container; `MetalUILayout`'s imports still read `import MetalUICore`
+alone; `Expected.swift` unedited.
+
+**Real window**: lock probe 04:58 PDT — `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` — so `capture.sh` was not run; owed, as in §3 and §4.
+Lane 3 touches no tree the demo builds (the fourteen read 0).

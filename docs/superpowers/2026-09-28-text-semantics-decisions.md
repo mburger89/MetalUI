@@ -4,13 +4,15 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AT`; next unused is **`TE-AU`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AU`; next unused is **`TE-AV`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
 **Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`);
 **lane 1 (the renderer) landed** (`TE-AR`); **lane 2 (shapes, fill/stroke,
-clipping, backgrounds in a shape) landed** (`TE-AS`); lane 3 not yet run.
+clipping, backgrounds in a shape) landed** (`TE-AS`, fix round `TE-AT`);
+**lane 3 (`Image`, `aspectRatio(nil)`, the `UnitPoint` grid anchor) landed**
+(`TE-AU`).
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -2121,3 +2123,103 @@ each new test red under its mutation on the whole unfiltered suite (record
 sub-pixel past the outer edge; a too-tight one (none) falls back to the square
 box at a non-integer tangency — both sub-pixel or square-corner looks, no
 trap.
+
+---
+
+## TE-AU — `Image`, `aspectRatio(nil)` and the `UnitPoint` anchor, as landed: two `SA-J` traps added, a two-row PNG, a kernel `ProposalAnchor`, and one guard inverted (lane 3)
+
+**Evidence.** Lane 3's red commit `346c07d` (13 of its 14 new tests red at
+the whole unfiltered suite, 23 issues; 3.5 and both guards green by design)
+and implementation `02f1e0f`: after `swift package clean`, `Test run with 1762
+tests in 3 suites passed`, **1762 = 1747 + 15** (14 tests and 1 guard); the
+fourteen offscreen images 0 px against `ff2ae92`, scenes identical; the
+sixteen mutations of record §60 §5 each redden a named test on the whole
+unfiltered suite. Probe arms I1–I12, A1–A4 (`swiftui-shapes-and-rendering.swift`)
+and GL14 (`swiftui-grid.swift`, re-run by the critic round) — no new probe:
+every SwiftUI value asserted is one of those arms'; the two traps below are
+`SA-J`'s rule, not SwiftUI claims.
+
+**The ruling — each item amends the spec in this commit.**
+
+1. **`Image` is a `ProposalElement`**, as spec §4's Vocabulary paragraph says
+   and its code block's `public struct Image: Element` did not: it sits in an
+   `HStack` and takes every proposal modifier (`.scaledToFit()`, `.clipped()`,
+   `.frame`), like `Rectangle` and every `Shape`. Its `Interpolation` default
+   is `.low` (SwiftUI's default draws as `.low`, I8/I11).
+2. **Two traps are added, each with its own exit test, neither a SwiftUI
+   claim** (spec §8's lane-3 table gains the rows): **3.10b**
+   `anImageOfANonPositiveOrNonFiniteScaleTraps` — `Image(decorative:scale:)`
+   traps unless `scale` is finite and positive, because `pixels ÷ scale`
+   would be infinite or negative at every proposal and a stored rect may not
+   be infinite (`SA-J`); **3.12b** `aNonFiniteGridCellAnchorTraps` — a NaN or
+   infinite `UnitPoint` component traps in `LayoutTree.markNativeGridCell`,
+   naming `gridCellAnchor`, because it would store a NaN or infinite cell rect
+   at a finite proposal; a finite factor outside `0…1` is accepted (the
+   test's control, (1.5, −1), lays out). SwiftUI's answers to both are
+   unprobed; relaxing either trap later is additive (`SA-K`). The lane's
+   count is therefore **14 tests + 1 guard**, not the spec's 12 + 1.
+3. **3.11 writes a 2×2 PNG, not 2×1**: a one-row image reads the same
+   top-down and bottom-up, so M3k (rows read bottom-up) could not redden it.
+   Its texels are opaque and one fully transparent, so the premultiply is
+   exact on every path. **The decoded path premultiplies through
+   CoreGraphics**, not `ImageTexture(straightRGBA:)`: `contentsOfFile:` draws
+   the decoded image into a premultiplied sRGB RGBA8 bitmap context (which
+   also converts a file's colour space to sRGB and reads rows top-down) and
+   stores the bytes as premultiplied; a translucent texel's rounding is
+   CoreGraphics', unpinned against `ImageTexture`'s `(c × a + 127) / 255`. A
+   missing or undecodable file is `nil` (3.11's last expectation).
+4. **The kernel's cell anchor is `ProposalAnchor`** (public, `MetalUILayout`:
+   `horizontalFactor`, `verticalFactor`, `init(_ alignment:)`), stored per
+   node in place of `ProposalAlignment`. **`markNativeGridCell` gains a
+   defaulted `anchorPoint:` parameter** on `LayoutTree` and `LayoutPass`
+   rather than a new overload, so the "13 registrars each plus the two mark
+   functions" count stands; the existing `anchor:` stays and is stored as its
+   nine-point factors, and a call passing both writes `anchor` first (the
+   first mark on a node stands, `GR-I`). **`GridCellAttribute` gains a public
+   case, `anchorPoint(UnitPoint)`** — an outside exhaustive `switch` over it
+   stops compiling (migration: add the case); nothing in the repository
+   switches over it outside `Grid.swift`. **Three test re-spellings, no
+   answer moved, no T row**: two `NativeGridTests` comparisons of a plan's
+   internal `anchor` against `.topLeading` now read
+   `ProposalAnchor(.topLeading)`, and `GridElementTests`' `anchor(_:_:)`
+   helper maps its expected `ProposalAlignment?` through
+   `ProposalAnchor.init`. `UnitPoint.swift`'s doc comment and both
+   `Grid.swift` comments that named the nine-point gap as plan task 11's
+   (the `GridCellAttribute.anchor` case and the modifier, spec §8's
+   `Grid.swift:338`) now say divergence 64 is retired.
+5. **G4 → G3.1 is a retained guard whose answer inverts, by ruling (`TE-AN`)
+   — its retirement row**: `aGridCellAnchorIsNinePoint` asserted that
+   `Rectangle().gridCellAnchor(UnitPoint(x: 0.25, y: 1))` does **not**
+   compile (its positive control, a leading-dot `.topLeading`, did); it is
+   renamed `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve`
+   and asserts the fractional anchor **compiles** and four leading-dot
+   spellings both types declare (`.topLeading`, `.trailing`, `.bottom`,
+   `.center`) still resolve. Its old named mutation (MG4c, a
+   `@_disfavoredOverload` `UnitPoint` overload) is now the implementation;
+   its new one is MG3a (the attribute removed). Guard count **107 → 108**
+   (G3.2 new; G3.1 renames).
+6. **A nil ratio reads the child at nil×nil each time the node proposes**
+   — in its measurement and in its placement; the run's measurement cache
+   (`SA-H`) makes the second a hit, so the cost is one child measurement per
+   node per layout run, plus a counted cache hit (`SA-M`), and only in trees
+   that spell it. No existing work-counter literal moved (the suite is green
+   with every `SA-M` test unedited). A given ratio's path
+   is unchanged, byte for byte (the demo's `.aspectRatio(16.0 / 9.0)`
+   included: 0 px).
+7. **Mutation spellings, where spec §8's one-line description admits two**:
+   M3c is "the quad drawn at the bitmap's pixel size" (the only way a
+   correct `drawImage` can be handed unscaled bounds); M3e is "the node
+   answers the ratio-shaped proposal when both its axes are concrete" (a
+   child's answer ignored — A4's 100×60 reads 100×50); 3.10b's and 3.12b's
+   mutations are M3m and M3n (their preconditions removed). **MG3a as
+   spelled does not build** — removing `@_disfavoredOverload` makes 27
+   leading-dot `gridCellAnchor(.…)` sites in the package's own tests
+   ambiguous — so the guard is mutated red by **MG3a′**: MG3a plus those
+   sites spelled `ProposalAlignment.…`; its nine-point control then fails
+   with `ambiguous use of 'topLeading'` (record §60 §5).
+
+**Cost if wrong.** Item 2: a SwiftUI program passing scale 0 or a NaN anchor
+traps here where SwiftUI may draw something; the fix is additive. Item 3: a
+translucent texel decoded from a file may differ by one step from the same
+straight bytes passed to `init(width:height:rgba:)`. Item 4: an outside
+exhaustive switch over `GridCellAttribute` breaks at compile time.

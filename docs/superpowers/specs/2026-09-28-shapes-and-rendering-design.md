@@ -3,13 +3,13 @@
 Branch `feat/shapes-and-rendering` from `ff2ae92` (part 1's tip, record §59).
 Rulings `TE-AC`…`TE-AQ`, appended to part 1's decisions doc,
 [`../2026-09-28-text-semantics-decisions.md`](../2026-09-28-text-semantics-decisions.md)
-(next unused **`TE-AT`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed, lane 2's `TE-AS` §4, §5 and §8). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
+(next unused **`TE-AV`**; lane 1's `TE-AR` amends §4, §6, §8 and §9 as landed, lane 2's `TE-AS` §4, §5 and §8, lane 3's `TE-AU` §4, §5, §8 and §10). Evidence: `docs/probes/swiftui-shapes-and-rendering.swift`
 (**new**, revision 3; arm ids `S1`, `K8`, `I8`, `A3`, `O6` …; its header carries the
 recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
 byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4).** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4); lane 3 landed (`TE-AU`, record §60 §5).** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
@@ -144,9 +144,10 @@ public struct ImageBitmap: Sendable {                           // not SwiftUI's
     public var width: Int { get }
     public var height: Int { get }
 }
-public struct Image: Element {
+public struct Image: ProposalElement {                      // TE-AU item 1
     public init(decorative bitmap: ImageBitmap, scale: Float)   // SwiftUI's Image(decorative:scale:orientation:);
-        // Float is Frame.scaleFactor's type; no orientation: (TE-AQ item 9)
+        // Float is Frame.scaleFactor's type; no orientation: (TE-AQ item 9);
+        // a scale that is not finite and positive traps (SA-J, TE-AU item 2)
     public func resizable() -> Image
     public func interpolation(_ interpolation: Interpolation) -> Image
     public enum Interpolation: Sendable, Hashable { case none, low, medium, high }
@@ -162,6 +163,15 @@ extension ProposalElementGroup {   // on GridCellModifier's receivers, as gridCe
     @_disfavoredOverload
     public func gridCellAnchor(_ anchor: UnitPoint) -> GridCellModifier<Self>   // TE-AN
 }
+// MetalUILayout (TE-AU item 4): the kernel's anchor is a factor pair —
+public struct ProposalAnchor: Sendable, Hashable {
+    public var horizontalFactor: Double; public var verticalFactor: Double
+    public init(horizontalFactor: Double, verticalFactor: Double)
+    public init(_ alignment: ProposalAlignment)
+}
+// LayoutTree/LayoutPass.markNativeGridCell(_:columns:anchor:anchorPoint:columnAlignment:unsizedAxes:)
+// gains `anchorPoint: ProposalAnchor? = nil` (a non-finite factor traps, SA-J);
+// GridCellAttribute gains `case anchorPoint(UnitPoint)`.
 
 // Paint API (lane 1), for custom elements
 extension PaintPass {
@@ -282,9 +292,10 @@ ratio passes the proposal through (the AR2 branch). A fixed child keeps its
 size. `scaledToFit()`/`scaledToFill()` are `aspectRatio(nil, contentMode:)`.
 
 **`gridCellAnchor(UnitPoint)`** (GL14): the kernel's cell anchor becomes a
-factor pair; the nine `ProposalAlignment` spellings map to their factors and
-still resolve by leading dot (the new overload is `@_disfavoredOverload`,
-`DD-P` item 4's ambiguity).
+factor pair (`ProposalAnchor`, `TE-AU` item 4); the nine `ProposalAlignment`
+spellings map to their factors and still resolve by leading dot (the new
+overload is `@_disfavoredOverload`, `DD-P` item 4's ambiguity). A non-finite
+component traps (`SA-J`, `TE-AU` item 2); one outside `0…1` is accepted.
 
 ## 6. The renderer (lane 1)
 
@@ -486,10 +497,12 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 | 3.7 | `aFillImageOverflowsItsFrameUnlessClipped` — I10: unclipped mask is the surface; `.clipped()` mask (0,0,100,60) | — | M3g: image clips itself to its frame |
 | 3.8 | `interpolationNoneIsNearestAndEveryOtherLinear` — **divergence 93's pin**: `.none` → filter 1; default, `.low`, `.medium`, `.high` → 0 (I8, I11) | — | M3h: `.none` → 0 |
 | 3.9 | `anImageBitmapPremultipliesStraightAlpha` — (200,100,50,128) → (100,50,25,128) | — | M3i: bytes copied as given |
-| 3.10 | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` — **one** `@Test` holding two `#expect(processExitsWith:)` arms (so the lane's count stays 12) | — | M3j: precondition removed |
-| 3.11 | `anImageBitmapDecodesAPNGThroughImageIO` (macOS) — a 2×1 PNG written by ImageIO in the test, decoded to the same straight bytes, premultiplied | — | M3k: rows read bottom-up |
+| 3.10 | `anImageBitmapOfTheWrongByteCountOrAZeroSideTraps` — **one** `@Test` holding two `#expect(processExitsWith:)` arms, each asserting `ImageBitmap` in its stderr (so `ImageTexture`'s own trap cannot stand in) | — | M3j: precondition removed |
+| 3.10b | `anImageOfANonPositiveOrNonFiniteScaleTraps` — scale 0 and ∞, each naming `scale` (`SA-J`, `TE-AU` item 2) | — | M3m: precondition removed |
+| 3.11 | `anImageBitmapDecodesAPNGThroughImageIO` (macOS) — a **2×2** PNG (`TE-AU` item 3: one row cannot see M3k) written by ImageIO in the test, decoded to the same straight bytes, premultiplied; a missing file is `nil` | — | M3k: rows read bottom-up |
 | 3.12 | `aGridCellAnchorTakesAUnitPoint` — GL14: `a` at (10,20), `b` (58,0), `c` (0,38) | nine-case only | M3l: anchor factors rounded to the nearest nine-point |
-| G3.1 | **G4 inverted and renamed**: `aGridCellAnchorIsNinePoint` → `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve` — `UnitPoint(x: 0.25, y: 1)` compiles; `.topLeading` still resolves to the `ProposalAlignment` overload (the control) | the old guard's answer | MG3a: `@_disfavoredOverload` removed (the leading-dot control stops compiling) |
+| 3.12b | `aNonFiniteGridCellAnchorTraps` — `UnitPoint(x: .nan, y: 0)` traps naming `gridCellAnchor`; control (1.5, −1) lays out (`SA-J`, `TE-AU` item 2) | — | M3n: precondition removed |
+| G3.1 | **G4 inverted and renamed**: `aGridCellAnchorIsNinePoint` → `aGridCellAnchorTakesAUnitPointAndTheNinePointSpellingsStillResolve` — `UnitPoint(x: 0.25, y: 1)` compiles; `.topLeading` still resolves to the `ProposalAlignment` overload (the control) | the old guard's answer | MG3a: `@_disfavoredOverload` removed (the leading-dot control stops compiling) — does not build alone; MG3a′ also spells the package's 27 leading-dot sites `ProposalAlignment.…` (`TE-AU` item 7) |
 | G3.2 | `anImageHasNoSystemNameOrAssetInitialiser` — `Image(systemName:)` and `Image("name")` fail naming `Image`; control `Image(decorative:scale:)` compiles | — | MG3b: a `init(systemName:)` stub added |
 
 ## 9. Renderer constraints and what is not built (owner none unless named)
@@ -517,7 +530,8 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 Full unfiltered suite, summary line read (≈ **1756** = 1706 + 12 (lane 1)
 + 23 + 2 guards (lane 2) + 12 + 1 guard (lane 3); G3.1 renames a guard,
 adding none; the `Backends/SDL` rows are outside this count; the lanes give
-the exact figure), guards **108**, `FR-J` line present, 0 `error:`, one
+the exact figure — **as landed 1762** = 1706 + 12 + (25 + 4, `TE-AT`) + (14 +
+1, `TE-AU` item 2)), guards **108**, `FR-J` line present, 0 `error:`, one
 `warning:`; fourteen images 0 px; the probe re-run byte-identical to its
 header; `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`) builds and tests;
 `Replay --portable` 7 frames PASS, `PortableReplay --expect 7` and
