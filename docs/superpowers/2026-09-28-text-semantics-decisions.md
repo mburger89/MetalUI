@@ -4,15 +4,16 @@ Rulings for [`specs/2026-09-28-text-semantics-design.md`](specs/2026-09-28-text-
 on `feat/text-semantics` from `169d166` (part 1, `TE-A`…`TE-AB`), and for
 [`specs/2026-09-28-shapes-and-rendering-design.md`](specs/2026-09-28-shapes-and-rendering-design.md),
 on `feat/shapes-and-rendering` from `ff2ae92` (part 2, `TE-AC` onward). Ids
-are **lettered**, `TE-A`…`TE-AU`; next unused is **`TE-AV`**. A bare `TE-3` is
+are **lettered**, `TE-A`…`TE-AV`; next unused is **`TE-AW`**. A bare `TE-3` is
 a typo, not a citation. **A round that appends a ruling moves this line in the
 same commit.**
 
-**Part 2 status, 2026-09-29: DESIGNED, critic round applied** (`TE-AC`…`TE-AQ`);
+**Part 2 status, 2026-09-29: LANDED — task 11 ticked** (both parts close every
+clause of its text). DESIGNED, critic round applied (`TE-AC`…`TE-AQ`);
 **lane 1 (the renderer) landed** (`TE-AR`); **lane 2 (shapes, fill/stroke,
 clipping, backgrounds in a shape) landed** (`TE-AS`, fix round `TE-AT`);
 **lane 3 (`Image`, `aspectRatio(nil)`, the `UnitPoint` grid anchor) landed**
-(`TE-AU`).
+(`TE-AU`, fix round); **Record phase close** (`TE-AV`, record §60 §6).
 
 **Status, 2026-09-28: LANDED — lanes 1–3 and their fix rounds (`TE-T`…`TE-AA`), the Record phase's branch check (`TE-AB`); designed with the critic round applied (`TE-Q`…`TE-S`).** Plan task 11 is split in two by the workflow
 that runs it: **part 1** (this doc) is the text half of the task's first
@@ -2225,3 +2226,62 @@ traps here where SwiftUI may draw something; the fix is additive. Item 3: a
 translucent texel decoded from a file may differ by one step from the same
 straight bytes passed to `init(width:height:rgba:)`. Item 4: an outside
 exhaustive switch over `GridCellAttribute` breaks at compile time.
+
+---
+
+## TE-AV — Record phase close: task 11 ticked, four lane-1 coverage gaps named and owed, a part-1 arithmetic slip corrected (record §60 §6)
+
+**Evidence.** Independent re-take, from a clean tree: 1763 / 0 / 108 tests/
+goldens/guards, one summary line, `FR-J` present, 0 `error:`, the one
+deprecation `warning:` under native (0/0 under the default build system);
+`git grep -n _reserved` (14 lines, all `MUIGlyph`, no rect site); the
+fourteen-image offscreen comparison against `ff2ae92` re-taken from a fresh
+`git archive` (0 px, scenes identical, controls unmoved); the probe
+recompiled (`-O`) and interpreted, both byte-identical to each other and to
+the 78 recorded header lines (P1…K12, O6, `done`); `Backends/SDL` 22 + 25 on
+macOS; a `swift:6.4-noble` aarch64 container building the root package at 0
+`error:`/`warning:` and running 199 + 10 + 22, and `Tests/PortableTests`
+21 + 6 + 5 there and natively on macOS.
+
+**The ruling.**
+
+1. **Task 11 is ticked.** Every row of spec §3's collection table reads
+   built, kept with a numbered divergence, or an explicit renderer constraint
+   per spec §9 (`owner: none` included) — the task's own text asks for
+   exactly that third disposition ("keep renderer constraints explicit when
+   an exact effect is not supportable yet"), so a constraint with no future
+   owner is a closed clause, not an open one, provided it is named and
+   reasoned in §9 (record §60 §6's table walks all twelve rows). None of the
+   three `owner: none` rows (`colorScheme`/appearance, colour glyphs, and the
+   surface not offered at all — SF Symbols, `Path`, gradients, `StrokeStyle`,
+   a labelled `Image`) was created by this task; each predates it (`EV-G`,
+   record §05, the task's own stated scope) and is only re-confirmed here.
+2. **Lane 1's four remaining verifier findings are test-coverage gaps or a
+   documented latent limitation, not defects, and do not block the tick**:
+   an untested SDL texture-release count (owner none), three Metal shader
+   facts pinned only by the parity job and not by any root test — image
+   opacity, image row order, the ellipse circle branch (owner none), two
+   `TE-AR` claims (items 6, 7) asserted but not tested — a wide band fills
+   the ellipse, an empty scene releases every texture (owner none), and the
+   Metal image cache's per-window eviction under `AppKitPlatform`'s one
+   shared `Renderer` (`RS-C`) — latent, since no production tree draws an
+   image yet, owner **before any multi-window image consumer ships**. Each
+   is named with its own test recommendation in record §60 §6, not fixed on
+   this branch (this phase writes docs, not code).
+3. **A part-1 arithmetic slip is corrected**: record §59 and CLAUDE.md's
+   task-11-part-1 entry both read "`Tests/PortableTests` 20 + 6 + 5"; the
+   correct figure, confirmed on two platforms, is **21 + 6 + 5**
+   (`PortableTextDeterminismTests.swift`'s pre-existing 18 plus
+   `TruncationDeterminismTests.swift`'s 3, added by part 1 lane 1 — 18 + 3 =
+   21, not 20). Five occurrences in record §59 and CLAUDE.md's own copy are
+   corrected in this commit. No suite total was ever wrong; the slip was
+   confined to this one aside.
+4. **Live divergence count 65 → 68** (90–93 added, 64 retires, next label
+   94); declared-but-inert gains no row (the colour-glyphs row, already
+   listed, is re-confirmed unmoved, `TE-AO` item 2).
+
+**Cost if wrong.** Item 1: ticking early would overclaim a closed task while
+a clause is still open; the table is checkable row by row against spec §3
+and §9 by any later reader. Item 2: an unaddressed coverage gap could let a
+shader regression on SDL or a multi-window texture thrash pass silently
+until the parity job or a real multi-window image consumer finds it.

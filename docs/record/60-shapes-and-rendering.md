@@ -478,3 +478,202 @@ alone; `Expected.swift` unedited.
 **Real window**: lock probe 04:58 PDT — `CGSSessionScreenIsLocked = 1`,
 `displayAsleep main: 1` — so `capture.sh` was not run; owed, as in §3 and §4.
 Lane 3 touches no tree the demo builds (the fourteen read 0).
+
+## §6 Record phase close (2026-09-29)
+
+All three lanes verified `ok: true` (lane 1's four remaining items are minor
+test-coverage gaps, not code defects — disposed below, none blocking). This
+section is an independent re-take of the suite, guard and golden counts, the
+pixel comparison, the probe, `Backends/SDL` and a `swift:6.4-noble` container,
+plus the tick decision (`TE-AP`) and the outstanding hazards. Commit: this one.
+
+**Suite**, from a clean tree (`swift package clean`, the accumulated stored-
+property changes across all three lanes — `MUIRect`'s renamed field, `Scene`'s
+new arrays, `Rectangle`'s optional colour, `Decoration`'s clip field,
+`NativeNode.aspectRatio`'s optional payload, the grid anchor storage):
+`swift build --build-system native --build-tests` → 0 `error:`, the one
+SwiftPM deprecation `warning:`; `swift build --build-tests` (default build
+system) → 0 `error:`, 0 `warning:`. Unfiltered `swift test --build-system
+native --no-parallel` → **`Test run with 1763 tests in 3 suites passed after
+108.877 seconds`**, one summary line, the `FR-J no-argument frame:
+succeeded=true` line present (guards ran). **1763 = 1706 + 12 + 25 + 15 + 1 +
+1 + 1 + 1 + 1**: §3's 12, §4's 23 + 2 fix-round (25), §5's 12 + 2 traps + 1
+guard (15) plus the fix round's 3.12c (1) — the same arithmetic as §3–§5's
+own close paragraphs, re-verified rather than re-derived. `goldensUnchanged`
+for the whole part: 0 goldens throughout (`find Tests/MetalUILayoutTests -name
+"*.json" | wc -l` reads 0); no `@Test` was removed by any lane (the T rows —
+one in §3, one in §4, one in §5 — are retained tests with a re-derived or
+inverted answer, each with its own row in that lane's section, `TE-AR` item
+10, `TE-AS` item 7, `TE-AU` item 5). `theLegacyEngineSymbolsAreAbsentFromThe
+TestProcess`, `everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS`, `theSevenRetentionSlotsAreMutu
+allyDistinct`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` and
+`everyReportNamesALiveOwnerOrIsRefusedByName` all green. `MetalUILayout`
+imports only `MetalUICore` (`grep -h '^import' Sources/MetalUILayout/*.swift
+| sort -u` reads one line); `MetalUIScene` imports only `MetalUIShaderTypes`.
+
+**Guards**: `grep -c canTypecheck` across every guard file CLAUDE.md names
+(30 files, `Tests/MetalUITests` and `Tests/MetalUICoreTests/UnitSafetyTests.swift`)
+reads 109 raw hits, less `UnitSafetyTests`' one comment hit = **108**. New
+this part: `ShapeCompileGuards` (2: G2.1 `anOutsideShapeNeedsOnlyItsGeometry`,
+G2.2 `theRectangleColorInitialiserIsDeprecatedTowardFill`, both whole-file
+`typecheckFile`) and `ImageCompileGuards` (1: G3.2
+`anImageHasNoSystemNameOrAssetInitialiser`, whole-file `typecheckFile`); G3.1
+renames `GridCompileGuards`' G4 in place (same file, same count, 4). **108 =
+105 + 0 (lane 1) + 2 (lane 2) + 1 (lane 3)**, matching every lane's own
+close. The `typecheckFile`-based helper count moves **66 → 69** (ShapeCompile
+Guards' 2 plus ImageCompileGuards' 1); the `typecheck`-based helper count
+stays 39; 39 + 69 = 108.
+
+**`_reserved`**: `git grep -n "_reserved" -- '*.swift' '*.h' '*.metal'
+'*.hlsl'` reads 14 lines, all `MUIGlyph`'s own field, its memberwise call
+sites (`PortableText.swift`, `ShaderTypesBridge.swift`, five
+`Tests/MetalUIRenderTests` files) and the header comment naming the old word
+— no `MUIRect`/rect site, confirming `TE-AR` item 9's claim independently
+(checked call by call, not just counted).
+
+**Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> ff2ae92 HEAD` —
+controls unmoved since stage 9 (light vs dark 1048576, default vs modal
+1031003, default vs animation 454895, f0 vs f3 0, chrome pair 0, distinct 544
+and 216, prod default vs modal 491221, prod distinct 529, indicator rects 0);
+**0 differing pixels, scene identical, in all fourteen images**, independently
+re-taken from a fresh `git archive` of both commits (not reused from any
+lane's own run).
+
+**Probe**: `swiftui-shapes-and-rendering.swift` recompiled (`swiftc -O`) and
+run interpreted (`/usr/bin/swift`); both outputs byte-identical to each
+other and, after stripping the `//` comment prefix, byte-identical to the
+78 recorded lines in the file's own header (P1 through K12, then O6, then
+`done`) — including O6's reading (`background(in:)` paints white over a red
+canvas, 5968 px). No new SwiftUI claim is made in this section; every one
+used above is one of these 78 lines or `swiftui-grid.swift`'s GL14 (re-run
+by the critic round, §2, and pinned again by 3.12).
+
+**`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`): `swift build
+--build-tests` → 0 `error:`; the one `warning:` is SwiftPM's pre-existing
+`-Wl,-rpath,/opt/homebrew/lib` "prohibited flag" notice (unrelated to this
+part — the same warning fires on an unmodified checkout, not one of this
+part's changes). `swift test --skip-build` → **`Test run with 22 tests in 0
+suites passed`** then **`Test run with 25 tests in 0 suites passed`** —
+**22 + 25**, matching §3's own reading, unmoved since (lanes 2 and 3 touch
+no file `Backends/SDL` builds).
+
+**A `swift:6.4-noble` (aarch64) container** (`docker run --rm -v "$PWD":/work
+-w /work swift:6.4-noble …`): the root package builds with 0
+`error:`/`warning:` and runs `MetalUISystemFontsTests` 6,
+`MetalUILayoutTests` **199**, `MetalUICrossPlatformTests` **10**,
+`MetalUICoreTests` **22** — **199 + 22 + 10**, matching §5's own reading
+(unmoved since — lane 3's 3.4 is the one test in `MetalUILayoutTests`, 198 →
+199, `TE-AU` item 4's Windows-safe payload change). `Tests/PortableTests`
+(a separate package, in the same container and independently on macOS):
+`swift build --build-tests` then `swift test --skip-build` →
+**`Test run with 21 tests in 7 suites passed`**,
+**`Test run with 6 tests in 1 suite passed`**,
+**`Test run with 5 tests in 1 suite passed`** — **21 + 6 + 5** on both
+platforms; unaffected by this part (no `MetalUIPortableText`/`MetalUITextSystem`/
+`MetalUIFreeType`/`MetalUIHarfBuzz` source touched by any of the three lanes).
+
+**A pre-existing documentation slip corrected in passing** (found while
+re-taking this figure, not part of this task's own scope, but CLAUDE.md's own
+practice is to fix a refuted claim everywhere it was copied): record §59 and
+CLAUDE.md's task-11-part-1 Counts entry both read "`Tests/PortableTests`
+20 + 6 + 5" — arithmetic that does not check out. `PortableTextDeterminism
+Tests.swift` held 18 `@Test` functions before task 11 part 1 (confirmed by
+`git show 169d166:…PortableTextDeterminismTests.swift | grep -c @Test`); lane
+1 of part 1 added a new file, `TruncationDeterminismTests.swift`, with 3
+`@Test` functions (one gated); 18 + 3 = **21**, not 20, and both this
+container and a native macOS run of `Tests/PortableTests` read 21 for that
+target today. **Five occurrences in record §59 corrected** (§2.1, §2.5 close,
+the lane-1 fix-round close, and both sentences in §6's `Tests/PortableTests`
+paragraph) to `21 + 6 + 5`, each noting the correction and citing this
+section; CLAUDE.md's own occurrence is fixed in the same commit as this
+part's other CLAUDE.md edits. No test was ever miscounted in a suite total —
+the slip was confined to this one aside about a separate package's own
+reading.
+
+**Real window**: lock probe at this close, 06:39 PDT —
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — locked at every
+check across design, the critic round and all three lanes, and now at this
+close too; the real-window capture stays owed, as it has since task 8.
+
+**Lane 1's four open items, disposed** (none blocks the tick — each is a
+test-coverage gap or a latent contract note, not a defect; `ok: true` stands):
+
+1. **SDL texture-eviction leak, untested.** Removing the release call in
+   `SDLWindowRenderer.prepareTextures` (mutation S-A) leaves the whole
+   `Backends/SDL` suite green, because `cachedTextureIdentities` reads the
+   Swift-side dictionary, which drops an entry whether or not the C bridge
+   actually released the GPU handle. Metal is safe by construction (ARC frees
+   the texture with the dictionary entry); SDL is not measured. **Owed, owner
+   none**: a live-handle or release count on the C bridge side, asserted by
+   `imageTexturesPersistAndAreReleasedWhenAbsent`.
+2. **Three Metal shader facts pinned only by the SDL parity job, not by any
+   root test**: image opacity (mutation V1), the image's vertical
+   orientation/row order (V9), and the ellipse kind's circle branch (V6).
+   Every root `ImagePrimitiveTests`/`EllipsePrimitiveTests` case uses opacity
+   1, a one-row or 1×1 texture, or a non-equal-axis ellipse; only
+   `Experiments/SDLGPU`'s `Replay --portable` (the `sdl-gpu-linux.yml` job on
+   push) catches a regression in any of the three. **Owed, owner none**: a
+   half-opacity image test, a two-row nearest-filtered image test, and an
+   equal-axis (circle) ellipse test in the root suite — or, short of that, a
+   named row in `TE-AR` stating the parity job is these three facts' only
+   pin.
+3. **Two `TE-AR` claims (items 6 and 7) are stated but not tested**: a band at
+   least as wide as the shorter diameter fills the whole ellipse (mutation
+   V7), and an empty scene releases every cached image texture (mutation V8).
+   Neither mutation reddens anything, root or SDL. **Owed, owner none**: a
+   wide-band ellipse fill test and an empty-scene-after-an-image-scene
+   eviction test.
+4. **The Metal image cache is per-`Renderer`, and `AppKitPlatform` shares one
+   `Renderer` across every window** (`RS-C`): two windows each showing a
+   different image evict each other's texture every frame, re-uploading each
+   time frames alternate (test 1.9's own sequence shows the count). SDL keeps
+   one renderer per window and does not have this. **No production code draws
+   an image yet** (lane 2's/lane 3's `Shape`/`Image` surface exists, but
+   `demoContent()` calls neither), so nothing observable regresses on this
+   branch. **Owed, owner: before any multi-window image consumer ships** —
+   either key the Metal cache per surface, or evict only textures unused for
+   a frame or more, pinned by an alternating two-window test.
+
+None of the four is a rendered-output difference between Metal and SDL for a
+single window (the parity harness's own promise); all four are additional
+test coverage or a documented latent limitation, so they do not gate the tick
+below.
+
+**Tick decision (`TE-AP`)**. All three lanes landed; spec §3's collection
+table is checked row by row:
+
+| row | disposition | satisfies `TE-AP`? |
+|---|---|---|
+| shapes | built | yes |
+| fills/strokes | built | yes |
+| `foregroundStyle` on a shape | built | yes |
+| clipping | built (divergences 91, 92 as documented traps/constraints) | yes |
+| `.cornerRadius` clipping (divergence 47) | kept, numbered divergence | yes |
+| overlays/backgrounds with shapes | audited unchanged, two spellings added | yes (built) |
+| images | built (divergence 93 as a documented constraint) | yes |
+| `aspectRatio(nil)`, `scaledToFit`/`Fill` | built | yes |
+| `UnitPoint` grid anchor | built, divergence 64 retires | yes |
+| `colorScheme`/appearance, pre-paint theme | not built, documented absence, owner none | a **renderer constraint**, explicit (§9) — the task's own text asks for exactly this disposition |
+| colour glyphs | kept, record §05's renderer-constraint row, owner none | a **renderer constraint**, explicit (§9), pre-existing since before this task |
+| SF Symbols, `Path`, gradients, `StrokeStyle`, a labelled `Image` | constraints, each with an owner or `owner: none`, §9 | every one named, explicit |
+
+The last three rows read "owner: none" rather than "re-owned to a task", but
+the task's own text is "keep renderer constraints explicit when an exact
+effect is not supportable yet" — an explicit, permanent boundary with no
+owner is exactly that disposition, not an unfinished clause; none of the
+three was created by this task (`EV-G`, record §05's colour-glyph row and the
+excluded-surface list all predate it), and each is named, with a reason, in
+spec §9. Every row is therefore built, kept with a numbered divergence, or an
+explicit renderer constraint (owned or not) — **task 11 is ticked**.
+
+**Live divergence count**: 65 → **68** (90, 91, 92, 93 added; 64 retires),
+next label **94**. **Declared but inert**: no row added or deleted; the
+colour-glyphs row (already in the inline list) is re-confirmed unmoved
+(`TE-AO` item 2 — the image primitive is now the draw path a polychrome
+sprite would use, but rasterizing `COLR`/`sbix` stays a text-system
+milestone, not this one).
+
+**Spec status**: `docs/superpowers/specs/2026-09-28-shapes-and-rendering-design.md`
+marked "lanes 1–3 landed; Record phase close applied; task 11 ticked
+(both parts close every clause)".

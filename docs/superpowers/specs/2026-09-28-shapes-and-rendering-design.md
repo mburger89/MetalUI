@@ -9,7 +9,7 @@ recorded output and the reading), and `docs/probes/swiftui-grid.swift` arm
 `GL14` (grids track, **re-run** by the critic round 2026-09-29, compiled,
 byte-identical to its header line). Record: `docs/record/60-shapes-and-rendering.md`.
 
-**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4); lane 3 landed (`TE-AU`, record §60 §5).** Parts 1 and 2 together are plan task 11; this part is
+**Status: DESIGNED, critic round applied (`TE-AQ`); lane 1 landed (`TE-AR`, record §60 §3); lane 2 landed (`TE-AS`, fix round `TE-AT`, record §60 §4); lane 3 landed (`TE-AU`, fix round, record §60 §5); Record phase close applied (record §60 §6) — LANDED, task 11 ticked.** Parts 1 and 2 together are plan task 11; this part is
 the task's second and third sentences — "cover shapes, images, fills/strokes,
 overlays and clipping where MetalUI exposes them. Keep renderer constraints
 explicit when an exact effect is not supportable yet."
