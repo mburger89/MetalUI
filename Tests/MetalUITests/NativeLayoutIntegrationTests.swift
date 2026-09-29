@@ -606,8 +606,15 @@ private struct NativeProposalProbe: ProposalElement {
 }
 
 /// A macOS SwiftUI custom-Layout probe measures `Text` at its intrinsic width
-/// when width is unspecified, then rewraps it for a concrete width; the height
-/// proposal itself does not change that text measurement.
+/// when width is unspecified, then rewraps it for a concrete width; **a finite
+/// height proposal caps its lines** at `max(1, ⌊h / lineHeight⌋)`.
+///
+/// **Re-answered by plan task 11 part 1 (a T row, ruling TE-H item 2; record
+/// §59 §4)**: the heightControl arm asserted "a height proposal does not
+/// truncate or scale a SwiftUI Text measurement", an unprobed claim that probe
+/// `swiftui-text-semantics.swift` L5/X9 refutes (100×20 → one line). At
+/// (30, 12) the wrapped run now answers one line — the widest kept, truncated
+/// line and one line height — and a height of whole lines caps nothing.
 @MainActor
 @Test func proposalTextUsesWidthDrivenSwiftUIMeasurement() {
     let cache = ShapingCache()
@@ -619,13 +626,17 @@ private struct NativeProposalProbe: ProposalElement {
                                           proposal: ProposedSize(width: 30, height: nil))
     let heightControl = proposalTextMeasurement("SwiftUI proposal measurement", font: font, cache: cache,
                                                 proposal: ProposedSize(width: 30, height: 12))
+    let roomy = proposalTextMeasurement("SwiftUI proposal measurement", font: font, cache: cache,
+                                        proposal: ProposedSize(width: 30, height: wrapped.size.height))
 
     #expect(wrapped.size.width < unwrapped.size.width,
             "a concrete proposal width must become the wrapping question")
     #expect(wrapped.size.height > unwrapped.size.height,
             "the narrower wrapped run must report its additional line height")
-    #expect(heightControl == wrapped,
-            "a height proposal does not truncate or scale a SwiftUI Text measurement")
+    #expect(heightControl.size.height == font.metrics.lineHeight,
+            "a height below one line caps the run at one line (L5)")
+    #expect(heightControl.size.width <= 30)
+    #expect(roomy == wrapped, "a height of the run's own lines caps nothing")
 }
 
 /// The bridge is a native leaf, so it can live in a proposal HStack and retains

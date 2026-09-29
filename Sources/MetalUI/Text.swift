@@ -120,20 +120,28 @@ public struct Text: Element, StyledElement {
         public var node: LayoutNodeID
     }
 
+    /// What this text asked for itself, for `resolveTextStyle` (spec §3).
+    var styleRequest: TextStyleRequest {
+        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundColor)
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
         // Resolved and registered by the text system under its `Sendable`
-        // key; the closures below capture the key and the system, never a
-        // font or the request (`FontKey`'s rule). `paint` asks the same
-        // question and gets the same key back.
-        let key = system.resolveFont(family: fontFamily, size: fontSize)
+        // key; the closures below capture the key, the resolved style and the
+        // system, never a font or the request (`FontKey`'s rule). `paint`
+        // resolves again through the same function in the same environment
+        // (spec §3) and gets the same key back.
+        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
+        let key = system.resolveFont(textStyle.descriptor)
         let string = self.string
 
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
-                    proposalTextMeasurement(string, font: key, system: system, proposal: proposal)
+                    proposalTextMeasurement(string, font: key, system: system, proposal: proposal,
+                                            style: textStyle)
                 }
             }
         }
@@ -255,7 +263,8 @@ public struct Text: Element, StyledElement {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let system = pass.textSystem
-        let font = system.resolveFont(family: fontFamily, size: fontSize)
+        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
+        let font = system.resolveFont(textStyle.descriptor)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.
@@ -301,9 +310,17 @@ public struct Text: Element, StyledElement {
         let glyphNode = pass.frame.lowering.textLeaves[layout.node]
         let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin
         let width = max(pass.measuredWidth(of: glyphNode ?? layout.node), smallestWrapWidth)
-        let color = pass.theme[foregroundColor ?? .textPrimary]
+        // **The line cap is re-derived from the box** (TE-H item 2): `max(1,
+        // ⌊h / lineHeight⌋)` of the node's final height, capped by the limit —
+        // the leaf's own answer where nothing frames it, so the lines layout
+        // measured; a reserved or framed box is taller or is the proposal, and
+        // caps nothing layout did not.
+        let height = Double(pass.bounds(of: glyphNode ?? layout.node).size.height.value)
+        let laid = textLines(string, font: font, system: system, wrappingAt: width, height: height,
+                             style: textStyle)
+        let color = pass.theme[textStyle.foreground]
 
-        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width,
+        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
                                         origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
                                         scaleFactor: pass.scaleFactor) {
             pass.draw(glyph, color: color)

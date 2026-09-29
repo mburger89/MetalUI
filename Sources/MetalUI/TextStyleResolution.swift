@@ -24,6 +24,12 @@ struct ResolvedTextStyle: Equatable {
     var lineLimit: TextLineLimit
     var truncation: TextTruncation
     var alignment: TextLineAlignment
+
+    /// No limit, tail, leading, the default colour: what an unconfigured text
+    /// resolves under a bare environment, for callers that measure a key they
+    /// resolved themselves.
+    static let unstyled = ResolvedTextStyle(descriptor: FontDescriptor(size: 13), foreground: .textPrimary,
+                                            lineLimit: TextLineLimit(), truncation: .tail, alignment: .leading)
 }
 
 /// The default font — what a text resolves when neither it nor the
@@ -124,6 +130,18 @@ func textLines(_ string: String, font: FontKey, system: any TextSystem, wrapping
 @MainActor
 func proposalTextMeasurement(_ string: String, font: FontKey, system: any TextSystem,
                              proposal: ProposedSize, style: ResolvedTextStyle) -> LayoutMeasurement {
-    // SKELETON (lane 3 red commit): the style is not applied yet.
-    proposalTextMeasurement(string, font: font, system: system, proposal: proposal)
+    let wrappingAt = proposal.width.map { Swift.max($0, smallestWrapWidth) }
+    let laid = textLines(string, font: font, system: system, wrappingAt: wrappingAt,
+                         height: proposal.height, style: style)
+    // The answer never exceeds a finite proposal (`LR-AU`; stage-2 probe group
+    // Y, and stage 1's T3/T4): the typesetter can hang one character plus a
+    // space past a proposal narrower than a word.
+    let width = proposal.width.map { Swift.min($0, laid.measured.widestLine) } ?? laid.measured.widestLine
+    var height = laid.measured.totalHeight
+    if let minimum = style.lineLimit.min, !string.isEmpty {
+        height = Swift.max(height, Double(Swift.max(minimum, 1)) * laid.metrics.lineHeight)
+    }
+    let first = laid.metrics.ascent.rounded()
+    let last = first + Double(laid.lines - 1) * laid.metrics.lineHeight
+    return LayoutMeasurement(size: SizeD(width: width, height: height), firstBaseline: first, lastBaseline: last)
 }

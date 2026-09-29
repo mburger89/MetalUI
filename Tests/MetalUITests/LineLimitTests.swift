@@ -132,11 +132,16 @@ private func naturalLines(_ string: String = tePara, width: Double) -> Int {
 /// **3.23.** A stack shares its height with a wrapping text as SwiftUI does
 /// (ruling TE-R, probe `swiftui-text-in-stacks.swift`): the text is flexible
 /// between one line and its natural height, so least-flexible-first serves it
-/// its share. K1 — `VStack(spacing: 0) { ProposalText; Spacer }` 100 wide at
-/// heights 60, 100, 200 — draws 1, 3 and 6 lines; K2 — a 40-tall block at 80
-/// — 2. K2 on a legacy `Column` (gap 0) of a `Text` and a 40-tall `Box`: 2.
-/// Line counts, from the frame's own 16 pt line, never SwiftUI's half-point
-/// heights (divergence 77).
+/// its share. K2 — `VStack(spacing: 0) { ProposalText; 40-tall block }` 100
+/// wide at 80 — draws 2 lines, SwiftUI's answer; so does K2 on a legacy
+/// `Column` (gap 0) of a `Text` and a 40-tall `Box`. Line counts, from the
+/// frame's own 16 pt line, never SwiftUI's half-point heights (divergence 77).
+///
+/// **The `Spacer` arms pin MetalUI's answer, not SwiftUI's — divergence 89**
+/// (ruling TE-Y): the kernel gives a bare `Spacer` priority −∞ (CN-C, probe
+/// SP8), so a text beside one is offered everything but the spacer's 8 pt
+/// minimum — 3 lines at 60 and 5 at 100, where SwiftUI splits the height
+/// evenly (K1: 1 and 3). At 200 both draw all 6 (the separating control).
 ///
 /// Red before: every arm draws 6. Mutation **M3u**: the measure ignores a
 /// finite height proposal.
@@ -154,8 +159,8 @@ private func naturalLines(_ string: String = tePara, width: Double) -> Int {
         let text = try controlBounds(frame, controlID([0, 0, 0, 0]))
         return Int((text.size.height.value / lh).rounded())
     }
-    #expect(try lines(60, spacer: true) == 1, "K1 60")
-    #expect(try lines(100, spacer: true) == 3, "K1 100")
+    #expect(try lines(60, spacer: true) == 3, "K1 60: divergence 89 (SwiftUI 1)")
+    #expect(try lines(100, spacer: true) == 5, "K1 100: divergence 89 (SwiftUI 3)")
     #expect(try lines(200, spacer: true) == 6, "K1 200 (the separating control)")
     #expect(try lines(80, spacer: false) == 2, "K2 80")
 

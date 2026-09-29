@@ -101,9 +101,11 @@ public struct EnvironmentValues {
     /// `aLocaleChangesNoTextMeasurementUnderTheProposalAuthority`).
     public var locale: Locale
 
-    /// Carried; changes no built-in text size, as in SwiftUI on macOS (ruling
-    /// EV-I, probe G, pinned by
-    /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority`).
+    /// Carried; changes no built-in text size — no text style, the default
+    /// font or a `relativeTo:` font — which is SwiftUI's macOS answer (rulings
+    /// EV-I, TE-E; probes G and F7, pinned by
+    /// `dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority` and
+    /// `noFontRespondsToDynamicTypeSize`).
     public var dynamicTypeSize: DynamicTypeSize = .large
 
     /// Points to device pixels for the display this content is drawn on —
@@ -158,14 +160,16 @@ public struct EnvironmentValues {
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
     ///
-    /// **One built-in reader: `Button`'s chrome** (ruling `DD-R` item 4 —
-    /// its padding and height follow the size, its label's font does not).
-    /// Otherwise carried unread — **divergence 76, amended and kept, pinned
-    /// wrong on purpose** by `controlSizeReachesNoBuiltInMeasurement`: SwiftUI's
-    /// `Text` default font and `TextField` follow it on macOS (Z2, Z3);
-    /// MetalUI's measure nothing differently. Owner of the remainder (a
-    /// `Text`'s default font, `TextField`/`TextEditor`, the other controls'
-    /// metrics): plan task 11 (`DD-AB` item 2).
+    /// **Two built-in readers** (ruling TE-F): `Button`'s chrome (`DD-R` item
+    /// 4 — its padding and height follow the size), and the **default font**
+    /// every `Text`, `ProposalText`, `TextField` and `TextEditor` resolves when
+    /// neither it nor the environment names a font — 9 pt at `.mini`, 11 at
+    /// `.small`, 13 otherwise (probe F8, Z2, R2), so a `Button`'s label and a
+    /// field's height follow it too. An explicit or environment font ignores it
+    /// (F8h). **Divergence 76, amended again and kept, owner none**: no other
+    /// control's chrome reads it — `TextField`'s padding (SwiftUI's shrinks),
+    /// `Toggle`, `Picker`, `Slider`, `Stepper` — pinned by
+    /// `controlSizeReachesTheDefaultFontButNoControlsChrome`.
     public var controlSize: ControlSize = .regular
 
     /// The font a `Text`, `ProposalText`, `TextField` or `TextEditor` below
@@ -244,8 +248,9 @@ public enum DynamicTypeSize: Sendable, Hashable, CaseIterable, Comparable {
 
 /// SwiftUI's five control sizes (ruling EV-AC).
 ///
-/// Carried in `EnvironmentValues.controlSize`; `Button`'s chrome is the one
-/// built-in reader (`DD-R` item 4; divergence 76, amended).
+/// Carried in `EnvironmentValues.controlSize`; `Button`'s chrome and the
+/// default font are its built-in readers (`DD-R` item 4, TE-F; divergence 76,
+/// amended).
 public enum ControlSize: Sendable, Hashable, CaseIterable {
     case mini, small, regular, large, extraLarge
 }

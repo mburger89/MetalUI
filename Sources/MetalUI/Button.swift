@@ -28,9 +28,11 @@ import MetalUIPlatform
 /// from `controlSize` (`DD-R` item 4 — 8/13, 10/20, 12/24, 14/28, 18/36 for
 /// mini…extraLarge, BT4 − BT5 halved), corner radius 5, `.surfaceSecondary`
 /// fill, a 1-point `.separator` border. `Button("Go")` is `textW + 24` ×
-/// `max(textH, 24)` at the default size. **The label's font does not follow
-/// `controlSize`** — that is a `Text`'s default font, plan task 11
-/// (divergence 76, amended, kept). No pressed, hover or focus look (task 12).
+/// `max(textH, 24)` at the default size. **The label's default font follows
+/// `controlSize` too** — 9/11/13 pt, because the label is a `Text` and a
+/// `Text`'s default font reads it (ruling TE-F item 3, withdrawing `DD-R` item
+/// 4's "its label's font does not"; probe F8, Z3). No pressed, hover or focus
+/// look (task 12).
 ///
 /// **Accessibility needs no declaration**: a clickable generic node is already
 /// a button that folds its label (`AB-G`; BA0, BA2).
