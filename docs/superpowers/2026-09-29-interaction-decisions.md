@@ -968,7 +968,8 @@ and `Picker`; doc comments of `EnvironmentValues.controlActiveState` and
    `.surface`); only the radio group's selected circle follows
    `controlActiveState`.
 5. **The key compares lower-cased** with `charactersIgnoringModifiers` (AppKit
-   reports a shifted letter upper-case there); the modifiers exactly.
+   reports a shifted letter upper-case there); the modifiers exactly. Pinned
+   by 2.4's ⌘⇧K arm (fix round, V6).
 6. **A focused `TextField` with no `.onSubmit`** does not claim Return: its
    editing stage returns unhandled on a submit with no handler (`TI-B`, as
    before), so the default button fires. Unmeasured in SwiftUI (`X2` had an
@@ -976,7 +977,9 @@ and `Picker`; doc comments of `EnvironmentValues.controlActiveState` and
    claims it.
 7. **A shortcut runs whatever a click runs** (`composed.onClick ?? action`,
    so a caller's `.onClick` replaces it too), dispatched under
-   `StateDispatch` to the button's id (`ID-F`).
+   `StateDispatch` to the button's id (`ID-F`). The dispatch half is pinned
+   by 2.4b, `aShortcutWritesTheStateOfTheOccurrenceThatOwnsItsButton` (fix
+   round, V7).
 8. **The shortcut is registered whatever `hidden()` says** — lane 3's hidden
    condition must gate the focus half only (`X1`, spec 3.14b).
 9. **A content shape composes with `contentShape(inset:)`**: the shape's
@@ -991,7 +994,7 @@ and `Picker`; doc comments of `EnvironmentValues.controlActiveState` and
     keeps its one `pass.environment` read in layout, as before.
 
 **Red first — and one harness finding.** At `fb0053b` the test target
-compiled against the stored-but-unread surface: 2.2–2.16 red (13 tests); 2.1,
+compiled against the stored-but-unread surface: 2.2–2.16 red (15 tests — the first write-up read "13"; a `git archive` build of `fb0053b` filtered to the lane's files reads `Test run with 20 tests … failed`, 15 of them 2.2–2.16, the commit message of `74d1022` keeps the old figure); 2.1,
 2.17, 2.18, G2.1, G2.2 and the extended `ModifierTests` row green (2.1 pins an
 absence, 2.17/2.18 pin today's behaviour, written first). **Four shortcut
 tests discarded their `Window`** (`let (_, platform) = …`); the fake platform
@@ -1034,8 +1037,21 @@ after every one):
 | M3j | the shape tested in `dispatchClick` only (a second copy) | 2.16, 2.15 (its gesture arm) |
 | M3k | a hit intersected with the clip's rounded geometry (own `clipShape` as a content shape; an ancestor clip's radii) | 2.17 |
 | M3l | a hitbox for every painted element (a filled legacy box, a bare `Shape`) | 2.18 and 21 more: `aClosureStepperRunsItsClosuresAndANilOneDisablesItsDirection`, `aContentShapeOnAFrameLayerInsetsTheFrameBoxAndBeforeItTheChildBoxUnderTheProposalAuthority`, `aContentShapeWithoutAClickHandlerRegistersNothing`, `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, `aDisabledScopeAroundAFramedFocusRingSuppressesRingHoverAndClick`, `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame`, `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority`, `aLabelledClickTargetOnAFrameLayerPublishesTheFrameBoxWhileItsHitRegionIsInset`, `aLoweredContainerPaddingSitsInsideItsDeclaredSize`, `aLoweredWindowDispatchesClicksFocusAndKeys`, `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority`, `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`, `aStepperClampsIntoItsRangeAndWritesNothingWhenTheValueWouldNotMove`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, `anOutOfRangeStepperStepsFromItsClampedValue`, `anUnboundedStepperDoesNotClamp`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`, `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`, `hoverBackgroundWithoutAClickHandlerNeverPaints` |
+| V5 | `Frame.insertHitbox` stores `shape` untranslated by `activeOffset` (fix round, applied to `4e8492b`, 1825 tests) | 2.16b `aContentShapeInsideAScrolledScrollerFollowsTheScroll` (1 issue); green in the 1823-test suite before 2.16b |
+| V6 | both `.lowercased()` removed from `KeyboardShortcut.matches` (fix round, `4e8492b`) | 2.4 `aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch` (its ⌘⇧K arm, 1 issue); green before that arm |
+| V7 | `StateDispatch.dispatching(to: id) { target.action() }` → `_ = id; target.action()` (fix round, `4e8492b`) | 2.4b `aShortcutWritesTheStateOfTheOccurrenceThatOwnsItsButton` (2 issues); green before 2.4b |
+| V10 | the ring `BorderStyle(.accent, …)` in place of `controlAccent(environment)` (fix round, `4e8492b`) | 2.12 `aFocusedControlDrawsItsRingAndAnUnfocusedOneDoesNot` (its `.inactive` arm, 10 issues — two per control); green before that arm |
 | G2.1 | `ButtonStyle.borderless` made internal | `theButtonSpellingsCompileFromAPlainImport` (positive arm failed) |
 | G2.2 | `contentShape(_:)` declared on `ProposalElementGroup` | `aProposalElementCannotSpellContentShapeBeforeItsTap` |
+
+**Fix round** (review of lane 2): four unpinned clauses gained pins, each
+shown red by the mutation that removes it (V5, V6, V7, V10 above; restored
+from a copy, `git status --short` empty after each): a content shape under a
+scrolled scroller (2.16b, new), a ⌘⇧K shortcut on the upper-case event (2.4,
+an arm), a shortcut's occurrence under `StateDispatch` (2.4b, new) and the
+focused ring's `.separator` colour in a non-key window (2.12, an arm). The
+suite reads **`Test run with 1825 tests in 3 suites passed`** (1823 + 2),
+guards unchanged at 112; the projected close moves to 1837 tests.
 
 **Recorded greps** (2026-09-29, `68a33ec`): `grep -rn "bounds.contains(" Sources/MetalUI`
 → one hit, `Hitbox.swift:139` (`Hitbox.contains`); the `(layer, offset)`
