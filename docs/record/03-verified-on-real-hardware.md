@@ -1684,3 +1684,44 @@ These join, and neither close nor reopen, the still-owed items above
 (stage 6b's four demo-layout changes, task 9's two looks, task 10 part 1's
 wheel-under-`.disabled` look, task 10 part 2's controls-demo and
 accessibility looks).
+
+## 2026-09-29: no demo look shown, but a long list of new looks is owed at interaction (plan task 12, part 1)
+
+Record §62. **Note**: task 11 part 2 (record §61) added no demo look and did
+not narrow the still-open real-window capture, per its own text in
+CLAUDE.md, but never appended a dated section of its own here — a
+pre-existing gap, not this section's to close.
+
+**No demo tree change, and no demo pixel moves**: the demo builds no
+gesture, `Button`, control, `.focused` binding or `contentShape`, and its
+one `.focusable()` panel is never inside a conditional that goes false in
+the fourteen captured states — 0 px against `31f2e7a` in all fourteen
+offscreen images, at every lane and again at this Record phase's own close,
+independently re-taken from a fresh `git archive` of both commits. The lock
+probe read locked at design time, the critic round, every lane's own check
+and this close (well after noon PDT) — `capture.sh` was never run.
+
+**New looks owed, none of them shown yet on a real display or beside a
+native SwiftUI window**:
+
+- **Gestures on a trackpad**: tap slop, double-tap timing and a long
+  press's duration, against Finder's or SwiftUI's own feel — the probe's
+  synthesized click harness measures the platform's own values numerically
+  (`swiftui-interaction.swift`'s G-group), but nobody has felt them.
+- **The pressed, disabled and inactive looks**: `Button`'s wash while held,
+  every control's half-opacity scope while disabled, and the accent/ring
+  colour drop outside the key window — all built and pinned by synthetic
+  tests through a `FakePlatformWindow`, none seen painted.
+- **The focus ring** on all five controls — opt-in `focusBorder` already had
+  this debt; task 12 part 1 adds every control's own ring to it.
+- **A real key window's accent and ring**: the probe's own harness process
+  is never the active application (`PX23` always read "inactive"), so
+  whether a real key window's `controlActiveState` flips as designed is
+  unconfirmed.
+
+None of this reopens or closes the still-owed items above (stage 6b's four
+demo-layout changes, task 9's two looks, task 10 part 1's
+wheel-under-`.disabled` look, task 10 part 2's controls-demo and
+accessibility looks, task 11 part 1's paragraph and drawn-`controlSize`
+looks) — it joins them, and joins the still-open real-window capture itself,
+owed since stage 6b.

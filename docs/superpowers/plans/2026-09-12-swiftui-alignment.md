@@ -1325,6 +1325,34 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `accessibilityElement(children:)`, disabled behaviour and content shapes are
   this task's (task 12), not task 9's or task 10's — re-pointed where cited
   (a `Button` control's own existence is task 10's).
+  *Progress 2026-09-29 (part 1, the interaction half, delivered — `IX-A`…`IX-T`,
+  spec `specs/2026-09-29-interaction-design.md`, decisions doc
+  `2026-09-29-interaction-decisions.md`, record §62):* gesture composition
+  (`TapGesture`/`LongPressGesture`/`DragGesture`, `.gesture`/
+  `.simultaneousGesture`/`.highPriorityGesture`, one arena per press),
+  `Button(role:)`/`.buttonStyle`/a pressed look/`.keyboardShortcut`, the
+  disabled look and the inactive-window look (`controlActiveState`'s first
+  built-in readers — divergences 21/22 re-owned, kept, owner none),
+  `@FocusState`/`.focused(_:)`, focus after an identity rename (`ID-R` item 9
+  fixed to SwiftUI's answer, `IX-I`, a migration note), Full Keyboard Access
+  measured (divergence 80 amended), `hidden()`'s keyboard-only gate,
+  `contentShape<S: Shape>(_:)` on every element and `clipShape`'s hit
+  behaviour (divergence 43 amended) are all built and ruled. Divergence 94
+  added (a click never focuses a `.focusable()` view); 57 pinned. Live
+  divergence count 68 → 69. Counts 1837 / 0 / 113. **Part 1's box is not
+  ticked here — this note is task 12's own, not the plan item's**: **part 2
+  remains**, the accessibility half of this task's second sentence —
+  settable `AXSelected`/`AXSelectedRows` (divergence 83),
+  `accessibilityElement(children:)`, hidden/combination modifiers and extra
+  traits, `AB-H`'s press question (divergence 28), modal isolation and press
+  occlusion, divergence 32 (accessibility scrolling to unrealised rows),
+  divergence 82, `AB-Q`'s proposal-path accessibility (grids included), an
+  `onTap` control's and an image's VoiceOver presence, `AXNode.actions`'s
+  inert row, and every `DD-` ruling's cost contingent on this task's own
+  VoiceOver validation — and, inside part 2, **the VoiceOver script itself,
+  which only a human can run** (record §12; nobody has run it since it was
+  written). Task 12's box stays unticked until part 2 lands and the script
+  is run.
 
 - [ ] **13. Complete transaction and animation semantics.**
   Make modifier wrappers participate in transactions at their correct phase,

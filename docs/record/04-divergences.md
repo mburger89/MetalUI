@@ -1868,3 +1868,48 @@ as well as the control taking its keys** — same cause, same owner (plan task
 own Tab answer is unmeasured, so no SwiftUI claim is made. Pinned by
 `tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`. Live count stays
 **65** (master's figure after task 11 part 1).
+
+## 2026-09-29: 94 added; 43, 41, 80 amended; 57 pinned; 81, 21, 22 re-owned (plan task 12 part 1, the interaction half)
+
+Record §62; rulings `IX-D`, `IX-G`, `IX-K`, `IX-L`, `IX-O`. **Baseline note**:
+this task's own design session measured the live count at `31f2e7a` as
+**68**, next label 94 (CLAUDE.md's own "Known divergences" bullet, and
+record §62 §1) — task 11 part 2 (record §61) retired 64 and added 90–93
+(65 → 68) but, unlike every other stage/task before and after it, never
+appended its own dated section to this file; that gap predates this branch
+and is not this section's to close, but is flagged here so the 65 → 68 jump
+between the section above and this one is not read as an error in either.
+
+**94 added, kept, owner none** (`IX-K` item 2): a click on a `.focusable()`
+element, or on a `Button`, does not move focus — SwiftUI's own click does
+(probe F3) — pinned by `clickingAFocusableElementDoesNotFocusIt` and, for
+`Button`, the existing `aButtonIsFocusableButAClickDoesNotFocusIt`. **43
+amended** (`IX-L` item 2): `clipShape`'s own hit behaviour intersects the
+clip's *rect*, not its rounded geometry — one mask per primitive, the same
+shape as the renderer constraint task 11 part 2 named for painting; MetalUI's
+own rule, unmeasured against SwiftUI (the probe is headless, no window is
+ordered front) — pinned by `aClipShapesCornersStayHittableAndItsRectBoundsTheHit`.
+**41 amended**: a bare `Shape`'s default hit region is its frame too, the
+same answer every other element already gave. **80 amended** (Full Keyboard
+Access): probe arms F5/F6 now measure it directly (Tab moves nothing with
+Full Keyboard Access off) rather than being carried unmeasured from the
+text-page merge (record §60's 2026-09-28 section). **57 pinned, owner
+none**: a non-clickable primary passing a click through to its background
+was previously an unpinned row; `aDrawnElementWithoutAPointerTargetDoesNotBlockAClickBeneathIt`
+(2.18) now pins it. **81 re-owned**: menus/`.contextMenu`/
+`.pickerStyle(.menu)` stay unbuilt and unnumbered further, owner none
+(`IX-M`) — nothing this task builds gives it a number. **21 and 22
+re-owned, kept, owner none** (`IX-G` item 1): the plan's own audit carried
+these two rows to task 12 by name (focus retention on disable; raw keys on
+a disabled ancestor); this task's audit closes both by ruling MetalUI's
+existing behaviour the answer — no code changed, and no SwiftUI positive
+control exists for either arm to contradict it (the probe's disabled-arm
+lock reads C1–C3/C5 unmeasured, `EV-AB`'s own gap, unrelated to this
+ruling). `ID-R` item 9's unnumbered focus-identity difference (a focused
+element used to survive an evaluated reset and get focus back on return) is
+**closed, not numbered** — `IX-I` fixes it to SwiftUI's own measured answer
+(probe arms F1, F2: focus leaves with its identity and does not come back),
+so it never reaches a live-count row; a migration note for the behaviour
+change is in CLAUDE.md's "Focus" paragraph and record §62 §5.
+
+Live count **68 → 69**, next label **95**.

@@ -324,19 +324,25 @@ In progress: SwiftUI behavioural alignment. **The legacy CSS layout engine is
 deleted** (task 7's closing stage) — every element, legacy or proposal, lays
 out through one proposal/measure/place kernel; there is no second engine
 left to port a container onto. Closed: the proposal-layout kernel (task 2),
-typed modifier composition (task 3), SwiftUI's container algorithms and the
-legacy-container audit (task 6), composition and identity (task 8), scoped
-environment values — disabled state, display scale, control active
+typed modifier composition (task 3), frame and sizing semantics (task 4),
+outer modifiers and modifier order (task 5), SwiftUI's container algorithms
+and the legacy-container audit (task 6), composition and identity (task 8),
+scoped environment values — disabled state, display scale, control active
 state/size (task 9), data-driven controls and scrolling — `ForEach`,
-`Binding<Value>`, common controls, selection (task 10), and text, shape and
+`Binding<Value>`, common controls, selection (task 10), text, shape and
 rendering-facing semantics — foreground style, font metrics, truncation,
-baselines, `Shape`/`Image`, fills/strokes, clipping (task 11). A macOS
-accessibility bridge (task 12's bridge half) exists, not yet validated with
-VoiceOver. Open: frame and sizing semantics (task 4), outer modifiers and
-modifier order (task 5), the rest of interaction/focus/accessibility
-(task 12), transaction and animation semantics (task 13) and platform
-completeness (task 14). The decisions documents are prefixed `SA-`, `MC-`,
-`EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-` and `TE-`.
+baselines, `Shape`/`Image`, fills/strokes, clipping (task 11), and the
+**interaction half** of task 12 — gesture composition (`TapGesture`/
+`LongPressGesture`/`DragGesture` and their composition), `Button` roles/
+styles/a pressed look/keyboard shortcuts, the disabled and inactive-window
+looks, `@FocusState`/`.focused(_:)`, focus leaving with its identity, and
+`contentShape<S: Shape>(_:)`. A macOS accessibility bridge (task 12's bridge
+half) exists, not yet validated with VoiceOver. Open: the rest of task 12 —
+settable accessibility selection, `accessibilityElement(children:)`, modal
+isolation, and the VoiceOver script itself, which needs a human — transaction
+and animation semantics (task 13) and platform completeness (task 14). The
+decisions documents are prefixed `SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`,
+`CN-`, `LR-`, `GR-`, `ID-`, `DD-`, `TE-` and `IX-`.
 
 The accessibility bridge publishes text, click targets (as buttons), focusable
 and adjustable elements, and `List` as a table, through `NSAccessibility`, with
@@ -344,8 +350,8 @@ and adjustable elements, and `List` as a table, through `NSAccessibility`, with
 It is **not yet validated with VoiceOver**, and proposal-path elements publish
 nothing.
 
-Not done: VoiceOver validation, iOS, Reduce Motion, exit transitions,
-transforms, and text colour animation.
+Not done: VoiceOver validation, menus/context menus, iOS, Reduce Motion, exit
+transitions, transforms, and text colour animation.
 
 ## Documentation
 

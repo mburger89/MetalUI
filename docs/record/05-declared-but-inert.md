@@ -661,3 +661,44 @@ who expects `controlSize` to reach only `Button` would miss a `Text`'s
 default font shrinking under `.controlSize(.small)`; a reader who expects
 `dynamicTypeSize` to gain a reader here, as most of this table's rows do
 eventually, would be waiting for something no ruling schedules.
+
+## 2026-09-29: two rows deleted, one added, at interaction (plan task 12, part 1)
+
+Record §62; rulings `IX-E`, `IX-H`, `IX-K`. **Note**: task 11 part 2 (record
+§61) added no row and deleted none per its own text in CLAUDE.md, but never
+appended a dated section of its own here — a pre-existing gap, not this
+section's to close.
+
+- **`EnvironmentValues.controlActiveState`'s row is deleted** (`IX-H`): every
+  accent-carrying control (`Toggle`'s on state, a `Slider`'s fill, a
+  segmented `Picker`'s selected segment) and every one of the five controls'
+  focus rings now read it, falling to `.separator` outside the key window.
+  Nothing here is a SwiftUI claim — the harness never runs with a real key
+  window, so the *choice* of `.separator` there is MetalUI's own.
+- **`PaintPass.isActive`'s row is deleted** (`IX-E` item 3): `Button`'s
+  pressed look now reads it, pinned by
+  `aButtonPaintsPressedOnlyWhilePressedAndOverIt` (2.3).
+- **A row is added: `ButtonRole`** (`IX-E` item 1): `.destructive`,
+  `.cancel`, `.confirm` and `.close` all compile, and `.cancel`/`.confirm`
+  (SwiftUI's default-action pair) bind Escape/Return exactly as
+  `.keyboardShortcut(.cancelAction)`/`.defaultAction` already did — but the
+  role itself changes nothing drawn (no bordered-destructive red, no
+  automatic ordering). An inert row **by design**, the same shape as
+  `dynamicTypeSize`'s row above, not a gap left open.
+- **The `hidden()`-on-focusable hazard is deleted, not narrowed** (`IX-K`
+  item 3, an earlier row of this table under `focusable()`'s own doc
+  comment): a hidden focusable element can no longer take focus or keys at
+  all — `Frame.disablingHitTestingIfHidden`'s one helper now also gates the
+  keyboard half, mirrored per `ModifiedContent`'s own copy (`MC-B`) — so
+  there is no more hazard left to log as inert-but-dangerous. The same shape
+  as `AlignItems.baseline`'s deletion at plan task 11 part 1 and
+  `deferred.amended`'s at stage 11: a row **fixed**, not reassigned.
+
+**What it costs if wrong.** A reader who still expects `controlActiveState`
+to reach no built-in element would miss every control losing its accent in
+an inactive window; a reader who expects `ButtonRole` to change a button's
+drawn chrome (as SwiftUI's `.destructive` role visually does with the
+bordered style) would be surprised MetalUI draws every role identically,
+by ruling; a reader who still trusts the old `hidden()`-on-focusable hazard
+note would wrongly expect a hidden focusable box to still be reachable by
+Tab or a stray `Window.focus` call.

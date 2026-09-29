@@ -54,8 +54,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
   plan task 10, both parts), `TE-` (next `TE-AW`; rulings in its own
   decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11,
-  both parts). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`) is a typo; sweep
+  both parts), `IX-` (next `IX-U`; rulings in its own decisions doc,
+  `2026-09-29-interaction-decisions.md`, plan task 12, part 1 — the
+  interaction half). A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -325,6 +327,41 @@ milestones append their record to `docs/record/` and put only the rule here.
   critic round and all three lanes). **Task 11 is ticked**: every row of the
   spec's collection table is built, kept with a numbered divergence, or an
   explicit renderer constraint the task's own text asks for.
+  Task 12, **part 1** (the interaction half), `IX-A`…`IX-T` (§62, spec
+  `specs/2026-09-29-interaction-design.md`, its own decisions doc
+  `2026-09-29-interaction-decisions.md`, probes `swiftui-interaction.swift`
+  and, from the lane-1 fix round, `swiftui-gesture-presentation-arena.swift`)
+  — gesture composition (`TapGesture`/`LongPressGesture`/`DragGesture`,
+  `.gesture`/`.simultaneousGesture`/`.highPriorityGesture`, one arena per
+  press from the one ranking, a `Deferred` presentation joining its
+  declarer's arena only through a same-layer `.overlay`, never a sheet or
+  popover); `Button(role:)`, `.buttonStyle`, a pressed look and
+  `.keyboardShortcut`; a disabled look, an inactive-window look
+  (`controlActiveState`'s first built-in readers) and a focus ring on every
+  control; `@FocusState`/`.focused(_:)`; focus now leaves with its identity
+  and does not return (`IX-I`, fixing `ID-R` item 9 to SwiftUI's answer, a
+  migration note); Full Keyboard Access measured (divergence 80 amended); a
+  hidden element out of the keyboard's focus half but not its shortcut
+  (`IX-K`); `contentShape<S: Shape>(_:)` on every element (`IX-L`); a click
+  never focuses a `.focusable()` view or `Button` (divergence 94 added, kept
+  by ruling). Three lanes; lane 3 stopped once on a finding mid-implementation
+  (`IX-S`: `IX-I`'s own fix closed one route of a pre-existing `$focus`
+  sticky-retention hazard, reddening an instrument test nobody's mutation
+  table named) and continued after re-deriving that test onto the route the
+  fix does not close (`IX-T`); all three verified `ok`, the Record phase's
+  own close running lane 3's own remaining mutation table (twelve mutations,
+  none reddening the wrong test) and both re-checks `IX-T` left owed (the
+  fourteen-image comparison, `Backends/SDL`). Divergences 94 added; 43, 41,
+  80 amended; 57 pinned; 81, 21, 22 re-owned — live count 68 → 69. Counts
+  1837 / 0 / 113 tests/goldens/guards; 0 px against `31f2e7a` in all fourteen
+  offscreen images; the real-window capture stays owed (screen locked at
+  every check across design, the critic round and all three lanes), joined
+  by this task's own new looks (gestures by hand, the pressed/disabled/
+  inactive looks, the focus ring, a real key window's accent). **Task 12's
+  box stays unticked**: part 2 (the accessibility half — settable
+  `AXSelected`, `accessibilityElement(children:)`, the `AB-H` press
+  question/divergence 28, modal isolation, the VoiceOver script itself) is
+  the next run.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -343,6 +380,63 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-29, `feat/interaction` — plan task 12 part 1, the
+  interaction half, from `31f2e7a`, not yet merged with `master`): 1837
+  tests, 0 goldens, 113 typecheck guards**, 0 `error:` on both build
+  systems, the one `warning:` SwiftPM's deprecation notice under native (0
+  under the default one), taken after `swift package clean` with `swift
+  build --build-system native --build-tests` then unfiltered `swift test
+  --build-system native --no-parallel` (**one summary line**, `Test run with
+  1837 tests in 3 suites passed`; the `FR-J no-argument frame: succeeded=`
+  line present). **1837 = 1773 + 30 + 22 + 12**: lane 1's 30 (23 tests +
+  1.24–1.28 + 2 guards, `IX-P`/`IX-Q`), lane 2's 22 (18 tests + 2.16b/2.4b +
+  2 guards, `IX-R`), lane 3's 12 (12 new/net-changed rows + `G3.1`, one test
+  retired and three renamed with an inverted answer, `IX-S`/`IX-T`). Guards
+  **113 = 108 + 2 (lane 1, `GestureCompileGuards`) + 2 (lane 2, `ButtonCompileGuards`'
+  G2.1 and `DecorationCompileGuards`'s new G2.2) + 1 (lane 3,
+  `FocusStateCompileGuards`)**. No goldens (`find Tests/MetalUILayoutTests
+  -name "*.json" | wc -l` reads 0). **New public API**: `Gesture`/
+  `TapGesture`/`LongPressGesture`/`DragGesture` and their composition
+  (`.gesture`/`.simultaneousGesture`/`.highPriorityGesture`,
+  `.exclusively(before:)`/`.simultaneously(with:)`); `ButtonRole`,
+  `ButtonStyle`, `.keyboardShortcut` (`KeyEquivalent`, `KeyboardShortcut`);
+  `contentShape<S: Shape>(_:)` on every element; `FocusState<Value>`/
+  `.focused(_:)`. **Focus now leaves with its identity and does not come
+  back** (`IX-I`, a public behaviour change with a migration note — see
+  CLAUDE.md "Focus"). **Divergence 94 added** (a click never focuses a
+  `.focusable()` view, kept); **43, 41, 80 amended**; **57 pinned, owner
+  none**; **81, 21, 22 re-owned, owner none** — live count 68 → 69, next
+  label 95. **0 px against `31f2e7a` in all fourteen offscreen images**,
+  scene identical, independently re-taken by this Record phase;
+  `Backends/SDL` 22 + 26 on macOS (CLAUDE.md's own figure since the task 11
+  part 2 merge, `0714528` — unmoved, no lane touches `Backends/SDL`); a
+  `swift:6.4-noble` aarch64 container builds with 0 `error:`/`warning:` and
+  runs **199 + 10 + 22**; `Tests/PortableTests` **21 + 6 + 5**. Windows
+  stack budget: `MemoryLayout<Handlers>.size` 408 → 440 across the three
+  lanes (`gestures`, `keyboardShortcut`, `contentShape`, `focusBinding`),
+  smallest thread building every production tree 592 → 624 KB, well inside
+  1 MB; `everyProductionTreeBuildsOnAOneMegabyteThread` green.
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `theSevenRetentionSlotsAreMutuallyDistinct` green; `Expected.swift`
+  unedited. **One test retired** (`focusOutlivesARenameAndAnIfUntilItsElementReturns`,
+  replaced by 3.1/3.2), **three renamed with an inverted answer**
+  (`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` → 3.2,
+  C2.8 → 3.3, C2.12 → 3.4), **one re-derived, name unchanged**
+  (`hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`).
+  Lane 3 stopped once mid-implementation on an unnamed test reddening
+  (`IX-S`): `IX-I`'s own fix had closed the `if`-route of a pre-existing,
+  deliberately-wrong-pinned `$focus` sticky-retention instrument test
+  (`aFocusRequestWhileDisabledLeavesNoRetentionSlot`, `EV-F`); continued by
+  re-deriving that test onto the one route the fix does not close (a `List`
+  row windowed out, `TB-AH`) — a T row naming `IX-I`, its answer unchanged
+  in both arms (`IX-T`). **Plan task 12's box stays unticked**: part 2 (the
+  accessibility half — settable `AXSelected`/divergence 83,
+  `accessibilityElement(children:)`, the `AB-H` press question/divergence
+  28, modal isolation, divergence 32, divergence 82, `AB-Q` proposal-path
+  accessibility, an `onTap`/image's VoiceOver presence, `AXNode.actions`,
+  and the human VoiceOver script itself) is the next run. History: record
+  §62.
 - **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11 part 2
   — merged with `master` at `0714528`, PR #31, `TI-I`/`TI-J`): 1773 tests, 0
   goldens, 108 typecheck guards**, 0 `error:` on both build systems, the one
@@ -1391,13 +1485,16 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `ControlsCompileGuards`,
   `SliderStepperCompileGuards` and `SelectionCompileGuards` (plan task 10
   part 2), `TextSystemCompileGuards`,
-  `BaselineCompileGuards` and `TextCompileGuards` (plan task 11 part 1) and,
-  new at plan task 11 part 2, `ShapeCompileGuards` and `ImageCompileGuards`
+  `BaselineCompileGuards` and `TextCompileGuards` (plan task 11 part 1),
+  `ShapeCompileGuards` and `ImageCompileGuards` (plan task 11 part 2) and,
+  new at plan task 12 part 1, `GestureCompileGuards`, `ButtonCompileGuards`
+  and `FocusStateCompileGuards`
   (`GridCompileGuards`' own count is unmoved — G3.1 renames its G4 in
   place);
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 39 and 69 (39 and 66 before task 11 part 2's
+  the declaration. Two helpers, 39 and 74 (39 and 69 before task 12 part 1's
+  five; 39 and 66 before task 11 part 2's
   three; 39 and 61 before task 11 part 1's
   five; 57 before task 10 part 2's four;
   40 and 50 before task 10 part 1's
@@ -1444,7 +1541,15 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `anImageHasNoSystemNameOrAssetInitialiser`, whole-file) — `G3.1`, the
   `UnitPoint` grid-anchor guard, is `GridCompileGuards`' own `G4` renamed and
   answer-inverted in place, not a new file, so `GridCompileGuards`' count
-  stays four. A guard about
+  stays four; new at plan task 12 part 1, **two** `GestureCompileGuards`
+  (`G1.1` `anOutsideTypeCannotConformToGesture`, `G1.2`
+  `theGestureSpellingsCompileFromAPlainImport`, both whole-file), **one**
+  `ButtonCompileGuards` (`G2.1` `theButtonSpellingsCompileFromAPlainImport`,
+  whole-file — `DecorationCompileGuards`' own new `@Test`, `G2.2`
+  `aProposalElementCannotSpellContentShapeBeforeItsTap`, is counted in that
+  file's own total, not a new file) and **one** `FocusStateCompileGuards`
+  (`G3.1` `theFocusStateSpellingsCompileFromAPlainImport`, whole-file). A
+  guard about
   what an
   external module can write
   uses `typecheckFile` (`SA-P`). **Guards skip silently** when
@@ -1470,7 +1575,13 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**188 + 22 + 10**
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**199 + 22 + 10** as of
+  plan task 12 part 1, independently measured in `swift:6.4-noble` by that
+  task's own Record phase, unmoved by it — this sentence's own **188 + 22 +
+  10** had gone stale across tasks 8 through 11 part 2 without being
+  re-taken here; the intervening figure, **199 + 22 + 10**, already stood in
+  CLAUDE.md's own task-11-part-1 Counts entry, corrected here to match
+  rather than left to contradict it. **188 + 22 + 10** was the figure
   since stage 10, measured in `swift:6.4-noble` — `StyleTests.swift` moved
   from `MetalUILayoutTests` to `MetalUICrossPlatformTests` (`git mv`, its
   four tests following it, `LR-FT` §5.2) and `LegacyEngineSymbolTests`'
@@ -1913,21 +2024,37 @@ the label and keeps an interactive-or-control one, disabled included, as a
 child — `DD-U`); the existing animation helpers (a `Slider`'s thumb is drawn
 in its own `paint`, so an animated value **snaps** — added to the snaps
 list); theme colours. `controlSize`/`controlActiveState` are read only where
-named (`Button`'s chrome reads `controlSize`, divergence 76 amended; nothing
-reads `controlActiveState` yet, plan task 12). **Not built**: any style but
-the one automatic look per control (`ButtonStyle`, `.toggleStyle`,
-`.pickerStyle(.menu)` — a closed `PickerStyle` struct, not SwiftUI's
-protocol, so the call site compiles the same way later), a pressed look, the
-focus ring, gesture composition, `Button(role:)`, `.keyboardShortcut` — all
-plan task 12's (`DD-AB` item 7). `PickerStyle`'s options are found through an
+named (`Button`'s chrome reads `controlSize`, divergence 76 amended);
+**since plan task 12 part 1 (`IX-H`), `controlActiveState` has its first
+built-in readers**: an accent-carrying control (`Toggle` on, a `Slider`'s
+fill, a segmented `Picker`'s selection) loses its accent to `.separator`
+outside the key window, and every one of the five controls draws a focus
+ring only while focused, `.separator` outside the key window there too
+(`ControlLook.swift`). **`Button` gained a style surface and pressed look
+the same task** (`IX-E`, `IX-F`): `ButtonRole` (`.destructive`, `.cancel`,
+`.confirm`, `.close` — binds Escape/Return, changes nothing drawn),
+`ButtonStyle` (`.automatic`/`.bordered`/`.borderless`/`.plain`, chrome
+dropped **by value** for the last two so a caller's own `.background`
+survives either way round `.buttonStyle`), a pressed wash painted after the
+chrome's content while down and over the target, and `.keyboardShortcut`
+(`KeyEquivalent`/`KeyboardShortcut`, matched exactly, case-folded, riding
+`FocusRegistry`'s table in registration order, gated by `isEnabled` alone —
+**a hidden button's shortcut still fires**, `hidden()`'s keyboard gate is
+the focus half only). **Still not built**: `ButtonStyle`/`PrimitiveButtonStyle`
+as open protocols, `.borderedProminent`, `.link`, `.toggleStyle`,
+`.pickerStyle(.menu)` (still a closed `PickerStyle` struct, not SwiftUI's
+protocol) — owner none (`IX-E`, `IX-M`). `PickerStyle`'s options are found through an
 internal picker scope pushed around the content's layout phase only
 (`Picker.swift`'s `@MainActor` static stack), not by walking the content;
 `TaggedElement` (from `.tag(_:)`) forwards every `Element` requirement, and a
 tag outside a `Picker` is transparent. `ClickDispatch` (internal) carries a
 completing click's modifiers and a handler's optional focus request through
 `Window.dispatchClick`/an accessibility `.press`, both paths honouring a
-focus request the same way — a public tap-with-modifiers API stays plan task
-12's.
+focus request the same way — a public tap-with-modifiers API (`sequenced`,
+`@GestureState`, `GestureMask`, a custom `body` gesture, location taps) stays
+owner none (`IX-B`); `TapGesture`/`LongPressGesture`/`DragGesture` and their
+composition are built (see "Gestures" below), a different surface from
+`onClick`, which is unchanged.
 
 **`ScrollViewReader`/`scrollTo` (`DD-G`…`DD-I`, `DD-K`; plan task 10 part 1).**
 `ScrollViewReader` is one slot with its own identity level, exactly as a
@@ -2049,9 +2176,40 @@ scroller on the same layer** (`DD-Y`, divergence 16 retired,
 `allowsHitTesting(false)` gates only `registerHandlers`' pointer hitbox —
 scroll regions and raw `insertHitbox` bypass it (`OM-AK`); it is per layer
 (divergence 44). `contentShape(inset:)` moves the pointer region only and
-needs an `onClick` on its layer (`OM-J`, `OM-AB`). Default hit region is the
-whole frame (41). Handlers outlive the frame: `.onClick { window.x() }` is a
-retain cycle.
+needs an `onClick` on its layer (`OM-J`, `OM-AB`). **Since plan task 12 part
+1, `contentShape<S: Shape>(_:)` takes any `Shape`** (`IX-L`; on
+`StyledElement`, `OnTapModifier` and `GestureModifier`), composing with
+`contentShape(inset:)` (the shape's geometry is read in the inset rect) —
+`Hitbox.contains` tests the clipped rect first, then the shape (the shape is
+never itself clipped, so it can only shrink a region the clip already
+bounds, divergence 43 amended). `clipShape`'s own hit behaviour intersects
+with the clip's rect, not its rounded geometry (unmeasured against SwiftUI,
+MetalUI's own choice). Default hit region is the whole frame (41, amended:
+a bare `Shape`'s default hit region is its frame too). Handlers outlive the
+frame: `.onClick { window.x() }` is a retain cycle.
+
+**Gestures (plan task 12 part 1, `IX-B`…`IX-D`).** `TapGesture`,
+`LongPressGesture`, `DragGesture`, `.exclusively(before:)`/
+`.simultaneously(with:)`, and on every element `.onTapGesture`/
+`.onLongPressGesture`/`.gesture`/`.simultaneousGesture`/`.highPriorityGesture`
+— a surface beside `onClick`, not a replacement for it (`onClick`'s own doc
+was wrongly calling itself "SwiftUI's `onTapGesture`"; it is Button
+semantics — press and release on the same element, an excursion allowed).
+`Gesture`'s one requirement is `@_spi`-gated, so it is closed to a plain
+importer. **One arena per press, formed from the one ranking**
+(`topmostOpaqueHitbox`) **and its target's proper ancestors in its own hit
+layer** — a `Deferred` presentation's content is hoisted to a higher layer,
+so a declaring ancestor's gesture does **not** reach a press inside a sheet,
+popover or modal, though it does reach one inside a same-layer `.overlay`
+(`IX-Q`). Inner beats outer for a normal gesture; outer high-priority beats
+inner; simultaneous members fire too, and first; a lower-priority member
+runs once every higher one has failed. A withheld member (behind one still
+undecided) reports neither a change nor an end, so a target's `onClick`
+holds an ancestor's normal `DragGesture` off for the whole press — `onClick`
+never fails on a move. The tick advance runs in the display-link callback,
+ahead of `drawFrameIfNeeded`, so a stamp is always a real tick; the window
+re-dirties only while something is pending. A gesture callback runs under
+`StateDispatch`, resolving the occurrence that dispatched it (`ID-F`).
 
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(handlers, decoration, …) {
@@ -2063,9 +2221,14 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has ten members (the ninth, `textInput`, internal
-and set only by `TextField`, `TI-B`; the tenth, `valueTrack`, internal and
-set only by `Slider`, `DD-W` item 5); `HandlerShape` (`ModifierTests`) and
+`LR-AA`). `Handlers` has **fourteen** members (the ninth, `textInput`,
+internal and set only by `TextField`, `TI-B`; the tenth, `valueTrack`,
+internal and set only by `Slider`, `DD-W` item 5; the eleventh through
+fourteenth, plan task 12 part 1: `gestures`, `keyboardShortcut`,
+`contentShape` and `focusBinding`, each one reference or a small optional —
+`MemoryLayout<Handlers>.size` moved 408 → 440 across the task's three
+lanes, the smallest thread building every production tree 592 → 624 KB,
+`IX-N`); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -2097,6 +2260,11 @@ defaultless `controlActiveState`/`onControlActiveStateChange` pair, stamped
 by `Window` over its own guarded copy at draw, before `Window.environment`
 (`EV-AB`) — so `Window.environment`'s `controlActiveState`, like its `theme`
 and `displayScale`, is **not** the root's source (three fields, not two).
+**Since plan task 12 part 1 (`IX-H`), `controlActiveState` has built-in
+readers too**: every control's accent (`Toggle`'s on state, a `Slider`'s
+fill, a segmented `Picker`'s selected segment) and focus ring read it,
+falling to `.separator` outside the key window — MetalUI's own choice, not a
+measured SwiftUI answer (the harness never runs with a real key window).
 **`controlSize`** (SwiftUI's five sizes) is carried and scoped
 (`.controlSize(_:)`); its built-in readers, added incrementally, are
 `Button`'s chrome (plan task 10 part 2, `DD-R`) and every text's default
@@ -2118,7 +2286,27 @@ text-painting conformer passes `accessibleText:`. Qualify
 
 **Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
 **except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`), and a
-selectable `List` (`DD-Z`) — and **Tab / shift-Tab (or `U+0019`) traverse**
+selectable `List` (`DD-Z`) — a click on a plain `.focusable()` view or
+`Button` does **not** focus it either (divergence 94, plan task 12 part 1,
+`IX-K` item 2, kept — SwiftUI's own click does, F3). **`@FocusState`/
+`.focused(_:)`** (plan task 12 part 1, `IX-J`) read the window's focus as of
+the last completed frame and move it from input — a write follows every
+other mover, applies before the next frame builds, only if the target was
+focusable last frame, and never writes from a phase; `.focused` does **not**
+make an element focusable. **Focus now leaves with its identity and does not
+come back** (`IX-I`, fixing `ID-R` item 9 to SwiftUI's answer): an `if` gone
+false, a `for`/`ForEach` that stops producing the focused element, or a
+departed `.id` clears focus in the frame that removes it — where it used to
+survive indefinitely and return. **Migration**: a caller relying on the old
+behaviour refocuses on return, from input (`Window.focus(id)`) or by writing
+the `@FocusState` the element is bound with. **Unchanged**: a `List` row
+scrolled out of its window (unevaluated, `TB-AH`) keeps focus and gets it
+back. **A hidden element is out of the keyboard's focus half** (`IX-K` item
+3): `.hidden()` clears focus at the next boundary and blocks Tab/keys, but
+**not** a registered keyboard shortcut (a hidden `Button`'s ⌘-key still
+fires) — two different gates sharing one `enabled`/`hidden` condition for
+focus, `isEnabled` alone for shortcuts. **Tab / shift-Tab (or `U+0019`)
+traverse**
 every focusable element in tree order, wrapping (`FocusRegistry.tabOrder`,
 `TI-J`; tabbing into a field selects its text; ⌘/⌃/⌥-Tab is not traversal).
 **Tab reaches every control too** (`Button`, `Toggle`, `Slider`, `Stepper`,
@@ -2822,7 +3010,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**68 live**, stable labels; retired labels never
+- **Known divergences** (**69 live**, stable labels; retired labels never
   reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
   59, 64, 69, 74) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
@@ -3027,12 +3215,32 @@ expected, measured facts:
   `clipShape` was never measured against (the probe is headless, no window
   is ordered front) — stated as MetalUI's own rule instead, owner **plan
   task 12** (`TE-AQ` item 4, `TE-AJ` item 1).
+  **Plan task 12 part 1 adds 94, amends 43/41/80, pins 57, re-owns 81/21/22**
+  (68 → 69 live, next label 95; record §04's 2026-09-29 task-12-part-1
+  section, rulings `IX-D`, `IX-K`, `IX-L`, `IX-O`): **94 added** (a click on
+  a `.focusable()` view or `Button` does not focus it, kept, owner none,
+  `IX-K` item 2 — SwiftUI's own click does, probe F3); **43 amended**
+  (`clipShape`'s own hit behaviour intersects the clip's *rect*, not its
+  rounded geometry — MetalUI's own rule, unmeasured against SwiftUI,
+  `IX-L` item 2); **41 amended** (a bare `Shape`'s default hit region is its
+  frame too, same as every other element's); **80 amended** (Full Keyboard
+  Access, now measured — probe arms F5/F6 confirm Tab moves nothing with it
+  off — rather than merely carried from the text-page merge); **57 pinned**
+  (a non-clickable primary passing a click through to its background,
+  previously unpinned, kept, owner none, now pinned by 2.18); **81
+  re-owned** (menus, still no number, still no owner, `IX-M`); **21 and 22
+  re-owned, kept, owner none** (focus retention on disable; raw keys on a
+  disabled ancestor — the audit's own two rows this task closes by ruling
+  MetalUI's existing behaviour as the answer, no code change, `IX-G` item
+  1). `ID-R` item 9's unnumbered focus-identity difference is **closed**
+  (fixed to SwiftUI's answer, `IX-I` — see "Focus" above) rather than
+  numbered — it never reaches a live-count row.
 - **Declared but inert** APIs (compile and do nothing:
-  `hidden()` on
-  drawing/focusable subtrees, `PaintPass.isActive`,
   `onInput`'s `-> Bool`, colour glyphs, baselines,
-  `locale`/`layoutDirection`/`dynamicTypeSize`, `controlActiveState`,
-  `controlSize`, `displayScale`, one axis each of
+  `locale`/`layoutDirection`/`dynamicTypeSize`,
+  `controlSize`, `displayScale`, `ButtonRole` (compiles, binds a key, changes
+  nothing else drawn — an inert row by design, not a gap, `IX-E` item 1),
+  one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
   carries the stage 2 and grids changes, whose 2026-09-22 one carries stage
@@ -3128,6 +3336,17 @@ expected, measured facts:
   declares (`Shape`'s `cornerRadii` ignored on an ellipse, an image's `filter`
   field, the anchor factor pair) reads as inert — each is read by exactly the
   code that consumes it.
+  **Plan task 12 part 1 deletes two rows, adds one, narrows none** (record
+  §05's 2026-09-29 task-12-part-1 section): `EnvironmentValues.controlActiveState`'s
+  row is **deleted** — every accent-carrying control and every control's
+  focus ring now read it (`IX-H`); `PaintPass.isActive`'s row is **deleted**
+  — `Button`'s pressed look now reads it, pinned by 2.3 (`IX-E` item 3); a
+  new row, `ButtonRole`, is **added** (moved into the inline list above,
+  `IX-E` item 1) — it compiles and binds a key correctly but changes nothing
+  else drawn, an inert row by design; and the `hidden()`-on-focusable hazard
+  (`focusable()`'s own doc comment, an earlier row here) is **deleted** — a
+  hidden focusable element can no longer take focus or keys at all (`IX-K`
+  item 3), so there is no more hazard left to log as inert-but-dangerous.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -3257,6 +3476,18 @@ expected, measured facts:
   overlay, a resizable/fit/fill image, `.interpolation`'s four cases) —
   pinned only by the offscreen renderer and the SDL replay-parity harness so
   far; it joins, rather than replaces, the still-open capture above.
+  **Plan task 12 part 1 adds no demo look and does not narrow the still-open
+  real-window capture, but adds a long list of its own** (record §03's
+  2026-09-29 task-12-part-1 section): no demo tree builds a gesture,
+  `Button`, control, `.focused` binding or `contentShape`, so 0 px against
+  `31f2e7a` in all fourteen offscreen images at every lane and again at this
+  Record phase's close; the lock probe read locked at design time, the
+  critic round, every lane's own check and this close. **Owed, new here**:
+  gestures on a trackpad (tap slop, double-tap timing, long press) against
+  Finder/SwiftUI; the pressed, disabled and inactive looks and the focus
+  ring beside a native SwiftUI window; a real key window's accent and ring
+  behaviour (the synthesized harness's `PX23` always read "inactive"). None
+  of this reopens or closes the still-open items above — it joins them.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -3265,7 +3496,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **108** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **113** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a
