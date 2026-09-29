@@ -48,7 +48,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   (next `XP-D`; rulings in its spec; `MP-` is the measure-performance one),
   `DC-` (next `DC-D`; rulings in its spec), `FB-` (next `FB-D`; rulings in
   its spec), `BD-` (next `BD-E`; rulings in its spec), `AX-` (next `AX-E`; rulings in
-  its spec), `TI-` (next `TI-I`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
+  its spec), `TI-` (next `TI-K`; rulings in its spec), `SF-` (next `SF-E`; rulings in its
   spec), `ID-` (next `ID-S`; rulings in its own decisions doc,
   `2026-09-25-composition-identity-decisions.md`), `DD-` (next `DD-AJ`;
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
@@ -299,6 +299,22 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-28, `feat/text-page` — `TI-I`, `TI-J` — merged with
+  `master` at `ff2ae92`, plan task 11 part 1): 1715 tests, 0 goldens, 105
+  typecheck guards**, 0 `error:` on both build systems, the one `warning:`
+  SwiftPM's deprecation notice under native (0 under the default one), taken
+  after `swift package clean` with `swift build --build-system native
+  --build-tests` then unfiltered `swift test --build-system native
+  --no-parallel` (**one summary line**, `Test run with 1715 tests in 3 suites
+  passed`; the FR-J line present). **1715 = 1706 + 7 + 1 + 1**: master's
+  1706, the branch's 7 (`TextEditingTests` +2, `TextEditorTests` +1,
+  `FocusTraversalTests` +4), the first merge's 1
+  (`tabVisitsTheControlsAndAControlItFocusedTakesItsKeys`, Tab reaching
+  master's focusable controls, `TI-J` amended) and the second merge's 1
+  (`aPageIsMeasuredInTheEnvironmentsResolvedFont`, a page measured in the
+  editor's environment-resolved font, `TE-F` item 2). No guard, no golden;
+  `Backends/SDL` 21 + 23. At the first merge (`169d166`) it read 1652 = 1644
+  + 7 + 1. Record §60 (written as §53, renumbered 53→59→60).
 - **Counts (2026-09-28, `feat/text-semantics` — plan task 11, part 1, from
   `169d166`): 1706 tests, 0 goldens, 105 typecheck guards**, 0 `error:` on
   both build systems, the one `warning:` SwiftPM's deprecation notice under
@@ -1709,7 +1725,8 @@ internal `Handlers.valueTrack` — the tenth member, `TI-B`'s precedent — for 
 `Slider`'s press/drag, dispatched by `Window` ahead of click dispatch and
 riding the same hitbox, so `.disabled`/`allowsHitTesting(false)` remove it
 too); `isFocusable` set on every one of them (**a click still does not focus
-any of them**, `List`'s row click excepted — divergence 80: SwiftUI's own
+any of them**, `List`'s row click excepted, but Tab reaches every one,
+`TI-J` — divergence 80: SwiftUI's own
 controls take none of these keys without Full Keyboard Access, an
 unmeasured setting, so no claim is made about that state); one keyboard
 table, `ControlKeys.swift`, keyed on `TextEditing.platform` — Button
@@ -1932,10 +1949,21 @@ everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
 text-painting conformer passes `accessibleText:`. Qualify
 `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 
-**Focus:** `Window.focus(_:)` is the only mover; clicking does not focus —
-**except a `TextField`**, which a press focuses (`TI-B`). Keys go to the
-`Keymap` first, then to a focused field's editing keys, then bubble raw
-`onKey` up the parent chain. `focusBorder(_:width:)` is the (opt-in) ring;
+**Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
+**except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`), and a
+selectable `List` (`DD-Z`) — and **Tab / shift-Tab (or `U+0019`) traverse**
+every focusable element in tree order, wrapping (`FocusRegistry.tabOrder`,
+`TI-J`; tabbing into a field selects its text; ⌘/⌃/⌥-Tab is not traversal).
+**Tab reaches every control too** (`Button`, `Toggle`, `Slider`, `Stepper`,
+`Picker`, a selectable `List` — all focusable, `DD-T`): AppKit's Tab with
+keyboard navigation on, since MetalUI reads no system setting — inside
+divergence 80's scope, `TI-J`'s merge amendment, record §60 §Merge. Keys go
+to the `Keymap` first, then to a focused field's editing keys, then bubble raw
+`onKey` up the parent chain (a control's own `ControlKeys` run there, after a
+caller's `onKey` declines), and only then does an unclaimed Tab traverse — so
+a binding or `onKey` for Tab wins, and no control claims it. `onKey` bubbles
+from the focused element, so with nothing focused it sees nothing.
+`focusBorder(_:width:)` is the (opt-in) ring;
 background and border resolve `focus ?? hover ?? plain`.
 
 **Text input (`TI-`).** `TextField(_:text:onChange:)` is **controlled** and
@@ -1966,7 +1994,12 @@ up/down all read the same `TextLineModel`, so a caret at a wrap sits at the
 next line's start. Up and down keep a remembered column (`goalX`), and return
 inserts `\n`. Its vertical scroll follows the caret unless the wheel moved
 it (`revealsCaret`). The wheel over an editor is routed in
-`Window.applyScroll`, ahead of the opaque-hitbox stop.
+`Window.applyScroll`, ahead of the opaque-hitbox stop. **Page Up/Down
+(`TI-I`)** page an editor by its visible height less one line
+(`TextLineModel.pageHeight`, from the heights `TextEditor` hands it): on a
+Mac they scroll and leave the caret, as NSTextView does; elsewhere they move
+the caret that many lines at its column. `TextField` does not claim them, and
+neither field claims Tab.
 
 **Text.** `Text` and `ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`): a `TextSystem` chosen once per app
