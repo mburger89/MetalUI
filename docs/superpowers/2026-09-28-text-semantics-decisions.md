@@ -1201,7 +1201,7 @@ covered: `theDemoFrameMatchesTheValuesRecordedOnMacOS` (`XP-C`) renders
 whose 18 pt line makes the same paragraph taller; the instrument, extended to
 that configuration and re-run (record §59 §4.3), read the same paragraph at
 (648, 66.5) against 72 at scales 1 and 2, and nothing else. The fourteen
-images read 0 px against `169d166` (record §59 §4.4).
+images read 0 px against `169d166` (record §59 §4.5).
 
 **The ruling.**
 
@@ -1214,7 +1214,7 @@ images read 0 px against `169d166` (record §59 §4.4).
    its 500 content rects and their glyphs move up 18 (36 at scale 2). Nothing
    else moves: a scene diff between `169d166` and the lane's commit, both
    scales, explains every rect and glyph by those two causes (record §59
-   §4.4). SwiftUI's answer (`TE-H` item 2, `TE-R` item 1). Linux and Windows
+   §4.5). SwiftUI's answer (`TE-H` item 2, `TE-R` item 1). Linux and Windows
    CI owe the confirmation on push; `Backends/SDL`'s `PortableReplay` frame 5
    and `DemoCapture` render the same configuration and are re-checked (record
    §59 §4.5).

@@ -143,6 +143,25 @@ private struct BaselineReportingLayout: ProposalLayout {
     }) == [37, 37])
 }
 
+/// **2.1d** (branch-check fix, `TE-AB`; `docs/probes/swiftui-baseline-offsets.swift`
+/// O5). 2.1c's cell anchor (O4) and the grid's own factor (O2/O3) both move
+/// the offset; a **row's** own alignment must too, and none of 2.1c's arms
+/// give a row one (`markNativeGridRow` there is always called with no
+/// `alignment:`, so `plan.rowAlignments[cell.row]` reads `nil` in every one).
+/// A `GridRow(alignment: .bottom)` with no cell anchor beside a 40-tall
+/// colour, in a `.top` grid, reads 37 in SwiftUI (O5) — the same offset as
+/// O4's cell anchor, from the row's own factor alone. Dropping
+/// `?? plan.rowAlignments[cell.row]?.verticalFactor` from
+/// `nativeGridCellOffsetsY` reddens this test and none of 2.1c's arms.
+@Test func aRowsOwnAlignmentMovesTheBaselinesItReportsToo() {
+    #expect(baselines(measured { t in
+        let text = text13(t)
+        let row = [text, colour(t, 40)]
+        t.markNativeGridRow(row, alignment: .bottom)
+        return t.newNativeGrid(children: row, alignment: .top)
+    }) == [37, 37])
+}
+
 /// B2's four children in a spacing-0 horizontal stack: the 13 pt text, the
 /// 26 pt one, the two-line one and the colour — at whole-point widths (18, 34,
 /// 18, 10), so the stored rects, which layout rounds, keep every vertical
