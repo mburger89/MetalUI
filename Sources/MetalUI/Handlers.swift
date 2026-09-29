@@ -44,6 +44,12 @@
 /// statement about a control; "hit testing off" is a statement about the
 /// pointer.
 ///
+/// **Gestures chain; `onClick` does not** (plan task 12 part 1, `IX-D`): a
+/// press forms one arena from the topmost opaque hitbox and the gesture
+/// members of its id's ancestors (`Window.dispatchGestures`), which is the
+/// ancestry the paragraph below says a `Hitbox` lacks — taken from the id, not
+/// from a parent link. What follows is still true of `onClick`.
+///
 /// **Bubble-only, and today that means "the topmost opaque handler wins".**
 /// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
 /// swallows, which is the case framework spec §8.2 names capture for. What is
@@ -274,12 +280,17 @@ public struct Handlers {
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
     ///
-    /// `onClick`, a text field and a slider's track — never focusability: see
+    /// `onClick`, an attached gesture (plan task 12 part 1, `IX-D` item 5: a
+    /// gesture rides its element's hitbox, so the disabled gate and
+    /// `allowsHitTesting(false)` remove it with the hitbox), a text field and a
+    /// slider's track — never focusability: see
     /// the type's own doc comment for why folding focus in here would make
     /// every focusable element an opaque hitbox. (Since divergence 16 retired,
     /// `DD-Y`, an opaque hitbox inside a `ScrollView` no longer blocks its
     /// wheel; it still blocks a click, hover and a scroller it merely overlays.)
-    var isPointerTarget: Bool { onClick != nil || textInput != nil || valueTrack != nil }
+    var isPointerTarget: Bool {
+        onClick != nil || !gestures.isEmpty || textInput != nil || valueTrack != nil
+    }
 
     /// Whether this element has anything to say about the **keyboard** — the
     /// focus-registry gate (`FocusRegistry.register(_:id:)`).

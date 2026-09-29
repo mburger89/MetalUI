@@ -5,8 +5,11 @@ import MetalUIPlatform
 /// the window afterwards (ruling `DD-Z` item 9; spec
 /// `2026-09-26-controls-and-selection-design.md` §6). **Internal, with one
 /// consumer** — a selectable `List`'s rows, which select by modifier and focus
-/// their list — and **not a gesture API**: a public tap-with-modifiers is
-/// gesture composition, plan task 12 (`DD-AC`'s rejected attack).
+/// their list — and **not a gesture API**: plan task 12 part 1 delivered
+/// gesture composition (`Gesture.swift`, ruling `IX-B`) without a public
+/// tap-with-modifiers, which stays internal here (`IX-B`, owner none; `DD-AC`'s
+/// rejected attack). A click the gesture arena runs comes through
+/// `Window.runClick` too, so it reads the same modifiers.
 ///
 /// **Set only while `Window` runs a click handler**, through
 /// `running(modifiers:_:)`: a mouse click's handler reads the completing

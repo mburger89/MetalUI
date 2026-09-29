@@ -113,6 +113,21 @@ struct Hitbox {
     /// to the hitbox that was hit, not one looked up by name from somewhere
     /// else.
     let handlers: Handlers
+
+    /// The owning element's window-space origin — translated by the active
+    /// offset like `bounds`, but **not** clipped or inset — so a drag's values
+    /// are local to the element's own box (plan task 12 part 1, `IX-C` item 5).
+    /// Written by `Frame.insertHitbox`; read only by the gesture arena.
+    let origin: Point<Pixels>
+
+    /// Whether `point` lands in this hitbox — **the single region test** (ruling
+    /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
+    /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,
+    /// so a hit region is tested in one place. Half-open on the max edges, as
+    /// `Bounds.contains` is.
+    func contains(_ point: Point<Pixels>) -> Bool {
+        bounds.contains(point)
+    }
 }
 
 /// The index of the topmost **opaque** hitbox containing `point`, or `nil` when
@@ -155,7 +170,7 @@ struct Hitbox {
 /// sharing an edge cannot both claim it.
 func topmostOpaqueHitbox(in hitboxes: [Hitbox], at point: Point<Pixels>) -> Int? {
     hitboxes.enumerated()
-        .filter { $0.element.bounds.contains(point) && $0.element.opaque }
+        .filter { $0.element.contains(point) && $0.element.opaque }
         .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
         .map(\.offset)
 }

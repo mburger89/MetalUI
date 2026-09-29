@@ -107,6 +107,10 @@ private struct HandlerShape: Equatable {
     /// Plan task 10 part 2 (`DD-W` item 5): internal, set only by `Slider`, so
     /// no modifier case writes it either.
     var valueTrack = false
+    /// Plan task 12 part 1 (`IX-B`): a count rather than a flag, because the
+    /// five gesture modifiers APPEND — "wrote one" and "replaced with one" are
+    /// different answers only a count tells apart.
+    var gestureCount = 0
 }
 
 @MainActor
@@ -291,6 +295,23 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
         ModifierCase(name: "onClick(_:)",
                      apply: { $0.onClick {} },
                      effect: { _, _, _, h in h.click = true }),
+        // Plan task 12 part 1 (`IX-B`): the five gesture attachment modifiers,
+        // each appending one gesture.
+        ModifierCase(name: "onTapGesture(count:perform:)",
+                     apply: { $0.onTapGesture {} },
+                     effect: { _, _, _, h in h.gestureCount = 1 }),
+        ModifierCase(name: "onLongPressGesture(minimumDuration:maximumDistance:perform:onPressingChanged:)",
+                     apply: { $0.onLongPressGesture {} },
+                     effect: { _, _, _, h in h.gestureCount = 1 }),
+        ModifierCase(name: "gesture(_:)",
+                     apply: { $0.gesture(TapGesture()) },
+                     effect: { _, _, _, h in h.gestureCount = 1 }),
+        ModifierCase(name: "simultaneousGesture(_:)",
+                     apply: { $0.simultaneousGesture(TapGesture()) },
+                     effect: { _, _, _, h in h.gestureCount = 1 }),
+        ModifierCase(name: "highPriorityGesture(_:)",
+                     apply: { $0.highPriorityGesture(TapGesture()) },
+                     effect: { _, _, _, h in h.gestureCount = 1 }),
         ModifierCase(name: "onKey(_:)",
                      apply: { $0.onKey { _ in true } },
                      effect: { _, _, _, h in h.key = true }),
@@ -398,8 +419,9 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     // table so the parallel frame/sizing track adds to it rather than
     // colliding with it (spec §8 risk (c)). − 2 at stage 10 (`alignContent(_:)`
     // and `flexWrap(_:)`, removed with their fields, `LR-FM` item 1, `LR-FN`) =
-    // **45**.
-    #expect(cases.count == 45)
+    // **45**. + 5 at plan task 12 part 1 (the gesture attachment modifiers,
+    // `IX-B`) = **50**.
+    #expect(cases.count == 50)
 
     for c in cases {
         var expectedStyle = Style()
@@ -427,7 +449,8 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
                              allowsHitTesting: got.handlers.allowsHitTesting,
                              contentShapeInset: got.handlers.contentShapeInset,
                              textInput: got.handlers.textInput != nil,
-                             valueTrack: got.handlers.valueTrack != nil) == expectedHandlers,
+                             valueTrack: got.handlers.valueTrack != nil,
+                             gestureCount: got.handlers.gestures.count) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

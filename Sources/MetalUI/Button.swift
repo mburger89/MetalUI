@@ -8,8 +8,10 @@ import MetalUIPlatform
 ///
 /// **A `Button` is an `onClick` plus focusability, keyboard activation and the
 /// chrome** (`DD-R` item 2). `onClick` on any `StyledElement` stays what it is
-/// — the tap-gesture primitive, SwiftUI's `onTapGesture` — and is not
-/// deprecated; a plain-looking button today is `.onClick` on the label itself.
+/// — the click primitive, with Button semantics (a press may leave and return;
+/// SwiftUI's `onTapGesture`, which fails on a move, is `onTapGesture(count:perform:)`,
+/// plan task 12 part 1, `IX-D` item 2) — and is not deprecated; a
+/// plain-looking button today is `.onClick` on the label itself.
 /// **A caller's `.onClick` on a `Button` replaces its action** (the one-field
 /// rule, `Handlers.onClick`'s doc), and the activation keys run whatever the
 /// click runs. **A caller's `.onKey` runs first** and can claim a key; the

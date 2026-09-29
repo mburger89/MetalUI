@@ -594,7 +594,11 @@ public final class Window {
             }
             // After scroll routing and before the raw handler, on the same
             // footing: an element that consumed the point consumed the event.
-            if self.dispatchClick(event, pressedBefore: pressed) {
+            // The gesture arena (plan task 12 part 1, `IX-D`) stands where
+            // `dispatchClick` stood and contains it: a press whose target and
+            // ancestors carry no gesture forms no arena, and its release is
+            // `dispatchClick` exactly.
+            if self.dispatchGestures(event, pressedBefore: pressed) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -643,6 +647,11 @@ public final class Window {
         if startsDisplayLink {
             platformWindow.startDisplayLink { [weak self] t in
                 self?.lastTick = t
+                // Ahead of the frame build (plan task 12 part 1, `IX-C` item 4):
+                // a long press or a deferred tap that matures at this tick runs
+                // its callback from input's footing, so a `@State` write lands
+                // in the frame drawn below and is not a phase write.
+                self?.advanceGestures(to: t)
                 self?.drawFrameIfNeeded()
             }
         }
@@ -1035,6 +1044,12 @@ public final class Window {
         // last input event stops arriving, because `needsRedraw` above already
         // went false for this pass and nothing else would flip it back.
         if frame.wantsAnotherFrame { setNeedsRedraw() }
+        // A pending long press or tap sequence needs the next tick to reach
+        // `advanceGestures` (plan task 12 part 1, `IX-C` item 4) — only while
+        // one is pending, so a held press that has already ended, or failed,
+        // lets the link pause (pinned by
+        // `aPendingGestureKeepsFramesComingOnlyWhilePending`).
+        if gestureArena?.needsTicks == true { setNeedsRedraw() }
 
         // The animation half of the same idea, and deliberately NOT the same
         // mechanism. `wantsAnotherFrame` marks the window dirty; this records
@@ -1262,7 +1277,7 @@ public final class Window {
     private func enclosingScroller(of hit: Hitbox, at point: Point<Pixels>) -> Int? {
         let candidates = lastHitboxes.indices.filter {
             let region = lastHitboxes[$0]
-            return region.scroll != nil && region.layer == hit.layer && region.bounds.contains(point)
+            return region.scroll != nil && region.layer == hit.layer && region.contains(point)
         }
         guard !candidates.isEmpty else { return nil }
         var ancestor = hit.id.parent
@@ -1405,6 +1420,120 @@ public final class Window {
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
         runClick(handler, on: hit.id, modifiers: mouse.modifiers)
         return true
+    }
+
+    /// The current press's gesture arena (plan task 12 part 1, `IX-D`), or
+    /// `nil` when no press with a gesture in its arena is undecided. Formed at
+    /// a `mouseDown`, kept past the release only while a tap sequence waits for
+    /// its next press.
+    private var gestureArena: GestureArena?
+
+    /// Feeds a pointer event to the gesture arena and runs what it decided;
+    /// returns whether a `mouseUp` ran a callback (`IX-D` item 6 — a press or a
+    /// drag is never claimed, so `Window.onInput` still sees them as before).
+    ///
+    /// **The arena is formed from the one ranking**: its target is
+    /// `topmostOpaqueHitbox(in:at:)`'s answer — the same hitbox `mouseDown`
+    /// made `active` — and its other members are the gesture-carrying hitboxes
+    /// of that id's proper ancestors that contain the point (`Hitbox.contains`),
+    /// found through the id itself, as `focusChain(from:)` finds its chain —
+    /// no parent link on a `Hitbox`, no second list, no second ranking (`IX-D`
+    /// item 1). **An ancestor's `onClick` never joins** (`IX-D` item 2): with
+    /// no gesture anywhere in the arena there is no arena, and the release is
+    /// `dispatchClick`'s, unchanged.
+    private func dispatchGestures(_ event: InputEvent, pressedBefore pressed: GlobalElementID?) -> Bool {
+        switch event {
+        case .mouseDown(let mouse):
+            var callbacks: [GestureCallback] = []
+            let target = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position)
+            if var arena = gestureArena, arena.isAlive {
+                if let target, lastHitboxes[target].id == arena.targetID {
+                    callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true)
+                    gestureArena = arena
+                    runGestureCallbacks(callbacks)
+                    return false
+                }
+                callbacks = arena.abandon()
+            }
+            gestureArena = nil
+            if let target, var arena = makeGestureArena(target: target, at: mouse.position) {
+                callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false)
+                gestureArena = arena
+            }
+            runGestureCallbacks(callbacks)
+            return false
+        case .mouseDragged(let mouse):
+            guard var arena = gestureArena else { return false }
+            let callbacks = arena.move(to: mouse.position)
+            gestureArena = arena
+            runGestureCallbacks(callbacks)
+            return false
+        case .mouseUp(let mouse):
+            guard var arena = gestureArena, arena.isPressing else {
+                return dispatchClick(event, pressedBefore: pressed)
+            }
+            let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
+                                          click: completedClick(mouse, pressedBefore: pressed))
+            gestureArena = arena.isAlive ? arena : nil
+            runGestureCallbacks(callbacks)
+            return !callbacks.isEmpty
+        default:
+            return false
+        }
+    }
+
+    /// The arena for a press on `lastHitboxes[target]`, or `nil` when neither
+    /// it nor a containing ancestor carries a gesture.
+    private func makeGestureArena(target: Int, at point: Point<Pixels>) -> GestureArena? {
+        let hit = lastHitboxes[target]
+        var ancestors: [(hitbox: Hitbox, depth: Int)] = []
+        var depth = 1
+        var cursor = hit.id.parent
+        while let id = cursor {
+            if let box = lastHitboxes.last(where: { $0.id == id && !$0.handlers.gestures.isEmpty
+                                                        && $0.contains(point) }) {
+                ancestors.append((box, depth))
+            }
+            depth += 1
+            cursor = id.parent
+        }
+        return GestureArena(target: hit, ancestors: ancestors)
+    }
+
+    /// Advances the arena's timers to a display-link tick and runs what
+    /// matured (`IX-C` item 4). Called from the display link, before the frame.
+    func advanceGestures(to time: Double) {
+        guard var arena = gestureArena else { return }
+        let callbacks = arena.tick(time)
+        gestureArena = arena.isAlive ? arena : nil
+        runGestureCallbacks(callbacks)
+        if !callbacks.isEmpty { setNeedsRedraw() }
+    }
+
+    /// Runs the arena's callbacks in order, each under its owner (`ID-F`); a
+    /// click through `runClick`, as `dispatchClick` runs one.
+    private func runGestureCallbacks(_ callbacks: [GestureCallback]) {
+        for callback in callbacks {
+            switch callback {
+            case .click(let owner, let handler, let modifiers):
+                runClick(handler, on: owner, modifiers: modifiers)
+            case .gesture(let owner, let run):
+                StateDispatch.dispatching(to: owner) { run() }
+            }
+        }
+    }
+
+    /// `dispatchClick`'s test, asked by the arena: the target's `onClick` and
+    /// the release's modifiers when the release lands on the pressed element,
+    /// `nil` otherwise.
+    private func completedClick(_ mouse: MouseEvent, pressedBefore pressed: GlobalElementID?)
+        -> (handler: @MainActor () -> Void, modifiers: Modifiers)? {
+        guard let pressed, let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position) else {
+            return nil
+        }
+        let hit = lastHitboxes[index]
+        guard hit.id == pressed, let handler = hit.handlers.onClick else { return nil }
+        return (handler, mouse.modifiers)
     }
 
     /// Runs a click handler — a mouse click's or an accessibility `.press`'s —

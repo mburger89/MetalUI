@@ -990,16 +990,25 @@ public final class Frame {
     /// `PrepaintPass.insertHitbox` needs no payload parameter, and
     /// `registerScrollRegion` and `registerHandlers` stay the two spellings
     /// that supply one each.
+    ///
+    /// `origin` is the owning element's own origin when the region differs from
+    /// its box (a content shape's inset); it is translated like `bounds` and
+    /// never clipped, so a gesture's values are local to the element (plan task
+    /// 12 part 1, `IX-C` item 5). It defaults to `bounds`' origin.
     func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
                       opaque: Bool, scroll: ScrollAxis? = nil,
-                      handlers: Handlers = Handlers()) -> HitboxID {
+                      handlers: Handlers = Handlers(),
+                      origin: Point<Pixels>? = nil) -> HitboxID {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
+        let elementOrigin = origin ?? bounds.origin
         hitboxes.append(Hitbox(bounds: Self.intersect(activeClip, translated),
                                id: id, layer: activeLayer, opaque: opaque, scroll: scroll,
-                               handlers: handlers))
+                               handlers: handlers,
+                               origin: Point(x: Pixels(elementOrigin.x.value + activeOffset.x.value),
+                                             y: Pixels(elementOrigin.y.value + activeOffset.y.value))))
         return HitboxID(index: hitboxes.count - 1)
     }
 
@@ -1166,7 +1175,7 @@ public final class Frame {
         // wrong.
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             _ = insertHitbox(Self.hitRegion(bounds, inset: handlers.contentShapeInset),
-                             id: id, opaque: true, handlers: handlers)
+                             id: id, opaque: true, handlers: handlers, origin: bounds.origin)
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and

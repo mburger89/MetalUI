@@ -122,6 +122,8 @@ private struct HandlerFingerprint: Equatable {
     var textInput = false
     /// Plan task 10 part 2 (`DD-W` item 5).
     var valueTrack = false
+    /// Plan task 12 part 1 (`IX-B`): the gestures, counted (they append).
+    var gestureCount = 0
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -134,6 +136,7 @@ private struct HandlerFingerprint: Equatable {
         contentShapeInset = h.contentShapeInset
         textInput = h.textInput != nil
         valueTrack = h.valueTrack != nil
+        gestureCount = h.gestures.count
     }
 }
 

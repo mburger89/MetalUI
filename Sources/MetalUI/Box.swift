@@ -569,9 +569,18 @@ extension StyledElement {
     /// `aClickTargetInsideAScrollViewSwallowsTheWheel`, its first arm
     /// inverted); the rule is at `Window.applyScroll`.
     ///
+    /// **Button semantics, not SwiftUI's `onTapGesture`** (plan task 12 part 1,
+    /// ruling `IX-D` item 2): a press may leave the element and return before
+    /// its release (probe `B1`), where a tap fails on a 5-pt move (`G2d`) —
+    /// `onTapGesture(count:perform:)` is the tap.
+    ///
     /// **Bubble-only, and there is no chaining**: a click resolves to one
     /// hitbox and stops, so an `onClick` on a container never sees a click that
-    /// landed on a child with its own. See `Handlers`.
+    /// landed on a child with its own — **an ancestor's `onClick` never joins a
+    /// press's gesture arena** (`IX-D` item 2); only an ancestor's gestures do.
+    /// The target's own `onClick` is the arena's innermost normal member, so a
+    /// parent's `highPriorityGesture` beats it and a parent's normal drag waits
+    /// for it for the whole press (`IX-D` item 3, probe `X4`). See `Handlers`.
     ///
     /// **A second `onClick` REPLACES the first**, exactly as a second
     /// `background(_:)` does — `.onClick { a }.onClick { b }` runs only `b` and

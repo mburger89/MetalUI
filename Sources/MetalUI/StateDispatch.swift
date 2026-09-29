@@ -16,7 +16,9 @@ import MetalUICore
 /// written from a `Box` inside its body).
 ///
 /// **Sites** (each sets the owner around exactly one handler call):
-/// `Window.dispatchClick` (the hit id), `dispatchKey` (each chain id whose
+/// `Window.dispatchClick` (the hit id), the gesture arena's callbacks
+/// (`Window.runGestureCallbacks`, each gesture's owner — plan task 12 part 1,
+/// `IX-D` item 5), `dispatchKey` (each chain id whose
 /// handler runs), `dispatchAction` (each chain id whose handler runs),
 /// `Window.handleAccessibilityRequest`'s press and adjust (the node's id), and
 /// the text-input path's edit and submit callbacks (the field's id).
