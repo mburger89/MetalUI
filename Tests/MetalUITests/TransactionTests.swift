@@ -187,7 +187,8 @@ struct TransactionRecorder: ProposalElement {
 /// (a `List` row returning into its window has this shape: its store entry
 /// dropped after one frame, its `$anim` kept by `TB-AH`). The store is
 /// emptied directly here (`endFrame()` outside a frame drops every untouched
-/// entry). Mutation **V1** (`?? false` → `?? true` in `Frame.scopedTransaction`).
+/// entry). Mutation **V1** (`?? false` → `?? true` in `Frame.scopedTransaction`);
+/// **V2** (`endFrame` never filters) reddens its set-up `#require` instead.
 @MainActor @Test func anAnimationScopesFirstSightingSnapsOverASurvivingBaseline() throws {
     let model = TransactionModel()
     let (window, platform) = try makeTransactionWindow {

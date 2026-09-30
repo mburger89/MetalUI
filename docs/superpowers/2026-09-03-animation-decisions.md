@@ -1875,6 +1875,27 @@ these amendments and measurements; nothing in `AN-Y`, `AN-Z`, `AN-AB`'s store or
    table read 4 issues in the first alone. The full lists are record §64's.
    Every clause still has a mutation that reddens it.
 
+8. **The verifier round's five unpinned clauses, pinned** (fix round,
+   2026-09-30; 1898 → **1901** tests, +3 new and one extended). Each mutation
+   on the committed tree, restored from a copy, full unfiltered suite, `git
+   status --short` clean after every one:
+
+| # | mutation | reddens |
+|---|---|---|
+| V1 | `?? false` → `?? true` in `Frame.scopedTransaction` (a first sighting animates) | `anAnimationScopesFirstSightingSnapsOverASurvivingBaseline` alone (2 issues; new 1.3b — the store emptied by `endFrame()` outside a frame, the `$anim` baseline kept) |
+| V2 | `AnimationStore.endFrame` never filters | `anAnimationScopeThatLeavesForAFrameLeavesTheStore` (1; new 1.12b — a scope in an `if` off for one frame leaves `count == 0`) and 1.3b's set-up `#require` (1) |
+| V9 | drop `parkedDisablesAnimations`' rollback in `parkTransaction` | `aDisablingTransactionReachesExactlyOneBuildAndRollsBack` alone (2 issues, arm (a): a body that dirties nothing, then a plain `.animation(_:value:)` change reads 200 not 150) |
+| V10 | `takeParkedTransaction` stops clearing `parkedDisablesAnimations` | `aDisablingTransactionReachesExactlyOneBuildAndRollsBack` alone (2 issues, arm (b): the build after the disabling one reads 200 not 150) |
+| V5 | `derived` drops the source flag | `aBindingAnimationAnimatesAStateWrite` (3 issues: the lift, unwrap and key-path arms) |
+| V11 | the unwrapping initialiser builds a plain `Binding(get:set:)` | `aBindingAnimationAnimatesAStateWrite` alone (1 issue, its unwrap arm) |
+| V12 | the dynamic-member subscript builds a plain `Binding<Subject>(get:set:)` | `aBindingAnimationAnimatesAStateWrite` alone (1 issue, its key-path arm) |
+
+   Before this round V1, V2, V9, V10 and V11 each left all 1898 green; item 1's
+   "rolled back beside the animation" and "taken and cleared" clauses, the
+   store's end-of-frame drop `AN-AB` relies on, "a first sighting stores and
+   does not animate", and `AN-Z`'s "every binding derived from one" are now each
+   reddened by a named test.
+
 **Cost if wrong.** Item 4 is the only behaviour stated rather than pinned: a
 future production path that builds a frame inside a `withAnimation` body would
 let the lexical slot override a scope's `nil`.
