@@ -165,7 +165,10 @@ private func controlsTrees() throws -> [String: AccessibilityTree] {
 private func previewAndTextInputTrees() throws -> [String: AccessibilityTree] {
     var trees: [String: AccessibilityTree] = [:]
     let (_, previewPlatform) = try scriptWindow { nativeLayoutPreviewContent() }
-    trees["preview"] = try published(previewPlatform)
+    // An empty tree publishes nothing (`Window` starts from `.empty`), so a
+    // preview that records nothing reads as `.empty` here rather than stopping
+    // the test before the text-input arm (M3k must redden only the preview).
+    trees["preview"] = previewPlatform.publishedAccessibilityTrees.last ?? .empty
     let (window, platform) = try scriptWindow { textInputDemoContent() }
     let textInput = try published(platform)
     trees["textinput"] = textInput
