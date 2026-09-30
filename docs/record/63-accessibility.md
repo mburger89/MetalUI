@@ -403,8 +403,8 @@ frame: succeeded=true` present (guards ran). **1880 = 1837 + 8 + 25 + 10**
 (lane 1, lane 2, lane 3 — matching each lane's own close, re-verified rather
 than re-derived). `goldensUnchanged` for the whole part: 0 goldens throughout
 (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0); no test
-retired; four renamed with an inverted answer or literal, each a T row naming
-its ruling (`aPressIsRefusedWhereHitTestingIsDisabled` →
+retired; two renamed with an inverted answer and two literals re-derived,
+each a T row naming its ruling (`aPressIsRefusedWhereHitTestingIsDisabled` →
 `aPressIsRunWhereHitTestingIsDisabled`, `IX-Z`;
 `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly` →
 `settingAXSelectedOnARowReplacesTheSelection`, `IX-AA`;
@@ -467,7 +467,7 @@ hazard or a deferral, not fixed on this branch):
   reads better to VoiceOver than an unknown role) covers this row too;
   divergence 33's text is read as covering both.
 - **This record file's own header read "DESIGNED, Lanes 1–3 not begun" until
-  this close** — corrected above (§0).
+  this close** — corrected in the header's status paragraph above.
 
 **Pixels**: `docs/probes/demo-pixels/compare.sh /tmp/scratch63 31d3565
 1bb6aa2` (independently re-taken by this Record phase, zsh, not bash — the
@@ -505,7 +505,7 @@ production has had since the still-open capture was first flagged at stage
 6b, and it covers this task's own lane-1 and lane-2 changes (lane 2 painted
 no pixel; lane 3's two demo modifiers post-date `6c961e3` and are covered
 instead by the fourteen-image offscreen comparison above, 0 px). See record
-§03's dated section (§8 below) for what this does and does not close.
+§03's 2026-09-30 section (its content is §8 below) for what this does and does not close.
 
 ## §7 The audit, disposed (spec §2, `IX-U`)
 
@@ -628,3 +628,63 @@ production tree stays 624 KB. Live divergences **69 → 68**, next label
 differing — the first unlocked reading since stage 6b; every other state
 stays owed. Task 12's box: **unticked** — the VoiceOver script is written,
 not run.
+
+## §12 Adversarial branch check (2026-09-30)
+
+One agent, `31d3565..1d09c71`, working tree clean on entry.
+
+- **Suite**, after `swift package clean`: `swift build --build-system native
+  --build-tests` 0 `error:`, the one SwiftPM deprecation `warning:`; `swift
+  build --build-tests` (default) 0 `error:`, 0 `warning:`; unfiltered `swift
+  test --build-system native --no-parallel` → **`Test run with 1880 tests in
+  3 suites passed after 118.524 seconds`**, `FR-J no-argument frame:
+  succeeded=` present. `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+  `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `noConformerEmitsAnAXNodeItDidNotDeclare`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` and
+  `aPressIsRunWhereHitTestingIsDisabled` (whose mouse-click arm pins that the
+  pointer still finds nothing, `OM-AK`) each read `passed` in that log.
+- **Goldens 0; guards 116** (117 raw `canTypecheck` hits, one a comment);
+  `MetalUILayout` imports `MetalUICore` alone; `Sources/MetalUILayout` and
+  `Expected.swift` unchanged against `31d3565`. `cmp CLAUDE.md AGENTS.md`
+  identical. `@Test` diff: exactly two removed lines, both the renames; 50
+  added (48 new = root +43, SDL +5).
+- **Citations**: every backticked test/symbol name of 21+ characters on an
+  added doc line resolves in `Sources/`/`Tests/` (the two not found are the
+  renames' old names, cited as such); every backticked ruling id resolves to
+  a heading or table row, except `IX-AK`, the next unused letter.
+- **Two mutations of this check's own**, each on the committed tree, restored
+  from a copy, full unfiltered suite, `git status --short` empty after each:
+  **MA** — modal isolation picks the *least* `(layer, record position)`
+  (`.max` → `.min` in `AccessibilityTreeBuilder`) → `1880 … failed with 1
+  issue`, reddening `aModalSubtreeIsTheOnlyThingPublished` alone (the
+  greatest-wins clause is pinned); **MB** — `registerAndScope`'s
+  `accessibilityHidden` suppression branch disabled → `1880 … failed with 4
+  issues`, reddening `anAccessibilityHiddenSubtreePublishesNothing` alone.
+- **Pixels**: `compare.sh <scratch> 31d3565 HEAD` (zsh) — controls as recorded
+  in §6, **0 differing, scene identical, in all fourteen**.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`): 0 `error:`,
+  **22 + 32** passed. **`swift:6.4-noble`** (`git archive HEAD`): 0
+  `error:`/`warning:`, **199 + 10 + 22**.
+- **Lock probe**: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` —
+  `capture.sh` not run; the real-window states beyond `6c961e3`'s pair stay
+  owed.
+- **Audit**: spec §2's rows 27–44 each carry a verdict and an owner; record
+  §62's part-2 rows (27–37) all appear. The VoiceOver script covers the demo,
+  the controls demo, the preview and the text-input demo, every step with an
+  expected output and a marker 3.10 checks, empty Observed cells and a
+  sign-off; its env vars and window titles match `Sources/MetalUIDemo/main.swift`.
+  **Plan task 12 is unticked**, with the dated 2026-09-30 note naming the
+  script.
+- **Doc defects fixed here**: §6's "four renamed" (two renamed, two literals
+  re-derived), its "corrected above (§0)" (no §0 exists) and an ambiguous
+  "§8 below" pointer.
+- **Code findings, none blocking**: §6's 1.12 lifetime hazard
+  (`settingAXSelectedOnARowReplacesTheSelection` does not keep its `Window`s
+  alive with `withExtendedLifetime`) stands, as recorded; §9's three unpinned
+  `IX-AG` clauses stand, as recorded.
+
+**Verdict: merge.**
