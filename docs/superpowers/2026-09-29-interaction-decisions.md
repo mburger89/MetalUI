@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-AG`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AH`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1802,3 +1802,138 @@ tests and +3 guards (1870, 116); lane 3 +10 (1880) and SDL +1. Expected close
 
 **Cost if wrong.** Each amendment is one test or one clause; the lane move is
 reversible by renumbering.
+
+---
+
+## IX-AG — lane 1 landed: the neutral tree through both bridges, the press under `allowsHitTesting(false)`, and a client's selection (and eight clauses the design left open)
+
+**Ruling.** Lane 1 of part 2 (spec §7 "Lane 1", tests 1.1–1.14) landed in two
+commits: `9da8d45` (red: the neutral types as stubs, every test, the two
+renamed pins and the two T rows) and `dcd6339` (green). What it built is the
+spec's §4 neutral tree and §6 bridges and requests as written, plus these
+clauses, each MetalUI's choice unless a probe arm is named:
+
+1. **The parity tables found two fields with no arm** (`IX-AD` amended; spec
+   §6 amended). AccessKit translated neither `rowCount` nor `rowIndex`: they
+   now reach `accesskit_node_set_row_count`/`set_row_index` (snapshot fields
+   `rowCount`/`rowIndex`, part of `Node.==` so a change publishes). **T row**:
+   `aMetalUITreeTranslatesToAccessKitsVocabulary`'s table and row literals
+   gain `rowCount: 1`/`rowIndex: 0` — its answer changed by this ruling, not a
+   retirement. AppKit read `isFocusable` nowhere: `isAccessibilitySelectorAllowed`
+   for `setAccessibilityFocused(_:)` now answers `isFocusable` (attached only),
+   so `AXFocused` is settable exactly where `Window` would honour the `.focus`
+   request (AB-J); before, `NSAccessibilityElement`'s default allowed it on
+   every element and the window refused. No dispatch moves.
+2. **A row answers subrole `AXOutlineRow`** (L1, LA0), every other node none;
+   `.heading` is spelled `NSAccessibility.Role(rawValue: "AXHeading")`
+   (`NSAccessibilityHeadingRole` is macOS 26 API; the package targets 14);
+   a node with no identifier answers `""` (the protocol's non-null
+   `NSString`), a node with no hint `nil`.
+3. **A custom action's handler is built in a `nonisolated static` function**
+   (`customActionHandler`), so the closure AppKit calls carries no main-actor
+   isolation and reaches the element only through `mainActorAnswer` — a
+   closure formed inside the `@MainActor` element would carry that isolation,
+   and a held handler called off the main thread would trap instead of
+   answering `false` (1.9 calls one off the main thread). It holds its
+   element weakly and sends nothing once the element is detached or the index
+   is out of range.
+4. **`isSelectable` is derived by the builder, not declared**: a `.row` whose
+   published parent registered an `AccessibilityRowSelection` handler this
+   frame. So `AXNode` (lane 2's file) gains no hint, and a disabled or hidden
+   list's rows are not offered as selectable (1.14 asserts it).
+5. **Selection semantics beyond the arms**: `setAccessibilitySelected(false)`
+   sends nothing (`IX-AA` item 1); a `.selectRows` naming a row the table did
+   not publish, or a non-table as the table, is refused; an empty `.selectRows`
+   sets `nil`/`[]` (unprobed); a single list ignoring two rows (LA4) still
+   answers `true` — the list answered the request, as a press whose handler
+   writes nothing does; an accessibility selection **asks for no focus**
+   (a row click does, `DD-Z` item 5 — setting `AXSelected` is not a press)
+   and stores the lead and anchor as a click does. The handler runs under
+   `StateDispatch.dispatching(to: list)` (`ID-F`).
+6. **The press-only record** (`Frame.accessibilityPressOnly`, surfaced as
+   `Window.lastAccessibilityPressOnly`) skips a suppressed subtree (it records
+   no node, so it advertises nothing) and keeps the last registration per id.
+   The builder takes it as `pressOnly:` (default empty, so every other caller
+   is unchanged). `Window`'s press tries the last `onClick` hitbox, then the
+   press-only handler, both through `runClick` (`IX-Z` item 2); lane 2 adds
+   its two arms ahead of these.
+7. **`.customAction` is refused** by a stub arm naming lane 2 (the `switch`
+   is exhaustive), exactly as an unknown id is refused today.
+8. **Two test defects found at green, fixed in the tests**: 1.4's `rowCount`
+   arm asserted `accessibilityRowCount() == 0` on a row, but the existing
+   override answers the neutral field for any role (rewritten to `== 7`, the
+   field's own answer); and 1.13/1.14 discarded their `Window`s with `_`, so
+   `FakePlatformWindow` (which holds its window weakly) sent requests to
+   nothing — 1.13's multi arm failed and 1.14's disabled refusal **passed for
+   the wrong reason**. Every window is now kept alive to the test's end
+   (`withExtendedLifetime`). A refusal assertion needs a live receiver; M1n
+   below is the mutation that proves 1.14's does.
+
+**Red before** (`9da8d45`, full unfiltered suite): `Test run with 1845 tests
+in 3 suites failed … with 41 issues` — exactly the ten lane-1 tests red: 1.1
+(`accessibilityRole() == AXHeading`, `accessibilityHelp() == "The page
+title"`, `accessibilityIdentifier() == "page.title"`, `.link`, `.outline`,
+`.outlineRow`), 1.2 (`mail.accessibilityCustomActions()` nil), 1.3 (the
+setter not allowed, no `.select`/`.selectRows`, `selectedRows` empty), 1.4 (five
+arms and the focusable control), 1.9 (`.signal(SIGTRAP)`: the control arm's
+precondition on the main thread), 1.10 (`actions == [.press]`, the map
+empty), 1.11 (`actions == [.press]`, the press refused, `count == 1` twice),
+1.12 (no request reached the window, `multiWrites`/`singleWrites`), 1.13 and
+1.14 (the stub refuses); the AppKit role table T row (`accessibilityRole() ==
+role`, line 211) filtered separately. SDL: `31 tests … failed with 22 issues`
+— 1.5 (roles, description, author id, custom actions), 1.6 (`off.has_value &&
+!off.value`), 1.7 (`queued == .customAction(number, 1)`, the request, the
+no-data arm), 1.8 (seven arms), plus the translation T row (two `got == want`).
+
+**Green** (`dcd6339`, after `swift package clean` at the red commit — three
+public types changed shape): `swift build --build-system native --build-tests`
+0 `error:`, the one `warning:` SwiftPM's deprecation notice; `swift build
+--build-tests` (default system) 0 `error:`/`warning:`; unfiltered `swift test
+--build-system native --no-parallel` → **`Test run with 1845 tests in 3 suites
+passed after 112.771 seconds`**, the log carrying `FR-J no-argument frame:
+succeeded=` (guards ran; **113** unmoved). `Backends/SDL`
+(`PKG_CONFIG_PATH=Backends/SDL/.accesskit`, fetched into this worktree with
+`fetch-accesskit.py`): **22 + 31** passed. `MetalUILayout` imports
+`MetalUICore` alone. **0 px against `31d3565` in all fourteen offscreen
+images, every scene identical** (`compare.sh … 31d3565 dcd6339`; its controls
+read as at `31d3565` itself). The real-window capture was **not taken**: the
+lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`.
+
+**Mutations** (each applied from `dcd6339` with the spec edit the only
+uncommitted change, restored from a copy, the whole suite run unfiltered —
+root 1845 or SDL 22 + 31 — `git status --short` clean of source after each;
+**every** test reddened named; `noConformerEmitsAnAXNodeItDidNotDeclare` green
+under all):
+
+| id | mutation | reddened |
+|---|---|---|
+| M1a | the hint answered as `accessibilityLabel` (help `nil`) | `theAppKitBridgePublishesHintIdentifierHeadingLinkAndOutline`, `everyAccessibilityNodeFieldHasAnAppKitArm`, `theNewAppKitOverridesAnswerNothingOffTheMainThread` |
+| M1a′ | `.table` back to `AXTable` | `theAppKitBridgePublishesHintIdentifierHeadingLinkAndOutline`, `rolesLabelsValuesAndTraitsMapOneToOne` (the T row) |
+| M1b | custom-action handlers numbered from 1 | `theAppKitBridgesCustomActionsRequestByIndex`, `theNewAppKitOverridesAnswerNothingOffTheMainThread` |
+| M1c | the selected setter allowed on every row | `anOutlineRowAcceptsAXSelectedOnlyWhenSelectable` |
+| M1d | the identifier answer dropped (`""`) | `everyAccessibilityNodeFieldHasAnAppKitArm`, `theAppKitBridgePublishesHintIdentifierHeadingLinkAndOutline`, `theNewAppKitOverridesAnswerNothingOffTheMainThread` |
+| M1i | `accessibilityHelp` through a bare `MainActor.assumeIsolated` | `theNewAppKitOverridesAnswerNothingOffTheMainThread` (child traps) |
+| M1j | the press-only record removed | `aPressIsAdvertisedWhereHitTestingIsDisabled`, `aPressIsRunWhereHitTestingIsDisabled` |
+| M1j′ | recorded without a client | `aPressIsAdvertisedWhereHitTestingIsDisabled` |
+| M1k | the press-only map not consulted by `Window` | `aPressIsRunWhereHitTestingIsDisabled` |
+| M1l | `.select`/`.selectRows` add to a multi selection | `settingAXSelectedOnARowReplacesTheSelection`, `settingTheOutlinesSelectedRowsSetsThemAndASingleListIgnoresTwo`, `aDisabledListRefusesAnAccessibilitySelection` (its enabled control) |
+| M1m | a single list takes the first of two | `settingTheOutlinesSelectedRowsSetsThemAndASingleListIgnoresTwo` |
+| M1n | the row-selection handler registered past the disabled gate | `aDisabledListRefusesAnAccessibilitySelection` |
+| M1e | (SDL) the description not set | `theAccessKitSnapshotCarriesHintIdentifierHeadingLinkAndCustomActions`, `everyAccessibilityNodeFieldHasAnAccessKitArm` |
+| M1f | (SDL) `selected = false` not set | `aSelectableRowPublishesSelectedFalseToAccessKit`, `everyAccessibilityNodeFieldHasAnAccessKitArm` |
+| M1g | (SDL) the custom action's index ignored (always 0) | `anAccessKitCustomActionMeansACustomActionRequest` |
+| M1h | (SDL) custom actions not pushed | `theAccessKitSnapshotCarriesHintIdentifierHeadingLinkAndCustomActions`, `everyAccessibilityNodeFieldHasAnAccessKitArm` |
+
+**Counts**: root **1837 → 1845** (+8: 1.1–1.4, 1.9, 1.10, 1.13, 1.14; 1.11
+and 1.12 renames; the AppKit role table a T row), guards **113** unmoved, SDL
+**22 + 27 → 22 + 31** (1.5–1.8; the translation test a T row). No test
+removed; `goldensUnchanged`: every retained test's answer is unchanged except
+the four ruled (the two renamed pins, `IX-Z` item 1 and `IX-AA` item 1; the two
+T rows, `IX-AA` item 3 and item 1 above). Spec §11's expected figures hold.
+
+**Evidence.** The logs above; `accesskit.h` 0.23.0 (`row_count`, `row_index`,
+`custom_action`, `ACCESSKIT_ACTION_DATA_CUSTOM_ACTION`); the SDK's
+`NSAccessibilityConstants.h` (`NSAccessibilityHeadingRole` macOS 26).
+
+**Cost if wrong.** Items 1–2 are one arm each per bridge, pinned by the parity
+tables; item 5's choices are one line each in `List.accessibilityRowSelection`.

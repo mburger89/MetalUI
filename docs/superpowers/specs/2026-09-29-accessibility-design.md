@@ -373,6 +373,15 @@ a row is still selected by `Click` (AccessKit 0.23's action enum, header lines
 72–146, has no select action). No keyboard shortcut is published on either
 bridge (C2, B3: neither SwiftUI nor AppKit's own button publishes one).
 
+**Amended by `IX-AG` (lane 1's landing): the parity tables found two fields
+with no arm.** AccessKit translated neither `rowCount` nor `rowIndex` — they
+now reach `accesskit_node_set_row_count`/`set_row_index` (a T row in
+`aMetalUITreeTranslatesToAccessKitsVocabulary`'s two literals); AppKit read
+`isFocusable` nowhere — `isAccessibilitySelectorAllowed(setAccessibilityFocused:)`
+now answers it, so `AXFocused` is settable exactly where `Window` would honour
+the `.focus` request (AB-J). A row also answers subrole `AXOutlineRow`, and a
+node with no identifier answers `""` (the protocol's non-null `NSString`).
+
 ## 7. Lanes — AT MOST THREE, run in order 1, 2, 3 (`IX-AE`)
 
 Every lane: tests red first (each lane first lands the public declarations as
@@ -660,3 +669,6 @@ G2.1–G2.3) → 1870, guards **+3** → 116. Lane 3: **+10** root tests (3.1–
 3.8–3.11) → 1880; SDL **+1** (3.7). Expected close: **1880 tests, 116 guards,
 SDL 22 + 32** — each lane re-takes the count and corrects this line in its
 landing ruling.
+
+**Lane 1 measured (`IX-AG`)**: root **1845** (1837 + 8), guards **113**
+unmoved, SDL **22 + 31** (22 + 27 + 4) — as designed.
