@@ -1296,8 +1296,14 @@ public final class Frame {
         // stays true whether or not a client is active.
         if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
             let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
+            let declaresAction = handlers.actions[ObjectIdentifier(AccessibilityDefaultAction.self)] != nil
+            // A declared action is a declaration, not a synthesis (plan task 12
+            // part 2, `IX-AF` item 3): recorded OUTSIDE the synthesize gate, so
+            // a non-synthesizing conformer (a proposal wrapper, G6's action over
+            // a gesture) still publishes it.
+            let declaresNamedAction = handlers.actions[ObjectIdentifier(AccessibilityNamedAction.self)] != nil
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
-                || handlers.axNode.selectionHint
+                || handlers.axNode.selectionHint || declaresAction || declaresNamedAction
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
                         || accessibleText != nil))
@@ -1308,9 +1314,24 @@ public final class Frame {
                                               isEnabled: enabled,
                                               synthesizes: synthesizesAccessibility,
                                               portal: portalStack.last ?? 0,
-                                              geometry: accessibilityGeometry(for: bounds)))
+                                              geometry: accessibilityGeometry(for: bounds),
+                                              declaresAction: declaresAction))
             }
         }
+    }
+
+    /// A record for an element that registers nothing else — a `ProposalText`'s
+    /// string, a labelled `Image` (plan task 12 part 2, `IX-AB` items 1 and 3).
+    /// **Gated on `collectsAccessibility` alone**: no hitbox, no focus entry, no
+    /// `StateTable` slot (so no `$ax` write, AB-U), reading `isEnabled` and the
+    /// suppression exactly as `registerHandlers`' record does.
+    func recordAccessibility(text: String?, declared: AXNode, at bounds: Bounds<Pixels>,
+                             id: GlobalElementID) {
+        guard collectsAccessibility, !isAccessibilitySuppressed(for: id) else { return }
+        axEmissions.append(AXEmission(id: id, declared: declared, text: text, isClickable: false,
+                                      isEnabled: environmentTop.isEnabled, synthesizes: true,
+                                      portal: portalStack.last ?? 0,
+                                      geometry: accessibilityGeometry(for: bounds)))
     }
 
     /// `bounds` inset by a declared content shape, or `bounds` itself — the

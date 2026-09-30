@@ -66,6 +66,30 @@ extension PrepaintPass {
                              accessibleText: String? = nil,
                              synthesizesAccessibility: Bool = true,
                              content: () -> R) -> R {
+        // `accessibilityHidden(true)` (plan task 12 part 2, `IX-W` item 1)
+        // opens the accessibility suppression scope around the receiver's own
+        // registration AND its content, so nothing inside records (H1, H2) and
+        // an inner `(false)` cannot un-hide it (H5: suppression is a depth).
+        // Accessibility only: the hitbox, focus and `$ax` writes are untouched.
+        if handlers.axNode.declarations.isHidden {
+            return frame.withAccessibilitySuppressed(except: nil) {
+                registerAndScopeUnhidden(handlers, decoration, at: bounds, for: id,
+                                         accessibleText: accessibleText,
+                                         synthesizesAccessibility: synthesizesAccessibility,
+                                         content: content)
+            }
+        }
+        return registerAndScopeUnhidden(handlers, decoration, at: bounds, for: id,
+                                        accessibleText: accessibleText,
+                                        synthesizesAccessibility: synthesizesAccessibility,
+                                        content: content)
+    }
+
+    private func registerAndScopeUnhidden<R>(_ handlers: Handlers, _ decoration: Decoration,
+                                             at bounds: Bounds<Pixels>, for id: GlobalElementID,
+                                             accessibleText: String?,
+                                             synthesizesAccessibility: Bool,
+                                             content: () -> R) -> R {
         // **The pointer-disable scope wraps EVERYTHING below, the receiver's own
         // registration included** (ruling OM-T, plan task 5's lane 3).
         // `.onClick` and `.allowsHitTesting` write the same `Handlers` — on a

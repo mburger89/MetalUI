@@ -20,6 +20,15 @@ final class WindowAccessibility {
     /// tree is empty publishes nothing.
     private(set) var lastPublished = AccessibilityTree.empty
 
+    /// The last build's dispatch tables (plan task 12 part 2, spec §6): a
+    /// combined node's and a distributed action's redirects, what each custom
+    /// action runs, and whether the tree was built under modal isolation.
+    /// Written with every build, published or not — a build that published
+    /// nothing new still answers the frame's handlers.
+    private(set) var lastRedirects: [GlobalElementID: [GlobalElementID]] = [:]
+    private(set) var lastCustomActions: [GlobalElementID: [AccessibilityCustomActionTarget]] = [:]
+    private(set) var lastIsolatedOut = false
+
     /// Trees built: one per drawn frame while active. Test observable.
     private(set) var buildCount = 0
 
@@ -54,13 +63,17 @@ final class WindowAccessibility {
     /// retries.
     func frameDidRender(emissionCount: Int,
                         retry: Bool,
-                        _ tree: @autoclosure () -> AccessibilityTree,
+                        _ build: @autoclosure () -> AccessibilityBuild,
                         to platformWindow: any PlatformWindow) -> Bool {
         lastEmissionCount = emissionCount
         let dirties = retry && !lastFrameRetried
         lastFrameRetried = retry
         guard isActive else { return dirties }
-        let built = tree()
+        let result = build()
+        let built = result.tree
+        lastRedirects = result.redirects
+        lastCustomActions = result.customActions
+        lastIsolatedOut = result.isolatedOut
         buildCount += 1
         guard built != lastPublished else { return dirties }
         lastPublished = built
@@ -85,44 +98,89 @@ extension Window {
             if accessibility.activate() { setNeedsRedraw() }
             return true
         case .press(let node):
-            // The LAST hitbox for the id with a click handler, as click dispatch
-            // ranks a later registration above an earlier one; then, where
-            // `allowsHitTesting(false)` withheld the hitbox from an enabled
-            // `onClick`, that handler (plan task 12 part 2, `IX-Z` item 1:
-            // SwiftUI presses there, arm B6 — a click still finds nothing).
-            guard let id = node.base as? GlobalElementID,
-                  let onClick = lastHitboxes.last(where: { $0.id == id && $0.handlers.onClick != nil })?
-                      .handlers.onClick ?? lastAccessibilityPressOnly[id] else { return false }
-            // A press runs what a click runs, with no modifiers (`DD-Z` item 9),
-            // and keeps its focus request (`IX-Z` item 2).
-            runClick(onClick, on: id, modifiers: [])
-            setNeedsRedraw()
-            return true
+            guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID else { return false }
+            return press(id, redirectsLeft: 4)
         case .increment(let node):
+            guard isOfferedUnderIsolation(node) else { return false }
             return adjust(node, .increment)
         case .decrement(let node):
+            guard isOfferedUnderIsolation(node) else { return false }
             return adjust(node, .decrement)
         case .focus(let node):
             // `Window.focus` itself validates nothing; the refusal here is what
             // keeps a client from focusing an element that ignores keystrokes.
-            guard let id = node.base as? GlobalElementID,
+            guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID,
                   lastFocusRegistry.isFocusable(id) else { return false }
             focus(id)
             return true
-        case .customAction:
-            // Lane 2 (`IX-Y`) replaces this arm with the node's named action or
-            // a combined node's redirect; until then a custom action is refused
-            // exactly as an unknown id is.
-            return false
+        case .customAction(let node, let index):
+            // What the build said the node's `index`-th custom action runs
+            // (plan task 12 part 2, `IX-Y` item 2, `IX-V` item 2): its own named
+            // handler, or a combined node's descendant's press.
+            guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID,
+                  let targets = accessibility.lastCustomActions[id], targets.indices.contains(index)
+            else { return false }
+            switch targets[index] {
+            case .named(let name):
+                guard let handler = lastFocusRegistry.actionHandler(
+                    for: id, type: ObjectIdentifier(AccessibilityNamedAction.self)) else { return false }
+                StateDispatch.dispatching(to: id) {   // ID-F: the element declaring it
+                    handler(AccessibilityNamedAction(name: name))
+                }
+                setNeedsRedraw()
+                return true
+            case .press(let target):
+                return press(target, redirectsLeft: 4)
+            }
         case .select(let row):
+            guard isOfferedUnderIsolation(row) else { return false }
             // The row's table in the last published tree (`IX-AA` item 1).
             guard let table = accessibility.lastPublished.nodes.first(where: {
                 $0.value.role == .table && $0.value.children.contains(row)
             })?.key else { return false }
             return selectRows(table, [row])
         case .selectRows(let table, let rows):
+            guard isOfferedUnderIsolation(table) else { return false }
             return selectRows(table, rows)
         }
+    }
+
+    /// Divergence 95 (plan task 12 part 2, `IX-Z` item 3): when the last
+    /// published tree was built under modal isolation, an id it does not
+    /// contain — one a client cached before the modal appeared — is refused.
+    /// SwiftUI's held element still presses (M5); refusing is `AB-H`'s side:
+    /// never let a client operate what the user is not offered.
+    private func isOfferedUnderIsolation(_ node: AccessibilityNodeID) -> Bool {
+        !accessibility.lastIsolatedOut || accessibility.lastPublished.nodes[node] != nil
+    }
+
+    /// An accessibility press on `id`, in the order `IX-Z` item 2 rules: a
+    /// declared `accessibilityAction(_:)` (A4 — it replaces the click's press,
+    /// G6 — and a tap's); a redirect (a combined node's first interactive
+    /// descendant, E6/E14, or the container that distributed its action, A5);
+    /// the LAST hitbox for the id with a click handler, as click dispatch ranks
+    /// a later registration above an earlier one; then, where
+    /// `allowsHitTesting(false)` withheld the hitbox from an enabled `onClick`,
+    /// that handler (`IX-Z` item 1: SwiftUI presses there, arm B6 — a click
+    /// still finds nothing). Each runs through `runClick`, so a press keeps no
+    /// modifiers (`DD-Z` item 9) and its focus request (`IX-Z` item 2).
+    /// `redirectsLeft` bounds a chain of redirects (a distributed action
+    /// redirects once per nesting level).
+    private func press(_ id: GlobalElementID, redirectsLeft: Int) -> Bool {
+        if let declared = lastFocusRegistry.actionHandler(
+            for: id, type: ObjectIdentifier(AccessibilityDefaultAction.self)) {
+            runClick({ declared(AccessibilityDefaultAction()) }, on: id, modifiers: [])
+            setNeedsRedraw()
+            return true
+        }
+        if redirectsLeft > 0, let target = accessibility.lastRedirects[id]?.first {
+            return press(target, redirectsLeft: redirectsLeft - 1)
+        }
+        guard let onClick = lastHitboxes.last(where: { $0.id == id && $0.handlers.onClick != nil })?
+            .handlers.onClick ?? lastAccessibilityPressOnly[id] else { return false }
+        runClick(onClick, on: id, modifiers: [])
+        setNeedsRedraw()
+        return true
     }
 
     /// Runs the list's OWN `AccessibilityRowSelection` handler with `rows`
@@ -150,8 +208,14 @@ extension Window {
     /// ancestor's (AB-I).
     private func adjust(_ node: AccessibilityNodeID,
                         _ direction: AccessibilityAdjustmentDirection) -> Bool {
-        guard let id = node.base as? GlobalElementID,
-              let handler = lastFocusRegistry.actionHandler(
+        guard var id = node.base as? GlobalElementID else { return false }
+        // A combined node adjusts its first interactive descendant (`IX-V`
+        // item 2), when it has no handler of its own.
+        if lastFocusRegistry.actionHandler(for: id, type: ObjectIdentifier(AccessibilityAdjustment.self)) == nil,
+           let target = accessibility.lastRedirects[id]?.first {
+            id = target
+        }
+        guard let handler = lastFocusRegistry.actionHandler(
                   for: id, type: ObjectIdentifier(AccessibilityAdjustment.self)) else { return false }
         StateDispatch.dispatching(to: id) {   // ID-F: the adjusted element
             handler(AccessibilityAdjustment(direction: direction))

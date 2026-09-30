@@ -63,15 +63,87 @@ extension StyledElement {
     }
 }
 
-// Plan task 12 part 2, lane 2 — RED STUBS (spec §7 "Lane 2"): the public
-// spellings exist so the tests compile; each does nothing yet.
+// Plan task 12 part 2, lane 2 (spec `2026-09-29-accessibility-design.md` §4;
+// rulings `IX-V`…`IX-Y`): SwiftUI's remaining accessibility modifiers. Each
+// writes `Handlers.axNode`'s declaration box or `Handlers.actions` through
+// `handling`, so a `StyledElement` gains **no layer and no identity level** and
+// `Handlers` no member; on one element the later-written declaration wins (H4).
+// The same eleven exist on `ProposalElementGroup`, through
+// `AccessibilityModifier` (`ProposalAccessibility.swift`).
 extension StyledElement {
-    public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> Self { self }
-    public func accessibilityHidden(_ hidden: Bool) -> Self { self }
-    public func accessibilityHint(_ hint: String) -> Self { self }
-    public func accessibilityIdentifier(_ identifier: String) -> Self { self }
-    public func accessibilityAddTraits(_ traits: AccessibilityTraits) -> Self { self }
-    public func accessibilityRemoveTraits(_ traits: AccessibilityTraits) -> Self { self }
-    public func accessibilityAction(_ handler: @escaping @MainActor () -> Void) -> Self { self }
-    public func accessibilityAction(named name: String, _ handler: @escaping @MainActor () -> Void) -> Self { self }
+    /// How a client sees this element's accessibility content — SwiftUI's
+    /// `accessibilityElement(children:)`, `.ignore` by default (`IX-V`):
+    /// `.ignore` one node with no children, `.combine` one node reading its
+    /// children's text, `.contain` a group keeping them.
+    public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> Self {
+        handling { $0.axNode.declarations.childBehavior = children }
+    }
+
+    /// Removes this element and everything inside it from what a client reads
+    /// (`IX-W` item 1; SwiftUI H1–H5). An inner `(false)` cannot un-hide an
+    /// outer `(true)`. **Accessibility only**: a hidden button is still
+    /// clickable and focusable, as SwiftUI's is.
+    public func accessibilityHidden(_ hidden: Bool) -> Self {
+        handling { $0.axNode.declarations.isHidden = hidden }
+    }
+
+    /// What a client reads as this element's hint (AppKit `AXHelp`, AccessKit
+    /// `description`), distributed from a plain container as a label is (`IX-W`
+    /// item 2; N1–N5).
+    public func accessibilityHint(_ hint: String) -> Self {
+        handling { $0.axNode.declarations.hint = hint }
+    }
+
+    /// This element's accessibility identifier (AppKit `AXIdentifier`, AccessKit
+    /// `author_id`), distributed as a label is (`IX-W` item 2; N2, N5).
+    public func accessibilityIdentifier(_ identifier: String) -> Self {
+        handling { $0.axNode.declarations.identifier = identifier }
+    }
+
+    /// Adds descriptive traits; each sets the role only (`IX-X`; T1–T11).
+    public func accessibilityAddTraits(_ traits: AccessibilityTraits) -> Self {
+        handling { $0.addAccessibilityTraits(traits) }
+    }
+
+    /// Removes descriptive traits: `.isButton` off a clickable element makes it
+    /// a group that keeps its folded label and its press (`IX-X` item 2; T3p).
+    public func accessibilityRemoveTraits(_ traits: AccessibilityTraits) -> Self {
+        handling { $0.removeAccessibilityTraits(traits) }
+    }
+
+    /// Makes an accessibility press run `handler` (`IX-Y` item 1; SwiftUI A1,
+    /// A4, A5). **On an element with its own click, a press runs this instead**
+    /// (A4); a mouse click still runs the click. Registers no hitbox and does
+    /// not make the element focusable; disabled, it is refused (A7).
+    ///
+    /// **What `handler` captures outlives the frame that built it**, as
+    /// `onClick(_:)`'s does.
+    public func accessibilityAction(_ handler: @escaping @MainActor () -> Void) -> Self {
+        handling { $0.declareDefaultAction(handler) }
+    }
+
+    /// Publishes a custom action named `name` that runs `handler` (`IX-Y` item
+    /// 2; SwiftUI A2, A3, A6). Named actions chain: the later-written one is
+    /// listed first, and a button's own press is untouched.
+    public func accessibilityAction(named name: String, _ handler: @escaping @MainActor () -> Void) -> Self {
+        handling { $0.declareNamedAccessibilityAction(name, handler) }
+    }
+}
+
+extension Handlers {
+    /// `accessibilityAction(named:_:)`'s one write, shared by both
+    /// vocabularies: prepend the name, and chain the handler in front of any
+    /// earlier one, dispatching by name (`IX-Y` item 2).
+    mutating func declareNamedAccessibilityAction(_ name: String, _ handler: @escaping @MainActor () -> Void) {
+        axNode.declarations.actionNames.insert(name, at: 0)
+        let key = ObjectIdentifier(AccessibilityNamedAction.self)
+        let earlier = actions[key]
+        actions[key] = { action in
+            if let named = action as? AccessibilityNamedAction, named.name == name {
+                handler()
+            } else {
+                earlier?(action)
+            }
+        }
+    }
 }

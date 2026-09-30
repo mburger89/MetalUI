@@ -1136,10 +1136,10 @@ public final class Window {
         if accessibility.frameDidRender(
             emissionCount: frame.axEmissions.count,
             retry: frame.wantsAccessibilityRetry,
-            AccessibilityTreeBuilder.build(emissions: frame.axEmissions, focused: focusedElement,
-                                           hitboxes: frame.hitboxes,
-                                           pressOnly: frame.accessibilityPressOnly,
-                                           focusRegistry: frame.focusRegistry),
+            AccessibilityTreeBuilder.buildResult(emissions: frame.axEmissions, focused: focusedElement,
+                                                 hitboxes: frame.hitboxes,
+                                                 pressOnly: frame.accessibilityPressOnly,
+                                                 focusRegistry: frame.focusRegistry),
             to: platformWindow) {
             setNeedsRedraw()
         }

@@ -36,4 +36,9 @@ struct AXEmission {
     /// (AB-V). A parent must share it.
     let portal: Int
     let geometry: AccessibilityGeometry
+    /// Whether the element declared `accessibilityAction(_:)` (plan task 12 part
+    /// 2, `IX-Y` item 1), read from `handlers.actions` **ungated**: a disabled
+    /// element with a declared action is still a button, with no press (A7).
+    /// The press itself comes from the registry, behind the disabled gate.
+    var declaresAction = false
 }

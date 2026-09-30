@@ -16,8 +16,9 @@ import MetalUIScene
 /// (I8, I11; `.high` is drawn bilinear, **divergence 93**).
 ///
 /// A proposal leaf like `Rectangle`: it registers no hitbox, focus entry or
-/// **accessibility record** (decorative, as its name says; a labelled image
-/// is plan task 12's), and snaps under animation. **Not offered** (spec §9):
+/// **accessibility record** (decorative, as its name says — a labelled image,
+/// `init(_:scale:label:)`, records one, plan task 12 part 2), and snaps under
+/// animation. **Not offered** (spec §9):
 /// SF Symbols (`Image(systemName:)`, out of the task's scope), asset names,
 /// `Image(nsImage:)`, `orientation:`, cap insets and tiling, rendering modes
 /// (guard `anImageHasNoSystemNameOrAssetInitialiser`).
@@ -46,10 +47,22 @@ public struct Image: ProposalElement {
         self.scale = scale
     }
 
-    /// RED STUB (plan task 12 part 2, lane 2): SwiftUI's `Image(_:scale:label:)`.
+    /// SwiftUI's `Image(_:scale:label:)`, with `ImageBitmap` for `CGImage` and
+    /// `Float` for `CGFloat` (plan task 12 part 2, `IX-AB` item 3): an image an
+    /// accessibility client reads as an `.image` labelled by `label`'s string
+    /// (SwiftUI I1, I3). Otherwise exactly `init(decorative:scale:)`.
     public init(_ bitmap: ImageBitmap, scale: Float, label: Text) {
         self.init(decorative: bitmap, scale: scale)
+        accessibilityLabelText = label.string
     }
+
+    /// `label`'s string for a labelled image; `nil` for a decorative one, which
+    /// publishes nothing, even labelled or tapped (I2, I4, I5).
+    var accessibilityLabelText: String?
+
+    /// Whether this image was built `decorative:` — an accessibility modifier
+    /// written over it publishes nothing (I4, `AccessibilityModifier`).
+    var isDecorative: Bool { accessibilityLabelText == nil }
 
     /// Answers the proposal instead of the point size; a nil axis still
     /// answers the point size (probe I2).
@@ -82,7 +95,10 @@ public struct Image: ProposalElement {
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Void, pass: inout PrepaintPass) {}
+                                  layout: inout Void, pass: inout PrepaintPass) {
+        guard let label = accessibilityLabelText else { return }
+        pass.frame.recordAccessibility(text: nil, declared: AXNode(role: .image, label: label), at: bounds, id: id)
+    }
 
     /// One quad over `bounds`, stretched — the texture's pixel size never
     /// enters here (`PaintPass.drawImage`).

@@ -74,8 +74,16 @@ public struct ProposalText: ProposalElement {
         return (node, Layout(node: node.layoutNodeID))
     }
 
+    /// Records its string for an accessibility client (plan task 12 part 2,
+    /// `IX-AB` item 1): a static text, SwiftUI's answer for a text in a stack or
+    /// grid (P1, P2) — the whole string, whatever is drawn (X1–X4). No hitbox,
+    /// focus entry or `StateTable` slot; nothing at all while no client
+    /// collects.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Layout, pass: inout PrepaintPass) {}
+                                  layout: inout Layout, pass: inout PrepaintPass) {
+        guard !string.isEmpty else { return }
+        pass.frame.recordAccessibility(text: string, declared: AXNode(), at: bounds, id: id)
+    }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {

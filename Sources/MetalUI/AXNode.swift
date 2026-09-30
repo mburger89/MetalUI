@@ -54,6 +54,7 @@ public enum AXTrait: Equatable, Hashable, Sendable {
 /// (design spec §9, "Bridge"), which this task's brief puts out of scope. That
 /// keeps `AXNode` free of escaping closures, so it stays `Equatable` and needs
 /// no `HandlerShape`-style projection of its own.
+@available(*, deprecated, message: "declare an action with accessibilityAction(_:) or accessibilityAdjustableAction(_:); AXNode's actions are never read (AB-H)")
 public enum AXActionKind: Equatable, Hashable, Sendable {
     case activate
     case increment
@@ -98,7 +99,10 @@ public struct AXNode: Equatable {
     public var label: String?
     public var value: String?
     public var traits: Set<AXTrait>
-    public var actions: Set<AXActionKind>
+    /// **Deprecated** (plan task 12 part 2, `IX-Y` item 4): actions are derived
+    /// from live handlers (AB-H), so this declared field is never read.
+    @available(*, deprecated, message: "declare an action with accessibilityAction(_:) or accessibilityAdjustableAction(_:); AXNode's actions are never read (AB-H)")
+    public var actions: Set<AXActionKind> = []
 
     /// The full count a virtualized container represents — spec §9's "3 of
     /// 500", the 500 half. `nil` for an ordinary node; a `List` sets it to
@@ -119,16 +123,27 @@ public struct AXNode: Equatable {
     /// nobody but the declarer can supply.
     public var logicalCount: Int?
 
-    // RED STUB (plan task 12 part 2, lane 2): the seven declarations stored
-    // inline, which test 2.19 measures; the implementation moves them into
-    // one reference box.
-    var stubChildBehavior: AccessibilityChildBehavior?
-    var stubHidden = false
-    var stubHint: String?
-    var stubIdentifier: String?
-    var stubAddedTraits: AccessibilityTraits = []
-    var stubRemovedTraits: AccessibilityTraits = []
-    var stubActionNames: [String] = []
+    /// The declarations plan task 12 part 2 added (`IX-V`…`IX-Y`): child
+    /// behaviour, hidden, hint, identifier, added and removed traits, and named
+    /// actions' names — **in one optional reference box** (`AXDeclarations`), so
+    /// `AXNode` and `Handlers`, which holds one inline, grow by one pointer
+    /// (spec §4; `IX-N`'s Windows stack budget; pinned by
+    /// `theNewDeclarationsCostHandlersAtMostOnePointer`). Copied on write;
+    /// `nil` and a box holding the defaults compare equal, so a declaration
+    /// written back to its default leaves `isEmpty` true.
+    var declarations: AXDeclarations {
+        get { declarationsBox?.value ?? AXDeclarations() }
+        set {
+            if newValue == AXDeclarations() {
+                declarationsBox = nil
+            } else if declarationsBox != nil, isKnownUniquelyReferenced(&declarationsBox) {
+                declarationsBox!.value = newValue
+            } else {
+                declarationsBox = AXDeclarationsBox(newValue)
+            }
+        }
+    }
+    private var declarationsBox: AXDeclarationsBox?
 
     /// A realized row's index in its virtualized container's logical sequence —
     /// spec §9's "3 of 500", the 3 half (ruling AB-L).
@@ -221,15 +236,28 @@ public struct AXNode: Equatable {
     /// type's own doc on why a caller cannot supply any of the three.
     /// `logicalCount` IS a parameter here, on `role`/`label`'s footing rather
     /// than theirs — see its own doc above.
+    ///
+    /// **`actions:` moved to a deprecated overload** (plan task 12 part 2,
+    /// `IX-Y` item 4, `IX-AF` item 2): this initialiser never names the field,
+    /// whose stored default is `[]`.
     public init(role: AXRole = .generic, label: String? = nil, value: String? = nil,
-                traits: Set<AXTrait> = [], actions: Set<AXActionKind> = [],
-                logicalCount: Int? = nil) {
+                traits: Set<AXTrait> = [], logicalCount: Int? = nil) {
         self.role = role
         self.label = label
         self.value = value
         self.traits = traits
-        self.actions = actions
         self.logicalCount = logicalCount
+    }
+
+    /// The pre-`IX-Y` spelling. **`actions:` has no default** (`IX-AF` item 2):
+    /// with one, `AXNode(role:label:)` would be ambiguous between the two
+    /// initialisers.
+    @available(*, deprecated, message: "declare an action with accessibilityAction(_:) or accessibilityAdjustableAction(_:); AXNode's actions are never read (AB-H)")
+    public init(role: AXRole = .generic, label: String? = nil, value: String? = nil,
+                traits: Set<AXTrait> = [], actions: Set<AXActionKind>,
+                logicalCount: Int? = nil) {
+        self.init(role: role, label: label, value: value, traits: traits, logicalCount: logicalCount)
+        self.actions = actions
     }
 
     /// Whether this is the value an element gets by declaring nothing —
@@ -244,4 +272,37 @@ public struct AXNode: Equatable {
     /// `Frame.axNode(for:)` is never checked with this — `Frame.registerHandlers` calls
     /// it only on the declared `handlers.axNode`, before emission.
     public var isEmpty: Bool { self == AXNode() }
+}
+
+/// The declarations `AXNode` keeps behind one pointer (plan task 12 part 2,
+/// spec §4). Every field counts toward `AXNode.isEmpty`, so writing any of them
+/// declares a node and writes one `$ax` slot, as `accessibilityLabel` does
+/// (AB-U, `IX-AF` item 3).
+struct AXDeclarations: Equatable {
+    /// `accessibilityElement(children:)` (`IX-V`).
+    var childBehavior: AccessibilityChildBehavior?
+    /// `accessibilityHidden(true)` (`IX-W` item 1): `false` is "not declared",
+    /// so a later `(false)` on the same element undoes an earlier `(true)` (H4).
+    var isHidden = false
+    /// `accessibilityHint(_:)` (`IX-W` item 2).
+    var hint: String?
+    /// `accessibilityIdentifier(_:)` (`IX-W` item 2).
+    var identifier: String?
+    /// `accessibilityAddTraits(_:)`/`accessibilityRemoveTraits(_:)` (`IX-X`):
+    /// a later write of the same trait to the other set moves it.
+    var addedTraits: AccessibilityTraits = []
+    var removedTraits: AccessibilityTraits = []
+    /// `accessibilityAction(named:_:)`'s names, later-written first (A6).
+    var actionNames: [String] = []
+
+    /// The added traits less the removed ones.
+    var traits: AccessibilityTraits { addedTraits.subtracting(removedTraits) }
+}
+
+/// `AXDeclarations`' reference box: a final class holding the struct, copied on
+/// write by `AXNode.declarations`' setter.
+final class AXDeclarationsBox: Equatable {
+    var value: AXDeclarations
+    init(_ value: AXDeclarations) { self.value = value }
+    static func == (lhs: AXDeclarationsBox, rhs: AXDeclarationsBox) -> Bool { lhs.value == rhs.value }
 }
