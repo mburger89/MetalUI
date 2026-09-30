@@ -1725,3 +1725,41 @@ wheel-under-`.disabled` look, task 10 part 2's controls-demo and
 accessibility looks, task 11 part 1's paragraph and drawn-`controlSize`
 looks) — it joins them, and joins the still-open real-window capture itself,
 owed since stage 6b.
+
+## 2026-09-30: the real-window capture's default/preview pair finally taken, unlocked, mid-task — every other look still owed (plan task 12 part 2, the accessibility half)
+
+Record §63. **The lock probe read unlocked once**, at lane 1's own close
+(`6c961e3`): no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0` —
+the first unlocked reading since the capture was first flagged owed at stage
+6b. `docs/probes/window-capture/capture.sh <scratch> 31d3565 6c961e3` ran
+and read **0 differing** for both the default and preview states against
+`31d3565`, every a-vs-b stability pair also 0, and the default-vs-preview
+control at `6c961e3` reading 958986, non-zero as it must — so those two
+states of the still-open capture are **taken**, not merely stood in for by
+the offscreen renderer. The screen was locked again by lane 3's own check
+and by this Record phase's close (`CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`), so no further state was added; lane 2's and lane
+3's own changes are covered instead by the fourteen-image offscreen
+comparison (0 px against `31d3565`, scene identical, including `prod
+default vs modal` non-zero).
+
+**New looks owed, none of them shown yet on a real display or through real
+VoiceOver**:
+
+- **Every accessibility bridge look this task built**: the neutral tree's
+  new fields, `accessibilityElement(children:)`'s three behaviours, hidden,
+  traits, modal isolation, declared and named actions, the press under
+  `allowsHitTesting(false)`, settable AppKit selection, the proposal path's
+  emission — all built and pinned by synthetic trees through a hand-built
+  `AppKitAccessibilityBridge`/`AccessKitTree`, none operated through real
+  VoiceOver.
+- **The VoiceOver script itself**, `docs/verification/voiceover-script.md` —
+  written, every **Observed (human)** cell empty by design (`IX-AE` item 3):
+  an agent cannot run VoiceOver, hear it, or claim the validation. This is
+  not merely a look owed, but the mechanism by which task 12's own box is
+  ticked — the Record phase re-reads this file once a human has run it.
+
+None of this reopens the demo-layout, task 9, task 10 part 1, task 10 part
+2, task 11 part 1/2 or task 12 part 1 looks — they stay owed, joined by this
+task's own, with the still-open real-window capture now partially, not
+fully, closed.

@@ -307,7 +307,7 @@ probes survive only as prose.
 
 Sixty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 16, 17,
-18, 19, 24, 36, 37, 40, 45, 48, 59, 64, 69, 74) are never reused — most
+18, 19, 24, 28, 36, 37, 40, 45, 48, 59, 64, 69, 74, 83) are never reused — most
 retirements are a later task's own fix landing SwiftUI's answer, not a
 correction of the original measurement. [`docs/record/04-divergences.md`](docs/record/04-divergences.md)
 holds the original eleven in full and a dated index of every later addition,
@@ -336,22 +336,30 @@ baselines, `Shape`/`Image`, fills/strokes, clipping (task 11), and the
 `LongPressGesture`/`DragGesture` and their composition), `Button` roles/
 styles/a pressed look/keyboard shortcuts, the disabled and inactive-window
 looks, `@FocusState`/`.focused(_:)`, focus leaving with its identity, and
-`contentShape<S: Shape>(_:)`. A macOS accessibility bridge (task 12's bridge
-half) exists, not yet validated with VoiceOver. Open: the rest of task 12 —
-settable accessibility selection, `accessibilityElement(children:)`, modal
-isolation, and the VoiceOver script itself, which needs a human — transaction
-and animation semantics (task 13) and platform completeness (task 14). The
-decisions documents are prefixed `SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`,
-`CN-`, `LR-`, `GR-`, `ID-`, `DD-`, `TE-` and `IX-`.
+`contentShape<S: Shape>(_:)` — and task 12's **accessibility half**:
+`accessibilityElement(children:)` (`.ignore`/`.combine`/`.contain`, on the
+proposal path too), hidden/traits/hint/identifier, declared and named
+actions, settable AppKit selection, modal isolation, and a labelled `Image`.
+Open: transaction and animation semantics (task 13) and platform
+completeness (task 14), and, inside task 12 itself, **the VoiceOver script**
+(`docs/verification/voiceover-script.md`) — written, walking the demo, the
+controls demo and the text-input demo against the trees the tests pin, but
+**only a human can run it**; task 12's own box stays unticked until someone
+does. The decisions documents are prefixed `SA-`, `MC-`, `EV-`, `AB-`, `FR-`,
+`OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`, `TE-` and `IX-`.
 
-The accessibility bridge publishes text, click targets (as buttons), focusable
-and adjustable elements, and `List` as a table, through `NSAccessibility`, with
-`accessibilityLabel`, `accessibilityValue` and `accessibilityAdjustableAction`.
-It is **not yet validated with VoiceOver**, and proposal-path elements publish
-nothing.
+The accessibility bridge publishes text, click targets, focusable and
+adjustable elements, declared and named actions, hidden/combined/contained
+subtrees, modal isolation, a labelled image, and `List` as an outline with
+settable selection, through both `NSAccessibility` (macOS) and AccessKit
+(Linux, Windows, and the SDL backend on macOS) — kept in parity mechanically.
+Proposal-path elements now publish too (`ProposalText`, a stack or grid
+flattening into reading order). It is **still not validated with real
+VoiceOver**.
 
-Not done: VoiceOver validation, menus/context menus, iOS, Reduce Motion, exit
-transitions, transforms, and text colour animation.
+Not done: VoiceOver validation (the one item left in task 12), menus/context
+menus, iOS, Reduce Motion, exit transitions, transforms, and text colour
+animation.
 
 ## Documentation
 

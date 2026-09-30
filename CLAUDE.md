@@ -54,9 +54,9 @@ milestones append their record to `docs/record/` and put only the rule here.
   rulings in its own decisions doc, `2026-09-25-data-and-scrolling-decisions.md`,
   plan task 10, both parts), `TE-` (next `TE-AW`; rulings in its own
   decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11,
-  both parts), `IX-` (next `IX-U`; rulings in its own decisions doc,
-  `2026-09-29-interaction-decisions.md`, plan task 12, part 1 — the
-  interaction half). A numbered citation
+  both parts), `IX-` (next `IX-AK`; rulings in its own decisions doc,
+  `2026-09-29-interaction-decisions.md`, plan task 12, both parts —
+  interaction and accessibility). A numbered citation
   of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
@@ -362,6 +362,44 @@ milestones append their record to `docs/record/` and put only the rule here.
   `AXSelected`, `accessibilityElement(children:)`, the `AB-H` press
   question/divergence 28, modal isolation, the VoiceOver script itself) is
   the next run.
+  Task 12, **part 2** (the accessibility half), `IX-U`…`IX-AJ` (§63, spec
+  `specs/2026-09-29-accessibility-design.md`, part 1's own decisions doc
+  `2026-09-29-interaction-decisions.md`, probe `swiftui-accessibility-part2.swift`
+  and one existing probe re-run, `swiftui-controls-and-selection.swift`) —
+  every accessibility row part 1's audit assigned here, built or pinned:
+  `accessibilityElement(children:)` (`.ignore`/`.combine`/`.contain`, the
+  proposal path too, through `AccessibilityModifier<Content>`);
+  `accessibilityHidden`, `accessibilityHint`/`accessibilityIdentifier`, eight
+  `AccessibilityTraits`; `accessibilityAction(_:)`/`accessibilityAction(named:_:)`
+  (declared, not synthesized — `IX-AF` item 3); a press advertised and run
+  under `allowsHitTesting(false)` (divergence 28 retires); settable
+  `AXSelected`/`AXSelectedRows` on AppKit, replacing the selection
+  (divergence 83 retires on that bridge; AccessKit still selects by `Click`,
+  0.23 has no select action); modal isolation (`.isModal`, an isolated-out
+  request refused — divergence 95 added); the proposal path's own emission
+  (`ProposalText` records its string, a grid flattens row by row);
+  `Image(_:scale:label:)`; both bridges' parity mechanically enforced (a
+  `Mirror` count against a field → attribute table on each side); the demo's
+  modal gains `.isModal` and drops `.isButton`'s press-folding role, and
+  `docs/verification/voiceover-script.md` is written (walks the demo, the
+  controls demo, the preview and the text-input demo, every step's expected
+  output a machine-checked `ax`/`ax-absent` marker against the trees the
+  tests pin). Three lanes (the neutral tree and both bridges; every
+  `Sources/MetalUI` accessibility file; the audit, the demo, the script), run
+  strictly in order over shared files; lane 2's fix round (`IX-AI`) found
+  `.combine` over children of DIFFERENT kinds merges (highest-ranked role,
+  last valued child's value, the first-pressing child the lead) where the
+  design's "the first one's" held only for one kind. Divergences 28 and 83
+  retire, 95 added, 27/32/33 amended, 82 kept (owner the human VoiceOver
+  run) — live count 69 → 68, next label 96. Counts 1880 / 0 / 116
+  tests/goldens/guards, `Backends/SDL` 22 + 32; 0 px against `31d3565` in all
+  fourteen offscreen images. **The real-window capture's default/preview
+  pair was finally taken, unlocked, mid-task (`6c961e3`), 0 differing** — the
+  first unlocked reading since stage 6b; every other state stays owed.
+  **`AXNode.actions`/`AXActionKind` are deprecated** toward the new actions
+  (no in-repo caller). **An agent cannot run VoiceOver or claim the
+  validation** (`IX-AE`): **task 12's box stays unticked** until a human
+  runs the script and the Record phase re-reads it.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -380,6 +418,69 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-30, `feat/accessibility-bridge` — plan task 12 part 2,
+  the accessibility half, from `31d3565`, not yet merged with `master`): 1880
+  tests, 0 goldens, 116 typecheck guards**, 0 `error:` on both build systems,
+  the one `warning:` SwiftPM's deprecation notice under native (0 under the
+  default one), taken after `swift package clean` with `swift build
+  --build-system native --build-tests` then unfiltered `swift test
+  --build-system native --no-parallel` (**one summary line**, `Test run with
+  1880 tests in 3 suites passed after 117.613 seconds`, the `FR-J
+  no-argument frame: succeeded=` line present). **1880 = 1837 + 8 + 25 +
+  10**: lane 1's 8 (the neutral tree's new fields on both bridges, the two
+  modifier-free requests moved here by the critic round — settable AppKit
+  selection, the press under `allowsHitTesting(false)`; two tests renamed
+  with an inverted answer, two T rows), lane 2's 25 (22 tests + 3 guards —
+  every accessibility modifier, the builder's rules, the proposal path's
+  emission, dispatch), lane 3's 10 (the audit's own pins, the demo's modal,
+  the VoiceOver script — no test retired or renamed). Guards **116 = 113 + 3**
+  (`AccessibilityCompileGuards`, all three whole-file `typecheckFile`). No
+  goldens (`find Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0).
+  **New public API**: `AccessibilityChildBehavior` (`.ignore`/`.combine`/
+  `.contain`), `AccessibilityTraits` (eight cases), `accessibilityHidden`/
+  `accessibilityHint`/`accessibilityIdentifier`/`accessibilityAddTraits`/
+  `accessibilityRemoveTraits`/`accessibilityAction(_:)`/
+  `accessibilityAction(named:_:)` on `StyledElement` and, new, on
+  `ProposalElementGroup` through `AccessibilityModifier<Content>` (one
+  identity level); `Image(_:scale:label:)`. **`AXNode.actions`/`AXActionKind`
+  are deprecated** toward the new actions (no in-repo caller, 0-`warning:`
+  baseline held). **Divergence 28 retires** (a press is advertised and runs
+  under `allowsHitTesting(false)`); **83 retires on the AppKit bridge**
+  (`AXSelected`/`AXSelectedRows` replace the selection; AccessKit still
+  selects by `Click`); **95 added, kept, owner none** (an isolated-out
+  element a client already holds refuses a request, where SwiftUI's still
+  presses); **27, 32, 33 amended**; **82 kept, owner the human VoiceOver
+  run** — live count 69 → 68, next label 96. **0 px against `31d3565` in all
+  fourteen offscreen images**, scene identical, independently re-taken by
+  this Record phase; `Backends/SDL` 22 + 27 → 22 + 32 on macOS (no lane
+  touches `Backends/SDL` but lane 1's neutral-field arms and lane 3's SDL
+  parity test); a `swift:6.4-noble` aarch64 container builds with 0
+  `error:`/`warning:` and runs **199 + 10 + 22**, unmoved. `MemoryLayout<AXNode>.size`
+  113 → 121, `MemoryLayout<Handlers>.size` 440 → 448 (one pointer each, as
+  designed); smallest thread building every production tree stays **624
+  KB**; `everyProductionTreeBuildsOnAOneMegabyteThread` green.
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (`Expected.swift` unedited),
+  `theSevenRetentionSlotsAreMutuallyDistinct` and
+  `noConformerEmitsAnAXNodeItDidNotDeclare` green. **No test retired; four
+  renamed**, each a T row naming its ruling
+  (`aPressIsRefusedWhereHitTestingIsDisabled` → `aPressIsRunWhereHitTestingIsDisabled`,
+  `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly` →
+  `settingAXSelectedOnARowReplacesTheSelection`, and two literal-only T rows —
+  `aMetalUITreeTranslatesToAccessKitsVocabulary`'s `rowCount`/`rowIndex`, the
+  AppKit role table's `.table` → `.outline`). **The real-window capture's
+  default/preview pair was taken, unlocked, mid-task** (`6c961e3`): the lock
+  probe read no `CGSSessionScreenIsLocked` line and `displayAsleep main: 0`,
+  so `docs/probes/window-capture/capture.sh` ran and read 0 differing for
+  both states against `31d3565` — the first unlocked reading since stage 6b;
+  the screen was locked again by lane 3's own check and at the Record
+  phase's close, so every other state (the pressed/disabled/inactive looks,
+  the focus ring, a real key window, gestures by hand, and now every
+  accessibility bridge look, the VoiceOver script itself) stays owed. **Plan
+  task 12's box stays unticked**: `docs/verification/voiceover-script.md` is
+  written, not run — an agent cannot run VoiceOver or claim the validation
+  (`IX-AE`); the box is ticked only after a human runs every step and the
+  Record phase re-reads the file.
 - **Counts (2026-09-29, `feat/interaction` — plan task 12 part 1, the
   interaction half, from `31f2e7a`, not yet merged with `master`): 1837
   tests, 0 goldens, 113 typecheck guards**, 0 `error:` on both build
@@ -1490,14 +1591,16 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   `SliderStepperCompileGuards` and `SelectionCompileGuards` (plan task 10
   part 2), `TextSystemCompileGuards`,
   `BaselineCompileGuards` and `TextCompileGuards` (plan task 11 part 1),
-  `ShapeCompileGuards` and `ImageCompileGuards` (plan task 11 part 2) and,
-  new at plan task 12 part 1, `GestureCompileGuards`, `ButtonCompileGuards`
-  and `FocusStateCompileGuards`
+  `ShapeCompileGuards` and `ImageCompileGuards` (plan task 11 part 2),
+  `GestureCompileGuards`, `ButtonCompileGuards`
+  and `FocusStateCompileGuards` (plan task 12 part 1) and, new at plan task
+  12 part 2, `AccessibilityCompileGuards`
   (`GridCompileGuards`' own count is unmoved — G3.1 renames its G4 in
   place);
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 39 and 74 (39 and 69 before task 12 part 1's
+  the declaration. Two helpers, 39 and 77 (39 and 74 before task 12 part 2's
+  three; 39 and 69 before task 12 part 1's
   five; 39 and 66 before task 11 part 2's
   three; 39 and 61 before task 11 part 1's
   five; 57 before task 10 part 2's four;
@@ -1552,7 +1655,11 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   whole-file — `DecorationCompileGuards`' own new `@Test`, `G2.2`
   `aProposalElementCannotSpellContentShapeBeforeItsTap`, is counted in that
   file's own total, not a new file) and **one** `FocusStateCompileGuards`
-  (`G3.1` `theFocusStateSpellingsCompileFromAPlainImport`, whole-file). A
+  (`G3.1` `theFocusStateSpellingsCompileFromAPlainImport`, whole-file); new
+  at plan task 12 part 2, **three** `AccessibilityCompileGuards`
+  (`theAccessibilityModifiersCompileFromAPlainImport`,
+  `anAXNodesActionsAreDeprecatedTowardAccessibilityAction`,
+  `anUnofferedTraitOrActionKindDoesNotCompile`, all whole-file). A
   guard about
   what an
   external module can write
@@ -1989,9 +2096,15 @@ selectable list's warm frame stays O(window) at any row count. A focused
 list's ↓/↑ move the lead (⇧ extends/shrinks from the anchor in a multi
 list); the new lead is revealed through `ScrollViewReader`'s queue
 (`ListLeadReveal(list:row:)`, an internal key scoped to the list's parent so
-only that list's own reveal resolves it). An accessibility client selects a
-row only by **pressing** it — `AXSelected`/`AXSelectedRows` write nothing
-(divergence 83; a settable-selection request is plan task 12's). A row
+only that list's own reveal resolves it). **Since plan task 12 part 2, an
+AppKit accessibility client can also set the selection directly**
+(divergence 83 retires on that bridge, `IX-AA`): `setAccessibilitySelected(true)`
+on a selectable row and `setAccessibilitySelectedRows(_:)` on the outline
+reach `Window` through `.select`/`.selectRows`, dispatched to the list's own
+`AccessibilityRowSelection` handler (registered beside the click selection,
+gated as every action is); AccessKit still selects a row only by **pressing**
+it (0.23 has no select action) and publishes a selectable row's `selected`
+**false** as well as true. A row
 carries `logicalIndex`, and publishes as `.row`, only while its window is
 bounded; while it can never be bounded (no enclosing vertical scroller, or a
 zero `rowHeight`) a selected row publishes as a `.button` labelled by its
@@ -2179,7 +2292,11 @@ scroller on the same layer** (`DD-Y`, divergence 16 retired,
 `Deferred` scrim still stops it.
 `allowsHitTesting(false)` gates only `registerHandlers`' pointer hitbox —
 scroll regions and raw `insertHitbox` bypass it (`OM-AK`); it is per layer
-(divergence 44). `contentShape(inset:)` moves the pointer region only and
+(divergence 44). **Since plan task 12 part 2, a press is not a hitbox
+query**: an enabled `onClick` the gate withholds a hitbox from is still
+advertised to and run by an accessibility client (`Frame.accessibilityPressOnly`,
+divergence 28 retired, `IX-Z`) — a mouse click at the same point still finds
+nothing. `contentShape(inset:)` moves the pointer region only and
 needs an `onClick` on its layer (`OM-J`, `OM-AB`). **Since plan task 12 part
 1, `contentShape<S: Shape>(_:)` takes any `Shape`** (`IX-L`; on
 `StyledElement`, `OnTapModifier` and `GestureModifier`), composing with
@@ -2279,14 +2396,78 @@ control's chrome still read nothing from it. **`dynamicTypeSize`** is
 likewise carried and scoped but reaches no text style, by design —
 `Font`'s text-style table has no size column to scale (`TE-E`).
 
-**Accessibility (`AB-`).** Nothing recorded until a client activates the
-window (sticky). Synthesized nodes are records (`Frame.axEmissions`), never
-`axNodes` or `$ax` (`AB-U`). Geometry is not structure (`AB-K`). Every
-`NSAccessibility` override answers through `mainActorAnswer(_:fallback:_:)`,
-never a bare `assumeIsolated` (`AB-AE`). A `display: none` layer suppresses
-everything inside via `Frame.suppressingAccessibilityIfHidden` (`AB-O`). A
-text-painting conformer passes `accessibleText:`. Qualify
-`MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
+**Accessibility (`AB-`; plan task 12 part 2, `IX-U`…`IX-AJ`).** Nothing
+recorded until a client activates the window (sticky). Synthesized nodes are
+records (`Frame.axEmissions`), never `axNodes` or `$ax` (`AB-U`). Geometry is
+not structure (`AB-K`). Every `NSAccessibility` override answers through
+`mainActorAnswer(_:fallback:_:)`, never a bare `assumeIsolated` (`AB-AE`). A
+`display: none` layer suppresses everything inside via
+`Frame.suppressingAccessibilityIfHidden` (`AB-O`). A text-painting conformer
+passes `accessibleText:`. Qualify `MetalUIPlatform.AccessibilityRequest` in
+files importing AppKit.
+
+**`accessibilityElement(children:)`** (`IX-V`), SwiftUI's spelling and
+default (`.ignore`), on `StyledElement` and, new, on `ProposalElementGroup`
+through `AccessibilityModifier<Content>` (`GestureModifier`'s shape: one
+identity level, its one child numbered from 0 under it). `.ignore` keeps the
+node's own declarations, role `.group` (divergence 33 amended: SwiftUI's
+`AXUnknown`), and drops the whole subtree, unmerged. `.combine` joins every
+non-interactive descendant's text plus the **lead** interactive descendant's
+label with `", "`; **children of one kind** take the first one's role,
+actions and custom-action list; **children of different kinds merge**
+(`IX-AI`): the role is the highest-ranked (slider > checkbox > button > text
+field, tie to the first), the value the **last** carrying child's, the lead
+the first child that **presses** else the first that is not adjustable else
+the first, and only a pressing child is a custom action — an adjustable
+child's increment/decrement are added and reach it. `.contain` keeps a real
+group with its children, its own label **not** distributed, even over a bare
+text leaf (a synthesized `.group` + one child). `accessibilityHidden(true)`
+suppresses the element's own registration and its content (an inner
+`(false)` cannot un-hide; the outer wins). Eight `AccessibilityTraits`
+(closed OptionSet): `.isHeader` → `.heading` with its text as **label**,
+distributed; `.isButton`/`.isLink`/`.isImage`/`.isStaticText` set only the
+role; removing `.isButton` from a clickable element leaves its press and
+folded label, role `.group` (T3p, the same `AXGroup`-for-`AXUnknown` reading
+as `.ignore`'s); `.isSelected` on any role; `.isModal` (below);
+`.updatesFrequently` published nowhere (declared-but-inert, as SwiftUI's on
+macOS). `accessibilityHint`/`accessibilityIdentifier` distribute like a
+label. **Declared and named actions** (`IX-Y`): `accessibilityAction(_:)`
+makes a node a pressable `.button`, **replacing** a `Button`'s own press, a
+declaration (not a synthesis — it records outside
+`registerHandlers`'s `synthesizesAccessibility &&` gate, `IX-AF` item 3, so
+`HStack{}.accessibilityAction {}` and a declared action over a gesture both
+publish); `accessibilityAction(named:_:)` chains into custom actions,
+later-written first; disabled refuses both. **`AXNode.actions`/
+`AXActionKind` are deprecated** toward these (never read, `AB-H`; no
+in-repo caller). **A press under `allowsHitTesting(false)` is advertised and
+runs** (divergence 28 retires, `IX-Z`): `Frame.registerHandlers` records an
+enabled `onClick` the hit-testing gate withheld in
+`Frame.accessibilityPressOnly`, collecting only; `Window`'s press order is a
+declared action, a combined node's redirect, the last `onClick` hitbox, then
+the press-only handler, all through `runClick` (so a press keeps
+`ClickDispatch`'s focus request — a row's click focuses its list, a
+button's press does not, `DD-AE` item 2). **Modal isolation** (`IX-X`):
+`.isModal` on the greatest `(layer, record position)` among declaring
+records publishes only its subtree; a request naming an id outside it is
+refused when the last published tree was isolated (**divergence 95, added**
+— SwiftUI's held element still presses, kept, owner none, rejected as
+avoidable in the critic round). **A `List` row is settable on AppKit**
+(divergence 83 retires there, `IX-AA`): `setAccessibilitySelected(true)` →
+`.select`, replacing the selection; `setAccessibilitySelectedRows(_:)` →
+`.selectRows`, a single list ignoring more than one; `isSelectable` is
+derived by the builder from a published parent's row-selection handler, not
+declared. **AccessKit still selects a row by `Click`** (0.23 has no select
+action) and publishes a selectable row's `selected` **false** as well as
+true. **A `List` publishes `AXOutline`/`AXRow`/`AXOutlineRow`** on AppKit
+(divergence 32 amended, SwiftUI's own role), realized rows only (kept, owner
+none). **The proposal path publishes** (`IX-AB`): `ProposalText` records its
+string through `Frame.recordAccessibility`, so a stack or grid's texts
+flatten into reading order (a grid row by row) while the container itself
+publishes nothing; `AccessibilityModifier` registers its declared node and
+actions. `Image(_:scale:label:)` (SwiftUI's labelled init) records an
+`.image` node; `Image(decorative:scale:)` still publishes nothing. Both
+bridges translate every neutral field, enforced mechanically (a `Mirror`
+count of `AccessibilityNode` against each bridge's field → attribute table).
 
 **Focus:** `Window.focus(_:)` moves focus; clicking does not focus —
 **except a `TextField`/`TextEditor`**, which a press focuses (`TI-B`), and a
@@ -2483,9 +2664,11 @@ is a factor pair, `ProposalAnchor`), retiring divergence 64 (`TE-AN`).
 **Not built, each a documented renderer constraint with an owner or
 `owner: none`**: continuous corners drawn exactly (divergence 90 covers the
 circular approximation), elliptical corners, `Path`, gradients,
-`StrokeStyle`, SF Symbols, a labelled image's accessibility (plan task 12),
-`colorScheme`/appearance as a readable environment value, colour glyphs
-(spec §9's own table names each).
+`StrokeStyle`, SF Symbols, `colorScheme`/appearance as a readable environment
+value, colour glyphs (spec §9's own table names each). **A labelled image's
+accessibility is built** (plan task 12 part 2, `IX-AB` item 3):
+`Image(_:scale:label:)` records an `.image` node through the label's string;
+a decorative `Image` still publishes nothing.
 
 **Renderer.** No semaphore; the atlas texture is written only while
 `atlasTextureWasEncoded` is false, else replaced, and it is uploaded
@@ -3020,9 +3203,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**69 live**, stable labels; retired labels never
-  reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 36, 37, 40, 45, 48,
-  59, 64, 69, 74) — record §04 is current (its
+- **Known divergences** (**68 live**, stable labels; retired labels never
+  reused: 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 28, 36, 37, 40, 45,
+  48, 59, 64, 69, 74, 83) — record §04 is current (its
   2026-09-21 section retires 59 and adds 60–70, the stage 2 and grids rows,
   its 2026-09-22 one amends 48, 54 and 56 for stage 3 without retiring or
   adding a number, its first 2026-09-23 section likewise amends **13, 14 and
@@ -3245,11 +3428,36 @@ expected, measured facts:
   1). `ID-R` item 9's unnumbered focus-identity difference is **closed**
   (fixed to SwiftUI's answer, `IX-I` — see "Focus" above) rather than
   numbered — it never reaches a live-count row.
+  **Plan task 12 part 2 retires 28 and 83, adds 95, amends 27/32/33, keeps 82**
+  (69 → 68 live, next label 96; record §04's 2026-09-30 task-12-part-2
+  section, rulings `IX-Y`, `IX-Z`, `IX-AA`, `IX-AF`): **28 retires** (a press
+  under `allowsHitTesting(false)` is now advertised and runs, `IX-Z` item 1);
+  **83 retires on the AppKit bridge** (`AXSelected`/`AXSelectedRows` are
+  settable and replace the selection, `IX-AA` item 1 — AccessKit still
+  selects by `Click`, not a divergence: SwiftUI has no AccessKit side to
+  compare); **95 added, kept, owner none** (an isolated-out element a client
+  already holds refuses a press/adjust/focus/action/select request, where
+  SwiftUI's held element still presses — rejected as avoidable in the critic
+  round, `IX-Z` item 3, `IX-AF`); **27 amended** (MetalUI's gestures publish
+  no press, matching SwiftUI's G1–G7 exactly now that the fact is pinned;
+  `onClick` stays the one pressable surface, `IX-Y` item 3); **32 amended**
+  (AppKit now publishes `AXOutline`/`AXRow`/`AXOutlineRow`, SwiftUI's own
+  role, in place of `AXTable`; unrealised rows stay unreachable, kept, owner
+  none, `IX-AA` item 3); **33 amended** (`.ignore`, a removed `.isButton` and
+  a labelled `Rectangle` all read `AXGroup` for SwiftUI's `AXUnknown`,
+  `AB-F`'s reasoning); **82 kept, owner the human VoiceOver run** (the
+  script has a step for the `.incrementor`/`.radioGroup` partial fold;
+  divergence 83's retirement is likewise seen by a human in the same script).
+  Live count **69 → 68**, next label **96**.
 - **Declared but inert** APIs (compile and do nothing:
   `onInput`'s `-> Bool`, colour glyphs, baselines,
   `locale`/`layoutDirection`/`dynamicTypeSize`,
   `controlSize`, `displayScale`, `ButtonRole` (compiles, binds a key, changes
   nothing else drawn — an inert row by design, not a gap, `IX-E` item 1),
+  `AXNode.actions`/`AXActionKind` (deprecated toward `accessibilityAction`/
+  `accessibilityAdjustableAction`, never read, `IX-Y` item 4),
+  `AccessibilityTraits.updatesFrequently` (published on neither bridge, as
+  SwiftUI's on macOS),
   one axis each of
   `markNativeGridRow`/`markNativeGridCell`'s alignment, a grid mark outside a
   grid, …) — §19 "Declared but inert", record §05, whose 2026-09-21 section
@@ -3357,6 +3565,16 @@ expected, measured facts:
   (`focusable()`'s own doc comment, an earlier row here) is **deleted** — a
   hidden focusable element can no longer take focus or keys at all (`IX-K`
   item 3), so there is no more hazard left to log as inert-but-dangerous.
+  **Plan task 12 part 2 amends one row, adds two, narrows none** (record
+  §05's 2026-09-30 task-12-part-2 section): `AXNode.actions`'s row is
+  **amended** (moved into the inline list above, `IX-Y` item 4) — deprecated
+  toward `accessibilityAction`/`accessibilityAdjustableAction`, still never
+  read; a new row, `AccessibilityTraits.updatesFrequently`, is **added**
+  (moved into the inline list above) — it compiles and publishes on neither
+  bridge, as SwiftUI's own trait on macOS, an inert row by design; and
+  `ButtonRole`'s row (from part 1) gains its accessibility evidence — B1/B2
+  pin that neither bridge publishes anything for it, as SwiftUI's own
+  `NSButton` does not either.
 - **Human verification** status per milestone, demo keys (**M** modal,
   **Space** theme, **F**/**Esc** focus, **=**/**-** count, **A** animation,
   **Q** quit) and open looks — §19 "Human verification", record §03, whose
@@ -3498,6 +3716,25 @@ expected, measured facts:
   ring beside a native SwiftUI window; a real key window's accent and ring
   behaviour (the synthesized harness's `PX23` always read "inactive"). None
   of this reopens or closes the still-open items above — it joins them.
+  **Plan task 12 part 2 finally narrows the still-open real-window capture —
+  its default and preview pair, 0 differing — and adds the rest of its own
+  looks to what remains owed** (record §03's 2026-09-30 task-12-part-2
+  section): the lock probe read **unlocked** mid-task, at lane 1's own close
+  (`6c961e3`, no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`) —
+  the first unlocked reading since stage 6b — and
+  `docs/probes/window-capture/capture.sh <scratch> 31d3565 6c961e3` ran,
+  reading 0 differing for both the default and preview states against
+  `31d3565`, every a-vs-b stability pair 0 and the default-vs-preview control
+  non-zero (958986) as it must. The screen was locked again at lane 3's own
+  check and at the Record phase's close, so no other state was added; the
+  fourteen-image offscreen comparison stands in for lane 2 and lane 3's own
+  changes (0 px against `31d3565`, scene identical). **Owed, new here**:
+  every accessibility bridge look this task built has never been operated
+  through real VoiceOver — `docs/verification/voiceover-script.md` is
+  written and is itself the mechanism for closing this, needing a human, not
+  an agent (`IX-AE`). None of this reopens the demo-layout, task 9, task 10
+  part 1, task 10 part 2, task 11 part 1/2 or task 12 part 1 looks — they
+  stay owed, joined by this task's own.
 - **Performance** figures (µs/node, warm frame, cold `List`, native work
   counts) — §19 "Performance", record §07. Most are stale since `f1944f8`;
   re-measure before reasoning from them. **`MP-I`'s 100 000-row cold frame
@@ -3506,7 +3743,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **113** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **116** guards skip
   under the
   default build system (take guard counts under `--build-system native`, and
   grep logs for `FR-J no-argument frame: succeeded=` to know guards ran — a

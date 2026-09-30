@@ -702,3 +702,31 @@ bordered style) would be surprised MetalUI draws every role identically,
 by ruling; a reader who still trusts the old `hidden()`-on-focusable hazard
 note would wrongly expect a hidden focusable box to still be reachable by
 Tab or a stray `Window.focus` call.
+
+## 2026-09-30: one row amended, two added (plan task 12 part 2, the accessibility half)
+
+Record §63; rulings `IX-Y`, `IX-AF`.
+
+- **`AXNode.actions`/`AXActionKind`'s row is amended, not deleted**
+  (`IX-Y` item 4): both are now `@available(*, deprecated)`, pointing at
+  `accessibilityAction(_:)`/`accessibilityAdjustableAction(_:)` — but the
+  field is still never read (actions are derived from live handlers, `AB-H`),
+  so the row stays, its message updated. No in-repo caller writes either
+  spelling, so the 0-`warning:` baseline held without editing a call site.
+- **A row is added: `AccessibilityTraits.updatesFrequently`**: it compiles
+  and sets a bit in the trait set, but neither bridge reads it — published
+  nowhere, matching SwiftUI's own trait on macOS (probe T10). An inert row
+  **by design**, the same shape as `ButtonRole`'s own row at part 1, not a
+  gap this task left open.
+- **`ButtonRole`'s row (added at part 1) gains its accessibility evidence**:
+  probe arms B1 and B2 confirm neither bridge publishes anything for
+  `.destructive`/`.cancel`/`.confirm`/`.close` beyond the button's own role,
+  label and press — matching AppKit's own `NSButton`, which publishes no
+  key-equivalent attribute either (C2). The row's own text is unchanged; this
+  is confirmation, not a narrowing.
+
+**What it costs if wrong.** A reader who expects `AXNode.actions` to have
+been deleted outright, rather than deprecated, would be surprised the field
+and the enum still exist, only warned against; a reader who expects
+`.updatesFrequently` to change VoiceOver's polling behaviour would find it
+does nothing, by design, the same as `ButtonRole` itself.

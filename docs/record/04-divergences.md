@@ -1913,3 +1913,60 @@ so it never reaches a live-count row; a migration note for the behaviour
 change is in CLAUDE.md's "Focus" paragraph and record §62 §5.
 
 Live count **68 → 69**, next label **95**.
+
+## 2026-09-30: 28 and 83 retire, 95 added, 27/32/33 amended, 82 kept (plan task 12 part 2, the accessibility half)
+
+Record §63; rulings `IX-Y`, `IX-Z`, `IX-AA`, `IX-AF`. **28 retires**
+(`IX-Z` item 1): SwiftUI presses a `Button` under `allowsHitTesting(false)`
+(probe B6, P1 re-run) — MetalUI now does too. When the hit-testing gate
+withholds a hitbox from an enabled element with an `onClick`,
+`Frame.registerHandlers` records the handler in `Frame.accessibilityPressOnly`
+(collecting only, so a window with no client pays nothing); the builder
+advertises `.press`, and `Window` runs it after the last `onClick` hitbox and
+before nothing else; a mouse click at the same point still finds nothing.
+Pinned by `aPressIsRunWhereHitTestingIsDisabled`
+(`aPressIsRefusedWhereHitTestingIsDisabled` renamed, its answer flipped).
+**83 retires on the AppKit bridge** (`IX-AA` item 1): a selectable row
+(`AccessibilityNode.isSelectable`, a row of a `List(selection:)`) now
+accepts `setAccessibilitySelected(true)` → `.select(row)`, **replacing** the
+selection in a single or a multi list; the outline accepts
+`setAccessibilitySelectedRows(_:)` → `.selectRows(table, rows)`, a
+single-selection list ignoring a request for more than one. Pinned by
+`settingAXSelectedOnARowReplacesTheSelection`
+(`anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly`
+renamed, its AppKit half flipped, its press half kept). **AccessKit still
+selects a row only by `Click`** (0.23's action enum has no select action) and
+now publishes a selectable row's `selected` **false** as well as true — not
+a divergence, since SwiftUI has no AccessKit side to compare. **95 added,
+kept, owner none** (`IX-Z` item 3): when the last published tree was built
+under modal isolation, a request naming an id it does not contain is
+refused — SwiftUI's held element still presses after an `.isModal` cover
+appears (probe M5). The critic round considered avoiding this divergence by
+letting a held element press as SwiftUI does, and rejected it: `AB-H`'s own
+principle is never to let a client operate what the user cannot see
+offered, and VoiceOver itself cannot reach an unpublished element through
+navigation — only a client that cached a handle can (`IX-AF`). **27
+amended** (`IX-Y` item 3): MetalUI's gestures publish no press at all —
+`TapGesture`, count-2 taps, `LongPressGesture`, `DragGesture`,
+`onTapGesture` (probe arms G1–G5, G7) — now pinned by 2.14, and the
+divergence narrows to "MetalUI's own `onClick` is pressable; SwiftUI has no
+`onClick` to compare". **32 amended** (`IX-AA` item 3): the AppKit bridge
+now publishes a `List` as `AXOutline` with `AXRow`/`AXOutlineRow` rows
+(probe L1, R16, LA0) — SwiftUI's own role, in place of `AXTable`; the
+neutral role stays `.table` and AccessKit keeps `TABLE`/`ROW`. Only
+realized rows are published (SwiftUI's 500 are all reachable through
+`AXRows`, L1) — **kept, owner none**: publishing unrealised rows would mean
+elements with no geometry and no element under them, against `List`'s
+windowing, which the plan keeps; the VoiceOver script records what
+VoiceOver does at the last realized row. **33 amended**: `.ignore`'s role
+(`AXUnknown` in SwiftUI, `AXGroup` in MetalUI, `AB-F`'s reasoning — a group
+reads better to VoiceOver than an unknown role) now also covers a removed
+`.isButton` on a clickable node (probe T3, T3p: role only, the press and the
+folded label stay) and a labelled `Rectangle`/bare shape (a group, not a
+static text). **82 kept, owner the human VoiceOver run** (spec §10): the
+`.incrementor`/`.radioGroup` accessibility partial fold gives an accessible
+name from non-interactive descendants where SwiftUI publishes a sibling
+static text — the script has a step naming this ruling, and divergence 83's
+own retirement is seen by the same human run.
+
+Live count **69 → 68**, next label **96**.

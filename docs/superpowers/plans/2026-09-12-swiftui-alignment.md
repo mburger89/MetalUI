@@ -1353,6 +1353,35 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   which only a human can run** (record §12; nobody has run it since it was
   written). Task 12's box stays unticked until part 2 lands and the script
   is run.
+  *Progress 2026-09-30 (part 2, the accessibility half, delivered —
+  `IX-U`…`IX-AJ`, spec `specs/2026-09-29-accessibility-design.md`, part 1's
+  own decisions doc `2026-09-29-interaction-decisions.md`, record §63):*
+  every accessibility row part 1's audit assigned closed —
+  `accessibilityElement(children:)` (`.ignore`/`.combine`/`.contain`, on
+  `ProposalElementGroup` too), `accessibilityHidden`, eight
+  `AccessibilityTraits`, hint/identifier, declared and named actions
+  (`accessibilityAction(_:)`/`accessibilityAction(named:_:)`, declarations,
+  not syntheses); `AB-H`'s press question closes — divergence 28 retires (a
+  press is advertised and runs under `allowsHitTesting(false)`); settable
+  `AXSelected`/`AXSelectedRows` on AppKit — divergence 83 retires on that
+  bridge (AccessKit still selects by `Click`); modal isolation and press
+  occlusion built (divergence 95 added, kept, owner none); divergence 32
+  amended (`AXOutline`, SwiftUI's own role); `AB-Q`'s proposal-path
+  accessibility built (`ProposalText` records its string, a grid flattens);
+  a labelled `Image(_:scale:label:)`; `AXNode.actions`'s row amended
+  (deprecated, still never read). Divergence 82 is **kept, owner the human
+  VoiceOver run** — the script has its own step naming the ruling.
+  `docs/verification/voiceover-script.md` is written (walks the demo, the
+  controls demo, the preview and the text-input demo; every step's expected
+  output a machine-checked marker against the trees the tests pin). Live
+  divergence count 69 → 68. Counts 1880 / 0 / 116. **The real-window
+  capture's default/preview pair was finally taken, unlocked, mid-task**
+  (`6c961e3`, 0 differing) — the first unlocked reading since stage 6b;
+  every other state, including every accessibility bridge look and the
+  script itself, stays owed. **Task 12's box stays unticked**: an agent
+  cannot run VoiceOver or claim the validation (`IX-AE`) — the box is ticked
+  only after a human runs `docs/verification/voiceover-script.md` and the
+  Record phase re-reads it.
 
 - [ ] **13. Complete transaction and animation semantics.**
   Make modifier wrappers participate in transactions at their correct phase,
