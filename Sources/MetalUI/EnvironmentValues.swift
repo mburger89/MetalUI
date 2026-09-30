@@ -160,6 +160,23 @@ public struct EnvironmentValues {
     /// `.active` is MetalUI's, never measured).
     public var controlActiveState: ControlActiveState = .key
 
+    /// Whether the user asked the system to reduce motion — SwiftUI's
+    /// `accessibilityReduceMotion` (plan task 13, ruling `AN-AD`). `false` in a
+    /// bare value, so a windowless `Frame` and `renderFrame` read `false`; a
+    /// `Window` stamps its platform window's value into the root at draw (the
+    /// AppKit window reads `NSWorkspace.accessibilityDisplayShouldReduceMotion`
+    /// and re-reads it on its display-options notification; an SDL window
+    /// answers `false`), and `Window.environment`'s own value is not the
+    /// root's source.
+    ///
+    /// **Get-only outside the module**, as SwiftUI's key path is: a scope
+    /// cannot write it (`aScopeCannotWriteReduceMotion`). **What it changes,
+    /// measured** (probe `swiftui-transactions-animation.swift` R3–R10):
+    /// property animations — `withAnimation`, `.animation(_:value:)`,
+    /// `.transaction` — are unchanged, and every transition except `.identity`
+    /// becomes an opacity cross-fade on the same animation.
+    public internal(set) var accessibilityReduceMotion: Bool = false
+
     /// The size controls below should take — SwiftUI's `controlSize` (ruling
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).

@@ -288,6 +288,38 @@ public final class Frame {
     /// fall back to the lexical `Animation.pendingTransaction`.
     let transaction: Animation?
 
+    // MARK: - The transaction stack (plan task 13, ruling `AN-Y`)
+
+    /// The transaction in effect at the element being visited: the root —
+    /// `transaction` above, with the parked `disablesAnimations` — until a
+    /// `TransactionScope` (`.animation(_:value:)`, `.transaction(_:)`) pushes
+    /// its own around its content, in layout and paint (`withTransactionScope`).
+    /// `LayoutPass.transaction` and `PaintPass.transaction` read its
+    /// `animation`. The call stack is the stack, as for `environmentTop`.
+    private(set) var transactionTop: Transaction
+
+    /// How many `TransactionScope`s are open around the element being
+    /// visited — part of `.animation(_:value:)`'s store key, so two scopes
+    /// nested at one position keep separate values (spec test 1.11).
+    private(set) var transactionDepth = 0
+
+    /// Runs `body` with `transaction` as the top, restoring the previous top
+    /// when it returns.
+    func withTransactionScope<R>(_ transaction: Transaction, _ body: () -> R) -> R {
+        let saved = transactionTop
+        transactionTop = transaction
+        transactionDepth += 1
+        defer {
+            transactionTop = saved
+            transactionDepth -= 1
+        }
+        return body()
+    }
+
+    /// The window's `AnimationStore` (ruling `AN-AB`): animation state kept
+    /// out of `StateTable`. A `Frame` built without a window gets a fresh one.
+    let animationStore: AnimationStore
+
     /// CSS's `rem` basis for `Length.rem`. One value per frame.
     ///
     /// **M2 came and went without making this settable, and that was a
@@ -1838,6 +1870,8 @@ public final class Frame {
          activeElement: GlobalElementID? = nil,
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
+         disablesAnimations: Bool = false,
+         animationStore: AnimationStore = AnimationStore(),
          collectsAccessibility: Bool = false,
          reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
@@ -1868,6 +1902,10 @@ public final class Frame {
         self.activeElement = activeElement
         self.focusedElement = focusedElement
         self.transaction = transaction
+        var rootTransaction = Transaction(animation: transaction)
+        rootTransaction.disablesAnimations = disablesAnimations
+        self.transactionTop = rootTransaction
+        self.animationStore = animationStore
         self.collectsAccessibility = collectsAccessibility
         self.reportsUnlowerableFields = reportsUnlowerableFields
         self.recordsElementBounds = recordsElementBounds
@@ -2284,6 +2322,7 @@ public final class Frame {
         // frame's before it can tell them from stale ones. See
         // `ShapingCache.beginFrame()`'s own doc comment.
         textSystem.beginFrame()
+        animationStore.beginFrame()
 
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
@@ -2291,6 +2330,7 @@ public final class Frame {
         reportUnconsumedLoweredItems(root: root)
 
         computeRootLayout(root: root)
+        animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
         let rootBounds = bounds(of: root)
         recordElementBounds(rootID, rootBounds)
 
@@ -2345,9 +2385,12 @@ public final class Frame {
             element.paint(rootID, bounds: rootBounds,
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
+        animationStore.transitions.paintGhosts(&paintPass)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()
+        animationStore.transitions.endFrame()
+        animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the

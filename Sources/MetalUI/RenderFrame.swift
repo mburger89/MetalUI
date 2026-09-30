@@ -13,13 +13,17 @@ import MetalUITextSystem
 /// The root environment's `displayScale` is `scaleFactor` (1 unless finite and
 /// positive) and its `controlActiveState` is the bare `.key` — the
 /// `ImageRenderer` analogue of probe `swiftui-environment-control-state.swift`
-/// S1 and V0 (rulings EV-AA, EV-AB).
+/// S1 and V0 (rulings EV-AA, EV-AB). Its `accessibilityReduceMotion` is
+/// `false`, stamped (ruling `AN-AD`): a headless frame has no platform to ask.
 @MainActor
 public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>, scaleFactor: Float,
                                        textSystem: any TextSystem, atlas: GlyphAtlas,
                                        theme: Theme = .light) -> Scene {
     let frame = Frame(contentSize: size, scaleFactor: scaleFactor, textSystem: textSystem,
                       glyphAtlas: atlas, theme: theme)
+    var environment = frame.rootEnvironment
+    environment.accessibilityReduceMotion = false
+    frame.rootEnvironment = environment
     var root = content()
     frame.render(&root)
     return frame.finalizedScene()
