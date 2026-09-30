@@ -1894,7 +1894,7 @@ passed after 112.771 seconds`**, the log carrying `FR-J no-argument frame:
 succeeded=` (guards ran; **113** unmoved). `Backends/SDL`
 (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`, fetched into this worktree with
 `fetch-accesskit.py`): **22 + 31** passed. `MetalUILayout` imports
-`MetalUICore` alone. **0 px against `31d3565` in all fourteen offscreen
+`MetalUICore` alone. A `swift:6.4-noble` container builds the root package with 0 `error:`/`warning:` and runs **199 + 10 + 22** (plus `MetalUISystemFontsTests`' 6), unmoved. **0 px against `31d3565` in all fourteen offscreen
 images, every scene identical** (`compare.sh … 31d3565 dcd6339`; its controls
 read as at `31d3565` itself). The real-window capture was **not taken**: the
 lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`.
