@@ -182,6 +182,35 @@ struct TransactionRecorder: ProposalElement {
     #expect(!window.hasActiveAnimations)
 }
 
+/// **1.3b.** A first sighting stores and does not animate — reached where the
+/// scope's stored value is gone but its content's `$anim` baseline survives
+/// (a `List` row returning into its window has this shape: its store entry
+/// dropped after one frame, its `$anim` kept by `TB-AH`). The store is
+/// emptied directly here (`endFrame()` outside a frame drops every untouched
+/// entry). Mutation **V1** (`?? false` → `?? true` in `Frame.scopedTransaction`).
+@MainActor @Test func anAnimationScopesFirstSightingSnapsOverASurvivingBaseline() throws {
+    let model = TransactionModel()
+    let (window, platform) = try makeTransactionWindow {
+        Column {
+            subject(model.width, 40).animation(.linear(duration: 1), value: model.flag)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(transactionRectWidth(window, height: 40) == 100)
+    try #require(window.animationStore.count == 1, "set up: the scope stored its value")
+    window.animationStore.endFrame()
+    try #require(window.animationStore.count == 0, "set up: the stored value is gone")
+
+    model.flag = 1
+    model.width = 200
+    platform.simulateTick(timestamp: 101)
+    platform.simulateTick(timestamp: 101.5)
+    #expect(transactionRectWidth(window, height: 40) == 200,
+            "a first sighting stores and does not animate, even over a surviving $anim baseline")
+    #expect(!window.hasActiveAnimations)
+    #expect(window.animationStore.count == 1, "and it stored the value it saw")
+}
+
 /// **1.4 (T3, T3b).** The modifier reaches only its content: a sibling snaps,
 /// and a modifier written after it is outside it (`EV-X`). Legacy arm (the
 /// untyped entry, in a `Column`) and proposal arm (the typed entry, in an
@@ -317,6 +346,57 @@ struct TransactionRecorder: ProposalElement {
             "T8c: disablesAnimations does not suppress the explicit animation")
 }
 
+/// **1.6b.** A parked `disablesAnimations` is used by exactly ONE build and
+/// is rolled back beside its animation (`AN-AI` item 1): (a) a
+/// `withTransaction` whose body dirties nothing leaves no disables flag behind,
+/// so the next plain write under `.animation(_:value:)` animates; (b) a
+/// disables transaction consumed by one build does not reach the next, so a
+/// later plain write animates too. Mutations **V9** (drop the flag's rollback
+/// in `parkTransaction`) — arm (a); **V10** (`takeParkedTransaction` stops
+/// clearing `parkedDisablesAnimations`) — arm (b).
+@MainActor @Test func aDisablingTransactionReachesExactlyOneBuildAndRollsBack() throws {
+    let model = TransactionModel()
+    let (window, platform) = try makeTransactionWindow {
+        Column {
+            subject(model.width, 40).animation(.linear(duration: 1), value: model.flag)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(transactionRectWidth(window, height: 40) == 100)
+    try #require(!Animation.parkedDisablesAnimations, "set up: nothing parked")
+
+    // (a) A disables transaction whose body changes nothing is rolled back whole.
+    var disabling = Transaction()
+    disabling.disablesAnimations = true
+    withTransaction(disabling) { }
+    #expect(!Animation.parkedDisablesAnimations,
+            "a body that dirties nothing rolls the disables flag back with the animation")
+    model.flag = 1
+    model.width = 200
+    platform.simulateTick(timestamp: 101)
+    platform.simulateTick(timestamp: 101.5)
+    #expect(transactionRectWidth(window, height: 40) == 150,
+            "(a) the next plain value change animates: 150 at 0.5 s; 200 means a rolled-back disables flag leaked")
+    platform.simulateTick(timestamp: 102.1)
+    try #require(transactionRectWidth(window, height: 40) == 200)
+
+    // (b) A disables transaction with a write: one build consumes it (and snaps).
+    withTransaction(disabling) {
+        model.flag = 2
+        model.width = 100
+    }
+    platform.simulateTick(timestamp: 103)
+    try #require(transactionRectWidth(window, height: 40) == 100,
+                 "set up: the disabling build suppresses the modifier and snaps")
+    #expect(!Animation.parkedDisablesAnimations, "the build took and cleared the flag")
+    model.flag = 3
+    model.width = 200
+    platform.simulateTick(timestamp: 104)
+    platform.simulateTick(timestamp: 104.5)
+    #expect(transactionRectWidth(window, height: 40) == 150,
+            "(b) the NEXT build is not disabled: 150 at 0.5 s; 200 means the parked flag outlived its build")
+}
+
 /// **1.7 (T6, T7, T7c).** `.transaction { $0.animation = nil }` snaps its subtree
 /// only (T6); `= linear(1)` rewrites withAnimation's linear(4) (T7); and it
 /// rewrites even when there is no transaction at all (T7c). Mutation **M1.7**:
@@ -384,6 +464,20 @@ struct TransactionRecorder: ProposalElement {
 @MainActor
 private final class KeptWidth { var binding: Binding<Float>? }
 
+private struct SizeValue: Equatable { var width: Float }
+
+@MainActor
+private final class KeptSize { var binding: Binding<SizeValue>? }
+
+private struct SizeOwner: Component {
+    @State var size = SizeValue(width: 100)
+    let kept: KeptSize
+    var content: some ElementGroup {
+        if kept.binding == nil { kept.binding = $size }
+        return Box().background(.accent).cssWidth(Pixels(size.width)).cssHeight(Pixels(41))
+    }
+}
+
 private struct WidthOwner: Component {
     @State var width: Float = 100
     let kept: KeptWidth
@@ -395,13 +489,21 @@ private struct WidthOwner: Component {
 
 /// **1.9 (T11s, T12s).** A write through `$state.animation(linear(1))` animates;
 /// so does one through `$state.transaction(Transaction(animation: linear(1)))`,
-/// and one through a binding derived from it (the optional lift, `AN-Z`'s
-/// "every binding derived from one"). Mutation **M1.9**:
-/// `animation(_:)` returns `self` unchanged.
+/// and one through each binding derived from it (`AN-Z`'s "every binding
+/// derived from one"): the optional lift, the unwrapping initialiser and a
+/// key-path member. Mutation **M1.9**: `animation(_:)` returns `self`
+/// unchanged; **V5** (drop the flag inside `derived`) — the three derived
+/// arms; **V11** (the unwrap initialiser builds a plain `Binding(get:set:)`)
+/// — the unwrap arm; **V12** (the dynamic-member subscript builds a plain
+/// `Binding(get:set:)`) — the key-path arm.
 @MainActor @Test func aBindingAnimationAnimatesAStateWrite() throws {
     let kept = KeptWidth()
+    let keptSize = KeptSize()
     let (window, platform) = try makeTransactionWindow {
-        Column { WidthOwner(kept: kept) }
+        Column {
+            WidthOwner(kept: kept)
+            SizeOwner(kept: keptSize)
+        }
     }
     platform.simulateTick(timestamp: 100)
     let binding = try #require(kept.binding)
@@ -434,9 +536,33 @@ private struct WidthOwner: Component {
             "a binding derived from $state keeps its transaction and its source")
     platform.simulateTick(timestamp: 105)
 
+    // The unwrapping initialiser over an animated lift keeps both too.
+    let unwrapped = try #require(Binding<Float>(Binding<Float?>(binding.animation(.linear(duration: 1)))))
+    unwrapped.wrappedValue = 100
+    platform.simulateTick(timestamp: 105.2)
+    platform.simulateTick(timestamp: 105.7)
+    #expect(transactionRectWidth(window, height: 40) == 150,
+            "the unwrapping initialiser keeps the source and the transaction")
+    platform.simulateTick(timestamp: 106.3)
+    try #require(transactionRectWidth(window, height: 40) == 100)
+
+    // A key-path member of an animated $state binding keeps both too.
+    let sizeBinding = try #require(keptSize.binding)
+    try #require(transactionRectWidth(window, height: 41) == 100)
+    sizeBinding.animation(.linear(duration: 1)).width.wrappedValue = 200
+    platform.simulateTick(timestamp: 107)
+    platform.simulateTick(timestamp: 107.5)
+    #expect(transactionRectWidth(window, height: 41) == 150,
+            "a key-path member binding keeps the source and the transaction")
+    platform.simulateTick(timestamp: 108.1)
+    try #require(transactionRectWidth(window, height: 41) == 200)
+    binding.wrappedValue = 200
+    platform.simulateTick(timestamp: 108.5)
+    try #require(transactionRectWidth(window, height: 40) == 200)
+
     // Control: a plain $state write snaps (T11c).
     binding.wrappedValue = 100
-    platform.simulateTick(timestamp: 106)
+    platform.simulateTick(timestamp: 109)
     #expect(transactionRectWidth(window, height: 40) == 100, "control: a plain write snaps")
 }
 
@@ -518,6 +644,32 @@ private struct WidthOwner: Component {
             "the scope adds no StateTable entry: \(scoped.stateTable.count) vs \(bare.stateTable.count)")
     #expect(scoped.animationStore.count == 1, "the value lives in the store")
     #expect(bare.animationStore.count == 0)
+}
+
+/// **1.12b.** The store drops an entry the frame does not touch (`AN-AB`): a
+/// scope inside an `if` toggled off for one frame leaves the store empty, and
+/// back on it stores again. Mutation **V2** (`endFrame` never filters).
+@MainActor @Test func anAnimationScopeThatLeavesForAFrameLeavesTheStore() throws {
+    let model = TransactionModel()
+    let (window, platform) = try makeTransactionWindow {
+        Column {
+            if model.flag2 == 0 {
+                subject(model.width, 40).animation(.linear(duration: 1), value: model.flag)
+            }
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(window.animationStore.count == 1, "set up: the scope stored its value")
+
+    model.flag2 = 1
+    platform.simulateTick(timestamp: 101)
+    try #require(transactionRectWidth(window, height: 40) == nil, "set up: the scope is gone")
+    #expect(window.animationStore.count == 0,
+            "an entry no frame touched is dropped at the end of that frame")
+
+    model.flag2 = 0
+    platform.simulateTick(timestamp: 102)
+    #expect(window.animationStore.count == 1, "returning, the scope stores afresh")
 }
 
 // MARK: - 1.19: the registry prune (AN-AF item 8)
