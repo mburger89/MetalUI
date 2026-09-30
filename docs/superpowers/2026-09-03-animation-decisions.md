@@ -2224,6 +2224,42 @@ document the Record phase copies.
 | M3.24a | scale about a 300-point square | 3.24 alone |
 | M3.24b | scale the entry clip too | 3.24 alone |
 | MG3.19 | add `blurReplace` | 3.19 alone |
+| V1 | a glyph does not fade (`g.color.a *= alpha` dropped) | 3.25 alone |
+| V2 | an image does not fade (`i.opacity *= alpha` dropped) | 3.25 alone |
+| V3 | a border colour does not fade (`r.borderColor.a *= alpha` dropped) | 3.25 alone |
+| V4 | `.offset`'s points not converted (`x * scaleFactor` → `x`, likewise `y`) | 3.27 alone |
+| V5 | an insertion during a removal starts from 1 (`let from: Double = 1`) | 3.28 alone |
+| V8 | `claim` drops its `records[key] == nil` guard (the inner claims last) | 3.29 alone |
+| V11 | corner radii not scaled | 3.26 alone |
+| V12 | border widths not scaled | 3.26 alone |
+| V13 | a ghost captures only rects | 3.25 alone |
+
+9. **Fix round (tests `98d04cf`).** The reviewer's six green mutations of
+   the per-primitive rules (V1–V3, V11–V13), the unpinned point-to-pixel
+   conversion (V4) and the two unpinned MetalUI-own rules (V5, V8) each now
+   redden a new test, rows V1–V13 below (taken on `98d04cf`, each restored
+   from a copy, full unfiltered suite of 1959, `git status --short` clean
+   after each; each reddens only the named test): **3.25** a rich tile (a glyph, an
+   image, a 4-point `separator` border and 6-point radii on its accent fill)
+   inserted and removed under `.opacity` — glyph, image and border alpha ½
+   mid-flight, and the ghost still paints its glyph and image at their last
+   place; **3.26** the same tile under `.scale` — radii 3, border widths 2
+   mid-flight; **3.27** `.offset(x: 30, y: 5)` at scale factor 2 — (30, 5) px
+   half-way, inserting and removing, plus `.move(edge: .leading)` at −50 px
+   (the harness gained a `scaleFactor:` parameter, default 1, so no existing
+   arm moved); **3.28** the mirror of 3.21 (an insertion during a removal
+   starts from the ghost's ½: ½ → ¾ → 1, the ghost gone); **3.29** item 4's
+   stacked rule (`.transition(.opacity).transition(.move(edge: .leading))`
+   moves and does not fade). **`.id(_:)` written outside `.transition` is
+   unsupported, and documented** (not fixed): `IdentifiedGroup` numbers its
+   content under the named id, so the `TransitionGroup`'s parent is no longer
+   the conditional's unit and its claim fails — the group is inert. Letting
+   the claim see through an `IdentifiedGroup` would rest on an unprobed
+   SwiftUI claim; instead the shape joins `AnyTransition`'s "Not supported"
+   list (write `.id` inside: `content.id("x").transition(.opacity)`), pinned
+   by **3.30** with the inside spelling as its control, so a later fix is
+   seen. No `Sources/` behaviour moved (doc comments only). 1959 tests
+   (+6), green.
 
 **Cost if wrong.** Item 5 is the visible one: a ghost overlapping a sibling
 that moved into its place draws above it where SwiftUI (by index) may draw
