@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-AF`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AG`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1576,7 +1576,8 @@ order is one prepend.
 **Evidence.** LA0–LB3 (re-run), L1, R16; `accesskit.h`.
 
 **Cost if wrong.** A role mapping is one `switch` arm (AppKit's role table is
-a T row); the selection semantics are the list's handler (2.25–2.27).
+a T row); the selection semantics are the list's handler (1.12–1.14 —
+renumbered from 2.25–2.27 and moved to lane 1 by `IX-AF` item 1).
 
 ---
 
@@ -1671,6 +1672,8 @@ AccessKit's own `modal` flag is not set: the tree is already isolated.
 
 **Ruling.**
 
+*(Item 1's cut and item 2's markers are amended by `IX-AF` items 1 and 7.)*
+
 1. **Three lanes, disjoint files, run in order**: lane 1 the neutral tree and
    both bridges (hand-built trees, as the existing bridge tests are); lane 2
    every `Sources/MetalUI` file — modifiers, builder, proposal path, dispatch,
@@ -1697,3 +1700,105 @@ AccessKit's own `modal` flag is not set: the tree is already isolated.
 
 **Cost if wrong.** A step whose expectation is wrong is corrected when the
 human reports it — which is the script's purpose.
+
+---
+
+## IX-AF — the critic round: seven amendments, two rejections
+
+**Ruling.** The design critic (2026-09-29, one agent, after `50809ed`)
+re-ran `swiftui-accessibility-part2.swift` with the header's own command —
+all 308 filtered lines **byte-identical** to the recorded run (arms E14, M5,
+B6, A4 and T3p diffed individually, each identical), screen locked — and
+attacked the design. Amendments, each written into the spec:
+
+1. **Lane 2 was too large; the cut moves** (`IX-AE` item 1 amended). Lane 2
+   held 27 tests and 3 guards over fifteen files, lane 1 eight. The settable
+   selection and the press under `allowsHitTesting(false)` need no new
+   modifier — each is the dispatch end of a request case lane 1 adds — so
+   old 2.13, 2.21, 2.25, 2.26, 2.27 move to lane 1 as **1.10–1.14** (1.11 and
+   1.12 are still the two renamed pins, flipped by `IX-Z` and `IX-AA`). The
+   lanes are no longer file-disjoint (`Frame.swift`,
+   `AccessibilityTreeBuilder.swift`, `Window.swift`, `WindowAccessibility.swift`
+   are shared), so they run **strictly in order**; lane 1's stub arm shrinks to
+   `.customAction`. Lane 1 fetches AccessKit into this worktree first (none is
+   present). Totals move to **1880** tests (below).
+2. **`AXNode.actions`' deprecation mechanics** (`IX-Y` item 4 amended): the
+   deprecated initialiser's `actions:` takes **no default** (with one,
+   `AXNode(role:label:)` is ambiguous — G2.2's control arm pins it); the
+   stored property keeps `= []` so the undeprecated initialiser never names
+   it; the synthesized `==`/`isEmpty` must build with 0 `warning:`, else `==`
+   is hand-written inside a deprecated helper — the deprecation is not
+   dropped.
+3. **A declared action is a declaration** (`IX-Y` item 1, `IX-AB` item 2
+   amended). `registerHandlers`' `hasSomethingToSay` gated every
+   handler-derived record on `synthesizesAccessibility`; a declared action or
+   named action is added **outside** that gate, or `HStack{}.accessibilityAction {}`
+   and G6 on a non-synthesizing conformer publish nothing (mutation M2n′).
+   And, explicitly: every `AXDeclarations` field counts toward
+   `AXNode.isEmpty`, so a caller of any new modifier declares a node and
+   writes one `$ax` slot with or without a client, as `accessibilityLabel`
+   does — no existing call site writes one, so no retention moves beyond the
+   demo panel's named slot (`IX-X` item 4). A combined node that also declares
+   named actions lists the declared ones first — MetalUI's choice, no arm has
+   both.
+4. **`ProposalText`'s record changes an answer**, so it is not "must stay
+   green, unedited" by assertion (`IX-AB` item 1 amended): lane 2 greps for
+   every test building proposal text with a client active and runs it at its
+   stub commit; any that moves is a named T row in its landing ruling. The
+   main demo holds no proposal element, so 3.8 is unaffected; the preview's
+   tree gets its own pin, **3.11**, and the script a preview step — `AB-Q`'s
+   "the preview toggle is silent" cost, which the design's script omitted.
+5. **Overload resolution is pinned**: no type conforms to both
+   `StyledElement` and `ProposalElementGroup` (grep), so
+   `Box().padding(1).accessibilityLabel(_:)` stays `Self` and gains no identity
+   level; G2.1 asserts both results' static types. `AccessibilityModifier`
+   preconditions exactly one child node (`SA-G`), pinned by an exit test in
+   2.16. 2.14 runs every gesture arm on **both** spellings
+   (`StyledElement.onTapGesture`/`.gesture` and the proposal
+   `GestureModifier`/`OnTapModifier`).
+6. **`AB-AE` for the new overrides** (`IX-AD` amended): the existing exit test
+   covers label, children, the selector check and the press only; new **1.9**
+   (`theNewAppKitOverridesAnswerNothingOffTheMainThread`, an exit test) pins
+   help, identifier, custom actions and the three selection overrides, each
+   through `mainActorAnswer`.
+7. **The script's markers carry every fact a step speaks** (`IX-AE` item 2
+   amended): 3.10 compared role, label and value only, while the steps name
+   selected state, row counts, custom actions and "cannot reach behind the
+   modal". Markers now carry every such field, an `ax-absent` marker asserts
+   the modal's isolation, and a spoken claim no tree can carry (a
+   `.valueChanged` announcement, VoiceOver at the last realized row, a VO
+   key's effect) is labelled **(VoiceOver behaviour, not pinned)** and counted
+   by 3.10 — never presented as derived.
+
+**Rejected, with reasons:**
+
+- *"Divergence 95 should be avoided by letting a held element press, as
+  SwiftUI does (M5)."* Rejected: `IX-Z` item 3's reason stands — only a client
+  that cached a handle can reach it, and `AB-H`'s principle is never to let a
+  client operate what the user is not offered. The divergence is recorded,
+  not hidden.
+- *"Record rejections as `LR-` rulings."* The dispatch's template names
+  `LR-`, the engine-replacement prefix, whose doc this task does not own;
+  part 2's rulings live under `IX-` in this doc (`IX-U`), so rejections are
+  recorded here.
+
+**Checked and found sound** (no change): the probe (above); `.combine`'s
+redirect indexing against E6/E14; `IX-AA`'s AccessKit reading (0.23's action
+enum has no select action; a row selects by `Click`); the neutral field count
+(10 at `31d3565` + 4 = 14, `AccessibilityTree.swift`); `ContainedText`'s key
+through AccessKit's id table (`AccessKitTree.swift`'s `numbers` map accepts any
+`AccessibilityNodeID`); the neutral `.table` role, so every root test reading
+`role == .table` is unaffected and only `AppKitAccessibilityTests`' role table
+is a T row; `IX-AE` item 3 — no agent claims the VoiceOver validation.
+
+**Counts after this ruling**: lane 1 +8 root (1845) and SDL +4; lane 2 +22
+tests and +3 guards (1870, 116); lane 3 +10 (1880) and SDL +1. Expected close
+**1880 tests, 116 guards, SDL 22 + 32**.
+
+**Evidence.** The probe re-run of 2026-09-29; `Frame.swift`
+`registerHandlers` (`hasSomethingToSay`); `AXNode.swift`'s initialiser;
+`AppKitAccessibilityTests.anOffMainThreadQueryAnswersNothingAndDoesNotTrap`;
+`AB-Q`'s cost list.
+
+**Cost if wrong.** Each amendment is one test or one clause; the lane move is
+reversible by renumbering.

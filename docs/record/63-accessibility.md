@@ -3,7 +3,8 @@
 Branch `feat/accessibility-bridge` from `31d3565` (master, plan task 12 part 1
 landed, record §62). Spec `docs/superpowers/specs/2026-09-29-accessibility-design.md`;
 rulings `IX-U`…`IX-AE` appended to part 1's decisions doc,
-`docs/superpowers/2026-09-29-interaction-decisions.md` (next unused `IX-AF`).
+`docs/superpowers/2026-09-29-interaction-decisions.md`, amended by the critic
+round's `IX-AF` (next unused `IX-AG`).
 Probes: `docs/probes/swiftui-accessibility-part2.swift` (new) and
 `docs/probes/swiftui-controls-and-selection.swift` (re-run, compiled).
 
@@ -61,7 +62,7 @@ human run; live 69 → 68, next label 96 (expected, spec §10).
 `Sources/MetalUI` file (modifiers, builder, proposal path, dispatch, `List`
 selection); 3 the audit tests, the demo modal's two accessibility modifiers
 and the VoiceOver script. Disjoint files, one declared stub arm. Expected
-close 1878 tests, 116 guards, `Backends/SDL` 22 + 32.
+close 1878 tests, 116 guards, `Backends/SDL` 22 + 32 (1880 after §2).
 
 **Demo** (spec §8, `IX-X` item 4): 0 px expected in all fourteen offscreen
 images; the modal panel's new declaration adds one `$ax` slot while the modal
@@ -69,3 +70,21 @@ is up (named).
 
 **Lock probe at design time**: locked, so the real-window capture is owed, as
 at every task since stage 6b.
+
+## §2 Critic round (2026-09-29)
+
+One agent, critic and reviser. **Probe re-run** with its header's command:
+308 filtered lines, byte-identical to the recorded output (E14, M5, B6, A4,
+T3p diffed arm by arm), screen locked. **Seven amendments** (`IX-AF`): lane 2's
+five modifier-free dispatch tests (settable selection, the press under
+`allowsHitTesting(false)`) moved to lane 1 as 1.10–1.14, lanes now sequential
+over shared files; `AXNode.actions`' deprecation mechanics (no default on the
+deprecated `actions:`); a declared action counts outside the
+`synthesizesAccessibility` gate, and every new declaration writes a `$ax` slot
+like a label; `ProposalText`'s record handled as possible T rows, the preview's
+tree pinned (3.11) and scripted; overload resolution and the wrapper's
+one-node precondition pinned, gestures on both spellings; a new `AB-AE` exit
+test for the new overrides (1.9); the script's markers widened to every
+spoken fact, `ax-absent` for the modal, unpinned VoiceOver behaviour labelled.
+**Two rejections** recorded in `IX-AF`. Expected close **1880 tests, 116
+guards, `Backends/SDL` 22 + 32**. Task 12's box stays unticked (`IX-AE`).

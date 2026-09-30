@@ -3,8 +3,9 @@
 Branch `feat/accessibility-bridge` from `31d3565` (master, plan task 12 part 1
 landed, record §62). Rulings **`IX-U`…`IX-AE`** appended to the existing
 part-1 decisions doc,
-[`../2026-09-29-interaction-decisions.md`](../2026-09-29-interaction-decisions.md)
-(next unused **`IX-AF`**). Evidence: `docs/probes/swiftui-accessibility-part2.swift`
+[`../2026-09-29-interaction-decisions.md`](../2026-09-29-interaction-decisions.md),
+plus the critic round's **`IX-AF`**, which amends `IX-Y`, `IX-AB`, `IX-AD` and
+`IX-AE` (next unused **`IX-AG`**). Evidence: `docs/probes/swiftui-accessibility-part2.swift`
 (**new**, arm ids `C…` controls, `E…` `accessibilityElement(children:)`, `H…`
 hidden, `T…` traits, `M…` modal isolation, `N…` hint and identifier, `A…`
 declared actions, `B…` buttons, `G…` gestures, `X…` truncation, `F…` focus, `L…`
@@ -64,7 +65,7 @@ doc's carried table (`AB-Q`, `DD-U`/`DD-Z`/`DD-AB`/`DD-AD`/`DD-AE`, `TE-O`/
 | 29d | custom and declared actions (`AB-Q`) | A1–A7, G6 | derived only (`AB-H`) | **built**: `accessibilityAction(_:)`, `accessibilityAction(named:_:)` | lane 2, `IX-Y` |
 | 29e | a non-button click absorber (`AB-Q`; the demo modal's panel) | T3, T3p | an `onClick {}` is a button | **ruled**: `.accessibilityRemoveTraits(.isButton)` changes the role only (T3p); the demo's panel uses it | lanes 2, 3, `IX-X` |
 | 29f | hint, identifier (SwiftUI surface beside the label) | N1–N6 | — | **built** | lane 2, `IX-W` |
-| 30 | `AB-H`'s press question, divergence 28; whether a press focuses (`DD-AE` 2) | B6, B7 (P1/P2 re-run) | refused under `allowsHitTesting(false)` | **28 retires**: the press is advertised and runs; the press keeps `runClick`'s focus request (one path, `DD-AE` 2) | lane 2, `IX-Z` |
+| 30 | `AB-H`'s press question, divergence 28; whether a press focuses (`DD-AE` 2) | B6, B7 (P1/P2 re-run) | refused under `allowsHitTesting(false)` | **28 retires**: the press is advertised and runs; the press keeps `runClick`'s focus request (one path, `DD-AE` 2) | lane 1 (press-only), lane 2 (press order), `IX-Z` |
 | 31 | modal isolation and press occlusion (`AB-Q`; `AB-H` "not checked") | M0–M5 | everything published | **built**: `.isModal` isolates the tree; an isolated-out request is refused — **divergence 95 added** (SwiftUI's held element still presses, M5) | lane 2, `IX-X`, `IX-Z` |
 | 32 | divergence 32; scrolling to unrealised rows (`DD-AB` 4, `AB-L`) | L1 (R16 re-run): AXOutline, 500 rows reachable | `AXTable` of realized rows | **amended**: AppKit role `AXOutline`/`AXOutlineRow`; unrealised rows stay unreachable (kept, owner none; the script records what VoiceOver does at the edge) | lanes 1–2, `IX-AA` |
 | 33 | divergence 82 (`DD-U` 3, 9) | — (controls probe PA/STA/SA arms) | partial fold labels the control | **kept**, owner the human VoiceOver run (the script has a step for each) | lane 3, `IX-AE` |
@@ -154,7 +155,7 @@ public enum AccessibilityChildBehavior: Sendable, Hashable {  // SwiftUI's is a 
 public struct AccessibilityTraits: OptionSet, Sendable, Hashable {
     public static let isButton, isHeader, isSelected, isLink, isImage,
                       isStaticText, isModal, updatesFrequently
-}   // not offered (guard G1.3): .isSearchField, .playsSound, .isKeyboardKey,
+}   // not offered (guard G2.3): .isSearchField, .playsSound, .isKeyboardKey,
     // .isSummaryElement, .startsMediaSession, .allowsDirectInteraction,
     // .causesPageTurn, .isTabBar, .isToggle
 
@@ -191,7 +192,25 @@ accessibilityAdjustableAction(_:); AXNode's actions are never read (AB-H)")`);
 `AXNode.init`'s `actions:` parameter moves to a deprecated overload so an
 existing spelling still compiles. No in-repo caller writes either (grep of
 2026-09-29: the `actions: [.press]` hits are `AccessibilityNode`'s, the
-platform type), so the 0-`warning:` baseline holds (`IX-Y`).
+platform type), so the 0-`warning:` baseline holds (`IX-Y`). **Three
+mechanics the baseline depends on** (`IX-AF` item 2): the deprecated
+overload's `actions:` has **no default** (with one, `AXNode(role:label:)`
+would be ambiguous between the two initialisers — G2.2's control arm is the
+pin); the stored property keeps its `= []` default so the undeprecated
+initialiser never names it; and `isEmpty`'s `self == AXNode()` and the
+synthesized `==` must build with 0 `warning:` on both build systems — the
+lane records that build, and if the synthesized conformance warns, `==` is
+written by hand inside a `@available(*, deprecated)` helper rather than the
+deprecation being dropped.
+
+**No overload ambiguity** (`IX-AF` item 5): no type conforms to both
+`StyledElement` and `ProposalElementGroup` (grep of 2026-09-29 —
+`ModifiedContent`'s two conformances are disjoint on `Modifier ==
+ModifierLayer` / `== LayoutModifier`), so `Box().padding(1).accessibilityLabel(_:)`
+still returns `Self` and no existing call site gains `AccessibilityModifier`'s
+identity level. G2.1 asserts both results' static types. `AccessibilityModifier`
+preconditions **exactly one** child node, as every single-child proposal
+wrapper does (`SA-G`), pinned by an exit test in 2.16.
 
 **`AXNode` stores the new declarations in one optional reference box**
 (`AXDeclarations`, a final class holding a struct, copied on write), so
@@ -239,7 +258,22 @@ distribution, B text, C combination, emit):
    registry exactly as `AccessibilityAdjustment` is — disabled or hidden
    registers none, A7). `customActions` are the node's declared names when a
    registered `AccessibilityNamedAction` handler backs them (A2, A6: later
-   written first).
+   written first). **A declared action is a declaration, not a synthesis**
+   (`IX-AF` item 3): `registerHandlers`' `hasSomethingToSay` gains "an
+   `AccessibilityDefaultAction` or `AccessibilityNamedAction` handler is
+   registered" **outside** the `synthesizesAccessibility &&` clause, so
+   `HStack{}.accessibilityAction {}` (the wrapper) and G6's action over a
+   gesture both record; without it A1/G6 publish nothing through a
+   non-synthesizing conformer. When a combined node also declares named
+   actions, the declared names come first, then the combined ones — MetalUI's
+   choice, no probe arm has both.
+   **Which declarations write `$ax`** (`AB-U`, `IX-AF` item 3): every field
+   of the `AXDeclarations` box counts toward `AXNode.isEmpty`, so a caller
+   who writes any of §4's modifiers on an element declares a node and that
+   element writes one `$ax` slot — **with or without a client**, exactly as
+   `accessibilityLabel` does today (the emission above the client gate). No
+   existing call site writes one of them, so no existing retention moves; the
+   demo panel's one slot (§8) is the only production instance.
 4. **A. Distribution** (`AB-T`) distributes **label, value, hint, identifier and
    the added `.isHeader`/`.isSelected` traits** (N4, N5, T9; R3/R4/R18 for the
    first two) from a plain generic container or wrapper — unchanged condition
@@ -282,7 +316,16 @@ no hitbox and does not make the element focusable, `accessibilityAdjustableActio
 contract). `Image(_:scale:label:)` records an `.image` node with the label
 through the same internal call; `Image(decorative:scale:)` still records
 nothing (I2, I4, I5). A `Grid`/`GridRow`/stack records nothing of its own, so
-its texts flatten (P1, P2).
+its texts flatten (P1, P2). **This changes an answer existing trees give
+whenever a client is active** (a proposal text that published nothing now
+publishes a static text): lane 2 first greps the suite for every test that
+builds a `ProposalText`/`.proposalLayout()`/proposal stack with a client
+active (or reads `axEmissions`/a published tree over one) and runs it at the
+stub commit; any that reddens with the record in is a **T row** named in
+lane 2's landing ruling with its old and new answer, never edited silently
+(`IX-AF` item 4). The main demo holds no proposal element
+(`nativeLayoutPreviewContent()` does), so 3.8's tree is unaffected; the
+preview's is 3.11's.
 
 ## 6. The bridges (lane 1) and dispatch (lane 2)
 
@@ -310,7 +353,13 @@ per name whose handler sends `.customAction` through `mainActorAnswer`
 selectable row → `.select`, `setAccessibilitySelectedRows(_:)` on the outline →
 `.selectRows`, `accessibilitySelectedRows()` answers the selected rows;
 `isAccessibilitySelectorAllowed` allows the two setters only on a selectable
-row / an outline with a selectable row.
+row / an outline with a selectable row. **Every new override answers through
+`mainActorAnswer(_:fallback:_:)`** (`AB-AE`) — `accessibilityHelp`,
+`accessibilityIdentifier`, `accessibilityCustomActions`, the custom action's
+handler, `setAccessibilitySelected`, `setAccessibilitySelectedRows`,
+`accessibilitySelectedRows` — and off the main thread answers nothing
+without trapping; the existing exit test covers only the label, children,
+selector and press, so 1.9 pins the new ones (`IX-AF` item 6).
 
 **AccessKit** (`Backends/SDL/Sources/MetalUISDL/AccessKitTree.swift`,
 `AccessKitAdapter.swift`): `hint` → `accesskit_node_set_description`,
@@ -331,7 +380,7 @@ stubs that return `Self`/do nothing, so its tests compile and fail on their
 assertions — the "red before" column), then green; every **new** typecheck
 guard mutated red once; each named mutation applied from a commit, restored
 from a copy, the whole suite run unfiltered, `git status --short` clean after,
-**every reddened test named**. A lane records its landing in a ruling (`IX-AF`
+**every reddened test named**. A lane records its landing in a ruling (`IX-AG`
 onward) in the decisions doc; the Record phase writes record §63. No test
 sleeps. **No `Handlers` member is added** (the declarations ride `AXNode`'s
 box; the actions ride `Handlers.actions`), so `HandlerShape`/
@@ -340,24 +389,46 @@ and `MemoryLayout<Handlers>.size` before and after (440 at `31d3565`, at most
 448 after) and the smallest thread building every production tree (624 KB at
 `31d3565`); `everyProductionTreeBuildsOnAOneMegabyteThread` green.
 
-**Why this order and this cut** (`IX-AE`): the three lanes touch disjoint
-files. The neutral tree's new cases (roles, request cases) must exist before
-anything can publish or send them, and the bridges can be tested on hand-built
-trees (as `AppKitAccessibilityTests` and `AccessKitTests` already are), so the
-bridges go first; the model and dispatch — every `Sources/MetalUI` file —
-second; the audit, demo and script third. **One declared exception**: lane 1's
-new `AccessibilityRequest` cases make `Window.handleAccessibilityRequest`'s
-`switch` non-exhaustive, so lane 1 adds one refusing arm there
-(`case .customAction, .select, .selectRows: return false`, with a comment
-naming lane 2) — the only line it writes outside its files, replaced by lane 2.
+**Why this order and this cut** (`IX-AE`, amended by `IX-AF` item 1): the
+neutral tree's new cases (roles, fields, request cases) must exist before
+anything can publish or send them, and the bridges can be tested on
+hand-built trees (as `AppKitAccessibilityTests` and `AccessKitTests` already
+are), so they go first — **together with the two requests that need no new
+modifier**: the settable selection (`List.swift`'s `AccessibilityRowSelection`,
+`isSelectable`, `.select`/`.selectRows` in `WindowAccessibility.swift`) and
+the press under `allowsHitTesting(false)` (`Frame.registerHandlers`'
+press-only record, the builder's `.press` from it, `Window`'s press-only
+arm). The critic round moved these five tests (old 2.13, 2.21, 2.25–2.27)
+from lane 2, which held 27 tests and 3 guards over fifteen files, to lane 1,
+which held 8: each is the dispatch end of a lane-1 request case and needs
+none of lane 2's modifiers. The lanes are **no longer file-disjoint** —
+`Frame.swift`, `AccessibilityTreeBuilder.swift`, `Window.swift` and
+`WindowAccessibility.swift` are touched by lanes 1 and 2 — so they run
+**strictly in order**, lane 2 starting from lane 1's landed commit (never in
+parallel), and lane 2 adds the declared-action and redirect arms **ahead of**
+lane 1's hitbox and press-only arms in the press order (§6). **One declared
+stub remains**: lane 1 adds `case .customAction: return false` to
+`Window.handleAccessibilityRequest` (the `switch` is exhaustive), with a
+comment naming lane 2, which replaces it. Lane 1 also runs
+`python3 Backends/SDL/scripts/fetch-accesskit.py` **in this worktree** (no
+`.accesskit` exists here at `50809ed`) before building `Backends/SDL` with
+`PKG_CONFIG_PATH=$PWD/.accesskit`.
 
-### Lane 1 — the neutral tree and both bridges
+### Lane 1 — the neutral tree, both bridges, and the two modifier-free requests
 
 **Files.** `Sources/MetalUIPlatform/AccessibilityTree.swift` (§4's neutral
 roles, fields and request cases), `Sources/MetalUIAppKit/AppKitAccessibility.swift`,
 `Backends/SDL/Sources/MetalUISDL/AccessKitTree.swift`,
-`Backends/SDL/Sources/MetalUISDL/AccessKitAdapter.swift`, and the one stub arm
-in `Sources/MetalUI/WindowAccessibility.swift`. Tests: new
+`Backends/SDL/Sources/MetalUISDL/AccessKitAdapter.swift`; and, for the two
+modifier-free requests (`IX-AF` item 1), `Sources/MetalUI/List.swift`
+(`AccessibilityRowSelection`, declared in a new
+`Sources/MetalUI/AccessibilityRequests.swift`, and `isSelectable`),
+`Sources/MetalUI/Frame.swift` (`registerHandlers`' press-only record only),
+`AccessibilityTreeBuilder.swift` (the press from it, `isSelectable`),
+`Window.swift` and `WindowAccessibility.swift` (the press-only arm, `.select`/
+`.selectRows`, the `.customAction` stub). New root tests go in
+`Tests/MetalUITests/AccessibilitySelectionAndPressTests.swift`; the two renamed
+pins stay in `AccessibilityTreeTests.swift` and `ListSelectionTests.swift`. Tests: new
 `Tests/MetalUIPlatformTests/AppKitAccessibilityPart2Tests.swift` (hand-built
 trees, the `AppKitAccessibilityTests` harness), `AppKitAccessibilityTests.swift`
 (the role table's `.table` → `.outline` literal — a **T row**, its answer
@@ -374,13 +445,22 @@ changed by ruling `IX-AA`, not a retirement), new
 | 1.6 | SDL `aSelectableRowPublishesSelectedFalseToAccessKit` (selectable unselected → `false`, selected → `true`, a non-list row → unset) | only `true` is set | M1f: `false` not set |
 | 1.7 | SDL `anAccessKitCustomActionMeansACustomActionRequest` (`CUSTOM_ACTION` with `data.custom_action = 1` → `.customAction(id, 1)`; no data → no request) | no mapping | M1g: the index ignored (always 0) |
 | 1.8 | SDL `everyAccessibilityNodeFieldHasAnAccessKitArm` (1.4's table, AccessKit's side) | unmapped | M1h: drop the `customActions` arm |
+| 1.9 | `theNewAppKitOverridesAnswerNothingOffTheMainThread` (**exit test**, `anOffMainThreadQueryAnswersNothingAndDoesNotTrap`'s shape: on the main thread help, identifier, two custom actions, the selected setter and `accessibilitySelectedRows` answer — the control; off it each answers nothing and the process survives) | the overrides do not exist | M1i: `accessibilityHelp` answered through a bare `MainActor.assumeIsolated` (the child process traps) |
+| 1.10 | `aPressIsAdvertisedWhereHitTestingIsDisabled` (was 2.13; B6: `.press` present, `Frame.accessibilityPressOnly` holds the id; B7 disabled: absent; no client: the map stays empty) | the opposite today (divergence 28) | M1j: the press-only record removed; M1j′: recorded without a client |
+| 1.11 | `aPressIsRunWhereHitTestingIsDisabled` — **`aPressIsRefusedWhereHitTestingIsDisabled` renamed, its answer flipped by ruling** (was 2.21; `IX-Z`; B6: the handler runs once; a click at the same point still runs nothing) | refused today | M1k: the press-only map not consulted |
+| 1.12 | `settingAXSelectedOnARowReplacesTheSelection` — **`anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly` renamed, its AppKit half flipped by ruling** (was 2.25; `IX-AA`; LA2 single → `[3]`; LB3 multi `[0,1]` → `[2]`; its press arm kept) | refused today | M1l: `.select` adds to a multi selection |
+| 1.13 | `settingTheOutlinesSelectedRowsSetsThemAndASingleListIgnoresTwo` (was 2.26; LA3, LA4, LB2) | stub | M1m: a single list takes the first of two |
+| 1.14 | `aDisabledListRefusesAnAccessibilitySelection` (was 2.27; `.disabled(true)`: `.select` → `false`, nothing written; control enabled) | stub | M1n: the handler registered past the disabled gate |
 
 **Must stay green**: `AppKitAccessibilityTests` but its one T row, every
 `AccessKitTests` test, `anNSAccessibilityClientReadsThePublishedTree`, every
-root-package test (lane 1 changes no `Sources/MetalUI` behaviour — the stub
-arm refuses exactly as an unknown id is refused today).
+root-package test but 1.11's and 1.12's renamed pins (the `.customAction` stub
+refuses exactly as an unknown id is refused today; the press-only record is
+taken only while collecting, so a window with no client is unchanged),
+`noConformerEmitsAnAXNodeItDidNotDeclare`, every `List` click/key selection
+test (`DD-Z`'s path is the handler's own).
 
-### Lane 2 — the modifiers, the builder, the proposal path, dispatch and selection
+### Lane 2 — the modifiers, the builder, the proposal path and their dispatch
 
 **Files.** `Sources/MetalUI/AccessibilityModifiers.swift` (the `StyledElement`
 modifiers), new `Sources/MetalUI/ProposalAccessibility.swift`
@@ -390,19 +470,19 @@ modifiers), new `Sources/MetalUI/ProposalAccessibility.swift`
 `AccessibilityNamedAction`, `AccessibilityRowSelection`), `AXNode.swift` (the
 box, the deprecations), `AXEmission.swift`, `AccessibilityTreeBuilder.swift`
 (§5; returns a struct carrying the tree, `redirects`, `isolatedOut`),
-`Frame.swift` (`registerHandlers`' press-only record, `recordAccessibility`),
+`Frame.swift` (`recordAccessibility`, `hasSomethingToSay`'s declared-action
+term),
 `DecorationScope.swift` (the hidden scope), `ProposalText.swift`, `Image.swift`,
-`WindowAccessibility.swift` (§6's press order, `customAction`, `select`/
-`selectRows`, the isolation refusal — replacing lane 1's stub arm),
-`Window.swift` (the press-only map and the build's details beside
-`lastHitboxes`), `List.swift` (`AccessibilityRowSelection`, `isSelectable`).
+`WindowAccessibility.swift` (§6's declared-action and redirect arms ahead of
+lane 1's, `customAction` — replacing lane 1's stub arm — and the isolation
+refusal), `Window.swift` (the build's `redirects`/`isolatedOut` beside
+`lastHitboxes`).
 Tests: new `Tests/MetalUITests/AccessibilityModifierTests.swift` (builder level,
 the `ControlAccessibilityTests` `tree(_:)` shape), new
 `Tests/MetalUITests/ProposalAccessibilityTests.swift`, new
 `Tests/MetalUITests/AccessibilityRequestTests.swift` (through a real `Window`
 on a `FakePlatformWindow`), new `Tests/MetalUITests/AccessibilityCompileGuards.swift`,
-and the two flipped pins in `AccessibilityTreeTests.swift` and
-`ListSelectionTests.swift`.
+(the two flipped pins are lane 1's).
 
 | id | test | red before because | mutation that must redden it |
 |---|---|---|---|
@@ -418,22 +498,17 @@ and the two flipped pins in `AccessibilityTreeTests.swift` and
 | 2.10 | `aModalSubtreeIsTheOnlyThingPublished` (M0 control publishes both; M1; M3 a modal sibling; two modals → the higher `(layer, order)`; a focus outside it publishes no `focused`; `isolatedOut == true`) | stub | M2j: isolation skipped; M2j′: the FIRST modal wins |
 | 2.11 | `aDeclaredActionMakesAPressableButtonAndADisabledOneNone` (A1 button + press; A5 distributed to each child; A7 disabled: no press) | stub | M2k: the `AccessibilityDefaultAction` handler not counted as a press |
 | 2.12 | `aNamedActionPublishesACustomActionLaterWrittenFirst` (A2; A3 a button keeps `.press`; A6 `["Two","One"]`) | stub | M2l: names appended instead of prepended |
-| 2.13 | `aPressIsAdvertisedWhereHitTestingIsDisabled` (B6: `.press` present, `Frame.accessibilityPressOnly` holds the id; B7 disabled: absent) | the opposite today (divergence 28) | M2m: the press-only record removed |
-| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`) |
+| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press — **each on both spellings**, `StyledElement.onTapGesture`/`.gesture` returning `Self` and the proposal `GestureModifier`/`OnTapModifier`, a copy of a pinned rule being unpinned) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`); M2n′: the declared-action term moved back inside `synthesizesAccessibility &&` (G6 on the proposal spelling reddens) |
 | 2.15 | `aProposalTextPublishesItsStringAsAStaticText` (P1 two texts, the spacer nothing; P2 a 2×2 grid flattened row by row; a disabled scope → `isEnabled == false`; a `hidden()` one nothing) | nothing on the proposal path records | M2o: `ProposalText.prepaint` records nothing |
-| 2.16 | `aProposalAccessibilityModifierLabelsDistributesAndIsOneIdentityLevel` (P3 over an `HStack`; P5 a labelled `Rectangle` → labelled group; the content's id is `.child(of: wrapper, at: 0)`) | no API | M2p: the wrapper records nothing; M2p′: content numbered at the wrapper's own id |
+| 2.16 | `aProposalAccessibilityModifierLabelsDistributesAndIsOneIdentityLevel` (P3 over an `HStack`; P5 a labelled `Rectangle` → labelled group; the content's id is `.child(of: wrapper, at: 0)`; an exit test: the wrapper over two nodes traps naming the count) | no API | M2p: the wrapper records nothing; M2p′: content numbered at the wrapper's own id |
 | 2.17 | `theProposalModifiersMirrorTheStyledOnes` (on an `HStack`: `.combine`, `.accessibilityHidden(true)`, `.isHeader`, `.accessibilityAction {}` — each 2.x twin's answer) | no API | M2q: the wrapper drops its child behaviour (a copy of a pinned implementation is unpinned) |
 | 2.18 | `aLabelledImagePublishesAnImageAndADecorativeOneNothing` (I1/I3 via `Image(_:scale:label:)` → `.image` `Logo`; I2, I4 decorative labelled, I5 decorative tapped: nothing) | no labelled init | M2r: the decorative init records too |
 | 2.19 | `theNewDeclarationsCostHandlersAtMostOnePointer` (`MemoryLayout<AXNode>.size` ≤ its `31d3565` value + 8, the literal recorded in the test with the measurement) | fields inline | M2s: the seven fields stored inline |
 | 2.20 | `anAccessibilityPressRunsADeclaredActionInsteadOfTheClick` (A4 `["Default"]`; G6) | advertised, not dispatched | M2t: the hitbox tried first |
-| 2.21 | `aPressIsRunWhereHitTestingIsDisabled` — **`aPressIsRefusedWhereHitTestingIsDisabled` renamed, its answer flipped by ruling** (`IX-Z`; B6: the handler runs once; a click at the same point still runs nothing) | refused today | M2u: the press-only map not consulted |
 | 2.22 | `aCombinedElementsPressAndCustomActionsRunItsInteractiveChildren` (E6, E14: press runs `A`; custom action 1 runs `B`) | no redirect dispatch | M2v: custom action `i` runs redirect `0` |
 | 2.23 | `aCustomActionRequestRunsTheNamedHandlerAndABadIndexNothing` (A2; A3: press `B`, custom 0 `Archive`; index 5 refused) | lane 1's stub refuses | M2w: the index read from the end |
 | 2.24 | `aRequestForAnElementOutsideTheModalIsRefused` (M5: a held id's press returns `false` and runs nothing; with the modal gone it presses) | no isolation | M2x: the refusal removed |
-| 2.25 | `settingAXSelectedOnARowReplacesTheSelection` — **`anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly` renamed, its AppKit half flipped by ruling** (`IX-AA`; LA2 single → `[3]`; LB3 multi `[0,1]` → `[2]`; its press arm kept) | refused today | M2y: `.select` adds to a multi selection |
-| 2.26 | `settingTheOutlinesSelectedRowsSetsThemAndASingleListIgnoresTwo` (LA3, LA4, LB2) | stub | M2z: a single list takes the first of two |
-| 2.27 | `aDisabledListRefusesAnAccessibilitySelection` (`.disabled(true)`: `.select` → `false`, nothing written; control enabled) | stub | M2aa: the handler registered past the disabled gate |
-| G2.1 | `theAccessibilityModifiersCompileFromAPlainImport` (plain-import `typecheckFile`: every §4 spelling on a `Box`, a `Text` and an `HStack`; `Image(_:scale:label:)`) | new guard | mutate red once (make one modifier internal) |
+| G2.1 | `theAccessibilityModifiersCompileFromAPlainImport` (plain-import `typecheckFile`: every §4 spelling on a `Box`, a `Text` and an `HStack`; `Image(_:scale:label:)`; `let _: ModifiedContent<Box<EmptyGroup>, ModifierLayer> = Box().padding(1).accessibilityLabel("x")` and `let _: AccessibilityModifier<HStack<…>> = HStack { … }.accessibilityLabel("x")` — the overload each resolves to, `IX-AF` item 5) | new guard | mutate red once (make one modifier internal) |
 | G2.2 | `anAXNodesActionsAreDeprecatedTowardAccessibilityAction` (plain import: `AXNode.actions` and `AXNode(actions:)` warn, the message names `accessibilityAction`; control: `AXNode(role:label:)` warns nothing) | new guard | mutate red once (drop the attribute) |
 | G2.3 | `anUnofferedTraitOrActionKindDoesNotCompile` (`.isSearchField`, `.isToggle`, `.accessibilityAction(.escape) {}`; control: `.isHeader` compiles) | new guard | mutate red once (add `static let isToggle`) |
 
@@ -441,12 +516,12 @@ and the two flipped pins in `AccessibilityTreeTests.swift` and
 every mutation above and stays green (`AB-U`).
 
 **Must stay green, unedited**: every existing accessibility test
-(`AccessibilityTreeTests` but 2.21's rename, `AccessibilityDefaultsTests`,
+(`AccessibilityTreeTests` but lane 1's 1.11 rename, `AccessibilityDefaultsTests`,
 `AccessibilityEndToEndTests`, `AXEmitSiteTests`, `AXNodeTests`,
 `ControlAccessibilityTests`, the controls' accessibility tests),
 `theSevenRetentionSlotsAreMutuallyDistinct`, every `StateTable`/`TB-AH`/focus/
 hit-test/`Deferred`/`List`/`TextField`/`TextEditor` test, the `List` selection
-tests but 2.25's rename (`DD-Z`'s click/key selection is the handler's own
+tests but lane 1's 1.12 rename (`DD-Z`'s click/key selection is the handler's own
 path), `accessKitRequestsReachTheWindowInOrder`,
 `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`. **No id path moves**:
 the `StyledElement` modifiers add no layer; only a caller writing the proposal
@@ -474,7 +549,8 @@ finding** (part 1's `IX-S` precedent) and the fix is ruled, not slipped in.
 | 3.7 | SDL `theControlsDemoTranslatesToAccessKitAsToAppKit` (the controls demo's tree through `AccessKitSnapshot.translate`: the same role/label/value/state table 3.6 asserts, AccessKit's vocabulary) | green at lane 3's start: written first and kept green | M3g: `.incrementor` → `.button` in AccessKit |
 | 3.8 | `theDemoPublishesTheTreeTheVoiceOverScriptReads` (modal off: the tree's labels in order, as the script lists them; modal on: **only** `Close modal` and its descendants, the panel a `.group` with its folded label and a press, `isolatedOut == true`) | red: no isolation, the panel a button | M3h: the demo's `.isModal` removed |
 | 3.9 | `theControlsDemoPublishesTheTreeTheVoiceOverScriptReads` (every control's label, role and value in the order the script walks them) | green at lane 3's start: written first and kept green | M3i: the demo's list built without `selection:` |
-| 3.10 | `theVoiceOverScriptQuotesThePublishedTree` (parses every `<!-- ax: … -->` marker in `docs/verification/voiceover-script.md`, finds the node in 3.8's/3.9's tree, compares role, label, value; `try #require` on the marker count) | no script | M3j: change one label in the script (the test names the step) |
+| 3.10 | `theVoiceOverScriptQuotesThePublishedTree` (parses every marker in `docs/verification/voiceover-script.md` and checks it against 3.8's, 3.9's or 3.11's tree: `<!-- ax: tree=… role=… label="…" value="…" selected=… enabled=… actions=… custom=[…] rows=… -->` compares **every field the step's spoken expectation names** — role, label, value, selected, enabled, press/increment actions, custom action names, a table's `rowCount` and realized-row count; `<!-- ax-absent: tree=… label="…" -->` asserts no published node carries that label (the modal step); `try #require` on each marker kind's count; a step whose spoken text names a fact no marker carries is labelled **(VoiceOver behaviour, not pinned)** in the script and the test counts those labels too, so an unlabelled unpinned claim is visible in review) | no script | M3j: change one label in the script (the test names the step); M3j′: an `ax-absent` marker naming a label that IS published (`Increment`) |
+| 3.11 | `thePreviewAndTextInputDemosPublishTheTreesTheScriptReads` (`nativeLayoutPreviewContent()` with a client: its proposal texts in reading order, the grid row by row — `IX-AB`'s first production reader; the text-input demo: the two fields' roles, labels, values and the focused one) | red for the preview (nothing on the proposal path records until lane 2) — green at lane 3's start: written first and kept green | M3k: `ProposalText.prepaint` records nothing (the preview arm reddens, the text-input arm does not) |
 
 **Must stay green, unedited**: `DemoFrameDeterminismTests` (`Expected.swift`
 unedited: accessibility modifiers draw nothing),
@@ -508,10 +584,15 @@ tree until the modal closes (`IX-X`).
    parity), the build (`swift run -c release MetalUIDemo`, and
    `METALUI_CONTROLS_DEMO=1`), VoiceOver setup (⌘F5, VO = ⌃⌥, verbosity
    default, Full Keyboard Access off then on for the focus steps), and the
-   rule that **the expected output is derived from the trees 3.8/3.9 pin** —
-   each step carries a machine-checked `<!-- ax: role=… label="…" value="…" -->`
-   marker (3.10), and the spoken phrasing beside it is VoiceOver's usual
-   order ("label, value, role") stated as an expectation, not a measurement.
+   rule that **the expected output is derived from the trees 3.8/3.9/3.11
+   pin** — each step carries machine-checked `ax`/`ax-absent` markers (3.10)
+   for every fact its expectation names (role, label, value, selected,
+   enabled, actions, custom actions, a table's row counts, absence behind the
+   modal); the spoken phrasing beside them is VoiceOver's usual order
+   ("label, value, role") stated as an expectation, not a measurement; and
+   anything the tree cannot carry — a `.valueChanged` announcement, what
+   VoiceOver does at the last realized row, a VO key's effect — is labelled
+   **(VoiceOver behaviour, not pinned)**, never presented as derived.
 2. **Demo steps** (window "MetalUI — Milestones 1 to 3"): entering the window;
    VO-arrow through the sidebar and panel texts; the counter's `Decrement`/
    `Increment` buttons (VO-Space presses; the readout's new value is announced
@@ -529,6 +610,9 @@ tree until the modal closes (`IX-X`).
    (`ForEach` over a binding), the selectable `List`: VO-Space presses a row
    (selects it), **and a selection made through the rotor/`AXSelected`**
    (VO-⌘-Space where offered) — divergence 83's retirement seen by a human.
+3a. **Preview steps** (`METALUI_NATIVE_LAYOUT_PREVIEW=1`, `AB-Q`'s "the
+   preview toggle is silent", closed by `IX-AB`): VO-arrow through the
+   preview's texts, the grid row by row; every expectation from 3.11's tree.
 4. **Focus steps** (`IX-AC`): VoiceOver's cursor and keyboard focus with
    "keyboard focus follows VoiceOver cursor" on; a `.focus` request moving the
    `@FocusState`-bound field (the text-input demo, `METALUI_TEXT_INPUT_DEMO=1`).
@@ -568,10 +652,11 @@ tree until the modal closes (`IX-X`).
 
 ## 11. Counts (expected, re-measured by each lane)
 
-Baseline **1837** tests / **113** guards / SDL **22 + 27**. Lane 1: **+4**
-root tests (1.1–1.4; the role table is a T row) → 1841; SDL **+4** (1.5–1.8).
-Lane 2: **+28** root tests (2.1–2.20, 2.22–2.24, 2.26, 2.27 = 25, and G2.1–G2.3;
-2.21 and 2.25 are renames) → 1869, guards **+3** → 116. Lane 3: **+9** root
-tests (3.1–3.6, 3.8–3.10) → 1878; SDL **+1** (3.7). Expected close: **1878
-tests, 116 guards, SDL 22 + 32** — each lane re-takes the count and corrects
-this line in its landing ruling.
+Baseline **1837** tests / **113** guards / SDL **22 + 27**. After the
+critic round (`IX-AF` item 1): lane 1: **+8** root tests (1.1–1.4, 1.9, 1.10,
+1.13, 1.14; the role table is a T row, 1.11 and 1.12 are renames) → 1845; SDL
+**+4** (1.5–1.8). Lane 2: **+25** (2.1–2.12, 2.14–2.20, 2.22–2.24 = 22, and
+G2.1–G2.3) → 1870, guards **+3** → 116. Lane 3: **+10** root tests (3.1–3.6,
+3.8–3.11) → 1880; SDL **+1** (3.7). Expected close: **1880 tests, 116 guards,
+SDL 22 + 32** — each lane re-takes the count and corrects this line in its
+landing ruling.
