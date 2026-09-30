@@ -1011,6 +1011,15 @@ private func demoModal() -> some Element {
             // chaining, so the scrim never sees a
             // click that landed here.
             .onClick {}
+            // A click absorber, not a control: to an
+            // accessibility client the panel is a group
+            // holding the modal's text, its folded label
+            // and press kept (SwiftUI arm T3p; plan task
+            // 12 part 2, ruling `IX-X` item 4). It now
+            // declares an `AXNode`, so while the modal is
+            // up it writes one `$ax` slot (`AB-U`) — no id
+            // path moves and nothing is drawn.
+            .accessibilityRemoveTraits(.isButton)
         }
         .position(.absolute)
         .inset(Pixels(0))
@@ -1038,6 +1047,12 @@ private func demoModal() -> some Element {
         // the modal's text, which a label would hide
         // (AB-Y).
         .accessibilityLabel("Close modal")
+        // While the modal is up an accessibility
+        // client reads only the scrim's subtree —
+        // nothing behind it is published until it
+        // closes (SwiftUI arms M1–M3; ruling `IX-X`
+        // items 3–4). Draws nothing.
+        .accessibilityAddTraits(.isModal)
     }
 }
 
