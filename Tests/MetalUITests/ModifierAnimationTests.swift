@@ -664,3 +664,284 @@ struct RecordsProposedWidth: ProposalLayout {
     #expect(log.widths.contains(200) && !log.widths.contains(300),
             "WRONG ON PURPOSE (divergence 96): half-way the child is proposed 200, where SwiftUI's P1 proposes only 300; got \(log.widths)")
 }
+
+// MARK: - Fix round: the in-flight clamps under an overshooting spring (AN-AJ item 4)
+
+/// The bouncy spring the clamp pins run under: `bounce: 0.8` (ζ 0.2) overshoots
+/// by roughly half its travel, measured below before a pin relies on it.
+private let bouncy = Animation.spring(duration: 0.5, bounce: 0.8)
+
+/// The sample times (0.02 s apart over 2 s) at which `from → to` under
+/// `bouncy` has passed BELOW `floor` — the frames where only a clamp stands
+/// between the interpolated value and a precondition.
+private func overshootTimes(from: Double, to: Double, below floor: Double) -> [Double] {
+    (1...100).map { Double($0) * 0.02 }.filter {
+        bouncy.value(at: $0, from: from, to: to, initialVelocity: 0).value < floor
+    }
+}
+
+/// **Fix round (`AN-AJ` item 4) — the separating arm.** Each clamp pin below is
+/// only a pin if its spring really overshoots past the bound at a sampled
+/// frame; this measures it, so a gentler spring cannot leave the exit tests
+/// passing for free.
+@Test func theClampPinsSpringOvershootsPastEachBound() throws {
+    #expect(!overshootTimes(from: 1, to: 0, below: 0).isEmpty, "opacity 1 → 0 goes below 0")
+    #expect(!overshootTimes(from: 4, to: 0, below: 0).isEmpty, "a border width 4 → 0 goes below 0")
+    #expect(!overshootTimes(from: 100, to: 0, below: 0).isEmpty, "a frame width 100 → 0 goes below 0")
+    // A minWidth 10 → 100 under a fixed maxWidth 100 goes above the maximum.
+    #expect(!overshootTimes(from: -10, to: -100, below: -100).isEmpty, "a minWidth 10 → 100 passes 100")
+}
+
+/// **Fix round (`AN-AJ` item 4).** A proposal `.opacity(1 → 0)` under the bouncy
+/// spring, ticked every 0.02 s: no frame traps (`PaintPass.opacity`'s `0...1`
+/// precondition), and at every sampled frame where the spring is below 0 the
+/// fill is drawn at alpha 0 — the clamp's value, read mid-overshoot. An exit
+/// test, because without the clamp the process traps. Mutation C1 (drop
+/// `animatedNumbers`' in-flight clamp).
+@Test func aProposalOpacityClampsAnOvershootingSpringToZero() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let h = WrapperHarness()
+            @MainActor func tree(_ o: Float) -> some Element {
+                Rectangle(width: Pixels(10), height: Pixels(10)).frame(width: Pixels(50), height: Pixels(40))
+                    .background(.accent).opacity(o)
+            }
+            h.frame(0, nil, tree(1))
+            h.frame(0, bouncy, tree(0))
+            let under = Set(overshootTimes(from: 1, to: 0, below: 0))
+            precondition(!under.isEmpty, "the spring must overshoot")
+            for t in (1...100).map({ Double($0) * 0.02 }) {
+                let alpha = rect(h.frame(t, nil, tree(0)), height: 40)?.background.a ?? 0
+                if under.contains(t) { precondition(alpha == 0, "t \(t): clamped to 0, got \(alpha)") }
+            }
+        }
+    }
+}
+
+/// **Fix round (`AN-AJ` item 4).** A legacy `.opacity(1 → 0)` under the bouncy
+/// spring: no trap, and alpha 0 at every sampled overshoot. Mutation C2 (drop
+/// `Decoration.setInterpolatedOpacity`'s clamp).
+@Test func aLegacyOpacityClampsAnOvershootingSpringToZero() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let h = WrapperHarness()
+            @MainActor func tree(_ o: Float) -> some Element {
+                Box().cssWidth(Pixels(50)).cssHeight(Pixels(40)).background(.accent).opacity(o)
+            }
+            h.frame(0, nil, tree(1))
+            h.frame(0, bouncy, tree(0))
+            let under = Set(overshootTimes(from: 1, to: 0, below: 0))
+            precondition(!under.isEmpty, "the spring must overshoot")
+            for t in (1...100).map({ Double($0) * 0.02 }) {
+                let alpha = rect(h.frame(t, nil, tree(0)), height: 40)?.background.a ?? 0
+                if under.contains(t) { precondition(alpha == 0, "t \(t): clamped to 0, got \(alpha)") }
+            }
+        }
+    }
+}
+
+/// **Fix round (`AN-AJ` item 4).** A legacy border width 4 → 0 under the bouncy
+/// spring: no trap (`BorderStyle.validate`'s non-negative precondition), and
+/// every sampled overshoot draws width 0. Mutation G (drop `borderWidths`'
+/// `max(0, …)`).
+@Test func aLegacyBorderWidthClampsAnOvershootingSpringToZero() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let h = WrapperHarness()
+            @MainActor func tree(_ w: Float) -> some Element {
+                Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).border(.accent, width: Pixels(w))
+            }
+            h.frame(0, nil, tree(4))
+            h.frame(0, bouncy, tree(0))
+            let under = Set(overshootTimes(from: 4, to: 0, below: 0))
+            precondition(!under.isEmpty, "the spring must overshoot")
+            for t in (1...100).map({ Double($0) * 0.02 }) {
+                let f = h.frame(t, nil, tree(0))
+                let width = f.scene.rects.first { $0.bounds.size.width == 40 }?.borderWidths.top ?? 0
+                if under.contains(t) { precondition(width == 0, "t \(t): clamped to 0, got \(width)") }
+            }
+        }
+    }
+}
+
+/// **Fix round (`AN-AJ` item 4).** A proposal `.frame(width: 100 → 0)` under the
+/// bouncy spring: no trap (a negative frame size is a kernel precondition,
+/// `SA-J`), and every sampled overshoot lays the frame out 0 wide. Mutation C1.
+@Test func aProposalFrameClampsAnOvershootingSpringToZero() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let h = WrapperHarness()
+            @MainActor func tree(_ w: Float) -> some Element {
+                Rectangle(width: Pixels(10), height: Pixels(10)).frame(width: Pixels(w), height: Pixels(40))
+                    .background(.accent)
+            }
+            h.frame(0, nil, tree(100))
+            h.frame(0, bouncy, tree(0))
+            let under = Set(overshootTimes(from: 100, to: 0, below: 0))
+            precondition(!under.isEmpty, "the spring must overshoot")
+            for t in (1...100).map({ Double($0) * 0.02 }) {
+                let width = rect(h.frame(t, nil, tree(0)), height: 40)?.bounds.size.width ?? 0
+                if under.contains(t) { precondition(width == 0, "t \(t): clamped to 0, got \(width)") }
+            }
+        }
+    }
+}
+
+/// **Fix round (`AN-AJ` item 4).** A proposal `.frame(minWidth: 10 → 100,
+/// maxWidth: 100)` under the bouncy spring: the interpolated minimum overshoots
+/// past the fixed maximum, and the bounds are re-ordered rather than reaching
+/// the kernel's `min ≤ max` precondition — every sampled overshoot lays out at
+/// the maximum, 100. Mutation H (drop `ordered`'s re-ordering).
+@Test func aProposalFlexibleFrameKeepsItsBoundsInOrderUnderAnOvershootingSpring() async {
+    await #expect(processExitsWith: .success) {
+        await MainActor.run {
+            let h = WrapperHarness()
+            @MainActor func tree(_ m: Float) -> some Element {
+                Rectangle(width: Pixels(10), height: Pixels(10))
+                    .frame(minWidth: Pixels(m), maxWidth: Pixels(100), minHeight: Pixels(40), maxHeight: Pixels(40))
+                    .background(.accent)
+            }
+            h.frame(0, nil, tree(10))
+            h.frame(0, bouncy, tree(100))
+            let over = Set(overshootTimes(from: -10, to: -100, below: -100))
+            precondition(!over.isEmpty, "the spring must overshoot")
+            for t in (1...100).map({ Double($0) * 0.02 }) {
+                let width = rect(h.frame(t, nil, tree(100)), height: 40)?.bounds.size.width ?? 0
+                if over.contains(t) { precondition(width == 100, "t \(t): held at the maximum 100, got \(width)") }
+            }
+        }
+    }
+}
+
+// MARK: - Fix round: escapesOpacity mid-flight (AN-AJ item 3)
+
+/// **Fix round (`AN-AJ` item 3; `LR-FW`, divergence 45 retired).** A legacy
+/// background written AFTER `.opacity` stays outside the fade while the opacity
+/// animates: `Box().opacity(1 → 0.2).background(.accent)` half-way under
+/// `linear(1)` draws its fill at alpha 1. The control writes the fill BEFORE
+/// `.opacity` and reads 0.6 half-way, so the two arms disagree. Mutation D
+/// (`setInterpolatedOpacity` also empties `escapesOpacity`).
+@Test @MainActor func aFillWrittenAfterAnAnimatingOpacityStaysOutsideItMidFlight() throws {
+    func midAlpha(after: Bool) -> Float? {
+        let h = WrapperHarness()
+        func tree(_ o: Float) -> Box<EmptyGroup> {
+            let box = Box().cssWidth(Pixels(50)).cssHeight(Pixels(40))
+            return after ? box.opacity(o).background(.accent) : box.background(.accent).opacity(o)
+        }
+        h.frame(0, nil, tree(1))
+        h.frame(0, linear1, tree(0.2))
+        return rect(h.frame(0.5, nil, tree(0.2)), height: 40)?.background.a
+    }
+    let before = try #require(midAlpha(after: false), "control: a fill")
+    #expect(abs(before - 0.6) < 0.001, "THE CONTROL: a fill written before .opacity fades, 0.6 half-way; got \(before)")
+    let after = try #require(midAlpha(after: true), "a fill")
+    #expect(after == 1, "a fill written after .opacity escapes it mid-flight, alpha 1; got \(after)")
+}
+
+// MARK: - Fix round: the lexical fallback (AN-AI item 4), one arm per copy
+
+/// **Fix round (`AN-AI` item 4).** A headless `Frame` with no transaction of its
+/// own, rendered INSIDE a `withAnimation` body, animates through the lexical
+/// fallback (`pass.transaction ?? Animation.pendingTransaction`) — one arm per
+/// copy: the proposal layer's `animate(for:pass:)` (a frame's width), the
+/// component op's `animated(for:member:op:pass:)` (a caller's `.width`) and
+/// `storedAnimatedColor` (a proposal background token). The control renders
+/// the same change OUTSIDE `withAnimation` and snaps. Mutations E1/E2/E3 (drop
+/// the fallback in each copy).
+@Test @MainActor func aFrameRenderedInsideWithAnimationAnimatesThroughTheLexicalFallback() throws {
+    // Each arm: rest, the change rendered with no frame transaction (inside or
+    // outside `withAnimation`), then the half-way frame.
+    func run<E: Element>(lexical: Bool, _ rest: E, _ changed: E, read: (Frame) -> Float?) -> Float? {
+        let h = WrapperHarness()
+        h.frame(0, nil, rest)
+        if lexical {
+            _ = withAnimation(.linear(duration: 1)) { h.frame(0, nil, changed) }
+        } else {
+            h.frame(0, nil, changed)
+        }
+        return read(h.frame(0.5, nil, changed))
+    }
+    // Copy 1: the proposal layer.
+    func frameTree(_ w: Float) -> some Element {
+        Rectangle(width: Pixels(10), height: Pixels(10)).frame(width: Pixels(w), height: Pixels(40)).background(.accent)
+    }
+    let frameRead: (Frame) -> Float? = { rect($0, height: 40)?.bounds.size.width }
+    #expect(run(lexical: false, frameTree(100), frameTree(300), read: frameRead) == 300, "THE CONTROL: snaps")
+    #expect(run(lexical: true, frameTree(100), frameTree(300), read: frameRead) == 200,
+            "copy 1, the proposal layer: 200 half-way through the lexical fallback")
+    // Copy 2: a component op.
+    let member = GlobalElementID.child(of: GlobalElementID.child(of: GlobalElementID.child(of: nil, at: 0, name: nil),
+                                                                 at: 0, name: nil), at: 0, name: nil)
+    func componentTree(_ w: Float) -> some Element {
+        DifferentialRoot(width: 300, height: 100) { OneMember().width(Pixels(w)) }
+    }
+    let memberX: (Frame) -> Float? = { $0.elementBounds[member]?.origin.x.value }
+    #expect(run(lexical: false, componentTree(100), componentTree(300), read: memberX) == 140,
+            "THE CONTROL: (300 − 20) / 2 = 140 at once")
+    #expect(run(lexical: true, componentTree(100), componentTree(300), read: memberX) == 90,
+            "copy 2, the component op: (200 − 20) / 2 = 90 half-way")
+    // Copy 3: a store colour track.
+    let theme = Theme.light
+    func colourTree(_ token: ColorToken) -> some Element {
+        Rectangle(width: Pixels(10), height: Pixels(10)).frame(width: Pixels(50), height: Pixels(40)).background(token)
+    }
+    let hue: (Frame) -> Float? = { rect($0, height: 40).map { hsla($0.background).l } }
+    let want = lerpColour(.background, .accent, 0.5, in: theme).l
+    let snapped = try #require(run(lexical: false, colourTree(.background), colourTree(.accent), read: hue))
+    #expect(abs(snapped - theme[.accent].l) < 0.001, "THE CONTROL: the accent at once, got \(snapped)")
+    let faded = try #require(run(lexical: true, colourTree(.background), colourTree(.accent), read: hue))
+    #expect(abs(faded - want) < 0.002, "copy 3, the colour track: the half-way lightness \(want), got \(faded)")
+}
+
+// MARK: - Fix round: hover and focus border widths (AN-AJ item 1)
+
+@Observable final class BorderWidthModel { var width: Float = 2 }
+
+/// **Fix round (`AN-AJ` item 1).** Through a real `Window`, genuinely hovered:
+/// the hover border's WIDTH 2 → 10 under a transaction reads 6 half-way.
+/// Mutation F (drop the hover and focus widths from `animated()`).
+@Test @MainActor func aHoverBorderAnimatesItsWidth() throws {
+    let model = BorderWidthModel()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 100, startsDisplayLink: true) {
+        Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
+            .border(.background, width: Pixels(1))
+            .hoverBorder(.accent, width: Pixels(model.width))
+            .onClick {}
+    }
+    platform.simulateTick(timestamp: 100)
+    _ = platform.simulateInput(.mouseMoved(MouseEvent(position: Point(x: Pixels(50), y: Pixels(50)))))
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 100.05)
+    func width() -> Float? { window.lastScene.rects.first { $0.borderColor.a > 0 }?.borderWidths.top }
+    try #require(width() == 2, "set up: hovered, the hover border's width 2 is drawn, got \(String(describing: width()))")
+    withAnimation(.linear(duration: 1)) { model.width = 10 }
+    platform.simulateTick(timestamp: 100.2)
+    platform.simulateTick(timestamp: 100.7)
+    #expect(width() == 6, "half-way the hover border is 6 wide, got \(String(describing: width()))")
+    platform.simulateTick(timestamp: 101.3)
+    #expect(width() == 10, "lands at 10")
+}
+
+/// **Fix round (`AN-AJ` item 1).** The focus ring's WIDTH 2 → 10 under a
+/// transaction reads 6 half-way while the box is focused. Mutation F.
+@Test @MainActor func aFocusRingAnimatesItsWidth() throws {
+    let model = BorderWidthModel()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 100, startsDisplayLink: true) {
+        Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).focusable()
+            .focusBorder(.accent, width: Pixels(model.width))
+    }
+    platform.simulateTick(timestamp: 100)
+    let id = GlobalElementID.child(of: nil, at: 0, name: nil)
+    window.focus(id)
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 100.05)
+    try #require(window.focusedElement == id, "set up: the box takes focus")
+    func width() -> Float? { window.lastScene.rects.first { $0.borderColor.a > 0 }?.borderWidths.top }
+    try #require(width() == 2, "set up: the ring is 2 wide, got \(String(describing: width()))")
+    withAnimation(.linear(duration: 1)) { model.width = 10 }
+    platform.simulateTick(timestamp: 100.2)
+    platform.simulateTick(timestamp: 100.7)
+    #expect(width() == 6, "half-way the focus ring is 6 wide, got \(String(describing: width()))")
+    platform.simulateTick(timestamp: 101.3)
+    #expect(width() == 10, "lands at 10")
+}
