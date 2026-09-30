@@ -368,8 +368,14 @@ succeeded=true` present (guards ran). **1959 = 1880 + 21 + 18 + 10 + 24 +
 own close, re-verified rather than re-derived.
 `goldensUnchanged` for the whole task: 0 goldens throughout (`find
 Tests/MetalUILayoutTests -name "*.json" | wc -l` reads 0); **no test
-retired**; one rename with a mutation renamed alongside it (mutation 16's
-table row, corrected with the measured 21-of-24/52-issues/15-tests figure,
+retired**; one `@Test` renamed with its answer flipped by ruling
+(`theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` →
+`thePaintOnlyDecorationFieldsAnimateAndClipSnaps`, `AN-AA`, `DecorationPaintTests`)
+and one retained arm's answer flipped by ruling (arm (c) of
+`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, 320/320
+→ 196/258, B-7 fixed, `AN-AC`) — both named here by the branch check,
+2026-09-30, which found this paragraph omitting them; one mutation-table row
+corrected (mutation 16's table row, corrected with the measured 21-of-24/52-issues/15-tests figure,
 `AN-AF` item 11), two literal corrections (`Animation.swift`'s `112.5` →
 `112.0` comment and its two `AnimationTests.swift` copies, `AN-AF` item 9).
 No other `@Test` was added, removed, renamed or changed its answer beyond
@@ -406,16 +412,22 @@ identical, in all fourteen images**. `DemoFrameDeterminismTests`'
 SDL3-dylib version notice are this machine's own, present on an unmodified
 checkout too); `swift test --skip-build` → **`Test run with 22 tests in 0
 suites passed`** then **`Test run with 33 tests in 0 suites passed`** —
-**22 + 33**, unmoved since `2de0973`.
+**22 + 33** — one more than `2de0973`'s 22 + 32: lane 1's
+`anSDLWindowReportsNoReduceMotion` (`SDLReduceMotionTests.swift`, the only
+`Backends/SDL` test this task adds; branch check, 2026-09-30).
 
 **A `swift:6.4-noble` (aarch64) container** (`docker run --rm -v "$PWD":/work
 -w /work swift:6.4-noble …`): the root package builds with 0
 `error:`/`warning:` and runs `MetalUILayoutTests` **199**,
 `MetalUICrossPlatformTests` **10**, `MetalUICoreTests` **22** — **199 + 10 +
-22**, unmoved since record §63 (no lane of this task touches a portable
-target — every file this task edits is under `Sources/MetalUI`,
-`Sources/MetalUIAppKit`, `Sources/MetalUIPlatform`'s Reduce Motion pair, and
-their tests).
+22**, unmoved since record §63 (no lane of this task adds a test to those three
+suites; every source file it edits is under `Sources/MetalUI`,
+`Sources/MetalUIAppKit` and `Sources/MetalUIPlatform`'s Reduce Motion pair —
+`MetalUI` and `MetalUIPlatform` **are** portable targets, built on Linux and
+Windows since `XP-A`, so the container's 0 `error:`/`warning:` build is what
+shows the new transaction, store and transition code compiles off Apple;
+corrected by the branch check, 2026-09-30, which re-took the container:
+0 `error:`/`warning:`, 199 + 10 + 22).
 
 **Lock probe**: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at
 this close, as at every check across design, the critic round and all three

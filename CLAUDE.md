@@ -469,7 +469,12 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   round (clamps, `escapesOpacity`, the lexical fallback, hover/focus widths)
   +10, lane 3 (transitions and the surface) +24 then its fix round (the
   per-primitive rules, a point-to-pixel conversion, two stacked/insertion
-  rules) +6; no test retired, one mutation-table row corrected with a
+  rules) +6; no test retired, one renamed with its answer flipped by ruling
+  (`theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` →
+  `thePaintOnlyDecorationFieldsAnimateAndClipSnaps`, `AN-AA`) and one arm's
+  answer flipped by ruling (arm (c) of
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  snap → animates, B-7 fixed, `AN-AC`), one mutation-table row corrected with a
   measured figure (row 16: 21 of 24 fields, 52 issues, 15 tests) and two
   literal corrections (`112.5` → `112.0`, `Animation.swift` and two
   `AnimationTests.swift` copies). Guards **119 = 116 + 2 + 1**
@@ -492,8 +497,8 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   on the proposal path; no default transition; one transaction per build) —
   live count 68 → 72, next label 100. **0 px against `2de0973` in all
   fourteen offscreen images**, scene identical, controls non-zero,
-  independently re-taken by this Record phase; `Backends/SDL` 22 + 33
-  unmoved; a `swift:6.4-noble` aarch64 container builds with 0
+  independently re-taken by this Record phase; `Backends/SDL` 22 + 32 →
+  22 + 33 (lane 1's `anSDLWindowReportsNoReduceMotion`); a `swift:6.4-noble` aarch64 container builds with 0
   `error:`/`warning:` and runs **199 + 10 + 22**, unmoved.
   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
   `everyProductionTreeBuildsOnAOneMegabyteThread`,
@@ -2811,8 +2816,8 @@ run where the texture changes, so the run count stays the draw-call count.
 **Animation (`AN-`; plan task 13, `AN-X`…`AN-AK`).** `withAnimation` writes
 `pendingTransaction` (lexical) and `parkedTransaction` (handed to exactly one
 frame build). The park rolls back unless a frame build is coming; both
-clauses are measured fixes. **`Transaction` (`Sendable`, not `Equatable` —
-matching SwiftUI's own conformances) and `withTransaction`** are the general
+clauses are measured fixes. **`Transaction` (not `Equatable`, as SwiftUI's is
+not; `Sendable`, additive beyond SwiftUI's, `AN-AH` item 5) and `withTransaction`** are the general
 form (`AN-Y`): `withAnimation(_:_:)` is `withTransaction(Transaction(animation:))`.
 The frame's transaction is now a **stack** (`Frame.transactionTop`), read by
 both passes as `pass.transaction`; `.transaction(transform)` and
