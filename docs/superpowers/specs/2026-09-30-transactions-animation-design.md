@@ -4,9 +4,10 @@ Branch `feat/transactions-animation` from `2de0973` (master, plan task 12
 part 2 landed, record §63). Rulings **`AN-X`…`AN-AH`** appended to the
 existing animation decisions doc,
 [`../2026-09-03-animation-decisions.md`](../2026-09-03-animation-decisions.md)
-(next unused **`AN-AJ`**; `AN-AH` is the critic round's, which amended this
+(next unused **`AN-AK`**; `AN-AH` is the critic round's, which amended this
 spec in place — §4, §5, §6.3, §6.5, §7, §10, §11; `AN-AI` is lane 1's landing,
-which amended rows 1.16 and 1.19). Evidence: `docs/probes/swiftui-transactions-animation.swift`
+which amended rows 1.16 and 1.19; `AN-AJ` is lane 2's, which amended rows 2.11,
+2.17 and 2.19). Evidence: `docs/probes/swiftui-transactions-animation.swift`
 (**new**; arm ids `C…` controls, `W…` which wrapper animates and as what,
 `P…` whether layout re-runs mid-flight, `T…` transactions, `X…` transitions,
 `R…` Reduce Motion; its header carries the recorded output and how to read
@@ -535,7 +536,7 @@ corrected; the two `AnimationTests.swift` lines stay lane 2's).
 | 2.8 | `everyAnimatableProposalModifierAnimates` (one arm per animatable case) | reds | remove any one case's helper call — exactly its arm (take `.padding`) |
 | 2.9 | `aProposalModifierReturningInsideAnIfSnaps` | — (green-first; pin) | keep untouched entries across a frame |
 | 2.10 | `aProposalAnimationKeepsTheDisplayLinkAwakeUntilItSettles` | — | omit `noteActiveAnimation()` |
-| 2.11 | `aProposalTreeMintsNoStateTableEntryForItsModifiers` | — | store proposal baselines in `StateTable` |
+| 2.11 | `aProposalTreeMintsNoStateTableEntryForItsModifiers` | — (its store-count set-up only; the table arms are the pin, `AN-AJ` item 5) | store proposal baselines in `StateTable` |
 | 2.12 | `aSettledProposalTreeInterpolatesNothing` (`AnimationStore.lastFrameInterpolations == 0` on steady frames; `n` while `n` layers move) | — | interpolate every frame |
 | 2.13 | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` — **renamed from** `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` (answer flipped by `AN-AA`; the background control kept) | the old test | drop opacity from `animated()`; drop a border width; route the border colour around its `AnimationStore` track — three mutations, each its arm |
 | 2.14 | `aBorderFadeDoesNotRetargetTheBackgroundFade` | — | key the border track on the `$anim-color` entry |
@@ -543,7 +544,7 @@ corrected; the two `AnimationTests.swift` lines stay lane 2's).
 | 2.16 | `aHoverBorderFadesItsResolvedColour` (through a real `Window`, genuinely hovered) | snaps | resolve the border track from the plain field only |
 | 2.17 | `aComponentsCallerModifierAnimates` + arm (c) of `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` re-derived (B-7) | snaps | drop the op interpolation — both |
 | 2.18 | `aComponentsOpsAnimateEachMemberSeparately` | — | key without the member index |
-| 2.19 | `aProposalFrameReLaysItsChildAtEachIntermediateWidth` — pins divergence **96** wrong on purpose (a child `ProposalLayout` is proposed intermediate widths; SwiftUI's P1 sees only 300) | — | interpolate the placed rect after layout instead (the red shows the pin sees the difference) |
+| 2.19 | `aProposalFrameReLaysItsChildAtEachIntermediateWidth` — pins divergence **96** wrong on purpose (a child `ProposalLayout` is proposed intermediate widths; SwiftUI's P1 sees only 300) | — | lay out at the final value (M2.1; `AN-AJ` item 5 — "interpolate the placed rect" has no mechanism to substitute) |
 
 Also in `AnimationTests.swift`: the `try #require` that no live window is
 dirty at the top of `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`;
@@ -553,6 +554,11 @@ Record phase; every retention payload's `MemoryLayout` stride recorded at its
 line. **No `StateTable` count moves in this lane** (`AN-AH` item 3): a test
 pinning a table count that moves is a defect to stop on, not a literal to
 re-derive.
+
+**Landed** (`AN-AJ`): 1919 tests (+18), guards unmoved; every mutation above
+reddens its test (the table is `AN-AJ` item 9); no `StateTable` count moved;
+0 px against `2de0973`; `Box.swift` gained `Decoration.setInterpolatedOpacity`
+(item 3); mutation 16 re-taken as 21 of 24, 52 issues in 15 tests (item 6).
 
 ### Lane 3 — transitions and the surface
 

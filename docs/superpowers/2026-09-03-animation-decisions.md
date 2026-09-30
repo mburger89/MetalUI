@@ -6,9 +6,9 @@ helpers in two phases, `hasActiveAnimations` and the widened idle guard.
 
 Prefixed **`AN-`** and **lettered** (`AN-A`, `AN-B`, …) per this repo's
 convention — **a bare `AN-3` is a typo, not a citation**, the same note every
-other milestone's decisions doc carries. Next unused letter is `AN-AJ`
+other milestone's decisions doc carries. Next unused letter is `AN-AK`
 (`AN-X`…`AN-AH`: plan task 13, 2026-09-30, at the end of this document;
-`AN-AH` is its critic round, `AN-AI` its lane 1).
+`AN-AH` is its critic round, `AN-AI` its lane 1, `AN-AJ` its lane 2).
 
 Read alongside `docs/superpowers/specs/2026-09-03-animation-design.md` (its §3,
 §5 and §6 are corrected in place by rulings recorded here), the binding design
@@ -1900,3 +1900,141 @@ these amendments and measurements; nothing in `AN-Y`, `AN-Z`, `AN-AB`'s store or
 future production path that builds a frame inside a `withAnimation` body would
 let the lexical slot override a scope's `nil`.
 
+## AN-AJ — lane 2 landed: modifier wrappers at their phase; proposal layers, the legacy paint-only fields and a `Component`'s ops animate through the `AnimationStore`
+
+**Taken** by plan task 13's lane 2, 2026-09-30, on `feat/transactions-animation`
+(tests `220a88c`, implementation `924fca8`). Spec §6.3 and §7 lane 2 as written,
+with these amendments and measurements; nothing in `AN-AA` (as amended by
+`AN-AH` item 3), `AN-AB` or `AN-AC` changed.
+
+1. **Built as designed.** `LayoutModifier._requestLayout` first rewrites its
+   numeric case (`animate(for:pass:)`, `ProposalAnimation.swift`): `.frame`'s
+   width and height, `.flexibleFrame`'s six bounds when finite, `.padding`'s
+   four insets, `.opacity`, `.clip`'s radius and `.border`'s width — one store
+   entry per layer, `$anim-layer.<case>` under the layer's id, so a case change
+   at one id is a first sighting. `_paint` fades `.background` and the border's
+   colour on store token tracks (`storedAnimatedColor`, keys
+   `$anim-layer.background`/`$anim-layer.border.colour`). The legacy
+   `animated(_:_:for:pass:)` interpolates `Decoration.opacity` and the four
+   widths of each of `border`/`hoverBorder`/`focusBorder` from the `$anim`
+   baseline (a border appearing or vanishing snaps and drops its keys); the
+   resolved legacy border colour runs on a store track keyed
+   `borderColourStoreKey(for:)` (`$anim-border` under the element's id — a store
+   key, **not** a `StateTable` slot: the reserved names stay seven).
+   `StyledComponent.requestGroupLayout` computes the component's id (the one
+   `Component.requestGroupLayout` mints, from the same parent, cursor and
+   name — computed, not minted, so no `noteNamed` twice) and interpolates each
+   op per member under `componentOpAnimationKey` (`$anim-op<k>` below
+   `.child(of: component, at: member)`); the member's own `$anim` baseline is
+   never read or written. Every track notes `noteActiveAnimation()` while in
+   flight and counts `AnimationStore.noteInterpolation()` once per number (or
+   colour) in flight.
+2. **Two shared helpers rather than copies.** `animatedColor`'s decision is
+   moved, unchanged, into `advanceColor(_:from:theme:now:transaction:)`, which
+   the `$anim-color` slot and every store colour track call — so the store's
+   tracks cannot drift from the recipe `AN-F`/`AN-H` pinned (every existing
+   colour test is green over the extraction). `animateField` loses `private`
+   for the store's numeric tracks (`animatedNumbers`).
+3. **One file outside the lane's list: `Box.swift`** gains
+   `Decoration.setInterpolatedOpacity(_:)`. `opacity` is `private(set)`, and the
+   public `setOpacity(_:)` empties `escapesOpacity` (a second `.opacity` write's
+   rule, `LR-GA`) — the helper's per-frame value must keep the caller's
+   declared write order, so it gets its own internal setter.
+4. **Clamps, where a precondition waits** (an overshooting spring): an
+   in-flight opacity to `0...1` (`PaintPass.opacity`), border widths and frame
+   sizes to `≥ 0` (`BorderStyle.validate`, `SA-J`), a flexible frame's
+   interpolated bounds re-ordered to `min ≤ ideal ≤ max` with max and ideal
+   non-negative. A declared value is never clamped.
+5. **Rows amended at landing.** 2.11's red-before is only its store-count
+   set-up (`h.store.count > 0`): proposal layers never minted a `StateTable`
+   entry, so its table-count arms were green before and are the pin. 2.19's
+   mutation is M2.1 (lay out at the final value: the layer not rewritten before
+   its native wrapper registers) — "interpolate the placed rect after layout"
+   has no mechanism in this tree to substitute, and M2.1 is the same
+   observation (the child proposed 300, never 200). Two fixture corrections
+   before green, each an instrument defect, not a behaviour: 2.17's member is
+   centred in its width frame (`LR-BG`), so its x is `p + (w − 20) / 2` (44 →
+   102 → 160), not `p` alone; 2.10 needs the tick after landing before the
+   display link pauses (the existing fade test's shape). 2.13's clip-snap arm
+   has no mutation: a `Bool` has no interpolation to substitute.
+6. **`AnimationTests` follow-ups** (`AN-AF` items 7, 9, 11, 3). The `try
+   #require(!Window.aFrameBuildIsPending)` in
+   `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`
+   sits immediately before the empty `withAnimation` — the moment the premise
+   holds or fails — rather than at the test's top, where no window of its own
+   yet exists. The two `112.5` lines read 112 with lane 1's mechanism. **Mutation
+   16 re-taken**: stage 10 deleted `aspectRatio` and `Style.border`'s four, so
+   "25 of the 28" is now **21 of the 24** — every `Style` assignment in
+   `animated()` except `size.width`/`size.height`, `cornerRadius` kept (the
+   three the milestone's first fixture pinned): **52 issues in 15 tests** —
+   `allTwentyFourAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` (22),
+   `aFrameLayerLowersItsMinimaAndFiniteMaximaFromItsAnimatedStyle` (4),
+   `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (3),
+   `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` (3),
+   `theSevenRetentionSlotsAreMutuallyDistinct` (3),
+   `aFieldThatDiffersUnderATransactionBeginsAnimatingAndReadsAnIntermediateValueNextFrame`,
+   `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap`,
+   `aLoweredMarginRegistersItsAnimatedValue`,
+   `aLoweredStackLaysOutItsAnimatedWidthAndPadding`,
+   `anAnimatedInsetInterpolatesItsValue`,
+   `aSettledAnimationSurvivesRepeatedSweepsAboveTheThresholdAndStillAnimatesWhenLaterChanged`,
+   `twoElementsAnimateIndependently` (2 each),
+   `aFrameWithNoAnimationsReportsNoActiveAnimationsAndOneMidFlightReportsSome`,
+   `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`,
+   `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues` (1 each). The
+   Record phase corrects row 16 with this figure. **Strides** (debug arm64, at
+   their lines): `Decoration` 128 (the 80 on record predates stage 11),
+   `Style` 180, `AnimatedElementState` 320, `AnimatedFieldState` 88,
+   `AnimatedColorState` 120 (`ColorAnimation` 112), `StoredNumberTracks` 16, a
+   store entry a 32-byte `Any` — inline for a number track, boxed for a colour
+   track. The end-to-end per-entry harness stays re-owned to plan task 15.
+7. **No `StateTable` count moved** (`AN-AH` item 3): the whole suite is green
+   with no table literal re-derived, and 2.11 and 2.15 pin that the proposal
+   layers and the border track mint no entry.
+8. **Still snapping, stated, unchanged by this lane**: `ScrollView`'s own
+   `cornerRadius` (a stored `Pixels`, never through the helper — MetalUI-only,
+   no SwiftUI counterpart to diverge from), and divergence 97's list (spec
+   §6.3).
+9. **Lane 2's mutation table** (each on the committed tree `924fca8`, restored
+   from a copy, full unfiltered suite of 1919, `git status --short` clean after
+   every one):
+
+| # | mutation | reddens |
+|---|---|---|
+| M2.1 | skip the helper for `.frame` | `aProposalFrameAnimatesItsWidthUnderATransaction` (1), `aProposalAnimationKeepsTheDisplayLinkAwakeUntilItSettles` (3), `aSettledProposalTreeInterpolatesNothing` (2), `aProposalFrameReLaysItsChildAtEachIntermediateWidth` (1, 2.19), `aProposalModifierReturningInsideAnIfSnaps` (1, its control), `everyAnimatableProposalModifierAnimates` (1: the frame arm) — 9 issues |
+| M2.2 | skip it for `.padding` | `aProposalPaddingAnimatesItsInsets` (2), `everyAnimatableProposalModifierAnimates` (1: **exactly the padding arm**, 2.8's named mutation) |
+| M2.3 | hold the previous finite bound toward an infinite one (the sound form of "interpolate across finite ↔ infinite", whose literal form is a non-finite rect and a trap) | `aProposalFlexibleFrameAnimatesAFiniteBoundAndSnapsAnInfiniteOne` alone (1) |
+| M2.4 | skip it for `.opacity` | `aProposalOpacityAnimates` (2), `everyAnimatableProposalModifierAnimates` (1: the opacity arm) |
+| M2.5 | the store track's `from` stored as a resolved colour | `aProposalBackgroundFadesItsTokenAndReResolvesOnAThemeSwap` alone (1: the theme-swap arm) |
+| M2.6a | skip the border width | `aProposalBorderAnimatesItsColourAndWidth` (2), `everyAnimatableProposalModifierAnimates` (1: border width) |
+| M2.6b | skip the border colour (`pass.theme[token]`) | `aProposalBorderAnimatesItsColourAndWidth` (2), `everyAnimatableProposalModifierAnimates` (1: border colour) |
+| M2.7 | the clip radius interpolated in paint only (prepaint reads the declared radius) | `aProposalClipAnimatesItsCornerRadiusInPaintAndHitTesting` alone (1: the prepaint arm) |
+| M2.9 | `AnimationStore.endFrame` keeps untouched entries | `aProposalModifierReturningInsideAnIfSnaps` (1), and lane 1's `anAnimationScopesFirstSightingSnapsOverASurvivingBaseline` (1), `anAnimationScopeThatLeavesForAFrameLeavesTheStore` (1) |
+| M2.10 | omit `noteActiveAnimation()` in `animatedNumbers` | `aProposalAnimationKeepsTheDisplayLinkAwakeUntilItSettles` alone (3) |
+| M2.11 | also store each number track in `StateTable` | `aProposalTreeMintsNoStateTableEntryForItsModifiers` alone (1) |
+| M2.12 | count every position every frame | `aSettledProposalTreeInterpolatesNothing` alone (4) |
+| M2.13a | drop opacity from `animated()` | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` alone (1: the opacity arm) |
+| M2.13b | drop `border`'s widths | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` alone (2: the width at start and mid) |
+| M2.13c | route the border colour around its track | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` (2), `theBorderColourTrackMintsNoStateTableEntry` (1), `aHoverBorderFadesItsResolvedColour` (1) |
+| M2.14 | the border track on the `$anim-color` entry | `aBorderFadeDoesNotRetargetTheBackgroundFade` alone (1) |
+| M2.15 | the border track in `StateTable` under a named child | `theBorderColourTrackMintsNoStateTableEntry` alone (1) |
+| M2.16 | resolve the border track from the plain field | `aHoverBorderFadesItsResolvedColour` (1), and — the colour of every hover/focus border now the plain one — `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain` (10), `aFocusRingOutranksAHoverBorderAndABorder` (3), `aFocusRingAndHoverBorderDrawOnTheLayerTheyAreWrittenOnAroundAFrame` (3), `aDisabledScopeAroundAFramedFocusRingSuppressesRingHoverAndClick`, `aFocusedControlDrawsItsRingAndAnUnfocusedOneDoesNot`, `aHoverOrFocusFillWrittenAfterOpacityEscapesOnlyWhileItIsTheResolvedOne` (1 each) — 20 issues |
+| M2.17 | drop the op interpolation | `aComponentsCallerModifierAnimates` (2), `aComponentsOpsAnimateEachMemberSeparately` (1), `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` (1: arm (c)) |
+| M2.18 | key every member as member 0 | `aComponentsOpsAnimateEachMemberSeparately` alone (1) |
+| M16 | item 6 | 52 issues in 15 tests (item 6) |
+
+**Counts.** **1919 tests** (1901 + 18: 2.1–2.12, 2.14–2.16, 2.18, 2.19 and
+2.17's `aComponentsCallerModifierAnimates`; 2.13 a rename, arm (c) a
+re-derivation), `Test run with 1919 tests in 3 suites passed`, the guards ran
+(`FR-J no-argument frame: succeeded=true`); guards 118 (no guard this lane); 0
+`error:`, 0 `warning:` beyond SwiftPM's deprecation notice on both build
+systems. **0 px against `2de0973` in all fourteen offscreen images**, scenes
+identical, controls non-zero (`docs/probes/demo-pixels/compare.sh 2de0973
+924fca8`); `Expected.swift` unedited. `Backends/SDL` 22 + 33 (no source
+there touched); a `swift:6.4-noble` container over `924fca8` builds with 0
+`error:`/`warning:` and runs 199 + 10 + 22 (+ 6), unmoved. The lock probe read locked (`CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`), so no real-window capture.
+
+**Cost if wrong.** Item 3's setter is the one hole: a caller inside the
+package could write an out-of-order opacity through it without the public
+setter's trap — it clamps rather than traps, and only the helper calls it.
