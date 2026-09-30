@@ -4,8 +4,9 @@ Branch `feat/transactions-animation` from `2de0973` (master, plan task 12
 part 2 landed, record §63). Rulings **`AN-X`…`AN-AH`** appended to the
 existing animation decisions doc,
 [`../2026-09-03-animation-decisions.md`](../2026-09-03-animation-decisions.md)
-(next unused **`AN-AI`**; `AN-AH` is the critic round's, which amended this
-spec in place — §4, §5, §6.3, §6.5, §7, §10, §11). Evidence: `docs/probes/swiftui-transactions-animation.swift`
+(next unused **`AN-AJ`**; `AN-AH` is the critic round's, which amended this
+spec in place — §4, §5, §6.3, §6.5, §7, §10, §11; `AN-AI` is lane 1's landing,
+which amended rows 1.16 and 1.19). Evidence: `docs/probes/swiftui-transactions-animation.swift`
 (**new**; arm ids `C…` controls, `W…` which wrapper animates and as what,
 `P…` whether layout re-runs mid-flight, `T…` transactions, `X…` transitions,
 `R…` Reduce Motion; its header carries the recorded output and how to read
@@ -496,10 +497,10 @@ target.
 | 1.13 | `theWindowStampsReduceMotionFromItsPlatformWindow` (construction value; a change redraws and restamps; `Window.environment` cannot override it) | does not compile | omit the stamp; do not wire the callback (second arm) |
 | 1.14 | guard `aScopeCannotWriteReduceMotion` (plain import: `.environment(\.accessibilityReduceMotion, true)` fails, a read compiles) | — | make the setter `public` — mutate once red |
 | 1.15 | guard `aPlatformWindowWithoutTheReduceMotionPairDoesNotCompile` | — | give the pair a default in an extension — mutate once red |
-| 1.16 | `propertyAnimationsRunUnchangedUnderReduceMotion` (R3, R4, R6) | does not compile | snap every helper when the root reads Reduce Motion |
+| 1.16 | `propertyAnimationsRunUnchangedUnderReduceMotion` (R3, R4, R6 — R4 read as a background fade until lane 2 animates opacity, `AN-AI` item 2) | does not compile | snap every helper when the root reads Reduce Motion |
 | 1.17 | `theAppKitWindowReadsReduceMotionFromNSWorkspace` (in-process swizzle of the getter, restored in a `defer`; the notification fires the callback) | does not compile | observe a different notification |
 | 1.18 | SDL: `anSDLWindowReportsNoReduceMotion` | does not compile | answer `true` |
-| 1.19 | `aFrameBuildIsPendingDoesNotPruneTheRegistry` | reads the pruned count | put the prune back into the getter |
+| 1.19 | `aFrameBuildIsPendingDoesNotPruneTheRegistry` | does not compile (new hook); "reads the pruned count" is M1.19, `AN-AI` item 3 | put the prune back into the getter |
 
 Also: correct `Animation.swift`'s `112.5` after re-running mutation 33 (drop
 `|| previouslyParked != nil`) on this tree, and measure the mechanism (read the
@@ -507,6 +508,11 @@ unrounded interpolated value; the hypothesis is divergence 77's whole-point
 rounding). **Must not move**: `AN-C`'s three clauses (mutations 28–34
 re-run, each reddening what the animation decisions doc's table says),
 `theSevenRetentionSlotsAreMutuallyDistinct`, every `$anim`/`$anim-color` test.
+
+**Landed** (`AN-AI`): 1898 tests (+16 tests, +2 guards), `Backends/SDL` 22 +
+33 (+1); every mutation above reddens its test, `AN-C`'s 28–34 re-taken;
+`112.5` measured as 112 by whole-point edge rounding (`Animation.swift`
+corrected; the two `AnimationTests.swift` lines stay lane 2's).
 
 ### Lane 2 — modifier wrappers at their phase
 

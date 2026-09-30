@@ -576,8 +576,14 @@ extension Animation {
     /// `withAnimation(.linear(duration: 1)) { model.width = 200 }` followed by
     /// an empty `withAnimation(.linear(duration: 4)) { }` hand the *empty* one
     /// the build, because the first call's own dirty made a build pending for
-    /// the second. Measured, by running it: `112.5` where the first
-    /// transaction reads `150`, reddening
+    /// the second. Measured, by running it: **`112.0`** on the scene where the
+    /// first transaction reads `150` (this read `112.5` until plan task 13
+    /// re-ran the mutation and measured why, `AN-AF` item 9: the interpolated
+    /// width IS 112.5 — linear(4) at 0.5 s over 100 → 200 — but the fixture's
+    /// `Column` centres it at x = 93.75, and layout rounds each EDGE to whole
+    /// points, not the width — 93.75 → 94, 206.25 → 206 — so the scene reads
+    /// 112; divergence 77's whole-point rounding, instrumented at
+    /// `roundLayout`), reddening
     /// `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`'s
     /// third arm. So the full rule is: **a body that asked for no redraw keeps
     /// the slot only when the slot was FREE and a build was already coming** —

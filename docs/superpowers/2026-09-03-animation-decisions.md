@@ -6,9 +6,9 @@ helpers in two phases, `hasActiveAnimations` and the widened idle guard.
 
 Prefixed **`AN-`** and **lettered** (`AN-A`, `AN-B`, …) per this repo's
 convention — **a bare `AN-3` is a typo, not a citation**, the same note every
-other milestone's decisions doc carries. Next unused letter is `AN-AI`
+other milestone's decisions doc carries. Next unused letter is `AN-AJ`
 (`AN-X`…`AN-AH`: plan task 13, 2026-09-30, at the end of this document;
-`AN-AH` is its critic round).
+`AN-AH` is its critic round, `AN-AI` its lane 1).
 
 Read alongside `docs/superpowers/specs/2026-09-03-animation-design.md` (its §3,
 §5 and §6 are corrected in place by rulings recorded here), the binding design
@@ -1779,4 +1779,103 @@ than as `LR-` rulings: `LR-` is the engine-replacement doc's):
 
 **Cost if wrong.** Item 1 is the largest: if the SDL shader cannot scale a
 glyph, `.scale` is macOS-only until it can, and lane 3 stops to rule it.
+
+## AN-AI — lane 1 landed: transactions, the store, Reduce Motion, the platforms; `112.5` reads 112 by edge rounding; `AN-C`'s mutations re-taken
+
+**Taken** by plan task 13's lane 1, 2026-09-30, on `feat/transactions-animation`
+(tests `58ff4ff`, implementation `f35ecf3`). Spec §7 lane 1 as written, with
+these amendments and measurements; nothing in `AN-Y`, `AN-Z`, `AN-AB`'s store or
+`AN-AD` changed.
+
+1. **Built as designed.** `Transaction` (`Sendable`, not `Equatable`),
+   `withTransaction`, SwiftUI's generic `withAnimation`, both through one
+   `parkTransaction` (AN-C's predicate byte-for-byte, `disablesAnimations`
+   parked and rolled back beside the animation); the frame's transaction stack
+   (`Frame.transactionTop`, `withTransactionScope`) read by both passes'
+   `transaction`; `TransactionScope` (transparent, pushes in layout and paint,
+   its typed entry a separate copy); `.animation(_:value:)` keyed
+   `.named("$anim-value<depth>")` under `.child(of: parent, at: cursor)` in the
+   `AnimationStore`; the store (drops untouched entries at the frame's end;
+   **a read marks as a write does**, so an unchanged value survives without a
+   rewrite); `TransitionStore`'s stub and the frame's three calls (after
+   `computeRootLayout`; after the tree's paint, before `glyphAtlas.endFrame()`;
+   before `AnimationStore.endFrame()`); `Binding.transaction`/`animation(_:)`/
+   `transaction(_:)` with a source flag (`Binding.stateSource`, used only by
+   `State.projectedValue`) that derived bindings inherit and whose setters
+   write through the base's raw setter, so the derived binding's own
+   transaction is the one applied; `accessibilityReduceMotion`
+   (`public internal(set)`), the defaultless pair on AppKit (`NSWorkspace`, its
+   display-options notification on `NSWorkspace.shared.notificationCenter`,
+   injectable as `workspaceNotificationCenter`) and SDL (`false`), stamped by
+   `Window` beside `controlActiveState`, `false` stamped by `renderFrame`.
+2. **1.16's R4 arm is a background fade, not an opacity.** A legacy
+   `.opacity` snaps until lane 2 (`AN-AA`), so a render-effect animation under
+   Reduce Motion is read through the paint helper's colour instead; lane 2's
+   2.4/2.13 own opacity itself.
+3. **1.19's red is the mutation, not a pre-run.** Every lane 1 test is of new
+   API, so the committed tests did not compile before the implementation (the
+   record's "does not compile" lines); 1.19's "reads the pruned count" is
+   M1.19 — the pre-fix getter put back — which reddens it alone.
+4. **A scope that pushes `animation = nil` falls back to the lexical slot.**
+   The helpers read `pass.transaction ?? Animation.pendingTransaction`
+   (`AnimatedStyle.swift`, `AnimatedColor.swift`, lane 2's files, untouched);
+   in a production build the lexical slot is always `nil` (`AN-B`), so T6 holds.
+   Only a test that builds a frame INSIDE a `withAnimation` body could see the
+   fallback override a scope's `nil`; none does.
+5. **`112.5` → 112, measured** (`AN-AF` item 9). Mutation 33 re-run on this tree
+   reads **`got Optional(112.0)`**, as the table's row 33 said. The mechanism,
+   instrumented at `roundLayout` under mutation 33 (not committed): the
+   interpolated width is exactly **112.5** (linear(4) at 0.5 s over 100 → 200),
+   the fixture's `Column` centres it at **x = 93.75**, and layout rounds each
+   EDGE — 93.75 → 94, 206.25 → 206 — so the scene's width is 112. Divergence
+   77's whole-point rounding; the hypothesis held. `Animation.swift`'s comment
+   now reads 112.0 with this mechanism; the two test lines are lane 2's.
+6. **Lane 1's mutation table** (each on the committed tree, restored from a
+   copy, full unfiltered suite, `git status --short` clean after every one;
+   1898 tests):
+
+| # | mutation | reddens |
+|---|---|---|
+| M1.1 | `withTransaction` parks `nil` | `withTransactionAnimatesAChangeAsWithAnimationDoes` (1), `disablesAnimationsSuppressesOnlyTheAnimationModifier` (2), `aBindingAnimationAnimatesAStateWrite` (3) — 6 issues |
+| M1.2 | a `nil` animation parks `.default` | `aTransactionWithNoAnimationSnaps` (4), `disablesAnimations…` (1, its T8b arm) |
+| M1.3 | always push the modifier's animation | `anAnimationModifierAnimatesOnlyWhenItsValueChanges` (2), `twoAnimationScopesAtOnePositionKeepSeparateValues` (2) |
+| M1.4a | never pop the pushed transaction | `anAnimationModifierReachesOnlyItsContent` (4), `anAnimationModifierOverridesTheExplicitTransaction` (1), `aTransactionModifierRewritesItsSubtreesAnimation` (1) |
+| M1.4b | skip the typed entry's push | `anAnimationModifierReachesOnlyItsContent` alone (1 — its proposal arm) |
+| M1.5 | keep the explicit animation when the root has one | `anAnimationModifierOverridesTheExplicitTransaction` (2) |
+| M1.6a | ignore `disablesAnimations` | `disablesAnimations…` (2: T8, T8b) |
+| M1.6b | `disablesAnimations` also clears the explicit animation (both passes) | `disablesAnimations…` (2: T8, T8c) |
+| M1.7 | transform only when the root has an animation | `aTransactionModifierRewritesItsSubtreesAnimation` (1: T7c) |
+| M1.8 | skip the push in `paintGroup` | `theAnimationModifierAppliesInPaintAsInLayout` (1: the colour), `anAnimationModifierReachesOnlyItsContent` (2: its paint readings) |
+| M1.9 | `animation(_:)` returns `self` | `aBindingAnimationAnimatesAStateWrite` (3), `aClosureBindingIgnoresItsTransaction` (1: the carried-transaction check) |
+| M1.10 | apply the transaction to every binding | `aClosureBindingIgnoresItsTransaction` (2) |
+| M1.11 | drop the depth from the store key | `twoAnimationScopesAtOnePositionKeepSeparateValues` (2) |
+| M1.12 | store the value in `StateTable` | `anAnimationScopeStoresNoStateTableEntry` (2) |
+| M1.13a | omit the window's stamp | `theWindowStampsReduceMotionFromItsPlatformWindow` (2), `propertyAnimationsRunUnchangedUnderReduceMotion` (1: its set-up `#require`) |
+| M1.13b | do not wire the callback | `theWindowStampsReduceMotionFromItsPlatformWindow` (3) |
+| M1.16 | snap both helpers under Reduce Motion | `propertyAnimationsRunUnchangedUnderReduceMotion` (3) |
+| M1.17 | observe `NSWorkspace.didWakeNotification` instead | `theAppKitWindowReadsReduceMotionFromNSWorkspace` (5) |
+| M1.18 | SDL answers `true` (`Backends/SDL`, 22 + 33) | `anSDLWindowReportsNoReduceMotion` (2) |
+| M1.19 | the prune back in `aFrameBuildIsPending` | `aFrameBuildIsPendingDoesNotPruneTheRegistry` (1) |
+| MG1.14 | the setter `public` | `aScopeCannotWriteReduceMotion` alone |
+| MG1.15 | a protocol-extension default for the pair | `aPlatformWindowWithoutTheReduceMotionPairDoesNotCompile` alone |
+
+7. **`AN-C`'s mutations 28–34 re-run** (the must-not-move check). The three
+   that name a figure reproduce it exactly: **31** 1 issue,
+   `aTransactionWhoseBodyDirtiesNothing…` alone, got 200.0; **33** 1 issue, arm
+   3, got 112.0; **34** 1 issue, arm 4, got 100.0; **32** 3 issues,
+   `anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`
+   alone. **28, 29 and 30 redden MORE than the table says, and that is the
+   suite's growth, not a regression**: the table was taken at `b869253`, when
+   six window-driven tests existed. **28** (always roll back) 76 issues in 22
+   tests and **30** (never park) 75 issues in the same 22 — every window-driven
+   animation test since added (lowering, toggle, Reduce Motion, this lane's own)
+   plus the original six; **29** (park unconditionally) 6 issues:
+   `aTransactionWhoseBodyDirtiesNothing…` (5) and
+   `withAnimationParksATransactionForTheDurationOfItsBodyOnly` (1), where the
+   table read 4 issues in the first alone. The full lists are record §64's.
+   Every clause still has a mutation that reddens it.
+
+**Cost if wrong.** Item 4 is the only behaviour stated rather than pinned: a
+future production path that builds a frame inside a `withAnimation` body would
+let the lexical slot override a scope's `nil`.
 
