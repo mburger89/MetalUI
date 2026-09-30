@@ -35,9 +35,9 @@ final class TransitionHarness {
 
     @discardableResult
     func frame<E: Element>(_ t: Double, _ animation: Animation? = nil, _ element: E,
-                           side: Float = 300) -> Frame {
+                           side: Float = 300, scaleFactor: Float = 1) -> Frame {
         var root = element
-        let frame = Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)), scaleFactor: 1,
+        let frame = Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)), scaleFactor: scaleFactor,
                           stateTable: table, timestamp: t, transaction: animation, animationStore: store,
                           collectsAccessibility: accessibility, reportsUnlowerableFields: true)
         frame.render(&root)
@@ -92,14 +92,15 @@ private func describe(_ r: MUIRect?) -> String {
 /// One insertion: rest (absent) at 0, the change at 0 under `linear(1)`, 0.5,
 /// 1.0, and a settled frame at 2.0 whose tile is the reference.
 @MainActor private func insertion(_ transition: AnyTransition, reduceMotion: Bool = false,
-                                  animation: Animation? = linear1)
+                                  animation: Animation? = linear1, scaleFactor: Float = 1)
     -> (start: MUIRect?, mid: MUIRect?, end: MUIRect?, settled: MUIRect?) {
     let h = TransitionHarness()
-    h.frame(0, nil, stage(false, transition, reduceMotion: reduceMotion))
-    let start = accent(h.frame(0, animation, stage(true, transition, reduceMotion: reduceMotion)))
-    let mid = accent(h.frame(0.5, nil, stage(true, transition, reduceMotion: reduceMotion)))
-    let end = accent(h.frame(1.0, nil, stage(true, transition, reduceMotion: reduceMotion)))
-    let settled = accent(h.frame(2.0, nil, stage(true, transition, reduceMotion: reduceMotion)))
+    let sf = scaleFactor
+    h.frame(0, nil, stage(false, transition, reduceMotion: reduceMotion), scaleFactor: sf)
+    let start = accent(h.frame(0, animation, stage(true, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let mid = accent(h.frame(0.5, nil, stage(true, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let end = accent(h.frame(1.0, nil, stage(true, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let settled = accent(h.frame(2.0, nil, stage(true, transition, reduceMotion: reduceMotion), scaleFactor: sf))
     return (start, mid, end, settled)
 }
 
@@ -107,13 +108,14 @@ private func describe(_ r: MUIRect?) -> String {
 /// under `linear(1)`, 0.5, and 1.0; each removal frame's accent rects (the
 /// ghost's, if any).
 @MainActor private func removal(_ transition: AnyTransition, reduceMotion: Bool = false,
-                                animation: Animation? = linear1)
+                                animation: Animation? = linear1, scaleFactor: Float = 1)
     -> (rest: MUIRect?, start: [MUIRect], mid: [MUIRect], end: [MUIRect]) {
     let h = TransitionHarness()
-    let rest = accent(h.frame(0, nil, stage(true, transition, reduceMotion: reduceMotion)))
-    let start = accents(h.frame(0, animation, stage(false, transition, reduceMotion: reduceMotion)))
-    let mid = accents(h.frame(0.5, nil, stage(false, transition, reduceMotion: reduceMotion)))
-    let end = accents(h.frame(1.0, nil, stage(false, transition, reduceMotion: reduceMotion)))
+    let sf = scaleFactor
+    let rest = accent(h.frame(0, nil, stage(true, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let start = accents(h.frame(0, animation, stage(false, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let mid = accents(h.frame(0.5, nil, stage(false, transition, reduceMotion: reduceMotion), scaleFactor: sf))
+    let end = accents(h.frame(1.0, nil, stage(false, transition, reduceMotion: reduceMotion), scaleFactor: sf))
     return (rest, start, mid, end)
 }
 
@@ -917,4 +919,228 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     #expect(aMid?.bounds.size.width == 37.5 && aMid?.bounds.size.height == 22.5
                 && aMid?.bounds.origin.x == aSettled?.bounds.origin.x && aMid?.bounds.origin.y == aSettled?.bounds.origin.y,
             "X4a: 37.5 × 22.5 at the top-left corner; got \(describe(aMid)) vs \(describe(aSettled))")
+}
+
+// MARK: - Fix round: the rich tile (every primitive kind a transition touches)
+
+/// A 4 × 4 opaque white bitmap for the rich tile's image.
+private let transitionBitmap = ImageBitmap(width: 4, height: 4, rgba: [UInt8](repeating: 255, count: 64))
+
+/// The 50 × 30 accent tile carrying every primitive kind `AnyTransition`'s doc
+/// comment names: a glyph, an image, a 4-point `separator` border and a
+/// 6-point corner radius on its accent rect.
+@MainActor private func richTile() -> some StyledElement {
+    Stack {
+        Text("M")
+        Image(decorative: transitionBitmap, scale: 1)
+    }
+    .frame(width: Pixels(50), height: Pixels(30)).background(.accent)
+    .border(.separator, width: Pixels(4)).cornerRadius(Pixels(6))
+}
+
+@MainActor private func richStage(_ shown: Bool, _ transition: AnyTransition) -> some Element {
+    Column {
+        Stack {
+            Box().frame(width: Pixels(200), height: Pixels(100))
+            if shown { richTile().transition(transition) }
+        }
+    }
+}
+
+/// One rich frame's primitives of interest.
+private struct RichPaint {
+    var tile: MUIRect?
+    var border: MUIRect?
+    var glyphs: [MUIGlyph]
+    var images: [MUIImage]
+}
+
+/// The one rect `frame` painted with a border, or `nil` when it painted none or several.
+@MainActor private func border(_ f: Frame) -> MUIRect? {
+    let all = f.scene.rects.filter { $0.borderWidths.top > 0 }
+    return all.count == 1 ? all[0] : nil
+}
+
+private func sameBounds(_ a: MUIBounds, _ b: MUIBounds) -> Bool {
+    a.origin.x == b.origin.x && a.origin.y == b.origin.y && a.size.width == b.size.width && a.size.height == b.size.height
+}
+
+@MainActor private func richPaint(_ f: Frame) -> RichPaint {
+    RichPaint(tile: accent(f), border: border(f), glyphs: f.scene.glyphs, images: f.scene.images)
+}
+
+// MARK: - 3.25
+
+/// **3.25 (fix round, V1, V2, V3, V13).** `.opacity` multiplies EVERY
+/// primitive's alpha, not only a rect's background: half-way through an
+/// insertion of the rich tile its glyph's colour alpha, its image's opacity and
+/// its border colour's alpha are each half their settled value. A removal's
+/// ghost replays the content's last painted primitives of EVERY kind: half-way
+/// through the removal the ghost still paints the glyph and the image, at half
+/// alpha, at their last place. Mutations **V1** (a glyph does not fade), **V2**
+/// (an image does not fade), **V3** (a border colour does not fade), **V13** (a
+/// ghost captures only rects).
+@Test @MainActor func anOpacityTransitionFadesEveryPrimitiveKindAndTheGhostReplaysThemAll() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, richStage(false, .opacity))
+    h.frame(0, linear1, richStage(true, .opacity))
+    let mid = richPaint(h.frame(0.5, nil, richStage(true, .opacity)))
+    let settled = richPaint(h.frame(2, nil, richStage(true, .opacity)))
+    try #require(settled.tile != nil && settled.border != nil && settled.glyphs.count == 1 && settled.images.count == 1,
+                 "set up: the settled tile paints its fill, its border, one glyph and one image: \(describe(settled.tile)), \(describe(settled.border)), \(settled.glyphs.count), \(settled.images.count)")
+    let settledGlyphA = settled.glyphs[0].color.a, settledImageA = settled.images[0].opacity
+    let settledBorderA = settled.border!.borderColor.a
+    try #require(settledGlyphA > 0 && settledImageA > 0 && settledBorderA > 0,
+                 "set up: every settled alpha is non-zero, or halving proves nothing: \(settledGlyphA), \(settledImageA), \(settledBorderA)")
+    #expect(mid.glyphs.count == 1 && mid.glyphs.first?.color.a == settledGlyphA / 2,
+            "V1: the glyph fades with the group: \(mid.glyphs.map(\.color.a)) vs \(settledGlyphA)")
+    #expect(mid.images.count == 1 && mid.images.first?.opacity == settledImageA / 2,
+            "V2: the image fades with the group: \(mid.images.map(\.opacity)) vs \(settledImageA)")
+    #expect(mid.border?.borderColor.a == settledBorderA / 2,
+            "V3: the border colour fades with the group: \(String(describing: mid.border?.borderColor.a)) vs \(settledBorderA)")
+
+    // Removal: the ghost replays the glyph and the image too.
+    let r = TransitionHarness()
+    let rest = richPaint(r.frame(0, nil, richStage(true, .opacity)))
+    try #require(rest.glyphs.count == 1 && rest.images.count == 1, "set up: the live tile paints its glyph and image")
+    r.frame(0, linear1, richStage(false, .opacity))
+    let ghost = richPaint(r.frame(0.5, nil, richStage(false, .opacity)))
+    #expect(ghost.glyphs.count == 1 && ghost.glyphs.first.map { sameBounds($0.bounds, rest.glyphs[0].bounds) } == true
+                && ghost.glyphs.first?.color.a == rest.glyphs[0].color.a / 2,
+            "V13: the ghost paints the glyph at its last place, half faded: \(ghost.glyphs.map { ($0.bounds, $0.color.a) })")
+    #expect(ghost.images.count == 1 && ghost.images.first.map { sameBounds($0.bounds, rest.images[0].bounds) } == true
+                && ghost.images.first?.opacity == rest.images[0].opacity / 2,
+            "V13: the ghost paints the image at its last place, half faded: \(ghost.images.map { ($0.bounds, $0.opacity) })")
+    #expect(ghost.border?.borderColor.a == rest.border.map { $0.borderColor.a / 2 },
+            "the ghost's border colour fades too: \(String(describing: ghost.border?.borderColor.a))")
+}
+
+// MARK: - 3.26
+
+/// **3.26 (fix round, V11, V12).** `.scale` scales a rect's corner radii and
+/// border widths with its bounds: half-way through a `.scale` insertion (scale
+/// ½) the rich tile's 6-point radii read 3 and its 4-point border widths 2, on
+/// every corner and edge. Mutations **V11** (radii not scaled), **V12** (border
+/// widths not scaled).
+@Test @MainActor func aScaleTransitionScalesCornerRadiiAndBorderWidths() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, richStage(false, .scale))
+    h.frame(0, linear1, richStage(true, .scale))
+    let midFrame = h.frame(0.5, nil, richStage(true, .scale))
+    let settledFrame = h.frame(2, nil, richStage(true, .scale))
+    let (m, s) = (try #require(accent(midFrame)), try #require(accent(settledFrame)))
+    let (mb, sb) = (try #require(border(midFrame)), try #require(border(settledFrame)))
+    try #require(s.cornerRadii.topLeft == 6 && sb.borderWidths.top == 4,
+                 "set up: the settled tile has 6-point radii and 4-point borders: \(s.cornerRadii), \(sb.borderWidths)")
+    #expect(m.bounds.size.width == 25, "set up: half-way the tile is scaled ½: \(describe(m))")
+    let radii = [m.cornerRadii.topLeft, m.cornerRadii.topRight, m.cornerRadii.bottomRight, m.cornerRadii.bottomLeft]
+    #expect(radii == [3, 3, 3, 3], "V11: the corner radii scale ½: \(radii)")
+    let widths = [mb.borderWidths.top, mb.borderWidths.right, mb.borderWidths.bottom, mb.borderWidths.left]
+    #expect(widths == [2, 2, 2, 2], "V12: the border widths scale ½: \(widths)")
+}
+
+// MARK: - 3.27
+
+/// **3.27 (fix round, V4).** At scale factor 2 a transition's displacement is in
+/// device pixels: `.offset(x: 30, y: 5)`'s point offset is (60, 10) device
+/// pixels, so half-way through an insertion the tile sits
+/// (30, 5) px from its settled place, and a removal half-way reads the same;
+/// `.move(edge: .leading)`'s own-size displacement (50 pt = 100 px) reads −50 px
+/// half-way. Mutation **V4** (`x * scaleFactor` → `x`, likewise y) halves the
+/// offset arms.
+@Test @MainActor func aTransitionsDisplacementIsInDevicePixelsAtScaleFactorTwo() throws {
+    let offsetIn = insertion(.offset(x: Pixels(30), y: Pixels(5)), scaleFactor: 2)
+    try #require(offsetIn.settled?.bounds.size.width == 100, "set up: the tile is 100 px wide at 2x: \(describe(offsetIn.settled))")
+    #expect(offset(offsetIn.mid, from: offsetIn.settled).map { [$0.0, $0.1] } == [30, 5],
+            "V4: (30, 5) pt is (60, 10) px, half-way (30, 5) px; got \(String(describing: offset(offsetIn.mid, from: offsetIn.settled)))")
+    let offsetOut = removal(.offset(x: Pixels(30), y: Pixels(5)), scaleFactor: 2)
+    #expect(offset(offsetOut.mid.first, from: offsetOut.rest).map { [$0.0, $0.1] } == [30, 5],
+            "V4: the removal's ghost half-way at (30, 5) px; got \(offsetOut.mid.map(describe))")
+    let moveIn = insertion(.move(edge: .leading), scaleFactor: 2)
+    #expect(offset(moveIn.mid, from: moveIn.settled).map { [$0.0, $0.1] } == [-50, 0],
+            "`.move` at 2x: 100 px own width, half-way −50 px; got \(String(describing: offset(moveIn.mid, from: moveIn.settled)))")
+}
+
+// MARK: - 3.28
+
+/// **3.28 (fix round, V5; the mirror of 3.21).** An insertion during a removal
+/// starts from the ghost's CURRENT progress (MetalUI's own rule, unprobed): an
+/// `.opacity` removal under `linear(1)` re-inserted half-way (ghost alpha ½)
+/// paints the live tile at ½ — not 0 — with the ghost gone, ¾ half-way through
+/// the insertion's own `linear(1)`, and 1 at its end. Mutation **V5**
+/// (`let from: Double = 1`).
+@Test @MainActor func anInsertionDuringARemovalStartsFromTheGhostsProgress() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, stage(true, .opacity))
+    h.frame(0, linear1, stage(false, .opacity))
+    let halfOut = accents(h.frame(0.5, nil, stage(false, .opacity)))
+    try #require(halfOut.count == 1 && halfOut[0].background.a == 0.5, "set up: the ghost half-way out, got \(halfOut.map(describe))")
+    let start = accents(h.frame(0.5, linear1, stage(true, .opacity)))
+    let mid = accents(h.frame(1.0, nil, stage(true, .opacity)))
+    let end = accents(h.frame(1.5, nil, stage(true, .opacity)))
+    #expect(start.count == 1 && start.first?.background.a == 0.5,
+            "the insertion continues from the ghost's ½, and the ghost is gone: \(start.map(describe))")
+    #expect(mid.count == 1 && mid.first?.background.a == 0.75 && end.count == 1 && end.first?.background.a == 1,
+            "½ → ¾ → 1; got \(mid.map(describe)), \(end.map(describe))")
+}
+
+// MARK: - 3.29
+
+/// **3.29 (fix round, V8; `AN-AK` item 4).** Of two `.transition`s stacked at
+/// one position the OUTER applies (MetalUI's choice, unprobed):
+/// `tile().transition(.opacity).transition(.move(edge: .leading))` inserts by
+/// moving from leading (−25 half-way) at alpha 1 — no fade. Mutation **V8**
+/// (drop `claim`'s `records[key] == nil` guard, so the inner claims last).
+@Test @MainActor func theOuterOfTwoStackedTransitionsApplies() throws {
+    func tree(_ shown: Bool) -> some Element {
+        Column {
+            Stack {
+                Box().frame(width: Pixels(200), height: Pixels(100))
+                if shown { tile().transition(.opacity).transition(.move(edge: .leading)) }
+            }
+        }
+    }
+    let h = TransitionHarness()
+    h.frame(0, nil, tree(false))
+    h.frame(0, linear1, tree(true))
+    let mid = accent(h.frame(0.5, nil, tree(true)))
+    let settled = accent(h.frame(2, nil, tree(true)))
+    try #require(settled != nil, "set up: the settled tile paints")
+    #expect(offset(mid, from: settled).map { [$0.0, $0.1] } == [-25, 0] && mid?.background.a == 1,
+            "the outer `.move` applies and the inner `.opacity` does not: \(describe(mid)) vs \(describe(settled))")
+}
+
+// MARK: - 3.30
+
+/// **3.30 (fix round; `AN-AK` item 9).** `.id(_:)` written OUTSIDE `.transition`
+/// on an `if`'s content makes the transition inert — documented as unsupported
+/// on `AnyTransition`: `IdentifiedGroup` numbers its content under the named
+/// id, so the `TransitionGroup`'s parent is no longer the conditional's unit.
+/// Pinned so that a change to it is seen: the insertion is instant (alpha 1 on
+/// its first frame), while the same tile with `.id` INSIDE `.transition` fades.
+@Test @MainActor func anIDWrittenOutsideTheTransitionMakesItInert() throws {
+    func outside(_ shown: Bool) -> some Element {
+        Column {
+            Stack {
+                Box().frame(width: Pixels(200), height: Pixels(100))
+                if shown { tile().transition(.opacity).id("x") }
+            }
+        }
+    }
+    func inside(_ shown: Bool) -> some Element {
+        Column {
+            Stack {
+                Box().frame(width: Pixels(200), height: Pixels(100))
+                if shown { tile().id("x").transition(.opacity) }
+            }
+        }
+    }
+    let o = TransitionHarness()
+    o.frame(0, nil, outside(false))
+    let outsideStart = accent(o.frame(0, linear1, outside(true)))
+    let i = TransitionHarness()
+    i.frame(0, nil, inside(false))
+    let insideStart = accent(i.frame(0, linear1, inside(true)))
+    #expect(insideStart?.background.a == 0, "control: `.id` inside `.transition` fades from 0; got \(describe(insideStart))")
+    #expect(outsideStart?.background.a == 1, "`.id` outside `.transition`: inert, instant; got \(describe(outsideStart))")
 }

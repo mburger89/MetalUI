@@ -57,6 +57,8 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// content, through transparent wrappers (`.animation(_:value:)`,
 /// `.transaction`, `.environment`). A `.transition` nested deeper, or on
 /// content that is never inserted or removed, does nothing (X15, X15b, X16).
+/// Of two `.transition`s stacked on one content the outer applies (MetalUI's
+/// own rule, unprobed; test 3.29).
 /// Only a conditional **evaluated in the last frame** inserts: content in a
 /// window's first render, content under a newly evaluated parent and a `List`
 /// row entering its window are not insertions, and a `List` row leaving its
@@ -103,7 +105,11 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// transitions, `AnyTransition.animation(_:)` (a per-transition animation),
 /// `matchedGeometryEffect`, `contentTransition`, a default transition on
 /// unannotated content (divergence 98), a transition on a changed `.id(_:)`
-/// outside a loop, and an animated scroll offset — each would need its own
+/// outside a loop, `.id(_:)` written **outside** `.transition` on the inserted
+/// content (`content.transition(.opacity).id("x")` — the `.id` numbers the
+/// group under its name, so the group is no longer the conditional's content
+/// and is inert; write `.id` inside, `content.id("x").transition(.opacity)`,
+/// test 3.30), and an animated scroll offset — each would need its own
 /// probe, and most a renderer feature (a blur, a per-primitive modifier) the
 /// scene does not carry.
 public struct AnyTransition: Sendable {
