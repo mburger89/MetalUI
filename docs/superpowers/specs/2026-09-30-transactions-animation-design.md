@@ -1,17 +1,18 @@
 # Transactions and animation — design (plan task 13)
 
 Branch `feat/transactions-animation` from `2de0973` (master, plan task 12
-part 2 landed, record §63). Rulings **`AN-X`…`AN-AG`** appended to the
+part 2 landed, record §63). Rulings **`AN-X`…`AN-AH`** appended to the
 existing animation decisions doc,
 [`../2026-09-03-animation-decisions.md`](../2026-09-03-animation-decisions.md)
-(next unused **`AN-AH`**). Evidence: `docs/probes/swiftui-transactions-animation.swift`
+(next unused **`AN-AI`**; `AN-AH` is the critic round's, which amended this
+spec in place — §4, §5, §6.3, §6.5, §7, §10, §11). Evidence: `docs/probes/swiftui-transactions-animation.swift`
 (**new**; arm ids `C…` controls, `W…` which wrapper animates and as what,
 `P…` whether layout re-runs mid-flight, `T…` transactions, `X…` transitions,
 `R…` Reduce Motion; its header carries the recorded output and how to read
 it). Record: `docs/record/64-transactions-animation.md` (the Record phase
 writes it).
 
-**Status: DESIGNED.** The plan's task 13 text: "Make modifier wrappers
+**Status: DESIGNED, critic round applied (`AN-AH`).** The plan's task 13 text: "Make modifier wrappers
 participate in transactions at their correct phase, then add
 environment-driven Reduce Motion and document the supported transition
 surface. Retain the existing distinction between layout and paint animation,
@@ -58,7 +59,7 @@ project memory's `animation-followups` file.
 |---|---|---|
 | 1 | proposal animation; "animation on proposal wrappers, and wrappers joining transactions" (record §10; `2026-09-15-modifier-composition-decisions.md` carried table) | **built**, lane 2 (`AN-AB`) |
 | 2 | the five paint-only `Decoration` fields snap (`OM-` spec §9, record §15, `AnimatedColor.swift` `resolvedBorder`, `DecorationPaintTests` test 11) | **built** for `opacity` and the three borders (colour and widths); `clipsContent` **snaps by ruling** (a `Bool` has no midpoint; SwiftUI's W10 is a structure change animated only by its default cross-fade). Lane 2 (`AN-AA`) |
-| 3 | the `$anim` end-to-end per-entry figures with the 80-byte `Decoration` (record §15, §16; `AnimatedStyle.swift` doc) | **re-taken by lane 2** as `MemoryLayout` strides of every retention payload (`AnimatedElementState`, `AnimatedColorState`, the new `$anim-border` payload, the `AnimationStore` entry) recorded at the lines; the isolated-process per-entry harness is the animation milestone's and uncommitted (`AN-L`) — **re-owned to plan task 15** with that reason, the arithmetic bound carried |
+| 3 | the `$anim` end-to-end per-entry figures with the 80-byte `Decoration` (record §15, §16; `AnimatedStyle.swift` doc) | **re-taken by lane 2** as `MemoryLayout` strides of every retention payload (`AnimatedElementState`, `AnimatedColorState`, the `AnimationStore` entry and its border-colour track) recorded at the lines; the isolated-process per-entry harness is the animation milestone's and uncommitted (`AN-L`) — **re-owned to plan task 15** with that reason, the arithmetic bound carried |
 | 4 | Reduce Motion as an environment key (`2026-09-15-environment-decisions.md`, record §11); "system settings (Reduce Motion, Increase Contrast)" (`2026-09-15-accessibility-bridge-design.md` item 6, its decisions doc's carried table, record §12, record §63, the interaction decisions doc) | Reduce Motion **built**, lane 1 (`AN-AD`). **Increase Contrast and the other system accessibility settings** (`colorSchemeContrast`, reduce transparency, differentiate without colour) **re-owned to plan task 15**: task 13's text names Reduce Motion only, and each needs its own probe and a consumer (the theme) this task does not touch |
 | 5 | `Binding.transaction`/`animation(_:)` (`DD-D` item 5, `Binding.swift`) | **built**, lane 1 (`AN-Z`) |
 | 6 | animated `scrollTo` / an animated scroll offset (`DD-G` item 5, `DD-I` item 2, data-and-scrolling spec) | **kept snapping, re-owned to plan task 15, SwiftUI unmeasured**: `ScrollView` on macOS scrolls through AppKit, which the recorder cannot see, so no probe arm separates; listed in the surface doc as unsupported |
@@ -138,6 +139,11 @@ view 50×30:
 | X15 / X15b | a `.transition` **nested** inside the inserted view does not apply (the inserted `VStack` gets the default fade; with `.identity` on it, nothing animates) | — |
 | X16 | `.transition` on a view that is never inserted or removed does nothing | — |
 | X00 (`VStack`) | — | the sibling below slides up (geometry −30) while the removed view fades |
+| **X17** / X17c (critic round) | content present in the **first render**, under a `.transaction` that forces an animation, runs **no** insertion; the same tree with the flag turned on after it appeared records opacity +1 (the separating arm) | — |
+
+**Conformances (typecheck, critic round, recorded in the probe header).**
+SwiftUI's `Transaction` is **neither `Equatable` nor `Sendable`**, and
+`AnyTransition` is not `Sendable`.
 
 **Reduce Motion (R).** `accessibilityReduceMotion` is **get-only** in SwiftUI
 (typecheck, header). SwiftUI reads `NSWorkspace.accessibilityDisplayShouldReduceMotion`
@@ -155,7 +161,7 @@ scale again.
 
 ```swift
 // Transaction.swift (lane 1)
-public struct Transaction: Sendable, Equatable {
+public struct Transaction: Sendable {   // not Equatable (SwiftUI's is not; AN-AH item 5)
     public var animation: Animation?
     public var disablesAnimations: Bool          // default false
     public init()
@@ -191,6 +197,8 @@ public struct AnyTransition: Sendable {
     public static let identity: AnyTransition
     public static let opacity: AnyTransition
     public static let slide: AnyTransition
+    public static let scale: AnyTransition                        // AN-AH item 1
+    public static func scale(scale: Double, anchor: UnitPoint = .center) -> AnyTransition
     public static func move(edge: Edge) -> AnyTransition
     public static func offset(x: Pixels = Pixels(0), y: Pixels = Pixels(0)) -> AnyTransition
     public static func push(from edge: Edge) -> AnyTransition
@@ -201,14 +209,24 @@ public struct AnyTransition: Sendable {
 func transition(_ t: AnyTransition) -> TransitionGroup<Self>
 ```
 
-**Not offered, listed** (the surface doc, `AN-AE`): `.scale`, `.scale(scale:anchor:)`
-(the renderer has no transform — a glyph cannot be scaled without a
-re-rasterized atlas entry), `.blurReplace`, `.modifier(active:identity:)`,
+`Sendable` on `Transaction` and `AnyTransition` is additive beyond SwiftUI and
+needed for Swift 6 `static let`s and the frame's value-typed stack (`AN-AH`
+item 5).
+
+**Not offered, listed** (the surface doc, `AN-AE` as amended by `AN-AH`):
+`.blurReplace`, `.modifier(active:identity:)`, the deprecated value-less
+`.animation(_:)`,
 the `Transition` protocol and custom transitions, `AnyTransition.animation(_:)`,
 `matchedGeometryEffect`, `contentTransition`, `.transaction(value:_:)`,
 `.animation(_:body:)`, `withAnimation(_:completionCriteria:_:completion:)`,
 `Animation.delay`/`speed`/`repeatCount`/`repeatForever`, and an animated scroll
-offset. A plain-import guard pins `.scale`'s absence (3.19).
+offset. A plain-import guard pins `.blurReplace`'s absence (3.19). **`.scale`
+is supported** (`AN-AH` item 1): the design's reason for omitting it — "a
+glyph cannot be scaled without a re-rasterized atlas entry" — was an
+unmeasured "cannot", refuted by `glyph_vertex` (`shaders.metal`), which
+interpolates `atlasPosition` from `atlasBounds` across the destination
+`bounds` independently, with a `filter::linear` sampler, so a scaled glyph
+quad resamples the atlas.
 
 ## 6. Semantics
 
@@ -283,7 +301,7 @@ uses); "paint" means interpolated in paint off the theme.
 | `opacity` | **layout, new** — the `$anim` baseline already stores `Decoration.opacity` | `.opacity`: **layout, new** | W3 |
 | border widths (`border`/`hoverBorder`/`focusBorder`) | **layout, new** — in the `$anim` baseline, per field | `.border(_:width:)` width: **layout, new** | W5 |
 | background colour (resolved) | paint, `$anim-color` (unchanged) | `.background(token)`: **paint, new** | W4 |
-| border colour (resolved) | **paint, new** — eighth reserved slot **`$anim-border`** | `.border` colour: **paint, new** | W5c |
+| border colour (resolved) | **paint, new** — a token track in the **`AnimationStore`** (`AN-AH` item 3; no `StateTable` entry, no eighth reserved name) | `.border` colour: **paint, new** | W5c |
 | `clipsContent`, `allowsHitTesting`, `fixedSize`, `layoutPriority`, `aspectRatio`, alignment, a `clipShape`'s shape, `nil` ↔ value, finite ↔ infinite | snap | snap | a `Bool`/structure has no midpoint (W10); shape parameters, `aspectRatio` and alignment — divergence **97** |
 | a caller's `.padding`/`.width`/`.height` on a `Component` | **layout, new** (B-7 fixed), `AnimationStore` keyed per op per member | — | SwiftUI animates any view's geometry |
 
@@ -294,14 +312,21 @@ uses); "paint" means interpolated in paint off the theme.
   — `cornerRadius`'s precedent. Both run off the same frame timestamp, so a
   number interpolated in layout and read in paint is the value SwiftUI's
   render-effect animation shows at that instant.
-- **`$anim-border`** mirrors `$anim-color` exactly (`.child(of: id, at: 0, name:
-  "$anim-border")`; minted only when a border resolves; the resolved token by
-  pointer state; tokens stored, re-resolved per frame; interrupt from the
-  current colour and velocity). A border appearing from none is a first
-  sighting and snaps, as a background appearing from none does. The reserved
-  names become eight: `theSevenRetentionSlotsAreMutuallyDistinct` is
-  **renamed** `theEightRetentionSlotsAreMutuallyDistinct` and gains the arm
-  (a retirement row for the old name).
+- **The legacy border-colour track lives in the `AnimationStore`** (`AN-AH`
+  item 3, replacing the design's eighth `StateTable` slot `$anim-border`),
+  keyed by the element's id and the name `border`, and otherwise mirrors
+  `$anim-color`'s recipe exactly (touched only when a border resolves; the
+  resolved token by pointer/focus state; tokens stored, re-resolved per frame;
+  interrupt from the current colour and velocity). A border appearing from
+  none is a first sighting and snaps, as a background appearing from none
+  does. **Nothing in `StateTable` moves**: no entry per bordered element, so
+  no `TB-AH` eviction point, pinned table count or `List` retention moves, and
+  the reserved names stay **seven** —
+  `theSevenRetentionSlotsAreMutuallyDistinct` is untouched. The store's
+  one-frame drop applies: an element whose paint is skipped for a frame (a
+  hidden layer, `Frame.swift`'s paint gate) loses its border track and its
+  next change from there is a first sighting (snaps) — stated, where
+  `$anim-color` would resume.
 - **Proposal layers**: `LayoutModifier._requestLayout` rewrites `self` to the
   interpolated case for the numeric cases; `_paint` resolves the colour cases
   through a token track in the `AnimationStore` (the `animatedColor` recipe,
@@ -351,19 +376,31 @@ uses); "paint" means interpolated in paint off the theme.
 
 ### 6.5 Transitions (`AN-AE`, lane 3)
 
-- **`TransitionGroup<Content>` takes one cursor index and its own identity
-  level** (content numbered from 0 under it), layout-transparent otherwise —
-  `IdentifiedGroup`'s shape without the name. New API, so no existing id path
-  moves; adding or removing `.transition` changes the content's ids, as adding
-  any MetalUI modifier layer does (`MC-C`) — stated in the migration note.
+- **`TransitionGroup<Content>` is layout- AND identity-TRANSPARENT**
+  (`AN-AH` item 4, replacing the design's one-identity-level shape):
+  `EnvironmentScope`'s and `TransactionScope`'s shape, consuming no cursor
+  index. Its captures and progress live in the `AnimationStore` under
+  `.named("$transition")` below `.child(of: parent, at: cursor)` — the
+  position it sits at, `.animation(_:value:)`'s keying — so adding or
+  removing `.transition` moves **no** id and resets no `@State`, focus or
+  `$anim` baseline, as in SwiftUI, where a modifier carries no identity. No
+  migration note is owed. Its typed `ProposalElementGroup` entry is a copy of
+  the untyped one with its own pin (3.20's proposal arm).
 - **Only the outermost group of content a conditional or loop inserts or
   removes transitions** (X15, X15b): an `if`'s content, an `if`/`else`/`switch`
   branch, a `ForEach` element or a `for` iteration whose group is the content
   itself (through transparent wrappers). A nested `.transition` is inert.
-- **Insertion** is detected at layout time: the conditional's slot was not
-  produced by the last completed frame and is now (`StateTable.noteProduced`'s
-  own transition), a `ForEach` key or loop index new since last frame, or an
-  `EitherGroup` branch switch. **Removal** is the evaluated-removal set the
+- **Insertion** is detected at layout time, and only against a conditional
+  **evaluated in the last completed frame** (`AN-AH` item 2): an `if` whose
+  slot was evaluated absent last frame and is produced now, an `EitherGroup`
+  whose other branch was taken last frame, a `ForEach` key or loop index
+  absent from a loop evaluated last frame. **Content in the first render,
+  content inside a newly evaluated parent (nested content — X15 — and a `List`
+  row entering its window, `TB-AH`) and a returning `List` row are not
+  insertions** — probe X17 (a first render under a forced animation runs no
+  transition; X17c separates). Every recording copy (`OptionalGroup`,
+  `EitherGroup`, `ArrayGroup` untyped and typed, `ForEach`'s two entries)
+  notes its evaluation and transaction; each gets an arm in 3.23. **Removal** is the evaluated-removal set the
   sweep already computes — `noteAbsent`'s slots, the loop tails and names
   `queueLoopResets` drops, and departed names — **read before paint** through
   a non-mutating `StateTable` query lane 3 adds. A `List` row leaving its
@@ -375,21 +412,35 @@ uses); "paint" means interpolated in paint off the theme.
   moving to identity over the animation: `.opacity` through `PaintPass.opacity`,
   `.move`/`.slide`/`.offset`/`.push` through a paint-time translation
   (`clipped(to:offsetBy:)` with the active clip), `.move`'s distance the
-  group's **own** laid-out size (X2). Hit testing, focus and accessibility use
+  group's **own** laid-out size (X2). **`.scale`** (X4, X4a; `AN-AH` item 1)
+  post-transforms the scene range the group emitted this frame: every
+  primitive's `bounds` scales about the anchor point of the group's laid-out
+  rect (default `.center`), with a rect's corner radii and border widths
+  scaled by the same factor; a `contentMask` equal to the clip in effect at the
+  group's entry stays (the container still clips), a narrower one — set inside
+  the group — scales with its content. A glyph resamples the atlas (bilinear,
+  `glyph_vertex`'s independent `atlasPosition`), so it is soft mid-flight and
+  exact at identity. Lane 3 reads `Backends/SDL`'s glyph shader first and, if
+  it does not interpolate the atlas position the same way, stops and reports
+  (a ruling, not a silent macOS-only transition). Hit testing, focus and accessibility use
   the final geometry: hitboxes are never translated (3.18; SwiftUI's
   mid-transition hit behaviour is unmeasured and not claimed).
 - **Removal** paints a **ghost**: every frame, a group records the primitives
   its content emitted (rects, glyphs, images, with their layer and order) in
   the `AnimationStore`'s transition store; on removal the last capture is
   re-emitted each frame at its last position with the removal transition
-  applied (alpha multiplied, bounds offset), until the animation finishes. A
+  applied (alpha multiplied, bounds offset or scaled by the rule above),
+  until the animation finishes. A
   ghost registers no hitbox, no focus, no accessibility node and no `@State`
   (its content's entries are reset as `ID-C`/`DD-C` already reset them). It
   draws with the paint order it last had. Siblings move at once (divergence
   96's X00 half).
 - **Reduce Motion**: when `accessibilityReduceMotion` is true at the group
   (captured with the ghost for a removal), every transition but `.identity`
-  resolves to `.opacity` (R5…, R10).
+  resolves to `.opacity` (R5…, `.scale` included — R5s; R10 the controls).
+  The value is read from the environment in layout, never written from a
+  phase; a platform change dirties the window (1.13), so the next frame reads
+  it.
 - **No default transition**: without `.transition`, insertion and removal are
   instant — divergence **98**, kept, owner none (SwiftUI cross-fades by
   default, X0; giving every conditional a ghost would make every conditional
@@ -463,7 +514,8 @@ re-run, each reddening what the animation decisions doc's table says),
 (new: the proposal layer and component-op helpers over `AnimationStore`),
 `AnimatedStyle.swift`, `AnimatedColor.swift`, `Component.swift`; tests
 `ModifierAnimationTests.swift` (new), `AnimationTests.swift`,
-`DecorationPaintTests.swift`, `AXNodeTests.swift`.
+`DecorationPaintTests.swift` (`AXNodeTests.swift` is **not** touched since
+`AN-AH` item 3: the seven reserved names stand).
 
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
@@ -479,9 +531,9 @@ re-run, each reddening what the animation decisions doc's table says),
 | 2.10 | `aProposalAnimationKeepsTheDisplayLinkAwakeUntilItSettles` | — | omit `noteActiveAnimation()` |
 | 2.11 | `aProposalTreeMintsNoStateTableEntryForItsModifiers` | — | store proposal baselines in `StateTable` |
 | 2.12 | `aSettledProposalTreeInterpolatesNothing` (`AnimationStore.lastFrameInterpolations == 0` on steady frames; `n` while `n` layers move) | — | interpolate every frame |
-| 2.13 | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` — **renamed from** `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` (answer flipped by `AN-AA`; the background control kept) | the old test | drop opacity from `animated()`; drop a border width; route the border colour around `$anim-border` — three mutations, each its arm |
-| 2.14 | `aBorderFadeDoesNotRetargetTheBackgroundFade` | — | key the border track on `$anim-color` |
-| 2.15 | `theEightRetentionSlotsAreMutuallyDistinct` — **renamed from** the seven | the old name | rename `$anim-border` to `$anim-color` |
+| 2.13 | `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` — **renamed from** `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` (answer flipped by `AN-AA`; the background control kept) | the old test | drop opacity from `animated()`; drop a border width; route the border colour around its `AnimationStore` track — three mutations, each its arm |
+| 2.14 | `aBorderFadeDoesNotRetargetTheBackgroundFade` | — | key the border track on the `$anim-color` entry |
+| 2.15 | `theBorderColourTrackMintsNoStateTableEntry` (new, `AN-AH` item 3; a bordered `Box` under a colour change: `StateTable` count equal with and without the border, the fade still read at mid-flight) | — | store the track in `StateTable` under a named child |
 | 2.16 | `aHoverBorderFadesItsResolvedColour` (through a real `Window`, genuinely hovered) | snaps | resolve the border track from the plain field only |
 | 2.17 | `aComponentsCallerModifierAnimates` + arm (c) of `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` re-derived (B-7) | snaps | drop the op interpolation — both |
 | 2.18 | `aComponentsOpsAnimateEachMemberSeparately` | — | key without the member index |
@@ -492,17 +544,19 @@ dirty at the top of `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAn
 the two `112.5` lines corrected to lane 1's measured value; mutation 16
 re-taken (delete 25 of the 28 field assignments) and its figure handed to the
 Record phase; every retention payload's `MemoryLayout` stride recorded at its
-line. **`$anim-border` adds a `StateTable` entry per bordered element**: every
-test that pins a table count is re-read, and any that moves is a named,
-ruled literal change, not a silent one.
+line. **No `StateTable` count moves in this lane** (`AN-AH` item 3): a test
+pinning a table count that moves is a defect to stop on, not a literal to
+re-derive.
 
 ### Lane 3 — transitions and the surface
 
 **Files**: `Transition.swift` (new), `TransitionGroup.swift` (new),
 `TransitionStore.swift` (fills lane 1's stub), `StateTable.swift` (the
 non-mutating insertion/removal query), `ElementGroup.swift` and `ForEach.swift`
-(record the transaction at the conditional/loop); tests `TransitionTests.swift`
-(new), `TransitionCompileGuards.swift` (new).
+(record the evaluation and the transaction at the conditional/loop, every
+copy); tests `TransitionTests.swift` (new), `TransitionCompileGuards.swift`
+(new). Reads (does not edit) `Backends/SDL`'s glyph shader for `.scale`
+(§6.5).
 
 | # | test | red before | mutation that must redden it |
 |---|---|---|---|
@@ -518,15 +572,18 @@ non-mutating insertion/removal query), `ElementGroup.swift` and `ForEach.swift`
 | 3.10 | `forEachInsertionAndRemovalTransition` (X11, X12) | does not compile | skip the loop's insertion noting |
 | 3.11 | `aTransitionUsesTheTransactionAtItsConditional` (X13, X14) | does not compile | read the transaction at the group — the X14 arm |
 | 3.12 | `aNestedTransitionIsInert` (X15b) | does not compile | let every group inside inserted content transition |
-| 3.13 | `anUnannotatedInsertionAndRemovalAreInstant` — pins divergence **98** wrong on purpose | green (today's answer) | — (a pin of the kept answer; its mutation is 3.12's) |
+| 3.13 | `anUnannotatedInsertionAndRemovalAreInstant` — pins divergence **98** wrong on purpose | green (today's answer) | give an unannotated conditional's content a default `.opacity` transition (`AN-AH` item 6: the design named 3.12's mutation, which cannot redden a tree with no `.transition`) |
 | 3.14 | `underReduceMotionEveryTransitionButIdentityIsAnOpacityFade` (R5…, R10 control) | does not compile | no substitution; substitute `.identity` too |
 | 3.15 | `aTransitionKeepsTheDisplayLinkAwakeThenLeavesNothing` | does not compile | omit `noteActiveAnimation()` |
 | 3.16 | `aTreeWithoutTransitionsCapturesNothing` (`demoContent()` and a fixture: 0, and exactly the group's primitives) | does not compile | capture at every element |
 | 3.17 | `aListRowScrolledOutOfItsWindowRunsNoRemovalTransition` | does not compile | ghost any group not produced this frame |
 | 3.18 | `anInsertingElementIsHitTestedAtItsFinalPlace` | does not compile | translate its hitboxes |
-| 3.19 | guard `theUnsupportedTransitionsDoNotCompile` (plain import: `AnyTransition.scale` fails, `.opacity` compiles) | — | add a `scale` — mutate once red |
-| 3.20 | `aTransitionTakesOneIdentityLevel` | does not compile | make the group transparent |
+| 3.19 | guard `theUnsupportedTransitionsDoNotCompile` (plain import: `AnyTransition.blurReplace` fails, `.opacity` and `.scale` compile) | — | add a `blurReplace` — mutate once red |
+| 3.20 | `aTransitionTakesNoIdentityLevel` (`AN-AH` item 4: adding `.transition` around a `@State`-holding element keeps its value; legacy and proposal arms) | does not compile | give the group an identity level — the legacy arm; the same in the typed proposal entry only — the proposal arm |
 | 3.21 | `aRemovalDuringAnInsertionStartsFromItsCurrentProgress` | does not compile | restart the ghost from the removal's start value |
+| 3.22 | `contentInTheFirstRenderOrANewlyEvaluatedParentIsNotInserted` (X17: frame 0 under a `.transaction` forcing an animation; a `List` row with a `.transition`ed `if` scrolled into its window; nested content under an inserted `if` — none transitions; X17c's toggle-after-appearance control does) | does not compile | treat "not produced last frame" as an insertion without the evaluated-last-frame check — the frame-0 and `List` arms |
+| 3.23 | `everyConditionalSiteRecordsItsTransaction` (one arm per recording copy: `OptionalGroup`, `EitherGroup`, `ArrayGroup` untyped and typed, `ForEach`'s untyped and typed entries) | does not compile | skip the note in any one copy — exactly its arm (take the typed `ArrayGroup`) |
+| 3.24 | `aScaleTransitionScalesTheGroupsPrimitivesAboutItsAnchor` (X4, X4a: a 50×30 rect with a glyph child reads scale ½ at mid-flight about the centre, `.topLeading` about its corner; an outer clip unscaled, an inner one scaled; hitboxes unscaled) | does not compile | scale about the container's rect; scale the entry clip too |
 
 Also: **the supported-transition surface is documented** on `AnyTransition`'s
 public doc comment (supported, with the probe arm for each; unsupported, with
@@ -556,16 +613,18 @@ and reports; it is a ruling, not a re-record.
 
 ## 10. For the Record phase
 
-Divergences **96–99 added** (68 → 72 live, next label **100**): 96 geometry vs
+Divergences **96–99 added** (68 → 72 live, next label **100**; the critic
+round added none and retired none): 96 geometry vs
 input interpolation (P1, P2, X00, W11), 97 what still snaps where SwiftUI
 animates (§6.3's list), 98 no default transition (X0, W10), 99 one
 transaction per build (T9, T10). None retires. Declared-but-inert: no row
 added; `EnvironmentValues.accessibilityReduceMotion` is read by the
 transition code, so it is not inert. Record §03: the transitions and Reduce
 Motion's cross-fade are looks a human owes (the real-window capture, per the
-lock probe). The decisions doc's row 16 and the animation spec's §3 caveat
-(§3 items 11, 12). `CLAUDE.md`'s "Animation (`AN-`)" snap list, the reserved
-names (eight), the environment paragraph (Reduce Motion beside
+lock probe) — `.scale`'s soft mid-flight glyphs among them. The decisions
+doc's row 16 and the animation spec's §3 caveat (§3 items 11, 12).
+`CLAUDE.md`'s "Animation (`AN-`)" snap list, the reserved names (**still
+seven**, `AN-AH` item 3), the environment paragraph (Reduce Motion beside
 `controlActiveState`) and a transitions paragraph.
 
 ## 11. Counts (expected, re-measured by each lane)
@@ -574,7 +633,9 @@ Baseline `2de0973` (this session): **1880 / 0 goldens / 116 guards** (a
 guard is a `@Test` and counts in the 1880). Expected additions, each lane
 re-measuring: lane 1 **+18** in the root package (16 tests — 1.1–1.13, 1.16,
 1.17, 1.19 — and 2 guards, 1.14, 1.15), and 1.18 in `Backends/SDL`; lane 2
-**+17** (2.1–2.12, 2.14, 2.16, 2.18, 2.19 and 2.17's
-`aComponentsCallerModifierAnimates`; 2.13 and 2.15 are renames, 2.17's arm a
-re-derivation); lane 3 **+21** (20 tests and guard 3.19). So about **1936 / 0
-/ 119**, each lane's own figure authoritative over this estimate.
+**+18** (2.1–2.12, 2.14, 2.15, 2.16, 2.18, 2.19 and 2.17's
+`aComponentsCallerModifierAnimates`; 2.13 is a rename, 2.17's arm a
+re-derivation); lane 3 **+24** (23 tests — 3.1–3.18, 3.20–3.24 — and guard
+3.19). So about **1940 / 0 / 119**, each lane's own figure authoritative over
+this estimate (the critic round's `AN-AH` moved lane 2 from +17 and lane 3
+from +21).

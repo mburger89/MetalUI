@@ -6,8 +6,9 @@ helpers in two phases, `hasActiveAnimations` and the widened idle guard.
 
 Prefixed **`AN-`** and **lettered** (`AN-A`, `AN-B`, …) per this repo's
 convention — **a bare `AN-3` is a typo, not a citation**, the same note every
-other milestone's decisions doc carries. Next unused letter is `AN-AH`
-(`AN-X`…`AN-AG`: plan task 13, 2026-09-30, at the end of this document).
+other milestone's decisions doc carries. Next unused letter is `AN-AI`
+(`AN-X`…`AN-AH`: plan task 13, 2026-09-30, at the end of this document;
+`AN-AH` is its critic round).
 
 Read alongside `docs/superpowers/specs/2026-09-03-animation-design.md` (its §3,
 §5 and §6 are corrected in place by rulings recorded here), the binding design
@@ -1478,6 +1479,11 @@ choice would make MetalUI animate where SwiftUI does not.
 
 ## AN-AA — the legacy paint-only decoration fields animate: opacity and border widths in the layout helper, border colour in paint on an EIGHTH reserved slot; `clipsContent` snaps
 
+> **Amended by `AN-AH` item 3**: the border colour's track lives in the
+> `AnimationStore`, not on an eighth `StateTable` slot; the reserved names
+> stay seven and `theSevenRetentionSlotsAreMutuallyDistinct` is untouched.
+> The text below is the design session's, kept as written.
+
 **Ruling.** Outer-modifiers' deferral closes. (1) **`Decoration.opacity` and the
 widths of `border`/`hoverBorder`/`focusBorder` interpolate in
 `animated(_:_:for:pass:)`**, from the `$anim` baseline that already stores the
@@ -1593,6 +1599,13 @@ no such source is known, and the AppKit test swizzles the same getter.
 
 ## AN-AE — the transition surface: supported, unsupported, and how removal is drawn
 
+> **Amended by `AN-AH` items 1, 2, 4 and 6**: `.scale` and
+> `.scale(scale:anchor:)` are **supported** (item 2's "the renderer has no
+> transform" was refuted); insertion is detected only against a conditional
+> evaluated last frame (X17); `TransitionGroup` is identity-**transparent**
+> (item 3 below is withdrawn); 3.13's mutation is re-named. The text below
+> is the design session's, kept as written.
+
 **Ruling.** (1) **Supported**, each probe-backed: `.identity` (X7),
 `.opacity` (X1), `.move(edge:)` by the element's own size (X2, X3, X3t, X3b),
 `.slide` (X5), `.offset(x:y:)` (X9), `.push(from:)` (X10),
@@ -1675,3 +1688,95 @@ and every test drives timestamps; otherwise a dated progress note names what
 is open. Human looks (the transitions and Reduce Motion's cross-fade on a real
 display) go to record §03 and do not gate the tick: the plan's text asks for
 no look, and every behaviour here is pinned headless.
+
+## AN-AH — the critic round: `.scale` supported, first render is not an insertion, the border track in the store, `TransitionGroup` transparent, SwiftUI's conformances, a pin that could not be red
+
+**Taken** by the plan-task-13 critic round, 2026-09-30, on
+`feat/transactions-animation` over `e46a21d`. The probe re-ran **byte for
+byte**: all 223 recorded lines (`diff` against the header's recording empty,
+twice), before the round appended arms X17/X17c at the file's end
+(revision 2, 227 lines, two runs `cmp`-identical). Each item amends the spec
+in place; `AN-AA` and `AN-AE` carry a pointer here.
+
+1. **`.scale` and `.scale(scale:anchor:)` are supported** (X4, X4a; R5s under
+   Reduce Motion). The design omitted them because "the renderer has no
+   transform — a glyph cannot be scaled without a re-rasterized atlas entry".
+   That was an unmeasured "cannot" (shape 14): `glyph_vertex` in
+   `Sources/MetalUIRender/Shaders/shaders.metal` interpolates
+   `atlasPosition` from `atlasBounds` independently of the destination
+   `bounds`, through a `filter::linear` sampler, so a scaled glyph quad
+   resamples its atlas slot; rects and images scale by their `bounds`, radii
+   and border widths. The mechanism is a post-transform of the scene range the
+   group emitted (entry clip kept, inner clips scaled) — spec §6.5. The task
+   text names `.scale`; the plan's "document the supported surface" is better
+   served by building it than by listing it with a wrong reason. Lane 3 reads
+   `Backends/SDL`'s glyph shader first and stops on a mismatch. The
+   unsupported guard (3.19) now pins `.blurReplace`.
+2. **Content present in the first render, or under a newly evaluated parent,
+   is not an insertion** (probe **X17**: the first render under a `.transaction`
+   forcing an animation runs no transition; **X17c** separates — the same tree
+   toggled after appearing records opacity +1). The design's "not produced by
+   the last completed frame" would have faded in every `.transition`ed
+   conditional on a window's first frame under T7c's mechanism, and every one
+   in a `List` row scrolled into its window. Insertion now needs the
+   conditional to have been evaluated last frame (spec §6.5); pinned by 3.22,
+   with every recording copy pinned by 3.23 (a copy of a pinned
+   implementation is unpinned).
+3. **The legacy border-colour track lives in the `AnimationStore`, not on an
+   eighth `StateTable` slot.** The design's `$anim-border` minted a table
+   entry per bordered element, which moves `TB-AH`'s eviction point and every
+   pinned table count, and renamed `theSevenRetentionSlotsAreMutuallyDistinct`
+   — both on this task's must-not-move list — for no behaviour the store
+   cannot give; `AN-AB` already rejects `StateTable` for proposal tracks on
+   exactly this ground, so the design contradicted itself. Cost, stated: an
+   element whose paint is skipped for a frame loses the track (the store's
+   one-frame drop), so its next colour change from there snaps where
+   `$anim-color` would resume. Test 2.15 becomes
+   `theBorderColourTrackMintsNoStateTableEntry`.
+4. **`TransitionGroup` is identity-transparent.** `AN-AE` item 3 gave it an
+   identity level because "a transparent key would collide with the content's
+   own"; that holds only for `StateTable` keys. Its captures live in the
+   `AnimationStore` under `.named("$transition")` at its position — the
+   keying `.animation(_:value:)` already uses (`AN-Y`) — so no collision, and
+   adding `.transition` no longer resets the content's `@State`/focus/`$anim`
+   (SwiftUI's modifiers carry no identity, `AN-Y`'s own argument). No id path
+   moves; no migration note is owed. 3.20 becomes `aTransitionTakesNoIdentityLevel`,
+   with a proposal arm for the typed entry.
+5. **SwiftUI's conformances** (typecheck, recorded in the probe header):
+   `Transaction` is neither `Equatable` nor `Sendable`; `AnyTransition` is not
+   `Sendable`. MetalUI's `Transaction` **drops `Equatable`** (adding it later
+   is additive; removing it would break callers — `SA-K`'s asymmetry) and
+   **keeps `Sendable`** on both, additive beyond SwiftUI and required for
+   Swift 6 `static let`s (`AnyTransition.opacity`) and the value-typed stack.
+6. **A pin that could not be red.** 3.13 (divergence 98's pin) named 3.12's
+   mutation ("let every group inside inserted content transition"), which
+   changes nothing in a tree with no `.transition`. Its mutation is now "give
+   an unannotated conditional's content a default `.opacity` transition".
+7. **Migration spelling for `PlatformWindow`'s new pair** (`AN-AD`): a
+   conformer outside this repository adds `var accessibilityReduceMotion:
+   Bool { false }` and `var onAccessibilityReduceMotionChange: ((Bool) ->
+   Void)?` — `EV-AB`'s announced-break precedent; the four in-repo conformers
+   (`AppKitWindow`, `SDLWindow`, `FakePlatformWindow`,
+   `ControlStateCompileGuards`' `Conformer`) are lane 1's, found by grep.
+
+**Considered and rejected** (recorded here under this doc's own prefix rather
+than as `LR-` rulings: `LR-` is the engine-replacement doc's):
+
+- *T11 has no separating arm* — rejected: T5 (`withTransaction` around the
+  same model write animates) separates it, so a closure binding dropping its
+  transaction is measured, not inferred.
+- *Switch to geometry interpolation so the proposal path animates wholesale* —
+  rejected for `AN-X`'s reason (every hitbox, AX frame, clip and scroll region
+  would choose between presented and final geometry; must-not-move).
+- *Lane 1 is too large* — kept: its platform half shares `Window.swift` and
+  `RenderFrame.swift` with the transaction plumbing, and three lanes is the
+  cap; splitting would put two lanes on one file.
+- *The `AnimationStore`'s one-frame drop differs from `TB-AH`* — kept, as
+  `AN-AB` states: it is SwiftUI's answer for a removed view.
+- *`hasActiveAnimations` and `wantsAnotherFrame` both raised* — not found:
+  every new in-flight path (layers, ops, insertions, ghosts) notes only
+  `noteActiveAnimation()`; no new path requests another frame.
+
+**Cost if wrong.** Item 1 is the largest: if the SDL shader cannot scale a
+glyph, `.scale` is macOS-only until it can, and lane 3 stops to rule it.
+

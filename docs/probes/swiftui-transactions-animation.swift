@@ -59,12 +59,24 @@
 // `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification` (reads
 // true). Every R3+ arm runs with the reader reading true.
 //
+// CONFORMANCES (critic round, 2026-09-30, `xcrun swiftc -typecheck
+// -swift-version 6` over a four-line file, not in this one): SwiftUI's
+// `Transaction` is neither Equatable ("global function 'eq' requires that
+// 'Transaction' conform to 'Equatable'") nor Sendable ("type 'Transaction'
+// does not conform to the 'Sendable' protocol"), and `AnyTransition` is not
+// Sendable ("type 'AnyTransition' does not conform to the 'Sendable'
+// protocol").
+//
 // RECORDED 2026-09-30 by the plan-task-13 design session, macOS 27.0
 // (26A428), `xcrun swiftc` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Screen
 // LOCKED (CGSSessionScreenIsLocked = 1, displayAsleep main: 1). The final
 // revision ran twice, exit 0, stdout byte-identical (223 lines), and once
 // more compiled from this path, identical again; stderr empty
-// after the `Connection]` filter. One run's output, verbatim:
+// after the `Connection]` filter. REVISION 2 (the critic round, same day,
+// same machine, screen locked): arms X17/X17c appended at the END of the
+// file, so every earlier line is unmoved — the first 223 lines re-ran byte
+// for byte against revision 1's recording (`diff` empty), the new file ran
+// twice (227 lines, `cmp` identical). One run's output, verbatim:
 //
 //   === C0 control: withAnimation(A) { v } on .frame(width: 100 + v)
 //     A P<P<F, F>, P<F, F>> [0.000, 0.000, 200.000, 0.000]
@@ -289,6 +301,10 @@
 //   === R9 control: withAnimation(.default) { v } on .opacity, Reduce Motion false: the transaction's animation
 //     (nothing animated)
 //     reads: ["appear false"] transaction: ["animation DefaultAnimation()"]
+//   === X17 first appearance: if flag (true from the first render) { red.transition(.opacity) } under .transaction { $0.animation = A }
+//     (nothing animated)
+//   === X17c control: the same tree, flag false -> true after it appeared, no withAnimation
+//     A Double [1.000]
 
 import SwiftUI
 import AppKit
@@ -611,4 +627,32 @@ rmtx("R10 control: .scale", .scale, insert: true)
 arm("R9 control: withAnimation(.default) { v } on .opacity, Reduce Motion false: the transaction's animation", { m in HStack { RMReader(); Color.red.frame(width: 50, height: 20).opacity(1 - m.v).transaction { t in txReads.append("animation \(t.animation.map { String(describing: $0) } ?? "nil")") } } },
     change: { m in withAnimation(.default) { m.v = 0.5 } })
 print("  reads: \(rmReads) transaction: \(Array(Set(txReads)).sorted())"); rmReads.removeAll(); txReads.removeAll()
+
+// X17 (added by the critic round, 2026-09-30): is content present in the
+// FIRST render an insertion? The tree forces an animation with no
+// `withAnimation` (T7c's mechanism), so a transition that ran would record.
+// X17c is the separating arm: the same tree, the flag turned on after it
+// appeared, records the opacity insertion.
+@MainActor func appearArm<Content: View>(_ name: String, _ content: @escaping (M) -> Content, setup: (M) -> Void) {
+    let m = M()
+    setup(m)
+    seen.removeAll(); layoutWidths.removeAll()
+    let host = NSHostingView(rootView: Root(m: m, c: content))
+    let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+    win.contentView = host
+    win.orderFrontRegardless()
+    spin(0.5)
+    print("=== \(name)")
+    if seen.isEmpty { print("  (nothing animated)") }
+    for l in seen.sorted() { print("  \(l)") }
+    win.orderOut(nil)
+    win.contentView = nil
+    spin(0.05)
+}
+@MainActor func x17(_ m: M) -> some View {
+    ZStack(alignment: .topLeading) { Color.blue.frame(width: 30, height: 10); if m.flag { Color.red.frame(width: 50, height: 30).transition(.opacity) } }
+        .transaction { $0.animation = A }
+}
+appearArm("X17 first appearance: if flag (true from the first render) { red.transition(.opacity) } under .transaction { $0.animation = A }", { m in x17(m) }, setup: { m in m.flag = true })
+arm("X17c control: the same tree, flag false -> true after it appeared, no withAnimation", { m in x17(m) }, change: { m in m.flag = true })
 }
