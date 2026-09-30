@@ -583,3 +583,67 @@ against `2de0973` in all fourteen offscreen images. Live divergences
 this task; the still-open capture gains three more states (transitions,
 Reduce Motion's cross-fade, `.scale`'s soft glyphs), all owed. **Plan task
 13 is ticked.**
+
+## §14 Adversarial branch check (2026-09-30, `2de0973..3d22280`)
+
+Taken on `feat/transactions-animation` at `3d22280`, independently of every
+lane and the Record phase.
+
+- **Suite.** `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, the one `warning:` SwiftPM's deprecation
+  notice), unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 1959 tests in 3 suites passed after 121.487 seconds`**,
+  the `FR-J no-argument frame: succeeded=` line present. The default build
+  system (`swift build --build-tests`, fresh scratch path): 0 `error:`, 0
+  `warning:`. `@Test` diff: 80 added in the root package, 1 removed (the
+  rename below) — 1880 + 79 = 1959. Guards: 121 raw `canTypecheck` hits − the
+  `Typecheck.swift` declaration − `UnitSafetyTests`' comment = **119** (118
+  raw at `2de0973`). Goldens 0. `cmp CLAUDE.md AGENTS.md` identical.
+  `MetalUILayout` imports `MetalUICore` alone.
+- **Probe.** `swiftui-transactions-animation.swift` re-run compiled: 227
+  lines, byte-identical to its header's recording.
+- **Citations.** Every backticked test-like name (≥ 25 characters) added to
+  the changed docs resolves in `Sources/`, `Tests/` or `Backends/SDL`, except
+  `theEightRetentionSlotsAreMutuallyDistinct`, which appears only in
+  `AN-AA`'s kept design text under `AN-AH` item 3's amendment pointer — by
+  design. Every `AN-` id cited exists (`AN-A`…`AN-AK`; `AN-AL` only as the
+  next unused letter); `DD-W` and `CO-AA` resolve.
+- **Mutations** (clean tree at `3d22280`, restored from a copy, full
+  unfiltered suite, `git status --short` empty after each):
+
+  | # | mutation | reddened |
+  |---|---|---|
+  | B1 | `AnyTransition.atoms(insertion:reduceMotion:)` ignores Reduce Motion (`return atoms`) | `underReduceMotionEveryTransitionButIdentityIsAnOpacityFade` alone (8 issues) |
+  | B2 | `.animation(_:value:)`'s change test always true after a first sighting (`.map { _ in true }`) | `anAnimationModifierAnimatesOnlyWhenItsValueChanges` (2), `twoAnimationScopesAtOnePositionKeepSeparateValues` (2) — 4 issues |
+
+- **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 2de0973 HEAD`:
+  controls non-zero where they must be, **0 differing, scene identical in all
+  fourteen**.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`): **22 + 33** — one
+  more than `2de0973`'s 22 + 32 (`anSDLWindowReportsNoReduceMotion`); the
+  §13/`CLAUDE.md` "unmoved" wording is corrected.
+- **`swift:6.4-noble`** (aarch64, `git archive HEAD`): 0 `error:`/`warning:`,
+  **199 + 10 + 22** — the portable `MetalUI`/`MetalUIPlatform` targets,
+  where this task's new code lives, build off Apple.
+- **Lock probe**: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` —
+  no real-window capture.
+- **Unchanged areas.** No retained identity, hit-testing, accessibility,
+  focus, `List`, `Deferred` or text-input test file is edited on the branch
+  (the only edited retained test files are `AnimationTests.swift`,
+  `DecorationPaintTests.swift`, `ControlStateCompileGuards.swift` and
+  `Fakes.swift`), and all are green; `theSevenRetentionSlotsAreMutuallyDistinct`
+  is untouched. The hitbox-not-translated rule rests on
+  `anInsertingElementIsHitTestedAtItsFinalPlace`, identity transparency on
+  `aTransitionTakesNoIdentityLevel`.
+- **Doc defects fixed** (`8f59b0e`): `CLAUDE.md` said `Transaction`'s
+  `Sendable` matched SwiftUI's conformances — SwiftUI's is not `Sendable`
+  (probe header); the counts paragraph and §6's `goldensUnchanged` line
+  omitted the one `@Test` rename (`theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`
+  → `thePaintOnlyDecorationFieldsAnimateAndClipSnaps`, `AN-AA`) and arm (c)'s
+  ruled flip (`AN-AC`); §6 said no lane touched a portable target.
+- **Not pinned, noted.** `AN-AE`'s "an `if`/`else`/`switch` branch": no probe
+  arm and no test spells a `switch`; a `switch` builds the same `EitherGroup`
+  `buildEither` chain an `if`/`else` does, so the claim rests on that
+  reading, not a pin.
+- **Verdict**: merge. Task 13's box stays ticked — every clause of its text is
+  closed and pinned headless.
