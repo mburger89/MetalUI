@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-AJ`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AK`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -2175,3 +2175,123 @@ M2t, M2x) and this round's seven, every lane-2 mutation is on record.
 **Cost if wrong.** Items 1–3 are one ranking function, one `last(where:)`,
 one lead expression and one `first(where:)` in `Window.adjust`; reverting to
 "the first one's" is those four lines and E15–E21's expectations.
+
+---
+
+## IX-AJ — lane 3 landed: the audit's pins, the demo's modal, the VoiceOver script (and four clauses the design left open)
+
+**Ruling.** Lane 3 of part 2 (spec §7 "Lane 3", tests 3.1–3.11) landed in
+three commits: `d90bfc3` (red: `Tests/MetalUITests/AccessibilityAuditTests.swift`
+and `Backends/SDL/Tests/MetalUISDLTests/AccessKitControlsParityTests.swift`),
+`d34605a` (green: `DemoContent.swift`'s two accessibility modifiers and
+`docs/verification/voiceover-script.md`) and `b96472f` (3.11's preview read,
+item 4). No lane-1 or lane-2 file was found wrong; no `Sources/` file but
+`DemoContent.swift` changed. What the design left open, each MetalUI's
+choice unless a probe arm is named:
+
+1. **A press on a `Button` requests no focus; a press on a `List` row
+   focuses its list** (3.9, spec row 3.9 amended). The design's script said
+   "keyboard focus follows" a press loosely; `DD-AE` item 2's "the press keeps
+   `runClick`'s focus request" is a request a handler *makes* — a row's click
+   does (`DD-Z` item 5), a button's does not ("clicking does not focus"). 3.9
+   first asserted the button took focus and was red on its own fixture at
+   `d90bfc3`'s working tree (`pressed.focused == nil`); the assertion was
+   corrected to the source's answer before the red commit, and 3.9 now pins
+   both: `Press me` pressed leaves `focused == nil`, row 4 pressed selects it
+   and focuses the table. The script's C3 and C15 say so, C15 carrying
+   `DD-AE` item 2's contingent cost.
+2. **3.7's tree is transcribed, not rendered.** The SDL test target depends
+   on `MetalUIPlatform`, `MetalUICore` and `MetalUIScene` only; rendering the
+   controls demo would need `MetalUI`, `MetalUIDemoContent` and a
+   `PlatformWindow` fake — a `Backends/SDL/Package.swift` change outside the
+   lane's files. The test holds 3.9's table node for node (the first seven
+   realized rows at 920 × 560) and translates it through
+   `AccessKitSnapshot.translate` and `AccessKitAdapter.cNode`; its header says
+   a demo change reddens 3.9 first and then needs the same edit here.
+3. **The script's trees are built at the demo's own window, 920 × 560**
+   (`MetalUIDemo/main.swift`), so its row counts are the ones a tester sees
+   before resizing: the demo's `List` realizes **5** rows there (the design
+   draft's 18 was a 920-square window), the controls' list 7. The script's
+   setup tells the tester not to resize. Beyond the design's three trees
+   (demo, controls, preview/text-input) 3.10 checks markers against six the
+   script's actions produce: `demo-incremented`, `demo-modal`,
+   `controls-pressed`, `controls-slider-up`, `controls-row-pressed`,
+   `controls-row-selected`, `textinput-focused`. Marker fields: `step`,
+   `tree`, identifying `role`/`label`/`value`/`index` (exactly one node must
+   match), checked `selected`/`enabled`/`selectable`/`focused`/`root`/
+   `actions`/`custom`/`rows`/`realized`/`children`; `-` is nil. **55 `ax`
+   markers, 6 `ax-absent`, 15 "(VoiceOver behaviour, not pinned)" labels**
+   (one in the preamble's own definition of the label).
+4. **3.11 reads an unpublished preview as `.empty`** (`b96472f`): a window
+   whose tree is empty publishes nothing (`WindowAccessibility.lastPublished`
+   starts `.empty`), so under M3k the preview arm's `try #require` on a
+   published tree stopped the test before its text-input arm — M3k reddened
+   3.11, but not in the way the spec's column claimed ("the preview arm
+   reddens, the text-input arm does not"). Re-run after the change: only the
+   preview lines (758, 761) record issues.
+5. **The preview's grid publishes nothing** (3.11): it holds only rectangles
+   and a tapped cell, and a tap publishes no press (G1–G7, `IX-Y`), so the
+   preview's whole tree is its two proposal texts. The spec's "the grid row
+   by row" has no text to read here; row-by-row flattening is 2.15's pin (P2).
+6. **The text-input demo binds no `@FocusState`**, so the script's focus
+   section checks a `.focus` request on its first field (F3,
+   `textinput-focused`), and marks the `@FocusState` step (F7) N/A, pinned
+   only by 3.3/3.4. `DD-AD` item 1's contingent cost (C17) likewise cannot be
+   heard — no demo holds a disabled control — and is marked N/A with its pin
+   named.
+
+**Red before** (`d90bfc3`, full unfiltered suite): `Test run with 1880 tests
+in 3 suites failed after 115.479 seconds with 2 issues` — 3.8
+`modal.roots.count == 1` (AccessibilityAuditTests.swift:506; the modal
+published all seven roots behind the scrim) and 3.10 `try? String(contentsOf:
+url, encoding: .utf8)` (:698, no script). 3.1–3.6, 3.9, 3.11 and SDL 3.7 were
+written first and green, as the spec's column says; each is reddened by its
+mutation below.
+
+**Green** (`b96472f`): `swift build --build-system native --build-tests` 0
+`error:`, the one `warning:` SwiftPM's deprecation notice; `swift build
+--build-tests` (default system) 0 `error:`/`warning:`; unfiltered `swift test
+--build-system native --no-parallel` → **`Test run with 1880 tests in 3
+suites passed`**, the log carrying `FR-J no-argument frame: succeeded=true`
+(guards ran; **116**, unmoved). `Backends/SDL` (`PKG_CONFIG_PATH=.accesskit`)
+**22 + 32**. A `swift:6.4-noble` container (a `git archive` of `b96472f`)
+builds with 0 `error:`/`warning:` and runs **199 + 10 + 22**, unmoved. **0 px
+against `31d3565` in all fourteen offscreen images, every scene identical**
+(`compare.sh … 31d3565 d34605a`; controls as at `31d3565`, including
+`prod default vs modal` non-zero). `Expected.swift` unedited;
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel` and
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green. The real-window
+capture was **not taken**: the lock probe read `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`.
+
+**Mutations** (each applied to the working tree at `d34605a` or `b96472f`,
+restored with `git checkout --` or from a copy, the whole suite unfiltered —
+1880; SDL: its whole suite — `git status --short` empty after each):
+
+| id | mutation | reddened |
+|---|---|---|
+| M3a | `Button.keyboardShortcut(_:)` returns `accessibilityHint("shortcut …")` | `aButtonsRoleShortcutAndStylePublishOnlyItsLabel` |
+| M3b | `Text.prepaint` passes `string.prefix(8)` under a line limit | `aTruncatedTextPublishesItsWholeString` |
+| M3c | `reconcileFocusStates` skipped once after an accessibility `.focus` | `anAccessibilityFocusRequestWritesAFocusStateBinding` |
+| M3d | the builder given `focusHandedIn` for `focusedElement` | `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt` only — **not 3.4**: a `@FocusState` write is applied before the frame (`applyPendingFocusStateWrites`), so the handed-in focus already is the new one; M3d is equivalent for 3.4 |
+| M3d′ | `AppKitAccessibilityBridge.focusedElement()` answers `nil` | `aFocusStateWriteIsTheTreesFocusedElement`, `focusIsReportedFromTheTreeAndAFocusRequestIsSent` |
+| M3e | `IX-I`'s focus reset removed (`Frame.render`'s `resetFocusSlots` check) | `focusLeavesTheTreeWithItsIdentityAfterARename`, `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh`, `aForEachThatDropsItsFocusedElementDropsFocus`, `aResetKeepsTheAccessibilitySlotButNotFocus`, `focusDropsWhenAnIfRemovesItsElement`, `focusDropsWhenItsElementIsRenamedAndDoesNotReturn` |
+| M3f | `Toggle`'s value `"1"` → `"true"` | `everyPartOneControlPublishesItsRoleLabelValueAndActions`, `theControlsDemoPublishesTheTreeTheVoiceOverScriptReads`, `theVoiceOverScriptQuotesThePublishedTree`, `aTogglePublishesALabelledCheckboxWithItsValue`, `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` |
+| M3g (SDL) | `AccessKitSnapshot.role(.incrementor)` → `.button` | `theControlsDemoTranslatesToAccessKitAsToAppKit`, `theFiveControlRolesMapToAccessKitWithToggledAndNumericValues` |
+| M3h | the demo's `.accessibilityAddTraits(.isModal)` removed | `theDemoPublishesTheTreeTheVoiceOverScriptReads`, `theVoiceOverScriptQuotesThePublishedTree` |
+| M3i | the controls demo's list built without `selection:` | `theControlsDemoPublishesTheTreeTheVoiceOverScriptReads`, `theVoiceOverScriptQuotesThePublishedTree`, `theControlsDemoPublishesEveryControlsRole` |
+| M3j | the script's D4 label `Decrement` → `Decrease` | `theVoiceOverScriptQuotesThePublishedTree` ("D4: 0 nodes in demo match …") |
+| M3j′ | an `ax-absent` marker `step=M3JP tree=demo label="Increment"` added | `theVoiceOverScriptQuotesThePublishedTree` ("M3JP: "Increment" is published in demo") |
+| M3k | `ProposalText.prepaint` records nothing (at `b96472f`) | `thePreviewAndTextInputDemosPublishTheTreesTheScriptReads` (preview arm only), `theVoiceOverScriptQuotesThePublishedTree`, `aTruncatedTextPublishesItsWholeString`, `aProposalTextPublishesItsStringAsAStaticText`, `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne`, `aLabelledImagePublishesAnImageAndADecorativeOneNothing`, `aProposalAccessibilityModifierLabelsDistributesAndIsOneIdentityLevel`, `anAccessibilityPressRunsADeclaredActionInsteadOfTheClick`, `theProposalModifiersMirrorTheStyledOnes` |
+
+**Counts**: root **1870 → 1880** (+10: 3.1–3.6, 3.8–3.11), guards **116**
+unmoved, SDL **22 + 31 → 22 + 32** (+1, 3.7) — spec §11's expected close,
+as designed. No test removed or renamed; `goldensUnchanged`: no retained
+test changed its answer (the lane edits no existing test file).
+
+**The tick.** Plan task 12 stays **unticked**: the script is prepared, not
+run. Its every Observed cell is empty; no agent writes one (`IX-AE` item 3).
+
+**Cost if wrong.** Item 1 is two assertions and two script rows; item 2 is
+one test's fixture; items 3–6 are script rows and one `??`.
