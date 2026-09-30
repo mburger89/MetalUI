@@ -454,6 +454,12 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-30, `feat/transactions-animation` merged with `master`
+  at `26ecd17`): 1961 tests** (`Test run with 1961 tests in 3 suites passed`,
+  after `swift package clean`; the FR-J line present). **1961 = 1959 + 2**:
+  plan task 13's figure below plus the IX-AG pins' two
+  (`aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled`,
+  `thePressOnlyRecordKeepsTheLastRegistrationPerID`, record §63 §13).
 - **Counts (2026-09-30, `feat/transactions-animation` — plan task 13,
   transactions and animation, from `2de0973`, not yet merged with `master`):
   1959 tests, 0 goldens, 119 typecheck guards**, 0 `error:` on both build
@@ -513,6 +519,14 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   retained layout/paint distinction, timestamps not sleeps), and the
   still-open real-window capture does not gate the tick (`AN-AG`: the plan's
   text asks for no look).
+- **Counts (2026-09-30, `test/ix-ag-pins` — plan task 12 part 2's unpinned
+  `IX-AG` clauses, from `2de0973`): 1882 tests**, 0 `error:`, the one
+  native deprecation `warning:` (0 under the default one), taken the same way
+  (`Test run with 1882 tests in 3 suites passed`; the FR-J line present).
+  **1882 = 1880 + 2**: `aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled`
+  (V7) and `thePressOnlyRecordKeepsTheLastRegistrationPerID` (V9);
+  `settingAXSelectedOnARowReplacesTheSelection` gains the lead/anchor arm (V4)
+  and keeps its windows alive. No guard, no golden. History: record §63 §13.
 - **Counts (2026-09-30, `feat/accessibility-bridge` — plan task 12 part 2,
   the accessibility half, from `31d3565`, not yet merged with `master`): 1880
   tests, 0 goldens, 116 typecheck guards**, 0 `error:` on both build systems,
@@ -4041,6 +4055,12 @@ expected, measured facts:
     `assumeIsolated`). swift-corelibs Foundation silently ignores a
     `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
     or more. Record §50 §14.
+  - **A C enum's `rawValue` is `Int32` on Windows and `UInt32` on Apple.**
+    Passing `SOME_C_ENUM.rawValue` straight into a `UInt32`/`MUIUInt` field
+    compiles on macOS and Linux and fails the Windows build — twice so far
+    (`SDLWindowRendererTests`, PR #32; `AccessKitControlsParityTests`, after
+    task 12 part 2). Always convert explicitly (`UInt32(X.rawValue)`,
+    `MUIUInt(X.rawValue)`); only Windows CI can see a miss.
   - **Stage 10's closing check is compiled out on Windows.**
     `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
     (`Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`) is

@@ -605,6 +605,28 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     let multiRequests = try appKitSelect(2, platform)
     #expect(multiRequests.count == 1, "one request reaches the window: \(multiRequests)")
     #expect(model.multiWrites == [[3], [2]], "LB3: it replaces the set: \(model.multiWrites)")
+    // `IX-AG` item 5: an accessibility selection stores the lead and anchor
+    // as a click does. The press left both at row 3; the client now sets rows
+    // [3, 1], so the anchor is row 1 (the last row named) — a ⇧-click on row 4
+    // extends from it to [1, 2, 3, 4]. V4 (the lead/anchor write dropped from
+    // `accessibilityRowSelection`) keeps the press's anchor, row 3, still
+    // selected so still honoured, and reads [3, 4]. (A stale anchor the
+    // selection no longer holds falls back to the first selected row, which
+    // is why a one-row selection cannot see V4.)
+    controlRedraw(window)
+    let current = try #require(platform.publishedAccessibilityTrees.last)
+    let table = try #require(current.nodes.first { $0.value.role == .table }?.key, "a table")
+    func row(_ index: Int) throws -> AccessibilityNodeID {
+        try #require(current.nodes[table]?.children.first { kids(current, $0).first?.value == "Row \(index)" },
+                     "row \(index) is published")
+    }
+    #expect(platform.simulateAccessibilityRequest(.selectRows(table, [try row(3), try row(1)])))
+    try #require(model.multi == [1, 3], "control: the client set rows 1 and 3: \(model.multi)")
+    controlRedraw(window)
+    let list = GlobalElementID.child(of: scrolledContentID, at: 0, name: nil)
+    try clickRow(window, platform, rowID(list, 4), .shift)
+    #expect(model.multi == [1, 2, 3, 4],
+            "the ⇧-click extends from the accessibility selection's anchor: \(model.multi)")
 
     // LA2: a single list's row 3 → 3.
     let singleModel = Selection(count: 5, single: 1)
@@ -613,6 +635,9 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     let singleRequests = try appKitSelect(3, singlePlatform)
     #expect(singleRequests.count == 1, "one request reaches the window: \(singleRequests)")
     #expect(singleModel.singleWrites == [3], "LA2: the row is selected: \(singleModel.singleWrites)")
+    // The platform holds its window weakly: keep both alive to here, or a
+    // request reaches nothing (`IX-AG` item 8).
+    withExtendedLifetime((window, singleWindow)) {}
 }
 
 @MainActor private final class SelectionRunning: AccessibilityClientSignal {

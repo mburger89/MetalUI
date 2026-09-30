@@ -688,3 +688,44 @@ One agent, `31d3565..1d09c71`, working tree clean on entry.
   `IX-AG` clauses stand, as recorded.
 
 **Verdict: merge.**
+
+## §13 The three unpinned `IX-AG` clauses, pinned (2026-09-30)
+
+`test/ix-ag-pins` from `2de0973`. §9's three unpinned `IX-AG` clauses and
+§6's 1.12 lifetime hazard (§12, "Code findings") are closed; tests only, no
+`Sources/` line moves.
+
+- **`IX-AG` item 5** (an accessibility selection stores the lead and anchor
+  as a click does): `settingAXSelectedOnARowReplacesTheSelection` gains an arm
+  — after the press (anchor 3) the client sends `.selectRows(table, [3, 1])`,
+  and a ⇧-click on row 4 reads `[1, 2, 3, 4]`. **A one-row selection cannot
+  see V4**: a stored anchor the selection no longer holds falls back to the
+  first selected row (`leadIndex`), which is why the first attempt (select
+  row 2, ⇧-click 4) stayed green under V4; the arm keeps the press's anchor
+  selected so the mutant honours it and reads `[3, 4]`.
+- **`IX-AG` item 6, suppressed subtree**: new
+  `aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled` — a
+  `.hidden()` `onClick` under `allowsHitTesting(false)` is absent from
+  `lastAccessibilityPressOnly` and a `.press` on its id is refused and runs
+  nothing; the same tree unhidden (same type, same id) records and presses.
+- **`IX-AG` item 6, last registration wins**: new
+  `thePressOnlyRecordKeepsTheLastRegistrationPerID` — two siblings sharing
+  `.id("shared")` (divergence 72) under `allowsHitTesting(false)`; the press
+  runs the later sibling's handler.
+- **1.12's lifetime**: `settingAXSelectedOnARowReplacesTheSelection` ends with
+  `withExtendedLifetime((window, singleWindow)) {}`, as 1.13/1.14 do.
+
+**Mutations**, each on this tree, full unfiltered `swift test --build-system
+native --no-parallel`, restored from a copy, `git status --short` showing only
+the two test files after each:
+
+| id | mutation | result | reddened |
+|----|----------|--------|----------|
+| V4 | `accessibilityRowSelection`'s `$0.lead = …; $0.anchor = …` → no-op | `1882 … failed with 1 issue` | `settingAXSelectedOnARowReplacesTheSelection` (reads `[4, 3]`) |
+| V7 | `!isAccessibilitySuppressed(for: id)` dropped from the press-only condition in `Frame.registerHandlers` | `1882 … failed with 3 issues` | `aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled` (record, refusal, tally 2) |
+| V9 | press-only record: first registration wins | `1882 … failed with 1 issue` | `thePressOnlyRecordKeepsTheLastRegistrationPerID` (later 0, earlier 1) |
+
+**Suite**: `swift build --build-system native --build-tests` 0 `error:`, the
+one deprecation `warning:`; `swift build --build-tests` 0 `error:`/`warning:`;
+`Test run with 1882 tests in 3 suites passed after 117.723 seconds`, `FR-J
+no-argument frame: succeeded=true` present.

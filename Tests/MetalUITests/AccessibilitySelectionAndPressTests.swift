@@ -201,3 +201,79 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
     #expect(enabledModel.multiWrites == [[3]], "control: the enabled list selects: \(enabledModel.multiWrites)")
     withExtendedLifetime((disabledWindow, enabledWindow)) {}
 }
+
+// MARK: - The press-only record's two clauses (`IX-AG` item 6)
+
+/// `element`, `.hidden()` when `hidden` — the same type either way, so the
+/// tree and its ids are the same in both arms.
+@MainActor private func maybeHidden<E: StyledElement>(_ element: E, _ hidden: Bool) -> E {
+    hidden ? element.hidden() : element
+}
+
+@MainActor private final class PressTally {
+    var earlier = 0
+    var later = 0
+}
+
+/// **1.10b (`IX-AG` item 6, first clause).** The press-only record skips a
+/// suppressed subtree: a `.hidden()` element with an `onClick` under
+/// `allowsHitTesting(false)` is absent from `lastAccessibilityPressOnly`, and an
+/// accessibility `.press` on its id is refused and runs nothing. The same tree
+/// without `.hidden()` (which changes no layer count, so the id is the same)
+/// records it and presses — the control. Mutation V7 (the
+/// `!isAccessibilitySuppressed(for: id)` clause dropped from the record's
+/// condition in `Frame.registerHandlers`) must redden it.
+@Test @MainActor func aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled() throws {
+    let tally = PressTally()
+    @MainActor func content(hidden: Bool) -> some Element {
+        Column {
+            Box().frame(width: 40, height: 20).accessibilityLabel("shown")
+            maybeHidden(Box().frame(width: 40, height: 20).onClick { tally.later += 1 }
+                .allowsHitTesting(false), hidden).id("press-only")
+        }
+    }
+    let (shownWindow, shownPlatform) = try controlWindow(size: 200) { content(hidden: false) }
+    _ = try controlTree(shownWindow, shownPlatform)
+    try #require(shownWindow.lastAccessibilityPressOnly.count == 1,
+                 "control: the visible element's press is recorded: \(shownWindow.lastAccessibilityPressOnly.keys)")
+    let id = try #require(shownWindow.lastAccessibilityPressOnly.keys.first)
+    #expect(shownPlatform.simulateAccessibilityRequest(.press(AccessibilityNodeID(id))),
+            "control: the visible element presses")
+    #expect(tally.later == 1, "control: its handler ran: \(tally.later)")
+
+    let (hiddenWindow, hiddenPlatform) = try controlWindow(size: 200) { content(hidden: true) }
+    _ = try controlTree(hiddenWindow, hiddenPlatform)
+    #expect(hiddenWindow.lastAccessibilityPressOnly[id] == nil,
+            "a suppressed subtree records no press: \(hiddenWindow.lastAccessibilityPressOnly.keys)")
+    #expect(!hiddenPlatform.simulateAccessibilityRequest(.press(AccessibilityNodeID(id))),
+            "a press on the hidden element's id is refused")
+    #expect(tally.later == 1, "and runs nothing: \(tally.later)")
+    withExtendedLifetime((shownWindow, hiddenWindow)) {}
+}
+
+/// **1.10c (`IX-AG` item 6, second clause).** The press-only record keeps the
+/// LAST registration per id: two siblings sharing one `.id` (divergence 72),
+/// both with an `onClick` under `allowsHitTesting(false)`, record one entry,
+/// and an accessibility `.press` on it runs the later sibling's handler — the
+/// rank click dispatch gives a later hitbox. Mutation V9 (the first
+/// registration wins) must redden it.
+@Test @MainActor func thePressOnlyRecordKeepsTheLastRegistrationPerID() throws {
+    let tally = PressTally()
+    @MainActor func content() -> some Element {
+        Column {
+            Box().frame(width: 40, height: 20).onClick { tally.earlier += 1 }
+                .allowsHitTesting(false).id("shared")
+            Box().frame(width: 40, height: 20).onClick { tally.later += 1 }
+                .allowsHitTesting(false).id("shared")
+        }
+    }
+    let (window, platform) = try controlWindow(size: 200) { content() }
+    _ = try controlTree(window, platform)
+    try #require(window.lastAccessibilityPressOnly.count == 1,
+                 "control: the two siblings share one id: \(window.lastAccessibilityPressOnly.keys)")
+    let id = try #require(window.lastAccessibilityPressOnly.keys.first)
+    #expect(platform.simulateAccessibilityRequest(.press(AccessibilityNodeID(id))))
+    #expect(tally.later == 1 && tally.earlier == 0,
+            "the later registration's handler runs: later \(tally.later), earlier \(tally.earlier)")
+    withExtendedLifetime(window) {}
+}
