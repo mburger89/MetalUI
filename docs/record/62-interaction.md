@@ -821,3 +821,64 @@ offscreen images. Windows stack budget: `MemoryLayout<Handlers>.size` 408 →
 592 → 624 KB, well inside 1 MB. Live divergences **68 → 69**, next label
 **95**. Task 12's box: **unticked** — part 2 (the accessibility half) and
 the human VoiceOver run remain.
+
+## §12 Adversarial branch check (2026-09-29, `31f2e7a..dcbcb73`)
+
+Independent of every lane and of §6. **Verdict: merge.** No code defect found.
+
+- **Suite**, after `swift package clean`: `swift build --build-system native
+  --build-tests` → 0 `error:`, the one SwiftPM deprecation `warning:`;
+  `swift build --build-tests` (default) → 0 `error:`, 0 `warning:`. Unfiltered
+  `swift test --build-system native --no-parallel` → **`Test run with 1837
+  tests in 3 suites passed after 113.741 seconds`**, `FR-J no-argument frame:
+  succeeded=true` present. `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (`Expected.swift` untouched by
+  the branch) and `theSevenRetentionSlotsAreMutuallyDistinct` passed.
+- **Goldens 0, guards 113** (114 raw `canTypecheck` hits less
+  `UnitSafetyTests`' comment). `cmp CLAUDE.md AGENTS.md` identical.
+  `MetalUILayout` imports only `MetalUICore`.
+- **Citations**: all 115 backticked identifiers of 26+ characters added to the
+  record, the decisions doc, the spec, CLAUDE.md and records 03/04/05 resolve
+  in `Tests/`, `Sources/` or `Backends/SDL/Tests`; every `IX-` id cited
+  resolves (`IX-A`…`IX-T`; `IX-U` appears only as the next-unused label,
+  `IX-3` only in CLAUDE.md's typo-sweep list).
+- **Removed `@Test`s**: four names leave the tree, each with a row — C2.13
+  retired (§5), and three renamed with the focus clause inverted, each naming
+  `IX-I` (`focusDropsWhenAnIfRemovesItsElement`,
+  `aResetKeepsTheAccessibilitySlotButNotFocus`,
+  `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh`). The other
+  pre-existing test edits (`ModifierTests`/`OuterModifierMatrixTests`
+  fingerprints gaining fields, the `AccessibilityTreeTests` focus control, D13's
+  re-derivation) are the rows §4–§6 name; no other retained assertion changed.
+- **One hit ranking**: `topmostOpaqueHitbox(in:at:)` is the only ranking
+  (`Hitbox.swift`); the arena's ancestor membership, wheel routing and the
+  ranking all test a point through the one `Hitbox.contains`.
+- **Mutation A** (`Hitbox.contains` ignores the shape — M3i re-run on
+  `dcbcb73`, restored from a copy): 1837 tests, 13 issues, reddening
+  `aCircularContentShapeRefusesTheCornerAndTakesTheCentre`,
+  `aContentShapeWrittenAfterAProposalTapShapesItsHit`,
+  `hoverActiveAndTheGestureArenaFollowTheContentShape` **and**
+  `aContentShapeInsideAScrolledScrollerFollowsTheScroll` (2.16b) — the M3i row
+  in §4 was taken before 2.16b existed and names three; on this tip it reddens
+  four.
+- **Mutation B** (new: the target's `onClick` leaf placed **ahead** of the
+  high-priority members in `GestureArena.init`, `IX-D` item 3): 1837 tests,
+  3 issues, reddening `anOuterHighPriorityGestureBeatsTheInnerOneAndAButton`
+  (1.14, its H8 arm) and `anOverflowingChildsPressOutsideItsAncestorLeavesTheAncestorOut`
+  (1.25). `git status --short` clean after each restore.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 31f2e7a HEAD` —
+  controls as recorded (light/dark 1048576, preview 1048576, f0/f3 0, chrome
+  pair 0, distinct 544/216), **0 differing, scene identical in all fourteen**.
+- **Real window**: lock probe read `CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1`; `capture.sh` not run — still owed.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=Backends/SDL/.accesskit`): 22 + 26
+  passed, 0 `error:`. **`swift:6.4-noble`** (aarch64, `git archive HEAD`): 0
+  `error:`/`warning:`, `MetalUILayoutTests`/`MetalUICrossPlatformTests`/
+  `MetalUICoreTests` **199 + 10 + 22**.
+- **Audit and plan**: spec §2's 38 rows each carry an arm or "unmeasured", a
+  verdict and an owner; every SwiftUI claim cites a `swiftui-interaction.swift`
+  (or `swiftui-gesture-presentation-arena.swift`, `swiftui-disabled-interaction.swift`)
+  arm, the probe's header listing its locked-screen blind spots as unmeasured.
+  Task 12's box is **unticked** with a dated 2026-09-29 progress note naming
+  part 2 and the human VoiceOver run.
