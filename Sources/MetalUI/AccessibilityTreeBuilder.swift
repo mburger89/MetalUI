@@ -18,6 +18,7 @@ enum AccessibilityTreeBuilder {
     static func build(emissions: [AXEmission],
                       focused: GlobalElementID?,
                       hitboxes: [Hitbox],
+                      pressOnly: [GlobalElementID: @MainActor () -> Void] = [:],
                       focusRegistry: FocusRegistry) -> AccessibilityTree {
         // 1. Collect. One record per id, at its first position with its last
         //    content (AB-O): two siblings given the same `.id(_:)` mint one
@@ -52,13 +53,18 @@ enum AccessibilityTreeBuilder {
         }
 
         // 3. Actions are derived from live handlers, never declared (AB-H). A
-        //    press is advertised exactly where a click would find a handler:
-        //    the frame's hitboxes, so `allowsHitTesting(false)` removes both.
+        //    press is advertised where a click would find a handler — the
+        //    frame's hitboxes — and, since plan task 12 part 2, where only
+        //    `allowsHitTesting(false)` kept one from finding it (below).
         //    Focus eligibility is the registry's, not a declaration (AB-J).
         var pressable = Set<GlobalElementID>()
         for hitbox in hitboxes where hitbox.handlers.onClick != nil {
             pressable.insert(hitbox.id)
         }
+        // And where `allowsHitTesting(false)` withheld the hitbox from an
+        // enabled `onClick` (plan task 12 part 2, `IX-Z` item 1; SwiftUI arm
+        // B6): a press is not a pointer query, so it is still advertised.
+        pressable.formUnion(pressOnly.keys)
         let adjustment = ObjectIdentifier(AccessibilityAdjustment.self)
         var state: [GlobalElementID: Resolving] = [:]
         state.reserveCapacity(order.count)
@@ -91,15 +97,25 @@ enum AccessibilityTreeBuilder {
         var geometry: [AccessibilityNodeID: AccessibilityGeometry] = [:]
         nodes.reserveCapacity(order.count)
         geometry.reserveCapacity(order.count)
+        // A row a client may select directly (`IX-AA` item 1): a `.row` whose
+        // published parent is a list with a registered `AccessibilityRowSelection`
+        // handler — a `List(selection:)` that is enabled and not hidden. The
+        // emit order visits a parent before its children.
+        let rowSelection = ObjectIdentifier(AccessibilityRowSelection.self)
+        var selectableRows = Set<GlobalElementID>()
         var pending = publishedRoots
         while let id = pending.popLast() {
             let node = state[id]!
             let kids = placed[id] ?? []
             pending.append(contentsOf: kids)
+            if focusRegistry.actionHandler(for: id, type: rowSelection) != nil {
+                selectableRows.formUnion(kids)
+            }
             let declared = node.record.declared
             let nodeID = AccessibilityNodeID(id)
+            let publishedRole = role(of: node)
             nodes[nodeID] = AccessibilityNode(
-                role: role(of: node),
+                role: publishedRole,
                 label: node.label,
                 value: node.value,
                 isSelected: declared.traits.contains(.selected) || declared.selectionHint,
@@ -108,7 +124,8 @@ enum AccessibilityTreeBuilder {
                 actions: node.actions,
                 children: kids.map(AccessibilityNodeID.init),
                 rowCount: declared.logicalCount,
-                rowIndex: declared.logicalIndex)
+                rowIndex: declared.logicalIndex,
+                isSelectable: publishedRole == .row && selectableRows.contains(id))
             // Geometry is the record's (its last content), with `order` its
             // FIRST position: the key the AppKit hit test breaks layer ties on,
             // as click dispatch breaks them on registration order (AB-W).

@@ -195,9 +195,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
              #selector(NSAccessibilityElement.accessibilityPerformDecrement)].allSatisfy(e.isAccessibilitySelectorAllowed)
         },
         "children": { ($0.accessibilityChildren() ?? []).compactMap { ($0 as? AppKitAccessibilityElement)?.id } == [nid("kid")] },
-        // A row answers its row count only as the table it is not; the arm is
-        // on the neutral field, read the way the bridge reads it.
-        "rowCount": { $0.node.rowCount == 7 && $0.accessibilityRowCount() == 0 },
+        "rowCount": { $0.accessibilityRowCount() == 7 },
         "rowIndex": { $0.accessibilityIndex() == 3 },
         "hint": { $0.accessibilityHelp() == "H" },
         "identifier": { $0.accessibilityIdentifier() == "I" },
@@ -214,9 +212,6 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
     #expect(!other.element(for: nid("n"))
         .isAccessibilitySelectorAllowed(#selector(NSAccessibilityElement.setAccessibilityFocused(_:))),
             "control: a node that is not focusable does not allow AXFocused")
-    // The table's row count, answered where AppKit reads it.
-    let (table, _) = makeBridge(tree(roots: ["t"], ["t": AccessibilityNode(role: .table, rowCount: 7)]))
-    #expect(table.element(for: nid("t")).accessibilityRowCount() == 7)
 }
 
 /// **1.9.** Every override lane 1 adds answers nothing off the main thread and

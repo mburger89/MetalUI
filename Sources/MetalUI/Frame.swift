@@ -1219,6 +1219,14 @@ public final class Frame {
         // calling here would have to get it right in `Box`, `Stack`, `Text` and
         // `ModifiedElement`, and a conformer that forgot would be silently
         // wrong.
+        // The press the gate below withholds from the pointer, kept for an
+        // accessibility client only (`IX-Z` item 1): enabled, and only while
+        // collecting, so a window with no client pays one `Bool` read. A
+        // suppressed subtree records no node, so it advertises no press.
+        if collectsAccessibility, enabled, hitTestingDisabledDepth > 0, let onClick = handlers.onClick,
+           !isAccessibilitySuppressed(for: id) {
+            accessibilityPressOnly[id] = onClick
+        }
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -1376,6 +1384,16 @@ public final class Frame {
     /// `collectsAccessibility`**. Read by `AccessibilityTreeBuilder` once per
     /// frame. See `AXEmission`.
     private(set) var axEmissions: [AXEmission] = []
+
+    /// The `onClick` of each **enabled** element whose hitbox the
+    /// `allowsHitTesting(false)` gate withheld — **empty unless
+    /// `collectsAccessibility`** (plan task 12 part 2, ruling `IX-Z` item 1).
+    /// SwiftUI still presses a `Button` under `allowsHitTesting(false)` (arm
+    /// B6): an accessibility press is not a pointer query. The builder
+    /// advertises `.press` for these ids and `Window` runs the handler when no
+    /// hitbox answers; a mouse click still finds nothing. Last registration
+    /// wins, as click dispatch ranks a later hitbox above an earlier one.
+    private(set) var accessibilityPressOnly: [GlobalElementID: @MainActor () -> Void] = [:]
 
     /// Set by a collecting `List` whose window is unbounded only because its
     /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`

@@ -86,13 +86,15 @@ extension Window {
             return true
         case .press(let node):
             // The LAST hitbox for the id with a click handler, as click dispatch
-            // ranks a later registration above an earlier one. Only a hitbox
-            // registered outside `allowsHitTesting(false)` is in the list, so a
-            // press is refused exactly where a click finds nothing.
+            // ranks a later registration above an earlier one; then, where
+            // `allowsHitTesting(false)` withheld the hitbox from an enabled
+            // `onClick`, that handler (plan task 12 part 2, `IX-Z` item 1:
+            // SwiftUI presses there, arm B6 — a click still finds nothing).
             guard let id = node.base as? GlobalElementID,
                   let onClick = lastHitboxes.last(where: { $0.id == id && $0.handlers.onClick != nil })?
-                      .handlers.onClick else { return false }
-            // A press runs what a click runs, with no modifiers (`DD-Z` item 9).
+                      .handlers.onClick ?? lastAccessibilityPressOnly[id] else { return false }
+            // A press runs what a click runs, with no modifiers (`DD-Z` item 9),
+            // and keeps its focus request (`IX-Z` item 2).
             runClick(onClick, on: id, modifiers: [])
             setNeedsRedraw()
             return true
@@ -107,9 +109,41 @@ extension Window {
                   lastFocusRegistry.isFocusable(id) else { return false }
             focus(id)
             return true
-        case .customAction, .select, .selectRows:
-            return false   // STUB (lane 1 red commit)
+        case .customAction:
+            // Lane 2 (`IX-Y`) replaces this arm with the node's named action or
+            // a combined node's redirect; until then a custom action is refused
+            // exactly as an unknown id is.
+            return false
+        case .select(let row):
+            // The row's table in the last published tree (`IX-AA` item 1).
+            guard let table = accessibility.lastPublished.nodes.first(where: {
+                $0.value.role == .table && $0.value.children.contains(row)
+            })?.key else { return false }
+            return selectRows(table, [row])
+        case .selectRows(let table, let rows):
+            return selectRows(table, rows)
         }
+    }
+
+    /// Runs the list's OWN `AccessibilityRowSelection` handler with `rows`
+    /// (`IX-AA` item 1). Refused unless `table` is a published table and every
+    /// row one of its published children, and unless the last frame registered
+    /// the handler — a list without `selection:`, a disabled list and a hidden
+    /// one register none. The list decides what the rows mean (a single list
+    /// ignores two, LA4); a handled request answers `true`, as a press does.
+    private func selectRows(_ table: AccessibilityNodeID, _ rows: [AccessibilityNodeID]) -> Bool {
+        guard let tableNode = accessibility.lastPublished.nodes[table], tableNode.role == .table,
+              rows.allSatisfy(tableNode.children.contains),
+              let id = table.base as? GlobalElementID,
+              let handler = lastFocusRegistry.actionHandler(
+                  for: id, type: ObjectIdentifier(AccessibilityRowSelection.self)) else { return false }
+        let rowIDs = rows.compactMap { $0.base as? GlobalElementID }
+        guard rowIDs.count == rows.count else { return false }
+        StateDispatch.dispatching(to: id) {   // ID-F: the list itself
+            handler(AccessibilityRowSelection(rows: rowIDs))
+        }
+        setNeedsRedraw()
+        return true
     }
 
     /// Runs the element's OWN `AccessibilityAdjustment` handler, never an

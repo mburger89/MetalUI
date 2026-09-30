@@ -69,7 +69,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// What AccessKit's `selected` is set to: the selection when it is
         /// selected or selectable, unset otherwise (`IX-AA` item 2).
         var selectedState: Bool? {
-            isSelected ? true : nil   // STUB (lane 1 red commit)
+            isSelected || isSelectable ? isSelected : nil
         }
     }
 
@@ -134,6 +134,7 @@ extension AccessKitSnapshot {
             if node.actions.contains(.increment) { actions.insert(.increment) }
             if node.actions.contains(.decrement) { actions.insert(.decrement) }
             if node.isFocusable { actions.insert(.focus) }
+            if !node.customActions.isEmpty { actions.insert(.customAction) }
             let frame = tree.geometry[id]?.frame
             nodes.append(Node(
                 id: ids.number(for: id), role: role(node.role), label: node.label, value: node.value,
@@ -143,7 +144,10 @@ extension AccessKitSnapshot {
                 },
                 children: node.children.map(ids.number(for:)), actions: actions,
                 isDisabled: !node.isEnabled, isSelected: node.isSelected,
-                toggled: toggled(node), numericValue: numericValue(node)))
+                toggled: toggled(node), numericValue: numericValue(node),
+                rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
+                authorID: node.identifier, customActions: node.customActions,
+                isSelectable: node.isSelectable))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -165,7 +169,8 @@ extension AccessKitSnapshot {
         case .radioGroup: .radioGroup
         case .slider: .slider
         case .incrementor: .spinButton
-        case .heading, .link: .genericContainer   // STUB (lane 1 red commit)
+        case .heading: .heading
+        case .link: .link
         }
     }
 
@@ -204,7 +209,9 @@ extension AccessKitSnapshot {
         switch queued {
         case .activate: return .activate
         case let .action(action, number): return request(action, number: number, ids: ids)
-        case .customAction: return nil   // STUB (lane 1 red commit)
+        case let .customAction(number, index):
+            guard let id = ids.node(for: number) else { return nil }
+            return .customAction(id, index)
         }
     }
 }

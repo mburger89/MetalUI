@@ -161,7 +161,12 @@ final class AccessKitAdapter: @unchecked Sendable {
     /// it. Pure, so a test can hand it a request as AccessKit builds one.
     static func queued(from request: accesskit_action_request) -> Queued? {
         guard let action = AccessKitSnapshot.action(request.action) else { return nil }
-        return .action(action, request.target_node)   // STUB (lane 1 red commit)
+        guard action == .customAction else { return .action(action, request.target_node) }
+        // A custom action names its index in the action data (`IX-AD`); one
+        // without it names no action at all.
+        guard request.data.has_value, request.data.value.tag == ACCESSKIT_ACTION_DATA_CUSTOM_ACTION
+        else { return nil }
+        return .customAction(request.target_node, Int(request.data.value.custom_action))
     }
 
     private static let deactivation: accesskit_deactivation_handler_callback = { _ in }
@@ -209,6 +214,15 @@ final class AccessKitAdapter: @unchecked Sendable {
                 toggled ? ACCESSKIT_TOGGLED_TRUE.rawValue : ACCESSKIT_TOGGLED_FALSE.rawValue))
         }
         if let number = node.numericValue { accesskit_node_set_numeric_value(out, number) }
+        if let rowCount = node.rowCount { accesskit_node_set_row_count(out, rowCount) }
+        if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
+        if let hint = node.hint { accesskit_node_set_description(out, hint) }
+        if let authorID = node.authorID { accesskit_node_set_author_id(out, authorID) }
+        for (index, name) in node.customActions.enumerated() {
+            let action = accesskit_custom_action_new(Int32(index))!
+            accesskit_custom_action_set_description(action, name)
+            accesskit_node_push_custom_action(out, action)   // takes ownership
+        }
         return out
     }
 
@@ -228,7 +242,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .radioGroup: ACCESSKIT_ROLE_RADIO_GROUP.rawValue
         case .slider: ACCESSKIT_ROLE_SLIDER.rawValue
         case .spinButton: ACCESSKIT_ROLE_SPIN_BUTTON.rawValue
-        case .heading, .link: ACCESSKIT_ROLE_GENERIC_CONTAINER.rawValue   // STUB (lane 1 red commit)
+        case .heading: ACCESSKIT_ROLE_HEADING.rawValue
+        case .link: ACCESSKIT_ROLE_LINK.rawValue
         }
         return UInt8(value)
     }

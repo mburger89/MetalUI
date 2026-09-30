@@ -150,7 +150,7 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
     #expect(singleModel.singleWrites == [1], "LA4: two rows are ignored: \(singleModel.singleWrites)")
 
     let multiModel = Selection(multi: [1])
-    let (_, multiPlatform, multiTree) = try scrolled {
+    let (multiWindow, multiPlatform, multiTree) = try scrolled {
         List(multiModel.items, selection: multiModel.multiBinding, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
     }
     let (multi, multiRows) = try table(multiTree)
@@ -161,13 +161,16 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
 
     // Control: a list without `selection:` publishes rows no client may select.
     let plain = (0..<5).map(Item.init)
-    let (_, plainPlatform, plainTree) = try scrolled {
+    let (plainWindow, plainPlatform, plainTree) = try scrolled {
         List(plain, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
     }
     let (plainTable, plainRows) = try table(plainTree)
     #expect(plainRows.values.allSatisfy { plainTree.nodes[$0]?.isSelectable == false }, "not selectable")
     #expect(!plainPlatform.simulateAccessibilityRequest(.selectRows(plainTable, [plainRows[1]!])))
     #expect(!plainPlatform.simulateAccessibilityRequest(.select(plainRows[1]!)))
+    // The platform holds its window weakly: keep every window alive to here,
+    // or a request reaches nothing and a refusal passes for the wrong reason.
+    withExtendedLifetime((singleWindow, multiWindow, plainWindow)) {}
 }
 
 /// **1.14.** A disabled list registers no selection handler, so a client's
@@ -176,7 +179,7 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
 /// gate) must redden it.
 @Test @MainActor func aDisabledListRefusesAnAccessibilitySelection() throws {
     let disabledModel = Selection(multi: [0])
-    let (_, disabledPlatform, disabledTree) = try scrolled {
+    let (disabledWindow, disabledPlatform, disabledTree) = try scrolled {
         List(disabledModel.items, selection: disabledModel.multiBinding, rowHeight: controlPx(20)) {
             Text("Row \($0.id)")
         }.disabled(true)
@@ -188,7 +191,7 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
             "a disabled list's rows are not offered as selectable")
 
     let enabledModel = Selection(multi: [0])
-    let (_, enabledPlatform, enabledTree) = try scrolled {
+    let (enabledWindow, enabledPlatform, enabledTree) = try scrolled {
         List(enabledModel.items, selection: enabledModel.multiBinding, rowHeight: controlPx(20)) {
             Text("Row \($0.id)")
         }.disabled(false)
@@ -196,4 +199,5 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
     let (_, enabledRows) = try table(enabledTree)
     #expect(enabledPlatform.simulateAccessibilityRequest(.select(enabledRows[3]!)))
     #expect(enabledModel.multiWrites == [[3]], "control: the enabled list selects: \(enabledModel.multiWrites)")
+    withExtendedLifetime((disabledWindow, enabledWindow)) {}
 }

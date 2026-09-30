@@ -517,6 +517,13 @@ where Data.Element: Identifiable {
             listHandlers.axNode = AXNode(role: .container)
         }
         listHandlers.axNode.logicalCount = count
+        // An accessibility client's selection (plan task 12 part 2, `IX-AA`
+        // item 1): registered beside the click selection, through the action
+        // registry, so the disabled gate refuses it as it refuses every action.
+        if !selection.isNone {
+            listHandlers.actions[ObjectIdentifier(AccessibilityRowSelection.self)] =
+                Self.accessibilityRowSelection(list: id, data: data, selection: selection, table: table)
+        }
         built.handlers = listHandlers
         let (node, inner) = built.requestLayout(id, pass: &pass)
         box = built
@@ -781,6 +788,43 @@ extension List {
             table.withState(list, initial: ListOrigin()) {
                 $0.lead = AnyHashable(row)
                 $0.anchor = anchor
+            }
+        }
+    }
+
+    /// An accessibility client's selection (plan task 12 part 2, `IX-AA` item
+    /// 1): the request's rows **replace** the selection — one row for
+    /// `AXSelected` in a single or a multi list (LA2, LB3), exactly the given
+    /// rows for `AXSelectedRows` (LA3, LB2) — and a single list ignores more
+    /// than one (LA4). A row this list did not name refuses the whole request.
+    /// Writes only a changed selection and stores the lead and anchor as a
+    /// click does; unlike a click it asks for no focus (setting `AXSelected`
+    /// is not a press). Input time only: one scan of `data`.
+    private static func accessibilityRowSelection(list: GlobalElementID, data: Data,
+                                                  selection: ListSelection<Data.Element.ID>,
+                                                  table: StateTable) -> ActionHandler {
+        { [weak table] action in
+            guard let request = action as? AccessibilityRowSelection, let table else { return }
+            var byRow: [GlobalElementID: Data.Element.ID] = [:]
+            for datum in data {
+                byRow[GlobalElementID.child(of: list, at: 0, name: ElementID(String(describing: datum.id)))] = datum.id
+            }
+            let picked = request.rows.compactMap { byRow[$0] }
+            guard picked.count == request.rows.count else { return }
+            switch selection {
+            case .none:
+                return
+            case .single(let binding):
+                guard picked.count <= 1 else { return }
+                if binding.wrappedValue != picked.first { binding.wrappedValue = picked.first }
+            case .multi(let binding):
+                let next = Set(picked)
+                if binding.wrappedValue != next { binding.wrappedValue = next }
+            }
+            guard let last = picked.last else { return }
+            table.withState(list, initial: ListOrigin()) {
+                $0.lead = AnyHashable(last)
+                $0.anchor = AnyHashable(last)
             }
         }
     }

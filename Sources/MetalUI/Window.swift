@@ -1069,6 +1069,7 @@ public final class Window {
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
+        lastAccessibilityPressOnly = frame.accessibilityPressOnly
         editedText = [:]
         updateTextInputArea()
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
@@ -1137,6 +1138,7 @@ public final class Window {
             retry: frame.wantsAccessibilityRetry,
             AccessibilityTreeBuilder.build(emissions: frame.axEmissions, focused: focusedElement,
                                            hitboxes: frame.hitboxes,
+                                           pressOnly: frame.accessibilityPressOnly,
                                            focusRegistry: frame.focusRegistry),
             to: platformWindow) {
             setNeedsRedraw()

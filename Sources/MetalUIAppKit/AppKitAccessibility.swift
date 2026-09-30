@@ -366,6 +366,34 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         return answer ?? super.isAccessibilitySelectorAllowed(selector)
     }
 
+    // Plan task 12 part 2, lane 1 (`IX-AA`, `IX-AD`, `IX-AF` item 6): every
+    // override below answers through `mainActorAnswer` too, and off the main
+    // thread answers nothing (`theNewAppKitOverridesAnswerNothingOffTheMainThread`).
+    override func accessibilitySubrole() -> NSAccessibility.Subrole? {
+        mainActorAnswer(self, fallback: nil) { $0.subrole }
+    }
+    override func accessibilityHelp() -> String? { mainActorAnswer(self, fallback: nil) { $0.node.hint } }
+    override func accessibilityIdentifier() -> String {
+        mainActorAnswer(self, fallback: "") { $0.node.identifier ?? "" }
+    }
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        mainActorAnswer(self, fallback: []) { $0.customActions }
+    }
+    override func setAccessibilitySelected(_ selected: Bool) {
+        mainActorAnswer(self, fallback: ()) { $0.requestSelection(selected) }
+    }
+    override func setAccessibilitySelectedRows(_ rows: [Any]?) {
+        // Boxed for the hop's `Sendable` check, as `mainActorAnswer`'s own
+        // result is; unwrapped on the main thread only.
+        let boxed = MainThreadAnswer(value: rows ?? [])
+        mainActorAnswer(self, fallback: ()) { element in
+            element.requestSelectedRows(boxed.value.compactMap { ($0 as? AppKitAccessibilityElement)?.id })
+        }
+    }
+    override func accessibilitySelectedRows() -> [Any]? {
+        mainActorAnswer(self, fallback: []) { $0.selectedRows }
+    }
+
     // MARK: Answers (main actor)
 
     private var role: NSAccessibility.Role {
@@ -374,7 +402,10 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .button: .button
         case .staticText: .staticText
         case .image: .image
-        case .table: .table
+        // SwiftUI's `List` is an `AXOutline` of `AXRow`s with subrole
+        // `AXOutlineRow` (arms L1, R16, LA0; ruling `IX-AA` item 3). The
+        // neutral role stays `.table`; AccessKit keeps `TABLE`.
+        case .table: .outline
         case .row: .row
         case .textField: .textField
         case .textArea: .textArea
@@ -383,8 +414,73 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .radioGroup: .radioGroup
         case .slider: .slider
         case .incrementor: .incrementor
-        case .heading, .link: .group   // STUB (lane 1 red commit)
+        // `NSAccessibilityHeadingRole` is macOS 26 API; its value is SwiftUI's
+        // `AXHeading` (arm T1), spelled by its raw value for macOS 14.
+        case .heading: NSAccessibility.Role(rawValue: "AXHeading")
+        case .link: .link
         }
+    }
+
+    /// `AXOutlineRow` for a row (`IX-AA` item 3); nothing else has a subrole.
+    private var subrole: NSAccessibility.Subrole? { node.role == .row ? .outlineRow : nil }
+
+    /// One `NSAccessibilityCustomAction` per declared name, in published order,
+    /// the i-th sending `.customAction(id, i)` (`IX-AD`); none once detached.
+    private var customActions: [NSAccessibilityCustomAction] {
+        guard liveBridge != nil else { return [] }
+        return node.customActions.enumerated().map { index, name in
+            NSAccessibilityCustomAction(name: name, handler: Self.customActionHandler(self, index))
+        }
+    }
+
+    /// Built outside the main actor, so the closure AppKit calls is
+    /// **nonisolated** and reaches the element only through `mainActorAnswer`
+    /// (`AB-AE`): a closure formed in a `@MainActor` method would carry that
+    /// isolation, and a call off the main thread would trap rather than answer
+    /// `false`.
+    private nonisolated static func customActionHandler(_ element: AppKitAccessibilityElement,
+                                                        _ index: Int) -> () -> Bool {
+        { [weak element] in
+            guard let element else { return false }
+            return mainActorAnswer(element, fallback: false) { $0.performCustomAction(index) }
+        }
+    }
+
+    private func performCustomAction(_ index: Int) -> Bool {
+        guard let bridge = liveBridge, node.customActions.indices.contains(index),
+              let onRequest = bridge.onRequest else { return false }
+        return onRequest(.customAction(id, index))
+    }
+
+    /// `true` on a selectable row asks the window to replace its list's
+    /// selection with it (`IX-AA` item 1, LA2/LB3). `false` sends nothing: no
+    /// SwiftUI arm deselects, and "select nothing here" has no one-row meaning.
+    private func requestSelection(_ selected: Bool) {
+        guard selected, allowsSelecting, let onRequest = bridge?.onRequest else { return }
+        _ = onRequest(.select(id))
+    }
+
+    /// The outline's setter: exactly these rows (`IX-AA` item 1, LA3/LB2).
+    private func requestSelectedRows(_ rows: [AccessibilityNodeID]) {
+        guard allowsSettingSelectedRows, let onRequest = bridge?.onRequest else { return }
+        _ = onRequest(.selectRows(id, rows))
+    }
+
+    private var allowsSelecting: Bool { liveBridge != nil && node.isSelectable }
+
+    /// A table with at least one selectable row.
+    private var allowsSettingSelectedRows: Bool {
+        guard let bridge = liveBridge, node.role == .table else { return false }
+        return node.children.contains { bridge.tree.nodes[$0]?.isSelectable == true }
+    }
+
+    /// A table's selected rows, in published order.
+    private var selectedRows: [Any] {
+        guard let bridge = liveBridge, node.role == .table else { return [] }
+        return node.children.filter {
+            let child = bridge.tree.nodes[$0]
+            return child?.role == .row && child?.isSelected == true
+        }.map { bridge.element(for: $0) }
     }
 
     /// The node's value — **an `NSNumber` for a check box, radio button,
@@ -481,6 +577,13 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
              #selector(NSAccessibilityElement.accessibilityVisibleRows):
             node.role == .table
         case #selector(NSAccessibilityElement.accessibilityIndex): node.role == .row
+        // Plan task 12 part 2 (`IX-AA`, `IX-AG`): the selection setters only
+        // where a list offers them, and `AXFocused` settable only where the
+        // window would honour it (`isFocusable`, AB-J).
+        case #selector(NSAccessibilityElement.setAccessibilitySelected(_:)): allowsSelecting
+        case #selector(NSAccessibilityElement.setAccessibilitySelectedRows(_:)): allowsSettingSelectedRows
+        case #selector(NSAccessibilityElement.accessibilitySelectedRows): node.role == .table
+        case #selector(NSAccessibilityElement.setAccessibilityFocused(_:)): liveBridge != nil && node.isFocusable
         default: nil
         }
     }
