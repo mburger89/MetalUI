@@ -215,6 +215,16 @@ public final class SDLWindow: PlatformWindow {
 
     func noteControlActiveState() { reportedControlActiveState = controlActiveState }
 
+    // MARK: Reduce Motion (plan task 13, ruling AN-AD)
+
+    /// Always `false`: SDL3 has no Reduce Motion query. A per-OS read (GNOME's
+    /// `enable-animations`, Windows' `SPI_GETCLIENTAREAANIMATION`, macOS's
+    /// `NSWorkspace`) is a cross-platform roadmap item, not built here.
+    public var accessibilityReduceMotion: Bool { false }
+
+    /// Never fired — the value never changes (see ``accessibilityReduceMotion``).
+    public var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+
     func publishControlActiveStateIfChanged() {
         let state = controlActiveState
         guard state != reportedControlActiveState else { return }

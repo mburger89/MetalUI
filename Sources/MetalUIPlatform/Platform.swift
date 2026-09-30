@@ -43,6 +43,25 @@ public protocol PlatformWindow: AnyObject {
     /// for `onAppearanceChange`'s reason.
     var onControlActiveStateChange: ((ControlActiveState) -> Void)? { get set }
 
+    /// Whether the user asked the system to reduce motion (plan task 13,
+    /// ruling `AN-AD`). Read at window construction and re-read on every
+    /// `onAccessibilityReduceMotionChange`; `Window` stamps it over its root
+    /// environment's `accessibilityReduceMotion`. AppKit reads
+    /// `NSWorkspace.accessibilityDisplayShouldReduceMotion`, as SwiftUI does;
+    /// SDL answers `false` (SDL3 has no query).
+    ///
+    /// **No default implementation, for either requirement** (`EV-AB`'s
+    /// reason): a conformer that forgets one fails to compile rather than
+    /// compiling into a window that never learns the setting. Pinned by
+    /// `aPlatformWindowWithoutTheReduceMotionPairDoesNotCompile`. **Migration**
+    /// (`AN-AH` item 7): a conformer outside this repository adds
+    /// `var accessibilityReduceMotion: Bool { false }` and
+    /// `var onAccessibilityReduceMotionChange: ((Bool) -> Void)?`.
+    var accessibilityReduceMotion: Bool { get }
+    /// Fired with the new value when the setting changes — a passed value, for
+    /// `onAppearanceChange`'s reason.
+    var onAccessibilityReduceMotionChange: ((Bool) -> Void)? { get set }
+
     var onClose: (() -> Void)? { get set }
 
     /// Fired by the platform when an accessibility client asks for something

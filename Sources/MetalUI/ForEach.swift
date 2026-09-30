@@ -104,6 +104,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             guard seenIDs.insert(key).inserted, seenNames.insert(name).inserted else { continue }
             let scope = GlobalElementID.child(of: slot, at: offset, name: ElementID(name))
             pass.frame.stateTable.noteNamed(scope, at: offset)  // `ID-R`, the scope's own copy
+            pass.frame.animationStore.transitions.noteLoopElement(scope, of: slot)  // `AN-AE`
             if notesKeys { pass.frame.noteScrollKey(scope, AnyHashable(key)) }
             offset += 1
             var built = content(element)
@@ -122,6 +123,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             return built.requestGroupLayout(under: scope, at: &inner, pass: &pass)
         }
         pass.frame.stateTable.noteLoop(produced.slot, extent: produced.extent)  // `DD-C`
+        pass.frame.animationStore.transitions.noteLoop(produced.slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`
         return (produced.nodes, produced.layout)
     }
 
@@ -175,6 +177,7 @@ extension ForEach: ProposalElementGroup where Content: ProposalElementGroup {
             return built.requestProposalGroupLayout(under: scope, at: &inner, pass: &pass)
         }
         pass.frame.stateTable.noteLoop(produced.slot, extent: produced.extent)  // `DD-C`, the copy's own
+        pass.frame.animationStore.transitions.noteLoop(produced.slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`, the copy's own
         return (produced.nodes, produced.layout)
     }
 }

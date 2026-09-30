@@ -74,7 +74,8 @@ import MetalUILayout
 /// an `AnimatedFieldState` for ONLY the fields genuinely still interpolating
 /// right now. A settled element (the overwhelming majority of every frame,
 /// for any element not mid-transition) costs one `Style` (`MemoryLayout<Style>.stride`
-/// = 228) plus one `Decoration` plus an EMPTY dictionary, rather than a
+/// = 228 when written; **180** re-measured 2026-09-30, plan task 13 lane 2,
+/// after stage 10 deleted six fields) plus one `Decoration` plus an EMPTY dictionary, rather than a
 /// 64-bucket table of 28 mostly-redundant entries.
 ///
 /// **`Decoration` was 12 bytes when that sentence was written and is 80 now**
@@ -95,6 +96,20 @@ import MetalUILayout
 /// ~51 MB the milestone already measured.
 /// Recorded in `docs/record/15-outer-modifiers.md` rather than left for the next
 /// reader to discover as a stale measured number.
+///
+/// **Re-taken 2026-09-30 (plan task 13, lane 2, `AN-AF` item 3), strides
+/// only**, in the suite's configuration (debug, arm64): `MemoryLayout<Decoration>.stride`
+/// = **128** (the 80 above predates stage 11's `escapesOpacity` and later
+/// fields), `MemoryLayout<Style>.stride` = **180**,
+/// `MemoryLayout<AnimatedElementState>.stride` = **320**,
+/// `MemoryLayout<AnimatedFieldState>.stride` = **88** (one per field in flight,
+/// plus its dictionary bucket). Task 13 adds no field to either baseline: the
+/// opacity and border widths it now interpolates were already stored in the
+/// `Decoration` above, so a settled entry costs what it did. The isolated-process
+/// per-entry harness is still the animation milestone's and uncommitted, so the
+/// end-to-end per-entry figure is **re-owned to plan task 15**; the arithmetic
+/// bound carried is the stride delta: `Decoration` 12 → 128 is 116 bytes of
+/// payload per settled entry, ~11.6 MB at n = 100,000 against the ~51 MB measured.
 ///
 /// **Measured on the SHIPPED shape, in isolated processes at n = 20,000:
 /// 7,636 → 643 bytes per entry, a ~91.6% reduction** — a bare-`Int` control
@@ -365,6 +380,25 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
         return recomposeDimension(tag: tag, value: value)
     }
 
+    /// One border's four widths (plan task 13, `AN-AA`). A border that appears
+    /// or disappears (`nil` on either side) snaps — there is no width to
+    /// interpolate from, the background's own first-sighting rule — and drops
+    /// any of its keys still in flight. The colour is paint's (`resolvedBorder`).
+    func borderWidths(_ prefix: String, _ declared: BorderStyle?, _ previous: BorderStyle?) -> BorderStyle? {
+        let edges = ["top", "right", "bottom", "left"]
+        guard let declared, let previous else {
+            for edge in edges { inFlight["\(prefix).\(edge)"] = nil }
+            return declared
+        }
+        let d = declared.widths, p = previous.widths
+        func edge(_ name: String, _ value: Pixels, _ old: Pixels) -> Pixels {
+            Pixels(Float(max(0, number("\(prefix).\(name)", Double(value.value), Double(old.value)))))
+        }
+        let widths = Edges(top: edge("top", d.top, p.top), right: edge("right", d.right, p.right),
+                           bottom: edge("bottom", d.bottom, p.bottom), left: edge("left", d.left, p.left))
+        return widths == d ? declared : declared.withWidths(widths)
+    }
+
     // Animatable — from `Style` (spec §4). `previous` is read from
     // `existing.style`, the baseline this element's last frame declared.
     let p = existing.style
@@ -402,6 +436,18 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
     var newDecoration = decoration
     newDecoration.cornerRadius = Pixels(Float(number("cornerRadius", Double(decoration.cornerRadius.value),
                                                       Double(existing.decoration.cornerRadius.value))))
+    // Plan task 13 (`AN-AA`): the opacity and the three borders' widths — plain
+    // numbers the baseline already stores, interpolated here on `cornerRadius`'s
+    // footing and read by paint off the same frame timestamp. Clamped where a
+    // precondition waits (`PaintPass.opacity`'s `0...1`, `BorderStyle`'s
+    // non-negative widths): a bouncy spring overshoots.
+    let opacity = number("opacity", Double(decoration.opacity), Double(existing.decoration.opacity))
+    if opacity != Double(decoration.opacity) { newDecoration.setInterpolatedOpacity(Float(opacity)) }
+    newDecoration.border = borderWidths("border", decoration.border, existing.decoration.border)
+    newDecoration.hoverBorder = borderWidths("hoverBorder", decoration.hoverBorder,
+                                             existing.decoration.hoverBorder)
+    newDecoration.focusBorder = borderWidths("focusBorder", decoration.focusBorder,
+                                             existing.decoration.focusBorder)
     // `background` / `hoverBackground` / `focusBackground`: see this file's
     // top-of-file doc. Not assigned above, so they pass through unchanged.
 
@@ -454,7 +500,7 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
 /// only reach this once a native equality check has already found a
 /// difference or an in-flight entry; the "nothing to do" fast path lives at
 /// each of `number`/`length`/`dimension`'s own call sites instead of here.
-private func animateField(_ key: String, declared: Double, declaredTag: Int,
+func animateField(_ key: String, declared: Double, declaredTag: Int,
                           previous: Double, previousTag: Int,
                           inFlight: inout [String: AnimatedFieldState],
                           transaction: Animation?, now: Double) -> (value: Double, tag: Int) {

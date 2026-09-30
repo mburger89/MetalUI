@@ -42,6 +42,10 @@ private func conformer(pair: String) -> String {
         func writeClipboard(_ text: String) {}
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
+        // Plan task 13's Reduce Motion pair (`AN-AD`), defaultless too, so
+        // every arm here carries it; `TransactionCompileGuards` pins it.
+        var accessibilityReduceMotion: Bool { false }
+        var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
     \(pair)
     }
     """

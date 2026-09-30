@@ -576,8 +576,14 @@ extension Animation {
     /// `withAnimation(.linear(duration: 1)) { model.width = 200 }` followed by
     /// an empty `withAnimation(.linear(duration: 4)) { }` hand the *empty* one
     /// the build, because the first call's own dirty made a build pending for
-    /// the second. Measured, by running it: `112.5` where the first
-    /// transaction reads `150`, reddening
+    /// the second. Measured, by running it: **`112.0`** on the scene where the
+    /// first transaction reads `150` (this read `112.5` until plan task 13
+    /// re-ran the mutation and measured why, `AN-AF` item 9: the interpolated
+    /// width IS 112.5 — linear(4) at 0.5 s over 100 → 200 — but the fixture's
+    /// `Column` centres it at x = 93.75, and layout rounds each EDGE to whole
+    /// points, not the width — 93.75 → 94, 206.25 → 206 — so the scene reads
+    /// 112; divergence 77's whole-point rounding, instrumented at
+    /// `roundLayout`), reddening
     /// `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`'s
     /// third arm. So the full rule is: **a body that asked for no redraw keeps
     /// the slot only when the slot was FREE and a build was already coming** —
@@ -649,8 +655,31 @@ extension Animation {
     /// parked. Pinned by `aParkedTransactionIsConsumedByExactlyOneBuild`.
     @MainActor
     static func takeParkedTransaction() -> Animation? {
-        defer { parkedTransaction = nil }
+        defer {
+            parkedTransaction = nil
+            parkedDisablesAnimations = false
+        }
         return parkedTransaction
+    }
+
+    /// The parked transaction's `disablesAnimations` (plan task 13, ruling
+    /// `AN-Y` item 2): parked beside `parkedTransaction` by `withTransaction`,
+    /// under **the same predicate**, rolled back with it and cleared by the
+    /// same `takeParkedTransaction`. `internal` on `parkedTransaction`'s
+    /// footing.
+    @MainActor
+    static var parkedDisablesAnimations = false
+
+    /// The build's root `Transaction` — the parked animation and its
+    /// `disablesAnimations` — taken as one, through `takeParkedTransaction`,
+    /// so both are consumed by exactly one build. `Window.drawFrameIfNeeded`
+    /// is the only production caller.
+    @MainActor
+    static func takeParkedRootTransaction() -> Transaction {
+        let disables = parkedDisablesAnimations
+        var root = Transaction(animation: takeParkedTransaction())
+        root.disablesAnimations = disables
+        return root
     }
 }
 
@@ -685,24 +714,42 @@ extension Animation {
 /// so `withAnimation(fast) { withAnimation(slow) { a = 1 }; b = 2 }` animates
 /// both `a` and `b` with `slow` — neither SwiftUI's answer nor obviously
 /// wrong, and a consequence of one-ambient-transaction-per-build rather than
-/// of this rule. Nothing in the suite exercises nesting; stated rather than
-/// discovered.
+/// of this rule. **Since plan task 13 it is measured**: SwiftUI animates `a`
+/// with `slow` and `b` with `fast` (probe `swiftui-transactions-animation.swift`
+/// T9), and two calls in one interval each with its own (T10) — divergence 99,
+/// kept (`AN-Y`); `.animation(_:value:)` is the per-value remedy.
+///
+/// **SwiftUI's signature since plan task 13** (`AN-Y` item 1): generic over
+/// the body's result, `rethrows`, and an optional animation — `nil` parks a
+/// transaction with no animation, which snaps (T5n). Every earlier call
+/// compiles unchanged. It is `withTransaction(Transaction(animation:))`.
 @MainActor
-public func withAnimation(_ animation: Animation = .default, _ body: () -> Void) {
+public func withAnimation<Result>(_ animation: Animation? = .default,
+                                  _ body: () throws -> Result) rethrows -> Result {
+    try parkTransaction(Transaction(animation: animation), body)
+}
+
+/// The one implementation behind `withAnimation` and `withTransaction`: `AN-C`'s
+/// parking rule, with the transaction's `disablesAnimations` parked beside its
+/// animation and rolled back under the same predicate (`AN-Y` item 2).
+@MainActor
+func parkTransaction<Result>(_ transaction: Transaction,
+                             _ body: () throws -> Result) rethrows -> Result {
     let previous = Animation.pendingTransaction
     let previouslyParked = Animation.parkedTransaction
+    let previouslyParkedDisables = Animation.parkedDisablesAnimations
     let redrawsBefore = Window.redrawRequests
     // Sampled BEFORE the body, and that is the meaningful reading: it asks
     // whether a build was ALREADY coming when this call started. Sampled
     // after, it would also be true of any body that dirtied something, which
     // the counter already covers.
     let buildAlreadyPending = Window.aFrameBuildIsPending
-    Animation.pendingTransaction = animation
-    Animation.parkedTransaction = animation
-    // `defer`, not a trailing assignment: nothing today can skip past `body()`
-    // without restoring (it is non-throwing), but this makes the restore
-    // survive a future signature change (e.g. `rethrows`) rather than
-    // silently stop happening on the path that would need it most.
+    Animation.pendingTransaction = transaction.animation
+    Animation.parkedTransaction = transaction.animation
+    Animation.parkedDisablesAnimations = transaction.disablesAnimations
+    // `defer`, not a trailing assignment: `body` may throw since plan task 13
+    // made the signature `rethrows` — the future this comment anticipated —
+    // and the restore must survive exactly that path.
     //
     // The LEXICAL slot is restored unconditionally. The PARKED one is rolled
     // back when nothing is going to build a frame, and also when the slot was
@@ -717,7 +764,8 @@ public func withAnimation(_ animation: Animation = .default, _ body: () -> Void)
         if Window.redrawRequests == redrawsBefore
             && (!buildAlreadyPending || previouslyParked != nil) {
             Animation.parkedTransaction = previouslyParked
+            Animation.parkedDisablesAnimations = previouslyParkedDisables
         }
     }
-    body()
+    return try body()
 }

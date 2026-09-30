@@ -506,10 +506,15 @@ extension LayoutModifier: ModifierLayerKind {
     }
 
     /// The native wrapper this modifier registers around its one child — or
-    /// the child itself, for a paint-only modifier. No `$anim`, no record.
+    /// the child itself, for a paint-only modifier. No `$anim` and no record:
+    /// since plan task 13 (`AN-AB`) the layer first rewrites its numeric case
+    /// to its animated value (`animate(for:pass:)`, tracks in the window's
+    /// `AnimationStore`), so the native wrapper, the prepaint clip and paint
+    /// all read one interpolated value.
     public mutating func _requestLayout(_ id: GlobalElementID, children: [LayoutNodeID],
                                         pass: inout LayoutPass) -> LayoutNodeID {
-        nativeWrapperNode(for: children.map(ProposalNodeID.init), pass: &pass).layoutNodeID
+        animate(for: id, pass: &pass)
+        return nativeWrapperNode(for: children.map(ProposalNodeID.init), pass: &pass).layoutNodeID
     }
 
     /// The hit-testing or clip scope, or none. **No** `registerHandlers`: a
@@ -549,7 +554,10 @@ extension LayoutModifier: ModifierLayerKind {
         case let .opacity(value):
             pass.opacity(value, inside)
         case let .background(token):
-            pass.fill(bounds, color: pass.theme[token], cornerRadii: Corners(all: Pixels(0)))
+            // Plan task 13 (`AN-AB`): the token fades on a store track, theme
+            // re-resolved per frame (`animatedColor`'s recipe).
+            let color = storedAnimatedColor(token, at: layerAnimationKey(id, "background"), pass: pass)
+            pass.fill(bounds, color: color, cornerRadii: Corners(all: Pixels(0)))
             inside()
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
@@ -560,8 +568,9 @@ extension LayoutModifier: ModifierLayerKind {
                          cornerRadii: region.radii, inside)
         case let .border(token, width, cornerRadius):
             inside()
+            let color = storedAnimatedColor(token, at: layerAnimationKey(id, "border.colour"), pass: pass)
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
-                      borderColor: pass.theme[token], borderWidths: Edges(all: width))
+                      borderColor: color, borderWidths: Edges(all: width))
         default:
             inside()
         }

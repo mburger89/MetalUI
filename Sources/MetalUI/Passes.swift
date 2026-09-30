@@ -225,7 +225,11 @@ public struct LayoutPass {
     /// outside `MetalUI` has no animatable state to apply it to — it would be
     /// API with no possible consumer. It becomes `public` in the change that
     /// gives an external element something to do with it.
-    var transaction: Animation? { frame.transaction }
+    ///
+    /// **The top of the frame's transaction stack since plan task 13**
+    /// (`AN-Y`): the root's animation, or whatever the nearest enclosing
+    /// `.animation(_:value:)`/`.transaction(_:)` resolved it to.
+    var transaction: Animation? { frame.transactionTop.animation }
 
     /// Runs `body` with `context` as the innermost active scroll context and
     /// returns whatever `body` returns.
@@ -592,7 +596,7 @@ public struct PaintPass {
     /// The ambient animation transaction for this build, or `nil`. The paint
     /// half of `LayoutPass.transaction` — `animatedColor(_:for:pass:)` reads
     /// it, for the same reason and with the same visibility.
-    var transaction: Animation? { frame.transaction }
+    var transaction: Animation? { frame.transactionTop.animation }
 
     /// Emits a filled rect, **in logical points**.
     ///

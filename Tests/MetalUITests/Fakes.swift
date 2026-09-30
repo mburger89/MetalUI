@@ -133,6 +133,13 @@ final class FakePlatformWindow: PlatformWindow {
     var controlActiveState: ControlActiveState = .key
     var onControlActiveStateChange: ((ControlActiveState) -> Void)?
 
+    /// Settable, unlike AppKit's live read of
+    /// `NSWorkspace.accessibilityDisplayShouldReduceMotion` (ruling `AN-AD`);
+    /// `false` by default, the bare value's, so no existing test sees a change.
+    /// `AppKitReduceMotionTests` drives the real one.
+    var accessibilityReduceMotion = false
+    var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+
     /// The accessibility seam (ruling AB-A): every tree `Window` published, in
     /// order, so a test asserts exactly what a platform would have been handed.
     var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
@@ -172,6 +179,14 @@ final class FakePlatformWindow: PlatformWindow {
     func simulateControlActiveStateChange(to state: ControlActiveState) {
         controlActiveState = state
         onControlActiveStateChange?(state)
+    }
+
+    /// Change Reduce Motion and notify, the getter already reporting it —
+    /// **on every call, a no-op included**, so a test of `Window`'s own change
+    /// guard can report the value the window already has.
+    func simulateReduceMotionChange(to value: Bool) {
+        accessibilityReduceMotion = value
+        onAccessibilityReduceMotionChange?(value)
     }
 
     /// Move to a display of another backing scale, the way

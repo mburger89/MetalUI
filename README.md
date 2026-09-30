@@ -305,7 +305,7 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Sixty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
+Seventy-two measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md); retired labels (3, 4, 5–8, 11, 12, 14, 15, 16, 17,
 18, 19, 24, 28, 36, 37, 40, 45, 48, 59, 64, 69, 74, 83) are never reused — most
 retirements are a later task's own fix landing SwiftUI's answer, not a
@@ -339,14 +339,21 @@ looks, `@FocusState`/`.focused(_:)`, focus leaving with its identity, and
 `contentShape<S: Shape>(_:)` — and task 12's **accessibility half**:
 `accessibilityElement(children:)` (`.ignore`/`.combine`/`.contain`, on the
 proposal path too), hidden/traits/hint/identifier, declared and named
-actions, settable AppKit selection, modal isolation, and a labelled `Image`.
-Open: transaction and animation semantics (task 13) and platform
-completeness (task 14), and, inside task 12 itself, **the VoiceOver script**
-(`docs/verification/voiceover-script.md`) — written, walking the demo, the
-controls demo and the text-input demo against the trees the tests pin, but
-**only a human can run it**; task 12's own box stays unticked until someone
-does. The decisions documents are prefixed `SA-`, `MC-`, `EV-`, `AB-`, `FR-`,
-`OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`, `TE-` and `IX-`.
+actions, settable AppKit selection, modal isolation, and a labelled `Image`;
+and **transaction and animation semantics (task 13)**: modifier wrappers
+(every proposal `LayoutModifier`, the legacy paint-only fields, a
+`Component`'s caller modifier) now participate in transactions at their
+correct phase, `Transaction`/`withTransaction`/`.transaction(_:)`/
+`.animation(_:value:)` and `Binding.transaction`/`.animation(_:)`,
+environment-driven Reduce Motion, and `AnyTransition`'s documented supported
+surface for insertion/removal inside an `if`/`ForEach`.
+Open: platform completeness (task 14), and, inside task 12 itself, **the
+VoiceOver script** (`docs/verification/voiceover-script.md`) — written,
+walking the demo, the controls demo and the text-input demo against the
+trees the tests pin, but **only a human can run it**; task 12's own box
+stays unticked until someone does. The decisions documents are prefixed
+`SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`,
+`TE-`, `IX-` and `AN-`.
 
 The accessibility bridge publishes text, click targets, focusable and
 adjustable elements, declared and named actions, hidden/combined/contained

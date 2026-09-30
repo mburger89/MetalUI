@@ -414,6 +414,54 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         onControlActiveStateChange?(state)
     }
 
+    // MARK: Reduce Motion (plan task 13, ruling AN-AD)
+
+    /// A live read of `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`,
+    /// never a cache — the source SwiftUI reads (probe
+    /// `swiftui-transactions-animation.swift` R1, R2).
+    var accessibilityReduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    /// Fired with the new value when a re-read differs from the last one.
+    var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+
+    /// The value the last re-read saw, updated whether or not a callback is
+    /// set (`lastControlActiveState`'s reason).
+    private var lastAccessibilityReduceMotion = false
+
+    /// Where the display-options notification is observed —
+    /// `NSWorkspace.shared.notificationCenter` in production (a workspace
+    /// notification is posted there, not on `.default`); a test assigns a
+    /// private center. Selector-based, so the path a test drives is the one
+    /// production runs.
+    var workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter {
+        didSet {
+            oldValue.removeObserver(self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+                                    object: nil)
+            observeAccessibilityReduceMotion()
+        }
+    }
+
+    private func observeAccessibilityReduceMotion() {
+        workspaceNotificationCenter.addObserver(
+            self, selector: #selector(accessibilityDisplayOptionsNotification(_:)),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+    }
+
+    @objc private func accessibilityDisplayOptionsNotification(_ notification: Notification) {
+        refreshAccessibilityReduceMotion()
+    }
+
+    /// Re-reads the setting and reports it if it changed — what SwiftUI does
+    /// on the same notification (R2).
+    func refreshAccessibilityReduceMotion() {
+        let reduceMotion = accessibilityReduceMotion
+        guard reduceMotion != lastAccessibilityReduceMotion else { return }
+        lastAccessibilityReduceMotion = reduceMotion
+        onAccessibilityReduceMotionChange?(reduceMotion)
+    }
+
     /// Both accessibility requirements forward to the bridge, which answers
     /// clients on the host view (`AppKitAccessibility.swift`, lane 2 of the
     /// accessibility bridge). Assigning the handler delivers an activation the
@@ -488,6 +536,8 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         window.delegate = self
         lastControlActiveState = controlActiveState
         observeControlActiveState()
+        lastAccessibilityReduceMotion = accessibilityReduceMotion
+        observeAccessibilityReduceMotion()
         accessibilityBridge.hostView = hostView
         hostView.accessibilityBridge = accessibilityBridge
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }

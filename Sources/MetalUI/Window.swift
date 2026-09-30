@@ -174,6 +174,28 @@ public final class Window {
         }
     }
 
+    /// The platform window's Reduce Motion (plan task 13, ruling `AN-AD`), the
+    /// root source of every frame's `accessibilityReduceMotion`: read from
+    /// `PlatformWindow.accessibilityReduceMotion` at construction, updated
+    /// through `onAccessibilityReduceMotionChange`, and stamped over
+    /// `environment` at every draw beside `controlActiveState` — so
+    /// `window.environment.accessibilityReduceMotion` (writable inside this
+    /// module only) is not the root's source either. **Guarded**, for
+    /// `controlActiveState`'s reason: a report of the value the window already
+    /// has does not repaint. Pinned by
+    /// `theWindowStampsReduceMotionFromItsPlatformWindow`.
+    private(set) var accessibilityReduceMotion: Bool {
+        didSet {
+            guard accessibilityReduceMotion != oldValue else { return }
+            setNeedsRedraw()
+        }
+    }
+
+    /// The window's animation state that is not `StateTable` state (ruling
+    /// `AN-AB`): handed to every frame it builds, which drops what it did not
+    /// touch.
+    let animationStore = AnimationStore()
+
     /// Whether every frame this window builds records its element bounds
     /// (`Frame.recordsElementBounds`), read back through `lastElementBounds`.
     /// **Test observability** for plan task 7's lowering tests through a real
@@ -559,6 +581,7 @@ public final class Window {
         self.platformWindow = platformWindow
         self.theme = Theme.forAppearance(platformWindow.appearance)
         self.controlActiveState = platformWindow.controlActiveState
+        self.accessibilityReduceMotion = platformWindow.accessibilityReduceMotion
         self.renderRoot = { frame in
             var root = content()
             frame.render(&root)
@@ -591,6 +614,11 @@ public final class Window {
             // Assigning drives `controlActiveState`'s guarded `didSet`, which
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
+        }
+        platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
+            // Assigning drives the guarded `didSet`, which marks the window
+            // dirty (ruling `AN-AD`).
+            self?.accessibilityReduceMotion = reduceMotion
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
@@ -745,9 +773,10 @@ public final class Window {
     /// **One caller, one question: `withAnimation` needs to know whether a
     /// frame build is already pending**, and `redrawRequests` above cannot
     /// answer it — see `aFrameBuildIsPending`. Weak, so a window nobody holds
-    /// any more drops out on its own; compacted on every read and on every
-    /// registration, so the array cannot grow past the number of live windows
-    /// plus whatever died since the last look. **Weak references rather than a
+    /// any more drops out on its own; compacted on every registration (and,
+    /// until plan task 13, on every read — `aFrameBuildIsPending`'s note), so
+    /// the array cannot grow past the number of live windows plus whatever
+    /// died since the last registration. **Weak references rather than a
     /// maintained count** deliberately: a count needs decrementing when a
     /// dirty window is deallocated, which means an isolated `deinit` touching
     /// main-actor state, and a count that drifts upward once is a
@@ -812,10 +841,20 @@ public final class Window {
     /// fourth arm is that case, pinned.
     ///
     /// A measured cost against a structurally zero benefit is what decided it.
+    ///
+    /// **A pure read since plan task 13** (`AN-AF` item 8, the animation
+    /// milestone's follow-up): it no longer compacts the registry as it reads
+    /// — a dead entry answers `false` all the same — and `register` does the
+    /// compacting, so the array still cannot grow past the live windows plus
+    /// whatever died since the last registration. Pinned by
+    /// `aFrameBuildIsPendingDoesNotPruneTheRegistry`.
     static var aFrameBuildIsPending: Bool {
-        liveWindows.removeAll { $0.window == nil }
-        return liveWindows.contains { $0.window?.needsRedraw == true }
+        liveWindows.contains { $0.window?.needsRedraw == true }
     }
+
+    /// Entries in the registry, dead ones included — test observability for
+    /// the prune split (1.19).
+    static var registeredWindowCount: Int { liveWindows.count }
 
     private static func register(_ window: Window) {
         liveWindows.removeAll { $0.window == nil }
@@ -1031,7 +1070,7 @@ public final class Window {
         // ended. Taken (not merely read) so it is consumed by exactly one
         // build — spec §3's non-re-entrancy — whether or not this frame
         // contains anything that can use it.
-        let transaction = Animation.takeParkedTransaction()
+        let transaction = Animation.takeParkedRootTransaction()
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: drawScaleFactor,
                           stateTable: stateTable,
@@ -1043,7 +1082,9 @@ public final class Window {
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn,
-                          transaction: transaction,
+                          transaction: transaction.animation,
+                          disablesAnimations: transaction.disablesAnimations,
+                          animationStore: animationStore,
                           collectsAccessibility: accessibility.isActive,
                           recordsElementBounds: recordsElementBounds)
         // The window's key state is stamped OVER `environment` (ruling EV-AB):
@@ -1051,6 +1092,7 @@ public final class Window {
         // `theme` and `displayScale` are not (the frame re-stamps those two).
         var rootEnvironment = environment
         rootEnvironment.controlActiveState = controlActiveState
+        rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         withObservationTracking {

@@ -1307,38 +1307,44 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded() throws {
     }
 }
 
-// MARK: - 11: the animation deferral
+// MARK: - 11: the paint-only fields animate (plan task 13, `AN-AA`)
 
-/// **The new paint-only decoration fields SNAP; they do not animate** — the
-/// deferral to plan task 13, pinned rather than assumed.
+/// **2.13 (plan task 13, `AN-AA` as amended by `AN-AH` item 3) — renamed from
+/// `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`, its answer flipped by
+/// the ruling.** That test pinned the deferral: a border change under
+/// `withAnimation` snapped while the background faded. Now the opacity and the
+/// border's width interpolate in the layout helper (the `$anim` baseline already
+/// stores the whole `Decoration`) and the border's resolved colour on its
+/// `AnimationStore` track; `clipsContent` SNAPS — a `Bool` has no midpoint, and
+/// SwiftUI's only animation of an added clip is the default cross-fade of a
+/// structure change (probe W10, divergence 98's).
 ///
-/// A second animated colour needs an eighth reserved retention slot beside
-/// `$anim-color`: `animColorRetentionSlot(for:)` is one named child per element,
-/// so a border stored under it would alias the background's baseline and make a
-/// border change retarget the fill's fade.
+/// **The background is still the control**: one subject changes its background,
+/// its border (colour and width 1 → 5), its opacity (1 → 0.2) and its clip under
+/// one `withAnimation`; half way, the background must be at neither endpoint,
+/// or every other arm is a claim about nothing.
 ///
-/// **The background is the control, and it is what makes this a finding.** One
-/// subject changes its background AND its border under one `withAnimation`; half
-/// way through, the background must be at neither endpoint and the border must
-/// already be the new token. Without the control arm, "the border is the new
-/// token" would also hold for a frame in which nothing animated at all —
-/// because the transaction was never parked, because the tick never arrived,
-/// because the fixture never changed.
-@Test @MainActor func theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate() throws {
+/// Mutations, one per arm: drop opacity from `animated()`; drop a border width;
+/// route the border colour around its `AnimationStore` track.
+@Test @MainActor func thePaintOnlyDecorationFieldsAnimateAndClipSnaps() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let model = BorderFlipModel()
     let (window, platform) = try makeFakeWindow(device: device, size: 100,
                                                 startsDisplayLink: true) {
-        Box().cssWidth(px(40)).cssHeight(px(40))
+        let box = Box {
+            Box().cssWidth(px(60)).cssHeight(px(10)).flexShrink(0).background(.scrim)
+        }.cssWidth(px(40)).cssHeight(px(40))
             .background(model.flipped ? .accent : .surface)
-            .border(model.flipped ? .accent : .surface, width: px(4))
+            .border(model.flipped ? .accent : .surface, width: px(model.flipped ? 5 : 1))
+            .opacity(model.flipped ? 0.2 : 1)
+        return model.flipped ? box.clipped() : box
     }
     let theme = window.theme
 
     // A decorated element emits TWO 40x40 rects — the background before the
     // children and the border after them (`OM-V`) — so each is found by the
-    // field it carries rather than by its size.
-    @MainActor func fillAndBorder(_ state: String) throws -> (fill: MUIRect, border: MUIRect) {
+    // field it carries rather than by its size. The child is the 60x10 rect.
+    @MainActor func reading(_ state: String) throws -> (fill: MUIRect, border: MUIRect, child: MUIRect) {
         let all = window.lastScene.rects.map(describe).joined(separator: " | ")
         let both = window.lastScene.rects.filter { $0.bounds.size.width == 40 }
         try #require(both.count == 2,
@@ -1348,42 +1354,52 @@ func aDeferredPortalInsideAFadedSubtreeIsStillFaded() throws {
                                 why("\(state): no plain background rect: " + all))
         let border = try #require(both.first { $0.borderColor.a > 0 },
                                   why("\(state): no border rect: " + all))
-        return (fill, border)
+        let child = try #require(window.lastScene.rects.first { $0.bounds.size.width == 60 },
+                                 why("\(state): no child rect: " + all))
+        return (fill, border, child)
     }
 
     platform.simulateTick(timestamp: 100)
-    let resting = try fillAndBorder("resting")
+    let resting = try reading("resting")
     try #require(isFilled(resting.fill, with: .surface, in: theme)
-                    && isBordered(resting.border, with: .surface, in: theme),
-                 why("set up — both fields rest on the same token; got "
-                     + describe(resting.fill) + " / " + describe(resting.border)))
+                    && isBordered(resting.border, with: .surface, in: theme)
+                    && resting.border.borderWidths.top == 1 && resting.fill.background.a == 1
+                    && resting.child.contentMask.size.width > 40,
+                 why("set up — both colour fields on one token, width 1, opaque, unclipped; got "
+                     + describe(resting.fill) + " / " + describe(resting.border) + " / " + describe(resting.child)))
 
     withAnimation(.linear(duration: 1)) { model.flipped = true }
 
-    // **The frame that STARTS a fade reads its own `from`** (`animatedColor`'s
-    // own rule, and `BackgroundChainTests`' shape), so the contrast is at its
-    // sharpest here: same element, same transaction, same frame — the
-    // background still at the OLD token and the border already at the new one.
     platform.simulateTick(timestamp: 100.2)
-    let start = try fillAndBorder("the frame that starts the fade")
+    let start = try reading("the frame that starts the fade")
     #expect(isFilled(start.fill, with: .surface, in: theme),
-            why("THE CONTROL: the background begins its fade at its own `from`; got "
-                + describe(start.fill)))
-    #expect(isBordered(start.border, with: .accent, in: theme),
-            why("DEFERRED to task 13: the border has already SNAPPED to its new token in the "
-                + "same frame; got " + describe(start.border)))
-    #expect(window.hasActiveAnimations,
-            "the background's fade must be live, or `snaps` below is a claim about nothing")
+            why("THE CONTROL: the background begins its fade at its own `from`; got " + describe(start.fill)))
+    #expect(isBordered(start.border, with: .surface, in: theme) && start.border.borderWidths.top == 1,
+            why("the border begins at its own `from` too — colour and width; got " + describe(start.border)))
+    #expect(start.child.contentMask.size.width == 40,
+            why("`clipsContent` SNAPS: the child is already clipped to 40 on the start frame; got "
+                + describe(start.child)))
 
     platform.simulateTick(timestamp: 100.7)
-    let mid = try fillAndBorder("mid-flight")
+    let mid = try reading("mid-flight")
     #expect(!isFilled(mid.fill, with: .surface, in: theme)
                 && !isFilled(mid.fill, with: .accent, in: theme),
             why("THE CONTROL: half way through, the background is at neither endpoint; got "
                 + describe(mid.fill)))
-    #expect(isBordered(mid.border, with: .accent, in: theme),
-            why("and the border is still simply the new token — no interpolation at any point; "
-                + "got " + describe(mid.border)))
+    #expect(!isBordered(mid.border, with: .surface, in: theme)
+                && !isBordered(mid.border, with: .accent, in: theme),
+            why("the border COLOUR fades: neither endpoint half way; got " + describe(mid.border)))
+    #expect(mid.border.borderWidths.top == 3,
+            why("the border WIDTH interpolates: 3 half way from 1 to 5; got " + describe(mid.border)))
+    #expect(abs(mid.fill.background.a - 0.6) < 0.001,
+            why("the OPACITY interpolates: 0.6 half way from 1 to 0.2; got " + describe(mid.fill)))
+
+    platform.simulateTick(timestamp: 101.3)
+    let landed = try reading("landed")
+    #expect(isFilled(landed.fill, with: .accent, in: theme) && isBordered(landed.border, with: .accent, in: theme)
+                && landed.border.borderWidths.top == 5 && abs(landed.fill.background.a - 0.2) < 0.001,
+            why("lands on every target; got " + describe(landed.fill) + " / " + describe(landed.border)))
+    #expect(!window.hasActiveAnimations, "settled")
 }
 
 /// The model the snap test drives. **`@Observable`, so the write inside

@@ -121,8 +121,8 @@ public struct State<Value> {
     /// extension, `$n` is "cannot find in scope").
     public var projectedValue: Binding<Value> {
         let state = self
-        return Binding(get: { state.wrappedValue },
-                       set: { state.wrappedValue = $0 })
+        return Binding.stateSource(get: { state.wrappedValue },
+                                   set: { state.wrappedValue = $0 })
     }
 }
 

@@ -730,3 +730,29 @@ been deleted outright, rather than deprecated, would be surprised the field
 and the enum still exist, only warned against; a reader who expects
 `.updatesFrequently` to change VoiceOver's polling behaviour would find it
 does nothing, by design, the same as `ButtonRole` itself.
+
+## 2026-09-30: no row added or deleted (plan task 13, transactions and animation)
+
+Record §64; rulings `AN-AD`, `AN-AH`.
+
+- **No row added.** `EnvironmentValues.accessibilityReduceMotion` is read by
+  the transition code (which substitutes a cross-fade for every transition
+  but `.identity` when it is set) and by
+  `propertyAnimationsRunUnchangedUnderReduceMotion`'s own set-up — a value
+  that changes behaviour is not stored-but-unread state, so it earns no row
+  here, the same shape `ScrollIndicatorVisibility`'s two new cases were
+  already given at plan task 10 part 1.
+- **No row deleted, and no eighth `StateTable` slot added to name one.** The
+  design session's own first draft of `AN-AA` would have minted an eighth
+  reserved slot (`$anim-border`) for the legacy border colour's track; the
+  critic round (`AN-AH` item 3) replaced it with a window-owned
+  `AnimationStore` key instead, the same mechanism every proposal animation
+  track already uses. Since that slot was never built, this section has
+  nothing to retire.
+
+**What it costs if wrong.** A reader who expected Reduce Motion to be listed
+here (on the pattern of `displayScale`/`controlActiveState`/`controlSize`,
+which were each inert at the task that added them) would be surprised it is
+absent — it is absent because, unlike those three at their own landing,
+Reduce Motion has a live consumer (the transition system) in this same
+change, not a later one.
