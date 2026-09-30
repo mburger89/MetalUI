@@ -335,8 +335,8 @@ enum ComponentModifierOp {
 /// `addingAModifierDoesNotResetAComponentsState` (`ComponentTests.swift`) pins
 /// it, and Step 8's mutation reddens exactly that test. The wrapper nodes a
 /// `.wrap` registers have no element behind them and no id: they are layout
-/// nodes only, painted by nothing, and that is also why they cannot animate
-/// (below).
+/// nodes only, painted by nothing, so they have no `$anim` slot — since plan
+/// task 13 their values animate on `AnimationStore` tracks instead (below).
 ///
 /// **A caller's `width`/`height` frames each member, SwiftUI's answer** (plan
 /// task 7, stage 3, lane 4, `LR-BG`): the amend lowers to one native frame per
@@ -353,28 +353,25 @@ enum ComponentModifierOp {
 /// itself 70 wide. SwiftUI's G15/G16 read the same outer 70/78 but keep the
 /// member 30 wide (centred at x 20, then at x 24).
 ///
-/// **A CALLER'S MODIFIER ON A COMPONENT NEVER ANIMATES. It snaps, even inside
-/// `withAnimation`.** This is a defect (review finding B-7), not a design
-/// choice, and it is pinned wrong on purpose. The ops run only after
-/// `component.requestGroupLayout` has returned, each registering its node from
-/// the op's raw value under no element id, so there is no `$anim` slot for
-/// `animated(_:_:for:pass:)` to compare against. The snap is arm (c) of
-/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
-/// (`AnimationTests.swift`); the legacy authority's readings were pinned by
-/// `everyRegisteringSiteAnimatesItsStyle` until stage 7b (record §49 row 241).
-/// The same width declared inside the component animates.
-///
-/// **The fix is blocked on `ElementGroup`, not on this type.**
-/// `requestGroupLayout` returns a flat `[LayoutNodeID]`, so nothing here can
-/// name a member's id or its `$anim` slot. That needs the associated-type
-/// change ruling TB-M names. Two cheaper fixes are unsound. Calling `animated`
-/// on the member's slot from here would rewrite its baseline with an empty
-/// `Decoration()`, because the member's `Decoration` is out of reach as well.
-/// Leaving an amendment on the pass for the next `animated` call would reach a
-/// grandchild first, since `Box.requestLayout` registers its children before
-/// itself, which contradicts CO-U's distribution to top-level nodes. To animate
-/// a component's size today, declare the value inside the component (a stored
-/// property its `content` reads) rather than as a modifier on it.
+/// **A caller's modifier on a component animates, since plan task 13** (ruling
+/// `AN-AC`; B-7 fixed). Until then it snapped, even inside `withAnimation`: the
+/// ops ran after `component.requestGroupLayout` had returned, each registering
+/// its node from the op's raw value under no element id, so there was no
+/// `$anim` slot to compare against, and the fix was thought blocked on
+/// `ElementGroup` (`TB-M`). It is not: this type computes the component's own id
+/// (`.child(of: parent, at: cursor, name: component.elementID)`, the id
+/// `Component.requestGroupLayout` mints) and interpolates each op per member on
+/// its own `AnimationStore` track (`componentOpAnimationKey`: op `k` under
+/// member `m`'s position), so **the member's own `$anim` baseline is never read
+/// or written** — neither of the two unsound fixes this paragraph used to name
+/// (rewriting the member's baseline with an empty `Decoration`, or leaving an
+/// amendment on the pass for a grandchild). No `StateTable` entry is minted.
+/// Pinned by `aComponentsCallerModifierAnimates`,
+/// `aComponentsOpsAnimateEachMemberSeparately` and arm (c) of
+/// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`, whose
+/// answer changed by the ruling. **Cost, stated** (`AN-AC`): a member added or
+/// removed shifts the next member's key, so its op animates from the departed
+/// member's value — a positional `@State`'s shift, with the same remedy.
 ///
 /// **Only layout modifiers can work this way.** An op registers a layout node
 /// around a member; nothing reaches `Decoration` or `Handlers` per node, because those are per-ELEMENT state
@@ -413,14 +410,21 @@ public struct StyledComponent<C: Component>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], C.GroupLayout) {
+        // The component's own id — computed, not minted: `Component.requestGroupLayout`
+        // mints it from the same parent, cursor and name. Plan task 13
+        // (`AN-AC`) keys the ops' animation tracks under it.
+        let componentID = GlobalElementID.child(of: parent, at: cursor, name: component.elementID)
         // `parent` and `cursor` forwarded UNCHANGED — see the type's own doc.
         let (nodes, layout) = component.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         // Per member, in declaration order, with a current node: an amend
         // writes it, a wrap replaces it. The parent receives the OUTERMOST
         // node of each member — which is the member itself when no op wrapped.
-        let outermost = nodes.map { member -> LayoutNodeID in
+        let outermost = nodes.enumerated().map { memberIndex, member -> LayoutNodeID in
             var current = member
-            for op in ops {
+            for (k, declaredOp) in ops.enumerated() {
+                // B-7 fixed (plan task 13, `AN-AC`): each op interpolates on its
+                // own `AnimationStore` track per member.
+                let op = declaredOp.animated(for: componentID, member: memberIndex, op: k, pass: &pass)
                 switch op {
                 case .amend(let patch):
                     // Stage 3 lane 4 (LR-BG): one native frame AROUND the member

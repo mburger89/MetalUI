@@ -400,6 +400,15 @@ public struct Decoration: Sendable, Hashable {
         escapesOpacity = []
     }
 
+    /// The layout helper's one opacity write (plan task 13, `AN-AA`): an
+    /// INTERPOLATED opacity from `animated(_:_:for:pass:)`, clamped to `0...1`
+    /// (a bouncy spring overshoots, and `PaintPass.opacity` traps outside it),
+    /// **keeping `escapesOpacity`** — which slots escape is the caller's
+    /// declared write order, not a property of the frame's value.
+    mutating func setInterpolatedOpacity(_ value: Float) {
+        opacity = min(max(value, 0), 1)
+    }
+
     static func validateOpacity(_ value: Float) {
         precondition(value.isFinite && (0...1).contains(value),
                      "opacity must be a finite value in 0...1, got \(value)")

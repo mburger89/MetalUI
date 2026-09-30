@@ -410,7 +410,8 @@ struct ClipProbe: ProposalElement {
             "half-way the width is 200 (through the production dirty path)")
     platform.simulateTick(timestamp: 101.2)
     #expect(!window.hasActiveAnimations, "landed: nothing live")
-    #expect(platform.pauseCalls.last == true, "the display link pauses once the animation lands")
+    platform.simulateTick(timestamp: 101.3)
+    #expect(platform.pauseCalls.last == true, "the display link pauses on the frame after the animation lands")
 }
 
 // MARK: - 2.11
@@ -564,9 +565,11 @@ private struct OneMember: Component {
 }
 
 /// **2.17 (`AN-AC`, B-7 fixed).** A caller's `.width` and `.padding` on a
-/// `Component` animate: `.width(100 → 300)` reads 100 → 200 → 300 and
-/// `.padding(4 → 20)` moves the member 4 → 12 → 20 in from the frame's edge.
-/// Mutation: drop the op interpolation (also reddens arm (c) of
+/// `Component` animate. The member (20 wide) is centred in its width frame
+/// (`LR-BG`), which sits inside the padding, so its x is `p + (w − 20) / 2`:
+/// `.width(100 → 300)` with `.padding(4 → 20)` reads 44 → 102 → 160 (half-way
+/// w 200, p 12), and its y moves with the padding alone, +8 then +16. Mutation:
+/// drop the op interpolation (also reddens arm (c) of
 /// `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`).
 @Test @MainActor func aComponentsCallerModifierAnimates() throws {
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
@@ -577,13 +580,15 @@ private struct OneMember: Component {
     let h = WrapperHarness()
     func memberBounds(_ f: Frame) -> Bounds<Pixels>? { f.elementBounds[member] }
     let rest = try #require(memberBounds(h.frame(0, nil, tree(100, 4))), "set up: the member's bounds")
+    try #require(rest.origin.x.value == 44, "set up: 4 + (100 − 20) / 2 = 44, got \(rest)")
     let start = memberBounds(h.frame(0, linear1, tree(300, 20)))
     let mid = memberBounds(h.frame(0.5, nil, tree(300, 20)))
     let end = memberBounds(h.frame(1.0, nil, tree(300, 20)))
     #expect(start == rest, "the start frame reads its from: \(rest), got \(String(describing: start))")
-    #expect(mid?.origin.x.value == rest.origin.x.value + 8,
-            "half-way the padding is 12: the member 8 further in, got \(String(describing: mid)) from \(rest)")
-    #expect(end?.origin.x.value == rest.origin.x.value + 16, "lands at padding 20, got \(String(describing: end))")
+    #expect(mid?.origin.x.value == 102 && mid?.origin.y.value == rest.origin.y.value + 8,
+            "half-way (w 200, p 12) the member is at x 102 and 8 lower, got \(String(describing: mid)) from \(rest)")
+    #expect(end?.origin.x.value == 160 && end?.origin.y.value == rest.origin.y.value + 16,
+            "landed (w 300, p 20): x 160 and 16 lower, got \(String(describing: end))")
     #expect(h.frame(1.1, nil, tree(300, 20)).hasActiveAnimations == false, "settled")
 }
 

@@ -121,7 +121,9 @@ func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// theoretical one: `MemoryLayout<AnimatedColorState>.stride` is 120 bytes**,
 /// of which 112 is the `Optional<ColorAnimation>` — stored inline, so a
 /// SETTLED element pays for the whole animation record it is not using.
-/// (`AnimatedElementState`, the `$anim` slot, is 248 for comparison.) Only
+/// (`AnimatedElementState`, the `$anim` slot, is 248 for comparison — **320**
+/// re-measured 2026-09-30, plan task 13 lane 2, when 120 and 112 here were
+/// re-taken unchanged.) Only
 /// elements that declare a background pay it at all, which is why the `nil`
 /// token early-returns before touching the table. **Reducing the settled cost
 /// to ~2 bytes is a real follow-on and is deliberately not done here**: it
@@ -329,13 +331,19 @@ func resolvedForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
 /// border resolves — in which case `paintDecoration` emits no border rect at
 /// all, which is what keeps a background-only element at exactly one rect.
 ///
-/// **Deliberately NOT animated**, unlike `animatedBackground` above. A second
-/// animated colour needs an eighth reserved retention slot beside
-/// `$anim-color` — `animColorRetentionSlot(for:)` is one named child per
-/// element, and a second value under the same name would alias the background's
-/// baseline, so a border change would retarget the fill's fade. Spec §9 defers
-/// it to task 13; `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` pins
-/// the snap so the deferral is visible rather than assumed.
+/// **Animated since plan task 13** (`AN-AA` as amended by `AN-AH` item 3): the
+/// RESOLVED token (the pointer/focus winner, so a hover border fades) runs
+/// `animatedColor`'s recipe on a track in the window's **`AnimationStore`**,
+/// keyed by `borderColourStoreKey(for:)` — not on an eighth `StateTable` slot
+/// and not under `$anim-color`, whose baseline a border change would otherwise
+/// retarget (`aBorderFadeDoesNotRetargetTheBackgroundFade`). No `StateTable`
+/// entry is minted (`theBorderColourTrackMintsNoStateTableEntry`), so the
+/// reserved names stay seven. The store's one-frame drop applies: a paint
+/// skipped for a frame loses the track, and the next change from there snaps.
+/// The widths interpolate in layout (`animated(_:_:for:pass:)`).
+/// `thePaintOnlyDecorationFieldsAnimateAndClipSnaps` pins it (renamed from
+/// `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`, which pinned the
+/// deferral).
 ///
 /// **Returns the winning slot too** (stage 11, `LR-FW`), for `paintDecoration`'s
 /// opacity escape.
@@ -345,7 +353,8 @@ func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
     guard let resolved = resolvedForPointerState(decoration.focusBorder, decoration.hoverBorder,
                                                  decoration.border, for: id, pass: pass)
     else { return nil }
-    return (pass.theme[resolved.value.color], resolved.value.widths, resolved.slot)
+    let color = storedAnimatedColor(resolved.value.color, at: borderColourStoreKey(for: id), pass: pass)
+    return (color, resolved.value.widths, resolved.slot)
 }
 
 /// **The one paint-side entry point for everything a `Decoration` draws or
@@ -523,6 +532,53 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
         return declared
     }
 
+    let (newState, value) = advanceColor(token, from: existing, theme: theme, now: now,
+                                         transaction: transaction)
+    let inFlight = newState.inFlight
+    if newState != existing {
+        pass.frame.stateTable.withState(slotID, initial: newState) { $0 = newState }
+    } else {
+        // Ruling P: nothing to write, but an entry exists — mark it live so it
+        // is not reaped while its element is still being produced every frame.
+        // `mark` touches neither `isDirty` nor the stored value, so it costs
+        // nothing rulings H or I forbid.
+        pass.frame.stateTable.mark(slotID)
+    }
+
+    if inFlight != nil {
+        // **A colour transition is still interpolating, so the display link
+        // must not idle after this frame.**
+        //
+        // This line said `pass.requestAnotherFrame()` when Task 4b shipped it,
+        // and Task 5 changed it rather than adding a second signal beside it.
+        // The reason is that `wantsAnotherFrame` and `hasActiveAnimations`
+        // would otherwise have been two names for one claim about colour:
+        // both would have kept the loop running, the redundancy would have
+        // made either one deletable with the suite green, and neither would
+        // have been the single answer to "is an animation live" that the
+        // binding spec §4.4 guard is written against. They now mean different
+        // things and nothing raises both — `wantsAnotherFrame` is
+        // `ScrollView`'s indicator fade marking the window DIRTY, this is an
+        // `Animation` interpolating. `Window.drawFrameIfNeeded` reads
+        // `Frame.hasActiveAnimations` after the whole of `render` — layout,
+        // prepaint AND paint — so this paint-phase contribution reaches it
+        // with no ordering change, exactly as the `wantsAnotherFrame` read at
+        // the same place always did.
+        pass.frame.noteActiveAnimation()
+    }
+    return value
+}
+
+/// One colour track's step — `animatedColor`'s whole decision, moved here
+/// unchanged (plan task 13, lane 2) so the `AnimationStore`'s colour tracks
+/// (`storedAnimatedColor`) run the same recipe as the `$anim-color` slot: the
+/// token baseline, both ends re-resolved per frame, a mid-flight re-target
+/// from the current colour and velocity, a snap without a transaction.
+/// Returns the state to store and the colour to paint.
+@MainActor
+func advanceColor(_ token: ColorToken, from existing: AnimatedColorState, theme: Theme, now: Double,
+                  transaction: Animation?) -> (state: AnimatedColorState, value: Hsla) {
+    let declared = theme[token]
     var inFlight = existing.inFlight
     var value = declared
 
@@ -569,39 +625,7 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
     // snap — `value` is already `declared`, and the asymmetry between this
     // branch and the one above is the whole of what `withAnimation` buys.
 
-    let newState = AnimatedColorState(token: token, inFlight: inFlight)
-    if newState != existing {
-        pass.frame.stateTable.withState(slotID, initial: newState) { $0 = newState }
-    } else {
-        // Ruling P: nothing to write, but an entry exists — mark it live so it
-        // is not reaped while its element is still being produced every frame.
-        // `mark` touches neither `isDirty` nor the stored value, so it costs
-        // nothing rulings H or I forbid.
-        pass.frame.stateTable.mark(slotID)
-    }
-
-    if inFlight != nil {
-        // **A colour transition is still interpolating, so the display link
-        // must not idle after this frame.**
-        //
-        // This line said `pass.requestAnotherFrame()` when Task 4b shipped it,
-        // and Task 5 changed it rather than adding a second signal beside it.
-        // The reason is that `wantsAnotherFrame` and `hasActiveAnimations`
-        // would otherwise have been two names for one claim about colour:
-        // both would have kept the loop running, the redundancy would have
-        // made either one deletable with the suite green, and neither would
-        // have been the single answer to "is an animation live" that the
-        // binding spec §4.4 guard is written against. They now mean different
-        // things and nothing raises both — `wantsAnotherFrame` is
-        // `ScrollView`'s indicator fade marking the window DIRTY, this is an
-        // `Animation` interpolating. `Window.drawFrameIfNeeded` reads
-        // `Frame.hasActiveAnimations` after the whole of `render` — layout,
-        // prepaint AND paint — so this paint-phase contribution reaches it
-        // with no ordering change, exactly as the `wantsAnotherFrame` read at
-        // the same place always did.
-        pass.frame.noteActiveAnimation()
-    }
-    return value
+    return (AnimatedColorState(token: token, inFlight: inFlight), value)
 }
 
 /// The four components, each through the same `Animation` curve, independently.
