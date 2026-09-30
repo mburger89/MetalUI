@@ -4,10 +4,11 @@ Branch `feat/transactions-animation` from `2de0973` (master, plan task 12
 part 2 landed, record §63). Rulings **`AN-X`…`AN-AH`** appended to the
 existing animation decisions doc,
 [`../2026-09-03-animation-decisions.md`](../2026-09-03-animation-decisions.md)
-(next unused **`AN-AK`**; `AN-AH` is the critic round's, which amended this
+(next unused **`AN-AL`**; `AN-AH` is the critic round's, which amended this
 spec in place — §4, §5, §6.3, §6.5, §7, §10, §11; `AN-AI` is lane 1's landing,
 which amended rows 1.16 and 1.19; `AN-AJ` is lane 2's, which amended rows 2.11,
-2.17 and 2.19). Evidence: `docs/probes/swiftui-transactions-animation.swift`
+2.17 and 2.19; `AN-AK` is lane 3's, which amended §6.5 and rows 3.13, 3.16 and
+3.23). Evidence: `docs/probes/swiftui-transactions-animation.swift`
 (**new**; arm ids `C…` controls, `W…` which wrapper animates and as what,
 `P…` whether layout re-runs mid-flight, `T…` transactions, `X…` transitions,
 `R…` Reduce Motion; its header carries the recorded output and how to read
@@ -406,7 +407,10 @@ uses); "paint" means interpolated in paint off the theme.
   sweep already computes — `noteAbsent`'s slots, the loop tails and names
   `queueLoopResets` drops, and departed names — **read before paint** through
   a non-mutating `StateTable` query lane 3 adds. A `List` row leaving its
-  window is not a removal (`TB-AH`; 3.17).
+  window is not a removal (`TB-AH`; 3.17). **Amended by `AN-AK` items 2 and
+  4**: no `StateTable` query — the transition store notes each copy's
+  evaluation and units itself, beside the existing table notes; a departed
+  name outside a loop is not a removal (only loop elements' names are).
 - **The transaction is the one in effect at the conditional**, recorded when
   the conditional notes its slot (X13, X14), not the one at the group. No
   animation → the insertion or removal is instant (X1n).
@@ -435,8 +439,11 @@ uses); "paint" means interpolated in paint off the theme.
   until the animation finishes. A
   ghost registers no hitbox, no focus, no accessibility node and no `@State`
   (its content's entries are reset as `ID-C`/`DD-C` already reset them). It
-  draws with the paint order it last had. Siblings move at once (divergence
-  96's X00 half).
+  draws with the paint order it last had — **the layer** (`AN-AK` item 5:
+  ghosts replay after the tree, so within their layer they draw above this
+  frame's paint). Siblings move at once (divergence 96's X00 half). The
+  effect is applied at emission rather than as a post-transform of a scene
+  range (`AN-AK` item 3), with the same clip rule.
 - **Reduce Motion**: when `accessibilityReduceMotion` is true at the group
   (captured with the ghost for a removal), every transition but `.identity`
   resolves to `.opacity` (R5…, `.scale` included — R5s; R10 the controls).
@@ -596,6 +603,11 @@ copy); tests `TransitionTests.swift` (new), `TransitionCompileGuards.swift`
 | 3.22 | `contentInTheFirstRenderOrANewlyEvaluatedParentIsNotInserted` (X17: frame 0 under a `.transaction` forcing an animation; a `List` row with a `.transition`ed `if` scrolled into its window; nested content under an inserted `if` — none transitions; X17c's toggle-after-appearance control does) | does not compile | treat "not produced last frame" as an insertion without the evaluated-last-frame check — the frame-0 and `List` arms |
 | 3.23 | `everyConditionalSiteRecordsItsTransaction` (one arm per recording copy: `OptionalGroup`, `EitherGroup`, `ArrayGroup` untyped and typed, `ForEach`'s untyped and typed entries) | does not compile | skip the note in any one copy — exactly its arm (take the typed `ArrayGroup`) |
 | 3.24 | `aScaleTransitionScalesTheGroupsPrimitivesAboutItsAnchor` (X4, X4a: a 50×30 rect with a glyph child reads scale ½ at mid-flight about the centre, `.topLeading` about its corner; an outer clip unscaled, an inner one scaled; hitboxes unscaled) | does not compile | scale about the container's rect; scale the entry clip too |
+
+**Landed** (`AN-AK`): 1953 tests (+24: 23 tests and guard 3.19), 119 guards;
+every mutation above reddens its test (the table is `AN-AK`'s); the SDL glyph
+shader matches (item 1); `StateTable.swift` untouched, `Frame.swift` and
+`ProposalElementGroup.swift` touched (items 2, 3); 0 px against `2de0973`.
 
 Also: **the supported-transition surface is documented** on `AnyTransition`'s
 public doc comment (supported, with the probe arm for each; unsupported, with

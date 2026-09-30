@@ -6,9 +6,10 @@ helpers in two phases, `hasActiveAnimations` and the widened idle guard.
 
 Prefixed **`AN-`** and **lettered** (`AN-A`, `AN-B`, …) per this repo's
 convention — **a bare `AN-3` is a typo, not a citation**, the same note every
-other milestone's decisions doc carries. Next unused letter is `AN-AK`
+other milestone's decisions doc carries. Next unused letter is `AN-AL`
 (`AN-X`…`AN-AH`: plan task 13, 2026-09-30, at the end of this document;
-`AN-AH` is its critic round, `AN-AI` its lane 1, `AN-AJ` its lane 2).
+`AN-AH` is its critic round, `AN-AI` its lane 1, `AN-AJ` its lane 2, `AN-AK`
+its lane 3).
 
 Read alongside `docs/superpowers/specs/2026-09-03-animation-design.md` (its §3,
 §5 and §6 are corrected in place by rulings recorded here), the binding design
@@ -2099,3 +2100,131 @@ there touched); a `swift:6.4-noble` container over `924fca8` builds with 0
 **Cost if wrong.** Item 3's setter is the one hole: a caller inside the
 package could write an out-of-order opacity through it without the public
 setter's trap — it clamps rather than traps, and only the helper calls it.
+
+## AN-AK — lane 3 landed: transitions and the documented surface; the transition store keeps its own two frames; `Frame.swift`'s three emitters route through open groups only
+
+**Taken** by plan task 13's lane 3, 2026-09-30, on `feat/transactions-animation`
+(tests `b6eb0e2`, implementation `470d1de`). Spec §6.5 and §7 lane 3 as
+amended by `AN-AH`, with these amendments and measurements; the supported and
+unsupported lists of `AN-AE`/`AN-AH` item 1 are built as ruled, and
+`AnyTransition`'s public doc comment (`Transition.swift`) is the surface
+document the Record phase copies.
+
+1. **The SDL glyph shader was read first, and matches** (`AN-AH` item 1's stop
+   condition, not triggered). `Backends/SDL/Shaders/replay.hlsl`'s glyph
+   vertex stage computes `atlasPosition = source.xy + unit * source.zw` from the
+   primitive's atlas lanes, independently of the destination `bounds`
+   (`pos = bounds.xy + unit * bounds.zw`), and samples through `atlasSampler`,
+   created in `SDLBridge.c` with `SDL_GPU_FILTER_LINEAR` for min and mag — the
+   same independence and filter as Metal's `glyph_vertex`. `.scale` is not
+   macOS-only.
+2. **The transition store keeps its own two frames; no `StateTable` query was
+   added** (amends spec §6.5's "read before paint through a non-mutating
+   `StateTable` query" and §7 lane 3's `StateTable.swift` file entry). An
+   insertion needs a conditional's evaluation in the LAST frame, absent
+   included (X17), and the table keeps only last frame's *produced* slots and
+   a loop's extent keyed for its reset, not the slots evaluated absent. So each
+   recording copy — `OptionalGroup`, `EitherGroup`, `ArrayGroup` (each untyped
+   and typed) and `ForEach`'s two entries — notes to
+   `AnimationStore.transitions` beside its existing `StateTable` note: the
+   evaluator (an `if`'s slot, both branch ids, a loop slot) with the animation
+   in effect there (`transactionTop.animation ?? Animation.pendingTransaction`,
+   `AN-AI` item 4's order), and each unit produced (a slot, a taken branch, a
+   `ForEach` scope; a `for` loop by its extent). The removal set is therefore
+   the same evaluated set `ID-C`/`DD-C` reset, computed from the same notes,
+   and `StateTable.swift` is untouched — no table entry, reset path or pinned
+   count moves. **Cost**: every conditional pays one dictionary write per
+   frame whether or not a `.transition` exists (an insertion needs the
+   conditional's previous frame before any group exists, X17c); no work
+   counter in the suite moved.
+3. **Two files outside the lane's list.** `Frame.swift`: the three emitters
+   (`fill`, `drawImage`, `drawSprite`) build their primitive into a `let` and
+   insert it exactly as before **when `transitionScopes` is empty** — every
+   frame of a tree without a claimed group — and otherwise route it through
+   the open groups, innermost first (each captures it, then applies its
+   effect); plus `clipDepth` and `insertIntoScene` for ghosts. `ProposalElementGroup.swift`:
+   the typed copies' notes. `MetalUIScene` is untouched: the effect is applied
+   at emission, not as a post-transform of a scene range — the same result
+   (a clip pushed inside the group, `clipStack.count` above the group's entry
+   depth, moves and scales with it; the entry clip stays), with no `Scene`
+   API added.
+4. **Claiming.** A `TransitionGroup` claims its position when its parent is a
+   unit noted this frame (an `if`'s slot, a branch id, a `ForEach` scope) or a
+   `for` loop's slot (its unit then the cursor index); anything deeper is
+   inert (X15, X15b, X16). Two `.transition`s stacked at one position: the
+   outer claims first and the inner is inert (MetalUI's choice; unprobed).
+   **A changed `.id(_:)` outside a loop is not a removal** — spec §6.5 listed
+   "departed names" in the removal set, but a transition applies only to the
+   content a conditional or loop inserts or removes (§6.5's own first bullet),
+   so an `.id` change on content that is not a loop element transitions
+   nothing; listed as unsupported on the doc comment.
+5. **Ghosts paint above their layer.** A ghost replays its capture after the
+   tree has painted (lane 1's `paintGhosts` seam), on the layer each primitive
+   had, so within that layer it draws above everything painted this frame —
+   spec §6.5's "the paint order it last had" holds for the layer, not for the
+   position among siblings (drawing at the old position would need the
+   conditional's paint to carry its slot, a public layout-type change on
+   `OptionalGroup`). Ghosts paint in the order their removals began. Stated on
+   the doc comment; SwiftUI's z-order for a removed view is unprobed.
+6. **Progress arithmetic.** Activeness runs 1 → 0 for an insertion and 0 → 1
+   for a ghost on the conditional's animation (`Animation.value(at:from:to:)`,
+   so springs overshoot and opacity is clamped to `0...1`). A removal during an
+   insertion starts the ghost at the insertion's current activeness (3.21);
+   an insertion during a removal starts from the ghost's. A landed ghost is
+   dropped without drawing; a landed insertion paints identity.
+7. **Rows amended at landing.** 3.13's red-before: its scene half was green
+   before (today's answer) but the file did not compile until
+   `lastFrameCapturedPrimitives` existed. 3.16's demo arm runs through a real
+   `Window` (`window.animationStore`), the fixture arm headless. M3.3 ("use the
+   container's size") is taken as the frame's content size (the root
+   container); M3.24a ("scale about the container's rect") as a 300-point
+   square anchor. M3.10 (skip the `ForEach` element note, shared by both
+   entries' `produceElements`) reddens both `ForEach` arms of 3.23 as well —
+   the per-entry pin is each entry's own `noteLoop` call, and M3.23 (the typed
+   `ArrayGroup`'s) reddens exactly its arm.
+8. **Measured.** 1953 tests (+24: 23 tests and guard 3.19), 119 guards; 0 px
+   against `2de0973` in all fourteen offscreen images, every scene identical;
+   `Backends/SDL` 22 + 33 unmoved; a `swift:6.4-noble` container builds with 0
+   `error:`/`warning:` and runs 199 + 10 + 22 (`MetalUILayoutTests`,
+   `MetalUICrossPlatformTests` — the demo frame and
+   `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green —
+   `MetalUICoreTests`); `MetalUILayout` still imports only
+   `MetalUICore`; 0 `warning:` under the default build system. The screen was
+   locked (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so no
+   real-window capture: the transitions, Reduce Motion's cross-fade and
+   `.scale`'s soft mid-flight glyphs are looks a human owes (record §03).
+
+| # | mutation (on `470d1de`, restored from a copy, full unfiltered suite of 1953, `git status --short` clean after each) | reddens |
+|---|---|---|
+| M3.1 | skip insertion (never store an `Insertion`) | 3.1, 3.3, 3.4, 3.5, 3.6, 3.7, 3.10, 3.11, 3.14, 3.15, 3.18, 3.21, 3.22, 3.23, 3.24 (38 issues) |
+| M3.2a | capture nothing (no ghost) | 3.2, 3.3, 3.4, 3.5, 3.6, 3.10, 3.14, 3.15, 3.21 |
+| M3.2b | register the ghost's hitbox | 3.2 alone |
+| M3.3 | translate by the container's (content) size | 3.3, 3.4, 3.5, 3.6, 3.7, 3.14, 3.18, 3.24 |
+| M3.4 | `.slide` removes toward leading | 3.4 alone |
+| M3.5 | drop `.push`'s opacity | 3.5 alone |
+| M3.6 | swap `.asymmetric`'s sides | 3.6, 3.4 (`.slide` is asymmetric) |
+| M3.7 | `.combined` keeps only the first | 3.7 alone |
+| M3.8 | identity as opacity | 3.8, 3.14 |
+| M3.9 | default the animation (`?? .default`) | 3.9 alone |
+| M3.10 | skip the `ForEach` element note | 3.10, 3.23 (its two `ForEach` arms) |
+| M3.11 | read the transaction at the group | 3.11 alone (the X14 arm) |
+| M3.12 | every group under inserted content claims | 3.12 alone (both arms) |
+| M3.13 | an unannotated `if` gets `.opacity` (`buildOptional` wraps) | 3.13, and 3.3–3.8, 3.12, 3.14, 3.18, 3.22, 3.24 (the default claims first) |
+| M3.14a | no Reduce Motion substitution | 3.14 alone (8 issues) |
+| M3.14b | substitute `.identity` too | 3.14 alone (2 issues) |
+| M3.15 | omit both `noteActiveAnimation()` calls | 3.15 alone |
+| M3.16 | count a capture at every rect | 3.16, 3.13 |
+| M3.17 | ghost a group whose conditional was not evaluated | 3.17 alone |
+| M3.18 | translate the inserting group's hitboxes | 3.18, 3.24 (its unscaled-hitbox arm) |
+| M3.20a | an identity level in the untyped entry | 3.20 alone, its legacy arm |
+| M3.20b | the same in the typed entry only | 3.20 alone, its proposal arm |
+| M3.21 | restart the ghost from 0 | 3.21 alone |
+| M3.22 | drop the evaluated-last-frame check | 3.22 alone (the frame-0, nested and `List` arms) |
+| M3.23 | skip the typed `ArrayGroup`'s notes | 3.23 alone, exactly its arm |
+| M3.24a | scale about a 300-point square | 3.24 alone |
+| M3.24b | scale the entry clip too | 3.24 alone |
+| MG3.19 | add `blurReplace` | 3.19 alone |
+
+**Cost if wrong.** Item 5 is the visible one: a ghost overlapping a sibling
+that moved into its place draws above it where SwiftUI (by index) may draw
+below; a probe arm with an opaque sibling would settle it.
