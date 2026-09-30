@@ -383,6 +383,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .radioGroup: .radioGroup
         case .slider: .slider
         case .incrementor: .incrementor
+        case .heading, .link: .group   // STUB (lane 1 red commit)
         }
     }
 

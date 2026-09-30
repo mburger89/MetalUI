@@ -554,11 +554,15 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     #expect(!added.contains { $0.component == .named(ElementID("$ax")) }, "no $ax slot added")
 }
 
-/// **3.16.** An accessibility client selects a row by pressing it (the press
-/// replaces the selection), and setting `AXSelected` on the AppKit element
-/// changes nothing (divergence 83). M3n (the rows' press not wired) must
-/// redden it.
-@Test @MainActor func anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly() throws {
+/// **3.16 / 1.12.** An accessibility client selects a row by pressing it (the
+/// press replaces the selection), and — through the AppKit bridge —
+/// `setAccessibilitySelected(true)` on a row **replaces** the selection with
+/// it, in a single list (LA2) and a multi list (LB3). **Renamed from
+/// `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly`,
+/// its AppKit half flipped by ruling `IX-AA` item 1** (divergence 83 retires);
+/// its press half is kept. M3n (the rows' press not wired) and plan task 12
+/// part 2's M1l (`.select` adds to a multi selection) must redden it.
+@Test @MainActor func settingAXSelectedOnARowReplacesTheSelection() throws {
     let model = Selection(count: 5, multi: [0, 1])
     let (window, platform) = try scrolledWindow { multiList(model) }
     let tree = try controlTree(window, platform)
@@ -570,27 +574,45 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     #expect(model.multiWrites == [[3]], "the press replaces the selection: \(model.multiWrites)")
     controlRedraw(window)
 
-    // The AppKit bridge: `setAccessibilitySelected(true)` on row 4's element.
-    let published = try #require(platform.publishedAccessibilityTrees.last)
-    let row4 = try #require(published.nodes.first {
-        $0.value.role == .row && kids(published, $0.key).first?.value == "Row 4"
-    }?.key)
-    let host = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
-                        styleMask: [.titled], backing: .buffered, defer: true)
-    host.isReleasedWhenClosed = false
-    let view = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
-    host.contentView = view
-    let bridge = AppKitAccessibilityBridge(signal: SelectionRunning(), poster: SelectionNoPoster())
-    var requests: [Request] = []
-    bridge.onRequest = { requests.append($0); return platform.simulateAccessibilityRequest($0) }
-    bridge.hostView = view
-    bridge.publish(published)
-    requests = []
-    let element = bridge.element(for: row4)
-    #expect(!element.isAccessibilitySelected(), "control: row 4 is not selected")
-    element.setAccessibilitySelected(true)
-    #expect(requests.isEmpty, "no request reaches the window: \(requests)")
-    #expect(model.multiWrites == [[3]], "nothing written: \(model.multiWrites)")
+    /// Row `index`'s id in `published`, and a bridge over it forwarding to the
+    /// window.
+    func appKitSelect(_ index: Int, _ platform: FakePlatformWindow) throws -> [Request] {
+        let published = try #require(platform.publishedAccessibilityTrees.last)
+        let row = try #require(published.nodes.first {
+            $0.value.role == .row && kids(published, $0.key).first?.value == "Row \(index)"
+        }?.key)
+        let host = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                            styleMask: [.titled], backing: .buffered, defer: true)
+        host.isReleasedWhenClosed = false
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        host.contentView = view
+        let bridge = AppKitAccessibilityBridge(signal: SelectionRunning(), poster: SelectionNoPoster())
+        var requests: [Request] = []
+        bridge.onRequest = { requests.append($0); return platform.simulateAccessibilityRequest($0) }
+        bridge.hostView = view
+        bridge.publish(published)
+        requests = []
+        let element = bridge.element(for: row)
+        #expect(!element.isAccessibilitySelected(), "control: row \(index) is not selected")
+        element.setAccessibilitySelected(true)
+        return requests
+    }
+
+    // LB3: the multi list's row 2 → exactly [2].
+    model.multi = [0, 1]
+    controlRedraw(window)
+    controlRedraw(window)
+    let multiRequests = try appKitSelect(2, platform)
+    #expect(multiRequests.count == 1, "one request reaches the window: \(multiRequests)")
+    #expect(model.multiWrites == [[3], [2]], "LB3: it replaces the set: \(model.multiWrites)")
+
+    // LA2: a single list's row 3 → 3.
+    let singleModel = Selection(count: 5, single: 1)
+    let (singleWindow, singlePlatform) = try scrolledWindow { singleList(singleModel) }
+    _ = try controlTree(singleWindow, singlePlatform)
+    let singleRequests = try appKitSelect(3, singlePlatform)
+    #expect(singleRequests.count == 1, "one request reaches the window: \(singleRequests)")
+    #expect(singleModel.singleWrites == [3], "LA2: the row is selected: \(singleModel.singleWrites)")
 }
 
 @MainActor private final class SelectionRunning: AccessibilityClientSignal {

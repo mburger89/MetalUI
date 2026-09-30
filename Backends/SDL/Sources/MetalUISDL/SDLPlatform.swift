@@ -249,12 +249,8 @@ public final class SDLWindow: PlatformWindow {
     func deliverAccessibilityRequests() {
         if let accessKit {
             for queued in accessKit.drain() {
-                switch queued {
-                case .activate: parkedAccessibilityRequests.append(.activate)
-                case let .action(action, number):
-                    if let request = AccessKitSnapshot.request(action, number: number, ids: accessKitIDs) {
-                        parkedAccessibilityRequests.append(request)
-                    }
+                if let request = AccessKitSnapshot.request(for: queued, ids: accessKitIDs) {
+                    parkedAccessibilityRequests.append(request)
                 }
             }
         }

@@ -107,6 +107,8 @@ extension Window {
                   lastFocusRegistry.isFocusable(id) else { return false }
             focus(id)
             return true
+        case .customAction, .select, .selectRows:
+            return false   // STUB (lane 1 red commit)
         }
     }
 

@@ -456,8 +456,13 @@ private struct HitTestingDisabled<Content: Element>: Element {
     }
 }
 
-/// `allowsHitTesting(false)` removes the press exactly as it removes the click.
-@Test @MainActor func aPressIsRefusedWhereHitTestingIsDisabled() throws {
+/// **1.11** (plan task 12 part 2, lane 1). Under `allowsHitTesting(false)` an
+/// accessibility press still runs the element's `onClick`, as SwiftUI's
+/// `Button` does (arm B6) — while a mouse click at the same point still finds
+/// nothing. **Renamed from `aPressIsRefusedWhereHitTestingIsDisabled`, its
+/// answer flipped by ruling `IX-Z` item 1** (divergence 28 retires). Mutation
+/// M1k (the press-only map not consulted) must redden it.
+@Test @MainActor func aPressIsRunWhereHitTestingIsDisabled() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let disabled = Tally()
     let enabled = Tally()
@@ -476,9 +481,13 @@ private struct HitTestingDisabled<Content: Element>: Element {
     let off = try #require(tree.id(labelled: "off"))
     let on = try #require(tree.id(labelled: "on"))
 
-    #expect(tree.nodes[off]?.actions == [])
-    #expect(!platform.simulateAccessibilityRequest(.press(off)))
-    #expect(disabled.count == 0)
+    #expect(tree.nodes[off]?.actions == [.press])
+    #expect(platform.simulateAccessibilityRequest(.press(off)))
+    #expect(disabled.count == 1, "the press runs the handler once")
+    // A mouse click at the same point still runs nothing (`OM-T`, `OM-AK`).
+    let frame = try #require(tree.geometry[off]?.frame)
+    controlClick(platform, at: controlCentre(frame))
+    #expect(disabled.count == 1, "a click where hit testing is off still finds nothing")
 
     #expect(tree.nodes[on]?.actions == [.press], "control: the same box without the wrapper")
     #expect(platform.simulateAccessibilityRequest(.press(on)))

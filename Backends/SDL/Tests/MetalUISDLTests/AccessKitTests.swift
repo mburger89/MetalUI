@@ -58,10 +58,13 @@ private func sampleTree() -> AccessibilityTree {
              actions: [.click, .focus], isDisabled: false, isSelected: false),
         Node(id: 3, role: .image, label: "Logo", value: nil, bounds: nil, children: [],
              actions: [], isDisabled: true, isSelected: false),
+        // `rowCount`/`rowIndex` reach AccessKit's `row_count`/`row_index` since
+        // plan task 12 part 2 (ruling `IX-AG`: the parity table found them
+        // untranslated) — a T row, these two literals gaining the fields.
         Node(id: 4, role: .table, label: nil, value: nil, bounds: nil, children: [5],
-             actions: [], isDisabled: false, isSelected: false),
+             actions: [], isDisabled: false, isSelected: false, rowCount: 1),
         Node(id: 5, role: .row, label: "First", value: "3", bounds: nil, children: [],
-             actions: [.increment, .decrement, .focus], isDisabled: false, isSelected: true),
+             actions: [.increment, .decrement, .focus], isDisabled: false, isSelected: true, rowIndex: 0),
     ]
     try #require(snapshot.nodes.count == expected.count)
     for (got, want) in zip(snapshot.nodes, expected) { #expect(got == want, "node \(want.id)") }

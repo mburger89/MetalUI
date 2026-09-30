@@ -202,7 +202,10 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     try #require(top.count == 5)
     let row = try #require(elements(top[4].accessibilityChildren()).first)
     let all = top + [row]
-    let expectedRoles: [NSAccessibility.Role] = [.group, .button, .staticText, .image, .table, .row]
+    // A neutral `.table` publishes as SwiftUI's `AXOutline` (plan task 12
+    // part 2, ruling `IX-AA` item 3; this literal read `.table` until then —
+    // a T row, its answer changed by ruling, not a retirement).
+    let expectedRoles: [NSAccessibility.Role] = [.group, .button, .staticText, .image, .outline, .row]
     let names = ["group", "button", "text", "image", "table", "row"]
     for (element, (role, name)) in zip(all, zip(expectedRoles, names)) {
         #expect(element.accessibilityRole() == role, "\(name)'s role")

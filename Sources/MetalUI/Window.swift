@@ -370,6 +370,12 @@ public final class Window {
     /// ask instead.
     private(set) var lastFocusRegistry = FocusRegistry()
 
+    /// The most recent frame's `Frame.accessibilityPressOnly`: the `onClick`
+    /// of each enabled element whose hitbox `allowsHitTesting(false)` withheld,
+    /// recorded only while a client is collecting (plan task 12 part 2,
+    /// `IX-Z` item 1). An accessibility press runs one when no hitbox answers.
+    private(set) var lastAccessibilityPressOnly: [GlobalElementID: @MainActor () -> Void] = [:]
+
     /// Whether an accessibility client is present, and what this window last
     /// published to it (`WindowAccessibility`, rulings AB-B, AB-M).
     let accessibility = WindowAccessibility()

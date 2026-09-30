@@ -10,8 +10,17 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput
         /// The five control roles (ruling `DD-U` item 1).
         case checkBox, radioButton, radioGroup, slider, spinButton
+        /// `.heading` and `.link` (plan task 12 part 2, `IX-AD`).
+        case heading, link
     }
-    public enum Action: Equatable, Hashable, Sendable { case click, focus, increment, decrement }
+    public enum Action: Equatable, Hashable, Sendable {
+        case click, focus, increment, decrement
+        /// Advertised when the node has custom actions (plan task 12 part 2,
+        /// `IX-AD`); an incoming one carries its index as action data, so it
+        /// is queued as `AccessKitAdapter.Queued.customAction`, never through
+        /// `request(_:number:ids:)`.
+        case customAction
+    }
 
     public struct Node: Equatable, Sendable {
         public var id: UInt64
@@ -30,6 +39,21 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A slider's or stepper's value as a number, when it parses (`DD-U`
         /// item 1); `nil` otherwise.
         public var numericValue: Double? = nil
+        /// A table's logical row count and a row's logical index (AB-L),
+        /// AccessKit's `row_count`/`row_index` (plan task 12 part 2, `IX-AG`:
+        /// the parity table found them untranslated).
+        public var rowCount: Int? = nil
+        public var rowIndex: Int? = nil
+        /// The node's hint, sent as AccessKit's `description` (`IX-AD`).
+        public var hint: String? = nil
+        /// The node's identifier, sent as AccessKit's `author_id` (`IX-AD`).
+        public var authorID: String? = nil
+        /// Custom actions' names; each is pushed with its index as its id
+        /// (`IX-AD`).
+        public var customActions: [String] = []
+        /// A selectable row: `selected` is sent as `false` when not selected,
+        /// AccessKit's "selectable, not selected" (`IX-AA` item 2).
+        public var isSelectable: Bool = false
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -37,6 +61,15 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.children == b.children && a.actions == b.actions
                 && a.isDisabled == b.isDisabled && a.isSelected == b.isSelected
                 && a.toggled == b.toggled && a.numericValue == b.numericValue
+                && a.rowCount == b.rowCount && a.rowIndex == b.rowIndex
+                && a.hint == b.hint && a.authorID == b.authorID
+                && a.customActions == b.customActions && a.isSelectable == b.isSelectable
+        }
+
+        /// What AccessKit's `selected` is set to: the selection when it is
+        /// selected or selectable, unset otherwise (`IX-AA` item 2).
+        var selectedState: Bool? {
+            isSelected ? true : nil   // STUB (lane 1 red commit)
         }
     }
 
@@ -132,6 +165,7 @@ extension AccessKitSnapshot {
         case .radioGroup: .radioGroup
         case .slider: .slider
         case .incrementor: .spinButton
+        case .heading, .link: .genericContainer   // STUB (lane 1 red commit)
         }
     }
 
@@ -161,6 +195,16 @@ extension AccessKitSnapshot {
         case .focus: return .focus(id)
         case .increment: return .increment(id)
         case .decrement: return .decrement(id)
+        case .customAction: return nil
+        }
+    }
+
+    /// The MetalUI request a drained adapter item means, if any.
+    static func request(for queued: AccessKitAdapter.Queued, ids: AccessKitIDs) -> AccessibilityRequest? {
+        switch queued {
+        case .activate: return .activate
+        case let .action(action, number): return request(action, number: number, ids: ids)
+        case .customAction: return nil   // STUB (lane 1 red commit)
         }
     }
 }

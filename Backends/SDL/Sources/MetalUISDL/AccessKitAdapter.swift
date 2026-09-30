@@ -22,6 +22,8 @@ final class AccessKitAdapter: @unchecked Sendable {
     enum Queued: Equatable {
         case activate
         case action(AccessKitSnapshot.Action, UInt64)
+        /// A custom action on a node, with its index (`IX-AD`).
+        case customAction(UInt64, Int)
     }
 
     /// `nativeWindow` is `mui_window_native_handle`'s answer — required on
@@ -151,8 +153,15 @@ final class AccessKitAdapter: @unchecked Sendable {
         guard let request else { return }
         defer { accesskit_action_request_free(request) }
         let me = Unmanaged<AccessKitAdapter>.fromOpaque(userdata!).takeUnretainedValue()
-        guard let action = AccessKitSnapshot.action(request.pointee.action) else { return }
-        me.enqueue(.action(action, request.pointee.target_node))
+        guard let queued = queued(from: request.pointee) else { return }
+        me.enqueue(queued)
+    }
+
+    /// What an AccessKit action request queues, if MetalUI has an action for
+    /// it. Pure, so a test can hand it a request as AccessKit builds one.
+    static func queued(from request: accesskit_action_request) -> Queued? {
+        guard let action = AccessKitSnapshot.action(request.action) else { return nil }
+        return .action(action, request.target_node)   // STUB (lane 1 red commit)
     }
 
     private static let deactivation: accesskit_deactivation_handler_callback = { _ in }
@@ -173,28 +182,34 @@ final class AccessKitAdapter: @unchecked Sendable {
         let update = accesskit_tree_update_with_capacity_and_focus(snapshot.nodes.count, snapshot.focus)!
         accesskit_tree_update_set_tree_info(update, accesskit_tree_info_new(AccessKitSnapshot.rootID))
         for node in snapshot.nodes {
-            let out = accesskit_node_new(role(node.role))!
-            if let label = node.label { accesskit_node_set_label(out, label) }
-            if let value = node.value { accesskit_node_set_value(out, value) }
-            if let (x0, y0, x1, y1) = node.bounds {
-                accesskit_node_set_bounds(out, accesskit_rect(x0: x0, y0: y0, x1: x1, y1: y1))
-            }
-            node.children.withUnsafeBufferPointer {
-                accesskit_node_set_children(out, $0.count, $0.baseAddress)
-            }
-            for action in node.actions.sorted(by: { code($0) < code($1) }) {
-                accesskit_node_add_action(out, code(action))
-            }
-            if node.isDisabled { accesskit_node_set_disabled(out) }
-            if node.isSelected { accesskit_node_set_selected(out, true) }
-            if let toggled = node.toggled {
-                accesskit_node_set_toggled(out, accesskit_toggled(
-                    toggled ? ACCESSKIT_TOGGLED_TRUE.rawValue : ACCESSKIT_TOGGLED_FALSE.rawValue))
-            }
-            if let number = node.numericValue { accesskit_node_set_numeric_value(out, number) }
-            accesskit_tree_update_push_node(update, node.id, out)
+            accesskit_tree_update_push_node(update, node.id, cNode(node))
         }
         return update
+    }
+
+    /// One snapshot node as an `accesskit_node`; ownership passes to the
+    /// caller (the update, or a test that frees it).
+    static func cNode(_ node: AccessKitSnapshot.Node) -> OpaquePointer {
+        let out = accesskit_node_new(role(node.role))!
+        if let label = node.label { accesskit_node_set_label(out, label) }
+        if let value = node.value { accesskit_node_set_value(out, value) }
+        if let (x0, y0, x1, y1) = node.bounds {
+            accesskit_node_set_bounds(out, accesskit_rect(x0: x0, y0: y0, x1: x1, y1: y1))
+        }
+        node.children.withUnsafeBufferPointer {
+            accesskit_node_set_children(out, $0.count, $0.baseAddress)
+        }
+        for action in node.actions.sorted(by: { code($0) < code($1) }) {
+            accesskit_node_add_action(out, code(action))
+        }
+        if node.isDisabled { accesskit_node_set_disabled(out) }
+        if let selected = node.selectedState { accesskit_node_set_selected(out, selected) }
+        if let toggled = node.toggled {
+            accesskit_node_set_toggled(out, accesskit_toggled(
+                toggled ? ACCESSKIT_TOGGLED_TRUE.rawValue : ACCESSKIT_TOGGLED_FALSE.rawValue))
+        }
+        if let number = node.numericValue { accesskit_node_set_numeric_value(out, number) }
+        return out
     }
 
     static func role(_ role: AccessKitSnapshot.Role) -> UInt8 {
@@ -213,6 +228,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .radioGroup: ACCESSKIT_ROLE_RADIO_GROUP.rawValue
         case .slider: ACCESSKIT_ROLE_SLIDER.rawValue
         case .spinButton: ACCESSKIT_ROLE_SPIN_BUTTON.rawValue
+        case .heading, .link: ACCESSKIT_ROLE_GENERIC_CONTAINER.rawValue   // STUB (lane 1 red commit)
         }
         return UInt8(value)
     }
@@ -223,6 +239,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .focus: ACCESSKIT_ACTION_FOCUS.rawValue
         case .increment: ACCESSKIT_ACTION_INCREMENT.rawValue
         case .decrement: ACCESSKIT_ACTION_DECREMENT.rawValue
+        case .customAction: ACCESSKIT_ACTION_CUSTOM_ACTION.rawValue
         }
         return UInt8(value)
     }
@@ -231,6 +248,6 @@ final class AccessKitAdapter: @unchecked Sendable {
 extension AccessKitSnapshot {
     /// The snapshot action an AccessKit action code means, if MetalUI has one.
     static func action(_ code: UInt8) -> Action? {
-        [Action.click, .focus, .increment, .decrement].first { AccessKitAdapter.code($0) == code }
+        [Action.click, .focus, .increment, .decrement, .customAction].first { AccessKitAdapter.code($0) == code }
     }
 }

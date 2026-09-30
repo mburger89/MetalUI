@@ -44,6 +44,11 @@ public enum AccessibilityRole: Equatable, Sendable {
     case slider
     /// A `Stepper` (`DD-U`; AppKit `.incrementor`).
     case incrementor
+    /// A heading — the `.isHeader` trait (plan task 12 part 2, `IX-X`; AppKit
+    /// `AXHeading`, AccessKit `HEADING`).
+    case heading
+    /// A link — the `.isLink` trait (`IX-X`; AppKit `AXLink`, AccessKit `LINK`).
+    case link
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from
@@ -77,11 +82,27 @@ public struct AccessibilityNode: Equatable {
     /// `List` gives each row it realizes while a client is active and its
     /// window is bounded.
     public var rowIndex: Int?
+    /// A declared hint (plan task 12 part 2, `IX-W`): AppKit's `AXHelp`,
+    /// AccessKit's `description`.
+    public var hint: String?
+    /// A declared identifier (`IX-W`): AppKit's `AXIdentifier`, AccessKit's
+    /// `author_id`. Never spoken.
+    public var identifier: String?
+    /// The node's custom actions' names, in published order (`IX-Y`). A client
+    /// runs one with `AccessibilityRequest.customAction(id, index)`, the index
+    /// into this array.
+    public var customActions: [String]
+    /// A row a client may select directly (`IX-AA`): a row of a
+    /// `List(selection:)`. AppKit allows `setAccessibilitySelected(_:)` on it
+    /// and `setAccessibilitySelectedRows(_:)` on its table; AccessKit publishes
+    /// its `selected` state as `false` as well as `true`.
+    public var isSelectable: Bool
 
     public init(role: AccessibilityRole, label: String? = nil, value: String? = nil,
                 isSelected: Bool = false, isEnabled: Bool = true, isFocusable: Bool = false,
                 actions: AccessibilityActions = [], children: [AccessibilityNodeID] = [],
-                rowCount: Int? = nil, rowIndex: Int? = nil) {
+                rowCount: Int? = nil, rowIndex: Int? = nil, hint: String? = nil,
+                identifier: String? = nil, customActions: [String] = [], isSelectable: Bool = false) {
         self.role = role
         self.label = label
         self.value = value
@@ -92,6 +113,10 @@ public struct AccessibilityNode: Equatable {
         self.children = children
         self.rowCount = rowCount
         self.rowIndex = rowIndex
+        self.hint = hint
+        self.identifier = identifier
+        self.customActions = customActions
+        self.isSelectable = isSelectable
     }
 }
 
@@ -173,4 +198,14 @@ public enum AccessibilityRequest: Equatable {
     /// Move keyboard focus to the node, if the last frame found it focusable
     /// (AB-J).
     case focus(AccessibilityNodeID)
+    /// Run the node's custom action at this index into its `customActions`
+    /// (plan task 12 part 2, `IX-Y`).
+    case customAction(AccessibilityNodeID, Int)
+    /// Replace the selection of the row's list with this row (`IX-AA`; AppKit
+    /// `setAccessibilitySelected(true)`, SwiftUI arms LA2, LB3).
+    case select(AccessibilityNodeID)
+    /// Set the table's selection to exactly these rows (`IX-AA`; AppKit
+    /// `setAccessibilitySelectedRows(_:)`, LA3, LB2). A single-selection list
+    /// ignores a request for more than one row (LA4).
+    case selectRows(AccessibilityNodeID, [AccessibilityNodeID])
 }
