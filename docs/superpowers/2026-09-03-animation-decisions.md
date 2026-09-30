@@ -2035,6 +2035,67 @@ there touched); a `swift:6.4-noble` container over `924fca8` builds with 0
 `error:`/`warning:` and runs 199 + 10 + 22 (+ 6), unmoved. The lock probe read locked (`CGSSessionScreenIsLocked = 1`,
 `displayAsleep main: 1`), so no real-window capture.
 
+10. **Fix round** (review of lane 2, 2026-09-30; tests `40cd873`, no
+   `Sources/` line moved). **+10 tests → 1929** (`Test run with 1929 tests in
+   3 suites passed`, the guards ran; 0 `error:`, 0 `warning:` beyond SwiftPM's
+   notice on both build systems):
+   - **Item 4's clamps are pinned** by five exit tests (each expects
+     `.success`: the body ticks the change every 0.02 s under
+     `Animation.spring(duration: 0.5, bounce: 0.8)` and `precondition`s the
+     clamped value at every sampled frame where the spring is past the bound —
+     opacity alpha 0, width 0, a flexible frame held at its maximum) plus the
+     separating arm `theClampPinsSpringOvershootsPastEachBound`, which measures
+     through `Animation.value(at:…)` that the spring really overshoots each
+     bound at a sampled frame: `aProposalOpacityClampsAnOvershootingSpringToZero`,
+     `aLegacyOpacityClampsAnOvershootingSpringToZero`,
+     `aLegacyBorderWidthClampsAnOvershootingSpringToZero`,
+     `aProposalFrameClampsAnOvershootingSpringToZero`,
+     `aProposalFlexibleFrameKeepsItsBoundsInOrderUnderAnOvershootingSpring`.
+     A proposal border width and clip radius share C1's clamp (`size`) with
+     the frame and are not pinned separately.
+   - **Item 3's `escapesOpacity` is pinned**:
+     `aFillWrittenAfterAnAnimatingOpacityStaysOutsideItMidFlight` — a fill
+     written after `.opacity(1 → 0.2)` reads alpha 1 half-way, the control
+     (fill written before) 0.6.
+   - **The lexical fallback is kept and pinned, one arm per copy**
+     (`AN-AI` item 4): `aFrameRenderedInsideWithAnimationAnimatesThroughTheLexicalFallback`
+     renders a headless `Frame` with no transaction inside a `withAnimation`
+     body — the proposal layer 200 half-way, the component op's member at x 90,
+     the store colour track at the half-way lightness — and the same change
+     outside it as the snapping control. Not ruled unreachable: production
+     never reaches it (`pendingTransaction` is restored before the display
+     link builds), but it is the direct-render configuration the legacy
+     helper's own fallback already serves, and deleting it from three copies
+     while the fourth (`animated(_:_:for:pass:)`) keeps it would split one rule.
+   - **Item 1's hover and focus widths are pinned**:
+     `aHoverBorderAnimatesItsWidth` (genuinely hovered, 2 → 10 reads 6
+     half-way) and `aFocusRingAnimatesItsWidth` (focused, the same).
+   - **The settled-frame cost, measured** (headless frames at 920 × 560, three
+     settled frames each, suite configuration): the demo's tree holds **0**
+     store entries (it is legacy and draws no border, so no track is ever
+     created); the proposal preview holds **12**, steady, with 0
+     interpolations. A settled frame pays, per entry, one key construction
+     (`GlobalElementID.child` with an `ElementID` name — every
+     `$anim-layer.<case>` name is above Swift's 15-byte small-string limit, so
+     one `String` heap allocation each; `$anim-border` and `$anim-op<k>` fit
+     inline), one
+     dictionary lookup and one `touched` insert, and no `set` (an unchanged
+     state is not stored back); a legacy element with no border pays nothing.
+     No allocation count was taken; it is **re-owned to plan task 15** with the
+     per-entry memory harness (item 6).
+
+| # | mutation (on `40cd873`, restored from a copy, full unfiltered suite of 1929, `git status --short` clean after each) | reddens |
+|---|---|---|
+| C1 | drop `animatedNumbers`' in-flight clamp (`out[i] = value`) | `aProposalOpacityClampsAnOvershootingSpringToZero`, `aProposalFrameClampsAnOvershootingSpringToZero` (each: exit `.signal(SIGTRAP)` where `.success` was expected) |
+| C2 | drop `setInterpolatedOpacity`'s clamp | `aLegacyOpacityClampsAnOvershootingSpringToZero` alone |
+| G | drop `borderWidths`' `max(0, …)` | `aLegacyBorderWidthClampsAnOvershootingSpringToZero` alone |
+| H | skip `ordered` (the flexible frame's interpolated bounds unordered) | `aProposalFlexibleFrameKeepsItsBoundsInOrderUnderAnOvershootingSpring` alone |
+| D | `setInterpolatedOpacity` also empties `escapesOpacity` | `aFillWrittenAfterAnAnimatingOpacityStaysOutsideItMidFlight` alone |
+| E1 | drop the fallback in `LayoutModifier.animate(for:pass:)` | `aFrameRenderedInsideWithAnimationAnimatesThroughTheLexicalFallback` alone (copy 1's expectation) |
+| E2 | drop it in `ComponentModifierOp.animated` | the same test alone (copy 2's expectation) |
+| E3 | drop it in `storedAnimatedColor` | the same test alone (copy 3's expectation) |
+| F | delete the `hoverBorder`/`focusBorder` width interpolation | `aHoverBorderAnimatesItsWidth`, `aFocusRingAnimatesItsWidth` |
+
 **Cost if wrong.** Item 3's setter is the one hole: a caller inside the
 package could write an out-of-order opacity through it without the public
 setter's trap — it clamps rather than traps, and only the helper calls it.
