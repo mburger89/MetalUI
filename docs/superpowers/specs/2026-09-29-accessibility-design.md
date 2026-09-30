@@ -98,7 +98,14 @@ design builds on:
   replaces the join (E8). Over interactive descendants it takes the **first**
   one's role and press (E6, E7, E14 runs `A`) and publishes **every**
   interactive descendant as a custom action named by its label, tree order
-  (E6 `["B"]`, E14 `["A", "B"]`).
+  (E6 `["B"]`, E14 `["A", "B"]`). **Amended by `IX-AI`** (probe revision 2,
+  E15–E21, E18p): "the first one's" holds only for children of one kind.
+  Children of different kinds **merge** — the role is the highest-ranked
+  (slider over checkbox over button over text field, whatever the order), the
+  value the **last** child's that carries one, the label and press the first
+  child that **presses** (a slider or a text field is skipped for both), a
+  slider's increment is added and reaches it, and only a child that presses
+  is a custom action.
 - **`.contain`**: a real group, labelled if declared, keeping its children —
   the label is **not** distributed (E5) — and a group even over a leaf text
   (E9).
@@ -298,6 +305,12 @@ distribution, B text, C combination, emit):
    E14). The builder returns `redirects: [GlobalElementID: [GlobalElementID]]`
    — a press/adjust on the combined id runs `redirects[id][0]`'s; custom
    action `i` runs `redirects[id][i]`'s press (lane 2). Children dropped.
+   **Amended by `IX-AI`**: the "first" above is the **lead** — the first
+   interactive descendant that presses, else the first that is not
+   adjustable; the role is the highest-ranked descendant's, the value the
+   last one's that carries one, custom actions only the pressing ones,
+   `redirects[id]` lists the lead first, and an adjustment runs the first
+   redirect that takes one.
 8. **`.contain`**: a `.group` node keeping its declared label and its children;
    over a text leaf it publishes a group at the element's id and the text as
    one synthesized child, `AccessibilityNodeID(ContainedText(id))`, which no
@@ -497,7 +510,7 @@ on a `FakePlatformWindow`), new `Tests/MetalUITests/AccessibilityCompileGuards.s
 |---|---|---|---|
 | 2.1 | `anAccessibilityElementIgnoresItsChildrenByDefault` (E1, E2, E12: one `.group`, label only when declared, no children, and the children's text is **not** its label) | stub: children still published | M2a: `.ignore` keeps the subtree |
 | 2.2 | `aCombinedElementJoinsItsChildrenIntoOneStaticText` (E3 value `A, B`; E8 declared `L`; E10 nested; E11 `vol, B`/`5`) | stub | M2b: join separator `", "` → `" "`; M2b′: the value-carrying arm resolved as a plain text |
-| 2.3 | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` (E6 label `A, B`, role button, press, custom `["B"]`; E7 check box; E14 label `A`, custom `["A","B"]`, redirects `[a, b]`) | stub | M2c: the LAST interactive child's role and label; M2c′: redirects empty |
+| 2.3 | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` (E6 label `A, B`, role button, press, custom `["B"]`; E7 check box; E14 label `A`, custom `["A","B"]`, redirects `[a, b]`; **`IX-AI`**: E15–E21, E18p, children of different kinds) | stub | M2c: the LAST interactive child's role and label; M2c′: redirects empty — **amended by `IX-AI`**: no single child supplies role, value, label and press any more, so M2c is re-spelled per rule: M2c the lead is the LAST pressing child; M2c-rank no ranking; M2c-value the FIRST valued child; M2c-adjust nothing is adjustable; M2c-custom every interactive child a custom action (the old literal spelling, `interactive.first` → `.last` in the branch head, is equivalent after `IX-AI`: `interactive.first` is only the lead's last fallback, reached when every child is adjustable) |
 | 2.4 | `aContainingElementIsAGroupThatKeepsItsLabelAndItsChildren` (E4; E5 label not distributed; E9 a text leaf → group + one synthesized static-text child) | stub | M2d: `.contain` distributes its label |
 | 2.5 | `anAccessibilityHiddenSubtreePublishesNothing` (H1; H2 beside a published sibling; H3 a button's label excludes the hidden child; H4 outer `(false)` wins; H5 inner `(false)` cannot un-hide) | stub | M2e: the suppression scope wraps the element's own registration only, not its content |
 | 2.6 | `aHintAndAnIdentifierPublishAndDistributeLikeALabel` (N1–N5) | stub | M2f: hint and identifier left out of distribution |
@@ -507,14 +520,14 @@ on a `FakePlatformWindow`), new `Tests/MetalUITests/AccessibilityCompileGuards.s
 | 2.10 | `aModalSubtreeIsTheOnlyThingPublished` (M0 control publishes both; M1; M3 a modal sibling; two modals → the higher `(layer, order)`; a focus outside it publishes no `focused`; `isolatedOut == true`) | stub | M2j: isolation skipped; M2j′: the FIRST modal wins |
 | 2.11 | `aDeclaredActionMakesAPressableButtonAndADisabledOneNone` (A1 button + press; A5 distributed to each child; A7 disabled: no press) | stub | M2k: the `AccessibilityDefaultAction` handler not counted as a press |
 | 2.12 | `aNamedActionPublishesACustomActionLaterWrittenFirst` (A2; A3 a button keeps `.press`; A6 `["Two","One"]`) | stub | M2l: names appended instead of prepended |
-| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press — **each on both spellings**, `StyledElement.onTapGesture`/`.gesture` returning `Self` and the proposal `GestureModifier`/`OnTapModifier`, a copy of a pinned rule being unpinned) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`); M2n′: the declared-action term moved back inside `synthesizesAccessibility &&` — **amended by `IX-AH` item 1**: `AccessibilityModifier` registers synthesizing, so G6's proposal arm cannot redden; an arm registering an unlabelled declared action with `synthesizesAccessibility: false` does |
+| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press — **each on both spellings**, `StyledElement.onTapGesture`/`.gesture` returning `Self` and the proposal `GestureModifier`/`OnTapModifier`, a copy of a pinned rule being unpinned) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`) — **amended by `IX-AI` item 5**: on `GestureModifier` this flip is equivalent (its fresh `Handlers` carry only `gestures` and `contentShape`, and `registerHandlers`' synthesize clause needs an `onClick`, `isFocusable`, an adjustable action or `accessibleText`); the separating site is `OnTapModifier` (`NativeTappable.swift`), whose flip reddens this test; M2n′: the declared-action term moved back inside `synthesizesAccessibility &&` — **amended by `IX-AH` item 1**: `AccessibilityModifier` registers synthesizing, so G6's proposal arm cannot redden; an arm registering an unlabelled declared action with `synthesizesAccessibility: false` does |
 | 2.15 | `aProposalTextPublishesItsStringAsAStaticText` (P1 two texts, the spacer nothing; P2 a 2×2 grid flattened row by row; a disabled scope → `isEnabled == false`; a `hidden()` one nothing) | nothing on the proposal path records | M2o: `ProposalText.prepaint` records nothing |
 | 2.16 | `aProposalAccessibilityModifierLabelsDistributesAndIsOneIdentityLevel` (P3 over an `HStack`; P5 a labelled `Rectangle` → labelled group; the content's id is `.child(of: wrapper, at: 0)`; an exit test: the wrapper over two nodes traps naming the count) | no API | M2p: the wrapper records nothing; M2p′: content numbered at the wrapper's own id |
 | 2.17 | `theProposalModifiersMirrorTheStyledOnes` (on an `HStack`: `.combine`, `.accessibilityHidden(true)`, `.isHeader`, `.accessibilityAction {}` — each 2.x twin's answer) | no API | M2q: the wrapper drops its child behaviour (a copy of a pinned implementation is unpinned) |
 | 2.18 | `aLabelledImagePublishesAnImageAndADecorativeOneNothing` (I1/I3 via `Image(_:scale:label:)` → `.image` `Logo`; I2, I4 decorative labelled, I5 decorative tapped: nothing) | no labelled init | M2r: the decorative init records too |
 | 2.19 | `theNewDeclarationsCostHandlersAtMostOnePointer` (`MemoryLayout<AXNode>.size` ≤ its `31d3565` value + 8, the literal recorded in the test with the measurement) | fields inline | M2s: the seven fields stored inline |
 | 2.20 | `anAccessibilityPressRunsADeclaredActionInsteadOfTheClick` (A4 `["Default"]`; G6) | advertised, not dispatched | M2t: the hitbox tried first |
-| 2.22 | `aCombinedElementsPressAndCustomActionsRunItsInteractiveChildren` (E6, E14: press runs `A`; custom action 1 runs `B`) | no redirect dispatch | M2v: custom action `i` runs redirect `0` |
+| 2.22 | `aCombinedElementsPressAndCustomActionsRunItsInteractiveChildren` (E6, E14: press runs `A`; custom action 1 runs `B`; **`IX-AI`**: E17/E18p press the button and increment the slider in either order, E20 presses the button past a text field) | no redirect dispatch | M2v: custom action `i` runs redirect `0`; **`IX-AI`**: M2c-dispatch, an adjustment runs redirect `0` |
 | 2.23 | `aCustomActionRequestRunsTheNamedHandlerAndABadIndexNothing` (A2; A3: press `B`, custom 0 `Archive`; index 5 refused) | lane 1's stub refuses | M2w: the index read from the end |
 | 2.24 | `aRequestForAnElementOutsideTheModalIsRefused` (M5: a held id's press returns `false` and runs nothing; with the modal gone it presses) | no isolation | M2x: the refusal removed |
 | G2.1 | `theAccessibilityModifiersCompileFromAPlainImport` (plain-import `typecheckFile`: every §4 spelling on a `Box`, a `Text` and an `HStack`; `Image(_:scale:label:)`; `let _: ModifiedContent<Box<EmptyGroup>, ModifierLayer> = Box().padding(1).accessibilityLabel("x")` and `let _: AccessibilityModifier<HStack<…>> = HStack { … }.accessibilityLabel("x")` — the overload each resolves to, `IX-AF` item 5) | new guard | mutate red once (make one modifier internal) |

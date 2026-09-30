@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-AI`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AJ`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -2077,3 +2077,101 @@ lane-2 figure holds.
 3 is one `if` in the wrapper; items 4–7 are one line each in
 `AccessibilityModifiers.swift`/`ProposalAccessibility.swift`/
 `WindowAccessibility.swift`.
+
+## IX-AI — lane 2's fix round: `.combine` over children of different kinds merges; the lane's mutation table
+
+**Ruling.** The lane-2 verifier found that nothing pinned which interactive
+child a `.combine` node takes its role, actions and value from: every fixture
+combined one interactive child (E6, E7) or two of one kind (E14), so M2c
+(`interactive.first` → `.last`) left the suite green (1870 passed at
+`41e3699`). A fixture of two kinds needed SwiftUI's answer first, so
+`docs/probes/swiftui-accessibility-part2.swift` gained **revision 2**, arms
+E15–E21 and E18p (header: run twice, exit 0, 340 filtered lines
+byte-identical, the 308 revision-1 lines unmoved; screen locked, nothing read
+depends on it). The probe **refutes spec §3/§5 step 7's "the first one's role
+and press, and its value"** for children of different kinds, and MetalUI now
+answers SwiftUI's (EP-5):
+
+1. **The role is the highest-ranked interactive child's, ties to the first**:
+   slider over checkbox over button over text field, whatever the order —
+   E15 `Button; Toggle` and E16 `Toggle; Button` both `AXCheckBox`; E17
+   `Button; Slider`, E18 `Slider; Toggle`, E18p `Slider; Button` and E19
+   `Toggle; Slider` all `AXSlider`; E20 `TextField; Button` and E21
+   `Button; TextField` both `AXButton`. **The incrementor beside the slider,
+   the radio button beside the checkbox, and every other role beside the
+   text field are MetalUI's choice, unprobed** (`combinedRoleRank`).
+2. **The value is the LAST interactive child's that carries one** (E18 `1`,
+   the toggle after the slider; E19 `0.5`, the slider after the toggle; E20/
+   E21 the field's `x`); a declared value still wins.
+3. **The lead is the first child that PRESSES, else the first that is not
+   adjustable, else the first.** It gives the label when it carries no value
+   (E17/E18p/E20 `A`; E16 nil — the toggle leads and carries `1`, the button
+   after it adds nothing), its actions, and the press (`redirects[id]` lists
+   it first: E15 runs A, E16 T, E17/E18p A, E20 A past the field). An
+   **adjustable** child (increment/decrement, no press) adds its increment
+   and decrement to the node, and an adjustment runs the first redirect that
+   takes one (`Window.adjust`; E17/E18p log `S0.6` in both orders). **Only a
+   child that presses is a custom action** (E17 `["A"]`, E18 `["T"]`). With
+   children of one kind every clause reduces to the old rule, so E6, E7 and
+   E14 are unchanged. Which actions the lead contributes beyond the press is
+   unprobed (the actions set holds only press/increment/decrement, and every
+   pressing child's includes `.press`).
+4. **No row for SwiftUI's text-field custom actions**: SwiftUI's `TextField`
+   publishes two custom actions of its own (`"show menu"`, `"confirm"`, E20/
+   E21, in tree order beside the button's), which no MetalUI `TextField`
+   publishes, combined or not. That is a text field's own vocabulary, not a
+   `.combine` rule, and is left unnumbered here for the Record phase to
+   place (divergence list, record §04) — flagged, not ruled.
+5. **Spec row 2.14's M2n is equivalent on `GestureModifier`** (verifier:
+   `GestureModifiers.swift:93` flipped to `synthesizesAccessibility: true`
+   left 1870 green): its fresh `Handlers` carry only `gestures` and
+   `contentShape`, and `registerHandlers`' synthesize clause needs an
+   `onClick`, `isFocusable`, an adjustable action or `accessibleText`, none of
+   which it has. The separating site is `OnTapModifier`
+   (`NativeTappable.swift:42`), whose flip reddened
+   `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne`,
+   `anOnTapModifierPublishesNothingButItsHitboxStillPresses` and
+   `aGridPublishesNothingAndItsCellsTapStillPresses`. Spec row 2.14 amended.
+
+**Red first.** 2.3's E15–E19/E18p arms at `41e3699`'s builder: E15 `.button`,
+value nil; E17 `.button`, value nil, custom `["A", "0.5"]`; E18 value `0.5`,
+custom `["0.5", "T"]`; E19 `.checkBox`, value `1`; E18p label nil and no
+`.press` (E16 already agreed). Its E20 arm at `cbf69af`: role `.textField`,
+label nil, no actions. 2.22's E17/E18p arms were red against the old
+`Window.adjust` (mutation M2c-dispatch below restores it). Commits `cbf69af`,
+`8b96cf6`. **Counts unmoved**: arms, not tests — **1870** tests, 116 guards;
+unfiltered `swift test --build-system native --no-parallel` → `Test run with
+1870 tests in 3 suites passed`, the FR-J line present; 0 `error:`, the one
+`warning:` SwiftPM's notice (0 under the default build system). **0 px
+against `31d3565` in all fourteen offscreen images, every scene identical**
+(`compare.sh … 31d3565 8b96cf6`, controls as recorded). No test removed or
+renamed; `goldensUnchanged`: no retained test changed its answer (2.3 and
+2.22 are lane 2's own, unmerged, and only gained arms).
+
+**Mutations of this round** (each from a commit, restored from a copy, the
+whole suite unfiltered — 1870 — `git status --short` clean after each):
+
+| id | mutation (`AccessibilityTreeBuilder.combineElements` unless named) | reddened |
+|---|---|---|
+| M2c (literal, at `cbf69af`) | `if let first = interactive.first` → `.last` | **none** — then the lead was `others.first ?? first`, so `first` was only a fallback; the literal site is equivalent after this ruling |
+| M2c (at `8b96cf6`) | the lead is `pressing.last` | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction`, `aCombinedElementsPressAndCustomActionsRunItsInteractiveChildren` |
+| M2c-rank | no ranking: the first child's role | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` |
+| M2c-value | the FIRST valued child's value | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` |
+| M2c-adjust | `isAdjustable` always false | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` |
+| M2c-custom | every interactive child a custom action | `aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction` |
+| M2c-dispatch | `Window.adjust` runs redirect 0 | `aCombinedElementsPressAndCustomActionsRunItsInteractiveChildren` |
+
+**The verifier's scoped mutations** (the column `IX-AH` left unrun, run by
+the lane-2 verifier at `41e3699`, each from a copy, the whole suite
+unfiltered): M2a–M2m, M2o–M2s and M2u–M2w each reddened the test spec §7
+names for it — M2a 2.1, M2b/M2b′ 2.2, M2c′ 2.3, M2d 2.4, M2e 2.5, M2f 2.6,
+M2g 2.7, M2h/M2h′ 2.8, M2i 2.9, M2j/M2j′ 2.10, M2k 2.11, M2l 2.12, M2o
+2.15, M2p/M2p′ 2.16, M2q 2.17, M2r 2.18, M2s 2.19, M2v 2.22, M2w 2.23 (M2m
+and M2u name no row of the lane-2 table and are carried as the verifier's
+report states them) — **except** M2c (green, fixed above) and M2n on
+`GestureModifier` (equivalent, item 5). With `IX-AH`'s six (G2.1–G2.3, M2n′,
+M2t, M2x) and this round's seven, every lane-2 mutation is on record.
+
+**Cost if wrong.** Items 1–3 are one ranking function, one `last(where:)`,
+one lead expression and one `first(where:)` in `Window.adjust`; reverting to
+"the first one's" is those four lines and E15–E21's expectations.
