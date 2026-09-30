@@ -41,11 +41,11 @@
 // ruling.
 //
 // REVISION 2, 2026-09-30 (plan task 12 part 2, lane 2's fix round, `IX-AI`):
-// arms E15–E19 and E18p added after E7 — interactive children of DIFFERENT
+// arms E15–E21 and E18p added after E7 — interactive children of DIFFERENT
 // kinds under .combine, so a first and a last lead disagree. Same machine and
 // toolchain, screen locked; run twice, exit 0, filtered stdout byte-identical
-// (332 lines), filtered stderr empty; the 308 revision-1 lines re-ran
-// byte-identical (every line outside the six new arms). One run's filtered
+// (340 lines), filtered stderr empty; the 308 revision-1 lines re-ran
+// byte-identical (every line outside the eight new arms). One run's filtered
 // output, verbatim:
 //
 //   === C2 control: NSButton keyEquivalent cmd-s
@@ -113,6 +113,14 @@
 //   === E19 VStack { Toggle T; Slider }.accessibilityElement(children: .combine)
 //   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
 //     AccessibilityNode role=AXSlider sub=nil label=nil value=0.5 custom=["T"] kids=0
+//   === E20 VStack { TextField F; Button A }.accessibilityElement(children: .combine): press
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXButton sub=nil label=A value=x custom=["show menu", "confirm", "A"] kids=0
+//     E20 press -> true, ran 0 ["A"]
+//   === E21 VStack { Button A; TextField F }.accessibilityElement(children: .combine): press
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXButton sub=nil label=A value=x custom=["A", "show menu", "confirm"] kids=0
+//     E21 press -> true, ran 0 ["A"]
 //   === E8 HStack { Text A; Text B }.accessibilityElement(children: .combine).accessibilityLabel(L)
 //   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
 //     AccessibilityNode role=AXStaticText sub=nil label=nil value=L kids=0
@@ -406,6 +414,11 @@
 //     and receives the press (E15 runs A, E16 T, E17 and E18p A); an
 //     increment reaches the slider (E17/E18p log S0.6); and only a child
 //     that presses is a custom action (E17 ["A"], E18 ["T"]).
+//   E20/E21: a text field beside a button — the button's role in either
+//     order (a text field ranks below a button), the button's label and
+//     press (E20 runs A though the field is first), the field's value x;
+//     SwiftUI's text field brings its own custom actions ("show menu",
+//     "confirm") in tree order beside the button's.
 //   E4/E5/E9: .contain makes a real AXGroup (labelled if declared) holding
 //     the children — even over a single leaf (E9).
 //   E13: a gesture outside .combine adds no press.
@@ -633,6 +646,16 @@ MainActor.assumeIsolated {
          VStack { Slider(value: .constant(0.5)); Toggle("T", isOn: .constant(true)) }.accessibilityElement(children: .combine))
     show("E19 VStack { Toggle T; Slider }.accessibilityElement(children: .combine)",
          VStack { Toggle("T", isOn: .constant(true)); Slider(value: .constant(0.5)) }.accessibilityElement(children: .combine))
+    // E20/E21: a text field (focusable, no press) beside a button — which
+    // child's actions a combined node takes when neither is adjustable.
+    let e20 = Counter()
+    let h20 = host("E20 VStack { TextField F; Button A }.accessibilityElement(children: .combine): press",
+                   VStack { TextField("F", text: .constant("x")); Button("A") { e20.log.append("A") } }.accessibilityElement(children: .combine))
+    describe(h20); press("E20", kids(h20).first, e20)
+    let e21 = Counter()
+    let h21 = host("E21 VStack { Button A; TextField F }.accessibilityElement(children: .combine): press",
+                   VStack { Button("A") { e21.log.append("A") }; TextField("F", text: .constant("x")) }.accessibilityElement(children: .combine))
+    describe(h21); press("E21", kids(h21).first, e21)
     show("E8 HStack { Text A; Text B }.accessibilityElement(children: .combine).accessibilityLabel(L)",
          HStack { Text("A"); Text("B") }.accessibilityElement(children: .combine).accessibilityLabel("L"))
     show("E9 Text(A).accessibilityElement(children: .contain)", Text("A").accessibilityElement(children: .contain))

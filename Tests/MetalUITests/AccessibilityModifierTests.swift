@@ -198,6 +198,17 @@ extension AccessibilityTree {
     #expect(e18p.role == .slider && e18p.label == "A" && e18p.value == "0.5" && e18p.custom == ["A"], "E18p: \(e18p)")
     #expect(e17.actions.isSuperset(of: [.press, .increment, .decrement]), "E17: \(e17)")
     #expect(e18p.actions.isSuperset(of: [.press, .increment, .decrement]), "E18p: \(e18p)")
+    // E20/E21: a text field (focusable, carrying a value, no press) beside a
+    // button — the button ranks over it, gives the label and takes the press
+    // in either order; the value is the field's. SwiftUI's own custom actions
+    // on a text field ("show menu", "confirm") have no MetalUI counterpart
+    // anywhere (`IX-AI` item 4), so only the button is a custom action here.
+    let e20 = try combinedMixed("E20") { TextField("F", text: .constant("x")); Button("A") {} }
+    #expect(e20.role == .button && e20.label == "A" && e20.value == "x" && e20.custom == ["A"], "E20: \(e20)")
+    #expect(e20.actions.contains(.press), "E20: \(e20)")
+    let e21 = try combinedMixed("E21") { Button("A") {}; TextField("F", text: .constant("x")) }
+    #expect(e21.role == .button && e21.label == "A" && e21.value == "x" && e21.custom == ["A"], "E21: \(e21)")
+    #expect(e21.actions.contains(.press), "E21: \(e21)")
 }
 
 /// What one `.combine` node over `content` publishes (2.3's mixed arms).

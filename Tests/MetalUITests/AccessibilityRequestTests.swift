@@ -85,9 +85,10 @@ private typealias Request = MetalUIPlatform.AccessibilityRequest
         #expect(!platform.simulateAccessibilityRequest(.customAction(e14, 2)), "no third action")
     }
 
-    // E17/E18p (probe revision 2, `IX-AI`): beside a slider the press runs the
-    // first child that PRESSES whatever the order, and an increment reaches the
-    // slider — SwiftUI's `["A", "S0.6"]` in both orders.
+    // E17/E18p/E20 (probe revision 2, `IX-AI`): beside a slider or a text
+    // field the press runs the first child that PRESSES whatever the order,
+    // and an increment reaches the slider — SwiftUI's `["A", "S0.6"]` in both
+    // orders, and E20's `["A"]`.
     let mixedLog = Log()
     let slider = Binding<Double>(get: { 0.5 }, set: { mixedLog.lines.append("S\($0 > 0.5 ? "+" : "-")") })
     let (mixed, mixedPlatform) = try controlWindow(size: 300) {
@@ -95,6 +96,8 @@ private typealias Request = MetalUIPlatform.AccessibilityRequest
             Column { Button("P") { mixedLog.lines.append("P") }; Slider(value: slider) }
                 .accessibilityElement(children: .combine)
             Column { Slider(value: slider); Button("Q") { mixedLog.lines.append("Q") } }
+                .accessibilityElement(children: .combine)
+            Column { TextField("F", text: .constant("x")); Button("R") { mixedLog.lines.append("R") } }
                 .accessibilityElement(children: .combine)
         }
     }
@@ -107,6 +110,10 @@ private typealias Request = MetalUIPlatform.AccessibilityRequest
             #expect(mixedPlatform.simulateAccessibilityRequest(.increment(node)), "\(name): increment")
             #expect(mixedLog.lines == [name, "S+"], "\(name): the button presses, the slider adjusts: \(mixedLog.lines)")
         }
+        // E20: a text field first — the press still reaches the button.
+        mixedLog.lines = []
+        #expect(mixedPlatform.simulateAccessibilityRequest(.press(try mixedTree.one("R").id)), "E20: press")
+        #expect(mixedLog.lines == ["R"], "E20: the button, not the field: \(mixedLog.lines)")
     }
 }
 

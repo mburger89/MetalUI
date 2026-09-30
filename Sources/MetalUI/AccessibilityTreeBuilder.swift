@@ -457,18 +457,16 @@ enum AccessibilityTreeBuilder {
         if value, state[id]!.value == nil, !values.isEmpty { state[id]!.value = values.joined(separator: ", ") }
     }
 
-    /// `.combine` (`IX-V` item 2; SwiftUI E3, E6–E8, E10, E11, E14), post-order.
-    /// In tree order, a non-interactive descendant contributes its label (or
-    /// value) and, when labelled, its value, and is walked into; the FIRST
-    /// interactive descendant contributes its label when it carries no value
-    /// (E6 `A, B`; E7 `A` beside the toggle's `1`), and no interactive
-    /// descendant is walked into. With none interactive the node is a static
-    /// text, the join resolved as a static text's (a value, or the label where
-    /// a descendant carried a value); with one, the node takes the first's role,
-    /// actions and value, every interactive descendant becomes a custom action
-    /// named by its label, and `redirects` names them, first first. Children
-    /// of different kinds merge instead (`IX-AI`, E15–E19, E18p — see the
-    /// branch). A declared label replaces the join (E8). Children are dropped.
+    /// `.combine` (`IX-V` item 2, `IX-AI`; SwiftUI E3, E6–E8, E10, E11,
+    /// E14–E21, E18p), post-order. In tree order, a non-interactive descendant
+    /// contributes its label (or value) and, when labelled, its value, and is
+    /// walked into; no interactive descendant is walked into, and only the
+    /// LEAD among them (see the branch) contributes its label, when it carries
+    /// no value (E6 `A, B`; E7 `A` beside the toggle's `1`). With none
+    /// interactive the node is a static text, the join resolved as a static
+    /// text's (a value, or the label where a descendant carried a value); with
+    /// one or more, the interactive descendants merge as the branch says. A
+    /// declared label replaces the join (E8). Children are dropped.
     private static func combineElements(under id: GlobalElementID,
                                         placed: inout [GlobalElementID: [GlobalElementID]],
                                         state: inout [GlobalElementID: Resolving],
@@ -477,37 +475,48 @@ enum AccessibilityTreeBuilder {
             combineElements(under: child, placed: &placed, state: &state, build: &build)
         }
         guard state[id]!.declarations.childBehavior == .combine else { return }
-        var texts: [String] = []
+        // Tree order: a non-interactive descendant's text, or the slot of an
+        // interactive one (not walked into), whose label is decided after.
+        enum Entry { case text(String), control(GlobalElementID) }
+        var entries: [Entry] = []
         var values: [String] = []
         var interactive: [GlobalElementID] = []
         var stack = Array((placed[id] ?? []).reversed())
         while let next = stack.popLast() {
             let node = state[next]!
             if node.isInteractive {
-                // An adjustable child is skipped for the label (`IX-AI`, E18p).
-                if !isAdjustable(node), !interactive.contains(where: { !isAdjustable(state[$0]!) }),
-                   node.value == nil, let label = node.label { texts.append(label) }
+                entries.append(.control(next))
                 interactive.append(next)
             } else {
-                if let text = node.label ?? node.value { texts.append(text) }
+                if let text = node.label ?? node.value { entries.append(.text(text)) }
                 if node.label != nil, let value = node.value { values.append(value) }
                 stack.append(contentsOf: (placed[next] ?? []).reversed())
             }
         }
+        // Mixed kinds MERGE rather than copy one child (`IX-AI`; SwiftUI E6,
+        // E7, E14–E21, E18p). The LEAD — whose label joins when it carries no
+        // value, whose actions the node takes, and whom a press reaches — is
+        // the first child that presses, else the first that is not adjustable
+        // (a slider is skipped, E18p; a text field yields to a button, E20).
+        // The role is the highest-ranked child's, ties to the first; the value
+        // the LAST child's that carries one; an adjustable child adds its
+        // increment and decrement, and an adjustment reaches it (`Window`);
+        // only a child that presses is a custom action. `redirects` lists the
+        // lead first, so a press reaches it.
+        let pressing = interactive.filter { state[$0]!.actions.contains(.press) }
+        let adjustable = interactive.filter { isAdjustable(state[$0]!) }
+        let leadID = pressing.first ?? interactive.first(where: { !isAdjustable(state[$0]!) }) ?? interactive.first
+        let texts = entries.compactMap { entry -> String? in
+            switch entry {
+            case .text(let text): return text
+            case .control(let child):
+                guard child == leadID, state[child]!.value == nil else { return nil }
+                return state[child]!.label
+            }
+        }
         let joined = state[id]!.label ?? (texts.isEmpty ? nil : texts.joined(separator: ", "))
-        if let first = interactive.first {
-            // Mixed kinds MERGE rather than copy one lead (`IX-AI`; SwiftUI
-            // E15–E19, E18p): the role is the highest-ranked child's, ties to
-            // the first; the value is the LAST child's that carries one; the
-            // lead — whose actions the node takes, whose label joins, and whom
-            // a press reaches — is the first child that is not adjustable, and
-            // an adjustable child adds its increment and decrement; only a
-            // child that presses is a custom action. `redirects` lists the
-            // non-adjustable children first, so a press reaches the lead and
-            // an adjustment the first child that takes one.
-            let adjustable = interactive.filter { isAdjustable(state[$0]!) }
-            let others = interactive.filter { !isAdjustable(state[$0]!) }
-            let lead = state[others.first ?? first]!
+        if let leadID {
+            let lead = state[leadID]!
             let roles = interactive.map { publishedRole(of: state[$0]!) }
             var combinedRole = roles[0]
             for role in roles.dropFirst() where combinedRoleRank(role) > combinedRoleRank(combinedRole) {
@@ -521,10 +530,9 @@ enum AccessibilityTreeBuilder {
             state[id]!.label = joined
             state[id]!.value = state[id]!.value
                 ?? interactive.last(where: { state[$0]!.value != nil }).flatMap { state[$0]!.value }
-            let pressing = interactive.filter { state[$0]!.actions.contains(.press) }
             state[id]!.customActions += pressing.map { state[$0]!.label ?? state[$0]!.value ?? "" }
             state[id]!.customTargets += pressing.map { .press($0) }
-            build.redirects[id] = others + adjustable
+            build.redirects[id] = [leadID] + interactive.filter { $0 != leadID }
         } else {
             state[id]!.combinedRole = .staticText
             let value = state[id]!.value ?? (values.isEmpty ? nil : values.joined(separator: ", "))
@@ -546,13 +554,15 @@ enum AccessibilityTreeBuilder {
     }
 
     /// A combined node's role rank (`IX-AI`): SwiftUI ranks a slider over a
-    /// checkbox over a button whatever their order (E15–E19). The incrementor
-    /// beside the slider and the radio button beside the checkbox are
-    /// MetalUI's choice, unprobed; every other role ranks with the button.
+    /// checkbox over a button over a text field whatever their order
+    /// (E15–E21). The incrementor beside the slider and the radio button
+    /// beside the checkbox are MetalUI's choice, unprobed; every other role
+    /// ranks with the text field.
     private static func combinedRoleRank(_ role: AccessibilityRole) -> Int {
         switch role {
-        case .slider, .incrementor: return 2
-        case .checkBox, .radioButton: return 1
+        case .slider, .incrementor: return 3
+        case .checkBox, .radioButton: return 2
+        case .button: return 1
         default: return 0
         }
     }
