@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-U`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AF`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1287,3 +1287,413 @@ guards** by the lanes' counting method (108 → 113, +5; a
 of `IX-S` (MRk′, MRl, M3a–M3h, M3m, M3n, M3g′) with their reddened sets, G3.1
 mutated red once, the fourteen-image offscreen comparison against `31f2e7a`,
 and the `Backends/SDL` build.
+
+---
+
+# Part 2 — the accessibility half (plan task 12, part 2)
+
+Rulings `IX-U` onward are **part 2's**: the accessibility half of plan task
+12's second sentence. Spec:
+[`specs/2026-09-29-accessibility-design.md`](specs/2026-09-29-accessibility-design.md).
+Evidence: [`../probes/swiftui-accessibility-part2.swift`](../probes/swiftui-accessibility-part2.swift)
+(**new**; arm ids `C…`, `E…`, `H…`, `T…`, `M…`, `N…`, `A…`, `B…`, `G…`, `X…`,
+`F…`, `L…`, `I…`, `P…`; header carries the recorded output, run twice
+byte-identical, 308 filtered lines, screen locked, every read in-process) and
+`swiftui-controls-and-selection.swift` **re-run this session**, compiled
+(`xcrun swiftc -o`; its `/usr/bin/swift` JIT form fails to link on macOS 27,
+`Symbols not found: ___isPlatformVersionAtLeast`), its LA0–LB3 lines
+byte-identical to its header. Record: `docs/record/63-accessibility.md`
+(written by the Record phase). Baseline `31d3565`: **1837** tests, **113**
+guards, **69** live divergences, next label **95**, `Backends/SDL` 22 + 27.
+
+---
+
+## IX-U — part 2's scope: the collection, and what stays open
+
+**Ruling.** Part 2 disposes of every row part 1 assigned it (record §62 §7:
+rows 27–37) and every accessibility item owned by plan task 12 in the
+decisions docs' carried tables (`AB-Q`, `DD-U`/`DD-Z` 8/`DD-AB` 4/`DD-AD` 1/
+`DD-AE` 2, `TE-O`/`TE-AL`, the grids doc's `AB-Q` rows, `EV-AE`) and in
+`Sources/` doc comments (`Image.swift`, `GestureModifiers.swift`,
+`NativeTappable.swift`, `Button.swift`) — spec §2's table, 44 rows including
+the brief's own items (button role and shortcut, gestures, truncation, the
+part-1 controls on both bridges, focus after `IX-I`). Each row is **built**,
+**pinned as SwiftUI's**, **amended**, **kept with an owner**, or **routed to
+the VoiceOver script**; none is left unclassified.
+
+**What part 2 cannot close.** The plan's text is "validate it with
+VoiceOver". An agent can build, probe, pin and write the script; it cannot run
+VoiceOver or claim the result. **Task 12's box stays unticked** until a human
+runs `docs/verification/voiceover-script.md` and the Record phase re-reads it
+(`IX-AE`).
+
+**Not task 12's by their own tables, unchanged**: `Stack` order (divergence
+34, owner `AB-P`), row indices for a third-party virtualized container
+(unowned, `AB-Q`), system accessibility settings (task 13), iOS (task 14).
+
+**Evidence.** The grep of 2026-09-29; record §62 §7, §9.
+
+**Cost if wrong.** A missed item is found by plan task 15's inventory and
+lands as a row there; the table is the list to check it against.
+
+---
+
+## IX-V — `accessibilityElement(children:)`: `.ignore`, `.combine`, `.contain`
+
+**Ruling.** Offered on `StyledElement` and `ProposalElementGroup` with
+SwiftUI's spelling and default (`children: .ignore`). `AccessibilityChildBehavior`
+is a **closed enum** (`ignore`, `combine`, `contain`) where SwiftUI's is a
+struct with static members — `PickerStyle`'s precedent (`DD-V`): nothing
+outside can add a behaviour, and `AccessibilityChildBehavior.ignore` spells
+the same.
+
+1. **`.ignore`**: one node at the element's id, its declared label, value,
+   hint, identifier and traits, **no children, and no text taken from them**
+   (E1, E2, E12). Role `.group` where SwiftUI publishes `AXUnknown` —
+   divergence **33 amended**, the same reason (`AB-F`: an unknown role reads
+   worse to VoiceOver than a group).
+2. **`.combine`**: one node. Its text is every non-interactive descendant's
+   text plus the **first** interactive descendant's label, tree order, joined
+   `", "`, then resolved as a static text is (`AB-F`): a value for a plain
+   text, a label where a descendant carries a value (E3, E10, E11); a declared
+   label replaces the join (E8). With interactive descendants, the node takes
+   the **first** one's role and actions (E6 button, E7 check box, E14 runs
+   `A`), and **every** interactive descendant becomes a custom action named by
+   its label, tree order (E6 `["B"]`, E14 `["A", "B"]`). The builder returns
+   `redirects[combined] = [first, second, …]`: a press or adjustment on the
+   combined id runs the first's, custom action `i` runs the `i`-th's press.
+   Children are dropped. A gesture written outside adds no press (E13).
+3. **`.contain`**: a `.group` node that keeps its declared label and its
+   children, and **does not distribute** its label (E5). Over a text leaf it
+   is a group with one synthesized static-text child (E9), keyed
+   `AccessibilityNodeID(ContainedText(id))` — a key no request resolves, so
+   the text child has no actions, as SwiftUI's has none.
+
+**Why implement `.combine`'s custom actions rather than record a
+divergence.** The design's first reading (E6/E7 only) was to omit them; E14
+showed they are how SwiftUI keeps a second button reachable once combined,
+and `IX-Y`'s custom actions make them one table entry each. Omitting them
+would make a combined row with two buttons lose one to VoiceOver.
+
+**Evidence.** E1–E14.
+
+**Cost if wrong.** A wrong join rule is one function (`combine`'s text); a
+wrong redirect is one dictionary; both are pinned by 2.2/2.3/2.22.
+
+---
+
+## IX-W — `accessibilityHidden`, `accessibilityHint`, `accessibilityIdentifier`
+
+**Ruling.**
+
+1. **`accessibilityHidden(true)`** opens the existing suppression scope
+   (`Frame.withAccessibilitySuppressed(except: nil)`, `AB-O`'s mechanism) around
+   the element's own registration **and its content**, in
+   `PrepaintPass.registerAndScope` and in the proposal wrapper's prepaint —
+   nothing inside records (H1, H2), a hidden child contributes nothing to a
+   button's fold (H3), an inner `(false)` cannot un-hide (H5: suppression is a
+   depth), and on one element the **outer** write wins (H4: `handling` writes
+   one field, last write wins — the outer modifier is written last). It does
+   **not** touch `hidden()`'s layout, focus or hit behaviour (`IX-K`), and it
+   is not a hitbox or focus gate: a hidden button is still clickable, as
+   SwiftUI's is.
+2. **`accessibilityHint(_:)`** publishes `AccessibilityNode.hint` → AppKit
+   `accessibilityHelp` (N1, N3) and AccessKit `description`;
+   **`accessibilityIdentifier(_:)`** publishes `identifier` → AppKit
+   `accessibilityIdentifier` (N2) and AccessKit `author_id`. Both are
+   **distributed** from a plain container exactly as a label is (N4, N5;
+   `AB-T`). SwiftUI's `.help(_:)` also publishes `AXHelp` (N6) but is a
+   tooltip API and is **not offered** here (owner none).
+
+**Evidence.** H1–H5, N1–N6; `AB-O`, `AB-T`.
+
+**Cost if wrong.** The scope is one call site per conformer family (two:
+`registerAndScope`, the proposal wrapper), each pinned by 2.5/2.17.
+
+---
+
+## IX-X — traits, modal isolation, and the demo's modal
+
+**Ruling.**
+
+1. **`AccessibilityTraits`** (SwiftUI's name, an `OptionSet`) offers
+   `.isButton`, `.isHeader`, `.isSelected`, `.isLink`, `.isImage`,
+   `.isStaticText`, `.isModal`, `.updatesFrequently`, through
+   `accessibilityAddTraits(_:)`/`accessibilityRemoveTraits(_:)`. Every other
+   SwiftUI trait is **not offered** (guard G2.3), owner none: none has a macOS
+   reading in the probe that MetalUI could reproduce.
+2. **Each trait sets the role only** (the probe's consistent reading):
+   `.isHeader` → `.heading` (`AXHeading`, AccessKit `HEADING`) with the text as
+   **label** (T1, T8), distributed from a container (T9), never over a button
+   (T11); `.isButton` → `.button` with **no** press (T2, G5); `.isLink` →
+   `.link` (T6); `.isImage` → `.image` (T5); `.isStaticText` → `.text`;
+   `.isSelected` → `isSelected` on any role (T4, T7). **Removing** `.isButton`
+   from a clickable element changes its role to `.group` **after** the
+   button fold ran — the folded label and the press stay (T3, T3p).
+   `.updatesFrequently` is carried and published nowhere (T10: SwiftUI's is
+   invisible on macOS) — a declared-but-inert row, by design.
+3. **Modal isolation.** A kept record declaring `.isModal` makes the builder
+   publish **only** that record's subtree — the one with the greatest
+   `(layer, order)` when there are several — and drop everything else (M1,
+   M3; over an overlay's primary, M2); `focused` publishes only inside it.
+   This is also **press occlusion's** answer: a client cannot navigate to what
+   the modal covers. What a client already **holds** is `IX-Z` item 3's.
+4. **The demo's modal** (lane 3, `DemoContent.swift`'s `demoModal()`): the
+   scrim gains `.accessibilityAddTraits(.isModal)`; the panel's click absorber
+   gains `.accessibilityRemoveTraits(.isButton)` — the "non-button click
+   absorber" of `AB-Q`'s table, answered with SwiftUI's own spelling rather
+   than a new API. With a client active the modal reads as one root (`Close
+   modal`, a button) holding a group labelled with the modal's two texts;
+   nothing behind the scrim is published until it closes. **Named state-table
+   change**: the panel now declares an `AXNode`, so while the modal is up it
+   writes one more `$ax` slot (`AB-U`) — no id path moves, and the demo
+   reaches no `TB-AH` threshold with it. **0 px** in all fourteen offscreen
+   images; `Expected.swift` unedited (accessibility modifiers draw nothing).
+
+**Evidence.** T1–T11, T3p, M0–M4; `AB-U`, `AB-V`.
+
+**Cost if wrong.** A trait's role is one `switch` arm; isolation is one pass
+in the builder (2.10); the demo change is two modifiers (3.8).
+
+---
+
+## IX-Y — declared and named actions; gestures; `AXNode.actions`
+
+**Ruling.**
+
+1. **`accessibilityAction(_:)`** registers an `AccessibilityDefaultAction`
+   handler through `onAction` (stored in `Handlers.actions`, reached through
+   the focus registry exactly as `accessibilityAdjustableAction`'s
+   `AccessibilityAdjustment` is — no hitbox, not focusable, refused when
+   disabled or hidden). The node gains `.press` and, when generic, the
+   `.button` role (A1), distributed from a container (A5). **On an element
+   with its own `onClick` the declared action replaces the click's press**
+   (A4) — a mouse click still runs `onClick`. Disabled refuses (A7).
+2. **`accessibilityAction(named:_:)`** chains into one
+   `AccessibilityNamedAction` handler that dispatches by name, and prepends
+   the name to the declared list, so the later-written action publishes
+   first (A6). Published as `AccessibilityNode.customActions`; a
+   `.customAction(id, index)` request runs it (A2); a button's own press is
+   untouched (A3).
+3. **Gestures publish no press** — `TapGesture`, count-2 taps, `LongPressGesture`,
+   `DragGesture`, `onTapGesture` (G1–G5, G7): SwiftUI's answer, and already
+   MetalUI's (`AB-Y`, `synthesizesAccessibility: false`), now pinned (2.14).
+   **Divergence 27 amended**: it is now only that MetalUI's own `onClick` is
+   pressable; SwiftUI has no `onClick` to compare. `OnTapModifier`'s
+   ("an `onTap` control's VoiceOver presence", `TE-O`) answer is the same:
+   its content publishes, the tap does not, and `.accessibilityAction {}` is
+   the remedy SwiftUI's G6 shows (it runs the action, not the tap).
+4. **`AXNode.actions` and `AXActionKind` are deprecated** toward
+   `accessibilityAction(_:)`/`accessibilityAdjustableAction(_:)` — actions are
+   derived from live handlers (`AB-H`), so the declared field could never mean
+   anything; no in-repo caller writes it (the `actions: [.press]` hits are the
+   platform `AccessibilityNode`'s), so the 0-`warning:` baseline holds.
+   `AXNode.init`'s `actions:` moves to a deprecated overload. The inert row
+   stays (amended) until plan task 15 removes the field.
+
+**No `Handlers` member is added**: both handlers ride `Handlers.actions`; the
+names ride `AXNode`'s box. The declarations cost `Handlers` at most one
+pointer (2.19).
+
+**Evidence.** A1–A7, G1–G7; `AB-H`, `AB-I`, `AB-Y`.
+
+**Cost if wrong.** If VoiceOver users prefer a button's own press to survive a
+declared action, it is the press order's first line (§6); the named-action
+order is one prepend.
+
+---
+
+## IX-Z — the press: under `allowsHitTesting(false)`, its order, focus, and occlusion
+
+**Ruling.**
+
+1. **Divergence 28 retires.** SwiftUI presses a `Button` under
+   `allowsHitTesting(false)` (B6, P1 re-run). MetalUI now does too: when the
+   hit-testing gate withholds a hitbox from an enabled element with an
+   `onClick`, `Frame.registerHandlers` records the handler in
+   `Frame.accessibilityPressOnly` — **only while collecting**, so a window with
+   no client pays nothing — the builder advertises `.press`, and `Window` runs it. A
+   mouse click at the same point still finds nothing (`OM-T`, `OM-AK`
+   unchanged). `aPressIsRefusedWhereHitTestingIsDisabled` is **renamed**
+   `aPressIsRunWhereHitTestingIsDisabled`, its answer flipped by this ruling.
+   A tap gesture under the gate does not press (B8) — gestures never press
+   (`IX-Y` 3). Disabled refuses (B7).
+2. **The press order**: a declared `AccessibilityDefaultAction`; a combined
+   node's redirect; the last `onClick` hitbox; the press-only handler. Each
+   through `Window.runClick`, so a press keeps `ClickDispatch.modifiers == []`
+   and honours a handler's focus request (`DD-AE` item 2's "if task 12 rules
+   that a press must not focus": **it is ruled to keep focusing** — one path
+   with the click, so the two cannot drift; SwiftUI's answer needs a key
+   window and is unmeasured, so this is MetalUI's choice, with a script step).
+3. **Occlusion of a held element — divergence 95, added.** When the last
+   published tree was built under modal isolation, a request naming an id it
+   does not contain is **refused** (and the AppKit element for it is already
+   detached, `AB-D`). SwiftUI's held element still presses after an `.isModal`
+   cover appears (M5). Kept, owner none: VoiceOver cannot reach an unpublished
+   element through navigation, only a client that cached a handle can, and
+   refusing is the safe side (`AB-H`'s own principle: never let a client
+   operate what the user cannot see offered).
+
+**Evidence.** B6, B7, B8, M5; P0/P1; `AB-D`, `AB-H`, `DD-AE`.
+
+**Cost if wrong.** Item 1 is one dictionary and one lookup; item 3 one guard
+(2.24).
+
+---
+
+## IX-AA — settable selection, and the `List`'s AppKit role
+
+**Ruling.**
+
+1. **Divergence 83 retires on the AppKit bridge.** A selectable row
+   (`AccessibilityNode.isSelectable`, a row of a `List(selection:)`) accepts
+   `setAccessibilitySelected(true)` → `.select(row)`, which **replaces** the
+   selection with that row in a single or a multi list (LA2, LB3); the outline
+   accepts `setAccessibilitySelectedRows(_:)` → `.selectRows(table, rows)`,
+   which sets exactly those rows, and a single-selection list **ignores** a
+   request for more than one (LA3, LB2, LA4). `(false)` sends nothing (the
+   probe has no arm deselecting; MetalUI's choice). `Window` routes both to the
+   list's `AccessibilityRowSelection` handler, registered by `List.swift` beside
+   the click selection and gated as every action is (a disabled list refuses).
+   `anAccessibilityClientSelectsARowByPressingItAndCannotSetSelectedDirectly`
+   is **renamed** `settingAXSelectedOnARowReplacesTheSelection`, its AppKit half
+   flipped by this ruling; its press half is kept.
+2. **AccessKit**: 0.23's action enum (header lines 72–146) has **no select
+   action**, so an AccessKit client selects a row by `Click` (the press, as
+   today), and a selectable row now publishes `selected` **false** as well as
+   true — AccessKit's "selectable, not selected". Not a divergence: SwiftUI has
+   no AccessKit side to compare.
+3. **Divergence 32 amended.** The AppKit bridge publishes a `List` as
+   `AXOutline` with `AXRow`/`AXOutlineRow` rows (L1, R16, LA0) — SwiftUI's
+   role — where it published `AXTable`; the neutral role stays `.table` and
+   AccessKit keeps `TABLE`/`ROW`. **What stays**: only realized rows are
+   published (SwiftUI's 500 are all reachable through `AXRows`, L1) — kept,
+   owner none: publishing unrealised rows would mean elements with no
+   geometry and no element under them, against `List`'s windowing, which the
+   plan keeps. The VoiceOver script records what VoiceOver does at the last
+   realized row.
+
+**Evidence.** LA0–LB3 (re-run), L1, R16; `accesskit.h`.
+
+**Cost if wrong.** A role mapping is one `switch` arm (AppKit's role table is
+a T row); the selection semantics are the list's handler (2.25–2.27).
+
+---
+
+## IX-AB — the proposal path, grids and images
+
+**Ruling.** `AB-Q`'s "proposal-path emission" is closed:
+
+1. **`ProposalText` records its string** as a text leaf in prepaint through a
+   new internal `Frame.recordAccessibility(text:declared:at:id:)` — gated on
+   `collectsAccessibility` alone, registering no hitbox, focus entry or
+   `StateTable` slot, reading `isEnabled` and the suppression as
+   `registerHandlers`' record does. So an `HStack`/`VStack`/`ZStack`/`Grid`'s
+   texts publish in reading order, a grid row by row, and the container itself
+   publishes nothing (P1, P2, P4) — SwiftUI's answer. `Text.proposalLayout()`
+   keeps its string, so a legacy `Text` converted into a proposal stack
+   publishes too.
+2. **`AccessibilityModifier<Content>`** carries the proposal modifiers: one
+   cursor index, its one child numbered from 0 under it (`GestureModifier`'s
+   shape), registering its declared node and actions through
+   `registerHandlers` (a declared node writes one `$ax` slot, `AB-U`, as the
+   legacy modifiers do). Additive: only a caller who writes it gains the
+   level (P3, P5).
+3. **Images.** `Image(decorative:scale:)` publishes nothing, even labelled or
+   tapped (I2, I4, I5) — SwiftUI's answer and already MetalUI's.
+   `Image(_ bitmap: ImageBitmap, scale: Float, label: Text)` — SwiftUI's
+   `Image(_:scale:label:)` with `ImageBitmap` for `CGImage` and `Float` for
+   `CGFloat` (`TE-AQ` item 9) — records an `.image` node labelled by the
+   text's string (I1, I3).
+
+**Evidence.** P1–P5, I1–I5; `AB-Q`, `TE-AL`, `GR-K`.
+
+**Cost if wrong.** Each is one internal call site (2.15, 2.18) or one wrapper
+(2.16, 2.17).
+
+---
+
+## IX-AC — buttons, truncation and focus, pinned as SwiftUI's
+
+**Ruling.** Three concepts the brief names need no new behaviour, only pins:
+
+1. **`Button(role:)`, `.keyboardShortcut`, `.buttonStyle`** publish nothing
+   but the button's label and press (B1–B5). A keyboard shortcut has no
+   accessibility attribute in SwiftUI or in AppKit's own `NSButton` (C2), so
+   neither bridge publishes one — AccessKit's `keyboard_shortcut` stays unset
+   (`IX-AD`). `ButtonRole`'s inert row gains this evidence.
+2. **A truncated or line-limited `Text` publishes its whole string** (X1–X4),
+   on both `Text` and `ProposalText` and inside a `Button`.
+3. **Focus and accessibility after `IX-I`**: an accessibility focus request
+   (`.focus`) moves window focus and, on the next frame, the `@FocusState`
+   bound to it (F2, arm 13); a `@FocusState` write is the tree's `focused`
+   (F1); focus leaves the tree when its identity is renamed (`IX-I`), and
+   AppKit posts `.focusedUIElementChanged` on the host. **Divergence 31 is
+   untouched**: F4 answered the host where arm 13 (unlocked, 2026-09-15)
+   answered its first focusable node — the arms differ in screen state, so F4
+   separates nothing.
+
+**Evidence.** B1–B5, C2, X1–X4, F1–F4, arm 13.
+
+**Cost if wrong.** Each is a pin (3.1–3.5); a later SwiftUI change reddens a
+probe re-run, not the suite.
+
+---
+
+## IX-AD — bridge parity
+
+**Ruling.** Both bridges translate **every** field of the neutral
+`AccessibilityNode` (14 after this part) and every role; parity is enforced
+mechanically: each bridge's test file holds a field → attribute table whose
+entry count must equal a `Mirror` of `AccessibilityNode` (1.4 AppKit, 1.8
+AccessKit), so a new neutral field with no arm in either bridge reddens that
+bridge's test. The platform vocabularies differ by design, one row each:
+
+| neutral | AppKit | AccessKit |
+|---|---|---|
+| `hint` | `accessibilityHelp` | `description` |
+| `identifier` | `accessibilityIdentifier` | `author_id` |
+| `customActions` | `accessibilityCustomActions` (`NSAccessibilityCustomAction`, index-keyed handler) | `push_custom_action` (id = index) + `CUSTOM_ACTION` |
+| `isSelectable` | the two selection setters allowed | `selected` false as well as true |
+| `.heading` / `.link` | `AXHeading` / `AXLink` | `HEADING` / `LINK` |
+| `.table` / `.row` | `AXOutline` / `AXRow` + `AXOutlineRow` | `TABLE` / `ROW` |
+
+The controls demo's tree translates on both (3.7 against 3.6's table).
+AccessKit's own `modal` flag is not set: the tree is already isolated.
+
+**Evidence.** `accesskit.h` (0.23.0); the AppKit SDK.
+
+**Cost if wrong.** A mapping is one arm per bridge, pinned by name.
+
+---
+
+## IX-AE — lanes, the VoiceOver script, and the tick
+
+**Ruling.**
+
+1. **Three lanes, disjoint files, run in order**: lane 1 the neutral tree and
+   both bridges (hand-built trees, as the existing bridge tests are); lane 2
+   every `Sources/MetalUI` file — modifiers, builder, proposal path, dispatch,
+   `List` selection; lane 3 the audit tests, the demo modal's two modifiers
+   and the script. **One declared exception**: lane 1 adds a single refusing
+   arm to `Window.handleAccessibilityRequest` for its new request cases (the
+   `switch` is exhaustive), replaced by lane 2. Opus for lanes 1–2, the script
+   and audit lane may run on Sonnet only where it writes docs.
+2. **The script** (`docs/verification/voiceover-script.md`, spec §9) walks the
+   demo, the controls demo and the text-input demo; every step's expected
+   output comes from a tree 3.8/3.9 pins, carried in a machine-checked
+   `<!-- ax: … -->` marker (3.10), with VoiceOver's usual spoken order stated
+   as an expectation, never as a measurement. Every "if task 12's VoiceOver
+   validation prefers…" cost (`DD-U` item 3, `DD-AD` item 1, `DD-AE` item 2,
+   divergences 32, 82, 95) is one step naming its ruling. Each step has an
+   **observed (human)** column, pass/fail and notes; a header takes the
+   tester, date, macOS and VoiceOver versions.
+3. **The tick.** Part 2 landing does **not** tick plan task 12. The Record
+   phase writes a dated progress note: part 2 delivered, and **the box stays
+   unticked until a human has run the script, recorded every step, and the
+   Record phase has re-read it**. No agent writes an observed result.
+
+**Evidence.** Spec §7, §9; record §12's first script, never run.
+
+**Cost if wrong.** A step whose expectation is wrong is corrected when the
+human reports it — which is the script's purpose.
