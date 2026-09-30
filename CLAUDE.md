@@ -418,6 +418,14 @@ METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
 ```
 
+- **Counts (2026-09-30, `test/ix-ag-pins` — plan task 12 part 2's unpinned
+  `IX-AG` clauses, from `2de0973`): 1882 tests**, 0 `error:`, the one
+  native deprecation `warning:` (0 under the default one), taken the same way
+  (`Test run with 1882 tests in 3 suites passed`; the FR-J line present).
+  **1882 = 1880 + 2**: `aHiddenElementsPressIsNotRecordedWhereHitTestingIsDisabled`
+  (V7) and `thePressOnlyRecordKeepsTheLastRegistrationPerID` (V9);
+  `settingAXSelectedOnARowReplacesTheSelection` gains the lead/anchor arm (V4)
+  and keeps its windows alive. No guard, no golden. History: record §63 §13.
 - **Counts (2026-09-30, `feat/accessibility-bridge` — plan task 12 part 2,
   the accessibility half, from `31d3565`, not yet merged with `master`): 1880
   tests, 0 goldens, 116 typecheck guards**, 0 `error:` on both build systems,
