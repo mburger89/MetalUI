@@ -6,7 +6,8 @@ helpers in two phases, `hasActiveAnimations` and the widened idle guard.
 
 Prefixed **`AN-`** and **lettered** (`AN-A`, `AN-B`, …) per this repo's
 convention — **a bare `AN-3` is a typo, not a citation**, the same note every
-other milestone's decisions doc carries. Next unused letter is `AN-X`.
+other milestone's decisions doc carries. Next unused letter is `AN-AH`
+(`AN-X`…`AN-AG`: plan task 13, 2026-09-30, at the end of this document).
 
 Read alongside `docs/superpowers/specs/2026-09-03-animation-design.md` (its §3,
 §5 and §6 are corrected in place by rulings recorded here), the binding design
@@ -1373,3 +1374,304 @@ hunks contain no `-` lines.
   production. **Overshoot and reverse are unobserved**, so the row is not fully
   closed — and its first reading was the opposite of its second, which is the
   detail to carry rather than the verdict.
+
+---
+
+# Plan task 13 — transactions and animation (2026-09-30)
+
+Rulings `AN-X`…`AN-AG`, taken by the plan-task-13 design session on
+`feat/transactions-animation` from `2de0973`. Spec:
+`specs/2026-09-30-transactions-animation-design.md`. Evidence:
+`docs/probes/swiftui-transactions-animation.swift` (arm ids as the spec's §4;
+recorded output in its header). Every SwiftUI claim below names its arm; a
+claim with no arm is MetalUI's own choice and says so.
+
+## AN-X — the evidence method, and SwiftUI animates GEOMETRY, not the inputs; MetalUI keeps interpolating inputs (divergence 96)
+
+**Ruling.** Which wrapper animates, and as what, is read from a
+`CustomAnimation` recorder: SwiftUI hands each animatable value it animates to
+the transaction's animation, so the recorder's lines name the attribute (its
+type) and its delta for every arm. It ticks in-process with the screen locked
+(control C0), and C1/C2/X1n/T11c record nothing, so a recorded line is the
+change's own. The finding that shapes everything else: **SwiftUI lays out once
+at the final values and interpolates each view's placed geometry and its render
+effects** — a `.frame(width:)` change animates a geometry pair (W1), a child
+`Layout` inside it is proposed only the final width (P1), a re-wrapping `Text`
+interpolates its geometry and cross-fades its content (P2), and a sibling below
+a removed view slides (X00). **MetalUI keeps interpolating the declared input
+and re-running layout each frame** (`AN-E`'s model, now extended to proposal
+layers): for a wrapper's own rectangle both give the same rectangle at the same
+instant; they differ where a child re-lays out or a sibling moves. **Divergence
+96, kept, owner none.**
+
+**Why not switch to geometry interpolation.** It would animate *everything* on
+the proposal path at once (stacks, grids, leaves) and is SwiftUI's model, but
+every hitbox, accessibility frame, clip and scroll region is registered from
+the laid-out geometry in prepaint: interpolating placed rectangles means
+choosing, per consumer, whether it sees the final or the presented rectangle —
+hit testing, accessibility and focus are on this task's must-not-move list,
+and SwiftUI's own mid-animation hit behaviour is unmeasured here (no probe arm
+reaches it headless). Input interpolation reaches the wrappers the plan names
+with no consumer moved.
+
+**Cost if wrong.** A caller animating a container's width watches its wrapped
+text reflow every frame where SwiftUI's cross-fades (P2), and siblings of an
+inserted/removed element jump where SwiftUI's slide (X00). Visible, bounded,
+and the row names it; the switch, if ever made, is its own task.
+
+## AN-Y — `Transaction`, `withTransaction`, `.transaction(_:)`, `.animation(_:value:)`: a transaction STACK in layout and paint, transparent scopes, one root transaction per build (divergence 99)
+
+**Ruling.** (1) `Transaction { animation, disablesAnimations }` and
+`withTransaction(_:_:)`; `withAnimation` becomes `withTransaction(Transaction(animation:))`
+with SwiftUI's generic, `rethrows`, optional-animation signature — every
+existing call compiles. (2) **`AN-C`'s parking predicate is untouched**; the
+`disablesAnimations` flag parks beside the animation under the same predicate
+and is consumed by the same `takeParkedTransaction`, and
+`Animation.parkedTransaction` keeps its type. (3) The frame's transaction
+becomes a stack whose root is the parked transaction; `pass.transaction` reads
+the top. (4) `.transaction(transform)` and `.animation(anim, value:)` return one
+layout- and identity-transparent `TransactionScope<Content>` (`EnvironmentScope`'s
+shape), pushing in layout and paint. `.transaction` transforms every frame,
+root animation or not (T6, T7, **T7c**); `.animation(_:value:)` overrides the
+top's animation when its value changed since last frame and
+`disablesAnimations` is false (T1, T2, T4, T4n, T8, T8b), and never touches the
+root's explicit animation otherwise (T8c). Its content is what it wraps: a
+sibling and a modifier written after it are outside (T3, T3b) — `EV-X`'s
+existing rule, unchanged. (5) Its previous value lives in the `AnimationStore`
+(`AN-AB`), keyed by its position and the stack depth; a first sighting stores
+and does not animate.
+
+**One root transaction per build stays.** T9 (`withAnimation(A) {
+withAnimation(B) { a }; b }` → `a` with B, `b` with A) and T10 (two calls in one
+interval → each its own) measure `AN-W`'s two unmeasured items for the first
+time: SwiftUI attributes each write to its own call. MetalUI cannot — a frame
+rebuilds the whole tree from the model, and nothing records which write moved
+which field — so it animates both with the one parked curve (`AN-C`'s
+residual). **Divergence 99, kept, owner none**; `.animation(_:value:)` is the
+per-value remedy and matches SwiftUI.
+
+**Why transparent, not an identity level.** SwiftUI's modifiers carry no
+identity, and a transaction scope is added and removed around content that
+holds state; an identity level would reset that state on every toggle of the
+modifier (`MC-C`'s cost), for no benefit the store key does not already give.
+
+**Cost if wrong.** A scope that failed to pop would animate its siblings (1.4
+pins it); a paint phase that skipped the push would fade a colour on a
+different curve from the width it moves with (1.8).
+
+## AN-Z — `Binding.animation`/`.transaction` apply to a write whose source is `@State`, and a `Binding(get:set:)` ignores them
+
+**Ruling.** `Binding.transaction` (get/set), `animation(_:)` and
+`transaction(_:)`, SwiftUI's surface. A write through a binding whose source is
+`State.projectedValue` — and every binding derived from one by dynamic member
+or the optional initialisers — runs inside `withTransaction` when its
+transaction carries an animation. **A `Binding(get:set:)` ignores its
+transaction**: SwiftUI animates a write through `$state.animation(A)` and
+`$state.transaction(…)` (T11s, T12s) and snaps the same write through a closure
+binding over an observable model (T11), with a plain `$state` write the control
+(T11c). Implemented by a source flag the derived bindings inherit, not by
+wrapping every setter (which would animate T11).
+
+**Cost if wrong.** A closure binding that should animate snaps — which is what
+SwiftUI does, so the cost is only to a caller expecting otherwise; the reverse
+choice would make MetalUI animate where SwiftUI does not.
+
+## AN-AA — the legacy paint-only decoration fields animate: opacity and border widths in the layout helper, border colour in paint on an EIGHTH reserved slot; `clipsContent` snaps
+
+**Ruling.** Outer-modifiers' deferral closes. (1) **`Decoration.opacity` and the
+widths of `border`/`hoverBorder`/`focusBorder` interpolate in
+`animated(_:_:for:pass:)`**, from the `$anim` baseline that already stores the
+whole `Decoration` — the `cornerRadius` precedent; no new entry. (2) **The
+resolved border COLOUR interpolates in paint** on a new retention slot,
+**`$anim-border`**, a line-for-line mirror of `$anim-color` (minted only when a
+border resolves, tokens stored and re-resolved per frame, the pointer/focus
+winner resolved first, interrupt from the current colour and velocity). The
+reserved names become **eight**: `theSevenRetentionSlotsAreMutuallyDistinct`
+is renamed `theEightRetentionSlotsAreMutuallyDistinct` with the new arm.
+(3) **`clipsContent` snaps**: a `Bool` has no midpoint, and SwiftUI's only
+animation of an added clip is the default cross-fade of a structure change
+(W10), which is divergence 98's, not a clip value.
+`theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` is renamed
+`thePaintOnlyDecorationFieldsAnimateAndClipSnaps` and its answer flipped, its
+background control kept.
+
+**The phase rule, stated so it holds.** "Paint-only values animate in paint"
+is not what `AN-F` established: it established that a value needing the
+**theme** or the **pointer/focus state** is interpolated in paint, where both
+exist. A number needing neither (a radius, an opacity, a width) is interpolated
+where it is already stored — the layout helper — and read in paint, off the
+same frame timestamp, so its value at every frame is the one SwiftUI's
+render-effect animation shows (W3, W5). The plan's "retain the existing
+distinction between layout and paint animation" is this rule, kept.
+
+**Why not store the border colour under `$anim-color`.** The outer-modifiers
+doc names the hazard: one baseline under one name would make a border change
+retarget the background's fade (2.14 pins its absence).
+
+**Cost if wrong.** `$anim-border` adds one `StateTable` entry per bordered
+element — a count some tests pin (lane 2 re-reads each, and a moved literal is
+ruled at its line, never silent); an opacity in the layout baseline that paint
+failed to read would leave the scope at its declared value (2.13's arm).
+
+## AN-AB — proposal modifier layers animate, and their state lives in a window-owned `AnimationStore`, not in `StateTable`
+
+**Ruling.** Record §10's "task 13: proposal animation" and the
+modifier-composition doc's "wrappers joining transactions" close for
+`LayoutModifier`: `.frame(width:height:)`, the finite bounds of
+`.flexibleFrame`, `.padding`, `.opacity`, `.clip(cornerRadius:)` and the
+border's width interpolate in layout (the layer rewrites its own case, which
+prepaint and paint read); `.background` and the border's colour interpolate
+in paint as tokens (`AN-F`/`AN-H`'s recipe). `nil` ↔ value, finite ↔ infinite,
+`fixedSize`, `layoutPriority`, `aspectRatio`, `allowsHitTesting`, alignment and
+a `clipShape`'s shape snap. Every in-flight layer notes an active animation.
+
+**Their state is not `StateTable` state.** A window-owned `AnimationStore`
+holds it, every entry dropped at the end of a frame that did not touch it. So:
+(a) no `StateTable` entry is added — no `TB-AH` threshold, pinned table count
+or reserved name moves (the legacy `$anim` mints one per registering element
+unconditionally, `AN-O`; minting one per proposal layer would move every
+proposal-bearing count); (b) content that leaves and returns starts fresh,
+`ID-C`/`DD-C`'s answer, with no reset hook; (c) a `List` row out of its window
+drops its entries and returns as a first sighting, which snaps — the answer
+proposal content has today. The same store holds `.animation(_:value:)`'s
+values (`AN-Y`), the component ops (`AN-AC`) and, through a seam lane 1 stubs,
+the transition store (`AN-AE`).
+
+**Why not the geometry model** — `AN-X`.
+
+**Cost if wrong.** A second storage mechanism beside `StateTable`, with a
+different retention answer (drop on one unproduced frame, not `TB-AH`'s two
+generations above 256): a proposal layer that disappears for one frame and
+returns under a transaction snaps where a legacy element would resume. That is
+SwiftUI's answer for a removed view, and it is stated at the store.
+
+## AN-AC — B-7 is fixed: a caller's modifier on a `Component` animates, through the store
+
+**Ruling.** `StyledComponent` interpolates each op (`.padding`, `.width`,
+`.height`) per member in the `AnimationStore`, keyed by its own id, the member
+index and the op index. B-7's doc named two unsound fixes — rewriting the
+member's `$anim` baseline with an empty `Decoration`, or leaving an amendment on
+the pass for a grandchild — and this is neither: the member's own baseline is
+never read or written, and nothing is left on the pass. Arm (c) of
+`everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority` changes
+its answer by this ruling (snap → animates), cited at the arm. SwiftUI animates
+any view's geometry, a custom view's included (W1's shape).
+
+**Cost if wrong.** A member added or removed shifts the next member's key, so
+its op animates from the departed member's value — the same shift a positional
+`@State` has, and the same remedy (identity). 2.18 pins that two members
+animate independently.
+
+## AN-AD — Reduce Motion: a get-only environment value from the platform; property animations unchanged, transitions become a cross-fade
+
+**Ruling.** (1) `EnvironmentValues.accessibilityReduceMotion`,
+`public internal(set)` — SwiftUI's key path is get-only (the header's
+typecheck), so a scope cannot write it (guard). (2) The source is
+`PlatformWindow.accessibilityReduceMotion` plus
+`onAccessibilityReduceMotionChange`, **with no default implementation**
+(`EV-AB`/`AB-R`'s reason: a conformer that forgets it fails to compile), read
+at construction, updated by the callback (which dirties the window), and
+stamped over the root environment beside `controlActiveState`. (3) **AppKit**
+reads `NSWorkspace.accessibilityDisplayShouldReduceMotion` and re-reads it on
+`NSWorkspace.accessibilityDisplayOptionsDidChangeNotification` — exactly what
+SwiftUI does (R1: a swizzled getter is not re-read on its own; R2: it is after
+the notification). (4) **SDL** answers `false` and never fires, documented;
+SDL3 has no query, and the per-OS reads are a roadmap item. (5) **What it
+changes, measured**: property animations, `withAnimation`,
+`.animation(_:value:)` and `.transaction` are unchanged (R3, R4, R6, R7); every
+transition except `.identity` becomes an opacity cross-fade on the same
+animation (R5, R5r, R5s, R5l, R5o, R5p, R5a, R5c; R10 the control; R5i).
+
+**What was not measured.** The real system toggle: the probe swizzled the
+getter in-process rather than write `com.apple.universalaccess` (a protected
+user preference). R2's reading shows SwiftUI takes its value from that getter
+and that notification, which is what MetalUI's AppKit conformer reads.
+
+**Cost if wrong.** If SwiftUI also reads another source, a MetalUI window
+could disagree with a SwiftUI one on a machine where the two sources differ —
+no such source is known, and the AppKit test swizzles the same getter.
+
+## AN-AE — the transition surface: supported, unsupported, and how removal is drawn
+
+**Ruling.** (1) **Supported**, each probe-backed: `.identity` (X7),
+`.opacity` (X1), `.move(edge:)` by the element's own size (X2, X3, X3t, X3b),
+`.slide` (X5), `.offset(x:y:)` (X9), `.push(from:)` (X10),
+`.asymmetric(insertion:removal:)` (X6), `.combined(with:)` (X8), for an `if`'s
+content, an `if`/`else`/`switch` branch and a `ForEach`/`for` element (X11,
+X12). (2) **Unsupported, listed on `AnyTransition`'s doc comment**: `.scale`
+and `.scale(scale:anchor:)` (the renderer has no transform; a glyph cannot
+scale without a re-rasterized atlas entry), `.blurReplace`,
+`.modifier(active:identity:)` and custom transitions, `AnyTransition.animation(_:)`,
+`matchedGeometryEffect`, `contentTransition`; a guard pins `.scale`'s absence.
+(3) **`TransitionGroup` takes one identity level** (`IdentifiedGroup`'s shape):
+it needs a key for its captures, and a transparent key would collide with the
+content's own. (4) **Only the outermost group of inserted or removed content
+transitions** (X15, X15b). (5) **The transaction is the conditional's** (X13,
+X14), recorded when the conditional notes its slot; none → instant (X1n).
+(6) **Insertion and removal are the evaluated ones `ID-C`/`DD-C` already
+compute** — the "distinction" the binding spec §4.3's correction said exit
+transitions lacked now exists: an evaluated removal is `noteAbsent`'s slot, a
+loop's dropped tail or name, a departed name; a `List` row leaving its window
+is none of these (`TB-AH`) and runs no transition. Removal is read before
+paint through a non-mutating `StateTable` query. (7) **Removal draws a ghost**:
+the group's last captured primitives, re-emitted at their last place with the
+transition applied until the animation ends — no hitbox, focus, accessibility
+node or state. **Insertion** paints the live content from the active state to
+identity with opacity and a paint-time translation; **hitboxes are never
+translated** (MetalUI's choice; SwiftUI's mid-transition hit behaviour is
+unmeasured). (8) **No default transition** — SwiftUI cross-fades an
+unannotated insertion and removal (X0, W10); MetalUI inserts and removes
+instantly. **Divergence 98, kept, owner none**: a default would make every
+conditional in every tree capture its primitives every frame for a ghost it
+almost never draws.
+
+**Why a primitive ghost, not the retained element.** The removed element value
+is gone from the builder's output, its state is reset by `ID-C`/`DD-C`, and
+re-running its layout would re-mint that state. Its last painted primitives are
+exactly what SwiftUI shows during a removal (the view at its last geometry,
+X00), and replaying them touches nothing else.
+
+**Cost if wrong.** A ghost is frozen: it does not follow a scroll that moves
+under it, or a theme swap mid-removal. Both are sub-second and stated at the
+store. The capture costs one copy of each transitioning group's primitives per
+frame (3.16 counts it, and pins zero for a tree without `.transition`).
+
+## AN-AF — every item addressed to plan task 13, disposed
+
+**Ruling.** The spec's §3 table is the disposition, row by row: built
+(proposal animation, the paint-only fields, Reduce Motion, the `Binding`
+surface, `AN-W`'s nesting and two-call items measured into divergence 99);
+re-owned to **plan task 15** with a reason each (Increase Contrast and the
+other system accessibility settings, an animated scroll offset — SwiftUI
+unmeasured, the isolated-process per-entry memory harness, the guards'
+default-build-system hazard); and the seven follow-ups of the animation
+milestone (project memory, 2026-09-10) each closed or assigned — the
+`try #require`, the registry prune, `112.5` → the measured value with its
+mechanism measured (hypothesis: whole-point layout rounding, divergence 77),
+mutation 16 re-taken and row 16 corrected, the spec §3 caveat, the
+`CLAUDE.md` line already gone with the 2026-09-21 rewrite, and the "also open"
+overshoot and reverse closed by the 2026-09-10 scripted measurement (record
+§19's row, with its own pre-`f1944f8` caveat).
+
+**Cost if wrong.** An item missed by the grep stays silently owned by a task
+that has closed. The grep and its date are in the spec, so a later reader can
+re-run it.
+
+## AN-AG — three lanes in order, the demo unchanged, and when task 13 is ticked
+
+**Ruling.** Lane 1 (transactions, the store, Reduce Motion, the platforms),
+lane 2 (modifier wrappers at their phase), lane 3 (transitions and the
+surface), run in that order on disjoint files, with one deliberate seam: lane
+1 creates `TransitionStore.swift` as a stub with the frame's three call sites
+and lane 3 owns it thereafter. Lane 1 carries Reduce Motion because the
+environment, the platforms and the window stamp share `Window.swift` and
+`RenderFrame.swift` with the transaction plumbing; lane 3 reads the value.
+**The demo is unchanged**: 0 px against `2de0973` in all fourteen offscreen
+images, `Expected.swift` unedited. **Task 13 is ticked by the Record phase
+only if all three lanes land** — the wrappers in their phase, the
+environment-driven Reduce Motion and the documented transition surface are
+the plan text's three clauses, the layout/paint distinction is `AN-AA`'s rule,
+and every test drives timestamps; otherwise a dated progress note names what
+is open. Human looks (the transitions and Reduce Motion's cross-fade on a real
+display) go to record §03 and do not gate the tick: the plan's text asks for
+no look, and every behaviour here is pinned headless.
