@@ -420,7 +420,8 @@ extension AccessibilityTree {
 /// modifiers returning `Self`, and the proposal `GestureModifier`/`OnTapModifier`
 /// (a copy of a pinned rule is unpinned). Mutations M2n (a proposal tap
 /// synthesizes) and M2n′ (the declared-action term back inside the synthesize
-/// gate: G6's proposal arm) must redden it.
+/// gate: the non-synthesizing arm at the end, `IX-AH` item 1 — not G6's proposal
+/// arm, which registers synthesizing) must redden it.
 @Test @MainActor func aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne() throws {
     let legacy: [(String, @MainActor () throws -> AccessibilityBuild)] = [
         ("G1", { try accessibilityBuild(controlRoot { Text("Tap").onTapGesture {} }).1 }),
@@ -456,6 +457,50 @@ extension AccessibilityTree {
     let (_, pg6) = try accessibilityBuild(HStack { ProposalText("Tap").onTapGesture {}.accessibilityAction {} })
     let proposalG6 = try pg6.tree.one("Tap").node
     #expect(proposalG6.role == .button && proposalG6.actions == [.press], "G6 proposal: \(proposalG6)")
+
+    // `IX-AF` item 3 / `IX-AH` item 1: a declared action is a declaration, not
+    // a synthesis — recorded through a NON-synthesizing registration too.
+    // `AccessibilityModifier` registers synthesizing, so G6's arms above cannot
+    // see the term's place (M2n′ left them green); this arm registers a
+    // declared action with `synthesizesAccessibility: false`, as
+    // `OnTapModifier`/`GestureModifier` register, and must still publish it.
+    let (_, quiet) = try accessibilityBuild(HStack {
+        NonSynthesizingDeclarer(content: Rectangle(width: Pixels(40), height: Pixels(40)))
+    })
+    // Nothing else declared — a label would record the node on its own.
+    let pressable = quiet.tree.nodes.values.filter { $0.actions == [.press] }
+    #expect(pressable.count == 1 && pressable.first?.role == .button,
+            "a declared action through a non-synthesizing registration: \(quiet.tree.nodes.values)")
+}
+
+/// A wrapper shaped like `GestureModifier` that registers an unlabelled, declared
+/// `accessibilityAction(_:)` with `synthesizesAccessibility: false` (2.14's
+/// `IX-AH` item 1 arm).
+private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, ProposalElement {
+    var content: Content
+    struct Layout { var content: Content.GroupLayout }
+
+    mutating func requestProposalLayout(_ id: GlobalElementID,
+                                        pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        precondition(children.count == 1)
+        return (children[0], Layout(content: contentLayout))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                           pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        var handlers = Handlers()
+        handlers.declareDefaultAction {}
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                              synthesizesAccessibility: false)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
 }
 
 // MARK: - 2.19 the cost (`IX-Y`, `IX-N`)
