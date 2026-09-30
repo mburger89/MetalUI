@@ -796,12 +796,22 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     run("EitherGroup typed") { on in
         HStack { if on { proposalTile().transition(.opacity) } else { Rectangle(width: Pixels(5), height: Pixels(5)) } }
     }
-    run("ArrayGroup untyped") { on in
-        Column { for i in (on ? [1, 2] : [1]) { tile(10, Float(10 * i)).transition(.opacity) } }
+    func untypedLoop(_ on: Bool) -> some Element {
+        let items: [Int] = on ? [1, 2] : [1]
+        return Column {
+            for i in items {
+                Box().frame(width: Pixels(10), height: Pixels(Float(10 * i))).background(.accent).transition(.opacity)
+            }
+        }
     }
-    run("ArrayGroup typed") { on in
-        HStack { for i in (on ? [1, 2] : [1]) { Rectangle(width: Pixels(10), height: Pixels(Float(10 * i))).background(.accent).transition(.opacity) } }
+    func typedLoop(_ on: Bool) -> some Element {
+        let items: [Int] = on ? [1, 2] : [1]
+        return HStack {
+            for i in items { Rectangle(width: Pixels(10), height: Pixels(Float(10 * i))).background(.accent).transition(.opacity) }
+        }
     }
+    run("ArrayGroup untyped", untypedLoop)
+    run("ArrayGroup typed", typedLoop)
     run("ForEach untyped") { on in
         Column { ForEach(on ? [1, 2] : [1], id: \.self) { i in tile(10, Float(10 * i)).transition(.opacity) } }
     }

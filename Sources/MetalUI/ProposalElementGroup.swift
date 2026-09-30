@@ -106,9 +106,13 @@ extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGrou
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
+            pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`, the copy's own
+                                                               animation: pass.frame.conditionalAnimation)
             return ([], nil)
         }
         pass.frame.stateTable.noteProduced(slot)
+        pass.frame.animationStore.transitions.noteOptional(slot, produced: true,  // `AN-AE`, the copy's own
+                                                           animation: pass.frame.conditionalAnimation)
         var innerCursor = 0
         let (nodes, layout) = inner.requestProposalGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
@@ -128,6 +132,8 @@ extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, S
         case .first(var group):
             pass.frame.stateTable.noteProduced(firstBranch)
             pass.frame.stateTable.noteAbsent(secondBranch)
+            pass.frame.animationStore.transitions.noteEither(taken: firstBranch, untaken: secondBranch,  // `AN-AE`, the copy's own
+                                                             animation: pass.frame.conditionalAnimation)
             var inner = 0
             let (nodes, layout) = group.requestProposalGroupLayout(under: firstBranch, at: &inner, pass: &pass)
             self = .first(group)
@@ -135,6 +141,8 @@ extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, S
         case .second(var group):
             pass.frame.stateTable.noteProduced(secondBranch)
             pass.frame.stateTable.noteAbsent(firstBranch)
+            pass.frame.animationStore.transitions.noteEither(taken: secondBranch, untaken: firstBranch,  // `AN-AE`, the copy's own
+                                                             animation: pass.frame.conditionalAnimation)
             var inner = 0
             let (nodes, layout) = group.requestProposalGroupLayout(under: secondBranch, at: &inner, pass: &pass)
             self = .second(group)
@@ -150,6 +158,7 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {
         -> ([ProposalNodeID], [Group.GroupLayout]) {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
+        pass.frame.animationStore.transitions.beginArrayLoop(slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`, the copy's own
         var innerCursor = 0
         var nodes: [ProposalNodeID] = []
         var layouts: [Group.GroupLayout] = []
@@ -162,6 +171,7 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {
             layouts.append(childLayout)
         }
         pass.frame.stateTable.noteLoop(slot, extent: innerCursor)  // `DD-C`, the copy's own
+        pass.frame.animationStore.transitions.endArrayLoop(slot, extent: innerCursor)  // `AN-AE`, the copy's own
         return (nodes, layouts)
     }
 }

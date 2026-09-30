@@ -300,9 +300,13 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
+            pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`
+                                                               animation: pass.frame.conditionalAnimation)
             return ([], nil)
         }
         pass.frame.stateTable.noteProduced(slot)
+        pass.frame.animationStore.transitions.noteOptional(slot, produced: true,  // `AN-AE`
+                                                           animation: pass.frame.conditionalAnimation)
         var innerCursor = 0
         let (nodes, layout) = inner.requestGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
@@ -431,6 +435,8 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         case .first(var group):
             pass.frame.stateTable.noteProduced(firstBranch)
             pass.frame.stateTable.noteAbsent(secondBranch)
+            pass.frame.animationStore.transitions.noteEither(taken: firstBranch, untaken: secondBranch,  // `AN-AE`
+                                                             animation: pass.frame.conditionalAnimation)
             var inner = 0
             let (nodes, layout) = group.requestGroupLayout(under: firstBranch, at: &inner, pass: &pass)
             self = .first(group)
@@ -438,6 +444,8 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         case .second(var group):
             pass.frame.stateTable.noteProduced(secondBranch)
             pass.frame.stateTable.noteAbsent(firstBranch)
+            pass.frame.animationStore.transitions.noteEither(taken: secondBranch, untaken: firstBranch,  // `AN-AE`
+                                                             animation: pass.frame.conditionalAnimation)
             var inner = 0
             let (nodes, layout) = group.requestGroupLayout(under: secondBranch, at: &inner, pass: &pass)
             self = .second(group)
@@ -551,6 +559,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         -> ([LayoutNodeID], [Group.GroupLayout]) {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
+        pass.frame.animationStore.transitions.beginArrayLoop(slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`
         var innerCursor = 0
         var nodes: [LayoutNodeID] = []
         var layouts: [Group.GroupLayout] = []
@@ -563,6 +572,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
             layouts.append(childLayout)
         }
         pass.frame.stateTable.noteLoop(slot, extent: innerCursor)  // `DD-C`
+        pass.frame.animationStore.transitions.endArrayLoop(slot, extent: innerCursor)  // `AN-AE`
         return (nodes, layouts)
     }
 

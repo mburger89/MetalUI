@@ -2153,7 +2153,7 @@ public final class Frame {
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        scene.insert(MUIRect(
+        let rect = MUIRect(
             bounds: translated.scaled(by: scaleFactor),
             contentMask: activeClip.scaled(by: scaleFactor),
             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
@@ -2165,7 +2165,12 @@ public final class Frame {
                                 right: borderWidths.right.scaled(by: scaleFactor),
                                 bottom: borderWidths.bottom.scaled(by: scaleFactor),
                                 left: borderWidths.left.scaled(by: scaleFactor)),
-            order: 0, shape: shape), layer: activeLayer)
+            order: 0, shape: shape)
+        if transitionScopes.isEmpty {
+            scene.insert(rect, layer: activeLayer)
+        } else {
+            insertThroughTransitions(.rect(rect, layer: activeLayer, innerMask: false))
+        }
     }
 
     /// Emits one image quad sampling the whole of `texture` over `bounds`
@@ -2178,11 +2183,15 @@ public final class Frame {
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        scene.insert(MUIImage(bounds: translated.scaled(by: scaleFactor),
-                              contentMask: activeClip.scaled(by: scaleFactor),
-                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                              opacity: activeOpacity, filter: filter, order: 0),
-                     texture: texture, layer: activeLayer)
+        let image = MUIImage(bounds: translated.scaled(by: scaleFactor),
+                             contentMask: activeClip.scaled(by: scaleFactor),
+                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                             opacity: activeOpacity, filter: filter, order: 0)
+        if transitionScopes.isEmpty {
+            scene.insert(image, texture: texture, layer: activeLayer)
+        } else {
+            insertThroughTransitions(.image(image, texture: texture, layer: activeLayer, innerMask: false))
+        }
     }
 
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing
@@ -2259,11 +2268,54 @@ public final class Frame {
             origin: Point(x: ScaledPixels(bounds.origin.x.value + dx),
                           y: ScaledPixels(bounds.origin.y.value + dy)),
             size: bounds.size)
-        scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
-                              contentMask: activeClip.scaled(by: scaleFactor),
-                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                              color: Hsla(h: color.h, s: color.s, l: color.l,
-                                          a: color.a * activeOpacity), order: 0), layer: activeLayer)
+        let glyph = MUIGlyph(bounds: placedBounds, slot: packed.slot,
+                             contentMask: activeClip.scaled(by: scaleFactor),
+                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                             color: Hsla(h: color.h, s: color.s, l: color.l,
+                                         a: color.a * activeOpacity), order: 0)
+        if transitionScopes.isEmpty {
+            scene.insert(glyph, layer: activeLayer)
+        } else {
+            insertThroughTransitions(.glyph(glyph, layer: activeLayer, innerMask: false))
+        }
+    }
+
+    // MARK: - Transitions (plan task 13, lane 3, ruling `AN-AE`/`AN-AK`)
+
+    /// The transitioning groups painting now, innermost last — pushed and
+    /// popped by `TransitionGroup.paintGroup` around a CLAIMED group's content
+    /// only. **Empty in every frame of a tree without `.transition`**, and the
+    /// three emitters above then insert exactly as they always did: nothing
+    /// they compute passes through here.
+    var transitionScopes: [TransitionPaintScope] = []
+
+    /// How many clips are pushed — a transitioning group's entry depth, so a
+    /// primitive can tell a clip set inside the group (which moves and scales
+    /// with it) from the one in effect where the group starts (which stays).
+    var clipDepth: Int { clipStack.count }
+
+    /// One emitted primitive through every open transitioning group, innermost
+    /// first: each captures it as it arrives (for a ghost), then applies its
+    /// effect, and the result reaches the scene.
+    private func insertThroughTransitions(_ primitive: CapturedPrimitive) {
+        var primitive = primitive
+        let depth = clipStack.count
+        for scope in transitionScopes.reversed() {
+            primitive = primitive.withInnerMask(depth > scope.entryClipDepth)
+            scope.captures.append(primitive)
+            if !scope.effect.isIdentity { primitive = scope.effect.apply(to: primitive) }
+        }
+        insertIntoScene(primitive)
+    }
+
+    /// A primitive straight into the scene on its own layer — a ghost's
+    /// replay (`TransitionStore.paintGhosts`) and the end of the path above.
+    func insertIntoScene(_ primitive: CapturedPrimitive) {
+        switch primitive {
+        case .rect(let rect, let layer, _): scene.insert(rect, layer: layer)
+        case .glyph(let glyph, let layer, _): scene.insert(glyph, layer: layer)
+        case .image(let image, let texture, let layer, _): scene.insert(image, texture: texture, layer: layer)
+        }
     }
 
     /// This frame's primitives, in paint order. Call after `render`.
