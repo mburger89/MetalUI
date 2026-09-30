@@ -759,7 +759,7 @@ import MetalUIRender
 /// | `ScrollView` content | `ScrollView.swift`'s lowered path, its own call | **none** — `aLoweredScrollViewKeepsItsTwoAnimationSlots` pins the slot's existence, not that the lowered content reads the animated value: **arm (b) here** |
 /// | `ScrollView` viewport | the same, its own call | `aLoweredScrollViewKeepsItsTwoAnimationSlots` (the slot). Its values are **unobservable** under the proposal authority by construction: the viewport's `LoweredItem` declares `Style()`, and `LR-AS` builds every item wrapper from the declared style, so no animated viewport field is ever read |
 /// | `Component` member's own declaration | the member `Box`'s | the `Box` row (the member IS a `Box`, lowered by the same branch) |
-/// | a caller's modifier on a `Component` | none (B-7: snaps on both paths) | **none**: **arm (c) here**, pinned wrong on purpose as the legacy arm is |
+/// | a caller's modifier on a `Component` | `ComponentModifierOp.animated` (`ProposalAnimation.swift`, plan task 13, `AN-AC`) | **arm (c) here**, re-derived by `AN-AC`: it pinned B-7's snap wrong on purpose until then; also `aComponentsCallerModifierAnimates` |
 /// | `ModifiedElement` inner layer | `ModifiedElement.swift`, per layer | **none** — 4.7 and 4.11 animate a one-layer chain's frame layer only: **arm (a)**, inner half |
 /// | `ModifiedElement` outermost layer | the same | 4.7 / 4.11 for a **frame** layer; a padding layer's own lowering is unpinned: **arm (a)**, outermost half |
 ///
@@ -780,17 +780,19 @@ import MetalUIRender
 /// - **(c)** `Row { Panel(100).width(196 → 320).height(40 → 80); 1×1 marker }`:
 ///   under the proposal authority a caller's `.width` on a component is a native
 ///   frame around each member (`loweredComponentFrame`, divergence 48's fix), and
-///   it SNAPS — the marker's x (the frame's width) reads the target 320 at the
-///   transaction's start and half-way, where an animating frame would read 196
-///   then 258. **Wrong on purpose (B-7)**: if this reads 196 / 258, the snap is
-///   fixed; flip the arm with the legacy one.
+///   **since plan task 13 it animates** (`AN-AC`, B-7 fixed) — the marker's x (the
+///   frame's width) reads 196 at the transaction's start and 258 half-way. **This
+///   arm's answer changed by ruling**: until `AN-AC` it pinned the snap wrong on
+///   purpose and read the target 320 at both. The frames share one
+///   `AnimationStore`, as a window's do.
 ///
 /// Mutations, one per new arm (record §41 §11): the inner layer lowered from its
 /// declared style (`lowerLegacyLayer` handed the pre-`animated` style) reddens
 /// (a)'s inner half; the same for the outermost layer, its outer half; the lowered
 /// `ScrollView`'s content `animated(` call dropped reddens (b) (and
-/// `aLoweredScrollViewKeepsItsTwoAnimationSlots`). (c) has no `animated(` call to
-/// drop: it pins an absence, and its reddening event is B-7's fix.
+/// `aLoweredScrollViewKeepsItsTwoAnimationSlots`). (c): dropping the op
+/// interpolation (`ComponentModifierOp.animated` returning `self`) reddens it and
+/// `aComponentsCallerModifierAnimates` (plan task 13, lane 2).
 @Test @MainActor func everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority() throws {
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     func child(_ parent: GlobalElementID, _ index: Int) -> GlobalElementID {
@@ -802,12 +804,13 @@ import MetalUIRender
     /// One proposal frame over `element` in a 200×100 top-leading harness root,
     /// report required empty; the bounds of `ids`.
     func rects<E: ElementGroup>(_ table: StateTable, _ ids: [GlobalElementID], timestamp: Double,
-                                animating: Bool, _ element: E) -> [Bounds<Pixels>?] {
+                                animating: Bool, store: AnimationStore = AnimationStore(),
+                                _ element: E) -> [Bounds<Pixels>?] {
         var harness = DifferentialRoot(width: 200, height: 100) { element }
         let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1,
                           stateTable: table, timestamp: timestamp,
-                          transaction: animating ? .linear(duration: 1) : nil, reportsUnlowerableFields: true,
-                          recordsElementBounds: true)
+                          transaction: animating ? .linear(duration: 1) : nil, animationStore: store,
+                          reportsUnlowerableFields: true, recordsElementBounds: true)
         frame.render(&harness)
         #expect(frame.unlowerableFields.isEmpty, "t \(timestamp): \(frame.unlowerableFields)")
         return ids.map { frame.elementBounds[$0] }
@@ -872,7 +875,7 @@ import MetalUIRender
                 """)
     }
 
-    // MARK: (c) Component — a caller's modifier snaps (B-7), wrong on purpose
+    // MARK: (c) Component — a caller's modifier ANIMATES (B-7 fixed, `AN-AC`)
     do {
         struct Panel: Component {
             var content: some ElementGroup { Box().cssWidth(Pixels(100)).cssHeight(Pixels(10)) }
@@ -886,18 +889,26 @@ import MetalUIRender
             }.alignItems(.flexStart)
         }
         let table = StateTable()
+        // The window's `AnimationStore`, shared across the frames as a window
+        // shares it: a component op's track lives there (`AN-AC`), never in
+        // `StateTable`, so a fresh store per frame would read every frame as a
+        // first sighting.
+        let store = AnimationStore()
         func markerX(_ w: Float, _ h: Float, timestamp: Double, animating: Bool) -> Float? {
-            rects(table, [marker], timestamp: timestamp, animating: animating, tree(w, h))[0]?.origin.x.value
+            rects(table, [marker], timestamp: timestamp, animating: animating, store: store,
+                  tree(w, h))[0]?.origin.x.value
         }
         try #require(markerX(196, 40, timestamp: 0, animating: false) == 196,
                      "(c) set up — the component's frame is 196 wide before the change")
         let start = markerX(320, 80, timestamp: 0, animating: true)
         let mid = markerX(320, 80, timestamp: 0.5, animating: false)
-        #expect(start == 320 && mid == 320, """
-                WRONG ON PURPOSE — B-7, under the proposal authority too. A caller's .width on a \
-                Component snaps: an animating frame would read 196 then 258, and today reads the \
-                target 320 at both. If this now reads 196 / 258, the snap is fixed; flip this arm \
-                with the legacy one. Read \(String(describing: start)) then \(String(describing: mid))
+        // Re-derived by ruling `AN-AC` (plan task 13; B-7 fixed): until then this
+        // arm pinned the snap wrong on purpose and read 320 at both.
+        #expect(start == 196 && mid == 258, """
+                (c) B-7 fixed (AN-AC): a caller's .width on a Component animates — the \
+                marker's x (the frame's width) reads 196 on the frame that starts the \
+                transaction and 258 half-way from 196 to 320. Read \(String(describing: start)) \
+                then \(String(describing: mid))
                 """)
     }
 }
@@ -2789,6 +2800,12 @@ final class AnimationDriveModel {
         platformWindow.simulateTick(timestamp: 100)
         try #require(subjectWidth(window) == 100, "set up: the resting baseline")
 
+        // The premise, required rather than assumed (plan task 13, `AN-AF` item
+        // 7): `withAnimation` parks when ANY live window has a frame build
+        // pending, so another test's dirty window would park this empty body
+        // and make the subject a claim about nothing.
+        try #require(!Window.aFrameBuildIsPending,
+                     "set up: no live window is dirty before the empty withAnimation")
         withAnimation(.linear(duration: 1)) { }
         platformWindow.simulateTick(timestamp: 100.1)
         try #require(platformWindow.pauseCalls.last == true,
@@ -2836,7 +2853,10 @@ final class AnimationDriveModel {
     //
     // The second animation is deliberately a DIFFERENT duration, so 150 also
     // separates "the first one survived" from "the second one won": 0.5 s of
-    // `linear(duration: 4)` over the same 100 -> 200 would read 112.5.
+    // `linear(duration: 4)` over the same 100 -> 200 reads 112 — the
+    // interpolated width is 112.5, and layout rounds each EDGE of the centred
+    // box (93.75 → 94, 206.25 → 206), divergence 77 (measured under mutation 33,
+    // `AN-AI` item 5; this line read 112.5 until plan task 13).
     do {
         let model = AnimationDriveModel()
         let (window, platformWindow) = try makeDriveWindow(model)
@@ -2849,7 +2869,7 @@ final class AnimationDriveModel {
         platformWindow.simulateTick(timestamp: 100.6)
         #expect(subjectWidth(window) == 150, """
                 the no-op `withAnimation` must leave the first transaction alone: \
-                200 means it discarded it and the change snapped, 112.5 means the \
+                200 means it discarded it and the change snapped, 112 means the \
                 no-op one won; got \(String(describing: subjectWidth(window)))
                 """)
     }
