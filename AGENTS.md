@@ -3796,6 +3796,12 @@ expected, measured facts:
     `assumeIsolated`). swift-corelibs Foundation silently ignores a
     `Thread.stackSize` of 64 KB, so a small-stack control there needs 128 KB
     or more. Record §50 §14.
+  - **A C enum's `rawValue` is `Int32` on Windows and `UInt32` on Apple.**
+    Passing `SOME_C_ENUM.rawValue` straight into a `UInt32`/`MUIUInt` field
+    compiles on macOS and Linux and fails the Windows build — twice so far
+    (`SDLWindowRendererTests`, PR #32; `AccessKitControlsParityTests`, after
+    task 12 part 2). Always convert explicitly (`UInt32(X.rawValue)`,
+    `MUIUInt(X.rawValue)`); only Windows CI can see a miss.
   - **Stage 10's closing check is compiled out on Windows.**
     `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
     (`Tests/MetalUICrossPlatformTests/LegacyEngineSymbolTests.swift`) is
