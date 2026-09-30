@@ -62,3 +62,16 @@ extension StyledElement {
         onAction(AccessibilityAdjustment.self) { handler($0.direction) }
     }
 }
+
+// Plan task 12 part 2, lane 2 — RED STUBS (spec §7 "Lane 2"): the public
+// spellings exist so the tests compile; each does nothing yet.
+extension StyledElement {
+    public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> Self { self }
+    public func accessibilityHidden(_ hidden: Bool) -> Self { self }
+    public func accessibilityHint(_ hint: String) -> Self { self }
+    public func accessibilityIdentifier(_ identifier: String) -> Self { self }
+    public func accessibilityAddTraits(_ traits: AccessibilityTraits) -> Self { self }
+    public func accessibilityRemoveTraits(_ traits: AccessibilityTraits) -> Self { self }
+    public func accessibilityAction(_ handler: @escaping @MainActor () -> Void) -> Self { self }
+    public func accessibilityAction(named name: String, _ handler: @escaping @MainActor () -> Void) -> Self { self }
+}

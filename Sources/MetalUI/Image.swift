@@ -46,6 +46,11 @@ public struct Image: ProposalElement {
         self.scale = scale
     }
 
+    /// RED STUB (plan task 12 part 2, lane 2): SwiftUI's `Image(_:scale:label:)`.
+    public init(_ bitmap: ImageBitmap, scale: Float, label: Text) {
+        self.init(decorative: bitmap, scale: scale)
+    }
+
     /// Answers the proposal instead of the point size; a nil axis still
     /// answers the point size (probe I2).
     public func resizable() -> Image {

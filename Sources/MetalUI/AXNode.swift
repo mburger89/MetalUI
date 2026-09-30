@@ -119,6 +119,17 @@ public struct AXNode: Equatable {
     /// nobody but the declarer can supply.
     public var logicalCount: Int?
 
+    // RED STUB (plan task 12 part 2, lane 2): the seven declarations stored
+    // inline, which test 2.19 measures; the implementation moves them into
+    // one reference box.
+    var stubChildBehavior: AccessibilityChildBehavior?
+    var stubHidden = false
+    var stubHint: String?
+    var stubIdentifier: String?
+    var stubAddedTraits: AccessibilityTraits = []
+    var stubRemovedTraits: AccessibilityTraits = []
+    var stubActionNames: [String] = []
+
     /// A realized row's index in its virtualized container's logical sequence —
     /// spec §9's "3 of 500", the 3 half (ruling AB-L).
     ///

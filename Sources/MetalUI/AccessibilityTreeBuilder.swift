@@ -13,8 +13,39 @@ import MetalUIPlatform
 /// resolve each node's text, label and value by SwiftUI's static-text rules
 /// (AB-F, AB-G), **C** fold a button's non-interactive descendants into its
 /// label and value (AB-G); finally map roles (AB-F, AB-L) and copy geometry.
+/// One build's answer: the tree, and what `Window` keeps beside it to dispatch
+/// a request (plan task 12 part 2, lane 2, spec §5–§6).
+struct AccessibilityBuild {
+    var tree: AccessibilityTree
+    /// A combined node's interactive descendants, first first (`IX-V` item 2),
+    /// and a distributed action's child → the distributor (`IX-Y` item 1).
+    var redirects: [GlobalElementID: [GlobalElementID]] = [:]
+    /// What each published custom action runs, index for index.
+    var customActions: [GlobalElementID: [AccessibilityCustomActionTarget]] = [:]
+    /// Whether the tree was built under modal isolation (`IX-X` item 3).
+    var isolatedOut = false
+}
+
+/// What one published custom action runs (`IX-Y` item 2, `IX-V` item 2).
+enum AccessibilityCustomActionTarget: Equatable {
+    /// The node's own `AccessibilityNamedAction` handler, with this name.
+    case named(String)
+    /// A combined node's interactive descendant's press.
+    case press(GlobalElementID)
+}
+
 @MainActor
 enum AccessibilityTreeBuilder {
+    /// RED STUB (lane 2): the tree alone.
+    static func buildResult(emissions: [AXEmission],
+                            focused: GlobalElementID?,
+                            hitboxes: [Hitbox],
+                            pressOnly: [GlobalElementID: @MainActor () -> Void] = [:],
+                            focusRegistry: FocusRegistry) -> AccessibilityBuild {
+        AccessibilityBuild(tree: build(emissions: emissions, focused: focused, hitboxes: hitboxes,
+                                       pressOnly: pressOnly, focusRegistry: focusRegistry))
+    }
+
     static func build(emissions: [AXEmission],
                       focused: GlobalElementID?,
                       hitboxes: [Hitbox],
@@ -315,4 +346,11 @@ enum AccessibilityTreeBuilder {
         case .container, .generic: return .group
         }
     }
+}
+
+/// The key of the static-text child a `.contain` element over a text leaf
+/// publishes (`IX-V` item 3, arm E9): a key no request resolves, because its
+/// base is not a `GlobalElementID`, so the child has no actions.
+struct ContainedText: Hashable {
+    let id: GlobalElementID
 }
