@@ -1383,11 +1383,50 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   only after a human runs `docs/verification/voiceover-script.md` and the
   Record phase re-reads it.
 
-- [ ] **13. Complete transaction and animation semantics.**
+- [x] **13. Complete transaction and animation semantics.**
   Make modifier wrappers participate in transactions at their correct phase,
   then add environment-driven Reduce Motion and document the supported
   transition surface. Retain the existing distinction between layout and paint
   animation, and drive all animation tests by timestamps rather than sleeps.
+  *Progress 2026-09-30, landed and ticked* on `feat/transactions-animation`
+  (`AN-X`…`AN-AK`, record §64, spec
+  `specs/2026-09-30-transactions-animation-design.md`, the existing animation
+  decisions doc `2026-09-03-animation-decisions.md`, probe
+  `swiftui-transactions-animation.swift`). All three clauses close: modifier
+  wrappers (every proposal `LayoutModifier`'s numeric case, the legacy
+  paint-only fields, a `Component`'s caller modifier — B-7 fixed) now
+  animate at their correct phase through a window-owned `AnimationStore`
+  (`AN-AB`, `AN-AA`, `AN-AC`); `Transaction`/`withTransaction`/
+  `.transaction(_:)`/`.animation(_:value:)` and `Binding.transaction`/
+  `.animation(_:)` (`AN-Y`, `AN-Z`); environment-driven
+  `accessibilityReduceMotion`, sourced from AppKit's `NSWorkspace` with a
+  change notification, SDL a documented `false` (`AN-AD`); `AnyTransition`'s
+  supported surface (`.identity`/`.opacity`/`.move(edge:)`/`.slide`/
+  `.offset`/`.scale`/`.push(from:)`/`.asymmetric`/`.combined`) and its
+  unsupported list, both on its own doc comment (`AN-AE`, critic round
+  `AN-AH`). The layout/paint distinction is retained (`AN-AA`'s rule,
+  unmoved) and every test drives `simulateTick(timestamp:)`, none sleeps. A
+  design critic round found `.scale` was wrongly ruled unsupported (the
+  renderer's atlas sampling is independent of the destination bounds on both
+  Metal and SDL) and fixed a `StateTable`-slot design error before any lane
+  began (the border-colour track lives in the `AnimationStore`, keeping the
+  reserved names at seven). Three lanes, each red first, all verified `ok`,
+  two fix rounds; the Record phase's own independent close re-took the
+  suite, guard and golden counts, the fourteen-image comparison,
+  `Backends/SDL`, a `swift:6.4-noble` container and the lock probe.
+  Divergences 96–99 added, none retired — live count 68 → 72. Counts
+  **1959 / 0 / 119** tests/goldens/guards; 0 px against `2de0973` in all
+  fourteen offscreen images; `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` green.
+  **The box is ticked**: per the task's own ruling (`AN-AG`), the still-open
+  real-window capture does not gate it — the plan's text asks for no look,
+  and every behaviour here is pinned headless by a real, driven `Window` and
+  `simulateTick`. The capture itself gains three more owed states
+  (transitions against a native window, Reduce Motion's cross-fade, `.scale`'s
+  soft mid-flight glyph resampling) — the screen was locked at every check
+  across design, the critic round, all three lanes and the Record phase's
+  own close, so `capture.sh` was never run this task.
 
 - [ ] **14. Resolve platform completeness.**
   MetalUI is macOS-only today. If “complete SwiftUI alignment” includes

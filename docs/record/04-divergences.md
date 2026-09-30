@@ -1970,3 +1970,58 @@ static text — the script has a step naming this ruling, and divergence 83's
 own retirement is seen by the same human run.
 
 Live count **69 → 68**, next label **96**.
+
+## 2026-09-30: 96–99 added, none retired (plan task 13, transactions and animation)
+
+Record §64; rulings `AN-X`, `AN-AB`, `AN-AE`, `AN-Y`.
+
+- **96 added, kept, owner none** (`AN-X`): SwiftUI lays out once at the
+  final values and interpolates each view's *placed geometry* and *render
+  effects* — a `.frame(width:)` change animates a geometry pair, a child
+  `Layout` inside it is proposed only the final width, a re-wrapping `Text`
+  interpolates its geometry and cross-fades its content, a sibling below a
+  removed view slides. MetalUI keeps interpolating the *declared input* and
+  re-running layout every frame (`AN-E`'s existing model, now extended to
+  proposal layers): the two agree for a wrapper's own rectangle and differ
+  where a child re-lays out or a sibling moves. Switching to geometry
+  interpolation was considered and rejected: it would animate everything on
+  the proposal path at once, and every hitbox, accessibility frame, clip and
+  scroll region is registered from laid-out geometry in prepaint — choosing,
+  per consumer, whether it sees the final or the presented rectangle is a
+  bigger, unmeasured, must-not-move-adjacent question than this task's own.
+- **97 added, kept, owner none** (`AN-AB`): what still snaps where SwiftUI
+  animates, now that proposal `LayoutModifier`s mostly animate too — `nil` ↔
+  value, finite ↔ infinite, `fixedSize`, `layoutPriority`, `aspectRatio`,
+  `allowsHitTesting`, alignment, and a `clipShape`'s shape. Each is a
+  structural or non-interpolable change (an alignment has no midpoint
+  between "leading" and "trailing" any more than `clipsContent`'s `Bool`
+  does), not an oversight.
+- **98 added, kept, owner none** (`AN-AE`): no default transition — SwiftUI
+  cross-fades an unannotated insertion and removal (its own X0/W10 arms),
+  where MetalUI inserts and removes instantly. A default would make every
+  conditional in every tree capture its primitives every frame for a ghost
+  it almost never draws (3.16 pins zero captures for a tree with no
+  `.transition`).
+- **99 added, kept, owner none** (`AN-Y`): one transaction per build.
+  SwiftUI attributes each observable write to the `withAnimation`/
+  `.animation` call lexically active when it happened (T9:
+  `withAnimation(A) { withAnimation(B) { a }; b }` animates `a` with B and
+  `b` with A; T10: two calls in one interval each animate with their own
+  call's curve). MetalUI's frame rebuilds the whole tree from the model each
+  frame, and nothing records which write moved which field, so both writes
+  share the one parked curve — this was `AN-W`'s own unmeasured "nesting,
+  two calls in one interval" item, now measured for the first time.
+  `.animation(_:value:)` is the per-value remedy and matches SwiftUI exactly
+  when the caller names the value.
+
+None of the four is about which wrapper animates or at what phase — that
+question (§9.1's own clause) is closed by fixing the phase, not by a
+divergence row: every proposal `LayoutModifier`'s numeric case, the legacy
+paint-only fields, and a `Component`'s caller modifier (B-7) now animate,
+where a design session's own `AN-AA` first draft would have added an eighth
+`StateTable` slot for the border colour — the critic round (`AN-AH` item 3)
+rejected that in favour of the same window-owned `AnimationStore` every
+proposal track already uses, so the reserved names stay **seven** and no
+`StateTable` divergence or inert row is touched by this task at all.
+
+Live count **68 → 72**, next label **100**.

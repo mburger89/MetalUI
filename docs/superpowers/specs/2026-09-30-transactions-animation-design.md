@@ -15,13 +15,18 @@ which amended rows 1.16 and 1.19; `AN-AJ` is lane 2's, which amended rows 2.11,
 it). Record: `docs/record/64-transactions-animation.md` (the Record phase
 writes it).
 
-**Status: DESIGNED, critic round applied (`AN-AH`).** The plan's task 13 text: "Make modifier wrappers
+**Status: LANDED, plan task 13 TICKED (record §64).** All three lanes
+landed and were verified `ok` (`AN-AI`, `AN-AJ`, `AN-AK`); the Record
+phase's independent close (record §64 §6) re-took the suite, guard and
+golden counts, the fourteen-image comparison, `Backends/SDL`, a
+`swift:6.4-noble` container and the lock probe, and ticked the plan's box
+(`AN-AG`'s own criterion: all three lanes land; the still-open real-window
+capture does not gate the tick). The plan's task 13 text: "Make modifier wrappers
 participate in transactions at their correct phase, then add
 environment-driven Reduce Motion and document the supported transition
 surface. Retain the existing distinction between layout and paint animation,
 and drive all animation tests by timestamps rather than sleeps." Every clause
-is assigned below (§9); the box is ticked by the Record phase only if every
-lane lands (`AN-AG`).
+is assigned below (§9) and closed (record §64 §9).
 
 ## 1. Baseline
 

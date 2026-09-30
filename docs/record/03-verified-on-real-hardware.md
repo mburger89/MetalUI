@@ -1763,3 +1763,38 @@ None of this reopens the demo-layout, task 9, task 10 part 1, task 10 part
 2, task 11 part 1/2 or task 12 part 1 looks — they stay owed, joined by this
 task's own, with the still-open real-window capture now partially, not
 fully, closed.
+
+## 2026-09-30: no demo look, three new looks joining the still-open capture (plan task 13, transactions and animation)
+
+Record §64. **The lock probe read locked at every check this task**
+(`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): design time, the
+critic round, every one of the three lanes' own closes, and this Record
+phase's own close — `docs/probes/window-capture/capture.sh` was never run.
+No production tree this task touches is drawn in the demo (0 px against
+`2de0973` in all fourteen offscreen images, scene identical, at every one of
+those same checks), so this task neither reopens nor closes the demo-layout
+look or any earlier task's own — it only adds to the still-open real-window
+capture backlog.
+
+**New looks owed, none of them shown yet on a real display**:
+
+- **The transitions**: an insertion or removal (`.opacity`, `.move(edge:)`,
+  `.scale`, `.slide`, `.offset`, `.push`, `.asymmetric`, `.combined`) against
+  a native window, and the ghost a removal draws (the last captured
+  primitives, replayed above everything else on their layer) — all pinned by
+  synthetic trees and a headless `Frame`, none seen composited on screen.
+- **Reduce Motion's cross-fade**: every transition but `.identity`
+  substituting an opacity fade for its own effect, sourced from
+  `NSWorkspace.accessibilityDisplayShouldReduceMotion` — measured by
+  swizzling the getter in-process (`AN-AD`'s own caveat: the real system
+  toggle, `com.apple.universalaccess`, was never written, a protected user
+  preference), never observed against the real System Settings toggle.
+- **`.scale`'s soft mid-flight glyphs**: the critic round's own finding
+  (`AN-AH` item 1) that a scaled glyph resamples its atlas slot through a
+  linear filter rather than re-rasterizing — measured by reading the shader
+  source on both Metal and SDL, never watched on screen for the softening a
+  linear-filtered upscale should show.
+
+None of this reopens the demo-layout, task 9, task 10 part 1, task 10 part
+2, task 11 part 1/2, task 12 part 1 or task 12 part 2 looks — they stay
+owed, joined by this task's own three.
