@@ -38,7 +38,15 @@
 // empty. F2's two FocusState writes arrived in a different ORDER on two
 // earlier runs, so the arm prints them sorted. `disabled` on NSHostingView is
 // the host's own answer to accessibilityEnabled and is not read by any
-// ruling. One run's filtered output, verbatim:
+// ruling.
+//
+// REVISION 2, 2026-09-30 (plan task 12 part 2, lane 2's fix round, `IX-AI`):
+// arms E15–E19 and E18p added after E7 — interactive children of DIFFERENT
+// kinds under .combine, so a first and a last lead disagree. Same machine and
+// toolchain, screen locked; run twice, exit 0, filtered stdout byte-identical
+// (332 lines), filtered stderr empty; the 308 revision-1 lines re-ran
+// byte-identical (every line outside the six new arms). One run's filtered
+// output, verbatim:
 //
 //   === C2 control: NSButton keyEquivalent cmd-s
 //   NSButton role=AXUnknown sub=nil label=Native value=nil kids=1
@@ -81,6 +89,30 @@
 //   === E7 VStack { Text A; Toggle T }.accessibilityElement(children: .combine)
 //   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
 //     AccessibilityNode role=AXCheckBox sub=nil label=A value=1 custom=["T"] kids=0
+//   === E15 VStack { Button A; Toggle T }.accessibilityElement(children: .combine): press
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXCheckBox sub=nil label=A value=1 custom=["A", "T"] kids=0
+//     E15 press -> true, ran 0 ["A"]
+//   === E16 VStack { Toggle T; Button A }.accessibilityElement(children: .combine): press
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXCheckBox sub=nil label=nil value=1 custom=["T", "A"] kids=0
+//     E16 press -> true, ran 0 ["T"]
+//   === E17 VStack { Button A; Slider }.accessibilityElement(children: .combine): press, increment
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXSlider sub=nil label=A value=0.5 custom=["A"] kids=0
+//     E17 press -> true, ran 0 ["A"]
+//     E17 increment -> true, log ["A", "S0.6"]
+//   === E18p VStack { Slider; Button A }.accessibilityElement(children: .combine): press, increment
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXSlider sub=nil label=A value=0.5 custom=["A"] kids=0
+//     E18p press -> true, ran 0 ["A"]
+//     E18p increment -> true, log ["A", "S0.6"]
+//   === E18 VStack { Slider; Toggle T }.accessibilityElement(children: .combine)
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXSlider sub=nil label=nil value=1 custom=["T"] kids=0
+//   === E19 VStack { Toggle T; Slider }.accessibilityElement(children: .combine)
+//   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
+//     AccessibilityNode role=AXSlider sub=nil label=nil value=0.5 custom=["T"] kids=0
 //   === E8 HStack { Text A; Text B }.accessibilityElement(children: .combine).accessibilityLabel(L)
 //   NSHostingView role=AXGroup sub=AXHostingView label=nil value=nil disabled kids=1
 //     AccessibilityNode role=AXStaticText sub=nil label=nil value=L kids=0
@@ -363,6 +395,17 @@
 //     label (E6 "A, B"; E14 "A", B's label left out); and EVERY interactive
 //     child is published as a custom action named by its label, in tree
 //     order (E6 ["B"], E14 ["A", "B"]).
+//   E15–E19, E18p (revision 2): children of DIFFERENT kinds MERGE, and the
+//     "first one's role" above holds only for children of one kind. The
+//     role is the highest-ranked — AXSlider over AXCheckBox over AXButton,
+//     whatever the order (E15/E16 checkbox, E17/E18/E18p/E19 slider); the
+//     value is the LAST child's that carries one (E18 1, the toggle after
+//     the slider; E19 0.5, the slider after the toggle); a slider is skipped
+//     for the label and the press — the first child that presses gives the
+//     label when it has no value (E17/E18p "A"; E16 nil, the toggle's value)
+//     and receives the press (E15 runs A, E16 T, E17 and E18p A); an
+//     increment reaches the slider (E17/E18p log S0.6); and only a child
+//     that presses is a custom action (E17 ["A"], E18 ["T"]).
 //   E4/E5/E9: .contain makes a real AXGroup (labelled if declared) holding
 //     the children — even over a single leaf (E9).
 //   E13: a gesture outside .combine adds no press.
@@ -564,6 +607,32 @@ MainActor.assumeIsolated {
     describe(h14); press("E14", kids(h14).first, e14)
     show("E7 VStack { Text A; Toggle T }.accessibilityElement(children: .combine)",
          VStack { Text("A"); Toggle("T", isOn: .constant(true)) }.accessibilityElement(children: .combine))
+    // Revision 2 (lane 2's fix round): interactive children of DIFFERENT
+    // kinds, so the first and the last lead disagree on role, value and press.
+    let e15 = Counter()
+    let h15 = host("E15 VStack { Button A; Toggle T }.accessibilityElement(children: .combine): press",
+                   VStack { Button("A") { e15.log.append("A") }; Toggle("T", isOn: Binding(get: { true }, set: { _ in e15.log.append("T") })) }.accessibilityElement(children: .combine))
+    describe(h15); press("E15", kids(h15).first, e15)
+    let e16 = Counter()
+    let h16 = host("E16 VStack { Toggle T; Button A }.accessibilityElement(children: .combine): press",
+                   VStack { Toggle("T", isOn: Binding(get: { true }, set: { _ in e16.log.append("T") })); Button("A") { e16.log.append("A") } }.accessibilityElement(children: .combine))
+    describe(h16); press("E16", kids(h16).first, e16)
+    // E17/E18 separate "the first child carrying a value leads the role" from
+    // "a checkbox outranks": a Slider carries a value too.
+    let e17 = Counter()
+    let h17 = host("E17 VStack { Button A; Slider }.accessibilityElement(children: .combine): press, increment",
+                   VStack { Button("A") { e17.log.append("A") }; Slider(value: Binding(get: { 0.5 }, set: { e17.log.append("S\($0)") })) }.accessibilityElement(children: .combine))
+    describe(h17); press("E17", kids(h17).first, e17)
+    if let n = kids(h17).first { print("  E17 increment -> \(perform(n, "accessibilityPerformIncrement")), log \(e17.log)") }
+    let e18p = Counter()
+    let h18p = host("E18p VStack { Slider; Button A }.accessibilityElement(children: .combine): press, increment",
+                    VStack { Slider(value: Binding(get: { 0.5 }, set: { e18p.log.append("S\($0)") })); Button("A") { e18p.log.append("A") } }.accessibilityElement(children: .combine))
+    describe(h18p); press("E18p", kids(h18p).first, e18p)
+    if let n = kids(h18p).first { print("  E18p increment -> \(perform(n, "accessibilityPerformIncrement")), log \(e18p.log)") }
+    show("E18 VStack { Slider; Toggle T }.accessibilityElement(children: .combine)",
+         VStack { Slider(value: .constant(0.5)); Toggle("T", isOn: .constant(true)) }.accessibilityElement(children: .combine))
+    show("E19 VStack { Toggle T; Slider }.accessibilityElement(children: .combine)",
+         VStack { Toggle("T", isOn: .constant(true)); Slider(value: .constant(0.5)) }.accessibilityElement(children: .combine))
     show("E8 HStack { Text A; Text B }.accessibilityElement(children: .combine).accessibilityLabel(L)",
          HStack { Text("A"); Text("B") }.accessibilityElement(children: .combine).accessibilityLabel("L"))
     show("E9 Text(A).accessibilityElement(children: .contain)", Text("A").accessibilityElement(children: .contain))

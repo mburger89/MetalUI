@@ -209,10 +209,14 @@ extension Window {
     private func adjust(_ node: AccessibilityNodeID,
                         _ direction: AccessibilityAdjustmentDirection) -> Bool {
         guard var id = node.base as? GlobalElementID else { return false }
-        // A combined node adjusts its first interactive descendant (`IX-V`
-        // item 2), when it has no handler of its own.
-        if lastFocusRegistry.actionHandler(for: id, type: ObjectIdentifier(AccessibilityAdjustment.self)) == nil,
-           let target = accessibility.lastRedirects[id]?.first {
+        // A combined node adjusts its first descendant that takes an
+        // adjustment (`IX-V` item 2, `IX-AI`: beside a button, the slider,
+        // SwiftUI E17/E18p), when it has no handler of its own.
+        let takesAdjustment = { (candidate: GlobalElementID) in
+            self.lastFocusRegistry.actionHandler(
+                for: candidate, type: ObjectIdentifier(AccessibilityAdjustment.self)) != nil
+        }
+        if !takesAdjustment(id), let target = accessibility.lastRedirects[id]?.first(where: takesAdjustment) {
             id = target
         }
         guard let handler = lastFocusRegistry.actionHandler(

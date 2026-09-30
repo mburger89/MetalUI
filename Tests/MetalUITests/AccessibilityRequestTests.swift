@@ -84,6 +84,30 @@ private typealias Request = MetalUIPlatform.AccessibilityRequest
         #expect(log.lines == ["A", "B", "A"], "E14: press A, custom 1 B, custom 0 A: \(log.lines)")
         #expect(!platform.simulateAccessibilityRequest(.customAction(e14, 2)), "no third action")
     }
+
+    // E17/E18p (probe revision 2, `IX-AI`): beside a slider the press runs the
+    // first child that PRESSES whatever the order, and an increment reaches the
+    // slider — SwiftUI's `["A", "S0.6"]` in both orders.
+    let mixedLog = Log()
+    let slider = Binding<Double>(get: { 0.5 }, set: { mixedLog.lines.append("S\($0 > 0.5 ? "+" : "-")") })
+    let (mixed, mixedPlatform) = try controlWindow(size: 300) {
+        controlRoot(width: 300, height: 300) {
+            Column { Button("P") { mixedLog.lines.append("P") }; Slider(value: slider) }
+                .accessibilityElement(children: .combine)
+            Column { Slider(value: slider); Button("Q") { mixedLog.lines.append("Q") } }
+                .accessibilityElement(children: .combine)
+        }
+    }
+    let mixedTree = try controlTree(mixed, mixedPlatform)
+    try withExtendedLifetime(mixed) {
+        for name in ["P", "Q"] {
+            mixedLog.lines = []
+            let node = try mixedTree.one(name).id
+            #expect(mixedPlatform.simulateAccessibilityRequest(.press(node)), "\(name): press")
+            #expect(mixedPlatform.simulateAccessibilityRequest(.increment(node)), "\(name): increment")
+            #expect(mixedLog.lines == [name, "S+"], "\(name): the button presses, the slider adjusts: \(mixedLog.lines)")
+        }
+    }
 }
 
 /// **2.23.** A custom action request runs the node's named handler (A2), a

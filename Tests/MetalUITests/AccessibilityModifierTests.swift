@@ -134,8 +134,13 @@ extension AccessibilityTree {
 /// press, reads its non-interactive children's text plus the first interactive
 /// child's label, and publishes every interactive child as a custom action by
 /// label, tree order (E6, E7, E14); the build's redirects name them, first
-/// first. Mutations M2c (the LAST child's role and label) and M2c′ (redirects
-/// empty) must redden it.
+/// first. Over children of DIFFERENT kinds it merges (`IX-AI`, E15–E19, E18p):
+/// the highest-ranked role, the last child's value, the first non-adjustable
+/// child's label and press, a slider's increment, and custom actions only for
+/// children that press. Mutations M2c (the LAST child leads), M2c′ (redirects
+/// empty), M2c-rank (no ranking: the first child's role), M2c-value (the
+/// FIRST valued child's value) and M2c-adjust (a slider counts as the lead)
+/// must redden it.
 @Test @MainActor func aCombinedElementTakesTheFirstInteractiveChildsRoleAndListsEveryOneAsACustomAction() throws {
     let (_, e6) = try accessibilityBuild(controlRoot {
         Column { Text("A"); Button("B") {} }.accessibilityElement(children: .combine)
@@ -170,6 +175,40 @@ extension AccessibilityTree {
     #expect(node.role == .button && node.label == "A" && node.customActions == ["A", "B"], "E14: \(node)")
     let key = try #require(e14ID.base as? GlobalElementID)
     #expect(combined.redirects[key] == [aID, bID], "E14: the redirects, first first: \(combined.redirects)")
+
+    // E15–E19 (probe revision 2): interactive children of DIFFERENT kinds, so
+    // the first and the last child disagree. SwiftUI MERGES rather than copying
+    // one lead (`IX-AI`): the role is the highest-ranked (slider over checkbox
+    // over button, whatever the order), the value is the LAST child's that
+    // carries one, the press is still the first child's, and an adjustable
+    // child is no custom action.
+    let e15 = try combinedMixed("E15") { Button("A") {}; Toggle("T", isOn: .constant(true)) }
+    #expect(e15.role == .checkBox && e15.label == "A" && e15.value == "1" && e15.custom == ["A", "T"], "E15: \(e15)")
+    let e16 = try combinedMixed("E16") { Toggle("T", isOn: .constant(true)); Button("A") {} }
+    #expect(e16.role == .checkBox && e16.label == nil && e16.value == "1" && e16.custom == ["T", "A"], "E16: \(e16)")
+    let e17 = try combinedMixed("E17") { Button("A") {}; Slider(value: .constant(0.5)) }
+    #expect(e17.role == .slider && e17.label == "A" && e17.value == "0.5" && e17.custom == ["A"], "E17: \(e17)")
+    let e18 = try combinedMixed("E18") { Slider(value: .constant(0.5)); Toggle("T", isOn: .constant(true)) }
+    #expect(e18.role == .slider && e18.label == nil && e18.value == "1" && e18.custom == ["T"], "E18: \(e18)")
+    let e19 = try combinedMixed("E19") { Toggle("T", isOn: .constant(true)); Slider(value: .constant(0.5)) }
+    #expect(e19.role == .slider && e19.label == nil && e19.value == "0.5" && e19.custom == ["T"], "E19: \(e19)")
+    // E18p: a slider is skipped for the label too — the first child that
+    // presses gives it, as in E17 — and its increment joins the lead's press.
+    let e18p = try combinedMixed("E18p") { Slider(value: .constant(0.5)); Button("A") {} }
+    #expect(e18p.role == .slider && e18p.label == "A" && e18p.value == "0.5" && e18p.custom == ["A"], "E18p: \(e18p)")
+    #expect(e17.actions.isSuperset(of: [.press, .increment, .decrement]), "E17: \(e17)")
+    #expect(e18p.actions.isSuperset(of: [.press, .increment, .decrement]), "E18p: \(e18p)")
+}
+
+/// What one `.combine` node over `content` publishes (2.3's mixed arms).
+struct CombinedMixed { let role: AccessibilityRole; let label: String?; let value: String?; let custom: [String]; let actions: AccessibilityActions }
+@MainActor func combinedMixed<C: ElementGroup>(_ name: String, @ElementBuilder _ content: () -> C) throws -> CombinedMixed {
+    let (_, build) = try accessibilityBuild(controlRoot {
+        Column { content() }.accessibilityElement(children: .combine)
+    })
+    try #require(build.tree.nodes.count == 1, "\(name): \(build.tree.readings)")
+    let n = try #require(build.tree.nodes[build.tree.roots[0]])
+    return CombinedMixed(role: n.role, label: n.label, value: n.value, custom: n.customActions, actions: n.actions)
 }
 
 /// **2.4.** `.contain` is a real group that keeps its children (E4), keeps its
