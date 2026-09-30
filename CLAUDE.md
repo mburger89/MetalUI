@@ -408,8 +408,9 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   none**; **81, 21, 22 re-owned, owner none** — live count 68 → 69, next
   label 95. **0 px against `31f2e7a` in all fourteen offscreen images**,
   scene identical, independently re-taken by this Record phase;
-  `Backends/SDL` 22 + 26 on macOS (CLAUDE.md's own figure since the task 11
-  part 2 merge, `0714528` — unmoved, no lane touches `Backends/SDL`); a
+  `Backends/SDL` 22 + 26 on macOS on the branch (no lane touches
+  `Backends/SDL`), **22 + 27 after merging `master`'s `f633741`** (PR #32's
+  `backToBackFramesNeverReleaseAnUnsignaledFence`); a
   `swift:6.4-noble` aarch64 container builds with 0 `error:`/`warning:` and
   runs **199 + 10 + 22**; `Tests/PortableTests` **21 + 6 + 5**. Windows
   stack budget: `MemoryLayout<Handlers>.size` 408 → 440 across the three
