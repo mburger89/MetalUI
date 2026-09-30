@@ -12,7 +12,7 @@ and `swiftui-disabled-ancestor-and-order.swift` (N, O), and
 `swiftui-content-shape-hit-region.swift` (H, P, N, X). Record:
 `docs/record/62-interaction.md` (written by the Record phase).
 
-Prefix **`IX-`**, lettered. **Next unused: `IX-AH`.** (This line moves in the
+Prefix **`IX-`**, lettered. **Next unused: `IX-AI`.** (This line moves in the
 commit that appends a ruling; read the last `## IX-` heading.)
 
 The probes ran with the screen **locked** (lock probe:
@@ -1937,3 +1937,143 @@ T rows, `IX-AA` item 3 and item 1 above). Spec §11's expected figures hold.
 
 **Cost if wrong.** Items 1–2 are one arm each per bridge, pinned by the parity
 tables; item 5's choices are one line each in `List.accessibilityRowSelection`.
+
+## IX-AH — lane 2 landed: the modifiers, the builder, the proposal path and their dispatch (and the clauses the design left open)
+
+**Ruling.** Lane 2 of part 2 (spec §7 "Lane 2", tests 2.1–2.12, 2.14–2.20,
+2.22–2.24, guards G2.1–G2.3) landed in three commits: `2b2de97` (red: the
+public spellings as stubs, `AccessibilityModifier` laying out one identity
+level and recording nothing, the seven declarations inline in `AXNode`, every
+test and guard), `c179ad4` (green) and `99a32bc` (a 2.14 arm, item 1). What it
+built is the spec's §4 API, §5 builder rules and §6 dispatch as written, plus
+these clauses, each MetalUI's choice unless a probe arm is named:
+
+1. **M2n′'s premise is refuted; 2.14 gains the arm that pins the term**
+   (spec §7 row 2.14 amended). `AccessibilityModifier` registers
+   **synthesizing** (`synthesizesAccessibility: true`), so an
+   `accessibilityAdjustableAction` alone on the wrapper records as it does on a
+   `StyledElement`; the wrapper has no click, focus or text of its own, so
+   nothing else is synthesized. Consequently G6's proposal arm never reached
+   the declared-action term's place: M2n′ (the term moved back inside the
+   `synthesizesAccessibility &&` clause), applied at `c179ad4`, left the whole
+   suite green (1870 passed). The term is reachable only through a
+   non-synthesizing registration that carries a declared action — neither
+   `OnTapModifier` nor `GestureModifier` does (each builds a fresh `Handlers`),
+   so no public spelling reaches it today — and a declared label records the
+   node on its own. 2.14 therefore gains an arm (a test-local wrapper
+   registering an **unlabelled** declared action with
+   `synthesizesAccessibility: false`) that must publish one `.button` with
+   `.press`; M2n′ reddens exactly it. The term stays: `IX-AF` item 3's rule is
+   now a pinned contract of `registerHandlers`, not an accident of which
+   conformer synthesizes.
+2. **A chain of proposal accessibility modifiers is ONE wrapper**:
+   `AccessibilityModifier` redeclares all eleven as its own members returning
+   `Self`, which win overload resolution over the `ProposalElementGroup`
+   extension's, so `HStack{…}.accessibilityLabel("L").accessibilityHint("H")`
+   is one identity level (not two), and on it the later-written declaration
+   wins (H4), as on a `StyledElement`. The declarations share one body per
+   field (`Handlers.declare…`, `addAccessibilityTraits`/`removeAccessibilityTraits`)
+   across both vocabularies, so the two copies cannot write different fields.
+3. **A decorative `Image` under `AccessibilityModifier` publishes nothing**
+   (SwiftUI I4): the wrapper runs its content, and skips its own registration,
+   inside `withAccessibilitySuppressed(except: nil)` when the content is an
+   `Image` built `decorative:`. An `Image(_:scale:label:)` records one
+   `.image` node labelled by `label.string` through
+   `Frame.recordAccessibility` (I1, I3). A `ProposalText` with an empty string
+   records nothing.
+4. **Adding a trait removes it from the removed set and vice versa**, so the
+   later write of the same trait wins on one element. `accessibilityHidden(false)`
+   is "not declared" (`AXDeclarations.isHidden == false`), so a later `(false)`
+   on the same element undoes an earlier `(true)` (H4); an inner `(false)`
+   still cannot un-hide (H5 — suppression is a depth). Hidden suppresses
+   accessibility only: the hitbox, focus entry and `$ax` write are untouched.
+5. **Named actions chain by name**: `declareNamedAccessibilityAction` prepends
+   the name (A6: later written first) and puts a handler in front of any
+   earlier one that dispatches on `AccessibilityNamedAction.name`, so
+   `Handlers` gains no member (spec §7). `Window`'s `.customAction(id, i)` runs
+   what the build's `customActions[id][i]` names — the node's own named
+   handler (under `StateDispatch.dispatching(to: id)`, `ID-F`) or a combined
+   node's descendant's press — and refuses an out-of-range index.
+6. **Redirects**: a combined node redirects its press (and an adjustment, when
+   it has no handler of its own) to its first interactive descendant; a child a
+   plain container distributed its declared action to redirects to the
+   container (A5). A chain of redirects is bounded at four hops
+   (`press(_:redirectsLeft:)`), which no probe arm reaches.
+7. **Modal isolation picks the greatest `(layer, record position)`** among
+   records declaring `.isModal`; every request id (press, increment,
+   decrement, focus, custom action, select, selectRows' table) is refused when
+   the last published tree was isolated and does not contain it (divergence
+   95). The tables are written with every build, published or not.
+8. **No T row**: the spec's grep-and-run step for `ProposalText`'s new record
+   (`IX-AF` item 4) found no existing test whose answer moved — the red commit
+   touched no existing test file, and the full suite at `c179ad4` passed with
+   every existing test unedited, so no retained test changed its answer.
+
+**Red before** (`2b2de97`, full unfiltered suite): `Test run with 1870 tests
+in 3 suites failed … with 64 issues` — exactly the 22 lane-2 tests and G2.2
+red; first failure line of each: G2.2 `warnings.count >= 3`
+(AccessibilityCompileGuards.swift:92); 2.1 `e1.tree.roots.count == 1`; 2.2
+`e3.tree.nodes.count == 1`; 2.3 `e6.tree.nodes.count == 1`; 2.4
+`e4.tree.roots.count == 1`; 2.5 `h1.tree.readings == ["B"]`; 2.6
+`n1.tree.one("B").node.hint == "Does X"`; 2.7 `title.role == .heading &&
+title.label == "Title" && title.value == nil`; 2.8 `go.role == .button &&
+go.label == "Go" && go.actions == []`; 2.9 `s.isSelected && s.role ==
+.staticText`; 2.10 `isolated.tree.readings == ["Top"]`; 2.11 `t.role ==
+.button && t.label == "T" && t.actions == [.press]`; 2.12 `t.role ==
+.staticText && t.customActions == ["Delete"] && t.actions == []`; 2.14
+`matches.count == 1` (G6); 2.19 `MemoryLayout<AXNode>.size <= 113 + 8`; 2.20
+`log.lines == ["Default"]`; 2.22 `matches.count == 1`; 2.23
+`platform.simulateAccessibilityRequest(.customAction(…, 0))`; 2.24
+`covered.readings == ["Top"]`; 2.15 `p1.tree.readings == ["A", "B"] &&
+p1.tree.nodes.count == 2`; 2.16 `p3.tree.readings == ["L", "L"] &&
+p3.tree.roots.count == 2`; 2.17 `combined.tree.nodes.count == 1`; 2.18
+`matches.count == 1`. G2.1 and G2.3 were green at the stub (the spellings
+existed) and are mutated red below.
+
+**Green** (`99a32bc`): `swift build --build-system native --build-tests` 0
+`error:`, the one `warning:` SwiftPM's deprecation notice; `swift build
+--build-tests` (default system) 0 `error:`/`warning:` (the deprecated
+`AXNode.actions`/`AXActionKind` and the synthesized `==` build silently —
+`IX-AF` item 2's third mechanic needed no hand-written `==`); unfiltered `swift
+test --build-system native --no-parallel` → **`Test run with 1870 tests in 3
+suites passed after 115.640 seconds`**, the log carrying `FR-J no-argument
+frame: succeeded=` (guards ran; **116**). **0 px against `31d3565` in all
+fourteen offscreen images, every scene identical** (`compare.sh … 31d3565
+c179ad4`; controls as at `31d3565`). `Backends/SDL` untouched by this lane
+(no file under `Backends/` or `Sources/MetalUIPlatform` changed). The
+real-window capture was **not taken** (lane 1's lock reading; this lane
+changes no pixel).
+
+**Cost** (spec §7, `IX-N`; debug, macOS arm64, a scratch file of literal-size
+tests deleted after): `MemoryLayout<AXNode>.size` **113 → 121**,
+`MemoryLayout<Handlers>.size` **440 → 448** — one pointer each, as designed;
+the smallest thread building every production tree: fails 608 KB, passes
+**624 KB**, unmoved. `everyProductionTreeBuildsOnAOneMegabyteThread` green.
+
+**Mutations** (each applied from a commit, restored from a copy or `git
+checkout`, the whole suite run unfiltered — 1870 — `git status --short` clean
+after each; every test reddened named):
+
+| id | mutation | reddened |
+|---|---|---|
+| G2.1 | `StyledElement.accessibilityHint` made internal | `theAccessibilityModifiersCompileFromAPlainImport` |
+| G2.2 | the `@available(deprecated)` on `AXNode.actions` dropped | `anAXNodesActionsAreDeprecatedTowardAccessibilityAction` |
+| G2.3 | `static let isToggle` added to `AccessibilityTraits` | `anUnofferedTraitOrActionKindDoesNotCompile` |
+| M2n′ | the declared-action term back inside `synthesizesAccessibility &&` | at `c179ad4`: **none** (item 1); at `99a32bc`: `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` |
+| M2t | the hitbox tried first in `Window`'s press | `anAccessibilityPressRunsADeclaredActionInsteadOfTheClick` |
+| M2x | the isolation refusal removed | `aRequestForAnElementOutsideTheModalIsRefused` |
+
+The rest of spec §7's lane-2 mutation column (M2a–M2m, M2o–M2s, M2u–M2w) was
+not run by this lane; the red commit shows each test red against its stub
+(the stub is the "does nothing" mutant of every clause at once), which is not
+the same instrument as a scoped mutation — left for the verifier.
+
+**Counts**: root **1845 → 1870** (+25: 22 tests, 3 guards), guards **113 →
+116**, SDL unmoved (**22 + 31**). No test removed or renamed; no T row
+(item 8); `goldensUnchanged`: no retained test changed its answer. Spec §11's
+lane-2 figure holds.
+
+**Cost if wrong.** Item 1 is one arm; item 2 is eleven one-line members; item
+3 is one `if` in the wrapper; items 4–7 are one line each in
+`AccessibilityModifiers.swift`/`ProposalAccessibility.swift`/
+`WindowAccessibility.swift`.

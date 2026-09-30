@@ -507,7 +507,7 @@ on a `FakePlatformWindow`), new `Tests/MetalUITests/AccessibilityCompileGuards.s
 | 2.10 | `aModalSubtreeIsTheOnlyThingPublished` (M0 control publishes both; M1; M3 a modal sibling; two modals → the higher `(layer, order)`; a focus outside it publishes no `focused`; `isolatedOut == true`) | stub | M2j: isolation skipped; M2j′: the FIRST modal wins |
 | 2.11 | `aDeclaredActionMakesAPressableButtonAndADisabledOneNone` (A1 button + press; A5 distributed to each child; A7 disabled: no press) | stub | M2k: the `AccessibilityDefaultAction` handler not counted as a press |
 | 2.12 | `aNamedActionPublishesACustomActionLaterWrittenFirst` (A2; A3 a button keeps `.press`; A6 `["Two","One"]`) | stub | M2l: names appended instead of prepended |
-| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press — **each on both spellings**, `StyledElement.onTapGesture`/`.gesture` returning `Self` and the proposal `GestureModifier`/`OnTapModifier`, a copy of a pinned rule being unpinned) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`); M2n′: the declared-action term moved back inside `synthesizesAccessibility &&` (G6 on the proposal spelling reddens) |
+| 2.14 | `aGestureOrTapPublishesNoPressAndAnAccessibilityActionAddsOne` (G1, G2, G3, G4, G7: no press; G6 `.accessibilityAction` over a tap: press — **each on both spellings**, `StyledElement.onTapGesture`/`.gesture` returning `Self` and the proposal `GestureModifier`/`OnTapModifier`, a copy of a pinned rule being unpinned) | green for the five today (written first, kept green); G6 red | M2n: `GestureModifier` synthesizes (`synthesizesAccessibility: true`); M2n′: the declared-action term moved back inside `synthesizesAccessibility &&` — **amended by `IX-AH` item 1**: `AccessibilityModifier` registers synthesizing, so G6's proposal arm cannot redden; an arm registering an unlabelled declared action with `synthesizesAccessibility: false` does |
 | 2.15 | `aProposalTextPublishesItsStringAsAStaticText` (P1 two texts, the spacer nothing; P2 a 2×2 grid flattened row by row; a disabled scope → `isEnabled == false`; a `hidden()` one nothing) | nothing on the proposal path records | M2o: `ProposalText.prepaint` records nothing |
 | 2.16 | `aProposalAccessibilityModifierLabelsDistributesAndIsOneIdentityLevel` (P3 over an `HStack`; P5 a labelled `Rectangle` → labelled group; the content's id is `.child(of: wrapper, at: 0)`; an exit test: the wrapper over two nodes traps naming the count) | no API | M2p: the wrapper records nothing; M2p′: content numbered at the wrapper's own id |
 | 2.17 | `theProposalModifiersMirrorTheStyledOnes` (on an `HStack`: `.combine`, `.accessibilityHidden(true)`, `.isHeader`, `.accessibilityAction {}` — each 2.x twin's answer) | no API | M2q: the wrapper drops its child behaviour (a copy of a pinned implementation is unpinned) |
@@ -672,3 +672,8 @@ landing ruling.
 
 **Lane 1 measured (`IX-AG`)**: root **1845** (1837 + 8), guards **113**
 unmoved, SDL **22 + 31** (22 + 27 + 4) — as designed.
+
+**Lane 2 measured (`IX-AH`)**: root **1870** (1845 + 25), guards **116**
+(113 + 3), SDL **22 + 31** unmoved — as designed. `MemoryLayout<AXNode>.size`
+113 → 121, `MemoryLayout<Handlers>.size` 440 → 448; smallest thread 624 KB,
+unmoved.
