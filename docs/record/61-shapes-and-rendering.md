@@ -950,3 +950,89 @@ tests in 3 suites passed after 110.254 seconds`**, the FR-J line present;
 package has no file in this change. macOS CI does not run `Backends/SDL`'s
 tests (its macOS job only records fixtures), which is why a false green
 there was local-only; `CLAUDE.md` gains a CI-hazard bullet.
+
+## §10 An intermittent Direct3D 12 crash: the offscreen renderer released an unsignalled fence (2026-09-29)
+
+Branch `fix/sdl-test-windows-enum` (PR #32, from `31f2e7a`).
+
+**The symptom.** The SDL GPU workflow's Windows x64 D3D12 job (debug
+validation layers on, "Microsoft Basic Render Driver") crashed in
+`Backends/SDL`'s `MetalUISDLTests` in run **36588257167** (pull_request) and
+passed in run **36588249657** (push, same commit): `*** Program crashed:
+Exception 0x0000087d ***` — the D3D12 debug layer's break on an error — with
+the stack `D3D12SDKLayers.dll` → `D3D12_INTERNAL_DestroyBuffer`
+(`SDL_gpu_d3d12.c:1349`, the resource's final `Release`) ←
+`D3D12_INTERNAL_PerformPendingDestroys` (:7739) ← `D3D12_WaitForFences`
+(:8272) ← `mui_renderer_read_offscreen` (`SDLBridge.c:612`) ←
+`SDLWindowRenderer.readPixels` ← `imageTexturesPersistAndAreReleasedWhenAbsent`.
+The log carries **no validation message text** (the debug layer writes to
+`OutputDebugString`, which the runner does not capture); the crashed
+thread's registers held fragments of the message being formatted —
+`" allocat"`, `"complete"`, `"or have "`, `"ATOR_SYN"` — consistent with
+`COMMAND_ALLOCATOR_SYNC` ("…is being reset before previous executions
+associated with the allocator have completed"), read from the register
+dump, not from a printed message. The tests ran serially on the main actor
+(each `@MainActor`, synchronous), so thread concurrency was not the cause.
+
+**The root cause (SDL 3.4.16's D3D12 backend, read in source).**
+`SDL_SubmitGPUCommandBufferAndAcquireFence` gives the caller the command
+buffer's `inFlightFence` with one reference and `autoReleaseFence = false`.
+`D3D12_ReleaseFence` returns the fence to the pool **at once** when that
+reference drops, while the still-submitted command buffer keeps pointing at
+it. The next `D3D12_INTERNAL_AcquireFence` pops that same fence and signals
+it back to 0 from the CPU. Two in-flight command buffers then share one
+fence: the older one's queue signal sets it to 1 while the newer is still
+executing, and the next cleanup (any submit's or wait's "check for
+cleanups" loop) calls `D3D12_INTERNAL_CleanCommandBuffer` on the newer —
+resetting its command allocator mid-execution and dropping its resources'
+reference counts — and `PerformPendingDestroys` then destroys the storage
+and transfer buffers `mui_renderer_finish` had released, while the GPU
+still reads them. `mui_renderer_finish` released the previous offscreen
+frame's fence **unwaited** whenever two frames ran without a readback
+between them. Every test before plan task 11 part 2 read back after each
+frame (`read_offscreen` waited first), so the path was never taken;
+`imageTexturesPersistAndAreReleasedWhenAbsent` is the first test to run
+three frames back to back, and whether the older signal lands in the window
+depends on WARP's timing — hence one crash in two runs.
+
+**The fix** (`SDLBridge.c`): `retire_fence` waits for the last offscreen
+frame before releasing its fence — used by `mui_renderer_finish` and
+`mui_renderer_read_offscreen`; `mui_renderer_destroy` releases after
+`SDL_WaitForGPUIdle`. The wait also runs SDL's cleanup of that command
+buffer, so it leaves the submitted list before its fence can be recycled.
+The window path is untouched (plain `SDL_SubmitGPUCommandBuffer`, whose fence
+SDL releases itself after cleanup). No test was serialized and validation
+was not disabled.
+
+**The instrument.** `release_fence` counts a release made while
+`SDL_QueryGPUFence` reads unsignalled
+(`mui_renderer_unsignaled_fence_releases`, surfaced as
+`SDLWindowRenderer.unsignaledFenceReleaseCount`); the renderer also counts
+image-texture releases (`textureReleaseCount`, closing lane 1's verifier
+note that no SDL test counted them). New test
+`backToBackFramesNeverReleaseAnUnsignaledFence` (32 frames, no readback,
+count 0, then the replay path's pixels), and
+`imageTexturesPersistAndAreReleasedWhenAbsent` gains `textureReleaseCount ==
+1` and the count at 0. **Red before, on macOS Metal, deterministic**: with
+the counter in and `mui_renderer_finish` still releasing unwaited (and,
+after the fix, with `retire_fence` in `finish` mutated back to
+`release_fence`), the image-texture test reads **2** and the new test **31**
+(31 of 31 releases before the GPU signalled), both red — the image-texture
+test read 2 in each of four runs, the new test was red in both runs taken of
+it; with the fix, 0 and green. The hazard is therefore observable off
+Windows even though only Direct3D 12's fence reset turns it into a crash.
+
+**Results.** macOS (`PKG_CONFIG_PATH=$PWD/.accesskit`): `--no-parallel`
+and parallel both `Test run with 22 tests … passed` and `Test run with 27
+tests … passed` (**27 = 26 + 1**). Root package: `swift build
+--build-system native --build-tests` 0 `error:` (no root file changed).
+CI after the fix (commit `e9f558f`): SDL GPU runs **36589957513** (push) and
+**36589964381** (pull_request) — every job green, Windows x64 D3D12
+`MetalUISDLTests` `Test run with 25 tests … passed` in both (the new test
+2.1 s and 3.5 s under WARP with validation), Linux x86_64/aarch64 25 too
+(the two macOS-only tests absent). Then two more Windows D3D12 runs, both
+green with `Test run with 25 tests … passed`: **36590985422** (pull_request,
+`4646994`, this record's commit; job 109484224053) and **36589957513
+attempt 2** (the push run's D3D12 job re-run, job 109483878968). **Four green
+Windows D3D12 runs after the fix, none failed**, against one crash in two
+before it.

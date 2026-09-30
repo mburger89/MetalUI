@@ -93,6 +93,12 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var cachedTextureIdentities: Set<ObjectIdentifier> { Set(textures.keys) }
     /// How many image textures have been uploaded, ever.
     package private(set) var textureUploadCount = 0
+    /// How many cached image textures a frame has released, ever.
+    package private(set) var textureReleaseCount = 0
+    /// How many offscreen frames' fences were released before the GPU
+    /// signalled them — always 0 (record §61 §10: SDL's Direct3D 12 backend
+    /// recycles a released fence while the command buffer still points at it).
+    package var unsignaledFenceReleaseCount: Int { Int(mui_renderer_unsignaled_fence_releases(renderer)) }
 
     /// The SDL GPU driver in use (`metal`, `vulkan`, `direct3d12`).
     public var driver: String { String(cString: mui_renderer_driver(renderer)) }
@@ -127,6 +133,7 @@ public final class SDLWindowRenderer: WindowRenderer {
         }
         for (key, entry) in textures where kept[key] == nil {
             mui_renderer_release_texture(renderer, entry.handle)
+            textureReleaseCount += 1
         }
         textures = kept
         return failed ? nil : handles

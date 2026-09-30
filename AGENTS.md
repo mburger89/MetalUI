@@ -462,7 +462,10 @@ METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/
   stopped Swift Testing's outermost run loop; `SDLPlatform` now runs
   `NSApp.run()` once so AppKit installs its own signal; guard
   `windowServerTrafficNeverStopsTheMainRunLoop`, macOS-only, so Linux stays
-  22 + 24); the root suite unmoved at 1773.
+  22 + 24); **then 22 + 27** (record §61 §10: the offscreen renderer
+  released an unsignalled fence, an intermittent D3D12 crash; guard
+  `backToBackFramesNeverReleaseAnUnsignaledFence`, all platforms, so Linux
+  22 + 25); the root suite unmoved at 1773.
   Record §61 (written as §60, renumbered 60→61 at this merge, §61 §8).
 - **Counts (2026-09-29, `feat/shapes-and-rendering` — plan task 11, part 2,
   from `ff2ae92`; closes task 11): 1763 tests, 0 goldens, 108 typecheck
@@ -2488,7 +2491,13 @@ circular approximation), elliptical corners, `Path`, gradients,
 **before** encode (`MetalWindowRenderer.finishFrame`; mutation R1 reddens the
 blank-first-frame test). The SDL renderer keeps its atlas texture between
 frames and re-uploads it whole when dirty; both clear the atlas' dirty rect
-after a frame. `Text.requestLayout` and
+after a frame. **Never release an SDL GPU fence the GPU has not signalled**
+(`retire_fence` in `SDLBridge.c` waits first): SDL pools a released fence
+while its command buffer still points at it, the next submission re-arms it,
+and Direct3D 12 then cleans the newer frame mid-flight — an intermittent
+debug-layer crash in `D3D12_INTERNAL_DestroyBuffer`, pinned on macOS by
+`backToBackFramesNeverReleaseAnUnsignaledFence` (record §61 §10).
+`Text.requestLayout` and
 `ProposalText`'s measure closures use unguarded `MainActor.assumeIsolated` —
 layout must stay synchronous on the main actor. **`MUIRect.shape`** (plan
 task 11 part 2, renamed from an always-zero `_reserved` word — the struct's
