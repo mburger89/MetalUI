@@ -222,6 +222,78 @@ private struct PreviewCounter: Element {
     platform.simulateInput(up(pt(300, 100)))
 }
 
+/// **2.11b** (`DN-X` item 3: the preview registers no hitbox). A custom
+/// preview whose content is clickable, dropped with the pointer inside the
+/// preview over a destination: no hitbox with an `onClick` exists while the
+/// drag is open, and the drop lands. Pressed 10 pt into the source and
+/// released at (300, 100), the preview spans (290, 90)–(350, 150), so the
+/// pointer is inside it.
+/// Mutation **V1** (drop `pass.allowsHitTesting(false)` around the preview's
+/// prepaint): the preview's `onClick` registers an opaque hitbox on the
+/// presentation's layer, which `dropTarget` reads as covering the well.
+@MainActor
+@Test func aClickableCustomPreviewNeverCoversTheDestination() throws {
+    let log = PLog()
+    let (window, platform) = try previewWindow {
+        Row {
+            Box().frame(width: px(200), height: px(200)).background(.separator).draggable("s") {
+                Box().frame(width: px(60), height: px(60)).background(.accent).onClick {}
+            }
+            well(log)
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    try #require(!window.lastHitboxes.contains { $0.handlers.onClick != nil },
+                 "set up: nothing clickable without a session")
+    beginDrag(window, platform, from: pt(10, 10), by: 290, 90)
+    try #require(window.dragSession != nil, "set up: the drag began")
+    let previews = window.lastScene.rects.filter { bounds($0.bounds) == [290, 90, 60, 60] }
+    try #require(previews.count == 1,
+                 "set up: the preview is under the pointer: \(window.lastScene.rects.map(fingerprint))")
+    let clickable = window.lastHitboxes.filter { $0.handlers.onClick != nil }.map { bounds(MUIBounds(
+        origin: MUIPoint(x: $0.bounds.origin.x.value, y: $0.bounds.origin.y.value),
+        size: MUISize(width: $0.bounds.size.width.value, height: $0.bounds.size.height.value))) }
+    #expect(clickable.isEmpty, "DN-X item 3: the preview registers no hitbox: \(clickable)")
+    platform.simulateInput(up(pt(300, 100)))
+    #expect(log.entries == ["drop([\"s\"])"], "the drop lands under the preview: \(log.entries)")
+}
+
+/// **2.11c** (`DN-X` item 3: the preview publishes nothing). With an
+/// accessibility client active, a custom preview holding a `Text` adds no
+/// node to the published tree: the open drag's tree has the no-drag tree's
+/// labels, and none is the preview's. Control: the source's own `Text`
+/// publishes.
+/// Mutation **V2** (drop `withAccessibilitySuppressed(except: nil)` around
+/// the preview's prepaint): the preview's text is published as a root.
+@MainActor
+@Test func aCustomPreviewPublishesNothingToAccessibility() throws {
+    let log = PLog()
+    let (window, platform) = try previewWindow {
+        Row {
+            Stack { Text("SOURCE") }.frame(width: px(200), height: px(200)).draggable("s") {
+                Text("PREVIEW")
+            }
+            well(log)
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    platform.simulateAccessibilityRequest(.activate)
+    window.setNeedsRedraw(); window.drawFrameIfNeeded()
+    let before = try #require(platform.publishedAccessibilityTrees.last, "set up: a tree was published")
+    func labels(_ tree: AccessibilityTree) -> [String] { tree.nodes.values.compactMap { $0.label ?? $0.value }.sorted() }
+    try #require(labels(before).contains("SOURCE"), "control: the source's text publishes: \(labels(before))")
+    beginDrag(window, platform, from: pt(100, 100), by: 50, 20)
+    try #require(window.dragSession != nil, "set up: the drag began")
+    try #require(window.lastScene.glyphs.contains { $0.color.a > 0 && $0.color.a < 0.75 * 1.0001 },
+                 "set up: the preview's text painted")
+    window.setNeedsRedraw(); window.drawFrameIfNeeded()
+    let during = try #require(platform.publishedAccessibilityTrees.last)
+    #expect(!labels(during).contains { $0.contains("PREVIEW") }, "no preview node: \(labels(during))")
+    #expect(labels(during) == labels(before), "the no-drag tree's labels: \(labels(during))")
+    #expect(during.nodes.count == before.nodes.count, "the no-drag tree's node count")
+    platform.simulateInput(up(pt(300, 100)))
+}
+
 // MARK: - 2.12: every draggable site captures
 
 private struct Named: Identifiable, Hashable {
@@ -294,6 +366,41 @@ private struct Named: Identifiable, Hashable {
         }
         platform.simulateInput(up(moved(p, 50)))
     }
+}
+
+/// **2.12b** (`DN-X` item 2, amended by the lane-2 review round). A
+/// draggable whose own content is clipped — a 200 × 200 fill framed to
+/// 100 × 100 and clipped with corner radius 10 — replays its fill masked to
+/// its own clip, translated by (50, 0) with the radius kept, not to the
+/// snapshot's 200 × 200 union with square corners: the preview never shows
+/// what the source did not.
+/// Mutation **V11** (replace every replayed mask by the union, the shape
+/// before the review round).
+@MainActor
+@Test func aClipInsideTheSourceIsKeptInTheReplay() throws {
+    let (window, platform) = try previewWindow {
+        HStack {
+            Rectangle().fill(.accent).frame(width: px(200), height: px(200))
+                .frame(width: px(100), height: px(100)).clip(cornerRadius: px(10)).draggable("s")
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    let fills = window.lastScene.rects.filter { $0.bounds.size.width == 200 && $0.background.a > 0 }
+    try #require(fills.count == 1, "set up: one overflowing fill: \(window.lastScene.rects.map(fingerprint))")
+    let source = fills[0]
+    try #require(source.contentMask.size.width == 100 && source.maskCornerRadii.topLeft == 10,
+                 "set up: the source is clipped to 100 × 100, radius 10: \(fingerprint(source))")
+    let region = try #require(sourceRegion(window), "set up: the source registered a draggable")
+    beginDrag(window, platform, from: pt(region.bounds.origin.x.value + 5, region.bounds.origin.y.value + 5),
+              by: 50)
+    try #require(window.dragSession != nil, "set up: the drag began")
+    let copies = window.lastScene.rects.filter { bounds($0.bounds) == shifted(source.bounds, 50, 0) }
+    try #require(copies.count == 1, "one translated copy: \(window.lastScene.rects.map(fingerprint))")
+    #expect(bounds(copies[0].contentMask) == shifted(source.contentMask, 50, 0),
+            "the source's own clip, translated: \(bounds(copies[0].contentMask))")
+    #expect(copies[0].maskCornerRadii.topLeft == 10 && copies[0].maskCornerRadii.bottomRight == 10,
+            "its rounding kept: \(copies[0].maskCornerRadii)")
+    platform.simulateInput(up(pt(300, 100)))
 }
 
 // MARK: - 2.13: a vanished source
