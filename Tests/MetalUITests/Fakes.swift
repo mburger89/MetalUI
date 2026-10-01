@@ -253,11 +253,6 @@ final class FakePlatformWindow: PlatformWindow {
         pauseCalls.append(paused)
     }
 
-    /// Deliver a display-link tick at `timestamp`, the way a real
-    /// `CADisplayLink` fires `displayLinkFired`. A test that needs a specific,
-    /// non-zero timestamp on a window built with `startsDisplayLink: false`
-    /// calls this directly instead — `simulateInput` is the analogous shape for
-    /// input events.
     /// Every `beginExternalDrag` call, in order (ruling `DN-K`).
     private(set) var externalDrags: [([DragRepresentation], Point<Pixels>)] = []
     /// What `beginExternalDrag` answers; `false`, as SDL does, by default.
@@ -274,6 +269,11 @@ final class FakePlatformWindow: PlatformWindow {
         onInput?(.drop(event)) ?? false
     }
 
+    /// Deliver a display-link tick at `timestamp`, the way a real
+    /// `CADisplayLink` fires `displayLinkFired`. A test that needs a specific,
+    /// non-zero timestamp on a window built with `startsDisplayLink: false`
+    /// calls this directly instead — `simulateInput` is the analogous shape for
+    /// input events.
     func simulateTick(timestamp: Double) {
         currentTime = timestamp
         tick?(timestamp)

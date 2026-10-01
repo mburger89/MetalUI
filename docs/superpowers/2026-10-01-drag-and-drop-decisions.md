@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-W`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-X`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -315,7 +315,9 @@ current target). Every transition below runs from input, under
    still sends nothing more (`P19`). A refusing destination is never
    targeted (`P16`).
 2. **The action** receives every offered item that imports, in offered order
-   (`R3f`: two strings → `["one", "two"]`), at the drop point **in the
+   — **MetalUI's own choice** (amended by `DN-W` item 1: `R3f` shows two
+   strings arrive as two, but SwiftUI's order is unstable across runs, so
+   it is not a probed SwiftUI fact) — at the drop point **in the
    destination's own coordinates** (`P12a`: window (330, 140) on a target at
    x = 200 reads (130, 140)). An item imports through the first of its
    offered types that satisfies one of `T.importedContentTypes`. If no item

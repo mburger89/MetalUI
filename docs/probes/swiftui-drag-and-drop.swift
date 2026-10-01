@@ -55,7 +55,13 @@
 // and CGPreflightPostEventAccess both true. Compiled form, run twice with
 // METALUI_DND_POINTER=1: stdout byte-identical (134 lines), exit 0, stderr
 // empty both times. Earlier development runs of every arm read the same
-// values. Output, verbatim:
+// values. **Except R3f's ORDER** (erratum, lane 1's review round, `DN-W`):
+// re-running the compiled probe headless (T/R/A) six times printed
+// `d:["two", "one"]` twice and `d:["one", "two"]` four times — every other
+// headless line matched this header. R3f's item COUNT (two strings arrive as
+// two) is stable; the order in which SwiftUI hands them to the action is not,
+// so no ruling may rest on it. The line below is one run's order. Output,
+// verbatim:
 //
 //   --- T: Transferable (CoreTransferable, headless)
 //     T1 String exported: public.utf8-plain-text imported: public.utf8-plain-text
@@ -92,6 +98,7 @@
 //     R3d URL dest, file-URL drop: e=copy [dT=true] prep=true perf=true [dT=false,d:["file:///tmp/metalui-probe.txt"] at (100,100)]
 //     R3e URL dest, web-URL drop: e=copy [dT=true] prep=true perf=true [dT=false,d:["https://example.com/a"] at (100,100)]
 //     R3f String dest, two strings: e=copy [dT=true] prep=true perf=true [dT=false,d:["one", "two"] at (100,100)]
+//         (R3f's order is NONDETERMINISTIC across runs — ["two", "one"] in 2 of 6 re-runs; see the erratum above)
 //     R3g Data dest, String drop: e=copy [dT=true] prep=true perf=true [dT=false,d:["5 bytes"] at (100,100)]
 //     R4 action returns false: e=copy [dT=true] prep=true perf=true [dT=false,d:["hello"] at (100,100)]
 //     R5 dest .disabled(true): e=copy [dT=true] u=copy prep=true perf=true [dT=false,d:["hello"] at (100,100)]
@@ -198,7 +205,7 @@
 //   T6, T6b); URL does not take plain text (T6c, T7c); Data <-> public.data.
 // - R: registration (R0*); isTargeted true on enter, false on exit and BEFORE
 //   the action (R1, R1b); wrong types answer `none` (R3-R3c); two items
-//   arrive as two (R3f); Data takes a String (R3g); an action returning false
+//   arrive as two, in no stable order (R3f); Data takes a String (R3g); an action returning false
 //   still answers perform=true (R4); hidden refuses (R5d); of two chained
 //   destinations the outer receives (R6e).
 // - P: see the decisions doc, DN-D (precedence), DN-F (target selection),

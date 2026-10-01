@@ -272,6 +272,29 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
         platform.simulateInput(up(100, 100, count: 2))
         #expect(log.entries == ["double"], "P21: a double click runs the double tap")
     }
+
+    // Eighth arm (`DN-V` item 6, pinned by `DN-W` item 2): the other order —
+    // the draggable written BEFORE the long press, so inner and ahead. The
+    // undecided draggable holds the long press off past its duration; the
+    // draggable fails at the release, and the long press ends there.
+    do {
+        let log = DLog()
+        let (keptWindow, platform) = try dndWindow {
+            Row {
+                square().draggable("s").onLongPressGesture(minimumDuration: 0.3) { log.entries.append("long") }
+                stringWell(log)
+            }
+        }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
+        platform.simulateInput(down(100, 100))
+        platform.simulateTick(timestamp: stamp)
+        platform.simulateTick(timestamp: stamp + 0.35)
+        platform.simulateTick(timestamp: stamp + 1)
+        #expect(log.entries == [], "DN-V item 6: held past its duration, the long press waits on the draggable")
+        platform.simulateInput(up(100, 100))
+        platform.simulateTick(timestamp: stamp + 1.1)
+        #expect(log.entries == ["long"], "DN-V item 6: the long press ends at the release")
+    }
 }
 
 /// **1.8** (`P2a`–`d`, `P22d`). A `DragGesture` that outranks the draggable —
@@ -740,6 +763,39 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
     #expect(platform.simulateDrop(.performed(position: pt(300, 100), items: [x])), "it took the drop")
     #expect(log.entries == ["T=true", "T=false", "T=true", "T=false", "drop([\"x\"])"])
     #expect(loads.loaded == ["public.utf8-plain-text"], "only the imported type is read: \(loads.loaded)")
+}
+
+/// **1.23b** (`DN-C`, `DN-H`; the review round's mutations B2 and F2). What
+/// `Window` does with an external `.exited` — un-targets, `isTargeted(false)`,
+/// no action — and where an external `.performed` delivers: at the
+/// destination-local point of its own position, window (330, 140) on a
+/// destination at x = 200 reading (130, 140), as 1.15 reads it for the
+/// in-window session.
+@MainActor
+@Test func anExternalExitUnTargetsAndAnExternalDropDeliversItsLocalLocation() throws {
+    final class Where { var locations: [Point<Pixels>] = [] }
+    let log = DLog()
+    let got = Where()
+    let loads = LoadLog()
+    let (window, platform) = try dndWindow {
+        Row {
+            square()
+            square().dropDestination(for: String.self, action: { items, location in
+                got.locations.append(location); log.entries.append("drop(\(items))"); return true
+            }, isTargeted: { log.entries.append("T=\($0)") })
+        }
+    }
+    try #require(destinationRegions(window).map(\.bounds) == [right])
+    let x = item([utf8], bytes: ["public.utf8-plain-text": Array("x".utf8)], log: loads)
+    #expect(platform.simulateDrop(.entered(position: pt(300, 100), items: [x])))
+    #expect(!platform.simulateDrop(.exited), "a drag that left answers false")
+    #expect(log.entries == ["T=true", "T=false"], "B2: `.exited` un-targets with isTargeted(false)")
+    #expect(got.locations.isEmpty, "and runs no action")
+
+    #expect(platform.simulateDrop(.entered(position: pt(250, 60), items: [x])))
+    #expect(platform.simulateDrop(.performed(position: pt(330, 140), items: [x])))
+    #expect(got.locations == [pt(130, 140)], "F2: the drop is local to the destination: \(got.locations)")
+    #expect(log.entries == ["T=true", "T=false", "T=true", "T=false", "drop([\"x\"])"])
 }
 
 /// **1.24** (divergence 102's MetalUI half, `DN-M` item 2). With the items

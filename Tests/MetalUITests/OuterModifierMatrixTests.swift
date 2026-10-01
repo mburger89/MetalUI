@@ -130,6 +130,10 @@ private struct HandlerFingerprint: Equatable {
     var contentShape = false
     /// Plan task 12 part 1, lane 3 (`IX-J`): the `.focused` binding.
     var focusBinding = false
+    /// Drag and drop (`DN-P`): the destination, and how many gestures are
+    /// draggables.
+    var dropDestination = false
+    var draggableCount = 0
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -146,6 +150,8 @@ private struct HandlerFingerprint: Equatable {
         keyboardShortcut = h.keyboardShortcut != nil
         contentShape = h.contentShape != nil
         focusBinding = h.focusBinding != nil
+        dropDestination = h.dropDestination != nil
+        draggableCount = h.gestures.filter(\.isDraggable).count
     }
 }
 
@@ -638,6 +644,38 @@ private struct ProposalMatrixRow {
                                storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)).onClick { },
                                               Box().cssWidth(px(40)).cssHeight(px(40)).onClick { }
                                                   .allowsHitTesting(false)))
+                          }),
+
+        // Drag and drop (`DN-E`, `DN-F`, `DN-P`): each writes its own
+        // handler member and registers a NON-opaque region — the hit regions
+        // move, the click count does not.
+        ProposalMatrixRow(name: "draggable(_:)", path: "legacy Element",
+                          kinds: [.selfStorage, .prepaintOnly],
+                          note: "a non-opaque region carrying the draggable (DN-E)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40)).draggable("payload")
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40)).draggable("payload")))
+                          }),
+        ProposalMatrixRow(name: "dropDestination(for:action:isTargeted:)", path: "legacy Element",
+                          kinds: [.selfStorage, .prepaintOnly],
+                          note: "a non-opaque region carrying only the destination (DN-F)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                                       .dropDestination(for: String.self, action: { _, _ in true })
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40))
+                                                  .dropDestination(for: String.self, action: { _, _ in true })))
                           }),
 
         // MARK: distributes

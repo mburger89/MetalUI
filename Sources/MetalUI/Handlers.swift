@@ -306,8 +306,6 @@ public struct Handlers {
     /// reference (`IX-N`).
     var focusBinding: FocusBindingTarget?
 
-    /// No handlers: the element is not a pointer target, not focusable and has
-    /// no key context.
     // MARK: Drop destination (drag and drop, ruling `DN-P`)
 
     /// The element's `.dropDestination` (ruling `DN-F`), or `nil`. One
@@ -316,6 +314,8 @@ public struct Handlers {
     /// SwiftUI agrees, probe `R6e`).
     var dropDestination: DropDestinationTarget?
 
+    /// No handlers: the element is not a pointer target, not focusable and has
+    /// no key context.
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
