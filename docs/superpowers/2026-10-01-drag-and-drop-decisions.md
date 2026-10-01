@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-X`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -826,3 +826,88 @@ press sees the long press fire on release; the remedy is the other order.
 **Cost if wrong.** Item 1: a caller relying on the drop order of several
 items gets MetalUI's offered order, which SwiftUI does not promise.
 
+
+## DN-X — lane 2's corrections: a headless drag session never returns; one capture site in `paintDecoration`; the custom preview's registration, isolation and placement
+
+**Findings (lane 2, measured).**
+
+1. **AppKit starts an `NSDraggingSession` headless, and its tracking loop then
+   never returns.** A scratch program (a titled window, a view as its own
+   `NSDraggingSource`, a synthesized `.leftMouseDragged` event,
+   `beginDraggingSession(with:event:source:)`, then a 2-second
+   `RunLoop.run(mode:before:)` loop) printed `before begin` and
+   `session: <NSDraggingSession: …>` and never reached the line after the
+   loop; it was killed at 15 s. A test that started a real session would hang
+   the suite the moment Swift Testing's run loop spins. So 2.8's `true` arm is
+   pinned through an injectable starter, `AppKitWindow.startDraggingSession`
+   (the host view's own `beginDraggingSession` in production): the test
+   checks that one `NSDraggingItem` and the last `mouseDragged` event reach
+   it, and that no event means `false` and nothing started. **The real
+   hand-off is human check N3**, as spec §6.4's 2.8 anticipated for a refusal
+   — here the reason is a hang, not a refusal.
+2. **The snapshot's capture push lives once, inside `paintDecoration`**,
+   wrapping its whole body (`capturingDragSnapshot(for:)`, then
+   `paintDecorationUncaptured`), not at each of its callers; the proposal side
+   pushes in `DraggableModifier.paint`. `OM-AI`'s per-site hazard (`DN-U` item
+   6) therefore reduces to these two sites, every `StyledElement` source
+   (`Box`, `Stack`, `Text`, a `ModifiedElement` layer, and through their own
+   inner boxes `Button`, `Toggle`, `Picker`, `Stepper`, `List`) reaching the
+   first. 2.12 still enumerates every site. **M2n is re-spelled** "skip the
+   push in `paintDecoration`" (the spec's "in `ModifiedContent`'s per-layer
+   paint" has no separate site to skip): it reddens 2.12's nine styled arms,
+   2.10 and 2.13; **M2o** (skip it in `DraggableModifier.paint`) reddens
+   2.12's proposal arm alone.
+3. **`draggable(_:preview:)` registers its draggable at the wrapper's own id**
+   (as `DraggableModifier` does), so the session's source is the wrapper, the
+   content keeps every handler it had and paints no snapshot (its own id is
+   the wrapper's child 0). The preview is an `OptionalGroup` at cursor 1
+   produced only while the wrapper is the source: a `Deferred` over an
+   absolute `Box` inset to `pointer − (press − source origin)` (the source
+   origin is its hitbox's origin when the drag began), opacity 0.7. It
+   prepaints inside `allowsHitTesting(false)` **and** an accessibility
+   suppression scope — no hitbox, nothing published (`DN-N` extended to the
+   preview; a look, not a control). The `Deferred`'s 0×0 placeholder is
+   consumed by the wrapper and joins no parent: the wrapper hands its parent
+   the content's node alone, and the presentation root is laid out against
+   the window as every presentation is (`LR-CM`).
+4. **A move during a session now calls `setNeedsRedraw()`** so the preview
+   follows the pointer. **Not separately pinned**: 2.10's `needsRedraw`
+   expectation passed against lane 2's red stub, so something on the pointer
+   path already redraws on every move; the call is kept as the session's own
+   statement of need, not as a measured fix.
+5. **`Scene` gains two computed members** (`MetalUIScene`, no stored
+   property, no layout change): `highestLayer` (what the replay rises above)
+   and `layer(of:at:)` (what 2.10 reads).
+6. 2.9 builds a bare `NSDraggingSession()` to call the source method; AppKit
+   logs `error in CoreDragDispose: -1850` to stderr when it is released — a
+   system log line, not a compiler or test diagnostic.
+
+**Mutation table** (each applied to the named spelling only, committed tree
+`b216ac9`, restored from a copy, full unfiltered suite, `git status --short`
+clean after each; 2023 tests each run):
+
+| mutation | spelling | reddened (issues) |
+|---|---|---|
+| M2a | `registeredTypes = []` | `theHostViewRegistersForDraggedTypes` (1) |
+| M2b | `dropPosition` reads `draggingLocation` unconverted | `aFinderFileDropReachesAURLDestination` (1), `onlyTheImportedTypeIsReadFromThePasteboard` (1) |
+| M2c | `operation(accepting:)` always `.copy` | `aStringDropOnAURLDestinationAnswersNoOperation` (2) |
+| M2d | `draggingExited` does nothing | `draggingExitedUnTargets` (1) |
+| M2e | `dropItems` reads every type eagerly | `onlyTheImportedTypeIsReadFromThePasteboard` (2) |
+| M2f | `pasteboardType` with empty `conformsTo` | `pasteboardTypesCarryTheirUTTypeSupertypes` (3) |
+| M2g | `draggingItem` writes `representations.prefix(1)` | `anExternalDragItemCarriesEveryRepresentationAndAnImage` (1) |
+| M2h | no drag event → `true` | `beginExternalDragNeedsADragEvent` (1) |
+| M2i | source mask `.move` | `theSourceOffersCopyInBothContexts` (2) |
+| M2j | replay alpha 1 | `theDefaultPreviewReplaysTheSourceAboveEverythingAtSeventyPercent` (1), `everyDraggableStyledSiteCapturesItsPreview` (38), `aVanishedSourceKeepsItsLastSnapshot` (1) |
+| M2k | replay untranslated | `theDefaultPreview…` (1), `everyDraggableStyledSiteCapturesItsPreview` (40) |
+| M2l | the custom preview's wrapper also captures its content | `aCustomPreviewReplacesTheSnapshot` (1) |
+| M2m | the preview slot skipped (cursor advanced, nothing noted) when not the source | `aCustomPreviewReplacesTheSnapshot` (1) |
+| M2n | no push in `paintDecoration` (item 2) | `theDefaultPreview…` (1), `everyDraggableStyledSiteCapturesItsPreview` (9 — every styled arm), `aVanishedSourceKeepsItsLastSnapshot` (1) |
+| M2o | no push in `DraggableModifier.paint` | `everyDraggableStyledSiteCapturesItsPreview` (1 — the proposal arm) |
+| M2p | replay `dragSnapshot ?? []` | `aVanishedSourceKeepsItsLastSnapshot` (2) |
+| M2q | `capturingDragSnapshot` pushes for every id | `aFrameWithoutASessionCapturesNothing` (1), `aCustomPreviewReplacesTheSnapshot` (1), `aVanishedSourceKeepsItsLastSnapshot` (2) |
+| MG2.1 | the `StyledElement` overload made `internal` | `theDraggablePreviewSpellingCompilesFromAPlainImport` (1) |
+
+**Cost if wrong.** Item 1: if a later SDK ends a headless session at once,
+the injected starter still pins MetalUI's half and N3 stays the real check.
+Item 3: a caller who expects the preview's controls to respond gets nothing —
+the preview is a picture.

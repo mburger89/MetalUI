@@ -4,7 +4,7 @@ Branch `feat/drag-and-drop` from `053a3b3` (master, plan task 15 merged, PR
 #35). User request 2026-10-01 — **not a plan task**. Rulings **`DN-A`…`DN-U`**
 in a new decisions doc,
 [`../2026-10-01-drag-and-drop-decisions.md`](../2026-10-01-drag-and-drop-decisions.md)
-(next unused **`DN-V`**; `DN-S`…`DN-U` are the critic round's). Evidence:
+(next unused **`DN-Y`**; `DN-S`…`DN-U` are the critic round's, `DN-V`/`DN-W` lane 1's, `DN-X` lane 2's). Evidence:
 [`../../probes/swiftui-drag-and-drop.swift`](../../probes/swiftui-drag-and-drop.swift)
 (**new**; groups `T` Transferable, `R` fake `NSDraggingInfo`, `A`
 accessibility, `P` real pointer drags at the HID tap; header carries the
@@ -434,7 +434,7 @@ own `MetalHostView` — valid for MetalUI, which resolves from
 | 2.5 | `onlyTheImportedTypeIsReadFromThePasteboard` | an `NSPasteboardItemDataProvider` counting reads: one read, the destination's type | **M2e** eager `data(forType:)` for every type |
 | 2.6 | `pasteboardTypesCarryTheirUTTypeSupertypes` | `public.png` → `conformsTo` ⊇ `public.image`, `public.data`; `public.file-url` ⊇ `public.url` | **M2f** empty `conformsTo` |
 | 2.7 | `anExternalDragItemCarriesEveryRepresentationAndAnImage` | `draggingItem(for:at:)`'s pasteboard item holds each representation's bytes; its image is non-empty; a file URL's is the workspace icon's size | **M2g** write the first representation only |
-| 2.8 | `beginExternalDragNeedsADragEvent` | no `mouseDragged` seen → `false`; after a synthesized one through `MetalHostView.mouseDragged` → `true` **if** AppKit starts a session headless — the lane measures this first; if AppKit refuses without a real pointer, the `true` arm becomes human check N3 and the test keeps the `false` arm only (recorded) | **M2h** return `true` with no event |
+| 2.8 | `beginExternalDragNeedsADragEvent` | no `mouseDragged` seen → `false`; after a synthesized one through `MetalHostView.mouseDragged` → `true` **if** AppKit starts a session headless — the lane measures this first; if AppKit refuses without a real pointer, the `true` arm becomes human check N3 and the test keeps the `false` arm only (recorded) | **M2h** return `true` with no event — **measured (`DN-X` item 1): a headless session starts and its tracking loop never returns, so the `true` arm is pinned through the injected `AppKitWindow.startDraggingSession` and the real hand-off is N3** |
 | 2.9 | `theSourceOffersCopyInBothContexts` | `draggingSession(_:sourceOperationMaskFor:)` `.copy` for `.withinApplication` and `.outsideApplication` (P6b) | **M2i** `.move` |
 
 ### 6.4b Lane 2 — `DragPreviewTests` (`Tests/MetalUITests`, through `FakePlatformWindow`) and one guard
@@ -446,7 +446,7 @@ are the preview halves of 1.27 and 1.28.
 |---|---|---|---|
 | 2.10 | `theDefaultPreviewReplaysTheSourceAboveEverythingAtSeventyPercent` | after a 50 pt move: the scene holds the source's primitives unchanged at their place **and** a copy translated by (50, 0) with alpha × 0.7 on a layer greater than every other primitive's; masks equal the translated source bounds; gone after the drop (`DN-J`) | **M2j** replay at opacity 1 / **M2k** replay untranslated |
 | 2.11 | `aCustomPreviewReplacesTheSnapshot` | `draggable("s") { Rectangle().fill(.accent).frame(60×60) }`: the replay is the 60×60 fill at the pointer, opacity 0.7, and no source copy (P18b); a `@State` inside the preview reads its initial value on the next session (`DN-U` item 3) | **M2l** emit the snapshot as well / **M2m** keep the preview's slot out of `ID-C`'s reset |
-| 2.12 | `everyDraggableStyledSiteCapturesItsPreview` | one arm per site — `Box`, `Stack`, `Text`, a `.padding(8)` `ModifiedElement`, `Button`, `Toggle`, `Picker`, `Stepper`, a `List`, a proposal `Rectangle()` — each dragged 50 pt replays a non-empty translated copy (`DN-U` item 6) | **M2n** skip the push in `ModifiedContent`'s per-layer paint (reddens that arm) / **M2o** skip it in `DraggableModifier.paint` |
+| 2.12 | `everyDraggableStyledSiteCapturesItsPreview` | one arm per site — `Box`, `Stack`, `Text`, a `.padding(8)` `ModifiedElement`, `Button`, `Toggle`, `Picker`, `Stepper`, a `List`, a proposal `Rectangle()` — each dragged 50 pt replays a non-empty translated copy (`DN-U` item 6) | **M2n** skip the push in `paintDecoration` — the one styled site (`DN-X` item 2; reddens every styled arm) / **M2o** skip it in `DraggableModifier.paint` |
 | 2.13 | `aVanishedSourceKeepsItsLastSnapshot` | toggling the source's `if` off mid-drag: the replay is unchanged frame over frame until the drop (`DN-H` item 4) | **M2p** clear the snapshot when the source is not painted |
 | 2.14 | `aFrameWithoutASessionCapturesNothing` | with a draggable and a destination but no session: captured-primitive count 0 and the scene equal to the same tree without the modifiers (work counted) | **M2q** push the capture scope for every `paintDecoration` |
 | G2.1 | `theDraggablePreviewSpellingCompilesFromAPlainImport` | `draggable(_:preview:)` on a `StyledElement` and on a `ProposalElementGroup` under `import MetalUI` (whole-file `typecheckFile`, mutated red once) | (guard) |
