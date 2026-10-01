@@ -726,7 +726,12 @@ decisions doc is the only ruling file it may write before the Record phase.
      for draggable leaves in `cancelBehindEndedMembers` — the second alone
      enforces the ended-member rule (the draggable is cancelled at the tick
      the long press ends, before any move reaches `isBlocked`), so the first
-     alone reddens nothing.
+     alone reddens nothing. Its second site is spelled as excluding draggable leaves
+     from the `cancelled` list built in the exclusive walk: the first
+     spelling tried (skipping them in the final `fail` loop) left `cancelled`
+     non-empty with nothing failed, so `resolve()`'s `while changed` loop never
+     settled and the suite hung (killed after 66 minutes) — detected, but by a
+     hang rather than a named red test.
    - **M1i** ("let simultaneous members keep receiving after the drag
      begins") is unreachable: the session claims every pointer event after
      the begin and the arena is dropped (`DN-D` item 7), so nothing could
@@ -736,6 +741,10 @@ decisions doc is the only ruling file it may write before the Record phase.
    - **M1ab** ("wrap `StyledElement` in a modifier element") does not
      compile: the spellings return `Self`. Spelled instead as "register the
      destination region under a derived child id" — the id path 1.26 pins.
+   - **M1ae** ("hand `init(importing:)` the offered type") is spelled
+     `ContentType(offered.identifier)`, whose default parents make it unequal
+     to every built-in, so `String` refuses too: it reddens 1.29 and thirteen
+     other drop tests, not 1.29 alone.
 3. **The resolver reads non-opaque destination regions only.** An element
    that is also a pointer target registers an opaque hitbox carrying its
    whole `Handlers` — the destination included — inside the
