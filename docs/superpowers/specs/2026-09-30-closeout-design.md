@@ -10,9 +10,9 @@ Plan task 15 of [`../plans/2026-09-12-swiftui-alignment.md`](../plans/2026-09-12
 > production caller, and remove or reclassify all browser goldens as
 > migration-only historical evidence.
 
-Rulings `CX-A`…`CX-O` in
+Rulings `CX-A`…`CX-P` in
 [`../2026-09-30-closeout-decisions.md`](../2026-09-30-closeout-decisions.md)
-(next unused `CX-P`). Record: [`../../record/66-closeout.md`](../../record/66-closeout.md).
+(next unused `CX-Q`; `CX-P` is the critic round's corrections). Record: [`../../record/66-closeout.md`](../../record/66-closeout.md).
 Branch `feat/closeout` from `1b093b8`.
 
 ## 1. Baseline (measured at `1b093b8`)
@@ -71,15 +71,18 @@ date, machine, lock state and the verbatim output of two identical runs):
 
 | arm | what | expected (to be recorded, not assumed) |
 |---|---|---|
-| O0 | positive control: `@State var n: Int = 2` read in `body` before any write | 2 |
-| O1 | `@State var x: Int? = 2` read in `body` before any write | 2 (the claim `CX-F` rests on) |
-| O2 | O1 after a write of `nil` from input | `nil` (separating arm: a fix that treats a stored `nil` as absent would read 2) |
+| O0 | positive control: `@State var n: Int = 2` read in `body` before any write | **2 — recorded** (critic round, two runs identical, `CX-F`) |
+| O1n | control: `@State var x: Int? = nil` | **nil — recorded** |
+| O1 | `@State var x: Int? = 2` read in `body` before any write | **2 — recorded** (the claim `CX-F` rests on) |
+| O2 | O1 after a write of `nil` (closure from `onAppear`, re-rendered) | **nil — recorded** (separating arm: a fix that treats a stored `nil` as absent would read 2) |
 | SW0 | positive control: an `if`/`else` branch change with `.transition(.move(edge: .leading))` under `withAnimation(A)` records an offset | an offset line (task 13's recorder, copied) |
 | SW1 | the same with a three-case `switch` | an offset line, same delta as SW0 |
 | SW1n | SW1 with no transaction | nothing animated |
 
-`swiftui-border-clip-paint.swift` is re-run compiled and its C3/D1 lines
-confirmed byte-identical to its header (lane 1).
+Group O is committed with its output (critic round); lane 1 appends group SW
+and records its own two runs. `swiftui-border-clip-paint.swift` was re-run
+compiled at the critic round: K0, C3 and D1 byte-identical to its header
+(`CX-P` item 10).
 
 ## 4. Lanes (`CX-O`) — run in order; no file in two lanes
 
@@ -91,7 +94,11 @@ confirmed byte-identical to its header (lane 1).
 (new), `Tests/MetalUITests/CloseoutCompileGuards.swift` (new),
 `Tests/MetalUITests/ContainerCompileGuards.swift`,
 `Tests/MetalUITests/ModifierTests.swift`, `Tests/MetalUITests/LoweringItemTests.swift`,
-`Tests/MetalUITests/CSSSizing.swift`, any test file a `Box(style:)`
+`Tests/MetalUITests/CSSSizing.swift`,
+`Tests/MetalUITests/DecorationCompileGuards.swift` (doc comment only,
+`CX-P` item 5), `Tests/MetalUILayoutTests/NativeGridTests.swift` (the
+"Owner: plan task 15" doc comment only, `CX-P` item 6),
+`docs/verification/human-checks.md` (new, `CX-P` item 9), any test file a `Box(style:)`
 split forces a re-spelling in (expected none — `package` reaches tests),
 `.github/workflows/swift.yml`, `docs/probes/swiftui-closeout.swift` (new),
 record §66 §4. Doc comments for every census row in the `Sources/` files it
@@ -107,14 +114,32 @@ a committed tree, restored from a copy, full unfiltered suite, `git status
 | 1.2 | `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue` (`CloseoutTests`) — the same element, a write of `nil` from a click, the next frame reads `nil` | green before and after (separating arm) | M1b: `peek` treats a stored `nil` as absent (returns `nil` when `entry.value` is `Optional.none`) → 1.2 alone |
 | 1.3 | `aBackgroundWrittenAfterCornerRadiusIsSquare` (`CloseoutTests`) — proposal `Color`/`Rectangle` 40×40 `.cornerRadius(12).background(red)`: the background rect's mask radii are 0 and its corner pixel region is filled (probe C3) | pin (green on arrival) | M1c: the proposal background layer paints inside the inner clip layer's mask (pass the clip's radius to the fill) → 1.3 (and name anything else) |
 | 1.4 | `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill` (`CloseoutTests`) — `.cornerRadius(12).border(blue, 4)`: the border band is square, the fill rounded (probe D1) | pin | M1d: the border layer inherits the clip's corner radius → 1.4 |
+| 1.3L | `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration` (`CloseoutTests`) — legacy `Box` 40×40 `.cornerRadius(12).background(red)`: the answer the legacy path gives (expected rounded — one order-insensitive `Decoration`; wrong on purpose against C3, divergence 47 amended) | pin | M1cL: square the legacy background's mask → 1.3L (`CX-P` item 2) |
+| 1.4L | `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (`CloseoutTests`) — legacy `.cornerRadius(12).border(blue, 4)` (expected: the band follows the arc, divergence 49's answer; wrong on purpose against D1) | pin | M1dL: square the legacy border band → 1.4L |
 | 1.5 | `aSwitchBranchTransitionsAsAnIfElseBranchDoes` (`CloseoutTests`) — a three-case `switch` whose case content carries `.transition(.move(edge: .leading))`; a case change under `withAnimation` draws the removed case's ghost offset mid-flight exactly as the `if`/`else` arm does (both arms in one body, required to agree, and both required to differ from a no-transaction control) | pin | M1e: the transition claim ignores the second `buildEither` path (the lane finds the line; record which copy) → 1.5 |
 | 1.6 | `measureSettledStoreEntryAllocations` (`CloseoutTests`, gated `METALUI_STORE_ALLOC_MEASURE=1`) — allocations of three settled proposal-preview frames, store entries vs. a tree with none, printed | n/a (a figure) | n/a; output recorded in record §66 |
 | G1 | `aPlainImportCannotPassBoxAStyle` (`CloseoutCompileGuards`, whole-file `typecheckFile`, plain `import MetalUI`) — `Box(style: Style())` fails; control `Box()` and `Box(decoration: Decoration()) { }` compile | **red** at `1b093b8` (the call compiles) | MG1: re-publish one `style:` init → G1 red |
 | G2 | `theTypecheckGuardsRanWhereTheyAreRequired` (`CloseoutCompileGuards`) — with `METALUI_REQUIRE_GUARDS=1`, `#expect(canTypecheck)` | **red** under the default build system with the env var; green under native | MG2: the test ignores the env var → green under default-with-env (instrument proof) |
 | T1 | `ContainerCompileGuards`' G4 flexBasis arm — inverted: `flexBasis(fraction:)` **is** deprecated (`CX-C`); renamed to say so | inverted answer by ruling | MT1: delete the new `@available` → T1 red |
 
-**Counts after lane 1**: tests 1961 + 1.1–1.6 + G1 + G2 = **1969**; guards
-119 + 1 (G1; G2 calls no `typecheck`) = **120**; goldens 0; 0 `warning:` on
+**If 1.3 or 1.4 is red on arrival, lane 1 stops** — a proposal answer
+differing from SwiftUI's C3/D1 is owed a ruling (fix or new divergence),
+not a re-spelt test (`CX-P` item 2). Test 1.6's `malloc_logger` installer
+is a second one beside `ModifiedElementTests`'; gated and `--no-parallel`
+only (`CX-P` item 8). `flexBasis(percent:)` loses its `renamed:` to a
+now-deprecated spelling and takes the same `message:` (`CX-P` item 7). The
+public `Box(decoration:…)` initialisers **forward** to the package
+`init(style: Style(), …)` (`CX-P` item 5). Every sentence in lane 1's files
+naming plan task 15 as a future owner is re-spelled (`CX-P` item 6).
+
+**The human checklist** (`CX-M` item 1, moved here by `CX-P` item 9):
+`docs/verification/human-checks.md`, every item citing its record §03 (or
+task-record) source, the VoiceOver script linked, not copied; build it by
+grep of record §03 and record its command in record §66.
+
+**Counts after lane 1**: tests 1961 + 1.1–1.6 + 1.3L + 1.4L + G1 + G2 =
+**1971**; guards 119 + G1 + G2 = **121** (CLAUDE.md's `grep -c
+canTypecheck` rule counts G2, which calls `canTypecheck`; `CX-P` item 4); goldens 0; 0 `warning:` on
 both build systems (the T1 callers move to `cssFlexBasis(fraction:)` or the
 `DeprecatedSpelling` witness). `swift package clean` after the `Box`
 initialiser change (a public type's initialisers cross a module boundary).
@@ -156,24 +181,23 @@ does not: `MetalUITests`).
 the four documents resolves in `Tests/`; every ruling id resolves in
 `docs/superpowers/`.
 
-### Lane 3 — doc comments and the human checklist (Sonnet acceptable for the checklist; Opus or Sonnet for doc comments)
+### Lane 3 — doc comments (Opus or Sonnet)
 
 **Files**: every `Sources/**/*.swift` file **except** lane 1's four, doc
-comments only (`docs/probes/closeout-undocumented.sh` is committed at design, reading 592);
-`docs/verification/human-checks.md` (new).
+comments only (`docs/probes/closeout-undocumented.sh` is committed at design, reading 592),
+including re-spelling `ModifiedContent.swift`'s "its fate is plan task 15's"
+sentence to `CX-C` item 3 (`CX-P` item 6).
 
 **Work**: (1) `CX-K`: bring `closeout-undocumented.sh` to 0;
 `git diff <lane-2 tip> -- Sources | grep -E '^[-+]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[-+]\s*///'`
-prints nothing (comment-only). (2) `CX-M` item 1: the checklist, every item
-citing its record §03 (or task-record) source; the VoiceOver script linked,
-not copied.
+prints nothing (comment-only). (The checklist moved to lane 1, `CX-P` item 9.)
 
-**Check**: full suite count unmoved from lane 1's (1969); 0 `warning:`; 0 px
+**Check**: full suite count unmoved from lane 1's (1971); 0 `warning:`; 0 px
 (nothing can move — re-taken anyway at the Record phase).
 
 ## 5. Record phase (Sonnet; after lane 3)
 
-Re-take counts after `swift package clean` (expected **1969 / 0 / 120**),
+Re-take counts after `swift package clean` (expected **1971 / 0 / 121**),
 the fourteen-image comparison, `Backends/SDL`, the container; re-run the lock
 probe and, if unlocked, `capture.sh <scratch> 1b093b8 <HEAD>`; the closing
 check and the golden grep (`CX-N`). Then — the only phase that may — edit
@@ -183,7 +207,8 @@ documents; the WebKit section labelled migration-only history), the plan
 a dated note naming `docs/verification/human-checks.md`, per `CX-M` item 3),
 `docs/record/README.md` (row 66), record §03 (a dated section: the design-time
 capture and the checklist), §04 (85 retired, `CX-G`'s retirements, 52/61/62
-kept owner none), §05 (`Box(style:)` row deleted; `AXNode.actions` row
+kept owner none, 47 amended with the legacy C3/D1 answer, every stale pin
+name lane 2 lists corrected — `CX-P` items 2, 3), §05 (`Box(style:)` row deleted; `AXNode.actions` row
 re-read), and record §66's close. `goldensUnchanged`: no `@Test` removed; one
 retained test's answer inverted by ruling (T1, `CX-C`).
 

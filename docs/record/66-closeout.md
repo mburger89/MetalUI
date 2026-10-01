@@ -2,10 +2,19 @@
 
 Branch `feat/closeout` from `1b093b8` (master: plan task 13 merged, task 14's
 record). Spec `docs/superpowers/specs/2026-09-30-closeout-design.md`; rulings
-`CX-A`…`CX-O` in `docs/superpowers/2026-09-30-closeout-decisions.md` (next
-unused `CX-P`); probe `docs/probes/swiftui-closeout.swift` (lane 1).
+`CX-A`…`CX-P` in `docs/superpowers/2026-09-30-closeout-decisions.md` (next
+unused `CX-Q`); probe `docs/probes/swiftui-closeout.swift` (lane 1).
 
-**Status: DESIGN committed; lanes 1–3 and the Record phase to run.**
+**Status: DESIGN committed and critiqued (`CX-P`); lanes 1–3 and the Record phase to run.**
+
+**Critic round (2026-09-30).** Probe group O committed and run twice
+(identical): O0 2, O1n nil, **O1 2**, O2 nil — `CX-F`'s SwiftUI claim
+measured. `swiftui-border-clip-paint.swift` re-run: K0, C3, D1
+byte-identical. Corrections in `CX-P`: test numbering; legacy C3/D1 pins
+1.3L/1.4L (row 47 read "unpinned"); divergence 52's stale pin name; guard
+count 121 (G2 calls `canTypecheck`); `Box(decoration:)` forwards to the
+package init; three "task 15" sentences the sweep table missed; the
+checklist moved to lane 1. Expected counts after lane 1: **1971 / 0 / 121**.
 
 ## §0 Design session (2026-09-30)
 
@@ -183,6 +192,10 @@ hits at `1b093b8`:
 | two-axis scrolling, divergence 54 | `DD-AB` item 5 | R row / D row kept |
 | `colorScheme` | `TE-AO` item 1 | R row |
 | the inventory catching missed items | `IX-AD`, `TE-A` cost paragraphs | §1 and the check (`CX-A`) |
+| elliptical corners, `UnevenRoundedRectangle` | shapes spec §9 table | R row (`CX-I` item 3, `CX-P` item 6) |
+| `ModifiedElement`'s "fate is plan task 15's" doc sentence | `ModifiedContent.swift` | `CX-C` item 3; lane 3 re-spells |
+| divergences 61/62 "Owner: plan task 15's closeout" doc comment | `NativeGridTests.swift` | `CX-H`; lane 1 re-spells |
+| `flexBasis(percent:)`'s `renamed:` to a now-deprecated name | `Box.swift` | `message:` instead (`CX-P` item 7) |
 
 Lane 2 re-runs the grep at its tip and adds any hit this table does not
 cover.

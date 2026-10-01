@@ -10,7 +10,7 @@ production caller and no browser golden remains. Spec:
 [`specs/2026-09-30-closeout-design.md`](specs/2026-09-30-closeout-design.md).
 Record: [`../record/66-closeout.md`](../record/66-closeout.md).
 
-Prefix **`CX-`**, lettered. **Next unused: `CX-P`.** (This line moves in the
+Prefix **`CX-`**, lettered. **Next unused: `CX-Q`.** (This line moves in the
 commit that appends a ruling; read the last `## CX-` heading.)
 
 Branch `feat/closeout` from `1b093b8` (master: task 13 merged, task 14's
@@ -118,9 +118,13 @@ one.
      except `swiftui-border-clip-paint.swift` **C3**
      (`.cornerRadius(12).background(red)`: the background is square) and
      **D1** (`.cornerRadius(12).border(blue, 4)`: a square border over the
-     rounded fill). Lane 1 adds both on the proposal path (tests 1.4, 1.5),
-     where `.cornerRadius` is a clip layer (`TE-AJ`); the legacy path's
-     answer is divergence 47/49's, already documented.
+     rounded fill). Lane 1 adds both on the proposal path (tests **1.3,
+     1.4** — corrected by `CX-P` item 1), where `.cornerRadius` is a clip
+     layer (`TE-AJ`), **and** pins the legacy path's answer to the same two
+     chains (tests 1.3L, 1.4L, `CX-P` item 2): record §04's row 47 itself
+     reads "C3/D1 orders unpinned", so "already documented" was not true of
+     the legacy order until those pins land and row 47 is amended to state
+     the legacy answer.
    - *The focus ring's look* is a human check (`CX-M`), not a clause of the
      task's text, which asks for an audit and pins — the same reading
      `AN-AG` made for task 13.
@@ -216,8 +220,12 @@ worse than documenting it — the reason `LR-EY` moved it here rather than
 deciding it inside a 0-px stage. Kept, owner **none**; the migration guide
 names it in its `Row {}` → `HStack {}` row ("set `spacing: 0`, or accept 8").
 
-**Evidence.** Probe `swiftui-stack-algorithms.swift` S; pin
-`aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`.
+**Evidence.** Probe `swiftui-stack-algorithms.swift` S; live pin
+`aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`
+(`LoweringDistributionTests`) — record §04's row still names
+`aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`,
+which no longer exists in `Tests/` (retired at stage 7b); the Record phase
+corrects the row (`CX-P` item 3).
 
 **Cost if wrong.** A reader porting `Row` to `HStack` still sees 8 points
 appear; the migration row is where they will look.
@@ -230,9 +238,11 @@ appear; the migration row is where they will look.
 an optional `S` and an **absent** entry, `nil as? S` succeeds as
 `.some(nil)`, so `State.wrappedValue`'s `?? initialValue` never runs and
 `@State var x: Int? = 2` reads `nil` until its first write. SwiftUI reads
-`2` (probe `swiftui-closeout.swift` arm O1, with O0, a non-optional
-`@State`, as the positive control, and O2, a written `nil` reading `nil`, as
-the separating arm). **Fix**: `peek` distinguishes absent from stored —
+`2` — **measured at the critic round** (`docs/probes/swiftui-closeout.swift`
+group O, two runs byte-identical, recorded in its header): O0 (a
+non-optional `@State var n: Int = 2`, positive control) reads 2, O1n
+(`Int? = nil`) reads nil, **O1 (`Int? = 2`) reads 2**, and O2 (O1 after a
+write of `nil`) reads nil — the separating arm. **Fix**: `peek` distinguishes absent from stored —
 `guard let entry = storage[id] else { return nil }; return entry.value as?
 S`. Every other `peek` caller reads a non-optional `S` (`FocusStateValue`,
 `ListOrigin`, `AXNode`, `Bool`, the animation states), whose answer cannot
@@ -327,7 +337,7 @@ and this ruling dates the latest re-run.
 2. **`switch` transitions** (record §64 §14, "not pinned"): probe arm SW1
    (a `switch` branch change with `.transition(.move(edge: .leading))` under
    `withAnimation` records an offset; SW1n without animation records
-   nothing) and test 1.6.
+   nothing) and test **1.5** (corrected by `CX-P` item 1).
 3. **Documented absences, owner none** (R rows of the inventory and of the
    public docs): Increase Contrast and the other system accessibility
    settings (`colorSchemeContrast`, reduce transparency, differentiate
@@ -338,7 +348,10 @@ and this ruling dates the latest re-run.
    as open protocols, `.borderedProminent`, `.link`, `.toggleStyle`,
    `.pickerStyle(.menu)` (`IX-E`, `IX-M`); `sequenced`, `@GestureState`,
    `GestureMask` (`IX-B`); `Path`, gradients, `StrokeStyle`, SF Symbols
-   (spec `2026-09-28-shapes-and-rendering-design.md` §9). Each is one row,
+   (spec `2026-09-28-shapes-and-rendering-design.md` §9); elliptical
+   corners (`RoundedRectangle(cornerSize:)`) and `UnevenRoundedRectangle`
+   (the same spec's §9 table, "plan task 15's" — found by the critic
+   round's grep, `CX-P` item 6). Each is one row,
    none a numbered divergence (nothing exists to diverge).
 4. **Guards skipping under the default build system** — `CX-J`.
 5. **Missing doc comments** — `CX-K`.
@@ -516,11 +529,92 @@ re-run on this branch.
 ## CX-O — three lanes, run in order, over disjoint files
 
 **Ruling.** Lane 1 (code: every `Sources/`/`Tests/`/CI change and the
-closeout probe) → lane 2 (the inventory map and check, record §66's tables,
+closeout probe, and — since `CX-P` item 9 — `docs/verification/human-checks.md`)
+→ lane 2 (the inventory map and check, record §66's tables,
 tasks 4/5 settlement text, `docs/divergences.md`, `docs/migration.md`,
 `docs/api-overview.md`) → lane 3 (doc comments in every `Sources/` file lane
-1 does not edit, and `docs/verification/human-checks.md`). Lane 2 runs after
+1 does not edit). Lane 2 runs after
 lane 1 so 85's retirement and `CX-C`/`CX-D` are in the documents; lane 3
 after lane 2 so doc comments can cite the divergence list. Spec §4 lists each
 lane's files; no file is in two lanes.
 
+---
+
+## CX-P — critic round: corrections to the committed design
+
+**Ruling.** The critic round (2026-09-30) attacked commit `6e14813` and
+corrects it as follows; the spec is amended to match.
+
+1. **Test numbers.** `CX-B` named the C3/D1 pins 1.4/1.5 and `CX-I` the
+   `switch` pin 1.6, where the spec numbers them 1.3/1.4 and 1.5 (1.6 is the
+   allocation measurement). The spec's numbering stands; both rulings now
+   cite it.
+2. **The legacy C3/D1 order is pinned too.** Record §04's row 47 reads
+   "(C3/D1 orders unpinned)", so task 5's "test order-sensitive chains"
+   clause is not closed by proposal-path pins alone. Lane 1 adds **1.3L**
+   `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration` and
+   **1.4L** `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (names may
+   be re-spelled to what they find): `Box` 40×40 with the two chains,
+   asserting the answer the legacy path actually gives (expected: one
+   `Decoration`, order-insensitive, so the background and the border are
+   both rounded — wrong on purpose against probe C3/D1), each with a
+   mutation that reddens it (M1cL: make the legacy background's mask
+   square; M1dL: square the legacy border band). The Record phase amends
+   row 47 to state the legacy answer and drop "unpinned". **If either
+   proposal pin (1.3, 1.4) is red on arrival**, lane 1 stops: that is a
+   lowering answer differing from SwiftUI's, owed a ruling (fix or a new
+   divergence), not a re-spelt test.
+3. **Stale pin names in the divergence table.** `CX-E`'s pin
+   (`aLegacyRowAndColumnDefault…`) does not exist in `Tests/`; the live pin
+   is `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault`. Lane
+   2's `CX-G` table resolves **every** row's pin by grep and lists each
+   stale name; the Record phase corrects record §04's rows.
+4. **Guard count.** CLAUDE.md counts guards by `grep -c canTypecheck`;
+   G2 (`theTypecheckGuardsRanWhereTheyAreRequired`) calls `canTypecheck`,
+   so it counts. Guards after lane 1: **121** (119 + G1 + G2), not 120.
+   Tests after lane 1: **1971** (1961 + 1.1–1.6 + 1.3L + 1.4L + G1 + G2).
+5. **`CX-D`'s forwarding.** The new public `Box.init(decoration:…)`
+   initialisers forward to the `package` `init(style: Style(), …)` — never
+   a second copy of its body — so whatever the package init does to the
+   style (`EP-8`'s stretch default) is unchanged for every caller; the
+   fourteen in-repo `Box(decoration:` callers resolve to the public init
+   with an identical result. `DecorationCompileGuards`' doc comment, which
+   says `Decoration` is reachable "through `Box(style:decoration:)`", is
+   re-spelled to `Box(decoration:)` by lane 1. No typecheck fixture string
+   contains `Box(style:` (grep at `6e14813`), so no guard's fixture breaks;
+   lane 1 re-greps at its tip. `Backends/SDL`, `Tests/PortableTests` and
+   `Experiments` contain no `Box(style:`/`Stack(style:` call (grep), so the
+   `package` narrowing reaches no other package.
+6. **The "task 15" sweep had gaps.** The grep finds, beyond §3's table:
+   the shapes spec's elliptical-corner/`UnevenRoundedRectangle` row (now in
+   `CX-I` item 3); `ModifiedContent.swift`'s `ModifiedElement` doc comment
+   ("its fate is plan task 15's" — `CX-C` item 3 disposes it; lane 3
+   re-spells the sentence); `NativeGridTests.swift`'s divergence-61/62 doc
+   comment ("Owner: plan task 15's closeout" — `CX-H`; lane 1 re-spells
+   it). Every `Sources/`/`Tests/` sentence that names plan task 15 as a
+   future owner is re-spelled by the lane that owns the file, so a
+   post-merge grep of `Sources Tests` finds only past-tense mentions.
+7. **`flexBasis(percent:)`.** Its `@available(…, renamed:
+   "flexBasis(fraction:)")` would point at a spelling `CX-C` item 2
+   deprecates; lane 1 gives it the same `message:` as `flexBasis(fraction:)`
+   (not a `renamed:` to a deprecated name).
+8. **A second `malloc_logger` installer.** Test 1.6 installs one beside
+   `ModifiedElementTests`' own, re-opening the two-installer race CLAUDE.md
+   records as moot; it is gated (`METALUI_STORE_ALLOC_MEASURE=1`) and run
+   only `--no-parallel`, and its doc comment says so.
+9. **Lane balance.** `docs/verification/human-checks.md` moves from lane 3
+   to lane 1 (a grep of record §03 and the task records, small beside lane
+   3's 592 doc comments and lane 2's inventory). `CX-O` is amended to
+   match.
+10. **Verified, no change.** `swiftui-border-clip-paint.swift` re-run
+    compiled at this round: K0, C3 and D1 byte-identical to its header.
+    The census was cross-checked by an independent grep (1871 declarations
+    by a looser regex; no `public extension` in `Sources/`, no modifier
+    keyword before `public`), so members of a public extension without
+    their own `public` cannot hide from it. The tasks 4/5 citation
+    `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`
+    resolves (`OuterModifierMatrixTests`). The CI job does run the default
+    build system today (`swift build -v`), so `CX-J`'s premise holds.
+
+**Cost if wrong.** Items 2 and 4 move the expected counts; a lane that
+lands the spec's old figures would read the new ones as a regression.
