@@ -90,8 +90,15 @@ public struct State<Value> {
     let box = Box()
     let initialValue: Value
 
+    /// `@State var name = value`: `value` is what the state reads until its
+    /// first write — an optional with a non-`nil` default included (`CX-F`).
     public init(wrappedValue: Value) { self.initialValue = wrappedValue }
 
+    /// The value stored in the window's `StateTable` for this slot, or the
+    /// initial value until the first write. A write marks the window dirty —
+    /// write from input, never from a phase. Since plan task 15 an ABSENT
+    /// entry reads the initial value whatever `Value` is (`StateTable.peek`,
+    /// `CX-F`, divergence 85 retired); a written `nil` reads `nil`.
     public var wrappedValue: Value {
         get {
             guard let table = box.table, let slotID = box.resolvedSlot else {

@@ -169,6 +169,18 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     }
 }
 
+/// **Class D, plan task 15** (`CX-C` item 2): `flexBasis(fraction:)` is
+/// deprecated, so its row is built in a deprecated witness too and spliced back
+/// where it stood.
+private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
+    @available(*, deprecated, message: "calls flexBasis(fraction:) on purpose: it is the subject of everyPublicModifierWritesItsOwnFieldAndOnlyThatField's row (plan task 15, CX-C)")
+    func spelled() -> [ModifierCase] {
+        [ModifierCase(name: "flexBasis(fraction:)",
+                      apply: { $0.flexBasis(fraction: 44) },
+                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) })]
+    }
+}
+
 /// Every direct-style modifier writes its own field, and only its own field.
 ///
 /// **Every value below is distinct, and none is a default.** Both halves are
@@ -271,9 +283,9 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
         ModifierCase(name: "flexBasis(_ points:)",
                      apply: { $0.flexBasis(px(43)) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) }),
-        ModifierCase(name: "flexBasis(fraction:)",
-                     apply: { $0.flexBasis(fraction: 44) },
-                     effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
+        // `flexBasis(fraction:)`'s row, unchanged, in a class-D witness since
+        // plan task 15 deprecated it (`CX-C` item 2; `DeprecatedFlexBasisCase`).
+    ] + oldSpelling(DeprecatedFlexBasisCase()) + [
         ModifierCase(name: "alignSelf(_:)",
                      apply: { $0.alignSelf(.flexEnd) },
                      effect: { s, _, _, _ in s.alignSelf = .flexEnd }),

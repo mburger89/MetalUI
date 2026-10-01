@@ -14,12 +14,17 @@ jobs:
 
     runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image)
 
+    # Native build system, with the typecheck guards REQUIRED (plan task 15,
+    # ruling CX-J): under the default build system every guard finds no
+    # .build/<triple>/debug/Modules and returns true for free, so none of them
+    # ever ran here. METALUI_REQUIRE_GUARDS=1 makes that skip a failure
+    # (theTypecheckGuardsRanWhereTheyAreRequired).
     steps:
     - uses: actions/checkout@v7
     - name: Build
-      run: swift build -v
+      run: swift build -v --build-system native --build-tests
     - name: Run tests
-      run: swift test -v --no-parallel
+      run: METALUI_REQUIRE_GUARDS=1 swift test -v --build-system native --no-parallel
 
   # MetalUIScene, MetalUIFreeType, MetalUIHarfBuzz and MetalUIPortableText must
   # build without Apple frameworks (rulings PS-G, FT-K, SH-K, PT-A): a Metal, CoreText or CoreGraphics

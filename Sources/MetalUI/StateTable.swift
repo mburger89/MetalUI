@@ -737,8 +737,20 @@ final class StateTable {
     /// value for an element that was not produced this frame — that is the
     /// whole point of a tombstone. Use `isLive(_:)` to ask whether the owning
     /// element was actually produced.
+    ///
+    /// **An absent entry is `nil` whatever `S` is** (plan task 15, ruling
+    /// `CX-F`, divergence 85 retired). This read `storage[id]?.value as? S`,
+    /// and for an optional `S` the cast of an absent entry's `nil` to `S`
+    /// succeeds as `.some(nil)` — so `State.wrappedValue`'s `?? initialValue`
+    /// never ran and `@State var x: Int? = 2` read `nil` until its first
+    /// write, where SwiftUI reads 2 (`docs/probes/swiftui-closeout.swift` O1).
+    /// A STORED `nil` is still a value and still reads `nil` (O2) — the absent
+    /// case is told apart by the dictionary lookup, never by the stored value.
+    /// Pinned by `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`
+    /// and its separating arm `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue`.
     func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
-        storage[id]?.value as? S
+        guard let entry = storage[id] else { return nil }
+        return entry.value as? S
     }
 
     /// Whether `id`'s element was produced by the frame now being built (more
