@@ -312,10 +312,11 @@ pinned by that arm itself: a helper writing nothing would report nothing).
   `MetalUILayout` imports only `MetalUICore`.
 - `peek`'s other callers re-read at the tip: `AnimatedColorState`,
   `FocusStateValue<Value>`, `ListOrigin`, `AXNode`, `Bool`,
-  `AnimatedElementState` — none optional, so none can change. **Noted, not
-  changed**: `StateTable.withState` has the same `as? S ?? initial()` shape
-  (an optional `S` over an absent entry would skip `initial()`); no caller
-  passes an optional `S`, so it is latent, outside `CX-F`'s ruling.
+  `AnimatedElementState` — none optional, so none can change.
+  `StateTable.withState` had the same `as? S ?? initial()` shape; this
+  bullet first called it "latent, no caller passes an optional `S`" — **wrong**:
+  it is public through `LayoutPass`/`PrepaintPass`/`PaintPass.withState`.
+  Fixed in the fix round (§4.7, `CX-Q` item 1).
 - **No `Box(style:` in a typecheck fixture string, and none in
   `Backends/SDL`, `Tests/PortableTests` or `Experiments`** (re-grepped at the
   tip), so the `package` narrowing reaches no other package.
@@ -353,6 +354,27 @@ and record §19's frozen "Human verification" table (every row not closed).
 Groups A (real-window capture) through M (older milestone rows), each item
 citing its source; the VoiceOver script is linked as L1, not copied. Not run:
 an agent cannot.
+
+### §4.7 Fix round (`CX-Q`, commit `01afd16`)
+
+The verifier's four findings, each fixed red-first or pinned and mutated:
+
+| Finding | Fix | Test | Mutation → reddened (full unfiltered suite of 1974) |
+|---|---|---|---|
+| major: `Box(decoration:)` unpinned (V-BOXDEC/V-BOXDECB green at 1971) | painted pin, both forms, with and without content, against the `package` `Box(style: Style(), …)` | `thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints` (green on arrival — the code was right) | V-BOXDEC (plain form forwards `Decoration()`) → that test alone; V-BOXDECB (builder form) → that test alone |
+| major: H1, I1, J1, K1–K3 had nothing to run | looks demo, `METALUI_LOOKS_DEMO=1` (`CX-Q` item 3); checklist items reference it | `theLooksDemoDrawsEverySurfaceItsHumanChecksName` (2 ellipses, 4 images, depth 11, a press inserts the opacity tile); `everyProductionTreeBuildsOnAOneMegabyteThread` builds it | V-LOOKS (drop the ellipse stroke band) → that test alone |
+| minor: `flexBasis(percent:)`'s body copy unpinned | its own class-D row, 51 → 52 cases | `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` | V-PERCENT (`percent * 2`) → that test alone |
+| minor: `withState` over an optional `S` (§4.5's "latent" was wrong) | absent vs stored by lookup (`CX-Q` item 1) | `thePublicWithStateHandsAnOptionalStateItsInitialValueOnFirstAccess` (red first: `[nil, nil]`) | V-WITHSTATE (restore the old line) → that test alone |
+
+`git status --short` empty after each mutation. Counts: **`Test run with 1974
+tests in 3 suites passed after 104.227 seconds`** (1971 + 3; the FR-J line
+present); guards 121, unmoved; 0 `warning:`/`error:` under the default build
+system (`swift build --build-tests`), only SwiftPM's deprecation notice under
+native. **0 px against `1b093b8` in all fourteen offscreen images**, every
+scene identical (`docs/probes/demo-pixels/compare.sh … 1b093b8 01afd16`).
+`Expected.swift` unedited. Not re-taken: `Backends/SDL` (no file it builds
+changed), a `swift:6.4-noble` container (no Docker); `LooksDemo.swift` is in
+the portable `MetalUIDemoContent` target, owed to Linux/Windows CI on push.
 
 ## §5 Tasks 4 and 5, clause by clause (`CX-B`) — lane 2
 

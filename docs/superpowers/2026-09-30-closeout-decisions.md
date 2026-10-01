@@ -10,7 +10,7 @@ production caller and no browser golden remains. Spec:
 [`specs/2026-09-30-closeout-design.md`](specs/2026-09-30-closeout-design.md).
 Record: [`../record/66-closeout.md`](../record/66-closeout.md).
 
-Prefix **`CX-`**, lettered. **Next unused: `CX-Q`.** (This line moves in the
+Prefix **`CX-`**, lettered. **Next unused: `CX-R`.** (This line moves in the
 commit that appends a ruling; read the last `## CX-` heading.)
 
 Branch `feat/closeout` from `1b093b8` (master: task 13 merged, task 14's
@@ -618,3 +618,46 @@ corrects it as follows; the spec is amended to match.
 
 **Cost if wrong.** Items 2 and 4 move the expected counts; a lane that
 lands the spec's old figures would read the new ones as a regression.
+
+---
+
+## CX-Q — lane 1's fix round: `CX-F`'s rule reaches the public `withState`; a looks demo is the human checklist's runnable surface
+
+Lane 1's verifier found two majors and two minors (record §66 §4.7).
+
+1. **`CX-F` extends to `StateTable.withState`.** The record's first reading
+   called its `(storage[id]?.value as? S) ?? initial()` "latent" because no
+   in-package caller passes an optional `S` — but `withState` is public
+   through `LayoutPass`/`PrepaintPass`/`PaintPass.withState`, so an external
+   element calling `pass.withState(id, initial: Optional(5))` on an absent
+   entry received `nil`, divergence 85's own shape on a public path. Fixed
+   the same way: the absent case is told apart by the dictionary lookup, a
+   stored value cast to `S` is used, anything else takes `initial()` (a stored
+   value of another type took `initial()` before too, so no other answer
+   moves). Red first: `thePublicWithStateHandsAnOptionalStateItsInitialValueOnFirstAccess`
+   read `[nil, nil]`. No in-package caller changes answer (all non-optional).
+2. **`Box(decoration:)` gets a painted pin**
+   (`thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints`,
+   both forms, with and without content), and **`flexBasis(percent:)` its own
+   class-D row** in `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`
+   (51 → 52 cases): a copy of a pinned body is unpinned, and forwarding
+   between two deprecated spellings is not what `CX-P` item 7 chose.
+3. **The looks demo.** `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`
+   (`Sources/MetalUIDemoContent/LooksDemo.swift`, public
+   `looksDemoContent()`) builds the surfaces human checks H1, I1, J1 and
+   K1–K3 look at, which no demo tree built: three texts under
+   `.controlSize(.mini/.small/.regular)`; an ellipse fill and band, a capsule,
+   a rounded clip over a larger rectangle, a resizable image `.fit`/`.fill`,
+   a checker at `.interpolation(.none)` and the default; double-tap,
+   long-press and drag pads with counters; one button per K1 transition
+   toggling a text-bearing tile under `withAnimation(.easeInOut(duration:
+   0.8))`. Each section is its own function passed to a generic composer
+   (the Windows 1 MB stack rule); it joins
+   `everyProductionTreeBuildsOnAOneMegabyteThread` and is smoke-tested by
+   `theLooksDemoDrawsEverySurfaceItsHumanChecksName`. It is not in the default
+   demo, so the fourteen offscreen images read 0 px. `CX-M` item 1 holds:
+   every checklist item names what to run.
+
+**Cost if wrong.** Item 1 changes a public API's answer for an optional
+`S` over an absent entry; an external caller that relied on reading `nil`
+there now reads its own `initial` — the value it asked for.
