@@ -105,7 +105,8 @@ claim than it is:
   states this). `AppKitPlatform`/`AppKitWindow` and `SDLPlatform`/`SDLWindow`
   both implement all four today; a third conformer on an already-supported
   platform would still owe them, same as before this ruling.
-- VoiceOver itself has only ever been validated by a human on macOS
+- VoiceOver itself has never been run by a human on any platform yet — the
+  macOS script is written but unrun
   (`docs/verification/voiceover-script.md`, plan task 12, part 2) — AccessKit's
   AT-SPI (Linux) and UI Automation (Windows) surfaces are exercised by
   `Backends/SDL`'s own automated tests (`AccessKitTests`,

@@ -458,7 +458,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   text kept as history). `PB-A` also names what lifting the boundary would
   need and the gaps a reader might otherwise assume are covered on the
   supported platforms (both conformers implement `AB-R`/`EV-AB`'s
-  defaultless pair; VoiceOver is validated only on macOS; the real-window
+  defaultless pair; VoiceOver has not yet been run by a human on any platform (the macOS script is unrun); the real-window
   capture debt has only ever been taken on macOS). Docs-only: 0
   `Sources:`/`Tests:` files changed, counts unmoved from task 13's **1959 /
   0 / 119**.

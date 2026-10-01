@@ -58,7 +58,8 @@ directly rather than re-derived:
   `SDLPlatform`/`SDLWindow`) implement all four; this ruling changes nothing
   about that obligation for a third conformer on an already-supported
   platform.
-- VoiceOver has only ever been validated by a human on macOS
+- VoiceOver has never been run by a human on any platform yet — the macOS
+  script is written but unrun
   (`docs/verification/voiceover-script.md`, plan task 12 part 2, still
   unticked pending that run, record §63). AccessKit's Linux (AT-SPI) and
   Windows (UI Automation) surfaces are exercised by `Backends/SDL`'s own
