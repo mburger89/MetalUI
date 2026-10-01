@@ -1825,3 +1825,27 @@ default demo).
 
 **Plan task 15 stays unticked** on this file's evidence: the human looks are
 owed, not agent-doable; plan task 12's box waits on group L alone.
+
+## 2026-10-01: no demo look changes; group N's eight looks owed (drag and drop)
+
+Record §68, rulings `DN-Q`, `DN-Z` item 2. No tree the default demo builds
+calls a new API: **0 differing pixels and identical scenes in all fourteen
+offscreen images against `053a3b3`**, re-taken at lane 3's close and at the
+Record phase, controls non-zero. The new demo (`METALUI_DND_DEMO=1`, on both
+`MetalUIDemo` and `MetalUISDLDemo`) is its own tree and is in none of the
+fourteen. The lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep
+main: 1` at lane 3's close and at the Record phase's close, so `capture.sh` was
+**not run**; the last unlocked reading remains 2026-09-30 (`6c961e3 → 1b093b8`,
+0 differing). **Owed, new here — `docs/verification/human-checks.md` group N,
+none performed (an agent cannot)**: N1 an in-window drag (translucent preview,
+the press point under the pointer, the source staying put); N2 `isTargeted`'s
+highlight on enter, leave, re-enter, and Escape; N3 a chip dragged out of the
+window onto TextEdit and Finder (the AppKit `NSDraggingSession` hand-off and
+its drag image); N4 a Finder file and TextEdit text dropped onto the wells;
+N5 the same two drops onto `MetalUISDLDemo` on macOS and, if available, Linux
+and Windows (SDL positions; divergence 102's optimistic highlight); N6 a
+`List` row clicks to select and drags without selecting; N7 (optional)
+VoiceOver reads chips and wells as without drag and drop; N8 (optional) a chip
+held past its long press before moving does not drag. Real pointer drags in
+SwiftUI were measured only by probe group `P` at the HID tap; the preview's
+exact opacity, shadow and anchor are MetalUI's own choice, unmeasured.

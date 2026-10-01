@@ -42,6 +42,9 @@ private func conformer(pair: String) -> String {
         func writeClipboard(_ text: String) {}
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
+        // Drag and drop's hand-off (`DN-C` item 2), defaultless too, so every
+        // arm here carries it; `DragAndDropCompileGuards` pins it.
+        func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
         // Plan task 13's Reduce Motion pair (`AN-AD`), defaultless too, so
         // every arm here carries it; `TransactionCompileGuards` pins it.
         var accessibilityReduceMotion: Bool { false }

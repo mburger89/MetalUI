@@ -799,3 +799,14 @@ exist with no production reader):
 
 **No row added by tasks 13–15 beyond the above**: `accessibilityReduceMotion`
 and the closeout's looks demo are read by their own consumers.
+
+## 2026-10-01: no row added or deleted (drag and drop)
+
+Record §68. `PlatformWindow.beginExternalDrag` is read by the window's drag
+session on every platform, and answers `false` on `SDLWindow` by ruling (SDL3
+has no outgoing-drag API, divergence 101), not by being unread. `DropItem`,
+`PasteboardType` and `DragRepresentation` are read by the shared drop path.
+`.draggable(_:preview:)`'s preview is a picture: it registers no hitbox and
+publishes nothing to accessibility by design (`DN-X` item 3), not an inert
+declaration. The one SDL setting nothing pins, `SDL_SetEventEnabled` for
+`SDL_EVENT_DROP_FILE`/`TEXT`, is a defensive call, not a declared property.

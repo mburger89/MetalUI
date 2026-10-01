@@ -120,6 +120,49 @@ private struct HandlerShape: Equatable {
     /// below writes it — a `FocusState` box needs a body to bind in — so a
     /// modifier that wrote it by accident is a mismatch here.
     var focusBinding = false
+    /// Drag and drop (ruling `DN-P`): the fifteenth member, the destination,
+    /// and — because `.draggable` appends to `gestures` — how many of the
+    /// gestures are draggables, so a `.draggable` that appended some other
+    /// gesture (or a gesture modifier that appended a draggable) is a mismatch
+    /// rather than a coincidence of `gestureCount`.
+    var dropDestination = false
+    var draggableCount = 0
+
+    /// The projection of one element's `Handlers` — every member, one field
+    /// each. The table below and the chain test after it read through this
+    /// one function, so a member added here is compared everywhere at once.
+    @MainActor init(_ h: Handlers) {
+        self.init(click: h.onClick != nil,
+                  key: h.onKey != nil,
+                  focusable: h.isFocusable,
+                  actionCount: h.actions.count,
+                  context: h.keyContext,
+                  axNode: h.axNode,
+                  allowsHitTesting: h.allowsHitTesting,
+                  contentShapeInset: h.contentShapeInset,
+                  textInput: h.textInput != nil,
+                  valueTrack: h.valueTrack != nil,
+                  gestureCount: h.gestures.count,
+                  keyboardShortcut: h.keyboardShortcut != nil,
+                  contentShape: h.contentShape != nil,
+                  focusBinding: h.focusBinding != nil,
+                  dropDestination: h.dropDestination != nil,
+                  draggableCount: h.gestures.filter(\.isDraggable).count)
+    }
+
+    init(click: Bool = false, key: Bool = false, focusable: Bool = false, actionCount: Int = 0,
+         context: KeyContext? = nil, axNode: AXNode = AXNode(), allowsHitTesting: Bool = true,
+         contentShapeInset: Edges<Pixels>? = nil, textInput: Bool = false, valueTrack: Bool = false,
+         gestureCount: Int = 0, keyboardShortcut: Bool = false, contentShape: Bool = false,
+         focusBinding: Bool = false, dropDestination: Bool = false, draggableCount: Int = 0) {
+        self.click = click; self.key = key; self.focusable = focusable
+        self.actionCount = actionCount; self.context = context; self.axNode = axNode
+        self.allowsHitTesting = allowsHitTesting; self.contentShapeInset = contentShapeInset
+        self.textInput = textInput; self.valueTrack = valueTrack; self.gestureCount = gestureCount
+        self.keyboardShortcut = keyboardShortcut; self.contentShape = contentShape
+        self.focusBinding = focusBinding; self.dropDestination = dropDestination
+        self.draggableCount = draggableCount
+    }
 }
 
 @MainActor
@@ -343,6 +386,17 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      apply: { $0.onKey { _ in true } },
                      effect: { _, _, _, h in h.key = true }),
 
+        // MARK: Drag and drop (ruling `DN-P`)
+        //
+        // `.draggable` appends one gesture, a draggable; `.dropDestination`
+        // sets the fifteenth member.
+        ModifierCase(name: "draggable(_:)",
+                     apply: { $0.draggable("payload") },
+                     effect: { _, _, _, h in h.gestureCount = 1; h.draggableCount = 1 }),
+        ModifierCase(name: "dropDestination(for:action:isTargeted:)",
+                     apply: { $0.dropDestination(for: String.self, action: { _, _ in true }) },
+                     effect: { _, _, _, h in h.dropDestination = true }),
+
         // MARK: Focus
         ModifierCase(name: "focusable()",
                      apply: { $0.focusable() },
@@ -453,8 +507,9 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // **45**. + 5 at plan task 12 part 1 (the gesture attachment modifiers,
     // `IX-B`) = **50**. + 1 at lane 2 (`contentShape(_:)`, `IX-L`) = **51**.
     // + 1 at plan task 15's lane-1 fix round (`flexBasis(percent:)`'s own
-    // class-D row, `CX-C`) = **52**.
-    #expect(cases.count == 52)
+    // class-D row, `CX-C`) = **52**. + 2 for drag and drop (`draggable(_:)`,
+    // `dropDestination(for:action:isTargeted:)`, `DN-P`) = **54**.
+    #expect(cases.count == 54)
 
     for c in cases {
         var expectedStyle = Style()
@@ -473,20 +528,72 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
         #expect(got.style == expectedStyle, "\(c.name) wrote the wrong `Style` field")
         #expect(got.decoration == expectedDecoration, "\(c.name) wrote the wrong `Decoration` field")
         #expect(got.elementID == expectedID, "\(c.name) wrote the wrong `elementID`")
-        #expect(HandlerShape(click: got.handlers.onClick != nil,
-                             key: got.handlers.onKey != nil,
-                             focusable: got.handlers.isFocusable,
-                             actionCount: got.handlers.actions.count,
-                             context: got.handlers.keyContext,
-                             axNode: got.handlers.axNode,
-                             allowsHitTesting: got.handlers.allowsHitTesting,
-                             contentShapeInset: got.handlers.contentShapeInset,
-                             textInput: got.handlers.textInput != nil,
-                             valueTrack: got.handlers.valueTrack != nil,
-                             gestureCount: got.handlers.gestures.count,
-                             keyboardShortcut: got.handlers.keyboardShortcut != nil,
-                             contentShape: got.handlers.contentShape != nil,
-                             focusBinding: got.handlers.focusBinding != nil) == expectedHandlers,
+        #expect(HandlerShape(got.handlers) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
+}
+
+/// **A drop destination and a draggable survive every later handler modifier
+/// and a wrapper** (drag and drop, `DN-P`; the review round's mutation I).
+///
+/// The table above applies each modifier to a fresh `Box`, so a later modifier
+/// that clobbered `Handlers.dropDestination` or dropped the draggable from
+/// `gestures` would pass it — the member was already empty. Here each later
+/// modifier is applied **after** `.dropDestination` and `.draggable`, and the
+/// projection must keep both, alongside the later modifier's own field.
+///
+/// The wrapper arms pin the per-layer path (`MC-A`): written before
+/// `.padding(8)`, the destination stays on the wrapped content while a later
+/// `.onKey` configures the new outermost layer; written after it and then
+/// wrapped again, it moves into the chain's `inner` layers with the rest of
+/// that layer's handlers.
+@MainActor
+@Test func aDropDestinationAndADraggableSurviveEveryLaterHandlerModifierAndAWrapper() throws {
+    func source() -> Box<EmptyGroup> {
+        Box().dropDestination(for: String.self, action: { _, _ in true }).draggable("payload")
+    }
+    let later: [(String, @MainActor (Box<EmptyGroup>) -> Box<EmptyGroup>)] = [
+        ("onClick", { $0.onClick {} }),
+        ("onKey", { $0.onKey { _ in true } }),
+        ("focusable", { $0.focusable() }),
+        ("onAction", { $0.onAction(TableAction.self) { _ in } }),
+        ("keyContext", { $0.keyContext("Editor", ["mode": "code"]) }),
+        ("onTapGesture", { $0.onTapGesture {} }),
+        ("onLongPressGesture", { $0.onLongPressGesture {} }),
+        ("gesture", { $0.gesture(TapGesture()) }),
+        ("simultaneousGesture", { $0.simultaneousGesture(TapGesture()) }),
+        ("highPriorityGesture", { $0.highPriorityGesture(TapGesture()) }),
+        ("allowsHitTesting", { $0.allowsHitTesting(false) }),
+        ("contentShape(inset:)", { $0.contentShape(inset: px(3)) }),
+        ("contentShape(_:)", { $0.contentShape(Circle()) }),
+        ("background", { $0.background(.accent) }),
+        ("id", { $0.id("kept") }),
+    ]
+    try #require(later.count == 15)
+    for (name, apply) in later {
+        let shape = HandlerShape(apply(source()).handlers)
+        #expect(shape.dropDestination, "`.\(name)` after `.dropDestination` dropped the destination")
+        #expect(shape.draggableCount == 1, "`.\(name)` after `.draggable` dropped the draggable")
+    }
+
+    // Before a wrapper: the destination stays on the content, the later
+    // `.onKey` lands on the new outermost layer.
+    let wrapped = source().padding(px(8)).onKey { _ in true }
+    #expect(HandlerShape(wrapped.content.handlers).dropDestination,
+            "`.padding(8)` after `.dropDestination` lost the content's destination")
+    #expect(HandlerShape(wrapped.content.handlers).draggableCount == 1)
+    #expect(!HandlerShape(wrapped.handlers).dropDestination && HandlerShape(wrapped.handlers).key,
+            "the later `.onKey` configures the padding layer, which has no destination of its own")
+
+    // On a layer, then wrapped again: the destination rides that layer into
+    // `inner`, and a later handler modifier on the outermost does not reach it.
+    let layered = Box().padding(px(8)).dropDestination(for: String.self, action: { _, _ in true })
+        .onKey { _ in true }
+    #expect(HandlerShape(layered.handlers).dropDestination && HandlerShape(layered.handlers).key,
+            "a destination written on a layer, then `.onKey`, must keep both on that layer")
+    let rewrapped = layered.padding(px(4)).onClick {}
+    try #require(rewrapped.inner.count == 1)
+    #expect(HandlerShape(rewrapped.inner[0].handlers).dropDestination,
+            "wrapping a destination-carrying layer lost the destination from `inner`")
+    #expect(!HandlerShape(rewrapped.handlers).dropDestination)
 }

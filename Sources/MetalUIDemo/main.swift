@@ -25,11 +25,18 @@ func runDemo() throws {
     // J1, K1–K3): controlSize's drawn font, shapes/clip/images, gestures,
     // transitions.
     let looksDemo = ProcessInfo.processInfo.environment["METALUI_LOOKS_DEMO"] == "1"
+    // Drag and drop's human looks (`docs/verification/human-checks.md` N1–N8,
+    // ruling DN-Q): chips, a draggable list, four wells.
+    let dragAndDropDemo = ProcessInfo.processInfo.environment["METALUI_DND_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if looksDemo {
+    if dragAndDropDemo {
+        window = try app.openWindow(title: "MetalUI — Drag and Drop",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: dragAndDropDemoContent)
+    } else if looksDemo {
         window = try app.openWindow(title: "MetalUI — Looks",
                                     size: Size(width: Pixels(1180), height: Pixels(720)),
                                     content: looksDemoContent)

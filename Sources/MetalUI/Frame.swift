@@ -1267,6 +1267,28 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: true, handlers: handlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
+        // Drag and drop (rulings `DN-E`, `DN-F`, `DN-G`): two NON-opaque
+        // regions, each inside the one disabled gate. A draggable on a pointer
+        // target already rides the opaque hitbox above; one whose element asks
+        // for nothing else gets its own region, carrying its handlers so the
+        // arena finds it by identity — gated by `allowsHitTesting(false)` like
+        // any pointer ask (`DN-E` item 3). A destination's region carries only
+        // the drop handler, at the element's own bounds (no content shape), and
+        // sits OUTSIDE the `allowsHitTesting` gate, as a scroll region does
+        // (`DN-F` item 3, `P15e`) — but not outside `hidden()`
+        // (`keyboardHiddenDepth`, `R5d`). Neither is registered by a frame with
+        // no draggable or destination, so every other tree's hitbox list is
+        // unchanged (pinned by `aFrameWithoutADragOrDestinationAddsNoHitbox`).
+        if enabled, hitTestingDisabledDepth == 0, !handlers.isPointerTarget, handlers.hasDraggable {
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: handlers, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+        }
+        if enabled, keyboardHiddenDepth == 0, let destination = handlers.dropDestination {
+            var only = Handlers()
+            only.dropDestination = destination
+            _ = insertHitbox(bounds, id: id, opaque: false, handlers: only, origin: bounds.origin)
+        }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
         // `Text.prepaint` — which call this and nothing else — dropped a
@@ -2289,6 +2311,31 @@ public final class Frame {
     /// they compute passes through here.
     var transitionScopes: [TransitionPaintScope] = []
 
+    // MARK: - The drag preview (drag and drop, lane 2, ruling `DN-J`)
+
+    /// The open drag session's source, set by `Window` before `render` —
+    /// `nil` in every frame without a session, so nothing below runs.
+    var dragSourceID: GlobalElementID?
+
+    /// `pointer − press point`, in points: how far the snapshot is replayed
+    /// from where the source painted it (`DN-J` item 1).
+    var dragPreviewTranslation = Point(x: Pixels(0), y: Pixels(0))
+
+    /// Where a `draggable(_:preview:)` preview's top-left goes, in window
+    /// points: the pointer less the press point's offset into the source.
+    var dragPreviewOrigin = Point(x: Pixels(0), y: Pixels(0))
+
+    /// The session's last snapshot, handed in by `Window`: replayed when the
+    /// source paints nothing this frame (`DN-H` item 4).
+    var previousDragSnapshot: [CapturedPrimitive] = []
+
+    /// What the source painted this frame, captured — `nil` when it did not
+    /// paint. `Window` keeps it on the session.
+    var dragSnapshot: [CapturedPrimitive]?
+
+    /// How many primitives this frame captured for a drag preview (2.14).
+    var dragCapturedPrimitives = 0
+
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales
     /// with it) from the one in effect where the group starts (which stays).
@@ -2438,6 +2485,7 @@ public final class Frame {
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
         animationStore.transitions.paintGhosts(&paintPass)
+        paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

@@ -559,7 +559,13 @@ private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, 
 /// holds one inline — at most one pointer: 113 and 440 bytes at `31d3565`
 /// (measured 2026-09-29, arm64 debug), so at most 121 and 448. Mutation M2s
 /// (the fields stored inline) must redden it.
+///
+/// **T row (drag and drop, ruling `DN-P`)**: `Handlers` gained one more
+/// reference since, `dropDestination` (a class box, `IX-N`'s budget), so its
+/// bound is 448 + 8 — measured 456 at lane 1 (2026-10-01, arm64 debug). The
+/// `AXNode` bound and this test's answer for the seven declarations are
+/// unchanged.
 @Test func theNewDeclarationsCostHandlersAtMostOnePointer() {
     #expect(MemoryLayout<AXNode>.size <= 113 + 8, "AXNode: \(MemoryLayout<AXNode>.size)")
-    #expect(MemoryLayout<Handlers>.size <= 440 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
 }

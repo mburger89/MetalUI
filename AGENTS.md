@@ -13,10 +13,11 @@ an unmet target (plan task 14, ruling `PB-A`,
 UIKit platform conformer, no `.touch` input, no safe areas, no
 `UIApplication`/scene lifecycle, no `UIAccessibility` bridge, none planned.
 `PlatformWindow`'s `onAccessibilityRequest`,
-`publishAccessibilityTree(_:)`, `controlActiveState` and
-`onControlActiveStateChange` have no default implementations (`AB-R`, `EV-AB`);
-both existing conformers (`AppKitPlatform`/`AppKitWindow`,
-`SDLPlatform`/`SDLWindow`) implement all four.
+`publishAccessibilityTree(_:)`, `controlActiveState`,
+`onControlActiveStateChange` and, since drag and drop,
+`beginExternalDrag(_:at:)` have no default implementations (`AB-R`, `EV-AB`,
+`DN-C`); both existing conformers (`AppKitPlatform`/`AppKitWindow`,
+`SDLPlatform`/`SDLWindow`) implement all five, and the test fakes too.
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
 test name, divergence row, inert row, human-verification row, performance
@@ -72,9 +73,11 @@ closeout section and `docs/verification/human-checks.md`.
   interaction and accessibility), `PB-` (next `PB-B`; rulings in its own
   decisions doc, `2026-09-30-platform-boundary-decisions.md`, plan task 14),
   `CX-` (next `CX-T`; rulings in its own decisions doc,
-  `2026-09-30-closeout-decisions.md`, plan task 15).
+  `2026-09-30-closeout-decisions.md`, plan task 15), `DN-` (next `DN-AA`;
+  rulings in its own decisions doc, `2026-10-01-drag-and-drop-decisions.md`,
+  drag and drop — not a plan task).
   A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`, `PB-3`, `CX-3`) is a typo; sweep
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`, `PB-3`, `CX-3`, `DN-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -475,14 +478,14 @@ closeout section and `docs/verification/human-checks.md`.
   O and SW) — **everything an agent can do is closed; the box stays
   unticked until a human runs `docs/verification/human-checks.md`**
   (`CX-M`). The inventory: `docs/probes/closeout-public-api.sh` censuses
-  every public declaration (1872), `closeout-inventory-map.tsv` maps each
+  every public declaration (1872 at the time, 1940 since drag and drop), `closeout-inventory-map.tsv` maps each
   to a family of class A (SwiftUI-aligned: a probe arm and a discriminating
   test, mechanically checked to exist and to be asserted), D (divergence
   label), M (MetalUI-only by design), X (deprecated, with replacement) or R
   (documented absence), and `zsh docs/probes/closeout-inventory-check.sh`
   **prints nothing when complete** (`CX-A`, `CX-S`); **a new public
   declaration owes a map row.** Three public documents: `docs/divergences.md`
-  (66 live), `docs/migration.md`, `docs/api-overview.md`; every public
+  (66 live at the time, 69 since drag and drop), `docs/migration.md`, `docs/api-overview.md`; every public
   declaration carries a doc comment (`zsh docs/probes/closeout-undocumented.sh`
   prints nothing, `CX-K`). Rulings: tasks 4 and 5 ticked clause by clause
   (`CX-B`, §66 §5); no deprecated spelling removed (`CX-C`),
@@ -501,6 +504,20 @@ closeout section and `docs/verification/human-checks.md`.
   differing) and the screen was locked at every later check. Record §67 holds
   `CLAUDE.md`'s pre-closeout counts history and reference bullets, moved
   verbatim.
+  **Drag and drop** (user request 2026-10-01, **not a plan task**; §68, spec
+  `specs/2026-10-01-drag-and-drop-design.md`, its own decisions doc
+  `2026-10-01-drag-and-drop-decisions.md`, rulings `DN-A`…`DN-Z`, probe
+  `swiftui-drag-and-drop.swift` groups `T`/`R`/`A`/`P`) — `Transferable`/
+  `ContentType` (MetalUI's own, synchronous, `Data`-based, portable),
+  `.draggable(_:)`/`.draggable(_:preview:)`/`.dropDestination(for:action:isTargeted:)`
+  on both vocabularies, in-window drags with a replayed translucent preview,
+  drops in from Finder/other apps on AppKit and SDL, a drag leaving the window
+  as an `NSDraggingSession` on AppKit only; divergences 100–102 added (66 →
+  69 live, next label 103). Three lanes plus review rounds, all verified `ok`.
+  Counts **2028 / 0 / 125**, `Backends/SDL` 22 + 41; 0 px against `053a3b3` in
+  all fourteen offscreen images; the real-window capture not taken (screen
+  locked) and **group N of `docs/verification/human-checks.md` is owed to a
+  human** — an agent cannot drag. See "Drag and drop" under Architecture rules.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
@@ -513,24 +530,26 @@ closeout section and `docs/verification/human-checks.md`.
 
 ## Build and test
 
-- **Counts (2026-10-01, `feat/closeout` — plan task 15, from `1b093b8`):
-  1976 tests, 0 goldens, 121 typecheck guards**, 0 `error:` on both build
-  systems, the one `warning:` SwiftPM's deprecation notice under native (0
-  under the default one), taken after `swift package clean` with `swift build
-  --build-system native --build-tests` then unfiltered `swift test
+- **Counts (2026-10-01, `feat/drag-and-drop` — drag and drop, from
+  `053a3b3`): 2028 tests, 0 goldens, 125 typecheck guards**, 0 `error:` on both
+  build systems, the one `warning:` SwiftPM's deprecation notice under native
+  (0 under the default one), taken after `swift package clean` with `swift
+  build --build-system native --build-tests` then unfiltered `swift test
   --build-system native --no-parallel` (**one summary line**, `Test run with
-  1976 tests in 3 suites passed after 106.515 seconds`; the FR-J line
-  present). **1976 = 1961 + 10 + 3 + 2**: lane 1's ten new tests and the
-  inverted T1, its fix round's three, lane 2's `CX-S` two; guards **121 =
-  119 + 2** (`CloseoutCompileGuards`: `aPlainImportCannotPassBoxAStyle`,
-  `theTypecheckGuardsRanWhereTheyAreRequired`). `Backends/SDL` 22 + 33
-  unmoved; a `swift:6.4-noble` aarch64 container (OrbStack, started by the
-  branch check — the Record phase had read its stopped daemon as "no
-  Docker") builds with 0 `error:`/`warning:` and runs **199 + 22 + 10**,
-  unmoved (record §66 §8); Windows and Linux x86_64 CI confirm on push. Every earlier count line
-  (one per branch, task 13 back to the CSS-engine era) is record §67 §1,
-  frozen; history before that is record §06 and §19. A count is stale the
-  moment a test lands; re-measure.
+  2028 tests in 3 suites passed after 107.389 seconds`; the FR-J line
+  present). **2028 = 1976 + 52**: lane 1 +30 and its review round +2, lane 2
+  +15 and its review round +3, lane 3 +2; no test retired. Guards **125 = 121
+  + 4**: `DragAndDropCompileGuards` (3) and `DragPreviewCompileGuards` (1), all
+  whole-file `typecheckFile`. `Backends/SDL` 22 + 41 (`MetalUISDLTests` +8); a
+  `swift:6.4-noble` aarch64 container builds with 0 `error:`/`warning:` and
+  runs **199 + 22 + 14** (`MetalUICrossPlatformTests` 10 + the four portable
+  `TransferableTests`); Windows and Linux x86_64 CI confirm on push. Public
+  census **1940** declarations in **99** inventory families (record §68 §9).
+  `MemoryLayout<Handlers>.size` 448 → 456; the smallest thread building every
+  production tree 640 → 656 KB. Plan task 15's figures (**1976 / 0 / 121**)
+  are record §66 §7; every earlier count line (one per branch, task 13 back
+  to the CSS-engine era) is record §67 §1, frozen; history before that is
+  record §06 and §19. A count is stale the moment a test lands; re-measure.
 
 ```bash
 swift build
@@ -541,6 +560,7 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
+METALUI_DND_DEMO=1 swift run MetalUIDemo                 # drag and drop: chips, wells, a draggable List (human checks group N)
 METALUI_LOOKS_DEMO=1 swift run MetalUIDemo               # texts by controlSize, shapes, images, gestures, transitions (human checks H-K)
 ```
 
@@ -605,12 +625,15 @@ METALUI_LOOKS_DEMO=1 swift run MetalUIDemo               # texts by controlSize,
   `TransactionCompileGuards` and `TransitionCompileGuards`, and, new at
   plan task 15, `CloseoutCompileGuards` (`aPlainImportCannotPassBoxAStyle`
   whole-file, and `theTypecheckGuardsRanWhereTheyAreRequired`, which calls
-  `canTypecheck` and neither helper)
+  `canTypecheck` and neither helper), and, new at drag and drop,
+  `DragAndDropCompileGuards` (three) and `DragPreviewCompileGuards` (one), all
+  whole-file
   (`GridCompileGuards`' own count is unmoved — G3.1 renames its G4 in
   place);
   `Typecheck.swift` holds
   only
-  the declaration. Two helpers, 40 and 80, plus one guard calling neither (39 and 80 before
+  the declaration. Two helpers, 40 and 84, plus one guard calling neither (40 and 80 before drag
+  and drop's four; 39 and 80 before
   plan task 15's two; 39 and 77 before task 13's
   three; 39 and 74 before task 12 part 2's
   three; 39 and 69 before task 12 part 1's
@@ -704,8 +727,9 @@ METALUI_LOOKS_DEMO=1 swift run MetalUIDemo               # texts by controlSize,
   (`scene-linux`, `root-windows`) build every portable target — `MetalUI`
   and `MetalUIDemoContent` included since `XP-A`, their Apple dependencies
   appended on macOS in the manifest — and run `MetalUILayoutTests`,
-  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**199 + 22 + 10** as of
-  plan task 12 part 1, independently measured in `swift:6.4-noble` by that
+  `MetalUICoreTests` and `MetalUICrossPlatformTests` (**199 + 22 + 14** since
+  drag and drop's four portable `TransferableTests`, measured in
+  `swift:6.4-noble`; **199 + 22 + 10** as of plan task 12 part 1, independently measured in `swift:6.4-noble` by that
   task's own Record phase, unmoved by it — this sentence's own **188 + 22 +
   10** had gone stale across tasks 8 through 11 part 2 without being
   re-taken here; the intervening figure, **199 + 22 + 10**, already stood in
@@ -1306,8 +1330,9 @@ flush ordering in `drawFrameIfNeeded`, the `isFlushing` guard and
 collapsing either branch breaks the suite. A phase-time `@Observable` write is
 silently stale.
 
-**Hit testing.** One hitbox list; ranking is `topmostOpaqueHitbox(in:at:)` —
-no second copy. `onClick`, a `TextField`'s `textInput` or a `Slider`'s
+**Hit testing.** One hitbox list; ranking is `topmostHitbox(in:at:where:)` —
+`topmostOpaqueHitbox(in:at:)` is its `\.opaque` specialization, no second copy
+(drag and drop's destination lookup uses it too, `DN-F`). `onClick`, a `TextField`'s `textInput` or a `Slider`'s
 `valueTrack` makes an opaque pointer target (`Handlers.isPointerTarget`); the
 keyboard gate (`onKey || isFocusable || actions || keyContext`) stays separate.
 **A wheel over a non-scrolling opaque hitbox passes to its nearest ancestor
@@ -1356,6 +1381,50 @@ ahead of `drawFrameIfNeeded`, so a stamp is always a real tick; the window
 re-dirties only while something is pending. A gesture callback runs under
 `StateDispatch`, resolving the occurrence that dispatched it (`ID-F`).
 
+**Drag and drop (`DN-`, `docs/record/68-drag-and-drop.md`).**
+`Transferable` is MetalUI's own four synchronous members (`exportedContentTypes()`,
+`static importedContentTypes()`, `exported(as:)`, `init?(importing:contentType:)`)
+over `ContentType`s that carry their conformance — `String`, `URL` and `Data`
+conform; SwiftUI's `transferRepresentation` and `visibility:` are not offered
+(`DN-B`, `DN-S`), and `.onDrag`/`.onDrop`/`DropDelegate` and the `DropSession`
+family are ruled out (`DN-A`). `.draggable`/`.dropDestination` return `Self` on
+a `StyledElement` (no id moves) and wrap once on a `ProposalElementGroup`
+(`DN-P`). **A draggable is a gesture-arena member, not a pointer target**: it
+begins on the first pointer move (distance > 0), outranks a tap, long press or
+click, yields to a `DragGesture` that outranks it, and registers a **non-opaque**
+region joining the arena by identity — `Handlers.isPointerTarget` counts every
+gesture except a draggable, so a draggable alone adds no opaque hit target
+(`DN-D`, `DN-E`). **The destination is found by the one ranking**
+(`topmostHitbox(in:at:where:)` over non-opaque destination regions, never a
+second lookup, mutation R1): a covering view does not block a drop, a
+presentation on a higher layer does (`DN-F`); the region is registered outside
+the `allowsHitTesting` gate and **inside the disabled gate**, so a disabled
+source does not drag and a disabled destination refuses (divergence 100,
+`DN-G`). `isTargeted(false)` precedes the next `true` and the action; the
+action gets destination-local points; Escape cancels ahead of the keymap
+(`DN-H`, `DN-I`); a drag neither focuses nor adds a `StateTable` entry, and a
+source that vanishes mid-drag still delivers (`DN-O`, 1.25, 1.27). **A new
+`StyledElement` site must paint through `paintDecoration`** — the preview's
+capture push lives there once, and the proposal side's in
+`DraggableModifier.paint` (`DN-X` item 2, the `OM-AI` shape); a site that
+skips it drags with no preview. The preview is the source's captured
+primitives replayed above everything at 70% opacity, a clip pushed inside the
+source kept; a `preview:` closure is a presentation root that registers **no
+hitbox and publishes nothing** (`DN-J`, `DN-X`, `DN-Y`). **The platform split**:
+drops arrive as `InputEvent.drop(DropEvent)` — AppKit's host view registers
+for dragged types and maps `NSDraggingDestination` onto it, reading only the
+imported type; SDL's five `SDL_EVENT_DROP_*` events become one session with
+**types unknown until the drop** (divergence 102, optimistic highlight); a
+drag leaving the window calls the defaultless
+`PlatformWindow.beginExternalDrag(_:at:)` — an `NSDraggingSession` on AppKit
+(divergence 101), `false` on SDL (SDL3 has no outgoing-drag API). A new
+`PlatformWindow` conformer (and every test fake) implements it. Drops, like
+every callback, run from input under `StateDispatch`. Accessibility publishes
+nothing for either side, as SwiftUI's does not (`DN-N`). An SDL test takes
+`SDL_EVENT_DROP_*` types from C-exported constants (the Windows `rawValue`
+hazard) and arms `armMainRunLoopExitCheck()`. **Not measured against a real
+pointer**: group N of `docs/verification/human-checks.md`.
+
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(handlers, decoration, …) {
 content }` in `prepaint` and `paintDecoration(decoration, in:, for:) { content
@@ -1366,14 +1435,16 @@ fails the other. `registerHandlers` holds the hitbox, focus, AX record and the
 disabled gate; skipping it makes an element ungated and invisible to
 VoiceOver. **Any hook added to `Element`'s group defaults must be mirrored per
 layer in `ModifiedElement` and in `AnyElement`'s group entry** (`MC-B`,
-`LR-AA`). `Handlers` has **fourteen** members (the ninth, `textInput`,
+`LR-AA`). `Handlers` has **fifteen** members (the ninth, `textInput`,
 internal and set only by `TextField`, `TI-B`; the tenth, `valueTrack`,
 internal and set only by `Slider`, `DD-W` item 5; the eleventh through
 fourteenth, plan task 12 part 1: `gestures`, `keyboardShortcut`,
 `contentShape` and `focusBinding`, each one reference or a small optional —
 `MemoryLayout<Handlers>.size` moved 408 → 440 across the task's three
 lanes, the smallest thread building every production tree 592 → 624 KB,
-`IX-N`); `HandlerShape` (`ModifierTests`) and
+`IX-N`; the fifteenth, drag and drop's `dropDestination`, one reference — a
+draggable is a `gestures` leaf, not a member — 448 → 456 bytes and 640 → 656
+KB, `DN-V` item 5); `HandlerShape` (`ModifierTests`) and
 `HandlerFingerprint` (`OuterModifierMatrixTests`) each gain a field when it
 gains one.
 
@@ -2334,10 +2405,10 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 Consult before changing the behaviour they describe; each is a table of
 expected, measured facts:
 
-- **Known divergences** (**66 live**, stable labels; retired labels never
+- **Known divergences** (**69 live**, stable labels; retired labels never
   reused: 2, 3, 4, 5–8, 11, 12, 14, 15, 16, 17, 18, 19, 24, 28, 35, 36, 37,
   39, 40, 45, 48, 53, 55, 59, 64, 69, 74, 83, 85; label 75 never assigned;
-  **next label 100**). **The current list is `docs/divergences.md`**
+  **next label 103**; **drag and drop added 100–102**, none retired). **The current list is `docs/divergences.md`**
   (plan task 15, `CX-G`, `CX-R`): every live row with SwiftUI's answer,
   MetalUI's, its ruling, its pin and its owner — **none has an owner but 82**
   (the human VoiceOver run) — plus the retired list and the documented
@@ -2372,7 +2443,7 @@ expected, measured facts:
 
 - **Human verification**: every look still owed, across record §03 and every
   task, is the one checklist **`docs/verification/human-checks.md`** (plan
-  task 15, `CX-M`) — groups A–M, each item with what to run, what to see,
+  task 15, `CX-M`; group N, drag and drop, added 2026-10-01) — groups A–N, each item with what to run, what to see,
   the right answer and the headless pin. **Status: not run** — an agent
   cannot. The real-window default/preview capture was last taken unlocked on
   2026-09-30 (`capture.sh`, 0 differing against `1b093b8`, record §66 §0);
@@ -2395,7 +2466,7 @@ expected, measured facts:
   elsewhere is stale, and that staleness is not a change stage 4 made. The
   proposal path's cold frame is about a third faster than the legacy one at
   that size: measured, not a goal, and asserted by nothing.
-- **CI hazards** — §19 "CI", record §08. Key ones: all **121** guards skip
+- **CI hazards** — §19 "CI", record §08. Key ones: all **125** guards skip
   under the
   default build system — **macOS CI no longer does: it builds and tests
   with `--build-system native` and `METALUI_REQUIRE_GUARDS=1`, so a skipped

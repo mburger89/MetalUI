@@ -135,5 +135,87 @@ public enum InputEvent: Sendable {
     case textInput(String)
     /// An input method's marked text; ``TextComposition/none`` ends it.
     case textComposition(TextComposition)
+    /// A drag from outside the window — another application, the Finder, or
+    /// this application's own drag handed to the platform and returning
+    /// (ruling `DN-C`). `onInput`'s `Bool` answers "an accepting destination is
+    /// under the pointer" for `.entered`/`.moved` and "a destination took the
+    /// drop" for `.performed`.
+    ///
+    /// **Migration** (`DN-C` item 3): an exhaustive `switch` over `InputEvent`
+    /// outside this package adds a `.drop` case or a `default:`.
+    case drop(DropEvent)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
+}
+
+// MARK: - Drag and drop (ruling `DN-C`)
+
+/// A pasteboard type at the platform seam: a uniform type identifier and the
+/// identifiers it conforms to, transitively (ruling `DN-B` item 4). The seam
+/// carries no Foundation type, so this is MetalUI's `ContentType` reduced to
+/// strings.
+public struct PasteboardType: Sendable, Hashable {
+    /// The uniform type identifier, e.g. `public.utf8-plain-text`.
+    public var identifier: String
+    /// Every identifier this type conforms to, transitively; never contains
+    /// `identifier` itself.
+    public var conformsTo: [String]
+
+    /// A pasteboard type named `identifier`, conforming to `conformsTo`.
+    public init(identifier: String, conformsTo: [String] = []) {
+        self.identifier = identifier
+        self.conformsTo = conformsTo
+    }
+
+    /// Whether this type is `identifier` or conforms to it.
+    public func satisfies(_ identifier: String) -> Bool {
+        self.identifier == identifier || conformsTo.contains(identifier)
+    }
+}
+
+/// One representation of an outgoing drag's payload: its type and its bytes
+/// (ruling `DN-B` item 4). Handed to `PlatformWindow.beginExternalDrag`.
+public struct DragRepresentation: Sendable, Equatable {
+    /// The representation's type.
+    public var type: PasteboardType
+    /// The payload exported as `type`.
+    public var bytes: [UInt8]
+
+    /// A representation of `bytes` as `type`.
+    public init(type: PasteboardType, bytes: [UInt8]) {
+        self.type = type
+        self.bytes = bytes
+    }
+}
+
+/// One dragged item offered to a window: the types it can be read as, most
+/// preferred first, and a loader that reads one of them (ruling `DN-C`).
+///
+/// **`load` is lazy on purpose** (`DN-L`): the window calls it only for a type
+/// a destination imports, so a large file dragged over a text field reads
+/// nothing it does not deliver.
+public struct DropItem: Sendable {
+    /// The types this item is offered as, most preferred first.
+    public var types: [PasteboardType]
+    /// Reads the item as the type named `identifier`; `nil` when it cannot.
+    public var load: @MainActor @Sendable (_ identifier: String) -> [UInt8]?
+
+    /// An item offered as `types`, read through `load`.
+    public init(types: [PasteboardType], load: @escaping @MainActor @Sendable (_ identifier: String) -> [UInt8]?) {
+        self.types = types
+        self.load = load
+    }
+}
+
+/// One step of a drag arriving from outside the window (ruling `DN-C` item 1).
+/// Positions are window points, y down, as `MouseEvent.position`.
+public enum DropEvent: Sendable {
+    /// The drag entered the window. `items` is `nil` when the platform cannot
+    /// know the payload until it is dropped (SDL, ruling `DN-M`).
+    case entered(position: Point<Pixels>, items: [DropItem]?)
+    /// The drag moved within the window.
+    case moved(position: Point<Pixels>)
+    /// The drag left the window, or was cancelled.
+    case exited
+    /// The drag was dropped at `position`, carrying `items`.
+    case performed(position: Point<Pixels>, items: [DropItem])
 }

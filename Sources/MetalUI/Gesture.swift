@@ -58,6 +58,9 @@ struct GestureLeaf {
         case tap(count: Int)
         case longPress(minimumDuration: Double, maximumDistance: Float)
         case drag(minimumDistance: Float)
+        /// A `.draggable` (ruling `DN-D`): ready on the first move of more
+        /// than zero points, failed at the release.
+        case draggable
     }
 
     var kind: Kind
@@ -68,6 +71,8 @@ struct GestureLeaf {
     var pressingChanged: (@MainActor (Bool) -> Void)?
     var dragChanged: (@MainActor (DragGesture.Value) -> Void)?
     var dragEnded: (@MainActor (DragGesture.Value) -> Void)?
+    /// A draggable's payload (`DN-D`); `nil` for every other kind.
+    var dragSource: DragSource?
 
     init(kind: Kind) { self.kind = kind }
 }
@@ -302,6 +307,13 @@ struct GestureAttachment {
         self.priority = priority
         self.node = gesture._recognizers().node
     }
+
+    /// An attachment of `node` directly — a draggable's (`DN-D`), which no
+    /// public `Gesture` spells.
+    init(node: GestureNode, priority: Priority) {
+        self.priority = priority
+        self.node = node
+    }
 }
 
 // MARK: - The arena (`IX-D`)
@@ -313,6 +325,9 @@ struct GestureAttachment {
 enum GestureCallback {
     case gesture(owner: GlobalElementID, run: @MainActor () -> Void)
     case click(owner: GlobalElementID, handler: @MainActor () -> Void, modifiers: Modifiers)
+    /// A draggable won the arena (ruling `DN-D` item 7): `Window` opens a drag
+    /// session from `owner` with `source`'s payload, pressed at `at`.
+    case beginDrag(owner: GlobalElementID, source: DragSource, at: Point<Pixels>)
 }
 
 /// **The tap's slop** (`IX-C` item 1, probe `G2g`/`G2b`): a tap fails once the
@@ -368,6 +383,12 @@ final class ArenaLeaf {
         self.owner = owner
         self.origin = region.origin
         self.region = region
+    }
+
+    /// Whether this leaf is a `.draggable` (ruling `DN-D`).
+    var isDraggable: Bool {
+        if case .gesture(let leaf) = recognizer, case .draggable = leaf.kind { return true }
+        return false
     }
 
     var tapCount: Int? {
@@ -460,10 +481,13 @@ struct GestureArena {
     /// distance from the target in id levels. `nil` when no gesture is
     /// attached to any of them: dispatch is then exactly `Window.dispatchClick`
     /// (`IX-D` item 2).
-    init?(target: Hitbox, ancestors: [(hitbox: Hitbox, depth: Int)]) {
+    init?(target: Hitbox, ancestors: [(hitbox: Hitbox, depth: Int)], draggableAbove: Hitbox? = nil) {
         struct Member { let node: ArenaNode; let priority: GestureAttachment.Priority; let depth: Int; let index: Int }
         var members: [Member] = []
-        for (hitbox, depth) in [(target, 0)] + ancestors.map({ ($0.hitbox, $0.depth) }) {
+        // A non-opaque draggable region ranking above the target joins as the
+        // innermost member (`DN-E` item 2): depth −1, inside the target itself.
+        let above = draggableAbove.map { [($0, -1)] } ?? []
+        for (hitbox, depth) in above + [(target, 0)] + ancestors.map({ ($0.hitbox, $0.depth) }) {
             for (index, attachment) in hitbox.handlers.gestures.enumerated() {
                 members.append(Member(node: Self.build(attachment.node, owner: hitbox.id, region: hitbox),
                                       priority: attachment.priority, depth: depth, index: index))
@@ -504,7 +528,7 @@ struct GestureArena {
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
-            case .drag: return false
+            case .drag, .draggable: return false
             }
         }
     }
@@ -541,6 +565,8 @@ struct GestureArena {
                         leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(point),
                                                                location: leaf.local(point))
                     }
+                case .draggable:
+                    leaf.pressPoint = point
                 }
             }
         }
@@ -564,6 +590,10 @@ struct GestureArena {
                     leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(leaf.pressPoint),
                                                            location: leaf.local(point))
                 }
+            case .draggable:
+                // The first move of more than zero points (`DN-D` item 1,
+                // `P17`/`P17z`): no slop, unlike a tap's.
+                if distance > 0 { leaf.ready = true }
             }
         }
         return resolve()
@@ -613,6 +643,8 @@ struct GestureArena {
                                                           location: leaf.local(point))
                         leaf.ready = true
                     }
+                case .draggable:
+                    fail(leaf)
                 }
             }
         }
@@ -634,7 +666,7 @@ struct GestureArena {
                 if time - stamp >= tapSequenceDeferral { fail(leaf) }
             case .longPress(let duration, _):
                 if !leaf.ready && time - stamp >= duration { leaf.ready = true }
-            case .drag:
+            case .drag, .draggable:
                 break
             }
         }
@@ -749,6 +781,16 @@ struct GestureArena {
                 if let callback = g.dragEnded {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
                 }
+            case .draggable:
+                // The drag begins (`DN-D` item 7): every other member fails
+                // without an end; a simultaneous member already resolved on
+                // this event keeps its callbacks, which precede this one
+                // (`DN-D` item 4, `P2e`) — simultaneous roots are visited first.
+                leaf.status = .ended
+                if let source = g.dragSource {
+                    callbacks.append(.beginDrag(owner: leaf.owner, source: source, at: leaf.pressPoint))
+                }
+                for other in leaves where other !== leaf && other.status == .possible { fail(other) }
             }
             return true
         }
@@ -758,6 +800,17 @@ struct GestureArena {
     /// does not yield to `leaf`, or a larger-count tap anywhere could still
     /// pre-empt it.
     private func isBlocked(_ leaf: ArenaLeaf, ahead: [ArenaNode]) -> Bool {
+        // A draggable's one exception (`DN-D` item 2, `P1b`/`P1c`, `P2f`,
+        // `P3b`/`P3c`, `P21`, `P22b`/`P22c`): an UNDECIDED member ahead whose
+        // possible leaves are all taps, long presses or clicks does not hold
+        // it off. An ENDED member ahead still blocks — a long press held past
+        // its duration before the move keeps the drag from beginning (`DN-U`
+        // item 1, MetalUI's choice) — and so does anything else undecided: a
+        // `DragGesture` that outranks it wins (`DN-D` item 3).
+        if leaf.isDraggable {
+            return ahead.contains { $0.status == .ended
+                                    || ($0.status == .possible && !Self.yieldsToDraggable($0)) }
+        }
         let count = leaf.tapCount
         // An ended member ahead blocks too: everything behind it is cancelled
         // on the next pass, and must not end on this one.
@@ -773,6 +826,22 @@ struct GestureArena {
 
     /// A node whose every undecided leaf is a tap with fewer clicks than a tap
     /// behind it waits for that tap, so it does not hold it off (`IX-C` item 3).
+    /// Whether every undecided leaf of `node` is a tap, a long press or a click
+    /// — the members a draggable passes (`DN-D` item 2).
+    private static func yieldsToDraggable(_ node: ArenaNode) -> Bool {
+        node.leaves.filter { $0.status == .possible }.allSatisfy { leaf in
+            switch leaf.recognizer {
+            case .click:
+                return true
+            case .gesture(let g):
+                switch g.kind {
+                case .tap, .longPress: return true
+                case .drag, .draggable: return false
+                }
+            }
+        }
+    }
+
     private static func yields(_ node: ArenaNode, toTapCount count: Int?) -> Bool {
         guard let count else { return false }
         return node.leaves.filter { $0.status == .possible }.allSatisfy { ($0.tapCount ?? Int.max) < count }

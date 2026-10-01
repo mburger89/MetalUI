@@ -32,7 +32,8 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
    `METALUI_NATIVE_LAYOUT_PREVIEW=1` (the proposal preview),
    `METALUI_CONTROLS_DEMO=1` (the controls demo),
    `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`),
-   `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3).
+   `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3),
+   `METALUI_DND_DEMO=1` (drag and drop: N1–N8).
 3. **Demo keys**: **M** modal (translucent scrim), **Space** theme, **F**/**Esc**
    focus the counter, **=**/**-** count, **A** the animation look, **Q** quit.
    In the preview only **Space** and **Q** have a visible effect.
@@ -251,6 +252,86 @@ section "K1–K3 · transitions"): each button toggles its tile in and out under
   run: with VoiceOver on, scroll the demo's list far enough that rows leave
   the window and come back; the cursor and row identity survive. Folded into
   L1's list steps if that script covers it. **Observed:**
+
+## N. Drag and drop (user request 2026-10-01, not a plan task)
+
+*Source: record §68 (drag and drop), rulings `DN-A`…`DN-Z`
+(`docs/superpowers/2026-10-01-drag-and-drop-decisions.md`), spec §8.* SwiftUI's
+real pointer drags (probe group `P`) were measured at the HID tap; MetalUI's
+answers are pinned headless through a fake platform window and a fake
+`NSDraggingInfo` — nothing below has been seen on a real display. Run
+`METALUI_DND_DEMO=1 swift run MetalUIDemo` ("MetalUI — Drag and Drop",
+920×560): four chips (**Apple**, **example.com**, **Custom preview**, **Hold,
+then drag**) and a
+selectable list on the left, four wells (**Text**, **Links and files**,
+**Anything**, **Disabled**) on the right; a well shows its last drop under its
+title ("—" before one) and fills with the accent colour while targeted.
+
+- [ ] **N1. In-window drag**: drag **Apple** onto **Text**. A translucent copy
+  of the chip (about 70% opacity) follows the pointer with the press point
+  under it, drawn above everything; the chip itself stays put; on release the
+  copy disappears and **Text** shows "Apple". Drag **Custom preview**: a 60×60
+  accent square follows instead of the chip. Pinned by
+  `aDraggableBeginsOnTheFirstMoveAndDropsOnADestination`,
+  `theDefaultPreviewReplaysTheSourceAboveEverythingAtSeventyPercent`,
+  `aCustomPreviewReplacesTheSnapshot`,
+  `theDragAndDropDemoDropsAChipOnTheTextWell`. **Observed:**
+- [ ] **N2. The `isTargeted` highlight**: drag **Apple** over **Text**, out and
+  back in — the well fills on entering, empties on leaving, fills again; move
+  from **Text** straight to **Anything** — the first empties before the second
+  fills. Press **Escape** mid-drag over **Text**: the preview vanishes, the
+  well empties and shows nothing new, and the release clicks nothing. Drag
+  **example.com** over **Text**: no fill (a URL is not text); over **Links and
+  files**: it fills and takes the drop. Every chip over **Disabled**: no fill,
+  no drop (divergence 100 — SwiftUI's disabled destination still takes it).
+  Pinned by `isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction`,
+  `escapeCancelsADragWithNoDropAndNoClick`,
+  `aDisabledSourceDoesNotDragAndADisabledDestinationRefuses`. **Observed:**
+- [ ] **N3. A chip dragged out of the window (AppKit)**: drag **Apple** out of
+  the window onto a TextEdit document — at the window's edge the translucent
+  preview is replaced by AppKit's drag image (a text badge), and the drop
+  inserts "Apple"; drag **example.com** onto Finder's or Safari's address bar
+  — it carries the URL. The hand-off cannot be run headless (a headless
+  `NSDraggingSession`'s tracking loop never returns, `DN-X` item 1), so this
+  is the only check of the real session (divergence 101). Pinned up to the
+  hand-off by `leavingTheWindowHandsTheDragToThePlatformWhenItCan`,
+  `anExternalDragItemCarriesEveryRepresentationAndAnImage`,
+  `beginExternalDragNeedsADragEvent`. **Observed:**
+- [ ] **N4. Drops from other apps (AppKit)**: drag a file from Finder onto
+  **Links and files** — it fills while hovered and lists the `file://` URL;
+  onto **Anything** — it shows a byte count; onto **Text** — no fill. Select
+  text in TextEdit and drag it onto **Text** — it fills and shows the text.
+  Pinned by `aFinderFileDropReachesAURLDestination`, `draggingExitedUnTargets`,
+  `anExternalDropFindsTheSameDestinationAndLoadsOnlyWhatItImports`.
+  **Observed:**
+- [ ] **N5. The same drops on SDL**: `cd Backends/SDL && METALUI_DND_DEMO=1
+  PKG_CONFIG_PATH=$PWD/.accesskit swift run MetalUISDLDemo` on macOS and, if
+  available, Linux (X11 and Wayland) and Windows. A Finder/file-manager file
+  onto **Links and files**, TextEdit/editor text onto **Text**: the drop lands
+  where the pointer is (SDL's positions). **While hovering, every well but
+  Disabled fills whatever is dragged** — SDL gives no types until the drop, so
+  a file over **Text** fills and then refuses at the drop (divergence 102); a
+  URL dragged from a browser arrives as text. A chip dragged to the window's
+  edge stops there (divergence 101). Pinned by
+  `sdlDropEventsBecomeOneDropSession`, `droppedTextIsUTF8PlainText`,
+  `ordinaryPointerMotionEndsAnOpenDropSession` (`Backends/SDL`) and
+  `anExternalDropWithUnknownTypesTargetsOptimistically`. **Observed:**
+- [ ] **N6. A list row**: click a row — it selects; drag another row onto
+  **Text** — the well shows "Row n" and the selection does not move. Pinned by
+  `aDraggableRowsClickStillSelectsAndItsDragDoesNot`. **Observed:**
+- [ ] **N7. (Optional) VoiceOver** reads the chips and wells exactly as it
+  would without drag and drop — no drag or drop action, no extra attribute
+  (`DN-N`, probe arms A0–A4; a VoiceOver user drags with VoiceOver's own
+  mouse-down/up commands, not required here). Pinned by
+  `aDraggableAndADropDestinationPublishNothingNew` and
+  `accessKitPublishesADraggableAndADropDestinationUnchanged` (`Backends/SDL`).
+  **Observed:**
+- [ ] **N8. (Optional) A held press**: press and hold **Hold, then drag** (a
+  draggable chip with a long press) past half a second without moving, then
+  move — no drag begins; a quick press-and-move on it drags (MetalUI's choice,
+  `DN-U` item 1; SwiftUI's answer is unmeasured). Pinned by the sixth arm of
+  `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`.
+  **Observed:**
 
 ## Sign-off
 

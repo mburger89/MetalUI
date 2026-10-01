@@ -1,13 +1,14 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **66 live divergences**, each measured (a probe
+place it knowingly does not: **69 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
 failing, read the row first — the change may be a fix.
 
-This is the current list (plan task 15, ruling `CX-G`; 2026-10-01). Its dated
+This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
+drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`, next label 103). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -92,6 +93,9 @@ scheduled).
 | 97 | what snaps on the proposal path | animates | `nil` ↔ value, finite ↔ infinite, `fixedSize`, `layoutPriority`, `aspectRatio`, `allowsHitTesting`, alignment, a `clipShape`'s shape snap | `AN-AB` | `aProposalFlexibleFrameAnimatesAFiniteBoundAndSnapsAnInfiniteOne` | none |
 | 98 | default transition | an unannotated insertion/removal cross-fades (X0, W10) | instant | `AN-AE` | `anUnannotatedInsertionAndRemovalAreInstant` | none |
 | 99 | nested or sequential `withAnimation` | each write animates with its own call's curve (T9, T10) | one transaction per build: both share the one parked curve; `.animation(_:value:)` is the per-value remedy | `AN-Y` | unpinned (measured by probe T9/T10; no test asserts the shared curve) | none |
+| 100 | a disabled drag source or drop destination | still drags (P9) and still takes the drop (P8) | the one disabled gate removes both: a `.disabled` source does not drag, a `.disabled` destination is never targeted and takes no drop | `DN-G` | `aDisabledSourceDoesNotDragAndADisabledDestinationRefuses` | none |
+| 101 | a drag leaving the window | a system drag session from the start; its translucent preview leaves the window with it (P6c, P18) | AppKit hands the drag to an `NSDraggingSession` at the window's edge, its image the payload's own (a file's icon, a text badge), not the preview; on SDL a drag cannot leave the window (SDL3 has no outgoing drag API) | `DN-K` | `leavingTheWindowHandsTheDragToThePlatformWhenItCan`, `anSDLWindowCannotBeginAnExternalDrag` (`Backends/SDL`) | none |
+| 102 | hovering an external drop on SDL | targets only a destination whose type matches (P16) | SDL gives no types until the drop, so the deepest destination is targeted whatever its type (a non-matching one turns `false` at the drop and runs no action); a URL dragged from a browser arrives as text, so a `URL` destination refuses it. The AppKit backend knows the types and matches SwiftUI | `DN-M` | `anExternalDropWithUnknownTypesTargetsOptimistically`, `sdlDropEventsBecomeOneDropSession` (`Backends/SDL`) | none |
 
 ## Retired
 
@@ -149,6 +153,9 @@ stated.
 | `matchedGeometryEffect`, `contentTransition`, `.modifier(active:identity:)` and custom transitions, `AnyTransition.animation(_:)`, `.blurReplace` | not built | `AN-AE` |
 | a readable `colorScheme`; Increase Contrast, Reduce Transparency, Differentiate Without Colour | not built (Reduce Motion is: `accessibilityReduceMotion`, `AN-AD`) | `TE-AO` item 1, `CX-I` item 3 |
 | `Image(systemName:)`, asset-catalog images | not built; `Image` takes an `ImageBitmap` | `TE-AL` |
+| `.onDrag`/`.onDrop` (`NSItemProvider`), `DropDelegate`; table-row and tab drop variants | not built: `NSItemProvider` is Apple-only and cannot cross the portable surface, and `DropDelegate` is a second surface for the same behaviour — `draggable(_:)`/`dropDestination(for:action:isTargeted:)` are offered | `DN-A` item 2 |
+| the `DropSession` family: `dropDestination(for:isEnabled:action:)`, `onDropSessionUpdated`, `dropConfiguration`, `onDragSessionUpdated`, `dragConfiguration`, `dragContainer`, `draggable(containerItemID:)`, `dragPreviewsFormation` | not built (macOS 26 API: a session object with phases, multi-item containers and preview formations is a second design) | `DN-A` item 2 |
+| `Transferable`'s conformer spelling, `static var transferRepresentation` (`DataRepresentation`, `CodableRepresentation`, `ProxyRepresentation`, `FileRepresentation`); CoreTransferable's `async` loading | not built: a MetalUI conformer writes `Transferable`'s four synchronous members (`String`, `URL` and `Data` conform already) | `DN-B` item 1, `DN-S` item 4 |
 
 <a id="scope"></a>
 ## What this list does not cover

@@ -128,7 +128,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | `Rectangle.color` as `ColorToken` | `ColorToken?` (`nil` is the foreground style): a reader writes `rect.color ?? token` | `TE-AQ` item 2 |
 | an exhaustive `switch` over `VerticalAlignment` | add `default:` or `.firstTextBaseline`/`.lastTextBaseline` | `TE-K` item 1 |
 | a `TextSystem` conformer outside the package | implement `fontMetrics(_:)`, `resolveFont(_:)` and the `options:` overloads | `TE-C` |
-| a `PlatformWindow` conformer outside the package | implement `onAccessibilityRequest`, `publishAccessibilityTree(_:)`, `controlActiveState`/`onControlActiveStateChange`, `accessibilityReduceMotion`/`onAccessibilityReduceMotionChange` — none has a default | `AB-R`, `EV-AB`, `AN-AD` |
+| a `PlatformWindow` conformer outside the package | implement `onAccessibilityRequest`, `publishAccessibilityTree(_:)`, `controlActiveState`/`onControlActiveStateChange`, `accessibilityReduceMotion`/`onAccessibilityReduceMotionChange`, and, since drag and drop, `beginExternalDrag(_:at:)` (answer `false` where the platform has no outgoing drag) — none has a default | `AB-R`, `EV-AB`, `AN-AD`, `DN-C` |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
 

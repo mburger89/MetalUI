@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (1872 of them, in
-fifteen modules) belongs to one of 97 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (1940 of them, in
+fifteen modules) belongs to one of 99 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -135,6 +135,27 @@ portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 `.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
+
+## Drag and drop — A / D
+
+`Transferable` and `ContentType` — MetalUI's own synchronous, `Data`-based
+protocol with SwiftUI's call-site spellings; `String`, `URL` and `Data`
+conform (A; the conformer spelling `transferRepresentation` is not offered,
+`DN-B`, `DN-S`). `.draggable(_:)`, `.draggable(_:preview:)` and
+`.dropDestination(for:action:isTargeted:)` on both vocabularies (A): a drag
+begins on the first pointer move from a press, outranks a tap, long press or
+click and yields to a `DragGesture` that outranks it; the destination is the
+topmost one by the one hit ranking; the preview is the source's own
+primitives replayed above everything at 70% opacity; Escape cancels (`DN-D`…
+`DN-J`). A disabled source or destination does nothing (100); a drag leaving
+the window becomes an `NSDraggingSession` on AppKit and stops at the edge on
+SDL (101); external drops arrive from Finder and other apps through
+`NSDraggingDestination` on AppKit and SDL's drop events, where the types are
+unknown until the drop (102). At the seam: `InputEvent.drop` (`DropEvent`,
+`DropItem`, `PasteboardType`) and `PlatformWindow.beginExternalDrag`
+(`DragRepresentation`), defaultless (`DN-C`). Accessibility publishes
+nothing for either, as SwiftUI's does not (`DN-N`). `.onDrag`/`.onDrop` and
+the `DropSession` family are not offered (`DN-A`).
 
 ## Accessibility — A / M
 

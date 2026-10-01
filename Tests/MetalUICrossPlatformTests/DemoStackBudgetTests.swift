@@ -30,6 +30,7 @@ private func buildEveryProductionTree() {
     _ = textInputDemoContent()
     _ = controlsDemoContent()
     _ = looksDemoContent()
+    _ = dragAndDropDemoContent()
 }
 
 /// Windows' default thread stack size.

@@ -20,6 +20,10 @@ final class MetalHostView: NSView {
 
     private let surface: MetalLayerSurface
 
+    /// The last `mouseDragged` event, which an `NSDraggingSession` must start
+    /// from (ruling `DN-K` item 2).
+    var lastDragEvent: NSEvent?
+
     init(surface: MetalLayerSurface) {
         self.surface = surface
         super.init(frame: .zero)
@@ -28,6 +32,7 @@ final class MetalHostView: NSView {
         layer = surface.backingLayer
         wantsLayer = true
         layerContentsRedrawPolicy = .duringViewResize
+        registerForDraggedTypes(AppKitDragAndDrop.registeredTypes)   // DN-L
     }
 
     @available(*, unavailable)
@@ -198,6 +203,7 @@ final class MetalHostView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
                                               modifiers: modifiers(event))))
     }
@@ -612,6 +618,28 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         let link = hostView.displayLink(target: self, selector: #selector(displayLinkFired))
         link.add(to: .main, forMode: .common)
         displayLink = link
+    }
+
+    /// Hands a drag leaving the window to AppKit (ruling `DN-K`): an
+    /// `NSDraggingSession` from the last `mouseDragged` event, one item carrying
+    /// every representation with AppKit's picture of the payload (`DN-K` item
+    /// 2). `false` when no drag event has been seen — there is nothing to start
+    /// a session from. AppKit's session then owns the drag, its release
+    /// included.
+    func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
+        guard let event = hostView.lastDragEvent else { return false }
+        let item = AppKitDragAndDrop.draggingItem(
+            for: representations,
+            at: NSPoint(x: CGFloat(position.x.value), y: CGFloat(position.y.value)))
+        startDraggingSession([item], event)
+        return true
+    }
+
+    /// Starts an `NSDraggingSession` from `event` — the host view's own in
+    /// production; a test injects a recorder (ruling `DN-X` item 1).
+    lazy var startDraggingSession: @MainActor ([NSDraggingItem], NSEvent) -> Void = { [weak self] items, event in
+        guard let host = self?.hostView else { return }
+        host.beginDraggingSession(with: items, event: event, source: host)
     }
 
     func setDisplayLinkPaused(_ paused: Bool) {
