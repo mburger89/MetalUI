@@ -283,6 +283,26 @@ The other 28 A families' arms were already named by their tests and matched
 by hand. **Red first for the two new tests** and the check's own failure
 modes are §1.5's mutation table.
 
+### §1.5 Fix-round mutations and counts (`CX-S`)
+
+Committed tree `e69bc15`; each source mutation restored from a scratch copy,
+full unfiltered `swift test --build-system native --no-parallel`, `git
+status --short` empty after each.
+
+| id | mutation | reddened |
+|---|---|---|
+| MS1 | `Color.measurement`'s nil-axis ideal 10 → 20 (`NativeElements.swift`) | `aColorAnswersItsProposalAndTenOnANilAxis` (1 issue), `aNativeFillAcceptsEachWindowsCurrentProposal` (3) — 4 issues |
+| MS2 | `fixedSizeProposal` forwards the width unchanged (`LayoutTree.swift`) | `aFixedSizeTextKeepsItsOneLineWidthInANarrowStack` (1), `aNativeFixedSizeWithholdsOnlyItsSelectedAxesFromTheChildProposal` (1), `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal` (3), `builderFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal` (1), `theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` (3), `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI` (2), `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (2), `explicitStackSpacingIsUsedForEveryGapIncludingBesideASpacer` (1), `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows` (2), `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified` (1) — 17 issues |
+| KS1 | map: `keyboard-shortcut`'s arm `B4e` → `H2` (a real gesture arm in the same probe, the reviewer's case) | `CITE keyboard-shortcut H2 …` (passed `ARM` silently before `CX-S`) |
+| KS2 | map: `foreach`'s arm `F1` → `F2` (named by the NEXT test in the file) | `CITE foreach F2 …` — the body bound stops at the function's closing `}`, so a neighbour's comment does not satisfy it |
+
+Counts at the fix round's tip: **1976 tests in 3 suites passed** (1974 + the
+two new tests; the `FR-J no-argument frame: succeeded=` line present), 0
+`error:`, the one native deprecation `warning:` and 0 under the default build
+system; guards unmoved (no guard added). No `Sources/` line changed, so the
+fourteen offscreen images are not re-taken. `closeout-inventory-check.sh`
+prints nothing.
+
 ### §1.3 Documented absences (R rows; owner none unless stated)
 
 Published as `docs/divergences.md` § "Not offered", each with its ruling:
