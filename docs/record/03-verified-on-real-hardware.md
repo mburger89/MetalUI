@@ -1798,3 +1798,30 @@ capture backlog.
 None of this reopens the demo-layout, task 9, task 10 part 1, task 10 part
 2, task 11 part 1/2, task 12 part 1 or task 12 part 2 looks — they stay
 owed, joined by this task's own three.
+
+## 2026-10-01: the consolidated checklist; no new look added (plan task 15, the closeout)
+
+Record §66 §4.6, ruling `CX-M`. **Every look still owed — across this file's
+dated sections, record §19's frozen human-verification table and every task's
+own paragraph — is now one checklist, `docs/verification/human-checks.md`**
+(groups A–M: real-window captures, the stage-6b demo-layout looks, the modal
+and scrolling rows, the proposal preview, window state and display scale,
+disabled scrolling, the controls demo, text, shapes/strokes/clips/images,
+gestures, transitions and Reduce Motion, VoiceOver — the script is
+`docs/verification/voiceover-script.md`, linked as L1 — and the older
+milestones' rows). Each item says what to run, what to see, the right answer
+and the headless pin. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` builds the
+surfaces groups H, I, J and K look at (`CX-Q` item 3). **Status: not run.**
+
+**Real-window capture.** Taken at the design session (2026-09-30, 23:41 PDT,
+unlocked): default and preview 0 differing against `1b093b8`, and
+`6c961e3 → 1b093b8` 0 differing (record §66 §0). **Locked at every later
+check** — lane 1 (00:36 PDT) and this Record phase (2026-10-01 04:15 PDT:
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`) — so
+`capture.sh` was not re-run on the final head; the fourteen offscreen images
+read 0 px against `1b093b8` (record §66 §7), and no lane moved a drawn pixel
+(comment, test and `package`-narrowing changes; the looks demo is not in the
+default demo).
+
+**Plan task 15 stays unticked** on this file's evidence: the human looks are
+owed, not agent-doable; plan task 12's box waits on group L alone.

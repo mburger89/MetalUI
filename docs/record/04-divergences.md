@@ -2025,3 +2025,55 @@ proposal track already uses, so the reserved names stay **seven** and no
 `StateTable` divergence or inert row is touched by this task at all.
 
 Live count **68 → 72**, next label **100**.
+
+## 2026-10-01: 85, 2, 35, 39, 53 and 55 retire; 66 live, next label 100 (plan task 15, the closeout)
+
+Record §66 §2 (every row re-read against `CX-G`'s criterion, one line each
+with its live pin resolved by grep and its probe arm), rulings `CX-F`, `CX-G`,
+`CX-H`, `CX-R`; the published list is `docs/divergences.md`. **Retired**:
+**85** (an optional `@State` with a non-`nil` default reads `nil` until its
+first write — fixed by `CX-F`, probe O1, red-first test
+`anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`; the same
+shape on the public `StateTable.withState` fixed by `CX-Q`); **35** (a legacy
+flexible frame never grew), **39** (`idealWidth`/`idealHeight` trapped on a
+legacy frame), **53** (a legacy `Stack` offered fit-content), **55** (a legacy
+`Row`/`Column` shrank by base-weighted factors) — each retired because stage
+9's lowering already gives SwiftUI's answer (frame probe D4/C1,
+stack-algorithms A5/G9) and a live test asserts it; **2** (WebKit's flex
+sub-one clause) because its subject, the CSS engine's
+`ResolveFlexibleLengths.swift`, is deleted — on 11's ground, not on `CX-G`
+(a)–(c). **Live count 72 → 66; next label 100; every live owner is `none`
+except 82 (the human VoiceOver run).** Labels 2, 35, 39, 53, 55 and 85 join the
+never-reused list.
+
+**Rows whose §04 wording named a pin that no longer exists** (the sentences
+above in this file are history and stay; read the live name):
+
+| label | §04 names | live pin |
+|---|---|---|
+| 35 | `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal` | `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswer` (retired row) |
+| 39 | `anIdealDimensionOnTheLegacyFrameTraps` | `anIdealFrameLowersAtANilProposal` (retired row) |
+| 52 | `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` | `aLoweredRowOrColumnSpacesByItsDeclaredGapNotTheStackDefault` |
+| 53 | `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` (and the stage-9 section's "the lowered `Stack`'s fit-content answer is now this test's whole subject", which is wrong — the test asserts the proposal) | `aLoweredStackOffersItsChildItsProposal` (retired row) |
+| 54 | `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` | `divergence54SurvivesTheLoweringBecauseOnlyAScrollViewRecordsAnItem` |
+| 56 | `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes` | `aFrameOverAMultiMemberComponentFramesEachMember`, `aMultiMemberFrameRowAlignsItsMembersByTheFramesOwnAlignment` |
+| 76 | `controlSizeReachesNoBuiltInMeasurement` | `controlSizeReachesTheDefaultFontButNoControlsChrome` |
+| 83 / 32 | renamed by task 12 | see the 2026-09-30 task-12 part-2 section |
+
+**47 and 49 amended** (`CX-P` item 2): the legacy C3/D1 orders, recorded as
+"unpinned", are pinned by `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration`
+and `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (wrong on purpose
+against probe C3/D1); the **proposal** path agrees with SwiftUI and is pinned
+by `aBackgroundWrittenAfterCornerRadiusIsSquare` and
+`aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill`. **Rows recorded
+unpinned, with the reason, not invented**: 1 (a `CAMetalLayer` property), 29,
+31, 34 (bridge arms with no headless reading), 68 (a limit), 99 (no test
+asserts the shared curve). **61 and 62** (the grid model's residual
+disagreements): the GZ re-run reproduces the committed corpus byte for byte,
+so the baseline holds, kept, owner none (`CX-H`).
+
+**Classification.** Every live row is one of SwiftUI-different-by-design
+(kept, owner none), a documented renderer or platform limit, or a MetalUI
+choice SwiftUI never measured; `docs/divergences.md` carries the class in its
+columns and `docs/probes/closeout-inventory-check.sh` fails if a family
+cites a label that is not live.
