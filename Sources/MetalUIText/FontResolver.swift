@@ -9,8 +9,11 @@ import MetalUITextSystem
 /// carries no such guarantee. ``key`` and ``metrics`` are `Sendable` on their
 /// own and are what crosses a boundary; the `CTFont` stays where it was made.
 public struct ResolvedFont {
+    /// The CoreText font, which stays on the thread that made it.
     public let ctFont: CTFont
+    /// The font's identity for caches and the atlas.
     public let key: FontKey
+    /// The font's metrics.
     public let metrics: FontMetrics
 
     init(ctFont: CTFont) {

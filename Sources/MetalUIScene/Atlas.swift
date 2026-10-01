@@ -24,14 +24,19 @@
 ///   served to a 2x display and the text is fuzzy — spec §4.2 names exactly
 ///   that symptom, and nothing in this repo can see it.
 public struct GlyphKey: Hashable, Sendable {
+    /// The resolved font the glyph comes from.
     public let font: FontKey
     /// A glyph id in ``font`` (`CGGlyph` on Apple platforms, which is this
     /// same `UInt16`; ruling PS-C).
     public let glyph: UInt16
+    /// The size in points.
     public let size: Double
+    /// Which subpixel horizontal offset the glyph is rasterized at.
     public let subpixelVariant: Int
+    /// Device pixels per point the glyph is rasterized for.
     public let scaleFactor: Float
 
+    /// A glyph key.
     public init(font: FontKey, glyph: UInt16, size: Double,
                 subpixelVariant: Int, scaleFactor: Float) {
         self.font = font
@@ -45,9 +50,13 @@ public struct GlyphKey: Hashable, Sendable {
 /// Where one glyph's bitmap sits in the atlas, in atlas pixels, y **down** —
 /// the same convention as ``GlyphImage/bytes``.
 public struct AtlasSlot: Hashable, Sendable {
+    /// The slot's left edge.
     public let x: Int
+    /// The slot's top edge.
     public let y: Int
+    /// The slot's width.
     public let width: Int
+    /// The slot's height.
     public let height: Int
 
     /// Internal on purpose, for ``ShapedLine``'s reason: only ``GlyphAtlas``
@@ -98,7 +107,9 @@ public struct PackedGlyph: Hashable, Sendable {
 /// The bitmap lives in ``pixels`` and never touches Metal (spec §3.1); a
 /// renderer uploads ``dirtyRect`` of it to an `MTLTexture`.
 public final class GlyphAtlas {
+    /// The atlas width in pixels.
     public let width: Int
+    /// The atlas height in pixels.
     public let height: Int
 
     /// R8 coverage, row-major, `width` bytes per row, row 0 at the top.
@@ -155,6 +166,7 @@ public final class GlyphAtlas {
     private var shelfHeight = 0
     private var cursorX = 0
 
+    /// An empty atlas of `width` by `height` pixels; both must be positive.
     public init(width: Int, height: Int) {
         precondition(width > 0 && height > 0, "an atlas must have a positive extent")
         self.width = width

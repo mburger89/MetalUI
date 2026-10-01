@@ -12,22 +12,35 @@
 /// part 2, ruling `TE-AN`; probe GL14) — the nine-point gap `GR-O` 4 named,
 /// divergence 64, is retired.
 public struct UnitPoint: Hashable, Sendable {
+    /// The horizontal factor: 0 leading, 1 trailing.
     public var x: Double
+    /// The vertical factor: 0 top, 1 bottom.
     public var y: Double
 
+    /// A point at fractions `x` and `y` of a size.
     public init(x: Double, y: Double) {
         self.x = x
         self.y = y
     }
 
+    /// The top-leading corner, (0, 0).
     public static let zero = UnitPoint(x: 0, y: 0)
+    /// The centre, (0.5, 0.5).
     public static let center = UnitPoint(x: 0.5, y: 0.5)
+    /// The leading edge's midpoint, (0, 0.5).
     public static let leading = UnitPoint(x: 0, y: 0.5)
+    /// The trailing edge's midpoint, (1, 0.5).
     public static let trailing = UnitPoint(x: 1, y: 0.5)
+    /// The top edge's midpoint, (0.5, 0).
     public static let top = UnitPoint(x: 0.5, y: 0)
+    /// The bottom edge's midpoint, (0.5, 1).
     public static let bottom = UnitPoint(x: 0.5, y: 1)
+    /// The top-leading corner, (0, 0).
     public static let topLeading = UnitPoint(x: 0, y: 0)
+    /// The top-trailing corner, (1, 0).
     public static let topTrailing = UnitPoint(x: 1, y: 0)
+    /// The bottom-leading corner, (0, 1).
     public static let bottomLeading = UnitPoint(x: 0, y: 1)
+    /// The bottom-trailing corner, (1, 1).
     public static let bottomTrailing = UnitPoint(x: 1, y: 1)
 }

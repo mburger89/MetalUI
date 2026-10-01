@@ -217,6 +217,7 @@ public final class ShapingCache {
     /// number that turns into thrashing the next time the demo changes.
     static let sweepThreshold = 256
 
+    /// An empty cache.
     public init() {}
 
     /// Makes `font` reachable by its ``FontKey`` from inside a later

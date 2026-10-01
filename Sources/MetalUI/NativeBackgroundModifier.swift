@@ -38,10 +38,16 @@ import MetalUILayout
 /// reports `box.flexGrow.unconsumed` or `box.margin.unconsumed`; `ID-Q` item
 /// 6), the side id by B3.2, the count trap by B3.3.
 public struct BackgroundModifier<Content: ElementGroup, Background: ElementGroup>: Element {
+    /// The primary, which sizes the pair.
     public var content: Content
+    /// The background, offered the primary's size and painted beneath it.
     public var background: Background
+    /// Where the background sits within the primary's bounds.
     public var alignment: ProposalAlignment
 
+    /// A background behind `content`, SwiftUI's
+    /// `.background(alignment:content:)` (`ID-J`). A primary of zero or several
+    /// nodes traps naming the count (divergence 73).
     public init(content: Content, alignment: ProposalAlignment = .center,
                 @ElementBuilder background: () -> Background) {
         self.content = content

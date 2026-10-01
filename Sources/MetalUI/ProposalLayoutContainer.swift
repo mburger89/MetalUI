@@ -11,9 +11,13 @@ import MetalUILayout
 /// at compile time, as it is for `HStack`. The container contributes one
 /// native node and paints nothing of its own.
 public struct ProposalLayoutContainer<L: ProposalLayout, Content: ProposalElementGroup>: Element {
+    /// The layout that measures and places the children.
     public var layout: L
+    /// The children `layout` arranges.
     public var content: Content
 
+    /// A container laid out by `layout`, SwiftUI's `Layout` used as a view
+    /// (`SA-A`).
     public init(_ layout: L, @ElementBuilder content: () -> Content) {
         self.layout = layout
         self.content = content()

@@ -8,6 +8,8 @@ import MetalUIText
 #endif
 import MetalUITextSystem
 
+/// One window: its element tree, focus, input dispatch and frame loop, drawn
+/// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
 public final class Window {
     private let platformWindow: any PlatformWindow
@@ -861,6 +863,8 @@ public final class Window {
         liveWindows.append(WeakWindowRef(window: window))
     }
 
+    /// Marks the window dirty and wakes its display link, so the next tick
+    /// builds a frame.
     public func setNeedsRedraw() {
         Window.redrawRequests &+= 1
         needsRedraw = true
@@ -946,6 +950,8 @@ public final class Window {
         }
     }
 
+    /// Builds and draws one frame if the window is dirty or an animation is
+    /// running; otherwise pauses the display link.
     public func drawFrameIfNeeded() {
         // Binding design spec §4.4, and the widening M4 spec 1 could not make.
         // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation

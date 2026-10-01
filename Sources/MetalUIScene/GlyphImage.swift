@@ -3,7 +3,9 @@
 /// **R8 coverage, not colour.** 0 is no ink, 255 is full ink; the renderer
 /// multiplies it by the text colour (`monochromeSprite`, spec §7.1).
 public struct GlyphImage: Sendable {
+    /// The image width in pixels.
     public let width: Int
+    /// The image height in pixels.
     public let height: Int
 
     /// Coverage, one byte per pixel, row-major, **row 0 is the TOP row**.
@@ -57,6 +59,7 @@ public struct GlyphImage: Sendable {
     /// the commonest glyph in a paragraph, so this is the ordinary path for it.
     package static let empty = GlyphImage(width: 0, height: 0, bytes: [])
 
+    /// Whether the image has no pixels, as a space glyph's has none.
     public var isEmpty: Bool { width == 0 || height == 0 }
 
     /// How many fractional x-positions every rasterizer renders a glyph at.

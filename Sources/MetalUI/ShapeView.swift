@@ -40,6 +40,7 @@ extension Shape {
 /// (probe F4); each paints its own colour, never the shape's stored one
 /// (`TE-AQ` item 2). Lays out exactly as its shape does.
 public struct ShapeView<S: Shape>: Element {
+    /// The shape laid out and painted.
     public var shape: S
 
     enum Layer: Sendable, Equatable {

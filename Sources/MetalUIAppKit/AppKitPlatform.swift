@@ -645,6 +645,8 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 }
 
+/// The macOS platform: AppKit windows drawn with Metal, every window sharing
+/// one `Renderer` (`RS-C`). `App`'s default on macOS.
 @MainActor
 public final class AppKitPlatform: Platform {
     private let device: any MTLDevice
@@ -676,6 +678,8 @@ public final class AppKitPlatform: Platform {
         self.makeAccessibilitySignal = accessibilitySignal
     }
 
+    /// Opens an AppKit window titled `title` with a content size of `size`
+    /// points, drawn by the shared renderer.
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
         let renderer = try sharedRenderer ?? Renderer(device: device)
         sharedRenderer = renderer
@@ -686,6 +690,7 @@ public final class AppKitPlatform: Platform {
         return window
     }
 
+    /// Runs `NSApplication`'s event loop; returns when the application stops.
     public func run() {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)

@@ -23,14 +23,18 @@ import MetalUIPortableText
 /// - **The cascade (SF-C)** is the platform's fallback families that are
 ///   installed, in order; every other face resolves by name only.
 public enum SystemFonts {
+    /// No scalable font file was found in the searched directories.
     public struct NoFontsFound: Error, CustomStringConvertible {
+        /// The directories searched.
         public let directories: [String]
         public var description: String { "no scalable font under \(directories)" }
     }
 
     /// One face of one installed file.
     public struct Face: Equatable, Sendable {
+        /// The font file's path.
         public let path: String
+        /// The face's names, read without loading it.
         public let names: FreeTypeFaceNames
     }
 

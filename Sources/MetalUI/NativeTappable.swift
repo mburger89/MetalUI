@@ -6,12 +6,16 @@ import MetalUILayout
 /// It contributes no layout node: hit testing is registered in prepaint after
 /// native layout has resolved, matching the framework's three-phase contract.
 public struct OnTapModifier<Content: ProposalElementGroup>: Element {
+    /// The tappable proposal content.
     public var content: Content
+    /// Run when a press and release land on the content.
     public var action: @MainActor () -> Void
+    /// The fill painted while the pointer is over the content, if any.
     public var hoverColor: ColorToken?
     /// A `.contentShape(_:)` written after the tap (ruling `IX-L`), or `nil`.
     var shape: ContentShape?
 
+    /// Makes `content` a pointer target that runs `action` on a click.
     public init(content: Content, hoverColor: ColorToken? = nil,
                 action: @escaping @MainActor () -> Void) {
         self.content = content

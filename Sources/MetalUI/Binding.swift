@@ -111,6 +111,9 @@ public struct Binding<Value> {
         Binding(get: { value }, set: { _ in })
     }
 
+    /// The current value: reading calls the getter, writing calls the setter. A
+    /// write is a `@State` write when the source is one, so write from input,
+    /// never from a phase (`DD-D`).
     public var wrappedValue: Value {
         get { getValue() }
         nonmutating set {

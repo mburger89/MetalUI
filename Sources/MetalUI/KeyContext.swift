@@ -7,8 +7,11 @@
 /// language: a keymap is data loaded at runtime, so every operator it gains is
 /// an operator whose failure mode has to be designed.
 public struct KeyContext: Equatable, Sendable {
+    /// The context's name, which a predicate tests by identifier.
     public var name: String
+    /// Key–value pairs a predicate can compare for equality.
     public var values: [String: String]
+    /// A key context named `name` carrying `values`.
     public init(_ name: String, _ values: [String: String] = [:]) {
         self.name = name
         self.values = values

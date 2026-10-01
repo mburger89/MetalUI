@@ -1,10 +1,15 @@
 /// An absolutely-positioned box in layout coordinates.
 public struct LayoutRect: Sendable, Equatable {
+    /// The left edge.
     public var x: Double
+    /// The top edge.
     public var y: Double
+    /// The width.
     public var width: Double
+    /// The height.
     public var height: Double
 
+    /// A rect at `x`, `y` of `width` by `height`.
     public init(x: Double, y: Double, width: Double, height: Double) {
         self.x = x; self.y = y; self.width = width; self.height = height
     }

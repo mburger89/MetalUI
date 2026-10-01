@@ -83,12 +83,14 @@ struct GestureLeaf {
 /// `_EndedGesture` wrapper (`IX-B`): the spelling is SwiftUI's; only a caller
 /// naming the wrapper type sees a difference.
 public struct TapGesture: Gesture {
+    /// A tap reports no value.
     public typealias Value = Void
 
     /// The number of clicks that end the gesture.
     public var count: Int
     var ended: (@MainActor () -> Void)?
 
+    /// A tap that ends after `count` clicks.
     public init(count: Int = 1) {
         self.count = count
     }
@@ -114,14 +116,19 @@ public struct TapGesture: Gesture {
 /// press begins (MetalUI's choice: SwiftUI's `onChanged` for a long press is
 /// unmeasured).
 public struct LongPressGesture: Gesture {
+    /// Whether the press is still held at the minimum duration.
     public typealias Value = Bool
 
+    /// Seconds the press must be held before the gesture ends.
     public var minimumDuration: Double
+    /// How far the pointer may move before the gesture fails.
     public var maximumDistance: Pixels
     var ended: (@MainActor (Bool) -> Void)?
     var changed: (@MainActor (Bool) -> Void)?
     var pressing: (@MainActor (Bool) -> Void)?
 
+    /// A long press held for `minimumDuration` seconds without moving
+    /// `maximumDistance` or more.
     public init(minimumDuration: Double = 0.5, maximumDistance: Pixels = Pixels(10)) {
         self.minimumDuration = minimumDuration
         self.maximumDistance = maximumDistance
@@ -160,10 +167,14 @@ public struct LongPressGesture: Gesture {
 public struct DragGesture: Gesture {
     /// A drag's state: where it started and is, in the element's local space.
     public struct Value: Equatable, Sendable {
+        /// Where the press began.
         public var startLocation: Point<Pixels>
+        /// Where the pointer is now.
         public var location: Point<Pixels>
+        /// `location` minus `startLocation`.
         public var translation: Size<Pixels>
 
+        /// A drag value; `translation` is derived.
         public init(startLocation: Point<Pixels>, location: Point<Pixels>) {
             self.startLocation = startLocation
             self.location = location
@@ -172,10 +183,12 @@ public struct DragGesture: Gesture {
         }
     }
 
+    /// How far the pointer must move before the drag begins.
     public var minimumDistance: Pixels
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
 
+    /// A drag that begins once the pointer moves `minimumDistance`.
     public init(minimumDistance: Pixels = Pixels(10)) {
         self.minimumDistance = minimumDistance
     }
@@ -207,14 +220,18 @@ public struct DragGesture: Gesture {
 /// `first.exclusively(before: second)`: `first` is tried first; `second` may
 /// end only if `first` failed (`H15a`).
 public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
+    /// Which of the two gestures ended, with its value.
     public enum Value {
         case first(First.Value)
         case second(Second.Value)
     }
 
+    /// The gesture tried first.
     public var first: First
+    /// The gesture that may end only if `first` failed.
     public var second: Second
 
+    /// The gesture `first.exclusively(before: second)` builds.
     public init(_ first: First, _ second: Second) {
         self.first = first
         self.second = second
@@ -228,14 +245,20 @@ public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
 /// `first.simultaneously(with: second)`: both recognize independently (`H16a`,
 /// `H16b`).
 public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
+    /// Both gestures' values; a member that has not reported is `nil`.
     public struct Value {
+        /// The first gesture's value, if it reported one.
         public var first: First.Value?
+        /// The second gesture's value, if it reported one.
         public var second: Second.Value?
     }
 
+    /// One of the two gestures recognized together.
     public var first: First
+    /// The other of the two gestures recognized together.
     public var second: Second
 
+    /// The gesture `first.simultaneously(with: second)` builds.
     public init(_ first: First, _ second: Second) {
         self.first = first
         self.second = second

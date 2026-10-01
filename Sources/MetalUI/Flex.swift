@@ -26,6 +26,9 @@ import MetalUILayout
 public struct Column<Content: ElementGroup>: Element, StyledElement {
     var box: Box<Content>
 
+    /// A column with `gap` between children (default 0, where `VStack`'s
+    /// default spacing is 8 — divergence 52, `CX-E`), centring them on the
+    /// cross axis (EP-8).
     public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
         var style = Style()
         style.flexDirection = .column
@@ -103,6 +106,9 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
 public struct Row<Content: ElementGroup>: Element, StyledElement {
     var box: Box<Content>
 
+    /// A row with `gap` between children (default 0, where `HStack`'s default
+    /// spacing is 8 — divergence 52, `CX-E`), centring them on the cross axis
+    /// (EP-8).
     public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
         var style = Style()
         style.flexDirection = .row

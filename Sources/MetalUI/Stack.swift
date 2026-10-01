@@ -62,8 +62,11 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
     public var decoration: Decoration
     public var elementID: ElementID?
     public var handlers: Handlers
+    /// The layered children, first at the back.
     public var content: Content
 
+    /// A layering container sizing to its largest child on each axis, placing
+    /// each by `alignment` (default `.center`, EP-5).
     public init(alignment: Alignment = .center,
                 elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
@@ -82,6 +85,7 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
     /// `Box.Layout` — see its doc comment for why `node` is stored rather than
     /// re-derived.
     public struct Layout {
+        /// The stack's layout node.
         public var node: LayoutNodeID
         var content: Content.GroupLayout
     }

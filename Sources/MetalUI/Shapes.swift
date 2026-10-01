@@ -10,9 +10,11 @@ import MetalUILayout
 /// shorter side and a negative one is 0 (probes S4, S5); `.continuous`, the
 /// default, is drawn circular (divergence 90).
 public struct RoundedRectangle: Shape, Hashable {
+    /// The corner radius, clamped to half the shorter side.
     public var cornerRadius: Pixels
     public var style: RoundedCornerStyle
 
+    /// A rounded rectangle with `cornerRadius` corners drawn in `style`.
     public init(cornerRadius: Pixels, style: RoundedCornerStyle = .continuous) {
         self.cornerRadius = cornerRadius
         self.style = style
@@ -27,6 +29,7 @@ public struct RoundedRectangle: Shape, Hashable {
 /// (a nil axis takes the other's value; nil × nil is 10 × 10, probe S1),
 /// drawn centred in its frame (S2).
 public struct Circle: Shape, Hashable {
+    /// A circle.
     public init() {}
 
     public nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD {
@@ -55,6 +58,7 @@ public struct Circle: Shape, Hashable {
 public struct Capsule: Shape, Hashable {
     public var style: RoundedCornerStyle
 
+    /// A capsule whose ends are drawn in `style`.
     public init(style: RoundedCornerStyle = .continuous) {
         self.style = style
     }
@@ -68,6 +72,7 @@ public struct Capsule: Shape, Hashable {
 /// An ellipse inscribed in its frame — SwiftUI's `Ellipse()`, drawn by the
 /// renderer's ellipse kind (`TE-AE`). It cannot be a clip (divergence 91).
 public struct Ellipse: Shape, Hashable {
+    /// An ellipse.
     public init() {}
 
     public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {

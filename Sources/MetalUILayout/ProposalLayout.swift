@@ -42,8 +42,13 @@ public struct MeasurementSubviews: RandomAccessCollection {
         self.nodes = nodes
     }
 
+    /// The first child's position. Traps outside the measurement call it was
+    /// handed to (`SA-A`).
     public var startIndex: Int { run.requireActive(); return nodes.startIndex }
+    /// One past the last child's position. Traps outside the measurement call
+    /// it was handed to (`SA-A`).
     public var endIndex: Int { run.requireActive(); return nodes.endIndex }
+    /// The child at `position`, which can be measured but not placed.
     public subscript(position: Int) -> MeasurementSubview {
         run.requireActive()
         return MeasurementSubview(run: run, node: nodes[position])
@@ -112,8 +117,13 @@ public struct PlacementSubviews: RandomAccessCollection {
         self.records = records
     }
 
+    /// The first child's position. Traps outside the placement call it was
+    /// handed to (`SA-A`).
     public var startIndex: Int { run.requireActive(); return nodes.startIndex }
+    /// One past the last child's position. Traps outside the placement call it
+    /// was handed to (`SA-A`).
     public var endIndex: Int { run.requireActive(); return nodes.endIndex }
+    /// The child at `position`, which can be measured and placed.
     public subscript(position: Int) -> PlacementSubview {
         run.requireActive()
         return PlacementSubview(run: run, node: nodes[position], index: position,

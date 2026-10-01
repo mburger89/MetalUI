@@ -22,7 +22,9 @@ import MetalUICore
 /// Stable across frames for as long as the element keeps its structural
 /// identity, so a platform may key one element object per id (AB-D).
 public struct AccessibilityNodeID: Hashable {
+    /// The wrapped identity, compared and hashed by value.
     public let base: AnyHashable
+    /// An id wrapping any hashable identity, typically a `GlobalElementID`.
     public init<Base: Hashable>(_ base: Base) { self.base = AnyHashable(base) }
 }
 
@@ -56,21 +58,33 @@ public enum AccessibilityRole: Equatable, Sendable {
 /// screen reader a control works when it does nothing.
 public struct AccessibilityActions: OptionSet, Equatable, Sendable {
     public let rawValue: UInt8
+    /// An action set from its raw bits; prefer the named statics.
     public init(rawValue: UInt8) { self.rawValue = rawValue }
+    /// The node can be pressed.
     public static let press = AccessibilityActions(rawValue: 1 << 0)
+    /// The node's value can be increased.
     public static let increment = AccessibilityActions(rawValue: 1 << 1)
+    /// The node's value can be decreased.
     public static let decrement = AccessibilityActions(rawValue: 1 << 2)
 }
 
 /// What a node says and what it can do. No geometry: see `AccessibilityGeometry`,
 /// and `AccessibilityTree.hasSameStructure(as:)` for why the two are apart.
 public struct AccessibilityNode: Equatable {
+    /// The node's role, translated by each bridge to its platform's role.
     public var role: AccessibilityRole
+    /// The accessible name; `nil` publishes none.
     public var label: String?
+    /// The accessible value; `nil` publishes none.
     public var value: String?
+    /// Whether the node is selected.
     public var isSelected: Bool
+    /// Whether the node is enabled; a disabled node advertises no actions.
     public var isEnabled: Bool
+    /// Whether the node can take keyboard focus.
     public var isFocusable: Bool
+    /// The actions a client may request, derived from the last frame's live
+    /// handlers (`AB-H`).
     public var actions: AccessibilityActions
     /// In published order: the order the elements recorded during prepaint,
     /// which is declaration order (AB-C).
@@ -98,6 +112,8 @@ public struct AccessibilityNode: Equatable {
     /// its `selected` state as `false` as well as `true`.
     public var isSelectable: Bool
 
+    /// A node; every field but `role` defaults to absent, enabled and not
+    /// focusable.
     public init(role: AccessibilityRole, label: String? = nil, value: String? = nil,
                 isSelected: Bool = false, isEnabled: Bool = true, isFocusable: Bool = false,
                 actions: AccessibilityActions = [], children: [AccessibilityNodeID] = [],
@@ -140,6 +156,8 @@ public struct AccessibilityGeometry: Equatable {
     /// sibling an earlier one. The hit test's tiebreak within a layer (AB-W).
     public var order: Int
 
+    /// A node's geometry: its `frame`, the part of it `visibleFrame` shows, and
+    /// its hit-test `layer` and `order`.
     public init(frame: Bounds<Pixels>, visibleFrame: Bounds<Pixels>, layer: Int = 0, order: Int = 0) {
         self.frame = frame
         self.visibleFrame = visibleFrame
@@ -148,10 +166,13 @@ public struct AccessibilityGeometry: Equatable {
     }
 }
 
+/// One window's published accessibility tree: nodes, their geometry kept apart,
+/// and the focused node (`AB-K`).
 public struct AccessibilityTree: Equatable {
     /// Nodes with no published parent, in published order. `Deferred` content
     /// is always a root (AB-V).
     public var roots: [AccessibilityNodeID]
+    /// Every published node by id.
     public var nodes: [AccessibilityNodeID: AccessibilityNode]
     /// Kept apart from `nodes` so that an animation tick, which moves frames and
     /// nothing else, is a cheap comparison on the platform side (AB-K).
@@ -159,6 +180,7 @@ public struct AccessibilityTree: Equatable {
     /// The window's keyboard focus when that element published a node (AB-J).
     public var focused: AccessibilityNodeID?
 
+    /// A tree from its roots, nodes, geometry and focused node.
     public init(roots: [AccessibilityNodeID], nodes: [AccessibilityNodeID: AccessibilityNode],
                 geometry: [AccessibilityNodeID: AccessibilityGeometry],
                 focused: AccessibilityNodeID?) {

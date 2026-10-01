@@ -95,9 +95,14 @@ public enum AXActionKind: Equatable, Hashable, Sendable {
 /// takes it as a parameter, the same way `insertHitbox` and `registerHandlers`
 /// do, rather than storing it a second time inside the value it keys.
 public struct AXNode: Equatable {
+    /// The node's accessibility role.
     public var role: AXRole
+    /// The accessible name a client reads; `nil` publishes none.
     public var label: String?
+    /// The accessible value (a slider's position, a field's text); `nil`
+    /// publishes none.
     public var value: String?
+    /// Extra state the role does not carry, such as selected or disabled.
     public var traits: Set<AXTrait>
     /// **Deprecated** (plan task 12 part 2, `IX-Y` item 4): actions are derived
     /// from live handlers (AB-H), so this declared field is never read.

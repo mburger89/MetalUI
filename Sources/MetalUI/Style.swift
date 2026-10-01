@@ -28,6 +28,8 @@ package enum Display: Sendable, Equatable { case flex, stack, none }
 /// (`LR-FN` item 3).
 public enum Position: Sendable, Equatable { case `static`, absolute }
 
+/// A legacy container's main axis and order; the reversed cases reverse the
+/// children's nodes only (`LR-AB`).
 public enum FlexDirection: Sendable, Equatable {
     case row, rowReverse, column, columnReverse
 
@@ -58,6 +60,8 @@ public enum AlignSelf: Sendable, Equatable {
     case flexStart, flexEnd, center, baseline, stretch
 }
 
+/// How a legacy container distributes free main-axis space; the `space-*` cases
+/// lower to spacers under a declared main size (`LR-AB`).
 public enum JustifyContent: Sendable, Equatable {
     case flexStart, flexEnd, center, spaceBetween, spaceAround, spaceEvenly
 }
@@ -98,7 +102,9 @@ public struct Style: Sendable, Equatable {
     package var flexBasis: Dimension = .auto
     package var alignSelf: AlignSelf? = nil
 
+    /// The default style. Outside the package `Style` is opaque (`LR-FM`).
     public init() {}
 
+    /// The default style.
     public static let `default` = Style()
 }

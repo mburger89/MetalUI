@@ -8,12 +8,18 @@ import MetalUILayout
 /// ``ProposalElementGroup``, and its viewport/content relationship is solved
 /// by `LayoutTree`'s proposal engine rather than the CSS flex engine.
 public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
+    /// The axis the content scrolls along.
     public var axis: ScrollAxis
     public var elementID: ElementID?
+    /// The scrolled content.
     public var content: Content
+    /// The viewport's corner radius, clipping the content.
     public var cornerRadius: Pixels = Pixels(0)
+    /// Whether the scroll indicator is drawn (`DD-H`).
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
 
+    /// A scroller over proposal `content` along `axis`; `elementID` names it
+    /// for its scroll state.
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
         self.axis = axis

@@ -550,14 +550,20 @@ extension Component {
 /// reason `Component.width(_:)` gives (ruling `LR-ER` item 2; reconciled with
 /// `.frame` by stage 11's `LR-FY` item 2).
 extension StyledComponent {
+    /// Wraps each top-level member in padding of `points` on every edge,
+    /// appending to this component's modifier list (`OM-D`, `OM-E`).
     public func padding(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.wrap(paddingWrapperStyle(points))])
     }
 
+    /// Frames each member to a width of `points`, appending to this component's
+    /// modifier list (`LR-BG`, `OM-E`).
     public func width(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.amend(componentWidth(points))])
     }
 
+    /// Frames each member to a height of `points`, appending to this
+    /// component's modifier list (`LR-BG`, `OM-E`).
     public func height(_ points: Pixels) -> StyledComponent<C> {
         StyledComponent(component: component, ops: ops + [.amend(componentHeight(points))])
     }

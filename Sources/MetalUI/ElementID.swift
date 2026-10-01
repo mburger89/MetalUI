@@ -3,7 +3,9 @@
 /// A local name, unique only among its siblings. On its own it is not an
 /// identity: `GlobalElementID` is.
 public struct ElementID: Hashable, Sendable {
+    /// The name, compared by value among siblings.
     public let name: String
+    /// A local name for an element.
     public init(_ name: String) { self.name = name }
 }
 
@@ -51,10 +53,14 @@ public enum PathComponent: Hashable, Sendable {
 /// state entry — the same failure shape as content sizing's memo key shipping
 /// without `containingBlockWidth`.
 public final class GlobalElementID: Hashable, Sendable {
+    /// This element's own path component under its parent.
     public let component: PathComponent
+    /// The enclosing element's identity; `nil` at the root.
     public let parent: GlobalElementID?
     private let cachedHash: Int
 
+    /// The identity of the element at `component` under `parent`. The hash is
+    /// computed once here and used by `==` only as an early reject.
     public init(component: PathComponent, parent: GlobalElementID?) {
         self.component = component
         self.parent = parent

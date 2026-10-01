@@ -23,10 +23,15 @@ public struct TextField: Element, StyledElement {
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
 
+    /// Shown, dimmed, while `text` is empty.
     public var placeholder: String
+    /// The text shown; the field never changes it itself.
     public var text: String
+    /// Called with the edited text after each edit.
     public var onChange: @MainActor (String) -> Void
+    /// Called when Return is pressed in the field, if set.
     public var submit: (@MainActor () -> Void)?
+    /// The text's own colour; `nil` inherits the foreground style.
     public var foregroundColor: ColorToken?
     /// The field's own font request (ruling TE-F item 2): inherit the
     /// environment's font, the default font, or an explicit one.
@@ -43,6 +48,8 @@ public struct TextField: Element, StyledElement {
         set { fontRequest = .legacy(family: fontFamily, size: newValue) }
     }
 
+    /// A controlled one-line field showing `text` and reporting each edit to
+    /// `onChange` (`TI-B`).
     public init(_ placeholder: String, text: String, onChange: @escaping @MainActor (String) -> Void) {
         self.style = Style()
         self.decoration = Decoration()
@@ -65,12 +72,15 @@ public struct TextField: Element, StyledElement {
         self.init(placeholder, text: text.wrappedValue, onChange: { text.wrappedValue = $0 })
     }
 
+    /// Sets the field's own font by family and size; `nil` family is the system
+    /// font.
     public func font(family: String? = nil, size: Double) -> TextField {
         var copy = self
         copy.fontRequest = .legacy(family: family, size: size)
         return copy
     }
 
+    /// Sets the text's colour.
     public func foregroundColor(_ token: ColorToken) -> TextField {
         var copy = self
         copy.foregroundColor = token
@@ -85,6 +95,7 @@ public struct TextField: Element, StyledElement {
     }
 
     public struct Layout {
+        /// The field's layout node.
         public var node: LayoutNodeID
     }
 

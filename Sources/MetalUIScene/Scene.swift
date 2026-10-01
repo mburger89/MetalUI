@@ -10,8 +10,11 @@ public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image }
 /// is the number of type transitions in z-order"). That makes the promise
 /// assertable rather than architectural — see `DrawListTests`.
 public struct DrawRun: Sendable, Equatable {
+    /// The primitive type the run draws.
     public let kind: PrimitiveKind
+    /// The index of the run's first primitive in that type's array.
     public let start: Int
+    /// The number of primitives in the run.
     public let count: Int
 }
 
@@ -23,6 +26,7 @@ public struct DrawRun: Sendable, Equatable {
 /// restores a total order across both arrays by building ``drawList``, so
 /// `order` totally orders the scene even though the storage is split.
 public struct Scene: Sendable {
+    /// The rectangles, in insertion order.
     public private(set) var rects: [MUIRect] = []
 
     /// Glyph sprites (`monochromeSprite`, spec 7.1).
@@ -64,6 +68,7 @@ public struct Scene: Sendable {
     private var glyphLayer: [Int] = []
     private var imageLayer: [Int] = []
 
+    /// An empty scene.
     public init() {}
 
     /// **Every primitive array, and each of the three members below reads
@@ -75,6 +80,7 @@ public struct Scene: Sendable {
     /// `aSceneHoldingOnlyAnImageIsNotEmpty` (ruling TE-AF item 4).
     public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty }
 
+    /// Adds a rectangle on `layer`.
     public mutating func insert(_ rect: MUIRect, layer: Int = 0) {
         rects.append(rect)
         rectSequence.append(nextSequence)
@@ -82,6 +88,7 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// Adds a glyph on `layer`.
     public mutating func insert(_ glyph: MUIGlyph, layer: Int = 0) {
         glyphs.append(glyph)
         glyphSequence.append(nextSequence)
@@ -106,6 +113,7 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// Removes every primitive, keeping the arrays' capacity.
     public mutating func clear() {
         rects.removeAll(keepingCapacity: true)
         glyphs.removeAll(keepingCapacity: true)

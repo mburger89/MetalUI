@@ -29,8 +29,11 @@ extension FontKey {
 /// `CTFontGetDescent` / `CTFontGetLeading` — note that CoreText's descent is
 /// already positive, unlike the negative descent some font formats store.
 public struct FontMetrics: Hashable, Sendable {
+    /// CoreText's ascent, in points.
     public let ascent: Double
+    /// CoreText's descent, in points, positive.
     public let descent: Double
+    /// CoreText's leading, in points.
     public let leading: Double
 
     /// The distance from one baseline to the next.
@@ -97,12 +100,14 @@ public struct FontMetrics: Hashable, Sendable {
     /// property to. Text measurement is a second consumer, not the first.
     public var lineHeight: Double { ceil(ascent + descent + leading) }
 
+    /// Metrics from their three values.
     public init(ascent: Double, descent: Double, leading: Double) {
         self.ascent = ascent
         self.descent = descent
         self.leading = leading
     }
 
+    /// The metrics CoreText reports for `font`.
     public init(of font: CTFont) {
         self.init(ascent: Double(CTFontGetAscent(font)),
                   descent: Double(CTFontGetDescent(font)),

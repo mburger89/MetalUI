@@ -1,6 +1,7 @@
 import Foundation
 import Metal
 
+/// Why the shader library could not be built.
 public enum ShaderLibraryError: Error, CustomStringConvertible {
     case resourceMissing(String)
     case compilationFailed(String)
@@ -43,6 +44,8 @@ public enum ShaderLibrary {
         return header + "\n" + shaders
     }
 
+    /// Compiles the bundled shaders, with the shared type header prepended,
+    /// into a library on `device`.
     public static func make(device: any MTLDevice) throws -> any MTLLibrary {
         let source = try combinedSource()
         do {

@@ -51,16 +51,26 @@ public struct Font: Hashable, Sendable {
         Font(base: .textStyle(style), design: design, weight: weight)
     }
 
+    /// The large title text style.
     public static let largeTitle = Font(base: .textStyle(.largeTitle))
+    /// The title text style.
     public static let title = Font(base: .textStyle(.title))
+    /// The second-level title text style.
     public static let title2 = Font(base: .textStyle(.title2))
+    /// The third-level title text style.
     public static let title3 = Font(base: .textStyle(.title3))
+    /// The headline text style.
     public static let headline = Font(base: .textStyle(.headline))
+    /// The subheadline text style.
     public static let subheadline = Font(base: .textStyle(.subheadline))
     public static let body = Font(base: .textStyle(.body))
+    /// The callout text style.
     public static let callout = Font(base: .textStyle(.callout))
+    /// The footnote text style.
     public static let footnote = Font(base: .textStyle(.footnote))
+    /// The caption text style.
     public static let caption = Font(base: .textStyle(.caption))
+    /// The second caption text style.
     public static let caption2 = Font(base: .textStyle(.caption2))
 
     /// The face `name` names — a PostScript, family or full name, as
@@ -102,17 +112,27 @@ public struct Font: Hashable, Sendable {
     /// seam's ``MetalUITextSystem/FontDescriptor/weight`` reads (ruling TE-B
     /// item 1).
     public struct Weight: Hashable, Sendable {
+        /// CoreText's weight trait for this weight, -1…1.
         public let value: Double
         init(_ value: Double) { self.value = value }
 
+        /// Ultra-light weight.
         public static let ultraLight = Weight(-0.8)
+        /// Thin weight.
         public static let thin = Weight(-0.6)
+        /// Light weight.
         public static let light = Weight(-0.4)
+        /// Regular weight.
         public static let regular = Weight(0)
+        /// Medium weight.
         public static let medium = Weight(0.23)
+        /// Semibold weight.
         public static let semibold = Weight(0.3)
+        /// Bold weight.
         public static let bold = Weight(0.4)
+        /// Heavy weight.
         public static let heavy = Weight(0.56)
+        /// Black weight, the heaviest.
         public static let black = Weight(0.62)
     }
 

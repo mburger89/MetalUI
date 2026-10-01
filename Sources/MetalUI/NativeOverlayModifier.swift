@@ -27,10 +27,16 @@ import MetalUILayout
 /// precondition, naming the count (`LR-FX` item 4 as amended by `LR-GA` item
 /// 3); per-member distribution is plan task 8's `Group` semantics.
 public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
+    /// The primary, which sizes the pair.
     public var content: Content
+    /// The overlay, offered the primary's size and painted above it.
     public var overlay: Overlay
+    /// Where the overlay sits within the primary's bounds.
     public var alignment: ProposalAlignment
 
+    /// An overlay above `content`, SwiftUI's `.overlay(alignment:content:)`
+    /// (`MC-P`, `LR-FX`). A primary of zero or several nodes traps naming the
+    /// count (divergence 73).
     public init(content: Content, alignment: ProposalAlignment = .center,
                 @ElementBuilder overlay: () -> Overlay) {
         self.content = content

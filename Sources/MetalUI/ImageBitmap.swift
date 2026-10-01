@@ -21,7 +21,9 @@ import ImageIO
 public struct ImageBitmap: Sendable {
     let texture: ImageTexture
 
+    /// The bitmap's width in pixels.
     public var width: Int { texture.width }
+    /// The bitmap's height in pixels.
     public var height: Int { texture.height }
 
     /// `rgba` is `width × height × 4` bytes of straight-alpha R, G, B, A.

@@ -8,15 +8,20 @@ import MetalUIPlatform
 /// present, commit.
 @MainActor
 public final class MetalWindowRenderer: WindowRenderer {
+    /// The renderer that encodes each frame, shared across windows.
     public let renderer: Renderer
+    /// The surface that supplies each frame's drawable.
     public let surface: any RenderSurface
     private var pending: (frame: SurfaceFrame, view: SurfaceView, commandBuffer: any MTLCommandBuffer)?
 
+    /// A window renderer drawing with `renderer` into `surface` (`RS-B`).
     public init(renderer: Renderer, surface: any RenderSurface) {
         self.renderer = renderer
         self.surface = surface
     }
 
+    /// Acquires this frame's drawable and returns its scale factor, or `nil`
+    /// when no drawable is available (the window stays dirty and retries).
     public func beginFrame() -> Float? {
         pending = nil
         // No drawable is an ordinary condition: the window retries.
@@ -27,6 +32,8 @@ public final class MetalWindowRenderer: WindowRenderer {
         return frame.scaleFactor
     }
 
+    /// Encodes `scene` sampling `atlas` into the acquired drawable, presents
+    /// and commits; `false` if `beginFrame()` acquired nothing.
     public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {
         guard let pending else { return false }
         self.pending = nil

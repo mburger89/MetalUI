@@ -33,6 +33,9 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     private var isOn: Binding<Bool>
     private var box: Box<Pair<Box<EmptyGroup>, Label>>
 
+    /// A checkbox bound to `isOn`, labelled by `label`; a click, Space when
+    /// focused or an accessibility press flips it. SwiftUI's
+    /// `Toggle(isOn:label:)` (`DD-S`).
     public init(isOn: Binding<Bool>, @ElementBuilder label: () -> Label) {
         var style = Style()
         style.flexDirection = .row

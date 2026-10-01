@@ -65,6 +65,9 @@ public struct FocusState<Value: Hashable> {
         box = Box(defaultValue: nil)
     }
 
+    /// The focused element's value as of the last completed frame. A write
+    /// moves focus before the next frame builds, only to an element focusable
+    /// last frame (`IX-J`); write from input, never from a phase.
     public var wrappedValue: Value {
         get {
             guard let table = box.table, let slot = box.slotID else { return box.defaultValue }
@@ -87,11 +90,14 @@ public struct FocusState<Value: Hashable> {
     public struct Binding {
         let box: FocusState<Value>.Box
 
+        /// The bound focus state's value; reading and writing behave as
+        /// `FocusState.wrappedValue` does.
         public var wrappedValue: Value {
             get { FocusState(box: box).wrappedValue }
             nonmutating set { FocusState(box: box).wrappedValue = newValue }
         }
 
+        /// The binding itself, so `$focus` can be passed on.
         public var projectedValue: Binding { self }
     }
 

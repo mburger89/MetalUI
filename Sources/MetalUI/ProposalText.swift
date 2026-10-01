@@ -12,7 +12,9 @@ import MetalUITextSystem
 /// shaping-cache, and glyph-paint behavior while registering a native leaf, so
 /// it can participate in an otherwise proposal-only subtree today.
 public struct ProposalText: ProposalElement {
+    /// The text drawn.
     public var string: String
+    /// The text's own colour; `nil` inherits the foreground style.
     public var foregroundColor: ColorToken?
     /// This text's own font request, weight and slope (ruling TE-B), as
     /// `Text`'s.
@@ -31,6 +33,8 @@ public struct ProposalText: ProposalElement {
         set { fontRequest = .legacy(family: fontFamily, size: newValue) }
     }
 
+    /// A proposal-layout text leaf showing `string`, measured and drawn through
+    /// the frame's text system (`TS-A`).
     public init(_ string: String) {
         self.string = string
         foregroundColor = nil

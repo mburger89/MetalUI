@@ -88,8 +88,11 @@ public final class PortableFont {
 /// within a few millionths of a point, not exactly (measured, record §31), and
 /// `lineHeight` agrees exactly.
 public struct PortableFontMetrics: Hashable, Sendable {
+    /// The `hhea` ascent, in points.
     public let ascent: Double
+    /// The `hhea` descent, in points, positive.
     public let descent: Double
+    /// The `hhea` line gap, in points.
     public let leading: Double
 
     /// The distance from one baseline to the next: `ceil(ascent + descent +
@@ -97,6 +100,7 @@ public struct PortableFontMetrics: Hashable, Sendable {
     /// baseline after the first stays pixel-aligned.
     public var lineHeight: Double { (ascent + descent + leading).rounded(.up) }
 
+    /// Metrics from their three values.
     public init(ascent: Double, descent: Double, leading: Double) {
         self.ascent = ascent
         self.descent = descent
@@ -104,6 +108,8 @@ public struct PortableFontMetrics: Hashable, Sendable {
     }
 }
 
+/// A failure in the portable text pipeline, such as the shaper and rasterizer
+/// disagreeing about a face (`PT-B`).
 public struct PortableTextError: Error, CustomStringConvertible {
     public let description: String
     init(_ description: String) { self.description = description }

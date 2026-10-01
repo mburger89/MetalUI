@@ -2,6 +2,7 @@ import CHarfBuzz
 
 /// A HarfBuzz call that failed.
 public struct HarfBuzzError: Error, Equatable, CustomStringConvertible {
+    /// The HarfBuzz operation that failed.
     public let operation: String
     public var description: String { "\(operation) failed" }
 }
@@ -24,6 +25,9 @@ public final class HarfBuzzFont {
     /// The face's design units per em, the unit HarfBuzz works in (SH-D).
     public let unitsPerEm: Int
 
+    /// Opens face `faceIndex` of the font file `data` at `size` points; throws
+    /// `HarfBuzzError` if HarfBuzz cannot read it. `size` must be positive and
+    /// finite (a trap otherwise).
     public init(data: [UInt8], faceIndex: Int = 0, size: Double) throws {
         precondition(size.isFinite && size > 0, "a font size must be positive and finite")
         // hb_blob_create copies with HB_MEMORY_MODE_DUPLICATE, so `data` need

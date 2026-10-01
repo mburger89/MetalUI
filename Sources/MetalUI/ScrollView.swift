@@ -1,6 +1,7 @@
 import MetalUICore
 import MetalUILayout
 
+/// The axis a scroll view scrolls along.
 public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 
 /// Whether `ScrollView` and `ProposalScrollView` paint their fading overlay
@@ -30,6 +31,7 @@ public enum ScrollIndicatorVisibility: Sendable, Equatable {
 
 /// Cross-frame scroll position, in logical points along the scroll axis.
 public struct ScrollState: Sendable {
+    /// How far the content is scrolled, in points from its start.
     public var offset: Double = 0
 
     /// The most recent scroll's instant, on the same clock as
@@ -64,6 +66,7 @@ public struct ScrollState: Sendable {
     /// earlier. Zero until the first `prepaint` ever runs for this element.
     public var viewportExtent: Double = 0
 
+    /// A scroll state; every field defaults to an unscrolled, unmeasured view.
     public init(offset: Double = 0, lastScrollTime: Double = -.infinity, viewportExtent: Double = 0) {
         self.offset = offset
         self.lastScrollTime = lastScrollTime
@@ -86,7 +89,9 @@ public struct ScrollState: Sendable {
 /// FRAME STALE, copied from `ScrollState.viewportExtent`, which only
 /// `ScrollChrome.resolvedOffset`'s `PrepaintPass` overload ever writes.
 public struct ScrollContext: Sendable, Equatable {
+    /// The enclosing scroller's offset this frame.
     public var offset: Double
+    /// The scroller's viewport extent along its axis, one frame stale.
     public var viewportExtent: Double
 
     /// Which axis the two numbers above are measured along — so a reader can
@@ -100,6 +105,7 @@ public struct ScrollContext: Sendable, Equatable {
     /// default for exactly that reason.
     public var axis: ScrollAxis
 
+    /// A scroll context for a scroller along `axis`.
     public init(offset: Double, viewportExtent: Double, axis: ScrollAxis) {
         self.offset = offset
         self.viewportExtent = viewportExtent
@@ -136,8 +142,10 @@ public struct ScrollContext: Sendable, Equatable {
 /// an `if` takes one slot whether or not it has content). Until then the offset
 /// was handed to the trailing sibling and naming that sibling was the remedy.
 public struct ScrollView<Content: ElementGroup>: Element {
+    /// The axis the content scrolls along.
     public var axis: ScrollAxis
     public var elementID: ElementID?
+    /// The scrolled content.
     public var content: Content
 
     /// The radius the clips this element pushes are rounded to, in points.
@@ -179,6 +187,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// unless `scrollIndicators(_:)` sets it.
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
 
+    /// A scroller over `content` along `axis`; `elementID` names it for its
+    /// scroll state. Its viewport fills its proposal on the scrolling axis
+    /// (`LR-BB`).
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
         self.axis = axis
@@ -208,7 +219,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     }
 
     public struct Layout {
+        /// The viewport's layout node.
         public var node: LayoutNodeID       // viewport
+        /// The content's layout node inside the viewport.
         public var contentNode: LayoutNodeID
         var inner: Content.GroupLayout
     }

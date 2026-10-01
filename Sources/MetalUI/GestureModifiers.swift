@@ -61,6 +61,7 @@ extension StyledElement {
 /// child numbers from 0 under its id, so each wrapper is one identity level,
 /// and a chain of them nests, outer modifier outermost (`IX-D` item 3).
 public struct GestureModifier<Content: ProposalElementGroup>: Element {
+    /// The wrapped proposal content.
     public var content: Content
     var attachment: GestureAttachment
     /// A `.contentShape(_:)` written after the gesture (ruling `IX-L`), or `nil`.
