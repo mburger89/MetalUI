@@ -173,11 +173,17 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
 /// deprecated, so its row is built in a deprecated witness too and spliced back
 /// where it stood.
 private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
-    @available(*, deprecated, message: "calls flexBasis(fraction:) on purpose: it is the subject of everyPublicModifierWritesItsOwnFieldAndOnlyThatField's row (plan task 15, CX-C)")
+    @available(*, deprecated, message: "calls flexBasis(fraction:) and flexBasis(percent:) on purpose: they are the subjects of everyPublicModifierWritesItsOwnFieldAndOnlyThatField's rows (plan task 15, CX-C)")
     func spelled() -> [ModifierCase] {
         [ModifierCase(name: "flexBasis(fraction:)",
                       apply: { $0.flexBasis(fraction: 44) },
-                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) })]
+                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
+         // `flexBasis(percent:)` holds its own copy of the body since plan
+         // task 15 (it no longer forwards to a non-deprecated spelling), so
+         // the copy gets its own row (lane-1 fix round, mutation V-PERCENT).
+         ModifierCase(name: "flexBasis(percent:)",
+                      apply: { $0.flexBasis(percent: 45) },
+                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(45)) })]
     }
 }
 
@@ -446,7 +452,9 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // and `flexWrap(_:)`, removed with their fields, `LR-FM` item 1, `LR-FN`) =
     // **45**. + 5 at plan task 12 part 1 (the gesture attachment modifiers,
     // `IX-B`) = **50**. + 1 at lane 2 (`contentShape(_:)`, `IX-L`) = **51**.
-    #expect(cases.count == 51)
+    // + 1 at plan task 15's lane-1 fix round (`flexBasis(percent:)`'s own
+    // class-D row, `CX-C`) = **52**.
+    #expect(cases.count == 52)
 
     for c in cases {
         var expectedStyle = Style()

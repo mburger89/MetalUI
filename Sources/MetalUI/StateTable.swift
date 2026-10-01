@@ -627,7 +627,19 @@ final class StateTable {
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
         marked.insert(id)
-        var value = (storage[id]?.value as? S) ?? initial()
+        // An absent entry takes `initial()` whatever `S` is (plan task 15's
+        // lane-1 fix round, `CX-F`'s rule applied here too): the old
+        // `(storage[id]?.value as? S) ?? initial()` cast an absent entry's
+        // `nil` to an optional `S` as `.some(nil)`, so the public
+        // `LayoutPass`/`PrepaintPass`/`PaintPass.withState(id, initial:
+        // Optional(5))` handed its body `nil` — divergence 85's shape. Pinned
+        // by `thePublicWithStateHandsAnOptionalStateItsInitialValueOnFirstAccess`.
+        var value: S
+        if let entry = storage[id], let stored = entry.value as? S {
+            value = stored
+        } else {
+            value = initial()
+        }
         body(&value)
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
         writeCount += 1

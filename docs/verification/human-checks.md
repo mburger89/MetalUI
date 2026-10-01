@@ -31,7 +31,8 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
    `swift run -c release MetalUIDemo` (920×560 window). Variants:
    `METALUI_NATIVE_LAYOUT_PREVIEW=1` (the proposal preview),
    `METALUI_CONTROLS_DEMO=1` (the controls demo),
-   `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`).
+   `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`),
+   `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3).
 3. **Demo keys**: **M** modal (translucent scrim), **Space** theme, **F**/**Esc**
    focus the counter, **=**/**-** count, **A** the animation look, **Q** quit.
    In the preview only **Space** and **Q** have a visible effect.
@@ -172,24 +173,30 @@ record §03, task 10 part 2 and task 12 part 1 sections.* Pinned headless by
 
 ## H. Text (task 11 part 1)
 
-- [ ] **H1. `controlSize`'s drawn font**: in a scratch view, `Text` under
-  `.controlSize(.mini/.small/.regular)` draws at 9/11/13 pt (`TE-Q`, `TE-F`);
+- [ ] **H1. `controlSize`'s drawn font**: run `METALUI_LOOKS_DEMO=1 swift run
+  MetalUIDemo` (the looks demo, `Sources/MetalUIDemoContent/LooksDemo.swift`);
+  its "H1 · controlSize" column's three texts, under
+  `.controlSize(.mini/.small/.regular)`, draw at 9/11/13 pt (`TE-Q`, `TE-F`);
   the measured layout is pinned by number, the drawn glyph never seen.
   *Source: record §03, task 11 part 1 section.* **Observed:**
 
 ## I. Shapes, strokes, clips and images (task 11 part 2)
 
-- [ ] **I1. Through a real renderer's antialiasing**: an ellipse fill and an
-  ellipse stroke band, a capsule, a rounded clip over overflowing content, a
+- [ ] **I1. Through a real renderer's antialiasing**: in the looks demo
+  (`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`, section "I1 · shapes, clip,
+  images"), an ellipse fill and an ellipse stroke band, a capsule, a rounded clip over overflowing content, a
   `.resizable()` image in `.fit` and `.fill`, and `.interpolation(.none)` vs
-  the default (nearest vs bilinear). Pinned only offscreen and through the SDL
+  the default (nearest vs bilinear: the third image's checker squares hard,
+  the fourth's blurred). Pinned only offscreen and through the SDL
   replay-parity harness. *Source: CLAUDE.md "Human verification" task 11 part
   2; record §61.* **Observed:**
 
 ## J. Gestures (task 12 part 1)
 
-- [ ] **J1. On a trackpad**: tap slop, double-tap timing and a long press's
-  duration feel like Finder's or a SwiftUI app's (`GestureTests.swift` pins
+- [ ] **J1. On a trackpad**: in the looks demo (`METALUI_LOOKS_DEMO=1 swift
+  run MetalUIDemo`, section "J1 · gestures"), double-tap the first pad,
+  long-press the second (0.5 s), drag on the third — the line below counts
+  each. Tap slop, double-tap timing and a long press's duration feel like Finder's or a SwiftUI app's (`GestureTests.swift` pins
   the numbers). *Source: record §03, task 12 part 1 section.* **Observed:**
 - [ ] **J2. A real key window's accent and ring** — the probe harness was never
   the active application (`PX23` always read "inactive"); confirm E1's flip
@@ -203,6 +210,10 @@ record §03, task 10 part 2 and task 12 part 1 sections.* Pinned headless by
 `underReduceMotionEveryTransitionButIdentityIsAnOpacityFade`,
 `propertyAnimationsRunUnchangedUnderReduceMotion`.
 
+Run them in the looks demo (`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`,
+section "K1–K3 · transitions"): each button toggles its tile in and out under
+`withAnimation(.easeInOut(duration: 0.8))`.
+
 - [ ] **K1. Transitions on screen**: an insertion and a removal under
   `withAnimation` for `.opacity`, `.move(edge:)`, `.scale`, `.slide`,
   `.offset`, `.push`, `.asymmetric`, `.combined` — the removed element's ghost
@@ -213,7 +224,8 @@ record §03, task 10 part 2 and task 12 part 1 sections.* Pinned headless by
   on the same animation, and property animations (the demo's **A**) are
   unchanged. Turn it off again. Measured only by swizzling the getter
   in-process. **Observed:**
-- [ ] **K3. `.scale`'s mid-flight glyphs** look softened (a linear-filtered
+- [ ] **K3. `.scale`'s mid-flight glyphs** (the looks demo's `scale` button;
+  its tile carries the text "Aa scale me") look softened (a linear-filtered
   resample of the atlas, not a re-rasterization) and snap sharp when the
   transition lands. **Observed:**
 

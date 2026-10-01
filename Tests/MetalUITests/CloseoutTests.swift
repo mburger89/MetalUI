@@ -358,3 +358,120 @@ private func countCloseoutAllocations(_ body: () -> Void) throws -> (count: Int,
                  perFramed, bytesFramed, perBare, bytesBare, perFramed - perBare, bytesFramed - bytesBare))
     #expect(framed80.storeEntries > framed40.storeEntries, "the instrument: framed rows hold store entries")
 }
+
+// MARK: - Lane-1 fix round: the public Box(decoration:) initialisers (CX-D, CX-P item 5)
+
+/// **F1.1.** `Box(decoration:content:)` and its builder form paint exactly what
+/// the `package` `Box(style: Style(), decoration:, content:)` they forward to
+/// paints — the accent fill with its 12-point radii — with no content (the
+/// plain form over `EmptyGroup`) and with content (the builder form over a
+/// sized child). Nothing else in the suite asserted what either public
+/// initialiser paints, so dropping its `decoration` argument stayed green.
+///
+/// Mutations **V-BOXDEC** (the plain form forwards `Decoration()`) and
+/// **V-BOXDECB** (the builder form forwards `Decoration()`) → this test.
+@Test @MainActor func thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints() throws {
+    let decoration = Decoration(background: .accent, cornerRadius: Pixels(12))
+    let plain = paintedShapes(40, 40, Box(decoration: decoration, content: EmptyGroup())
+        .cssWidth(Pixels(40)).cssHeight(Pixels(40)))
+    let plainReference = paintedShapes(40, 40, Box(style: Style(), decoration: decoration, content: EmptyGroup())
+        .cssWidth(Pixels(40)).cssHeight(Pixels(40)))
+    try #require(plain.count == 1, "the plain form paints one rect: \(plain)")
+    #expect(plain[0].background == colour(.accent) && plain[0].radii == [12, 12, 12, 12]
+                && plain[0].rect == [0, 0, 40, 40],
+            "the plain form paints its decoration: \(plain[0])")
+    #expect(plain == plainReference, "the plain form equals Box(style: Style(), …): \(plain) vs \(plainReference)")
+
+    let built = paintedShapes(40, 40, Box(decoration: decoration) {
+        Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(.surface)
+    })
+    let builtReference = paintedShapes(40, 40, Box(style: Style(), decoration: decoration) {
+        Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(.surface)
+    })
+    try #require(built.count == 2, "the builder form's fill, then its child's: \(built)")
+    let fill = try #require(built.first { $0.background == colour(.accent) }, "the builder form's own fill: \(built)")
+    #expect(fill.radii == [12, 12, 12, 12] && fill.rect == [0, 0, 40, 40], "\(fill)")
+    #expect(built == builtReference, "the builder form equals Box(style: Style(), …) { … }: \(built) vs \(builtReference)")
+}
+
+// MARK: - Lane-1 fix round: the public withState over an optional state (CX-F, CX-P)
+
+/// A leaf that reads its state through the public `LayoutPass.withState` with
+/// an optional `S` whose initial value is not `nil`, recording what the body saw.
+private struct OptionalWithStateProbe: Element {
+    let reads: OptionalReads
+    var elementID: ElementID? { nil }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        pass.withState(id, initial: Optional<Int>.some(5)) { (value: inout Int?) in
+            MainActor.assumeIsolated { reads.layout.append(value) }
+        }
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **F1.2.** `pass.withState(id, initial: Optional(5))` on an absent entry hands
+/// its body **5**, not `nil` — divergence 85's cast (`storage[id]?.value as? S`
+/// succeeding as `.some(nil)` for an optional `S`) reached the public
+/// `LayoutPass`/`PrepaintPass`/`PaintPass.withState` too, where the closeout's
+/// first lane fixed only `peek`. The second frame reads the stored 5. Red before
+/// the fix: `[nil, nil]`.
+///
+/// Mutation **V-WITHSTATE**: restore `withState`'s `(storage[id]?.value as? S)
+/// ?? initial()` → this test.
+@Test @MainActor func thePublicWithStateHandsAnOptionalStateItsInitialValueOnFirstAccess() throws {
+    let reads = OptionalReads()
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, _) = try makeFakeWindow(device: device, size: 100) { Column { OptionalWithStateProbe(reads: reads) } }
+    window.drawFrameIfNeeded()
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    try #require(reads.layout.count == 2, "two frames, two reads: \(reads.layout)")
+    #expect(reads.layout == [5, 5], "the initial value on first access, then the stored one: \(reads.layout)")
+}
+
+// MARK: - Lane-1 fix round: the looks demo (CX-M item 1)
+
+/// **F1.3.** `looksDemoContent()` — the runnable surface for human checks H1,
+/// I1, J1 and K1–K3 — renders through a real `Window` without a trap and
+/// draws what those checks look at: two ellipse primitives (the fill and the
+/// stroke band, `MUIRect.shape == 1`), four images (fit, fill, nearest,
+/// bilinear — two of each filter), and a native depth inside `maxDepth`. One
+/// press of the first transition button inserts its tile, so K1 has something
+/// to watch.
+@Test @MainActor func theLooksDemoDrawsEverySurfaceItsHumanChecksName() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 1200) { looksDemoContent() }
+    window.drawFrameIfNeeded()
+    let scene = window.lastScene
+    let ellipses = scene.rects.filter { $0.shape == 1 }
+    #expect(ellipses.count == 2, "the ellipse fill and band: \(ellipses.count)")
+    #expect(scene.images.count == 4, "fit, fill, nearest, bilinear: \(scene.images.count)")
+    let deepest = window.lastNativeLayoutDeepestLevel
+    print("LOOKS DEMO deepest native level: \(deepest)")
+    #expect(deepest > 0 && deepest <= 72, "\(deepest)")
+
+    let accent = colour(.accent)
+    func accentCount(_ scene: Scene) -> Int {
+        scene.rects.map(PaintedShape.init).filter {
+            $0.background.h == accent.h && $0.background.s == accent.s && $0.background.l == accent.l
+        }.count
+    }
+    let accentBefore = accentCount(scene)
+    let buttons = window.lastHitboxes.filter { $0.handlers.onClick != nil }
+    try #require(buttons.count == 9, "the nine transition buttons: \(buttons.count)")
+    let first = try #require(buttons.min { $0.bounds.origin.y < $1.bounds.origin.y })
+    let point = Point(x: first.bounds.origin.x + Pixels(4), y: first.bounds.origin.y + Pixels(4))
+    platform.simulateInput(.mouseDown(MouseEvent(position: point)))
+    platform.simulateInput(.mouseUp(MouseEvent(position: point)))
+    try #require(window.needsRedraw, "the press toggled the tile")
+    window.drawFrameIfNeeded()
+    let accentAfter = accentCount(window.lastScene)
+    #expect(accentAfter == accentBefore + 1, "the opacity tile was inserted: \(accentBefore) → \(accentAfter)")
+}
