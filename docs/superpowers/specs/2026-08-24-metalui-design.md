@@ -56,6 +56,20 @@ primitive** (§7.7), not an escape hatch.
 **v1 targets macOS and iOS/iPadOS** on a single flat-surface backend (`CAMetalLayer` + Metal +
 CoreText).
 
+> **Corrected on 2026-09-30 by plan task 14 (ruling `PB-A`,
+> `docs/superpowers/2026-09-30-platform-boundary-decisions.md`, record §65).**
+> The line above is kept as history; it was never built. The user decided
+> the iOS/iPadOS target is **out of product scope**, not merely unmet: no
+> UIKit platform conformer, no touch input, no safe areas, no
+> `UIApplication`/scene lifecycle, no `UIAccessibility` bridge, and none
+> planned. The boundary that actually governs today is desktop windowing —
+> **macOS (AppKit + Metal, the default) plus Linux and Windows through
+> `Backends/SDL`** (rulings `XP-A`/`XP-B`, record §39/§40,
+> `docs/superpowers/plans/2026-09-23-cross-platform-roadmap.md`) — a
+> different axis from this section's Apple-device-class framing (iOS/tvOS/
+> visionOS as backends of one platform family). `PB-A` names what lifting
+> the iOS boundary would need, if ever asked for again.
+
 **tvOS is deferred but designed for.** *(Revised — v1 in the first draft.)* It shares the UIKit
 backend built for iOS, so it stays cheap to add, but its interaction model is pointerless: remote
 swipe translated to focus movement, focus parallax, and no cursor at all — which §8.1's hitbox-based

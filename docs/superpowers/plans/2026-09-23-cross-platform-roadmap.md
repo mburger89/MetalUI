@@ -5,6 +5,12 @@ MetalUI app running on Linux and Windows. Items are worked **one at a time, in
 this order**, each on its own branch and PR with its own spec, record and
 rulings; tick an item here in the PR that lands it.
 
+**iOS, iPadOS, tvOS, watchOS and visionOS are out of scope** (plan task 14,
+ruling `PB-A`, `docs/superpowers/2026-09-30-platform-boundary-decisions.md`,
+record §65, 2026-09-30) — this roadmap's own list below was always
+Linux-and-Windows only, so this is a stated boundary, not a correction of
+it: nothing here was ever heading toward a mobile, TV or headset backend.
+
 ## Where things stand
 
 Portable today (imports no Apple framework, built on Linux by `scene-linux`,

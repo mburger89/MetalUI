@@ -1428,12 +1428,25 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   across design, the critic round, all three lanes and the Record phase's
   own close, so `capture.sh` was never run this task.
 
-- [ ] **14. Resolve platform completeness.**
+- [x] **14. Resolve platform completeness.**
   MetalUI is macOS-only today. If “complete SwiftUI alignment” includes
   SwiftUI's Apple-platform scope, implement and verify iOS/iPadOS platform
   conformers, touch input, safe areas, lifecycle and native accessibility.
   Otherwise record macOS-only as an explicit product boundary rather than an
   implied parity claim.
+
+  **Done 2026-09-30 (ruling `PB-A`,
+  `docs/superpowers/2026-09-30-platform-boundary-decisions.md`, record §65).**
+  The task's own premise is dated — by this task, MetalUI runs on macOS,
+  Linux and Windows (`XP-A`/`XP-B`), not macOS alone. The user chose the
+  second branch: recorded the boundary rather than building iOS/iPadOS.
+  Supported: macOS (AppKit + Metal), Linux and Windows (`Backends/SDL`). Not
+  supported, none planned: iOS, iPadOS, tvOS, watchOS, visionOS — no UIKit
+  conformer, no touch input, no safe areas, no `UIApplication`/scene
+  lifecycle, no `UIAccessibility` bridge. `PB-A` names what lifting the
+  boundary would need and the gaps a reader might otherwise assume are
+  covered on the supported platforms. Docs-only change — no `Sources/`/
+  `Tests/` file touched.
 
 - [ ] **15. Run the replacement closeout.**
   Re-run the full inventory; require that no public behaviour is unclassified,

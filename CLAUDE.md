@@ -5,10 +5,18 @@ A GPU-accelerated UI framework for Swift, modeled on
 idiomatic Swift. **macOS with AppKit and Metal by default; the framework also
 builds on Linux and Windows** (`XP-A`), drawing through `Backends/SDL`
 (`App(platform:textSystem:)`, `XP-B`) with the portable text system — see
-`plans/2026-09-23-cross-platform-roadmap.md` for what is left. No UIKit, no
-`.touch` input: the spec's iOS target is unmet. `PlatformWindow`'s `onAccessibilityRequest`,
+`plans/2026-09-23-cross-platform-roadmap.md` for what is left. **The
+supported platforms are macOS, Linux and Windows — desktop windowing only.**
+iOS, iPadOS, tvOS, watchOS and visionOS are an explicit product boundary, not
+an unmet target (plan task 14, ruling `PB-A`,
+`docs/superpowers/2026-09-30-platform-boundary-decisions.md`, record §65): no
+UIKit platform conformer, no `.touch` input, no safe areas, no
+`UIApplication`/scene lifecycle, no `UIAccessibility` bridge, none planned.
+`PlatformWindow`'s `onAccessibilityRequest`,
 `publishAccessibilityTree(_:)`, `controlActiveState` and
-`onControlActiveStateChange` have no default implementations (`AB-R`, `EV-AB`).
+`onControlActiveStateChange` have no default implementations (`AB-R`, `EV-AB`);
+both existing conformers (`AppKitPlatform`/`AppKitWindow`,
+`SDLPlatform`/`SDLWindow`) implement all four.
 
 **This file is rules only.** The full pre-2026-09-21 version (120 KB: every
 test name, divergence row, inert row, human-verification row, performance
@@ -56,8 +64,10 @@ milestones append their record to `docs/record/` and put only the rule here.
   decisions doc, `2026-09-28-text-semantics-decisions.md`, plan task 11,
   both parts), `IX-` (next `IX-AK`; rulings in its own decisions doc,
   `2026-09-29-interaction-decisions.md`, plan task 12, both parts —
-  interaction and accessibility). A numbered citation
-  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`) is a typo; sweep
+  interaction and accessibility), `PB-` (next `PB-B`; rulings in its own
+  decisions doc, `2026-09-30-platform-boundary-decisions.md`, plan task 14).
+  A numbered citation
+  of a lettered prefix (`CS-3`, `LR-3`, `GR-3`, `SH-3`, `PT-3`, `LB-3`, `ID-3`, `DD-3`, `TE-3`, `IX-3`, `PB-3`) is a typo; sweep
   case-insensitively.
   **A decisions doc's "next unused" line moves in the commit that appends the
   ruling** — read the file's last `## <PREFIX>-` heading, not its header; the
@@ -436,6 +446,22 @@ milestones append their record to `docs/record/` and put only the rule here.
   `.scale`'s soft mid-flight glyphs now owed alongside it) does not gate the
   tick, by the task's own ruling (`AN-AG`): the plan's text asks for no look,
   and every behaviour here is pinned headless.
+  Task 14, `PB-` (§65, decisions doc
+  `2026-09-30-platform-boundary-decisions.md`, no spec, no probe —
+  the task claims no new SwiftUI behaviour) — **closes task 14**: the user
+  decided (2026-09-30) to record the platform boundary rather than build
+  iOS/iPadOS. Supported: macOS (AppKit/Metal, the default), Linux and
+  Windows (`Backends/SDL`, `XP-A`/`XP-B`). Not supported, none planned: iOS,
+  iPadOS, tvOS, watchOS, visionOS — no UIKit conformer, no `.touch` input, no
+  safe areas, no `UIApplication`/scene lifecycle, no `UIAccessibility`
+  bridge (`PB-A`, amending the design spec's §2 with a dated note, the old
+  text kept as history). `PB-A` also names what lifting the boundary would
+  need and the gaps a reader might otherwise assume are covered on the
+  supported platforms (both conformers implement `AB-R`/`EV-AB`'s
+  defaultless pair; VoiceOver is validated only on macOS; the real-window
+  capture debt has only ever been taken on macOS). Docs-only: 0
+  `Sources:`/`Tests:` files changed, counts unmoved from task 13's **1959 /
+  0 / 119**.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before

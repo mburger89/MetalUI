@@ -87,7 +87,11 @@ Limits of the proposal path, as of 2026-09-16:
   alignment is typed as in SwiftUI (`HStack(alignment: .top)`); the old
   nine-case spacing-first initializers are deprecated.
 
-There is still no iOS support: everything is macOS only.
+**Platform boundary (ruling `PB-A`, 2026-09-30, record §65):** macOS (AppKit
++ Metal, the default), Linux and Windows (`Backends/SDL`) are supported.
+iOS/iPadOS/tvOS/watchOS/visionOS are not — no UIKit conformer, no touch
+input, no safe areas, no app lifecycle, no `UIAccessibility` — a declared
+product boundary, not a gap left by an unmet target.
 
 ## Requirements
 
@@ -347,13 +351,15 @@ correct phase, `Transaction`/`withTransaction`/`.transaction(_:)`/
 `.animation(_:value:)` and `Binding.transaction`/`.animation(_:)`,
 environment-driven Reduce Motion, and `AnyTransition`'s documented supported
 surface for insertion/removal inside an `if`/`ForEach`.
-Open: platform completeness (task 14), and, inside task 12 itself, **the
+**Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
+are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
+product boundary, not an unmet target. Open: inside task 12 itself, **the
 VoiceOver script** (`docs/verification/voiceover-script.md`) — written,
 walking the demo, the controls demo and the text-input demo against the
 trees the tests pin, but **only a human can run it**; task 12's own box
 stays unticked until someone does. The decisions documents are prefixed
 `SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`,
-`TE-`, `IX-` and `AN-`.
+`TE-`, `IX-`, `AN-` and `PB-`.
 
 The accessibility bridge publishes text, click targets, focusable and
 adjustable elements, declared and named actions, hidden/combined/contained
@@ -365,8 +371,8 @@ flattening into reading order). It is **still not validated with real
 VoiceOver**.
 
 Not done: VoiceOver validation (the one item left in task 12), menus/context
-menus, iOS, Reduce Motion, exit transitions, transforms, and text colour
-animation.
+menus, exit transitions, transforms, and text colour animation. iOS is not
+"not done" — it is out of scope by `PB-A` (record §65).
 
 ## Documentation
 
