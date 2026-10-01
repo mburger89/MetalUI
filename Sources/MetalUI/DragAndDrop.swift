@@ -321,11 +321,11 @@ public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGr
                 .opacity(Frame.dragPreviewOpacity)
             slot = DragPreviewSlot(Deferred(content: { box }))
         }
-        let (nodes, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
-        // The presentation's placeholder joins no parent: this wrapper hands its
-        // parent the content's node alone, so the placeholder is consumed here
-        // (its root is laid out against the window, `LR-CM`).
-        for node in nodes { _ = frame.lowering.consume(node) }
+        // The presentation's placeholder (a bare native leaf, no `LoweredItem`)
+        // joins no parent because this wrapper hands its parent the content's
+        // node alone; the presentation's root is laid out against the window
+        // (`LR-CM`, `DN-Y` item 2).
+        let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         return (slot, layout)
     }
 

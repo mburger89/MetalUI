@@ -246,9 +246,11 @@ extension Frame {
     /// Replays the drag snapshot after every other paint, ghosts included
     /// (`DN-J` items 1–2): this frame's capture, else the session's last one
     /// (`DN-H` item 4), translated by `dragPreviewTranslation`, at alpha × 0.7,
-    /// on a layer above every layer the frame used, each primitive masked to the
-    /// snapshot's own translated bounds (a source half-clipped by a scroller
-    /// shows whole). Nothing without a session.
+    /// on a layer above every layer the frame used. A primitive whose clip was
+    /// pushed inside the source keeps that clip, translated with it (a clipped
+    /// or rounded draggable replays only what it showed); every other primitive
+    /// is masked to the snapshot's own translated bounds (a source half-clipped
+    /// by a scroller shows whole) — `DN-Y`. Nothing without a session.
     func paintDragPreview() {
         guard dragSourceID != nil else { return }
         let snapshot = dragSnapshot ?? previousDragSnapshot
@@ -261,7 +263,7 @@ extension Frame {
         let mask = effect.map(union)
         let layer = (scene.highestLayer ?? 0) + 1
         for primitive in snapshot {
-            insertIntoScene(effect.apply(to: primitive.withInnerMask(false)).replayed(mask: mask, layer: layer))
+            insertIntoScene(effect.apply(to: primitive).replayed(mask: mask, layer: layer))
         }
     }
 
@@ -279,18 +281,20 @@ extension CapturedPrimitive {
         }
     }
 
-    /// This primitive on `layer`, masked to `mask` with square corners.
+    /// This primitive on `layer`: a primitive captured with an inner mask keeps
+    /// its own (already moved by `TransitionEffect.apply`); any other is masked
+    /// to `mask` with square corners (`DN-Y`).
     func replayed(mask: MUIBounds, layer: Int) -> CapturedPrimitive {
         let square = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
         switch self {
         case .rect(var r, _, let inner):
-            r.contentMask = mask; r.maskCornerRadii = square
+            if !inner { r.contentMask = mask; r.maskCornerRadii = square }
             return .rect(r, layer: layer, innerMask: inner)
         case .glyph(var g, _, let inner):
-            g.contentMask = mask; g.maskCornerRadii = square
+            if !inner { g.contentMask = mask; g.maskCornerRadii = square }
             return .glyph(g, layer: layer, innerMask: inner)
         case .image(var i, let texture, _, let inner):
-            i.contentMask = mask; i.maskCornerRadii = square
+            if !inner { i.contentMask = mask; i.maskCornerRadii = square }
             return .image(i, texture: texture, layer: layer, innerMask: inner)
         }
     }
