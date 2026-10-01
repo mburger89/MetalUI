@@ -715,7 +715,66 @@ prints nothing.
 
 ## §6 Lane 3 — doc comments and the human checklist
 
-(To be written by lane 3.)
+(The checklist moved to lane 1, `CX-P` item 9; it is §4.6.)
+
+**Red.** `docs/probes/closeout-undocumented.sh` at lane 2's tip `f4c4aae`
+printed **578** rows across 87 `Sources/` files — the design's 592 at
+`1b093b8` less 14; no row fell in lane 1's four files (`Box.swift`,
+`State.swift`, `StateTable.swift`, `AnimatedStyle.swift`) or its new
+`LooksDemo.swift`, so lane 3's file set (`CX-O`) was the whole list. No Swift
+test was added: the probe is the instrument, committed at design, and its
+exit criterion is an empty print (`CX-K`).
+
+**Work** (commit `82bde75`, 87 files, 699 insertions, 0 deletions beyond
+the re-spelled sentences). Each comment says what the declaration does and,
+where it makes a claim, cites the ruling or divergence label it rests on
+(e.g. `Row`/`Column`'s `gap` default names divergence 52 and `CX-E`;
+`Image.interpolation(_:)` names divergence 93 and `TE-AL`; `Grid`'s row
+alignment names divergence 88; `Picker`'s automatic style names divergence
+81 and `DD-V`; `List`'s initialiser names divergence 84;
+`AccessibilityTraits.isModal` names `IX-X` and divergence 95;
+`.updatesFrequently` names record §05). Three draft comments were corrected
+against the source before the commit: `KeyBinding.init` (a malformed spelling
+never matches; it does not trap), `App.run()` (no claim about when AppKit
+returns), and `AccessibilityTree.init` (its fourth argument is the focused
+node, not children); `Toggle` is a checkbox (`DD-S`), not a switch.
+`ModifiedContent.swift`'s "its fate is plan task 15's" sentence on
+`ModifiedElement` now reads as `CX-C` item 3 (undeprecated by ruling: a
+spelling with no behaviour, whose deprecation would warn at every
+annotation) — `CX-P` item 6. `grep -rn "task 15" Sources` afterwards finds
+only lane 1's comments naming `CX-C`/`CX-D`/`CX-F`/`CX-M` and this one; none
+names plan task 15 as a future owner. The `InputEvent` enum's `//`-comment
+"Reserved: focusMove (tvOS), spatial (visionOS)" is left untouched: the
+comment-only filter admits `///` lines alone, and the reservation is history
+under `PB-A`, not a doc comment — the Record phase may re-spell it.
+
+**Checks** at `82bde75`:
+
+- `docs/probes/closeout-undocumented.sh` prints **nothing** (0 rows).
+- `git diff f4c4aae 82bde75 -- Sources | grep -E '^[-+]' | grep -vE
+  '^(\+\+\+|---)' | grep -vE '^[-+]\s*///'` prints **nothing**:
+  comment-only. No added line contains `public`, so the census
+  (`closeout-public-api.sh`, 1872 rows) is unmoved by lane 3 apart from line
+  numbers; `closeout-inventory-check.sh` prints nothing.
+- `swift build --build-system native --build-tests`: 0 `error:`, the one
+  SwiftPM deprecation `warning:`; `swift build --build-tests` (default build
+  system): 0 `error:`, 0 `warning:`.
+- `swift test --build-system native --no-parallel`, unfiltered: **`Test run
+  with 1976 tests in 3 suites passed after 104.957 seconds`**, the FR-J line
+  present — unmoved from lane 2's fix round (the spec's "1971" is lane 1's
+  pre-fix-round figure; `CX-Q` +3, `CX-S` +2). `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` green; `Expected.swift`
+  unedited against `1b093b8`; `MetalUILayout` imports only `MetalUICore`.
+- `docs/probes/demo-pixels/compare.sh <scratch> 1b093b8 82bde75`: **0
+  differing, scene identical, in all fourteen**; controls light vs dark
+  1 048 576, default vs modal 1 031 003, default vs animation 454 895, prod
+  default vs modal 491 221, chrome legacy vs proposal 0, indicator rects 0.
+
+**Deferred.** None of lane 3's own. The recorded census
+`docs/probes/closeout-public-api.tsv` still carries `1b093b8`'s line numbers
+(its header says to re-run and diff); re-recording it is the Record phase's
+choice, since every lane after the design moved lines.
 
 ## §7 Record phase close
 
