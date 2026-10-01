@@ -842,11 +842,10 @@ non-zero where they must be (light vs dark 1 048 576, default vs modal 1 031
 this record's own commit only in `docs/`.
 
 **`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`, from the worktree):
-**22 + 33** passed, unmoved from task 13. **No `swift:6.4-noble` run**: Docker
-is not available on this machine; the portable targets changed by comments,
-`Box`'s `package` narrowing, `peek`/`withState`, `LooksDemo.swift` and
-`PortableTextSystem.swift`'s doc comments, so Linux and Windows CI on push
-are the confirmation (CLAUDE.md's **199 + 22 + 10** is not re-taken).
+**22 + 33** passed, unmoved from task 13. **No `swift:6.4-noble` run at this
+phase** — `docker info` failed because OrbStack's daemon was stopped, not
+because Docker is absent (corrected by the branch check, §8, which started it
+and read **199 + 22 + 10**, 0 `error:`/`warning:`).
 
 **Real-window capture.** The lock probe (`xcrun swiftc -O
 docs/probes/appkit-screen-lock-state.swift`) read **locked** at 04:15 PDT:
@@ -887,3 +886,73 @@ none** (each ruled): the isolated-process per-entry memory harness
 (`CX-I` item 1), Increase Contrast and the other system accessibility
 settings, an animated `scrollTo`, elliptical corners, `colorScheme`, the
 Linux/Windows runs of this branch's portable changes (CI on push).
+
+## §8 Adversarial branch check (2026-10-01)
+
+Re-taken on `bd76ea0` by the branch checker, independently of §7.
+
+- **Build and suite.** After `swift package clean`: `swift build
+  --build-system native --build-tests` → 0 `error:`, the one `warning:`
+  SwiftPM's deprecation notice; `swift build --build-tests` (default build
+  system) → 0 `error:`/`warning:`. Unfiltered `swift test --build-system
+  native --no-parallel` → **`Test run with 1976 tests in 3 suites passed
+  after 106.032 seconds`**, the `FR-J no-argument frame: succeeded=true` and
+  `CLOSEOUT GUARD G1 control: succeeded=true` lines present;
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+  `theSevenRetentionSlotsAreMutuallyDistinct` passed. No `@Test` was removed
+  in `1b093b8..bd76ea0` (15 added; one guard renamed with its answer inverted
+  by `CX-C`, a T row). Goldens 0. Guards **121** (`grep -c canTypecheck`
+  reads 124: the `Typecheck.swift` declaration, `UnitSafetyTests`' comment
+  and `CloseoutCompileGuards`' own comment are not guards). `cmp CLAUDE.md
+  AGENTS.md` clean; `MetalUILayout` imports `MetalUICore` alone.
+- **Two mutations of the checker's own design** (full unfiltered suite each,
+  restored from a copy, `git status --short` clean after each):
+  **BC1** — `StateTable.peek` back to `storage[id]?.value as? S` (the
+  divergence-85 fix undone, `withState`'s half kept) → 1976 run, 2 issues,
+  red: `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`
+  alone. **BC2** — the public `Box(decoration:) { … }` forwards
+  `Decoration()` instead of its argument → 1 issue, red:
+  `thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints`
+  alone. By reading, every internal `peek`/`withState` caller uses a
+  non-optional `S` (`ScrollState`, `ListOrigin`, `TextEditState`,
+  `FocusStateValue`, `AXNode`, `Bool`, the animation states), so `CX-F`
+  moves only `State.wrappedValue` over an optional `Value` and the public
+  `withState` over an optional — identity, hit testing, accessibility,
+  animation and focus are untouched, and their suites are green.
+- **The inventory instrument (a defect, fixed).** A file-scope
+  `public func` appended to `Box.swift` passed `closeout-inventory-check.sh`
+  silently: `closeout-inventory-map.tsv` had eight rules of the shape owner
+  `(-|T)`, name `.*`, whose `-` alternative claimed **every** file-scope
+  declaration in the file. Measured with a mapping dump, six declarations
+  were classified under the wrong family: `StyledElement` → `decoration`
+  (the `element-protocols` rule after it was dead), and `Padding`,
+  `Background`, `FixedSize`, `Rectangle`, `Color` → `proposal-frame`. Each
+  rule is split into `-` + name `(T)` and `(T)` + name `.*`; the check still
+  prints nothing, the six now map to `element-protocols`,
+  `proposal-padding`, `proposal-background`, `fixed-size`, `shapes` and
+  `color-fill`, and the appended probe now reads `UNMAPPED`. The remaining
+  whole-file rules (owner `.*`) are the map's stated per-file granularity,
+  cross-checked by `NOTDEPR`/`DEPR`, not this defect.
+- **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 1b093b8 bd76ea0`
+  → **0 differing, scene identical, in all fourteen**, controls non-zero.
+- **Real-window capture.** Lock probe at 04:24 PDT: `CGSSessionScreenIsLocked
+  = 1`, `displayAsleep main: 1` — not run.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`) builds and runs
+  **22 + 33**. **Linux**: OrbStack was installed but stopped (§7's "no
+  Docker" read the stopped daemon); started, a `swift:6.4-noble` aarch64
+  container over `git archive bd76ea0` builds with 0 `error:`/`warning:` and
+  runs `MetalUILayoutTests` + `MetalUICoreTests` +
+  `MetalUICrossPlatformTests` **199 + 22 + 10**, unmoved.
+- **Docs.** Every test name cited in `docs/divergences.md`,
+  `docs/api-overview.md`, `docs/migration.md` and
+  `docs/verification/human-checks.md` resolves to a declaration; the
+  unresolved names in the changed records are the stale or retired names
+  their tables correct. `docs/divergences.md`'s Live table has 66 rows,
+  matching 99 labels less 32 retired and 75 unassigned. Task 15 stays
+  **unticked** (the human checklist is unrun), tasks 4 and 5 ticked with
+  evidence, task 12 unticked.
+
+**Verdict: merge.** No code defect; one instrument defect (above) and the
+Docker sentence fixed in docs.

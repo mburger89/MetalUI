@@ -145,7 +145,8 @@ M	MetalUI	AXNode.swift	.*	.*	.*	axnode
 M	MetalUI	Binding.swift	.*	.*	.*	binding
 M	MetalUI	Box.swift	(-|Box|Box\..*)	(Box|style|decoration|elementID|handlers|content|init|Layout|node|requestLayout|prepaint|paint)	.*	box
 M	MetalUI	Box.swift	Box	flexDirection	.*	css-item-fields
-M	MetalUI	Box.swift	(-|Decoration|BorderStyle)	.*	.*	decoration
+M	MetalUI	Box.swift	-	(Decoration|BorderStyle)	.*	decoration
+M	MetalUI	Box.swift	(Decoration|BorderStyle)	.*	.*	decoration
 M	MetalUI	Box.swift	-	StyledElement	.*	element-protocols
 M	MetalUI	Box.swift	StyledElement	onClick	.*	on-click
 M	MetalUI	Box.swift	StyledElement	(focusable|onKey|onAction|keyContext)	.*	legacy-keyboard
@@ -176,7 +177,8 @@ M	MetalUI	ElementGroup.swift	-	(ElementGroup|SingleElementLayout)	.*	element-pro
 M	MetalUI	ElementGroup.swift	Element	.*	.*	element-protocols
 M	MetalUI	ElementGroup.swift	AnyElement	.*	.*	any-element
 M	MetalUI	ElementGroup.swift	.*	.*	.*	builder
-M	MetalUI	ProposalElementGroup.swift	(-|ProposalElementGroup)	.*	.*	element-protocols
+M	MetalUI	ProposalElementGroup.swift	-	(ProposalElementGroup)	.*	element-protocols
+M	MetalUI	ProposalElementGroup.swift	(ProposalElementGroup)	.*	.*	element-protocols
 M	MetalUI	ProposalElementGroup.swift	.*	.*	.*	builder
 M	MetalUI	ElementID.swift	(-|ElementID)	ElementID|name|init	.*	explicit-identity
 M	MetalUI	ElementID.swift	.*	.*	.*	global-id
@@ -225,13 +227,19 @@ M	MetalUI	NativeBackgroundModifier.swift	.*	.*	.*	background-modifier
 M	MetalUI	NativeElements.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeElements.swift	(HStack|VStack)	init	spacing: Pixels, alignment: ProposalAlignment	stack-spacing-first-init
 M	MetalUI	NativeElements.swift	(-|HStack|VStack|ZStack|Spacer)	(HStack|VStack|ZStack|Spacer|content|spacing|alignment|minLength|init|Layout|requestProposalLayout|prepaint|paint)	.*	stacks
-M	MetalUI	NativeElements.swift	(-|ProposalFrame)	.*	.*	proposal-frame
-M	MetalUI	NativeElements.swift	(-|Padding)	.*	.*	proposal-padding
-M	MetalUI	NativeElements.swift	(-|Background)	.*	.*	proposal-background
-M	MetalUI	NativeElements.swift	(-|FixedSize)	.*	.*	fixed-size
+M	MetalUI	NativeElements.swift	-	(ProposalFrame)	.*	proposal-frame
+M	MetalUI	NativeElements.swift	(ProposalFrame)	.*	.*	proposal-frame
+M	MetalUI	NativeElements.swift	-	(Padding)	.*	proposal-padding
+M	MetalUI	NativeElements.swift	(Padding)	.*	.*	proposal-padding
+M	MetalUI	NativeElements.swift	-	(Background)	.*	proposal-background
+M	MetalUI	NativeElements.swift	(Background)	.*	.*	proposal-background
+M	MetalUI	NativeElements.swift	-	(FixedSize)	.*	fixed-size
+M	MetalUI	NativeElements.swift	(FixedSize)	.*	.*	fixed-size
 M	MetalUI	NativeElements.swift	Rectangle	init	init\(color:	rectangle-color-init
-M	MetalUI	NativeElements.swift	(-|Rectangle)	.*	.*	shapes
-M	MetalUI	NativeElements.swift	(-|Color)	.*	.*	color-fill
+M	MetalUI	NativeElements.swift	-	(Rectangle)	.*	shapes
+M	MetalUI	NativeElements.swift	(Rectangle)	.*	.*	shapes
+M	MetalUI	NativeElements.swift	-	(Color)	.*	color-fill
+M	MetalUI	NativeElements.swift	(Color)	.*	.*	color-fill
 M	MetalUI	NativeModifiedContent.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	nativeFrame	.*	native-frame-alias
 M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	native.*	.*	native-aliases

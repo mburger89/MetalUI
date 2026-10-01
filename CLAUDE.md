@@ -524,10 +524,10 @@ closeout section and `docs/verification/human-checks.md`.
   inverted T1, its fix round's three, lane 2's `CX-S` two; guards **121 =
   119 + 2** (`CloseoutCompileGuards`: `aPlainImportCannotPassBoxAStyle`,
   `theTypecheckGuardsRanWhereTheyAreRequired`). `Backends/SDL` 22 + 33
-  unmoved; no `swift:6.4-noble` run (no Docker on the machine), so the
-  portable figure stays **199 + 22 + 10** — the portable targets changed by
-  comments, `Box`'s `package` narrowing, `withState`/`peek` and the looks
-  demo, owed to Linux and Windows CI on push. Every earlier count line
+  unmoved; a `swift:6.4-noble` aarch64 container (OrbStack, started by the
+  branch check — the Record phase had read its stopped daemon as "no
+  Docker") builds with 0 `error:`/`warning:` and runs **199 + 22 + 10**,
+  unmoved (record §66 §8); Windows and Linux x86_64 CI confirm on push. Every earlier count line
   (one per branch, task 13 back to the CSS-engine era) is record §67 §1,
   frozen; history before that is record §06 and §19. A count is stale the
   moment a test lands; re-measure.
