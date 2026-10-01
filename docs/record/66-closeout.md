@@ -2,10 +2,10 @@
 
 Branch `feat/closeout` from `1b093b8` (master: plan task 13 merged, task 14's
 record). Spec `docs/superpowers/specs/2026-09-30-closeout-design.md`; rulings
-`CX-A`…`CX-R` in `docs/superpowers/2026-09-30-closeout-decisions.md` (next
-unused `CX-S`); probe `docs/probes/swiftui-closeout.swift` (lane 1).
+`CX-A`…`CX-S` in `docs/superpowers/2026-09-30-closeout-decisions.md` (next
+unused `CX-T`); probe `docs/probes/swiftui-closeout.swift` (lane 1).
 
-**Status: DESIGN committed and critiqued (`CX-P`); lane 1 landed (§4); lane 2 landed (§1–§3, §5, `CX-R`); lane 3 and the Record phase to run.**
+**Status: LANDED — every agent-doable clause of plan task 15 is closed; the box stays UNTICKED** until the user runs `docs/verification/human-checks.md` (§7). Tasks 4 and 5 are ticked (§5). All three lanes verified `ok: true`; the Record phase's close (§7) re-took the suite, the counts, the fourteen images and the lock probe.
 
 **Critic round (2026-09-30).** Probe group O committed and run twice
 (identical): O0 2, O1n nil, **O1 2**, O2 nil — `CX-F`'s SwiftUI claim
@@ -778,4 +778,112 @@ choice, since every lane after the design moved lines.
 
 ## §7 Record phase close
 
-(To be written.)
+Run 2026-10-01 on `feat/closeout` at `b3bb191` plus docs. Branch commits since
+`1b093b8`: the design session and critic round, lane 1 (`a3a8915`, `5e58aa7`,
+`01afd16`), lane 2 (`4005bd8`, `aac9fd9`, `e69bc15`), lane 3 (`82bde75`) and
+this phase.
+
+**Verifier minors fixed here** (all three lanes were `ok: true`): lane 1's
+`CX-Q` item 1 gained its `**Migration note**` (an external element that
+called `pass.withState(id, initial: Optional(x))` and read `nil` now reads
+`x`), so `docs/migration.md`'s grep for the tag finds it; lane 3's
+`ProposalFrame.minWidth`/`minHeight` doc comments said `nil` was "unbounded
+below" — the kernel's rule is no declared floor (the frame answers at least 0,
+and under a maximum at least its child, `FR-M`), reworded; §6's figure
+corrected to 703 insertions, 2 deletions; the three probe scripts
+(`closeout-public-api.sh`, `closeout-undocumented.sh`,
+`closeout-inventory-check.sh`) carry a header note — run with `zsh` or
+execute directly, never `bash script`, which fails on zsh path modifiers and
+prints nothing (an empty print under `bash` is not a pass). The census TSV
+`docs/probes/closeout-public-api.tsv` is re-recorded at this head (1872
+rows; it carried `1b093b8`'s 1871 and its line numbers).
+
+**Suite.** After `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, the one SwiftPM deprecation `warning:`) then
+unfiltered `swift test --build-system native --no-parallel`: **`Test run with
+1976 tests in 3 suites passed after 106.515 seconds`**, the FR-J line
+present, 0 `error:` in either log. Unmoved from lane 3's figure (this
+phase's only `Sources/` change is the doc comment above).
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+`everyProductionTreeBuildsOnAOneMegabyteThread`,
+`theDemoFrameMatchesTheValuesRecordedOnMacOS` and
+`theSevenRetentionSlotsAreMutuallyDistinct` are in that run, green.
+**1976 = 1961 + 10 + 3 + 2** (lane 1, its fix round, `CX-S`); one test
+renamed with its answer inverted by ruling (T1, `CX-C`), none retired.
+`goldensUnchanged`: every removed `@Test` has a row (none removed; the
+inversion is T1's) and no retained test changed its answer beyond the rows
+§4.2 names.
+
+**Goldens and guards, re-counted.** `find Tests/MetalUILayoutTests -name
+"*.json" | wc -l` reads **0**. Guards **121** (119 + `CloseoutCompileGuards`'
+G1 and G2); per file, `grep -c canTypecheck` reads 19 `PhaseSeparationTests`,
+10 `ErasureCompileGuards`, 7 `EnvironmentCompileGuards`, 6
+`ProposalNodeIDCompileGuards`, 6 `ProposalLayoutCompileGuards`, 5
+`ElementGroupTrapTests`, 4 each `GridCompileGuards`, `DecorationCompileGuards`,
+`ContainerCompileGuards`, 3 each `UnitSafetyTests` (one a comment),
+`StyleSurfaceCompileGuards`, `FrameSizingCompileGuards`,
+`ExplicitIdentityCompileGuards`, `CloseoutCompileGuards` (G2's doc comment
+also names the call), `BindingCompileGuards`, `AXNodeTests`,
+`AccessibilityCompileGuards`, and the rest 2 or 1 as before. Helpers: 40
+`typecheckFile` guards, 80 `typecheck`-based, plus G2 which calls neither.
+**The retired engine**: `MetalUILayout` imports only `MetalUICore`
+(`grep -rh '^import' Sources/MetalUILayout | sort -u`), and the closing check
+above is green; no browser golden or WebKit fixture remains (`CX-N`).
+
+**Inventory checks at this head.** `zsh docs/probes/closeout-inventory-check.sh`
+prints nothing; `zsh docs/probes/closeout-undocumented.sh` prints nothing;
+`Expected.swift` is unedited against `1b093b8`.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 1b093b8 9e621cd`:
+**0 differing, scene identical, in all fourteen**; controls at `1b093b8` all
+non-zero where they must be (light vs dark 1 048 576, default vs modal 1 031
+003, default vs animation 454 895, preview 1 048 576, prod default vs modal
+491 221, chrome pair 0, indicator rects 0) — the head at that run differs from
+this record's own commit only in `docs/`.
+
+**`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`, from the worktree):
+**22 + 33** passed, unmoved from task 13. **No `swift:6.4-noble` run**: Docker
+is not available on this machine; the portable targets changed by comments,
+`Box`'s `package` narrowing, `peek`/`withState`, `LooksDemo.swift` and
+`PortableTextSystem.swift`'s doc comments, so Linux and Windows CI on push
+are the confirmation (CLAUDE.md's **199 + 22 + 10** is not re-taken).
+
+**Real-window capture.** The lock probe (`xcrun swiftc -O
+docs/probes/appkit-screen-lock-state.swift`) read **locked** at 04:15 PDT:
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, `displayActive main:
+0`. `capture.sh` was not run on the final head. The only real-window reading
+this task is the design session's (23:41 PDT, 2026-09-30, unlocked): default
+and preview 0 differing against `1b093b8`, and `6c961e3 → 1b093b8` 0
+differing; no lane moved a drawn pixel.
+
+**Documents updated by this phase.** `CLAUDE.md` (and `AGENTS.md`, `cp` +
+`cmp`): the `CX-` prefix, the task-15 paragraph, the public-documents bullet,
+the current counts, `METALUI_LOOKS_DEMO`, the guards bullet (121, `CX-J`), the
+CI-hazard bullet, the Legacy containers and Legacy `.frame` paragraphs (their
+"CSS algorithms", "`Stack` offers fit-content" and "`idealWidth` traps"
+sentences were made false by stage 9 and named by `CX-R` item 4), the
+stage-10 `Box(style:)` sentence, and the condensation — **the 1191 lines of
+per-branch Counts bullets and the three reference-table bullets moved
+verbatim to record §67** (`CLAUDE.md` 290 KB → about 170 KB); records §03,
+§04 and §05 (dated 2026-10-01 closeout sections: the final divergence list
+and stale-name corrections, the final inert list, the consolidated
+checklist); `docs/record/README.md` (§66, §67); the plan (tasks 4 and 5
+**ticked**, task 15 a dated note, **unticked**); the closeout spec's Status;
+`README.md` (current counts, a Documentation section).
+
+**What is open, and who owns it.** Plan task 15's box is **unticked**: its
+text asks for "relevant human visual checks", and
+`docs/verification/human-checks.md` — groups A (the real-window captures,
+`capture.sh`, needing an unlocked screen) through M, with the VoiceOver script
+as group L — is **not run**; an agent cannot. Owner: the user; when every box
+there is ticked or answered, the next Record phase re-reads the file and ticks
+task 15 (and task 12, which waits on group L alone). Everything else the plan
+text names is closed with evidence: no unclassified public behaviour (the
+inventory check), each supported overlap with a probe arm and a test that
+asserts it (`CX-S`), each remaining difference documented
+(`docs/divergences.md`), migration and API documentation written, the full
+suite green, the retired engine absent, the goldens gone. **Deferred, owner
+none** (each ruled): the isolated-process per-entry memory harness
+(`CX-I` item 1), Increase Contrast and the other system accessibility
+settings, an animated `scrollTo`, elliptical corners, `colorScheme`, the
+Linux/Windows runs of this branch's portable changes (CI on push).

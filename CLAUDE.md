@@ -28,6 +28,11 @@ sections at the end of records §03, §04 and §05, and the tracks themselves
 (`README.md` indexes it). Citations in the record were not all re-checked after
 later refactors — verify a test name or grep before relying on it. New
 milestones append their record to `docs/record/` and put only the rule here.
+**Plan task 15 (2026-10-01) moved the accumulated counts history and the
+three reference-table bullets (known divergences, declared-but-inert, human
+verification) to `docs/record/67-claude-md-counts-history-2026-10-01.md`**
+(verbatim, frozen); the current ones are `docs/divergences.md`, record §05's
+closeout section and `docs/verification/human-checks.md`.
 
 `AGENTS.md` is a byte-identical copy for Codex: edit `CLAUDE.md`, then
 `cp CLAUDE.md AGENTS.md`; check `cmp CLAUDE.md AGENTS.md` before committing.
@@ -271,7 +276,7 @@ milestones append their record to `docs/record/` and put only the rule here.
   verifier fix rounds, all verified `ok`; the Record phase's own close
   (`DD-AI`) resolves the one item the lanes left open — a pre-existing
   optional-`@State` bug the controls demo found (`StateTable.peek` reads an
-  absent entry as a present `nil`) — as divergence 85, added, owner **plan
+  absent entry as a present `nil`) — as divergence 85, added (fixed at plan task 15, `CX-F`), owner **plan
   task 15** (closeout), not fixed on this branch. **Task 10 is ticked**:
   every clause of both parts is closed.
   Task 11, **part 1**, `TE-A`…`TE-AB` (§59, spec
@@ -464,12 +469,68 @@ milestones append their record to `docs/record/` and put only the rule here.
   capture debt has only ever been taken on macOS). Docs-only: 0
   `Sources:`/`Tests:` files changed, counts unmoved from task 13's **1959 /
   0 / 119**.
+  Task 15, the closeout, `CX-A`…`CX-S` (§66, spec
+  `specs/2026-09-30-closeout-design.md`, its own decisions doc
+  `2026-09-30-closeout-decisions.md`, probe `swiftui-closeout.swift` groups
+  O and SW) — **everything an agent can do is closed; the box stays
+  unticked until a human runs `docs/verification/human-checks.md`**
+  (`CX-M`). The inventory: `docs/probes/closeout-public-api.sh` censuses
+  every public declaration (1872), `closeout-inventory-map.tsv` maps each
+  to a family of class A (SwiftUI-aligned: a probe arm and a discriminating
+  test, mechanically checked to exist and to be asserted), D (divergence
+  label), M (MetalUI-only by design), X (deprecated, with replacement) or R
+  (documented absence), and `zsh docs/probes/closeout-inventory-check.sh`
+  **prints nothing when complete** (`CX-A`, `CX-S`); **a new public
+  declaration owes a map row.** Three public documents: `docs/divergences.md`
+  (66 live), `docs/migration.md`, `docs/api-overview.md`; every public
+  declaration carries a doc comment (`zsh docs/probes/closeout-undocumented.sh`
+  prints nothing, `CX-K`). Rulings: tasks 4 and 5 ticked clause by clause
+  (`CX-B`, §66 §5); no deprecated spelling removed (`CX-C`),
+  `flexBasis(fraction:)` deprecated; `Box`'s `style:` initialisers `package`,
+  public `Box(decoration:)` forwarding (`CX-D`); divergence 52 kept (`CX-E`);
+  **divergence 85 fixed** — an optional `@State` (and the public
+  `withState`) reads its non-`nil` initial value before the first write,
+  SwiftUI's probe O1 (`CX-F`, `CX-Q`; **migration note** there); divergences
+  2, 35, 39, 53, 55 retire by re-reading (`CX-R`) — live 72 → 66, next label
+  100; macOS CI builds `--build-system native` with `METALUI_REQUIRE_GUARDS=1`
+  so a skipped guard fails (`CX-J`); `METALUI_LOOKS_DEMO=1` is the checklist's
+  runnable surface (`CX-Q`). The retired engine and the goldens re-verified
+  (`CX-N`): 0 goldens, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  green. Counts **1976 / 0 / 121**; 0 px against `1b093b8` in all fourteen
+  offscreen images; the real-window capture was taken at design time (0
+  differing) and the screen was locked at every later check. Record §67 holds
+  `CLAUDE.md`'s pre-closeout counts history and reference bullets, moved
+  verbatim.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
   run them (`SA-O`). Window captures: `docs/probes/window-capture/capture.sh`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
+- **Public documents and the human checklist (plan task 15):**
+  `docs/api-overview.md` (the surface by area), `docs/divergences.md` (every
+  live difference), `docs/migration.md` (legacy → SwiftUI vocabulary and every
+  breaking change since 2026-09-12), `docs/verification/human-checks.md` (the
+  one list of looks only a person can check — **not run**).
 
 ## Build and test
+
+- **Counts (2026-10-01, `feat/closeout` — plan task 15, from `1b093b8`):
+  1976 tests, 0 goldens, 121 typecheck guards**, 0 `error:` on both build
+  systems, the one `warning:` SwiftPM's deprecation notice under native (0
+  under the default one), taken after `swift package clean` with `swift build
+  --build-system native --build-tests` then unfiltered `swift test
+  --build-system native --no-parallel` (**one summary line**, `Test run with
+  1976 tests in 3 suites passed after 106.515 seconds`; the FR-J line
+  present). **1976 = 1961 + 10 + 3 + 2**: lane 1's ten new tests and the
+  inverted T1, its fix round's three, lane 2's `CX-S` two; guards **121 =
+  119 + 2** (`CloseoutCompileGuards`: `aPlainImportCannotPassBoxAStyle`,
+  `theTypecheckGuardsRanWhereTheyAreRequired`). `Backends/SDL` 22 + 33
+  unmoved; no `swift:6.4-noble` run (no Docker on the machine), so the
+  portable figure stays **199 + 22 + 10** — the portable targets changed by
+  comments, `Box`'s `package` narrowing, `withState`/`peek` and the looks
+  demo, owed to Linux and Windows CI on push. Every earlier count line
+  (one per branch, task 13 back to the CSS-engine era) is record §67 §1,
+  frozen; history before that is record §06 and §19. A count is stale the
+  moment a test lands; re-measure.
 
 ```bash
 swift build
@@ -480,6 +541,7 @@ swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal preview (value exactly "1")
 METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo         # two TextFields (TI-F's human looks)
 METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo            # Button/Toggle/Slider/Stepper/Picker/List(selection:)
+METALUI_LOOKS_DEMO=1 swift run MetalUIDemo               # texts by controlSize, shapes, images, gestures, transitions (human checks H-K)
 ```
 
 - **Read the printed counts, never the exit status.** `--build-system native`

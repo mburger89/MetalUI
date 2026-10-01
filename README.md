@@ -126,35 +126,31 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/engine-stage-11` (2026-09-25 — plan task 7 stage 11, modifier
-unification, **task 7's last stage**, from `47c0d98` — stage 10's tip,
-already carrying master's `TextEditor` merge — not yet merged with
-`master`) the suite reports **1444 tests** (1426 + 18: lane 1 +4, lane 2 +9,
-lane 3 +5, none retired), in one summary line over three suites. That total
-includes **84** `swiftc -typecheck` guards (82 + 2, the new
-`UnifiedModifiedContentCompileGuards`) and no goldens: stage 7a retired all
-97 (record §48), stage 7b retired the CSS engine's remaining non-golden
-tests (record §49), stage 8 deprecated the eight `StyledElement` sizing
-modifiers toward `.frame` (record §50), stage 9 deleted the CSS engine, the
-legacy registrars and the layout authority itself (record §51), stage 10
-deleted `Style`'s CSS fields and narrowed every surviving one to `package`
-(record §53), and **stage 11 unifies `ModifiedElement`/`ModifiedContent`
-into one flat `ModifiedContent<Content, Modifier>`**, generalizes the legacy
-`.overlay` from `OverlayModifier` over `ElementGroup`, and fixes divergence
-45 (a legacy `.opacity` reaching a background or border written after it) on
-both paths (record §54). **This closes task 7**: no production layout
-request passes through the legacy engine, the CSS layout paths and dead
-`Style` fields are gone, and the two modifier vocabularies are unified — the
-plan's checkbox moves once the adversarial branch check confirms every row
-of the parent spec's exit table on this branch. Every legacy element (`Box`,
-`Row`, `Column`, `Stack`, `ScrollView`, `List`, legacy `.frame`) keeps
-working, through the lowering that is now its only path, and keeps its
-CSS-derived spelling even though `Style` itself is no longer public API.
+On `feat/closeout` (2026-10-01 — plan task 15, the closeout, from `1b093b8`)
+the suite reports **1976 tests** in one summary line over three suites, with
+**121** `swiftc -typecheck` guards and no goldens: stage 7a retired all 97
+WebKit goldens (record §48) and stage 9 deleted the CSS engine, so no layout
+request reaches it (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`).
+Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`, `List`,
+legacy `.frame`) keeps working through the lowering, which is its only path,
+and keeps its CSS-derived spelling even though `Style` is not public API.
 Read the printed count rather than the exit status. The guards skip silently
-when `.build` is not laid out the way they expect; see
-[`CLAUDE.md`](CLAUDE.md) for how to count them. **Production has run the
-proposal (SwiftUI-alignment) layout engine by default since plan task 7's
-stage 6b** — it is now, since stage 9, the only layout engine there is.
+when `.build` is not laid out the way they expect (macOS CI requires them);
+see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
+(SwiftUI-alignment) layout engine by default since plan task 7's stage 6b.**
+
+## Documentation
+
+- [`docs/api-overview.md`](docs/api-overview.md) — the public surface by area,
+  each with its SwiftUI-alignment class.
+- [`docs/divergences.md`](docs/divergences.md) — every difference from
+  SwiftUI that remains (66 live), with SwiftUI's answer, MetalUI's, the
+  ruling and the pin.
+- [`docs/migration.md`](docs/migration.md) — legacy spellings to SwiftUI
+  vocabulary, and every breaking change since 2026-09-12.
+- [`docs/verification/human-checks.md`](docs/verification/human-checks.md) —
+  the looks only a person can check (not yet run).
+- [`docs/record/README.md`](docs/record/README.md) — the long-form record.
 
 ## What it looks like
 

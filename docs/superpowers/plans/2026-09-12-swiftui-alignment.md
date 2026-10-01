@@ -191,7 +191,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `CN-L`; the overlay side takes zero or several nodes, `CN-K`*); task 7 — unification with `ModifiedContent`, holes
   1–3, 6 and 7, and `_wrap`.
 
-- [ ] **4. Finish frame and sizing semantics.**
+- [x] **4. Finish frame and sizing semantics.**
   Specify and implement `.frame(width:height:alignment:)`, optional axes,
   min/ideal/max constraints, alignment within an offered proposal, and the
   ordering rules for chained frames. Move `width`, `height`, min/max sizing and
@@ -238,7 +238,20 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   over one node (`CN-N`) and `percent:` is renamed `fraction:` (`CN-O`); the
   greedy finite and single-axis infinite maxima move to task 7 (`CN-Q`).
 
-- [ ] **5. Finish outer modifiers and modifier order.**
+  **Ticked 2026-10-01 (plan task 15, ruling `CX-B`, record §66 §5).** Every
+  clause holds, each with a live test and a ruling: the frame surface and
+  chaining (`FR-A`…`FR-V`; kernel and legacy-spelling tests in §66 §5), the
+  eight sizing modifiers and every `fraction:`/`percent:` spelling deprecated
+  toward `.frame` (stage 8, `CX-C`), and the single semantic path (stage 9
+  deleted the CSS engine; `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`).
+  The progress note's open items closed in later tasks: the overflowing
+  oversized child (task 6, `CN-N`), the greedy finite and single-axis maxima
+  (stage 9's lowering, `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswer`,
+  divergence 35 retired), `ideal` on the legacy path (stage 9,
+  `anIdealFrameLowersAtANilProposal`, divergence 39 retired), `fraction:`
+  (task 6), the captures (2026-09-17 as recorded). Nothing is open.
+
+- [x] **5. Finish outer modifiers and modifier order.**
   Complete the padding migration, then audit background, overlay, border,
   corner/clip shape, opacity, hit testing, focus drawing and content shape.
   Pin whether each wraps, distributes through a `Component`, or affects only
@@ -274,6 +287,20 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   (`swiftui-border-clip-paint` C3, D1) have no test; the focus ring's look;
   the release-window captures (*taken 2026-09-17, 0 differing pixels on both
   windows, record §03*).
+
+  **Ticked 2026-10-01 (plan task 15, ruling `CX-B`, record §66 §5).** Every
+  clause holds: padding migration (`OM-D`/`OM-E`); the audit's gaps filled
+  (legacy `.overlay` and `.background(alignment:content:)`, clip shapes,
+  `contentShape<S: Shape>`, opacity write order, the focus ring); the
+  wraps/distributes/paint-only column collected for the proposal path too
+  (`everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`); the
+  order-sensitive chains pinned, including the two the note named untested —
+  border-clip C3 and D1, now pinned on both paths with a mutation each
+  (`aBackgroundWrittenAfterCornerRadiusIsSquare`,
+  `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill`, and the legacy
+  `…IsRoundedOnOneDecoration`/`…FollowsTheArc` pins, divergences 47 and 49).
+  The focus ring's *look* is a human check, not a clause
+  (`docs/verification/human-checks.md`); the captures were taken 2026-09-17.
 
 - [x] **6. Port SwiftUI's container algorithms to the proposal path and audit the legacy containers.**
   Make `HStack`, `VStack`, `ZStack`, `Spacer`, `.overlay`/`.background`
@@ -1455,6 +1482,27 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   API documentation, run the full suite and relevant human visual checks, and
   ensure the retired CSS engine has no production caller, and remove or
   reclassify all browser goldens as migration-only historical evidence.
+
+  **Closeout run 2026-10-01 (branch `feat/closeout`, record §66, rulings
+  `CX-A`…`CX-S`) — everything an agent can do is closed; the box stays
+  unticked because the human visual checks have not been run.** Inventory:
+  the public-API census (1872 declarations) is mapped to five classes by
+  `docs/probes/closeout-inventory-map.tsv`, and `closeout-inventory-check.sh`
+  prints nothing (no unmapped declaration; every class-A citation names a
+  probe arm its test asserts, `CX-S`); divergences re-read, **66 live**
+  (`docs/divergences.md`); tasks 4 and 5 ticked above; every "plan task 15"
+  item disposed (record §66 §3, `CX-I`: divergence 52 kept, the deprecated
+  spellings kept deprecated, `Box`'s `style:` made `package`, divergence 85
+  fixed); `docs/migration.md`, `docs/api-overview.md` and a doc comment on
+  every public declaration (`closeout-undocumented.sh` prints nothing,
+  `CX-K`); macOS CI now requires the typecheck guards (`CX-J`). The retired
+  engine: stages 9–10 deleted it and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` pins it (green); no
+  golden remains (`find Tests/MetalUILayoutTests -name "*.json"` reads 0;
+  stage 7a, record §48). **Open: `docs/verification/human-checks.md`** — the
+  one consolidated checklist (groups A–M, VoiceOver script included), owed to
+  the user; plan task 12's box waits on its group L alone. Tick this task
+  when the user has run it and the Record phase has re-read the file.
 
 ## Current starting point
 
