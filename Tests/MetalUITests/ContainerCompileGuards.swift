@@ -111,22 +111,25 @@ func theSpacingFirstStackInitializersAreDeprecated() throws {
             "deprecated, but not the spacing-first initializer:\n\(result.output)")
 }
 
-/// **G4 — the `percent:` sizing modifiers are deprecated renames of
-/// `fraction:`** (ruling `CN-O`). Both spellings compile from a plain
-/// `import MetalUI`; of the three `fraction:` calls only `flexBasis(fraction:)`
-/// draws no diagnostic — stage 8 deprecated the two sizing ones (`LR-EU`, the
-/// control arm's T row, T3.1) — and the three `percent:` calls draw exactly
-/// three deprecations, each naming its `fraction:` replacement.
+/// **G4 — every `fraction:` and `percent:` sizing spelling is deprecated**
+/// (rulings `CN-O`, `LR-EU`, and — inverting this guard's flexBasis arm — `CX-C`
+/// item 2, plan task 15). All six spellings compile from a plain
+/// `import MetalUI`. The three `fraction:` calls draw three deprecations:
+/// stage 8 deprecated the two sizing ones (`LR-EU`, the control arm's T row,
+/// T3.1) and the closeout deprecated `flexBasis(fraction:)` (`CX-C`: a fraction
+/// basis is a percentage, reported by name and a production trap, `LR-FO`).
+/// The `percent:` calls draw three more: `width`/`height(percent:)` as renames
+/// of their `fraction:` spellings, `flexBasis(percent:)` with `flexBasis(fraction:)`'s
+/// own message rather than a rename to a deprecated name (`CX-P` item 7).
 ///
-/// Red before the lane: `fraction:` does not exist and `percent:` is not
-/// deprecated. Mutation that must redden it: remove one `@available`.
+/// **T row (`CX-C`)**: this guard was `thePercentSizingModifiersAreDeprecatedRenamesOfFraction`
+/// and asserted `flexBasis(fraction:)` was NOT deprecated and `flexBasis(percent:)`
+/// renamed to it; both answers inverted by ruling. Red at `1b093b8`. Mutation
+/// **MT1**: delete `flexBasis(fraction:)`'s `@available` → this guard.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
-    // T3.1 (stage 8, `LR-EU` items 3–4): the control arm read 0 deprecations
-    // for all three `fraction:` calls until stage 8 deprecated the two sizing
-    // ones with no replacement; it now reads exactly those 2, and
-    // `flexBasis(fraction:)` alone still reads 0. Mutation M3b (delete
-    // `width(fraction:)`'s `@available`) → the control reads 1, this test red.
+func theFractionAndPercentSizingModifiersAreAllDeprecated() throws {
+    // T3.1 (stage 8, `LR-EU` items 3–4) then `CX-C` (plan task 15): the control
+    // arm read 0, then 2 (the sizing fractions), and now reads all 3.
     let control = try typecheckFile("""
         @MainActor func build() {
             _ = Box().width(fraction: 0.5).height(fraction: 0.5).flexBasis(fraction: 0.5)
@@ -134,11 +137,12 @@ func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
         """, importing: "MetalUI")
     show("G4 control", control)
     try #require(control.succeeded, "the fraction: spellings must compile:\n\(control.output)")
-    #expect(deprecations(control) == 2,
-            "width(fraction:) and height(fraction:) are deprecated (LR-EU), flexBasis(fraction:) is not:\n\(control.output)")
+    #expect(deprecations(control) == 3,
+            "width(fraction:), height(fraction:) (LR-EU) and flexBasis(fraction:) (CX-C) are deprecated:\n\(control.output)")
     #expect(control.messages.contains("'width(fraction:)' is deprecated")
-                && control.messages.contains("'height(fraction:)' is deprecated"),
-            "the two deprecations must be the sizing fractions':\n\(control.output)")
+                && control.messages.contains("'height(fraction:)' is deprecated")
+                && control.messages.contains("'flexBasis(fraction:)' is deprecated"),
+            "the three deprecations must be the three fractions':\n\(control.output)")
     let basisOnly = try typecheckFile("""
         @MainActor func build() {
             _ = Box().flexBasis(fraction: 0.5)
@@ -146,7 +150,7 @@ func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
         """, importing: "MetalUI")
     show("G4 flexBasis(fraction:)", basisOnly)
     try #require(basisOnly.succeeded, "flexBasis(fraction:) must compile:\n\(basisOnly.output)")
-    #expect(deprecations(basisOnly) == 0, "flexBasis(fraction:) is not deprecated (LR-ER item 2):\n\(basisOnly.output)")
+    #expect(deprecations(basisOnly) == 1, "flexBasis(fraction:) is deprecated (CX-C item 2):\n\(basisOnly.output)")
 
     let result = try typecheckFile("""
         @MainActor func build() {
@@ -158,8 +162,11 @@ func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
     show("G4", result)
     #expect(result.succeeded, "the percent: spellings must still compile:\n\(result.output)")
     #expect(deprecations(result) == 3, "one deprecation per percent: modifier:\n\(result.output)")
-    for name in ["width", "height", "flexBasis"] {
+    for name in ["width", "height"] {
         #expect(result.messages.contains("'\(name)(percent:)' is deprecated: renamed to '\(name)(fraction:)'"),
                 "\(name)(percent:) is not a deprecated rename of \(name)(fraction:):\n\(result.output)")
     }
+    #expect(result.messages.contains("'flexBasis(percent:)' is deprecated")
+                && !result.messages.contains("renamed to 'flexBasis(fraction:)'"),
+            "flexBasis(percent:) carries a message, not a rename to a deprecated spelling (CX-P item 7):\n\(result.output)")
 }
