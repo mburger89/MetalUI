@@ -777,7 +777,52 @@ decisions doc is the only ruling file it may write before the Record phase.
    1's arm) the long press ends while held and holds the drag off. SwiftUI is
    unmeasured for both orders (`P2f` moves at once); kept as the arena's
    unchanged rule rather than a third exception. Not pinned (no arm asserts
-   the inner-draggable long press's timing).
+   the inner-draggable long press's timing) — **pinned since `DN-W` item 2**.
 
 **Cost if wrong.** Item 6: a tree that writes a draggable before a long
 press sees the long press fire on release; the remedy is the other order.
+
+## DN-W — lane 1's review round: R3f's order is not a SwiftUI fact; the inner-draggable long press, the handler projections and two external-drop clauses pinned
+
+**Findings (lane 1's review round, measured).**
+
+1. **`R3f`'s order is nondeterministic.** Re-running the compiled probe
+   headless (T/R/A), the reviewer read `d:["two", "one"]` in 2 of 6 runs and
+   `["one", "two"]` in 4; every other headless line matched the header. The
+   count (two strings arrive as two) is stable, the order SwiftUI hands them
+   to the action is not. `DN-H` item 2's "in offered order" is therefore
+   **MetalUI's own choice**, not a probed SwiftUI fact (amended in place);
+   the probe's header carries the erratum beside `R3f`'s line.
+2. **`DN-V` item 6 is pinned.** 1.7's eighth arm (`.draggable` written before
+   `.onLongPressGesture(minimumDuration: 0.3)`): held past the duration,
+   nothing fires; at the release the long press ends (`["long"]`). Mutation
+   **LP** (an undecided all-draggable member ahead does not block a
+   non-draggable leaf, `isBlocked`'s second clause) reddens
+   `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren` alone
+   (its eighth arm's "waits" expectation). SwiftUI stays unmeasured for this
+   order.
+3. **`Handlers`' fifteenth member is in both projections.** `HandlerShape`
+   (`ModifierTests`) and `HandlerFingerprint` (`OuterModifierMatrixTests`)
+   each gain `dropDestination` and `draggableCount` (the draggables among
+   `gestures`, so a `.draggable` that appended another gesture kind is a
+   mismatch); the modifier table gains `draggable(_:)` and
+   `dropDestination(for:action:isTargeted:)` (52 → **54** rows); the matrix
+   gains both as `selfStorage + prepaintOnly` (each registers a non-opaque
+   region, `DN-E`/`DN-F`). Because the table applies each modifier to a fresh
+   `Box`, it cannot see a later modifier clobbering the member; the new
+   `aDropDestinationAndADraggableSurviveEveryLaterHandlerModifierAndAWrapper`
+   applies fifteen later modifiers after both, and checks the per-layer path
+   through `.padding(8)` (content keeps it; a layer carrying it moves into
+   `inner`). Mutation **I** (`onKey` also sets `dropDestination = nil`)
+   reddens that test alone (three expectations).
+4. **Two external-drop clauses are pinned through `Window`.**
+   `anExternalExitUnTargetsAndAnExternalDropDeliversItsLocalLocation`
+   (1.23b): `.entered` then `.exited` reads `[T=true, T=false]`, answers
+   `false` and runs no action; `.performed` at window (330, 140) delivers
+   (130, 140). Mutation **B2** (`.exited` clears the target without
+   `untarget()`) and **F2** (`.performed` retargets and delivers at (201, 1))
+   each redden that test alone.
+
+**Cost if wrong.** Item 1: a caller relying on the drop order of several
+items gets MetalUI's offered order, which SwiftUI does not promise.
+
