@@ -10,7 +10,7 @@ production caller and no browser golden remains. Spec:
 [`specs/2026-09-30-closeout-design.md`](specs/2026-09-30-closeout-design.md).
 Record: [`../record/66-closeout.md`](../record/66-closeout.md).
 
-Prefix **`CX-`**, lettered. **Next unused: `CX-S`.** (This line moves in the
+Prefix **`CX-`**, lettered. **Next unused: `CX-T`.** (This line moves in the
 commit that appends a ruling; read the last `## CX-` heading.)
 
 Branch `feat/closeout` from `1b093b8` (master: task 13 merged, task 14's
@@ -724,3 +724,55 @@ per label with its pin resolved by grep, its probe arm and its verdict).
 **Cost if wrong.** A row retired on a misread pin hides a live difference.
 Each retirement names the probe arm and the pin a reviewer can run; labels
 are never reused, so a wrongly retired row is restored under its own number.
+
+---
+
+## CX-S — lane 2's fix round: every class-A citation names an arm its test asserts; the check proves the test names it; `text-input-binding` is M
+
+**Ruling.**
+
+1. **`CX-A` item 3 is amended**: an A family's arm must be **named by its
+   cited test** — the id occurs as a whole token in the comment/attribute
+   lines directly above `func <name>(` or in its body — not merely occur
+   somewhere in the probe file. `closeout-inventory-check.sh` gains a
+   thirteenth kind, **`CITE`**, for this. Its limit is stated in the script
+   header and here: `CITE` proves the test names the arm, **not** that the
+   arm's recorded output is what the test asserts. That comparison was made
+   by hand for all 52 A families (record §66 §1.4); "the check prints
+   nothing" is not, on its own, evidence of it.
+2. **Red first**: at lane 2's tip the tightened check printed **24 `CITE`
+   lines**. 18 were wrong citations: 17 re-cited to the arm the test
+   asserts (builder V1→V2, proposal-frame D4→D1, proposal-padding P1→N1,
+   modified-content D1→L1, background-modifier H0→H1, scroll T1→T11,
+   foreach F2→F1, legacy-frame B1→E1, text F1→F6a, font F2→F1,
+   text-modifiers L5→L1, shape-background F2→O2, keyboard-shortcut B1→B4e,
+   accessibility-modifiers A1→E3, control-active-state C0→V0, button
+   controls-and-selection BA0 → interaction B2, proposal-layout's test →
+   `anUnplacedSubviewIsCentredInItsParentAtTheParentsProposal` at I2) and
+   `text-input-binding` reclassified (item 4). Two had no test asserting the
+   arm at all (item 3). Four cited the right arm in a test whose comment did
+   not name it (any-element S2, environment-dynamic-type G0,
+   proposal-background A1, legacy-clip E1); those tests' doc comments, and
+   button's and modified-content's after re-citation, now name the arm and
+   quote its recorded output. No existing assertion changed.
+3. **Two families had no test asserting their arm**; each gets one, red
+   first: `color-fill` → P2 (`aColorAnswersItsProposalAndTenOnANilAxis`, the
+   fixed 40×20 control `#require`d first); `fixed-size` → F7 against control
+   F6 (`aFixedSizeTextKeepsItsOneLineWidthInANarrowStack`, the old citation
+   asserted the proposal shape, which F7 does not record).
+4. **`text-input-binding` is reclassified M** (ruling `DD-E`): no probe arm
+   exercises `TextField(text:)`/`TextEditor(text:)` — data-and-scrolling's B4
+   is a `Binding` built outside any view — so the forwarding initialisers are
+   MetalUI-only evidence; the `Binding` surface itself stays the `binding`
+   family's (A, B5). Totals move **A 835 / 52 → 833 / 51, M 989 / 36 →
+   991 / 37**.
+5. **Migration wording**: `.frame` on a multi-member `Component` is one layer
+   over a row of per-member frames, aligned by the frame's own alignment
+   (divergence 56, as `docs/divergences.md` row 56 reads), not "one layer over
+   its members" — corrected in `docs/migration.md`, `docs/api-overview.md`,
+   the map and record §66 §1.1.
+
+**Cost if wrong.** A hand comparison can still misread an arm; the `CITE`
+check at least makes every citation one a reader can follow from the test to
+the probe header in one step.
+

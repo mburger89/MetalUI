@@ -337,7 +337,11 @@ private struct ProposalMatrixRow {
 ///   keeps its space and paints nothing (`LR-DH`, stage-1 probe H1), where the
 ///   legacy engine's `display: none` took none; the subject paints no rect in
 ///   either arm, so the row is `selfStorage` alone, by its storage;
-/// - every other `Element` row, 40 → 40 (the clipped subject is 40x40, its child
+/// - every other `Element` row, 40 → 40 — layout-neutral, as SwiftUI's
+///   outer-modifier-order probe reads it (L1 `.padding(8)` grows 20x20 to 36x36;
+///   L2–L9 `.border`, `.opacity`, `.clipShape`, `.cornerRadius`,
+///   `.allowsHitTesting`, `.contentShape`, `.focusable`, `.overlay` stay 20x20)
+///   (the clipped subject is 40x40, its child
 ///   overflowing; the content-sized box `Box { 30x10 }` is 30 → 30, because
 ///   `.border` is a paint-only `Decoration`, `OM-B`);
 /// - the `Component` rows, `TwoMembers` (30x10, 50x20) as two row children

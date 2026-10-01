@@ -85,8 +85,10 @@ deprecated. `flexBasis(fraction:)`/`flexBasis(percent:)` likewise: declare a
 length or a `.frame` (`CX-C` item 2).
 
 `Component.width`/`.height` are **not** deprecated: they frame each member
-(`LR-BG`), where `.frame` on a `Component` is one layer over its members
-(divergence 56).
+(`LR-BG`), where `.frame` on a multi-member `Component` is one layer over a
+row of per-member frames (spacing 0), the members aligned by the frame's own
+`alignment:` where SwiftUI's `Group` frames each member and lets the parent
+lay them out and align them (divergence 56).
 
 ### Modifiers
 

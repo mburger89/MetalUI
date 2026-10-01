@@ -13,6 +13,16 @@
 #   PROBE     a class-A family whose probe file is missing from docs/probes/
 #   ARM       a class-A family whose arm id does not occur in its probe file
 #   TEST      a class-A family whose test name has no `func <name>(` in Tests/
+#   CITE      a class-A family whose arm id is not named by its cited test: the
+#             id must occur (as a whole token) in the comment, attribute and
+#             blank lines directly above `func <name>(` or in the function's
+#             body (up to the first line that is a lone `}` at column 0). ARM
+#             alone only proves the id exists somewhere in the probe file, and
+#             short ids (A1, B1, F1, P1) occur in almost every probe, so a wrong
+#             arm passed it silently (closeout lane 2's fix round). CITE still
+#             cannot read meaning: it proves the test names the arm, not that
+#             the arm's recorded output is what the test asserts — that
+#             comparison was done by hand, row by row (record §66 §1.4).
 #   DLABEL    a class-D family with no divergence label
 #   LIVE      a divergence label a family carries that docs/divergences.md does
 #             not list as live (a row `| <label> |` in its "Live" table)
@@ -101,7 +111,18 @@ awk -F'\t' -v live=" $LIVE " -v census=$CENSUS '
     CHECKA)
       if [[ ! -f docs/probes/$b ]]; then print -r -- "PROBE	$a	$b"
       elif ! grep -qE "(^|[^A-Za-z0-9])$c([^A-Za-z0-9]|\$)" docs/probes/$b; then print -r -- "ARM	$a	$b	$c"; fi
-      if ! grep -rqE "func $d\(" Tests --include='*.swift' --exclude-dir=.build; then print -r -- "TEST	$a	$d"; fi ;;
+      tf=$(grep -rlE "func $d\(" Tests --include='*.swift' --exclude-dir=.build | head -1)
+      if [[ -z $tf ]]; then print -r -- "TEST	$a	$d"
+      elif ! awk -v name="func $d(" -v arm="$c" '
+          { line[NR] = $0 }
+          index($0, name) && !at { at = NR }
+          END {
+            s = at; while (s > 1 && line[s-1] ~ /^[ \t]*(\/\/|@|$)/) s--
+            e = at; while (e < NR && line[e] !~ /^}[ \t]*$/) e++
+            re = "(^|[^A-Za-z0-9])" arm "([^A-Za-z0-9]|$)"
+            for (k = s; k <= e; k++) if (line[k] ~ re) exit 0
+            exit 1
+          }' $tf; then print -r -- "CITE	$a	$c	$d"; fi ;;
     CHECKR)
       for r in ${=b}; do
         if [[ $r =~ '^[A-Z]{1,2}-[A-Z0-9]{1,3}$' ]] && ! grep -rqF -- "$r" docs/superpowers; then print -r -- "RULING	$a	$r"; fi

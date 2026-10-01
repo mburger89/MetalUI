@@ -61,15 +61,18 @@ live labels a family carries beside its class.
 family rows, 178 ordered `M` rules matching target, file, owner, name and —
 where one name has overloads in different classes — the declaration's
 signature) and `docs/probes/closeout-inventory-check.sh`, which runs the
-census live and prints twelve kinds of problem (its header lists them).
+census live and prints thirteen kinds of problem (its header lists them;
+`CITE`, the thirteenth, added by lane 2's fix round, `CX-S`).
 **At lane 2's tip it prints nothing**: the census reads **1872** rows (the
 1871 of `1b093b8` plus lane 1's public `looksDemoContent()`, `CX-Q` item 3;
 the `Box` initialiser split moved lines, not rows), every row is claimed,
-every A family's probe file exists, its arm occurs in it and its test
-resolves, every D family has a label, every label is live, every ruling id
+every A family's probe file exists, its arm occurs in it, its test
+resolves and (since `CX-S`) that test names the arm, every D family has a label, every label is live, every ruling id
 occurs in `docs/superpowers/`, every X member carries `@available(*,
 deprecated …)` and every deprecated declaration is in an X family. Totals:
-**A 835 rows / 52 families, D 2 / 2, M 989 / 36, X 46 / 7.**
+**A 835 rows / 52 families, D 2 / 2, M 989 / 36, X 46 / 7** at lane 2's
+tip; **A 833 / 51, M 991 / 37** after its fix round (`text-input-binding`
+reclassified M, `CX-S` item 4).
 
 **The check can fail** — twelve mutations of the map or `docs/divergences.md`,
 each on the committed tree `4005bd8`, restored with `git checkout -- docs`,
@@ -109,11 +112,11 @@ rulings (X: the replacement is in the behaviour cell).
 | `element-protocols` | M | 15 | Element/ElementGroup/StyledElement/ProposalElement/ProposalElementGroup: gpui's three-phase requestLayout/prepaint/paint protocols in place of View | `SA-G`, `MC-B`, `LR-AA` |  |
 | `passes` | M | 37 | LayoutPass/PrepaintPass/PaintPass phase objects; isHovered/isActive/isFocused paint-only (PhaseSeparationTests) | `SA-H`, `EV-L` |  |
 | `kernel-registrars` | M | 15 | LayoutPass's requestNative*/markNativeGrid* registrars: the kernel's primary API for a custom element | `SA-A`, `GR-C` |  |
-| `builder` | A | 45 | @ViewBuilder's shapes: one structural slot per if/for, content an evaluated conditional removes is reset on return, if/else/switch in every container | `swiftui-composition-identity.swift` V1; `anElementAfterAnAppearingIfKeepsItsOwnState`; `ID-B`, `ID-C`, `ID-D` |  |
+| `builder` | A | 45 | @ViewBuilder's shapes: one structural slot per if/for, content an evaluated conditional removes is reset on return, if/else/switch in every container | `swiftui-composition-identity.swift` V2; `anElementAfterAnAppearingIfKeepsItsOwnState`; `ID-B`, `ID-C`, `ID-D` |  |
 | `any-element` | A | 16 | AnyView: @State/@Environment bind inside an AnyElement | `swiftui-composition-identity.swift` S2; `stateInsideAnAnyElementPersistsAcrossFrames`; `ID-E` |  |
 | `explicit-identity` | A | 14 | .id(_:) on every element group; a changed name resets, a departed name starts fresh on return; two same-named siblings share one identity (72) | `swiftui-composition-identity.swift` X9; `anIDThatReturnsToAnEarlierNameStartsFresh`; `ID-G`, `ID-R` | 72 |
 | `global-id` | M | 8 | GlobalElementID/PathComponent: the structural identity path value (positional/named components, -1 for an overlay) | `MC-C`, `MC-P`, `C-3` |  |
-| `component` | M | 17 | Component/StyledComponent: layout-transparent, identity-opaque composition; .width/.height frame each member; .frame is one layer over the members (56) | `OM-D`, `LR-BG`, `ID-I`, `ID-K` | 56, 73 |
+| `component` | M | 17 | Component/StyledComponent: layout-transparent, identity-opaque composition; .width/.height frame each member; .frame is one layer over a row of per-member frames, the members aligned by the frame's own alignment where SwiftUI's Group uses the parent's (56) | `OM-D`, `LR-BG`, `ID-I`, `ID-K` | 56, 73 |
 | `deferred` | M | 8 | Deferred: a portal hoisting to the root layer; absolute content is a presentation root against the window | `LR-CH`, `AP-I`, `OM-AA` | 9, 10, 46 |
 | `handlers` | M | 13 | Handlers/HitboxID/KeyHandler: handler storage and hitbox ids | `OM-AI`, `IX-N` |  |
 | `state` | A | 4 | @State per occurrence, dispatch-resolved; an optional with a non-nil default reads it before its first write (85 retired); a write from outside dispatch reaches the last-bound occurrence (71) | `swiftui-closeout.swift` O1; `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`; `ID-F`, `CX-F`, `DD-D` | 71 |
@@ -126,28 +129,28 @@ rulings (X: the replacement is in the behaviour cell).
 | `theme` | M | 16 | Theme/ColorToken/.theme: scoped, paint-only theme tokens | `EV-G`, `EV-H` |  |
 | `focus-state` | A | 10 | @FocusState/.focused: read the window's focus, move it from input; focus leaves with its identity; a click does not focus a .focusable() (94) | `swiftui-interaction.swift` F1; `focusDropsWhenItsElementIsRenamedAndDoesNotReturn`; `IX-I`, `IX-J` | 94 |
 | `stacks` | A | 36 | HStack/VStack/ZStack/Spacer/alignments/.layoutPriority: SwiftUI's stack algorithms, typed alignment, text baselines | `swiftui-stack-algorithms.swift` G1; `aStackServesItsLeastFlexibleChildFirst`; `CN-B`, `CN-C`, `CN-E`, `CN-H`, `CN-I`, `TE-K` | 51, 58, 70, 89 |
-| `proposal-frame` | A | 24 | ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38) | `swiftui-frame-semantics.swift` D4; `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`; `FR-A`, `FR-M`, `CN-F`, `SA-J` | 38 |
+| `proposal-frame` | A | 24 | ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38) | `swiftui-frame-semantics.swift` D1; `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`; `FR-A`, `FR-M`, `CN-F`, `SA-J` | 38 |
 | `native-frame-alias` | M | 2 | nativeFrame(...): an undeprecated alias of .frame, kept because deprecating it breaks the 0-warning baseline (record §09) | `SA-K` |  |
-| `proposal-padding` | A | 8 | Padding/.padding on proposal content: insets the proposal, places the child at its own size | `swiftui-engine-replacement-stage2.swift` P1; `aNativePaddingPlacesItsChildAtTheChildsOwnSize`; `LR-AU`, `SA-N` |  |
+| `proposal-padding` | A | 8 | Padding/.padding on proposal content: insets the proposal, places the child at its own size | `swiftui-engine-replacement-stage2.swift` N1; `aNativePaddingPlacesItsChildAtTheChildsOwnSize`; `LR-AU`, `SA-N` |  |
 | `proposal-background` | A | 8 | Background/.background(token) on proposal content: fills the box it is written on, beneath its content | `swiftui-outer-modifier-order.swift` A1; `nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent`; `OM-C` |  |
-| `fixed-size` | A | 9 | FixedSize/.fixedSize: withholds the selected axes from the child's proposal | `swiftui-engine-replacement-stage2.swift` F7; `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal`; `CN-B` |  |
-| `color-fill` | A | 6 | Color: a greedy fill answering its proposal | `swiftui-shapes-and-rendering.swift` P1; `everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare`; `FR-A` |  |
+| `fixed-size` | A | 9 | FixedSize/.fixedSize: withholds the selected axes from the child's proposal | `swiftui-engine-replacement-stage2.swift` F7; `aFixedSizeTextKeepsItsOneLineWidthInANarrowStack`; `CN-B` |  |
+| `color-fill` | A | 6 | Color: a greedy fill answering its proposal | `swiftui-shapes-and-rendering.swift` P2; `aColorAnswersItsProposalAndTenOnANilAxis`; `FR-A` |  |
 | `aspect-ratio` | A | 4 | .aspectRatio/.scaledToFit/.scaledToFill/ContentMode; nil ratio uses the child's own | `swiftui-stack-algorithms.swift` AR1; `anAspectRatioAnswersItsChildsAnswerToTheRatioProposal`; `TE-AM` | 97 |
 | `proposal-border` | A | 1 | .border on proposal content: a square band over whatever it is written after | `swiftui-border-clip-paint.swift` D1; `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill`; `OM-W`, `CX-B` |  |
 | `opacity` | A | 2 | .opacity on either vocabulary: what is written after it escapes it; a second opacity replaces the first (46) | `swiftui-border-clip-paint.swift` G3; `theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType`; `OM-N`, `LR-FW` | 46 |
 | `hit-testing` | A | 2 | .allowsHitTesting: gates the pointer target; per layer (44); default region the whole frame (41); a disabled target passes the click (23) | `swiftui-content-shape-hit-region.swift` N1; `allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKeepsTheKeyboardOnes`; `OM-AK`, `OM-AL`, `EV-E`, `IX-Z` | 23, 41, 42, 44 |
 | `content-shape` | A | 3 | .contentShape(inset:)/.contentShape(Shape): moves the pointer region only | `swiftui-content-shape-hit-region.swift` H3; `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout`; `OM-J`, `OM-AB`, `IX-L` | 43, 50 |
-| `modified-content` | A | 25 | ModifiedContent<Content, Modifier>/LayoutModifier/ModifierLayerKind: one flat modifier chain, one layer per modifier, SwiftUI's ModifiedContent | `swiftui-outer-modifier-order.swift` D1; `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`; `LR-FV`, `MC-A` |  |
+| `modified-content` | A | 25 | ModifiedContent<Content, Modifier>/LayoutModifier/ModifierLayerKind: one flat modifier chain, one layer per modifier, SwiftUI's ModifiedContent | `swiftui-outer-modifier-order.swift` L1; `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority`; `LR-FV`, `MC-A` |  |
 | `modifier-layer` | M | 8 | ModifierLayer, the ModifiedElement typealias, _wrap: the legacy arm of ModifiedContent; a layer added at run time is adopted by the new outermost (20) | `MC-A`, `MC-C`, `CX-C` | 20 |
 | `overlay` | A | 11 | OverlayModifier/.overlay: the overlay at the primary's size under child -1; a multi-member primary traps (73) | `swiftui-overlay-primary-shape.swift` P1; `aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape`; `MC-P`, `LR-FX` | 73 |
-| `background-modifier` | A | 11 | BackgroundModifier/.background(alignment:content:): the overlay's recipe, painted first; a non-clickable primary passes a click to it (57) | `swiftui-overlay-presentation.swift` H0; `aLegacyBackgroundSitsBehindItsPrimaryAtThePrimarysSize`; `ID-J`, `CN-K` | 57, 73 |
-| `scroll` | A | 15 | ProposalScrollView/ScrollAxis/ScrollIndicatorVisibility: scroll axes, indicators (.visible as .automatic, .never as .hidden) | `swiftui-data-and-scrolling.swift` T1; `scrollToWorksHorizontallyAndInAProposalScrollView`; `DD-G`, `DD-H`, `CN-F` |  |
+| `background-modifier` | A | 11 | BackgroundModifier/.background(alignment:content:): the overlay's recipe, painted first; a non-clickable primary passes a click to it (57) | `swiftui-overlay-presentation.swift` H1; `aLegacyBackgroundSitsBehindItsPrimaryAtThePrimarysSize`; `ID-J`, `CN-K` | 57, 73 |
+| `scroll` | A | 15 | ProposalScrollView/ScrollAxis/ScrollIndicatorVisibility: scroll axes, indicators (.visible as .automatic, .never as .hidden) | `swiftui-data-and-scrolling.swift` T11; `scrollToWorksHorizontallyAndInAProposalScrollView`; `DD-G`, `DD-H`, `CN-F` |  |
 | `scroll-reader` | A | 9 | ScrollViewReader/ScrollViewProxy.scrollTo: one slot, reach its own subtree, keys by value | `swiftui-scrollviewreader-scope.swift` S2; `scrollToIsScopedToItsReader`; `DD-G`, `DD-K` |  |
 | `unit-point` | A | 14 | UnitPoint: scrollTo anchors and grid cell anchors | `swiftui-data-and-scrolling.swift` T9; `scrollToAnAnchorLandsTheTargetAtTheAnchor`; `DD-G`, `TE-AN` |  |
 | `proposal-text` | A | 12 | ProposalText: text in the proposal vocabulary; answers min(proposal, widest line) | `swiftui-engine-replacement-stage1.swift` T3; `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal`; `LR-AU`, `TE-H` | 60, 86, 87 |
-| `proposal-layout` | A | 35 | ProposalLayout/ProposalLayoutContainer/subview proxies/ProposedSize: SwiftUI's Layout without a cache | `swiftui-layout-protocol-contract.swift` I2; `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`; `SA-A`, `SA-B`, `SA-F` |  |
+| `proposal-layout` | A | 35 | ProposalLayout/ProposalLayoutContainer/subview proxies/ProposedSize: SwiftUI's Layout without a cache | `swiftui-layout-protocol-contract.swift` I2; `anUnplacedSubviewIsCentredInItsParentAtTheParentsProposal`; `SA-A`, `SA-B`, `SA-F` |  |
 | `grid` | A | 34 | Grid/GridRow/cell modifiers: SwiftUI's Grid (reference model; residual disagreements 61, 62) | `swiftui-grid.swift` GA1; `gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI`; `GR-C`, `GR-D`, `GR-O`, `CX-H` | 61, 62, 63, 65, 66, 67, 68, 88 |
-| `foreach` | A | 13 | ForEach: identity by key, a dropped element resets; description-colliding ids keep the first (79) | `swiftui-data-and-scrolling.swift` F2; `aForEachKeepsEachElementsStateThroughAReorder`; `DD-B`, `DD-C` | 79 |
+| `foreach` | A | 13 | ForEach: identity by key, a dropped element resets; description-colliding ids keep the first (79) | `swiftui-data-and-scrolling.swift` F1; `aForEachKeepsEachElementsStateThroughAReorder`; `DD-B`, `DD-C` | 79 |
 | `transaction` | A | 14 | Transaction/withTransaction/.transaction/.animation(_:value:): a transaction stack; one root transaction per build (99) | `swiftui-transactions-animation.swift` T5; `withTransactionAnimatesAChangeAsWithAnimationDoes`; `AN-Y`, `AN-Z` | 99 |
 | `transition` | A | 19 | AnyTransition/Edge/.transition: the documented set; no default transition (98) | `swiftui-transactions-animation.swift` X1; `anOpacityTransitionFadesAnInsertedElementIn`; `AN-AE`, `AN-AH` | 98 |
 | `animation` | A | 10 | Animation curves and withAnimation: modifier wrappers animate at their phase; interpolation of declared input, not placed geometry (96); what snaps (97) | `swiftui-transactions-animation.swift` W3; `aProposalOpacityAnimates`; `AN-X`, `AN-AB` | 96, 97 |
@@ -162,30 +165,30 @@ rulings (X: the replacement is in the behaviour cell).
 | `list` | M | 13 | List: virtualized, data-driven, uniform rows; selection; windows against its own origin | `LR-BQ`, `DD-F`, `DD-Z`, `DD-AB` | 13, 32, 84 |
 | `css-item-fields` | M | 14 | margin/gap/justifyContent/alignItems/flexGrow/flexShrink/flexBasis(length)/alignSelf/position/inset/flexDirection: CSS item and container fields lowered onto the kernel, unlowerable cases refused by name | `LR-AB`, `LR-AS`, `LR-FO` |  |
 | `legacy-padding` | A | 2 | StyledElement.padding: one wrapper layer; chained padding accumulates; a padded click target is hittable in its padding (42) | `swiftui-outer-modifier-order.swift` E2; `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`; `OM-D`, `OM-E` | 42 |
-| `legacy-frame` | A | 2 | ElementGroup.frame(...): SwiftUI's frame surface on legacy content, lowered onto the kernel frame (ideal and flexible maxima answer as SwiftUI; 35 and 39 retired by CX-G) | `swiftui-frame-semantics.swift` B1; `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`; `FR-C`, `CN-N`, `LR-DH`, `CX-G` |  |
+| `legacy-frame` | A | 2 | ElementGroup.frame(...): SwiftUI's frame surface on legacy content, lowered onto the kernel frame (ideal and flexible maxima answer as SwiftUI; 35 and 39 retired by CX-G) | `swiftui-frame-semantics.swift` E1; `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`; `FR-C`, `CN-N`, `LR-DH`, `CX-G` |  |
 | `legacy-clip` | A | 2 | StyledElement.clipped/.clipShape: clip the subtree and its hitboxes | `swiftui-border-clip-paint.swift` E1; `aLegacyClipShapeClipsItsChildrenAndItsHitboxes`; `TE-AJ`, `OM-G` | 91, 92 |
 | `hidden` | A | 1 | .hidden(): keeps its space, paints nothing, takes no hit, is not published, leaves the keyboard's focus half | `swiftui-engine-replacement-stage1.swift` H1; `aHiddenChildKeepsItsSpaceUnderTheProposalAuthority`; `LR-DH`, `IX-K` |  |
 | `legacy-keyboard` | M | 4 | onKey/focusable/onAction/keyContext: gpui's raw key and action handlers and focusability (21, 22, 26, 94) | `EV-F`, `IX-K`, `TI-J` | 21, 22, 26, 94 |
 | `on-click` | M | 12 | onClick (and proposal onTap/OnTapModifier): Button semantics (press and release on one element), pressable through accessibility (27) | `IX-B`, `AB-G` | 27 |
 | `focus-border` | M | 3 | focusBorder/focusBackground: the opt-in focus ring and focus fill | `OM-V`, `IX-H` |  |
-| `button` | A | 26 | Button/ButtonRole/ButtonStyle/.keyboardShortcut on a Button: actions, roles (ButtonRole binds a key, draws nothing), styles, pressed look | `swiftui-controls-and-selection.swift` BA0; `aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside`; `DD-R`, `IX-E`, `IX-F` | 76, 80 |
+| `button` | A | 26 | Button/ButtonRole/ButtonStyle/.keyboardShortcut on a Button: actions, roles (ButtonRole binds a key, draws nothing), styles, pressed look | `swiftui-interaction.swift` B2; `aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside`; `DD-R`, `IX-E`, `IX-F` | 76, 80 |
 | `controls` | A | 32 | Toggle/Slider/Stepper on Binding: values, steps, clamping, keys once focused (80); the partial accessibility fold (82) | `swiftui-controls-and-selection.swift` SA1; `anUnsteppedAdjustmentMovesTenPercentOfTheSpan`; `DD-S`, `DD-W`, `DD-X` | 80, 82 |
 | `picker` | A | 29 | Picker/PickerStyle/.tag/TaggedElement: options found through tags; automatic is segmented, not a menu (81) | `swiftui-controls-and-selection.swift` PA1; `pressingAnOptionWritesItsTag`; `DD-V`, `DD-AA` | 80, 81, 82 |
-| `text` | A | 17 | Text (legacy-vocabulary leaf): measured and drawn through the text seam; fonts, line limits, truncation; width not ceiled to the pixel grid (60); line advance (86); middle truncation (87) | `swiftui-text-semantics.swift` F1; `theEnvironmentFontReachesATextAndTheTextsOwnWins`; `TE-A`, `TE-F`, `TE-H`, `TE-AA` | 60, 86, 87 |
+| `text` | A | 17 | Text (legacy-vocabulary leaf): measured and drawn through the text seam; fonts, line limits, truncation; width not ceiled to the pixel grid (60); line advance (86); middle truncation (87) | `swiftui-text-semantics.swift` F6a; `theEnvironmentFontReachesATextAndTheTextsOwnWins`; `TE-A`, `TE-F`, `TE-H`, `TE-AA` | 60, 86, 87 |
 | `text-proposal-bridge` | M | 1 | Text.proposalLayout(): converts a legacy Text to a ProposalText, dropping background, handlers, id and hover/focus colours | `LR-S`, `CN-A` |  |
-| `font` | A | 33 | Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families | `swiftui-text-semantics.swift` F2; `aTextStyleResolvesToMacOSsFace`; `TE-B`, `TE-C`, `TE-D`, `TE-E` |  |
-| `text-modifiers` | A | 28 | .font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode | `swiftui-text-semantics.swift` L5; `aLineLimitCapsLinesAndAnswersTheWidestKeptLine`; `TE-H`, `TE-I`, `TE-J`, `TE-AA` |  |
+| `font` | A | 33 | Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families | `swiftui-text-semantics.swift` F1; `aTextStyleResolvesToMacOSsFace`; `TE-B`, `TE-C`, `TE-D`, `TE-E` |  |
+| `text-modifiers` | A | 28 | .font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode | `swiftui-text-semantics.swift` L1; `aLineLimitCapsLinesAndAnswersTheWidestKeptLine`; `TE-H`, `TE-I`, `TE-J`, `TE-AA` |  |
 | `text-input` | M | 40 | TextField/TextEditor controlled initialisers, submit, undo, paging: MetalUI's own text-input surface | `TI-A`, `TI-B`, `TI-D`, `TI-G`, `TI-H` |  |
-| `text-input-binding` | A | 2 | TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers | `swiftui-data-and-scrolling.swift` B4; `aTextFieldBoundToStateUpdatesItOnEveryEdit`; `DD-E` |  |
+| `text-input-binding` | M | 2 | TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers; MetalUI-only evidence: no probe arm exercises TextField(text:)/TextEditor(text:) (data-and-scrolling's B4 is a Binding built outside any view), so the forwarding is pinned by aTextFieldBoundToStateUpdatesItOnEveryEdit alone; the Binding surface itself is the binding family's (B4/B5) | `DD-E` |  |
 | `shapes` | A | 50 | Shape/ShapeGeometry/Rectangle/RoundedRectangle/Circle/Capsule/Ellipse/ShapeView/.fill/.stroke/.strokeBorder; continuous corners drawn circular (90) | `swiftui-shapes-and-rendering.swift` S1; `everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare`; `TE-AC`, `TE-AG`, `TE-AH`, `TE-AE` | 90 |
 | `clip-shape` | A | 4 | .clipShape/.clipped/.cornerRadius/.clip on proposal content: one clip layer; an ellipse clip traps (91); crossing rounded clips square (92) | `swiftui-shapes-and-rendering.swift` C3; `clippedAndCornerRadiusClipOnTheProposalPath`; `TE-AJ` | 91, 92 |
-| `shape-background` | A | 2 | .background(_:in:)/.background(in:): a filled shape behind the content | `swiftui-shapes-and-rendering.swift` F2; `backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken`; `TE-AK` |  |
+| `shape-background` | A | 2 | .background(_:in:)/.background(in:): a filled shape behind the content | `swiftui-shapes-and-rendering.swift` O2; `backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken`; `TE-AK` |  |
 | `image` | A | 9 | Image/Image.Interpolation: decorative and labelled images, .resizable, .interpolation (.high draws bilinear, 93) | `swiftui-shapes-and-rendering.swift` I1; `anImageAnswersItsPointSizeAtEveryProposal`; `TE-AL`, `TE-AM` | 93 |
 | `image-bitmap` | M | 5 | ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8) | `TE-AL` |  |
 | `gestures` | A | 60 | Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press | `swiftui-interaction.swift` H2; `anOuterHighPriorityGestureBeatsTheInnerOneAndAButton`; `IX-B`, `IX-C`, `IX-D`, `IX-Q` |  |
-| `keyboard-shortcut` | A | 26 | KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order | `swiftui-interaction.swift` B1; `aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch`; `IX-F` |  |
+| `keyboard-shortcut` | A | 26 | KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order | `swiftui-interaction.swift` B4e; `aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch`; `IX-F` |  |
 | `keymap` | M | 24 | Keymap/KeyBinding/Keystroke/KeymapBuilder/KeyContext/ContextPredicate/Action/ActionHandler: gpui's keymap and actions | `EV-N`, `IN-A` |  |
-| `accessibility-modifiers` | A | 55 | accessibility modifiers on both vocabularies, AccessibilityModifier/Traits/ChildBehavior/Adjustment: .ignore/.combine/.contain, hidden, hint, identifier, traits, declared and named actions, modal isolation (95) | `swiftui-accessibility-part2.swift` A1; `aCombinedElementJoinsItsChildrenIntoOneStaticText`; `IX-U`, `IX-V`, `IX-X`, `IX-Y`, `AB-T` | 29, 30, 31, 33, 34, 82, 95 |
+| `accessibility-modifiers` | A | 55 | accessibility modifiers on both vocabularies, AccessibilityModifier/Traits/ChildBehavior/Adjustment: .ignore/.combine/.contain, hidden, hint, identifier, traits, declared and named actions, modal isolation (95) | `swiftui-accessibility-part2.swift` E3; `aCombinedElementJoinsItsChildrenIntoOneStaticText`; `IX-U`, `IX-V`, `IX-X`, `IX-Y`, `AB-T` | 29, 30, 31, 33, 34, 82, 95 |
 | `axnode` | M | 13 | AXNode/AXRole/AXTrait: the neutral accessibility record a StyledElement declares; a List publishes realised rows only (32) | `AB-C`, `AB-F`, `AB-U` | 32 |
 | `axnode-actions` | X | 3 | AXActionKind/AXNode.actions/AXNode.init(…actions:…): use accessibilityAction(_:)/accessibilityAdjustableAction(_:) | deprecated; `IX-Y`, `CX-C` |  |
 | `sizing-modifiers` | X | 10 | width/height/minWidth/minHeight/maxWidth/maxHeight and width/height(fraction:)/(percent:): use .frame (LR-ES recipe R1–R8) | deprecated; `FR-I`, `LR-ER`, `LR-EU`, `CN-O` |  |
@@ -193,7 +196,7 @@ rulings (X: the replacement is in the behaviour cell).
 | `core-geometry` | M | 62 | MetalUICore geometry and units (Point, Size, Bounds, Edges, Corners, Axes, Pixels, Rems, Length, Dimension, …) | `C-1`, `PC-A` |  |
 | `core-color` | M | 18 | Hsla/Rgba: colours authored in sRGB, composited in a Display P3 layer (1) | `F-1`, `TB-A` | 1 |
 | `core-appearance` | M | 1 | Appearance: the host's light/dark appearance, selecting the theme | `EV-H` |  |
-| `control-active-state` | A | 1 | ControlActiveState: key/active/inactive, SwiftUI's cases; the platform mapping is MetalUI's own (C1–C3 unmeasured) | `swiftui-environment-control-state.swift` C0; `controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt`; `EV-AB` |  |
+| `control-active-state` | A | 1 | ControlActiveState: key/active/inactive, SwiftUI's cases; the platform mapping is MetalUI's own (C1–C3 unmeasured) | `swiftui-environment-control-state.swift` V0; `controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt`; `EV-AB` |  |
 | `layout-direction-type` | D | 1 | LayoutDirection: carried, read by no container (25) | `EV-K` | 25 |
 | `layout-kernel` | M | 66 | MetalUILayout's LayoutTree, node ids, registrars, measure functions, grid marks, spacing, rounding (77) | `SA-L`, `SA-M`, `GR-C` | 77 |
 | `platform` | M | 78 | MetalUIPlatform: Platform/PlatformWindow/WindowRenderer, input events, the neutral accessibility tree | `RS-A`, `AB-R`, `EV-AB`, `AN-AD` |  |
@@ -215,7 +218,8 @@ rulings (X: the replacement is in the behaviour cell).
   `content-shape` (A; 43, 50); `NativeModifiedContent.swift`'s modifiers
   likewise, per modifier.
 - **Split by signature** (`decl-ERE`): `TextField`/`TextEditor`'s
-  `Binding<String>` initialisers (A, `DD-E`) from their controlled surface
+  `Binding<String>` initialisers (A at lane 2's tip, M since `CX-S`: no
+  probe arm exercises them; `DD-E`) from their controlled surface
   (M, `TI-`); the deprecated `AXNode.init(…actions:…)`, `Rectangle(color:)`,
   `HStack`/`VStack(spacing:alignment:)` and the two no-argument `frame()`s
   (X) from their undeprecated siblings; `flexBasis(fraction:/percent:)` (X)
@@ -238,6 +242,46 @@ rulings (X: the replacement is in the behaviour cell).
   spacing beside text, on `stacks`).
 - **`Text.proposalLayout()`** is its own M family (`text-proposal-bridge`):
   it drops background, handlers, id and hover/focus colours by design.
+
+### §1.4 Lane 2's fix round: the A citations re-audited (`CX-S`)
+
+The reviewer found class-A rows citing an arm their test does not assert
+(keyboard-shortcut B1, foreach F2, text F1, accessibility-modifiers A1,
+color-fill P1, text-input-binding B4), all passing `ARM` because short ids
+occur in almost every probe. **The check was tightened first** (`CITE`: the
+cited test must name the arm in its doc comment or body) and run on the
+unfixed map: **24 `CITE` lines**, the six the reviewer named among them.
+Every one of the 52 A families was then compared by hand — the arm's
+recorded output line in the probe header against what the cited test
+asserts — and each `CITE` line disposed (decisions `CX-S` item 2):
+
+| family | was | now | why |
+|---|---|---|---|
+| builder | V1 | V2 | the test is the appearing `if` (V2) |
+| proposal-frame | D4 | D1 | the test cites D control/D1/D2/D13 (greedy clamp) |
+| proposal-padding | P1 | N1 | the test is group N (a padding places its child at its own size) |
+| fixed-size | F7, a proposal-shape test | F7, `aFixedSizeTextKeepsItsOneLineWidthInANarrowStack` (new) | F7 records answers, not proposals |
+| color-fill | P1 (ink control), a shape test | P2, `aColorAnswersItsProposalAndTenOnANilAxis` (new) | the old test never built a `Color` |
+| modified-content | D1 | L1 (L1–L9) | the matrix asserts padding grows, the rest are layout-neutral |
+| background-modifier | H0 (control) | H1 | the click arm the test asserts |
+| scroll | T1 | T11 | the test is horizontal + `ProposalScrollView` |
+| proposal-layout | I2, the stack reimplementation test | I2, `anUnplacedSubviewIsCentredInItsParentAtTheParentsProposal` | I2 is the unplaced-subview arm |
+| foreach | F2 | F1 | the test is the reorder |
+| legacy-frame | B1 | E1 | the test cites E1/E2/E6 (chained frames) |
+| button | controls-and-selection BA0 (an AX press) | interaction B2 (and B0) | the test is a click, and a press released outside |
+| text | F1 | F6a | the environment font reaching a `Text` |
+| font | F2 | F1 | the eleven text styles |
+| text-modifiers | L5 | L1 (and L6b) | the test's `lineLimit` shape |
+| text-input-binding | data-and-scrolling B4 | — (class M, `DD-E`) | no arm exercises `TextField(text:)` |
+| shape-background | F2 | O2 | `background(_:in:)` equals the filled shape |
+| keyboard-shortcut | B1 (Button press excursion) | B4e | the shortcut arms |
+| accessibility-modifiers | A1 | E3 | `.combine` over two texts |
+| control-active-state | C0 | V0 (and C4) | the bare value is `.key`; a scope writes it |
+| any-element, environment-dynamic-type, proposal-background, legacy-clip | S2, G0, A1, E1 | unchanged | right arm; the test's doc comment now names it |
+
+The other 28 A families' arms were already named by their tests and matched
+by hand. **Red first for the two new tests** and the check's own failure
+modes are §1.5's mutation table.
 
 ### §1.3 Documented absences (R rows; owner none unless stated)
 

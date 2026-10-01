@@ -37,7 +37,7 @@ hang off it), and for the SwiftUI vocabulary `ProposalElement`/
 `PaintPass` (hover, active and focus are readable only in paint). A custom
 leaf registers through `LayoutPass.requestNativeLeaf`; a custom container
 writes a `ProposalLayout` (below). `Component` composes elements with its own
-state, layout-transparent (divergence 56). `Deferred` hoists its content to
+state, layout-transparent (a `.frame` on a multi-member one is divergence 56). `Deferred` hoists its content to
 the window's top layer — a portal for modals, popovers and tooltips
 (divergences 9, 10).
 

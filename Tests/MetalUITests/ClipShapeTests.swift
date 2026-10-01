@@ -129,7 +129,9 @@ private func overflowing() -> some ProposalElement {
 /// child's mask is the box with radius 20, and its hitbox is cut to the
 /// clip's bounding rect — 40 tall, where the control (no clip) registers 60.
 /// That the hitbox is square, not the capsule, is MetalUI's existing rule for
-/// every clip (`TE-AQ` item 4), not a SwiftUI claim. The receiver is a `Box`,
+/// every clip (`TE-AQ` item 4), not a SwiftUI claim; the mask half is the
+/// border-clip-paint probe's E1 (`clipShape(RoundedRectangle)` clips its
+/// content's paint to the rounded shape: the corner white, the arc filled). The receiver is a `Box`,
 /// not a `ProposalElementGroup`, so it reaches the `StyledElement` overload,
 /// which returns `Self`.
 ///

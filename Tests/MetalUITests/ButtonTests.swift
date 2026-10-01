@@ -177,7 +177,8 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
 }
 
 /// **1.3.** A click runs the action once; a press inside released outside runs
-/// nothing. M1c (`Button` leaves `onClick` unset) reddens it, 1.5, 1.7, 1.8
+/// nothing (interaction probe B0: down, up inside runs the action; B2: down,
+/// drag out, up outside runs nothing). M1c (`Button` leaves `onClick` unset) reddens it, 1.5, 1.7, 1.8
 /// and both registry arms — not 1.4: the activation keys run the action
 /// directly (`DD-AD` item 3).
 @Test @MainActor func aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside() throws {
