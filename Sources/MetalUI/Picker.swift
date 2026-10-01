@@ -72,6 +72,10 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         var inner: Pair<Text, Box<OptionRow<Content>>>.Prepaint
     }
 
+    /// A picker titled `title` whose options are `content`'s `.tag(_:)`ed
+    /// elements; choosing one writes its tag to `selection`. SwiftUI's
+    /// `Picker(_:selection:content:)`; the automatic style is segmented
+    /// (divergence 81, `DD-V`).
     public init(_ title: String, selection: Binding<SelectionValue>,
                 @ElementBuilder content: () -> Content) {
         var style = Style()

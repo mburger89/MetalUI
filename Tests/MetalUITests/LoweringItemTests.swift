@@ -1111,7 +1111,7 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
             "zero basis without grow")
     #expect(report { Row { Box().cssHeight(px(10)).flexBasis(px(40)); fixed(10, 10) } } == [field(.box, "flexBasis")],
             "flexBasis(40)")
-    #expect(report { Row { Box().cssHeight(px(10)).flexBasis(fraction: 0.5); fixed(10, 10) } } == [field(.box, "flexBasis")],
+    #expect(report { Row { Box().cssHeight(px(10)).cssFlexBasis(fraction: 0.5); fixed(10, 10) } } == [field(.box, "flexBasis")],
             "flexBasis(fraction:)")
 
     let sized = LayoutDifferential.report(width: 400, height: 100) {

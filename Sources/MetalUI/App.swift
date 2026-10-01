@@ -18,6 +18,7 @@ import MetalUIAppKit
 @_exported import MetalUIRender
 #endif
 
+/// Why an `App` could not be created.
 public enum AppError: Error, CustomStringConvertible {
     case noMetalDevice
     public var description: String { "no Metal device is available on this system" }
@@ -42,6 +43,8 @@ public final class App {
     /// another platform.
     public let device: (any MTLDevice)?
 
+    /// An app on the system default Metal device with AppKit and CoreText;
+    /// throws `AppError.noMetalDevice` when the system has no Metal device.
     public convenience init() throws {
         guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
         try self.init(device: device)
@@ -119,6 +122,8 @@ public final class App {
         return window
     }
 
+    /// Runs the platform's event loop, handing every window its input and
+    /// display-link ticks until the platform stops.
     public func run() {
         platform.run()
     }

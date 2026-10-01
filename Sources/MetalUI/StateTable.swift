@@ -627,7 +627,19 @@ final class StateTable {
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
         marked.insert(id)
-        var value = (storage[id]?.value as? S) ?? initial()
+        // An absent entry takes `initial()` whatever `S` is (plan task 15's
+        // lane-1 fix round, `CX-F`'s rule applied here too): the old
+        // `(storage[id]?.value as? S) ?? initial()` cast an absent entry's
+        // `nil` to an optional `S` as `.some(nil)`, so the public
+        // `LayoutPass`/`PrepaintPass`/`PaintPass.withState(id, initial:
+        // Optional(5))` handed its body `nil` — divergence 85's shape. Pinned
+        // by `thePublicWithStateHandsAnOptionalStateItsInitialValueOnFirstAccess`.
+        var value: S
+        if let entry = storage[id], let stored = entry.value as? S {
+            value = stored
+        } else {
+            value = initial()
+        }
         body(&value)
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
         writeCount += 1
@@ -737,8 +749,20 @@ final class StateTable {
     /// value for an element that was not produced this frame — that is the
     /// whole point of a tombstone. Use `isLive(_:)` to ask whether the owning
     /// element was actually produced.
+    ///
+    /// **An absent entry is `nil` whatever `S` is** (plan task 15, ruling
+    /// `CX-F`, divergence 85 retired). This read `storage[id]?.value as? S`,
+    /// and for an optional `S` the cast of an absent entry's `nil` to `S`
+    /// succeeds as `.some(nil)` — so `State.wrappedValue`'s `?? initialValue`
+    /// never ran and `@State var x: Int? = 2` read `nil` until its first
+    /// write, where SwiftUI reads 2 (`docs/probes/swiftui-closeout.swift` O1).
+    /// A STORED `nil` is still a value and still reads `nil` (O2) — the absent
+    /// case is told apart by the dictionary lookup, never by the stored value.
+    /// Pinned by `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`
+    /// and its separating arm `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue`.
     func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
-        storage[id]?.value as? S
+        guard let entry = storage[id] else { return nil }
+        return entry.value as? S
     }
 
     /// Whether `id`'s element was produced by the frame now being built (more

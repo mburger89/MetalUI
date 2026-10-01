@@ -23,26 +23,43 @@ public struct KeyEquivalent: Equatable, Sendable, ExpressibleByExtendedGraphemeC
     /// The character the key produces.
     public let character: Character
 
+    /// The key that produces `character`.
     public init(_ character: Character) { self.character = character }
 
+    /// A key from a character literal: `.keyboardShortcut("k")`.
     public init(extendedGraphemeClusterLiteral character: Character) {
         self.character = character
     }
 
+    /// The Return key.
     public static let `return` = KeyEquivalent("\r")
+    /// The Escape key.
     public static let escape = KeyEquivalent("\u{1b}")
+    /// The Space bar.
     public static let space = KeyEquivalent(" ")
+    /// The Tab key.
     public static let tab = KeyEquivalent("\t")
+    /// The Delete (backspace) key.
     public static let delete = KeyEquivalent("\u{7f}")
+    /// The forward-delete key.
     public static let deleteForward = KeyEquivalent("\u{f728}")
+    /// The up arrow key.
     public static let upArrow = KeyEquivalent("\u{f700}")
+    /// The down arrow key.
     public static let downArrow = KeyEquivalent("\u{f701}")
+    /// The left arrow key.
     public static let leftArrow = KeyEquivalent("\u{f702}")
+    /// The right arrow key.
     public static let rightArrow = KeyEquivalent("\u{f703}")
+    /// The Home key.
     public static let home = KeyEquivalent("\u{f729}")
+    /// The End key.
     public static let end = KeyEquivalent("\u{f72b}")
+    /// The Page Up key.
     public static let pageUp = KeyEquivalent("\u{f72c}")
+    /// The Page Down key.
     public static let pageDown = KeyEquivalent("\u{f72d}")
+    /// The Clear key.
     public static let clear = KeyEquivalent("\u{f739}")
 }
 
@@ -53,9 +70,12 @@ public struct KeyEquivalent: Equatable, Sendable, ExpressibleByExtendedGraphemeC
 /// a ⌘K shortcut, plain K does not, and a `modifiers: []` shortcut fires on
 /// plain K and not on ⌘K.
 public struct KeyboardShortcut: Equatable, Sendable {
+    /// The key that must be pressed, compared case-folded.
     public let key: KeyEquivalent
+    /// The modifiers that must be held, matched exactly (`IX-F` item 2).
     public let modifiers: EventModifiers
 
+    /// A shortcut of `key` with `modifiers` (⌘ by default, as SwiftUI's).
     public init(_ key: KeyEquivalent, modifiers: EventModifiers = .command) {
         self.key = key
         self.modifiers = modifiers

@@ -129,6 +129,8 @@ public protocol ModifierLayerKind {
 /// modifiers then silently drop the receiver. No access-control spelling
 /// closes it.
 public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind>: Element {
+    /// The content type a legacy wrapper wraps, so a further wrapper flattens
+    /// into this chain rather than nesting it (`MC-A`).
     public typealias LayerBase = Content
 
     /// The chain's base content — never another `ModifiedContent` of the same
@@ -373,8 +375,10 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
 /// `ModifiedElement<Content>` — the legacy vocabulary's chain (ruling
 /// `LR-FV` item 1). **Undeprecated**: every `ModifiedElement<X>` annotation,
 /// `extension ModifiedElement` and `ElementGroup._wrap`'s signature still
-/// compile; its fate is plan task 15's, with the other spelling-only
-/// decisions. `String(describing:)` of the type prints
+/// compile. It stays undeprecated by ruling (`CX-C` item 3, plan task 15): it
+/// names a spelling, has no behaviour of its own, and deprecating it would
+/// warn at every annotation for a spelling choice. `String(describing:)` of
+/// the type prints
 /// `ModifiedContent<X, ModifierLayer>`.
 public typealias ModifiedElement<Content: ElementGroup> = ModifiedContent<Content, ModifierLayer>
 
@@ -409,6 +413,8 @@ extension ModifiedContent: StyledElement where Modifier == ModifierLayer {
 }
 
 extension ModifierLayer: ModifierLayerKind {
+    /// The layer's own `.id(_:)` name, read when the chain mints its ids
+    /// (`MC-C`).
     public var _elementID: ElementID? {
         get { elementID }
         set { elementID = newValue }
@@ -441,6 +447,8 @@ extension ModifierLayer: ModifierLayerKind {
         pass.paintDecoration(decoration, in: bounds, for: id, content: inside)
     }
 
+    /// Splits a legacy chain's layers for the phases: absorbed proposal layers
+    /// first, then the legacy layers, outermost last (`LR-FV`).
     public static func _legacyStack(_ outermost: ModifierLayer, _ inner: [ModifierLayer],
                                     _ prefix: [LayoutModifier])
         -> (prefix: [LayoutModifier], layers: [ModifierLayer]) {
@@ -477,6 +485,8 @@ extension ModifiedContent: ProposalElementGroup, ProposalElement
     /// mirrored).
     public typealias ProposalBase = Content
 
+    /// Appends a proposal layer to this chain as its new outermost, rather than
+    /// nesting (`LR-FV` item 4).
     public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<Content, LayoutModifier> {
         var copy = self
         copy.inner.append(copy.outermost)
@@ -576,6 +586,8 @@ extension LayoutModifier: ModifierLayerKind {
         }
     }
 
+    /// Splits a proposal chain's layers for the phases; a proposal chain has no
+    /// absorbed prefix (`LR-FV`).
     public static func _legacyStack(_ outermost: LayoutModifier, _ inner: [LayoutModifier],
                                     _ prefix: [LayoutModifier])
         -> (prefix: [LayoutModifier], layers: [ModifierLayer]) {

@@ -92,6 +92,8 @@ public struct Text: Element, StyledElement {
     /// dark window.
     public var foregroundColor: ColorToken?
 
+    /// A text leaf showing `string`, measured and drawn through the frame's
+    /// text system (`TS-A`).
     public init(_ string: String) {
         self.style = Style()
         self.decoration = Decoration()
@@ -117,6 +119,7 @@ public struct Text: Element, StyledElement {
     }
 
     public struct Layout {
+        /// The text's layout node.
         public var node: LayoutNodeID
     }
 

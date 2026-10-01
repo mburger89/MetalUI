@@ -55,6 +55,9 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     private var buttonStyleValue: ButtonStyle = .automatic
     private var shortcut: KeyboardShortcut?
 
+    /// A button that runs `action` when pressed (a click, Space or Return when
+    /// focused, or an accessibility press), drawn around `label` with the
+    /// automatic chrome. SwiftUI's `Button(action:label:)` (`DD-R`).
     public init(action: @escaping @MainActor () -> Void, @ElementBuilder label: () -> Label) {
         var style = Style()
         style.flexDirection = .row

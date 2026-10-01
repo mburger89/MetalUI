@@ -30,6 +30,10 @@ extension StyledElement {
     func cssMaxHeight(_ points: Pixels) -> Self { modifying { $0.maxSize.height = .length(.pixels(points)) } }
     func cssWidth(fraction: Float) -> Self { modifying { $0.size.width = .length(.percent(fraction)) } }
     func cssHeight(fraction: Float) -> Self { modifying { $0.size.height = .length(.percent(fraction)) } }
+    /// Plan task 15 (`CX-C` item 2) deprecated `flexBasis(fraction:)`; this is
+    /// its closure body, verbatim, for a test whose subject is that field's
+    /// lowering (class K) — `LoweringItemTests`' report arm.
+    func cssFlexBasis(fraction: Float) -> Self { modifying { $0.flexBasis = .length(.percent(fraction)) } }
 }
 
 // MARK: - Class D: the deprecated spelling, called without a warning

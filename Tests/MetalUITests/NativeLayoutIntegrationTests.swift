@@ -827,6 +827,10 @@ private struct NativeProposalProbe: ProposalElement {
                                            size: Size(width: Pixels(30), height: Pixels(10))))
 }
 
+/// A proposal `.padding(5).background(.surface)` fills the padded box (30×20),
+/// painted before the 20×10 content it wraps: SwiftUI's outer-modifier-order
+/// probe A1 (`.padding(8).background(BG)`: the background (0, 0) 36×36 covers
+/// the box as it stood after the padding, the leaf at (8, 8)) (`OM-C`).
 @MainActor
 @Test func nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent() throws {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,

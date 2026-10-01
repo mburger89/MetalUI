@@ -15,6 +15,7 @@ public struct Keystroke: Equatable, Sendable {
     /// — lower-cased for letters, and the literal control character for a named
     /// key such as `space` or `escape`.
     public var key: String
+    /// The modifiers that must be held, compared exactly.
     public var modifiers: Modifiers
 
     /// Parses one stroke: zero or more `-`-separated modifier names followed by
@@ -129,11 +130,14 @@ public struct KeyBinding {
     /// One or two `-`-separated strokes, separated from each other by a space:
     /// `"cmd-c"`, `"ctrl-k ctrl-f"`.
     public var spelling: String
+    /// The action dispatched when the binding fires.
     public var action: any Action
     /// A `ContextPredicate` source, or `nil` for a binding that is in scope
     /// everywhere — including with nothing focused at all.
     public var context: String?
 
+    /// A binding of `spelling` to `action`, in scope where `context` matches
+    /// (everywhere when `nil`). A malformed spelling never matches.
     public init(_ spelling: String, _ action: any Action, context: String? = nil) {
         self.spelling = spelling
         self.action = action
@@ -165,8 +169,11 @@ public struct KeyBinding {
 /// key press, so the cost is not worth a structure that would have to be
 /// invalidated whenever the list changed.
 public struct Keymap {
+    /// The bindings, later entries winning a tie.
     public var bindings: [KeyBinding]
+    /// A keymap from a list of bindings.
     public init(_ bindings: [KeyBinding] = []) { self.bindings = bindings }
+    /// A keymap from a builder block of bindings.
     public init(@KeymapBuilder _ bindings: () -> [KeyBinding]) { self.bindings = bindings() }
 }
 
@@ -181,6 +188,7 @@ public struct Keymap {
 /// in the same change.
 @resultBuilder
 public enum KeymapBuilder {
+    /// The block's bindings, in order.
     public static func buildBlock(_ bindings: KeyBinding...) -> [KeyBinding] { bindings }
 }
 

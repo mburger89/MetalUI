@@ -114,12 +114,18 @@ public enum FontDesign: Hashable, Sendable {
 /// stays bold), where `0` asks for the family's regular face. A request is
 /// not an identity: two descriptors can resolve to one ``FontKey``.
 public struct FontDescriptor: Hashable, Sendable {
+    /// The family or PostScript name; `nil` is the system font.
     public var family: String?
+    /// The size in points.
     public var size: Double
+    /// The weight trait, -1…1; `nil` keeps the face's own weight.
     public var weight: Double?
+    /// Whether an italic face is requested.
     public var italic: Bool
+    /// The system font's design (default, serif, rounded, monospaced).
     public var design: FontDesign
 
+    /// A font request; only `size` is required.
     public init(family: String? = nil, size: Double, weight: Double? = nil,
                 italic: Bool = false, design: FontDesign = .default) {
         self.family = family
@@ -135,11 +141,16 @@ public struct FontDescriptor: Hashable, Sendable {
 /// one. `lineHeight` is `ceil(ascent + descent + leading)` on both (the line
 /// advance every multi-line layout uses; divergence 86).
 public struct TextFontMetrics: Hashable, Sendable {
+    /// Distance from the baseline to the top of the line, in points.
     public let ascent: Double
+    /// Distance from the baseline to the bottom of the line, in points.
     public let descent: Double
+    /// Extra space between lines, in points.
     public let leading: Double
+    /// The line advance, `ceil(ascent + descent + leading)` (divergence 86).
     public let lineHeight: Double
 
+    /// Metrics from their four values.
     public init(ascent: Double, descent: Double, leading: Double, lineHeight: Double) {
         self.ascent = ascent
         self.descent = descent
@@ -168,10 +179,15 @@ public enum TextLineAlignment: Hashable, Sendable {
 /// and each line aligned by `alignment`. The defaults — no limit, tail,
 /// leading — lay out exactly as the spellings without `options:` always did.
 public struct TextLayoutOptions: Hashable, Sendable {
+    /// The most lines laid out; `nil` is unlimited.
     public var maxLines: Int?
+    /// Where an over-long last line is cut and the ellipsis placed.
     public var truncation: TextTruncation
+    /// How each line is aligned within the wrapping width.
     public var alignment: TextLineAlignment
 
+    /// Layout options; the defaults lay out as the spellings without
+    /// `options:`.
     public init(maxLines: Int? = nil, truncation: TextTruncation = .tail,
                 alignment: TextLineAlignment = .leading) {
         self.maxLines = maxLines
@@ -182,9 +198,12 @@ public struct TextLayoutOptions: Hashable, Sendable {
 
 /// A measured string: its widest line and its total height, both in points.
 public struct TextMeasurement: Sendable, Equatable {
+    /// The widest line's width, in points.
     public let widestLine: Double
+    /// The height of all lines together, in points.
     public let totalHeight: Double
 
+    /// A measurement from its two values.
     public init(widestLine: Double, totalHeight: Double) {
         self.widestLine = widestLine
         self.totalHeight = totalHeight
@@ -195,10 +214,14 @@ public struct TextMeasurement: Sendable, Equatable {
 /// subpixel variant, scale), the whole device pixel its pen sits on, and the
 /// device row of its baseline — what `Frame.draw` turns into a sprite.
 public struct TextGlyph: Sendable, Equatable {
+    /// The atlas key of the glyph image to draw.
     public let key: GlyphKey
+    /// The device pixel column the glyph's pen sits on.
     public let pixelX: Int
+    /// The device pixel row of the glyph's baseline.
     public let baselineY: Int
 
+    /// A placed glyph.
     public init(key: GlyphKey, pixelX: Int, baselineY: Int) {
         self.key = key
         self.pixelX = pixelX

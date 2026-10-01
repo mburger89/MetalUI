@@ -43,8 +43,11 @@ public enum ElementBuilder {
     /// `Box { }` — a container with no children.
     public static func buildBlock() -> EmptyGroup { EmptyGroup() }
 
+    /// A block's first statement, unchanged.
     public static func buildPartialBlock<Group: ElementGroup>(first: Group) -> Group { first }
 
+    /// Folds the next statement onto the ones before it as a left-nested
+    /// `Pair`, so node order is source order.
     public static func buildPartialBlock<Accumulated: ElementGroup, Next: ElementGroup>(
         accumulated: Accumulated, next: Next
     ) -> Pair<Accumulated, Next> {

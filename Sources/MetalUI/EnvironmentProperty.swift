@@ -63,10 +63,14 @@ public struct Environment<Value> {
     let keyPath: KeyPath<EnvironmentValues, Value>
     let box = Box()
 
+    /// Reads the environment value at `keyPath`, as SwiftUI's
+    /// `@Environment(\.keyPath)` does (`EV-`).
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) {
         self.keyPath = keyPath
     }
 
+    /// The value in effect where the element sits, bound by the frame before
+    /// each phase; an unbound property reads the defaults.
     public var wrappedValue: Value {
         (box.resolvedValues ?? EnvironmentValues())[keyPath: keyPath]
     }

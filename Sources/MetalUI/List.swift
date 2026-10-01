@@ -288,6 +288,9 @@ where Data.Element: Identifiable {
         var inner: ListRows<Row>.GroupPrepaint
     }
 
+    /// A windowed list of `data`, each row `rowHeight` tall and built by `row`;
+    /// needs an enclosing vertical `ScrollView` (divergence 84) and builds only
+    /// the rows in view.
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
         self.data = data

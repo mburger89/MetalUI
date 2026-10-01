@@ -70,15 +70,24 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
 /// so these render somewhat more saturated than the hex implies. That is
 /// divergence 1 in CLAUDE.md — expected and measured, not a bug to chase.
 public struct Theme: Sendable, Hashable {
+    /// The window background.
     public var background: Hsla
+    /// A raised surface, such as a card or a button's chrome.
     public var surface: Hsla
+    /// A secondary surface, such as a segmented picker's track.
     public var surfaceSecondary: Hsla
+    /// The accent colour: selection, an on toggle, a slider's fill.
     public var accent: Hsla
+    /// Separators, and a control's accent outside the key window (`IX-H`).
     public var separator: Hsla
+    /// The primary text colour.
     public var textPrimary: Hsla
+    /// The scroll indicator's thumb.
     public var scrollIndicator: Hsla
+    /// The dimming behind a modal presentation.
     public var scrim: Hsla
 
+    /// A theme from one colour per token.
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
                 accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla,
                 scrim: Hsla) {
@@ -92,6 +101,7 @@ public struct Theme: Sendable, Hashable {
         self.scrim = scrim
     }
 
+    /// The colour this theme gives `token`.
     public subscript(token: ColorToken) -> Hsla {
         switch token {
         case .background:       background

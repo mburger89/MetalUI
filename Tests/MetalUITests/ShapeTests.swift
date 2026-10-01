@@ -128,6 +128,49 @@ private func size(_ w: Double, _ h: Double) -> SizeD { SizeD(width: w, height: h
     #expect(kernelAnswers(Circle(), at: [proposal(nil, 40)]) == [size(40, 40)])
 }
 
+/// **CX.1 — a `Color` answers its proposal, a nil axis 10** (shapes-and-
+/// rendering probe P2: `Color` nil×nil→10×10, 100×60→100×60, 0×0→0×0,
+/// inf×inf→inf×inf, 100×nil→100×10). P2's own separating arm is the fixed
+/// 40×20 view that answers 40×20 at all five; it is `#require`d here first, so
+/// the instrument is shown to see a non-filling answer (closeout, `CX-A`).
+///
+/// Mutation: `Color.measurement`'s nil-axis ideal 10 → 20 (the nil×nil and
+/// 100×nil arms).
+@Test @MainActor func aColorAnswersItsProposalAndTenOnANilAxis() throws {
+    let inf = Double.infinity
+    let fixed = Array(repeating: size(40, 20), count: 5)
+    try #require(kernelAnswers(Color(.accent).frame(width: Pixels(40), height: Pixels(20))) == fixed,
+                 "P2 fixed 40x20")
+    #expect(kernelAnswers(Color(.accent))
+            == [size(10, 10), size(100, 60), size(0, 0), size(inf, inf), size(100, 10)], "P2 Color")
+}
+
+/// **CX.2 — `.fixedSize()` keeps a text on one line in a narrow stack**
+/// (stage-2 probe F7 against its control F6: `HStack(spacing: 0) {
+/// Text(long).fixedSize(); b50×10 }` at 100×nil answers 302×16, the text 252×16
+/// on one line; without `.fixedSize()` (F6) the text wraps to 45 wide and the
+/// stack answers 95×112). The text's one-line answer is read from the kernel at
+/// nil×nil rather than written as 252, so the arm does not depend on the face's
+/// exact advance (closeout, `CX-A`).
+///
+/// Mutation: `FixedSize` forwards its proposal's width unchanged (the F7 arm
+/// reads the wrapped answer).
+@Test @MainActor func aFixedSizeTextKeepsItsOneLineWidthInANarrowStack() throws {
+    let long = "alpha bravo charlie delta echo foxtrot golf"
+    let line = try #require(kernelAnswers(ProposalText(long), at: [proposal(nil, nil)]).first)
+    try #require(line.width > 100, "the line must be wider than the stack's proposal")
+    let fixed = kernelAnswers(HStack(spacing: Pixels(0)) {
+        ProposalText(long).fixedSize()
+        Color(.accent).frame(width: Pixels(50), height: Pixels(10))
+    }, at: [proposal(100, nil)])
+    #expect(fixed == [size(line.width + 50, max(line.height, 10))], "F7: \(fixed), line \(line)")
+    let wrapped = try #require(kernelAnswers(HStack(spacing: Pixels(0)) {
+        ProposalText(long)
+        Color(.accent).frame(width: Pixels(50), height: Pixels(10))
+    }, at: [proposal(100, nil)]).first)
+    #expect(wrapped.width <= 100 && wrapped.height > line.height, "F6 control: \(wrapped)")
+}
+
 /// **2.2 — a `Circle` draws centred in its frame** (probe S2: x 20…80 in
 /// 100×60; the tall 40×90 at y 25…65). The geometry arms are the separating
 /// ones — a circle's element rect is already its own square in a proposal

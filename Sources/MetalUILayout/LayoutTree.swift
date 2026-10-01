@@ -17,6 +17,7 @@ import MetalUICore
 public struct LayoutNodeID: Hashable, Sendable {
     /// The generation of the tree that issued this id.
     public let generation: UInt64
+    /// The node's slot in the tree that issued it.
     public let index: Int
 
     init(generation: UInt64, index: Int) {
@@ -130,8 +131,11 @@ public final class LayoutTree {
     /// detectably stale.
     public private(set) var generation: UInt64
 
+    /// An empty tree whose ids carry `generation`; trees that could exchange
+    /// ids need distinct generations (C-3).
     public init(generation: UInt64) { self.generation = generation }
 
+    /// The number of nodes registered since the last reset.
     public var nodeCount: Int { childLists.count }
 
     /// True while the kernel is laying this tree out — `computeNativeLayout` or
@@ -597,7 +601,9 @@ public final class LayoutTree {
         return measureNative(root, proposal: proposal, run: run)
     }
 
+    /// The node's children, in registration order.
     public func children(_ id: LayoutNodeID) -> [LayoutNodeID] { childLists[slot(id)] }
+    /// The node's root-absolute rect from the last layout run.
     public func layout(_ id: LayoutNodeID) -> LayoutRect { layouts[slot(id)] }
     /// Stores a node's root-absolute rect.
     ///
@@ -1641,9 +1647,12 @@ public enum ProposalAlignment: Sendable, Hashable {
 /// nine-point placement moves. A factor outside `0…1` is accepted, as SwiftUI
 /// accepts it; a non-finite one traps at `markNativeGridCell` (SA-J).
 public struct ProposalAnchor: Sendable, Hashable {
+    /// Where the child sits horizontally: 0 leading, 1 trailing.
     public var horizontalFactor: Double
+    /// Where the child sits vertically: 0 top, 1 bottom.
     public var verticalFactor: Double
 
+    /// An anchor at the two factors (`TE-AN`).
     public init(horizontalFactor: Double, verticalFactor: Double) {
         self.horizontalFactor = horizontalFactor
         self.verticalFactor = verticalFactor

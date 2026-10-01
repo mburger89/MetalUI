@@ -26,6 +26,8 @@ import MetalUILayout
 public struct ScrollViewReader<Content: ElementGroup>: ElementGroup {
     let content: (ScrollViewProxy) -> Content
 
+    /// A reader whose `content` receives a proxy that scrolls to keys inside it
+    /// (`DD-G`).
     public init(@ElementBuilder content: @escaping (ScrollViewProxy) -> Content) {
         self.content = content
     }

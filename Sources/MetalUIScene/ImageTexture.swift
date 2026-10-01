@@ -12,7 +12,9 @@ import MetalUIShaderTypes
 /// the way the grow-only glyph atlas does). A value type could not be keyed
 /// this way, and a mutable one could change under a cached upload.
 public final class ImageTexture: Sendable {
+    /// The texture width in pixels.
     public let width: Int
+    /// The texture height in pixels.
     public let height: Int
     /// `width × height × 4` bytes, premultiplied R, G, B, A per texel.
     public let pixels: [UInt8]

@@ -296,6 +296,7 @@ public struct PrepaintPass {
 
     init(frame: Frame) { self.frame = frame }
 
+    /// The window's content size in points.
     public var contentSize: Size<Pixels> { frame.contentSize }
 
     /// A node's resolved bounds, absolute to the root.
@@ -538,6 +539,7 @@ public struct PaintPass {
 
     init(frame: Frame) { self.frame = frame }
 
+    /// The window's content size in points.
     public var contentSize: Size<Pixels> { frame.contentSize }
 
     /// A node's resolved bounds, absolute to the root, **untranslated**.

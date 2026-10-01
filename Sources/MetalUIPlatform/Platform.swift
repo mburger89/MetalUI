@@ -1,6 +1,11 @@
 import MetalUICore
 import MetalUIScene
 
+/// One native window as `Window` drives it: size, scale, renderer, display
+/// link, input and accessibility callbacks. Its control-state and Reduce Motion
+/// pairs have no default implementation, so a conformer that forgets one does
+/// not compile (`EV-AB`, `AN-AD`). Conformers: `AppKitWindow` and
+/// `Backends/SDL`'s `SDLWindow`.
 @MainActor
 public protocol PlatformWindow: AnyObject {
     var contentSize: Size<Pixels> { get }
@@ -98,12 +103,15 @@ public protocol PlatformWindow: AnyObject {
     func setDisplayLinkPaused(_ paused: Bool)
 }
 
+/// A windowing platform: opens windows and runs the event loop. Conformers:
+/// `AppKitPlatform` and `Backends/SDL`'s `SDLPlatform` (`XP-B`).
 @MainActor
 public protocol Platform: AnyObject {
     func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow
     func run()
 }
 
+/// Why a platform could not open a window.
 public enum PlatformError: Error, CustomStringConvertible {
     case windowCreationFailed
     public var description: String { "could not create a platform window" }

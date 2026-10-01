@@ -756,3 +756,46 @@ which were each inert at the task that added them) would be surprised it is
 absent — it is absent because, unlike those three at their own landing,
 Reduce Motion has a live consumer (the transition system) in this same
 change, not a later one.
+
+## 2026-10-01: `Box`'s `style:` row deleted; the final list (plan task 15, the closeout)
+
+Record §66; rulings `CX-D`, `CX-F`, `CX-C`, `CX-I`. **One row deleted, none
+added.** `Box`'s public `style:` initialiser parameter (added at stage 10)
+is **fixed, not narrowed**: the three `init(style:…)` spellings are `package`
+(`aPlainImportCannotPassBoxAStyle`, whole-file typecheck guard, red before the
+change) and the public `Box(decoration:)` spellings forward to them
+(`thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints`).
+`Style` remains opaque outside the package. **Migration**: `Box(style:
+Style(), decoration: d)` → `Box(decoration: d)`.
+
+**The final list**, at public-API level, read through every dated section
+above and checked against the source at this commit (`evictUnusedSince`,
+`LayoutTree.reset(generation:)`, `AnyElementBox`, `AXNode.logicalCount`,
+`Window.lastScrollRegions`, `StateTable.isDirty`/`writeCount` each still
+exist with no production reader):
+
+1. *Declared, deliberately limited*: `PlatformWindow.onInput`'s `-> Bool`;
+   colour glyphs (wrong rather than absent, `TE-AO` item 2);
+   `locale`/`layoutDirection`/`dynamicTypeSize` (carried, scoped, read by no
+   text size, as on macOS); `controlSize` (reaches `Button`'s chrome and every
+   text's default font only, divergence 76); `displayScale` (no framework
+   reader, no owner); `ButtonRole` (binds a key, draws nothing else);
+   `AXNode.actions`/`AXActionKind` (deprecated, never read);
+   `AccessibilityTraits.updatesFrequently` (published on neither bridge, as
+   on macOS); one axis each of `markNativeGridRow`/`markNativeGridCell`'s
+   alignment and a grid mark outside a grid.
+2. *Test observables with no production reader* (unchanged): `StateTable.isDirty`/
+   `writeCount`, `Frame.scrollRegions`/`Window.lastScrollRegions`,
+   `LayoutTree.reset(generation:)`, `GlyphAtlas.evictUnusedSince` (a caller
+   would strand pixels), `AXNode.logicalCount`, `Frame.axNodes`.
+3. *Hand-written only*: `AnyElement` is produced by no builder (its
+   `@State` row was fixed at task 8).
+4. *Superseded rows*: the table's CSS-engine-era `Style`-field rows
+   (`alignSelf` on a stack child, leaf `padding`/`border`/`margin`, `hidden()`
+   and paint, `margin: .auto`) describe a legacy engine deleted at stage 9;
+   every legacy element now lowers, and a field with no lowering is a
+   **permanent refusal by name** (`LR-FO`) — a trap or a report, never a
+   silent no-op. Those rows are history, not a live inert list.
+
+**No row added by tasks 13–15 beyond the above**: `accessibilityReduceMotion`
+and the closeout's looks demo are read by their own consumers.

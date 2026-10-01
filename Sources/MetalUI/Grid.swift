@@ -89,7 +89,9 @@ extension LayoutPass {
 /// hitboxes and paint themselves, a grid publishes nothing to accessibility, and
 /// nothing on the proposal path animates (ruling GR-K).
 public struct Grid<Content: ProposalElementGroup>: ProposalElement {
+    /// The grid's rows (`GridRow`s) and full-width cells.
     public var content: Content
+    /// Where each cell sits in its cell box unless a row or cell overrides it.
     public var alignment: ProposalAlignment
     /// `nil` is the platform default per boundary (GR-D).
     public var horizontalSpacing: Pixels?
@@ -172,9 +174,14 @@ public struct GridRowLayout<ContentLayout> {
 /// groups that register nothing — ``GridCellModifier`` and `EnvironmentScope` —
 /// pass over several cells. Task 8 owns the gap.
 public struct GridRow<Content: ProposalElementGroup>: ProposalElementGroup {
+    /// The row's cells, one column each unless `gridCellColumns(_:)` says more.
     public var content: Content
+    /// The row's vertical alignment, overriding the grid's; `nil` keeps the
+    /// grid's. A text-baseline alignment traps (divergence 88).
     public var alignment: VerticalAlignment?
 
+    /// A grid row, SwiftUI's `GridRow(alignment:content:)`; one structural slot
+    /// with its cells numbered under it (`GR-`).
     public init(alignment: VerticalAlignment? = nil, @ElementBuilder content: () -> Content) {
         self.content = content()
         self.alignment = alignment
@@ -266,7 +273,9 @@ public enum GridCellAttribute: Sendable, Hashable {
 /// On a ``GridRow`` it applies to **every** cell, as SwiftUI's does (GG5, GG6):
 /// a row returns all its cells' nodes, and this marks all of them.
 public struct GridCellModifier<Content: ProposalElementGroup>: ProposalElementGroup {
+    /// The marked content.
     public var content: Content
+    /// The cell attribute this modifier writes.
     public var attribute: GridCellAttribute
 
     init(content: Content, attribute: GridCellAttribute) {

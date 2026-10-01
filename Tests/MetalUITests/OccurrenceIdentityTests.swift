@@ -340,7 +340,9 @@ private struct LayoutCounter: Element {
 }
 
 /// **O1.7.** `@State` inside an `AnyElement` persists across frames: three
-/// frames of `n += 1` read 3 (M1j).
+/// frames of `n += 1` read 3 (M1j). SwiftUI's answer is composition-identity
+/// probe S2 (`Counter inside AnyView: x 0+1` — the counter's state is kept
+/// across the update that re-hosts it).
 @MainActor
 @Test func stateInsideAnAnyElementPersistsAcrossFrames() throws {
     let table = StateTable()

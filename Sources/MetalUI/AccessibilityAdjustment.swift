@@ -12,6 +12,10 @@ public enum AccessibilityAdjustmentDirection: Equatable, Sendable {
 /// runs the element's **own** handler only, never an ancestor's: an ancestor's
 /// handler would make one node claim an action on behalf of another.
 public struct AccessibilityAdjustment: Action {
+    /// Which way the client asked the value to move: `.increment` or
+    /// `.decrement`.
     public let direction: AccessibilityAdjustmentDirection
+    /// An adjustment request in `direction`; the window builds one when a
+    /// client increments or decrements the element (`AB-H`).
     public init(direction: AccessibilityAdjustmentDirection) { self.direction = direction }
 }

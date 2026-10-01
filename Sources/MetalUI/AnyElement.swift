@@ -134,6 +134,7 @@ public struct AnyElementBox<E: Element>: ElementObject {
     var layoutState: E.LayoutState?
     var prepaintState: E.PrepaintState?
 
+    /// Boxes `element`; `AnyElement` holds one of these behind `ElementObject`.
     public init(_ element: E) { self.element = element }
 
     public var elementID: ElementID? { element.elementID }
@@ -205,6 +206,8 @@ public struct AnyElementBox<E: Element>: ElementObject {
 public struct AnyElement {
     var box: any ElementObject
 
+    /// Erases `element`'s type. `@State` and `@Environment` inside it still
+    /// bind before every phase (`ID-E`).
     public init<E: Element>(_ element: E) {
         box = AnyElementBox(element)
     }

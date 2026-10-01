@@ -1097,7 +1097,8 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
 
 /// **E16 under the proposal authority** (stage 7b, record §49 row 236, N3.1):
 /// `dynamicTypeSize` changes no text measurement — probe G, where a SwiftUI
-/// `.body` text measures 120×16 at the default and at `accessibility5` (EV-I).
+/// `.body` text measures 120×16 at the default (arm G0) and at `accessibility5`
+/// (EV-I).
 /// The retired `dynamicTypeSizeChangesNoTextMeasurement` read the legacy
 /// leaf's CSS `MeasureFunction`; this reads the lowered leaf's answer at its
 /// ideal and at a broken width. **Positive control**: a 26pt font measures

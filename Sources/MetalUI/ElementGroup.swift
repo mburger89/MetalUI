@@ -190,6 +190,7 @@ extension Element {
 
 /// No children at all — `Box()`, or a builder block with no statements.
 public struct EmptyGroup: ElementGroup {
+    /// The empty group.
     public init() {}
 
     /// No members, so no index is consumed and the cursor is left where it was.
@@ -211,9 +212,12 @@ public struct EmptyGroup: ElementGroup {
 /// Left-nested: three statements give `Pair<Pair<A, B>, C>`, and the node order
 /// that falls out of `a` before `b` at every level is source order.
 public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
+    /// The statements before the last, themselves possibly a `Pair`.
     public var first: First
+    /// The last statement folded in.
     public var second: Second
 
+    /// Two groups whose nodes follow each other in source order.
     public init(_ first: First, _ second: Second) {
         self.first = first
         self.second = second
@@ -284,8 +288,11 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// evaluates — a `List` row out of the window — is never noted absent and keeps
 /// `TB-AH`'s bounded retention. See `StateTable.noteAbsent`.
 public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
+    /// The `if`'s content, or `nil` when its condition is false; either way the
+    /// group takes one structural slot (`ID-B`).
     public var wrapped: Wrapped?
 
+    /// The group an `if` with no `else` builds.
     public init(_ wrapped: Wrapped?) { self.wrapped = wrapped }
 
     /// Reserves one index, then registers the content under that slot with a
@@ -529,8 +536,11 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
 /// `ArrayGroup<Row<…>>`, not `[AnyElement]`. The array allocates; the elements
 /// in it do not box.
 public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
+    /// One group per loop iteration, numbered from 0 under the loop's one slot
+    /// (`ID-B`).
     public var groups: [Group]
 
+    /// The group a `for` loop builds.
     public init(_ groups: [Group]) { self.groups = groups }
 
     /// **One structural slot for the whole loop** (plan task 8, ruling `ID-B`):

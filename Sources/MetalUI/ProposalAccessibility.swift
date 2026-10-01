@@ -15,6 +15,7 @@ import MetalUILayout
 /// **Requires exactly one child node** (`SA-G`, as every single-child proposal
 /// wrapper does): over zero or several it traps naming the count.
 public struct AccessibilityModifier<Content: ProposalElementGroup>: Element {
+    /// The one proposal child the declarations apply to.
     public var content: Content
     /// The declarations, as a `StyledElement` carries them in `Handlers`.
     var handlers = Handlers()
@@ -163,29 +164,45 @@ extension ProposalElementGroup {
 /// (H4). These are the concrete type's own members, so they win overload
 /// resolution over the `ProposalElementGroup` extension's.
 extension AccessibilityModifier {
+    /// Sets the accessible name; the later-written declaration wins.
     public func accessibilityLabel(_ label: String) -> Self { declaring { $0.declareAccessibilityLabel(label) } }
+    /// Sets the accessible value; the later-written declaration wins.
     public func accessibilityValue(_ value: String) -> Self { declaring { $0.declareAccessibilityValue(value) } }
+    /// Makes the node adjustable: a client's increment or decrement calls
+    /// `handler` with the direction (`AB-H`).
     public func accessibilityAdjustableAction(
         _ handler: @escaping @MainActor (AccessibilityAdjustmentDirection) -> Void) -> Self {
         declaring { $0.declareAdjustableAction(handler) }
     }
+    /// How the node publishes its children: `.ignore` (the default), `.combine`
+    /// or `.contain` (`IX-V`).
     public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> Self {
         declaring { $0.axNode.declarations.childBehavior = children }
     }
+    /// Hides the node and its content from accessibility; an outer `true` wins
+    /// over an inner `false` (`IX-V`).
     public func accessibilityHidden(_ hidden: Bool) -> Self { declaring { $0.axNode.declarations.isHidden = hidden } }
+    /// Sets the hint a client reads after the name.
     public func accessibilityHint(_ hint: String) -> Self { declaring { $0.axNode.declarations.hint = hint } }
+    /// Sets the identifier a test or automation client finds the node by.
     public func accessibilityIdentifier(_ identifier: String) -> Self {
         declaring { $0.axNode.declarations.identifier = identifier }
     }
+    /// Adds `traits` to the node (`IX-W`).
     public func accessibilityAddTraits(_ traits: AccessibilityTraits) -> Self {
         declaring { $0.addAccessibilityTraits(traits) }
     }
+    /// Removes `traits` from the node (`IX-W`).
     public func accessibilityRemoveTraits(_ traits: AccessibilityTraits) -> Self {
         declaring { $0.removeAccessibilityTraits(traits) }
     }
+    /// Declares the node's default action: it publishes as a pressable button
+    /// and a client's press runs `handler` (`IX-Y`).
     public func accessibilityAction(_ handler: @escaping @MainActor () -> Void) -> Self {
         declaring { $0.declareDefaultAction(handler) }
     }
+    /// Adds a custom action called `name` that runs `handler`; later-written
+    /// actions are listed first (`IX-Y`).
     public func accessibilityAction(named name: String, _ handler: @escaping @MainActor () -> Void) -> Self {
         declaring { $0.declareNamedAccessibilityAction(name, handler) }
     }

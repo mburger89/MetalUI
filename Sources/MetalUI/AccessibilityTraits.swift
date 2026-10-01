@@ -42,15 +42,29 @@ public enum AccessibilityChildBehavior: Sendable, Hashable {
 /// `.isTabBar`, `.isToggle` — none has a macOS reading MetalUI could reproduce.
 public struct AccessibilityTraits: OptionSet, Sendable, Hashable {
     public let rawValue: UInt16
+    /// A trait set from its raw bits; prefer the named statics.
     public init(rawValue: UInt16) { self.rawValue = rawValue }
 
+    /// Publishes the element with the button role; sets the role only, adding
+    /// no press (`IX-W`).
     public static let isButton = AccessibilityTraits(rawValue: 1 << 0)
+    /// Publishes the element as a heading whose text is its label, distributed
+    /// to its subtree as a label is (`IX-W`).
     public static let isHeader = AccessibilityTraits(rawValue: 1 << 1)
+    /// Publishes the element as selected, on any role (`IX-W`).
     public static let isSelected = AccessibilityTraits(rawValue: 1 << 2)
+    /// Publishes the element with the link role; sets the role only (`IX-W`).
     public static let isLink = AccessibilityTraits(rawValue: 1 << 3)
+    /// Publishes the element with the image role; sets the role only (`IX-W`).
     public static let isImage = AccessibilityTraits(rawValue: 1 << 4)
+    /// Publishes the element as static text; sets the role only (`IX-W`).
     public static let isStaticText = AccessibilityTraits(rawValue: 1 << 5)
+    /// Isolates the element: while the greatest declaring record is published,
+    /// only its subtree is, and a request naming an element outside it is
+    /// refused (`IX-X`; divergence 95).
     public static let isModal = AccessibilityTraits(rawValue: 1 << 6)
+    /// Declared and inert: published on neither bridge, as SwiftUI's own trait
+    /// is on macOS (record §05, `IX-W`).
     public static let updatesFrequently = AccessibilityTraits(rawValue: 1 << 7)
 }
 

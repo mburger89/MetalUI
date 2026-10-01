@@ -169,6 +169,24 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     }
 }
 
+/// **Class D, plan task 15** (`CX-C` item 2): `flexBasis(fraction:)` is
+/// deprecated, so its row is built in a deprecated witness too and spliced back
+/// where it stood.
+private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
+    @available(*, deprecated, message: "calls flexBasis(fraction:) and flexBasis(percent:) on purpose: they are the subjects of everyPublicModifierWritesItsOwnFieldAndOnlyThatField's rows (plan task 15, CX-C)")
+    func spelled() -> [ModifierCase] {
+        [ModifierCase(name: "flexBasis(fraction:)",
+                      apply: { $0.flexBasis(fraction: 44) },
+                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
+         // `flexBasis(percent:)` holds its own copy of the body since plan
+         // task 15 (it no longer forwards to a non-deprecated spelling), so
+         // the copy gets its own row (lane-1 fix round, mutation V-PERCENT).
+         ModifierCase(name: "flexBasis(percent:)",
+                      apply: { $0.flexBasis(percent: 45) },
+                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(45)) })]
+    }
+}
+
 /// Every direct-style modifier writes its own field, and only its own field.
 ///
 /// **Every value below is distinct, and none is a default.** Both halves are
@@ -271,9 +289,9 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
         ModifierCase(name: "flexBasis(_ points:)",
                      apply: { $0.flexBasis(px(43)) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) }),
-        ModifierCase(name: "flexBasis(fraction:)",
-                     apply: { $0.flexBasis(fraction: 44) },
-                     effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
+        // `flexBasis(fraction:)`'s row, unchanged, in a class-D witness since
+        // plan task 15 deprecated it (`CX-C` item 2; `DeprecatedFlexBasisCase`).
+    ] + oldSpelling(DeprecatedFlexBasisCase()) + [
         ModifierCase(name: "alignSelf(_:)",
                      apply: { $0.alignSelf(.flexEnd) },
                      effect: { s, _, _, _ in s.alignSelf = .flexEnd }),
@@ -434,7 +452,9 @@ private struct DeprecatedSizingCases: DeprecatedSpelling {
     // and `flexWrap(_:)`, removed with their fields, `LR-FM` item 1, `LR-FN`) =
     // **45**. + 5 at plan task 12 part 1 (the gesture attachment modifiers,
     // `IX-B`) = **50**. + 1 at lane 2 (`contentShape(_:)`, `IX-L`) = **51**.
-    #expect(cases.count == 51)
+    // + 1 at plan task 15's lane-1 fix round (`flexBasis(percent:)`'s own
+    // class-D row, `CX-C`) = **52**.
+    #expect(cases.count == 52)
 
     for c in cases {
         var expectedStyle = Style()

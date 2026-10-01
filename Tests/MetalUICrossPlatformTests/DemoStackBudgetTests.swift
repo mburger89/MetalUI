@@ -29,6 +29,7 @@ private func buildEveryProductionTree() {
     _ = nativeLayoutPreviewContent()
     _ = textInputDemoContent()
     _ = controlsDemoContent()
+    _ = looksDemoContent()
 }
 
 /// Windows' default thread stack size.

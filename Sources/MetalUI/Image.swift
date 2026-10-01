@@ -72,6 +72,8 @@ public struct Image: ProposalElement {
         return copy
     }
 
+    /// How a resized image samples: `.none` nearest, `.low`, `.medium` and the
+    /// default bilinear; `.high` also draws bilinear (divergence 93, `TE-AL`).
     public func interpolation(_ interpolation: Interpolation) -> Image {
         var copy = self
         copy.interpolationQuality = interpolation

@@ -22,9 +22,11 @@ import MetalUILayout
 /// every gap. MetalUI does not adopt SwiftUI's font-derived vertical spacing at
 /// a text edge (a `VStack` of ``ProposalText``s gets 8 where SwiftUI's is 0).
 public struct HStack<Content: ProposalElementGroup>: Element {
+    /// The stack's children, laid out left to right.
     public var content: Content
     /// `nil` is the platform default (CN-H).
     public var spacing: Pixels?
+    /// How children of different heights line up vertically (`CN-I`).
     public var alignment: VerticalAlignment
 
     /// SwiftUI's `HStack(alignment:spacing:content:)` (ruling CN-I).
@@ -79,9 +81,11 @@ public struct HStack<Content: ProposalElementGroup>: Element {
 /// ``HStack`` distributes its width (ruling CN-B), with the same spacing rule
 /// (CN-H).
 public struct VStack<Content: ProposalElementGroup>: Element {
+    /// The stack's children, laid out top to bottom.
     public var content: Content
     /// `nil` is the platform default (CN-H).
     public var spacing: Pixels?
+    /// How children of different widths line up horizontally (`CN-I`).
     public var alignment: HorizontalAlignment
 
     /// SwiftUI's `VStack(alignment:spacing:content:)` (ruling CN-I).
@@ -139,9 +143,12 @@ public struct VStack<Content: ProposalElementGroup>: Element {
 /// CN-E; probe Z1–Z4, A3, A5). As a window root it is centred at its answer
 /// (ruling CN-J).
 public struct ZStack<Content: ProposalElementGroup>: Element {
+    /// The children, layered first-at-the-back.
     public var content: Content
+    /// Where each child sits within the union of their sizes (`CN-E`).
     public var alignment: ProposalAlignment
 
+    /// An overlaying stack, SwiftUI's `ZStack(alignment:content:)`.
     public init(alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
@@ -197,15 +204,31 @@ public typealias NativeOverlay<Content: ProposalElementGroup> = ZStack<Content>
 /// stored properties stay one set; the kernel validates them when the frame
 /// registers (ruling SA-J).
 public struct ProposalFrame<Content: ProposalElementGroup>: Element {
+    /// The framed child.
     public var content: Content
+    /// A fixed width; `nil` leaves the axis to the child or the flexible
+    /// bounds.
     public var width: Pixels?
+    /// A fixed height; `nil` leaves the axis to the child or the flexible
+    /// bounds.
     public var height: Pixels?
+    /// The least width the frame answers. With `nil` there is no declared floor:
+    /// the frame answers at least 0, and under a maximum at least its child
+    /// (FR-M).
     public var minWidth: Pixels?
+    /// The width the frame answers when offered none.
     public var idealWidth: Pixels?
+    /// The greatest width the frame answers; `.infinity` fills (`FR-A`).
     public var maxWidth: Pixels?
+    /// The least height the frame answers. With `nil` there is no declared floor:
+    /// the frame answers at least 0, and under a maximum at least its child
+    /// (FR-M).
     public var minHeight: Pixels?
+    /// The height the frame answers when offered none.
     public var idealHeight: Pixels?
+    /// The greatest height the frame answers; `.infinity` fills (`FR-A`).
     public var maxHeight: Pixels?
+    /// Where the child sits within the frame.
     public var alignment: ProposalAlignment
 
     /// A fixed frame: SwiftUI's `frame(width:height:alignment:)`.
@@ -274,9 +297,13 @@ public typealias NativeFrame<Content: ProposalElementGroup> = ProposalFrame<Cont
 
 /// Native outer padding around one native child.
 public struct Padding<Content: ProposalElementGroup>: Element {
+    /// The padded child.
     public var content: Content
+    /// The inset on each edge.
     public var insets: Edges<Pixels>
 
+    /// Pads `content` by `insets`; the child is placed at its own size
+    /// (`LR-AU`).
     public init(_ insets: Edges<Pixels>, @ElementBuilder content: () -> Content) {
         self.content = content()
         self.insets = insets
@@ -315,9 +342,12 @@ public struct Padding<Content: ProposalElementGroup>: Element {
 /// A builder-style background that paints beneath its content without
 /// affecting that content's proposal, measurement, or placement.
 public struct Background<Content: ProposalElementGroup>: Element {
+    /// The content painted over the background.
     public var content: Content
+    /// The fill painted beneath the content's bounds.
     public var color: ColorToken
 
+    /// Paints `color` beneath `content`, leaving its layout alone.
     public init(_ color: ColorToken, @ElementBuilder content: () -> Content) {
         self.content = content()
         self.color = color
@@ -359,10 +389,15 @@ public typealias NativeBackground<Content: ProposalElementGroup> = Background<Co
 /// It withholds the selected axis from its child proposal; it does not mutate
 /// the child's size after measurement.
 public struct FixedSize<Content: ProposalElementGroup>: Element {
+    /// The child whose proposal is withheld.
     public var content: Content
+    /// Whether the child is measured at its ideal width.
     public var horizontal: Bool
+    /// Whether the child is measured at its ideal height.
     public var vertical: Bool
 
+    /// Withholds the selected axes from `content`'s proposal, SwiftUI's
+    /// `.fixedSize(horizontal:vertical:)`.
     public init(horizontal: Bool = true, vertical: Bool = true,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
@@ -418,8 +453,10 @@ public typealias NativeFixedSize<Content: ProposalElementGroup> = FixedSize<Cont
 /// no spacing beside it, through the same wrappers except a non-zero padding
 /// edge and an overlay's content side (ruling CN-H).
 public struct Spacer: Element {
+    /// The least length on the stack's axis; `nil` is the default, 8 (`CN-B`).
     public var minLength: Pixels?
 
+    /// A flexible space, SwiftUI's `Spacer(minLength:)`.
     public init(minLength: Pixels? = nil) {
         self.minLength = minLength
     }
@@ -453,13 +490,17 @@ public struct Spacer: Element {
 /// `Rectangle()` stores. **Migration**: a reader writes `rect.color ?? token`;
 /// a writer is unchanged. A ``ShapeView``'s layers never read it.
 public struct Rectangle: Shape, Hashable {
+    /// The width answered when the rectangle does not respond to the proposal.
     public var width: Pixels
+    /// The height answered when the rectangle does not respond to the proposal.
     public var height: Pixels
+    /// The fill, or `nil` for the foreground style (`TE-AH`).
     public var color: ColorToken?
     private var respondsToProposal: Bool
 
     public typealias Layout = ShapeLayout
 
+    /// A fixed-size rectangle filled with `color`.
     public init(width: Pixels, height: Pixels, color: ColorToken = .surface) {
         self.width = width
         self.height = height
@@ -532,8 +573,11 @@ public struct Rectangle: Shape, Hashable {
 /// size, rather than retaining an initial fixed canvas. Like SwiftUI `Color`,
 /// an unspecified axis uses a 10pt ideal so it remains a useful stack child.
 public struct Color: Element {
+    /// The colour the view fills its bounds with.
     public var color: ColorToken
 
+    /// A view that fills whatever it is offered with `color`, SwiftUI's `Color`
+    /// as a view.
     public init(_ color: ColorToken) {
         self.color = color
     }

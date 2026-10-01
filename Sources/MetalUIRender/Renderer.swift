@@ -7,6 +7,7 @@ import MetalUIShaderTypes
 import MetalUIText
 import simd
 
+/// Why a `Renderer` could not be created.
 public enum RendererError: Error, CustomStringConvertible {
     case commandQueueUnavailable
     case functionMissing(String)
@@ -23,6 +24,8 @@ public enum RendererError: Error, CustomStringConvertible {
     }
 }
 
+/// The Metal renderer: pipelines, the glyph atlas texture and image texture
+/// cache, and the encoding of a `Scene` into a render pass.
 @MainActor
 public final class Renderer {
     /// Gamma-encoded sRGB compositing (spec 7.8). NOT `_sRGB`: that format makes
@@ -36,7 +39,9 @@ public final class Renderer {
     /// through the atlas instead of through the target.
     public static let atlasPixelFormat: MTLPixelFormat = .r8Unorm
 
+    /// The Metal device everything is created on.
     public let device: any MTLDevice
+    /// The queue frames are committed on.
     public let commandQueue: any MTLCommandQueue
 
     private let rectPipeline: any MTLRenderPipelineState
@@ -91,6 +96,8 @@ public final class Renderer {
     /// The `ImageTexture` identities with a GPU copy cached right now.
     var cachedImageTextureIdentities: Set<ObjectIdentifier> { Set(imageTextures.keys) }
 
+    /// A renderer on `device`; throws if the queue, shader library or a
+    /// pipeline cannot be created.
     public init(device: any MTLDevice) throws {
         self.device = device
         guard let queue = device.makeCommandQueue() else {

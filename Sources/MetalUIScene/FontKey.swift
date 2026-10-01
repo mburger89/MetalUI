@@ -56,6 +56,7 @@ public struct FontKey: Hashable, Sendable {
     public struct VariationCoordinate: Hashable, Sendable {
         /// The four-character axis tag as an integer, e.g. `'opsz'`.
         public let axis: Int
+        /// The coordinate on that axis.
         public let value: Double
 
         package init(axis: Int, value: Double) { self.axis = axis; self.value = value }
@@ -64,6 +65,8 @@ public struct FontKey: Hashable, Sendable {
     /// `CTFontGetMatrix`'s six components. `CGAffineTransform` is neither
     /// `Hashable` nor `Sendable`, so it is destructured rather than stored.
     public struct Matrix: Hashable, Sendable {
+        /// The affine transform's six components, as `CGAffineTransform` names
+        /// them.
         public let a, b, c, d, tx, ty: Double
 
         package init(a: Double, b: Double, c: Double, d: Double, tx: Double, ty: Double) {
@@ -71,11 +74,14 @@ public struct FontKey: Hashable, Sendable {
         }
     }
 
+    /// The resolved font's PostScript name.
     public let postScriptName: String
+    /// The size in points.
     public let size: Double
     /// Sorted by ``VariationCoordinate/axis`` so that two fonts with the same
     /// coordinates in a different dictionary order compare equal.
     public let variations: [VariationCoordinate]
+    /// The font's transform matrix.
     public let matrix: Matrix
 
     /// The four components above, hashed once, at the only initialiser.

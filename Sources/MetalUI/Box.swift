@@ -34,25 +34,56 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     public var decoration: Decoration
     public var elementID: ElementID?
     public var handlers: Handlers
+    /// The children, laid out by this box's style and painted after its
+    /// background (and before its border).
     public var content: Content
 
-    /// The children as a value, for callers that already have a group.
+    /// The children as a value, for callers that already have a group, with
+    /// a starting `Style` — **`package` since plan task 15** (ruling `CX-D`).
+    ///
+    /// Every stored `Style` field has been `package` since stage 10 (`LR-FM`),
+    /// so outside the package `style:` could only ever be `Style()`, a
+    /// parameter that configured nothing (`LR-FR` F5). The public spellings
+    /// are `init(decoration:content:)` and its builder form, which forward
+    /// here with `Style()`; the in-package callers (`Column`, `Row`, the
+    /// demo, the tests) keep writing a style. `style` has no default, so no
+    /// call can match both this and a public initialiser. Pinned from a plain
+    /// import by `aPlainImportCannotPassBoxAStyle`.
     ///
     /// `handlers` is deliberately **not** an `init` parameter, on
     /// `elementID`'s footing: `onClick(_:)` is the one spelling, so there is a
     /// single place a handler can be attached and a single place to look for
     /// one.
-    public init(style: Style = Style(), decoration: Decoration = Decoration(),
-                content: Content) {
+    package init(style: Style, decoration: Decoration = Decoration(),
+                 content: Content) {
         self.style = style
         self.decoration = decoration
         self.handlers = Handlers()
         self.content = content
     }
 
-    public init(style: Style = Style(), decoration: Decoration = Decoration(),
-                @ElementBuilder content: () -> Content) {
+    /// The builder form of `init(style:decoration:content:)` — `package`, for
+    /// the same reason (`CX-D`).
+    package init(style: Style, decoration: Decoration = Decoration(),
+                 @ElementBuilder content: () -> Content) {
         self.init(style: style, decoration: decoration, content: content())
+    }
+
+    /// A box holding `content`, painting `decoration` (plan task 15, `CX-D`):
+    /// the public spelling since `style:` became `package`. It forwards to
+    /// `init(style: Style(), …)` — never a second copy of its body — so the
+    /// result is exactly what `Box(style: Style(), decoration:, content:)`
+    /// built (`CX-P` item 5). Migration: `Box(style: Style(), decoration: d,
+    /// content: c)` → `Box(decoration: d, content: c)`.
+    public init(decoration: Decoration = Decoration(), content: Content) {
+        self.init(style: Style(), decoration: decoration, content: content)
+    }
+
+    /// A box holding the children `content` builds, painting `decoration` —
+    /// `Box { … }`, and `Box(decoration: d) { … }` (`CX-D`). Forwards to
+    /// `init(style: Style(), …)`.
+    public init(decoration: Decoration = Decoration(), @ElementBuilder content: () -> Content) {
+        self.init(style: Style(), decoration: decoration, content: content())
     }
 
     /// Carried from `requestLayout` to the later phases.
@@ -62,6 +93,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     /// ruling LR-A) mints ids
     /// and hands them out once. `content` is the children's own threaded state.
     public struct Layout {
+        /// This box's outermost kernel node, as the lowering registered it.
         public var node: LayoutNodeID
         var content: Content.GroupLayout
     }
@@ -159,8 +191,18 @@ extension Box where Content == EmptyGroup {
     /// (M2 Task 4) is that caller, so the framework does have one now — it is
     /// simply not this type. A `Box` that should size to something must be
     /// given a size or given children.
-    public init(style: Style = Style(), decoration: Decoration = Decoration()) {
+    ///
+    /// **`package` since plan task 15** (`CX-D`): outside the package the
+    /// public spelling is `init(decoration:)`.
+    package init(style: Style, decoration: Decoration = Decoration()) {
         self.init(style: style, decoration: decoration, content: EmptyGroup())
+    }
+
+    /// A childless box painting `decoration` — `Box()`, `Box(decoration: d)`
+    /// (`CX-D`). 0×0 until a `.frame` sizes it; forwards to
+    /// `init(style: Style(), decoration:)`.
+    public init(decoration: Decoration = Decoration()) {
+        self.init(style: Style(), decoration: decoration)
     }
 }
 
@@ -209,7 +251,11 @@ extension Box {
 /// `Style.border` is deleted (`OM-M`), and `Style.border` itself was deleted by
 /// plan task 7, stage 10 (`LR-FM` item 1).
 public struct Decoration: Sendable, Hashable {
+    /// The fill painted beneath the element's content, or `nil` for none.
     public var background: ColorToken?
+    /// The radius of every corner of the background and border. Paint-only on
+    /// a legacy element (it clips nothing and moves no hitbox — divergence 47);
+    /// `clipShape(_:)` or the proposal `.cornerRadius(_:)` clip.
     public var cornerRadius: Pixels
 
     /// The background to paint instead of `background` while the pointer is
@@ -414,6 +460,8 @@ public struct Decoration: Sendable, Hashable {
                      "opacity must be a finite value in 0...1, got \(value)")
     }
 
+    /// A decoration with every field given, each defaulting to "paints
+    /// nothing": no background or border, square corners, opacity 1, no clip.
     public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),
                 hoverBackground: ColorToken? = nil,
                 focusBackground: ColorToken? = nil,
@@ -1096,14 +1144,22 @@ extension StyledElement {
 
     // MARK: As a flex container
 
+    /// The space between adjacent children on both axes — the legacy
+    /// container's spacing, 0 unless declared (divergence 52; a proposal
+    /// `HStack`/`VStack` spaces by the platform default instead, `CN-H`).
+    /// Write it before `.padding` (it configures this element's own box).
     public func gap(_ points: Pixels) -> Self {
         modifying { $0.gap = Axes(both: .pixels(points)) }
     }
 
+    /// The space between adjacent children, per axis (see `gap(_:)`).
     public func gap(horizontal: Pixels, vertical: Pixels) -> Self {
         modifying { $0.gap = Axes(horizontal: .pixels(horizontal), vertical: .pixels(vertical)) }
     }
 
+    /// How the children are distributed along the main axis. The three
+    /// `space-*` distributions lower only on a container with a declared main
+    /// size; elsewhere they are reported by name (`LR-FO`).
     public func justifyContent(_ value: JustifyContent) -> Self {
         modifying { $0.justifyContent = value }
     }
@@ -1121,29 +1177,49 @@ extension StyledElement {
 
     // MARK: As a flex item
 
+    /// This element's share of its legacy parent's free main-axis space,
+    /// lowered as a greedy main-axis frame shared equally among growers
+    /// (`LR-AB`); unequal weights are reported by name. Write it before
+    /// `.padding`. The SwiftUI spelling is `.frame(maxWidth: .infinity)`.
     public func flexGrow(_ value: Float) -> Self {
         modifying { $0.flexGrow = value }
     }
 
+    /// Whether this element gives up main-axis space when its legacy parent
+    /// overflows: `0` lowers as `fixedSize` on that axis, any positive value
+    /// as SwiftUI's compression (`LR-AB`). The SwiftUI spelling of `0` is
+    /// `.fixedSize(horizontal:vertical:)`.
     public func flexShrink(_ value: Float) -> Self {
         modifying { $0.flexShrink = value }
     }
 
+    /// The main-axis size this element starts from before growing or
+    /// shrinking. Only `0` on an unsized grower lowers (as `auto`); any other
+    /// length is reported by name (`LR-FO`). Declare the size with `.frame`.
     public func flexBasis(_ points: Pixels) -> Self {
         modifying { $0.flexBasis = .length(.pixels(points)) }
     }
 
     /// A **fraction** of the containing block's main axis: `0.5` is half —
     /// the third modifier with `width(fraction:)`'s unit (ruling `CN-O`).
+    ///
+    /// **Deprecated since plan task 15** (`CX-C` item 2), as `width(fraction:)`
+    /// was at stage 8 (`LR-EU`): a fraction basis is a percentage, which the
+    /// lowering reports by name — a production trap — except `fraction: 0` on
+    /// an unsized grower, which lowers as a zero basis (measured, record §66
+    /// §4). No SwiftUI counterpart.
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)")
     public func flexBasis(fraction: Float) -> Self {
         modifying { $0.flexBasis = .length(.percent(fraction)) }
     }
 
     /// The old name of `flexBasis(fraction:)`, deprecated by ruling `CN-O`
-    /// (`FR-T`'s third site): `flexBasis(percent: 50)` is 5000%.
-    @available(*, deprecated, renamed: "flexBasis(fraction:)")
+    /// (`FR-T`'s third site): `flexBasis(percent: 50)` is 5000%. Since plan
+    /// task 15 it carries `flexBasis(fraction:)`'s message rather than a
+    /// rename to a spelling that is itself deprecated (`CX-P` item 7).
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)")
     public func flexBasis(percent: Float) -> Self {
-        flexBasis(fraction: percent)
+        modifying { $0.flexBasis = .length(.percent(percent)) }
     }
 
     /// `.baseline` lays out as `.flexStart` — see `alignItems(_:)`.

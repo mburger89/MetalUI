@@ -50,7 +50,9 @@ import MetalUILayout
 /// **Over a binding** (part 2, `DD-AA`): `ForEach($items) { $item in … }` —
 /// see `init(_:content:)` over a `Binding<C>` below.
 public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: ElementGroup>: ElementGroup {
+    /// The collection, iterated in order each frame.
     public var data: Data
+    /// Builds the content for one element of `data`.
     public var content: (Data.Element) -> Content
 
     /// The key path each element's id is read through (`\.id`, `\.self`, …).

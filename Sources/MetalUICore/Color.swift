@@ -1,18 +1,27 @@
 /// Gamma-encoded sRGB, expressed as HSLA. Hue is normalised to 0..<1.
 /// The compositor works in this space directly (spec §7.8) — do not linearize.
 public struct Hsla: Hashable, Sendable {
+    /// Hue, normalised to 0..<1.
     public var h: Float
+    /// Saturation, 0...1.
     public var s: Float
+    /// Lightness, 0...1.
     public var l: Float
+    /// Alpha, 0...1.
     public var a: Float
+    /// A colour from hue, saturation, lightness and alpha.
     public init(h: Float, s: Float, l: Float, a: Float = 1) {
         self.h = h; self.s = s; self.l = l; self.a = a
     }
 
+    /// Opaque white.
     public static let white = Hsla(h: 0, s: 0, l: 1, a: 1)
+    /// Opaque black.
     public static let black = Hsla(h: 0, s: 0, l: 0, a: 1)
+    /// Fully transparent black.
     public static let transparent = Hsla(h: 0, s: 0, l: 0, a: 0)
 
+    /// The colour of a `0xRRGGBB` hex value with `alpha`.
     public static func rgb(_ hex: UInt32, alpha: Float = 1) -> Hsla {
         Rgba(r: Float((hex >> 16) & 0xFF) / 255,
              g: Float((hex >> 8) & 0xFF) / 255,
@@ -20,6 +29,7 @@ public struct Hsla: Hashable, Sendable {
              a: alpha).toHsla()
     }
 
+    /// The same colour as gamma-encoded RGBA components.
     public func toRgba() -> Rgba {
         let c = (1 - abs(2 * l - 1)) * s
         let hp = h * 6
@@ -40,14 +50,20 @@ public struct Hsla: Hashable, Sendable {
 
 /// Gamma-encoded sRGB components in 0...1.
 public struct Rgba: Hashable, Sendable {
+    /// Red, 0...1.
     public var r: Float
+    /// Green, 0...1.
     public var g: Float
+    /// Blue, 0...1.
     public var b: Float
+    /// Alpha, 0...1.
     public var a: Float
+    /// A colour from red, green, blue and alpha.
     public init(r: Float, g: Float, b: Float, a: Float = 1) {
         self.r = r; self.g = g; self.b = b; self.a = a
     }
 
+    /// The same colour as HSLA.
     public func toHsla() -> Hsla {
         let maxC = max(r, g, b), minC = min(r, g, b)
         let delta = maxC - minC

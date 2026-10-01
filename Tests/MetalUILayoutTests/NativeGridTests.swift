@@ -2613,8 +2613,11 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
 ///
 /// The corpus itself is by construction the grids on which model and SwiftUI
 /// AGREE, so no test in this stage can see agreement getting worse; this handful
-/// is the committed shape of the disagreement. Owner: plan task 15's closeout,
-/// which re-runs the GZ table and decides whether to close the gap.
+/// is the committed shape of the disagreement. Plan task 15's closeout re-ran
+/// the GZ table and the divergence corpus (2026-09-30, byte-identical to
+/// `GR-B`'s baseline) and kept the gap — divergences 61 and 62, owner none
+/// (`CX-H`): closing it means replacing the reference model with SwiftUI's
+/// undocumented span/priority rules, a layout project of its own.
 ///
 /// Mutations: GZ0's control (every group offered W′/ncols, commits ignored), and
 /// the two one-rule model variants `classify-spans` names — variant 4 (a span

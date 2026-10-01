@@ -85,7 +85,8 @@ func borderWidthIsNoLongerSpellable() throws {
 /// `aBorderWidthSetAfterInitIsStillValidated`,
 /// `anOpacitySetAfterInitIsStillValidated`) pin the *traps*; they cannot see
 /// whether a door exists beside the window. `Decoration` is public and reachable
-/// through `Box(style:decoration:)`, so `var d = Decoration(); d.opacity = 2`
+/// through `Box(decoration:)` (`Box(style:decoration:)` until plan task 15
+/// narrowed `style:` to `package`, `CX-D`), so `var d = Decoration(); d.opacity = 2`
 /// would reach paint unchecked, and a `@testable` test sees the internal setter
 /// and would pass either way (taxonomy shape 16).
 ///

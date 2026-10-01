@@ -5,8 +5,12 @@
 /// `OptionalSizeD` — deleted with the engine, `LR-FC`. A kernel leaf measures
 /// through `ProposalMeasureFunction`.)
 public struct SizeD: Sendable, Equatable {
+    /// The width.
     public var width: Double
+    /// The height.
     public var height: Double
+    /// A size of `width` by `height`.
     public init(width: Double, height: Double) { self.width = width; self.height = height }
+    /// The zero size.
     public static let zero = SizeD(width: 0, height: 0)
 }

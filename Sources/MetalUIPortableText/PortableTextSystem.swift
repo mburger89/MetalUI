@@ -12,6 +12,7 @@ import MetalUITextSystem
 /// drawing nothing.
 @MainActor
 public final class PortableTextSystem: TextSystem {
+    /// The resolver fonts are opened through.
     public let resolver: PortableFontResolver
     private var fonts: [FontKey: PortableFont] = [:]
 
@@ -31,10 +32,13 @@ public final class PortableTextSystem: TextSystem {
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
     private var generation = 0
 
+    /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
+    /// FreeType and libunibreak, no CoreText (`TS-C`).
     public init(resolver: PortableFontResolver) {
         self.resolver = resolver
     }
 
+    /// Resolves `descriptor` against the registered fonts and returns its key.
     public func resolveFont(_ descriptor: FontDescriptor) -> FontKey {
         let font = trapping { try resolver.resolve(descriptor) }
         fonts[font.key] = font
@@ -43,12 +47,15 @@ public final class PortableTextSystem: TextSystem {
         return font.key
     }
 
+    /// The resolved font's metrics.
     public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
         let metrics = registered(font).metrics
         return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
                                lineHeight: metrics.lineHeight)
     }
 
+    /// Measures `string` wrapped at `width` (`nil` is one line per hard break)
+    /// under `options`.
     public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> TextMeasurement {
         let key = MeasureKey(string: string, font: font, width: width, options: options)
@@ -66,10 +73,12 @@ public final class PortableTextSystem: TextSystem {
         return value
     }
 
+    /// The caret's x offset before each character and after the last (`TI-E`).
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
         trapping { try PortableText.caretOffsets(string, font: registered(font)) }
     }
 
+    /// Each display line's character range when `string` is wrapped at `width`.
     public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
                            options: TextLayoutOptions) -> [Range<Int>] {
         trapping {
@@ -77,6 +86,8 @@ public final class PortableTextSystem: TextSystem {
         }
     }
 
+    /// The glyphs of `string` laid out at `width`, placed on the device pixel
+    /// grid.
     public func placeGlyphs(_ string: String, font: FontKey, wrappingAt width: Double?,
                             options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
@@ -93,12 +104,15 @@ public final class PortableTextSystem: TextSystem {
         }
     }
 
+    /// Rasterizes the glyph `key` names with FreeType; an empty image if it
+    /// cannot.
     public func rasterize(_ key: GlyphKey) -> GlyphImage {
         (try? FreeTypeRaster.rasterize(glyph: key.glyph, font: registered(key.font).raster,
                                        subpixelVariant: key.subpixelVariant,
                                        scaleFactor: key.scaleFactor)) ?? .empty
     }
 
+    /// Starts a frame for the cache's sweep bookkeeping.
     public func beginFrame() { generation += 1 }
 
     /// Drops measurements no frame has asked for since the previous one — the

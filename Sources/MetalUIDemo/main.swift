@@ -21,11 +21,19 @@ func runDemo() throws {
     // Plan task 10 part 2's human look (record §58): every control, a
     // selectable list, a `ForEach` over a binding.
     let controlsDemo = ProcessInfo.processInfo.environment["METALUI_CONTROLS_DEMO"] == "1"
+    // Plan task 15's human looks (`docs/verification/human-checks.md` H1, I1,
+    // J1, K1–K3): controlSize's drawn font, shapes/clip/images, gestures,
+    // transitions.
+    let looksDemo = ProcessInfo.processInfo.environment["METALUI_LOOKS_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if controlsDemo {
+    if looksDemo {
+        window = try app.openWindow(title: "MetalUI — Looks",
+                                    size: Size(width: Pixels(1180), height: Pixels(720)),
+                                    content: looksDemoContent)
+    } else if controlsDemo {
         window = try app.openWindow(title: "MetalUI — Controls",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: controlsDemoContent)

@@ -306,6 +306,8 @@ public struct Handlers {
     /// reference (`IX-N`).
     var focusBinding: FocusBindingTarget?
 
+    /// No handlers: the element is not a pointer target, not focusable and has
+    /// no key context.
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.

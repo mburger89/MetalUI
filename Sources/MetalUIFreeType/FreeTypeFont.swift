@@ -3,7 +3,9 @@ import MetalUIScene
 
 /// A FreeType call that failed, with FreeType's own error code.
 public struct FreeTypeError: Error, Equatable, CustomStringConvertible {
+    /// The FreeType function that failed.
     public let operation: String
+    /// FreeType's error code.
     public let code: Int32
     public var description: String { "\(operation) failed with FreeType error \(code)" }
 }
@@ -173,9 +175,13 @@ public final class FreeTypeFont {
 /// loading it into memory (ruling SF-A): FreeType streams the name tables
 /// through its own file access (`FT_New_Face`).
 public struct FreeTypeFaceNames: Equatable, Sendable {
+    /// The face's index within its file.
     public let faceIndex: Int
+    /// The face's PostScript name.
     public let postScript: String
+    /// The face's family name.
     public let family: String
+    /// The face's full name.
     public let full: String
     /// The style, e.g. `"Regular"`, `"Bold Italic"` (`style_name`).
     public let style: String
@@ -186,6 +192,7 @@ public struct FreeTypeFaceNames: Equatable, Sendable {
     /// OS/2 `usWidthClass` (1…9, 5 normal; 0 when absent).
     public let widthClass: Int
 
+    /// A face's names as read from its file.
     public init(faceIndex: Int, postScript: String, family: String, full: String, style: String,
                 weightClass: Int = 0, widthClass: Int = 0) {
         self.faceIndex = faceIndex

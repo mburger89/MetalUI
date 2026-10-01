@@ -10,21 +10,28 @@ public struct ShapedGlyph: Equatable, Sendable {
     /// increase by one per glyph; a combining mark reports its own offset, not
     /// its base's (`MONOTONE_CHARACTERS`, matching CoreText's string indices).
     public let cluster: Int
+    /// How far the pen moves right after this glyph, in points.
     public let xAdvance: Double
+    /// How far the pen moves up after this glyph, in points.
     public let yAdvance: Double
+    /// The glyph's horizontal offset from the pen, in points.
     public let xOffset: Double
+    /// The glyph's vertical offset from the pen, in points.
     public let yOffset: Double
 }
 
 /// One run's shaped glyphs, in **visual order**: left to right, as a
 /// renderer places them, for a right-to-left run too.
 public struct ShapedRun: Equatable, Sendable {
+    /// The glyphs, left to right.
     public let glyphs: [ShapedGlyph]
     /// The run's total advance, in points.
     public let advance: Double
+    /// Whether the run was shaped right to left.
     public let isRightToLeft: Bool
 }
 
+/// The direction a run is shaped in.
 public enum ShapingDirection: Sendable {
     /// Let HarfBuzz guess direction, script and language from the text.
     case auto
@@ -38,6 +45,8 @@ public enum ShapingDirection: Sendable {
 /// **not** here; `MetalUIText`'s `Shaper` still does all of that with
 /// CoreText on Apple platforms (SH-J).
 public enum HarfBuzzShaper {
+    /// Shapes `text` as one run in `font`, in visual order; throws if HarfBuzz
+    /// fails.
     public static func shape(_ text: String, font: HarfBuzzFont,
                              direction: ShapingDirection = .auto) throws -> ShapedRun {
         guard let buffer = hb_buffer_create(), hb_buffer_allocation_successful(buffer) != 0 else {

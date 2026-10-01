@@ -54,8 +54,13 @@ import MetalUILayout
 /// unchanged.
 public struct Deferred<Content: Element>: Element {
     public var elementID: ElementID?
+    /// The one element hoisted to the root layer.
     public var content: Content
 
+    /// A portal over `content`: no layout node in its parent, painted on the
+    /// root layer with clip and scroll offset reset, opacity kept (`AP-I`,
+    /// `OM-AA`). A content node that is `.position(.absolute)` makes it a
+    /// presentation root laid out against the window (`LR-CH`).
     public init(elementID: ElementID? = nil, @ElementBuilder content: () -> Content) {
         self.elementID = elementID
         self.content = content()

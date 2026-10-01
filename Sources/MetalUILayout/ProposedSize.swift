@@ -6,9 +6,12 @@
 /// MetalUI's renderer-independent counterpart to SwiftUI's
 /// `ProposedViewSize`.
 public struct ProposedSize: Sendable, Hashable {
+    /// The proposed width; `nil` asks for the ideal width.
     public var width: Double?
+    /// The proposed height; `nil` asks for the ideal height.
     public var height: Double?
 
+    /// A proposal of `width` by `height`; omitted axes are unspecified.
     public init(width: Double? = nil, height: Double? = nil) {
         self.width = width
         self.height = height
@@ -47,10 +50,14 @@ public enum ProposalTextBaseline: Hashable, Sendable {
 /// path is introduced. Keeping them with the first proposal contract avoids a
 /// second incompatible leaf-measurement API when baseline-aligned stacks land.
 public struct LayoutMeasurement: Sendable, Equatable {
+    /// The measured size.
     public var size: SizeD
+    /// The first text baseline's distance from the top, if the leaf has text.
     public var firstBaseline: Double?
+    /// The last text baseline's distance from the top, if the leaf has text.
     public var lastBaseline: Double?
 
+    /// A measurement of `size`, with optional baselines (`TE-K`).
     public init(size: SizeD, firstBaseline: Double? = nil, lastBaseline: Double? = nil) {
         self.size = size
         self.firstBaseline = firstBaseline

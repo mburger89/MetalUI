@@ -40,9 +40,12 @@ public struct IdentifiedGroupLayout<ContentLayout> {
 /// does (probe X9–X11; ruling `ID-R`, `StateTable.noteNamed`; pinned by
 /// `anIDThatReturnsToAnEarlierNameStartsFresh`).
 public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
+    /// The wrapped group, numbered from 0 under the name.
     public var content: Content
+    /// The name that takes the group's structural slot.
     public var name: ElementID
 
+    /// The group `.id(_:)` builds over a non-`StyledElement` group (`ID-G`).
     public init(content: Content, name: ElementID) {
         self.content = content
         self.name = name

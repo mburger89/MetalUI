@@ -106,10 +106,25 @@ import MetalUILayout
 /// plus its dictionary bucket). Task 13 adds no field to either baseline: the
 /// opacity and border widths it now interpolates were already stored in the
 /// `Decoration` above, so a settled entry costs what it did. The isolated-process
-/// per-entry harness is still the animation milestone's and uncommitted, so the
-/// end-to-end per-entry figure is **re-owned to plan task 15**; the arithmetic
-/// bound carried is the stride delta: `Decoration` 12 → 128 is 116 bytes of
-/// payload per settled entry, ~11.6 MB at n = 100,000 against the ~51 MB measured.
+/// per-entry harness is still the animation milestone's and uncommitted; the
+/// arithmetic bound carried is the stride delta: `Decoration` 12 → 128 is 116
+/// bytes of payload per settled entry, ~11.6 MB at n = 100,000 against the
+/// ~51 MB measured.
+///
+/// **The settled-frame allocation figure, taken at plan task 15** (`CX-I` item
+/// 1; `measureSettledStoreEntryAllocations`, gated
+/// `METALUI_STORE_ALLOC_MEASURE=1`, `malloc_logger`, debug arm64, two runs
+/// identical, record §66 §4): three settled frames at 920×560 after three warm
+/// ones cost the proposal preview (12 store entries) 18,363 allocations /
+/// 1,658,448 requested bytes and the legacy demo (0 store entries, but text and
+/// many `$anim` baselines) 82,121 / 9,104,975. Per settled frame, a row of
+/// proposal rectangles each under one `.frame` layer costs 106.45 allocations /
+/// 7,862 bytes per element against 77.45 / 5,919 bare — so one settled
+/// `.frame` layer, its store entry's touch included, adds **29 allocations and
+/// ~1.9 KB of transient requests per frame**. That is the layer's whole
+/// per-frame work (its kernel node and wrapper, not the store alone); it is
+/// churn freed each frame, not the retained per-entry footprint the stride
+/// delta above bounds.
 ///
 /// **Measured on the SHIPPED shape, in isolated processes at n = 20,000:
 /// 7,636 → 643 bytes per entry, a ~91.6% reduction** — a bare-`Int` control

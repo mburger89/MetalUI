@@ -25,8 +25,11 @@ import MetalUICore
 /// that cannot express a set.
 public struct ProposalAxes: OptionSet, Sendable, Hashable {
     public let rawValue: UInt8
+    /// An axis set from its raw bits; prefer the named statics.
     public init(rawValue: UInt8) { self.rawValue = rawValue }
+    /// The horizontal axis.
     public static let horizontal = ProposalAxes(rawValue: 1 << 0)
+    /// The vertical axis.
     public static let vertical = ProposalAxes(rawValue: 1 << 1)
 }
 

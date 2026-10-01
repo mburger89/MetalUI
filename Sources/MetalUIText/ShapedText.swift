@@ -64,6 +64,7 @@ public struct ShapedLine {
 
 /// A string laid out into display lines at some offered width.
 public struct ShapedText {
+    /// The display lines, in order.
     public let lines: [ShapedLine]
 
     /// The widest line's ``ShapedLine/advance`` — the content width this text

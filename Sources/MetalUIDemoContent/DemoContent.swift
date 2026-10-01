@@ -83,6 +83,7 @@ import Foundation
 /// and a per-look affordance taxes every future look.
 @Observable
 public final class DemoModel {
+    /// Whether the demo's modal sheet is shown (the **M** key).
     public var showModal = false
 
     /// Whether the animation milestone's one keyed demo interaction is live.
@@ -98,11 +99,14 @@ public final class DemoModel {
     /// The text-input demo's two fields (roadmap item 14): controlled fields
     /// store what they are given back here.
     public var fieldText = ""
+    /// The text-input demo's second field.
     public var secondFieldText = ""
     /// The text-input demo's multi-line editor (ruling TI-H).
     public var editorText = ""
 }
 
+/// The one model every demo tree reads, shared by the demo app and the tests
+/// that build its trees (`LR-S`).
 @MainActor public let demoModel = DemoModel()
 
 /// One row of the scrollable list.
@@ -169,14 +173,18 @@ let demoRowCount = 500
 /// structs here because none of them carries a payload; one that did would
 /// declare stored properties and nothing else would change.
 public struct Increment: Action { public init() {} }
+/// Decrements the demo's counter (the **-** key).
 public struct Decrement: Action { public init() {} }
 /// Moves keyboard focus to the counter. Handled by `Window.onAction` rather
 /// than by any element, because the element that would handle it is the one
 /// that is not focused yet — with nothing focused the chain is empty and the
 /// window's fallback is the only thing left to run (`Window.onAction`).
 public struct FocusCounter: Action { public init() {} }
+/// Clears keyboard focus (the **Esc** key).
 public struct ClearFocus: Action { public init() {} }
+/// Switches between the light and dark themes (the **Space** key).
 public struct ToggleTheme: Action { public init() {} }
+/// Shows or hides the demo's modal sheet (the **M** key).
 public struct ToggleModal: Action { public init() {} }
 /// Toggles `DemoModel.animationDemoActive` under a real `withAnimation`.
 /// Bound to **A**. The only action `runDemo` wraps in a transaction.
@@ -1136,6 +1144,8 @@ private struct PriorityPreviewPanel: ProposalElement {
 }
 
 
+/// The proposal-layout preview tree (`METALUI_NATIVE_LAYOUT_PREVIEW=1`), built
+/// only from the proposal vocabulary.
 @MainActor
 public func nativeLayoutPreviewContent() -> some Element {
     ZStack {

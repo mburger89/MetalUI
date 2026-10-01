@@ -1,26 +1,41 @@
 import MetalUICore
 
+/// The modifier keys held during an event.
 public struct Modifiers: OptionSet, Sendable, Hashable {
     public let rawValue: UInt8
+    /// A modifier set from its raw bits; prefer the named statics.
     public init(rawValue: UInt8) { self.rawValue = rawValue }
+    /// Shift.
     public static let shift   = Modifiers(rawValue: 1 << 0)
+    /// Control.
     public static let control = Modifiers(rawValue: 1 << 1)
+    /// Option (Alt).
     public static let option  = Modifiers(rawValue: 1 << 2)
+    /// Command on Apple platforms; the Super/Windows key elsewhere.
     public static let command = Modifiers(rawValue: 1 << 3)
 }
 
+/// A pointer press, release or move.
 public struct MouseEvent: Sendable {
+    /// The pointer's position in window points, y down.
     public var position: Point<Pixels>
+    /// The modifier keys held.
     public var modifiers: Modifiers
+    /// The click count: 2 for the second press of a double click.
     public var clickCount: Int
+    /// A mouse event at `position`.
     public init(position: Point<Pixels>, modifiers: Modifiers = [], clickCount: Int = 1) {
         self.position = position; self.modifiers = modifiers; self.clickCount = clickCount
     }
 }
 
+/// A scroll-wheel or trackpad scroll.
 public struct ScrollEvent: Sendable {
+    /// The pointer's position in window points.
     public var position: Point<Pixels>
+    /// How far to scroll, in points on each axis.
     public var delta: Point<Pixels>
+    /// The modifier keys held.
     public var modifiers: Modifiers
     /// Trackpad phase. Honouring this is what makes scrolling feel native
     /// rather than web-like (spec 8.2).
@@ -34,6 +49,7 @@ public struct ScrollEvent: Sendable {
     /// ramp would compute an `age` large enough to suppress the indicator on
     /// the very frame that should show it.
     public var timestamp: Double
+    /// A scroll event at `position` by `delta`.
     public init(position: Point<Pixels>, delta: Point<Pixels>,
                 modifiers: Modifiers = [], isMomentum: Bool = false, timestamp: Double = 0) {
         self.position = position; self.delta = delta
@@ -42,12 +58,16 @@ public struct ScrollEvent: Sendable {
     }
 }
 
+/// A key press or release.
 public struct KeyEvent: Sendable {
     /// Matching uses this, not a physical key code — physical matching is the
     /// long-standing source of Dvorak and AZERTY breakage (spec 8.3).
     public var charactersIgnoringModifiers: String
+    /// The characters the key produced with its modifiers applied.
     public var characters: String
+    /// The modifier keys held.
     public var modifiers: Modifiers
+    /// Whether this is an auto-repeat of a held key.
     public var isRepeat: Bool
     /// When the keystroke occurred, on the same clock as `ScrollEvent.timestamp`
     /// (`NSEvent.timestamp` on AppKit).
@@ -67,6 +87,7 @@ public struct KeyEvent: Sendable {
     /// implemented (taxonomy shape 1). Every construction site states one; that
     /// churn is the point.
     public var timestamp: Double
+    /// A key event; every construction site states its timestamp.
     public init(charactersIgnoringModifiers: String, characters: String,
                 modifiers: Modifiers = [], isRepeat: Bool = false,
                 timestamp: Double) {
@@ -82,9 +103,12 @@ public struct KeyEvent: Sendable {
 /// caret until committed through `.textInput`, or cancelled with an empty
 /// composition. `selection` is in Character offsets into `text`.
 public struct TextComposition: Sendable, Equatable {
+    /// The marked text.
     public var text: String
+    /// The selection within the marked text, in Character offsets.
     public var selection: Range<Int>
 
+    /// A composition of `text` with `selection`.
     public init(text: String, selection: Range<Int>) {
         self.text = text
         self.selection = selection
@@ -94,6 +118,7 @@ public struct TextComposition: Sendable, Equatable {
     public static let none = TextComposition(text: "", selection: 0..<0)
 }
 
+/// One input event a platform window delivers to its `Window`.
 public enum InputEvent: Sendable {
     case mouseDown(MouseEvent)
     case mouseUp(MouseEvent)

@@ -7,20 +7,31 @@ public protocol ScalarUnit: Hashable, Comparable, Sendable, AdditiveArithmetic,
 }
 
 extension ScalarUnit {
+    /// A value from a floating-point literal: `Pixels` can be written `12.5`.
     public init(floatLiteral v: Double) { self.init(Float(v)) }
+    /// A value from an integer literal: `Pixels` can be written `12`.
     public init(integerLiteral v: Int) { self.init(Float(v)) }
+    /// Zero in this unit.
     public static var zero: Self { Self(0) }
+    /// Orders two values of the same unit.
     public static func < (l: Self, r: Self) -> Bool { l.value < r.value }
+    /// The sum of two values of the same unit.
     public static func + (l: Self, r: Self) -> Self { Self(l.value + r.value) }
+    /// The difference of two values of the same unit.
     public static func - (l: Self, r: Self) -> Self { Self(l.value - r.value) }
+    /// The value scaled by a unitless factor.
     public static func * (l: Self, r: Float) -> Self { Self(l.value * r) }
+    /// The value divided by a unitless factor.
     public static func / (l: Self, r: Float) -> Self { Self(l.value / r) }
+    /// The value negated.
     public static prefix func - (v: Self) -> Self { Self(-v.value) }
 }
 
 /// Logical points, as the windowing system reports them.
 public struct Pixels: ScalarUnit {
+    /// The number of points.
     public var value: Float
+    /// A length of `value` points.
     public init(_ value: Float) { self.value = value }
     /// Convert to the render target's coordinate space.
     public func scaled(by factor: Float) -> ScaledPixels { ScaledPixels(value * factor) }
@@ -28,20 +39,27 @@ public struct Pixels: ScalarUnit {
 
 /// Logical points multiplied by the display scale factor. What shaders see.
 public struct ScaledPixels: ScalarUnit {
+    /// The number of scaled pixels.
     public var value: Float
+    /// A length of `value` scaled pixels.
     public init(_ value: Float) { self.value = value }
 }
 
 /// Physical device pixels, always integral.
 public struct DevicePixels: Hashable, Comparable, Sendable {
+    /// The number of device pixels.
     public var value: Int32
+    /// A length of `value` device pixels.
     public init(_ value: Int32) { self.value = value }
+    /// Orders two device-pixel values.
     public static func < (l: Self, r: Self) -> Bool { l.value < r.value }
 }
 
 /// Sizes relative to the root font size.
 public struct Rems: ScalarUnit {
+    /// The number of root font sizes.
     public var value: Float
+    /// A length of `value` rems.
     public init(_ value: Float) { self.value = value }
 }
 
