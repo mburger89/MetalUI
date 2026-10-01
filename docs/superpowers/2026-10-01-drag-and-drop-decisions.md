@@ -4,7 +4,7 @@ Rulings for drag and drop (user request 2026-10-01; **not a plan task** — the
 SwiftUI-alignment plan is agent-complete and tasks 12 and 15 wait on human
 checks; this is new feature work). Spec:
 [`specs/2026-10-01-drag-and-drop-design.md`](specs/2026-10-01-drag-and-drop-design.md).
-Record: `../record/68-drag-and-drop.md` (the Record phase writes it).
+Record: `../record/68-drag-and-drop.md`.
 Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-drop.swift)
 (**new**; arm ids `T…` Transferable, `R…` drop sequencing through a fake
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID

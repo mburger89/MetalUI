@@ -2077,3 +2077,49 @@ so the baseline holds, kept, owner none (`CX-H`).
 choice SwiftUI never measured; `docs/divergences.md` carries the class in its
 columns and `docs/probes/closeout-inventory-check.sh` fails if a family
 cites a label that is not live.
+
+## 2026-10-01: 100–102 added, none retired; 69 live, next label 103 (drag and drop)
+
+Record §68; rulings `DN-G`, `DN-K`, `DN-M`; the published list is
+`docs/divergences.md`. Not a plan task — user request 2026-10-01. **Added, each
+kept, owner none:**
+
+- **100** — a disabled drag source or drop destination. SwiftUI still drags
+  (probe `P9`) and still takes the drop (`P8`); MetalUI's one disabled gate
+  (`Frame.registerHandlers`) removes both: a `.disabled` source does not drag, a
+  `.disabled` destination is never targeted and takes no drop (`DN-G`). Pin
+  `aDisabledSourceDoesNotDragAndADisabledDestinationRefuses`; mutation R3
+  (`enabled,` removed from the destination region's registration) reddens it and
+  `theDragAndDropDemoDropsAChipOnTheTextWell`.
+- **101** — a drag leaving the window. SwiftUI's is a system drag session from
+  the start, its translucent preview leaving the window with it (`P6c`, `P18`);
+  on AppKit MetalUI hands the drag to an `NSDraggingSession` at the window's edge
+  with the payload's own image (a file's icon, a text badge), not the preview;
+  on SDL a drag cannot leave the window (SDL3 has no outgoing-drag API,
+  `SDLWindow.beginExternalDrag` answers `false`) (`DN-K`). Pins
+  `leavingTheWindowHandsTheDragToThePlatformWhenItCan`,
+  `anSDLWindowCannotBeginAnExternalDrag`. The AppKit hand-off itself is
+  unreachable headless (a started session's tracking loop never returns,
+  `DN-X` item 1): the `true` arm is pinned through an injected starter and the
+  real hand-off is human check N3.
+- **102** — hovering an external drop on SDL. SwiftUI targets only a destination
+  whose type matches (`P16`); SDL gives no types until the drop, so MetalUI
+  targets the deepest destination whatever its type (a non-matching one turns
+  `false` at the drop and runs no action), and a URL dragged from a browser
+  arrives as text, which a `URL` destination refuses (`DN-M`). The AppKit
+  backend knows the types and matches SwiftUI. Pins
+  `anExternalDropWithUnknownTypesTargetsOptimistically`,
+  `sdlDropEventsBecomeOneDropSession`.
+
+**Nothing retired.** "Not offered" gains three rows (`.onDrag`/`.onDrop`/
+`DropDelegate`; the `DropSession` family; `transferRepresentation` and async
+loading, `DN-A` item 2, `DN-B` item 1, `DN-S` item 4). **Amended in place, not
+numbered**: `DN-H` item 2's "several items arrive in offered order" is MetalUI's
+own choice, not a SwiftUI fact — probe `R3f`'s order is nondeterministic (2 of 6
+runs reversed, `DN-W` item 1); the long press written after an inner draggable
+ends at the release (the arena's unchanged rule, SwiftUI's order unmeasured,
+`DN-V` item 6, pinned by `DN-W` item 2). **Likely-looking rows not added** (MetalUI's
+own choices SwiftUI was never measured against, listed as looks in
+`docs/verification/human-checks.md` group N): the preview's exact opacity,
+shadow and anchor; a presentation blocking a drop beneath it; a draggable that
+is not itself hit-testable. Live count **66 → 69**, next label **103**.

@@ -255,7 +255,7 @@ section "K1–K3 · transitions"): each button toggles its tile in and out under
 
 ## N. Drag and drop (user request 2026-10-01, not a plan task)
 
-*Source: record §68 (drag and drop), rulings `DN-A`…`DN-Y`
+*Source: record §68 (drag and drop), rulings `DN-A`…`DN-Z`
 (`docs/superpowers/2026-10-01-drag-and-drop-decisions.md`), spec §8.* SwiftUI's
 real pointer drags (probe group `P`) were measured at the HID tap; MetalUI's
 answers are pinned headless through a fake platform window and a fake

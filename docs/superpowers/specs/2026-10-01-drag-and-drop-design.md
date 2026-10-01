@@ -8,10 +8,9 @@ in a new decisions doc,
 [`../../probes/swiftui-drag-and-drop.swift`](../../probes/swiftui-drag-and-drop.swift)
 (**new**; groups `T` Transferable, `R` fake `NSDraggingInfo`, `A`
 accessibility, `P` real pointer drags at the HID tap; header carries the
-recorded output). Record: `docs/record/68-drag-and-drop.md` (the Record phase
-writes it).
+recorded output). Record: `docs/record/68-drag-and-drop.md`.
 
-**Status: DESIGNED.** Baseline at `053a3b3`, re-taken by this design session
+**Status: LANDED (record §68, 2026-10-01) — built, 2028 tests / 0 goldens / 125 guards; the human looks (group N) are owed.** Designed as follows. Baseline at `053a3b3`, re-taken by this design session
 after a clean build: **1976 tests in 3 suites** (`Test run with 1976 tests in
 3 suites passed after 107.503 seconds`, the FR-J line present), 0 `error:`,
 the one native deprecation `warning:`; 121 typecheck guards, 0 goldens, 66
