@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-Z`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-AA`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -991,3 +991,92 @@ deleted (item 2).
 caller expects to see replays what it painted; the remainder above cuts a
 half-scrolled source's inner content — a look, never a lost drop.
 
+
+---
+
+## DN-Z — lane 3's corrections: SDL's item position, three green-on-arrival pins and their instruments, 3.9's transcription, the demo's fourth chip
+
+**Findings (lane 3, measured).**
+
+1. **`DN-M` item 1's fallback position is the item's own, not a tracked
+   pointer.** SDL 3.4.16's `SDL_DropEvent` gives `x`, `y` on every kind but
+   `BEGIN` (`SDL_events.h` line 937: "relative to window (not on begin)"), so
+   a session that saw no `POSITION` enters at its first `FILE`/`TEXT` item's
+   position and performs there; `SDLWindow` keeps no separate "last known
+   pointer position" (amending item 1's last clause — a backend giving no
+   positions at all reads `(0, 0)`, the same as SDL's own). Pinned by 3.4's
+   entered/performed `(5, 6)` with no `POSITION`. `mui_platform_init` also
+   enables `SDL_EVENT_DROP_FILE`/`TEXT` explicitly, so a build of SDL shipping
+   either disabled still delivers both (the default on 3.4.16 delivers both —
+   3.7 passes either way, so this line is unpinned by design: no SDL build at
+   hand disables them). A `COMPLETE` with no session open (a `BEGIN` lost, or
+   one already ended by motion, 3.6's last push) sends nothing.
+2. **The demo gains a fourth chip, "Hold, then drag"** (`.draggable("Held")`
+   plus `.onLongPressGesture(perform: {})`), amending spec §7's three: human
+   check N8 (`DN-U` item 1) needs a draggable *with* a long press, which none
+   of the three chips has. It changes nothing else in the demo; 3.11 does not
+   touch it.
+3. **3.5, 3.8 and 3.9 were green on arrival, as designed** (lane 1 wrote
+   `SDLWindow.beginExternalDrag`'s final `false`, `DN-T`; lanes 1 and 2 added
+   no accessibility path, `DN-N`). Their mutations are the instrument: M3e
+   reddens 3.5, M3h reddens 3.8, M3h′ reddens 3.9 (table below).
+4. **3.9 transcribes 3.8's four nodes**, `AccessKitControlsParityTests`'
+   footing: `Backends/SDL`'s tests cannot build a `Window`. 3.8 therefore
+   pins the four nodes' readings as literals (role, label, value, actions,
+   focusable, children) as well as the with/without-modifier equality, and
+   3.9 asserts AccessKit's translation of exactly those nodes. **M3h — the
+   spec's mutation for both — cannot reach 3.9** (it changes the root
+   package's builder, which 3.9 never runs; measured: it reddens 3.8 alone).
+   3.9's own instrument is **M3h′**, an AccessKit-side mutation advertising a
+   `"Drop"` custom action on every node.
+5. **3.11 asserts more than the spec's row, and lives beside 3.8**
+   (`Tests/MetalUITests/DragAndDropAccessibilityTests.swift`, not a file of
+   its own): besides "Apple" onto Text and the Disabled well's refusal, the
+   URL chip is refused by Text (a URL is not text, `T6c`) and taken by Links
+   and files (it shows `https://example.com`). Its geometry is read from the
+   published accessibility tree — a chip or a well found by what it says.
+6. **M3i is green, and the frame sizes are recorded.** Inlining every demo
+   section into one builder leaves `everyProductionTreeBuildsOnAOneMegabyteThread`
+   green: the smallest thread that builds `dragAndDropDemoContent()` alone on
+   macOS arm64 debug, bisected in 16 KB steps through an exit test, is **304
+   KB** as written (one function per section) and **432 KB** inlined — both
+   under 1 MB; the per-section shape is kept for the rule, not because this
+   tree needs it.
+
+**Mutation table** (committed tree `982745f`, each restored from a copy, the
+full unfiltered suite of the package named — root **2028 tests in 3 suites**,
+`Backends/SDL` **22 + 41** — `git status --short` clean after each):
+
+| mutation | spelling | package | reddened (issues) |
+|---|---|---|---|
+| M3a | `.performed(position: session.position, items: session.items)` → `items: []` | SDL | `sdlDropEventsBecomeOneDropSession`, `droppedTextIsUTF8PlainText` (4) |
+| M3b | `if !session.items.isEmpty {` → `if !session.items.isEmpty \|\| session.entered {` (an empty drop performed) | SDL | `aCompleteWithNoItemsIsAnExit` (1) |
+| M3c | the encoder's keep-test `if byte < 0x80, c.isASCIILetterOrDigit \|\| "-._~/".contains(c) {` → `if true {` | SDL | `aDroppedPathBecomesAFileURLString` (4) |
+| M3d | `utf8TextType`'s identifier `"public.utf8-plain-text"` → `"public.text"` | SDL | `droppedTextIsUTF8PlainText` (2) |
+| M3e | `SDLWindow.beginExternalDrag` returns `true` | SDL | `anSDLWindowCannotBeginAnExternalDrag` (1) |
+| M3f | `endDropSessionOnMotion()` returns at once | SDL | `ordinaryPointerMotionEndsAnOpenDropSession` (1) |
+| M3g | `case SDL_EVENT_DROP_POSITION:` removed from `translate`'s outer drop case label (`SDLBridge.c`) | SDL | `theBridgeTranslatesEverySDLDropEvent`, `sdlDropEventsBecomeOneDropSession`, `aCompleteWithNoItemsIsAnExit`, `ordinaryPointerMotionEndsAnOpenDropSession` (4) |
+| M3h | `AccessibilityTreeBuilder`'s `names` gains `["Drop"]` for an id whose hitbox carries a `dropDestination` | root | `aDraggableAndADropDestinationPublishNothingNew` (3) |
+| M3h′ | `AccessKitSnapshot.translate`'s `customActions: node.customActions` → `node.customActions + ["Drop"]` | SDL | `accessKitPublishesADraggableAndADropDestinationUnchanged`, `aMetalUITreeTranslatesToAccessKitsVocabulary`, `everyAccessibilityNodeFieldHasAnAccessKitArm`, `theAccessKitSnapshotCarriesHintIdentifierHeadingLinkAndCustomActions` (13) |
+| M3i | `dragAndDropDemoContent()`'s body inlined into one builder | root | none — green, as item 6 measures (304 KB → 432 KB, under 1 MB) |
+| M3j | `DropWell`'s action `last = describe(items)` → `_ = describe(items)` | root | `theDragAndDropDemoDropsAChipOnTheTextWell` (2) |
+
+**Counts.** Root **2028 tests in 3 suites** (1976 + lane 1's 32 + lane 2's
+18 + lane 3's 2: 3.8, 3.11; 3.10 a T row), as `DN-Y` item 4 expected; guards
+**125**, unmoved by this lane (no guard). `Backends/SDL` `MetalUISDLTests`
+**33 → 41** on macOS (+8: 3.1–3.7, 3.9), `ReplayFixtureTests` 22; in the
+`metalui-portable-ax` (`swift:6.4-noble`) container **22 + 39**. The root
+package in a `swift:6.4-noble` container: 0 `error:`/`warning:`,
+`MetalUILayoutTests` 199, `MetalUICoreTests` 22, `MetalUICrossPlatformTests`
+**14** (10 + lane 1's four `TransferableTests`), and `MetalUISystemFontsTests` 6.
+**0 px against `053a3b3` in all fourteen offscreen images**, scene identical
+(`docs/probes/demo-pixels/compare.sh`, controls non-zero); `Expected.swift`
+unedited. The lock probe read `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1` at lane 3's close, so the real-window capture was not
+run.
+
+**Cost if wrong.** Item 1: a backend sending item events with no position
+drops at the window's origin; the drop still lands on whatever destination
+covers it, and the hover highlight is SDL's to give (divergence 102). Item 4:
+a root-side change to the four nodes reddens 3.8 and leaves 3.9 stale until
+its transcription is edited — the same footing as the controls parity test.

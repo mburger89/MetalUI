@@ -4,7 +4,7 @@ Branch `feat/drag-and-drop` from `053a3b3` (master, plan task 15 merged, PR
 #35). User request 2026-10-01 — **not a plan task**. Rulings **`DN-A`…`DN-U`**
 in a new decisions doc,
 [`../2026-10-01-drag-and-drop-decisions.md`](../2026-10-01-drag-and-drop-decisions.md)
-(next unused **`DN-Y`**; `DN-S`…`DN-U` are the critic round's, `DN-V`/`DN-W` lane 1's, `DN-X` lane 2's). Evidence:
+(next unused **`DN-AA`**; `DN-S`…`DN-U` are the critic round's, `DN-V`/`DN-W` lane 1's, `DN-X`/`DN-Y` lane 2's, `DN-Z` lane 3's). Evidence:
 [`../../probes/swiftui-drag-and-drop.swift`](../../probes/swiftui-drag-and-drop.swift)
 (**new**; groups `T` Transferable, `R` fake `NSDraggingInfo`, `A`
 accessibility, `P` real pointer drags at the HID tap; header carries the
@@ -484,10 +484,11 @@ no test retired; every T row above names its unchanged answer.
 ## 7. The demo (`METALUI_DND_DEMO=1`)
 
 "MetalUI — Drag and Drop", 920×560 (`MetalUIDemo`; `MetalUISDLDemo` honours
-the same variable). Left column, top to bottom: three chips — **Apple**
+the same variable). Left column, top to bottom: four chips — **Apple**
 (`.draggable("Apple")`), **example.com** (`.draggable(URL(string:
 "https://example.com")!)`), **Custom preview** (`.draggable("Custom") {
-a 60×60 accent square }`) — and a `ScrollView { List(0..<20, selection:) }`
+a 60×60 accent square }`), **Hold, then drag** (`.draggable("Held")` with a
+long press, for N8 — `DN-Z` item 2) — and a `ScrollView { List(0..<20, selection:) }`
 whose row content is `.draggable("Row n")`. Right column: four wells, each
 a rounded box showing its last drop and filling with `.accent` while
 `isTargeted`: **Text** (`String`), **Links and files** (`URL`), **Anything**
