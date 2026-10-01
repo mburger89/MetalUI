@@ -469,9 +469,12 @@ are the preview halves of 1.27 and 1.28.
 
 ### 6.6 Counts
 
-Root suite **1976 → 2023** (`DN-T`): lane 1 +30 (1.1–1.19, 1.22–1.29 +
-G1.1–G1.3; four of them, 1.1–1.4, in `MetalUICrossPlatformTests`), lane 2 +15
-(2.1–2.14 + G2.1), lane 3 +2 (3.8, 3.11; 3.10 is a T row). Guards **121 →
+Root suite **1976 → 2028** (`DN-T`, re-reconciled by `DN-Y` item 4): lane 1
++30 (1.1–1.19, 1.22–1.29 + G1.1–G1.3; four of them, 1.1–1.4, in
+`MetalUICrossPlatformTests`) plus its review round's +2 (`DN-W`), lane 2 +15
+(2.1–2.14 + G2.1) plus its review round's +3 (2.11b, 2.11c, 2.12b, `DN-Y`),
+lane 3 +2 (3.8, 3.11; 3.10 is a T row). Measured 2026 at lane 2's review
+round; lane 3 and the Record phase re-take the figure. Guards **121 →
 125**. `Backends/SDL` `MetalUISDLTests`
 +8 (3.1–3.7, 3.9). Linux/Windows `MetalUICrossPlatformTests` +4. No golden,
 no test retired; every T row above names its unchanged answer.

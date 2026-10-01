@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-Y`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -622,7 +622,8 @@ short.
    lane 1 commits). `DN-R`'s "files disjoint" is withdrawn: CLAUDE.md's
    disjointness advice is for lanes that run in parallel, and these do not.
 3. **Counts**: root suite 1976 → **2023** (lane 1 +30, lane 2 +15, lane 3
-   +2); guards 121 → **125**; `MetalUICrossPlatformTests` +4; `Backends/SDL`
+   +2) — *superseded by `DN-Y` item 4: lane 1's review round and lane 2's add
+   2 and 3, so lane 3 lands at 2028*; guards 121 → **125**; `MetalUICrossPlatformTests` +4; `Backends/SDL`
    `MetalUISDLTests` +8.
 4. **Lane 1 closes with a `swift:6.4-noble` container build** of the root
    package (spec §9): the portable surface it adds is the one only Linux can
@@ -866,10 +867,14 @@ items gets MetalUI's offered order, which SwiftUI does not promise.
    origin is its hitbox's origin when the drag began), opacity 0.7. It
    prepaints inside `allowsHitTesting(false)` **and** an accessibility
    suppression scope — no hitbox, nothing published (`DN-N` extended to the
-   preview; a look, not a control). The `Deferred`'s 0×0 placeholder is
-   consumed by the wrapper and joins no parent: the wrapper hands its parent
-   the content's node alone, and the presentation root is laid out against
-   the window as every presentation is (`LR-CM`).
+   preview; a look, not a control). The `Deferred`'s 0×0 placeholder never
+   joins the parent because the wrapper hands its parent the content's node
+   alone — there is nothing to consume (the placeholder is a bare native leaf
+   with no `LoweredItem`); the presentation root is laid out against the
+   window as every presentation is (`LR-CM`). *(Wording corrected by `DN-Y`
+   item 2: this item first said the placeholder was "consumed by the
+   wrapper", a step that did nothing.)* The no-hitbox and no-accessibility
+   halves are pinned by 2.11b and 2.11c (`DN-Y` item 1).
 4. **A move during a session now calls `setNeedsRedraw()`** so the preview
    follows the pointer. **Not separately pinned**: 2.10's `needsRedraw`
    expectation passed against lane 2's red stub, so something on the pointer
@@ -911,3 +916,78 @@ clean after each; 2023 tests each run):
 the injected starter still pins MetalUI's half and N3 stays the real check.
 Item 3: a caller who expects the preview's controls to respond gets nothing —
 the preview is a picture.
+
+## DN-Y — lane 2's review round: the preview's two isolation halves pinned; a clip inside the source is kept; the placeholder's no-op consume deleted; counts re-reconciled
+
+**Findings (review round, measured).**
+
+1. **`DN-X` item 3's isolation was unpinned.** Removing
+   `pass.allowsHitTesting(false)` around the custom preview's prepaint (V1),
+   or the accessibility suppression inside it (V2), left the whole suite
+   green: 2.11's preview (a bare `Rectangle` and a counter) registers no
+   hitbox and publishes no node, so it could not see either. V1 is not
+   equivalent — a clickable preview registers an opaque hitbox on the
+   presentation's layer, and because the preview sits under the pointer
+   (pointer less the press offset) `dropTarget` (`DN-F`) reads it as covering
+   the destination and the drop is lost. Two tests now pin the halves:
+   **2.11b** `aClickableCustomPreviewNeverCoversTheDestination` (a preview
+   holding an `onClick` `Box`, released with the pointer inside it over a
+   well: no hitbox with an `onClick` exists during the drag, and the drop
+   lands) and **2.11c** `aCustomPreviewPublishesNothingToAccessibility` (with
+   a client active, a preview holding `Text("PREVIEW")` leaves the published
+   tree's labels/values and node count equal to the no-drag tree's; control:
+   the source's own `Text("SOURCE")` publishes).
+2. **The custom preview's "placeholder consumed" step did nothing.**
+   `Deferred`'s placeholder is a bare `requestNativeLeaf` with no
+   `LoweredItem` (`Deferred.swift`), so `frame.lowering.consume(node)`
+   returned nil; replacing the loop with `_ = nodes` (V10) left the suite
+   green. The loop is deleted and `layOutPreview`'s comment, like `DN-X` item
+   3, now says what keeps the placeholder out: the wrapper hands on only the
+   content's node.
+3. **The default preview now keeps a clip pushed inside the source.**
+   `paintDragPreview` used to clear every primitive's `innerMask` and mask all
+   of them to the snapshot's union with square corners, so a draggable whose
+   own content is clipped (a `.clip(cornerRadius:)` over overflowing content,
+   a `ScrollView`/`List` viewport, a clipped `Box`) replayed content its
+   source never showed, square. A primitive captured with `innerMask == true`
+   (its clip pushed inside the capture scope, `depth > entryClipDepth`, as
+   the transition ghost machinery records it) now keeps its own mask and
+   radii, moved by `TransitionEffect.apply` exactly as a ghost's are; every
+   other primitive keeps the union mask, so `DN-J`'s "a source half-clipped
+   by a scroller shows whole" still holds for the source's own paint. Pinned
+   by **2.12b** `aClipInsideTheSourceIsKeptInTheReplay` (a 200 × 200 fill
+   framed to 100 × 100 and clipped at radius 10: the copy's mask is the
+   source's own, translated, radius 10), red before the fix. **Remainder,
+   kept, MetalUI's own choice (no SwiftUI claim):** an inner mask is the
+   intersection of every clip on the stack at capture (`Frame.intersect`), so
+   inner-clipped content of a source that a scroller half-hides replays cut
+   where the scroller cut it, while the source's un-clipped paint shows
+   whole. Separating the source's own clips from the ones around it would
+   need a second clip stack relative to the capture scope; the case (a
+   half-scrolled source with its own inner clip) is the human check's to see,
+   and costs a partly-cut preview, never content the source did not show.
+4. **Counts, re-reconciled.** `DN-T` item 3 and spec §6.6 gave 1976 → 2023
+   (lane 1 +30, lane 2 +15, lane 3 +2), but lane 1's review round
+   (`c6eca99`, `DN-W`) added 2 and this round adds 3 (2.11b, 2.11c, 2.12b).
+   Measured: **2026 tests in 3 suites** at this round's head (0 removed). The
+   expected final root count is **2028** (lane 1 +30 +2, lane 2 +15 +3, lane
+   3 +2); lane 3 and the Record phase re-take it rather than reuse a figure
+   from here. Guards are unmoved by this round (no new guard).
+
+**Mutation table** (committed tree `9ae15d3`, each restored from a copy, full
+unfiltered suite, `git status --short` clean after each; 2026 tests each
+run):
+
+| mutation | spelling | reddened (issues) |
+|---|---|---|
+| V1 | `pass.allowsHitTesting(false) { … }` around the preview's prepaint replaced by a plain `do { … }` | `aClickableCustomPreviewNeverCoversTheDestination` (2) |
+| V2 | `pass.frame.withAccessibilitySuppressed(except: nil) { … }` around the preview's prepaint replaced by a plain `do { … }` | `aCustomPreviewPublishesNothingToAccessibility` (3) |
+| V11 | `paintDragPreview` back to `effect.apply(to: primitive.withInnerMask(false))` (every primitive masked to the union, the pre-round shape) | `aClipInsideTheSourceIsKeptInTheReplay` (2) |
+
+V10 (the consume loop replaced by `_ = nodes`) has no site left: the loop is
+deleted (item 2).
+
+**Cost if wrong.** Item 3: a source whose inner clip is wider than what a
+caller expects to see replays what it painted; the remainder above cuts a
+half-scrolled source's inner content — a look, never a lost drop.
+
