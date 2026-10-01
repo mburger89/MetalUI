@@ -266,7 +266,7 @@ restored and `git status --short` clean:
 | M3g (re-run) | as above | the same four |
 
 **The guards**: each new guard (G1.1–G1.3, G2.1) was mutated red once by its
-lane (`MG2.1` above is lane 2's; lane 1's guard mutations are not carried in any document the Record phase had, like the rest of its table).
+lane (`MG2.1` above is lane 2's; lane 1's guard mutations are not carried in any document the Record phase had, like the rest of its table). **The branch check re-ran lane 1's three, as each guard's own doc comment spells them** (§11): MG1.1, MG1.2 and MG1.3 each redden exactly their own guard.
 
 ## §6 Green mutations and pins that prove less than they look
 
@@ -387,12 +387,15 @@ lane (`MG2.1` above is lane 2's; lane 1's guard mutations are not carried in any
 - **Divergences**: **100–102 added**, none retired — live **66 → 69**, next
   label **103** (record §04's 2026-10-01 drag-and-drop section). "Not
   offered" gains three rows in `docs/divergences.md`.
-- **No migration note**: nothing broke — `.draggable`/`.dropDestination` are
-  new spellings, `PlatformWindow.beginExternalDrag` is a new defaultless
-  requirement (an **outside** `PlatformWindow` conformer fails to compile
-  until it adds the member, pinned by G1.3; both in-repo conformers and the
-  fakes have it), and no id path, retention rule or existing hit test moved
-  (1.26, 1.28 count it).
+- **One migration row, no behaviour change**: `.draggable`/`.dropDestination`
+  are new spellings and no id path, retention rule or existing hit test moved
+  (1.26, 1.28 count it); the one source break is
+  `PlatformWindow.beginExternalDrag`, a new defaultless requirement — an
+  **outside** `PlatformWindow` conformer fails to compile until it adds the
+  member (pinned by G1.3; both in-repo conformers and the fakes have it), and
+  `docs/migration.md`'s `PlatformWindow`-conformer row names it. (This bullet
+  read "No migration note: nothing broke" until the branch check, §11, which
+  contradicted that migration row.)
 
 ## §10 Deferrals, with owners
 
@@ -405,3 +408,71 @@ lane (`MG2.1` above is lane 2's; lane 1's guard mutations are not carried in any
 | a source half-hidden by a scroller with its own inner clip replays cut where the scroller cut (`DN-Y` item 3's remainder) | none — MetalUI's own choice, the human check's to see (N1) |
 | the explicit `SDL_SetEventEnabled(DROP_*)` calls have no pin | none (`DN-Z` item 1) |
 | lane 1's full M1a–M1ae result lines are not in any document | none — only the four verifier mutations and `DN-V`'s spelling changes are recorded (§5) |
+
+## §11 The adversarial branch check (2026-10-01)
+
+Re-taken independently on `feat/drag-and-drop` at `113e503`, worktree clean.
+
+- **Suite**: after `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, the one native deprecation `warning:`) then
+  unfiltered `swift test --build-system native --no-parallel`: `Test run with
+  2028 tests in 3 suites passed after 107.245 seconds`; the `FR-J no-argument
+  frame: succeeded=true` line present. `swift build --build-tests` under the
+  default build system: 0 `error:`, 0 `warning:`. Named greens in that run:
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theDemoFrameMatchesTheValuesRecordedOnMacOS` (`Expected.swift` unedited
+  against `053a3b3`), `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `noConformerEmitsAnAXNodeItDidNotDeclare`,
+  `aDeferredPresentationsPressDoesNotJoinItsDeclarersArena`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyNamingSiteStartsAReturningNameFresh`.
+- **Counts**: goldens 0; raw `grep -c canTypecheck` over `Tests` 128 here, 124
+  at `053a3b3` (both counting `Typecheck.swift`'s declaration and the two
+  comment hits), so guards 121 → **125**. `cmp CLAUDE.md AGENTS.md`
+  identical. Every `DN-` id cited in a changed file resolves to a `## DN-`
+  heading except `DN-3` (the typo rule) and `DN-AA` (the next-unused line);
+  every backticked test-like identifier in the changed docs resolves in the
+  sources, bar `accessibilityDragSourceDescriptors` (an AppKit API name, not
+  a test).
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=.accesskit`), re-run on macOS:
+  `ReplayFixtureTests` 22, `MetalUISDLTests` **41**, passed. **No Linux
+  container was re-run**: Docker was not reachable from this session; the
+  199 + 22 + 14 and 22 + 39 figures in §9 stay the lanes' readings.
+- **Offscreen demo comparison** (`docs/probes/demo-pixels/compare.sh`,
+  `053a3b3` → `113e503`): every control non-zero where it must be, **0
+  differing in all fourteen images, scenes identical**. **Lock probe**:
+  `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — the real-window
+  capture was not run.
+- **Two central mutations of the checker's own design**, each from a clean
+  commit, restored from a copy, full unfiltered suite, `git status --short`
+  empty after:
+
+  | id | mutation | reddened |
+  |---|---|---|
+  | BC1 | `DragSession.swift` `dropTarget(at:items:)`: the presentation-cover clause disabled (`…layer > region.layer, false`) — `DN-F` item 4 | `aPresentationAboveADestinationBlocksADropBeneathIt` (1 issue) |
+  | BC2 | `Gesture.swift` `yieldsToDraggable`: `.click` answers `false`, so an undecided click holds a draggable off — `DN-D` item 2 | `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`, `aDraggableRowsClickStillSelectsAndItsDragDoesNot`, `escapeCancelsADragWithNoDropAndNoClick`, `everyDraggableStyledSiteCapturesItsPreview` (6 issues) |
+
+- **Lane 1's guard mutations, re-run** (the record had none, §5), each as its
+  guard's doc comment spells it, same protocol:
+
+  | id | mutation | reddened |
+  |---|---|---|
+  | MG1.1 | `public extension StyledElement { func onDrag(_ body: () -> Void) -> Self }` | `theDragAndDropSpellingsCompileFromAPlainImport` |
+  | MG1.2 | a `public extension Transferable` defaulting all four members | `anOutsideTypeCanConformToTransferable` |
+  | MG1.3 | a `public extension PlatformWindow` default for `beginExternalDrag` answering `false` | `aPlatformWindowWithoutBeginExternalDragDoesNotCompile` |
+
+- **Read, not mutated**: with no draggable in a tree, `gestureArenaKey`
+  returns `(topmostOpaqueHitbox, nil)` and `GestureArena.init` builds the
+  same member list as before; `Handlers.isPointerTarget` differs from
+  `053a3b3` only for a gesture list holding a draggable; hover still resolves
+  through `topmostOpaqueHitbox` alone, so the new non-opaque regions move no
+  hover; the two new hitbox regions are registered only by an element
+  carrying a draggable or destination
+  (`aFrameWithoutADragOrDestinationAddsNoHitbox`). The pre-existing gesture,
+  selection, focus, accessibility and animation suites are green unedited.
+- **One doc defect fixed**: §9's "No migration note: nothing broke" bullet
+  contradicted `docs/migration.md`'s new `beginExternalDrag` row (above).
+- **No code defect found.** No plan box is touched (this is not a plan task);
+  `docs/verification/human-checks.md` group N (N1–N8) carries the looks.
+
