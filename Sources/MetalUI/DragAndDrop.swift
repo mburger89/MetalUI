@@ -121,8 +121,9 @@ extension StyledElement {
     ///
     /// Appends to `Handlers.gestures` and returns `Self`, so no id moves (`DN-P`).
     public func draggable<T: Transferable>(_ payload: @autoclosure @escaping () -> T) -> Self {
-        _ = DragSource(payload)
-        return self   // RED-FIRST STUB
+        var copy = self
+        copy.handlers.gestures.append(GestureAttachment(draggable: DragSource(payload)))
+        return copy
     }
 
     /// Makes this element a drop destination for `T` — SwiftUI's
@@ -144,8 +145,9 @@ extension StyledElement {
         for payloadType: T.Type = T.self,
         action: @escaping @MainActor (_ items: [T], _ location: Point<Pixels>) -> Bool,
         isTargeted: @escaping @MainActor (Bool) -> Void = { _ in }) -> Self {
-        _ = DropDestinationTarget(T.self, action: action, isTargeted: isTargeted)
-        return self   // RED-FIRST STUB
+        var copy = self
+        copy.handlers.dropDestination = DropDestinationTarget(T.self, action: action, isTargeted: isTargeted)
+        return copy
     }
 }
 
@@ -177,10 +179,11 @@ public struct DraggableModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let handlers = Handlers()
-        _ = attachment   // RED-FIRST STUB: registers nothing
-        if false { pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false) }
+        var handlers = Handlers()
+        handlers.gestures = [attachment]
+        // As `GestureModifier`: synthesizes no accessibility node (`DN-N`).
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                              synthesizesAccessibility: false)
         return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
@@ -217,10 +220,10 @@ public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let handlers = Handlers()
-        _ = target   // RED-FIRST STUB: registers nothing
-        if false { pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false) }
+        var handlers = Handlers()
+        handlers.dropDestination = target
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                              synthesizesAccessibility: false)
         return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 

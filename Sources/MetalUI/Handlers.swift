@@ -329,8 +329,14 @@ public struct Handlers {
     /// `DD-Y`, an opaque hitbox inside a `ScrollView` no longer blocks its
     /// wheel; it still blocks a click, hover and a scroller it merely overlays.)
     var isPointerTarget: Bool {
-        onClick != nil || !gestures.isEmpty || textInput != nil || valueTrack != nil
+        onClick != nil || gestures.contains { !$0.isDraggable } || textInput != nil || valueTrack != nil
     }
+
+    /// Whether a `.draggable` is attached (ruling `DN-E`). Not a pointer target
+    /// by itself: an element whose only pointer ask is a draggable registers a
+    /// **non-opaque** hitbox, so it blocks no click, hover or wheel that reached
+    /// what lies under it (`DN-E` item 1).
+    var hasDraggable: Bool { gestures.contains { $0.isDraggable } }
 
     /// Whether this element has anything to say about the **keyboard** — the
     /// focus-registry gate (`FocusRegistry.register(_:id:)`).

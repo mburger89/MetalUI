@@ -51,21 +51,19 @@ private let stamp = 10.0
 private let left = rect(0, 0, 200, 200)
 private let right = rect(200, 0, 200, 200)
 
-/// Every window `dndWindow` built, kept alive for the process. **A `Window` is
-/// held only weakly by its platform window** (`onInput` captures `[weak self]`),
-/// so a test that keeps the fake alone — `let (_, platform) = …` — would drive a
-/// deallocated window and see every event answered `false`.
-@MainActor
-private var liveDnDWindows: [Window] = []
-
-/// A 400 × 200 window over `content`, one frame drawn.
+/// A 400 × 200 window over `content`, one frame drawn. **A `Window` is held
+/// only weakly by its platform window** (`onInput` captures `[weak self]`), so a
+/// caller that keeps only the fake extends the window's lifetime to its scope
+/// (`defer { withExtendedLifetime(…) }`) — else every event is answered
+/// `false` by nobody. Never in a global: a live dirty window is what
+/// `withAnimation` asks about (`Window.redrawRequestCount`), so a leaked one
+/// changes other tests' answers (measured: `aDisablingTransactionReachesExactlyOneBuildAndRollsBack`).
 @MainActor
 private func dndWindow<Root: Element>(_ content: @escaping @MainActor () -> Root) throws
     -> (Window, FakePlatformWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true,
                                                 content: content)
-    liveDnDWindows.append(window)
     platform.simulateResize(to: Size(width: px(400), height: px(200)))
     window.drawFrameIfNeeded()
     return (window, platform)
@@ -239,12 +237,13 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
     // ended before the move, and an ended member ahead holds the drag off.
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow {
+        let (keptWindow, platform) = try dndWindow {
             Row {
                 square().onLongPressGesture(minimumDuration: 0.3) { log.entries.append("long") }.draggable("s")
                 stringWell(log)
             }
         }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         platform.simulateInput(down(100, 100))
         platform.simulateTick(timestamp: stamp)
         platform.simulateTick(timestamp: stamp + 0.35)
@@ -296,7 +295,8 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
     ]
     for (name, source) in winners {
         let log = DLog()
-        let (_, platform) = try dndWindow { Row { source(log); stringWell(log) } }
+        let (keptWindow, platform) = try dndWindow { Row { source(log); stringWell(log) } }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(120, 100), pt(300, 100)])
         #expect(log.entries == ["chg", "end"], "\(name): the drag gesture wins, nothing drops")
     }
@@ -309,7 +309,8 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
     ]
     for (name, source) in losers {
         let log = DLog()
-        let (_, platform) = try dndWindow { Row { source(log); stringWell(log) } }
+        let (keptWindow, platform) = try dndWindow { Row { source(log); stringWell(log) } }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(120, 100), pt(300, 100)])
         #expect(log.entries == ["T=true", "T=false", "drop([\"s\"])"], "\(name): the draggable wins")
     }
@@ -321,7 +322,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
 @MainActor
 @Test func aSimultaneousDragGestureChangesForTheStartingMoveAndNeverEnds() throws {
     let log = DLog()
-    let (_, platform) = try dndWindow {
+    let (keptWindow, platform) = try dndWindow {
         Row {
             square().simultaneousGesture(DragGesture(minimumDistance: 1)
                 .onChanged { _ in log.entries.append("chg") }
@@ -329,6 +330,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
             stringWell(log)
         }
     }
+    defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
     dragAndDrop(platform, from: pt(100, 100), through: [pt(105, 100), pt(150, 100), pt(300, 100)])
     #expect(log.entries == ["chg", "T=true", "T=false", "drop([\"s\"])"], "P2e: one change, the drop, no end")
 }
@@ -455,7 +457,8 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
     ]
     for (name, cover) in covers {
         let log = DLog()
-        let (_, platform) = try dndWindow { Row { square().draggable("s"); Stack { stringWell(log); cover(log) } } }
+        let (keptWindow, platform) = try dndWindow { Row { square().draggable("s"); Stack { stringWell(log); cover(log) } } }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(300, 100)])
         #expect(log.entries == ["T=true", "T=false", "drop([\"s\"])"], "P15: \(name) over a destination does not block it")
     }
@@ -470,7 +473,7 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
 @Test func aDestinationThatRefusesTheTypeTargetsNothing() throws {
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow {
+        let (keptWindow, platform) = try dndWindow {
             Row {
                 square().draggable("s")
                 Column {
@@ -484,14 +487,16 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
                 }, isTargeted: { log.entries.append("oT=\($0)") })
             }
         }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(350, 150), pt(250, 50)])
         #expect(log.entries == ["oT=true", "oT=false"], "P13c: the refusing inner targets nothing and drops nowhere")
     }
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow {
+        let (keptWindow, platform) = try dndWindow {
             Row { square().draggable(URL(string: "https://example.com")!); stringWell(log) }
         }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(300, 100)])
         #expect(log.entries == [], "P16: a URL never targets a String destination")
     }
@@ -505,7 +510,7 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
 @Test func isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction() throws {
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow {
+        let (keptWindow, platform) = try dndWindow {
             Row {
                 square().draggable("s")
                 Column {
@@ -518,12 +523,14 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
                 }
             }
         }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(300, 50), pt(300, 150)])
         #expect(log.entries == ["AT=true", "AT=false", "BT=true", "BT=false", "B([\"s\"])"], "P14")
     }
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow { Row { square().draggable("s"); stringWell(log) } }
+        let (keptWindow, platform) = try dndWindow { Row { square().draggable("s"); stringWell(log) } }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100),
                     through: [pt(110, 100), pt(300, 100), pt(100, 100), pt(300, 100), pt(300, 100), pt(301, 100)])
         #expect(log.entries == ["T=true", "T=false", "T=true", "T=false", "drop([\"s\"])"],
@@ -640,12 +647,13 @@ private struct EscapeFixture: Action {}
     }
     do {
         let log = DLog()
-        let (_, platform) = try dndWindow {
+        let (keptWindow, platform) = try dndWindow {
             Row {
                 square().draggable("s")
                 Stack { stringWell(log); square().onClick { log.entries.append("scrim") } }
             }
         }
+        defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
         dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(300, 100)])
         #expect(log.entries == ["T=true", "T=false", "drop([\"s\"])"], "a cover on the same layer does not")
     }
@@ -742,13 +750,14 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
 @Test func anExternalDropWithUnknownTypesTargetsOptimistically() throws {
     let log = DLog()
     let loads = LoadLog()
-    let (_, platform) = try dndWindow {
+    let (keptWindow, platform) = try dndWindow {
         Row {
             square()
             square().dropDestination(for: URL.self, action: { _, _ in log.entries.append("drop"); return true },
                                      isTargeted: { log.entries.append("T=\($0)") })
         }
     }
+    defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
     #expect(platform.simulateDrop(.entered(position: pt(300, 100), items: nil)), "unknown items: optimistic")
     #expect(log.entries == ["T=true"])
     let text = item([utf8], bytes: ["public.utf8-plain-text": Array("https://example.com".utf8)], log: loads)
@@ -876,12 +885,13 @@ private struct Spy: Transferable {
     final class Got { var sizes: [Int] = [] }
     let got = Got()
     let loads = LoadLog()
-    let (_, platform) = try dndWindow {
+    let (keptWindow, platform) = try dndWindow {
         Row {
             square().draggable("hello")
             square().dropDestination(for: Data.self) { items, _ in got.sizes += items.map(\.count); return true }
         }
     }
+    defer { withExtendedLifetime(keptWindow) {} }   // a Window is held only weakly by its platform
     dragAndDrop(platform, from: pt(100, 100), through: [pt(110, 100), pt(300, 100)])
     #expect(got.sizes == [5], "R3g, P16b: the String arrives as its 5 bytes")
     let image = item([png], bytes: ["public.png": [1, 2]], log: loads)
@@ -889,12 +899,13 @@ private struct Spy: Transferable {
     #expect(got.sizes == [5, 2], "an external png reaches it as 2 bytes")
 
     Spy.told = []
-    let (_, spyPlatform) = try dndWindow {
+    let (keptSpyPlatform, spyPlatform) = try dndWindow {
         Row {
             square().draggable("hello")
             square().dropDestination(for: Spy.self) { _, _ in true }
         }
     }
+    defer { withExtendedLifetime(keptSpyPlatform) {} }   // a Window is held only weakly by its platform
     dragAndDrop(spyPlatform, from: pt(100, 100), through: [pt(110, 100), pt(300, 100)])
     spyPlatform.simulateDrop(.performed(position: pt(300, 100), items: [image]))
     #expect(Spy.told == ["public.data", "public.data"], "DN-S item 2: told the destination's type: \(Spy.told)")

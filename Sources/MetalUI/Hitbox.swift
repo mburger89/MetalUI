@@ -195,8 +195,19 @@ final class ContentShape {
 /// Half-open on the max edges, because `Bounds.contains` is: two hitboxes
 /// sharing an edge cannot both claim it.
 func topmostOpaqueHitbox(in hitboxes: [Hitbox], at point: Point<Pixels>) -> Int? {
+    topmostHitbox(in: hitboxes, at: point, where: \.opaque)
+}
+
+/// The topmost hitbox containing `point` among those `eligible` admits — the
+/// one `(layer, registration index)` ranking, with the eligibility as a
+/// parameter (drag and drop, ruling `DN-F` item 1). ``topmostOpaqueHitbox(in:at:)``
+/// is this with the opaque filter; a drop target is this with "carries a drop
+/// destination"; the arena's draggable member is this with "carries a
+/// draggable". **The ordering exists here and nowhere else** — the rule above,
+/// unchanged, so do not add a second copy of it for a new eligibility.
+func topmostHitbox(in hitboxes: [Hitbox], at point: Point<Pixels>, where eligible: (Hitbox) -> Bool) -> Int? {
     hitboxes.enumerated()
-        .filter { $0.element.contains(point) && $0.element.opaque }
+        .filter { $0.element.contains(point) && eligible($0.element) }
         .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
         .map(\.offset)
 }

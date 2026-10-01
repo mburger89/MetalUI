@@ -1267,6 +1267,28 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: true, handlers: handlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
+        // Drag and drop (rulings `DN-E`, `DN-F`, `DN-G`): two NON-opaque
+        // regions, each inside the one disabled gate. A draggable on a pointer
+        // target already rides the opaque hitbox above; one whose element asks
+        // for nothing else gets its own region, carrying its handlers so the
+        // arena finds it by identity — gated by `allowsHitTesting(false)` like
+        // any pointer ask (`DN-E` item 3). A destination's region carries only
+        // the drop handler, at the element's own bounds (no content shape), and
+        // sits OUTSIDE the `allowsHitTesting` gate, as a scroll region does
+        // (`DN-F` item 3, `P15e`) — but not outside `hidden()`
+        // (`keyboardHiddenDepth`, `R5d`). Neither is registered by a frame with
+        // no draggable or destination, so every other tree's hitbox list is
+        // unchanged (pinned by `aFrameWithoutADragOrDestinationAddsNoHitbox`).
+        if enabled, hitTestingDisabledDepth == 0, !handlers.isPointerTarget, handlers.hasDraggable {
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: handlers, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+        }
+        if enabled, keyboardHiddenDepth == 0, let destination = handlers.dropDestination {
+            var only = Handlers()
+            only.dropDestination = destination
+            _ = insertHitbox(bounds, id: id, opaque: false, handlers: only, origin: bounds.origin)
+        }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
         // `Text.prepaint` — which call this and nothing else — dropped a

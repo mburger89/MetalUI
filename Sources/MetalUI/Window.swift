@@ -355,7 +355,7 @@ public final class Window {
     /// interactive element, then off the window entirely, and check whether
     /// the element still reads as hovered. Expected today: yes, until the next
     /// in-window mouse event.
-    private var lastMousePosition: Point<Pixels>?
+    private(set) var lastMousePosition: Point<Pixels>?
 
     /// The element holding "active" state — the hitbox that received
     /// `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
@@ -650,6 +650,21 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
+            // outside answers for itself — "an accepting destination is under
+            // the pointer" or "a destination took it", not "claimed" — and an
+            // open in-window session takes its pointer events and Escape
+            // FIRST, ahead of scrolling, text input, the arena and the keymap.
+            // A press never opens one here: the arena does, on a move.
+            if case .drop(let drop) = event {
+                let answer = self.dispatchExternalDrop(drop)
+                self.setNeedsRedraw()
+                return answer
+            }
+            if self.dispatchDragSession(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Scroll routing runs before the window's general `onInput`, and
             // claims the event outright when it hits a region — there is no
             // scroll chaining (see `applyScroll`'s doc comment), so a claimed
@@ -1546,6 +1561,20 @@ public final class Window {
     /// its next press.
     private var gestureArena: GestureArena?
 
+    /// The open in-window drag (ruling `DN-H`), or `nil`. On `Window`, never
+    /// in `StateTable` (`DN-H` item 6), so no id path or reserved slot moves.
+    var dragSession: DragSession?
+
+    /// The destination currently targeted — by the in-window session or by a
+    /// drag from outside — whose `isTargeted(true)` has run and whose `false`
+    /// is owed (`DN-H` item 1).
+    var dropTarget: DropTargetState?
+
+    /// A drag from outside the window in progress (ruling `DN-C`): the items
+    /// it offered on entering — `.some(nil)` when the platform cannot know
+    /// them until the drop (SDL, `DN-M`) — or `nil` when none is in progress.
+    var externalDropItems: [DropItem]??
+
     /// Feeds a pointer event to the gesture arena and runs what it decided;
     /// returns whether a `mouseUp` ran a callback (`IX-D` item 6 — a press or a
     /// drag is never claimed, so `Window.onInput` still sees them as before).
@@ -1564,9 +1593,11 @@ public final class Window {
         switch event {
         case .mouseDown(let mouse):
             var callbacks: [GestureCallback] = []
-            let target = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position)
+            let key = gestureArenaKey(at: mouse.position)
             if var arena = gestureArena, arena.isAlive {
-                if let target, lastHitboxes[target].id == arena.targetID {
+                // The no-target arena keys on its draggable region (`DN-U`
+                // item 5), so a continuing press compares against the same.
+                if let key, lastHitboxes[key.target].id == arena.targetID {
                     callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true)
                     gestureArena = arena
                     runGestureCallbacks(callbacks)
@@ -1575,7 +1606,7 @@ public final class Window {
                 callbacks = arena.abandon()
             }
             gestureArena = nil
-            if let target, var arena = makeGestureArena(target: target, at: mouse.position) {
+            if let key, var arena = makeGestureArena(key, at: mouse.position) {
                 callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false)
                 gestureArena = arena
             }
@@ -1601,6 +1632,25 @@ public final class Window {
         }
     }
 
+    /// Ends the press's pointer bookkeeping when a drag begins or is handed
+    /// to the platform (ruling `DN-D` item 7, `DN-K` item 1): the arena is
+    /// dropped (every member already failed or ended) and `active` cleared, so
+    /// nothing draws pressed and the release is not a click. Here, beside the
+    /// two `private` stores it clears, rather than widening their access for
+    /// `DragSession.swift`.
+    func endPressForDrag() {
+        gestureArena = nil
+        active = nil
+    }
+
+    /// The window's content size, for "the drag left the window" (`DN-K`).
+    var contentSizeForDrag: Size<Pixels> { platformWindow.contentSize }
+
+    /// Offers a drag leaving the window to the platform (`DN-K` item 1).
+    func offerExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
+        platformWindow.beginExternalDrag(representations, at: position)
+    }
+
     /// The arena for a press on `lastHitboxes[target]`, or `nil` when neither
     /// it nor a containing ancestor carries a gesture.
     ///
@@ -1611,8 +1661,9 @@ public final class Window {
     /// S1/S2, V1/V2) — so a declarer's high-priority gesture cannot take a
     /// modal's click, nor its simultaneous one run beside it. Pinned by
     /// `aDeferredPresentationsPressDoesNotJoinItsDeclarersArena`.
-    private func makeGestureArena(target: Int, at point: Point<Pixels>) -> GestureArena? {
-        let hit = lastHitboxes[target]
+    private func makeGestureArena(_ key: (target: Int, draggableAbove: Int?),
+                                  at point: Point<Pixels>) -> GestureArena? {
+        let hit = lastHitboxes[key.target]
         var ancestors: [(hitbox: Hitbox, depth: Int)] = []
         var depth = 1
         var cursor = hit.id.parent
@@ -1625,7 +1676,27 @@ public final class Window {
             depth += 1
             cursor = id.parent
         }
-        return GestureArena(target: hit, ancestors: ancestors)
+        return GestureArena(target: hit, ancestors: ancestors,
+                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] })
+    }
+
+    /// Who forms the arena for a press at `point` (drag and drop, ruling
+    /// `DN-E` item 2), from the one ranking: the target is still
+    /// `topmostOpaqueHitbox`'s answer, and the topmost NON-opaque draggable
+    /// region ranking above it — a later `(layer, index)` — joins as the
+    /// innermost member. With no opaque hitbox at the point, the topmost
+    /// draggable region is the target itself, and the arena keys on it
+    /// (`DN-U` item 5). `nil` when neither exists.
+    private func gestureArenaKey(at point: Point<Pixels>) -> (target: Int, draggableAbove: Int?)? {
+        let draggable = topmostHitbox(in: lastHitboxes, at: point,
+                                      where: { !$0.opaque && $0.handlers.hasDraggable })
+        guard let target = topmostOpaqueHitbox(in: lastHitboxes, at: point) else {
+            return draggable.map { ($0, nil) }
+        }
+        let above = draggable.flatMap { region -> Int? in
+            (lastHitboxes[region].layer, region) > (lastHitboxes[target].layer, target) ? region : nil
+        }
+        return (target, above)
     }
 
     /// Advances the arena's timers to a display-link tick and runs what
@@ -1647,6 +1718,8 @@ public final class Window {
                 runClick(handler, on: owner, modifiers: modifiers)
             case .gesture(let owner, let run):
                 StateDispatch.dispatching(to: owner) { run() }
+            case .beginDrag(let owner, let source, let point):
+                beginDragSession(from: owner, source: source, pressedAt: point)
             }
         }
     }

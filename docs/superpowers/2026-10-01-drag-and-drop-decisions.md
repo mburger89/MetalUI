@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-V`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-W`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -699,3 +699,74 @@ on a destination region). Rejections are recorded here as `DN-` rulings, not
 `LR-` ones: `LR-` is the engine-replacement prefix, and this feature's
 decisions doc is the only ruling file it may write before the Record phase.
 
+
+---
+
+## DN-V — lane 1's corrections: the no-target arena, three mutation spellings, the resolver's eligibility, the harness's window lifetime
+
+**Findings (lane 1, measured).**
+
+1. **`DN-U` item 5's scenario is unreachable as written.** Any gesture other
+   than a draggable — a tap included — makes its element a pointer target
+   (`DN-E` item 1: `Handlers.isPointerTarget` counts every gesture but a
+   draggable), so the element registers an **opaque** hitbox and the arena
+   has an opaque target. An arena with no opaque target therefore holds only
+   draggables, and every draggable fails at the first release, so the arena
+   is never alive at a second press: the "continuing" path cannot arise with
+   no opaque target. 1.7's seventh arm (`.draggable` + `.onTapGesture(count:
+   2)` on one `Box`) is kept and pins `P21` on an opaque target, where the
+   double tap and the draggable share the element. `Window.gestureArenaKey`
+   still keys a no-target arena on its draggable region, as `DN-U` item 5
+   says, so the rule holds if a later non-opaque gesture ever exists; no
+   tree today reaches it, and no test claims to.
+2. **Three mutation spellings change** (spec §6.2), because the spec's
+   spelling would not discriminate or would not compile:
+   - **M1g′** ("let a draggable pass an ended member") is **two sites**: the
+     `ended` clause of `isBlocked`'s draggable branch **and** an exemption
+     for draggable leaves in `cancelBehindEndedMembers` — the second alone
+     enforces the ended-member rule (the draggable is cancelled at the tick
+     the long press ends, before any move reaches `isBlocked`), so the first
+     alone reddens nothing.
+   - **M1i** ("let simultaneous members keep receiving after the drag
+     begins") is unreachable: the session claims every pointer event after
+     the begin and the arena is dropped (`DN-D` item 7), so nothing could
+     feed them. Spelled instead as "an activated simultaneous `DragGesture`
+     is **ended** (its `onEnded` runs) when the drag begins, instead of
+     failed" — 1.9's "no end" arm.
+   - **M1ab** ("wrap `StyledElement` in a modifier element") does not
+     compile: the spellings return `Self`. Spelled instead as "register the
+     destination region under a derived child id" — the id path 1.26 pins.
+3. **The resolver reads non-opaque destination regions only.** An element
+   that is also a pointer target registers an opaque hitbox carrying its
+   whole `Handlers` — the destination included — inside the
+   `allowsHitTesting` gate and its content shape; `Window.dropTarget(at:items:)`
+   ranks only `!opaque && dropDestination != nil`, so the destination's own
+   region (`DN-F` item 3) is the one consulted.
+4. **The test harness keeps each window alive for its scope.** A `Window` is
+   held only weakly by its platform window (`onInput` captures `[weak
+   self]`), so a test keeping only the fake drives a deallocated window and
+   every event answers `false`; lane 1's first red run had thirteen such
+   arms, re-taken against the same stub after the fix (record §68). A
+   window must not be kept in a global either: `withAnimation` asks whether
+   any live window is dirty (`Window.anyLiveWindowNeedsRedraw`), and a
+   leaked one reddened `aDisablingTransactionReachesExactlyOneBuildAndRollsBack`
+   (measured).
+5. **Cost, measured** (arm64 debug): `MemoryLayout<Handlers>.size` 448 →
+   **456** (`dropDestination`, one reference, `DN-P`) — a T row of
+   `theNewDeclarationsCostHandlersAtMostOnePointer`, its bound `440 + 8 + 8`,
+   its answer for the seven accessibility declarations unchanged; the
+   smallest thread building every production tree **640 KB at `053a3b3` →
+   656 KB** (16 KB bisection, both re-taken this lane), inside 1 MB.
+6. **A long press behind an undecided draggable ends at the release, not at
+   its duration.** With `.draggable` written *before* `.onLongPressGesture`
+   (the draggable inner, so ahead), the arena's existing rule — an undecided
+   member ahead that is not a smaller tap blocks — holds the long press off
+   while the draggable is undecided; the draggable fails at the release and
+   the long press then ends there. Written the other way round (`DN-U` item
+   1's arm) the long press ends while held and holds the drag off. SwiftUI is
+   unmeasured for both orders (`P2f` moves at once); kept as the arena's
+   unchanged rule rather than a third exception. Not pinned (no arm asserts
+   the inner-draggable long press's timing).
+
+**Cost if wrong.** Item 6: a tree that writes a draggable before a long
+press sees the long press fire on release; the remedy is the other order.
