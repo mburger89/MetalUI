@@ -1116,6 +1116,12 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
+        if let session = dragSession {   // the drag preview (DN-J)
+            frame.dragSourceID = session.sourceID
+            frame.dragPreviewTranslation = session.translation
+            frame.dragPreviewOrigin = session.previewOrigin
+            frame.previousDragSnapshot = session.snapshot
+        }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1134,6 +1140,9 @@ public final class Window {
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
+        if let captured = frame.dragSnapshot, dragSession != nil {
+            dragSession?.snapshot = captured   // kept when the source stops painting (DN-H item 4)
+        }
         editedText = [:]
         updateTextInputArea()
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if

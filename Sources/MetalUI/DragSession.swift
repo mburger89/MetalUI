@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUIPlatform
+import MetalUIPrimitives
 
 // Drag and drop's session, target resolution and import (rulings `DN-C`,
 // `DN-F`, `DN-H`, `DN-I`, `DN-K`). One resolver and one importer serve both an
@@ -23,6 +24,21 @@ struct DragSession {
     /// The source's last painted primitives, before any effect (`DN-J`): kept
     /// when the source stops painting (`DN-H` item 4).
     var snapshot: [CapturedPrimitive] = []
+    /// The source's origin when the drag began, in window points: the press
+    /// point's offset into it stays under the pointer (`DN-J` items 2–3).
+    var sourceOrigin: Point<Pixels>
+
+    /// Where a custom preview's top-left goes: the pointer less the press
+    /// point's offset into the source.
+    var previewOrigin: Point<Pixels> {
+        Point(x: Pixels(pointer.x.value - (pressPoint.x.value - sourceOrigin.x.value)),
+              y: Pixels(pointer.y.value - (pressPoint.y.value - sourceOrigin.y.value)))
+    }
+
+    /// `pointer − pressPoint`: how far the snapshot is replayed from the source.
+    var translation: Point<Pixels> {
+        Point(x: Pixels(pointer.x.value - pressPoint.x.value), y: Pixels(pointer.y.value - pressPoint.y.value))
+    }
 
     /// The payload as the one item a destination imports from (`DN-H` item
     /// 2), its `load` answering from the exported bytes.
@@ -52,8 +68,9 @@ extension Window {
                           pressedAt press: Point<Pixels>) {
         endPressForDrag()
         let pointer = lastMousePosition ?? press
+        let origin = lastHitboxes.last { $0.id == source }?.origin ?? press
         dragSession = DragSession(sourceID: source, representations: payload.export(),
-                                  pressPoint: press, pointer: pointer)
+                                  pressPoint: press, pointer: pointer, sourceOrigin: origin)
         retarget(at: pointer, items: dragSession?.items)
         setNeedsRedraw()
     }
@@ -78,6 +95,7 @@ extension Window {
             }
             dragSession = session
             retarget(at: mouse.position, items: session.items)
+            setNeedsRedraw()   // the preview follows the pointer (`DN-J`)
             return true
         case .mouseUp(let mouse):
             // Never a click (`DN-D` item 7): a release over an accepting
@@ -196,8 +214,94 @@ extension Window {
 
 extension PaintPass {
     /// Runs `body`, capturing what it emits as the drag preview's snapshot
-    /// when `id` is the open session's source (`DN-J` item 1).
+    /// when `id` is the open session's source (`DN-J` item 1): an identity
+    /// `TransitionPaintScope`, so the scene receives exactly what it would
+    /// have, and a source inside a `.transition` group is captured before the
+    /// transition's effect (`DN-U` item 6). A frame without a session never
+    /// pushes one. Called by `paintDecoration` — every `StyledElement` site —
+    /// and by `DraggableModifier.paint` (`DN-X` item 2).
     func capturingDragSnapshot(for id: GlobalElementID, _ body: () -> Void) {
+        guard let source = frame.dragSourceID, source == id else {
+            body()
+            return
+        }
+        let scope = TransitionPaintScope(effect: .identity, entryClipDepth: frame.clipDepth)
+        frame.transitionScopes.append(scope)
         body()
+        frame.transitionScopes.removeLast()
+        // The last scope to close for the source wins: one source painted by
+        // two nested helpers under one id (`Button` over its own `Box`) closes
+        // the outer, the superset, last.
+        frame.noteDragSnapshot(scope.captures)
+    }
+}
+
+extension Frame {
+    /// Records the source's captured paint for this frame (`DN-J` item 1).
+    func noteDragSnapshot(_ captures: [CapturedPrimitive]) {
+        dragSnapshot = captures
+        dragCapturedPrimitives = captures.count
+    }
+
+    /// Replays the drag snapshot after every other paint, ghosts included
+    /// (`DN-J` items 1–2): this frame's capture, else the session's last one
+    /// (`DN-H` item 4), translated by `dragPreviewTranslation`, at alpha × 0.7,
+    /// on a layer above every layer the frame used, each primitive masked to the
+    /// snapshot's own translated bounds (a source half-clipped by a scroller
+    /// shows whole). Nothing without a session.
+    func paintDragPreview() {
+        guard dragSourceID != nil else { return }
+        let snapshot = dragSnapshot ?? previousDragSnapshot
+        guard let first = snapshot.first else { return }
+        var effect = TransitionEffect()
+        effect.alpha = Self.dragPreviewOpacity
+        effect.tx = dragPreviewTranslation.x.value * scaleFactor
+        effect.ty = dragPreviewTranslation.y.value * scaleFactor
+        let union = snapshot.dropFirst().reduce(first.bounds) { $0.union($1.bounds) }
+        let mask = effect.map(union)
+        let layer = (scene.highestLayer ?? 0) + 1
+        for primitive in snapshot {
+            insertIntoScene(effect.apply(to: primitive.withInnerMask(false)).replayed(mask: mask, layer: layer))
+        }
+    }
+
+    /// The preview's opacity — MetalUI's reading of `P18`/`P18b` (`DN-J` item 2).
+    static let dragPreviewOpacity: Float = 0.7
+}
+
+extension CapturedPrimitive {
+    /// The primitive's own bounds, in device pixels.
+    var bounds: MUIBounds {
+        switch self {
+        case .rect(let r, _, _): r.bounds
+        case .glyph(let g, _, _): g.bounds
+        case .image(let i, _, _, _): i.bounds
+        }
+    }
+
+    /// This primitive on `layer`, masked to `mask` with square corners.
+    func replayed(mask: MUIBounds, layer: Int) -> CapturedPrimitive {
+        let square = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+        switch self {
+        case .rect(var r, _, let inner):
+            r.contentMask = mask; r.maskCornerRadii = square
+            return .rect(r, layer: layer, innerMask: inner)
+        case .glyph(var g, _, let inner):
+            g.contentMask = mask; g.maskCornerRadii = square
+            return .glyph(g, layer: layer, innerMask: inner)
+        case .image(var i, let texture, _, let inner):
+            i.contentMask = mask; i.maskCornerRadii = square
+            return .image(i, texture: texture, layer: layer, innerMask: inner)
+        }
+    }
+}
+
+extension MUIBounds {
+    /// The smallest bounds holding both.
+    func union(_ other: MUIBounds) -> MUIBounds {
+        let minX = min(origin.x, other.origin.x), minY = min(origin.y, other.origin.y)
+        let maxX = max(origin.x + size.width, other.origin.x + other.size.width)
+        let maxY = max(origin.y + size.height, other.origin.y + other.size.height)
+        return MUIBounds(origin: MUIPoint(x: minX, y: minY), size: MUISize(width: maxX - minX, height: maxY - minY))
     }
 }

@@ -32,6 +32,7 @@ final class MetalHostView: NSView {
         layer = surface.backingLayer
         wantsLayer = true
         layerContentsRedrawPolicy = .duringViewResize
+        registerForDraggedTypes(AppKitDragAndDrop.registeredTypes)   // DN-L
     }
 
     @available(*, unavailable)
@@ -202,6 +203,7 @@ final class MetalHostView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
                                               modifiers: modifiers(event))))
     }
@@ -618,11 +620,19 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         displayLink = link
     }
 
-    /// Hands a drag leaving the window to AppKit (ruling `DN-K`). Lane 1's
-    /// placeholder: every drag stays in the window until lane 2 starts an
-    /// `NSDraggingSession` here.
+    /// Hands a drag leaving the window to AppKit (ruling `DN-K`): an
+    /// `NSDraggingSession` from the last `mouseDragged` event, one item carrying
+    /// every representation with AppKit's picture of the payload (`DN-K` item
+    /// 2). `false` when no drag event has been seen — there is nothing to start
+    /// a session from. AppKit's session then owns the drag, its release
+    /// included.
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
-        false   // lane 2 replaces
+        guard let event = hostView.lastDragEvent else { return false }
+        let item = AppKitDragAndDrop.draggingItem(
+            for: representations,
+            at: NSPoint(x: CGFloat(position.x.value), y: CGFloat(position.y.value)))
+        startDraggingSession([item], event)
+        return true
     }
 
     /// Starts an `NSDraggingSession` from `event` — the host view's own in

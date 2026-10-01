@@ -2331,10 +2331,10 @@ public final class Frame {
 
     /// What the source painted this frame, captured — `nil` when it did not
     /// paint. `Window` keeps it on the session.
-    private(set) var dragSnapshot: [CapturedPrimitive]?
+    var dragSnapshot: [CapturedPrimitive]?
 
     /// How many primitives this frame captured for a drag preview (2.14).
-    private(set) var dragCapturedPrimitives = 0
+    var dragCapturedPrimitives = 0
 
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales
@@ -2485,6 +2485,7 @@ public final class Frame {
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
         animationStore.transitions.paintGhosts(&paintPass)
+        paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

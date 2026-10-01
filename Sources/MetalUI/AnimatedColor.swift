@@ -426,6 +426,16 @@ func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
 extension PaintPass {
     func paintDecoration(_ decoration: Decoration, in bounds: Bounds<Pixels>,
                          for id: GlobalElementID, content: () -> Void) {
+        // Drag and drop's snapshot (`DN-J`, `DN-X` item 2): one push here, for
+        // every `StyledElement` site — nothing without an open session.
+        capturingDragSnapshot(for: id) {
+            paintDecorationUncaptured(decoration, in: bounds, for: id, content: content)
+        }
+    }
+
+    /// `paintDecoration`'s body, outside the drag-snapshot capture.
+    private func paintDecorationUncaptured(_ decoration: Decoration, in bounds: Bounds<Pixels>,
+                                           for id: GlobalElementID, content: () -> Void) {
         // Both resolutions happen before any emission, so the two chains see the
         // same pointer and focus state even though only one of them touches the
         // state table. `resolving` is a copy for `animatedBackground`'s `inout`

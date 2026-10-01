@@ -189,7 +189,10 @@ public struct DraggableModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        // The proposal source's snapshot (`DN-J` item 1, `DN-X` item 2).
+        pass.capturingDragSnapshot(for: id) {
+            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
     }
 }
 
@@ -291,6 +294,7 @@ public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGr
         var content: Content.GroupLayout
         var slot: DragPreviewSlot<Preview>
         var previewLayout: DragPreviewSlot<Preview>.GroupLayout
+        var previewPrepaint: DragPreviewSlot<Preview>.GroupPrepaint?
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -299,15 +303,29 @@ public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGr
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         precondition(children.count == 1, "a draggable preview modifier requires one child")
         let (slot, previewLayout) = layOutPreview(id, at: &cursor, pass: &pass)
-        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout))
+        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout, previewPrepaint: nil))
     }
 
     /// The preview's slot at `cursor` (1): produced only while this wrapper is
     /// the open session's source.
     func layOutPreview(_ id: GlobalElementID, at cursor: inout Int,
                        pass: inout LayoutPass) -> (DragPreviewSlot<Preview>, DragPreviewSlot<Preview>.GroupLayout) {
+        let frame = pass.frame
         var slot = DragPreviewSlot<Preview>(nil)
-        let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        if frame.dragSourceID == id {
+            let origin = frame.dragPreviewOrigin
+            let box = Box(content: preview)
+                .position(.absolute)
+                .inset(Edges(top: .length(.pixels(origin.y)), right: .auto,
+                             bottom: .auto, left: .length(.pixels(origin.x))))
+                .opacity(Frame.dragPreviewOpacity)
+            slot = DragPreviewSlot(Deferred(content: { box }))
+        }
+        let (nodes, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // The presentation's placeholder joins no parent: this wrapper hands its
+        // parent the content's node alone, so the placeholder is consumed here
+        // (its root is laid out against the window, `LR-CM`).
+        for node in nodes { _ = frame.lowering.consume(node) }
         return (slot, layout)
     }
 
@@ -317,12 +335,30 @@ public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGr
         handlers.gestures = [attachment]
         pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
                               synthesizesAccessibility: false)
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // The preview registers no hitbox and publishes nothing (`DN-J` item 3,
+        // `DN-X` item 3): a look, not a control.
+        var slot = layout.slot
+        var previewLayout = layout.previewLayout
+        var previewPrepaint: DragPreviewSlot<Preview>.GroupPrepaint?
+        pass.allowsHitTesting(false) {
+            pass.frame.withAccessibilitySuppressed(except: nil) {
+                previewPrepaint = slot.prepaintGroup(layout: &previewLayout, pass: &pass)
+            }
+        }
+        layout.slot = slot
+        layout.previewLayout = previewLayout
+        layout.previewPrepaint = previewPrepaint
+        return result
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        if var previewPrepaint = layout.previewPrepaint {
+            layout.slot.paintGroup(layout: &layout.previewLayout, prepaint: &previewPrepaint, pass: &pass)
+            layout.previewPrepaint = previewPrepaint
+        }
     }
 }
 
@@ -335,7 +371,7 @@ extension DraggablePreviewModifier: ProposalElementGroup, ProposalElement
                                                                            pass: &pass)
         precondition(children.count == 1, "a draggable preview modifier requires one native child")
         let (slot, previewLayout) = layOutPreview(id, at: &cursor, pass: &pass)
-        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout))
+        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout, previewPrepaint: nil))
     }
 }
 
