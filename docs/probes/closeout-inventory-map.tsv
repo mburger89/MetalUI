@@ -1,0 +1,304 @@
+# Inventory map for plan task 15, the replacement closeout (ruling CX-A).
+#
+# Two record kinds, tab-separated; lines starting with '#' and blank lines are
+# ignored. Read by docs/probes/closeout-inventory-check.sh against a live run of
+# docs/probes/closeout-public-api.sh (the census).
+#
+#   F <TAB> family <TAB> class <TAB> probe <TAB> arm <TAB> test <TAB> divergences <TAB> rulings <TAB> behaviour
+#   M <TAB> target <TAB> file <TAB> owner-ERE <TAB> name-ERE <TAB> decl-ERE <TAB> family
+#
+# class: A SwiftUI-aligned (probe file + arm id in it + a test that resolves in
+# Tests/), D documented divergence (live labels in docs/divergences.md), M
+# MetalUI-only by design (rulings), X deprecated (the declaration carries
+# @available(*, deprecated …); replacement in `behaviour`). R rows (documented
+# absences) are not census rows; they live in docs/divergences.md and record
+# §66 §1.8. `-` is an empty cell. A family's divergence column lists the
+# labels it carries beside its class.
+#
+# M rows are matched in order; the first row whose target, file (path under
+# Sources/<target>/), owner, name and declaration text all match claims the
+# census row. Target, file, owner and name are EREs anchored as ^(…)$; decl-ERE
+# is searched in the declaration's signature (the line the census points at
+# joined with the following lines up to the one opening its body).
+# Owners are the census's dotted enclosing type ('-' at file scope).
+
+# ---------------------------------------------------------------- families
+F	host	M	-	-	-	-	PB-A RS-A DC-A XP-B	the host: one App, windows driven by a display link, a headless renderFrame; SwiftUI's App/Scene lifecycle is not offered
+F	element-protocols	M	-	-	-	-	SA-G MC-B LR-AA	Element/ElementGroup/StyledElement/ProposalElement/ProposalElementGroup: gpui's three-phase requestLayout/prepaint/paint protocols in place of View
+F	passes	M	-	-	-	-	SA-H EV-L	LayoutPass/PrepaintPass/PaintPass phase objects; isHovered/isActive/isFocused paint-only (PhaseSeparationTests)
+F	kernel-registrars	M	-	-	-	-	SA-A GR-C	LayoutPass's requestNative*/markNativeGrid* registrars: the kernel's primary API for a custom element
+F	builder	A	swiftui-composition-identity.swift	V1	anElementAfterAnAppearingIfKeepsItsOwnState	-	ID-B ID-C ID-D	@ViewBuilder's shapes: one structural slot per if/for, content an evaluated conditional removes is reset on return, if/else/switch in every container
+F	any-element	A	swiftui-composition-identity.swift	S2	stateInsideAnAnyElementPersistsAcrossFrames	-	ID-E	AnyView: @State/@Environment bind inside an AnyElement
+F	explicit-identity	A	swiftui-composition-identity.swift	X9	anIDThatReturnsToAnEarlierNameStartsFresh	72	ID-G ID-R	.id(_:) on every element group; a changed name resets, a departed name starts fresh on return; two same-named siblings share one identity (72)
+F	global-id	M	-	-	-	-	MC-C MC-P C-3	GlobalElementID/PathComponent: the structural identity path value (positional/named components, -1 for an overlay)
+F	component	M	-	-	-	56 73	OM-D LR-BG ID-I ID-K	Component/StyledComponent: layout-transparent, identity-opaque composition; .width/.height frame each member; .frame is one layer over the members (56)
+F	deferred	M	-	-	-	9 10 46	LR-CH AP-I OM-AA	Deferred: a portal hoisting to the root layer; absolute content is a presentation root against the window
+F	handlers	M	-	-	-	-	OM-AI IX-N	Handlers/HitboxID/KeyHandler: handler storage and hitbox ids
+F	state	A	swiftui-closeout.swift	O1	anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite	71	ID-F CX-F DD-D	@State per occurrence, dispatch-resolved; an optional with a non-nil default reads it before its first write (85 retired); a write from outside dispatch reaches the last-bound occurrence (71)
+F	binding	A	swiftui-data-and-scrolling.swift	B5	theOptionalBindingInitialisersMatchSwiftUI	78	DD-D AN-Z	Binding<Value>: SwiftUI's surface (get/set, constant, dynamic member, optional initialisers, animation/transaction), @MainActor (78)
+F	environment	A	swiftui-environment-scoping.swift	A1	theNearestWriterWinsAndAScopeEndsWithItsSubtree	-	EV-A EV-B EV-C EV-D EV-X	@Environment/EnvironmentValues/EnvironmentKey/.environment/.transformEnvironment/.disabled: nearest writer wins, a transform composes, a modifier after a scope is outside it
+F	environment-control	A	swiftui-environment-control-state.swift	S2	aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows	76 77	EV-AA EV-AB EV-AC AN-AD	displayScale/pixelLength, controlActiveState, controlSize, accessibilityReduceMotion: platform-stamped, scope-writable (reduce motion get-only); controlSize reaches only text and Button chrome (76); layout rounds to points (77)
+F	environment-dynamic-type	A	swiftui-environment-scoping.swift	G0	dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority	-	EV-I TE-E	dynamicTypeSize is carried and changes no built-in text size, as SwiftUI on macOS
+F	environment-layout-direction	D	-	-	-	25	EV-K	layoutDirection is carried and readable; no container mirrors (25)
+F	environment-locale	M	-	-	-	-	EV-Y	locale is carried and window-stamped; MetalUI has no formatter or tokenizer that reads it (record §05)
+F	theme	M	-	-	-	-	EV-G EV-H	Theme/ColorToken/.theme: scoped, paint-only theme tokens
+F	focus-state	A	swiftui-interaction.swift	F1	focusDropsWhenItsElementIsRenamedAndDoesNotReturn	94	IX-I IX-J	@FocusState/.focused: read the window's focus, move it from input; focus leaves with its identity; a click does not focus a .focusable() (94)
+F	stacks	A	swiftui-stack-algorithms.swift	G1	aStackServesItsLeastFlexibleChildFirst	51 58 70 89	CN-B CN-C CN-E CN-H CN-I TE-K	HStack/VStack/ZStack/Spacer/alignments/.layoutPriority: SwiftUI's stack algorithms, typed alignment, text baselines
+F	proposal-frame	A	swiftui-frame-semantics.swift	D4	aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum	38	FR-A FR-M CN-F SA-J	ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38)
+F	native-frame-alias	M	-	-	-	-	SA-K	nativeFrame(...): an undeprecated alias of .frame, kept because deprecating it breaks the 0-warning baseline (record §09)
+F	proposal-padding	A	swiftui-engine-replacement-stage2.swift	P1	aNativePaddingPlacesItsChildAtTheChildsOwnSize	-	LR-AU SA-N	Padding/.padding on proposal content: insets the proposal, places the child at its own size
+F	proposal-background	A	swiftui-outer-modifier-order.swift	A1	nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent	-	OM-C	Background/.background(token) on proposal content: fills the box it is written on, beneath its content
+F	fixed-size	A	swiftui-engine-replacement-stage2.swift	F7	fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal	-	CN-B	FixedSize/.fixedSize: withholds the selected axes from the child's proposal
+F	color-fill	A	swiftui-shapes-and-rendering.swift	P1	everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare	-	FR-A	Color: a greedy fill answering its proposal
+F	aspect-ratio	A	swiftui-stack-algorithms.swift	AR1	anAspectRatioAnswersItsChildsAnswerToTheRatioProposal	97	TE-AM	.aspectRatio/.scaledToFit/.scaledToFill/ContentMode; nil ratio uses the child's own
+F	proposal-border	A	swiftui-border-clip-paint.swift	D1	aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill	-	OM-W CX-B	.border on proposal content: a square band over whatever it is written after
+F	opacity	A	swiftui-border-clip-paint.swift	G3	theOpacityOrderAnswersTheSameOnBothPathsThroughTheUnifiedType	46	OM-N LR-FW	.opacity on either vocabulary: what is written after it escapes it; a second opacity replaces the first (46)
+F	hit-testing	A	swiftui-content-shape-hit-region.swift	N1	allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKeepsTheKeyboardOnes	23 41 42 44	OM-AK OM-AL EV-E IX-Z	.allowsHitTesting: gates the pointer target; per layer (44); default region the whole frame (41); a disabled target passes the click (23)
+F	content-shape	A	swiftui-content-shape-hit-region.swift	H3	aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout	43 50	OM-J OM-AB IX-L	.contentShape(inset:)/.contentShape(Shape): moves the pointer region only
+F	modified-content	A	swiftui-outer-modifier-order.swift	D1	everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority	-	LR-FV MC-A	ModifiedContent<Content, Modifier>/LayoutModifier/ModifierLayerKind: one flat modifier chain, one layer per modifier, SwiftUI's ModifiedContent
+F	modifier-layer	M	-	-	-	20	MC-A MC-C CX-C	ModifierLayer, the ModifiedElement typealias, _wrap: the legacy arm of ModifiedContent; a layer added at run time is adopted by the new outermost (20)
+F	overlay	A	swiftui-overlay-primary-shape.swift	P1	aLegacyOverlayKeepsItsOverlaysStateThroughAFlipOfItsPrimarysShape	73	MC-P LR-FX	OverlayModifier/.overlay: the overlay at the primary's size under child -1; a multi-member primary traps (73)
+F	background-modifier	A	swiftui-overlay-presentation.swift	H0	aLegacyBackgroundSitsBehindItsPrimaryAtThePrimarysSize	57 73	ID-J CN-K	BackgroundModifier/.background(alignment:content:): the overlay's recipe, painted first; a non-clickable primary passes a click to it (57)
+F	scroll	A	swiftui-data-and-scrolling.swift	T1	scrollToWorksHorizontallyAndInAProposalScrollView	-	DD-G DD-H CN-F	ProposalScrollView/ScrollAxis/ScrollIndicatorVisibility: scroll axes, indicators (.visible as .automatic, .never as .hidden)
+F	scroll-reader	A	swiftui-scrollviewreader-scope.swift	S2	scrollToIsScopedToItsReader	-	DD-G DD-K	ScrollViewReader/ScrollViewProxy.scrollTo: one slot, reach its own subtree, keys by value
+F	unit-point	A	swiftui-data-and-scrolling.swift	T9	scrollToAnAnchorLandsTheTargetAtTheAnchor	-	DD-G TE-AN	UnitPoint: scrollTo anchors and grid cell anchors
+F	proposal-text	A	swiftui-engine-replacement-stage1.swift	T3	aProposalTextBelowItsWidestBrokenLineAnswersTheProposal	60 86 87	LR-AU TE-H	ProposalText: text in the proposal vocabulary; answers min(proposal, widest line)
+F	proposal-layout	A	swiftui-layout-protocol-contract.swift	I2	aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects	-	SA-A SA-B SA-F	ProposalLayout/ProposalLayoutContainer/subview proxies/ProposedSize: SwiftUI's Layout without a cache
+F	grid	A	swiftui-grid.swift	GA1	gridAndGridRowLayOutAsTheProbeReadsThroughTheElementAPI	61 62 63 65 66 67 68 88	GR-C GR-D GR-O CX-H	Grid/GridRow/cell modifiers: SwiftUI's Grid (reference model; residual disagreements 61, 62)
+F	foreach	A	swiftui-data-and-scrolling.swift	F2	aForEachKeepsEachElementsStateThroughAReorder	79	DD-B DD-C	ForEach: identity by key, a dropped element resets; description-colliding ids keep the first (79)
+F	transaction	A	swiftui-transactions-animation.swift	T5	withTransactionAnimatesAChangeAsWithAnimationDoes	99	AN-Y AN-Z	Transaction/withTransaction/.transaction/.animation(_:value:): a transaction stack; one root transaction per build (99)
+F	transition	A	swiftui-transactions-animation.swift	X1	anOpacityTransitionFadesAnInsertedElementIn	98	AN-AE AN-AH	AnyTransition/Edge/.transition: the documented set; no default transition (98)
+F	animation	A	swiftui-transactions-animation.swift	W3	aProposalOpacityAnimates	96 97	AN-X AN-AB	Animation curves and withAnimation: modifier wrappers animate at their phase; interpolation of declared input, not placed geometry (96); what snaps (97)
+F	native-aliases	X	-	-	-	-	CX-C	Native… typealiases and native… modifiers: use the un-prefixed name (HStack, VStack, ZStack, ProposalFrame, Padding, Background, FixedSize, Spacer, Rectangle, Color, LayoutModifier, ModifiedContent, OverlayModifier, OnTapModifier; .padding/.fixedSize/.background/.clip/.border/.opacity/.allowsHitTesting/.overlay/.onTap)
+F	stack-spacing-first-init	X	-	-	-	-	CN-I	HStack/VStack init(spacing:alignment:content:): use init(alignment:spacing:content:)
+F	rectangle-color-init	X	-	-	-	-	TE-AC	Rectangle(color:): use Rectangle().fill(_:) (Rectangle(width:height:color:) stays, the fixed leaf convenience)
+F	frame-no-args	X	-	-	-	-	FR-J	.frame() with no arguments: a deprecated no-op; delete the call
+F	box	M	-	-	-	-	CN-A CX-D EP-8	Box: the legacy (CSS-derived) container, lowered onto the kernel; public init(decoration:), the style: initialisers package (CX-D)
+F	decoration	M	-	-	-	47 49	OM-G OM-W LR-FW	Decoration/BorderStyle and the legacy background/hoverBackground/focusBackground/cornerRadius/border/hoverBorder/focusBorder: paint-only decoration on one order-insensitive record; corner radius rounds fill and border without clipping (47); a rounded border follows the arc (49)
+F	legacy-containers	M	-	-	-	52 54	CN-A CN-P CX-E	Row/Column/Stack/Alignment/legacy ScrollView/ScrollState/ScrollContext: the legacy containers, lowered; Row/Column gap 0 (52); legacy ScrollView's cross axis from its parent (54)
+F	style	M	-	-	-	-	LR-FM LR-FO	Style/Position/FlexDirection/AlignItems/AlignSelf/JustifyContent: opaque outside the package
+F	list	M	-	-	-	13 32 84	LR-BQ DD-F DD-Z DD-AB	List: virtualized, data-driven, uniform rows; selection; windows against its own origin
+F	css-item-fields	M	-	-	-	-	LR-AB LR-AS LR-FO	margin/gap/justifyContent/alignItems/flexGrow/flexShrink/flexBasis(length)/alignSelf/position/inset/flexDirection: CSS item and container fields lowered onto the kernel, unlowerable cases refused by name
+F	legacy-padding	A	swiftui-outer-modifier-order.swift	E2	legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes	42	OM-D OM-E	StyledElement.padding: one wrapper layer; chained padding accumulates; a padded click target is hittable in its padding (42)
+F	legacy-frame	A	swiftui-frame-semantics.swift	B1	chainedLegacyFramesAgreeWithSwiftUIsOrderingRules	-	FR-C CN-N LR-DH CX-G	ElementGroup.frame(...): SwiftUI's frame surface on legacy content, lowered onto the kernel frame (ideal and flexible maxima answer as SwiftUI; 35 and 39 retired by CX-G)
+F	legacy-clip	A	swiftui-border-clip-paint.swift	E1	aLegacyClipShapeClipsItsChildrenAndItsHitboxes	91 92	TE-AJ OM-G	StyledElement.clipped/.clipShape: clip the subtree and its hitboxes
+F	hidden	A	swiftui-engine-replacement-stage1.swift	H1	aHiddenChildKeepsItsSpaceUnderTheProposalAuthority	-	LR-DH IX-K	.hidden(): keeps its space, paints nothing, takes no hit, is not published, leaves the keyboard's focus half
+F	legacy-keyboard	M	-	-	-	21 22 26 94	EV-F IX-K TI-J	onKey/focusable/onAction/keyContext: gpui's raw key and action handlers and focusability (21, 22, 26, 94)
+F	on-click	M	-	-	-	27	IX-B AB-G	onClick (and proposal onTap/OnTapModifier): Button semantics (press and release on one element), pressable through accessibility (27)
+F	focus-border	M	-	-	-	-	OM-V IX-H	focusBorder/focusBackground: the opt-in focus ring and focus fill
+F	button	A	swiftui-controls-and-selection.swift	BA0	aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside	76 80	DD-R IX-E IX-F	Button/ButtonRole/ButtonStyle/.keyboardShortcut on a Button: actions, roles (ButtonRole binds a key, draws nothing), styles, pressed look
+F	controls	A	swiftui-controls-and-selection.swift	SA1	anUnsteppedAdjustmentMovesTenPercentOfTheSpan	80 82	DD-S DD-W DD-X	Toggle/Slider/Stepper on Binding: values, steps, clamping, keys once focused (80); the partial accessibility fold (82)
+F	picker	A	swiftui-controls-and-selection.swift	PA1	pressingAnOptionWritesItsTag	80 81 82	DD-V DD-AA	Picker/PickerStyle/.tag/TaggedElement: options found through tags; automatic is segmented, not a menu (81)
+F	text	A	swiftui-text-semantics.swift	F1	theEnvironmentFontReachesATextAndTheTextsOwnWins	60 86 87	TE-A TE-F TE-H TE-AA	Text (legacy-vocabulary leaf): measured and drawn through the text seam; fonts, line limits, truncation; width not ceiled to the pixel grid (60); line advance (86); middle truncation (87)
+F	text-proposal-bridge	M	-	-	-	-	LR-S CN-A	Text.proposalLayout(): converts a legacy Text to a ProposalText, dropping background, handlers, id and hover/focus colours
+F	font	A	swiftui-text-semantics.swift	F2	aTextStyleResolvesToMacOSsFace	-	TE-B TE-C TE-D TE-E	Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families
+F	text-modifiers	A	swiftui-text-semantics.swift	L5	aLineLimitCapsLinesAndAnswersTheWidestKeptLine	-	TE-H TE-I TE-J TE-AA	.font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode
+F	text-input	M	-	-	-	-	TI-A TI-B TI-D TI-G TI-H	TextField/TextEditor controlled initialisers, submit, undo, paging: MetalUI's own text-input surface
+F	text-input-binding	A	swiftui-data-and-scrolling.swift	B4	aTextFieldBoundToStateUpdatesItOnEveryEdit	-	DD-E	TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers
+F	shapes	A	swiftui-shapes-and-rendering.swift	S1	everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare	90	TE-AC TE-AG TE-AH TE-AE	Shape/ShapeGeometry/Rectangle/RoundedRectangle/Circle/Capsule/Ellipse/ShapeView/.fill/.stroke/.strokeBorder; continuous corners drawn circular (90)
+F	clip-shape	A	swiftui-shapes-and-rendering.swift	C3	clippedAndCornerRadiusClipOnTheProposalPath	91 92	TE-AJ	.clipShape/.clipped/.cornerRadius/.clip on proposal content: one clip layer; an ellipse clip traps (91); crossing rounded clips square (92)
+F	shape-background	A	swiftui-shapes-and-rendering.swift	F2	backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken	-	TE-AK	.background(_:in:)/.background(in:): a filled shape behind the content
+F	image	A	swiftui-shapes-and-rendering.swift	I1	anImageAnswersItsPointSizeAtEveryProposal	93	TE-AL TE-AM	Image/Image.Interpolation: decorative and labelled images, .resizable, .interpolation (.high draws bilinear, 93)
+F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
+F	gestures	A	swiftui-interaction.swift	H2	anOuterHighPriorityGestureBeatsTheInnerOneAndAButton	-	IX-B IX-C IX-D IX-Q	Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press
+F	keyboard-shortcut	A	swiftui-interaction.swift	B1	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
+F	keymap	M	-	-	-	-	EV-N IN-A	Keymap/KeyBinding/Keystroke/KeymapBuilder/KeyContext/ContextPredicate/Action/ActionHandler: gpui's keymap and actions
+F	accessibility-modifiers	A	swiftui-accessibility-part2.swift	A1	aCombinedElementJoinsItsChildrenIntoOneStaticText	29 30 31 33 34 82 95	IX-U IX-V IX-X IX-Y AB-T	accessibility modifiers on both vocabularies, AccessibilityModifier/Traits/ChildBehavior/Adjustment: .ignore/.combine/.contain, hidden, hint, identifier, traits, declared and named actions, modal isolation (95)
+F	axnode	M	-	-	-	32	AB-C AB-F AB-U	AXNode/AXRole/AXTrait: the neutral accessibility record a StyledElement declares; a List publishes realised rows only (32)
+F	axnode-actions	X	-	-	-	-	IX-Y CX-C	AXActionKind/AXNode.actions/AXNode.init(…actions:…): use accessibilityAction(_:)/accessibilityAdjustableAction(_:)
+F	sizing-modifiers	X	-	-	-	-	FR-I LR-ER LR-EU CN-O	width/height/minWidth/minHeight/maxWidth/maxHeight and width/height(fraction:)/(percent:): use .frame (LR-ES recipe R1–R8)
+F	flex-basis-fraction	X	-	-	-	-	CX-C	flexBasis(fraction:)/flexBasis(percent:): no SwiftUI counterpart; declare a length or a .frame
+F	core-geometry	M	-	-	-	-	C-1 PC-A	MetalUICore geometry and units (Point, Size, Bounds, Edges, Corners, Axes, Pixels, Rems, Length, Dimension, …)
+F	core-color	M	-	-	-	1	F-1 TB-A	Hsla/Rgba: colours authored in sRGB, composited in a Display P3 layer (1)
+F	core-appearance	M	-	-	-	-	EV-H	Appearance: the host's light/dark appearance, selecting the theme
+F	control-active-state	A	swiftui-environment-control-state.swift	C0	controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt	-	EV-AB	ControlActiveState: key/active/inactive, SwiftUI's cases; the platform mapping is MetalUI's own (C1–C3 unmeasured)
+F	layout-direction-type	D	-	-	-	25	EV-K	LayoutDirection: carried, read by no container (25)
+F	layout-kernel	M	-	-	-	77	SA-L SA-M GR-C	MetalUILayout's LayoutTree, node ids, registrars, measure functions, grid marks, spacing, rounding (77)
+F	platform	M	-	-	-	-	RS-A AB-R EV-AB AN-AD	MetalUIPlatform: Platform/PlatformWindow/WindowRenderer, input events, the neutral accessibility tree
+F	render	M	-	-	-	-	RS-B RS-C	MetalUIRender/MetalUIPrimitives/MetalUIAppKit: the Metal renderer, surfaces, shader library, the AppKit platform
+F	scene	M	-	-	-	-	PS-A PS-B TE-AF	MetalUIScene: Scene, draw runs, the glyph atlas, FontKey, GlyphImage, ImageTexture
+F	text-system	M	-	-	-	-	TS-A TS-B TX-B	MetalUIText/MetalUITextSystem: the TextSystem seam and its CoreText conformer
+F	portable-text	M	-	-	-	-	FT-B SH-B PT-A LB-A FN-A FB-A BD-B SF-A	MetalUIFreeType/MetalUIHarfBuzz/MetalUIPortableText/MetalUISystemFonts: the portable text pipeline
+F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importable by tests
+
+# ---------------------------------------------------------------- MetalUI
+M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
+M	MetalUI	AccessibilityModifiers.swift	.*	.*	.*	accessibility-modifiers
+M	MetalUI	AccessibilityTraits.swift	.*	.*	.*	accessibility-modifiers
+M	MetalUI	ProposalAccessibility.swift	.*	.*	.*	accessibility-modifiers
+M	MetalUI	Action.swift	.*	.*	.*	keymap
+M	MetalUI	Animation.swift	.*	.*	.*	animation
+M	MetalUI	AnimationScope.swift	.*	.*	.*	transaction
+M	MetalUI	Transaction.swift	.*	.*	.*	transaction
+M	MetalUI	Transition.swift	.*	.*	.*	transition
+M	MetalUI	TransitionGroup.swift	.*	.*	.*	transition
+M	MetalUI	AnyElement.swift	-	ElementObject	.*	element-protocols
+M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
+M	MetalUI	App.swift	.*	.*	.*	host
+M	MetalUI	Frame.swift	.*	.*	.*	host
+M	MetalUI	RenderFrame.swift	.*	.*	.*	host
+M	MetalUI	Window.swift	.*	.*	.*	host
+M	MetalUI	AXNode.swift	-	AXActionKind	.*	axnode-actions
+M	MetalUI	AXNode.swift	AXNode	actions	.*	axnode-actions
+M	MetalUI	AXNode.swift	AXNode	init	actions:	axnode-actions
+M	MetalUI	AXNode.swift	.*	.*	.*	axnode
+M	MetalUI	Binding.swift	.*	.*	.*	binding
+M	MetalUI	Box.swift	(-|Box|Box\..*)	(Box|style|decoration|elementID|handlers|content|init|Layout|node|requestLayout|prepaint|paint)	.*	box
+M	MetalUI	Box.swift	Box	flexDirection	.*	css-item-fields
+M	MetalUI	Box.swift	(-|Decoration|BorderStyle)	.*	.*	decoration
+M	MetalUI	Box.swift	-	StyledElement	.*	element-protocols
+M	MetalUI	Box.swift	StyledElement	onClick	.*	on-click
+M	MetalUI	Box.swift	StyledElement	(focusable|onKey|onAction|keyContext)	.*	legacy-keyboard
+M	MetalUI	Box.swift	StyledElement	id	.*	explicit-identity
+M	MetalUI	Box.swift	StyledElement	(background|hoverBackground|cornerRadius|border|hoverBorder)	.*	decoration
+M	MetalUI	Box.swift	StyledElement	(focusBackground|focusBorder)	.*	focus-border
+M	MetalUI	Box.swift	StyledElement	(width|height|minWidth|minHeight|maxWidth|maxHeight)	.*	sizing-modifiers
+M	MetalUI	Box.swift	StyledElement	padding	.*	legacy-padding
+M	MetalUI	Box.swift	StyledElement	flexBasis	(fraction|percent):	flex-basis-fraction
+M	MetalUI	Box.swift	StyledElement	(margin|gap|justifyContent|alignItems|flexGrow|flexShrink|flexBasis|alignSelf|position|inset)	.*	css-item-fields
+M	MetalUI	Box.swift	StyledElement	hidden	.*	hidden
+M	MetalUI	Box.swift	StyledElement	opacity	.*	opacity
+M	MetalUI	Box.swift	StyledElement	clipped	.*	legacy-clip
+M	MetalUI	Box.swift	StyledElement	allowsHitTesting	.*	hit-testing
+M	MetalUI	Box.swift	StyledElement	contentShape	.*	content-shape
+M	MetalUI	Button.swift	.*	.*	.*	button
+M	MetalUI	ButtonStyle.swift	.*	.*	.*	button
+M	MetalUI	ClipShape.swift	ElementGroup	background	.*	shape-background
+M	MetalUI	ClipShape.swift	StyledElement	clipShape	.*	legacy-clip
+M	MetalUI	ClipShape.swift	.*	.*	.*	clip-shape
+M	MetalUI	Component.swift	.*	.*	.*	component
+M	MetalUI	ProposalNodeID.swift	Component	.*	.*	component
+M	MetalUI	ProposalNodeID.swift	.*	.*	.*	element-protocols
+M	MetalUI	Deferred.swift	.*	.*	.*	deferred
+M	MetalUI	Element.swift	.*	.*	.*	element-protocols
+M	MetalUI	ElementBuilder.swift	.*	.*	.*	builder
+M	MetalUI	ElementGroup.swift	-	(ElementGroup|SingleElementLayout)	.*	element-protocols
+M	MetalUI	ElementGroup.swift	Element	.*	.*	element-protocols
+M	MetalUI	ElementGroup.swift	AnyElement	.*	.*	any-element
+M	MetalUI	ElementGroup.swift	.*	.*	.*	builder
+M	MetalUI	ProposalElementGroup.swift	(-|ProposalElementGroup)	.*	.*	element-protocols
+M	MetalUI	ProposalElementGroup.swift	.*	.*	.*	builder
+M	MetalUI	ElementID.swift	(-|ElementID)	ElementID|name|init	.*	explicit-identity
+M	MetalUI	ElementID.swift	.*	.*	.*	global-id
+M	MetalUI	ExplicitIdentity.swift	.*	.*	.*	explicit-identity
+M	MetalUI	EnvironmentProperty.swift	.*	.*	.*	environment
+M	MetalUI	EnvironmentScope.swift	ElementGroup	theme	.*	theme
+M	MetalUI	EnvironmentScope.swift	ElementGroup	dynamicTypeSize	.*	environment-dynamic-type
+M	MetalUI	EnvironmentScope.swift	ElementGroup	controlSize	.*	environment-control
+M	MetalUI	EnvironmentScope.swift	.*	.*	.*	environment
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|controlSize)	.*	environment-control
+M	MetalUI	EnvironmentValues.swift	-	ControlSize	.*	environment-control
+M	MetalUI	EnvironmentValues.swift	(-|DynamicTypeSize)	(DynamicTypeSize|isAccessibilitySize)	.*	environment-dynamic-type
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	dynamicTypeSize	.*	environment-dynamic-type
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	layoutDirection	.*	environment-layout-direction
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	locale	.*	environment-locale
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(font|lineLimit|truncationMode|multilineTextAlignment)	.*	text-modifiers
+M	MetalUI	EnvironmentValues.swift	.*	.*	.*	environment
+M	MetalUI	Flex.swift	.*	.*	.*	legacy-containers
+M	MetalUI	Stack.swift	.*	.*	.*	legacy-containers
+M	MetalUI	ScrollView.swift	-	(ScrollAxis|ScrollIndicatorVisibility)	.*	scroll
+M	MetalUI	ScrollView.swift	.*	.*	.*	legacy-containers
+M	MetalUI	Focus.swift	.*	.*	.*	handlers
+M	MetalUI	Handlers.swift	.*	.*	.*	handlers
+M	MetalUI	Hitbox.swift	.*	.*	.*	handlers
+M	MetalUI	FocusState.swift	.*	.*	.*	focus-state
+M	MetalUI	Font.swift	(-|Text)	(TextAlignment|TruncationMode)	.*	text-modifiers
+M	MetalUI	Font.swift	.*	.*	.*	font
+M	MetalUI	ForEach.swift	.*	.*	.*	foreach
+M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
+M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
+M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
+M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	Gesture.swift	.*	.*	.*	gestures
+M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
+M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
+M	MetalUI	Grid.swift	.*	.*	.*	grid
+M	MetalUI	Image.swift	.*	.*	.*	image
+M	MetalUI	ImageBitmap.swift	.*	.*	.*	image-bitmap
+M	MetalUI	KeyboardShortcut.swift	.*	.*	.*	keyboard-shortcut
+M	MetalUI	KeyContext.swift	.*	.*	.*	keymap
+M	MetalUI	Keymap.swift	.*	.*	.*	keymap
+M	MetalUI	List.swift	.*	.*	.*	list
+M	MetalUI	ModifiedContent.swift	(-|ModifierLayer)	(ModifiedElement|_elementID|_requestLayout|_prepaint|_paint|_legacyStack)	.*	modifier-layer
+M	MetalUI	ModifiedContent.swift	.*	.*	.*	modified-content
+M	MetalUI	NativeBackgroundModifier.swift	.*	.*	.*	background-modifier
+M	MetalUI	NativeElements.swift	-	Native.*	.*	native-aliases
+M	MetalUI	NativeElements.swift	(HStack|VStack)	init	spacing: Pixels, alignment: ProposalAlignment	stack-spacing-first-init
+M	MetalUI	NativeElements.swift	(-|HStack|VStack|ZStack|Spacer)	(HStack|VStack|ZStack|Spacer|content|spacing|alignment|minLength|init|Layout|requestProposalLayout|prepaint|paint)	.*	stacks
+M	MetalUI	NativeElements.swift	(-|ProposalFrame)	.*	.*	proposal-frame
+M	MetalUI	NativeElements.swift	(-|Padding)	.*	.*	proposal-padding
+M	MetalUI	NativeElements.swift	(-|Background)	.*	.*	proposal-background
+M	MetalUI	NativeElements.swift	(-|FixedSize)	.*	.*	fixed-size
+M	MetalUI	NativeElements.swift	Rectangle	init	init\(color:	rectangle-color-init
+M	MetalUI	NativeElements.swift	(-|Rectangle)	.*	.*	shapes
+M	MetalUI	NativeElements.swift	(-|Color)	.*	.*	color-fill
+M	MetalUI	NativeModifiedContent.swift	-	Native.*	.*	native-aliases
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	nativeFrame	.*	native-frame-alias
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	native.*	.*	native-aliases
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	frame	frame\(\)	frame-no-args
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	frame	.*	proposal-frame
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	padding	.*	proposal-padding
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	fixedSize	.*	fixed-size
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	background	.*	proposal-background
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	clip	.*	clip-shape
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	border	.*	proposal-border
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	opacity	.*	opacity
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	allowsHitTesting	.*	hit-testing
+M	MetalUI	NativeModifiedContent.swift	(-|ProposalElementGroup)	(aspectRatio|scaledToFit|scaledToFill|ContentMode)	.*	aspect-ratio
+M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	layoutPriority	.*	stacks
+M	MetalUI	NativeModifiedContent.swift	-	LayoutModifier	.*	modified-content
+M	MetalUI	NativeOverlayModifier.swift	-	Native.*	.*	native-aliases
+M	MetalUI	NativeOverlayModifier.swift	ProposalElementGroup	nativeOverlay	.*	native-aliases
+M	MetalUI	NativeOverlayModifier.swift	.*	.*	.*	overlay
+M	MetalUI	NativeTappable.swift	-	Native.*	.*	native-aliases
+M	MetalUI	NativeTappable.swift	ProposalElementGroup	nativeOnTap	.*	native-aliases
+M	MetalUI	NativeTappable.swift	.*	.*	.*	on-click
+M	MetalUI	Passes.swift	LayoutPass	(requestNative.*)	.*	kernel-registrars
+M	MetalUI	Passes.swift	.*	.*	.*	passes
+M	MetalUI	Picker.swift	.*	.*	.*	picker
+M	MetalUI	ProposalLayoutContainer.swift	.*	.*	.*	proposal-layout
+M	MetalUI	ProposalScrollView.swift	.*	.*	.*	scroll
+M	MetalUI	ProposalText.swift	Text	proposalLayout	.*	text-proposal-bridge
+M	MetalUI	ProposalText.swift	.*	.*	.*	proposal-text
+M	MetalUI	ScrollViewReader.swift	.*	.*	.*	scroll-reader
+M	MetalUI	Shape.swift	.*	.*	.*	shapes
+M	MetalUI	Shapes.swift	.*	.*	.*	shapes
+M	MetalUI	ShapeView.swift	.*	.*	.*	shapes
+M	MetalUI	Slider.swift	.*	.*	.*	controls
+M	MetalUI	Stepper.swift	.*	.*	.*	controls
+M	MetalUI	Toggle.swift	.*	.*	.*	controls
+M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks
+M	MetalUI	State.swift	.*	.*	.*	state
+M	MetalUI	Style.swift	.*	.*	.*	style
+M	MetalUI	Text.swift	.*	.*	.*	text
+M	MetalUI	TextEditor.swift	TextEditor	init	Binding<String>	text-input-binding
+M	MetalUI	TextEditor.swift	.*	.*	.*	text-input
+M	MetalUI	TextField.swift	TextField	init	Binding<String>	text-input-binding
+M	MetalUI	TextField.swift	.*	.*	.*	text-input
+M	MetalUI	TextModifiers.swift	.*	.*	.*	text-modifiers
+M	MetalUI	Theme.swift	.*	.*	.*	theme
+M	MetalUI	UnitPoint.swift	.*	.*	.*	unit-point
+
+# ---------------------------------------------------------------- other targets
+M	MetalUICore	Appearance.swift	.*	.*	.*	core-appearance
+M	MetalUICore	Color.swift	.*	.*	.*	core-color
+M	MetalUICore	ControlActiveState.swift	.*	.*	.*	control-active-state
+M	MetalUICore	LayoutDirection.swift	.*	.*	.*	layout-direction-type
+M	MetalUICore	Geometry.swift	.*	.*	.*	core-geometry
+M	MetalUICore	Units.swift	.*	.*	.*	core-geometry
+M	MetalUILayout	LayoutTree.swift	-	Native.*	.*	native-aliases
+M	MetalUILayout	ProposalLayout.swift	.*	.*	.*	proposal-layout
+M	MetalUILayout	ProposedSize.swift	(-|ProposedSize)	(ProposedSize|width|height|init|unspecified|zero|infinity|replacingUnspecifiedDimensions)	.*	proposal-layout
+M	MetalUILayout	.*	.*	.*	.*	layout-kernel
+M	MetalUIPlatform	.*	.*	.*	.*	platform
+M	MetalUIPrimitives	.*	.*	.*	.*	render
+M	MetalUIRender	.*	.*	.*	.*	render
+M	MetalUIAppKit	.*	.*	.*	.*	render
+M	MetalUIScene	.*	.*	.*	.*	scene
+M	MetalUIText	.*	.*	.*	.*	text-system
+M	MetalUITextSystem	.*	.*	.*	.*	text-system
+M	MetalUIFreeType	.*	.*	.*	.*	portable-text
+M	MetalUIHarfBuzz	.*	.*	.*	.*	portable-text
+M	MetalUIPortableText	.*	.*	.*	.*	portable-text
+M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
+M	MetalUIDemoContent	.*	.*	.*	.*	demo-content
