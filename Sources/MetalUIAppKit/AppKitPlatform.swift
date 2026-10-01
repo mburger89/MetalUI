@@ -614,6 +614,13 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         displayLink = link
     }
 
+    /// Hands a drag leaving the window to AppKit (ruling `DN-K`). Lane 1's
+    /// placeholder: every drag stays in the window until lane 2 starts an
+    /// `NSDraggingSession` here.
+    func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
+        false   // lane 2 replaces
+    }
+
     func setDisplayLinkPaused(_ paused: Bool) {
         displayLink?.isPaused = paused
     }

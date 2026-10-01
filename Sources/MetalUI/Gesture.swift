@@ -58,6 +58,9 @@ struct GestureLeaf {
         case tap(count: Int)
         case longPress(minimumDuration: Double, maximumDistance: Float)
         case drag(minimumDistance: Float)
+        /// A `.draggable` (ruling `DN-D`): ready on the first move of more
+        /// than zero points, failed at the release.
+        case draggable
     }
 
     var kind: Kind
@@ -68,6 +71,8 @@ struct GestureLeaf {
     var pressingChanged: (@MainActor (Bool) -> Void)?
     var dragChanged: (@MainActor (DragGesture.Value) -> Void)?
     var dragEnded: (@MainActor (DragGesture.Value) -> Void)?
+    /// A draggable's payload (`DN-D`); `nil` for every other kind.
+    var dragSource: DragSource?
 
     init(kind: Kind) { self.kind = kind }
 }
@@ -302,6 +307,13 @@ struct GestureAttachment {
         self.priority = priority
         self.node = gesture._recognizers().node
     }
+
+    /// An attachment of `node` directly — a draggable's (`DN-D`), which no
+    /// public `Gesture` spells.
+    init(node: GestureNode, priority: Priority) {
+        self.priority = priority
+        self.node = node
+    }
 }
 
 // MARK: - The arena (`IX-D`)
@@ -504,7 +516,7 @@ struct GestureArena {
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
-            case .drag: return false
+            case .drag, .draggable: return false
             }
         }
     }
@@ -541,6 +553,8 @@ struct GestureArena {
                         leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(point),
                                                                location: leaf.local(point))
                     }
+                case .draggable:
+                    break   // RED-FIRST STUB
                 }
             }
         }
@@ -564,6 +578,8 @@ struct GestureArena {
                     leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(leaf.pressPoint),
                                                            location: leaf.local(point))
                 }
+            case .draggable:
+                break   // RED-FIRST STUB
             }
         }
         return resolve()
@@ -613,6 +629,8 @@ struct GestureArena {
                                                           location: leaf.local(point))
                         leaf.ready = true
                     }
+                case .draggable:
+                    fail(leaf)
                 }
             }
         }
@@ -634,7 +652,7 @@ struct GestureArena {
                 if time - stamp >= tapSequenceDeferral { fail(leaf) }
             case .longPress(let duration, _):
                 if !leaf.ready && time - stamp >= duration { leaf.ready = true }
-            case .drag:
+            case .drag, .draggable:
                 break
             }
         }
@@ -749,6 +767,8 @@ struct GestureArena {
                 if let callback = g.dragEnded {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
                 }
+            case .draggable:
+                fail(leaf)   // RED-FIRST STUB
             }
             return true
         }

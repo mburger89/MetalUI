@@ -258,6 +258,22 @@ final class FakePlatformWindow: PlatformWindow {
     /// non-zero timestamp on a window built with `startsDisplayLink: false`
     /// calls this directly instead — `simulateInput` is the analogous shape for
     /// input events.
+    /// Every `beginExternalDrag` call, in order (ruling `DN-K`).
+    private(set) var externalDrags: [([DragRepresentation], Point<Pixels>)] = []
+    /// What `beginExternalDrag` answers; `false`, as SDL does, by default.
+    var externalDragResult = false
+    func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
+        externalDrags.append((representations, position))
+        return externalDragResult
+    }
+
+    /// Delivers a drag from outside the window (ruling `DN-C`), as the
+    /// platform's drop path would, and answers what the window answered.
+    @discardableResult
+    func simulateDrop(_ event: DropEvent) -> Bool {
+        onInput?(.drop(event)) ?? false
+    }
+
     func simulateTick(timestamp: Double) {
         currentTime = timestamp
         tick?(timestamp)

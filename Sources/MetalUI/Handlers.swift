@@ -308,6 +308,14 @@ public struct Handlers {
 
     /// No handlers: the element is not a pointer target, not focusable and has
     /// no key context.
+    // MARK: Drop destination (drag and drop, ruling `DN-P`)
+
+    /// The element's `.dropDestination` (ruling `DN-F`), or `nil`. One
+    /// reference — a class box — for `IX-N`'s Windows stack budget. A later
+    /// `.dropDestination` replaces an earlier one (`onClick`'s one-field rule;
+    /// SwiftUI agrees, probe `R6e`).
+    var dropDestination: DropDestinationTarget?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.

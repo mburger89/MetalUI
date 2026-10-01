@@ -99,6 +99,20 @@ public protocol PlatformWindow: AnyObject {
     func writeClipboard(_ text: String)
 
     func startDisplayLink(_ tick: @escaping (Double) -> Void)
+
+    /// Hands an in-window drag to the operating system when the pointer leaves
+    /// the window (ruling `DN-K`): the platform starts its own drag session
+    /// carrying `representations`, from `position` (window points). Answers
+    /// `false` when it cannot — SDL3 has no API to start one (`DN-K` item 4) —
+    /// and the drag then stays in the window.
+    ///
+    /// **No default implementation** (ruling `DN-C` item 2, `EV-AB`'s reason):
+    /// a conformer that forgets it fails to compile rather than silently
+    /// keeping every drag in the window. Pinned by
+    /// `aPlatformWindowWithoutBeginExternalDragDoesNotCompile`. **Migration**
+    /// (`DN-C` item 3): a conformer outside this repository adds
+    /// `func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }`.
+    func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

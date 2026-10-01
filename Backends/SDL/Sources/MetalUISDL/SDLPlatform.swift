@@ -322,6 +322,14 @@ public final class SDLWindow: PlatformWindow {
 
     public func setDisplayLinkPaused(_ paused: Bool) { displayLinkPaused = paused }
 
+    /// Always `false` (ruling `DN-K` item 4): SDL3 has no API to start an
+    /// operating-system drag — `SDL_events.h` lists only the five incoming
+    /// `SDL_EVENT_DROP_*` events — so a drag stays in the window, and SDL's
+    /// mouse auto-capture keeps its motion arriving outside it.
+    public func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
+        false
+    }
+
     /// Whether the platform should tick this window this pass.
     var linkRunning: Bool { displayLinkTick != nil && !displayLinkPaused && !closed }
 
