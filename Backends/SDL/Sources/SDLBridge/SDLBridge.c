@@ -827,6 +827,25 @@ bool mui_push_raw_window_event(uint32_t sdl_type, uint32_t window_id) {
     return SDL_PushEvent(&e);
 }
 
+const uint32_t mui_sdl_event_drop_begin = SDL_EVENT_DROP_BEGIN;
+const uint32_t mui_sdl_event_drop_position = SDL_EVENT_DROP_POSITION;
+const uint32_t mui_sdl_event_drop_file = SDL_EVENT_DROP_FILE;
+const uint32_t mui_sdl_event_drop_text = SDL_EVENT_DROP_TEXT;
+const uint32_t mui_sdl_event_drop_complete = SDL_EVENT_DROP_COMPLETE;
+
+bool mui_push_raw_drop_event(uint32_t sdl_type, uint32_t window_id, float x, float y, const char *data) {
+    if (sdl_type < SDL_EVENT_DROP_FILE || sdl_type > SDL_EVENT_DROP_POSITION)
+        return SDL_SetError("not a drop event");
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = sdl_type; e.drop.windowID = window_id; e.drop.x = x; e.drop.y = y;
+    // As the synthetic text events above: SDL keeps the pointer, so the copy
+    // is leaked on purpose (a test pushes a handful).
+    e.drop.data = data ? SDL_strdup(data) : NULL;
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
 bool mui_window_has_input_focus(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_INPUT_FOCUS) != 0;
 }

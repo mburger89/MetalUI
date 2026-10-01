@@ -76,7 +76,13 @@ enum {
     MUI_EVENT_KEY_DOWN, MUI_EVENT_KEY_UP, MUI_EVENT_THEME, MUI_EVENT_EXPOSED,
     MUI_EVENT_ACCESSIBILITY, MUI_EVENT_MOUSE_DRAG, MUI_EVENT_TEXT_INPUT, MUI_EVENT_TEXT_EDITING,
     // Keyboard focus (ruling EV-AB). Appended, so no earlier kind renumbers.
-    MUI_EVENT_FOCUS_GAINED, MUI_EVENT_FOCUS_LOST
+    MUI_EVENT_FOCUS_GAINED, MUI_EVENT_FOCUS_LOST,
+    // Drops from other applications (ruling DN-M). Appended after FOCUS_LOST,
+    // so no earlier kind renumbers. `x`, `y` are window points where SDL gives
+    // them (not on BEGIN); FILE's `text` is the path, TEXT's the text — both
+    // owned by SDL until the next poll, so copy them at once.
+    MUI_EVENT_DROP_BEGIN, MUI_EVENT_DROP_POSITION, MUI_EVENT_DROP_FILE, MUI_EVENT_DROP_TEXT,
+    MUI_EVENT_DROP_COMPLETE
 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
@@ -107,6 +113,20 @@ bool mui_push_raw_window_event(uint32_t sdl_type, uint32_t window_id);
 // SDL's event types for the two window events above, for tests.
 extern const uint32_t mui_sdl_event_window_display_scale_changed;
 extern const uint32_t mui_sdl_event_window_pixel_size_changed;
+// Pushes an unflattened SDL_EVENT_DROP_* of type `sdl_type` (one of the
+// mui_sdl_event_drop_* constants below) for `window_id` at (x, y), carrying a
+// copy of `data` (NULL for BEGIN, POSITION and COMPLETE) — so a test reaches
+// translate's drop arms through SDL's own queue (ruling DN-M, DN-U item 4).
+// For tests.
+bool mui_push_raw_drop_event(uint32_t sdl_type, uint32_t window_id, float x, float y, const char *data);
+// SDL's event types for the five drop events, for tests. Exported from C so
+// Swift never spells `SDL_EVENT_DROP_*.rawValue`, which is Int32 on Windows
+// and UInt32 on Apple (DN-U item 4).
+extern const uint32_t mui_sdl_event_drop_begin;
+extern const uint32_t mui_sdl_event_drop_position;
+extern const uint32_t mui_sdl_event_drop_file;
+extern const uint32_t mui_sdl_event_drop_text;
+extern const uint32_t mui_sdl_event_drop_complete;
 // Whether SDL reports the window as having keyboard focus
 // (SDL_WINDOW_INPUT_FOCUS) — read once, when a window opens (ruling EV-AB).
 bool mui_window_has_input_focus(void *window);

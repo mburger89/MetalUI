@@ -330,6 +330,10 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
+    /// A dropped path as a `file://` URL string (ruling `DN-M` item 1).
+    /// LANE 3 RED STUB — returns the path unchanged.
+    nonisolated static func fileURLString(fromPath path: String) -> String { path }
+
     /// Whether the platform should tick this window this pass.
     var linkRunning: Bool { displayLinkTick != nil && !displayLinkPaused && !closed }
 
