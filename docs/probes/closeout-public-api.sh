@@ -1,4 +1,5 @@
 #!/bin/zsh
+# RUN WITH zsh OR EXECUTE DIRECTLY, never `bash script` (zsh path modifiers).
 # Public-API census for plan task 15, the replacement closeout (ruling CX-A).
 #
 # Prints one tab-separated line per `public`/`open` declaration in every

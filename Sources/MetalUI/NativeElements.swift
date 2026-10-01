@@ -212,13 +212,17 @@ public struct ProposalFrame<Content: ProposalElementGroup>: Element {
     /// A fixed height; `nil` leaves the axis to the child or the flexible
     /// bounds.
     public var height: Pixels?
-    /// The least width the frame answers; `nil` is unbounded below.
+    /// The least width the frame answers. With `nil` there is no declared floor:
+    /// the frame answers at least 0, and under a maximum at least its child
+    /// (FR-M).
     public var minWidth: Pixels?
     /// The width the frame answers when offered none.
     public var idealWidth: Pixels?
     /// The greatest width the frame answers; `.infinity` fills (`FR-A`).
     public var maxWidth: Pixels?
-    /// The least height the frame answers; `nil` is unbounded below.
+    /// The least height the frame answers. With `nil` there is no declared floor:
+    /// the frame answers at least 0, and under a maximum at least its child
+    /// (FR-M).
     public var minHeight: Pixels?
     /// The height the frame answers when offered none.
     public var idealHeight: Pixels?

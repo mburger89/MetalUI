@@ -1,4 +1,7 @@
 #!/bin/zsh
+# RUN WITH zsh OR EXECUTE DIRECTLY, never `bash script`: it uses zsh path
+# modifiers, fails under bash with a syntax error, and the empty print would
+# look like a pass.
 # The "no public behaviour is unclassified" check of plan task 15 (ruling CX-A).
 #
 # Joins a LIVE run of docs/probes/closeout-public-api.sh (the census of every

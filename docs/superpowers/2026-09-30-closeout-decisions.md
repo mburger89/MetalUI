@@ -658,6 +658,10 @@ Lane 1's verifier found two majors and two minors (record §66 §4.7).
    demo, so the fourteen offscreen images read 0 px. `CX-M` item 1 holds:
    every checklist item names what to run.
 
+**Migration note**: an external element that called
+`pass.withState(id, initial: Optional(x))` and read `nil` on first access now
+reads `x`; code that relied on the `nil` passes `initial: nil` explicitly.
+
 **Cost if wrong.** Item 1 changes a public API's answer for an optional
 `S` over an absent entry; an external caller that relied on reading `nil`
 there now reads its own `initial` — the value it asked for.

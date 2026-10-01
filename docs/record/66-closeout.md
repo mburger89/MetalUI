@@ -725,8 +725,8 @@ printed **578** rows across 87 `Sources/` files — the design's 592 at
 test was added: the probe is the instrument, committed at design, and its
 exit criterion is an empty print (`CX-K`).
 
-**Work** (commit `82bde75`, 87 files, 699 insertions, 0 deletions beyond
-the re-spelled sentences). Each comment says what the declaration does and,
+**Work** (commit `82bde75`, 87 files, 703 insertions, 2 deletions (the two
+are the re-spelled `ModifiedContent.swift` sentence)). Each comment says what the declaration does and,
 where it makes a claim, cites the ruling or divergence label it rests on
 (e.g. `Row`/`Column`'s `gap` default names divergence 52 and `CX-E`;
 `Image.interpolation(_:)` names divergence 93 and `TE-AL`; `Grid`'s row

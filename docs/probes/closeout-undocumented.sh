@@ -1,4 +1,7 @@
 #!/bin/zsh
+# RUN WITH zsh OR EXECUTE DIRECTLY, never `bash script`: it uses zsh path
+# modifiers, fails under bash with a syntax error, and the empty print would
+# look like a pass.
 # Public declarations with no doc comment, for plan task 15 (ruling CX-K).
 #
 # Re-runs docs/probes/closeout-public-api.sh, then prints, as
