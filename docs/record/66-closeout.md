@@ -636,6 +636,19 @@ dated note citing `CX-B` and this section.
 | *Test order-sensitive chains such as padding/background/frame/clip* | yes | padding/background (`aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`), frame/background (`aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes`), hit testing across layers (`aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`), `contentShape` across a wrapper (`aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`); the two the note named as untested, border-clip **C3** and **D1**, are pinned by lane 1 on both paths: `aBackgroundWrittenAfterCornerRadiusIsSquare`, `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill` (proposal, SwiftUI's answer), `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration`, `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (legacy, divergences 47 and 49), each mutated (record §66 §4.3, M1c/M1d/M1cL/M1dL) |
 | the note's "beyond the task's text": the focus ring's look; the release-window captures | not a clause | the look is a human check (`docs/verification/human-checks.md`, `CX-M`), the reading `AN-AG` made for task 13; the captures were taken 2026-09-17 |
 
+### §5.1 Lane 2's tip checks
+
+Lane 2 touched no `Sources/` or `Tests/` file (`git diff 0887a12 aac9fd9 --stat`
+lists only `docs/`). At `aac9fd9`: `swift build --build-system native
+--build-tests` — 0 `error:`, the one SwiftPM deprecation `warning:`; `swift
+test --build-system native --no-parallel` — **`Test run with 1974 tests in 3
+suites passed after 105.398 seconds`**, the FR-J line present (unmoved from
+lane 1's fix round); `docs/probes/demo-pixels/compare.sh <scratch> 1b093b8
+aac9fd9` — **0 differing, scene identical, in all fourteen**, controls as
+lane 1 read them (light vs dark 1 048 576, default vs animation 454 895, prod
+default vs modal 491 221, indicator rects 0); `closeout-inventory-check.sh`
+prints nothing.
+
 ## §6 Lane 3 — doc comments and the human checklist
 
 (To be written by lane 3.)
