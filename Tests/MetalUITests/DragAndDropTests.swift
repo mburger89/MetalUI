@@ -51,6 +51,13 @@ private let stamp = 10.0
 private let left = rect(0, 0, 200, 200)
 private let right = rect(200, 0, 200, 200)
 
+/// Every window `dndWindow` built, kept alive for the process. **A `Window` is
+/// held only weakly by its platform window** (`onInput` captures `[weak self]`),
+/// so a test that keeps the fake alone — `let (_, platform) = …` — would drive a
+/// deallocated window and see every event answered `false`.
+@MainActor
+private var liveDnDWindows: [Window] = []
+
 /// A 400 × 200 window over `content`, one frame drawn.
 @MainActor
 private func dndWindow<Root: Element>(_ content: @escaping @MainActor () -> Root) throws
@@ -58,6 +65,7 @@ private func dndWindow<Root: Element>(_ content: @escaping @MainActor () -> Root
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true,
                                                 content: content)
+    liveDnDWindows.append(window)
     platform.simulateResize(to: Size(width: px(400), height: px(200)))
     window.drawFrameIfNeeded()
     return (window, platform)
@@ -78,10 +86,12 @@ private func stringWell(_ log: DLog, name: String = "") -> ModifiedElement<Box<E
     }, isTargeted: { log.entries.append("\(name)T=\($0)") })
 }
 
-/// The non-opaque hitboxes carrying a drop destination.
+/// The non-opaque regions carrying a drop destination (an opaque hitbox of the
+/// same element carries its whole `Handlers`, the destination included, and is
+/// not one).
 @MainActor
 private func destinationRegions(_ window: Window) -> [Hitbox] {
-    window.lastHitboxes.filter { $0.handlers.dropDestination != nil }
+    window.lastHitboxes.filter { !$0.opaque && $0.handlers.dropDestination != nil }
 }
 
 /// The non-opaque hitboxes carrying a draggable.
