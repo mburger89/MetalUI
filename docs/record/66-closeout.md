@@ -5,7 +5,7 @@ record). Spec `docs/superpowers/specs/2026-09-30-closeout-design.md`; rulings
 `CX-A`…`CX-P` in `docs/superpowers/2026-09-30-closeout-decisions.md` (next
 unused `CX-Q`); probe `docs/probes/swiftui-closeout.swift` (lane 1).
 
-**Status: DESIGN committed and critiqued (`CX-P`); lanes 1–3 and the Record phase to run.**
+**Status: DESIGN committed and critiqued (`CX-P`); lane 1 landed (§4); lanes 2–3 and the Record phase to run.**
 
 **Critic round (2026-09-30).** Probe group O committed and run twice
 (identical): O0 2, O1n nil, **O1 2**, O2 nil — `CX-F`'s SwiftUI claim
@@ -202,7 +202,157 @@ cover.
 
 ## §4 Lane 1 — code
 
-(To be written by lane 1.)
+Commits on `feat/closeout`: `a3a8915` (red first: tests, guards, T1, probe
+group SW), `5e58aa7` (implementation, CI, checklist), and this record's commit.
+
+### §4.1 Baseline and probe
+
+- **Baseline re-taken before the first change** (`1b093b8`, native, after the
+  design commits): `Test run with 1961 tests in 3 suites passed after 106.617
+  seconds`, the FR-J line present, the one `warning:` SwiftPM's deprecation
+  notice.
+- **Probe group SW** (`docs/probes/swiftui-closeout.swift`, `CX-I` item 2),
+  run compiled twice, byte-identical, 2026-09-30 23:58 PDT, screen unlocked
+  (lock probe: no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`):
+  SW0 (`if`/`else`, `.move(edge: .leading)`, under `withAnimation(A)`) records
+  `[-50, 0, 0, 0]` and `[50, 0, 0, 0]`; **SW1 (a three-case `switch`) records the
+  same two lines**; SW1n (no transaction) `(nothing animated)`. Group O re-read
+  exactly as committed by the critic round (O0 2, O1n nil, O1 2, O2 nil).
+
+### §4.2 Tests (10 added, 1 inverted)
+
+| # | test | red first? | reading |
+|---|---|---|---|
+| 1.1 | `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite` | **red** at `1b093b8`: `reads.layout → [nil, nil]`, `reads.binding → [nil, nil]` (CloseoutTests.swift:75, :76) | green after `CX-F` |
+| 1.2 | `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue` | green before and after (separating arm) | |
+| 1.3 | `aBackgroundWrittenAfterCornerRadiusIsSquare` | **green on arrival** — no stop owed (`CX-P` item 2) | the proposal background is square (radii 0, mask radii 0), the content's mask 12 — C3 |
+| 1.4 | `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill` | **green on arrival** | the band square, the fill's mask 12 — D1 |
+| 1.3L | `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration` | pin | one rect, radii 12, either order (wrong on purpose against C3; row 47) |
+| 1.4L | `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` | pin | band and fill radii 12 (wrong on purpose against D1; divergence 49) |
+| 1.5 | `aSwitchBranchTransitionsAsAnIfElseBranchDoes` | pin | both arms: ghost −25, inserted −25 half-way under `linear(1)`, landed 0 ghosts; control: no ghost, inserted at 0 |
+| 1.6 | `measureSettledStoreEntryAllocations` (gated) | a figure | §4.4 |
+| G1 | `aPlainImportCannotPassBoxAStyle` | **red** at `1b093b8`: all four `style:` calls compiled (`!result.succeeded`, CloseoutCompileGuards.swift:55, 4 issues) | |
+| G2 | `theTypecheckGuardsRanWhereTheyAreRequired` | **red** under the default build system with `METALUI_REQUIRE_GUARDS=1` (a `git archive` of `a3a8915`: "no .build/<triple>/debug/Modules holding MetalUI was found under …/g2/.build"; G1 skipped beside it); green under native | |
+| T1 | `theFractionAndPercentSizingModifiersAreAllDeprecated` (was `thePercentSizingModifiersAreDeprecatedRenamesOfFraction`) | **red** at `1b093b8`, 4 issues (ContainerCompileGuards.swift:140, :142, :153, :169) | inverted by `CX-C` |
+
+`goldensUnchanged`: no `@Test` removed; one renamed with its answer inverted
+by ruling (T1, `CX-C`); every other retained test's answer unchanged (the two
+`flexBasis(fraction:)` callers moved — `ModifierTests`' row into the class-D
+witness `DeprecatedFlexBasisCase`, byte-identical row; `LoweringItemTests`'
+report arm to `cssFlexBasis(fraction:)`, the modifier's closure body verbatim,
+pinned by that arm itself: a helper writing nothing would report nothing).
+
+### §4.3 Mutations (committed tree `5e58aa7`, restored from a copy, full unfiltered suite of 1971, `git status --short` empty after each)
+
+| id | file | mutation | reddened (issues) |
+|---|---|---|---|
+| M1a | `StateTable.swift` | `peek` back to `storage[id]?.value as? S` | `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite` (2) — alone |
+| M1b | `StateTable.swift` | `peek` treats a stored `Optional.none` as absent (`Mirror` check) | `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue` (2) — alone |
+| M1c | `ModifiedContent.swift` | the proposal `.background` fill wrapped in a 12-point rounded clip | `aBackgroundWrittenAfterCornerRadiusIsSquare` (1) — alone (no other test read a proposal background's mask) |
+| M1d | `ModifiedContent.swift` | the proposal `.border` band's radii 12 instead of its own | `aBorderWrittenAfterCornerRadiusIsSquareOverARoundedFill` (1), `nativeBorderPaintsOverContentWithoutChangingItsFrame` (1) |
+| M1cL | `AnimatedColor.swift` (`paintDecorationBody`) | the legacy fill's radii 0 | `aLegacyBackgroundWrittenAfterCornerRadiusIsRoundedOnOneDecoration` (1), `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (1), `aBareCornerRadiusDoesNotClipTheChildren` (1), `aGenericWrapOverAChainIsIdenticalToTheFlatChainUnderTheProposalAuthority` (1), `aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority` (1), `aScaleTransitionScalesCornerRadiiAndBorderWidths` (1), `cornerRadiusReachesTheSceneThroughTheModifier` (2), `everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority` (1), `theDemoFrameMatchesTheValuesRecordedOnMacOS` (2) — 11 issues |
+| M1dL | `AnimatedColor.swift` (`paintDecorationBody`) | the legacy border band's radii 0 | `aLegacyBorderWrittenAfterCornerRadiusFollowsTheArc` (1), `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot` (2) |
+| M1e | `ElementGroup.swift`, the **untyped** `EitherGroup.requestGroupLayout`, `.second` case only | `noteEither` skipped when `branchIndex == 0` — scoped so the test's `if`/`else` (at cursor 1 in its `Stack`) is untouched and only the `switch`'s nested `Either` (cursor 0 under the outer branch) loses its record | `aSwitchBranchTransitionsAsAnIfElseBranchDoes` (2), `everyConditionalSiteRecordsItsTransaction` (1, its legacy `Column { if on … else … }` sits at cursor 0) |
+| MG1 | `Box.swift` | `init(style:decoration:content:)` back to `public` | `aPlainImportCannotPassBoxAStyle` (1, the `content:` arm) |
+| MG2 | `CloseoutCompileGuards.swift`, in the `git archive` copy under the default build system | `guard false else { return }` (ignore the variable) | G2 **green** under default-with-env — the instrument proof (`CX-J`) |
+| MT1 | `Box.swift` | `flexBasis(fraction:)`'s `@available` deleted | `theFractionAndPercentSizingModifiersAreAllDeprecated` (3) |
+
+### §4.4 Measurements
+
+- **`fraction: 0`** (`CX-C` item 2 asked lane 1 to word the message by it),
+  through `LayoutDifferential.render` with diagnostics on, a throwaway test
+  not committed: `Row { Box().height(10).flexGrow(1).flexBasis(fraction: 0); … }`
+  reports `[]` (an unsized grower's zero basis lowers as `auto`, `LR-AB`);
+  without grow, or on a sized grower, it reports `[box.flexBasis]`; `0.5` on an
+  unsized grower `[box.flexBasis]`. The deprecation message says exactly that.
+- **1.6, the settled-frame allocation figure** (`CX-I` item 1, record §64
+  §11), `METALUI_STORE_ALLOC_MEASURE=1 swift test --build-system native
+  --no-parallel --filter measureSettledStoreEntryAllocations`, debug arm64,
+  two runs identical. Three settled frames at 920×560 after three warm ones,
+  one `StateTable`/`AnimationStore`/`ShapingCache`/atlas:
+
+  | tree | allocations | requested bytes | store entries |
+  |---|---|---|---|
+  | proposal preview | 18,363 | 1,658,448 | 12 |
+  | legacy demo | 82,121 | 9,104,975 | 0 |
+  | 40 × `Rectangle(4×4).frame(4×4)` | 13,107 | 951,606 | 40 |
+  | 80 × the same | 25,881 | 1,895,046 | 80 |
+  | 40 bare rectangles | 9,612 | 718,326 | 0 |
+  | 80 bare rectangles | 18,906 | 1,428,582 | 0 |
+
+  Per element per settled frame: framed 106.45 allocations / 7,862 bytes,
+  bare 77.45 / 5,919, so **one settled `.frame` layer, its store entry's
+  touch included, adds 29 allocations / ~1.9 KB of transient requests per
+  frame** — the layer's whole per-frame work, not the store alone, and
+  churn, not retained footprint. Written into `AnimatedStyle.swift` in place
+  of "re-owned to plan task 15".
+
+### §4.5 Must-hold checks
+
+- **Suite**: after `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, the one SwiftPM deprecation `warning:`) then
+  `swift test --build-system native --no-parallel`: **`Test run with 1971
+  tests in 3 suites passed after 105.813 seconds`**, FR-J line present.
+  Guards **121** (119 + G1 + G2). Goldens 0.
+- **Default build system**: a `git archive` of `5e58aa7`, `swift build
+  --build-tests`: exit 0, **0 `warning:`, 0 `error:`**.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 1b093b8 5e58aa7`:
+  **0 differing, scene identical, in all fourteen**. Controls at `1b093b8`
+  all non-zero where they must be (light vs dark 1 048 576; default vs modal
+  1 031 003; default vs animation 454 895; f0 vs f3 0; preview 1 048 576;
+  chrome pair 0; distinct 544/216; prod default vs modal 491 221; distinct
+  prod 529; indicator rects 0) — the modal and animation controls read above
+  the script header's stage-4 figures (1 030 498, 210 027), a drift of the base
+  commit's own images since stage 4 (task 11 part 1's paragraph, task 13), not
+  a property of this comparison, which is base against head.
+- `Expected.swift` unedited; `theDemoFrameMatchesTheValuesRecordedOnMacOS`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+  `theSevenRetentionSlotsAreMutuallyDistinct` green (unedited).
+  `MetalUILayout` imports only `MetalUICore`.
+- `peek`'s other callers re-read at the tip: `AnimatedColorState`,
+  `FocusStateValue<Value>`, `ListOrigin`, `AXNode`, `Bool`,
+  `AnimatedElementState` — none optional, so none can change. **Noted, not
+  changed**: `StateTable.withState` has the same `as? S ?? initial()` shape
+  (an optional `S` over an absent entry would skip `initial()`); no caller
+  passes an optional `S`, so it is latent, outside `CX-F`'s ruling.
+- **No `Box(style:` in a typecheck fixture string, and none in
+  `Backends/SDL`, `Tests/PortableTests` or `Experiments`** (re-grepped at the
+  tip), so the `package` narrowing reaches no other package.
+- **"Plan task 15" as a future owner** in lane 1's files: re-spelled in
+  `AnimatedStyle.swift`, `DecorationCompileGuards.swift` and
+  `NativeGridTests.swift`; `grep -rn "task 15" Sources Tests` leaves one
+  future-tense hit, `ModifiedContent.swift:376`, lane 3's file (`CX-P` item 6).
+- **CI** (`CX-J`): `.github/workflows/swift.yml`'s macOS job now builds with
+  `--build-system native --build-tests` and tests with
+  `METALUI_REQUIRE_GUARDS=1 … --build-system native --no-parallel`. Checked
+  locally exactly as CI will run it: **`Test run with 1971 tests in 3 suites
+  passed after 105.024 seconds`**, G2 passed, the FR-J line present. The
+  workflow itself is owed to CI on push.
+- **`Backends/SDL`** (`PKG_CONFIG_PATH=$PWD/.accesskit`, AccessKit fetched by
+  its script): builds; **22 + 33** passed, unmoved from task 13. Its
+  pre-existing `warning:`s (an unneeded `try`, `ld`'s SDL3 dylib version) are
+  that package's, untouched here.
+- **No `swift:6.4-noble` run**: Docker is not available on this machine
+  (`docker info` fails). Nothing lane 1 changed is in a portable test target
+  (`CloseoutTests`/`CloseoutCompileGuards` are `MetalUITests`); the portable
+  `MetalUI` sources it touched (`Box.swift`, `State.swift`, `StateTable.swift`)
+  are owed to the Linux and Windows CI jobs on push.
+- **Real-window capture not taken by lane 1**: the lock probe read unlocked at
+  23:57 PDT (the probe run) but **locked** at 00:36 PDT when lane 1 reached it
+  (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`); the offscreen
+  fourteen stand in (0 px). The Record phase re-runs the probe.
+
+### §4.6 The human checklist
+
+`docs/verification/human-checks.md` (`CX-M` item 1, moved to lane 1 by
+`CX-P` item 9), built from `grep -n "^## " docs/record/03-verified-on-real-hardware.md`
+(every dated section, stage 6b through task 13), `grep -n -i -E
+"open|owed|unobserved|nobody has" docs/record/03-verified-on-real-hardware.md`,
+and record §19's frozen "Human verification" table (every row not closed).
+Groups A (real-window capture) through M (older milestone rows), each item
+citing its source; the VoiceOver script is linked as L1, not copied. Not run:
+an agent cannot.
 
 ## §5 Tasks 4 and 5, clause by clause (`CX-B`) — lane 2
 
