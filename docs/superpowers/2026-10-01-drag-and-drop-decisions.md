@@ -10,7 +10,7 @@ Evidence: [`../probes/swiftui-drag-and-drop.swift`](../probes/swiftui-drag-and-d
 `NSDraggingInfo`, `A…` accessibility, `P…` real pointer drags posted at the HID
 event tap; its header carries the recorded output and how to read it).
 
-Prefix **`DN-`**, lettered. **Next unused: `DN-S`.** (This line moves in the
+Prefix **`DN-`**, lettered. **Next unused: `DN-V`.** (This line moves in the
 commit that appends a ruling; read the last `## DN-` heading.)
 
 Branch `feat/drag-and-drop` from `053a3b3` (master: plan task 15 merged, PR
@@ -87,15 +87,18 @@ callers porting from SwiftUI see the old spelling only; adding the
    protocol (spec §3.1):
    ```swift
    public protocol Transferable {
-       var exportedContentTypes: [ContentType] { get }          // instance: a web URL and a file URL differ (T4)
-       static var importedContentTypes: [ContentType] { get }
+       func exportedContentTypes() -> [ContentType]          // instance: a web URL and a file URL differ (T4)
+       static func importedContentTypes() -> [ContentType]
        func exported(as contentType: ContentType) -> Data?
        init?(importing data: Data, contentType: ContentType)
    }
    ```
-   The member names are CoreTransferable's (`exportedContentTypes`,
-   `importedContentTypes`, `exported(as:)`, `init(importing:contentType:)`);
-   synchronous and non-throwing. A file importing both MetalUI and
+   **Amended by `DN-S`** (the critic round): the design first spelled the two
+   type lists as properties and called them "CoreTransferable's names";
+   CoreTransferable's call sites are functions (`String.importedContentTypes()`,
+   `web.exportedContentTypes()`, the probe's own `T1`–`T4` spellings), so they
+   are functions here; what `init(importing:contentType:)` is handed is `DN-S`
+   item 2. Synchronous and non-throwing. A file importing both MetalUI and
    CoreTransferable spells `MetalUI.Transferable` (migration note).
 2. **`ContentType`** is an identifier plus the identifiers it conforms to:
    `ContentType(_ identifier:, conformingTo: [ContentType])`, conformance
@@ -111,9 +114,12 @@ callers porting from SwiftUI see the old spelling only; adding the
    `[url]`, a file URL `[url, fileURL]` (`T2`, `T4`); bytes are the absolute
    string in UTF-8 (`T6`, `T6b`); does **not** import from plain text
    (`T7c`, `R3c`, `P16`) and does not export as plain text (`T6c`). `Data`:
-   exported and imported `[data]`; imports any offered type, since every type
-   conforms to `public.data` (`T3`, `P16b`: a String dropped on a `Data`
-   destination arrives as its one byte). `AttributedString` (`T3b`) is not
+   exported and imported `[data]` (`T3`). **Amended by `DN-S`**: the design
+   read "imports any offered type, since every type conforms to `public.data`"
+   — refuted at the protocol level by `T7e` (`Data(importing:contentType:
+   .png)` is nil); a `Data` *destination* still takes any drop (`P16b`: a
+   String arrives as its one byte; `R3g`) because the drop path matches by
+   conformance and hands the importer `.data`. `AttributedString` (`T3b`) is not
    conformed — MetalUI has no attributed text.
 4. **The platform seam carries no Foundation type** (`MetalUIPlatform` imports
    only `MetalUICore`/`MetalUIScene`): an outgoing representation is
@@ -523,9 +529,173 @@ a destination, so all fourteen read 0 px against `053a3b3` and
 
 ## DN-R — lanes, verification, what must not move
 
-**Ruling.** Three lanes, run strictly in order (one agent at a time), files
+**Ruling** (**amended by `DN-T`**: the preview moved to lane 2, and lanes no
+longer claim disjoint files — they run in order and a later lane extends an
+earlier one's). Three lanes, run strictly in order (one agent at a time), files
 disjoint except for the two one-line seam conformances lane 1 adds (spec §5):
 **lane 1** the seam and everything in `MetalUI`; **lane 2** AppKit in and
 out; **lane 3** SDL, accessibility parity, the demo, human checks and the
 divergence/API docs. Every test is named in spec §6 with its red-before and
 the mutation that must redden it. Must not move: spec §9.
+
+---
+
+## DN-S — `Transferable` (critic round): CoreTransferable's call-site spellings; the importer is told the destination's type; SwiftUI's conformer spelling is not offered
+
+**Finding.** The critic re-ran groups `T`, `R` and `A` (72 lines, byte-identical
+to the header). `T7e` (`Data(importing: [1, 2], contentType: .png)` → nil)
+contradicted the spec's `Data` comment ("imports any offered type") and its
+test 1.3 arm ("`Data` ✓ from `utf8PlainText`"), and the spec never said which
+type `init(importing:contentType:)` receives. `T5b` (`"héllo".exported(as:
+.plainText)` → 6 bytes, though `plainText` is not in String's exported list)
+against `T6c` (a web URL `exported(as: .plainText)` throws) was read nowhere.
+And the protocol's two type lists were properties, where CoreTransferable's
+call sites (the probe's own `T1`–`T4`) are functions.
+
+**Ruling.**
+
+1. **Spellings.** `func exportedContentTypes() -> [ContentType]` (instance),
+   `static func importedContentTypes() -> [ContentType]`, `func exported(as:)
+   -> Data?`, `init?(importing:contentType:)` — so `String.importedContentTypes()`
+   and `url.exportedContentTypes()` read as they do against CoreTransferable.
+   Differences, ruled: synchronous, non-throwing, optional-returning (`DN-B`
+   item 1's reason); no `visibility:` parameter (MetalUI has no
+   ownership-scoped pasteboard); no static `exportedContentTypes()` (the
+   instance list is the one a drag uses, `T4`); `exported(as:)` takes a
+   non-optional type (CoreTransferable's `nil` means "the first exported
+   type", which a caller writes as `exportedContentTypes()[0]`).
+2. **What the importer is told.** The drop path matches an offered type `o`
+   to an imported type `i` by conformance (`DN-B` item 2), preferring an exact
+   match, else the first of `importedContentTypes()` in declared order that
+   `o` conforms to, and calls `init(importing: bytes, contentType: i)` — **the
+   destination's type, never the offered one**. A built-in conformer's init
+   accepts exactly its own imported types (`T7`, `T7d` ✓; `T7b`, `T7c`, `T7e`
+   ✗). Together these give `P16b`/`R3g` (a String reaches a `Data`
+   destination as bytes) without contradicting `T7e`. Pinned by 1.3 (the
+   protocol half) and 1.29 (the drop half; mutation M1ae hands the offered
+   type and the Data destination receives nothing).
+3. **Export to a supertype.** `exported(as: t)` returns bytes when one of the
+   instance's exported types conforms to `t` (`T5b`), nil otherwise (`T6c`).
+   Pinned by 1.1's two new arms.
+4. **SwiftUI's conformer spelling is not offered, owner none.** A SwiftUI
+   type conforms by writing `static var transferRepresentation: some
+   TransferRepresentation` from `DataRepresentation`, `CodableRepresentation`,
+   `ProxyRepresentation` or `FileRepresentation`; a MetalUI conformer writes
+   the four members. A result-builder representation family is a second
+   design (`DN-A` item 2's reasoning for the `DropSession` family), and its
+   `async` closures are exactly what `DN-B` item 1 rules out. **Migration
+   note**: a ported custom type rewrites its conformance; the three built-ins
+   need nothing. Listed in `docs/divergences.md`'s "Not offered" table (lane
+   3); guard G1.2's second fixture pins that `transferRepresentation` alone
+   does not conform.
+
+**Cost if wrong.** If a caller needs the offered type (to tell PNG from JPEG
+under one `.data` importer), it declares both types as imported; adding an
+`offeredContentType` later is additive.
+
+---
+
+## DN-T — lanes rebalanced (critic round): the preview moves to lane 2
+
+**Finding.** Lane 1 carried 31 of the design's 42 additions and every
+`MetalUI` source change — the seam, `Transferable`, the arena exception, the
+session, target resolution, external drops, the hand-off **and** the
+transition-capture preview with its custom-preview presentation — while lane 2
+carried 9 AppKit tests. The workflow budget rule (CLAUDE.md, "Two or three
+lanes … each lane pays to load the same code") is about cost, but one lane
+holding two independent mechanisms over `Frame.swift`'s paint path and
+`Window.swift`'s input path is also the shape in which a mutation table goes
+short.
+
+**Ruling.**
+
+1. **Lane 2 is now "preview + AppKit"**: the snapshot capture and replay
+   (`DN-J` items 1–2), `draggable(_:preview:)` and `DraggablePreviewModifier`
+   (`DN-J` item 3), the per-site capture pin (`DN-U` item 6), plus every AppKit
+   item. Tests 1.20/1.21 become 2.10/2.11; the preview halves of 1.27 and 1.28
+   become 2.13/2.14 (new tests; 1.27 and 1.28 keep their delivery and hitbox
+   halves); 2.12 and guard G2.1 are new. G1.1 drops the preview spelling.
+2. **Lanes run strictly in order and may extend an earlier lane's files**
+   (lane 2 edits `Frame.swift`, `DragSession.swift`, `DragAndDrop.swift` after
+   lane 1 commits). `DN-R`'s "files disjoint" is withdrawn: CLAUDE.md's
+   disjointness advice is for lanes that run in parallel, and these do not.
+3. **Counts**: root suite 1976 → **2023** (lane 1 +30, lane 2 +15, lane 3
+   +2); guards 121 → **125**; `MetalUICrossPlatformTests` +4; `Backends/SDL`
+   `MetalUISDLTests` +8.
+4. **Lane 1 closes with a `swift:6.4-noble` container build** of the root
+   package (spec §9): the portable surface it adds is the one only Linux can
+   check.
+
+**Rejected alternative.** Moving the external-drop resolution to lane 2 with
+AppKit: the resolver and importer are shared by the in-window session (one
+resolver, `DN-F`), so splitting them across lanes would land half a mechanism
+in lane 1.
+
+---
+
+## DN-U — precision items (critic round)
+
+**Ruling.**
+
+1. **A long press that has already succeeded holds a drag off.** `DN-D` item
+   2's exception covers *undecided* taps, long presses and clicks; a long
+   press held past its `minimumDuration` before the first move has *ended*,
+   and the arena's existing rule (an ended member ahead blocks, `IX-D`) then
+   keeps the drag from beginning. SwiftUI is **unmeasured** here (`P2f` moves
+   at once); MetalUI's choice, kept because changing it would add a second
+   exception to the arena's ended-member rule. Pinned by 1.7's sixth arm
+   (ticks driven through `simulateTick`, no sleep); listed as optional human
+   check N8 (hold, then drag, in the demo).
+2. **`P13c`'s timing is not separated.** The log
+   `outerT=true,outerT=false` with no drop reads the same whether the outer
+   un-targeted on entering the refusing inner destination or at the release;
+   only "nothing took the drop" is measured. MetalUI un-targets on entry (the
+   target is the deepest destination, `DN-F` item 2) — MetalUI's choice,
+   coherent with `P13a` (the outer turned `false` as the pointer entered an
+   accepting inner).
+3. **A custom preview's state starts fresh each session.** The preview is
+   produced through an evaluated optional slot at cursor 1, so `ID-C`'s
+   existing reset removes its subtree's `StateTable` entries in the frame the
+   session ends — no new reset mechanism and no new reserved slot
+   (`theSevenRetentionSlotsAreMutuallyDistinct` unmoved). Pinned by 2.11's
+   second arm (mutation M2m).
+4. **SDL drop kinds in tests come from C constants.** The test-only bridge
+   entry (3.7) takes a `uint32_t` SDL type exported from C as `extern const
+   uint32_t mui_sdl_event_drop_*`, the `mui_sdl_event_window_*` pattern —
+   never `SDL_EVENT_DROP_FILE.rawValue` in Swift (`Int32` on Windows, `UInt32`
+   on Apple; only Windows CI sees a miss). Each event's `text` is copied in
+   Swift at once (SDL owns it until the next poll).
+5. **The no-target arena keys on the draggable.** With no opaque hitbox at
+   the press (`DN-E` item 2's last sentence) the arena's identity is the
+   draggable region's id: `dispatchGestures`' multi-click `continuing` path
+   (today `lastHitboxes[target].id == arena.targetID` on the opaque target)
+   compares against the same draggable region, so a double tap on a draggable
+   with no opaque target does not abandon its own arena. A lane-1 arm of 1.7
+   (`.draggable` + `.onTapGesture(count: 2)` on a plain `Box`, `P21`) pins it.
+6. **One capture push per paint site, enumerated.** The snapshot is pushed by
+   `paintDecoration`'s callers and `DraggableModifier.paint` — a helper with
+   one push per site, `OM-AI`'s hazard: a site that skips it drags an empty
+   preview and nothing else reddens. Test 2.12 enumerates every draggable
+   site (`Box`, `Stack`, `Text`, a `ModifiedElement` layer, `Button`,
+   `Toggle`, `Picker`, `Stepper`, `List`, a proposal element); `TextField`,
+   `TextEditor` and `Slider` are excluded because they never begin a drag
+   (`DN-D` item 6). The capture scope is an identity `TransitionPaintScope`,
+   and `insertThroughTransitions` lets every open scope capture innermost
+   first, so a source inside a `.transition` group is captured before the
+   transition's effect and the transition's own ghost capture is unchanged.
+7. **Probe re-run by the critic.** Groups `T`, `R`, `A` from a fresh compile:
+   72 lines byte-identical to the header. Group `P` was **not** re-run: it
+   moves the user's real pointer for minutes, and a critic has no consent to
+   take it; its arms stand on the design session's two byte-identical runs.
+
+**Considered and kept (not defects).** `.onDrag`/`.onDrop` stay out (`DN-A`
+item 2: `NSItemProvider` cannot cross the portable surface). The disabled
+source half of divergence 100 stays (`DN-G`: one gate). A draggable's region
+being non-opaque (`DN-E`) adds no consumer of `lastHitboxes` that reads a
+non-opaque hitbox's handlers beyond the arena: hover and click ranking use the
+opaque filter, the accessibility builder reads `onClick` (absent on both new
+regions), and the arena's ancestor walk requires non-empty `gestures` (absent
+on a destination region). Rejections are recorded here as `DN-` rulings, not
+`LR-` ones: `LR-` is the engine-replacement prefix, and this feature's
+decisions doc is the only ruling file it may write before the Record phase.
+

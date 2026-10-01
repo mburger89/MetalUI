@@ -1,10 +1,10 @@
 # Drag and drop — design
 
 Branch `feat/drag-and-drop` from `053a3b3` (master, plan task 15 merged, PR
-#35). User request 2026-10-01 — **not a plan task**. Rulings **`DN-A`…`DN-R`**
+#35). User request 2026-10-01 — **not a plan task**. Rulings **`DN-A`…`DN-U`**
 in a new decisions doc,
 [`../2026-10-01-drag-and-drop-decisions.md`](../2026-10-01-drag-and-drop-decisions.md)
-(next unused **`DN-S`**). Evidence:
+(next unused **`DN-V`**; `DN-S`…`DN-U` are the critic round's). Evidence:
 [`../../probes/swiftui-drag-and-drop.swift`](../../probes/swiftui-drag-and-drop.swift)
 (**new**; groups `T` Transferable, `R` fake `NSDraggingInfo`, `A`
 accessibility, `P` real pointer drags at the HID tap; header carries the
@@ -16,6 +16,20 @@ after a clean build: **1976 tests in 3 suites** (`Test run with 1976 tests in
 3 suites passed after 107.503 seconds`, the FR-J line present), 0 `error:`,
 the one native deprecation `warning:`; 121 typecheck guards, 0 goldens, 66
 live divergences (next label 100).
+
+**Critic round (2026-10-01).** Groups `T`, `R` and `A` of the probe re-run
+from a fresh compile: 72 lines byte-identical to the header (group `P` not
+re-run — it moves the user's real pointer for minutes; its arms stand on the
+design session's two byte-identical runs). Findings, each fixed here and ruled:
+`T7e` contradicted this spec's `Data` import and the content type handed to
+`init(importing:contentType:)` (`DN-S`); the `Transferable` members were
+properties where CoreTransferable's call sites are functions, and SwiftUI's
+conformer spelling (`transferRepresentation`) was absent without a ruling
+(`DN-S`); lane 1 carried 31 of 42 additions, so the preview moves to lane 2
+(`DN-T`); a held long press, `P13c`'s timing, the custom preview's state on
+session end, SDL's C-enum spelling in tests, the no-target arena's
+multi-click path and the per-site capture hazard (`OM-AI`'s shape) are pinned
+or ruled (`DN-U`).
 
 ---
 
@@ -97,15 +111,25 @@ public struct ContentType: Hashable, Sendable {
 }
 
 public protocol Transferable {
-    var exportedContentTypes: [ContentType] { get }
-    static var importedContentTypes: [ContentType] { get }
-    func exported(as contentType: ContentType) -> Data?
-    init?(importing data: Data, contentType: ContentType)
+    func exportedContentTypes() -> [ContentType]          // instance: a web URL and a file URL differ (T4)
+    static func importedContentTypes() -> [ContentType]
+    func exported(as contentType: ContentType) -> Data?   // nil unless an exported type conforms to `contentType` (T5b, T6c)
+    init?(importing data: Data, contentType: ContentType) // `contentType` is one of importedContentTypes() (DN-S)
 }
-extension String: Transferable {}   // [utf8PlainText] both ways, UTF-8
+extension String: Transferable {}   // [utf8PlainText] both ways, UTF-8; exports as plainText/text/data too (T5b)
 extension URL: Transferable {}      // imports [url, fileURL]; a web URL exports [url], a file URL [url, fileURL]; absoluteString UTF-8
-extension Data: Transferable {}     // [data] both ways; imports any offered type (everything conforms to data)
+extension Data: Transferable {}     // [data] both ways; its init takes only `.data` (T7e) — a Data
+                                    // destination takes any drop because the drop path matches by
+                                    // conformance and hands it `.data` (P16b, R3g; DN-S)
 ```
+
+The call-site spellings are CoreTransferable's (`String.importedContentTypes()`,
+`url.exportedContentTypes()`, `x.exported(as:)`, `T(importing:contentType:)`),
+synchronous, non-throwing and optional-returning; CoreTransferable's
+`visibility:` parameter, its static `exportedContentTypes()` and SwiftUI's
+conformer spelling `static var transferRepresentation` (`DataRepresentation`,
+`CodableRepresentation`, `ProxyRepresentation`, `FileRepresentation`) are **not
+offered** — a conformer writes the four members (`DN-S`).
 
 `.data` conforms to `.item`; `.item` conforms to nothing; `.text` ⊂ data,
 `.plainText` ⊂ text, `.utf8PlainText` ⊂ plainText, `.url` ⊂ data, `.fileURL`
@@ -241,10 +265,15 @@ none → nil; if `topmostOpaqueHitbox(lastHitboxes, p)` has `layer > lastHitboxe
 offers a type satisfying one of the destination's imported types; the target
 is `i`'s id **only if it accepts** (`DN-F` item 2). Location =
 `p − lastHitboxes[i].origin` (`DN-H` item 2). Import: for each item in
-order, the first offered type satisfying an imported type, `load` it,
-`T(importing:contentType:)`; failures skipped; empty → no action.
+order, the first offered type `o` satisfying an imported type; the imported
+type `i` it satisfies (an exact match first, else the first of
+`T.importedContentTypes()`, in declared order, that `o` conforms to); `load(o)`,
+then `T(importing: bytes, contentType: i)` — **the destination's type, never
+the offered one** (`DN-S`; `T7e`: CoreTransferable's `Data` refuses being told
+its bytes are `public.png`, yet a Data destination takes a String, `P16b`);
+failures skipped; empty → no action.
 
-### 3.5 The preview (`Frame.swift`, `DragSession.swift`)
+### 3.5 The preview (`Frame.swift`, `DragSession.swift`) — lane 2 (`DN-T`)
 
 `Frame.dragSourceID` (set by `Window` from the open session, nil otherwise).
 `paintDecoration` and `DraggableModifier.paint` push an identity
@@ -256,7 +285,16 @@ every primitive's mask replaced by the translated snapshot bounds, inserted on
 `preview` as a `Deferred` presentation (`.position(.absolute).inset(left:top:)`
 at the pointer less the press offset, `allowsHitTesting(false)`, opacity 0.7)
 only while its id is the session's source; its content numbers from 0, the
-preview at cursor 1.
+preview at cursor 1, produced through an evaluated optional slot so that its
+subtree's `@State` is reset by `ID-C`'s existing rule when the session ends
+(`DN-U` item 3) — no new reset mechanism.
+
+**The capture push has one site per paint helper** (`paintDecoration`'s
+callers: `Box`, `Stack`, `Text`, a `ModifiedElement` layer, and through an
+inner `Box` with the same id `Button`, `Toggle`, `Picker`, `Stepper`, `List`;
+`DraggableModifier.paint` on the proposal side). A site that skips it drags an
+empty preview silently, so test 2.12 enumerates every draggable site (`OM-AI`'s
+shape, `DN-U` item 6).
 
 ### 3.6 AppKit (`Sources/MetalUIAppKit/AppKitDragAndDrop.swift`, new; `AppKitPlatform.swift`)
 
@@ -277,7 +315,9 @@ preview at cursor 1.
 
 `MUI_EVENT_DROP_BEGIN/POSITION/FILE/TEXT/COMPLETE` appended to the `MUI_EVENT`
 enum (after `MUI_EVENT_FOCUS_LOST`, so no existing raw value moves);
-`SDLWindow.handle` runs `DN-M`'s session; `fileURLString(fromPath:)` is a pure
+`SDLWindow.handle` runs `DN-M`'s session, copying each event's `text` at once
+(SDL owns it until the next poll, as `TEXT_INPUT`'s already does);
+`fileURLString(fromPath:)` is a pure
 static function (percent-encoding RFC 3986 unreserved + `/`, a `C:\…` path
 becoming `file:///C:/…`). `beginExternalDrag` returns `false`.
 
@@ -300,12 +340,12 @@ becoming `file:///C:/…`). `beginExternalDrag` returns `false`.
 
 ---
 
-## 5. Lanes (three, run in order, files disjoint)
+## 5. Lanes (three, run strictly in order; a later lane may extend an earlier lane's files, `DN-T`)
 
 | lane | owns | adds outside its own files |
 |---|---|---|
-| **1 — seam + MetalUI** | `Sources/MetalUIPlatform/InputEvent.swift`, `Platform.swift`; `Sources/MetalUI/Transferable.swift` (new), `DragAndDrop.swift` (new), `DragSession.swift` (new), `Handlers.swift`, `Gesture.swift`, `Hitbox.swift`, `Frame.swift`, `Window.swift`, `AnimatedColor.swift` (the `paintDecoration` capture push only); `Tests/MetalUITests/Fakes.swift`, `ControlStateCompileGuards.swift`, `TransactionCompileGuards.swift` (fixture members), `DragAndDropTests.swift` (new), `DragAndDropCompileGuards.swift` (new); `Tests/MetalUICrossPlatformTests/TransferableTests.swift` (new) | **exactly one member each**, so both packages build: `AppKitWindow.beginExternalDrag` returning `false` with a `// lane 2 replaces` comment (`AppKitPlatform.swift`), and `SDLWindow.beginExternalDrag` returning `false` — SDL's final answer (`SDLPlatform.swift`). Lanes 2 and 3 own those files afterwards. |
-| **2 — AppKit** | `Sources/MetalUIAppKit/AppKitPlatform.swift`, `AppKitDragAndDrop.swift` (new); `Tests/MetalUITests/AppKitDragAndDropTests.swift` (new) | none |
+| **1 — seam, Transferable, arena, session, drops** | `Sources/MetalUIPlatform/InputEvent.swift`, `Platform.swift`; `Sources/MetalUI/Transferable.swift` (new), `DragAndDrop.swift` (new: `draggable(_:)`, `dropDestination`, `DraggableModifier`, `DropDestinationModifier`), `DragSession.swift` (new: the session, without the preview), `Handlers.swift`, `Gesture.swift`, `Hitbox.swift`, `Frame.swift` (`registerHandlers` only), `Window.swift`; `Tests/MetalUITests/Fakes.swift`, `ControlStateCompileGuards.swift`, `TransactionCompileGuards.swift` (fixture members), `DragAndDropTests.swift` (new), `DragAndDropCompileGuards.swift` (new); `Tests/MetalUICrossPlatformTests/TransferableTests.swift` (new) | **exactly one member each**, so both packages build: `AppKitWindow.beginExternalDrag` returning `false` with a `// lane 2 replaces` comment (`AppKitPlatform.swift`), and `SDLWindow.beginExternalDrag` returning `false` — SDL's final answer (`SDLPlatform.swift`). |
+| **2 — preview, AppKit** | the preview (§3.5): `Frame.swift` (capture and replay), `AnimatedColor.swift` (the `paintDecoration` capture push), `ModifiedContent.swift` (the per-layer push, if `paintDecoration` does not cover it), `DragSession.swift` (snapshot), `DragAndDrop.swift` (`draggable(_:preview:)`, `DraggablePreviewModifier`); `Sources/MetalUIAppKit/AppKitPlatform.swift`, `AppKitDragAndDrop.swift` (new); `Tests/MetalUITests/DragPreviewTests.swift` (new), `DragPreviewCompileGuards.swift` (new), `AppKitDragAndDropTests.swift` (new) | none |
 | **3 — SDL, accessibility, demo, docs** | `Backends/SDL/Sources/SDLBridge/SDLBridge.c` + `include/*.h`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`; `Backends/SDL/Tests/MetalUISDLTests/SDLDropTests.swift`, `AccessKitDragAndDropTests.swift` (new); `Tests/MetalUITests/DragAndDropAccessibilityTests.swift` (new), `DemoStackBudgetTests` (one arm); `Sources/MetalUIDemoContent/DragAndDropDemo.swift` (new), `Sources/MetalUIDemo/main.swift`; `docs/verification/human-checks.md`, `docs/divergences.md`, `docs/api-overview.md` | none |
 
 Each lane commits red first (its tests, failing for the stated reason), then
@@ -328,9 +368,9 @@ the named spelling only and must redden **at least** the named test.
 
 | # | test | asserts (evidence) | red-before | mutation that must redden it |
 |---|---|---|---|---|
-| 1.1 | `aStringExportsAndImportsUTF8PlainTextOnly` | types `[utf8PlainText]` both ways; `"héllo"` exports 6 UTF-8 bytes; imports back (T1, T5, T7) | stub exports `[]` | **M1a** String's exported types gain `.plainText` |
+| 1.1 | `aStringExportsAndImportsUTF8PlainTextOnly` | types `[utf8PlainText]` both ways; `"héllo"` exports 6 UTF-8 bytes, as `.utf8PlainText` and as `.plainText` (T5, T5b); a web URL `exported(as: .plainText)` is nil (T6c); imports back (T1, T7) | stub exports `[]` | **M1a** String's exported types gain `.plainText` / **M1a′** `exported(as:)` requires an exact match (reddens the T5b arm) |
 | 1.2 | `aWebURLExportsURLAndAFileURLExportsBoth` | web `[url]`, file `[url, fileURL]`; bytes = absolute string (T4, T6, T6b) | stub `[]` | **M1b** a file URL exports `[url]` only |
-| 1.3 | `importingFollowsContentTypeConformance` | String ✗ from `url` data (T7b); URL ✗ from plain text (T7c); URL ✓ from `url` (T7d); `Data` ✓ from `utf8PlainText` (P16b); `.fileURL.conforms(to: .url)`, `.utf8PlainText.conforms(to: .data)`, not `.url.conforms(to: .plainText)` | stub conforms nothing | **M1c** `.url`'s parents gain `.plainText` |
+| 1.3 | `eachBuiltInImportsOnlyItsOwnTypesAndConformanceIsTransitive` | String ✗ from `url` data (T7b); URL ✗ from plain text (T7c); URL ✓ from `url` (T7d); `Data` ✗ told `public.png` (T7e), ✓ told `.data`; `.fileURL.conforms(to: .url)`, `.utf8PlainText.conforms(to: .data)`, not `.url.conforms(to: .plainText)` | stub conforms nothing | **M1c** `.url`'s parents gain `.plainText` / **M1c′** `Data.init` accepts any type conforming to `.data` (reddens the T7e arm) |
 | 1.4 | `aCustomContentTypeConformsThroughItsDeclaredParents` | `ContentType("com.example.note", conformingTo: [.utf8PlainText])` conforms to text, data, item; not url | stub | **M1d** conformance not transitive (parents only) |
 
 ### 6.2 Lane 1 — `DragAndDropTests` (`Tests/MetalUITests`, through `FakePlatformWindow`)
@@ -343,7 +383,7 @@ Fixture: a 400×200 window, a 200×200 source at the left (`Box` with
 |---|---|---|---|---|
 | 1.5 | `aDraggableBeginsOnTheFirstMoveAndDropsOnADestination` | press, move 1 pt → session open (preview emitted next frame); move over the destination → `[T=true]`; release → `[T=true, T=false, drop(["s"])]` (P0, P17) | nothing begins | **M1e** the draggable leaf waits for `tapSlop` |
 | 1.6 | `aZeroDistanceDragIsAClickNotADrag` | `.draggable` + `.onTapGesture`: press, a dragged event at the same point, release → `tap`, no session (P17z, P1a) | (passes vacuously before; red once 1.5's impl lands with M1f) | **M1f** begin on any dragged event (`>= 0`) |
-| 1.7 | `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren` | five arms: `.draggable` then `.onTapGesture`, the reverse, a `Button`'s own `.draggable`, a draggable parent over a `Button` child, `.onLongPressGesture` — each drag drops and runs no tap/click/long press; each click (no move) runs the tap/click (P1, P2f, P3, P22a–c) | no drag | **M1g** delete the `isBlocked` exception |
+| 1.7 | `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren` | five arms: `.draggable` then `.onTapGesture`, the reverse, a `Button`'s own `.draggable`, a draggable parent over a `Button` child, `.onLongPressGesture` — each drag drops and runs no tap/click/long press; each click (no move) runs the tap/click (P1, P2f, P3, P22a–c); a sixth arm, MetalUI's own (`DN-U` item 1): a long press held past its `minimumDuration` (ticks driven, no sleep) **ends** before the move, and the move then begins no drag; a seventh: `.draggable` + `.onTapGesture(count: 2)` on a plain `Box` with no opaque target — a double click runs the double tap, a drag drops (P21; the no-target arena's multi-click path, `DN-U` item 5) | no drag | **M1g** delete the `isBlocked` exception / **M1g′** let a draggable pass an *ended* member (reddens the sixth arm) |
 | 1.8 | `aDragGestureThatOutranksADraggableWinsAndAnOuterOneLoses` | inner `.gesture(DragGesture())` (declared before), a child's, `.highPriorityGesture` → changes + end, no drop; outer normal, parent's → drop, no change (P2a–d, P22d) | | **M1h** the draggable at `.high` priority |
 | 1.9 | `aSimultaneousDragGestureChangesForTheStartingMoveAndNeverEnds` | `.simultaneousGesture(DragGesture(minimumDistance: 1))` + `.draggable`: one change, the drop, no end (P2e) | | **M1i** let simultaneous members keep receiving after the drag begins |
 | 1.10 | `aDraggableRowsClickStillSelectsAndItsDragDoesNot` | `List(selection:)` whose row content is draggable: a click selects row 1; a drag from row 2 drops `"row2"` and leaves the selection at row 1 (P4a, P4b) | | **M1j** count a draggable in `isPointerTarget` (opaque) |
@@ -356,22 +396,21 @@ Fixture: a 400×200 window, a 200×200 source at the left (`Box` with
 | 1.17 | `aDisabledSourceDoesNotDragAndADisabledDestinationRefuses` | divergence 100's two arms: no session from a `.disabled(true)` source; a disabled destination never targeted, no drop | | **M1q** register the destination region outside the disabled gate |
 | 1.18 | `aDestinationUnderAllowsHitTestingFalseStillReceives` | (P15e) | | **M1r** register the destination region inside the `allowsHitTesting` gate |
 | 1.19 | `aPresentationAboveADestinationBlocksADropBeneathIt` | a `Deferred` modal with an `onClick` scrim over the destination: no target, no drop; the same scrim on the destination's own layer (an `.overlay`) does not block (`DN-F` item 4) | | **M1s** drop the layer comparison |
-| 1.20 | `theDefaultPreviewReplaysTheSourceAboveEverythingAtSeventyPercent` | after a 50 pt move: the scene holds the source's primitives unchanged at their place **and** a copy translated by (50, 0) with alpha × 0.7 on a layer greater than every other primitive's; masks equal the translated source bounds; gone after the drop (`DN-J`) | | **M1t** replay at opacity 1 / **M1u** replay untranslated |
-| 1.21 | `aCustomPreviewReplacesTheSnapshot` | `draggable("s") { Rectangle().fill(.accent).frame(60×60) }`: the replay is the 60×60 fill at the pointer, opacity 0.7, and no source copy (P18b) | | **M1v** emit the snapshot as well |
 | 1.22 | `leavingTheWindowHandsTheDragToThePlatformWhenItCan` | fake answers `true`: the first move outside calls `beginExternalDrag` once with `[utf8PlainText: "s" bytes]` at that position; the session ends (no preview next frame, `active == nil`); the release does nothing. Fake answers `false`: called once, session continues, release outside cancels (`DN-K`) | | **M1w** offer on every outside move / **M1x** never offer |
 | 1.23 | `anExternalDropFindsTheSameDestinationAndLoadsOnlyWhatItImports` | `.drop(.entered)` over the destination with an item offering `[public.png, utf8PlainText]` → `onInput` true, `T=true`; `.moved` outside → false, `T=false`; `.performed` over it → true, action `["x"]`; `load` called once, for `public.utf8-plain-text` (`DN-C`, `DN-L`) | | **M1y** load every offered type |
 | 1.24 | `anExternalDropWithUnknownTypesTargetsOptimistically` | `.entered(items: nil)` → true, `T=true` on a URL destination; `.performed` with a text item → `T=false`, no action, false (divergence 102's MetalUI half) | | **M1z** treat unknown types as refusing |
 | 1.25 | `aDragNeitherFocusesNorAddsAStateEntry` | a drag from a focusable source onto a focusable destination leaves focus unchanged and the `StateTable` entry count unchanged frame over frame (`DN-O`, `DN-H` item 6) | | **M1aa** run the source's `ClickDispatch` focus request at drag begin |
 | 1.26 | `theStyledSpellingsMoveNoIDAndTheProposalOnesWrapOnce` | a `Box` with and without `.draggable`/`.dropDestination` registers its hitbox under the same id; a proposal `Rectangle().draggable(…)`'s rectangle is one level below the wrapper (`DN-P`) | | **M1ab** wrap `StyledElement` in a modifier element |
-| 1.27 | `aSourceThatVanishesMidDragStillDelivers` | toggling the source's `if` off mid-drag: the preview keeps its last snapshot, the drop delivers `"s"` (`DN-H` item 4) | | **M1ac** end the session when the source is not produced |
-| 1.28 | `aFrameWithoutADragCapturesNothingAndAddsNoHitbox` | a tree with no draggable/destination: hitbox count and captured-primitive count equal the baseline's literals; with a destination but no session, captures stay 0 (work counted, not timed) | | **M1ad** push the capture scope for every `paintDecoration` |
+| 1.27 | `aSourceThatVanishesMidDragStillDelivers` | toggling the source's `if` off mid-drag: the drop delivers `"s"` (`DN-H` item 4; the preview half is 2.13) | | **M1ac** end the session when the source is not produced |
+| 1.28 | `aFrameWithoutADragOrDestinationAddsNoHitbox` | a tree with no draggable/destination: hitbox count equals the baseline's literal; adding a destination adds exactly one non-opaque hitbox, a draggable with no other pointer ask exactly one (work counted, not timed) | | **M1ad** register the destination region for every element |
+| 1.29 | `aDataDestinationTakesAStringThroughItsOwnImportedType` | `.draggable("hello")` onto a `Data` destination: the action gets 5 bytes (R3g, P16b); an external `.performed` offering `public.png` bytes `[1, 2]` reaches it as 2 bytes; the importer was told `.data` both times (`DN-S`) | | **M1ae** hand `init(importing:)` the offered type (Data refuses, T7e) |
 
 ### 6.3 Lane 1 — `DragAndDropCompileGuards` (whole-file `typecheckFile`, each mutated red once)
 
 | # | guard | asserts |
 |---|---|---|
-| G1.1 | `theDragAndDropSpellingsCompileFromAPlainImport` | §2.2's spellings compile under `import MetalUI`; a second fixture spelling `.onDrop(of:isTargeted:perform:)` and `.onDrag { }` does **not** (`DN-A` item 2) |
-| G1.2 | `anOutsideTypeCanConformToTransferable` | a struct with a custom `ContentType` conforms and is accepted by `draggable`/`dropDestination` |
+| G1.1 | `theDragAndDropSpellingsCompileFromAPlainImport` | §2.2's spellings **except `draggable(_:preview:)`** (G2.1, lane 2) compile under `import MetalUI`; a second fixture spelling `.onDrop(of:isTargeted:perform:)` and `.onDrag { }` does **not** (`DN-A` item 2) |
+| G1.2 | `anOutsideTypeCanConformToTransferable` | a struct with a custom `ContentType` writing the four members conforms and is accepted by `draggable`/`dropDestination`; a second fixture writing only `static var transferRepresentation` does **not** conform (`DN-S`) |
 | G1.3 | `aPlatformWindowWithoutBeginExternalDragDoesNotCompile` | a `PlatformWindow` conformer lacking it fails; with it, compiles (`DN-C` item 2) |
 
 T rows (retained tests whose fixture changes, answers unchanged):
@@ -398,6 +437,20 @@ own `MetalHostView` — valid for MetalUI, which resolves from
 | 2.8 | `beginExternalDragNeedsADragEvent` | no `mouseDragged` seen → `false`; after a synthesized one through `MetalHostView.mouseDragged` → `true` **if** AppKit starts a session headless — the lane measures this first; if AppKit refuses without a real pointer, the `true` arm becomes human check N3 and the test keeps the `false` arm only (recorded) | **M2h** return `true` with no event |
 | 2.9 | `theSourceOffersCopyInBothContexts` | `draggingSession(_:sourceOperationMaskFor:)` `.copy` for `.withinApplication` and `.outsideApplication` (P6b) | **M2i** `.move` |
 
+### 6.4b Lane 2 — `DragPreviewTests` (`Tests/MetalUITests`, through `FakePlatformWindow`) and one guard
+
+Moved from lane 1 (`DN-T`): 2.10 and 2.11 were 1.20 and 1.21; 2.13 and 2.14
+are the preview halves of 1.27 and 1.28.
+
+| # | test | asserts | mutation |
+|---|---|---|---|
+| 2.10 | `theDefaultPreviewReplaysTheSourceAboveEverythingAtSeventyPercent` | after a 50 pt move: the scene holds the source's primitives unchanged at their place **and** a copy translated by (50, 0) with alpha × 0.7 on a layer greater than every other primitive's; masks equal the translated source bounds; gone after the drop (`DN-J`) | **M2j** replay at opacity 1 / **M2k** replay untranslated |
+| 2.11 | `aCustomPreviewReplacesTheSnapshot` | `draggable("s") { Rectangle().fill(.accent).frame(60×60) }`: the replay is the 60×60 fill at the pointer, opacity 0.7, and no source copy (P18b); a `@State` inside the preview reads its initial value on the next session (`DN-U` item 3) | **M2l** emit the snapshot as well / **M2m** keep the preview's slot out of `ID-C`'s reset |
+| 2.12 | `everyDraggableStyledSiteCapturesItsPreview` | one arm per site — `Box`, `Stack`, `Text`, a `.padding(8)` `ModifiedElement`, `Button`, `Toggle`, `Picker`, `Stepper`, a `List`, a proposal `Rectangle()` — each dragged 50 pt replays a non-empty translated copy (`DN-U` item 6) | **M2n** skip the push in `ModifiedContent`'s per-layer paint (reddens that arm) / **M2o** skip it in `DraggableModifier.paint` |
+| 2.13 | `aVanishedSourceKeepsItsLastSnapshot` | toggling the source's `if` off mid-drag: the replay is unchanged frame over frame until the drop (`DN-H` item 4) | **M2p** clear the snapshot when the source is not painted |
+| 2.14 | `aFrameWithoutASessionCapturesNothing` | with a draggable and a destination but no session: captured-primitive count 0 and the scene equal to the same tree without the modifiers (work counted) | **M2q** push the capture scope for every `paintDecoration` |
+| G2.1 | `theDraggablePreviewSpellingCompilesFromAPlainImport` | `draggable(_:preview:)` on a `StyledElement` and on a `ProposalElementGroup` under `import MetalUI` (whole-file `typecheckFile`, mutated red once) | (guard) |
+
 ### 6.5 Lane 3 — SDL, accessibility, demo
 
 | # | test | where | asserts | mutation |
@@ -408,7 +461,7 @@ own `MetalHostView` — valid for MetalUI, which resolves from
 | 3.4 | `droppedTextIsUTF8PlainText` | `Backends/SDL` | `TEXT("hi")` → one item, type `public.utf8-plain-text` ⊂ plain-text, text, data | **M3d** type `public.text` |
 | 3.5 | `anSDLWindowCannotBeginAnExternalDrag` | `Backends/SDL` | `false` (`DN-K` item 4) | **M3e** `true` |
 | 3.6 | `ordinaryPointerMotionEndsAnOpenDropSession` | `Backends/SDL` | `BEGIN, POSITION, MOUSE_MOVE` → `.entered`, `.exited`, then the move | **M3f** ignore motion |
-| 3.7 | `theBridgeTranslatesEverySDLDropEvent` | `Backends/SDL` | a test-only bridge entry pushes each `SDL_DropEvent` kind; `mui_poll` yields the matching `MUI_EVENT_DROP_*` with `x`, `y`, `text` (arms `armMainRunLoopExitCheck()`, the SDL run-loop hazard) | **M3g** drop `POSITION` from the switch |
+| 3.7 | `theBridgeTranslatesEverySDLDropEvent` | `Backends/SDL` | a test-only bridge entry pushes each `SDL_DropEvent` kind, its type taken from C-exported `uint32_t` constants (`mui_sdl_event_window_*`'s pattern — never `SDL_EVENT_DROP_*.rawValue` in Swift, the Windows hazard, `DN-U` item 4); `mui_poll` yields the matching `MUI_EVENT_DROP_*` with `x`, `y`, `text` (arms `armMainRunLoopExitCheck()`, the SDL run-loop hazard) | **M3g** drop `POSITION` from the switch |
 | 3.8 | `aDraggableAndADropDestinationPublishNothingNew` | root | the neutral `AccessibilityTree` and the AppKit bridge's attributes for a draggable `Text`, a draggable `Button`, a labelled destination and a destination `Text` equal the same tree without the modifiers (A0–A4) | **M3h** give a destination an `AXNode` custom action |
 | 3.9 | `accessKitPublishesADraggableAndADropDestinationUnchanged` | `Backends/SDL` | AccessKit's node for the same four equals the control's | (3.8's mutation, through AccessKit) |
 | 3.10 | `everyProductionTreeBuildsOnAOneMegabyteThread` — **T row**, its builder list gains `dragAndDropDemoContent()` | root | still green | **M3i** inline every demo section into one builder (expect red on a 1 MB thread; lane records the measured frame size either way) |
@@ -416,9 +469,10 @@ own `MetalHostView` — valid for MetalUI, which resolves from
 
 ### 6.6 Counts
 
-Root suite **1976 → 2018**: lane 1 +31 (1.1–1.28 + G1.1–G1.3; four of them,
-1.1–1.4, in `MetalUICrossPlatformTests`), lane 2 +9, lane 3 +2 (3.8, 3.11;
-3.10 is a T row). Guards **121 → 124**. `Backends/SDL` `MetalUISDLTests`
+Root suite **1976 → 2023** (`DN-T`): lane 1 +30 (1.1–1.19, 1.22–1.29 +
+G1.1–G1.3; four of them, 1.1–1.4, in `MetalUICrossPlatformTests`), lane 2 +15
+(2.1–2.14 + G2.1), lane 3 +2 (3.8, 3.11; 3.10 is a T row). Guards **121 →
+125**. `Backends/SDL` `MetalUISDLTests`
 +8 (3.1–3.7, 3.9). Linux/Windows `MetalUICrossPlatformTests` +4. No golden,
 no test retired; every T row above names its unchanged answer.
 
@@ -457,7 +511,7 @@ image), N4 a file from Finder and text from TextEdit onto the wells (AppKit),
 N5 the same two drops onto `MetalUISDLDemo` on macOS and, if available, Linux
 and Windows (SDL positions, optimistic highlight — divergence 102), N6 a
 `List` row: click selects, drag does not, N7 (optional) VoiceOver reads the
-chips and wells exactly as without drag and drop (`DN-N`). Each names its
+chips and wells exactly as without drag and drop (`DN-N`). N8 (optional) a chip held past a long press before moving does not drag (`DN-U` item 1, MetalUI's choice; SwiftUI unmeasured). Each names its
 headless pin, as the existing groups do.
 
 ---
@@ -477,5 +531,9 @@ the native deprecation `warning:`, on both build systems; `MetalUILayout`
 imports only `MetalUICore`; `MetalUIPlatform` imports only `MetalUICore` and
 `MetalUIScene`; `Backends/SDL` and a `swift:6.4-noble` container build.
 `MemoryLayout<Handlers>.size` +8 (one reference), measured by lane 1 with the
-smallest thread building every production tree. Real-window capture per the
+smallest thread building every production tree. **Lane 1 builds the root
+package in a `swift:6.4-noble` container** (Docker via OrbStack; started if
+stopped, stopped after): `Transferable`, `Data`/`URL` conformances and the seam
+are on the portable surface, and only Linux can see an Apple-only spelling
+there; it runs `MetalUICrossPlatformTests` (+4). Real-window capture per the
 lock probe at each lane's close.
