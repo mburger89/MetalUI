@@ -252,3 +252,114 @@ extension ProposalElementGroup {
         return DropDestinationModifier(content: self, target: target)
     }
 }
+
+// MARK: - `draggable(_:preview:)` (lane 2, ruling `DN-J` item 3)
+
+/// The preview a `draggable(_:preview:)` shows while its drag is open: the
+/// closure's element in a box positioned at the pointer less the press point's
+/// offset into the source, translucent, inside a `Deferred` so it is a
+/// presentation root laid out against the window (`LR-CH`).
+typealias DragPreviewSlot<Preview: ElementGroup> = OptionalGroup<Deferred<Box<Preview>>>
+
+/// A drag source whose preview is `preview` rather than a snapshot of itself —
+/// what `draggable(_:preview:)` returns (ruling `DN-J` item 3).
+///
+/// **A wrapper on both vocabularies, one identity level** (`DN-J` item 3,
+/// `DN-P`): `content` numbers from 0 under its id and the preview's slot is
+/// cursor 1 — never `-1`, which is `.overlay`'s (`MC-P`) — so only a caller of
+/// this spelling gets a new level and no existing id moves. The drag source is
+/// this wrapper's own id: it registers the draggable region at its bounds, as
+/// `DraggableModifier` does, and the content keeps every handler it had.
+///
+/// The preview's slot is an **evaluated optional** (`OptionalGroup`), produced
+/// only while this wrapper's drag is open, so `ID-C`'s existing reset clears
+/// its subtree's `@State` the frame the session ends (`DN-U` item 3). It
+/// registers no hitbox and publishes nothing to accessibility.
+public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGroup>: Element {
+    /// The drag source.
+    public var content: Content
+    var preview: Preview
+    var attachment: GestureAttachment
+
+    init(content: Content, preview: Preview, attachment: GestureAttachment) {
+        self.content = content
+        self.preview = preview
+        self.attachment = attachment
+    }
+
+    public struct Layout {
+        var content: Content.GroupLayout
+        var slot: DragPreviewSlot<Preview>
+        var previewLayout: DragPreviewSlot<Preview>.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        precondition(children.count == 1, "a draggable preview modifier requires one child")
+        let (slot, previewLayout) = layOutPreview(id, at: &cursor, pass: &pass)
+        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout))
+    }
+
+    /// The preview's slot at `cursor` (1): produced only while this wrapper is
+    /// the open session's source.
+    func layOutPreview(_ id: GlobalElementID, at cursor: inout Int,
+                       pass: inout LayoutPass) -> (DragPreviewSlot<Preview>, DragPreviewSlot<Preview>.GroupLayout) {
+        var slot = DragPreviewSlot<Preview>(nil)
+        let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        return (slot, layout)
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        var handlers = Handlers()
+        handlers.gestures = [attachment]
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                              synthesizesAccessibility: false)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                               prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension DraggablePreviewModifier: ProposalElementGroup, ProposalElement
+    where Content: ProposalElementGroup {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
+        precondition(children.count == 1, "a draggable preview modifier requires one native child")
+        let (slot, previewLayout) = layOutPreview(id, at: &cursor, pass: &pass)
+        return (children[0], Layout(content: contentLayout, slot: slot, previewLayout: previewLayout))
+    }
+}
+
+extension StyledElement {
+    /// `draggable(_:)` with `preview` drawn under the pointer in place of a
+    /// snapshot of this element — SwiftUI's `draggable(_:preview:)` (ruling
+    /// `DN-J` item 3, `P18b`): translucent (opacity 0.7), the press point's
+    /// offset into this element kept under the pointer, no hitbox, nothing
+    /// published to accessibility. Wraps once (`DraggablePreviewModifier`):
+    /// this element numbers from 0 under the wrapper.
+    public func draggable<T: Transferable, P: ElementGroup>(
+        _ payload: @autoclosure @escaping () -> T,
+        @ElementBuilder preview: () -> P) -> DraggablePreviewModifier<Self, P> {
+        DraggablePreviewModifier(content: self, preview: preview(),
+                                 attachment: GestureAttachment(draggable: DragSource(payload)))
+    }
+}
+
+extension ProposalElementGroup {
+    /// `StyledElement.draggable(_:preview:)` on the proposal path.
+    public func draggable<T: Transferable, P: ElementGroup>(
+        _ payload: @autoclosure @escaping () -> T,
+        @ElementBuilder preview: () -> P) -> DraggablePreviewModifier<Self, P> {
+        DraggablePreviewModifier(content: self, preview: preview(),
+                                 attachment: GestureAttachment(draggable: DragSource(payload)))
+    }
+}

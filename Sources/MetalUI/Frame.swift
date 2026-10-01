@@ -2311,6 +2311,31 @@ public final class Frame {
     /// they compute passes through here.
     var transitionScopes: [TransitionPaintScope] = []
 
+    // MARK: - The drag preview (drag and drop, lane 2, ruling `DN-J`)
+
+    /// The open drag session's source, set by `Window` before `render` —
+    /// `nil` in every frame without a session, so nothing below runs.
+    var dragSourceID: GlobalElementID?
+
+    /// `pointer − press point`, in points: how far the snapshot is replayed
+    /// from where the source painted it (`DN-J` item 1).
+    var dragPreviewTranslation = Point(x: Pixels(0), y: Pixels(0))
+
+    /// Where a `draggable(_:preview:)` preview's top-left goes, in window
+    /// points: the pointer less the press point's offset into the source.
+    var dragPreviewOrigin = Point(x: Pixels(0), y: Pixels(0))
+
+    /// The session's last snapshot, handed in by `Window`: replayed when the
+    /// source paints nothing this frame (`DN-H` item 4).
+    var previousDragSnapshot: [CapturedPrimitive] = []
+
+    /// What the source painted this frame, captured — `nil` when it did not
+    /// paint. `Window` keeps it on the session.
+    private(set) var dragSnapshot: [CapturedPrimitive]?
+
+    /// How many primitives this frame captured for a drag preview (2.14).
+    private(set) var dragCapturedPrimitives = 0
+
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales
     /// with it) from the one in effect where the group starts (which stays).

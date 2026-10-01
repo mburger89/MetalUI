@@ -1133,6 +1133,7 @@ public final class Window {
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
+        lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         editedText = [:]
         updateTextInputArea()
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
@@ -1564,6 +1565,10 @@ public final class Window {
     /// The open in-window drag (ruling `DN-H`), or `nil`. On `Window`, never
     /// in `StateTable` (`DN-H` item 6), so no id path or reserved slot moves.
     var dragSession: DragSession?
+
+    /// How many primitives the last frame captured for a drag preview
+    /// (ruling `DN-J`; test 2.14) — 0 in every frame without a session.
+    private(set) var lastDragCapturedPrimitives = 0
 
     /// The destination currently targeted — by the in-window session or by a
     /// drag from outside — whose `isTargeted(true)` has run and whose `false`

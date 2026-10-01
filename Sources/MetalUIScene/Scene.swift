@@ -113,6 +113,24 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// The highest layer any primitive was inserted on, or `nil` for an empty
+    /// scene — what a drag preview rises above (ruling `DN-J`). Computed, so
+    /// a frame that never asks pays nothing.
+    public var highestLayer: Int? {
+        [rectLayer.max(), glyphLayer.max(), imageLayer.max()].compactMap { $0 }.max()
+    }
+
+    /// The layer of the `index`th primitive of `kind` — in emission order
+    /// before ``finalize()``, in paint order after it (the side tables are
+    /// permuted with the primitives).
+    public func layer(of kind: PrimitiveKind, at index: Int) -> Int {
+        switch kind {
+        case .rect: rectLayer[index]
+        case .glyph: glyphLayer[index]
+        case .image: imageLayer[index]
+        }
+    }
+
     /// Removes every primitive, keeping the arrays' capacity.
     public mutating func clear() {
         rects.removeAll(keepingCapacity: true)

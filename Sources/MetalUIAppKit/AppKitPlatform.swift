@@ -20,6 +20,10 @@ final class MetalHostView: NSView {
 
     private let surface: MetalLayerSurface
 
+    /// The last `mouseDragged` event, which an `NSDraggingSession` must start
+    /// from (ruling `DN-K` item 2).
+    var lastDragEvent: NSEvent?
+
     init(surface: MetalLayerSurface) {
         self.surface = surface
         super.init(frame: .zero)
@@ -619,6 +623,13 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// `NSDraggingSession` here.
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool {
         false   // lane 2 replaces
+    }
+
+    /// Starts an `NSDraggingSession` from `event` — the host view's own in
+    /// production; a test injects a recorder (ruling `DN-X` item 1).
+    lazy var startDraggingSession: @MainActor ([NSDraggingItem], NSEvent) -> Void = { [weak self] items, event in
+        guard let host = self?.hostView else { return }
+        host.beginDraggingSession(with: items, event: event, source: host)
     }
 
     func setDisplayLinkPaused(_ paused: Bool) {

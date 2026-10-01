@@ -20,6 +20,9 @@ struct DragSession {
     /// Whether the drag has been offered to the platform (`DN-K`): once per
     /// session, at the first move outside the window.
     var offeredExternally = false
+    /// The source's last painted primitives, before any effect (`DN-J`): kept
+    /// when the source stops painting (`DN-H` item 4).
+    var snapshot: [CapturedPrimitive] = []
 
     /// The payload as the one item a destination imports from (`DN-H` item
     /// 2), its `load` answering from the exported bytes.
@@ -188,5 +191,13 @@ extension Window {
         let location = Point(x: Pixels(point.x.value - target.origin.x.value),
                              y: Pixels(point.y.value - target.origin.y.value))
         return StateDispatch.dispatching(to: target.id) { target.target.deliver(items, at: location) }
+    }
+}
+
+extension PaintPass {
+    /// Runs `body`, capturing what it emits as the drag preview's snapshot
+    /// when `id` is the open session's source (`DN-J` item 1).
+    func capturingDragSnapshot(for id: GlobalElementID, _ body: () -> Void) {
+        body()
     }
 }
