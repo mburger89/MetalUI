@@ -10,7 +10,7 @@ production caller and no browser golden remains. Spec:
 [`specs/2026-09-30-closeout-design.md`](specs/2026-09-30-closeout-design.md).
 Record: [`../record/66-closeout.md`](../record/66-closeout.md).
 
-Prefix **`CX-`**, lettered. **Next unused: `CX-R`.** (This line moves in the
+Prefix **`CX-`**, lettered. **Next unused: `CX-S`.** (This line moves in the
 commit that appends a ruling; read the last `## CX-` heading.)
 
 Branch `feat/closeout` from `1b093b8` (master: task 13 merged, task 14's
@@ -661,3 +661,66 @@ Lane 1's verifier found two majors and two minors (record §66 §4.7).
 **Cost if wrong.** Item 1 changes a public API's answer for an optional
 `S` over an absent entry; an external caller that relied on reading `nil`
 there now reads its own `initial` — the value it asked for.
+
+---
+
+## CX-R — lane 2's divergence re-read: 2, 35, 39, 53 and 55 retire; 66 live; the stale names and sentences the Record phase corrects
+
+Lane 2 applied `CX-G`'s criterion to every live row (record §66 §2, one line
+per label with its pin resolved by grep, its probe arm and its verdict).
+
+1. **Retire by re-reading** (each meets `CX-G` (a)–(c): the live pin asserts
+   SwiftUI's answer, the cited arm agrees, and no public spelling still
+   produces the old answer, the CSS engine having been deleted at stage 9):
+   - **35** (a legacy flexible frame clamped and never grew): the lowered
+     frame is greedy, frame probe **D4** — pin
+     `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswer` (renamed at stage 9 from
+     the `…WhereTheLegacyFrameClamps` name record §04 still carries).
+   - **39** (`idealWidth`/`idealHeight` trapped on a legacy frame): since
+     stage 9 they lower onto the kernel frame and answer an unspecified axis,
+     frame probe **C1** — pin `anIdealFrameLowersAtANilProposal`
+     (`FrameLayer.swift`'s own doc says "until stage 9 … trapped"). Not one
+     of `LR-GG` item 5's three candidates; found by the same grep.
+   - **53** (a legacy `Stack` offered fit-content): the lowered stack offers
+     its child its proposal, stack-algorithms **A5** — pin
+     `aLoweredStackOffersItsChildItsProposal` (record §04's stage-9 section
+     reads "the lowered `Stack`'s fit-content answer is now this test's whole
+     subject"; the test's own doc and assertions say the opposite —
+     "A lowered `Stack` **offers its proposal**").
+   - **55** (a legacy `Row`/`Column` shrank by base-weighted factors): every
+     positive `flexShrink` lowers to nothing, two rigid 80s overflow a 100
+     row as SwiftUI's **G9** — pin
+     `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight`.
+   - **2** (WebKit's flex sub-one clause, engine followed the spec): **its
+     subject is deleted**, as 11's was at stage 9 — the CSS engine's
+     `ResolveFlexibleLengths.swift` is gone; a grow-factor sum below 1 now
+     lowers as an equal greedy share, SwiftUI's answer (stage-7a probe **G0**),
+     pinned by `aGrowFactorSumBelowOneStillFillsTheLine`. A retirement on 11's
+     ground ("the engine it describes is gone"), not on `CX-G` (a)–(c), which
+     speak of SwiftUI.
+   Live count **72 → 71 (`CX-F`) → 66**. Labels join the never-reused list.
+2. **Kept, re-owned**: every owner naming a ticked task or "plan task 15"
+   reads **none** — 21, 22 (`IX-G`), 54 (`DD-AB` item 5), 61, 62 (`CX-H`),
+   70 (owner "task 6" since `GR-X`), 81 (`IX-M`); 82 keeps "the human
+   VoiceOver run". No live row has a task owner after this ruling.
+3. **Stale pin names in record §04** (the Record phase corrects the rows;
+   §66 §2 lists each with its live name): 35, 39, 53, 52 (`CX-P` item 3),
+   54, 56, 76 (`controlSizeReachesNoBuiltInMeasurement` →
+   `controlSizeReachesTheDefaultFontButNoControlsChrome`), 83/32 (renamed by
+   task 12). Pins for 1, 29, 31, 34, 68 and 99 are recorded as **unpinned**
+   with the reason, not invented.
+4. **Stale sentences elsewhere** the Record phase corrects (lane 2 may not
+   edit them): `CLAUDE.md`'s "Legacy containers" paragraph ("They keep their
+   CSS algorithms … `Stack` offers fit-content vs `ZStack` its proposal") —
+   only the default gap (52) and the legacy `ScrollView`'s cross axis (54)
+   remain CSS-shaped; its "Legacy `.frame`" paragraph ("`idealWidth`/
+   `idealHeight` trap at legacy registration (`LR-H`)") — they lower since
+   stage 9; record §04's stage-9 sentence on 53 quoted above.
+5. **What is published.** `docs/divergences.md` is the current list (66
+   live, the retired list, the documented absences); its "Live" table is
+   what `closeout-inventory-check.sh` reads to confirm every label a family
+   carries is live.
+
+**Cost if wrong.** A row retired on a misread pin hides a live difference.
+Each retirement names the probe arm and the pin a reviewer can run; labels
+are never reused, so a wrongly retired row is restored under its own number.

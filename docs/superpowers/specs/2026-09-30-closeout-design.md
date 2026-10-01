@@ -10,9 +10,10 @@ Plan task 15 of [`../plans/2026-09-12-swiftui-alignment.md`](../plans/2026-09-12
 > production caller, and remove or reclassify all browser goldens as
 > migration-only historical evidence.
 
-Rulings `CX-A`…`CX-P` in
+Rulings `CX-A`…`CX-R` in
 [`../2026-09-30-closeout-decisions.md`](../2026-09-30-closeout-decisions.md)
-(next unused `CX-Q`; `CX-P` is the critic round's corrections). Record: [`../../record/66-closeout.md`](../../record/66-closeout.md).
+(next unused `CX-S`; `CX-P` is the critic round's corrections, `CX-Q` lane 1's
+fix round, `CX-R` lane 2's divergence re-read: 2, 35, 39, 53, 55 retire, 66 live). Record: [`../../record/66-closeout.md`](../../record/66-closeout.md).
 Branch `feat/closeout` from `1b093b8`.
 
 ## 1. Baseline (measured at `1b093b8`)
