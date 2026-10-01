@@ -673,6 +673,10 @@ static Uint32 accessibility_event_type = 0;
 
 bool mui_platform_init(void) {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
+    // Drops from other applications (ruling DN-M) — enabled explicitly, so a
+    // build of SDL that ships either kind disabled still delivers both.
+    SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
+    SDL_SetEventEnabled(SDL_EVENT_DROP_TEXT, true);
     if (accessibility_event_type == 0) accessibility_event_type = SDL_RegisterEvents(1);
     return accessibility_event_type != 0;
 }
@@ -747,6 +751,21 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
         out->window_id = e->key.windowID; out->keycode = e->key.key;
         out->modifiers = mods(e->key.mod); out->repeat = e->key.repeat;
+        return true;
+    // Drops from other applications (ruling DN-M): the five kinds carry the
+    // window, SDL's window-relative position (none on BEGIN) and, for FILE and
+    // TEXT, SDL's string — valid until the next poll, so Swift copies it.
+    case SDL_EVENT_DROP_BEGIN: case SDL_EVENT_DROP_POSITION: case SDL_EVENT_DROP_FILE:
+    case SDL_EVENT_DROP_TEXT: case SDL_EVENT_DROP_COMPLETE:
+        switch (e->type) {
+        case SDL_EVENT_DROP_BEGIN: out->kind = MUI_EVENT_DROP_BEGIN; break;
+        case SDL_EVENT_DROP_POSITION: out->kind = MUI_EVENT_DROP_POSITION; break;
+        case SDL_EVENT_DROP_FILE: out->kind = MUI_EVENT_DROP_FILE; break;
+        case SDL_EVENT_DROP_TEXT: out->kind = MUI_EVENT_DROP_TEXT; break;
+        default: out->kind = MUI_EVENT_DROP_COMPLETE; break;
+        }
+        out->window_id = e->drop.windowID; out->x = e->drop.x; out->y = e->drop.y;
+        out->text = e->drop.data;
         return true;
     default: return false;
     }

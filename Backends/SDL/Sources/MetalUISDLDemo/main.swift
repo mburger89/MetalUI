@@ -33,12 +33,17 @@ func runDemo() throws {
 
     let platform = try SDLPlatform()
     let app = App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    // `METALUI_DND_DEMO=1`: drag and drop's chips and wells (ruling DN-Q) —
+    // drops from other applications arrive through SDL's drop events (DN-M);
+    // a chip cannot leave the window (divergence 101).
     // `METALUI_TEXT_INPUT_DEMO=1`: roadmap item 14's two text fields (TI-F).
-    let window = ProcessInfo.processInfo.environment["METALUI_TEXT_INPUT_DEMO"] == "1"
-        ? try app.openWindow(title: "MetalUI — SDL3 text input", size: Size(width: Pixels(920), height: Pixels(560)),
-                             content: textInputDemoContent)
-        : try app.openWindow(title: "MetalUI — SDL3", size: Size(width: Pixels(920), height: Pixels(560)),
-                             content: demoContent)
+    let environment = ProcessInfo.processInfo.environment
+    let size = Size(width: Pixels(920), height: Pixels(560))
+    let window = environment["METALUI_DND_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 drag and drop", size: size, content: dragAndDropDemoContent)
+        : environment["METALUI_TEXT_INPUT_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 text input", size: size, content: textInputDemoContent)
+        : try app.openWindow(title: "MetalUI — SDL3", size: size, content: demoContent)
     window.keymap = Keymap {
         KeyBinding("=", Increment(), context: "Counter")
         KeyBinding("shift-+", Increment(), context: "Counter")

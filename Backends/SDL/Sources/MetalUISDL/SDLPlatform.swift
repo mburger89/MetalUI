@@ -330,9 +330,108 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
-    /// A dropped path as a `file://` URL string (ruling `DN-M` item 1).
-    /// LANE 3 RED STUB — returns the path unchanged.
-    nonisolated static func fileURLString(fromPath path: String) -> String { path }
+    // MARK: Drops in (ruling `DN-M`)
+
+    /// The drop session SDL's events are building, or `nil` between them.
+    /// `entered` is whether `.entered` was sent; `position` the last place the
+    /// drop was reported.
+    private struct DropSession {
+        var entered = false
+        var position = Point(x: Pixels(0), y: Pixels(0))
+        var items: [DropItem] = []
+    }
+    private var dropSession: DropSession?
+
+    /// `public.file-url` and `public.utf8-plain-text` with their parents —
+    /// `ContentType.fileURL`'s and `.utf8PlainText`'s conformance, spelled as
+    /// strings because this package does not import `MetalUI`.
+    nonisolated static let fileURLType = PasteboardType(identifier: "public.file-url",
+                                                        conformsTo: ["public.data", "public.item", "public.url"])
+    nonisolated static let utf8TextType = PasteboardType(identifier: "public.utf8-plain-text",
+                                                         conformsTo: ["public.data", "public.item",
+                                                                      "public.plain-text", "public.text"])
+
+    /// One run of `SDL_EVENT_DROP_*` events as one drop session (`DN-M` item
+    /// 1): the first position — or, if none came, the first item's — enters
+    /// with the items unknown (SDL gives none until the drop); each later
+    /// position moves; `COMPLETE` performs at the last position with every
+    /// item gathered, or exits when none arrived. Each event's text is copied
+    /// here, at once: SDL owns it until the next poll.
+    private func handleDrop(_ event: MUIEvent) {
+        let position = Point(x: Pixels(event.x), y: Pixels(event.y))
+        func enter() {
+            dropSession?.position = position
+            guard dropSession?.entered == false else { return }
+            dropSession?.entered = true
+            _ = onInput?(.drop(.entered(position: position, items: nil)))
+        }
+        switch Int(event.kind) {
+        case Int(MUI_EVENT_DROP_BEGIN):
+            dropSession = DropSession()
+        case Int(MUI_EVENT_DROP_POSITION):
+            if dropSession == nil { dropSession = DropSession() }
+            if dropSession?.entered == true {
+                dropSession?.position = position
+                _ = onInput?(.drop(.moved(position: position)))
+            } else {
+                enter()
+            }
+        case Int(MUI_EVENT_DROP_FILE), Int(MUI_EVENT_DROP_TEXT):
+            guard let text = event.text else { return }
+            if dropSession == nil { dropSession = DropSession() }
+            let string = String(cString: text)
+            let isFile = Int(event.kind) == Int(MUI_EVENT_DROP_FILE)
+            let type = isFile ? Self.fileURLType : Self.utf8TextType
+            let bytes = Array((isFile ? Self.fileURLString(fromPath: string) : string).utf8)
+            dropSession?.items.append(DropItem(types: [type]) { $0 == type.identifier ? bytes : nil })
+            if dropSession?.entered == false { enter() }
+        case Int(MUI_EVENT_DROP_COMPLETE):
+            guard let session = dropSession else { return }
+            dropSession = nil
+            if !session.items.isEmpty {
+                _ = onInput?(.drop(.performed(position: session.position, items: session.items)))
+            } else if session.entered {
+                _ = onInput?(.drop(.exited))
+            }
+        default:
+            break
+        }
+    }
+
+    /// Ends an open drop session with `.exited` — an ordinary pointer motion
+    /// means the drag left without a `COMPLETE` (`DN-M` item 1).
+    private func endDropSessionOnMotion() {
+        guard let session = dropSession else { return }
+        dropSession = nil
+        if session.entered { _ = onInput?(.drop(.exited)) }
+    }
+
+    /// A dropped path as a `file://` URL string (`DN-M` item 1): RFC 3986's
+    /// unreserved characters and `/` kept, every other byte of its UTF-8
+    /// percent-encoded; a Windows path's backslashes become slashes, and a
+    /// drive path `C:\…` becomes `file:///C:/…` (the drive's colon kept).
+    nonisolated static func fileURLString(fromPath path: String) -> String {
+        var slashed = path.replacingBackslashes()
+        var prefix = "file://"
+        let scalars = Array(slashed.unicodeScalars)
+        if scalars.count >= 2, scalars[1] == ":", scalars[0].isASCIILetter {
+            prefix = "file:///" + String(scalars[0]) + ":"
+            slashed = String(String.UnicodeScalarView(scalars.dropFirst(2)))
+        } else if !slashed.hasPrefix("/") {
+            prefix = "file:///"
+        }
+        var encoded = ""
+        for byte in slashed.utf8 {
+            let c = Character(Unicode.Scalar(byte))
+            if byte < 0x80, c.isASCIILetterOrDigit || "-._~/".contains(c) {
+                encoded.append(c)
+            } else {
+                let hex = String(byte, radix: 16, uppercase: true)
+                encoded += "%" + (hex.count == 1 ? "0" + hex : hex)
+            }
+        }
+        return prefix + encoded
+    }
 
     /// Whether the platform should tick this window this pass.
     var linkRunning: Bool { displayLinkTick != nil && !displayLinkPaused && !closed }
@@ -363,9 +462,14 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.mouseUp(MouseEvent(position: position, modifiers: modifiers,
                                              clickCount: Int(event.clicks))))
         case Int(MUI_EVENT_MOUSE_MOVE):
+            endDropSessionOnMotion()
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
         case Int(MUI_EVENT_MOUSE_DRAG):
+            endDropSessionOnMotion()
             _ = onInput?(.mouseDragged(MouseEvent(position: position, modifiers: modifiers)))
+        case Int(MUI_EVENT_DROP_BEGIN), Int(MUI_EVENT_DROP_POSITION), Int(MUI_EVENT_DROP_FILE),
+             Int(MUI_EVENT_DROP_TEXT), Int(MUI_EVENT_DROP_COMPLETE):
+            handleDrop(event)
         case Int(MUI_EVENT_TEXT_INPUT):
             guard textInputCaret != nil, let text = event.text else { return }
             _ = onInput?(.textInput(String(cString: text)))
@@ -396,6 +500,21 @@ public final class SDLWindow: PlatformWindow {
             accessKit = nil
             mui_window_destroy(UnsafeMutableRawPointer(handle))
         }
+    }
+}
+
+private extension String {
+    func replacingBackslashes() -> String { String(map { $0 == "\\" ? "/" : $0 }) }
+}
+
+private extension Unicode.Scalar {
+    var isASCIILetter: Bool { ("a"..."z").contains(self) || ("A"..."Z").contains(self) }
+}
+
+private extension Character {
+    var isASCIILetterOrDigit: Bool {
+        guard let scalar = unicodeScalars.first, unicodeScalars.count == 1 else { return false }
+        return scalar.isASCIILetter || ("0"..."9").contains(scalar)
     }
 }
 
