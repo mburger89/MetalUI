@@ -4,9 +4,10 @@ import Foundation
 /// The drag-and-drop demo (ruling `DN-Q`; spec
 /// `2026-10-01-drag-and-drop-design.md` §7), reached with
 /// `METALUI_DND_DEMO=1 swift run MetalUIDemo` (and the same variable for
-/// `Backends/SDL`'s `MetalUISDLDemo`). Left: three chips — **Apple** (a
-/// `String`), **example.com** (a web `URL`) and **Custom preview** (a `String`
-/// with a 60 × 60 accent square for its preview) — and a selectable `List`
+/// `Backends/SDL`'s `MetalUISDLDemo`). Left: four chips — **Apple** (a
+/// `String`), **example.com** (a web `URL`), **Custom preview** (a `String`
+/// with a 60 × 60 accent square for its preview) and **Hold, then drag** (a
+/// `String` with a long press, for human check N8) — and a selectable `List`
 /// whose rows drag `"Row n"`. Right: four wells, each showing its last drop and
 /// filling with `.accent` while `isTargeted`: **Text** (`String`), **Links and
 /// files** (`URL`), **Anything** (`Data`, its byte count) and **Disabled**
@@ -77,6 +78,9 @@ private func dndChips() -> some Element {
         chip("Custom preview").draggable("Custom") {
             Box().frame(width: Pixels(60), height: Pixels(60)).background(.accent).cornerRadius(Pixels(8))
         }
+        // Human check N8 (`DN-U` item 1, `DN-Z` item 2): held past its long
+        // press before moving, this chip does not drag.
+        chip("Hold, then drag").draggable("Held").onLongPressGesture(perform: {})
     }
 }
 
