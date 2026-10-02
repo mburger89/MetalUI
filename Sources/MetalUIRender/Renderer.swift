@@ -216,6 +216,26 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
+        // The scene's transform table (ruling GX-F), bound beside every
+        // pipeline's records for vertex and fragment. An empty table binds
+        // one zero record, which index 0 — the only index a scene with no
+        // transforms holds — never reads.
+        let transformBuffer: any MTLBuffer
+        if scene.transforms.isEmpty {
+            guard let dummy = device.makeBuffer(length: MemoryLayout<MUITransform>.stride,
+                                                options: .storageModeShared) else {
+                throw RendererError.bufferAllocationFailed
+            }
+            transformBuffer = dummy
+        } else {
+            guard let table = device.makeBuffer(bytes: scene.transforms,
+                                                length: MemoryLayout<MUITransform>.stride * scene.transforms.count,
+                                                options: .storageModeShared) else {
+                throw RendererError.bufferAllocationFailed
+            }
+            transformBuffer = table
+        }
+
         // **One draw per run, pipeline bound only when the kind changes.** This
         // is what makes a rect able to occlude text: before the draw list,
         // `encode` drew every rect and then every glyph regardless of `order`.
@@ -242,15 +262,18 @@ public final class Renderer {
             switch run.kind {
             case .rect:
                 try encodeRects(Array(scene.rects[run.start..<(run.start + run.count)]),
-                                into: encoder, viewport: &viewport, projection: &projection)
+                                into: encoder, viewport: &viewport, projection: &projection,
+                                transforms: transformBuffer)
             case .glyph:
                 try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
-                                 into: encoder, viewport: &viewport, projection: &projection)
+                                 into: encoder, viewport: &viewport, projection: &projection,
+                                 transforms: transformBuffer)
             case .image:
                 let images = Array(scene.images[run.start..<(run.start + run.count)])
                 // One texture per run: `Scene.finalize` breaks a run where it changes.
                 try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
-                                 into: encoder, viewport: &viewport, projection: &projection)
+                                 into: encoder, viewport: &viewport, projection: &projection,
+                                 transforms: transformBuffer)
             case .surface:
                 let quads = Array(scene.surfaces[run.start..<(run.start + run.count)])
                 // One target per run: `Scene.finalize` breaks a run where it
@@ -258,7 +281,8 @@ public final class Renderer {
                 let target = scene.surfaceTargets[Int(quads[0].texture)]
                 guard let texture = surfaces[target.id] else { continue }
                 try encodeImages(quads, texture: texture,
-                                 into: encoder, viewport: &viewport, projection: &projection)
+                                 into: encoder, viewport: &viewport, projection: &projection,
+                                 transforms: transformBuffer)
             }
         }
     }
@@ -266,7 +290,8 @@ public final class Renderer {
     private func encodeRects(_ rects: [MUIRect],
                              into encoder: any MTLRenderCommandEncoder,
                              viewport: inout MUISize,
-                             projection: inout simd_float4x4) throws {
+                             projection: inout simd_float4x4,
+                             transforms: any MTLBuffer) throws {
         encoder.setRenderPipelineState(rectPipeline)
 
         // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
@@ -311,6 +336,8 @@ public final class Renderer {
                                index: Int(MUIRectBufferProjection.rawValue))
         encoder.setFragmentBuffer(rectBuffer, offset: 0,
                                   index: Int(MUIRectBufferRects.rawValue))
+        encoder.setVertexBuffer(transforms, offset: 0, index: Int(MUIRectBufferTransforms.rawValue))
+        encoder.setFragmentBuffer(transforms, offset: 0, index: Int(MUIRectBufferTransforms.rawValue))
 
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,
@@ -329,7 +356,8 @@ public final class Renderer {
     private func encodeGlyphs(_ glyphs: [MUIGlyph],
                               into encoder: any MTLRenderCommandEncoder,
                               viewport: inout MUISize,
-                              projection: inout simd_float4x4) throws {
+                              projection: inout simd_float4x4,
+                              transforms: any MTLBuffer) throws {
         guard let atlasTexture else { return }
 
         encoder.setRenderPipelineState(glyphPipeline)
@@ -352,6 +380,8 @@ public final class Renderer {
                                index: Int(MUIGlyphBufferProjection.rawValue))
         encoder.setFragmentBuffer(glyphBuffer, offset: 0,
                                   index: Int(MUIGlyphBufferGlyphs.rawValue))
+        encoder.setVertexBuffer(transforms, offset: 0, index: Int(MUIGlyphBufferTransforms.rawValue))
+        encoder.setFragmentBuffer(transforms, offset: 0, index: Int(MUIGlyphBufferTransforms.rawValue))
         encoder.setFragmentTexture(atlasTexture,
                                    index: Int(MUIGlyphTextureAtlas.rawValue))
         // From here the GPU may read this texture at any time until the command
@@ -403,7 +433,8 @@ public final class Renderer {
                               texture: any MTLTexture,
                               into encoder: any MTLRenderCommandEncoder,
                               viewport: inout MUISize,
-                              projection: inout simd_float4x4) throws {
+                              projection: inout simd_float4x4,
+                              transforms: any MTLBuffer) throws {
         encoder.setRenderPipelineState(imagePipeline)
         // A fresh buffer per encode, for the reason `encodeRects` spells out.
         guard let buffer = device.makeBuffer(bytes: images,
@@ -419,6 +450,8 @@ public final class Renderer {
         encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
                                index: Int(MUIImageBufferProjection.rawValue))
         encoder.setFragmentBuffer(buffer, offset: 0, index: Int(MUIImageBufferImages.rawValue))
+        encoder.setVertexBuffer(transforms, offset: 0, index: Int(MUIImageBufferTransforms.rawValue))
+        encoder.setFragmentBuffer(transforms, offset: 0, index: Int(MUIImageBufferTransforms.rawValue))
         encoder.setFragmentTexture(texture, index: Int(MUIImageTextureImage.rawValue))
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4,
                                instanceCount: images.count)

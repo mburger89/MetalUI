@@ -15,7 +15,32 @@ let sinCosAngles: [Double] = [
 ]
 
 /// (sin, cos) bit patterns recorded on macOS arm64 from this implementation.
-let sinCosBitPatterns: [(UInt64, UInt64)] = []
+let sinCosBitPatterns: [(UInt64, UInt64)] = [
+    (0x0, 0x3ff0000000000000),
+    (0x3e112e0be826d695, 0x3ff0000000000000),
+    (0x3fdeaee8744b05f0, 0x3fec1528065b7d50),
+    (0x3feaed548f090cee, 0x3fe14a280fb5068c),
+    (0x3fed18f6ead1b445, 0xbfdaa22657537205),
+    (0x3fc210386db6d55b, 0xbfefae04be85e5d2),
+    (0xbfeeaf81f5e09933, 0x3fd22785706b4ada),
+    (0xbfe1689ef5f34f53, 0xbfead9ac890c6b1f),
+    (0xbfe03425b78c4db8, 0x3feb981dbf665fdf),
+    (0xbfd6664b2568d867, 0x3fedf9df9906d32c),
+    (0x3fdfffffffffffff, 0x3febb67ae8584cab),
+    (0x3fe6a09e667f3bcc, 0x3fe6a09e667f3bcd),
+    (0x3ff0000000000000, 0x3c91a62633100000),
+    (0x3ca1a62633100000, 0xbff0000000000000),
+    (0xbff0000000000000, 0xbcaa79394ca00000),
+    (0xbcb1a62633100000, 0x3ff0000000000000),
+    (0xbff0000000000000, 0x3c91a62633100000),
+    (0xbca1a62633100000, 0xbff0000000000000),
+    (0xbfd2e9cd95baba33, 0x3fee921dd42f09ba),
+    (0xbfeaed548f090cee, 0x3fe14a280fb5068c),
+    (0xbfee041886fcae30, 0x3fd62f45e66f5c2f),
+    (0x3fe03425b78c4db8, 0x3feb981dbf665fdf),
+    (0x3fe6a09e667f3bcc, 0x3fe6a09e667f3bcd),
+    (0x3fefffffffffffd3, 0xbe7ad7f29ab9675a),
+]
 
 /// 1.27 — `sinCos` returns the recorded bit patterns exactly, and is exactly
 /// odd in `sin` and even in `cos` (Cody–Waite reduction by π/2 and fixed
@@ -93,7 +118,7 @@ func corpusBytes() -> [UInt8] {
 }
 
 /// Recorded on macOS arm64 from this implementation.
-let corpusHash: UInt64 = 0
+let corpusHash: UInt64 = 0xbfbd_ad23_fe78_65b4
 
 /// 1.26 — the corpus (curves, arcs at seven angles, the strokes above, an
 /// even-odd star, a blur) hashes to the literal recorded on macOS; Linux and

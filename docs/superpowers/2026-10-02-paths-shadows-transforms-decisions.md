@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-S`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-T`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -765,3 +765,85 @@ before lane 3 re-takes counts (`Theme` is a public type crossing into
    - *Gesture values under an effect probed*: the click harness sends single
      clicks; a recorded `DragGesture` value needs a drag harness the probe
      does not have. `GX-P` item 3 is stated as MetalUI's own reading instead.
+
+---
+
+## GX-S — Lane 1's readings: instruments re-derived, the stroker's space, frame 7's rasters, where an index is checked
+
+**Ruling.** Lane 1 (the renderer transform and `MetalUIPath`) built `GX-B`
+and `GX-F` as written, with these readings, each measured in the lane:
+
+1. **Test 1.4's arm is a uniform scale of 2, not `scale(2, 0.5)`.** The
+   spec's `scale(2, 0.5)` has `|ad − bc| = 1`, so `pixelScale` is 1 and its
+   mutation M1d ("`pixelScale` ignored") cannot change a byte — a broken
+   instrument. Under `scale(2, 2)` an edge through a pixel centre leaves
+   exactly one partial row and column (M1d makes it two); a 2:1 arm
+   (`scale(2, 1)`, `pixelScale` √2) only bounds the isotropic band (≤ 4
+   partial pixels across a row), which is `GX-F`'s stated cost.
+2. **"Ink" in the stroke tests is coverage ≥ 64 (a quarter pixel).**
+   SwiftUI's bitmaps come from CoreGraphics' sample-based antialiasing,
+   which leaves no ink for a sliver under about a quarter pixel (a miter's
+   last rows, a round cap's tangent). At ≥ 128 the sharp miter of ST6 —
+   split down the middle between two pixel columns — reads −2 against
+   SwiftUI's −4; at > 0 it reads −7. At ≥ 64 every arm of ST1–ST8 is within
+   the spec's ±1 (measured: miter tip 8 vs 7, limit-10 −4, limit-4 9/10).
+3. **ST7's third row differs at the 2-unit dashes' ends.** SwiftUI reads
+   `[15…17]` for the dash [15, 17) and `[0…9]` for [0, 10): CoreGraphics
+   inks a sliver past the short dashes only. MetalUI's exact-area answer is
+   `[15…16]`. Test 1.23 pins the first two rows exactly, and in the third
+   every start and every 10-unit end exactly, the four 2-unit ends ±1.
+4. **A stroke is stroked in the path's own space, then mapped**
+   (`PathRaster.stroke`): flattening and the stroker's round pieces use the
+   device tolerance divided by the transform's `sqrt|det|`, the outline is
+   mapped by the affine and filled nonzero in device pixels. For a uniform
+   scale this is `GX-E`'s "device space"; for a non-uniform one it widens a
+   stroke as SwiftUI's does (a `scaleEffect(x: 2)` doubles a vertical line's
+   width), which stroking an already-mapped polyline would not.
+5. **Frame 7 carries the GPU transform on every pipeline; MetalUIPath's
+   rasters join it in lane 3.** `MetalUIPath`'s API is `package` (spec
+   §5.4), and `Experiments/SDLGPU` is a separate SwiftPM package, which
+   `package` access cannot reach (`GX-R` item 5's "frame 7 needs both" did
+   not see this). Lane 3 adds the nonzero and even-odd path rasters and the
+   blurred shadow to frame 7 through MetalUI's public `Path` and `.shadow`
+   (`renderFrame` of a small tree) — the production path, better evidence
+   than calling the rasterizer directly. Owner: lane 3. CI's `--expect 8`
+   does not move: frame 7 exists now. Measured on this branch: `Replay
+   --portable --record` passes all 8 frames, frame 7 at 0 differing pixels
+   on SDL's Metal backend (6 rects, 28 glyphs, 2 images, 9 transforms).
+   **Positive controls** (recorded, not committed, each restored with
+   `SOURCE.sha256` matching): the HLSL vertex stage ignoring the index fails
+   frame 7 with 40 402 differing pixels (max Δ 220); the HLSL outer mask
+   dropped (all three kinds) fails it with 1 823 (max Δ 220, all outside the
+   sprites — the cut lands on the masked rect).
+6. **Index 0 is today's arithmetic by construction, and measured.** The
+   fragment's transformed rect path shares `rect_shade(r, p, s)` with the
+   untransformed one, called with the literal `1.0`, which the compiler
+   folds (`x × 1.0 == x`); glyph and image fragments branch on the index
+   before any new arithmetic. `anUntransformedSceneRendersBitIdenticallyToBefore`
+   (1.2) hashes a fixed untransformed scene to `0xc1c0b5e350b217a8`,
+   recorded on `dc96395`'s shaders in the lane's red commit, and is green
+   on the transformed ones.
+7. **A record's transform index is checked in the SDL bridge, not the
+   fixture.** `SDLBridge.c`'s `transforms_valid` refuses a run whose record
+   names an entry past the table (beside `images_valid`), in both
+   `replay_render` and `mui_renderer_finish`. `ReplayFixture.validate()`
+   checks only that the table is whole records: the format tests build
+   fixtures from distinct-valued byte ramps whose `shape` words are
+   arbitrary, and a fixture is a format, not a draw.
+8. **Only consecutive equal records share a table entry** (byte-equal,
+   `_reserved` zeroed): one effect's primitives name one record; a later
+   return to an earlier transform is a new entry. Test 1.10 reads it so
+   (the glyph and the image under U, not T).
+9. **`PathMath.sinCos` is odd by construction**: it works on `|x|` and
+   restores the sine's sign, so `sin(−0) = −0` and every symmetry in 1.27
+   is exact (the reduction alone gave `sin(−0) = +0`).
+10. **Test 1.6's atlas is a coverage-0 slot hard against a neighbour whose
+    touching column is 255, drawn ×4 and turned a quarter**: any lit pixel
+    is a bleed. The spec's two 255 slots cannot show one (a bleed of 255
+    into 255 is invisible).
+
+**Cost if wrong.** Items 1–3 are instruments: each names the arm it
+replaced and why the old one could not discriminate. Item 5 leaves frame 7
+without CPU rasters until lane 3; the rasters reach the screen through the
+image pipeline frame 6 already holds to parity.
+

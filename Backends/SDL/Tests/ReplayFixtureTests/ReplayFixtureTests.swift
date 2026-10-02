@@ -29,7 +29,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [2, 0, 0, 0])       // version
+    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0])       // version (3 since GX-F)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
@@ -78,8 +78,9 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func anUnknownRunKindIsRejected() throws {
     let fixture = try sample()
     var bytes = fixture.encoded()
-    // Version 2: a fourth stride, then the (empty) image bytes and textures.
-    let runsOffset = 8 + 4 + 20 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4
+    // Version 3: a fifth stride (the transform's), the (empty) image bytes
+    // and textures, then the (empty) transform table.
+    let runsOffset = 8 + 4 + 24 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4 + 4
     try #require(bytes[runsOffset] == 0)  // first run is a rect
     bytes[runsOffset] = 3                 // 2 is an image run since version 2
     #expect(throws: FixtureError.badRunKind(3)) { try ReplayFixture(decoding: bytes) }
@@ -224,7 +225,8 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
         projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
         reference: (0..<24).map { UInt8($0) })
     let bytes = fixture.encoded()
-    #expect(Array(bytes[8..<12]) == [2, 0, 0, 0], "version 2")
+    // Version 3 since GX-F (the transform table after the textures).
+    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0], "version 3")
     let decoded = try ReplayFixture(decoding: bytes)
     #expect(decoded == fixture)
     #expect(decoded.imageCount == 2)

@@ -16,59 +16,153 @@ struct main0_out
 struct main0_in
 {
     float2 in_var_TEXCOORD0 [[user(locn0)]];
-    float2 in_var_TEXCOORD1 [[user(locn1)]];
-    uint in_var_TEXCOORD2 [[user(locn2)]];
+    float2 in_var_TEXCOORD3 [[user(locn1)]];
+    float2 in_var_TEXCOORD1 [[user(locn2)]];
+    uint in_var_TEXCOORD2 [[user(locn3)]];
 };
 
-fragment main0_out main0(main0_in in [[stage_in]], const device type_StructuredBuffer_v4float& primitives [[buffer(0)]], texture2d<float> image [[texture(0)]], sampler imageSampler [[sampler(0)]])
+fragment main0_out main0(main0_in in [[stage_in]], const device type_StructuredBuffer_v4float& primitives [[buffer(0)]], const device type_StructuredBuffer_v4float& transforms [[buffer(1)]], texture2d<float> image [[texture(0)]], sampler imageSampler [[sampler(0)]])
 {
     main0_out out = {};
-    uint _47 = in.in_var_TEXCOORD2 * 4u;
-    uint _48 = _47 + 3u;
-    float4 _76;
-    if (as_type<uint>(primitives._m0[_48].z) == 1u)
+    float4 _292;
+    do
     {
-        uint2 _58 = uint2(image.get_width(), image.get_height());
-        uint2 _63 = min(uint2(in.in_var_TEXCOORD1 * float2(_58)), (_58 - uint2(1u)));
-        _76 = image.read(uint2(int3(int(_63.x), int(_63.y), 0).xy), 0);
-    }
-    else
-    {
-        _76 = image.sample(imageSampler, in.in_var_TEXCOORD1);
-    }
-    uint _77 = _47 + 1u;
-    uint _80 = _47 + 2u;
-    float2 _84 = primitives._m0[_77].zw * 0.5;
-    float2 _87 = (in.in_var_TEXCOORD0 - primitives._m0[_77].xy) - _84;
-    float _109;
-    if (_87.x < 0.0)
-    {
-        float _100;
-        if (_87.y < 0.0)
+        uint _58 = in.in_var_TEXCOORD2 * 4u;
+        uint _59 = _58 + 3u;
+        uint _63 = as_type<uint>(primitives._m0[_59].z);
+        uint _64 = _63 >> 8u;
+        if (_64 != 0u)
         {
-            _100 = primitives._m0[_80].x;
+            uint _69 = (_64 - 1u) * 4u;
+            uint _70 = _69 + 1u;
+            float2 _73 = fast::clamp(in.in_var_TEXCOORD1, float2(0.0), float2(1.0));
+            float4 _98;
+            if ((_63 & 255u) == 1u)
+            {
+                uint2 _80 = uint2(image.get_width(), image.get_height());
+                uint2 _85 = min(uint2(_73 * float2(_80)), (_80 - uint2(1u)));
+                _98 = image.read(uint2(int3(int(_85.x), int(_85.y), 0).xy), 0);
+            }
+            else
+            {
+                _98 = image.sample(imageSampler, _73);
+            }
+            float2 _102 = primitives._m0[_58].zw * 0.5;
+            float2 _107 = abs(in.in_var_TEXCOORD0 - (primitives._m0[_58].xy + _102)) - _102;
+            uint _118 = _58 + 1u;
+            uint _121 = _58 + 2u;
+            float2 _125 = primitives._m0[_118].zw * 0.5;
+            float2 _128 = (in.in_var_TEXCOORD0 - primitives._m0[_118].xy) - _125;
+            float _150;
+            if (_128.x < 0.0)
+            {
+                float _141;
+                if (_128.y < 0.0)
+                {
+                    _141 = primitives._m0[_121].x;
+                }
+                else
+                {
+                    _141 = primitives._m0[_121].w;
+                }
+                _150 = _141;
+            }
+            else
+            {
+                float _149;
+                if (_128.y < 0.0)
+                {
+                    _149 = primitives._m0[_121].y;
+                }
+                else
+                {
+                    _149 = primitives._m0[_121].z;
+                }
+                _150 = _149;
+            }
+            float2 _154 = (abs(_128) - _125) + float2(_150);
+            uint _167 = _69 + 2u;
+            uint _170 = _69 + 3u;
+            float2 _174 = transforms._m0[_167].zw * 0.5;
+            float2 _177 = (in.in_var_TEXCOORD3 - transforms._m0[_167].xy) - _174;
+            float _199;
+            if (_177.x < 0.0)
+            {
+                float _190;
+                if (_177.y < 0.0)
+                {
+                    _190 = transforms._m0[_170].x;
+                }
+                else
+                {
+                    _190 = transforms._m0[_170].w;
+                }
+                _199 = _190;
+            }
+            else
+            {
+                float _198;
+                if (_177.y < 0.0)
+                {
+                    _198 = transforms._m0[_170].y;
+                }
+                else
+                {
+                    _198 = transforms._m0[_170].z;
+                }
+                _199 = _198;
+            }
+            float2 _203 = (abs(_177) - _174) + float2(_199);
+            _292 = _98 * (primitives._m0[_59].x * ((fast::clamp(0.5 - ((length(precise::max(_107, float2(0.0))) + precise::min(precise::max(_107.x, _107.y), 0.0)) * ((device float*)&transforms._m0[_70])[2]), 0.0, 1.0) * fast::clamp(0.5 - (((length(precise::max(_154, float2(0.0))) + precise::min(precise::max(_154.x, _154.y), 0.0)) - _150) * ((device float*)&transforms._m0[_70])[2]), 0.0, 1.0)) * fast::clamp(0.5 - ((length(precise::max(_203, float2(0.0))) + precise::min(precise::max(_203.x, _203.y), 0.0)) - _199), 0.0, 1.0)));
+            break;
+        }
+        float4 _241;
+        if (_63 == 1u)
+        {
+            uint2 _223 = uint2(image.get_width(), image.get_height());
+            uint2 _228 = min(uint2(in.in_var_TEXCOORD1 * float2(_223)), (_223 - uint2(1u)));
+            _241 = image.read(uint2(int3(int(_228.x), int(_228.y), 0).xy), 0);
         }
         else
         {
-            _100 = primitives._m0[_80].w;
+            _241 = image.sample(imageSampler, in.in_var_TEXCOORD1);
         }
-        _109 = _100;
-    }
-    else
-    {
-        float _108;
-        if (_87.y < 0.0)
+        uint _242 = _58 + 1u;
+        uint _245 = _58 + 2u;
+        float2 _249 = primitives._m0[_242].zw * 0.5;
+        float2 _252 = (in.in_var_TEXCOORD0 - primitives._m0[_242].xy) - _249;
+        float _274;
+        if (_252.x < 0.0)
         {
-            _108 = primitives._m0[_80].y;
+            float _265;
+            if (_252.y < 0.0)
+            {
+                _265 = primitives._m0[_245].x;
+            }
+            else
+            {
+                _265 = primitives._m0[_245].w;
+            }
+            _274 = _265;
         }
         else
         {
-            _108 = primitives._m0[_80].z;
+            float _273;
+            if (_252.y < 0.0)
+            {
+                _273 = primitives._m0[_245].y;
+            }
+            else
+            {
+                _273 = primitives._m0[_245].z;
+            }
+            _274 = _273;
         }
-        _109 = _108;
-    }
-    float2 _113 = (abs(_87) - _84) + float2(_109);
-    out.out_var_SV_Target0 = _76 * (primitives._m0[_48].x * fast::clamp(0.5 - ((length(precise::max(_113, float2(0.0))) + precise::min(precise::max(_113.x, _113.y), 0.0)) - _109), 0.0, 1.0));
+        float2 _278 = (abs(_252) - _249) + float2(_274);
+        _292 = _241 * (primitives._m0[_59].x * fast::clamp(0.5 - ((length(precise::max(_278, float2(0.0))) + precise::min(precise::max(_278.x, _278.y), 0.0)) - _274), 0.0, 1.0));
+        break;
+    } while(false);
+    out.out_var_SV_Target0 = _292;
     return out;
 }
 

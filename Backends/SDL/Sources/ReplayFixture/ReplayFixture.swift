@@ -4,13 +4,15 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 2 (ruling TE-AF: images):
+// Layout (little-endian, no padding), version 3 (ruling GX-F: transforms;
+// version 2, TE-AF, added images):
 //   "MUIRPLY\0"  u32 version
-//   u32 width, height, rectStride, glyphStride, imageStride
+//   u32 width, height, rectStride, glyphStride, imageStride, transformStride
 //   u32 rectByteCount,  rect bytes
 //   u32 glyphByteCount, glyph bytes
 //   u32 imageByteCount, image bytes
 //   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
+//   u32 transformByteCount, transform bytes (MUITransform records)
 //   u32 runCount, runCount × (u32 kind, start, count)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
@@ -56,7 +58,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 2
+    public static let version: UInt32 = 3
     /// The primitive ABI, read off the real structs. `replay.hlsl` hard-codes
     /// the layout these imply (rect 8 lanes, glyph 6, after the bridge pads
     /// 120 → 128 and 88 → 96), so a changed struct must fail loudly:
@@ -85,6 +87,16 @@ public struct ReplayFixture: Equatable, Sendable {
     public var rectCount: Int { rects.count / Int(Self.rectStride) }
     public var glyphCount: Int { glyphs.count / Int(Self.glyphStride) }
     public var imageCount: Int { images.count / Int(Self.imageStride) }
+    public var transformCount: Int { transforms.count / Int(Self.transformStride) }
+
+    /// The transform records as the struct the shaders read.
+    public var transformRecords: [MUITransform] {
+        transforms.withUnsafeBytes { raw in
+            (0..<transformCount).map {
+                raw.loadUnaligned(fromByteOffset: $0 * Int(Self.transformStride), as: MUITransform.self)
+            }
+        }
+    }
 
     /// The image records as the struct the renderer draws.
     public var imageRecords: [MUIImage] {
@@ -94,11 +106,13 @@ public struct ReplayFixture: Equatable, Sendable {
     }
 
     public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8],
-                images: [UInt8] = [], textures: [FixtureTexture] = [], runs: [FixtureRun],
+                images: [UInt8] = [], textures: [FixtureTexture] = [], transforms: [UInt8] = [],
+                runs: [FixtureRun],
                 atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
                 projection: [Float], reference: [UInt8]) throws(FixtureError) {
         self.width = width; self.height = height
         self.rects = rects; self.glyphs = glyphs; self.images = images; self.textures = textures
+        self.transforms = transforms
         self.runs = runs
         self.atlasWidth = atlasWidth; self.atlasHeight = atlasHeight; self.atlas = atlas
         self.projection = projection; self.reference = reference
@@ -116,6 +130,7 @@ public struct ReplayFixture: Equatable, Sendable {
             textures: scene.textures.map {
                 FixtureTexture(width: UInt32($0.width), height: UInt32($0.height), pixels: $0.pixels)
             },
+            transforms: scene.transforms.withUnsafeBytes { Array($0) },
             runs: scene.drawList.map { FixtureRun(scene: $0) },
             atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height), atlas: atlas.pixels,
             projection: projection, reference: reference)
@@ -132,6 +147,9 @@ public struct ReplayFixture: Equatable, Sendable {
         guard rects.count % Int(Self.rectStride) == 0 else { throw .invalid("rect bytes \(rects.count) not a multiple of \(Self.rectStride)") }
         guard glyphs.count % Int(Self.glyphStride) == 0 else { throw .invalid("glyph bytes \(glyphs.count) not a multiple of \(Self.glyphStride)") }
         guard images.count % Int(Self.imageStride) == 0 else { throw .invalid("image bytes \(images.count) not a multiple of \(Self.imageStride)") }
+        guard transforms.count % Int(Self.transformStride) == 0 else {
+            throw .invalid("transform bytes \(transforms.count) not a multiple of \(Self.transformStride)")
+        }
         for (index, texture) in textures.enumerated() {
             try dimension(texture.width, "texture \(index) width"); try dimension(texture.height, "texture \(index) height")
             guard texture.pixels.count == Int(texture.width) * Int(texture.height) * 4 else {
@@ -197,9 +215,11 @@ extension ReplayFixture {
         func bytes(_ b: [UInt8]) { u32(UInt32(b.count)); out += b }
         u32(Self.version)
         u32(width); u32(height); u32(Self.rectStride); u32(Self.glyphStride); u32(Self.imageStride)
+        u32(Self.transformStride)
         bytes(rects); bytes(glyphs); bytes(images)
         u32(UInt32(textures.count))
         for texture in textures { u32(texture.width); u32(texture.height); out += texture.pixels }
+        bytes(transforms)
         u32(UInt32(runs.count))
         for run in runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
         u32(atlasWidth); u32(atlasHeight); out += atlas
@@ -224,8 +244,9 @@ extension ReplayFixture {
         let version = try u32()
         guard version == Self.version else { throw .unsupportedVersion(version) }
         let width = try u32(), height = try u32()
-        let rectStride = try u32(), glyphStride = try u32(), imageStride = try u32()
-        guard rectStride == Self.rectStride, glyphStride == Self.glyphStride, imageStride == Self.imageStride else {
+        let rectStride = try u32(), glyphStride = try u32(), imageStride = try u32(), transformStride = try u32()
+        guard rectStride == Self.rectStride, glyphStride == Self.glyphStride, imageStride == Self.imageStride,
+              transformStride == Self.transformStride else {
             throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: imageStride)
         }
         let rects = try bytes(Int(try u32()))
@@ -242,6 +263,7 @@ extension ReplayFixture {
             textures.append(FixtureTexture(width: textureWidth, height: textureHeight,
                                            pixels: try bytes(Int(textureWidth) * Int(textureHeight) * 4)))
         }
+        let transforms = try bytes(Int(try u32()))
         let runCount = Int(try u32())
         var runs: [FixtureRun] = []
         for _ in 0..<runCount {
@@ -261,7 +283,7 @@ extension ReplayFixture {
         let reference = try bytes(Int(width) * Int(height) * 4)
         guard offset == data.count else { throw .trailingBytes(data.count - offset) }
         try self.init(width: width, height: height, rects: rects, glyphs: glyphs,
-                      images: images, textures: textures, runs: runs,
+                      images: images, textures: textures, transforms: transforms, runs: runs,
                       atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
                       projection: projection, reference: reference)
     }
@@ -312,9 +334,26 @@ public struct Parity: Equatable, Sendable {
 }
 
 extension ReplayFixture {
-    /// Glyph bounds (`MUIGlyph.bounds`), as recorded, before the projection.
+    /// Glyph bounds (`MUIGlyph.bounds`) on the target before the
+    /// projection: as recorded, or — under a transform (ruling GX-F) — the
+    /// box of the four corners the record maps them to, grown by the
+    /// vertex stage's one-pixel fringe.
     public var glyphBounds: [(x: Float, y: Float, width: Float, height: Float)] {
-        glyphRecords.map { ($0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height) }
+        glyphRecords.map { placed($0.bounds, transform: $0.transform) }
+    }
+
+    private func placed(_ b: MUIBounds, transform index: UInt32) -> (x: Float, y: Float, width: Float, height: Float) {
+        let records = transformRecords
+        guard index > 0, Int(index) <= records.count else {
+            return (b.origin.x, b.origin.y, b.size.width, b.size.height)
+        }
+        let t = records[Int(index) - 1]
+        let corners = [(b.origin.x, b.origin.y), (b.origin.x + b.size.width, b.origin.y),
+                       (b.origin.x, b.origin.y + b.size.height), (b.origin.x + b.size.width, b.origin.y + b.size.height)]
+            .map { (t.a * $0.0 + t.c * $0.1 + t.tx, t.b * $0.0 + t.d * $0.1 + t.ty) }
+        let x0 = corners.map(\.0).min()! - 1, x1 = corners.map(\.0).max()! + 1
+        let y0 = corners.map(\.1).min()! - 1, y1 = corners.map(\.1).max()! + 1
+        return (x0, y0, x1 - x0, y1 - y0)
     }
 
     /// The glyph records as the struct the renderer draws.
@@ -335,9 +374,10 @@ extension ReplayFixture {
         return ((cx / cw + 1) / 2 * w, (1 - cy / cw) / 2 * h)
     }
 
-    /// Image bounds (`MUIImage.bounds`), as recorded, before the projection.
+    /// Image bounds (`MUIImage.bounds`) on the target before the projection,
+    /// placed as ``glyphBounds`` places a glyph's.
     public var imageBounds: [(x: Float, y: Float, width: Float, height: Float)] {
-        imageRecords.map { ($0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height) }
+        imageRecords.map { placed($0.bounds, transform: $0.filter >> 8) }
     }
 
     /// Pixels a glyph quad may touch after projection, grown by one pixel

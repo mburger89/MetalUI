@@ -75,8 +75,10 @@ private func record(_ tx: Float) -> MUITransform {
 
 /// 1.10 (ruling GX-F) — a transform is carried once and named from 1: rects
 /// under T, T, none, U leave the table [T, U] and the packed words naming
-/// 1, 1, 0, 2 above the shape byte; a glyph and an image name theirs in
-/// `transform` and above the filter byte. `finalize()` (twice) permutes the
+/// 1, 1, 0, 2 above the shape byte; a glyph and an image under U name 2 in
+/// `transform` and above the filter byte. (Only CONSECUTIVE equal records
+/// share an entry — one effect's primitives; a later return to T would be a
+/// new entry.) `finalize()` (twice) permutes the
 /// primitives and never the table; `clear()` empties it.
 @Test func theTransformTableIsCarriedOnceAndIndexedFromOne() {
     var s = Scene()
@@ -94,13 +96,13 @@ private func record(_ tx: Float) -> MUITransform {
     s.insert(MUIImage(bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
                       contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
                       maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
-                      opacity: 1, texture: 0, filter: 1, order: 0), texture: texture, transform: t)
+                      opacity: 1, texture: 0, filter: 1, order: 0), texture: texture, transform: u)
     func check(_ label: String) {
         #expect(s.transforms.map(\.tx) == [10, 20], "\(label): table")
         #expect(s.rects.map { $0.shape >> 8 } == [1, 1, 0, 2], "\(label): rect indices")
         #expect(s.rects.map { $0.shape & 0xFF } == [0, 0, 0, 0], "\(label): rect shapes")
         #expect(s.glyphs.map(\.transform) == [2], "\(label): glyph")
-        #expect(s.images.map(\.filter) == [1 | 1 << 8], "\(label): image")
+        #expect(s.images.map(\.filter) == [1 | 2 << 8], "\(label): image")
     }
     check("inserted")
     s.finalize(); check("finalized")

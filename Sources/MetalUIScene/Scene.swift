@@ -57,8 +57,28 @@ public struct Scene: Sendable {
     public private(set) var surfaceTargets: [SurfaceTarget] = []
 
     /// Per-instance affines (ruling GX-F), in first-use order; a primitive
-    /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``).
+    /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``):
+    /// `MUIRect.shape` and `MUIImage.filter` bits 8…31, `MUIGlyph.transform`.
+    /// **Never reordered** by ``finalize()`` (primitives keep their index
+    /// through the permutation) and never a run boundary — a transform is
+    /// per instance, so one draw call carries any mix of them.
     public private(set) var transforms: [MUITransform] = []
+
+    /// 1 + the index `transform` gets in ``transforms``, or 0 for `nil`.
+    /// **Equal consecutive records share one entry** (one effect's
+    /// primitives all name the same record), compared byte for byte.
+    private mutating func transformIndex(_ transform: MUITransform?) -> MUIUInt {
+        guard var transform else { return 0 }
+        transform._reserved = 0
+        if let last = transforms.last, Self.sameBytes(last, transform) { return MUIUInt(transforms.count) }
+        transforms.append(transform)
+        precondition(transforms.count < 1 << 24, "Scene: more than 2^24 − 1 transforms (GX-F)")
+        return MUIUInt(transforms.count)
+    }
+
+    private static func sameBytes(_ a: MUITransform, _ b: MUITransform) -> Bool {
+        withUnsafeBytes(of: a) { ra in withUnsafeBytes(of: b) { rb in ra.elementsEqual(rb) } }
+    }
 
     /// Built by ``finalize()``. Empty until then.
     public private(set) var drawList: [DrawRun] = []
@@ -103,16 +123,25 @@ public struct Scene: Sendable {
     /// `aSceneHoldingOnlyASurfaceIsNotEmpty` (`MV-C` item 2).
     public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty }
 
-    /// Adds a rectangle on `layer`.
+    /// Adds a rectangle on `layer`, under `transform` when given (ruling
+    /// GX-F): its `bounds` and `contentMask` are then local, mapped by the
+    /// record; `nil` draws it exactly as before transforms existed.
     public mutating func insert(_ rect: MUIRect, layer: Int = 0, transform: MUITransform? = nil) {
+        var rect = rect
+        let index = transformIndex(transform)
+        if index != 0 { rect.shape = (rect.shape & 0xFF) | index << 8 }
         rects.append(rect)
         rectSequence.append(nextSequence)
         rectLayer.append(layer)
         nextSequence += 1
     }
 
-    /// Adds a glyph on `layer`.
+    /// Adds a glyph on `layer`, under `transform` when given (see the rect
+    /// overload).
     public mutating func insert(_ glyph: MUIGlyph, layer: Int = 0, transform: MUITransform? = nil) {
+        var glyph = glyph
+        let index = transformIndex(transform)
+        if index != 0 { glyph.transform = index }
         glyphs.append(glyph)
         glyphSequence.append(nextSequence)
         glyphLayer.append(layer)
@@ -125,6 +154,8 @@ public struct Scene: Sendable {
     public mutating func insert(_ image: MUIImage, texture: ImageTexture, layer: Int = 0,
                                 transform: MUITransform? = nil) {
         var image = image
+        let index = transformIndex(transform)
+        if index != 0 { image.filter = (image.filter & 0xFF) | index << 8 }
         if let index = textures.firstIndex(where: { $0 === texture }) {
             image.texture = MUIUInt(index)
         } else {
@@ -146,6 +177,8 @@ public struct Scene: Sendable {
     public mutating func insert(_ quad: MUIImage, surface: SurfaceTarget, layer: Int = 0,
                                 transform: MUITransform? = nil) {
         var quad = quad
+        let index = transformIndex(transform)
+        if index != 0 { quad.filter = (quad.filter & 0xFF) | index << 8 }
         if let index = surfaceTargets.firstIndex(where: { $0.id == surface.id }) {
             precondition(surfaceTargets[index] == surface,
                          "Scene: surface \(surface.id.rawValue) inserted at \(surface.width)×\(surface.height) "
@@ -188,6 +221,7 @@ public struct Scene: Sendable {
         textures.removeAll(keepingCapacity: true)
         surfaces.removeAll(keepingCapacity: true)
         surfaceTargets.removeAll(keepingCapacity: true)
+        transforms.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
         rectSequence.removeAll(keepingCapacity: true)
         glyphSequence.removeAll(keepingCapacity: true)

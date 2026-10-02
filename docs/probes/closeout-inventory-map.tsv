@@ -116,7 +116,7 @@ F	layout-direction-type	D	-	-	-	25	EV-K	LayoutDirection: carried, read by no con
 F	layout-kernel	M	-	-	-	77	SA-L SA-M GR-C	MetalUILayout's LayoutTree, node ids, registrars, measure functions, grid marks, spacing, rounding (77)
 F	platform	M	-	-	-	-	RS-A AB-R EV-AB AN-AD	MetalUIPlatform: Platform/PlatformWindow/WindowRenderer, input events, the neutral accessibility tree
 F	render	M	-	-	-	-	RS-B RS-C	MetalUIRender/MetalUIPrimitives/MetalUIAppKit: the Metal renderer, surfaces, shader library, the AppKit platform
-F	scene	M	-	-	-	-	PS-A PS-B TE-AF	MetalUIScene: Scene, draw runs, the glyph atlas, FontKey, GlyphImage, ImageTexture
+F	scene	M	-	-	-	-	PS-A PS-B TE-AF GX-F	MetalUIScene: Scene, draw runs, the glyph atlas, FontKey, GlyphImage, ImageTexture, the per-instance transform table
 F	text-system	M	-	-	-	-	TS-A TS-B TX-B	MetalUIText/MetalUITextSystem: the TextSystem seam and its CoreText conformer
 F	portable-text	M	-	-	-	-	FT-B SH-B PT-A LB-A FN-A FB-A BD-B SF-A	MetalUIFreeType/MetalUIHarfBuzz/MetalUIPortableText/MetalUISystemFonts: the portable text pipeline
 F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importable by tests

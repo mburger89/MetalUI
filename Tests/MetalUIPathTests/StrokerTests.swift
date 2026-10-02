@@ -6,8 +6,10 @@ import Testing
 // pixel at least half covered** (coverage ≥ 128): CoreGraphics antialiases by
 // coverage samples, so a sliver narrower than about a quarter pixel (a
 // miter's last pixel, a round cap's tangent point) leaves no ink in
-// SwiftUI's bitmaps while an exact-area rasterizer gives it a few levels;
-// half coverage is where both agree within the arms' ±1.
+// SwiftUI's bitmaps while an exact-area rasterizer gives it a few levels.
+// A quarter is where both agree within the arms' ±1 (`GX-S` item 2: at half
+// coverage the sharp miter of ST6, split down the middle between two pixel
+// columns, loses two rows).
 
 func stroke(_ build: (inout PathGeometry) -> Void, _ style: StrokeParameters,
             clip: RasterRect = RasterRect(x: -50, y: -50, width: 200, height: 200)) -> AlphaMask {
@@ -17,11 +19,11 @@ func stroke(_ build: (inout PathGeometry) -> Void, _ style: StrokeParameters,
     return PathRaster.stroke(geometry, style: style, clip: clip, rasterizer: &rasterizer)
 }
 
-/// The box of pixels with coverage ≥ 128, or nil.
+/// The box of pixels with coverage ≥ 64, or nil.
 func inkBox(_ m: AlphaMask) -> (x0: Int, y0: Int, x1: Int, y1: Int)? {
     var x0 = Int.max, y0 = Int.max, x1 = Int.min, y1 = Int.min
     for y in m.rect.y..<m.rect.maxY {
-        for x in m.rect.x..<m.rect.maxX where m.value(atX: x, y: y) >= 128 {
+        for x in m.rect.x..<m.rect.maxX where m.value(atX: x, y: y) >= 64 {
             x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x); y1 = max(y1, y)
         }
     }
@@ -80,7 +82,7 @@ func vShape(tipY: Double, half: Double) -> (inout PathGeometry) -> Void {
 func runs(_ m: AlphaMask, y: Int, from: Int, to: Int) -> String {
     var out: [String] = [], start: Int?
     for x in from...to {
-        let on = m.value(atX: x, y: y) >= 128
+        let on = m.value(atX: x, y: y) >= 64
         if on, start == nil { start = x }
         if !on, let s = start { out.append("[\(s)…\(x - 1)]"); start = nil }
     }
@@ -88,16 +90,28 @@ func runs(_ m: AlphaMask, y: Int, from: Int, to: Int) -> String {
     return out.joined(separator: " ")
 }
 
-/// 1.23 (ST7) — dashes walk the arc length from the phase: SwiftUI's three
-/// rows on a width-4 line 0…100, exactly.
-@Test func dashesWalkTheArcLengthFromThePhase() {
+/// 1.23 (ST7) — dashes walk the arc length from the phase: SwiftUI's rows
+/// on a width-4 line 0…100. The first two exactly; in the third every dash
+/// starts exactly and every 10-unit dash ends exactly, while SwiftUI's
+/// 2-unit dashes ([15, 17) read `[15…17]`) ink one sliver pixel past their
+/// end that an exact-area rasterizer leaves empty (`[15…16]`) — `GX-S`
+/// item 3: within ±1 at those four ends.
+@Test func dashesWalkTheArcLengthFromThePhase() throws {
     let l = line(0, 100, y: 50)
     #expect(runs(stroke(l, StrokeParameters(width: 4, dash: [10, 10])), y: 50, from: 0, to: 99)
             == "[0…9] [20…29] [40…49] [60…69] [80…89]")
     #expect(runs(stroke(l, StrokeParameters(width: 4, dash: [10, 10], dashPhase: 5)), y: 50, from: 0, to: 99)
             == "[0…4] [15…24] [35…44] [55…64] [75…84] [95…99]")
-    #expect(runs(stroke(l, StrokeParameters(width: 4, dash: [10, 5, 2, 5])), y: 50, from: 0, to: 99)
-            == "[0…9] [15…17] [22…31] [37…39] [44…53] [59…61] [66…75] [81…83] [88…97]")
+    let swiftUI = [(0, 9), (15, 17), (22, 31), (37, 39), (44, 53), (59, 61), (66, 75), (81, 83), (88, 97)]
+    let drawn = runs(stroke(l, StrokeParameters(width: 4, dash: [10, 5, 2, 5])), y: 50, from: 0, to: 99)
+        .split(separator: " ").map { run -> (Int, Int) in
+            let bounds = run.dropFirst().dropLast().split(separator: "…").map { Int($0)! }
+            return (bounds[0], bounds[1])
+        }
+    try #require(drawn.count == swiftUI.count, "runs \(drawn)")
+    for (d, s) in zip(drawn, swiftUI) {
+        #expect(d.0 == s.0 && (s.1 - s.0 == 9 ? d.1 == s.1 : abs(d.1 - s.1) <= 1), "\(d) vs \(s)")
+    }
 }
 
 /// 1.24 (ST8) — the square (20, 20, 60, 60) at width 10: closed, its start

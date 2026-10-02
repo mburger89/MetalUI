@@ -1,7 +1,7 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-R` in (`GX-P`…`GX-R` from the critic round)
+task). Rulings `GX-A`…`GX-S` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;
@@ -298,7 +298,9 @@ rotated 90° and one rotated 17°; a linear and a nearest image rotated 30°; a
 rotated rect under an outer rounded mask with an inner local mask; a
 nonzero and an even-odd path raster from `MetalUIPath`, and a blurred
 shadow raster, both drawn as untransformed images (evidence that the CPU
-rasters ride the parity-checked image pipeline). `ReplayFixture` version 3;
+rasters ride the parity-checked image pipeline) — **those rasters join frame
+7 in lane 3**, through MetalUI's public `Path`/`.shadow`: a separate package
+cannot call `MetalUIPath`'s `package` API (`GX-S` item 5). `ReplayFixture` version 3;
 `.github/workflows/sdl-gpu-linux.yml`'s two `--expect 7` → `--expect 8`.
 **Positive controls (recorded, not committed)**: the HLSL vertex stage
 ignoring the transform index, and separately the HLSL outer mask dropped,
@@ -414,9 +416,9 @@ raises each stage's `num_storage_buffers` for the transform table.
 | 1.1 | `aRotatedRectCoversItsRotatedOutlineAndNotItsBounds` — 160×20 rect at the centre of 200×200, rotated 90° (record via `Scene.insert(…, transform:)`): (100, 40) covered, (40, 100) clear; the identity arm the opposite (`#require` the arms disagree) | no transform | M1a: vertex stage ignores the index |
 | 1.2 | `anUntransformedSceneRendersBitIdenticallyToBefore` — a fixed scene (bordered rounded rect, ellipse band, glyph run, linear and nearest images, a rounded mask) rendered offscreen; its FNV-1a hash equals the literal recorded **on the unmodified renderer** in the lane's red commit | — (green on arrival; the pin) | M1b: the fringe applied to index-0 instances |
 | 1.3 | `aTransformedEdgeIsAntialiasedAcrossTheFringe` — a rect rotated 30°: at least one pixel whose centre lies outside the rotated rect by < 0.5 px has 0 < coverage < 255 | — | M1c: no fringe expansion |
-| 1.4 | `aScaledRectAntialiasesInScreenPixels` — under `scale(2, 0.5)` a horizontal edge has exactly one row of partial pixels, a vertical one one column | — | M1d: `pixelScale` ignored |
+| 1.4 | `aScaledRectAntialiasesInScreenPixels` — under a uniform `scale(2)` (`GX-S` item 1: `scale(2, 0.5)` has `|det|` 1 and cannot see M1d) an edge through a pixel centre has exactly one row of partial pixels, a vertical one one column; a 2:1 arm bounds the band | — | M1d: `pixelScale` ignored |
 | 1.5 | `theOuterMaskIsScreenSpaceAndTheContentMaskLocal` — a rotated 90° rect with a local `contentMask` covering its left half and an outer mask cutting the screen's top quarter: the four predicted pixels | — | M1e: outer mask unapplied; M1f: `contentMask` read at the screen position |
-| 1.6 | `aRotatedGlyphSamplesItsSlotOnly` — a synthetic atlas: a 6×6 slot of coverage 255 beside a slot of 255 on its right edge; the glyph rotated 90°: no pixel outside the rotated slot reads the neighbour | — | M1g: no slot clamp |
+| 1.6 | `aRotatedGlyphSamplesItsSlotOnly` — a synthetic atlas: a 6×6 slot of coverage 0 hard against a neighbour whose touching column is 255 (`GX-S` item 10); the glyph ×4 and rotated 90°: no pixel reads the neighbour | — | M1g: no slot clamp |
 | 1.7 | `aRotatedImageKeepsItsFilterAndAntialiasesItsEdges` — a 2×1 red/blue texture over 100×10 rotated 90°: top red, bottom blue; nearest → the boundary row exact; edges partial | — | M1h: image vertex ignores the index |
 | 1.8 | `theFilterWordCarriesTheTransformAboveItsLowByte` — filter nearest with index 3: still nearest | — | M1i: `filter == Nearest` unmasked |
 | 1.9 | `aShapeWordAboveItsLowByteKeepsItsShape` — `shape = 1 \| 2 << 8`: an ellipse | — | M1j: `shape == Ellipse` unmasked |
@@ -430,10 +432,10 @@ raises each stage's `num_storage_buffers` for the transform table.
 | 1.17 | `aQuadraticSegmentCoversItsArea` (PA4) — 3333.3 ± 0.5 % (SwiftUI 3325.8) | — | M1r: one segment per curve (5000) |
 | 1.18 | `anEllipseCoversPiAB` — 100×60: 4712.4 ± 0.3 % (SwiftUI 4714.2, PA5) | — | M1s: 4-cubic constant wrong (0.5 for 0.5523) |
 | 1.19 | `clockwiseFalseSweepsThroughBelowRight` (PA3) — pie (70, 70) covered, (70, 30) clear; `true` the opposite | — | M1t: sweep sign flipped |
-| 1.20 | `capsEndWhereSwiftUIsDo` (ST1–ST3) — butt x20…79, square x15…84 with its corner solid, round x14…85 (± 1) | — | M1u: square cap as butt |
+| 1.20 | `capsEndWhereSwiftUIsDo` (ST1–ST3; ink = coverage ≥ 64 in 1.20–1.23, `GX-S` item 2) — butt x20…79, square x15…84 with its corner solid, round x14…85 (± 1) | — | M1u: square cap as butt |
 | 1.21 | `joinsReachSwiftUIsTips` (ST5) — miter 7, bevel 18, round 15 (± 1) | — | M1v: miter drawn as bevel |
 | 1.22 | `theMiterLimitFallsBackToABevel` (ST6) — limit 10 tip −4, limit 4 tip 9 (± 1) | — | M1w: limit ignored |
-| 1.23 | `dashesWalkTheArcLengthFromThePhase` (ST7) — ST7's three rows exactly | — | M1x: phase ignored |
+| 1.23 | `dashesWalkTheArcLengthFromThePhase` (ST7) — ST7's first two rows exactly, the third's starts and 10-unit ends exactly, its 2-unit ends ±1 (`GX-S` item 3) | — | M1x: phase ignored |
 | 1.24 | `aClosedSubpathJoinsAtItsStartAndAnOpenOneCaps` (ST8) | — | M1y: closed subpaths capped |
 | 1.25 | `aNonPositiveWidthStrokesNothing` (ST10) | — | M1z: `abs(width)` |
 | 1.26 | `theRasterizerIsBitIdenticalEverywhere` — a fixed corpus (curves, arcs at 7 angles, the strokes above, an even-odd star, a blur) hashed to a literal recorded on macOS; runs on Linux and Windows CI | — | M1aa′: flattening tolerance 0.1 → 0.2 (`GX-R` item 2; a coefficient's last digit cannot move a byte) |

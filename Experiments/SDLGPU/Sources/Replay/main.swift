@@ -54,6 +54,19 @@ func sdlSource() throws -> String {
     try replace("texture2d<float>   image   [[texture(MUIImageTextureImage)]]",
                 "texture2d<float>   image   [[texture(MUIImageTextureImage)]], sampler sdlImageSampler [[sampler(0)]]")
     try replace("image.sample(image_sampler, in.uv)", "image.sample(sdlImageSampler, in.uv)")
+    // The transform table (ruling GX-F): the vertex stage's storage buffers
+    // follow the two uniforms (unit quad 2, records 3, table 4 — the
+    // header's own index), the fragment stage's start at 0 (records 0,
+    // table 1). The transformed sampling uses SDL's samplers too.
+    try replace("constant MUITransform *fragmentTransforms [[buffer(MUIRectBufferTransforms)]]",
+                "constant MUITransform *fragmentTransforms [[buffer(1)]]")
+    try replace("constant MUITransform *fragmentTransforms [[buffer(MUIGlyphBufferTransforms)]]",
+                "constant MUITransform *fragmentTransforms [[buffer(1)]]")
+    try replace("constant MUITransform *fragmentTransforms [[buffer(MUIImageBufferTransforms)]]",
+                "constant MUITransform *fragmentTransforms [[buffer(1)]]")
+    try replace("atlas.sample(atlas_sampler, inside)",
+                "atlas.sample(sdlSampler, inside / float2(atlas.get_width(), atlas.get_height()))")
+    try replace("image.sample(transformed_sampler, uv)", "image.sample(sdlImageSampler, uv)")
     return source
 }
 
@@ -250,6 +263,91 @@ func shapesAndImagesFrame(width: Int, height: Int) -> Scene {
     return scene
 }
 
+/// An affine record (ruling GX-F) for frame 7: `degrees` (positive clockwise,
+/// y-down) and a scale about `(cx, cy)`, its outer mask the whole frame unless
+/// given.
+func transformRecord(degrees: Double = 0, scaleX: Float = 1, scaleY: Float = 1, about cx: Float, _ cy: Float,
+                     outer: MUIBounds, outerRadius: Float = 0) -> MUITransform {
+    let r = degrees * Double.pi / 180
+    let c = Float(cos(r)), s = Float(sin(r))
+    // R · S, about the centre.
+    let a = c * scaleX, b = s * scaleX, cc = -s * scaleY, d = c * scaleY
+    return MUITransform(a: a, b: b, c: cc, d: d, tx: cx - a * cx - cc * cy, ty: cy - b * cx - d * cy,
+                        pixelScale: abs(a * d - b * cc).squareRoot(), _reserved: 0,
+                        outerMask: outer, outerMaskRadii: corners(outerRadius))
+}
+
+/// Frame 7 (ruling GX-F): the per-instance transform on every pipeline — a
+/// bordered rounded rect turned 30°, an ellipse band turned 45°, a rect under
+/// scale(2, 0.5), a rect with one rounded corner flipped `x: −1`, a glyph run
+/// turned 90° and one turned 17°, a linear and a nearest image turned 30°,
+/// and a turned rect under a screen outer mask (rounded) with a local content
+/// mask. Fractional positions throughout, so edges antialias. (`GX-S` item 5:
+/// MetalUIPath's rasters join this frame in lane 3, through MetalUI's public
+/// `Path` and `.shadow` — a separate package cannot call `package` API.)
+@MainActor
+func transformsFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    var scene = Scene()
+    let mask = bounds(0, 0, Float(width), Float(height))
+    func rect(_ b: MUIBounds, _ c: MUIHsla, radii: MUICorners = corners(0), border: Float = 0, ellipse: Bool = false,
+              clip: MUIBounds? = nil, transform: MUITransform? = nil) {
+        scene.insert(MUIRect(bounds: b, contentMask: clip ?? mask, maskCornerRadii: corners(0), background: c,
+            borderColor: color(0.13, 0.85, 0.7), cornerRadii: radii,
+            borderWidths: MUIEdges(top: border, right: border, bottom: border, left: border),
+            order: 0, shape: ellipse ? MUIShapeEllipse.rawValue : MUIShapeRoundedRect.rawValue), transform: transform)
+    }
+    func text(_ value: String, x: Double, y: Double, size: Double, transform: MUITransform) throws {
+        let font = FontResolver.resolve(family: nil, size: size)
+        let shaped = Shaper.shape(value, font: font, wrappingAt: nil)
+        for placed in shaped.placedGlyphs(at: (x, y), font: font, scaleFactor: 1) {
+            let key = placed.key
+            guard let packed = atlas.packed(for: key, rasterize: {
+                GlyphRaster.rasterize(glyph: key.glyph, font: placed.font,
+                    subpixelVariant: key.subpixelVariant, scaleFactor: key.scaleFactor)
+            }) else { throw ProbeError("frame 7 atlas full") }
+            if packed.slot.width == 0 || packed.slot.height == 0 { continue }
+            scene.insert(MUIGlyph(
+                bounds: bounds(Float(placed.pixelX + packed.left), Float(placed.baselineY - packed.top),
+                               Float(packed.slot.width), Float(packed.slot.height)),
+                atlasBounds: bounds(Float(packed.slot.x), Float(packed.slot.y), Float(packed.slot.width), Float(packed.slot.height)),
+                contentMask: mask, maskCornerRadii: corners(0),
+                color: color(0.55, 0.1, 0.95), order: 0, transform: 0), transform: transform)
+        }
+    }
+    var gradient = [UInt8]()
+    for y in 0..<6 { for x in 0..<8 { gradient += [UInt8(x * 36), UInt8(y * 50), UInt8(255 - x * 30), UInt8(255 - (x + y) * 12)] } }
+    let ramp = ImageTexture(width: 8, height: 6, straightRGBA: gradient)
+    let checker = ImageTexture(width: 2, height: 2, straightRGBA: [240, 40, 40, 255, 40, 40, 240, 255,
+                                                                   40, 200, 60, 255, 250, 230, 40, 128])
+    atlas.beginFrame()
+    defer { atlas.endFrame() }
+    rect(mask, color(0.62, 0.22, 0.12))
+    rect(bounds(40.5, 40.25, 160, 80), color(0.48, 0.75, 0.43), radii: corners(18), border: 4,
+         transform: transformRecord(degrees: 30, about: 120.5, 80.25, outer: mask))
+    rect(bounds(260.25, 30.5, 140, 90), color(0.08, 0.9, 0.55), border: 14, ellipse: true,
+         transform: transformRecord(degrees: 45, about: 330.25, 75.5, outer: mask))
+    rect(bounds(430.5, 60.25, 50, 80), color(0.75, 0.55, 0.5), radii: corners(6), border: 3,
+         transform: transformRecord(scaleX: 2, scaleY: 0.5, about: 455.5, 100.25, outer: mask))
+    rect(bounds(540.25, 30.5, 70, 60), color(0.33, 0.6, 0.5),
+         radii: MUICorners(topLeft: 28, topRight: 0, bottomRight: 0, bottomLeft: 0), border: 2,
+         transform: transformRecord(scaleX: -1, about: 575.25, 60.5, outer: mask))
+    try text("Turned ninety", x: 30.25, y: 200, size: 19,
+             transform: transformRecord(degrees: 90, about: 60.25, 250.5, outer: mask))
+    try text("Seventeen degrees", x: 110.5, y: 210.25, size: 17,
+             transform: transformRecord(degrees: 17, about: 190.5, 205.25, outer: mask))
+    scene.insert(MUIImage(bounds: bounds(270.25, 220.5, 120, 80), contentMask: mask, maskCornerRadii: corners(0),
+                          opacity: 1, texture: 0, filter: MUIImageFilterLinear.rawValue, order: 0),
+                 texture: ramp, transform: transformRecord(degrees: 30, about: 330.25, 260.5, outer: mask))
+    scene.insert(MUIImage(bounds: bounds(410.5, 235.25, 90, 70), contentMask: mask, maskCornerRadii: corners(0),
+                          opacity: 1, texture: 0, filter: MUIImageFilterNearest.rawValue, order: 0),
+                 texture: checker, transform: transformRecord(degrees: 30, about: 455.5, 270.25, outer: mask))
+    rect(bounds(545.5, 200.25, 70, 140), color(0.94, 0.8, 0.6), radii: corners(10), border: 3,
+         clip: bounds(545.5, 200.25, 70, 75),
+         transform: transformRecord(degrees: -30, about: 580.5, 270.25, outer: bounds(525, 230, 105, 125), outerRadius: 20))
+    scene.finalize()
+    return scene
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -329,13 +427,19 @@ func run() throws {
     let demoAtlas = GlyphAtlas(width: 1024, height: 1024)
     // Frame 6 draws no text; its atlas is only the fixture's required one.
     let shapesAtlas = GlyphAtlas(width: 16, height: 16)
-    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380)].enumerated() {
+    // Frame 7's turned text (ruling GX-F), CoreText's, into its own atlas.
+    let transformsAtlas = GlyphAtlas(width: 512, height: 512)
+    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
+                                (640, 380)].enumerated() {
         let (width, height) = dimensions
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
-        let frameAtlas = shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = shapes
+        let transforms = index == 7
+        let frameAtlas = transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = transforms
+            ? try transformsFrame(width: width, height: height, atlas: transformsAtlas)
+            : shapes
             ? shapesAndImagesFrame(width: width, height: height)
             : demo
             ? try demoFrame(width: width, height: height, atlas: demoAtlas)
@@ -350,14 +454,15 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
         // Frames 0–5 hold every pixel to one UNORM step on this device, as
         // before. Frame 6's images are judged as glyphs are (ruling TE-AF item
-        // 6): ≤ 8 inside an image quad, ≤ 1 outside.
-        try require(shapes ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
+        // 6): ≤ 8 inside an image quad, ≤ 1 outside; frame 7's transformed
+        // sprites likewise (ruling GX-F), its quads placed by the records.
+        try require(shapes || transforms ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
             try Data(frameFixture.encoded()).write(to: path)
