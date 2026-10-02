@@ -832,7 +832,14 @@ and `GX-F` as written, with these readings, each measured in the lane:
    `replay_render` and `mui_renderer_finish`. `ReplayFixture.validate()`
    checks only that the table is whole records: the format tests build
    fixtures from distinct-valued byte ramps whose `shape` words are
-   arbitrary, and a fixture is a format, not a draw.
+   arbitrary, and a fixture is a format, not a draw. **Pinned through `replay_render`
+   only** (review round): `Backends/SDL`'s S1.3
+   `aRecordNamingAMissingTransformIsRefused` renders each kind's runs of
+   `transformedScene` with exactly as many records as its index names and
+   expects the refusal with one fewer; removing the refusal reddens S1.3
+   alone (6 issues; `Backends/SDL` 24 + 57). `mui_renderer_finish`'s call
+   is defensive and unpinned: a `Scene` cannot build such a record, since
+   `insert` always writes the index it assigns (item 13).
 8. **Only consecutive equal records share a table entry** (byte-equal,
    `_reserved` zeroed): one effect's primitives name one record; a later
    return to an earlier transform is a new entry. Test 1.10 reads it so
@@ -859,6 +866,35 @@ and `GX-F` as written, with these readings, each measured in the lane:
     M1ad → 1.29; M1ae → 1.30; in `Backends/SDL`, M1af → S1.1 and M1ag (the
     window renderer binding the dummy record) → S1.2. The bit-identity pins
     1.26 and 1.27 pass unchanged in a `swift:6.4-noble` aarch64 container.
+    **The review round's mutations** (on `8b6a2a2`, whole unfiltered suite
+    each, 2158 tests, `git status` clean after every restore): the outer
+    mask's factor deleted from `glyph_fragment`'s transformed branch alone →
+    1.5b `aTransformedGlyphAndImageAreCutByTheScreenOuterMask` alone (its
+    glyph arm), and from `image_fragment`'s alone → 1.5b alone (its image
+    arm) — both green before 1.5b existed (2154 passed), so `GX-F`'s
+    "every transformed instance multiplies by the outer mask" was pinned only
+    for rects; `mask_coverage_scaled`'s `* s` dropped → 1.5c
+    `aScaledContentMaskAntialiasesInScreenPixels` alone (1.5's pure rotation
+    has `pixelScale` 1 and could not see it); `quad_edge` dropped from the
+    transformed glyph → 1.5b alone (3 issues: both edge columns and the
+    columns past them — 1.6's slot has coverage 0, so it could not see the
+    glyph's own edge); `insert`'s `nil` path keeping a stale rect index →
+    1.31 alone; the per-frame zero record restored → 1.32 alone.
+12. **The zero transform record is allocated once per `Renderer`**
+    (`zeroTransformBuffer`), not per frame: every scene with no transforms —
+    every production frame until an effect draws — binds the same buffer,
+    which no index-0 instance reads. Pinned by 1.32
+    `aSceneWithoutTransformsReusesOneZeroRecord` (two frames bind the
+    identical buffer).
+13. **`Scene.insert(_:transform: nil)` writes index 0**, clearing
+    `shape`/`filter` bits 8…31 and the glyph's `transform`: a primitive
+    captured from one scene (a transition ghost, a drag preview,
+    `Frame.swift`'s replay) and re-inserted into another never keeps a
+    stale index into a table the new scene does not hold — the Metal
+    renderer has no bounds check, only SDL's bridge does (item 7). A replay
+    that must stay transformed passes its record again; lane 2's captured
+    effects owe that. Pinned by 1.31 `aNilInsertClearsAStaleTransformIndex`.
+    No production record carried an index before this, so no pixel moves.
 
 **Cost if wrong.** Items 1–3 are instruments: each names the arm it
 replaced and why the old one could not discriminate. Item 5 leaves frame 7
