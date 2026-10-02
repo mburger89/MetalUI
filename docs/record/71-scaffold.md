@@ -78,3 +78,14 @@ typecheck guards (none added; `FR-J no-argument frame: succeeded=true`).
 `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
 `Backends/SDL` and the Linux container's counts were not re-taken: nothing
 under `Backends/` or the portable test package changed.
+
+## §4 Windows CI finding
+
+PR #39's first Windows run reddened `aLocalPathThatIsNotAMetalUICheckoutFailsBeforeAnythingIsWritten`
+and `runningTheCommandWritesThePackageAndSaysWhatToRunNext`: Foundation on
+Windows reports paths as `C:/…`, and the parser's absolute-path test looked
+only for `/…` and `:\`, so it joined the working directory onto an absolute
+path (`…/Temp/x/D:/a/MetalUI/MetalUI`). Fixed in `4ebfb25` (a drive letter
+followed by `/` or `\`, or a leading `\`, is absolute). Those two tests are
+the pin; on macOS they cannot see the case, so the red is Windows CI's run
+`36970584289`, not a local mutation.
