@@ -28,6 +28,8 @@ var products: [Product] = [
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
         .library(name: "MetalUIDemoContent", targets: ["MetalUIDemoContent"]),
+        // `metalui new <Name>`: a new application package (ruling SC-A).
+        .executable(name: "metalui", targets: ["MetalUICLI"]),
 
 ]
 
@@ -181,6 +183,12 @@ var targets: [Target] = [
         // (ruling XP-C): runs on macOS, Linux and Windows.
         .testTarget(name: "MetalUICrossPlatformTests",
                     dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText"]),
+
+        // The scaffolder (ruling SC-A): Foundation only, `package` access — a
+        // tool, not framework API. `MetalUICLI` is the `metalui` executable.
+        .target(name: "MetalUIScaffold"),
+        .executableTarget(name: "MetalUICLI", dependencies: ["MetalUIScaffold"]),
+        .testTarget(name: "MetalUIScaffoldTests", dependencies: ["MetalUIScaffold"]),
 
 ]
 

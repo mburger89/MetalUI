@@ -36,7 +36,8 @@ summary.
   `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `AI-` (app
   icon, next `AI-O`; own decisions doc
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
-  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), …; the full
+  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-F`;
+  `2026-10-01-scaffold-decisions.md`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -71,19 +72,20 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-02, `feat/metal-view` after merging master `95234db`):
-  2093 tests, 0 goldens, 129 typecheck guards** (2072 + master's 21; 128 +
-  master's 1); `Backends/SDL` 23 + 55 (branch 23 + 48, master's icon tests +7); public census 2000 in 101 families;
+- **Counts (2026-10-02, `feat/scaffold` on master `65c0cc7`): 2112 tests,
+  0 goldens, 129 typecheck guards** (master's 2093 + the scaffold's 19, no
+  guard added; master's own were taken on `feat/metal-view` after merging
+  `95234db`: 2072 + 21 tests, 128 + 1 guards); `Backends/SDL` 23 + 55 (branch 23 + 48, master's icon tests +7); public census 2000 in 101 families;
   Linux container 199 + 22 + 21 measured on the branch before the merge
   (`swift:6.4-noble`; MetalView's seven portable `SurfaceTargetTableTests`;
   master's own line reads 199 + 22 + 14, so the app icon added no portable
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge).
+  merge), §72.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
-  (sum them). Twelve env-gated oracle/measure tests count while skipped.
+  (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
 - **`--no-parallel` always**: CoreText font registration and `malloc_logger`
   tests race under a parallel run. **Adding an AppKit test? Run the whole
   suite unfiltered** (`--filter` is a different program).
@@ -117,7 +119,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty one-way-dependent targets plus `Tests/MetalUITestSupport`;
+Twenty-two one-way-dependent targets (the last two `MetalUIScaffold` and
+`MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
 Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
@@ -325,6 +328,14 @@ Packaging (bundle/`.desktop`/`.ico`) is build-side: `docs/packaging.md`.
 throw `ShaderLibraryError.resourceMissing` naming every directory tried, not
 trap. A new resource lookup in `MetalUIRender` goes through
 `ShaderLibrary.resourceBundle(candidates:)` too.
+
+**Scaffolding** (`SC-`, record §72, `docs/getting-started.md`): `metalui new`
+is the `MetalUICLI` executable over `MetalUIScaffold` — Foundation only, every
+declaration `package` (a tool, not API: no inventory row). `--cross-platform`
+requires `--local` (`Backends/SDL` is path-only, `SC-C`). **A change to
+`docs/packaging.md`'s recipe, `App`'s initialisers or the starter's API
+changes the generated text too** — re-run
+`METALUI_RUN_SCAFFOLD_BUILD_TEST=1 swift test --filter aGeneratedPackageBuildsAgainstThisCheckout`.
 
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(...)` in `prepaint` and
