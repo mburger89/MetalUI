@@ -93,6 +93,27 @@ private func openWindow(_ app: App) throws {
             "sizes: \(platform.iconCalls[0].map { "\($0.width)×\($0.height)" })")
 }
 
+/// **1.3b** (`AI-C` item 3, the branch check's gap). The dedupe compares the
+/// whole `(width, height)` pair: 32×64 and 64×32 after 32² share a width, a
+/// height or an area with an earlier bitmap but repeat no pair, so all three
+/// reach the platform — 32² (1024), then 32×64 and 64×32 (2048 each) in
+/// written order. 1.3's list cannot see this: there every repeated width or
+/// height is also a repeated pair.
+///
+/// Mutations **M1n** (dedupe on width alone: drops 32×64), **M1o** (on height
+/// alone: drops 64×32), and the branch check's **X1** (on area: drops 64×32).
+@MainActor
+@Test func theAppIconDedupeComparesTheWholeSizePair() throws {
+    let (app, platform) = try makeApp()
+    let square = solid(32, 32)
+    let tall = solid(32, 64)
+    let wide = solid(64, 32)
+    app.icon = [square, tall, wide]
+    try #require(platform.iconCalls.count == 1)
+    #expect(ids(platform.iconCalls[0]) == ids([square, tall, wide]),
+            "sizes: \(platform.iconCalls[0].map { "\($0.width)×\($0.height)" })")
+}
+
 /// **1.4** (`AI-C` item 4). `icon` reads back exactly what was assigned —
 /// unsorted, the repeated size kept — the normalization is the platform's
 /// contract, not the property's value.
