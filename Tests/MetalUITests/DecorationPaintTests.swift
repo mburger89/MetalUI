@@ -139,6 +139,7 @@ private func paintPositions(_ scene: Scene) -> (rects: [Int], glyphs: [Int]) {
             case .rect: rects[i] = next
             case .glyph: glyphs[i] = next
             case .image: break   // no decoration paints an image
+            case .surface: break   // nor an app-owned surface (MV-C)
             }
             next += 1
         }

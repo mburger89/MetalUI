@@ -81,6 +81,27 @@ final class FakeRenderSurface: RenderSurface {
     }
 }
 
+/// A `WindowRenderer` that records the surface requests `Window` hands it,
+/// one array per finished frame, and draws the frame through `inner` with no
+/// requests (MetalView, spec §8 lane 1): a test reads what the window asked
+/// for as a value, and a wrong answer — two requests for one target — cannot
+/// trap inside a renderer's `SurfaceTargetTable` (`MV-L` item 1).
+@MainActor
+final class SpyWindowRenderer: WindowRenderer {
+    let inner: MetalWindowRenderer
+    /// Each finished frame's requests, in frame order.
+    private(set) var frames: [[SurfaceDrawRequest]] = []
+
+    init(inner: MetalWindowRenderer) { self.inner = inner }
+
+    func beginFrame() -> Float? { inner.beginFrame() }
+
+    func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
+        frames.append(surfaces)
+        return inner.finishFrame(scene: scene, atlas: atlas, surfaces: [])
+    }
+}
+
 /// A `PlatformWindow` that records display-link pausing, so the "idles at zero
 /// cost" claim (spec 4.4) can be asserted instead of observed by hand.
 @MainActor
@@ -109,7 +130,11 @@ final class FakePlatformWindow: PlatformWindow {
     /// window draws into its layer (ruling RS-B), so the surface's counters
     /// and readback see exactly what they did before the seam.
     let windowRenderer: MetalWindowRenderer
-    var renderer: any WindowRenderer { windowRenderer }
+    /// When set, frames go through it instead of ``windowRenderer`` directly
+    /// (MetalView, `MV-L` item 1): it records each frame's surface requests
+    /// and forwards the frame with none, so no surface table runs.
+    var spyRenderer: SpyWindowRenderer?
+    var renderer: any WindowRenderer { spyRenderer ?? windowRenderer }
     var title: String = "Fake"
 
     /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.

@@ -50,6 +50,7 @@ private func emit(_ script: [Emission], into scene: inout Scene) {
         case .rect: scene.insert(rect(id: e.id, order: e.order), layer: e.layer)
         case .glyph: scene.insert(glyph(id: e.id, order: e.order), layer: e.layer)
         case .image: preconditionFailure("these scripts emit rects and glyphs only")
+        case .surface: preconditionFailure("these scripts emit rects and glyphs only")
         }
     }
 }
@@ -168,6 +169,8 @@ private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {
 /// four when this was written, **six since the image kind** (plan task 11
 /// part 2, ruling TE-AF: a sequence and a layer table per kind), so the scene
 /// below emits images too, or their tables would read a capacity of 0.
+/// **Eight since the surface kind** (MetalView, ruling `MV-C` item 2 — a T
+/// row: the literal moves 6 → 8, nothing else), so it emits surfaces too.
 ///
 /// Read through `Mirror` because the tables are `private`: this counts
 /// `Dictionary`-typed and `[Int]`-typed stored properties and reads each
@@ -175,6 +178,7 @@ private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {
 /// (`Frame` builds a fresh `Scene` per frame), so the capacity half pins the
 /// method's contract, not a measured frame cost.
 private let sideTableTexture = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 0, 0])
+private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1, height: 1)
 
 @Test func sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear() throws {
     let primitivesPerKind = 64
@@ -183,6 +187,7 @@ private let sideTableTexture = ImageTexture(width: 1, height: 1, premultipliedRG
         scene.insert(rect(id: Float(2 * i), order: 0), layer: i % 2)
         scene.insert(glyph(id: Float(2 * i + 1), order: 0), layer: i % 3)
         scene.insert(MUIImage(), texture: sideTableTexture, layer: i % 2)
+        scene.insert(MUIImage(), surface: sideTableTarget, layer: i % 3)
     }
     scene.finalize()
     scene.clear()
@@ -202,8 +207,8 @@ private let sideTableTexture = ImageTexture(width: 1, height: 1, premultipliedRG
         guard type(of: child.value) == [Int].self, let array = child.value as? [Int] else { return nil }
         return (child.label ?? "?", array)
     }
-    try #require(intArrays.count == 6,
-                 "expected six [Int] side tables, found \(intArrays.map(\.label))")
+    try #require(intArrays.count == 8,
+                 "expected eight [Int] side tables, found \(intArrays.map(\.label))")
     for table in intArrays {
         #expect(table.array.isEmpty, "\(table.label) is not empty after clear()")
         #expect(table.array.capacity >= primitivesPerKind,
