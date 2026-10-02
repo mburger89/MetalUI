@@ -2123,3 +2123,30 @@ own choices SwiftUI was never measured against, listed as looks in
 `docs/verification/human-checks.md` group N): the preview's exact opacity,
 shadow and anchor; a presentation blocking a drop beneath it; a draggable that
 is not itself hit-testable. Live count **66 → 69**, next label **103**.
+
+## 2026-10-02: 103 added, none retired; 70 live, next label 104 (MetalView)
+
+Record §71; ruling `MV-G` item 5; the published list is `docs/divergences.md`.
+Not a plan task — user request 2026-10-01. **Added, kept, owner none:**
+
+- **103** — when a drawing surface re-runs. SwiftUI re-runs a `Canvas` whenever
+  its declaring view's body re-runs, even for a change it does not read (probe
+  `R1`), because a closure is a new value it cannot compare; it does not re-run
+  an idle one (`R0`) or one in its own view whose inputs are unchanged (`R3`),
+  and re-runs on a value it reads (`R2`, control `P3`). MetalUI rebuilds the
+  whole tree every dirty frame, so "the declaring body re-ran" is every frame:
+  an `.onDemand` `GPUSurface`/`MetalView` redraws only for a new target (first
+  sight, resize, rescale) or a changed `value:` — `R0`'s, `R2`'s and `R3`'s
+  answers, not `R1`'s. Remedy: pass what the drawing reads as `value:`. Pins
+  `aRequestedTargetIsCreatedAndDrawnOnceThenReused`,
+  `aChangedValueRedrawsAndAnUnchangedOneDoesNot`.
+
+**Nothing retired.** "Not offered" gains two rows (`NSViewRepresentable`; for an
+app-owned surface a depth attachment, EDR / `rgba16Float` targets, a
+per-element error channel and device-loss rebuild — `MV-F` item 6).
+**Likely-looking rows not added**: a surface's depth attachment and error
+channel are absent features, not different answers; a never-written `@State` of
+reference type re-seeds every build — SwiftUI keeps its first initial value, but
+that is its documented contract and was **not probed on this branch**, so no
+row is filed (`MV-R` item 3; record §71 §10 owes the probe arm). Live count
+**69 → 70**, next label **104**.

@@ -7,13 +7,13 @@ a Metal-native UI framework is worth building at all"; it was never built —
 before this branch the only mention in `Sources/` was a doc comment in
 `StateTable.swift` (line 89) that this doc refutes (`MV-E` item 6). Spec:
 [`specs/2026-10-01-metal-view-design.md`](specs/2026-10-01-metal-view-design.md).
-Record: `../record/69-metal-view.md`. Evidence:
+Record: `../record/71-metal-view.md` (written as §69, renumbered at the Record phase, `MV-O` item 4). Evidence:
 [`../probes/swiftui-metal-view.swift`](../probes/swiftui-metal-view.swift)
 (**new**; arm ids `P…` controls, `G…` sizing, `C…`/`D…` compositing in a real
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-R`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-S`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -999,4 +999,45 @@ unfiltered `Backends/SDL` `swift test --no-parallel` on macOS (23 + 48),
 (no root `Sources/`/`Tests/` file), suite re-run unfiltered under `--build-system native`: **2072 tests in 3
 suites passed**, the FR-J line present, the one `warning:` SwiftPM's notice.
 No pixel re-take: nothing the fourteen offscreen images render moved.
+
+## MV-R — the Record phase: record §71, the inventory family, the unfiled `@State` claim, what is owed
+
+The Record phase (2026-10-02) re-took the suite and filed the shared documents.
+Rulings:
+
+1. **The record is `docs/record/71-metal-view.md` (§71).** Written as §69,
+   renumbered: `69` is the frozen `CLAUDE.md` snapshot (PR #37) and master holds
+   §70 (app icon, PR #38). Citations fixed in this doc's header, the spec's
+   header and human checks group O; the merge renumbers again, and fixes the
+   same four places, if master publishes another number first (`MV-O` item 4,
+   the 24→25 / 26→27 precedent).
+2. **The inventory owed a family, and the check said so.** `zsh
+   docs/probes/closeout-inventory-check.sh` failed on arrival with twelve
+   `UNMAPPED` rows (every `GPUSurface`/`MetalView` declaration in
+   `Sources/MetalUI`; the other lanes' declarations are claimed by existing
+   `MetalUIScene`/`MetalUIPlatform`/`MetalUIRender`/`MetalUIDemoContent`
+   rules). Family `gpu-surface`, **class A** — probe `swiftui-metal-view.swift`
+   arm `G1`, test `aSurfaceAnswersItsProposalAndTenOnANilAxis` (which names `G1`
+   above its declaration and in its body, so the `CITE` check passes), carrying
+   divergence 103 — plus two `M` rows. The census is re-recorded: **1940 →
+   1997** declarations in **100** families. Class A rather than M because the
+   sizing answer is SwiftUI's own (`Canvas`'s), probe-backed, and the
+   composited look is a probe-backed `Image` equivalence (C1–C3).
+3. **The `@State` claim `MV-O` item 1 carried is NOT filed as a divergence.**
+   "SwiftUI keeps a never-written `@State`'s first initial value for the view's
+   lifetime" is its documented contract but was never run on this branch, and
+   the rule is that a SwiftUI claim comes only from a probe. No label was taken
+   (next label stays **104**). It stays an owed probe arm in record §71 §10,
+   owner none; the demo's own fix (the counter passed in from outside the
+   content closure) stands.
+4. **Counts** (re-taken after `swift package clean`): root **2072 tests in 3
+   suites**, 0 goldens, **128** guards, 0 `error:`, SwiftPM's deprecation notice
+   the one native `warning:`; `Backends/SDL` 23 + 48; public census 1997 in 100
+   families; live divergences **70**, next label **104**; 0 px and identical
+   scenes against `330f02b` in all fourteen offscreen images. The real-window
+   capture was not taken (lock probe: `CGSSessionScreenIsLocked = 1`,
+   `displayAsleep main: 1`).
+5. **Nothing of lanes 1–3's behaviour changed** in this phase: no `Sources/` or
+   `Tests/` file is edited; only documents, the inventory map and the
+   re-recorded census.
 

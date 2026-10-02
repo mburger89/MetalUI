@@ -336,8 +336,8 @@ title ("—" before one) and fills with the accent colour while targeted.
 
 ## O. MetalView — app-owned GPU surfaces (user request 2026-10-01, not a plan task)
 
-*Source: record `69-metal-view.md` (renumbered at merge, `MV-O` item 4),
-rulings `MV-A`…`MV-O` (`docs/superpowers/2026-10-01-metal-view-decisions.md`),
+*Source: record §71 `71-metal-view.md` (written as §69, renumbered, `MV-O` item 4),
+rulings `MV-A`…`MV-R` (`docs/superpowers/2026-10-01-metal-view-decisions.md`),
 spec §7.* SwiftUI's compositing of an app's Metal layer and `Canvas`'s sizing
 and re-runs were measured in a real window (probe
 `docs/probes/swiftui-metal-view.swift`, arms C1–C4, D1, R0–R3); MetalUI's

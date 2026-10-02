@@ -126,9 +126,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/drag-and-drop` (2026-10-01 — drag and drop, from `053a3b3`)
-the suite reports **2028 tests** in one summary line over three suites, with
-**125** `swiftc -typecheck` guards and no goldens: stage 7a retired all 97
+On `feat/metal-view` (2026-10-02 — MetalView, from `330f02b`)
+the suite reports **2072 tests** in one summary line over three suites, with
+**128** `swiftc -typecheck` guards and no goldens: stage 7a retired all 97
 WebKit goldens (record §48) and stage 9 deleted the CSS engine, so no layout
 request reaches it (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`).
 Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`, `List`,
@@ -144,7 +144,7 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
 - [`docs/api-overview.md`](docs/api-overview.md) — the public surface by area,
   each with its SwiftUI-alignment class.
 - [`docs/divergences.md`](docs/divergences.md) — every difference from
-  SwiftUI that remains (69 live), with SwiftUI's answer, MetalUI's, the
+  SwiftUI that remains (70 live), with SwiftUI's answer, MetalUI's, the
   ruling and the pin.
 - [`docs/migration.md`](docs/migration.md) — legacy spellings to SwiftUI
   vocabulary, and every breaking change since 2026-09-12.
@@ -354,6 +354,14 @@ vocabularies, in-window drags with a replayed translucent preview, Finder/text
 drops in on AppKit and SDL, and a drag leaving the window as an
 `NSDraggingSession` on AppKit — the real looks are `docs/verification/human-checks.md`
 group N, unrun. `METALUI_DND_DEMO=1 swift run MetalUIDemo` is its demo.
+**MetalView — the app-owned GPU surface** (user request 2026-10-01, not a plan
+task; spec §7.7 finally built; record §71): `GPUSurface(redraw:value:draw:)`, a
+portable `Canvas`-sized leaf whose closure encodes into an offscreen target
+MetalUI composites like an `Image` (clip, corner radius, opacity, transitions),
+with `MetalView` as the macOS spelling over `MetalDrawContext` and
+`SDLGPUDrawContext` for `Backends/SDL`; `.onDemand`/`.continuous` redraw. The
+real looks are `docs/verification/human-checks.md` group O, unrun.
+`METALUI_METALVIEW_DEMO=1 swift run MetalUIDemo` is its demo.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

@@ -33,7 +33,7 @@ summary.
 - **Decisions docs:** `docs/superpowers/<date>-<milestone>-decisions.md`, or a
   milestone's own spec for prefixes without one. Read their "Carried…"
   sections before new work. Ruling ids are namespaced by prefix (`F-`, `CS-`,
-  `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, …; the full
+  `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `MV-` (MetalView: `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -46,9 +46,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **69 live, next label 103**; retired labels are
+  live SwiftUI difference — **70 live, next label 104**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–N, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–O, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -64,14 +64,16 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-01, `330f02b`): 2028 tests, 0 goldens, 125 typecheck
-  guards**; `Backends/SDL` 22 + 41; Linux container 199 + 22 + 14. A count is
+- **Counts (2026-10-02, `feat/metal-view`): 2072 tests, 0 goldens, 128 typecheck
+  guards**; `Backends/SDL` 23 + 48; public census 1997 in 100 families; Linux
+  container 199 + 22 + 14 as of `330f02b` (MetalView adds seven portable
+  `SurfaceTargetTableTests`; re-measure there). A count is
   stale the moment a test lands — re-measure (`swift package clean`, native
-  build, unfiltered `--no-parallel` run). History: record §66, §67, §68.
+  build, unfiltered `--no-parallel` run). History: record §66, §67, §68, §71.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Twelve env-gated oracle/measure tests count while skipped.
@@ -360,6 +362,36 @@ both or neither. The glyph atlas is grow-only; `evictUnusedSince` has no
 caller and would strand pixels. Baseline alignment works in a horizontal
 stack only.
 
+**GPU surfaces — `GPUSurface`/`MetalView` (`MV-`, record §71).** App code
+encodes its own GPU work into an offscreen target that MetalUI composites as
+an `Image` (clip, radii, opacity, layer, transitions, drag preview), through
+the image pipeline with **no shader change on either renderer**. The portable
+leaf is `GPUSurface(redraw:value:draw:)`, sized like `Canvas` (the proposal,
+10 on a nil axis); its closure takes `any GPUSurfaceContext` and downcasts to
+the backend's context (`MetalDrawContext`; `SDLGPUDrawContext` in
+`Backends/SDL`); `MetalView` is the macOS-only typed spelling and traps on a
+non-Metal context. **The draw contract**: `WindowRenderer.finishFrame(scene:
+atlas:surfaces:)` is **defaultless**; each draw runs on the main actor inside
+it, into the frame's own command buffer, **before** MetalUI's pass, and must
+not commit, enqueue, present or wait (Metal traps, SDL cannot tell). **Redraw**:
+`.onDemand` draws on a new target or a changed `value:` — read what the draw
+depends on as `value:`, since reads inside `draw` are untracked (divergence
+103); `.continuous` draws every painted frame through `noteActiveAnimation()`,
+never `requestAnotherFrame()`; a hidden, zero-size, clipped or transparent
+surface does no GPU work and releases its target. **Portability split**:
+`MetalUIScene` holds only an opaque `SurfaceTarget` (`PS-A`: no Metal, SDL or
+closure type); `MetalUIPlatform` holds `SurfaceTargetTable<Handle>`, **the one
+per-window target lifecycle every renderer must use** (a copy would drift);
+`MetalUIRender` and `Backends/SDL` supply `create`/`release` and composite;
+targets are `bgra8Unorm`, never `_sRGB`, premultiplied, clamped to 8192,
+**per window** (not on the shared `Renderer`), and are **not** `StateTable`
+entries (`SurfaceRegistry`, the seven slots unmoved). **A new backend** adds the
+`finishFrame` requirement, composites `.surface` runs as image runs, never adds
+a submission for a surface (the fence rule), records a draw only after its
+frame commits, and clears a new target. A `FixtureRun` cannot record a surface.
+A draw's counter or state must be passed in, never a never-written `@State`
+(re-seeded every build).
+
 **Shapes, images, renderer.** **A new drawable capability lands in both
 `Sources/MetalUIRender/Shaders/shaders.metal` and
 `Backends/SDL/Shaders/replay.hlsl` identically, checked through the SDL
@@ -486,7 +518,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (69 live, next label 103). A new
+- **Divergences**: `docs/divergences.md` (70 live, next label 104). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

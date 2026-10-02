@@ -1849,3 +1849,27 @@ VoiceOver reads chips and wells as without drag and drop; N8 (optional) a chip
 held past its long press before moving does not drag. Real pointer drags in
 SwiftUI were measured only by probe group `P` at the HID tap; the preview's
 exact opacity, shadow and anchor are MetalUI's own choice, unmeasured.
+
+## 2026-10-02: no demo look changes; group O's eight looks owed (MetalView)
+
+Record §71, rulings `MV-J`, `MV-P`. No tree the default demo builds calls a
+new API: **0 differing pixels and identical scenes in all fourteen offscreen
+images against `330f02b`**, re-taken at lanes 2 and 3 and at the Record phase,
+controls non-zero. The new demo (`METALUI_METALVIEW_DEMO=1`, on `MetalUIDemo`
+with a runtime-compiled fragment shader and on `MetalUISDLDemo` with a hue
+cycled through `ctx.clear`) is its own tree and is in none of the fourteen. The
+lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at lane
+3's close and at the Record phase, so `capture.sh` was **not run**; the last
+unlocked reading remains 2026-09-30 (`6c961e3 -> 1b093b8`, 0 differing). The SDL
+demo ran five seconds without a crash, screen locked, which is not a look.
+**Owed, new here — `docs/verification/human-checks.md` group O, none performed
+(an agent cannot)**: O1 the on-screen look (a rounded, moving shader field with
+the translucent label over it, no flicker or black first frame); O2 continuous
+smoothness at the display's rate; O3 idle when paused (the display link stops,
+CPU falls to near idle); O4 on-demand redraw (only the swatch changes with the
+stepper); O5 live resize (no stretch, no blank frame); O6 Retina vs 1× and a
+move between displays; O7 colour and gamma against the flat tints; O8 the same
+demo on SDL. SwiftUI's compositing of an app's Metal layer and `Canvas`'s
+re-runs were measured in a real unlocked window by probe groups `C` and `R`;
+MetalUI's own answers are pinned headless and nothing has been seen on a real
+display.

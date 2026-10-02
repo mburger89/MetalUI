@@ -325,6 +325,8 @@ struct Inspector: Component {
 
 ### 4.3 Identity and cross-frame state
 
+> **Dated note, 2026-10-02 — `MetalView` render targets do NOT live here.** The list below names "`MetalView` render targets (§7.7)" among the state a side table keyed by `GlobalElementID` holds. As built (`MV-E` item 6, record §71) a render target is GPU state owned per window by its `WindowRenderer` (`SurfaceTargetTable`), keyed by a window-minted `SurfaceID`; the window-side map from `GlobalElementID` to `SurfaceID` is a `SurfaceRegistry` beside `AnimationStore`, **not** a `StateTable` entry, and none of the reserved slot names moved. The original text is kept below as history.
+
 State that must survive a rebuild — scroll offset, hover, animation progress, text selection,
 in-progress node drag, `MetalView` render targets (§7.7) — lives in a side table on the window keyed
 by `GlobalElementID`: the path of **`PathComponent`s** from the root.
@@ -1256,6 +1258,8 @@ textures rather than reallocating, so live handles stay valid.
 - Otherwise LRU by last-used frame generation.
 
 ### 7.7 `MetalView` — app-owned rendering
+
+> **Built, 2026-10-02 (not a plan task; record §71, rulings `MV-A`…`MV-R`, `docs/superpowers/specs/2026-10-01-metal-view-design.md`).** The sketch below is the original design and is kept as history; the source is the authority. What changed: the portable element is **`GPUSurface(redraw:value:draw:)`** with a backend-specific draw context (`MetalDrawContext` on Metal, `SDLGPUDrawContext` on SDL), and **`MetalView`** is its Apple spelling; there is **no `id:` parameter** (identity is structural) and **no `MetalViewInvalidation` handle** (a `value:` read in the tracked build invalidates; `.continuous` is `RedrawPolicy.continuous` via `noteActiveAnimation()`); targets are **per window in the renderer, not in §4.3's state table** and **not double-buffered** (one command buffer, one queue, tracked hazards); `finishFrame(scene:atlas:surfaces:)` runs each draw into the frame's own command buffer **before** MetalUI's pass and traps on Metal if the app commits it; **no depth attachment, EDR target, per-element error channel or device-loss rebuild** (`MV-F` item 6). Composited as an `Image` is, through the image pipeline on both renderers.
 
 ```swift
 struct MetalView: Element {

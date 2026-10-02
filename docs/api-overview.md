@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (1940 of them, in
-fifteen modules) belongs to one of 99 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (1997 of them, in
+fifteen modules) belongs to one of 100 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -160,7 +160,7 @@ the `DropSession` family are not offered (`DN-A`).
 ## GPU surfaces — M / D
 
 App-owned GPU rendering composited into the UI (spec §7.7, rulings `MV-A`…
-`MV-O`). `GPUSurface(redraw:draw:)` and `GPUSurface(redraw:value:draw:)` — a
+`MV-Q`). `GPUSurface(redraw:draw:)` and `GPUSurface(redraw:value:draw:)` — a
 portable proposal leaf sized like `Canvas` (the proposal, 10 on a nil axis;
 probe G1) whose closure encodes into an offscreen render target of the
 element's laid-out bounds × the window's scale (`bgra8Unorm`, never sRGB;
