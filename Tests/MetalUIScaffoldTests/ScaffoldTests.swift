@@ -1,6 +1,6 @@
 // `metalui new` (ruling SC-A). What a generated package says is pinned here as
 // text; that it builds and runs is the env-gated end-to-end test at the bottom
-// (`METALUI_RUN_SCAFFOLD_BUILD_TEST=1`), and record §71's launch.
+// (`METALUI_RUN_SCAFFOLD_BUILD_TEST=1`), and record §72's launches.
 import Foundation
 import Testing
 @testable import MetalUIScaffold
