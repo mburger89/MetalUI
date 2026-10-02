@@ -521,7 +521,12 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
 
 private func absolute(_ path: String, in workingDirectory: String) -> String {
     let expanded = (path as NSString).expandingTildeInPath
-    let url = expanded.hasPrefix("/") || expanded.contains(":\\")
+    // Absolute: `/…`, a Windows root or UNC path `\…`, or a drive, `C:/…` or
+    // `C:\…` — Foundation on Windows reports paths with forward slashes.
+    let scalars = Array(expanded.unicodeScalars.prefix(3))
+    let drive = scalars.count == 3 && CharacterSet.letters.contains(scalars[0])
+        && scalars[1] == ":" && (scalars[2] == "/" || scalars[2] == "\\")
+    let url = expanded.hasPrefix("/") || expanded.hasPrefix("\\") || drive
         ? URL(fileURLWithPath: expanded)
         : URL(fileURLWithPath: workingDirectory).appendingPathComponent(expanded)
     return url.standardizedFileURL.path
