@@ -175,16 +175,19 @@ let untransformedPinHash: UInt64 = 0xc1c0_b5e3_50b2_17a8
     #expect(partialInFringe > fringe / 2, "\(partialInFringe) of \(fringe) fringe pixels partial")
 }
 
-/// 1.4 — under a uniform scale of 2 about the origin, local (10.25, 10.25,
-/// 30, 30) lands on screen x, y 20.5…80.5: each edge passes through a pixel
-/// centre, so exactly one column and one row are partial at each edge —
-/// antialiasing in screen pixels. With `pixelScale` ignored the band is two
-/// screen pixels wide and the neighbour inside the edge reads partial too.
-/// (`GX-S` item 1: the spec's `scale(2, 0.5)` has `|det| = 1`, so it cannot
-/// see `pixelScale` at all; the 2:1 arm below only bounds the band.)
+/// 1.4 — under a uniform scale of 2 about the origin, local (10.125,
+/// 10.125, 30, 30) lands on screen x, y 20.25…80.25: each edge lies a
+/// quarter pixel from a pixel centre, so with distances in screen pixels
+/// (band ±0.5) exactly one column and one row are partial at each edge (20
+/// and 80). With `pixelScale` ignored the band is ±1 screen pixel and the
+/// neighbour outside each edge (19, 79) reads partial too. **An edge through
+/// a pixel centre cannot discriminate**: both bands then end exactly on the
+/// neighbours' centres — the first arm (20.5) let M1d stay green (`GX-S`
+/// item 1). (`scale(2, 0.5)`, the spec's arm, has `|det| = 1` and cannot see
+/// `pixelScale` at all; the 2:1 arm below only bounds the band.)
 @Test @MainActor func aScaledRectAntialiasesInScreenPixels() throws {
     var scene = Scene()
-    scene.insert(solidRect(mb(10.25, 10.25, 30, 30)), transform: transformRecord(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0))
+    scene.insert(solidRect(mb(10.125, 10.125, 30, 30)), transform: transformRecord(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0))
     let pixels = try render(scene)
     let row = (0..<200).map { pixel(pixels, $0, 50, width: 200).a }
     let column = (0..<200).map { pixel(pixels, 50, $0, width: 200).a }

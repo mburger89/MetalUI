@@ -776,10 +776,13 @@ and `GX-F` as written, with these readings, each measured in the lane:
 1. **Test 1.4's arm is a uniform scale of 2, not `scale(2, 0.5)`.** The
    spec's `scale(2, 0.5)` has `|ad − bc| = 1`, so `pixelScale` is 1 and its
    mutation M1d ("`pixelScale` ignored") cannot change a byte — a broken
-   instrument. Under `scale(2, 2)` an edge through a pixel centre leaves
-   exactly one partial row and column (M1d makes it two); a 2:1 arm
-   (`scale(2, 1)`, `pixelScale` √2) only bounds the isotropic band (≤ 4
-   partial pixels across a row), which is `GX-F`'s stated cost.
+   instrument. Under `scale(2, 2)` an edge a quarter pixel from a pixel
+   centre leaves exactly one partial row and column (M1d makes it two). **The
+   lane's first arm put the edge through a pixel centre, and M1d stayed
+   green** (both bands then end exactly on the neighbours' centres) — found by
+   the mutation run, the arm moved to 20.25. A 2:1 arm (`scale(2, 1)`,
+   `pixelScale` √2) only bounds the isotropic band (≤ 4 partial pixels across
+   a row), which is `GX-F`'s stated cost.
 2. **"Ink" in the stroke tests is coverage ≥ 64 (a quarter pixel).**
    SwiftUI's bitmaps come from CoreGraphics' sample-based antialiasing,
    which leaves no ink for a sliver under about a quarter pixel (a miter's
