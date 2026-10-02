@@ -299,7 +299,7 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     // The rotating square: the 60 × 60 tap target. Its centre is fixed under
     // any turn about its centre.
     let target = try #require(window.lastHitboxes.first {
-        $0.handlers.gestures != nil && $0.bounds.size.width == px(60) && $0.bounds.size.height == px(60)
+        !$0.handlers.gestures.isEmpty && $0.bounds.size.width == px(60) && $0.bounds.size.height == px(60)
     }, "the square's tap registered")
     let centre = gxPoint(target.bounds.origin.x.value + 30, target.bounds.origin.y.value + 30)
     platform.simulateInput(.mouseDown(MouseEvent(position: centre)))

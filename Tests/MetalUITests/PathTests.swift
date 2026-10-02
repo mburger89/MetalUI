@@ -330,9 +330,10 @@ private let linear1 = Animation.linear(duration: 1)
     }
     func change(_ v: Variant) throws -> (same: Bool, rasterized: Int) {
         let h = TransitionHarness()
-        let rest = try #require(h.frame(0, nil, tree(Variant()), side: 200).scene.textures.first, "rest drew")
-        let changed = try #require(h.frame(0, nil, tree(v), side: 200).scene.textures.first, "changed drew")
-        return (rest === changed, h.store.rasters.lastRasterizedPixels)
+        let rest = h.frame(0, nil, tree(Variant()), side: 200).scene.textures
+        let changed = h.frame(0, nil, tree(v), side: 200).scene.textures
+        try #require(rest.count == 1 && changed.count == 1, "both frames drew the path")
+        return (rest[0] === changed[0], h.store.rasters.lastRasterizedPixels)
     }
     let colour = try change(Variant(token: .separator))
     #expect(!colour.same && colour.rasterized == 0, "colour re-tints: same \(colour.same), \(colour.rasterized) px")
@@ -359,4 +360,39 @@ private let linear1 = Animation.linear(duration: 1)
     let images = gxImages(h.frame(0.5, nil, tree(true), side: 200).finalizedScene())
     try #require(images.count == 1, "one image")
     #expect(images[0].image.bounds.size.width == 60, "snapped to 60: \(gxDescribe(images[0].image.bounds))")
+}
+
+// MARK: - 3.29 (divergence 106)
+
+/// **3.29** (divergence 106, `GX-L`; pin, green on arrival). Text under a
+/// scale effect is RESAMPLED, not re-rasterized: under `scaleEffect(3)` every
+/// glyph keeps its atlas slot (the same size as unscaled) and draws it three
+/// times larger — SwiftUI re-rasterizes at the effective scale (T15b). A path
+/// is re-rasterized (3.11).
+@Test @MainActor func aTextUnderScaleEffectIsResampledNotReRasterized() throws {
+    let plain = effectFrame(Text("Aa").font(size: 12)).finalizedScene()
+    let scaled = effectFrame(Text("Aa").font(size: 12).scaleEffect(3)).finalizedScene()
+    try #require(!plain.glyphs.isEmpty && plain.glyphs.count == scaled.glyphs.count, "the same glyphs")
+    for (p, s) in zip(plain.glyphs, scaled.glyphs) {
+        #expect(s.atlasBounds.size.width == p.atlasBounds.size.width
+                && s.atlasBounds.size.height == p.atlasBounds.size.height, "the same atlas slot")
+        #expect(abs(s.bounds.size.width - 3 * p.bounds.size.width) < 1e-3, "drawn ×3: \(s.bounds.size.width)")
+    }
+}
+
+// MARK: - 3.30 (divergence 97 amended)
+
+/// **3.30** (divergence 97 amended, N8; pin, green on arrival). A shape's
+/// stroke width snaps where SwiftUI animates it: half-way through
+/// `stroke(lineWidth:)` 2 → 10 under `withAnimation` the band is 10 wide.
+@Test @MainActor func aShapesStrokeWidthSnaps() throws {
+    let h = TransitionHarness()
+    func tree(_ wide: Bool) -> some Element {
+        Rectangle().stroke(.accent, lineWidth: Pixels(wide ? 10 : 2)).frame(width: Pixels(60), height: Pixels(40))
+    }
+    h.frame(0, nil, tree(false), side: 200)
+    h.frame(0, linear1, tree(true), side: 200)
+    let rects = h.frame(0.5, nil, tree(true), side: 200).finalizedScene().rects
+    try #require(rects.count == 1, "one band")
+    #expect(rects[0].borderWidths.top == 10, "snapped to 10: \(rects[0].borderWidths.top)")
 }

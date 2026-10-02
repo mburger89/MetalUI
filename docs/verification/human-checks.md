@@ -468,6 +468,59 @@ and a **Tint** stepper beside a small rounded swatch (80×40).
   `theSDLDrawContextCarriesTheFramesCommandBufferAndTarget` (`Backends/SDL`).
   **Observed:**
 
+## Q. Paths, shadows and transforms (user request 2026-10-02, not a plan task)
+
+*Source: record §73 `73-paths-shadows-transforms.md`, rulings `GX-A`…`GX-V`
+(`docs/superpowers/2026-10-02-paths-shadows-transforms-decisions.md`), spec
+§7.* SwiftUI's paths, strokes, shadows, transforms, hit testing and animation
+were measured in a real window (probe `docs/probes/swiftui-paths-shadows-transforms.swift`,
+arms PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10); MetalUI's
+answers are pinned headless (scene bytes, CPU rasters, hitboxes), and nothing
+below has been seen on a real display. Run
+`METALUI_LOOKS_DEMO=1 swift run -c release MetalUIDemo` and find the section
+headed **"Q1–Q6 · paths, shadows, transforms"** (left column, below I1).
+
+- [ ] **Q1. Fills**: the two five-point stars. The left one (nonzero) is solid,
+  its centre pentagon filled; the right one (even-odd) has an empty pentagon in
+  the middle. Both edges smooth (antialiased), no jagged steps, no gaps where
+  the edges cross. Pinned by `evenOddFillStyleEmptiesTheRing`,
+  `nonZeroFillsASameDirectionRingAndEvenOddEmptiesIt` (`MetalUIPathTests`).
+  **Observed:**
+- [ ] **Q2. Strokes and dashes**: the left zig-zag is a 6 pt line with ROUND
+  ends and rounded corners; the right one is dashed (12 on, 6 off) with flat
+  ends, the dashes following the corners. Both crisp at the window's scale.
+  Pinned by `capsEndWhereSwiftUIsDo`, `joinsReachSwiftUIsTips`,
+  `dashesWalkTheArcLengthFromThePhase` (`MetalUIPathTests`),
+  `aJoinOrDashGoesThroughTheStrokerAndAPlainWidthKeepsTheBand`. **Observed:**
+- [ ] **Q3. Shadows, light and dark**: the card ("A card with a shadow") casts
+  a soft grey shadow mostly below it (offset 4 down, radius 8); its text also
+  casts a faint shadow (a shadow is per leaf, divergence 104). "A shadowed
+  text" has a slight, glyph-shaped shadow down-right. Press **Space** to switch
+  to the dark theme: the shadows stay the same black at a third alpha (barely
+  visible on the dark canvas — SwiftUI's own default). No hard edges, no
+  banding, no box-shaped shadow behind the text. Pinned by
+  `theShadowBlurMatchesSwiftUIsProfile`, `aTextCastsOneGlyphShapedShadowBelowItsGlyphs`,
+  `theDefaultShadowColourIsTheShadowToken`. **Observed:**
+- [ ] **Q4. Rotated text and image edges**: "Rotated" turned 30° clockwise is
+  legible, its glyphs not chopped at their boxes; the checker image turned 15°
+  anticlockwise keeps hard (nearest) squares inside and antialiased outer
+  edges — no staircase, no bleed of neighbouring glyphs or texels. Pinned by
+  `aRotatedGlyphSamplesItsSlotOnly`, `aRotatedImageKeepsItsFilterAndAntialiasesItsEdges`
+  (`MetalUIRenderTests`). **Observed:**
+- [ ] **Q5. Crisp path vs soft text under scale**: the small star under
+  `scaleEffect(3)` is as crisp as the big stars (re-rasterized); "Aa" under
+  `scaleEffect(3)` is visibly soft (resampled from its 12 pt bitmap —
+  divergence 106; SwiftUI would draw it crisp). Pinned by
+  `aPathUnderScaleEffectIsRasterizedAtTheScaledResolution`,
+  `aTextUnderScaleEffectIsResampledNotReRasterized`. **Observed:**
+- [ ] **Q6. The rotating square**: click the blue square at the right of the
+  row. It turns 45° more on each click, smoothly over about 0.6 s (ease in and
+  out). Hover it: it changes colour only while the pointer is over the DRAWN
+  diamond — moving into the empty corners of its old square does not hover it,
+  and a click there does nothing. Pinned by `theLooksDemoShowsPathsShadowsAndTransforms`,
+  `aRotatedSquaresFrameCornerMissesAndItsTipHits`, `hoverAndGestureArenasFollowTheTransform`.
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

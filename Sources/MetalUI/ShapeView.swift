@@ -153,7 +153,7 @@ extension ShapeView: ProposalElement {}
 func paintStyledStroke<S: Shape>(_ shape: S, _ geometry: ShapeGeometry, bounds: Bounds<Pixels>,
                                  token: ColorToken, style: StrokeStyle, outset: Bool, pass: PaintPass) {
     guard style.lineWidth.value > 0 else { return }
-    if geometry.pathAndStyle == nil {   // SKELETON (lane 3 red): always the band
+    if geometry.pathAndStyle == nil && style.isPlainBand {
         paintShapeStroke(geometry, token: token, width: style.lineWidth, outset: outset, pass: pass)
         return
     }

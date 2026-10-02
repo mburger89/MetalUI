@@ -2576,8 +2576,9 @@ public final class Frame {
                     group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
-                if scope.shadow != nil {
-                    next.append(group)   // SKELETON (lane 3 red): no shadow item yet
+                if let shadow = scope.shadow {
+                    next.append([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)])
+                    next.append(group)
                     continue
                 }
                 if !scope.effect.isIdentity {
@@ -2617,8 +2618,12 @@ public final class Frame {
             scene.insert(image, texture: texture, layer: primitive.layer, transform: transform)
         case .surface(let quad, let target):
             scene.insert(quad, surface: target, layer: primitive.layer, transform: transform)
-        case .path, .shadow:
-            return   // SKELETON (lane 3 red): not yet rasterized
+        case .path(let paint):
+            guard let (quad, texture) = pathImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .shadow(let paint):
+            guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
         }
     }
 

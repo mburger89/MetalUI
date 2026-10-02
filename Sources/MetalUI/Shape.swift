@@ -82,7 +82,8 @@ public struct ShapeGeometry: Sendable, Equatable {
             preconditionFailure("clipShape(_:) of an ellipse cannot be drawn: every primitive's mask is "
                                 + "a rounded rectangle (divergence 91, TE-AJ item 4)")
         case .path:
-            return (rect, Corners(all: Pixels(0)))   // SKELETON (lane 3 red)
+            preconditionFailure("clipShape(_:) of a path cannot be drawn: every primitive's mask is "
+                                + "a rounded rectangle (divergence 91, GX-D)")
         }
     }
 
@@ -94,8 +95,8 @@ public struct ShapeGeometry: Sendable, Equatable {
     /// tests `(dx/a)² + (dy/b)² ≤ 1`; a path tests its winding under its fill
     /// style (`GX-D`).
     func contains(_ point: Point<Pixels>) -> Bool {
+        if case let .path(path, style) = kind { return path.contains(point, eoFill: style.isEOFilled) }
         guard rect.contains(point) else { return false }
-        if case .path = kind { return true }   // SKELETON (lane 3 red)
         let x = point.x.value, y = point.y.value
         let minX = rect.origin.x.value, minY = rect.origin.y.value
         let w = rect.size.width.value, h = rect.size.height.value
@@ -190,7 +191,7 @@ enum ShapeRequirementDefaults {
 
     static func run<S: Shape, R>(_ shape: S, _ which: Which, _ body: () -> R) -> R {
         let type = ObjectIdentifier(S.self)
-        if false, let top = running.last, top.type == type, top.which != which {  // SKELETON
+        if let top = running.last, top.type == type, top.which != which {
             preconditionFailure("\(S.self) implements neither geometry(in:) nor path(in:): each defaults to "
                                 + "the other, so a Shape must implement one (GX-D)")
         }
@@ -204,13 +205,16 @@ extension Shape {
     /// ``path(in:)`` of the local rect (origin (0, 0), PA9), moved to `rect`'s
     /// origin and filled nonzero (`GX-D`).
     public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
-        .ellipse(rect)   // SKELETON (lane 3 red)
+        ShapeRequirementDefaults.run(self, .geometry) {
+            let local = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: rect.size)
+            return .path(path(in: local).offsetBy(dx: rect.origin.x, dy: rect.origin.y))
+        }
     }
 
     /// ``geometry(in:)``'s rounded rectangle or ellipse as a path — the
     /// built-ins' answer, the same circular corners the SDF draws (`GX-D`).
     public func path(in rect: Bounds<Pixels>) -> Path {
-        Path()   // SKELETON (lane 3 red)
+        ShapeRequirementDefaults.run(self, .path) { Path(geometry(in: rect)) }
     }
 
     public nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD {

@@ -34,7 +34,8 @@ private func looksRoot(text: some Element, shapes: some Element,
             Column(gap: Pixels(18)) {
                 text
                 shapes
-            }   // SKELETON (lane 3 red): the Q section not yet composed
+                pathsShadowsTransforms
+            }
             .alignItems(.flexStart)
             Column(gap: Pixels(18)) {
                 gestures
