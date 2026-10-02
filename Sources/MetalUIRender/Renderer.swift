@@ -152,10 +152,27 @@ public final class Renderer {
         self.unitVertexBuffer = buffer
     }
 
-    /// Encode one view's worth of the scene into an existing command buffer.
+    /// Encode one view's worth of the scene into an existing command buffer,
+    /// with no app-owned surface targets: every `.surface` run draws nothing.
     public func encode(_ scene: Scene,
                        view: SurfaceView,
                        in commandBuffer: any MTLCommandBuffer) throws {
+        try encode(scene, view: view, in: commandBuffer, surfaces: [:])
+    }
+
+    /// Encode one view's worth of the scene into an existing command buffer,
+    /// binding each `.surface` run's render target from `surfaces` (MetalView,
+    /// rulings `MV-C` item 2, `MV-D`): a surface run is drawn by the **image
+    /// pipeline** — its quads are `MUIImage` records, masked, faded and
+    /// composited premultiplied exactly as an image's — with its target as the
+    /// texture. A run whose target has no texture in `surfaces` draws nothing
+    /// (a renderer handed a headless `renderFrame` scene, `MV-H` item 5).
+    /// `MetalWindowRenderer.finishFrame` passes its per-window table's
+    /// textures, after the app's draws.
+    public func encode(_ scene: Scene,
+                       view: SurfaceView,
+                       in commandBuffer: any MTLCommandBuffer,
+                       surfaces: [SurfaceID: any MTLTexture]) throws {
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = view.colorTexture
         // RESTRICTION: clearing per view means `encode` cannot be called twice
@@ -235,9 +252,13 @@ public final class Renderer {
                 try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
                                  into: encoder, viewport: &viewport, projection: &projection)
             case .surface:
-                // MetalView lane 1's hand-off (spec §8): no target texture
-                // reaches `encode` until lane 2, so a surface run draws nothing.
-                continue
+                let quads = Array(scene.surfaces[run.start..<(run.start + run.count)])
+                // One target per run: `Scene.finalize` breaks a run where it
+                // changes; each quad's `texture` indexes `surfaceTargets`.
+                let target = scene.surfaceTargets[Int(quads[0].texture)]
+                guard let texture = surfaces[target.id] else { continue }
+                try encodeImages(quads, texture: texture,
+                                 into: encoder, viewport: &viewport, projection: &projection)
             }
         }
     }
@@ -497,6 +518,17 @@ public final class Renderer {
                                 size: Size<DevicePixels>,
                                 projection: simd_float4x4 = matrix_identity_float4x4
     ) throws -> [UInt8] {
+        try renderOffscreen(scene, size: size, surfaces: [:], projection: projection)
+    }
+
+    /// Render to an offscreen texture, binding each `.surface` run's target
+    /// from `surfaces` (``encode(_:view:in:surfaces:)``), and read the pixels
+    /// back. Test support (MetalView, test 2.11).
+    public func renderOffscreen(_ scene: Scene,
+                                size: Size<DevicePixels>,
+                                surfaces: [SurfaceID: any MTLTexture],
+                                projection: simd_float4x4 = matrix_identity_float4x4
+    ) throws -> [UInt8] {
         let width = Int(size.width.value)
         let height = Int(size.height.value)
 
@@ -518,7 +550,7 @@ public final class Renderer {
                                   width: Double(width), height: Double(height),
                                   znear: 0, zfar: 1),
             projection: projection)
-        try encode(scene, view: view, in: commandBuffer)
+        try encode(scene, view: view, in: commandBuffer, surfaces: surfaces)
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
 

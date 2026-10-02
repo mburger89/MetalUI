@@ -4,6 +4,9 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(Metal)
+import Metal
+#endif
 
 // The demo's content — its model, actions, counter, `demoContent()` and the
 // proposal preview — lives in the `MetalUIDemoContent` library target
@@ -28,11 +31,18 @@ func runDemo() throws {
     // Drag and drop's human looks (`docs/verification/human-checks.md` N1–N8,
     // ruling DN-Q): chips, a draggable list, four wells.
     let dragAndDropDemo = ProcessInfo.processInfo.environment["METALUI_DND_DEMO"] == "1"
+    // MetalView's human looks (`docs/verification/human-checks.md` section O,
+    // ruling MV-J): an animated shader quad drawn by app code, UI over it.
+    let metalViewDemo = ProcessInfo.processInfo.environment["METALUI_METALVIEW_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if dragAndDropDemo {
+    if metalViewDemo {
+        window = try app.openWindow(title: "MetalUI — MetalView",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: { metalViewDemoContent(surface: shaderQuadDraw()) })
+    } else if dragAndDropDemo {
         window = try app.openWindow(title: "MetalUI — Drag and Drop",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: dragAndDropDemoContent)
@@ -205,6 +215,69 @@ func runDemo() throws {
     demoWindow = window
 
     app.run()
+}
+
+/// The MetalView demo's viewport drawing (ruling `MV-J` item 1): an animated
+/// full-screen-quad fragment shader, compiled from MSL source at runtime with
+/// `makeLibrary(source:)` on the first draw (on the renderer's own device), timed
+/// by `ctx.time`, encoded as one render pass into the frame's command buffer.
+/// Off Metal (no `MetalDrawContext`), a portable `ctx.clear` cycling with time.
+@MainActor
+func shaderQuadDraw() -> @MainActor (any GPUSurfaceContext) -> Void {
+    #if canImport(Metal)
+    var pipeline: (any MTLRenderPipelineState)?
+    let source = """
+        #include <metal_stdlib>
+        using namespace metal;
+        struct Out { float4 position [[position]]; float2 uv; };
+        vertex Out quad_vertex(uint id [[vertex_id]]) {
+            float2 p = float2((id & 1) ? 1.0 : -1.0, (id & 2) ? -1.0 : 1.0);
+            Out o; o.position = float4(p, 0, 1); o.uv = p * 0.5 + 0.5; return o;
+        }
+        fragment float4 quad_fragment(Out in [[stage_in]], constant float2 &u [[buffer(0)]]) {
+            float t = u.x, aspect = u.y;
+            float2 p = (in.uv - 0.5) * float2(aspect, 1.0) * 6.0;
+            float v = sin(p.x + t) + sin(p.y * 1.3 - t * 1.1) + sin(length(p) * 1.7 - t * 1.6);
+            float3 c = 0.5 + 0.5 * cos(float3(0.0, 2.1, 4.2) + v + t * 0.3);
+            return float4(c, 1.0);   // opaque, so premultiplied as written
+        }
+        """
+    return { ctx in
+        guard let metal = ctx as? MetalDrawContext else {
+            let t = Float(ctx.time)
+            ctx.clear(red: 0.5 + 0.5 * sin(t), green: 0.5 + 0.5 * sin(t + 2.1), blue: 0.5 + 0.5 * sin(t + 4.2), alpha: 1)
+            return
+        }
+        if pipeline == nil {
+            do {
+                let library = try metal.device.makeLibrary(source: source, options: nil)
+                let descriptor = MTLRenderPipelineDescriptor()
+                descriptor.vertexFunction = library.makeFunction(name: "quad_vertex")
+                descriptor.fragmentFunction = library.makeFunction(name: "quad_fragment")
+                descriptor.colorAttachments[0].pixelFormat = metal.target.pixelFormat
+                pipeline = try metal.device.makeRenderPipelineState(descriptor: descriptor)
+            } catch {
+                print("MetalView demo: shader failed to build: \(error)")
+                metal.clear(red: 0.6, green: 0, blue: 0, alpha: 1)
+                return
+            }
+        }
+        guard let pipeline,
+              let encoder = metal.commandBuffer.makeRenderCommandEncoder(descriptor: metal.renderPassDescriptor())
+        else { return }
+        var uniforms = SIMD2<Float>(Float(metal.time.truncatingRemainder(dividingBy: 3600)),
+                                    Float(metal.pixelSize.width.value) / Float(max(metal.pixelSize.height.value, 1)))
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<SIMD2<Float>>.stride, index: 0)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        encoder.endEncoding()   // never commit or present: MetalUI does (MV-F item 5)
+    }
+    #else
+    return { ctx in
+        let t = Float(ctx.time)
+        ctx.clear(red: 0.5 + 0.5 * sin(t), green: 0.5 + 0.5 * sin(t + 2.1), blue: 0.5 + 0.5 * sin(t + 4.2), alpha: 1)
+    }
+    #endif
 }
 
 try runDemo()

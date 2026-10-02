@@ -225,8 +225,8 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
     try #require(seen.count == 1, "set up: the first tick drew once")
     let first = seen[0]
     #expect(first.target.pixelFormat == .bgra8Unorm, "bgra8Unorm, never _sRGB (§7.8)")
-    #expect([first.target.width, first.target.height] == [60, 40], "D1: bounds × scale")
-    #expect(first.pixelSize == [60, 40])
+    #expect([first.target.width, first.target.height] == [60, 40] as [Int], "D1: bounds × scale")
+    #expect(first.pixelSize == [60, 40] as [Int32])
     #expect(first.target.usage.contains(.renderTarget) && first.target.usage.contains(.shaderRead))
     #expect(first.target.storageMode == .private)
     #expect(first.target.hazardTrackingMode != .untracked, "tracked (MV-L item 5)")
