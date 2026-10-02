@@ -33,7 +33,8 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
    `METALUI_CONTROLS_DEMO=1` (the controls demo),
    `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`),
    `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3),
-   `METALUI_DND_DEMO=1` (drag and drop: N1–N8).
+   `METALUI_DND_DEMO=1` (drag and drop: N1–N8),
+   `METALUI_METALVIEW_DEMO=1` (MetalView, app-owned GPU surfaces: O1–O8).
 3. **Demo keys**: **M** modal (translucent scrim), **Space** theme, **F**/**Esc**
    focus the counter, **=**/**-** count, **A** the animation look, **Q** quit.
    In the preview only **Space** and **Q** have a visible effect.
@@ -331,6 +332,84 @@ title ("—" before one) and fills with the accent colour while targeted.
   move — no drag begins; a quick press-and-move on it drags (MetalUI's choice,
   `DN-U` item 1; SwiftUI's answer is unmeasured). Pinned by the sixth arm of
   `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`.
+  **Observed:**
+
+## O. MetalView — app-owned GPU surfaces (user request 2026-10-01, not a plan task)
+
+*Source: record `69-metal-view.md` (renumbered at merge, `MV-O` item 4),
+rulings `MV-A`…`MV-O` (`docs/superpowers/2026-10-01-metal-view-decisions.md`),
+spec §7.* SwiftUI's compositing of an app's Metal layer and `Canvas`'s sizing
+and re-runs were measured in a real window (probe
+`docs/probes/swiftui-metal-view.swift`, arms C1–C4, D1, R0–R3); MetalUI's
+answers are pinned headless — read back from an offscreen target through the
+real Metal renderer (and through the SDL renderer in `Backends/SDL`) — and
+nothing below has been seen on a real display. Run
+`METALUI_METALVIEW_DEMO=1 swift run -c release MetalUIDemo` ("MetalUI —
+MetalView", 920×560): a title, a "Viewport draws: n" counter, a large rounded
+viewport (520×300) drawn by an app fragment shader with a translucent label
+("App-drawn GPU content, UI composited over it") over its top-left corner,
+and a **Tint** stepper beside a small rounded swatch (80×40).
+
+- [ ] **O1. The on-screen look**: the viewport shows a smoothly moving
+  colour field (sines of position and time) clipped to a 16-point rounded
+  rectangle — the corners show the window background, not a square of shader
+  colour; the label sits over the shader content at 80% opacity, its text
+  crisp; the swatch's corners are rounded too. Nothing flickers or goes black
+  on the first frame. Pinned by `aSurfaceFillIsCompositedOnTheFirstFrame`,
+  `aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage`,
+  `aSurfaceQuadTakesTheActiveClipRadiiOpacityAndLayerAsAnImageDoes`.
+  **Observed:**
+- [ ] **O2. Continuous smoothness**: watch the viewport for ten seconds — it
+  animates at the display's rate (60 Hz, or 120 Hz on a ProMotion display)
+  with no stutter, tearing or periodic hitch; the counter climbs at about the
+  display's rate. Pinned (the draw-per-tick contract only — the rate and
+  smoothness are looks) by `aContinuousSurfaceDrawsOnEveryTickAndAnOnDemandOneOnce`,
+  `aContinuousSurfaceKeepsTheWindowAnimatingOnlyWhilePainted`,
+  `theMetalViewDemosDrawCountAdvances`. **Observed:**
+- [ ] **O3. Idle when paused**: tap the viewport — the animation stops on its
+  current picture, the header reads "Paused: …" and the counter stops; Activity
+  Monitor's CPU (and GPU History) for the process falls to near idle — the
+  display link has paused (`MV-G` item 3). Tap again: it resumes from the
+  current time. Pinned by `aContinuousSurfaceKeepsTheWindowAnimatingOnlyWhilePainted`,
+  `anOnDemandSurfaceKeepsItsContentsWhenTheWindowRedrawsForAnotherReason`,
+  `aSurfaceRegistersNoHitboxOrAccessibilityButTakesATapThroughOnTapGesture`.
+  **Observed:**
+- [ ] **O4. On-demand redraw**: while paused, click the upper (+) and lower (−) halves of the
+  **Tint** stepper — only the swatch changes colour (eight tints), the paused
+  viewport and its counter stay unchanged; hovering or clicking elsewhere does
+  not change either surface. Pinned by `aChangedValueRedrawsAndAnUnchangedOneDoesNot`,
+  `theMetalViewDemoTreeRequestsOneContinuousAndOneOnDemandSurface`.
+  **Observed:**
+- [ ] **O5. Live resize**: drag the window's corner — larger, smaller, and
+  very narrow. The viewport keeps its 520×300 point size where it fits and is
+  never stretched, squashed or blurred; no blank or black frame appears while
+  dragging; when the window cuts the viewport off, the hidden part is simply
+  clipped. Pinned by `aResizedSurfaceGetsANewTargetAtItsNewDeviceSizeAndRedrawsOnce`,
+  `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating`.
+  **Observed:**
+- [ ] **O6. Retina vs 1× scale**: on a Retina display the shader's edges and
+  the label are sharp (the target is the bounds × 2, 1040×600 pixels); move the
+  window to a non-Retina external display (or set a 1× scaled mode) — it stays
+  sharp at 1× with no flash or wrong-size frame during the move, and back again.
+  Pinned by `aSurfacesTargetIsItsBoundsTimesTheScaleRounded`,
+  `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime`. **Observed:**
+- [ ] **O7. Colour and gamma**: the shader's colours look the same saturation
+  and brightness as the swatch's flat tints and the rest of the UI — no washed
+  out or too-dark cast (targets are `bgra8Unorm`, composited in gamma space,
+  §7.8, `MV-E` item 4). Pinned by `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime`
+  (M2e, the sRGB format, reddens it). **Observed:**
+- [ ] **O8. The same demo on SDL**: `cd Backends/SDL &&
+  METALUI_METALVIEW_DEMO=1 PKG_CONFIG_PATH=$PWD/.accesskit swift run -c release
+  MetalUISDLDemo` on macOS and, if available, Linux (X11 and Wayland) and
+  Windows ("MetalUI — SDL3 MetalView"). The viewport is a flat colour cycling
+  smoothly through hues (the SDL demo draws through `ctx.clear`, not a
+  shader), rounded and under the same translucent label; tap pauses it and the
+  counter; the stepper recolours only the swatch; resizing and moving between
+  displays behave as O5/O6. Pinned by `anSDLSurfaceFillMatchesTheMetalParityLiteral`,
+  `anSDLSurfaceIsDrawnBeforeTheSceneAndKeptAcrossFrames`,
+  `anSDLSurfaceTargetIsReleasedWhenNoLongerReferenced`,
+  `surfaceFramesSubmitOnceAndNeverReleaseAnUnsignaledFence`,
+  `theSDLDrawContextCarriesTheFramesCommandBufferAndTarget` (`Backends/SDL`).
   **Observed:**
 
 ## Sign-off
