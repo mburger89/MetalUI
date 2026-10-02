@@ -64,6 +64,23 @@ bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
 // the GPU signalled it — always 0 (SDL recycles a released fence while the
 // submitted command buffer still points at it; record §61 §10).
 uint32_t mui_renderer_unsignaled_fence_releases(MUIRenderer *r);
+// How many command buffers this renderer has submitted, ever: every SDL_Submit…
+// in the mui_renderer_* functions (finish, create_texture, read_offscreen) —
+// so a test sees that an app surface adds no submission (MV-L item 4).
+uint32_t mui_renderer_submission_count(MUIRenderer *r);
+// ---- App-owned GPU surfaces (MetalView, ruling MV-H item 2) ---------------
+// The renderer's SDL_GPUDevice *.
+void *mui_renderer_device(MUIRenderer *r);
+// The frame's SDL_GPUCommandBuffer * — valid between a successful begin and
+// finish, NULL otherwise. App surface draws record into it; finish submits it.
+void *mui_renderer_command_buffer(MUIRenderer *r);
+// A surface's render target (SDL_GPUTexture *): B8G8R8A8_UNORM, colour target
+// and sampler, w×h in 1…8192, contents undefined. No upload, so no submission
+// and no fence. Release with mui_renderer_release_texture. NULL on failure.
+void *mui_renderer_create_target(MUIRenderer *r, uint32_t width, uint32_t height);
+// Records one render pass clearing `texture` to the premultiplied colour into
+// `cmd` (an SDL_GPUCommandBuffer *), ended at once; submits nothing.
+bool mui_gpu_clear_texture(void *cmd, void *texture, float red, float green, float blue, float alpha);
 // The window's device pixels per point (SDL_GetWindowPixelDensity).
 float mui_window_pixel_density(void *window);
 

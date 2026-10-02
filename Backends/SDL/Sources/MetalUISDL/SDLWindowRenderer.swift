@@ -100,6 +100,24 @@ public final class SDLWindowRenderer: WindowRenderer {
     /// recycles a released fence while the command buffer still points at it).
     package var unsignaledFenceReleaseCount: Int { Int(mui_renderer_unsignaled_fence_releases(renderer)) }
 
+    /// How many command buffers the renderer has submitted, ever (every
+    /// `SDL_Submit…` in `SDLBridge.c`'s renderer functions): an app surface's
+    /// draw rides the frame's own buffer and adds none (`MV-L` item 4).
+    package var submissionCount: Int { Int(mui_renderer_submission_count(renderer)) }
+    /// The frame's `SDL_GPUCommandBuffer *` between `beginFrame()` and
+    /// `finishFrame`, `nil` otherwise.
+    package var frameCommandBuffer: OpaquePointer? {
+        mui_renderer_command_buffer(renderer).map { OpaquePointer($0) }
+    }
+    /// Surface render targets created, ever — counted here, beside the bridge
+    /// call, because `SurfaceTargetTable`'s own counters are `package` to the
+    /// root package and do not cross into this one (`MV-L` item 2).
+    package private(set) var surfaceTargetsCreated = 0
+    /// Surface render targets released, ever.
+    package private(set) var surfaceTargetsReleased = 0
+    /// Surface draws run, ever.
+    package private(set) var surfaceDraws = 0
+
     /// The SDL GPU driver in use (`metal`, `vulkan`, `direct3d12`).
     public var driver: String { String(cString: mui_renderer_driver(renderer)) }
 
