@@ -108,8 +108,8 @@ public final class MetalWindowRenderer: WindowRenderer {
         commandBuffer.commit()
         // Recorded only once the frame is committed: a failed encode drops
         // the buffer and the draws in it, so an `.onDemand` surface must draw
-        // again next frame rather than show a target nothing wrote (`MV-F`
-        // item 6).
+        // again next frame rather than show a target nothing wrote (`MV-O`
+        // item 2).
         for drawn in toDraw { surfaceTable.didDraw(drawn.request) }
         finishedFrames += 1
         return true

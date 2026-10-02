@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-O`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-P`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -685,10 +685,14 @@ designed. What the lane decided that the design did not say:
    `GPUSurface` (it forwards all three phases with its own id), so every
    `GPUSurface` rule holds for it unchanged; its downcast lives in an
    internal `MetalView.drawThunk(_:)`, the seam test 2.10 drives.
-4. **The demo's draw counter** is a plain reference held in `@State` and read
-   during the build — never a `@State` write from the draw, which runs in the
-   renderer (a phase write, CLAUDE.md "`@State`"). It lags the drawing by one
-   frame and freezes, with the window idle, while paused.
+4. **The demo's draw counter** is a plain reference read during the build —
+   never a `@State` write from the draw, which runs in the renderer (a phase
+   write, CLAUDE.md "`@State`"). It lags the drawing by one frame and
+   freezes, with the window idle, while paused. **Erratum (`MV-O` item 1):**
+   as built it was "held in `@State`", and the claim that it lags by one
+   frame was refuted by measurement — a never-written `@State` re-seeds from
+   each build's initial value, so the header read 0 forever. The counter is
+   now the caller's.
 5. **The parity literal** is `SurfaceParity` in
    `Tests/MetalUIRenderTests/SurfaceCompositingTests.swift` (test 2.11): a
    black 40 × 40 rect, surface A (texel (200, 100, 40, 255), radius-6 mask,
@@ -766,3 +770,74 @@ SwiftPM's deprecation notice alone under native; `Backends/SDL` builds (0
 `error:`); a `swift:6.4-noble` container builds the root package with 0
 `error:`/`warning:`.
 
+## MV-O — lane 2's review round: the demo's counter leaves `@State`, a draw is recorded only once its frame commits, resize pinned on the Metal path
+
+The reviewer's findings on lane 2 (`4a8bbed`), fixed in `c5191e0`:
+
+1. **The demo's draw counter is the caller's** (major). Measured by the
+   reviewer with the screen unlocked: the shader quad animated while the
+   header read "Viewport draws: 0" in both of two screenshots 1 s apart, and
+   a scratch test reproduced it (`draws=5 seen=[0, 0, 0, 0, 0]`). The cause:
+   `@State var draws = MetalViewDemoDraws()` is never *written* (the draw
+   mutates the object, not the slot), so `StateTable.peek` finds no entry
+   and `State.wrappedValue` falls back to the current struct's
+   `initialValue` — a **new** object every build, because `openWindow`'s
+   content closure rebuilds the tree every frame. The draw incremented an
+   object the next build threw away. Now `MetalViewDemoDraws` is public
+   (`count` `public internal(set)`, a doc comment on each member; the
+   inventory's `MetalUIDemoContent .*` row maps it), `metalViewDemoContent`
+   takes `draws:` before `surface:`, and `main.swift` creates the counter
+   **and** the shader closure once, outside the content closure — the
+   latter was also recompiling the pipeline every frame, since
+   `shaderQuadDraw()` was called inside it. Pinned by **2.13**
+   `theMetalViewDemosDrawCountAdvances`: a real `Window` with an
+   accessibility client, six ticks, the header's static-text value read back
+   (the string is a static text's `value`, not its `label`) — red on
+   `4a8bbed`'s shape (`shown` 0 of 6 draws), green now. Mutation **M2o**
+   (the counter back in `@State`) reddens 2.13 alone.
+
+   **Carried, unprobed: a never-written `@State` of reference type is
+   re-seeded every frame.** SwiftUI keeps the first initial value for the
+   view's lifetime (its documented `@State` contract; not probed on this
+   branch). MetalUI keeps nothing until a write, so a `@State` holding a
+   class that is only mutated through the reference — never assigned —
+   gets a fresh object each build. Pre-existing (the `StateTable.peek`
+   absent-entry path `CX-F` already touched for optionals), not this
+   branch's to change: it is an id-path/retention behaviour this branch
+   must not move (`MV-K`). Owed: a probe arm and, if SwiftUI's answer is
+   confirmed, a divergence row in `docs/divergences.md` or a fix — the
+   Record phase files it, with no label taken here.
+2. **A surface's draw is recorded only once its frame commits** (minor).
+   `MetalWindowRenderer.finishFrame` called `surfaceTable.didDraw` inside
+   the draw loop, before `Renderer.encode` — whose throw returns `false`
+   without committing — so an `.onDemand` surface could show a target its
+   uncommitted draw never wrote until its `value:` or size changed. Now
+   every drawn request is recorded after `commit()`. After a failed frame
+   the next one draws again (`lastDrawn` is still `nil` or the old value);
+   a target **created** in the failed frame comes back with
+   `isNewTarget == false` and unwritten contents, so an app that relies on
+   the framework's clear of a new target sees undefined texels for one
+   frame — accepted: `encode` throws only on a buffer or encoder allocation
+   failure, and no test injects one.
+3. **Resize is pinned on the Metal path** (minor). **2.14**
+   `aResizedSurfaceGetsANewTargetAtItsNewDeviceSizeAndRedrawsOnce`: an
+   `.onDemand` surface at 2× grows from 30 to 45 points wide between ticks,
+   gets a new `bgra8Unorm` texture at 90 × 40 and draws once into it
+   (`isNewTarget`), and an unchanged tick after draws nothing. Mutation
+   **M2p** (`SurfaceTargetTable.update` ignores a size change, lane 1's V1)
+   reddens 2.14 and `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating`.
+4. **The record number is taken** (minor, no change here). `69` went to
+   `docs/record/69-claude-md-full-2026-10-01.md` (via the master merge
+   `d7a0824`) and master has since published §70 (app icon, `95234db`). The
+   Record phase renumbers `69-metal-view.md` to the next free § at merge
+   time (§71 if master keeps §70) and fixes every citation — this doc's
+   header, the spec, the source comments — following the 24→25 and 26→27
+   precedent.
+
+Mutations from a copy of `c5191e0`, full unfiltered suite (**2072**),
+`git status --short` clean after each:
+
+| mutation | file | reddens |
+|---|---|---|
+| M2o the counter in `@State` again | `MetalViewDemo.swift` | 2.13 |
+| M2p the table ignores a size change | `GPUSurface.swift` (`MetalUIPlatform`) | 2.14, `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating` |
