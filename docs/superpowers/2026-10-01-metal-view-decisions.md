@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-L`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-M`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -226,9 +226,12 @@ the parity harness.
      preview) is **kept and not drawn**, so a ghost shows the last contents;
    - a reference with no entry and no request creates nothing, and its run
      draws nothing.
-   Two requests naming one id in one frame trap (one element, one paint).
+   Two requests naming one id in one frame trap (one element, one paint) —
+   a table invariant `Frame` guarantees by keying `SurfaceRegistry` on
+   (`GlobalElementID`, occurrence), `MV-L` item 1.
    Counters (`package`): `createdCount`, `releasedCount`, `drawnCount`,
-   `liveCount`.
+   `liveCount` — readable by the root package only; `SDLWindowRenderer`
+   counts for itself, `MV-L` item 2.
 2. **The device-pixel size** is `Int((points × scale).rounded())` per axis,
    computed from the element's **laid-out** bounds before any transition
    effect (a `.scale` transition never reallocates), clamped to 8192 (the SDL
@@ -395,7 +398,7 @@ frame per tick.
    `MetalUI` (portable, `XP-A`); `MetalDrawContext` in `MetalUIRender`;
    `MetalView` in `MetalUI` behind `#if canImport(MetalUIRender)`;
    `SDLGPUDrawContext` in `MetalUISDL`. `MetalUILayout` is untouched.
-2. **The SDL bridge** gains four C functions and no change to
+2. **The SDL bridge** gains four C functions (five since `MV-L` item 4, which adds `mui_renderer_submission_count`) and no change to
    `mui_renderer_finish`: `mui_renderer_device`, `mui_renderer_command_buffer`
    (valid between begin and finish), `mui_renderer_create_target(r, w, h)`
    (no upload, so **no submission and no fence**, unlike
@@ -501,3 +504,100 @@ accessibility builder changes.
    `finishFrame(scene:atlas:surfaces:)` (an external conformer adds the
    parameter; one with no surface support may ignore it and composites
    nothing for surface runs).
+
+---
+
+## MV-L — the critic round: five corrections to the design, one rejected finding
+
+The critic round attacked the committed design (`63750dc`) before any lane
+ran. **Re-run first**: the lock probe read unlocked (no
+`CGSSessionScreenIsLocked` line, `displayAsleep main: 0`, one screen at
+scale 2.0), and `docs/probes/swiftui-metal-view.swift` was rebuilt and re-run
+whole; every G, C, D and R line (P1, G1–G3, P2, C1–C4, D1, R0–R3) printed
+**byte for byte** the header's recorded block — so `MV-B`, `MV-D` and
+`MV-G`/divergence 103 rest on output reproduced today, not only on the
+design's run. Checked and **held**: the draw runs after
+`withObservationTracking` returns (`Window.drawFrameIfNeeded`), so `MV-A`
+item 4's "reads inside `draw` are not tracked" is true of the code; `beginFrame()`
+runs before the frame is built, so a frame with no drawable builds no
+requests to lose; `.hidden()` skips paint (`Frame.hiddenNodes`, the
+`Element.paintGroup` gate), so `MV-G` item 4's "no GPU work" holds for it;
+transitions apply their effect after capture (`insertThroughTransitions`),
+so an `.opacity` insertion's first frame is not `activeOpacity == 0` and
+still draws; `MetalUI` re-exports `MetalUIRender` on macOS, so
+`MetalDrawContext` is visible from a plain `import MetalUI` (app code still
+imports `Metal` itself to call `MTLCommandBuffer`'s methods — the doc says
+so); `PrimitiveKind` has no raw values and `DemoFrameDeterminismTests` reads
+only `rects`/`glyphs`/`drawList`, so a new case and two empty arrays move no
+`Expected.swift` byte; the fake window already draws through a real
+`MetalWindowRenderer` with readback, so lane 2's window pixel tests are
+buildable. **Not checked here**: a Linux build of the new types — there is
+no code yet; each lane builds `swift:6.4-noble` itself (`MV-K` item 1).
+
+**Corrections.**
+
+1. **Two siblings sharing one `.id` would trap in production.** Divergence 72
+   (kept) gives two siblings with one `.id` one `GlobalElementID`; keyed by
+   that alone, `SurfaceRegistry` hands both one `SurfaceID`, the frame emits
+   two requests for it and `SurfaceTargetTable.update` traps — a crash from a
+   tree every other element accepts. **Ruled**: the registry's key is
+   (`GlobalElementID`, occurrence), the occurrence counting surfaces with
+   that id already painted this frame, so each placement gets its own target
+   and keeps it across frames while the order holds. The table's trap stays
+   (its invariant); `Frame` now guarantees it. New test 1.13b
+   (`twoSiblingSurfacesSharingOneIDGetTwoTargets`, through the spy renderer
+   so the unfixed case is a wrong answer, not a process trap), mutation M1q′.
+2. **`package` counters do not cross a package boundary.** The spec had
+   `SDLWindowRenderer` re-expose `SurfaceTargetTable`'s `package` counters;
+   `Backends/SDL` is a separate package and cannot read them (Swift's
+   `package` is per package — `textureUploadCount`, the cited precedent, is
+   declared and counted inside `MetalUISDL` itself). **Ruled**: the table's
+   counters stay `package` for the root package's tests; `SDLWindowRenderer`
+   keeps its own `package` counters, incremented in the `create`/`release`
+   closures it passes and after each draw. No public API added.
+3. **Test 1.15 could not see M1u.** Either `noteActiveAnimation()` or
+   `requestAnotherFrame()` keeps the window drawing, so a test that asserts
+   only "the window keeps drawing" stays green when one replaces the other.
+   **Ruled**: 1.15 asserts `hasActiveAnimations == true` **and**
+   `wantsAnotherFrame == false` while the surface paints.
+4. **M3f was not a mutation 3.4 could see.** `unsignaled_fence_releases`
+   counts only `r->fence`; a clear submitted in its own command buffer with a
+   separately acquired fence never touches it. **Ruled**: the bridge gains
+   `mui_renderer_submission_count(r)` (every `SDL_Submit…` in `SDLBridge.c`),
+   test 3.4 becomes `surfaceFramesSubmitOnceAndNeverReleaseAnUnsignaledFence`
+   (one submission per frame holding a new surface, no unsignalled release),
+   M3f reddens its submission clause and M3f′ (`retire_fence` →
+   `release_fence`) its fence clause plus the existing
+   `backToBackFramesNeverReleaseAnUnsignaledFence` — both named.
+5. **The no-double-buffering argument (`MV-E` item 6) needs tracked
+   hazards.** Metal orders frame N+1's write of a target after frame N's
+   sample of it across command buffers only for a hazard-tracked resource.
+   **Ruled**: targets use the default (tracked) mode, never `.untracked`;
+   stated in the spec's Metal paragraph.
+6. **Test 2.6 could not see M2h as ordered.** Drawn A, A, B, B, a table
+   shared on the `Renderer` releases A's target once (B's scene does not
+   reference it) and every per-window count can still read 1 on the pair
+   that is checked. **Ruled**: the windows draw at different sizes,
+   alternately A, B, A, B, and each window's `createdCount` and draw count
+   stay 1.
+
+Also: test 1.8's name read `…AndAGhostsIsKeptUndrawn` (a typo) and is
+`anUnreferencedTargetIsReleasedAndAGhostsTargetIsKeptUndrawn`. Expected root
+count **2063 → 2064** (1.13b).
+
+**Rejected finding.** *Rename `SurfaceID`/`SurfaceTarget`/`SurfaceDrawRequest`/
+`SurfaceTargetTable` to `GPUSurface…`, since `MetalUIRender` already has
+`RenderSurface`/`SurfaceFrame` and `MetalWindowRenderer.surface` means the
+drawable.* No two names collide, the new types live in `MetalUIScene`/
+`MetalUIPlatform` where `RenderSurface` is not visible, and `GPUSurfaceID`
+next to `GPUSurface` would read as the element's own id rather than a
+renderer handle. Kept; `finishFrame(scene:atlas:surfaces:)`'s doc says the
+parameter is the frame's app surfaces, not `self.surface`. (Recorded here
+rather than as an `LR-` ruling: `LR-` is task 7's engine-replacement prefix
+in another decisions doc; this feature's rulings, rejections included, are
+`MV-`.)
+
+**Lane sizes.** Three lanes kept, strictly in order; lane 1 is the largest
+(23 tests, the seam change) but its files are disjoint from lanes 2 and 3
+except the signature-only hand-off edits spec §8 names.
+

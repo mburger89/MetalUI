@@ -4,7 +4,7 @@ User request 2026-10-01 (not a plan task). Binding design spec §7.7
 ("`MetalView` — app-owned rendering"), with §1 (the "core primitive"), §3.2
 (device loss), §4.3 (side-table state), §4.4 (the redraw link and timebase),
 §7.4 (frame graph: "App Metal passes" first) and §7.8 (gamma-space
-`bgra8Unorm`). Rulings `MV-A`…`MV-K` in
+`bgra8Unorm`). Rulings `MV-A`…`MV-L` (`MV-L` the critic round's corrections) in
 [`../2026-10-01-metal-view-decisions.md`](../2026-10-01-metal-view-decisions.md);
 probe [`../../probes/swiftui-metal-view.swift`](../../probes/swiftui-metal-view.swift)
 (arms P1–P3, G1–G3, C1–C4, D1, R0–R3, recorded 2026-10-01 with the screen
@@ -119,9 +119,13 @@ public struct SurfaceTargetTable<Handle> {
 }
 ```
 
-(Public, because `Backends/SDL` is another package; the counters are
-`package` and re-exposed by `SDLWindowRenderer` as its own `package`
-counters, as `textureUploadCount` is.) Draw decision: new → draw;
+(Public, because `Backends/SDL` is another package. **The table's counters
+are `package`, and `package` does not cross a package boundary** (`MV-L`
+item 2): `Backends/SDL` cannot read them, so `SDLWindowRenderer` keeps its
+**own** `package` counters (`surfaceTargetsCreated`, `…Released`,
+`surfaceDraws`), incremented inside the `create`/`release` closures it hands
+the table and after each draw, as `textureUploadCount` is counted in its own
+upload path. The root package's tests read the table's counters directly.) Draw decision: new → draw;
 `.continuous` → draw; else `value != lastDrawnValue || scale != lastScale`.
 A `create` returning nil drops that request this frame (the run draws
 nothing; the frame still succeeds).
@@ -129,7 +133,9 @@ nothing; the frame still succeeds).
 **Metal** (`MetalWindowRenderer`, per window): owns a
 `SurfaceTargetTable<any MTLTexture>`. `finishFrame(scene:atlas:surfaces:)`:
 atlas upload → `table.update` (create = `bgra8Unorm`, `[.renderTarget,
-.shaderRead]`, `.private`, clamped to 8192; release = drop the reference,
+.shaderRead]`, `.private`, clamped to 8192, default (tracked) hazard tracking — never
+`.untracked`, which would drop the cross-command-buffer ordering `MV-E`
+item 6 rests on (`MV-L` item 5); release = drop the reference,
 Metal keeps it alive while an in-flight buffer holds it) → for each to-draw:
 if new, one clear pass to (0,0,0,0); build `MetalDrawContext`; call `draw`;
 **`precondition(commandBuffer.status == .notEnqueued)`** naming `MV-F`;
@@ -152,15 +158,22 @@ is `scene.images + scene.surfaces` (each surface quad's `texture` +=
 `.surface` run becomes `kind 2` with `start += scene.images.count`. No
 change to `mui_renderer_finish`, `images_valid` or `replay.hlsl`. `deinit`
 releases every live target. No new submission, so no new fence (the fence
-rule, CLAUDE.md "Renderer").
+rule, CLAUDE.md "Renderer") — **measured, not asserted**: the bridge gains a
+fifth function, `mui_renderer_submission_count(r)` (incremented at every
+`SDL_Submit…` in `SDLBridge.c` — `mui_renderer_finish`'s and
+`mui_renderer_create_texture`'s), which test 3.4 reads (`MV-L` item 4).
 
 **MetalUI** (`Frame`, `Window`): `GPUSurface.paint` →
 `Frame.drawSurface(id:bounds:policy:value:draw:)`: translate and scale like
 `drawImage`; pixel size `Int((pt × scale).rounded())` clamped to 8192; return
 emitting nothing if a side is 0, the translated bounds miss `activeClip`, or
 `activeOpacity == 0`; otherwise `surfaceRegistry.id(for: id)` (a window-owned
-`[GlobalElementID: SurfaceID]` map, minting on first sight, swept by
-`Window` after each frame of every id not painted that frame), emit the quad
+map from **(`GlobalElementID`, occurrence)** to `SurfaceID` — the occurrence
+is how many surfaces with that same id this frame has already painted, so
+two siblings sharing one `.id` (divergence 72) get two targets rather than
+two requests for one, which the table traps on, `MV-L` item 1 — minting on
+first sight, swept by `Window` after each frame of every key not painted
+that frame), emit the quad
 through `insertThroughTransitions(.surface(…))`, append a
 `SurfaceDrawRequest` (time = `timestamp`) to `surfaceRequests`, and
 `noteActiveAnimation()` if `.continuous`. `Window` passes
@@ -235,14 +248,15 @@ item 3).
 | 1.5 | `aChangedValueRedrawsAndAnUnchangedOneDoesNot` | ditto | M1f: `didDraw` does not store the value |
 | 1.6 | `aContinuousRequestDrawsEveryFrame` | ditto | M1g: treat `.continuous` as `.onDemand` |
 | 1.7 | `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating` | ditto | M1h: compare only width; M1i: ignore scale |
-| 1.8 | `anUnreferencedTargetIsReleasedAndAGhostsIsKeptUndrawn` | ditto | M1j: release every entry without a request; M1k: never release |
+| 1.8 | `anUnreferencedTargetIsReleasedAndAGhostsTargetIsKeptUndrawn` | ditto | M1j: release every entry without a request; M1k: never release |
 | 1.9 | `aReferenceWithoutARequestOrEntryCreatesNothing` | ditto | M1l: create on reference |
 | 1.10 | `twoRequestsForOneSurfaceTrap` (exit test) | ditto | M1m: drop the precondition |
 | 1.11 | `aSurfaceAnswersItsProposalAndTenOnANilAxis` (G1, G2) | element absent | M1n: answer 0 on a nil axis |
 | 1.12 | `aSurfacesTargetIsItsBoundsTimesTheScaleRounded` (D1; 100×60@2 → 200×120; 101×61@1.5 → 152×92; 9000 pt@1 → 8192) | ditto | M1o: `floor` for `rounded`; M1p: drop the clamp |
 | 1.13 | `aSurfaceKeepsItsIDAcrossFramesAndTwoPlacementsGetTwo` | ditto | M1q: mint a fresh id every frame |
+| 1.13b | `twoSiblingSurfacesSharingOneIDGetTwoTargets` (`MV-L` item 1; divergence 72's shape, `HStack { GPUSurface{…}.id("a"); GPUSurface{…}.id("a") }`, through a real `Window` with the **spy** renderer, which records requests and runs no table, so the unfixed case reads as a wrong answer rather than a process trap: two requests with distinct `SurfaceID`s, the same two on a second frame; `try #require` on the count before indexing) | ditto | M1q′: key the registry by `GlobalElementID` alone (one id twice) |
 | 1.14 | `aZeroSizedClippedOrTransparentSurfaceRequestsNothing` (three arms + a painted control arm) | ditto | M1r: drop the clip test; M1s: drop the opacity test (each reddens only its arm) |
-| 1.15 | `aContinuousSurfaceKeepsTheWindowAnimatingOnlyWhilePainted` | ditto | M1t: delete `noteActiveAnimation()`; M1u: `requestAnotherFrame()` in its place |
+| 1.15 | `aContinuousSurfaceKeepsTheWindowAnimatingOnlyWhilePainted` — asserts `hasActiveAnimations == true` **and** `wantsAnotherFrame == false` while painted, both false after it leaves (`MV-L` item 3: without the second clause M1u stays green, since either flag keeps the window drawing) | ditto | M1t: delete `noteActiveAnimation()`; M1u: `requestAnotherFrame()` in its place |
 | 1.16 | `theWindowHandsTheFramesSurfaceRequestsToItsRenderer` (spy renderer) | requirement absent | M1v: `Window` calls `finishFrame(scene:atlas:)` |
 | 1.17 | `aSurfaceQuadTakesTheActiveClipRadiiOpacityAndLayerAsAnImageDoes` (C1–C3; an `Image` arm in the same place is the comparison, an unclipped arm separates) | ditto | M1w: emit with no `activeClip` |
 | 1.18 | `aRemovedSurfacesGhostReferencesItsTargetWithoutARequest` (`.transition(.opacity)`) | ditto | M1x: drop `.surface` from `TransitionEffect.apply`'s replay (ghost loses the quad) |
@@ -270,7 +284,7 @@ Files: `Sources/MetalUIRender/MetalWindowRenderer.swift`, `Renderer.swift`,
 | 2.3 | `aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage` (C1–C3; pixel-equal to an `Image` of the same colour; an unclipped arm separates; the parity literal) | ditto | M2d: bind the atlas/wrong texture for surface runs |
 | 2.4 | `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime` (scale 2, `simulateTick(timestamp:)`) | ditto | M2e: allocate `.bgra8Unorm_srgb`; M2f: size in points |
 | 2.5 | `aContinuousSurfaceDrawsOnEveryTickAndAnOnDemandOneOnce` | ditto | M2g: draw only new targets |
-| 2.6 | `twoWindowsKeepTheirOwnTargets` (both at `SurfaceID(1)`; draw counts and pixels per window) | ditto | M2h: move the table onto the shared `Renderer` |
+| 2.6 | `twoWindowsKeepTheirOwnTargets` (both at `SurfaceID(1)`, **different sizes**, one shared `Renderer`; frames drawn **alternately** A, B, A, B — each window's draw count stays 1 and `createdCount` 1, pixels per window; `MV-L` item 6: drawn A, A, B, B a shared table would release once and still read 1 on the second of each pair) | ditto | M2h: move the table onto the shared `Renderer` |
 | 2.7 | `aSurfacesTargetIsReleasedWhenItsElementLeaves` (`package` counters) | ditto | M2i: never call `release` |
 | 2.8 | `aSurfaceDrawThatCommitsTheCommandBufferTraps` (exit test) | no check | M2j: drop the status precondition |
 | 2.9 | `aMetalViewDrawsWithTheRenderersDeviceAndTheFramesCommandBuffer` (encodes its own pass → no "encoder already active") | `MetalView` absent | M2k: `MetalView` forwards a fresh command buffer |
@@ -299,7 +313,7 @@ test); docs `docs/verification/human-checks.md` (section O),
 | 3.1 | `anSDLSurfaceFillMatchesTheMetalParityLiteral` (offscreen renderer; lane 2's scene and literal, `ParityTolerance`) | lane 1's stub skips `.surface` | M3a: skip the quad append; M3b: forget the texture-index offset |
 | 3.2 | `anSDLSurfaceIsDrawnBeforeTheSceneAndKeptAcrossFrames` (draw count 1 over two frames, pixels equal) | ditto | M3c: draw after `mui_renderer_finish`; M3d: recreate each frame |
 | 3.3 | `anSDLSurfaceTargetIsReleasedWhenNoLongerReferenced` | ditto | M3e: never release |
-| 3.4 | `surfaceFramesNeverReleaseAnUnsignaledFence` (back-to-back offscreen surface frames, `unsignaledFenceReleaseCount == 0`) | ditto | M3f: submit the clear in its own command buffer with an unwaited fence |
+| 3.4 | `surfaceFramesSubmitOnceAndNeverReleaseAnUnsignaledFence` (back-to-back offscreen frames each holding a NEW surface: `mui_renderer_submission_count` rises by exactly 1 per frame, `unsignaledFenceReleaseCount == 0`; `MV-L` item 4) | ditto | M3f: submit the new target's clear in its own command buffer (reddens the submission clause only); M3f′: `retire_fence` → `release_fence` in `mui_renderer_finish` (reddens the fence clause and the existing `backToBackFramesNeverReleaseAnUnsignaledFence` — name both) |
 | 3.5 | `theSDLDrawContextCarriesTheFramesCommandBufferAndTarget` (handles non-nil, `pixelSize`, `isNewTarget` true then false) | context absent | M3g: pass a fresh command buffer |
 | 3.6 | `aSceneWithASurfaceIsNotRecordable` (exit test, `ReplayFixtureTests`) | lane 1's trap present → green on arrival; mutate | M3h: map `.surface` to `.image` |
 
@@ -316,8 +330,8 @@ Record phase updates `docs/probes/closeout-inventory-map.tsv`).
 
 ## 9. Expected counts and checks
 
-Root suite **2028 + 22 (lane 1: 1.1–1.20 and G1.1–G1.2; T1 and 1.21 are
-existing tests) + 13 (lane 2: 2.1–2.12 and G2.1) = 2063**; `Backends/SDL` +6
+Root suite **2028 + 23 (lane 1: 1.1–1.20, 1.13b and G1.1–G1.2; T1 and 1.21
+are existing tests) + 13 (lane 2: 2.1–2.12 and G2.1) = 2064**; `Backends/SDL` +6
 (ReplayFixtureTests +1, MetalUISDLTests +5) on macOS and Linux. Each lane
 reports its measured figure; the Record phase re-takes. Guards +3. 0 px
 against `330f02b` in all fourteen offscreen images; `Expected.swift`
