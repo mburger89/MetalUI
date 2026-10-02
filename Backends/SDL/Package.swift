@@ -41,7 +41,7 @@ let package = Package(
                 linkerSettings: ["bcrypt", "ntdll", "propsys", "runtimeobject", "uiautomationcore",
                                  "userenv", "ws2_32", "ole32", "oleaut32", "user32", "advapi32"]
                     .map { .linkedLibrary($0, .when(platforms: [.windows])) }),
-        .testTarget(name: "MetalUISDLTests", dependencies: ["MetalUISDL", "SDLReplay",
+        .testTarget(name: "MetalUISDLTests", dependencies: ["MetalUISDL", "SDLReplay", "ReplayFixture",
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .executableTarget(name: "PortableReplay", dependencies: ["SDLReplay", "ReplayFixture"]),

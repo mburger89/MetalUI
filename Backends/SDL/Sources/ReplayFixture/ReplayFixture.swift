@@ -36,6 +36,10 @@ public struct FixtureRun: Equatable, Sendable {
         case .rect: kind = .rect
         case .glyph: kind = .glyph
         case .image: kind = .image
+        case .surface:
+            // An app-owned surface's content is GPU work no fixture holds
+            // (MetalView, ruling `MV-C` item 4).
+            preconditionFailure("a replay fixture cannot record a surface: its content is app-defined GPU work (MV-C)")
         }
         self.init(kind: kind, start: UInt32(run.start), count: UInt32(run.count))
     }

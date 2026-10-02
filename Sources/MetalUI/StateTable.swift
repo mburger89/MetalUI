@@ -86,9 +86,17 @@ import MetalUICore
 ///
 /// What lives here is state that must survive a rebuild and cannot be recomputed
 /// from the element values: scroll offset, hover, animation progress, text
-/// selection, an in-progress drag, `MetalView` render targets (§7.7). What does
-/// *not* live here is anything `Frame` owns — that is per-frame and dies with it.
-/// The two are deliberately different objects so the distinction stays visible.
+/// selection, an in-progress drag. What does *not* live here is anything `Frame`
+/// owns — that is per-frame and dies with it. The two are deliberately different
+/// objects so the distinction stays visible.
+///
+/// **Nor `MetalView` render targets**, which spec §4.3 and §7.7 put here: that
+/// is refuted (MetalView, ruling `MV-E` item 6). A target is GPU state each
+/// `WindowRenderer` owns in its `SurfaceTargetTable`, keyed by a window-minted
+/// `SurfaceID`; the window's map from an element to that id is
+/// `SurfaceRegistry`, beside `AnimationStore` — this table's sweep keeps an
+/// unproduced entry for two generations (`TB-AH`), and a surface that is not
+/// painted must hold no GPU memory.
 ///
 /// ## Two consequences the sweep forces
 ///

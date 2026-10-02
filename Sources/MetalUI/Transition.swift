@@ -290,6 +290,16 @@ struct TransitionEffect: Equatable {
             }
             i.opacity *= alpha
             return .image(i, texture: texture, layer: layer, innerMask: inner)
+        case .surface(var q, let target, let layer, let inner):
+            // The quad moves, never the target (MV-E item 2): a `.scale`
+            // transition resamples it, it never reallocates.
+            q.bounds = map(q.bounds)
+            if inner {
+                q.contentMask = map(q.contentMask)
+                q.maskCornerRadii = map(q.maskCornerRadii)
+            }
+            q.opacity *= alpha
+            return .surface(q, target: target, layer: layer, innerMask: inner)
         }
     }
 }
@@ -301,12 +311,17 @@ enum CapturedPrimitive {
     case rect(MUIRect, layer: Int, innerMask: Bool)
     case glyph(MUIGlyph, layer: Int, innerMask: Bool)
     case image(MUIImage, texture: ImageTexture, layer: Int, innerMask: Bool)
+    /// An app-owned surface's quad over its render target (MetalView, ruling
+    /// `MV-D`): a ghost or a drag preview replays the quad and so references
+    /// the target, with no draw request — it shows the last contents.
+    case surface(MUIImage, target: SurfaceTarget, layer: Int, innerMask: Bool)
 
     func withInnerMask(_ inner: Bool) -> CapturedPrimitive {
         switch self {
         case .rect(let r, let layer, _): .rect(r, layer: layer, innerMask: inner)
         case .glyph(let g, let layer, _): .glyph(g, layer: layer, innerMask: inner)
         case .image(let i, let t, let layer, _): .image(i, texture: t, layer: layer, innerMask: inner)
+        case .surface(let q, let t, let layer, _): .surface(q, target: t, layer: layer, innerMask: inner)
         }
     }
 }

@@ -1894,6 +1894,7 @@ public final class Frame {
          transaction: Animation? = nil,
          disablesAnimations: Bool = false,
          animationStore: AnimationStore = AnimationStore(),
+         surfaceRegistry: SurfaceRegistry = SurfaceRegistry(),
          collectsAccessibility: Bool = false,
          reportsUnlowerableFields: Bool = false,
          recordsElementBounds: Bool = false) {
@@ -1928,6 +1929,7 @@ public final class Frame {
         rootTransaction.disablesAnimations = disablesAnimations
         self.transactionTop = rootTransaction
         self.animationStore = animationStore
+        self.surfaceRegistry = surfaceRegistry
         self.collectsAccessibility = collectsAccessibility
         self.reportsUnlowerableFields = reportsUnlowerableFields
         self.recordsElementBounds = recordsElementBounds
@@ -2216,6 +2218,71 @@ public final class Frame {
         }
     }
 
+    /// The largest side of a surface's render target, in device pixels
+    /// (MetalView, `MV-E` item 2): the SDL bridge's texture limit
+    /// (`mui_renderer_create_texture`); Metal's is 16384 — one limit for both.
+    /// A larger element samples its target stretched.
+    static let maxSurfaceTargetSide = 8192
+
+    /// The window's map from an element to its surface's `SurfaceID`
+    /// (MetalView, `MV-E` item 6) — **not** a `StateTable` entry. A `Frame`
+    /// built without a window gets a fresh one.
+    let surfaceRegistry: SurfaceRegistry
+
+    /// This frame's app-owned surfaces' draw requests, in paint order —
+    /// handed by `Window` to `WindowRenderer.finishFrame(scene:atlas:surfaces:)`
+    /// (`MV-F`). A headless `renderFrame` drops them.
+    private(set) var surfaceRequests: [SurfaceDrawRequest] = []
+
+    /// Emits one app-owned surface's quad and its draw request (MetalView,
+    /// rulings `MV-D`, `MV-E` item 2, `MV-G`) — ``drawImage(_:in:filter:)``'s
+    /// arithmetic line for line: `bounds` in points, translated by
+    /// `activeOffset` then scaled, the mask `activeClip` with its radii,
+    /// scaled, the opacity `activeOpacity`, on `activeLayer`, linear-filtered,
+    /// through `insertThroughTransitions` so a transition's ghost and a drag
+    /// preview replay it as they replay an image.
+    ///
+    /// The target is `Int((pt × scale).rounded())` device pixels per axis,
+    /// computed from the **laid-out** bounds (a transition never reallocates),
+    /// clamped to ``maxSurfaceTargetSide``. **Nothing is emitted** — no quad, no
+    /// request, so a renderer releases the target and does no GPU work — when a
+    /// side rounds to 0, the translated bounds do not intersect `activeClip`,
+    /// or `activeOpacity` is 0 (`MV-G` item 4). A `.continuous` surface notes an
+    /// active animation, keeping the display link awake — never
+    /// `requestAnotherFrame()` (CLAUDE.md "Animation": never raise both).
+    func drawSurface(id: GlobalElementID, bounds: Bounds<Pixels>, policy: RedrawPolicy,
+                     value: AnyHashable?, draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+        // Counted before the guards, so a skipped sibling sharing one `.id`
+        // keeps its place (`MV-M` item 5).
+        let occurrence = surfaceRegistry.occurrence(for: id)
+        let width = min(Self.maxSurfaceTargetSide, Int((bounds.size.width.value * scaleFactor).rounded()))
+        let height = min(Self.maxSurfaceTargetSide, Int((bounds.size.height.value * scaleFactor).rounded()))
+        guard width > 0, height > 0 else { return }
+        guard activeOpacity > 0 else { return }
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        let clip = activeClip
+        let overlapWidth = min(translated.origin.x.value + translated.size.width.value,
+                               clip.origin.x.value + clip.size.width.value)
+            - max(translated.origin.x.value, clip.origin.x.value)
+        let overlapHeight = min(translated.origin.y.value + translated.size.height.value,
+                                clip.origin.y.value + clip.size.height.value)
+            - max(translated.origin.y.value, clip.origin.y.value)
+        guard overlapWidth > 0, overlapHeight > 0 else { return }
+
+        let target = SurfaceTarget(id: surfaceRegistry.id(for: id, occurrence: occurrence), width: width, height: height)
+        let quad = MUIImage(bounds: translated.scaled(by: scaleFactor),
+                            contentMask: clip.scaled(by: scaleFactor),
+                            maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                            opacity: activeOpacity, filter: .linear, order: 0)
+        insertThroughTransitions(.surface(quad, target: target, layer: activeLayer, innerMask: false))
+        surfaceRequests.append(SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: timestamp,
+                                                  policy: policy, value: value, draw: draw))
+        if policy == .continuous { noteActiveAnimation() }
+    }
+
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing
     /// it there on first sight.
     ///
@@ -2362,6 +2429,7 @@ public final class Frame {
         case .rect(let rect, let layer, _): scene.insert(rect, layer: layer)
         case .glyph(let glyph, let layer, _): scene.insert(glyph, layer: layer)
         case .image(let image, let texture, let layer, _): scene.insert(image, texture: texture, layer: layer)
+        case .surface(let quad, let target, let layer, _): scene.insert(quad, surface: target, layer: layer)
         }
     }
 
@@ -2491,6 +2559,7 @@ public final class Frame {
         applyScrollResolutions()
         animationStore.transitions.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
+        surfaceRegistry.endFrame()  // drops every surface this frame did not paint (MV-E)
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the

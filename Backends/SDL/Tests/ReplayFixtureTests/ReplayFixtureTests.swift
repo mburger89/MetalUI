@@ -282,3 +282,22 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     #expect(record.bounds.origin.x == 5 && record.bounds.size.height == 8 && record.order == 1)
     #expect(try ReplayFixture(decoding: fixture.encoded()) == fixture)
 }
+
+/// **3.6** (MetalView, ruling `MV-C` item 4; spec §10's "an SDL replay fixture
+/// holding a surface" is not built). A surface's content is app-defined GPU
+/// work no fixture holds, so recording a scene's surface run traps by name
+/// rather than mapping it onto an image run that would sample a texture the
+/// fixture never carried. Green on arrival (lane 1's trap). Mutation **M3h**:
+/// map `.surface` to `.image`.
+@Test func aSceneWithASurfaceIsNotRecordable() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        var scene = Scene()
+        var quad = MUIImage()
+        quad.bounds = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4, height: 4))
+        scene.insert(quad, surface: SurfaceTarget(id: SurfaceID(rawValue: 1), width: 4, height: 4))
+        scene.finalize()
+        _ = scene.drawList.map { FixtureRun(scene: $0) }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("cannot record a surface"), "aborted, but not at the fixture's check:\n\(stderr)")
+}

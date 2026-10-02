@@ -2,7 +2,8 @@
 // demo shows, drawn by `SDLWindowRenderer` with text from `PortableTextSystem`
 // — the configuration a MetalUI app has on Linux and Windows. Runs on macOS
 // too. Keys: F / Escape focus, = and - count (while focused), Space theme,
-// M modal, A animation, Q quit.
+// M modal, A animation, Q quit. `METALUI_METALVIEW_DEMO=1`: MetalView's demo
+// (ruling MV-J) — app GPU surfaces drawn through `SDLGPUDrawContext`.
 import Foundation
 import MetalUI
 import MetalUIDemoContent
@@ -40,9 +41,23 @@ func runDemo() throws {
     // drops from other applications arrive through SDL's drop events (DN-M);
     // a chip cannot leave the window (divergence 101).
     // `METALUI_TEXT_INPUT_DEMO=1`: roadmap item 14's two text fields (TI-F).
+    // `METALUI_METALVIEW_DEMO=1`: MetalView's demo (ruling MV-J, human checks
+    // section O) — the large surface clears to a colour cycling with
+    // `ctx.time` through the SDL renderer's draw context; the counter and the
+    // drawing are made once, outside the content closure that runs every
+    // frame (MV-O item 1).
     let environment = ProcessInfo.processInfo.environment
     let size = Size(width: Pixels(920), height: Pixels(560))
-    let window = environment["METALUI_DND_DEMO"] == "1"
+    let metalViewDraws = MetalViewDemoDraws()
+    let metalViewSurface: @MainActor (any GPUSurfaceContext) -> Void = { ctx in
+        let t = Float(ctx.time.truncatingRemainder(dividingBy: 3600))
+        ctx.clear(red: 0.5 + 0.5 * sin(t), green: 0.5 + 0.5 * sin(t + 2.1), blue: 0.5 + 0.5 * sin(t + 4.2),
+                  alpha: 1)
+    }
+    let window = environment["METALUI_METALVIEW_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 MetalView", size: size,
+                             content: { metalViewDemoContent(draws: metalViewDraws, surface: metalViewSurface) })
+        : environment["METALUI_DND_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 drag and drop", size: size, content: dragAndDropDemoContent)
         : environment["METALUI_TEXT_INPUT_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 text input", size: size, content: textInputDemoContent)

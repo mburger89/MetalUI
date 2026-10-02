@@ -362,6 +362,8 @@ private struct Named: Identifiable, Hashable {
                         "\(name): a translucent translated copy of \(fingerprint(g)) in \(glyphs)")
             case .image:
                 Issue.record("\(name): no site here paints an image")
+            case .surface:
+                Issue.record("\(name): no site here paints a surface")
             }
         }
         platform.simulateInput(up(moved(p, 50)))

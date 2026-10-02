@@ -810,3 +810,14 @@ has no outgoing-drag API, divergence 101), not by being unread. `DropItem`,
 publishes nothing to accessibility by design (`DN-X` item 3), not an inert
 declaration. The one SDL setting nothing pins, `SDL_SetEventEnabled` for
 `SDL_EVENT_DROP_FILE`/`TEXT`, is a defensive call, not a declared property.
+
+## 2026-10-02: no row added or deleted (MetalView)
+
+Record §71. `GPUSurfaceContext.frameIndex` and `isNewTarget` are read by the app's
+draw closure, not by any framework reader, by design (an app-facing context, not
+a declared property). `SurfaceDrawRequest.policy` is read by
+`SurfaceTargetTable` (a `.continuous` request draws every frame) on both
+renderers. `RedrawPolicy` and `GPUSurface`'s `value:` are read on every frame
+the surface paints. `SurfaceTarget`'s size is read by both renderers'
+allocation. Nothing here is declared and inert: the one thing a surface cannot
+carry, a depth attachment, is not declared at all (`MV-F` item 6).

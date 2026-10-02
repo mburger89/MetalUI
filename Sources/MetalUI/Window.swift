@@ -198,6 +198,11 @@ public final class Window {
     /// touch.
     let animationStore = AnimationStore()
 
+    /// The window's map from painted app-owned surfaces to their `SurfaceID`s
+    /// (MetalView, `MV-E` item 6): minted per window, so two windows never
+    /// share — or evict — each other's render targets (`MV-E` item 3).
+    let surfaceRegistry = SurfaceRegistry()
+
     /// Whether every frame this window builds records its element bounds
     /// (`Frame.recordsElementBounds`), read back through `lastElementBounds`.
     /// **Test observability** for plan task 7's lowering tests through a real
@@ -1106,6 +1111,7 @@ public final class Window {
                           transaction: transaction.animation,
                           disablesAnimations: transaction.disablesAnimations,
                           animationStore: animationStore,
+                          surfaceRegistry: surfaceRegistry,
                           collectsAccessibility: accessibility.isActive,
                           recordsElementBounds: recordsElementBounds)
         // The window's key state is stamped OVER `environment` (ruling EV-AB):
@@ -1242,7 +1248,12 @@ public final class Window {
         // wrong** — do not remove it in the same change, because the atlas is
         // the only persistent CPU-mutated GPU resource in the renderer and it
         // would be the only thing standing between a torn glyph and a frame.
-        guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas) else {
+        //
+        // The frame's app-owned surfaces' requests ride along (MetalView,
+        // `MV-F`): the renderer runs them into this frame's command buffer
+        // after its atlas upload and before it encodes `scene`.
+        guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
+                                                  surfaces: frame.surfaceRequests) else {
             setNeedsRedraw()
             return
         }

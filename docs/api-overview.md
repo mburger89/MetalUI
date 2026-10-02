@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (1940 of them, in
-fifteen modules) belongs to one of 99 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (1997 of them, in
+fifteen modules) belongs to one of 100 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -156,6 +156,39 @@ unknown until the drop (102). At the seam: `InputEvent.drop` (`DropEvent`,
 (`DragRepresentation`), defaultless (`DN-C`). Accessibility publishes
 nothing for either, as SwiftUI's does not (`DN-N`). `.onDrag`/`.onDrop` and
 the `DropSession` family are not offered (`DN-A`).
+
+## GPU surfaces — M / D
+
+App-owned GPU rendering composited into the UI (spec §7.7, rulings `MV-A`…
+`MV-Q`). `GPUSurface(redraw:draw:)` and `GPUSurface(redraw:value:draw:)` — a
+portable proposal leaf sized like `Canvas` (the proposal, 10 on a nil axis;
+probe G1) whose closure encodes into an offscreen render target of the
+element's laid-out bounds × the window's scale (`bgra8Unorm`, never sRGB;
+D1). MetalUI composites the target exactly as an `Image` — the active clip and
+its corner radii, opacity, layer, transitions, drag preview (C1–C3) — and the
+element takes input and accessibility from the ordinary modifiers, with no
+hitbox of its own (`MV-I`). `RedrawPolicy`: `.onDemand` draws on a new target
+(first sight, resize, rescale) or a changed `value:` — not whenever the tree
+rebuilds, unlike a `Canvas` (103); `.continuous` draws every painted frame and
+keeps the display link awake. A hidden, zero-size, fully clipped or
+transparent surface does no GPU work and its target is released. The closure
+gets `any GPUSurfaceContext` (`pixelSize`, `scaleFactor`, `time`,
+`frameIndex`, `isNewTarget`, the portable `clear(red:green:blue:alpha:)`) and
+downcasts to its backend's context: **`MetalDrawContext`** on the Metal
+renderer (`device`, the frame's own `commandBuffer`, `target`,
+`renderPassDescriptor(loadAction:clearColor:)`; `MetalView` is the Apple
+spelling whose closure takes it directly) and **`SDLGPUDrawContext`** on the
+SDL renderer (`device`, `commandBuffer`, `target` as SDL3 pointers;
+`Backends/SDL`'s `MetalUISDL`). The draw runs on the main actor inside the
+renderer's `finishFrame`, before MetalUI's own pass, into the frame's own
+command buffer; it must not commit, submit, present or wait on it — Metal
+traps if it does, SDL cannot tell (`MV-F` item 5). At the seam:
+`PrimitiveKind.surface`, `SurfaceID`, `SurfaceTarget`, `SurfaceDrawRequest`,
+`SurfaceTargetTable` (the one per-window target lifecycle both renderers use)
+and the defaultless `WindowRenderer.finishFrame(scene:atlas:surfaces:)`
+(migration note in [`migration.md`](migration.md)). Not offered: a depth
+attachment, EDR targets, `NSViewRepresentable` (see
+[`divergences.md`](divergences.md#not-offered)).
 
 ## Application icon — M
 

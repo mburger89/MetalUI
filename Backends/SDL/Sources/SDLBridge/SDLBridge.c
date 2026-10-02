@@ -403,6 +403,7 @@ struct MUIRenderer {
     uint32_t atlas_width, atlas_height;
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
+    uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
 };
 
 /* Releases the last offscreen frame's fence, counting a release made while
@@ -415,6 +416,8 @@ static void release_fence(MUIRenderer *r) {
 }
 
 uint32_t mui_renderer_unsignaled_fence_releases(MUIRenderer *r) { return r->unsignaled_fence_releases; }
+
+uint32_t mui_renderer_submission_count(MUIRenderer *r) { return r->submissions; }
 
 /* Waits for the last offscreen frame, then releases its fence. Never release
    it unwaited (record §61 §10): SDL returns a released fence to its pool at
@@ -509,6 +512,7 @@ void *mui_renderer_create_texture(MUIRenderer *r, const uint8_t *rgba, uint32_t 
     SDL_GPUTextureRegion dst = { .texture = result, .w = w, .h = h, .d = 1 };
     SDL_UploadToGPUTexture(copy, &src, &dst, false);
     SDL_EndGPUCopyPass(copy);
+    r->submissions += 1;
     if (!SDL_SubmitGPUCommandBuffer(cmd)) { cmd = NULL; goto fail; }
     SDL_ReleaseGPUTransferBuffer(d, upload);
     return result;
@@ -521,6 +525,51 @@ fail:
 
 void mui_renderer_release_texture(MUIRenderer *r, void *texture) {
     if (texture) SDL_ReleaseGPUTexture(r->gpu->device, (SDL_GPUTexture *)texture);
+}
+
+/* ---- App-owned GPU surfaces (MetalView, ruling MV-H item 2) ---------------- */
+
+void *mui_renderer_device(MUIRenderer *r) { return r->gpu->device; }
+
+void *mui_renderer_command_buffer(MUIRenderer *r) { return r->cmd; }
+
+/* A surface's render target: B8G8R8A8_UNORM (never sRGB, §7.8), colour target
+   and sampler, uninitialised. Created only — no upload, so no command buffer,
+   no submission and no fence (unlike mui_renderer_create_texture). */
+void *mui_renderer_create_target(MUIRenderer *r, uint32_t w, uint32_t h) {
+    if (!w || !h || w > 8192 || h > 8192) { SDL_SetError("invalid surface target size"); return NULL; }
+    return texture(r->gpu, w, h, true);
+}
+
+/* One render pass over `texture`, LOADOP_CLEAR to the premultiplied colour,
+   ended at once — recorded into `cmd`, never submitted here. */
+bool mui_gpu_clear_texture(void *cmd, void *texture, float red, float green, float blue, float alpha) {
+    if (!cmd || !texture) return SDL_SetError("clear without a command buffer or texture");
+    SDL_GPUColorTargetInfo target = {
+        .texture = (SDL_GPUTexture *)texture,
+        .clear_color = { red, green, blue, alpha },
+        .load_op = SDL_GPU_LOADOP_CLEAR, .store_op = SDL_GPU_STOREOP_STORE
+    };
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass((SDL_GPUCommandBuffer *)cmd, &target, 1, NULL);
+    if (!pass) return false;
+    SDL_EndGPURenderPass(pass);
+    return true;
+}
+
+/* A nearest blit of the whole source over (0, 0, dw, dh) of the destination,
+   recorded into `cmd`, never submitted here (MV-Q's test fill). */
+bool mui_gpu_blit_texture(void *cmd, void *source, uint32_t sw, uint32_t sh,
+                          void *destination, uint32_t dw, uint32_t dh) {
+    if (!cmd || !source || !destination || !sw || !sh || !dw || !dh)
+        return SDL_SetError("blit without a command buffer, a texture or a size");
+    SDL_GPUBlitInfo info = {
+        .source = { .texture = (SDL_GPUTexture *)source, .w = sw, .h = sh },
+        .destination = { .texture = (SDL_GPUTexture *)destination, .w = dw, .h = dh },
+        .load_op = SDL_GPU_LOADOP_LOAD,
+        .filter = SDL_GPU_FILTER_NEAREST
+    };
+    SDL_BlitGPUTexture((SDL_GPUCommandBuffer *)cmd, &info);
+    return true;
 }
 
 bool mui_renderer_finish(MUIRenderer *r,
@@ -616,6 +665,7 @@ bool mui_renderer_finish(MUIRenderer *r,
         SDL_DrawGPUPrimitives(pass, 4, runs[i].count, 0, 0);
     }
     SDL_EndGPURenderPass(pass);
+    r->submissions += 1;
     if (r->window) {
         ok = SDL_SubmitGPUCommandBuffer(cmd);
     } else {
@@ -650,6 +700,7 @@ bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *out) {
     SDL_GPUTextureTransferInfo dst = { .transfer_buffer = download, .pixels_per_row = pitch / 4, .rows_per_layer = h };
     SDL_DownloadFromGPUTexture(copy, &src, &dst);
     SDL_EndGPUCopyPass(copy);
+    r->submissions += 1;
     fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
     if (!fence || !SDL_WaitForGPUFences(d, true, &fence, 1)) goto done;
     const uint8_t *mapped = SDL_MapGPUTransferBuffer(d, download, false);
