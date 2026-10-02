@@ -2,7 +2,8 @@
 
 Rulings for the application icon (user request 2026-10-01; **not a plan
 task**). Spec: [`specs/2026-10-01-app-icon-design.md`](specs/2026-10-01-app-icon-design.md).
-Record: `../record/70-app-icon.md` (§69 is the concurrent `metal-view` line's).
+Record: `../record/70-app-icon.md` (§69 is master's frozen `CLAUDE.md`; the concurrent
+`metal-view` line, written as §69, renumbers at its own merge).
 
 Prefix **`AI-`**, lettered. **Next unused: `AI-N`.** (This line moves in the
 commit that appends a ruling; read the last `## AI-` heading.)

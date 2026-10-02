@@ -7,6 +7,8 @@ User request 2026-10-01; **not a plan task**. Rulings `AI-A`…`AI-M` in
 `330f02b`; baseline **2028 / 0 / 125** tests/goldens/guards, `Backends/SDL`
 22 + 41.
 
+**Status: LANDED (record §70, 2026-10-01) — built, 2041 tests / 0 goldens / 126 guards, `Backends/SDL` 22 + 48; the human looks (group O) are owed.**
+
 ## 1. What exists today
 
 - No icon API anywhere: 0 hits for `applicationIconImage`/`SDL_SetWindowIcon`

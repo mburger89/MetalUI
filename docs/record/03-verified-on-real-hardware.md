@@ -1849,3 +1849,21 @@ VoiceOver reads chips and wells as without drag and drop; N8 (optional) a chip
 held past its long press before moving does not drag. Real pointer drags in
 SwiftUI were measured only by probe group `P` at the HID tap; the preview's
 exact opacity, shadow and anchor are MetalUI's own choice, unmeasured.
+
+## 2026-10-01: no demo look changes; group O's four looks owed (app icon)
+
+Record §70, rulings `AI-G`, `AI-K`. The icon is in no element tree, and both
+demos' `main.swift` gained one assignment before `openWindow`: **0 differing
+pixels and identical scenes in all fourteen offscreen images against
+`330f02b`** (lane 1 at `0cba7da`, re-taken at the Record phase). No window
+capture was taken (no tree changed). **Owed, new here —
+`docs/verification/human-checks.md` group O, none performed (an agent
+cannot)**: O1 `swift run MetalUIDemo`'s Dock tile shows the blue rounded square
+with the white disc from launch, ⌘-Tab agrees, and nothing lingers after **Q**
+(also the only check of `AppKitPlatform.run()`'s re-assignment, unpinned by
+design, `AI-K`); O2 `MetalUISDLDemo` on macOS shows the same Dock icon; O3 the
+same demo on Linux X11 (title bar and task bar, a clean edge with no dark
+fringe) and Wayland (a generic icon is the expected answer without
+`xdg-toplevel-icon-v1`); O4 Windows title bar, taskbar and Alt-Tab, sharp at a
+scaled display. `docs/packaging.md`'s Windows link step and Linux window-to-entry
+matching are marked unverified there.
