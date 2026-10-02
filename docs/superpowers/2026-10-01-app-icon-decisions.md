@@ -4,7 +4,7 @@ Rulings for the application icon (user request 2026-10-01; **not a plan
 task**). Spec: [`specs/2026-10-01-app-icon-design.md`](specs/2026-10-01-app-icon-design.md).
 Record: `../record/70-app-icon.md` (§69 is the concurrent `metal-view` line's).
 
-Prefix **`AI-`**, lettered. **Next unused: `AI-L`.** (This line moves in the
+Prefix **`AI-`**, lettered. **Next unused: `AI-M`.** (This line moves in the
 commit that appends a ruling; read the last `## AI-` heading.)
 
 Branch `feat/app-icon` from `330f02b` (master: drag and drop merged, PR #36).
@@ -273,3 +273,69 @@ deletes it reddens nothing. The lane's mutation table lists it as unpinned,
 its only check human check O1. **Rejected**: dropping it as untestable — the
 cost of a missing icon on launch (the one case the feature exists for) is
 higher than one idempotent assignment, and O1 observes it.
+
+## AI-L — lane 1's measurements: an empty `NSImage` crashes AppKit; the mutation table (lane 1)
+
+**Ruling.** Recorded from lane 1 (commits `39d18a9` red, `45f3e75` green);
+no design change.
+1. **`AppKitIcon.image(from: [])` must answer `nil`, not an empty image —
+   measured, not only stylistic.** Under mutation MA6 (return `NSImage()`)
+   `AppKitPlatform.setApplicationIcon([])` assigns a zero-size, rep-less image
+   to `applicationIconImage`, and AppKit raises
+   `NSImageCacheException` ("Cannot lock focus on image … Size={0, 0}") inside
+   A4: the unfiltered run terminates with no summary line. A4 is therefore
+   MA6's reddening in the full suite; A5 (`anEmptyTextureListMakesNoIconImage`),
+   the test named for it, never ran in that process, and a **filtered**
+   supplementary run of A5 alone under MA6 reddens it (line 136) — recorded as
+   filtered, not as the suite's answer.
+2. **A3's drawn texels equal the stored bytes exactly** (the whole 3×2
+   texture, not only the half-alpha texel), so a premultiplied-RGBA8 sRGB
+   destination with `interpolationQuality = .none` adds no rounding.
+3. **Mutation table**, each applied to the green tree from a copy, the full
+   unfiltered native suite (2041 tests in 3 suites), restored, `git status`
+   clean after every one:
+
+| Mutation | Reddened |
+|---|---|
+| M1a `App.init(platform:)` calls `setApplicationIcon([])` | 1.1, 1.2, 1.3, 1.5 |
+| M1b `didSet` empty | 1.2, 1.3, 1.5 |
+| M1c textures copied from the same pixels | 1.2, 1.3, 1.5 |
+| M1d no sort (input order) | 1.3 |
+| M1e no dedupe | 1.3 |
+| M1f dedupe keeps the last (iterate reversed) | 1.3 |
+| M1g `icon` rewritten to the normalized list | 1.4 |
+| M1h call only when the count changes | 1.5 |
+| M1i skip the call for `[]` | 1.5 |
+| M1j drop the 512 | 1.6, 1.7 |
+| M1k disc radius 0.30 s | 1.7 |
+| M1l corner radius 0.18 s | 1.7 |
+| M1m `App.openWindow` re-sends `icon` | 1.1, 1.2 |
+| MA1 only the first texture becomes a rep | A1, A4 |
+| MA2 un-premultiply before wrapping | A2, A3 |
+| MA3 `.last` instead of `.premultipliedLast` | A2, A3 |
+| MA4 `setApplicationIcon` body empty | A4 |
+| MA5 `[]` returns early, keeping the old image | A4 |
+| MA6 `image(from: [])` returns `NSImage()` | A4 by crash (item 1); A5 filtered |
+| MG1.1 a protocol-extension default | G1.1 (`without succeeded=true`) |
+| `AI-K` delete `run()`'s re-assignment | **none — unpinned by design** (`AI-K`; human check O1) |
+
+Test names: 1.1 `anAppThatNeverSetsAnIconNeverCallsThePlatform`, 1.2
+`settingTheAppIconReachesThePlatformOnceWithTheBitmapsOwnTextures`, 1.3
+`theAppIconReachesThePlatformSmallestFirstWithoutRepeatedSizes`, 1.4
+`theAppIconReadsBackExactlyAsAssigned`, 1.5
+`settingTheAppIconAgainReplacesItAndClearingPassesAnEmptyList`, 1.6
+`theDemoIconIsSixSquareBitmapsFrom16To512`, 1.7
+`theDemoIconsPixelsAreTheSpecifiedShape`, A1
+`anIconImageHoldsOneRepresentationPerTextureSmallestFirst`, A2
+`anIconCGImageCarriesTheTexturesPremultipliedBytesUnchanged`, A3
+`anIconRepresentationDrawsWithoutASecondPremultiply`, A4
+`settingTheIconOnTheAppKitPlatformSetsTheApplicationIconImage`, A5
+`anEmptyTextureListMakesNoIconImage`, G1.1
+`aPlatformWithoutSetApplicationIconDoesNotCompile`.
+
+4. **Census.** `Platform.setApplicationIcon` is a protocol requirement and
+   the census counts only `public`/`open` declarations, so the public census
+   moves 1940 → **1943** (`App.icon`, `AppKitPlatform.setApplicationIcon`,
+   `demoIcon`) in **100** families; the map's `Platform.swift` row for the
+   requirement claims no census row today and is kept so a future
+   `public` spelling there maps to `app-icon`.
