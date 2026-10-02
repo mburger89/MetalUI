@@ -1,7 +1,7 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-S` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings)
+task). Rulings `GX-A`…`GX-T` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;

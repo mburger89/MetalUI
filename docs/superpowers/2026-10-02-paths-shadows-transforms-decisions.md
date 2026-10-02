@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-T`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-U`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -901,3 +901,119 @@ replaced and why the old one could not discriminate. Item 5 leaves frame 7
 without CPU rasters until lane 3; the rasters reach the screen through the
 image pipeline frame 6 already holds to parity.
 
+---
+
+## GX-T — Lane 2's readings: the scope stack, the share mechanism, what the tests compare
+
+**Ruling.** Lane 2 (render effects in `MetalUI`) built `GX-G`, `GX-H`,
+`GX-I` and `GX-P` as written, with these readings, each measured in the lane:
+
+1. **One `PaintScope` class, four kinds** (`transition`, `effect`, `capture`,
+   `barrier`), replacing `TransitionPaintScope` and `Frame.transitionScopes`
+   (now `Frame.paintScopes`). A transition and a drag capture always flatten
+   (their maps are uniform scales and translations — a `.scale` transition's
+   0 included, which is not a *positive* scale but must keep its bytes); an
+   effect flattens only when its device map is a translation plus a uniform
+   positive scale. A degenerate composition onto a transformed primitive is
+   dropped (draws nothing). `RenderEffect(atoms:…)` computes a transition's map
+   in `Float` exactly as plan task 13 did and stores it in `Double` without
+   rounding; the flattened map is applied in `Float` — so 2.26's literals,
+   recorded on the red commit's untouched arithmetic, hold.
+2. **`Deferred`'s reset is a barrier, pushed only while an effect scope is
+   open**: an effect outside it is skipped for the portal's primitives, a
+   transition or capture outside it still applies (as before this branch). In
+   prepaint the effect stack and the share candidates are emptied around the
+   portal. `clipBase` drops below the portal's root clip in both phases (the
+   same values `activeClip` read before).
+3. **The clip split is `Frame.clipBase`**: `activeClip`/`activeClipRadii`
+   read only entries at or above it, and an effect's content sees an
+   unbounded local clip (±10⁶ points) until it pushes one; `activeOffset`
+   ignores it. **Prepaint always splits** (hit testing through an inverse is
+   exact for every map); paint splits only for a non-flattening scope.
+4. **`GX-P` item 1's mechanism is a share-candidate stack.** The five proposal
+   wrappers (`OnTapModifier`, `GestureModifier`, `DraggableModifier` both
+   forms, `DropDestinationModifier`, `AccessibilityModifier`) register through
+   `Frame.sharingRegistrationsWithEffects`, which notes each hitbox they insert
+   (its unclipped rect and the clip in force) and the range of accessibility
+   records, and keeps the candidate open for their content. An effect opening
+   in prepaint at a rect equal (in scrolled window points) to the innermost
+   candidate's patches it — hitbox: the unclipped rect as the local rect, the
+   current inverse, its own registration clip as the outer clip (an already
+   transformed one keeps its outer clip; a local clip it had is dropped,
+   unprobed); record: the transformed rect's bounding box — and continues
+   outward, stopping at the first candidate whose rect differs (2.28's
+   padding). Stack discipline makes candidates ancestors only.
+5. **2.7 and 2.22 compare where the bar's corners land, not records**: an
+   inner offset is flattened into the bounds before the outer rotation
+   records, so the record holds `R` alone and `R · T` is in the bounds. The
+   red run's failure showed it; the corrected arms (`fxLands`) still redden
+   under M2g.
+6. **A focused field's caret area** is mapped in `TextField`/`TextEditor`
+   (`Frame.effectBoundingBox`, including the field's own legacy effects, which
+   open only inside its `registerAndScope`), not in `Window`.
+7. **Legacy effects animate on two store keys**: `$anim-effects` (every
+   effect's numbers, `animatedNumbers`) and `$anim-effects.kinds` (the kind
+   signature; a change resets the numbers' baseline, so a structure change
+   snaps). Called from `animated(_:_:for:pass:)` only when the declared list is
+   non-empty, so an effect-free tree touches neither key.
+8. **Mechanical test edits**: `DragPreviewTests`' 2.12a matches on
+   `primitive.kind` (`CapturedPrimitive` is a struct now); two
+   `GPUSurfaceTests` comments name `RenderEffect.apply`.
+9. **Divergence 106 is left to lane 3** (`GX-M` allocates it; no lane-2 test
+   pins text softness under scale). **107 is pinned by a new 45° arm in
+   2.15** (the bounding box, 40.305 square). `docs/divergences.md` reads 73
+   live, next label 110 (104–106 allocated to lane 3).
+10. **Green on arrival** (filtered red run, 32 tests, 27 red): G2.1 (the
+    skeleton's API exists — mutated red below), 2.13 and 2.28 (true of an
+    untransformed bar; discriminated by M2l and M2y), 2.25 (a layer is a level
+    already; discriminated by M2v), 2.26 (the pin).
+11. **Counts**: 2190 tests in 3 suites (2158 + 32), guards 130 (+1);
+    census 2031 declarations, 102 families; the smallest thread building
+    every production tree **672 KB** (arm64 debug, 16 KB bisection, 656
+    failing — 656 KB was recorded at drag and drop's close, not re-taken at
+    `dc96395`), inside the 1 MB budget. 0 px against `dc96395` in all
+    fourteen offscreen images, every scene identical. `swift build --build-tests`
+    0 warnings; `Backends/SDL` builds and runs 24 + 57; a `swift:6.4-noble`
+    aarch64 container builds with 0 `error:`/`warning:` and runs 199 + 22 +
+    21 + 31 + 18 + 6.
+12. **M2v's first spelling was a broken instrument**: "the layer hands its
+    content its parent's level" is a no-op at the root (a root has no parent;
+    `id.parent ?? id` is the root's own id), and 2.25 built its chains as the
+    root, so the mutant passed all 2190 tests. 2.25 now builds each chain
+    inside a `VStack`, where the mutant reddens it alone.
+13. **The mutation table** (whole unfiltered suite each, 2190 tests, the
+    `FR-J` line present, `git status` clean after every restore; on
+    `7568ac2`, M2v's re-run on the 2.25 fix): every spec mutation reddens its
+    named test.
+    M2a (the rotation layer answers a padded box) → 2.1, 2.2, 2.8, 2.16,
+    2.24, 2.30, 2.31; M2b (sign flipped) → 2.2, 2.10, 2.11, 2.13, 2.14,
+    2.15, 2.19, 2.24, 2.27, 2.29, 2.30, 2.31; M2c (always a record) → 2.3,
+    2.16; M2d (non-uniform flattened) → 2.4, 2.16; M2e (size forms drop
+    `height`) → 2.5 alone; M2f (zero scale emitted, both guards removed) →
+    2.6 alone; M2g (composition reversed, prepaint and record) → 2.7, 2.19,
+    2.22; M2h (no clip split in paint) → 2.8 alone; M2i (the first proposal
+    effect pushed around the whole chain) → 2.7, 2.8, 2.9, 2.24; M2j
+    (`insertHitbox` drops the transform) → 2.10, 2.11, 2.12, 2.14, 2.20,
+    2.29; M2k (hit against the transformed bounding box) → 2.11 alone; M2l
+    (outer clip dropped) → 2.13 alone; M2m (untransformed accessibility
+    geometry) → 2.15 alone; M2n (rotation anchor snaps) → 2.16 alone; M2o
+    (legacy effects snap) → 2.17 alone; M2p (captures drop the transform) →
+    2.18, 2.19; M2q (`Deferred` keeps the stack) → 2.20 alone; M2r (an
+    identity offset scope for every `StyledElement`) → 2.21 alone; M2s (the
+    legacy list sorted) → 2.7, 2.22; M2t (legacy effects wrap the content
+    only) → 2.3, 2.6, 2.7, 2.17, 2.18, 2.19, 2.22, 2.23; M2u (middle clip
+    dropped) → 2.24 alone; M2v (re-run) → 2.25 alone; M2w′ (the scale atom's
+    translation composed before its scale) → 2.26 and plan task 13's
+    `aScaleTransitionScalesTheGroupsPrimitivesAboutItsAnchor`; M2x (no
+    outward propagation) → 2.27, 2.31; M2y (propagation past an unequal
+    rect) → 2.28 alone; M2z (`localPoint` the identity) → 2.29 alone (2.30's
+    hitbox arm reads the scrolled centre, which a rotation fixes, so the
+    identity passes it); M2aa (anchor without the scroll translation, both
+    phases) → 2.30 alone; MG2.1 (`offset(_: Size)` made `internal`) → G2.1
+    alone.
+
+**Cost if wrong.** Item 4's rect equality is the whole share mechanism
+(`GX-P`'s stated cost); a wrapper registering at a rect that differs by
+rounding keeps its axis-aligned frame. Item 3's unbounded clip is a finite
+±10⁶ points, beyond any window. Item 1's degenerate drop means a composed
+zero scale over rotated content draws nothing, as `GX-H`'s zero scale does.
