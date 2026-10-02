@@ -1,6 +1,6 @@
 # App icon — design
 
-User request 2026-10-01; **not a plan task**. Rulings `AI-A`…`AI-H` in
+User request 2026-10-01; **not a plan task**. Rulings `AI-A`…`AI-K` in
 [`../2026-10-01-app-icon-decisions.md`](../2026-10-01-app-icon-decisions.md)
 (binding; this spec is the implementation plan). Record:
 `docs/record/70-app-icon.md` (Record phase). Branch `feat/app-icon` from
@@ -47,7 +47,11 @@ public protocol Platform: AnyObject {
 
 // MetalUIAppKit — AI-E
 public final class AppKitPlatform { public func setApplicationIcon(_ images: [ImageTexture]) }
-enum AppKitIcon { static func image(from textures: [ImageTexture]) -> NSImage? }   // internal; nil for []
+enum AppKitIcon {                                                // internal (AI-I)
+    static func cgImage(from texture: ImageTexture) -> CGImage?
+    static func image(from textures: [ImageTexture]) -> NSImage?  // nil for []
+}
+// AppKitPlatform: internal `private(set) var iconImage: NSImage?` — the image it last assigned (AI-I)
 
 // MetalUISDL — AI-F
 public final class SDLPlatform { public func setApplicationIcon(_ images: [ImageTexture]) }
@@ -136,7 +140,7 @@ new `Backends/SDL/Tests/MetalUISDLTests/SDLIconTests.swift`, new
 N, before Sign-off). Also: the `swift:6.4-noble` container builds MetalUI
 and `Backends/SDL` (OrbStack; start if stopped, stop after).
 
-Either lane appends rulings `AI-I`… to the decisions doc, moving its
+Either lane appends rulings `AI-L`… to the decisions doc, moving its
 "next unused" line in the same commit.
 
 ## 5. Tests (every one red before its implementation; mutation that must redden it)
@@ -146,7 +150,7 @@ Lane 1 — `AppIconTests.swift` (`FakePlatform`, `App(platform:)` with CoreText)
 | # | Test | Mutation that must redden it |
 |---|---|---|
 | 1.1 | `anAppThatNeverSetsAnIconNeverCallsThePlatform` — build `App`, open a window: `iconCalls.isEmpty` | **M1a** `App.init` calls `setApplicationIcon([])` |
-| 1.2 | `settingTheAppIconReachesThePlatformOnceWithTheBitmapsOwnTextures` — one call; `ObjectIdentifier`s equal the bitmaps' `texture`s | **M1b** `didSet` removed; **M1c** passes copies (`ImageTexture(…pixels…)`) |
+| 1.2 | `settingTheAppIconReachesThePlatformOnceWithTheBitmapsOwnTextures` — one call; `ObjectIdentifier`s equal the bitmaps' `texture`s; a window opened **after** the assignment adds no second call (windows opened later are the platform's job, `AI-J`) | **M1b** `didSet` removed; **M1c** passes copies (`ImageTexture(…pixels…)`); **M1m** `App.openWindow` re-sends `icon` |
 | 1.3 | `theAppIconReachesThePlatformSmallestFirstWithoutRepeatedSizes` — assign [32², 16², 32²′, 8×64]: call holds 16², 8×64, 32² (first), in that order | **M1d** no sort; **M1e** no dedupe; **M1f** dedupe keeps last |
 | 1.4 | `theAppIconReadsBackExactlyAsAssigned` — `icon` returns the four, unsorted, identities equal | **M1g** store the normalized list |
 | 1.5 | `settingTheAppIconAgainReplacesItAndClearingPassesAnEmptyList` — three assignments ([a], [b], []) → three calls `[a]`, `[b]`, `[]` | **M1h** short-circuit on equal count; **M1i** skip the call for `[]` |
@@ -158,9 +162,9 @@ Lane 1 — `AppKitIconTests.swift` (AppKit; run the whole suite unfiltered):
 | # | Test | Mutation |
 |---|---|---|
 | A1 | `anIconImageHoldsOneRepresentationPerTextureSmallestFirst` — reps' `pixelsWide/High` in input order, every rep's `size` = image `size` = largest | **MA1** only the first texture becomes a rep |
-| A2 | `anIconRepresentationCarriesTheTexturesPremultipliedBytesUnchanged` — rep's `CGImage`: `alphaInfo == .premultipliedLast`, colour space sRGB, provider bytes == `texture.pixels` (a 3×2 texture with straight (200,100,50,128) and an opaque and a clear texel) | **MA2** un-premultiply before wrapping |
+| A2 | `anIconCGImageCarriesTheTexturesPremultipliedBytesUnchanged` — `AppKitIcon.cgImage(from:)`: `alphaInfo == .premultipliedLast`, colour space sRGB, `dataProvider` bytes == `texture.pixels` (a 3×2 texture with straight (200,100,50,128) and an opaque and a clear texel). Read the `CGImage` the function returns, **not** a rep's `cgImage` (AppKit may snapshot it, `AI-I`) | **MA2** un-premultiply before wrapping |
 | A3 | `anIconRepresentationDrawsWithoutASecondPremultiply` — draw the rep into a premultiplied RGBA8 sRGB context: the half-alpha texel reads (100, 50, 25, 128) | **MA3** label `.last` instead of `.premultipliedLast` (expected (50, 25, 13, 128)) |
-| A4 | `settingTheIconOnTheAppKitPlatformSetsTheApplicationIconImage` — `applicationIconImage`'s reps match; `[]` → `nil`; restores `nil` in a `defer` | **MA4** method body empty; **MA5** `[]` leaves the old image |
+| A4 | `settingTheIconOnTheAppKitPlatformSetsTheApplicationIconImage` — textures 20² and 40²: the platform's `iconImage` holds the two reps (A1's shape) and `applicationIconImage!.size` reads 40×40 where it read the generic icon's size (128×128 measured) before; `[]` → `iconImage == nil` and `applicationIconImage!.size` back to the size read before the test. **Not** identity or reps on the getter, and **not** `nil` after `[]` — the getter returns a fresh snapshot (one `NSCGImageSnapshotRep`) after any set and the generic icon after `nil` (`AI-I`, measured). `defer` assigns `nil` | **MA4** method body empty; **MA5** `[]` leaves the old image |
 | A5 | `anEmptyTextureListMakesNoIconImage` — `AppKitIcon.image(from: [])` is `nil` | **MA6** returns an empty `NSImage` |
 
 Lane 1 — `AppIconCompileGuards.swift` (**one** new guard, whole-file
@@ -177,7 +181,7 @@ hidden windows):
 | S2 | `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow` — a 3×2 texture: format == `MUI_PIXELFORMAT_RGBA32`, size 3×2, readback == `straightRGBA` | **MS4** swap `w`/`h` at create; **MS5** create with the premultiplied bytes |
 | S3 | `anIconSurfaceCarriesEveryLargerTextureAsAnAlternate` — [16², 32², 64²]: primary 16², image count 3, sizes ascending | **MS6** skip `add_alternate` |
 | S4 | `settingTheIconAppliesItToEveryOpenWindow` — two windows: both `iconResult` textures == the set, `applied == true` (on macOS; on a backend that answers `false` the test records it) | **MS7** apply to the first window only |
-| S5 | `aWindowOpenedAfterTheIconIsSetGetsIt` — via `App(platform:)`: set `app.icon`, then open a window | **MS8** `openSDLWindow` skips the stored icon |
+| S5 | `aWindowOpenedAfterTheIconIsSetGetsIt` — on `SDLPlatform` directly (`MetalUISDLTests` does not depend on `MetalUI`, `AI-J`): `setApplicationIcon`, then `openSDLWindow`: its `iconResult` textures == the set | **MS8** `openSDLWindow` skips the stored icon |
 | S6 | `clearingTheIconLeavesOpenWindowsAndGivesNewOnesNone` — `[]`: open window's `iconResult` unchanged, a new window's `nil`; `mui_window_set_icon` never called with `NULL` | **MS9** a new window gets the last non-empty icon |
 
 Expected counts after both lanes: **2041 tests** (2028 + 7 + 5 + 1: 1.1–1.7,
@@ -204,7 +208,12 @@ builds and passes on macOS; the noble container builds both packages.
   copy it into the test's doc comment and re-run the mutation (a green
   mutant is a broken pin).
 - AppKit tests touch `NSApplication.shared.applicationIconImage`, a process
-  global: restore `nil` in `defer`, and run the suite unfiltered.
+  global: restore `nil` in `defer`, and run the suite unfiltered. Its getter
+  is a snapshot, never the assigned object (`AI-I`).
+- `AI-E` item 4's re-assignment in `run()` is **unpinned** (`AI-K`): no
+  headless test can call `run()`; removing it reddens nothing; human check
+  O1 is its only check. The lane says so in its mutation table rather than
+  claiming a pin.
 - SDL on macOS: `SDL_SetWindowIcon` changes the test process's Dock image;
   harmless, but S4's `applied == true` is the macOS measurement — off macOS
   the backends are only exercised by the human checks (O3, O4).

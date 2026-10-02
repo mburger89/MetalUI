@@ -4,7 +4,7 @@ Rulings for the application icon (user request 2026-10-01; **not a plan
 task**). Spec: [`specs/2026-10-01-app-icon-design.md`](specs/2026-10-01-app-icon-design.md).
 Record: `../record/70-app-icon.md` (§69 is the concurrent `metal-view` line's).
 
-Prefix **`AI-`**, lettered. **Next unused: `AI-I`.** (This line moves in the
+Prefix **`AI-`**, lettered. **Next unused: `AI-L`.** (This line moves in the
 commit that appends a ruling; read the last `## AI-` heading.)
 
 Branch `feat/app-icon` from `330f02b` (master: drag and drop merged, PR #36).
@@ -229,3 +229,47 @@ resource — each marked **build-side, not framework API**; every command is
 either run during the lane and marked verified, or marked **unverified**.
 `App.icon` is the runtime override that works with no bundle at all; the
 document says that a bundled app normally needs neither.
+
+## AI-I — `applicationIconImage`'s getter is a snapshot: pin the conversion and the platform's own copy (critic round)
+
+**Ruling.** `AI-E`'s pin is corrected. Measured 2026-10-01 (macOS 27, a
+script setting `NSApplication.shared.applicationIconImage` in an unbundled
+process): the getter **never returns the assigned object** (`===` false right
+after the set), returns **one `NSCGImageSnapshotRep`** at 2× pixels whatever
+reps were assigned (16² + 32² reps at size 32 read back as one 64×64
+snapshot, size 32×32), and after assigning `nil` returns the **generic
+icon** (size 128×128), never `nil`. So the spec's A4 ("`applicationIconImage`'s
+reps match; `[]` → `nil`") could not pass against a correct implementation,
+and A2's "a rep's `CGImage`" could read an AppKit snapshot rather than the
+bytes MetalUI wrapped.
+1. `AppKitIcon.cgImage(from:) -> CGImage?` (internal) is the pixel pin's
+   subject (A2); `image(from:)` wraps one rep per texture around it (A1).
+2. `AppKitPlatform` keeps the image it last assigned in an internal
+   `private(set) var iconImage: NSImage?` (`nil` after `[]`); A4 reads that,
+   plus `applicationIconImage!.size` as the only getter fact that
+   discriminates (the largest texture's size after a set, the pre-test size
+   after `[]`).
+
+## AI-J — windows opened later are the platform's job; S5 runs on `SDLPlatform` (critic round)
+
+**Ruling.** `App` calls `setApplicationIcon` only on assignment (`AI-C`) and
+never again from `openWindow`; a platform whose icon is per window (SDL)
+applies its stored icon to each window it opens (`AI-F` item 4). Pinned on
+both sides: 1.2 asserts a window opened after the assignment adds no second
+call (mutation M1m), S5 asserts a window `SDLPlatform` opens after
+`setApplicationIcon` carries the icon (MS8).
+
+**Rejected**: running S5 through `App(platform:)`, as the spec first said —
+`MetalUISDLTests` depends on `MetalUISDL`, `SDLReplay`, `MetalUIScene` and
+`MetalUIPortableText`, not `MetalUI`; adding `MetalUI` to it for one test
+widens the test target's graph for a fact `App` does not participate in.
+
+## AI-K — `run()`'s re-assignment stays, declared unpinned (critic round)
+
+**Ruling.** `AI-E` item 4 (re-assign the stored image in `run()` after
+`setActivationPolicy(.regular)`) is kept but is **pinned by no test**: a
+headless test cannot call `AppKitPlatform.run()`, so the mutation that
+deletes it reddens nothing. The lane's mutation table lists it as unpinned,
+its only check human check O1. **Rejected**: dropping it as untestable — the
+cost of a missing icon on launch (the one case the feature exists for) is
+higher than one idempotent assignment, and O1 observes it.
