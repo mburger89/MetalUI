@@ -111,9 +111,13 @@ private func resolve(app: URL, environment: [String: String] = [:]) throws -> Bu
 /// Mutation **MN3**: `fatalError` in place of the throw (R6 catches it as an
 /// exit; this test would truncate the run).
 @Test func noResourceBundleThrowsResourceMissingNamingEveryPathTried() throws {
-    let app = try makeApp(in: try temporaryDirectory())
+    let directory = try temporaryDirectory()
+    let app = try makeApp(in: directory)
     let main = try #require(Bundle(url: app))
+    // A debug build also searches this package's own build directories, which
+    // hold the real bundle; keep only the fake app's own candidates.
     let candidates = ShaderLibrary.candidateDirectories(main: main, code: main, environment: [:])
+        .filter { path($0).hasPrefix(directory.path) }
     try #require(candidates.count >= 3, "candidates: \(candidates)")
     do {
         let found = try ShaderLibrary.resourceBundle(candidates: candidates)
