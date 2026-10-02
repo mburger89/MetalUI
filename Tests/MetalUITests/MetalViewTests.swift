@@ -60,6 +60,11 @@ private func window<Root: Element>(side: Int = 64, startsDisplayLink: Bool = fal
     return try makeFakeWindow(device: device, size: side, startsDisplayLink: startsDisplayLink, content: content)
 }
 
+/// An exit test's standard error, decoded.
+private func stderrText(_ result: ExitTest.Result?) -> String {
+    String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+}
+
 @MainActor
 private func redraw(_ window: Window) {
     window.setNeedsRedraw()
@@ -346,12 +351,13 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
 
 /// **2.8** (`MV-F` item 5). A draw that commits the frame's command buffer
 /// traps, naming `MV-F`: after each draw the renderer checks
-/// `commandBuffer.status == .notEnqueued`. (Pinned by an exit test; the
-/// positive case — a draw that leaves it alone — is every other test here.)
+/// `commandBuffer.status == .notEnqueued`. (Pinned by an exit test that reads
+/// the trap's message; the positive case — a draw that leaves it alone — is
+/// every other test here.)
 ///
 /// Mutation **M2j**: drop the status precondition.
 @Test func aSurfaceDrawThatCommitsTheCommandBufferTraps() async {
-    await #expect(processExitsWith: .failure) {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             guard let device = MTLCreateSystemDefaultDevice(),
                   let pair = try? makeFakeWindow(device: device, content: {
@@ -361,6 +367,10 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
             pair.0.drawFrameIfNeeded()
         }
     }
+    // Metal itself aborts a doubly committed buffer later in the frame, so a
+    // bare `.failure` cannot tell the renderer's check from Metal's: the
+    // message must be MV-F's (the first run of M2j stayed green on exactly that).
+    #expect(stderrText(result).contains("MV-F item 5"), "aborted, but not at MV-F's check:\n\(stderrText(result))")
 }
 
 // MARK: - 2.9 MetalView
@@ -413,11 +423,12 @@ private struct NotMetal: GPUSurfaceContext {
 ///
 /// Mutation **M2l**: skip instead of trap.
 @Test func aMetalViewGivenANonMetalContextTraps() async {
-    await #expect(processExitsWith: .failure) {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
             MetalView.drawThunk { _ in }(NotMetal())
         }
     }
+    #expect(stderrText(result).contains("MV-A item 2"), "aborted, but not at MV-A's check:\n\(stderrText(result))")
 }
 
 // MARK: - 2.12 the demo tree
