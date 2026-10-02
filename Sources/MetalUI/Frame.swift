@@ -2403,6 +2403,11 @@ public final class Frame {
     /// How many primitives this frame captured for a drag preview (2.14).
     var dragCapturedPrimitives = 0
 
+    /// Render-effect scopes pushed this frame, prepaint and paint together — a
+    /// work counter (ruling `GX-G`, test 2.21): 0 for a tree with no
+    /// `rotationEffect`, `scaleEffect` or `offset`.
+    var effectScopesPushed = 0
+
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales
     /// with it) from the one in effect where the group starts (which stays).

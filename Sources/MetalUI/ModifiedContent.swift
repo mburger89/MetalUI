@@ -629,7 +629,8 @@ extension LayoutModifier: ModifierLayerKind {
             return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
         case let .layoutPriority(priority):
             return pass.requestNativeLayoutPriority(child: child, priority: priority)
-        case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting:
+        case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
+             .rotationEffect, .scaleEffect, .offset:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

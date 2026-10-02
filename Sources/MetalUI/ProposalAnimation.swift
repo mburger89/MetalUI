@@ -193,7 +193,8 @@ extension LayoutModifier {
         case let .border(token, width, cornerRadius):
             let v = numbers("border", [raw(width)], size)
             self = .border(token, width: px(v[0])!, cornerRadius: cornerRadius)
-        case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting:
+        case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting,
+             .rotationEffect, .scaleEffect, .offset:
             break
         }
     }

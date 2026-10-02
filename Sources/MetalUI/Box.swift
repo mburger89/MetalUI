@@ -405,6 +405,12 @@ public struct Decoration: Sendable, Hashable {
     /// (`TE-AQ` item 3). `clipRegion(in:)` is its one reader.
     var clipShape: ClipShapeBox?
 
+    /// The legacy render effects (`rotationEffect`, `scaleEffect`, `offset`),
+    /// in written order — the last written outermost (ruling `GX-H`). Always
+    /// wrapping the whole element (background, content, border): divergence
+    /// 108. Empty for every element written before effects existed.
+    var renderEffects: [RenderEffectSpec] = []
+
     /// The rect and radii this decoration clips its children to, or `nil`
     /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
     /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.

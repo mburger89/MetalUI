@@ -127,6 +127,15 @@ struct Hitbox {
     /// carries one.
     let shape: ShapeGeometry?
 
+    /// The render effects in force where it was registered (ruling `GX-I`), or
+    /// `nil` outside every effect — then `bounds`, `origin` and `shape` are in
+    /// window points, as before effects existed. With one, they are in the
+    /// **local** space the declarer was laid out and emitted in: `bounds`
+    /// clipped only by clips pushed inside the effect, the window point mapped
+    /// through `transform.inverse` before it is tested, and `transform.outerClip`
+    /// (the clip at the effect's entry, window space) tested first.
+    var transform: HitboxTransform? = nil
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,
@@ -138,11 +147,28 @@ struct Hitbox {
     func contains(_ point: Point<Pixels>) -> Bool {
         bounds.contains(point) && (shape?.contains(point) ?? true)
     }
+
+    /// `point` in the space `bounds` and `origin` are in — the window point
+    /// itself outside every effect, mapped through the stored inverse inside
+    /// one (`GX-P` item 3).
+    func localPoint(_ point: Point<Pixels>) -> Point<Pixels> {
+        point
+    }
 }
 
 /// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one
 /// reference (ruling `IX-L`; `IX-N`'s Windows stack budget) — never a `Shape`
 /// existential stored inline.
+/// What a hitbox registered inside render effects stores (ruling `GX-I`): the
+/// inverse of the composed map (window points → the declarer's local points),
+/// `nil` when the map is degenerate (a zero scale — the hitbox then contains
+/// nothing), and the clip in force at the outermost effect's entry, in window
+/// points.
+struct HitboxTransform {
+    let inverse: Affine2D?
+    let outerClip: Bounds<Pixels>
+}
+
 final class ContentShape {
     private let geometryIn: @MainActor (Bounds<Pixels>) -> ShapeGeometry
 

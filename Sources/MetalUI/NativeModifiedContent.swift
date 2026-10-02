@@ -34,6 +34,16 @@ public enum LayoutModifier: Sendable {
     case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
     case opacity(Float)
     case allowsHitTesting(Bool)
+    /// `rotationEffect(_:anchor:)`: the content's rendering, hit region and
+    /// accessibility frame turned by the angle about the anchor; layout
+    /// unchanged (ruling `GX-H`). **New since paths, shadows and transforms** —
+    /// an exhaustive `switch` outside the package gains three arms.
+    case rotationEffect(Angle, anchor: UnitPoint)
+    /// `scaleEffect`: the content's rendering scaled about the anchor; layout
+    /// unchanged (`GX-H`).
+    case scaleEffect(x: Double, y: Double, anchor: UnitPoint)
+    /// `offset(x:y:)`: the content's rendering moved; layout unchanged (`GX-H`).
+    case offset(x: Pixels, y: Pixels)
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,

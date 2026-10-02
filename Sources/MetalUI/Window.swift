@@ -1146,6 +1146,7 @@ public final class Window {
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
+        lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
             dragSession?.snapshot = captured   // kept when the source stops painting (DN-H item 4)
         }
@@ -1589,6 +1590,9 @@ public final class Window {
     /// How many primitives the last frame captured for a drag preview
     /// (ruling `DN-J`; test 2.14) — 0 in every frame without a session.
     private(set) var lastDragCapturedPrimitives = 0
+
+    /// The last frame's `Frame.effectScopesPushed` (ruling `GX-G`, test 2.21).
+    private(set) var lastEffectScopesPushed = 0
 
     /// The destination currently targeted — by the in-window session or by a
     /// drag from outside — whose `isTargeted(true)` has run and whose `false`
