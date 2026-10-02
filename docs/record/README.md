@@ -108,3 +108,4 @@ changes a rule, in the root `CLAUDE.md` too — the practices doc's
 
 New milestones should append their record **here** (a new file or a new
 section in the matching one) and put only the rule in `CLAUDE.md`.
+| `69-claude-md-full-2026-10-01.md` | the full 177 KB `CLAUDE.md` as of `330f02b` (after drag and drop), moved verbatim and **frozen** when the root file was cut to rules only (~31 KB): every milestone summary, renumbering note, guard tally, counts sentence and the full ruling-prefix → document table live here |
