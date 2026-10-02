@@ -131,6 +131,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package | implement `onAccessibilityRequest`, `publishAccessibilityTree(_:)`, `controlActiveState`/`onControlActiveStateChange`, `accessibilityReduceMotion`/`onAccessibilityReduceMotionChange`, and, since drag and drop, `beginExternalDrag(_:at:)` (answer `false` where the platform has no outgoing drag) — none has a default | `AB-R`, `EV-AB`, `AN-AD`, `DN-C` |
 | an exhaustive `switch` over `PrimitiveKind` | add a `.surface` arm (an app-owned GPU surface's quad, drawn by the image pipeline over its render target) | `MV-C` item 3 |
 | a `WindowRenderer` conformer outside the package implementing `finishFrame(scene:atlas:)` | implement `finishFrame(scene:atlas:surfaces:)` (no default); a renderer with no surface support may ignore `surfaces` and composites nothing for surface runs. **Callers** of `finishFrame(scene:atlas:)` compile unchanged (it forwards `surfaces: []`) | `MV-F` item 1, `MV-K` item 3 |
+| a `Platform` conformer outside the package | implement `setApplicationIcon(_ images: [ImageTexture])` (an empty body is honest where the platform has no runtime icon) — no default | `AI-B` |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
 

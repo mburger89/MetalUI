@@ -12,18 +12,17 @@ probe `docs/probes/swiftui-metal-view.swift` (groups `P`, `G`, `C`/`D`, `R`).
 **Numbering.** This record was written as `§69` and renumbered at the Record
 phase: `69` went to `69-claude-md-full-2026-10-01.md` (PR #37, merged into this
 branch as `d7a0824`) and master has since published §70 (app icon, PR #38,
-`95234db`) — the 24→25 / 26→27 precedent (`MV-O` item 4). If master publishes
-another number before this merges, the merge renumbers again and fixes the
-citations in this file, the decisions doc's header, the spec's header and
-`docs/verification/human-checks.md` group O. **The human-checks group letter
-collides too**: master's app icon (§70) already added its own group O (O1–O4),
-so at the merge this branch's group O becomes **P** (P1–P8) and every
-"group O"/"groups A–O" citation here, in `CLAUDE.md`/`AGENTS.md`, the decisions
-doc, the spec, the demo comments and `docs/api-overview.md` moves with it
-(found by the branch checker, 2026-10-02).
+`95234db`) — the 24→25 / 26→27 precedent (`MV-O` item 4). Master published no
+further record number before the merge, so §71 stands. **The human-checks
+group letter collided too**: master's app icon (§70) had already added its own
+group O (O1–O4), so at the merge this branch's group O became **P** (P1–P8) and
+every "group O"/"groups A–O" citation here, in `CLAUDE.md`/`AGENTS.md`, the
+decisions doc, the spec, record §03, `README.md` and `docs/api-overview.md`
+moved with it (found by the branch checker, 2026-10-02; done at the merge,
+§11).
 
 **Status: LANDED — every agent-doable clause is built; the looks are owed to a
-human** (`docs/verification/human-checks.md` group O, §7). Three lanes, each red
+human** (`docs/verification/human-checks.md` group P, §7). Three lanes, each red
 first, each with a review round, all verified `ok: true`; the Record phase's
 close (§9) re-took the suite, the counts, the inventory check and the
 fourteen-image comparison.
@@ -134,7 +133,7 @@ fourteen-image comparison.
 - **Public documents**: divergence 103 and two "Not offered" rows
   (`docs/divergences.md`), two migration rows (`PrimitiveKind.surface`,
   `finishFrame(scene:atlas:surfaces:)`), the API overview's "GPU surfaces"
-  section, human checks group O (O1–O8), inventory family `gpu-surface`.
+  section, human checks group P (P1–P8), inventory family `gpu-surface`.
 
 ## §2 Tests and guards, per file
 
@@ -319,14 +318,14 @@ scratch copy), G2.1 (`renderPassDescripter`).
   at the Record phase, so `capture.sh` was not run; the last unlocked reading
   remains 2026-09-30. The SDL demo ran five seconds under
   `METALUI_METALVIEW_DEMO=1` without a crash (screen locked — not a look).
-- **Owed, new here — `docs/verification/human-checks.md` group O, none
-  performed (an agent cannot)**: O1 the on-screen look (a rounded, moving
-  shader field, the label over it, no flicker or black first frame); O2
-  continuous smoothness at the display's rate; O3 idle when paused (the display
-  link stops — Activity Monitor); O4 on-demand redraw (only the swatch changes
-  with the stepper); O5 live resize (no stretch, no blank frame); O6 Retina vs
-  1× scale and moving between displays; O7 colour and gamma against the flat
-  tints; O8 the same demo on SDL (macOS and, if available, Linux and Windows).
+- **Owed, new here — `docs/verification/human-checks.md` group P, none
+  performed (an agent cannot)**: P1 the on-screen look (a rounded, moving
+  shader field, the label over it, no flicker or black first frame); P2
+  continuous smoothness at the display's rate; P3 idle when paused (the display
+  link stops — Activity Monitor); P4 on-demand redraw (only the swatch changes
+  with the stepper); P5 live resize (no stretch, no blank frame); P6 Retina vs
+  1× scale and moving between displays; P7 colour and gamma against the flat
+  tints; P8 the same demo on SDL (macOS and, if available, Linux and Windows).
   Nothing in the suite sees the display link's rate, tearing, a real window's
   resize or a second display.
 
@@ -382,7 +381,7 @@ scratch copy), G2.1 (`renderPassDescripter`).
    counts, the divergence count) with `AGENTS.md` byte-identical;
    `docs/divergences.md` (70 live, 103 added, next label 104 — written by lane
    1, verified here), `docs/migration.md`, `docs/api-overview.md`,
-   `docs/verification/human-checks.md` group O; the design spec's status and a
+   `docs/verification/human-checks.md` group P; the design spec's status and a
    dated note on §4.3 and §7.7 (§10); `docs/record/README.md`, `03`, `04`, `05`;
    the top-level `README.md`.
 4. **Pixels**: §7.
@@ -412,4 +411,42 @@ scratch copy), G2.1 (`renderPassDescripter`).
   `swift:6.4-noble` at `554243a`, 0 `error:`/`warning:`), the `Backends/SDL` surface tests on Vulkan and D3D12 (lane 3
   measured Linux/lavapipe 23 + 46 at `20ce04f`/`4d53473`; `c8518bc` did not
   change `Sources/`), and the C-enum conversions.
-- **The human looks**: group O (§7). An agent cannot perform them.
+- **The human looks**: group P (§7). An agent cannot perform them.
+
+## §11 Merge with master (2026-10-02, `95234db`, the app icon)
+
+`origin/master` at `95234db` (PR #38, the application icon, record §70,
+rulings `AI-A`…`AI-N`) merged into `feat/metal-view` at `5f5dfea`.
+
+1. **What conflicted.** No Swift source, test fake, manifest or demo file
+   conflicted: `Platform.swift`, `Tests/MetalUITests/Fakes.swift`, both demos'
+   `main.swift` and `SDLBridge.c`/`.h` auto-merged, so every fake carries both
+   new requirements (`Platform.setApplicationIcon(_:)`, `AI-B`, and
+   `WindowRenderer.finishFrame(scene:atlas:surfaces:)`, `MV-F` item 1) and the
+   build proved it. Nine documents conflicted, each resolved as a union:
+   `CLAUDE.md`/`AGENTS.md` (both prefixes — `AI-` next `AI-O`, `MV-` next
+   `MV-S`; the counts bullet re-taken; the defaultless-requirement bullet now
+   names `finishFrame(scene:atlas:surfaces:)` beside `setApplicationIcon(_:)`),
+   `docs/api-overview.md` (both sections), `docs/migration.md` (both rows),
+   `docs/record/README.md` (§70 then §71), record §03 (both dated sections),
+   `docs/verification/human-checks.md`, `closeout-inventory-map.tsv` (both
+   families, `gpu-surface` and `app-icon`) and `closeout-public-api.tsv`
+   (re-recorded by `closeout-public-api.sh`: **2000** declarations — 1997 + the
+   app icon's three — in **101** families; `closeout-inventory-check.sh` and
+   `closeout-undocumented.sh` print nothing).
+2. **Group O → P.** Master's app icon keeps human-checks group **O** (O1–O4);
+   this branch's MetalView group is now **P** (P1–P8). Moved: the group
+   heading and items, the "Before you start" variant line, record §03's
+   MetalView section, this record, the spec's status line, the decisions
+   doc's two citations, `docs/record/README.md`'s §71 row, the top-level
+   `README.md`, and `CLAUDE.md`'s "groups A–P". The demo sources cite no
+   MetalView group letter; every surviving `O1`…`O4` in `Sources/` is the app
+   icon's (or an unrelated probe arm's).
+3. **Counts after the merge**, after `swift package clean`:
+   `swift build --build-system native --build-tests` 0 `error:`, one
+   `warning:` (SwiftPM's deprecation notice); `swift build --build-tests` 0
+   `warning:`, 0 `error:`; unfiltered `swift test --build-system native
+   --no-parallel` printed **`Test run with 2093 tests in 3 suites passed after
+   110.170 seconds`** (2072 + master's 21), the `FR-J no-argument frame:
+   succeeded=true` line present. Guards **129** (128 + `AppIconCompileGuards`'
+   one). `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): `swift build --build-tests` 0 `error:`, `swift test --no-parallel` **23 + 55** (the branch's 23 + 48 plus the app icon's seven `SDLIconTests`; master read 22 + 48). Pixels: PIXELS.

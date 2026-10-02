@@ -34,7 +34,7 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
    `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`),
    `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3),
    `METALUI_DND_DEMO=1` (drag and drop: N1–N8),
-   `METALUI_METALVIEW_DEMO=1` (MetalView, app-owned GPU surfaces: O1–O8).
+   `METALUI_METALVIEW_DEMO=1` (MetalView, app-owned GPU surfaces: P1–P8).
 3. **Demo keys**: **M** modal (translucent scrim), **Space** theme, **F**/**Esc**
    focus the counter, **=**/**-** count, **A** the animation look, **Q** quit.
    In the preview only **Space** and **Q** have a visible effect.
@@ -334,7 +334,63 @@ title ("—" before one) and fills with the accent colour while targeted.
   `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`.
   **Observed:**
 
-## O. MetalView — app-owned GPU surfaces (user request 2026-10-01, not a plan task)
+## O. The application icon (user request 2026-10-01, not a plan task)
+
+*Source: record §70 (app icon), rulings `AI-A`…`AI-M`
+(`docs/superpowers/2026-10-01-app-icon-decisions.md`), spec §7.* Both demos
+assign `app.icon = demoIcon()` before opening a window: six generated square
+bitmaps (16 to 512 px) of a **blue (`#2F6FEB`) rounded square with a white
+disc in its centre**, hard-edged (no anti-aliasing, `AI-G`). The conversions
+and the calls are pinned headless; whether a shell actually shows the icon is
+not observable from a test process (no test runs as a `.regular` app with a
+Dock tile, and none looks at a taskbar).
+
+- [ ] **O1. The Dock icon (AppKit)**: `swift run MetalUIDemo` (an unbundled
+  executable). The Dock tile shows the blue rounded square with the white
+  disc from launch — not the generic executable icon, not even briefly after
+  the window appears; ⌘-Tab shows the same. Quit with **Q**: the tile goes
+  away with the process and no blue icon lingers. This is the only check of
+  `AppKitPlatform.run()`'s re-assignment after `setActivationPolicy(.regular)`
+  (`AI-E` item 4, unpinned by design, `AI-K`). Pinned up to
+  `applicationIconImage` by
+  `settingTheIconOnTheAppKitPlatformSetsTheApplicationIconImage`,
+  `anIconImageHoldsOneRepresentationPerTextureSmallestFirst`,
+  `anIconRepresentationDrawsWithoutASecondPremultiply`,
+  `theDemoIconsPixelsAreTheSpecifiedShape`. **Observed:**
+- [ ] **O2. The Dock icon (SDL on macOS)**: `python3
+  Backends/SDL/scripts/fetch-accesskit.py` once, then `cd Backends/SDL &&
+  PKG_CONFIG_PATH=$PWD/.accesskit swift run MetalUISDLDemo`. SDL's Cocoa
+  backend turns the window icon into the application's Dock icon: the tile
+  shows the same blue square and white disc, not a generic icon (`AI-F` item
+  6). Pinned by `sdlsCocoaBackendReceivesTheIconAsTheApplicationIcon`
+  (`Backends/SDL`, macOS: SDL's Cocoa backend sets
+  `NSApp.applicationIconImage` to the primary texture's size, on an open
+  window and a later one) and
+  `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`;
+  `settingTheIconAppliesItToEveryOpenWindow` and
+  `aWindowOpenedAfterTheIconIsSetGetsIt` pin only that every window is
+  handed the icon (their `applied` is the C wrapper's own answer). **Observed:**
+- [ ] **O3. Linux (X11, then Wayland)**: the same `MetalUISDLDemo` command on
+  a Linux desktop. **X11**: the window's title bar (where the window manager
+  draws an icon there) and the task bar or dock show the blue square with the
+  white disc (SDL writes `_NET_WM_ICON`). **Wayland**: SDL can set an icon
+  only where the compositor offers `xdg-toplevel-icon-v1`; elsewhere — GNOME
+  Shell among them, which takes icons from an installed `.desktop` file
+  (`docs/packaging.md`) — a generic icon is the expected answer, not a
+  failure. Note the desktop, compositor and version either way. The rounded
+  square's edge should be clean, with no dark fringe — a fringe would mean
+  the backend wanted premultiplied alpha (`AI-F`'s "cost if wrong"; the demo
+  icon is hard-edged, so its only partial alpha comes from SDL's own scaling).
+  Pinned by `unpremultiplyingRestoresStraightAlpha` and
+  `anIconSurfaceCarriesEveryLargerTextureAsAnAlternate`. **Observed:**
+- [ ] **O4. Windows**: the same `MetalUISDLDemo` command (with the flags
+  `fetch-accesskit.py` prints). The title bar's small icon, the taskbar button
+  and Alt-Tab show the blue square with the white disc. With the display
+  scaled above 100%, the taskbar icon is sharp (an alternate, not the 16 px
+  primary scaled up). Pinned by
+  `anIconSurfaceCarriesEveryLargerTextureAsAnAlternate`. **Observed:**
+
+## P. MetalView — app-owned GPU surfaces (user request 2026-10-01, not a plan task)
 
 *Source: record §71 `71-metal-view.md` (written as §69, renumbered, `MV-O` item 4),
 rulings `MV-A`…`MV-R` (`docs/superpowers/2026-10-01-metal-view-decisions.md`),
@@ -350,7 +406,7 @@ viewport (520×300) drawn by an app fragment shader with a translucent label
 ("App-drawn GPU content, UI composited over it") over its top-left corner,
 and a **Tint** stepper beside a small rounded swatch (80×40).
 
-- [ ] **O1. The on-screen look**: the viewport shows a smoothly moving
+- [ ] **P1. The on-screen look**: the viewport shows a smoothly moving
   colour field (sines of position and time) clipped to a 16-point rounded
   rectangle — the corners show the window background, not a square of shader
   colour; the label sits over the shader content at 80% opacity, its text
@@ -359,14 +415,14 @@ and a **Tint** stepper beside a small rounded swatch (80×40).
   `aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage`,
   `aSurfaceQuadTakesTheActiveClipRadiiOpacityAndLayerAsAnImageDoes`.
   **Observed:**
-- [ ] **O2. Continuous smoothness**: watch the viewport for ten seconds — it
+- [ ] **P2. Continuous smoothness**: watch the viewport for ten seconds — it
   animates at the display's rate (60 Hz, or 120 Hz on a ProMotion display)
   with no stutter, tearing or periodic hitch; the counter climbs at about the
   display's rate. Pinned (the draw-per-tick contract only — the rate and
   smoothness are looks) by `aContinuousSurfaceDrawsOnEveryTickAndAnOnDemandOneOnce`,
   `aContinuousSurfaceKeepsTheWindowAnimatingOnlyWhilePainted`,
   `theMetalViewDemosDrawCountAdvances`. **Observed:**
-- [ ] **O3. Idle when paused**: tap the viewport — the animation stops on its
+- [ ] **P3. Idle when paused**: tap the viewport — the animation stops on its
   current picture, the header reads "Paused: …" and the counter stops; Activity
   Monitor's CPU (and GPU History) for the process falls to near idle — the
   display link has paused (`MV-G` item 3). Tap again: it resumes from the
@@ -374,38 +430,38 @@ and a **Tint** stepper beside a small rounded swatch (80×40).
   `anOnDemandSurfaceKeepsItsContentsWhenTheWindowRedrawsForAnotherReason`,
   `aSurfaceRegistersNoHitboxOrAccessibilityButTakesATapThroughOnTapGesture`.
   **Observed:**
-- [ ] **O4. On-demand redraw**: while paused, click the upper (+) and lower (−) halves of the
+- [ ] **P4. On-demand redraw**: while paused, click the upper (+) and lower (−) halves of the
   **Tint** stepper — only the swatch changes colour (eight tints), the paused
   viewport and its counter stay unchanged; hovering or clicking elsewhere does
   not change either surface. Pinned by `aChangedValueRedrawsAndAnUnchangedOneDoesNot`,
   `theMetalViewDemoTreeRequestsOneContinuousAndOneOnDemandSurface`.
   **Observed:**
-- [ ] **O5. Live resize**: drag the window's corner — larger, smaller, and
+- [ ] **P5. Live resize**: drag the window's corner — larger, smaller, and
   very narrow. The viewport keeps its 520×300 point size where it fits and is
   never stretched, squashed or blurred; no blank or black frame appears while
   dragging; when the window cuts the viewport off, the hidden part is simply
   clipped. Pinned by `aResizedSurfaceGetsANewTargetAtItsNewDeviceSizeAndRedrawsOnce`,
   `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating`.
   **Observed:**
-- [ ] **O6. Retina vs 1× scale**: on a Retina display the shader's edges and
+- [ ] **P6. Retina vs 1× scale**: on a Retina display the shader's edges and
   the label are sharp (the target is the bounds × 2, 1040×600 pixels); move the
   window to a non-Retina external display (or set a 1× scaled mode) — it stays
   sharp at 1× with no flash or wrong-size frame during the move, and back again.
   Pinned by `aSurfacesTargetIsItsBoundsTimesTheScaleRounded`,
   `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime`. **Observed:**
-- [ ] **O7. Colour and gamma**: the shader's colours look the same saturation
+- [ ] **P7. Colour and gamma**: the shader's colours look the same saturation
   and brightness as the swatch's flat tints and the rest of the UI — no washed
   out or too-dark cast (targets are `bgra8Unorm`, composited in gamma space,
   §7.8, `MV-E` item 4). Pinned by `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime`
   (M2e, the sRGB format, reddens it). **Observed:**
-- [ ] **O8. The same demo on SDL**: `cd Backends/SDL &&
+- [ ] **P8. The same demo on SDL**: `cd Backends/SDL &&
   METALUI_METALVIEW_DEMO=1 PKG_CONFIG_PATH=$PWD/.accesskit swift run -c release
   MetalUISDLDemo` on macOS and, if available, Linux (X11 and Wayland) and
   Windows ("MetalUI — SDL3 MetalView"). The viewport is a flat colour cycling
   smoothly through hues (the SDL demo draws through `ctx.clear`, not a
   shader), rounded and under the same translucent label; tap pauses it and the
   counter; the stepper recolours only the swatch; resizing and moving between
-  displays behave as O5/O6. Pinned by `anSDLSurfaceFillMatchesTheMetalParityLiteral`,
+  displays behave as P5/P6. Pinned by `anSDLSurfaceFillMatchesTheMetalParityLiteral`,
   `anSDLSurfaceIsDrawnBeforeTheSceneAndKeptAcrossFrames`,
   `anSDLSurfaceTargetIsReleasedWhenNoLongerReferenced`,
   `surfaceFramesSubmitOnceAndNeverReleaseAnUnsignaledFence`,

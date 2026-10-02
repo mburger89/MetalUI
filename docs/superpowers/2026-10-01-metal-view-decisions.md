@@ -925,7 +925,7 @@ file); 0 px against `330f02b` in all fourteen offscreen images, every scene
 identical. The real-window capture was not taken: the lock probe read
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`. The SDL demo ran
 five seconds under `METALUI_METALVIEW_DEMO=1` without a crash (screen
-locked — not a look; section O8 is owed to a human).
+locked — not a look; section P8 (then O8) is owed to a human).
 
 ## MV-Q — lane 3's review round: the SDL composite's rect, the target's size and a new target's clear pinned
 
@@ -1008,7 +1008,7 @@ Rulings:
 1. **The record is `docs/record/71-metal-view.md` (§71).** Written as §69,
    renumbered: `69` is the frozen `CLAUDE.md` snapshot (PR #37) and master holds
    §70 (app icon, PR #38). Citations fixed in this doc's header, the spec's
-   header and human checks group O; the merge renumbers again, and fixes the
+   header and human checks group O (group P since the merge with the app icon, which took O); the merge renumbers again, and fixes the
    same four places, if master publishes another number first (`MV-O` item 4,
    the 24→25 / 26→27 precedent).
 2. **The inventory owed a family, and the check said so.** `zsh

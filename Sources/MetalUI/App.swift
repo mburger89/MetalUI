@@ -122,6 +122,48 @@ public final class App {
         return window
     }
 
+    /// The application's icon (ruling `AI-A`): several sizes of one picture,
+    /// shown by the operating system as the application's — the Dock icon on
+    /// macOS, every window's icon on SDL (Linux, Windows; on macOS SDL also
+    /// sets the Dock's). `[]`, the default, is the platform's own icon: the
+    /// bundle's, else the system's generic one.
+    ///
+    /// Every assignment reaches the platform at once, synchronously, before or
+    /// after windows open (`AI-C`); an `App` that never assigns it never
+    /// touches the platform's icon, so a bundled app's own icon is never
+    /// overwritten at launch. The platform receives the bitmaps' own textures
+    /// ordered smallest area first, a repeated `width × height` dropped (the
+    /// first written wins); the property itself reads back exactly what was
+    /// assigned. On SDL, `[]` cannot clear an icon already shown (`AI-F`
+    /// item 5).
+    ///
+    /// **MetalUI-only**: SwiftUI has no runtime icon API — a SwiftUI app's
+    /// icon is its bundle's (an asset catalog's `AppIcon`, or
+    /// `CFBundleIconFile`); this is AppKit's runtime override,
+    /// `NSApplication.applicationIconImage`, made portable. Shipping a bundle
+    /// with its own icon is build-side: `docs/packaging.md`.
+    public var icon: [ImageBitmap] = [] {
+        didSet { platform.setApplicationIcon(App.normalized(icon)) }
+    }
+
+    /// The platform contract of ``icon`` (`AI-C` item 3): the bitmaps' own
+    /// textures (no copy), sorted by `width × height` ascending and stable, a
+    /// bitmap repeating an earlier `(width, height)` pair dropped — the first
+    /// written wins.
+    static func normalized(_ bitmaps: [ImageBitmap]) -> [ImageTexture] {
+        var seen: [(Int, Int)] = []
+        var kept: [(index: Int, texture: ImageTexture)] = []
+        for (index, bitmap) in bitmaps.enumerated()
+        where !seen.contains(where: { $0 == (bitmap.width, bitmap.height) }) {
+            seen.append((bitmap.width, bitmap.height))
+            kept.append((index, bitmap.texture))
+        }
+        return kept.sorted {
+            let (a, b) = ($0.texture.width * $0.texture.height, $1.texture.width * $1.texture.height)
+            return a != b ? a < b : $0.index < $1.index
+        }.map(\.texture)
+    }
+
     /// Runs the platform's event loop, handing every window its input and
     /// display-link ticks until the platform stops.
     public func run() {

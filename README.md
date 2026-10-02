@@ -150,6 +150,9 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
   vocabulary, and every breaking change since 2026-09-12.
 - [`docs/verification/human-checks.md`](docs/verification/human-checks.md) —
   the looks only a person can check (not yet run).
+- [`docs/packaging.md`](docs/packaging.md) — shipping an application with its
+  icon (macOS `.app`, Linux `.desktop`, Windows `.ico`); build-side, not
+  framework API.
 - [`docs/record/README.md`](docs/record/README.md) — the long-form record.
 
 ## What it looks like
@@ -360,7 +363,7 @@ portable `Canvas`-sized leaf whose closure encodes into an offscreen target
 MetalUI composites like an `Image` (clip, corner radius, opacity, transitions),
 with `MetalView` as the macOS spelling over `MetalDrawContext` and
 `SDLGPUDrawContext` for `Backends/SDL`; `.onDemand`/`.continuous` redraw. The
-real looks are `docs/verification/human-checks.md` group O, unrun.
+real looks are `docs/verification/human-checks.md` group P, unrun.
 `METALUI_METALVIEW_DEMO=1 swift run MetalUIDemo` is its demo.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared

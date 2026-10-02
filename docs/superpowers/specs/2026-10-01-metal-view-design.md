@@ -10,7 +10,7 @@ probe [`../../probes/swiftui-metal-view.swift`](../../probes/swiftui-metal-view.
 (arms P1–P3, G1–G3, C1–C4, D1, R0–R3, recorded 2026-10-01 with the screen
 unlocked). Record: `docs/record/71-metal-view.md` (the Record phase; written as §69, renumbered, `MV-O` item 4).
 
-**Status: BUILT (2026-10-02) — landed on `feat/metal-view`; the looks (human checks group O) are owed to a human.** Three lanes, all verified `ok`; root suite 2072 (2028 + 44), `Backends/SDL` 23 + 48, 128 guards, 0 px against `330f02b` in all fourteen offscreen images. §9's expected counts (2064, +6) were exceeded by the review rounds; the as-built facts, including where the build departed from this spec (`MV-M`…`MV-Q`), are in the decisions doc and the record. This text is the design as ruled before the lanes ran and is not rewritten.
+**Status: BUILT (2026-10-02) — landed on `feat/metal-view`; the looks (human checks group P) are owed to a human.** Three lanes, all verified `ok`; root suite 2072 (2028 + 44), `Backends/SDL` 23 + 48, 128 guards, 0 px against `330f02b` in all fourteen offscreen images. §9's expected counts (2064, +6) were exceeded by the review rounds; the as-built facts, including where the build departed from this spec (`MV-M`…`MV-Q`), are in the decisions doc and the record. This text is the design as ruled before the lanes ran and is not rewritten.
 
 Branch `feat/metal-view` from `330f02b`. Baseline **2028 tests in 3 suites**,
 0 goldens, 69 live divergences (next label 103).

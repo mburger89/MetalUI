@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUIPlatform
+import MetalUIScene
 import SDLBridge
 
 public struct SDLPlatformError: Error, CustomStringConvertible {
@@ -50,6 +51,7 @@ public final class SDLPlatform: Platform {
         }
         windows[window.id] = window
         window.platform = self
+        applyIcon(to: [window])
         if mui_window_has_input_focus(handle) { focusedID = window.id }
         window.noteControlActiveState()
         publishControlActiveStates()
@@ -101,6 +103,38 @@ public final class SDLPlatform: Platform {
 
     /// Windows open and not yet closed.
     var openWindowCount: Int { windows.count }
+
+    /// The application icon: the textures last set, applied to every window
+    /// this platform opens (ruling AI-F item 4). `[]` after a clear.
+    private var icon: [ImageTexture] = []
+
+    /// Sets every window's icon — SDL3's icon is per window; every desktop
+    /// shell shows one application's windows under one icon, and on macOS
+    /// SDL's Cocoa backend also makes it the Dock icon (ruling AI-F). Applied
+    /// at once to every open window and, from `openSDLWindow`, to every
+    /// window opened later. `images` is ordered smallest area first with no
+    /// repeated size (the `Platform` contract, `AI-B`); the first is the
+    /// primary, the rest high-DPI alternates. Best effort: a backend that
+    /// refuses (Wayland without `xdg-toplevel-icon-v1`) is not reported
+    /// (`AI-D`).
+    ///
+    /// **`[]` cannot clear on SDL** (`AI-F` item 5): SDL3 has no way back to
+    /// a window's default icon and is never handed `NULL`, so open windows
+    /// keep the icon they have and windows opened afterwards get none.
+    public func setApplicationIcon(_ images: [ImageTexture]) {
+        icon = images
+        applyIcon(to: Array(windows.values))
+    }
+
+    /// Builds one surface for the stored icon, sets it on `targets` and
+    /// destroys it at once (`SDL_SetWindowIcon` keeps its own copy), so no
+    /// surface outlives the call. Nothing with no icon or no target.
+    private func applyIcon(to targets: [SDLWindow]) {
+        guard !icon.isEmpty, !targets.isEmpty else { return }
+        let surface = SDLIcon.makeSurface(icon)
+        defer { if let surface { mui_surface_destroy(surface) } }
+        for window in targets { window.applyIcon(surface, textures: icon) }
+    }
 
     /// Ends ``run()`` after the current iteration.
     public func stop() { running = false }
@@ -167,6 +201,19 @@ public final class SDLWindow: PlatformWindow {
     }
 
     public var renderer: any WindowRenderer { windowRenderer! }
+
+    /// The application icon this window was last given (ruling AI-F, `AI-D`):
+    /// the textures' identities and `SDL_SetWindowIcon`'s answer (`false`
+    /// too when the surface could not be built). `nil` until one is applied.
+    /// For tests — the platform does not surface a refusal.
+    private(set) var iconResult: (textures: [ObjectIdentifier], applied: Bool)?
+
+    /// Sets `surface` as this window's icon, recording the result. A `nil`
+    /// surface is recorded as not applied and never passed to SDL.
+    func applyIcon(_ surface: UnsafeMutableRawPointer?, textures: [ImageTexture]) {
+        let applied = surface.map { mui_window_set_icon(rawHandle, $0) } ?? false
+        iconResult = (textures.map(ObjectIdentifier.init), applied)
+    }
 
     var rawHandle: UnsafeMutableRawPointer { UnsafeMutableRawPointer(handle) }
 

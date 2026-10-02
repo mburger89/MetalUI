@@ -957,3 +957,64 @@ void *mui_window_native_handle(void *w) {
 }
 int32_t mui_system_theme(void) { return SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK ? 1 : 0; }
 double mui_now(void) { return (double)SDL_GetTicksNS() / 1e9; }
+
+// ---- The application icon (ruling AI-F) ------------------------------------
+
+const uint32_t MUI_PIXELFORMAT_RGBA32 = SDL_PIXELFORMAT_RGBA32;
+
+void *mui_icon_surface_create(int32_t w, int32_t h, const uint8_t *straight_rgba) {
+    if (w <= 0 || h <= 0 || !straight_rgba) { SDL_SetError("icon: bad size or no bytes"); return NULL; }
+    SDL_Surface *s = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_RGBA32);
+    if (!s) return NULL;
+    for (int32_t y = 0; y < h; y++)
+        memcpy((uint8_t *)s->pixels + (size_t)y * (size_t)s->pitch,
+               straight_rgba + (size_t)y * (size_t)w * 4, (size_t)w * 4);
+    return s;
+}
+
+bool mui_icon_surface_add_alternate(void *primary, void *image) {
+    return SDL_AddSurfaceAlternateImage((SDL_Surface *)primary, (SDL_Surface *)image);
+}
+
+static uint32_t window_set_icon_null_calls = 0;
+
+bool mui_window_set_icon(void *window, void *surface) {
+    if (!surface) { window_set_icon_null_calls++; return SDL_SetError("icon: NULL surface"); }
+    return SDL_SetWindowIcon((SDL_Window *)window, (SDL_Surface *)surface);
+}
+
+uint32_t mui_window_set_icon_null_calls(void) { return window_set_icon_null_calls; }
+
+void mui_surface_destroy(void *surface) { SDL_DestroySurface((SDL_Surface *)surface); }
+
+uint32_t mui_surface_format(void *surface) { return (uint32_t)((SDL_Surface *)surface)->format; }
+
+void mui_surface_size(void *surface, int32_t *w, int32_t *h) {
+    *w = ((SDL_Surface *)surface)->w; *h = ((SDL_Surface *)surface)->h;
+}
+
+bool mui_surface_read_rgba(void *surface, uint8_t *out, int32_t capacity) {
+    SDL_Surface *s = (SDL_Surface *)surface;
+    if ((int64_t)capacity < (int64_t)s->w * s->h * 4) return SDL_SetError("icon: readback buffer short");
+    for (int32_t y = 0; y < s->h; y++)
+        memcpy(out + (size_t)y * (size_t)s->w * 4,
+               (const uint8_t *)s->pixels + (size_t)y * (size_t)s->pitch, (size_t)s->w * 4);
+    return true;
+}
+
+int32_t mui_surface_image_count(void *surface) {
+    int count = 0;
+    SDL_Surface **images = SDL_GetSurfaceImages((SDL_Surface *)surface, &count);
+    if (!images) return 0;
+    SDL_free(images);
+    return count;
+}
+
+void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h) {
+    *w = 0; *h = 0;
+    int count = 0;
+    SDL_Surface **images = SDL_GetSurfaceImages((SDL_Surface *)surface, &count);
+    if (!images) return;
+    if (index >= 0 && index < count) { *w = images[index]->w; *h = images[index]->h; }
+    SDL_free(images);
+}

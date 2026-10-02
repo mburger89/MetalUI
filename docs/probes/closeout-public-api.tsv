@@ -67,7 +67,8 @@ MetalUI	Sources/MetalUI/App.swift:58	App	init	init
 MetalUI	Sources/MetalUI/App.swift:67	App	init	init
 MetalUI	Sources/MetalUI/App.swift:77	App	init	init
 MetalUI	Sources/MetalUI/App.swift:93	App	func	openWindow
-MetalUI	Sources/MetalUI/App.swift:127	App	func	run
+MetalUI	Sources/MetalUI/App.swift:145	App	var	icon
+MetalUI	Sources/MetalUI/App.swift:169	App	func	run
 MetalUI	Sources/MetalUI/AXNode.swift:10	-	enum	AXRole
 MetalUI	Sources/MetalUI/AXNode.swift:41	-	enum	AXTrait
 MetalUI	Sources/MetalUI/AXNode.swift:58	-	enum	AXActionKind
@@ -1602,10 +1603,10 @@ MetalUIPlatform	Sources/MetalUIPlatform/InputEvent.swift:203	DropItem	init	init
 MetalUIPlatform	Sources/MetalUIPlatform/InputEvent.swift:211	-	enum	DropEvent
 MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:10	-	protocol	PlatformWindow
 MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:123	-	protocol	Platform
-MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:129	-	enum	PlatformError
-MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:131	PlatformError	var	description
-MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:139	-	protocol	WindowRenderer
-MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:170	WindowRenderer	func	finishFrame
+MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:144	-	enum	PlatformError
+MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:146	PlatformError	var	description
+MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:154	-	protocol	WindowRenderer
+MetalUIPlatform	Sources/MetalUIPlatform/Platform.swift:185	WindowRenderer	func	finishFrame
 MetalUIPrimitives	Sources/MetalUIPrimitives/ShaderTypesBridge.swift:44	MUIRect	init	init
 MetalUIPrimitives	Sources/MetalUIPrimitives/ShaderTypesBridge.swift:71	MUIImage	init	init
 MetalUIPrimitives	Sources/MetalUIPrimitives/ShaderTypesBridge.swift:99	MUIGlyph	init	init
@@ -1690,8 +1691,8 @@ MetalUIRender	Sources/MetalUIRender/RenderSurface.swift:57	RenderSurfaceError	va
 MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:5	-	enum	ShaderLibraryError
 MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:9	ShaderLibraryError	var	description
 MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:24	-	enum	ShaderLibrary
-MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:30	ShaderLibrary	func	combinedSource
-MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:49	ShaderLibrary	func	make
+MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:35	ShaderLibrary	func	combinedSource
+MetalUIRender	Sources/MetalUIRender/ShaderLibrary.swift:142	ShaderLibrary	func	make
 MetalUIText	Sources/MetalUIText/CaretOffsets.swift:25	Shaper	func	caretOffsets
 MetalUIText	Sources/MetalUIText/CoreTextTextSystem.swift:10	-	class	CoreTextTextSystem
 MetalUIText	Sources/MetalUIText/CoreTextTextSystem.swift:12	CoreTextTextSystem	let	cache
@@ -1758,7 +1759,8 @@ MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:679	-	class	AppKitPlatf
 MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:689	AppKitPlatform	init	init
 MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:694	AppKitPlatform	init	init
 MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:711	AppKitPlatform	func	openWindow
-MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:722	AppKitPlatform	func	run
+MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:733	AppKitPlatform	func	setApplicationIcon
+MetalUIAppKit	Sources/MetalUIAppKit/AppKitPlatform.swift:739	AppKitPlatform	func	run
 MetalUIScene	Sources/MetalUIScene/Atlas.swift:26	-	struct	GlyphKey
 MetalUIScene	Sources/MetalUIScene/Atlas.swift:28	GlyphKey	let	font
 MetalUIScene	Sources/MetalUIScene/Atlas.swift:31	GlyphKey	let	glyph
@@ -1989,6 +1991,7 @@ MetalUIDemoContent	Sources/MetalUIDemoContent/DemoContent.swift:381	CounterPanel
 MetalUIDemoContent	Sources/MetalUIDemoContent/DemoContent.swift:416	-	func	demoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/DemoContent.swift:1150	-	func	nativeLayoutPreviewContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/DemoContent.swift:1240	-	func	textInputDemoContent
+MetalUIDemoContent	Sources/MetalUIDemoContent/DemoIcon.swift:10	-	func	demoIcon
 MetalUIDemoContent	Sources/MetalUIDemoContent/DragAndDropDemo.swift:27	-	func	dragAndDropDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:17	-	func	looksDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/MetalViewDemo.swift:35	-	func	metalViewDemoContent

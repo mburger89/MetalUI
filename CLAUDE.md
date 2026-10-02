@@ -33,12 +33,15 @@ summary.
 - **Decisions docs:** `docs/superpowers/<date>-<milestone>-decisions.md`, or a
   milestone's own spec for prefixes without one. Read their "Carried…"
   sections before new work. Ruling ids are namespaced by prefix (`F-`, `CS-`,
-  `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `MV-` (MetalView: `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), …; the full
+  `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `AI-` (app
+  icon, next `AI-O`; own decisions doc
+  `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
+  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
   moves in the commit that appends the ruling. A numbered citation of a
-  lettered prefix (`LR-3`, `DN-3`) is a typo.
+  lettered prefix (`LR-3`, `DN-3`, `AI-3`) is a typo.
 - **Record:** `docs/record/NN-*.md`, one per milestone. When two lines publish
   the same number, the later merge renumbers and says so in its header.
 - **SwiftUI probes:** `docs/probes/`; headers carry recorded output and how to
@@ -48,7 +51,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **70 live, next label 104**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–O, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–P, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -68,12 +71,16 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-02, `feat/metal-view`): 2072 tests, 0 goldens, 128 typecheck
-  guards**; `Backends/SDL` 23 + 48; public census 1997 in 100 families; Linux
-  container 199 + 22 + 21 (`swift:6.4-noble`, 2026-10-02; MetalView's seven
-  portable `SurfaceTargetTableTests` moved 14 → 21). A count is
-  stale the moment a test lands — re-measure (`swift package clean`, native
-  build, unfiltered `--no-parallel` run). History: record §66, §67, §68, §71.
+- **Counts (2026-10-02, `feat/metal-view` after merging master `95234db`):
+  2093 tests, 0 goldens, 129 typecheck guards** (2072 + master's 21; 128 +
+  master's 1); `Backends/SDL` 23 + 55 (branch 23 + 48, master's icon tests +7); public census 2000 in 101 families;
+  Linux container 199 + 22 + 21 measured on the branch before the merge
+  (`swift:6.4-noble`; MetalView's seven portable `SurfaceTargetTableTests`;
+  master's own line reads 199 + 22 + 14, so the app icon added no portable
+  test — not re-taken after the merge). A count is stale the moment a test
+  lands — re-measure (`swift package clean`, native build, unfiltered
+  `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
+  merge).
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Twelve env-gated oracle/measure tests count while skipped.
@@ -136,7 +143,10 @@ these violations show.
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
   `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)` — have no
   default so a conformer that forgets one fails to compile. Both conformers
-  and every test fake implement all of them.
+  and every test fake implement all of them. **`Platform` (not a window) has
+  one too: `setApplicationIcon(_:)`** (`AI-B`), beside it for the same reason,
+  and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
+  item 1; the two-argument spelling forwards `surfaces: []`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (§7.8).
@@ -297,6 +307,24 @@ ranking (`DN-F`); destinations register inside the disabled gate and outside
 `paintDecoration`** or it drags with no preview (`DN-X`). An SDL test takes
 `SDL_EVENT_DROP_*` from C-exported constants and arms
 `armMainRunLoopExitCheck()`.
+
+**App icon** (`AI-`, record §70): `App.icon: [ImageBitmap]` is the one
+application-wide, runtime-settable icon (default `[]` = never touch the
+platform's own; every assignment calls `Platform.setApplicationIcon` once with
+the list sorted smallest first and `width × height` duplicates dropped). SwiftUI
+has no runtime icon API (bundle asset catalog), so it is MetalUI-only by design.
+**The alpha rule**: `ImageTexture` is premultiplied sRGB — AppKit wraps the
+bytes as stored (`premultipliedLast`, never re-premultiplied, `AI-E`); SDL
+icons are straight alpha, so `SDLIcon.straightRGBA` un-premultiplies (`AI-F`).
+SDL applies the icon to every open and later window and cannot clear it.
+`AppKitPlatform.run()`'s re-assignment is unpinned (`AI-K`, human check O1).
+Packaging (bundle/`.desktop`/`.ico`) is build-side: `docs/packaging.md`.
+**The shader resource bundle is found by `ShaderLibrary`, never
+`Bundle.module`** (`AI-N`): `MetalUI_MetalUIRender.bundle` goes in an `.app`'s
+`Contents/Resources` on both build systems; a missing one makes `App.init`
+throw `ShaderLibraryError.resourceMissing` naming every directory tried, not
+trap. A new resource lookup in `MetalUIRender` goes through
+`ShaderLibrary.resourceBundle(candidates:)` too.
 
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(...)` in `prepaint` and
