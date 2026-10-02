@@ -239,3 +239,50 @@ Taken after `swift package clean`.
 - Pixels: `compare.sh <scratch> 330f02b HEAD` (`14e44f2`), controls non-zero as recorded: **0 differing, scene identical, all fourteen images**.
 - Guards: raw `grep -c canTypecheck` over the four root test targets reads 128, two of them comments (`UnitSafetyTests`, `CloseoutCompileGuards`) = **126**.
 - Counts **2041 / 0 / 126** tests/goldens/guards; `Backends/SDL` 22 + 48.
+
+## §8 Adversarial branch check (2026-10-01, at `a767055`)
+
+An independent re-take of 330f02b..HEAD after `swift package clean`.
+
+- Native build: 0 `error:`, one `warning:` (SwiftPM's native deprecation
+  notice). Default build system (`swift build --build-tests`): 0 `warning:`.
+- Unfiltered `swift test --build-system native --no-parallel`:
+  **`Test run with 2041 tests in 3 suites passed after 110.194 seconds`**; the
+  FR-J line and `AI-B member required: without succeeded=false` present.
+  Guards: raw `grep -c canTypecheck` 128, two comments → **126**.
+- `cmp CLAUDE.md AGENTS.md` clean. Every `AI-` id cited anywhere resolves to a
+  heading `AI-A`…`AI-M` (`AI-N` appears only as "next unused"); every
+  backticked test or symbol name in the changed docs resolves in the source,
+  except `assistiveAccessNavigationIcon` (a SwiftUI symbol, quoted as such) and
+  record §03's pre-existing `theRunCounterIgnoresCallsMadeOffTheMainThread`
+  (not this branch's text). No plan box ticked.
+- `Backends/SDL` on macOS (`PKG_CONFIG_PATH=$PWD/.accesskit swift test
+  --no-parallel`): **22 + 48**, passed. `swift:6.4-noble` container
+  (`metalui-portable-ax`, from `git archive HEAD`): root builds with 0
+  `error:`/`warning:` and runs **199 + 22 + 14** (plus a 6-test target);
+  `Backends/SDL` builds (the two pre-existing environmental warnings only) and
+  runs **22 + 45**.
+- `compare.sh <scratch> 330f02b HEAD`: controls as at the Record phase; **0
+  differing pixels, scene identical, all fourteen images**.
+- `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+- `docs/packaging.md` §macOS 1 re-run: the `sips`/`iconutil` loop over a
+  1024² PNG gives `Mac OS X icon, … "ic12" type` and round-trips ten images —
+  as the document says. Every other command there is labelled verified (with
+  what) or unverified.
+
+**Two mutations of this check's own design** (each from a copy, full
+unfiltered suite, restored, `git status --short` clean after each):
+
+| Mutation | Suite | Reddened |
+|---|---|---|
+| X1 `App.normalized` dedupes on **area** (`w·h`) instead of the `(w, h)` pair | root, 2041 | **none** (`Test run with 2041 tests in 3 suites passed`) |
+| X2 `SDLIcon.straightRGBA` truncates (`c·255 / a`, no `+ a/2`) | `Backends/SDL`, 22 + 48 | `unpremultiplyingRestoresStraightAlpha` (S1), `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow` (S2) |
+
+X1 widens §4's open V7 item: 1.3's sizes (16², 8×64, 32², 32²) have no two
+distinct pairs sharing a width, a height **or an area**, so width-only,
+height-only and area dedupe are all indistinguishable from the ruled pair
+dedupe. The mutant differs on real input — a 32×64 and a 64×32, or a 16×64
+after a 32², would lose one. `AI-C` item 3 stays half pinned; the remedy is
+one more test input (e.g. 32×64 and 64×32 after 32², all three kept). Minor
+(no shipping caller passes non-square icons), owner none, not fixed by this
+docs-only check.
