@@ -718,6 +718,21 @@ public final class AppKitPlatform: Platform {
         return window
     }
 
+    /// The icon this platform last assigned to
+    /// `NSApplication.applicationIconImage`, `nil` after `[]` (ruling `AI-I`:
+    /// the getter returns a snapshot, never this object, so tests read this).
+    private(set) var iconImage: NSImage?
+
+    /// Sets the Dock icon (ruling `AI-E`): one `NSImage` holding a
+    /// representation per texture, its bytes used as stored (premultiplied
+    /// RGBA8, sRGB — no second premultiply), sized as the largest texture so
+    /// AppKit picks a representation by pixel density, assigned to
+    /// `NSApplication.applicationIconImage`. `[]` assigns `nil`, which restores
+    /// the bundle's icon, else the generic executable icon. The image is
+    /// assigned again when ``run()`` starts the application.
+    public func setApplicationIcon(_ images: [ImageTexture]) {
+    }
+
     /// Runs `NSApplication`'s event loop; returns when the application stops.
     public func run() {
         let app = NSApplication.shared

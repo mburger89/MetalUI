@@ -122,6 +122,7 @@ F	portable-text	M	-	-	-	-	FT-B SH-B PT-A LB-A FN-A FB-A BD-B SF-A	MetalUIFreeTyp
 F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importable by tests
 F	transferable	A	swiftui-drag-and-drop.swift	T5	aStringExportsAndImportsUTF8PlainTextOnly	-	DN-B DN-S	Transferable/ContentType: MetalUI's own synchronous Data-based protocol with CoreTransferable's call-site spellings; String/URL/Data conform; transferRepresentation is not offered
 F	drag-and-drop	A	swiftui-drag-and-drop.swift	P14	isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction	100 101 102	DN-A DN-D DN-F DN-G DN-H DN-J DN-K DN-M	draggable(_:)/draggable(_:preview:)/dropDestination(for:action:isTargeted:) and their modifiers: a drag begins on the first move, outranks tap/long press/click, the one hit ranking finds the destination, isTargeted false before the next true
+F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -136,6 +137,7 @@ M	MetalUI	Transition.swift	.*	.*	.*	transition
 M	MetalUI	TransitionGroup.swift	.*	.*	.*	transition
 M	MetalUI	AnyElement.swift	-	ElementObject	.*	element-protocols
 M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
+M	MetalUI	App.swift	App	icon	.*	app-icon
 M	MetalUI	App.swift	.*	.*	.*	host
 M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
@@ -300,9 +302,11 @@ M	MetalUILayout	LayoutTree.swift	-	Native.*	.*	native-aliases
 M	MetalUILayout	ProposalLayout.swift	.*	.*	.*	proposal-layout
 M	MetalUILayout	ProposedSize.swift	(-|ProposedSize)	(ProposedSize|width|height|init|unspecified|zero|infinity|replacingUnspecifiedDimensions)	.*	proposal-layout
 M	MetalUILayout	.*	.*	.*	.*	layout-kernel
+M	MetalUIPlatform	Platform.swift	Platform	setApplicationIcon	.*	app-icon
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render
+M	MetalUIAppKit	AppKitPlatform.swift	AppKitPlatform	setApplicationIcon	.*	app-icon
 M	MetalUIAppKit	.*	.*	.*	.*	render
 M	MetalUIScene	.*	.*	.*	.*	scene
 M	MetalUIText	.*	.*	.*	.*	text-system
@@ -311,6 +315,7 @@ M	MetalUIFreeType	.*	.*	.*	.*	portable-text
 M	MetalUIHarfBuzz	.*	.*	.*	.*	portable-text
 M	MetalUIPortableText	.*	.*	.*	.*	portable-text
 M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
+M	MetalUIDemoContent	DemoIcon.swift	.*	.*	.*	app-icon
 M	MetalUIDemoContent	.*	.*	.*	.*	demo-content
 M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop

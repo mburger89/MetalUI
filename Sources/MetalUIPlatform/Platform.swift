@@ -123,6 +123,26 @@ public protocol PlatformWindow: AnyObject {
 public protocol Platform: AnyObject {
     func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow
     func run()
+
+    /// Shows `images` as the application's icon (ruling `AI-B`) — on AppKit
+    /// the Dock's, on SDL every window's, including windows opened later.
+    /// `App.icon` is the only caller and guarantees the contract: ordered
+    /// smallest area first, no two images of one `width × height`, and `[]`
+    /// meaning "restore the platform's own icon as far as it can". Best effort:
+    /// a platform that cannot apply an icon does not report it (`AI-D`).
+    ///
+    /// **No default implementation** (`AB-R`/`EV-AB`/`DN-C`'s reason): a
+    /// conformer that forgets it fails to compile rather than silently showing
+    /// the generic icon. Pinned by
+    /// `aPlatformWithoutSetApplicationIconDoesNotCompile`. **Migration**: a
+    /// conformer outside this repository adds
+    /// `func setApplicationIcon(_: [ImageTexture]) {}`.
+    func setApplicationIcon(_ images: [ImageTexture])
+}
+
+// RED-FIRST SKELETON — removed by the implementation commit.
+extension Platform {
+    public func setApplicationIcon(_ images: [ImageTexture]) {}
 }
 
 /// Why a platform could not open a window.

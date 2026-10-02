@@ -122,6 +122,28 @@ public final class App {
         return window
     }
 
+    /// The application's icon (ruling `AI-A`): several sizes of one picture,
+    /// shown by the operating system as the application's — the Dock icon on
+    /// macOS, every window's icon on SDL (Linux, Windows; on macOS SDL also
+    /// sets the Dock's). `[]`, the default, is the platform's own icon: the
+    /// bundle's, else the system's generic one.
+    ///
+    /// Every assignment reaches the platform at once, synchronously, before or
+    /// after windows open (`AI-C`); an `App` that never assigns it never
+    /// touches the platform's icon, so a bundled app's own icon is never
+    /// overwritten at launch. The platform receives the bitmaps' own textures
+    /// ordered smallest area first, a repeated `width × height` dropped (the
+    /// first written wins); the property itself reads back exactly what was
+    /// assigned. On SDL, `[]` cannot clear an icon already shown (`AI-F`
+    /// item 5).
+    ///
+    /// **MetalUI-only**: SwiftUI has no runtime icon API — a SwiftUI app's
+    /// icon is its bundle's (an asset catalog's `AppIcon`, or
+    /// `CFBundleIconFile`); this is AppKit's runtime override,
+    /// `NSApplication.applicationIconImage`, made portable. Shipping a bundle
+    /// with its own icon is build-side: `docs/packaging.md`.
+    public var icon: [ImageBitmap] = []
+
     /// Runs the platform's event loop, handing every window its input and
     /// display-link ticks until the platform stops.
     public func run() {
