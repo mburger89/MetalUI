@@ -70,8 +70,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 - **Counts (2026-10-02, `feat/metal-view`): 2072 tests, 0 goldens, 128 typecheck
   guards**; `Backends/SDL` 23 + 48; public census 1997 in 100 families; Linux
-  container 199 + 22 + 14 as of `330f02b` (MetalView adds seven portable
-  `SurfaceTargetTableTests`; re-measure there). A count is
+  container 199 + 22 + 21 (`swift:6.4-noble`, 2026-10-02; MetalView's seven
+  portable `SurfaceTargetTableTests` moved 14 → 21). A count is
   stale the moment a test lands — re-measure (`swift package clean`, native
   build, unfiltered `--no-parallel` run). History: record §66, §67, §68, §71.
 - **Read the printed counts, never the exit status.** Native prints one

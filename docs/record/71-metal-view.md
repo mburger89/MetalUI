@@ -5,8 +5,8 @@ Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR #36).
 binding design spec's §7.7 ("`MetalView` — app-owned rendering"), which calls
 it "the reason a Metal-native UI framework is worth building at all" and which
 was never built. Spec `docs/superpowers/specs/2026-10-01-metal-view-design.md`;
-rulings `MV-A`…`MV-Q` in the new decisions doc
-`docs/superpowers/2026-10-01-metal-view-decisions.md` (next unused `MV-R`);
+rulings `MV-A`…`MV-R` in the new decisions doc
+`docs/superpowers/2026-10-01-metal-view-decisions.md` (next unused `MV-S`);
 probe `docs/probes/swiftui-metal-view.swift` (groups `P`, `G`, `C`/`D`, `R`).
 
 **Numbering.** This record was written as `§69` and renumbered at the Record
@@ -15,7 +15,12 @@ branch as `d7a0824`) and master has since published §70 (app icon, PR #38,
 `95234db`) — the 24→25 / 26→27 precedent (`MV-O` item 4). If master publishes
 another number before this merges, the merge renumbers again and fixes the
 citations in this file, the decisions doc's header, the spec's header and
-`docs/verification/human-checks.md` group O.
+`docs/verification/human-checks.md` group O. **The human-checks group letter
+collides too**: master's app icon (§70) already added its own group O (O1–O4),
+so at the merge this branch's group O becomes **P** (P1–P8) and every
+"group O"/"groups A–O" citation here, in `CLAUDE.md`/`AGENTS.md`, the decisions
+doc, the spec, the demo comments and `docs/api-overview.md` moves with it
+(found by the branch checker, 2026-10-02).
 
 **Status: LANDED — every agent-doable clause is built; the looks are owed to a
 human** (`docs/verification/human-checks.md` group O, §7). Three lanes, each red
@@ -353,7 +358,7 @@ scratch copy), G2.1 (`renderPassDescripter`).
   with no error; the requirement is defaultless so the conformer must say so
   (`MV-F` item 1, guard G1.2).
 
-## §9 The Record phase's own close (2026-10-02)
+## §9 The Record phase's own close (2026-10-02, `MV-R`)
 
 1. **Suite, clean.** After `swift package clean`, `swift build --build-system
    native --build-tests`: 0 `error:`, one `warning:` (SwiftPM's deprecation
@@ -403,8 +408,8 @@ scratch copy), G2.1 (`renderPassDescripter`).
   Metal's is 16384): a larger element samples its target stretched.
 - **Linux/Windows CI** confirm on push: the new portable
   `SurfaceTargetTableTests` (the Linux/Windows `MetalUICrossPlatformTests` count
-  is expected to move 14 → 21 (seven tests), to be re-measured in `swift:6.4-noble`, which this Record phase
-  did not re-take), the `Backends/SDL` surface tests on Vulkan and D3D12 (lane 3
+  moved 14 → 21 (seven tests): the branch checker measured **199 + 22 + 21** in
+  `swift:6.4-noble` at `554243a`, 0 `error:`/`warning:`), the `Backends/SDL` surface tests on Vulkan and D3D12 (lane 3
   measured Linux/lavapipe 23 + 46 at `20ce04f`/`4d53473`; `c8518bc` did not
   change `Sources/`), and the C-enum conversions.
 - **The human looks**: group O (§7). An agent cannot perform them.
