@@ -304,7 +304,7 @@ extension Frame {
         // The floor the effect's element entered at (`GX-U`): a legacy
         // element's effects open before any child enters, and a proposal
         // chain's layers enter no element between them, so it is still that
-        // element's own.
+        // element's own — the chain itself needs no pass-through.
         shareWithEnclosingWrappers(at: rect, floor: shareFloorAtEntry)
         return body()
     }

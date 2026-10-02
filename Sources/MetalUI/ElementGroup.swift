@@ -165,7 +165,7 @@ extension Element {
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
         // A share barrier (`GX-U`): an effect inside this element reaches a
         // wrapper's registration outside it only if the element passes the
-        // floor through (a sharing wrapper, a modifier chain).
+        // floor through (a sharing wrapper), or is the chain carrying the effect.
         return pass.frame.enteringShareBarrier {
             pass.frame.suppressingAccessibilityIfHidden(layout.node) {
                 pass.frame.disablingHitTestingIfHidden(layout.node) {

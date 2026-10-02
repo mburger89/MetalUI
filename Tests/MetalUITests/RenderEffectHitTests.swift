@@ -205,12 +205,19 @@ private let deg90 = Angle.degrees(90)
         fxBar().rotationEffect(deg90).gesture(TapGesture().onEnded { log.entries.append("tg") })
     }
     #expect(clicks(p2, w2, log, points) == [true, false], "gesture(TapGesture()) after the effect")
+    // Two sharing wrappers in a row (review round, `GX-U`): the outer one is
+    // reached through the inner. Mutation **MU4**: a wrapper does not pass the
+    // share floor through.
+    let (w4, p4) = try hitWindow {
+        fxBar().rotationEffect(deg90).accessibilityLabel("x").onTapGesture { log.entries.append("tap2") }
+    }
+    #expect(clicks(p4, w4, log, points) == [true, false], "onTapGesture after a label after the effect")
     let (w3, _) = try hitWindow {
         fxBar().rotationEffect(deg90).dropDestination(for: String.self, action: { _, _ in true })
     }
     let region = try #require(w3.lastHitboxes.first { $0.handlers.dropDestination != nil && !$0.opaque })
     #expect(region.contains(pt(100, 40)) && !region.contains(pt(40, 100)), "the drop region turns too")
-    withExtendedLifetime((w1, w2, w3)) {}
+    withExtendedLifetime((w1, w2, w3, w4)) {}
 }
 
 // MARK: - 2.28 (divergence 41 amended, GX-P item 2)
