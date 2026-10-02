@@ -556,6 +556,22 @@ bool mui_gpu_clear_texture(void *cmd, void *texture, float red, float green, flo
     return true;
 }
 
+/* A nearest blit of the whole source over (0, 0, dw, dh) of the destination,
+   recorded into `cmd`, never submitted here (MV-Q's test fill). */
+bool mui_gpu_blit_texture(void *cmd, void *source, uint32_t sw, uint32_t sh,
+                          void *destination, uint32_t dw, uint32_t dh) {
+    if (!cmd || !source || !destination || !sw || !sh || !dw || !dh)
+        return SDL_SetError("blit without a command buffer, a texture or a size");
+    SDL_GPUBlitInfo info = {
+        .source = { .texture = (SDL_GPUTexture *)source, .w = sw, .h = sh },
+        .destination = { .texture = (SDL_GPUTexture *)destination, .w = dw, .h = dh },
+        .load_op = SDL_GPU_LOADOP_LOAD,
+        .filter = SDL_GPU_FILTER_NEAREST
+    };
+    SDL_BlitGPUTexture((SDL_GPUCommandBuffer *)cmd, &info);
+    return true;
+}
+
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
     const void *images, uint32_t ib, void *const *textures, uint32_t texture_count,

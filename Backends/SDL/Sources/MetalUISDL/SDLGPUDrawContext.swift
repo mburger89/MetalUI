@@ -75,4 +75,14 @@ public struct SDLGPUDrawContext: GPUSurfaceContext {
         _ = mui_gpu_clear_texture(UnsafeMutableRawPointer(commandBuffer), UnsafeMutableRawPointer(target),
                                   red, green, blue, alpha)
     }
+
+    /// A test's non-uniform fill (`MV-Q`): blits all of `source`
+    /// (`width`×`height`, nearest) over the target's `(0, 0)` to
+    /// ``pixelSize`` — placed by the size the draw was told, so a target made
+    /// at any other size composites a different pattern.
+    package func blitForTesting(from source: OpaquePointer, width: Int, height: Int) -> Bool {
+        mui_gpu_blit_texture(UnsafeMutableRawPointer(commandBuffer), UnsafeMutableRawPointer(source),
+                             UInt32(width), UInt32(height), UnsafeMutableRawPointer(target),
+                             UInt32(pixelSize.width.value), UInt32(pixelSize.height.value))
+    }
 }

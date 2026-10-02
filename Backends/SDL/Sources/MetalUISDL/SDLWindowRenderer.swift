@@ -130,6 +130,19 @@ public final class SDLWindowRenderer: WindowRenderer {
     /// Surface draws run, ever.
     package private(set) var surfaceDraws = 0
 
+    /// A sampled `R8G8B8A8_UNORM` texture of straight `rgba` texels, uploaded
+    /// in its own submission — a test's blit source (`MV-Q`), released with
+    /// ``releaseTestTexture(_:)``. Not a surface target; no counter moves.
+    package func makeTestTexture(rgba: [UInt8], width: Int, height: Int) -> OpaquePointer? {
+        rgba.withUnsafeBufferPointer {
+            mui_renderer_create_texture(renderer, $0.baseAddress, UInt32(width), UInt32(height))
+        }.map { OpaquePointer($0) }
+    }
+    /// Releases a ``makeTestTexture(rgba:width:height:)`` texture.
+    package func releaseTestTexture(_ texture: OpaquePointer) {
+        mui_renderer_release_texture(renderer, UnsafeMutableRawPointer(texture))
+    }
+
     /// The SDL GPU driver in use (`metal`, `vulkan`, `direct3d12`).
     public var driver: String { String(cString: mui_renderer_driver(renderer)) }
 

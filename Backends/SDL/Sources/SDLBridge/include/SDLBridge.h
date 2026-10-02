@@ -81,6 +81,13 @@ void *mui_renderer_create_target(MUIRenderer *r, uint32_t width, uint32_t height
 // Records one render pass clearing `texture` to the premultiplied colour into
 // `cmd` (an SDL_GPUCommandBuffer *), ended at once; submits nothing.
 bool mui_gpu_clear_texture(void *cmd, void *texture, float red, float green, float blue, float alpha);
+// Records one nearest-filtered blit of all of `source` (sw×sh, sampler usage)
+// over the region (0, 0, dw, dh) of `destination` (colour-target usage),
+// loading what is outside it, into `cmd`; submits nothing. A test's
+// non-uniform surface fill (MV-Q): placed by the draw's pixelSize, so a
+// target made at any other size composites a different pattern.
+bool mui_gpu_blit_texture(void *cmd, void *source, uint32_t sw, uint32_t sh,
+                          void *destination, uint32_t dw, uint32_t dh);
 // The window's device pixels per point (SDL_GetWindowPixelDensity).
 float mui_window_pixel_density(void *window);
 

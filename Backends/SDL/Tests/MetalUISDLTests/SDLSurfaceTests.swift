@@ -31,7 +31,18 @@ private enum SurfaceParity {
         (10, 10, [100, 50, 20, 255]),  // A's centre: half A over black
         (0, 0, [0, 0, 0, 255]),        // A's corner, outside the radius-6 mask
         (30, 30, [0, 0, 255, 255]),    // B's centre
-        (30, 10, [0, 0, 0, 255])       // neither quad
+        (30, 10, [0, 0, 0, 255]),      // neither quad
+        // Each quad's edges, one pixel either side (MV-Q): A spans x, y in
+        // 0..<20, B in 20..<40, so a quad drawn even one device pixel off
+        // along either axis moves one of these.
+        (19, 10, [100, 50, 20, 255]),  // A's last column
+        (20, 10, [0, 0, 0, 255]),      // just right of A
+        (10, 19, [100, 50, 20, 255]),  // A's last row
+        (10, 20, [0, 0, 0, 255]),      // just below A
+        (20, 30, [0, 0, 255, 255]),    // B's first column
+        (19, 30, [0, 0, 0, 255]),      // just left of B
+        (30, 20, [0, 0, 255, 255]),    // B's first row
+        (30, 19, [0, 0, 0, 255])       // just above B
     ]
 }
 
@@ -137,9 +148,12 @@ private func close(_ a: [Int], _ b: [Int], within tolerance: Int) -> Bool {
 /// to its own texel under any filter weight, so `insideGlyphs`' sub-texel
 /// reason does not arise). The image ahead of them still draws.
 ///
-/// Mutations **M3a** (the surface quads not appended to the image array) and
+/// Mutations **M3a** (the surface quads not appended to the image array),
 /// **M3b** (the texture-index offset forgotten — A then binds the image's
-/// green texture).
+/// green texture) and, from lane 3's review round (`MV-Q`), **V2b**/**V2c**
+/// (every surface quad's bounds and content mask moved 10 px along x / 5 px
+/// along y in `finishFrame`'s append) — caught by the edge samples, one
+/// device pixel either side of each quad's four edges.
 @MainActor
 @Test func anSDLSurfaceFillMatchesTheMetalParityLiteral() throws {
     let renderer = try offscreenRenderer()
@@ -268,4 +282,102 @@ private func close(_ a: [Int], _ b: [Int], within tolerance: Int) -> Bool {
     #expect(seen.map(\.context.time) == [1.5, 1.75])
     #expect(seen.map(\.context.frameIndex) == [0, 1])
     #expect(rgba(try renderer.readPixels(width: width, height: height), 15, 6) == [0, 255, 0, 255])
+}
+
+/// A 2 × 2 straight-RGBA blit source: red | blue over green | white.
+private let quadrants: [UInt8] = [255, 0, 0, 255, 0, 0, 255, 255,
+                                  0, 255, 0, 255, 255, 255, 255, 255]
+
+/// A request whose draw blits `source` (nearest) over the target's whole
+/// `pixelSize` — a NON-uniform fill placed by the size the draw was told.
+@MainActor
+private func blitting(_ target: SurfaceTarget, _ source: OpaquePointer) -> SurfaceDrawRequest {
+    SurfaceDrawRequest(target: target, scaleFactor: 1, time: 0, policy: .onDemand, value: nil) { ctx in
+        guard let sdl = ctx as? SDLGPUDrawContext else { Issue.record("not an SDL context"); return }
+        #expect(sdl.blitForTesting(from: source, width: 2, height: 2))
+    }
+}
+
+/// `quadrants`' four colours at `box`'s four quarters, sampled at each pixel
+/// either side of its centre lines, and black one pixel past its right and
+/// bottom edges.
+private func expectQuadrants(_ pixels: [UInt8], in box: (x: Int, y: Int, w: Int, h: Int),
+                             sourceLocation: SourceLocation = #_sourceLocation) {
+    let midX = box.x + box.w / 2, midY = box.y + box.h / 2
+    let top = box.y + 1, bottom = box.y + box.h - 2, left = box.x + 1, right = box.x + box.w - 2
+    let samples: [(Int, Int, [Int])] = [
+        (midX - 1, top, [255, 0, 0, 255]), (midX, top, [0, 0, 255, 255]),
+        (midX - 1, bottom, [0, 255, 0, 255]), (midX, bottom, [255, 255, 255, 255]),
+        (left, midY - 1, [255, 0, 0, 255]), (left, midY, [0, 255, 0, 255]),
+        (right, midY - 1, [0, 0, 255, 255]), (right, midY, [255, 255, 255, 255]),
+        (box.x + box.w, top, [0, 0, 0, 255]), (left, box.y + box.h, [0, 0, 0, 255])
+    ]
+    for (x, y, expected) in samples {
+        #expect(rgba(pixels, x, y) == expected, "(\(x), \(y)) read \(rgba(pixels, x, y)), expected \(expected)",
+                sourceLocation: sourceLocation)
+    }
+}
+
+/// **3.7** (`MV-E` item 1, `MV-Q`; required item (1): the target is created
+/// and resized at the element's device-pixel size). A draw blits a 2 × 2
+/// pattern over its `pixelSize`; composited 1:1 into a quad of that size the
+/// four quarters meet exactly at the quad's centre lines — which holds only if
+/// the target was made `pixelSize` texels. A second frame at a new size for
+/// the SAME id makes a new target (the old released) with the pattern at the
+/// new size, and the new draw is told `isNewTarget`.
+///
+/// Mutations **V7** (`mui_renderer_create_target(renderer, 1, 1)` in the
+/// create closure: the whole quad one colour) and **V7′** (width and height
+/// swapped there).
+@MainActor
+@Test func anSDLSurfaceTargetIsMadeAtItsDevicePixelSizeAndRemadeOnResize() throws {
+    let renderer = try offscreenRenderer()
+    let source = try #require(renderer.makeTestTexture(rgba: quadrants, width: 2, height: 2))
+    defer { renderer.releaseTestTexture(source) }
+    let id = SurfaceID(rawValue: 9)
+
+    let small = SurfaceTarget(id: id, width: 20, height: 12)
+    try frame(renderer, oneSurfaceScene(small, at: bounds(0, 0, 20, 12)), [blitting(small, source)])
+    expectQuadrants(try renderer.readPixels(width: width, height: height), in: (0, 0, 20, 12))
+    #expect(renderer.surfaceTargetsCreated == 1)
+
+    let large = SurfaceTarget(id: id, width: 44, height: 30)
+    try frame(renderer, oneSurfaceScene(large, at: bounds(0, 0, 44, 30)), [blitting(large, source)])
+    expectQuadrants(try renderer.readPixels(width: width, height: height), in: (0, 0, 44, 30))
+    #expect(renderer.surfaceTargetsCreated == 2, "a new size is a new target")
+    #expect(renderer.surfaceTargetsReleased == 1, "and the old one is released")
+    #expect(renderer.surfaceDraws == 2)
+}
+
+/// **3.8** (`MV-F` item 4, `MV-Q`; `SDLGPUDrawContext`'s "a new target
+/// arrives cleared to transparent", spec §4). A surface whose draw writes
+/// nothing shows the background through on its first frame — frame after
+/// frame, each a NEW target made the frame an earlier one (filled opaque
+/// white) is released, so a target that kept uninitialised memory would show
+/// the released target's white or other garbage.
+///
+/// Mutation **V5** (the `if isNew { context.clear(0, 0, 0, 0) }` line
+/// removed) — see `MV-Q` for what it reddens on each backend.
+@MainActor
+@Test func aNewSDLSurfaceTargetArrivesClearedToTransparent() throws {
+    let renderer = try offscreenRenderer()
+    let white: (r: UInt8, g: UInt8, b: UInt8, a: UInt8) = (255, 255, 255, 255)
+    for index in 1...8 {
+        let filled = SurfaceTarget(id: SurfaceID(rawValue: UInt64(2 * index)), width: 20, height: 20)
+        try frame(renderer, oneSurfaceScene(filled), [clearing(filled, white)])
+        try #require(rgba(try renderer.readPixels(width: width, height: height), 10, 10) == [255, 255, 255, 255])
+
+        let empty = SurfaceTarget(id: SurfaceID(rawValue: UInt64(2 * index + 1)), width: 20, height: 20)
+        var told: [Bool] = []
+        let request = SurfaceDrawRequest(target: empty, scaleFactor: 1, time: 0, policy: .onDemand, value: nil) {
+            told.append(($0 as? SDLGPUDrawContext)?.isNewTarget ?? false)
+        }
+        try frame(renderer, oneSurfaceScene(empty), [request])
+        try #require(told == [true], "the empty draw ran, on a new target")
+        let pixels = try renderer.readPixels(width: width, height: height)
+        for (x, y) in [(0, 0), (10, 10), (19, 19), (5, 15)] {
+            #expect(rgba(pixels, x, y) == [0, 0, 0, 255],
+                    "frame \(index): (\(x), \(y)) read \(rgba(pixels, x, y)) — the background through a transparent target")
+        }
+    }
 }
