@@ -48,7 +48,7 @@ final class FakeRenderSurface: RenderSurface {
     /// wait on the right one. `Window.drawFrameIfNeeded` commits without
     /// waiting, and a barrier committed on a *different* queue would not be
     /// ordered against it.
-    private var lastCommandBuffer: (any MTLCommandBuffer)?
+    private(set) var lastCommandBuffer: (any MTLCommandBuffer)?
 
     /// The BGRA bytes of the most recently rendered frame, row-major.
     func readPixels() -> [UInt8] {
@@ -263,9 +263,14 @@ final class FakePlatformWindow: PlatformWindow {
         return onInput?(event) ?? false
     }
 
-    init(device: any MTLDevice, size: Int = 64) throws {
+    /// `renderer` shares one `Renderer` between several fake windows, as
+    /// `AppKitPlatform` shares one across its windows (`RS-C`) — MetalView's
+    /// per-window target tables are tested against exactly that (`MV-E` item
+    /// 3); `nil` makes a fresh one.
+    init(device: any MTLDevice, size: Int = 64, renderer: Renderer? = nil) throws {
         self.fakeSurface = try FakeRenderSurface(device: device, size: size)
-        self.windowRenderer = MetalWindowRenderer(renderer: try Renderer(device: device), surface: fakeSurface)
+        self.windowRenderer = MetalWindowRenderer(renderer: try renderer ?? Renderer(device: device),
+                                                  surface: fakeSurface)
         self.contentSize = Size(width: Pixels(Float(size)), height: Pixels(Float(size)))
     }
 
