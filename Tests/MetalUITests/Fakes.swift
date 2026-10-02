@@ -350,3 +350,33 @@ func makeFakeWindowOnDefaultDevice<Root: Element>(
     return try makeFakeWindow(device: device, size: size,
                               startsDisplayLink: startsDisplayLink, content: content)
 }
+
+/// A `Platform` that records every `setApplicationIcon` call (ruling `AI-B`),
+/// so `App.icon`'s contract (`AI-C`) can be pinned headless. Its windows are
+/// `FakePlatformWindow`s over `device`; `run()` returns at once.
+@MainActor
+final class FakePlatform: Platform {
+    private let device: any MTLDevice
+
+    /// Every `setApplicationIcon` argument, in call order.
+    private(set) var iconCalls: [[ImageTexture]] = []
+    /// Every window `openWindow` returned, in order.
+    private(set) var openedWindows: [FakePlatformWindow] = []
+
+    init(device: any MTLDevice) {
+        self.device = device
+    }
+
+    func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
+        let window = try FakePlatformWindow(device: device)
+        window.title = title
+        openedWindows.append(window)
+        return window
+    }
+
+    func run() {}
+
+    func setApplicationIcon(_ images: [ImageTexture]) {
+        iconCalls.append(images)
+    }
+}

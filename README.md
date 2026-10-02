@@ -150,6 +150,9 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
   vocabulary, and every breaking change since 2026-09-12.
 - [`docs/verification/human-checks.md`](docs/verification/human-checks.md) —
   the looks only a person can check (not yet run).
+- [`docs/packaging.md`](docs/packaging.md) — shipping an application with its
+  icon (macOS `.app`, Linux `.desktop`, Windows `.ico`); build-side, not
+  framework API.
 - [`docs/record/README.md`](docs/record/README.md) — the long-form record.
 
 ## What it looks like

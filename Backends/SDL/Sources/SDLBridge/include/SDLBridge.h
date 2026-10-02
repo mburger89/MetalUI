@@ -156,3 +156,33 @@ bool mui_set_clipboard_text(const char *text);
 void mui_free(void *memory);
 // The window's position on screen in points (SDL_GetWindowPosition).
 void mui_window_position(void *window, int32_t *x, int32_t *y);
+
+// ---- The application icon (ruling AI-F) ------------------------------------
+// SDL_PIXELFORMAT_RGBA32 (bytes R, G, B, A on every endianness), exported from
+// C so Swift never spells a C enum's `rawValue` (Int32 on Windows, UInt32 on
+// Apple).
+extern const uint32_t MUI_PIXELFORMAT_RGBA32;
+// An SDL_Surface * of `w` × `h` RGBA32 texels copied row by row through its
+// pitch from `straight_rgba` (w × h × 4 bytes, STRAIGHT alpha), or NULL
+// (replay_error()). Destroy with mui_surface_destroy.
+void *mui_icon_surface_create(int32_t w, int32_t h, const uint8_t *straight_rgba);
+// Adds `image` to `primary` as an alternate (SDL_AddSurfaceAlternateImage,
+// which takes its own reference: the caller still destroys `image`).
+bool mui_icon_surface_add_alternate(void *primary, void *image);
+// SDL_SetWindowIcon. A NULL surface is refused (false) without calling SDL,
+// and counted in mui_window_set_icon_null_calls.
+bool mui_window_set_icon(void *window, void *surface);
+// How many times mui_window_set_icon was handed NULL — always 0 (ruling AI-F
+// item 5: NULL is never passed). For tests.
+uint32_t mui_window_set_icon_null_calls(void);
+void mui_surface_destroy(void *surface);
+// Test readback.
+uint32_t mui_surface_format(void *surface);
+void mui_surface_size(void *surface, int32_t *w, int32_t *h);
+// Copies the surface's texels, row by row through its pitch, into `out`
+// (w × h × 4 bytes); false when `capacity` is short.
+bool mui_surface_read_rgba(void *surface, uint8_t *out, int32_t capacity);
+// SDL_GetSurfaceImages's count (the primary and its alternates), 0 on failure.
+int32_t mui_surface_image_count(void *surface);
+// The size of SDL_GetSurfaceImages's `index`th image; 0 × 0 out of range.
+void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h);

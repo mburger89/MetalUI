@@ -14,6 +14,9 @@ import AppKit
 @MainActor
 func runDemo() throws {
     let app = try App()
+    // The demo's generated icon (ruling `AI-G`; human check O1): the Dock shows
+    // it for a bare `swift run`, which has no bundle.
+    app.icon = demoIcon()
 
     let nativeLayoutPreview = ProcessInfo.processInfo.environment["METALUI_NATIVE_LAYOUT_PREVIEW"] == "1"
     // Roadmap item 14's human look (TI-F): two text fields.

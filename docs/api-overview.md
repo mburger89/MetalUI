@@ -157,6 +157,20 @@ unknown until the drop (102). At the seam: `InputEvent.drop` (`DropEvent`,
 nothing for either, as SwiftUI's does not (`DN-N`). `.onDrag`/`.onDrop` and
 the `DropSession` family are not offered (`DN-A`).
 
+## Application icon — M
+
+`App.icon: [ImageBitmap]` (M; `AI-A`): the application's icon, settable
+before or after windows open and at runtime; `[]` (the default) leaves the
+platform's own icon alone. Several sizes of one picture are welcome — the list
+reaches the platform smallest first with repeated `width × height` dropped
+(`AI-C`). AppKit sets `NSApplication.applicationIconImage`; SDL sets every open
+and later window's icon (`AI-E`, `AI-F`); on SDL `[]` cannot restore the
+default. SwiftUI has no runtime icon API — a SwiftUI app's icon is its
+bundle's — so this is MetalUI-only by design and has no divergence row. At the
+seam, `Platform.setApplicationIcon(_:)` over `ImageTexture`s, defaultless
+(`AI-B`). Shipping an icon with the application itself is build-side:
+[`packaging.md`](packaging.md).
+
 ## Accessibility — A / M
 
 On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,
