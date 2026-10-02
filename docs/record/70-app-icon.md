@@ -5,8 +5,8 @@ master's later `a985d23`/`5800703` cut `CLAUDE.md` to rules only and merged in
 at `c8fea9f`). **Not a plan task**: the SwiftUI-alignment plan is
 agent-complete; this is new feature work requested by the user on 2026-10-01.
 Spec `docs/superpowers/specs/2026-10-01-app-icon-design.md`; rulings
-`AI-A`…`AI-M` in the new decisions doc
-`docs/superpowers/2026-10-01-app-icon-decisions.md` (next unused `AI-N`). **No
+`AI-A`…`AI-N` (`AI-N`, the shader resource bundle, §9) in the new decisions doc
+`docs/superpowers/2026-10-01-app-icon-decisions.md` (next unused `AI-O`). **No
 SwiftUI probe**: SwiftUI has no runtime icon API (measured against the macOS 27
 SDK's `SwiftUI.framework` interface, decisions doc header), so the feature
 claims no SwiftUI behaviour and is inventory class M.
@@ -286,3 +286,77 @@ after a 32², would lose one. `AI-C` item 3 stays half pinned; the remedy is
 one more test input (e.g. 32×64 and 64×32 after 32², all three kept). Minor
 (no shipping caller passes non-square icons), owner none, not fixed by this
 docs-only check.
+
+## §9 Addendum: the shader resource bundle (`AI-N`) and 1.3b (2026-10-01, before merge)
+
+**What.** User request folded in before merge: a hand-packaged `.app`
+missing or misplacing `MetalUI_MetalUIRender.bundle` crashed in SwiftPM's
+generated `Bundle.module` accessor (`fatalError`) instead of throwing
+MetalUI's own `ShaderLibraryError.resourceMissing`. `ShaderLibrary` now finds
+the bundle itself (`candidateDirectories(main:code:environment:)`, the union
+of both build systems' accessor candidates with `Contents/Resources` first,
+plus the executable's and the code bundle's directories and, in debug, the
+override and the package's build directories) and
+`resourceBundle(candidates:)` throws naming every directory tried (`AI-N`).
+Both internal; no public declaration added or changed, so no inventory row
+and no migration note. `docs/packaging.md` now puts the bundle in
+`Contents/Resources` on both build systems. The branch check's open item
+(§8, X1: `AI-C` item 3's pair dedupe half pinned) is closed by a new test,
+1.3b.
+
+**Tests.** Root suite **2041 → 2049** (+8): `ShaderResourceBundleTests.swift`
+R1–R7 (named in `AI-N` item 3) and `AppIconTests.swift` 1.3b
+`theAppIconDedupeComparesTheWholeSizePair` (32², 32×64, 64×32 all kept, in
+that order). Guards unmoved (126).
+
+- **Red** (`764b30c`, skeleton: `candidateDirectories` `[]`,
+  `resourceBundle` returning `Bundle.module`): `Test run with 2049 tests in 3
+  suites failed … with 7 issues`, one per new test — R1 `:73`, R2 `:87`, R3
+  `:96`, R4 `:104` (each found the build directory's bundle), R5 `:117` (no
+  candidates), R6 `:138` (`expected exit status ".success", but
+  ".exitCode(2)"` — no throw), R7 `:160`. 1.3b green on arrival (the code was
+  already right; it closes a pinning gap).
+- **Green** (`d50e823`): 2049 passed. R5 then keeps only the fake app's own
+  candidates (a debug build's own build directories hold the real bundle —
+  without the filter R5 found it, `:120`). `2bc165c` gives the fake app its
+  own empty code bundle: with `code == main`, `code.resourceURL` aliases
+  `main.resourceURL` and MN1 would be hidden.
+
+**Mutation table** (each from a copy, `swift build --build-system native
+--build-tests` then the unfiltered `swift test --build-system native
+--no-parallel`, restored; `git status` showed no tracked source change after
+each):
+
+| Mutation | Suite line | Reddened |
+|---|---|---|
+| MN1 drop the `main.resourceURL` candidate | 2049, 3 issues | R1 `aResourceBundleInContentsResourcesIsFound` (`:84`), R2 `contentsResourcesIsPreferredOverTheAppRoot` (`:98`), R5 `noResourceBundleThrowsResourceMissingNamingEveryPathTried` (`:146`, the message no longer names `Contents/Resources`) |
+| MN2 `main.bundleURL` (the app root) ahead of `main.resourceURL` | 2049, 1 issue | R2 (`:98`) |
+| MN3 `fatalError` in place of the throw | **no summary line** — R5 traps in-process (`ShaderLibrary.swift:136: Fatal error: MetalUI_MetalUIRender.bundle (not found in any of: …)`), truncating the run before R6 | R5 (by trap); R6 `aMissingResourceBundleThrowsRatherThanTraps` alone under the same mutant (filtered, since R5 ends the unfiltered run first): `expected exit status ".success", but ".signal(SIGTRAP)"` (`:154`) |
+| M1n `App.normalized` dedupes on width alone | 2049, 1 issue | 1.3b `theAppIconDedupeComparesTheWholeSizePair` (`AppIconTests.swift:113`) |
+| M1o dedupes on height alone | 2049, 1 issue | 1.3b (`:113`) |
+
+§8's X1 (area dedupe) would also drop 64×32 and redden 1.3b by the same
+reading; not re-run.
+
+**The real app.** `MetalUIDemo` built `-c release` under both build systems,
+each assembled as `MetalUIDemo.app` (its own directory in the scratchpad,
+nothing else beside it) with `MetalUI_MetalUIRender.bundle` in
+`Contents/Resources` — in release the candidates are `Contents/Resources`
+(main and code bundle are the same, listed once), the app root, `Contents/MacOS` and the
+directory holding the app, so only `Contents/Resources` holds the bundle.
+`plutil -lint` `OK`; `codesign --force --sign -` then `codesign --verify
+--strict --verbose=2`: `valid on disk`, `satisfies its Designated
+Requirement`, both. Launched from `Contents/MacOS`: **native — alive after 6
+s; default — alive after 6 s**; each killed (status 143), nothing on stderr.
+The missing-bundle case was **not** launched (it would end in an error
+dialog); R5/R6 pin it headless.
+
+**Verification** (at `2bc165c` plus this docs commit): after `swift package
+clean`, `swift build --build-system native --build-tests` 0 `error:`, the one
+SwiftPM deprecation `warning:`; unfiltered `swift test --build-system native
+--no-parallel`: **`Test run with 2049 tests in 3 suites passed after 117.022
+seconds`**, the FR-J line present. `swift build --build-tests` (default build
+system) 0 `warning:`. `closeout-inventory-check.sh` and
+`closeout-undocumented.sh` print nothing. `compare.sh <scratch> 330f02b
+HEAD`: 0 differing pixels, scene identical, all fourteen images.
+`cmp CLAUDE.md AGENTS.md` clean.

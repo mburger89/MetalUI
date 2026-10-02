@@ -5,7 +5,7 @@ task**). Spec: [`specs/2026-10-01-app-icon-design.md`](specs/2026-10-01-app-icon
 Record: `../record/70-app-icon.md` (§69 is master's frozen `CLAUDE.md`; the concurrent
 `metal-view` line, written as §69, renumbers at its own merge).
 
-Prefix **`AI-`**, lettered. **Next unused: `AI-N`.** (This line moves in the
+Prefix **`AI-`**, lettered. **Next unused: `AI-O`.** (This line moves in the
 commit that appends a ruling; read the last `## AI-` heading.)
 
 Branch `feat/app-icon` from `330f02b` (master: drag and drop merged, PR #36).
@@ -418,4 +418,61 @@ also untouched by this branch; none comes from lane source.
    (`unsealed contents present in the bundle root`). The document says to
    package with the default build system. Windows' link step and every look
    stay **unverified** there.
+
+## AI-N — the shader resource bundle is found by MetalUI, not `Bundle.module`; a missing one throws (user request, before merge)
+
+**Context.** A hand-packaged `.app` missing or misplacing
+`MetalUI_MetalUIRender.bundle` crashed in SwiftPM's generated accessor
+(`resource_bundle_accessor.swift`, `fatalError`) via
+`ShaderLibrary.combinedSource` → `Renderer.init` → `App.init`, never reaching
+MetalUI's own `ShaderLibraryError.resourceMissing`; and under
+`--build-system native` that accessor searched only `Bundle.main.bundleURL`
+(the `.app`'s root, which `codesign` refuses) and the absolute build
+directory (`AI-M` item 5). Read from the two generated accessors at this
+branch: the default build system's tries (debug only) the
+`PACKAGE_RESOURCE_BUNDLE_PATH`/`…_URL` override, then
+`Bundle.main.resourceURL`, `Bundle(for:).resourceURL`, `Bundle.main.bundleURL`,
+appending `MetalUI_MetalUIRender.bundle` to each; the native one tries
+`Bundle.main.bundleURL` and the baked-in `.build/<triple>/debug` path.
+
+**Ruling.**
+1. **`ShaderLibrary.candidateDirectories(main:code:environment:)`** (internal)
+   lists, in order and without repeats: in a debug build the override;
+   `main.resourceURL` (an app's `Contents/Resources`); `code.resourceURL` (a
+   framework's); `main.bundleURL`; the directory of `main.executableURL`; the
+   directory holding `code`'s bundle (beside a test bundle in a build
+   directory); in a debug build this package's `.build/<triple>/debug` and
+   `.build/out/Products/Debug`, from `#filePath` (the native accessor bakes
+   its build path the same way; a release binary carries none).
+   `combinedSource()` passes `Bundle.main`, `Bundle(for:)` a private class of
+   the module, and the process environment. So a packaged `.app` finds the
+   bundle in `Contents/Resources` **on both build systems**, and
+   `Contents/Resources` is preferred over the app's root.
+2. **`ShaderLibrary.resourceBundle(candidates:)`** (internal) returns the
+   first `Bundle(url:)` of `<candidate>/MetalUI_MetalUIRender.bundle`, else
+   **throws** `ShaderLibraryError.resourceMissing("MetalUI_MetalUIRender.bundle
+   (not found in any of: <every candidate path, comma-separated>)")` — never
+   a trap. `Bundle.module` is no longer called (its accessor is still
+   generated, unused). No public declaration changes; the error case and
+   its description are as before.
+3. **Tests** (`Tests/MetalUITests/ShaderResourceBundleTests.swift`, over a
+   fake `MyApp.app` in a temporary directory, with its own empty fake code
+   bundle so a main-bundle candidate cannot hide behind `code.resourceURL`):
+   R1 `aResourceBundleInContentsResourcesIsFound`, R2
+   `contentsResourcesIsPreferredOverTheAppRoot`, R3
+   `aResourceBundleAtTheAppRootAloneIsFound`, R4
+   `aResourceBundleBesideTheExecutableIsFound`, R5
+   `noResourceBundleThrowsResourceMissingNamingEveryPathTried`, R6
+   `aMissingResourceBundleThrowsRatherThanTraps` (an exit test), R7
+   `theResourceBundlePathOverrideComesFirstInADebugBuild`. Mutation table:
+   record §70 §9.
+4. **`docs/packaging.md`** puts the bundle in `Contents/Resources` on both
+   build systems and quotes the error; the "package with the default build
+   system" rule (`AI-M` item 5) is superseded, kept there as one sentence of
+   history.
+
+**Reasoning.** `Bundle.module` cannot be asked without risking its
+`fatalError`, so its candidate list is replicated (both build systems'
+union) rather than consulted. A throw lets `App.init`'s caller report the
+packaging error; the paths tried say where the bundle should have been.
 

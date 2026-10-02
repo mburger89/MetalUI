@@ -34,7 +34,7 @@ summary.
   milestone's own spec for prefixes without one. Read their "Carried…"
   sections before new work. Ruling ids are namespaced by prefix (`F-`, `CS-`,
   `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `AI-` (app
-  icon, next `AI-N`; own decisions doc
+  icon, next `AI-O`; own decisions doc
   `2026-10-01-app-icon-decisions.md`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -70,7 +70,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-01, `feat/app-icon`): 2041 tests, 0 goldens, 126 typecheck
+- **Counts (2026-10-01, `feat/app-icon`): 2049 tests, 0 goldens, 126 typecheck
   guards**; `Backends/SDL` 22 + 48; Linux container 199 + 22 + 14. A count is
   stale the moment a test lands — re-measure (`swift package clean`, native
   build, unfiltered `--no-parallel` run). History: record §66, §67, §68, §70.
@@ -310,6 +310,12 @@ icons are straight alpha, so `SDLIcon.straightRGBA` un-premultiplies (`AI-F`).
 SDL applies the icon to every open and later window and cannot clear it.
 `AppKitPlatform.run()`'s re-assignment is unpinned (`AI-K`, human check O1).
 Packaging (bundle/`.desktop`/`.ico`) is build-side: `docs/packaging.md`.
+**The shader resource bundle is found by `ShaderLibrary`, never
+`Bundle.module`** (`AI-N`): `MetalUI_MetalUIRender.bundle` goes in an `.app`'s
+`Contents/Resources` on both build systems; a missing one makes `App.init`
+throw `ShaderLibraryError.resourceMissing` naming every directory tried, not
+trap. A new resource lookup in `MetalUIRender` goes through
+`ShaderLibrary.resourceBundle(candidates:)` too.
 
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(...)` in `prepaint` and

@@ -89,30 +89,42 @@ codesign --force --sign - MyApp.app          # ad hoc; a Developer ID for distri
 codesign --verify --strict --verbose=2 MyApp.app
 ```
 
-**Verified** with `MetalUIDemo` as `MyApp` (Swift 6.4, the default build
-system): `plutil -lint` reads `OK`; the ad-hoc signature verifies `valid on
-disk` and `satisfies its Designated Requirement`; launched from
-`Contents/MacOS`, the app was still running after six seconds. **Control**:
-the same bundle with `MetalUI_MetalUIRender.bundle` removed exits at once
-(status 133) with `unable to find bundle named MetalUI_MetalUIRender` — so
-the launch does discriminate. The binary links no non-system dynamic library
+**Verified** with `MetalUIDemo` as `MyApp` (Swift 6.4), built in release
+under **both** build systems (`swift build -c release --product MetalUIDemo`,
+and again with `--build-system native`), the resource bundle in
+`Contents/Resources`: `plutil -lint` reads `OK`; the ad-hoc signature verifies
+`valid on disk` and `satisfies its Designated Requirement` under `codesign
+--verify --strict`; launched from `Contents/MacOS`, each app was still running
+after six seconds (`AI-N`, record §70 §9). **The missing-bundle case** is
+checked by the unit tests, not a launch: with no candidate holding the bundle,
+the lookup throws `ShaderLibraryError.resourceMissing` naming every directory
+it tried (`noResourceBundleThrowsResourceMissingNamingEveryPathTried`; in a
+child process, `aMissingResourceBundleThrowsRatherThanTraps`). Before `AI-N`
+the same bundle without its resource bundle exited at once (status 133,
+SwiftPM's `unable to find bundle named MetalUI_MetalUIRender`). The binary links no non-system dynamic library
 (`otool -L`). Whether Finder and the Dock show the `.icns` is a look, not
 checked (the demo also sets `App.icon` at runtime, which would hide the
 bundle's icon once running; a check of the bundle icon alone needs an app
 that leaves `App.icon` at `[]`). Notarization (`notarytool`) — **unverified**.
 
-**Where the resource bundle goes, and why.** SwiftPM generates the
-`Bundle.module` accessor. Under the **default** build system (Swift 6.4) it
-searches `Bundle.main.resourceURL` (an app's `Contents/Resources`), the
-framework's resources, then `Bundle.main.bundleURL` — and in a release build
-nothing else, so the launch above is a real test. Under **`--build-system
-native`** (deprecated, used by this repository's own test runs) the accessor
-searches only `Bundle.main.bundleURL` (the `.app`'s **root**) and the
-absolute build directory; a bundle at the root is outside `Contents/`, and
-`codesign --sign` refuses it (`unsealed contents present in the bundle root`,
-verified), and the build-directory fallback makes any
-launch on the build machine succeed whatever the layout. Package with the
-default build system.
+**Where the resource bundle goes: `Contents/Resources`, on both build
+systems** (`AI-N`). MetalUI finds `MetalUI_MetalUIRender.bundle` itself
+(`ShaderLibrary.candidateDirectories`) rather than through SwiftPM's generated
+`Bundle.module`, searching in order: in a debug build SwiftPM's
+`PACKAGE_RESOURCE_BUNDLE_PATH` override; `Bundle.main.resourceURL` (the
+`.app`'s `Contents/Resources`); the resources of the bundle holding MetalUI's
+code; `Bundle.main.bundleURL` (a command-line tool's directory, an `.app`'s
+root); the executable's directory; the directory holding MetalUI's code
+bundle; and in a debug build this package's build directories. If none holds
+it, `App.init` (through `Renderer.init`) **throws**
+`ShaderLibraryError.resourceMissing`, whose description reads `MetalUI shader
+resource missing from bundle: MetalUI_MetalUIRender.bundle (not found in any
+of: <every directory tried, comma-separated>)` — it no longer traps. History:
+before `AI-N` the generated accessor was the only lookup, and under
+`--build-system native` it searched only the `.app`'s root (which `codesign
+--sign` refuses: `unsealed contents present in the bundle root`) and the
+absolute build directory, then called `fatalError`, so packaging had to use
+the default build system.
 
 ## Linux: a `.desktop` file and the hicolor icon theme
 
