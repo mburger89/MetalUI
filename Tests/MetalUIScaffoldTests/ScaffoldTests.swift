@@ -37,6 +37,65 @@ func aNameThatIsNotAModuleNameIsRefusedWithItsReason(_ name: String, _ reason: S
     #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
 }
 
+// SC-H: each refused name below failed `swift build` of a generated package
+// (record §72 §6.3; WinSDK is derived, not measured — no Windows host). The
+// reasons are spelled out here, not read from the scaffolder (shape 12).
+private let cycle = "MetalUI imports a module of that name (directly or through AppKit or Foundation), "
+    + "so the app's own module would be a dependency cycle"
+
+@Test(arguments: [
+    ("Swift", "the module name \"Swift\" is reserved for the standard library"),
+    ("Foundation", cycle), ("AppKit", cycle), ("Metal", cycle), ("CoreText", cycle), ("CoreGraphics", cycle),
+    ("QuartzCore", cycle), ("CoreVideo", cycle), ("CoreImage", cycle), ("CoreFoundation", cycle),
+    ("Dispatch", cycle), ("Darwin", cycle), ("ObjectiveC", cycle), ("Combine", cycle), ("Observation", cycle),
+    ("simd", cycle), ("os", cycle), ("IOKit", cycle), ("ImageIO", cycle), ("UniformTypeIdentifiers", cycle),
+    ("Accessibility", cycle), ("SwiftUICore", cycle), ("Spatial", cycle), ("DeveloperToolsSupport", cycle),
+    ("SwiftShims", cycle), ("_Concurrency", cycle), ("_StringProcessing", cycle),
+    ("Glibc", cycle), ("FoundationEssentials", cycle), ("WinSDK", cycle),
+    ("CFreeType", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CHarfBuzz", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CUnibreak", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CSheenBidi", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("ReplayFixture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("SDLReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("PortableReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("DemoCapture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+])
+func aNameThatClashesWithAModuleTheAppBuildsWithIsRefused(_ name: String, _ reason: String) {
+    #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
+}
+
+/// SC-H: module lookup is case-sensitive even on case-insensitive APFS — each
+/// of these built (record §72 §6.3) — and a keyword is a valid module name.
+@Test(arguments: ["foundation", "appkit", "metal", "swift", "SWIFT", "coretext", "observation", "cfreetype",
+                  "MetalKit", "SwiftUI", "XCTest", "Testing", "Cocoa", "Accelerate", "class", "func", "Self",
+                  "ReplayFixtureTests", "Distributed", "RegexBuilder"])
+func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
+    try validateName(name)
+}
+
+/// SC-H: SwiftPM identifies a package by its directory, lowercased, so an app
+/// whose name is a dependency's identity in any case collides with it
+/// (measured for `SDL`/`sdl` beside `Backends/SDL`, record §72 §6.3).
+@Test func aNameThatIsADependencysPackageIdentityIsRefused() throws {
+    let sdl = "a dependency's package identity is 'sdl' (its directory's name), and SwiftPM identifies "
+        + "this package by its directory's name too"
+    for name in ["SDL", "sdl", "Sdl"] {
+        #expect(throws: ScaffoldError.invalidName(name, reason: sdl)) {
+            try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: "/src/MetalUI"), crossPlatform: true))
+        }
+    }
+    _ = try scaffoldFiles(ScaffoldOptions(name: "SDL", source: .local(path: "/src/MetalUI")))
+    let fork = "a dependency's package identity is 'tools' (its directory's name), and SwiftPM identifies "
+        + "this package by its directory's name too"
+    #expect(throws: ScaffoldError.invalidName("Tools", reason: fork)) {
+        try scaffoldFiles(ScaffoldOptions(name: "Tools", source: .local(path: "/src/tools")))
+    }
+}
+
 @Test func aBundleIdentifierNeedsTwoNonEmptyReverseDNSParts() throws {
     try validateBundleIdentifier("com.example.MyApp")
     try validateBundleIdentifier("org.my-team.app2")
@@ -105,6 +164,49 @@ func aNameThatIsNotAModuleNameIsRefusedWithItsReason(_ name: String, _ reason: S
     #expect(try file("Packaging/windows/MyApp.rc", in: files).contents == "1 ICON \"MyApp.ico\"\n")
 }
 
+/// The README's text from `heading` to the next `## ` heading.
+private func section(_ heading: String, of readme: String) throws -> String {
+    let start = try #require(readme.range(of: "\n## \(heading)\n"), "no section \(heading)")
+    let rest = readme[start.upperBound...]
+    return String(rest[..<(rest.range(of: "\n## ")?.lowerBound ?? rest.endIndex)])
+}
+
+/// SC-F: Linux finds AccessKit through pkg-config; Windows has no pkg-config
+/// and passes SDL3's and AccessKit's paths as SwiftPM flags, as Windows CI
+/// does (`.github/workflows/sdl-gpu-linux.yml`), and says it is unrun.
+@Test func theCrossPlatformReadmeGivesLinuxAndWindowsTheirOwnBuildSteps() throws {
+    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .local(path: "/src/MetalUI"),
+                                                  crossPlatform: true))
+    let readme = try file("README.md", in: files).contents
+    let linux = try section("Linux", of: readme)
+    #expect(linux.contains("python3 /src/MetalUI/Backends/SDL/scripts/fetch-accesskit.py"))
+    #expect(linux.contains("PKG_CONFIG_PATH=/src/MetalUI/Backends/SDL/.accesskit swift run MyApp"))
+    #expect(linux.contains("SDL3"))
+    let windows = try section("Windows", of: readme)
+    #expect(!windows.contains("PKG_CONFIG_PATH"))
+    #expect(windows.contains("python /src/MetalUI/Backends/SDL/scripts/fetch-accesskit.py"))
+    #expect(windows.contains(#""-Xcc", "-I/src/MetalUI/Backends/SDL/.accesskit/accesskit-c-0.23.0/include""#))
+    #expect(windows.contains(#""-Xswiftc", "-L/src/MetalUI/Backends/SDL/.accesskit/lib""#))
+    #expect(windows.contains(#""-Xcc", "-IC:\SDL3\include", "-Xswiftc", "-LC:\SDL3\lib\x64""#))
+    #expect(windows.contains("swift run @flags MyApp"))
+    #expect(windows.contains("SDL3.dll"))
+    #expect(windows.contains("not yet been built on Windows"))
+}
+
+/// SC-G: the two warnings a cross-platform build prints on macOS, quoted as
+/// measured, and why they are harmless.
+@Test func theCrossPlatformReadmeExplainsTheMacOSWarnings() throws {
+    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .local(path: "/src/MetalUI"),
+                                                  crossPlatform: true))
+    let macOS = try section("macOS", of: try file("README.md", in: files).contents)
+    #expect(macOS.contains("warning: 'sdl': couldn't find pc file for accesskit"))
+    #expect(macOS.contains("warning: 'sdl': prohibited flag(s): -Wl,-rpath,/opt/homebrew/lib"))
+    #expect(macOS.contains("harmless"))
+    #expect(macOS.contains("nothing of SDL is compiled or linked on macOS"))
+    let plain = try file("README.md", in: try scaffoldFiles(ScaffoldOptions(name: "MyApp"))).contents
+    #expect(!plain.contains("couldn't find pc file"))
+}
+
 @Test func theInfoPlistNamesTheExecutableIdentifierAndIcon() throws {
     let files = try scaffoldFiles(ScaffoldOptions(name: "Notes", bundleIdentifier: "org.example.notes"))
     let data = Data(try file("Packaging/macOS/Info.plist", in: files).contents.utf8)
@@ -167,15 +269,29 @@ func aNameThatIsNotAModuleNameIsRefusedWithItsReason(_ name: String, _ reason: S
 
 // MARK: - Command line
 
-@Test func theCommandLineDefaultsToTheGitURLAndTheWorkingDirectory() throws {
-    let command = try parseScaffoldCommand(["new", "MyApp"], workingDirectory: "/work")
-    #expect(command == .new(ScaffoldOptions(name: "MyApp"), parentDirectory: "/work"))
+private let pinned = String(repeating: "ab12", count: 10)
+
+/// A lookup that must not be asked.
+private func noLookup(_ url: String) -> PinLookup {
+    Issue.record("the pin was looked up for \(url)")
+    return .unavailable("unused")
+}
+
+@Test func theCommandLineDefaultsToTheGitURLPinnedAndTheWorkingDirectory() throws {
+    var asked: [String] = []
+    let command = try parseScaffoldCommand(["new", "MyApp"], workingDirectory: "/work") {
+        asked.append($0)
+        return .revision(pinned)
+    }
+    #expect(asked == ["https://github.com/mburger89/MetalUI.git"])
+    #expect(command == .new(ScaffoldOptions(name: "MyApp", source: .remote(
+        url: "https://github.com/mburger89/MetalUI.git", reference: .revision(pinned))), parentDirectory: "/work"))
 }
 
 @Test func theCommandLineResolvesRelativePathsAgainstTheWorkingDirectory() throws {
     let command = try parseScaffoldCommand(
         ["new", "MyApp", "--path", "apps", "--local", "../MetalUI", "--bundle-id", "dev.me.app", "--cross-platform"],
-        workingDirectory: "/work/here")
+        workingDirectory: "/work/here", pinLookup: noLookup)
     #expect(command == .new(ScaffoldOptions(name: "MyApp", bundleIdentifier: "dev.me.app",
                                             source: .local(path: "/work/MetalUI"), crossPlatform: true),
                             parentDirectory: "/work/here/apps"))
@@ -183,20 +299,136 @@ func aNameThatIsNotAModuleNameIsRefusedWithItsReason(_ name: String, _ reason: S
 
 @Test func theCommandLineTakesAnotherURLAndBranch() throws {
     let command = try parseScaffoldCommand(["new", "MyApp", "--url", "https://example.com/fork.git",
-                                            "--branch", "dev"], workingDirectory: "/w")
+                                            "--branch", "dev"], workingDirectory: "/w", pinLookup: noLookup)
     #expect(command == .new(ScaffoldOptions(name: "MyApp", source: .remote(url: "https://example.com/fork.git",
-                                                                           branch: "dev")),
+                                                                           reference: .branch("dev"))),
                             parentDirectory: "/w"))
+}
+
+/// SC-I: `--revision` and `--branch` are explicit and are never looked up;
+/// `--url` without either is looked up for that URL.
+@Test func anExplicitRevisionOrBranchOverridesThePin() throws {
+    #expect(try parseScaffoldCommand(["new", "MyApp", "--revision", "0123abc"], workingDirectory: "/w",
+                                     pinLookup: noLookup)
+        == .new(ScaffoldOptions(name: "MyApp", source: .remote(url: "https://github.com/mburger89/MetalUI.git",
+                                                               reference: .revision("0123abc"))),
+                parentDirectory: "/w"))
+    #expect(try parseScaffoldCommand(["new", "MyApp", "--branch", "master"], workingDirectory: "/w",
+                                     pinLookup: noLookup)
+        == .new(ScaffoldOptions(name: "MyApp", source: .remote(url: "https://github.com/mburger89/MetalUI.git",
+                                                               reference: .branch("master"))),
+                parentDirectory: "/w"))
+    var asked: [String] = []
+    _ = try parseScaffoldCommand(["new", "MyApp", "--url", "https://example.com/fork.git"], workingDirectory: "/w") {
+        asked.append($0)
+        return .revision(pinned)
+    }
+    #expect(asked == ["https://example.com/fork.git"])
+}
+
+/// SC-I: no commit to pin → the branch, and a note saying why and what to do.
+@Test func withNoCommitToPinThePackageFollowsMasterAndSaysWhy() throws {
+    let command = try parseScaffoldCommand(["new", "MyApp"], workingDirectory: "/w") { _ in
+        .unavailable("no git here")
+    }
+    #expect(command == .new(ScaffoldOptions(name: "MyApp", source: .remote(
+        url: "https://github.com/mburger89/MetalUI.git", reference: .branch("master"))), parentDirectory: "/w",
+        note: "MetalUI is not pinned to a commit: no git here. The package follows branch master instead; "
+            + "pin it with --revision <commit> (README.md, \"Updating MetalUI\")."))
+}
+
+@Test func aPinnedRevisionIsARevisionDependency() throws {
+    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .remote(
+        url: "https://github.com/mburger89/MetalUI.git", reference: .revision(pinned))))
+    let manifest = try file("Package.swift", in: files).contents
+    #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", revision: ""# + pinned + #""),"#))
+    #expect(manifest.contains(#"// One commit of MetalUI, until you move it: README.md, "Updating MetalUI"."#))
+    #expect(!manifest.contains("branch:"))
+    #expect(manifest.contains(#".product(name: "MetalUI", package: "MetalUI"),"#))
+}
+
+/// SC-I: the README says how the app moves to another MetalUI, per source.
+@Test func theReadmeSaysHowToUpdateMetalUI() throws {
+    func updating(_ source: MetalUISource) throws -> String {
+        try section("Updating MetalUI", of: try file("README.md", in: try scaffoldFiles(
+            ScaffoldOptions(name: "MyApp", source: source))).contents)
+    }
+    let url = "https://github.com/mburger89/MetalUI.git"
+    let pin = try updating(.remote(url: url, reference: .revision(pinned)))
+    #expect(pin.contains("pins MetalUI to one commit of <\(url)>,\n`\(pinned)`"))
+    #expect(pin.contains("put a newer commit of its `master` branch in the\n`revision:`"))
+    #expect(pin.contains("swift package update\nswift build\n"))
+    let branch = try updating(.remote(url: url, reference: .branch("dev")))
+    #expect(branch.contains("follows the `dev` branch"))
+    #expect(branch.contains(#"replace `branch: "dev"` with"# + "\n" + #"`revision: "<commit>"`"#))
+    #expect(try updating(.local(path: "/src/MetalUI")).contains("the MetalUI checkout at `/src/MetalUI`"))
+}
+
+/// SC-I: the pin is the merge base of HEAD and origin/master, taken only when
+/// the checkout's origin is the URL, in any of git's spellings.
+@Test func thePinIsTheMergeBaseOfHeadAndOriginMasterInACloneOfTheURL() {
+    let url = "https://github.com/mburger89/MetalUI.git"
+    var asked: [[String]] = []
+    func git(origin: String?, base: String?) -> ([String]) -> String? {
+        { arguments in
+            asked.append(arguments)
+            return arguments.contains("config") ? origin : base
+        }
+    }
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: "git@github.com:mburger89/MetalUI.git", base: pinned))
+        == .revision(pinned))
+    #expect(asked == [["-C", "/co", "config", "--get", "remote.origin.url"],
+                      ["-C", "/co", "merge-base", "HEAD", "refs/remotes/origin/master"]])
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: "https://github.com/MBurger89/MetalUI/", base: pinned))
+        == .revision(pinned))
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: nil, base: pinned))
+        == .unavailable("/co, which this metalui was built from, is not a git checkout with an origin remote, "
+            + "or git is not on the PATH"))
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: "https://example.com/fork.git", base: pinned))
+        == .unavailable("/co, which this metalui was built from, is a clone of https://example.com/fork.git, not \(url)"))
+    let noBase = PinLookup.unavailable("/co has no origin/master that HEAD shares a commit with "
+        + "(`git fetch origin` there, then run metalui again)")
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: url, base: nil)) == noBase)
+    #expect(lookUpPin(of: url, in: "/co", git: git(origin: url, base: "not a commit")) == noBase)
+}
+
+@Test func gitRunsFromThePathAndAFailureIsNil() throws {
+    let version = try #require(runGit(["--version"]))
+    #expect(version.hasPrefix("git version"))
+    #expect(runGit(["-C", "/nonexistent-metalui-dir", "status"]) == nil)
+}
+
+@Test func runningTheCommandSaysWhatItPinnedOrWhyItDidNot() throws {
+    let root = try scratchDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    var output: [String] = []
+    var errors: [String] = []
+    #expect(runScaffold(["new", "Pinned"], workingDirectory: root.path, pinLookup: { _ in .revision(pinned) },
+                        output: { output.append($0) }, error: { errors.append($0) }) == 0)
+    let pinnedApp = root.appendingPathComponent("Pinned").path
+    #expect(output == ["Created \(pinnedApp)\n\n  cd \(pinnedApp)\n  swift run Pinned\n"
+        + "\nMetalUI is pinned to \(pinned); README.md says how to update it.\n"])
+    #expect(errors.isEmpty)
+    output = []
+    #expect(runScaffold(["new", "Floating"], workingDirectory: root.path, pinLookup: { _ in .unavailable("why") },
+                        output: { output.append($0) }, error: { errors.append($0) }) == 0)
+    #expect(errors == ["metalui: note: MetalUI is not pinned to a commit: why. The package follows branch master "
+        + "instead; pin it with --revision <commit> (README.md, \"Updating MetalUI\")."])
+    let manifest = try String(contentsOfFile: root.appendingPathComponent("Floating/Package.swift").path,
+                              encoding: .utf8)
+    #expect(manifest.contains(#"branch: "master")"#))
 }
 
 @Test func theCommandLineRefusesWhatItCannotMean() throws {
     for arguments in [[], ["make", "MyApp"], ["new"], ["new", "A", "B"], ["new", "A", "--path"],
-                      ["new", "A", "--bogus"], ["new", "A", "--local", "/x", "--branch", "dev"]] {
+                      ["new", "A", "--bogus"], ["new", "A", "--local", "/x", "--branch", "dev"],
+                      ["new", "A", "--local", "/x", "--revision", "abc"], ["new", "A", "--revision"],
+                      ["new", "A", "--branch", "dev", "--revision", "abc"]] {
         #expect(throws: ScaffoldError.self, "\(arguments)") {
-            try parseScaffoldCommand(arguments, workingDirectory: "/w")
+            try parseScaffoldCommand(arguments, workingDirectory: "/w", pinLookup: noLookup)
         }
     }
-    #expect(try parseScaffoldCommand(["new", "A", "--help"], workingDirectory: "/w") == .help)
+    #expect(try parseScaffoldCommand(["new", "A", "--help"], workingDirectory: "/w", pinLookup: noLookup) == .help)
 }
 
 @Test func aLocalPathThatIsNotAMetalUICheckoutFailsBeforeAnythingIsWritten() throws {
