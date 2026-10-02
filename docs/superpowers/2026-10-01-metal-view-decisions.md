@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-Q`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-R`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -926,3 +926,77 @@ identical. The real-window capture was not taken: the lock probe read
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`. The SDL demo ran
 five seconds under `METALUI_METALVIEW_DEMO=1` without a crash (screen
 locked — not a look; section O8 is owed to a human).
+
+## MV-Q — lane 3's review round: the SDL composite's rect, the target's size and a new target's clear pinned
+
+The lane-3 verifier's mutations V2b, V2c, V7 and V5 left every test green:
+every SDL surface test filled its target with a uniform `ctx.clear` and
+sampled each quad at least 10 px inside its edges, so neither where a quad was
+composited nor what size its target was made could move a pixel any test
+read. Three pins (`4d53473`), no production behaviour changed:
+
+1. **Test 3.1 samples one device pixel either side of each quad's four
+   edges** (A at x, y in `0..<20`, B in `20..<40`: (19, 10), (10, 19), (20, 30),
+   (30, 20) inside, (20, 10), (10, 20), (19, 30), (30, 19) outside). The edges
+   read exact — the image pipeline's mask puts no partial coverage on a
+   pixel-aligned edge — so the literals are the interior ones and black.
+2. **Test 3.7 `anSDLSurfaceTargetIsMadeAtItsDevicePixelSizeAndRemadeOnResize`**:
+   a draw that is **not uniform and is placed by `pixelSize`** — a nearest
+   blit of a 2 × 2 source (red | blue over green | white) over the target's
+   `(0, 0)…pixelSize` — composited 1:1 into a quad of that size puts the four
+   quarters' meeting lines exactly on the quad's centre lines, which holds only
+   for a target made `pixelSize` texels; a second frame for the same id at a
+   new size (20 × 12 → 44 × 30) asserts a new target (created 2, released 1)
+   with the pattern at the new size. Two new pieces of test plumbing, both
+   `package`/bridge-only, neither reachable from a plain import:
+   `mui_gpu_blit_texture` (`SDLBridge`, one `SDL_BlitGPUTexture` recorded
+   into a command buffer, `LOADOP_LOAD`, nearest; submits nothing),
+   `SDLWindowRenderer.makeTestTexture(rgba:width:height:)`/
+   `releaseTestTexture(_:)` (the blit source, through
+   `mui_renderer_create_texture` — its own submission, made before the frame,
+   so 3.4's per-frame count is untouched) and
+   `SDLGPUDrawContext.blitForTesting(from:width:height:)`. **The blit is a
+   test's fill, not app API**: an app records its own passes with SDL3
+   (`MV-F` item 4).
+3. **Test 3.8 `aNewSDLSurfaceTargetArrivesClearedToTransparent`**: eight
+   rounds, each a target filled opaque white then a NEW target (the white one
+   released) whose draw writes nothing — its quad must show the black
+   background through, and its draw is told `isNewTarget`. **V5 is not
+   equivalent on SDL's Metal backend**: with the clear removed the empty
+   target reads (255, 0, 255, 255) — the fill Metal API Validation gives an
+   uninitialised texture, enabled under `swift test` ("Metal API Validation
+   Enabled" in the log). Without validation (a release app) Metal may well
+   hand back zeros, so this pin's macOS reading depends on validation; the
+   Vulkan reading is item 4's.
+4. **Linux** (`metalui-portable-ax`, `swift:6.4-noble` aarch64, Mesa lavapipe
+   — Vulkan's native `vkCmdBlitImage`, not the render-pass blit SDL uses on
+   Metal): `Backends/SDL` builds with 0 `error:` and runs **23 + 46** (44 + 3.7
+   + 3.8), both new tests passing on Vulkan — the blit and the edge samples
+   read the same literals there. **V5 is equivalent on lavapipe**: with the
+   clear removed, 3.8 stays green (23 + 46, same container) — Mesa's software
+   driver hands back zeroed memory, transparent black, across all eight
+   create-after-release rounds. So V5 is caught only on macOS under Metal API
+   Validation; on a driver that zero-fills (lavapipe, and possibly Metal
+   without validation) the clear is unobservable from a readback, and on one
+   that does not (a real GPU's reused allocation) 3.8 is the pin that would
+   see it. The clear stays: SDL3 documents a new texture's contents as
+   undefined.
+
+**Mutations**, each from a copy of the committed file (`4d53473`), full
+unfiltered `Backends/SDL` `swift test --no-parallel` on macOS (23 + 48),
+`git status --short` clean after each:
+
+| mutation | file | reddens |
+|---|---|---|
+| V2b every surface quad's `bounds`/`contentMask` x += 10 in `finishFrame`'s append | `SDLWindowRenderer.swift` | 3.1 ((20, 10), (10, 19), (20, 30)), 3.7 |
+| V2c the same, y += 5 | `SDLWindowRenderer.swift` | 3.1 ((10, 20), (30, 20), and (19, 10) by A's shifted corner), 3.7 |
+| V7 `mui_renderer_create_target(renderer, 1, 1)` in the create closure | `SDLWindowRenderer.swift` | 3.7 |
+| V7′ width and height swapped there | `SDLWindowRenderer.swift` | 3.7 |
+| V5 `if isNew { context.clear(0, 0, 0, 0) }` removed | `SDLWindowRenderer.swift` | 3.8 (macOS, under Metal API Validation; item 3) |
+
+**Counts.** `Backends/SDL` on macOS **23 + 48** (`MetalUISDLTests` +2: 3.7,
+3.8; 3.1 gained samples, not a test). Root package untouched by this round
+(no root `Sources/`/`Tests/` file), suite re-run unfiltered under `--build-system native`: **2072 tests in 3
+suites passed**, the FR-J line present, the one `warning:` SwiftPM's notice.
+No pixel re-take: nothing the fourteen offscreen images render moved.
+
