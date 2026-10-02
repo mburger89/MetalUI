@@ -373,6 +373,7 @@ and the docs commit carrying this ruling); no change to `AI-F`'s design.
 | MS8 `openSDLWindow` skips the stored icon | S5 (`:146`) |
 | MS9 `[]` keeps the last non-empty icon for new windows | S6 (`:170`) |
 | MS10 `[]` passes `NULL` to every open window | S6 (`:171`, the `NULL` counter) |
+| V7 `mui_window_set_icon` returns `true` without calling `SDL_SetWindowIcon` (verifier's mutation, fix round) | S7 only (`:195`, `:199` — the getter stays the 7 × 7 sentinel); S4 and S5 stay green, their `applied` being the wrapper's own answer |
 
 Test names: S1 `unpremultiplyingRestoresStraightAlpha`, S2
 `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`, S3
@@ -380,6 +381,24 @@ Test names: S1 `unpremultiplyingRestoresStraightAlpha`, S2
 `settingTheIconAppliesItToEveryOpenWindow`, S5
 `aWindowOpenedAfterTheIconIsSetGetsIt`, S6
 `clearingTheIconLeavesOpenWindowsAndGivesNewOnesNone`.
+S7 `sdlsCocoaBackendReceivesTheIconAsTheApplicationIcon` (macOS only, added
+at the verifier's fix round): `Backends/SDL` **22 + 48**.
+
+**Fix-round amendment (V7).** S4/S5's `applied` is `mui_window_set_icon`'s
+own return value, so before S7 nothing observed that SDL received the icon:
+V7 left 22 + 47 green. S7 reads it from outside the wrapper — SDL's Cocoa
+backend turns the window icon into `NSApplication.applicationIconImage`,
+whose size (the one discriminating fact, `AI-I`) becomes the primary
+texture's, 20 × 20, after `setApplicationIcon` on an open window and again
+after a later window opens with the getter reset to a 7 × 7 sentinel. Off
+macOS `SDL_SetWindowIcon` itself stays unobserved (human checks O3/O4).
+**Warnings**: the `Backends/SDL` build on this machine prints four
+environmental `warning:` lines that predate this branch — three `ld:
+warning: building for macOS-14.0, but linking with dylib …libSDL3.0.dylib
+which was built for newer version 26.0` (Homebrew's SDL3) and one
+`'sdl': prohibited flag(s): -Wl,-rpath,/opt/homebrew/lib` (pkg-config) —
+plus `AccessKitControlsParityTests.swift:83`'s unnecessary-`try` warning,
+also untouched by this branch; none comes from lane source.
 
 4. **`applied` off macOS is not asserted**: S4/S5 expect `applied == true`
    only under `#if os(macOS)`; in the Linux container they pass on the

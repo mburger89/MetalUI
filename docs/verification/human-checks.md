@@ -361,10 +361,14 @@ Dock tile, and none looks at a taskbar).
   PKG_CONFIG_PATH=$PWD/.accesskit swift run MetalUISDLDemo`. SDL's Cocoa
   backend turns the window icon into the application's Dock icon: the tile
   shows the same blue square and white disc, not a generic icon (`AI-F` item
-  6). Pinned by `settingTheIconAppliesItToEveryOpenWindow` and
-  `aWindowOpenedAfterTheIconIsSetGetsIt` (`SDL_SetWindowIcon` answers true on
-  macOS, `Backends/SDL`) and
-  `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`. **Observed:**
+  6). Pinned by `sdlsCocoaBackendReceivesTheIconAsTheApplicationIcon`
+  (`Backends/SDL`, macOS: SDL's Cocoa backend sets
+  `NSApp.applicationIconImage` to the primary texture's size, on an open
+  window and a later one) and
+  `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`;
+  `settingTheIconAppliesItToEveryOpenWindow` and
+  `aWindowOpenedAfterTheIconIsSetGetsIt` pin only that every window is
+  handed the icon (their `applied` is the C wrapper's own answer). **Observed:**
 - [ ] **O3. Linux (X11, then Wayland)**: the same `MetalUISDLDemo` command on
   a Linux desktop. **X11**: the window's title bar (where the window manager
   draws an icon there) and the task bar or dock show the blue square with the
