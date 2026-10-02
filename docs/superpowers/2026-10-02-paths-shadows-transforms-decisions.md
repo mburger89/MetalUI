@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-P`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-S`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -164,7 +164,7 @@ of `GX-A` item 1. A new `public struct Angle` (`.degrees(_:)`,
   false` from 0° to 90° sweeps through the below-right quadrant (PA3) — the
   flag reads in y-up terms, so MetalUI's arc sweeps the **positive** angle
   direction (visually clockwise) when `clockwise` is `false`. Pinned by
-  1.18 and 3.x on both sides of the flag.
+  1.19 and 3.x on both sides of the flag.
 - **An open subpath fills as if closed** (PA6); `addEllipse` equals
   `Ellipse()` (PA5); `addRoundedRect`'s default style is `.continuous`
   (PA5), drawn circular (divergence 90, amended: the path's corners are the
@@ -312,7 +312,7 @@ typedef struct {            // 64 bytes: four float4 lanes
   same discipline as `TE-AQ` item 6.
 - **Replay**: `ReplayFixture` version **3** carries the transform table after
   the textures; the stride check gains the transform stride; `Experiments/SDLGPU`
-  records a **frame 7** (spec §6.3) and both CI jobs' `--expect 7` become
+  records a **frame 7** (spec §5.3) and both CI jobs' `--expect 7` become
   `--expect 8`. Frame 7's reference is the Metal renderer; SDL's Metal backend
   must read 0 px, llvmpipe and D3D12 within `ParityTolerance` (sprites ≤ 8
   inside glyph and image quads, ≤ 1 elsewhere).
@@ -375,7 +375,7 @@ counter, 2.21).
   owner none — a second mask per primitive is the only exact answer).
 - **A `Deferred` presentation resets the effect stack** as it already resets
   clip and scroll offset (`AP-I`): a sheet declared inside a rotated view is
-  not rotated, and its hitboxes are untransformed (2.18).
+  not rotated, and its hitboxes are untransformed (2.20).
 - The same composed affine (in points) is pushed in **prepaint** around the
   element's registration, for hitboxes and accessibility (`GX-I`).
 
@@ -501,7 +501,7 @@ suite unchanged), and the fourteen images read 0 px against `dc96395`.
   arithmetic on the alpha channel, box widths from sigma by the standard
   formula (`sqrt` only) — deterministic everywhere, O(1) per pixel whatever
   the radius. Its profile is pinned against SwiftUI's measured rows within ±8
-  grey levels (1.25, 3.17); the three-box shape and SwiftUI's own truncation
+  grey levels (1.28, 3.17); the three-box shape and SwiftUI's own truncation
   at about 2.4 sigma are the difference — divergence 105, kept, owner none.
 - **Offsets and radius follow the composed transform**: the offset is mapped
   by the composed linear part (T10: rotated; T14: scaled) and sigma by
@@ -615,3 +615,151 @@ styles, shadows, the looks demo, human checks and the documents. Shared
 files (`Frame.swift`, `Transition.swift`, `NativeModifiedContent.swift`,
 `ModifiedContent.swift`, `ProposalAnimation.swift`, `Box.swift`) are safe only
 because the lanes run one at a time; spec §8 lists each lane's files.
+
+---
+
+## GX-P — A handler written after an effect follows it; point consumers read local points; the anchor is in scrolled space (critic round)
+
+**Finding.** `GX-I` transforms only the hitboxes and accessibility records
+registered **inside** an effect scope. On the proposal path every
+handler-registering wrapper (`OnTapModifier`, `GestureModifier`,
+`DraggableModifier`, `DropDestinationModifier`, `AccessibilityModifier`)
+calls `registerHandlers` over its **own** bounds before prepainting its
+content, so `Rectangle().frame(width: 160, height: 20).rotationEffect(.degrees(90)).onTapGesture { }`
+— the order probe arm **H1b** measured — would register an axis-aligned
+160×20 hitbox outside the rotation scope and hit where nothing is drawn,
+the opposite of SwiftUI's `(100,40) 1 (40,100) 0`. The spec's test 2.10 cited
+H1b but its mechanism could not produce it. Separately, every consumer that
+turns the event point into a local one — `Gesture.swift`'s `leaf.local(point)`
+(window point minus the declarer's unclipped origin), `Slider`'s
+`ValueTrackTarget.minX`, a `TextField`/`TextEditor` press, a drop
+destination's action location (`DN-H` item 2) — reads the **window** point,
+so under a rotation or scale a slider would set the wrong value and a
+`DragGesture` would report rotated translations. And `GX-H`'s anchor
+(`bounds.origin + anchor × size`) omitted `Frame.activeOffset`, the scroll
+translation `PaintPass.fill` and `insertHitbox` already add, so an effect
+inside a scrolled `ScrollView` would turn about a point the content has
+scrolled away from.
+
+**Ruling.**
+
+1. **A registration whose rect IS the effect's rect shares the effect.** A
+   hitbox or accessibility record registered by a **proper ancestor** of an
+   effect layer, at a rect equal to the effect layer's own rect (no layer
+   between them changed the rect — only other effects, handlers, gestures,
+   draggables, drop destinations, accessibility or environment layers), is
+   registered through the effect's composed affine exactly as one inside it
+   is (`GX-I`'s inverse, outer clip and bounding box). The mechanism —
+   retroactive patching of the matching registrations when the effect's
+   prepaint scope opens, or a look-ahead in the unified layer recursion — is
+   lane 2's choice, recorded as a ruling. So `.rotationEffect(…).onTapGesture`
+   and `.onTapGesture.rotationEffect(…)` hit the same diamond (H1, H1b).
+2. **A rect-changing layer stops it.** `.rotationEffect(…).padding(10).onTapGesture`
+   registers the padded, axis-aligned frame: MetalUI's hit region is the
+   registering element's frame (divergence 41), and that frame is not
+   transformed. SwiftUI hits only the rotated content (its hit region is the
+   content's shape) — **divergence 41, amended** (no new label: it is the
+   frame-versus-content rule, now also under an effect), remedy: write the
+   handler inside the padding or before the effect. A legacy `StyledElement`
+   needs no rule: its own `Decoration.renderEffects` wrap its own handlers
+   (`GX-H`).
+3. **Point consumers read the declarer's local point.** `Window` maps the
+   event point through the hit hitbox's stored inverse (into the
+   pre-effect, window-space frame the declarer was laid out in) **before**
+   handing it to a gesture leaf, a value track, a text press or a drop
+   destination; their existing `point − origin` conversions are unchanged.
+   A `DragGesture`'s `location`/`startLocation`/`translation` are therefore in
+   the declarer's untransformed space, and a drag's `translation` under a 90°
+   rotation is the window delta rotated back. **No SwiftUI claim**: the probe
+   does not record gesture values under an effect; this is MetalUI's own
+   reading of a gesture's local space, consistent with hit testing following
+   the transform. The drag preview's translation stays window-space (it is
+   drawn above everything, untransformed — `DN-J`).
+4. **The anchor is in the space primitives are emitted in**:
+   `anchorPoint = bounds.origin + activeOffset + anchor × bounds.size`, then
+   the device scale for paint; prepaint uses the same expression, so the
+   hitbox inverse and the drawn content agree inside a scrolled scroller.
+5. **Not offered on a `Component`** (`StyledComponent` or a bare
+   `Component`), as `background(_ token:)`/`onClick` are not (CLAUDE.md
+   "Component"): declare the effect on the members, or on a proposal or
+   legacy element that wraps the body. Owner none; a row in spec §9.
+
+**Tests** (lane 2, spec §8): 2.27–2.31.
+
+**Cost if wrong.** Rule 1's rect-equality test is the whole mechanism; a
+wrapper that registers at a rect differing only by rounding would fall back to
+the axis-aligned frame — 2.27 pins the common chain on both orders.
+
+---
+
+## GX-Q — `ColorToken.shadow` keeps `Theme`'s public initialiser source-compatible (critic round)
+
+**Finding.** `GX-J` adds a `ColorToken` case, but `Theme` is a public struct
+with one stored `Hsla` per token, a public memberwise
+`init(background:surface:…:scrim:)` and an exhaustive `subscript(token:)`
+(`Theme.swift`, the "adding a case to `ColorToken` is a compile error here"
+note). Adding `shadow` as a required stored property and initialiser
+parameter would break every outside custom theme — a second, unruled public
+break.
+
+**Ruling.** `Theme` gains `public var shadow: Hsla` and its initialiser a
+**trailing defaulted** parameter `shadow: Hsla = <black at 0.33>`, so every
+existing `Theme(background:…scrim:)` call compiles unchanged; `.light` and
+`.dark` pass the same value (SH2). The subscript gains the arm. Pinned by a
+plain-import whole-file guard, **G3.3** `aThemeWrittenBeforeTheShadowTokenStillCompiles`
+(mutation MG3.3: the default removed). `ColorToken`'s own exhaustive-`switch`
+break stays the one migration note `GX-J` names. `swift package clean`
+before lane 3 re-takes counts (`Theme` is a public type crossing into
+`MetalUIDemoContent`).
+
+---
+
+## GX-R — Critic round: instruments replaced, cross-references fixed, what was rejected
+
+**Ruling.**
+
+1. **Probe re-run.** The whole probe was re-run compiled on 2026-10-02 with
+   the screen unlocked (lock probe: no `CGSSessionScreenIsLocked` line,
+   `displayAsleep main: 0`): **120 lines, byte-identical to its header**,
+   exit 0 — every arm the rulings cite, not only two.
+2. **Two mutations could not redden; replaced.**
+   - *M2w* ("`RenderEffect` maps a corner radius by `sqrt|det|` for a
+     flattened map — a 1-ulp drift"): for a uniform scale `s`,
+     `sqrt(fl(s²)) == |s|` exactly in IEEE round-to-nearest, so the mutant
+     emits the same bytes and 2.26 stays green — a broken instrument.
+     **Replaced** by *M2w′*: the transition atom's affine composes its
+     translation before its scale (`S·T` for `T·S`), which moves every
+     `.scale` transition primitive whose anchor is not the origin.
+   - *M1aa* ("one `sinCos` coefficient's last digit changed"): a change of
+     about 1e-17 relative cannot move an 8-bit coverage byte, so 1.26's
+     hash stays green. **Replaced** by *M1aa′*: the flattening tolerance
+     0.1 → 0.2 device px (segment counts change, so curve coverage bytes do).
+     `sinCos`'s own determinism is pinned by 1.27, now **exact bit
+     patterns** (`Double.bitPattern` literals recorded on macOS, compared
+     on Linux and Windows CI), not "within 2 ulp" — a tolerance cannot see
+     the platform drift the function exists to prevent. `PathMath` uses no
+     `addingProduct`/`fma`, so no platform's fused multiply-add enters.
+3. **Cross-references corrected**: `GX-C`'s arc pin is 1.19 (not 1.18);
+   `GX-F`'s frame 7 is spec §5.3 (not §6.3); `GX-G`'s `Deferred` pin is 2.20
+   (not 2.18); `GX-J`'s blur pins are 1.28 and 3.17 (not 1.25).
+4. **Lane 1 notes added**: every new C enum (the three
+   `MUI…BufferTransforms` indices) is converted explicitly where Swift reads
+   it (`UInt32(X.rawValue)`/`Int(X.rawValue)`, the Windows `Int32` hazard),
+   and `SDLBridge.c`'s shader create infos raise `num_storage_buffers` for
+   each stage that reads the table.
+5. **Rejected, with reasons.**
+   - *Split lane 1* (the GPU transform from `MetalUIPath`): the two are
+     disjoint in files, but frame 7 needs both (a CPU raster drawn through
+     the parity-checked image pipeline is its evidence), and agents run one
+     at a time here, so a split buys no parallelism and costs one more
+     agent loading the same rules. Kept.
+   - *An `Hsla` overload for `.shadow(color:)`*: MetalUI colours are theme
+     tokens everywhere (`fill`, `foregroundStyle`, `background`); a shadow is
+     not the place to break that convention. Kept token-only.
+   - *A translation-free raster cache key*: a shadowed or path view inside a
+     scrolling `ScrollView` re-rasterizes while it scrolls (the key holds the
+     composed affine and the clip). Correct, only slower; recorded as `GX-K`'s
+     cost, owner none.
+   - *Gesture values under an effect probed*: the click harness sends single
+     clicks; a recorded `DragGesture` value needs a drag harness the probe
+     does not have. `GX-P` item 3 is stated as MetalUI's own reading instead.

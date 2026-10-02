@@ -1,7 +1,7 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-O` in
+task). Rulings `GX-A`…`GX-R` in (`GX-P`…`GX-R` from the critic round)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;
@@ -215,7 +215,8 @@ other style is stroked (§`GX-E`). `contentShape(path)` hits by winding.
 `rotationEffect`/`scaleEffect`/`offset` push a **render-effect scope** in
 prepaint and paint around their content. Its affine (points) is
 `T(anchorPoint) · L · T(−anchorPoint)` composed with the offset, where
-`anchorPoint = bounds.origin + anchor × bounds.size` and `L` is
+`anchorPoint = bounds.origin + activeOffset + anchor × bounds.size` (the
+scroll translation primitives and hitboxes already carry, `GX-P` item 4) and `L` is
 `[[cos, −sin],[sin, cos]]` (y-down; positive degrees clockwise) or
 `diag(x, y)`. Scopes compose outer-to-inner in written order. In paint, each
 emitted primitive is mapped (`GX-G`: flattened on the CPU when the composed
@@ -223,7 +224,12 @@ map is a translation plus a uniform positive scale, a transform record
 otherwise, scaled by the device scale factor into device px). A non-flattening
 scope splits the clip (outer mask / local clips). In prepaint, hitboxes store
 the inverse composed affine and the outer clip; accessibility records store
-the bounding box of the transformed bounds. A zero scale skips the content's
+the bounding box of the transformed bounds. A registration made by a proper
+ancestor at the effect's own rect (a handler, gesture, draggable, drop
+destination or accessibility layer written after the effect) is transformed
+too; a rect-changing layer between them stops it (`GX-P` items 1–2). `Window`
+maps an event point through the hit hitbox's inverse before a gesture leaf, a
+value track, a text press or a drop destination reads it (`GX-P` item 3). A zero scale skips the content's
 paint (nothing drawn) and registers hitboxes that contain nothing. Layout is
 untouched: the layer answers its child's size.
 
@@ -376,7 +382,7 @@ one summary line, the `FR-J` line present), `git status --short` after each
 restore, name every reddened test; each new typecheck guard mutated red once.
 **`swift package clean` before re-taking counts** after a public type
 crossing a module boundary changes (lane 1: `MUIGlyph`, `Scene`,
-`MUITransform`; lane 2: `LayoutModifier`, `Decoration`; lane 3: `ColorToken`, `ShapeGeometry`, `LayoutModifier`). Each
+`MUITransform`; lane 2: `LayoutModifier`, `Decoration`; lane 3: `ColorToken`, `Theme`, `ShapeGeometry`, `LayoutModifier`). Each
 lane appends its readings as new `GX-` rulings (moving the "next unused"
 line), adds its own divergence rows, `docs/api-overview.md` lines, doc
 comments and inventory map rows (`zsh docs/probes/closeout-inventory-check.sh`
@@ -395,6 +401,9 @@ Metal device follow their directory's existing skip convention.
 `.github/workflows/sdl-gpu-linux.yml`. `shadercross`: the copy in the main
 checkout's untracked `Experiments/SDLGPU/.tools/`, **copied into the
 scratchpad, never run in place**.
+**Notes** (`GX-R` item 4): every new C enum read from Swift is converted
+explicitly (`UInt32(X.rawValue)`, the Windows `Int32` hazard); `SDLBridge.c`
+raises each stage's `num_storage_buffers` for the transform table.
 **Tests**: new `Tests/MetalUIRenderTests/TransformPrimitiveTests.swift`, arms in
 `SceneTests.swift` and `ShaderABITests.swift`; new `Tests/MetalUIPathTests/`
 (`RasterizerTests.swift`, `StrokerTests.swift`, `PathMathTests.swift`,
@@ -427,8 +436,8 @@ scratchpad, never run in place**.
 | 1.23 | `dashesWalkTheArcLengthFromThePhase` (ST7) — ST7's three rows exactly | — | M1x: phase ignored |
 | 1.24 | `aClosedSubpathJoinsAtItsStartAndAnOpenOneCaps` (ST8) | — | M1y: closed subpaths capped |
 | 1.25 | `aNonPositiveWidthStrokesNothing` (ST10) | — | M1z: `abs(width)` |
-| 1.26 | `theRasterizerIsBitIdenticalEverywhere` — a fixed corpus (curves, arcs at 7 angles, the strokes above, an even-odd star, a blur) hashed to a literal recorded on macOS; runs on Linux and Windows CI | — | M1aa: one `sinCos` coefficient's last digit changed |
-| 1.27 | `sinCosMatchesTheReferenceTable` — 24 angles (incl. ±π/2, ±π, 1e6) within 2 ulp of literals; odd/even symmetry exact | — | M1ab: range reduction off by a quadrant |
+| 1.26 | `theRasterizerIsBitIdenticalEverywhere` — a fixed corpus (curves, arcs at 7 angles, the strokes above, an even-odd star, a blur) hashed to a literal recorded on macOS; runs on Linux and Windows CI | — | M1aa′: flattening tolerance 0.1 → 0.2 (`GX-R` item 2; a coefficient's last digit cannot move a byte) |
+| 1.27 | `sinCosMatchesTheReferenceTable` — 24 angles (incl. ±π/2, ±π, 1e6) equal to `Double.bitPattern` literals recorded on macOS, exactly (`GX-R` item 2); odd/even symmetry exact | — | M1ab: range reduction off by a quadrant |
 | 1.28 | `theBoxBlurApproximatesAGaussianOfSigmaRadius` — a 40×40 square, radius 10: the row at y 20 within ± 8 of SH3's; radius 4 within ± 6 of SH3b's | — | M1ac: sigma = radius / 2 |
 | 1.29 | `onlyTheVisibleRectangleIsRasterized` — a 10 000-px path clipped to 100×100: `lastRasterizedPixels ≤ 10 000` | — | M1ad: clip ignored |
 | 1.30 | `aRotatedRasterIsResampledBilinearlyByTheCompositor` — `AlphaCompositor` resampling a 2×2 checker under 90°: exact permutation; under 45° a centre value of the mean | — | M1ae: nearest in the bilinear path |
@@ -446,7 +455,10 @@ scratchpad, never run in place**.
 (per-layer prepaint/paint), `ProposalAnimation.swift`, `Box.swift`
 (`Decoration.renderEffects`), `AnimatedColor.swift` (`paintDecoration`/
 `registerAndScope` push the effects), `Deferred.swift`, `DragSession.swift`
-(transform carried), `Window.swift` (caret bounding box).
+(transform carried), `Window.swift` (caret bounding box; event points mapped
+through the hit hitbox's inverse, `GX-P` item 3), and the handler wrappers
+`NativeTappable.swift`, `GestureModifiers.swift`, `DragAndDrop.swift` and the
+`AccessibilityModifier` (outward propagation, `GX-P` item 1).
 **Tests**: new `Tests/MetalUITests/{RenderEffectTests,RenderEffectHitTests,RenderEffectAnimationTests}.swift`,
 `RenderEffectCompileGuards.swift`.
 
@@ -477,14 +489,19 @@ scratchpad, never run in place**.
 | 2.23 | `aLegacyEffectWrapsTheWholeElementWhateverTheOrder` (divergence 108 pin) | — | M2t: background excluded |
 | 2.24 | `aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox` (divergence 109 pin) | — | M2u: the middle clip dropped |
 | 2.25 | `aProposalEffectIsOneIdentityLevel` — content numbered `positional(0)` under the layer (`MC-C`) | — | M2v: layer not counted |
-| 2.26 | `aTransitionsCapturedBytesDoNotMove` — `.scale` and `.move` transitions' emitted primitives at activeness 0.5 equal literals recorded at `dc96395` | green (pin) | M2w: `RenderEffect` maps a corner radius by `sqrt|det|` for a flattened map (a 1-ulp drift) |
+| 2.26 | `aTransitionsCapturedBytesDoNotMove` — `.scale` and `.move` transitions' emitted primitives at activeness 0.5 equal literals recorded at `dc96395` | green (pin) | M2w′: the transition atom composes translation before scale (`GX-R` item 2; `sqrt(fl(s²)) == |s|`, so the old M2w could not redden) |
+| 2.27 | `aTapWrittenAfterAnEffectHitsTheTransformedFrame` (H1b, `GX-P` item 1) — proposal `.rotationEffect(90°).onTapGesture` on the 160×20 bar: a `Window` click at (100, 40) runs it, (40, 100) does not; the same with `.gesture(TapGesture())` and `.dropDestination` | — | M2x: no outward propagation (the wrapper's hitbox stays axis-aligned) |
+| 2.28 | `aHandlerOutsideAPaddingOverAnEffectHitsItsAxisAlignedFrame` (divergence 41 amended pin, `GX-P` item 2) | — | M2y: propagation through a rect-changing layer |
+| 2.29 | `pointConsumersReadTheDeclarersLocalPoint` (`GX-P` item 3) — a `Slider` under `scaleEffect(x: 2, anchor: .leading)` pressed at its drawn 75 % reads 0.75; a `DragGesture` under a 90° rotation dragged +20 in window x reports translation (0, −20); a drop's action location under `offset(x: 40)` is destination-local | — | M2z: `Window` passes the raw window point |
+| 2.30 | `anEffectInAScrolledScrollerTurnsAboutItsScrolledAnchor` (`GX-P` item 4) — paint record and hitbox both about the scrolled centre | — | M2aa: anchor omits `activeOffset` |
+| 2.31 | `anAccessibilityRecordWrittenAfterAnEffectFollowsIt` — `.rotationEffect(90°).accessibilityLabel("x")` on the proposal path publishes the transformed bounding box | — | M2x |
 | G2.1 | `theRenderEffectSpellingsCompileFromAPlainImport` (whole-file guard) | no API | MG2.1: one spelling made `internal` |
 
 ### Lane 3 — `Path`, styles, shadows, the demo, the documents
 
 **Files**: new `Sources/MetalUI/{Path.swift,StrokeStyle.swift,Shadow.swift,RasterCache.swift}`;
 `Shape.swift`, `Shapes.swift`, `ShapeView.swift`, `ClipShape.swift`,
-`Theme.swift` (`.shadow`), `Frame.swift` (`path`/`shadow` kinds,
+`Theme.swift` (`.shadow`; `Theme.init`'s trailing defaulted `shadow:`, `GX-Q`), `Frame.swift` (`path`/`shadow` kinds,
 rasterization at `insertIntoScene`, leaf groups), `Passes.swift`
 (`drawGlyphs`), `Text.swift`, `ProposalText.swift`, `TextField.swift`,
 `TextEditor.swift`, `NativeModifiedContent.swift` (`.shadow`),
@@ -529,6 +546,7 @@ rasterization at `insertIntoScene`, leaf groups), `Passes.swift`
 | 3.28 | `theLooksDemoShowsPathsShadowsAndTransforms` — `looksDemoContent()` through a fake window: ≥ 2 path images, ≥ 3 shadow images, ≥ 2 transform records, and the tap rotates the square (record angle 45° after `simulateTick` past the animation) | — | M3aa: section left out of the composer |
 | G3.1 | `thePathAndShadowSpellingsCompileFromAPlainImport` (whole-file) | no API | MG3.1: `StrokeStyle.init` made `internal` |
 | G3.2 | `anOutsideShapeCanWritePathInAlone` (whole-file) | no API | MG3.2: `path(in:)` removed from the protocol |
+| G3.3 | `aThemeWrittenBeforeTheShadowTokenStillCompiles` (whole-file, `GX-Q`) — an outside `Theme(background:…scrim:)` with no `shadow:` | no token | MG3.3: the `shadow:` default removed |
 
 ## 9. Not built (owner none unless named)
 
@@ -542,12 +560,13 @@ rasterization at `insertIntoScene`, leaf groups), `Passes.swift`
 | a shape's stroke width animating | divergence 97 amended (N8) |
 | text and images re-rasterized at an effect's scale | divergence 106 (`GX-L`) |
 | `clipShape` of a path or ellipse | divergence 91 |
+| effects and `.shadow` on a `Component` | `GX-P` item 5: declare them on the members or a wrapping element |
 | gradients, SF Symbols, colour glyphs | unchanged rows of the shapes spec §9 |
 
 ## 10. Expected counts and checks
 
-Root suite ≈ **2124 + 30 (lane 1) + 26 + 1 guard (lane 2) + 28 + 2 guards
-(lane 3) = 2208 + 3 guards → 2211 tests, 132 guards** (the lanes give the
+Root suite ≈ **2124 + 30 (lane 1) + 31 + 1 guard (lane 2) + 28 + 3 guards
+(lane 3) = 2213 + 4 guards → 2217 tests, 133 guards** (critic round: +5 lane-2 tests, `GX-P`; +1 lane-3 guard, `GX-Q`) (the lanes give the
 exact figure), 0 goldens, `FR-J` line present, 0 `error:`, the one SwiftPM
 `warning:` under native and 0 under `swift build --build-tests`. Lane 1's
 `MetalUIPathTests` run on Linux and Windows CI as a fourth portable target.
@@ -557,7 +576,7 @@ re-run byte-identical to its header; `Backends/SDL`
 frames PASS, `PortableReplay --expect 8` and `DemoCapture` PASS; a
 `swift:6.4-noble` container (OrbStack, started if stopped and stopped after)
 builds and runs the portable suites; real-window capture only when the lock
-probe allows. Divergences 104–109 added, 90/91/97 amended — live 70 → 76,
+probe allows. Divergences 104–109 added, 41/90/91/97 amended — live 70 → 76,
 next label 110. The Record phase writes record §73, the dated sections of
 records §04/§05, `CLAUDE.md`/`AGENTS.md`, `README.md` if it lists features,
 and `docs/record/README.md`.
