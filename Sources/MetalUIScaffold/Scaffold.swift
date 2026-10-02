@@ -5,18 +5,32 @@
 // every platform (PC-A) and runs where `swift` does.
 import Foundation
 
+/// Which commit of a git dependency the generated manifest asks for (SC-I).
+package enum GitReference: Equatable, Sendable {
+    /// `.package(url:, branch:)`: follows the branch; `swift package update`
+    /// moves it to the branch's newest commit, breaking changes included.
+    case branch(String)
+    /// `.package(url:, revision:)`: one commit, until the user changes it.
+    case revision(String)
+}
+
 /// Where the generated package finds MetalUI.
 package enum MetalUISource: Equatable, Sendable {
-    /// A git URL and branch — what an application outside this repository
-    /// normally uses.
-    case remote(url: String, branch: String)
+    /// A git URL and the commit or branch to use — what an application outside
+    /// this repository normally uses.
+    case remote(url: String, reference: GitReference)
     /// A checkout on disk, as an absolute path — for framework development,
     /// and required by `crossPlatform` (SC-C).
     case local(path: String)
 
-    /// The repository's own URL and default branch.
-    package static let defaultRemote = MetalUISource.remote(
-        url: "https://github.com/mburger89/MetalUI.git", branch: "master")
+    /// The repository's own URL.
+    package static let defaultURL = "https://github.com/mburger89/MetalUI.git"
+    /// The repository's default branch: where a pin is taken from, and what an
+    /// unpinned package follows (SC-I).
+    package static let defaultBranch = "master"
+    /// The repository, unpinned: what `metalui new` falls back to when it finds
+    /// no commit to pin (SC-I).
+    package static let defaultRemote = MetalUISource.remote(url: defaultURL, reference: .branch(defaultBranch))
 }
 
 /// What `metalui new` was asked for.
@@ -94,6 +108,58 @@ package func validateName(_ name: String) throws {
     guard !name.lowercased().hasPrefix("metalui") else {
         throw ScaffoldError.invalidName(name, reason: "names starting with MetalUI collide with the framework's modules")
     }
+    if let reason = clashingModuleNames[name] {
+        throw ScaffoldError.invalidName(name, reason: reason)
+    }
+}
+
+/// Names of modules a MetalUI app is built with, each of which failed
+/// `swift build` of a generated package (SC-H, record §72 §6.3). Matched
+/// case-sensitively: module lookup is case-sensitive even on case-insensitive
+/// APFS, and `foundation`, `appkit`, `swift`, `cfreetype` all built. Not
+/// exhaustive — any module in MetalUI's transitive import closure on the build
+/// platform clashes (on macOS that is AppKit's, dozens of frameworks); these
+/// are the measured ones, plus `WinSDK`, derived from `Glibc` on Linux (Windows
+/// Foundation imports it the same way; no Windows host to measure).
+let clashingModuleNames: [String: String] = {
+    let cycle = "MetalUI imports a module of that name (directly or through AppKit or Foundation), "
+        + "so the app's own module would be a dependency cycle"
+    let unique = "target names must be unique across the package graph"
+    var names = ["Swift": "the module name \"Swift\" is reserved for the standard library"]
+    for system in ["Foundation", "AppKit", "Metal", "CoreText", "CoreGraphics", "QuartzCore", "CoreVideo",
+                   "CoreImage", "CoreFoundation", "Dispatch", "Darwin", "ObjectiveC", "Combine", "Observation",
+                   "simd", "os", "IOKit", "ImageIO", "UniformTypeIdentifiers", "Accessibility", "SwiftUICore",
+                   "Spatial", "DeveloperToolsSupport", "SwiftShims", "_Concurrency", "_StringProcessing",
+                   // Linux (measured in `swift:6.4-noble`) and Windows (derived).
+                   "Glibc", "FoundationEssentials", "WinSDK"] {
+        names[system] = cycle
+    }
+    for target in ["CFreeType", "CHarfBuzz", "CUnibreak", "CSheenBidi"] {
+        names[target] = "MetalUI has a target of that name, and \(unique)"
+    }
+    // Refused in every mode: they clash once `--cross-platform` adds
+    // Backends/SDL, and a name is not worth changing later.
+    for target in ["CSDL", "SDLBridge", "CAccessKit", "ReplayFixture", "SDLReplay", "PortableReplay", "DemoCapture"] {
+        names[target] = "MetalUI's SDL backend has a target of that name, and \(unique)"
+    }
+    return names
+}()
+
+/// SwiftPM identifies every package, the root included, by its directory's
+/// name, lowercased; an app named after a dependency's identity, in any case,
+/// collides with it (SC-H; measured for `SDL` beside `Backends/SDL`).
+func validateIdentity(_ options: ScaffoldOptions) throws {
+    var identities: [String] = []
+    if case let .local(path) = options.source {
+        identities.append(packageIdentity(ofPath: path))
+        if options.crossPlatform {
+            identities.append(packageIdentity(ofPath: URL(fileURLWithPath: path).appendingPathComponent("Backends/SDL").path))
+        }
+    }
+    for identity in identities where identity.lowercased() == options.name.lowercased() {
+        throw ScaffoldError.invalidName(options.name, reason: "a dependency's package identity is '\(identity.lowercased())' "
+            + "(its directory's name), and SwiftPM identifies this package by its directory's name too")
+    }
 }
 
 package func validateBundleIdentifier(_ identifier: String) throws {
@@ -114,6 +180,7 @@ package func scaffoldFiles(_ options: ScaffoldOptions) throws -> [ScaffoldFile] 
     if options.crossPlatform, case .remote = options.source {
         throw ScaffoldError.crossPlatformNeedsLocalCheckout
     }
+    try validateIdentity(options)
     let name = options.name
     var files = [
         ScaffoldFile(path: "Package.swift", contents: manifest(options)),
@@ -148,8 +215,12 @@ func manifest(_ options: ScaffoldOptions) -> String {
     let dependencies: String
     let metalUIPackage: String
     switch options.source {
-    case let .remote(url, branch):
+    case let .remote(url, .branch(branch)):
         dependencies = "        .package(url: \(swiftString(url)), branch: \(swiftString(branch))),\n"
+        metalUIPackage = "MetalUI"
+    case let .remote(url, .revision(revision)):
+        dependencies = "        // One commit of MetalUI, until you move it: README.md, \"Updating MetalUI\".\n"
+            + "        .package(url: \(swiftString(url)), revision: \(swiftString(revision))),\n"
         metalUIPackage = "MetalUI"
     case let .local(path):
         dependencies = "        .package(path: \(swiftString(path))),\n"
@@ -304,33 +375,125 @@ func readme(_ options: ScaffoldOptions) -> String {
         MetalUI's `docs/packaging.md`.
 
         """
-    if options.crossPlatform {
-        text += """
+    text += updatingSection(options.source)
+    if options.crossPlatform, case let .local(checkout) = options.source {
+        text += crossPlatformSections(name: name, bundleIdentifier: options.bundleIdentifier, checkout: checkout)
+    }
+    return text
+}
 
-            ## Linux and Windows
+/// How the app moves to another MetalUI (SC-I).
+private func updatingSection(_ source: MetalUISource) -> String {
+    switch source {
+    case let .remote(url, .revision(revision)):
+        return """
 
-            These platforms draw through MetalUI's SDL backend, which needs SDL3 and
-            AccessKit. Once, in the MetalUI checkout:
+            ## Updating MetalUI
+
+            `Package.swift` pins MetalUI to one commit of <\(url)>,
+            `\(revision)`, so nothing that changes in MetalUI reaches this app until
+            you choose it. To update, put a newer commit of its `master` branch in the
+            `revision:` (or `branch: "master"` to follow the branch, accepting every
+            change as it lands), then:
 
             ```sh
-            python3 Backends/SDL/scripts/fetch-accesskit.py
+            swift package update
+            swift build
             ```
 
-            then build and run with that checkout's `.accesskit` on the pkg-config path:
+            `Package.resolved` records the commit you built; commit it with the app.
 
-            ```sh
-            PKG_CONFIG_PATH=<MetalUI checkout>/Backends/SDL/.accesskit swift run \(name)
-            ```
+            """
+    case let .remote(url, .branch(branch)):
+        return """
 
-            `Packaging/linux/\(options.bundleIdentifier).desktop` is the desktop entry
-            (install it with `desktop-file-install`; run the app with
-            `SDL_APP_ID=\(options.bundleIdentifier)` so the shell matches the window to
-            it), and `Packaging/windows/\(name).rc` embeds `\(name).ico` as the
-            executable's icon. Both are described in MetalUI's `docs/packaging.md`.
+            ## Updating MetalUI
+
+            `Package.swift` follows the `\(branch)` branch of <\(url)>.
+            `swift package update` moves the app to that branch's newest commit, breaking
+            changes included; `Package.resolved` records the commit you built — commit it
+            with the app. To stay on one commit, replace `branch: "\(branch)"` with
+            `revision: "<commit>"`.
+
+            """
+    case let .local(path):
+        return """
+
+            ## Updating MetalUI
+
+            `Package.swift` depends on the MetalUI checkout at `\(path)`; the app builds
+            against whatever that checkout holds.
 
             """
     }
-    return text
+}
+
+/// macOS, Linux and Windows, each with what that platform needs (SC-F, SC-G).
+private func crossPlatformSections(name: String, bundleIdentifier: String, checkout: String) -> String {
+    let sdl = checkout + "/Backends/SDL"
+    return """
+
+        ## macOS
+
+        The same AppKit and Metal app as without `--cross-platform`. `swift build`
+        prints two warnings here (the second only with SDL3 installed by Homebrew):
+
+        ```
+        warning: 'sdl': couldn't find pc file for accesskit
+        warning: 'sdl': prohibited flag(s): -Wl,-rpath,/opt/homebrew/lib
+        ```
+
+        They are harmless on macOS. SwiftPM loads every dependency on every
+        platform, so it asks pkg-config about the SDL backend's two system libraries,
+        AccessKit and SDL3, and refuses the `-rpath` flag Homebrew's `sdl3.pc` carries;
+        but every SDL product this app uses is conditioned on Linux and Windows, so
+        nothing of SDL is compiled or linked on macOS.
+
+        ## Linux
+
+        Needs SDL3 (3.4) with pkg-config — Ubuntu 24.04 ships only SDL2, so MetalUI's
+        CI builds SDL3 from source (`Backends/SDL/linux/Dockerfile`) — and AccessKit's
+        C bindings. Once:
+
+        ```sh
+        python3 \(sdl)/scripts/fetch-accesskit.py
+        ```
+
+        (it downloads AccessKit's release; on aarch64 it builds the library with
+        cargo), then build and run with its `.accesskit` on the pkg-config path:
+
+        ```sh
+        PKG_CONFIG_PATH=\(sdl)/.accesskit swift run \(name)
+        ```
+
+        `Packaging/linux/\(bundleIdentifier).desktop` is the desktop entry (install it
+        with `desktop-file-install`; run the app with `SDL_APP_ID=\(bundleIdentifier)`
+        so the shell matches the window to it).
+
+        ## Windows
+
+        *These steps are what MetalUI's Windows CI does to build its SDL backend
+        (`.github/workflows/sdl-gpu-linux.yml`); an app generated by `metalui new` has
+        not yet been built on Windows.*
+
+        There is no pkg-config: SwiftPM is handed SDL3's and AccessKit's include and
+        library paths. Unpack SDL3's prebuilt Visual C++ package
+        (`SDL3-devel-3.4.16-VC.zip`, from SDL's GitHub releases) — say to `C:\\SDL3` —
+        then, in PowerShell:
+
+        ```powershell
+        python \(sdl)/scripts/fetch-accesskit.py   # prints the AccessKit flags used below
+        $flags = @("-Xcc", "-IC:\\SDL3\\include", "-Xswiftc", "-LC:\\SDL3\\lib\\x64",
+                   "-Xcc", "-I\(sdl)/.accesskit/accesskit-c-0.23.0/include",
+                   "-Xswiftc", "-L\(sdl)/.accesskit/lib")
+        $env:Path += ";C:\\SDL3\\lib\\x64"   # SDL3.dll, at run time
+        swift run @flags \(name)
+        ```
+
+        `Packaging/windows/\(name).rc` embeds `\(name).ico` as the executable's icon.
+        Both packaging files are described in MetalUI's `docs/packaging.md`.
+
+        """
 }
 
 func infoPlist(_ options: ScaffoldOptions) -> String {
@@ -439,7 +602,9 @@ package func writeScaffold(_ files: [ScaffoldFile], to directory: URL) throws {
 
 package enum ScaffoldCommand: Equatable {
     case help
-    case new(ScaffoldOptions, parentDirectory: String)
+    /// `note` is printed to standard error: why the dependency was left
+    /// unpinned (SC-I).
+    case new(ScaffoldOptions, parentDirectory: String, note: String? = nil)
 }
 
 package let scaffoldUsage = """
@@ -452,21 +617,107 @@ package let scaffoldUsage = """
       --path <dir>          create <dir>/<Name> (default: the current directory)
       --bundle-id <id>      the app's identifier (default: com.example.<Name>)
       --local <checkout>    depend on a MetalUI checkout on disk instead of git
-      --url <git URL>       MetalUI's repository (default: \(defaultRemoteURL))
-      --branch <branch>     the branch of --url (default: master)
+      --url <git URL>       MetalUI's repository (default: \(MetalUISource.defaultURL))
+      --revision <commit>   pin MetalUI to this commit (default: the newest commit
+                            of origin/\(MetalUISource.defaultBranch) that the checkout this metalui was
+                            built from contains; no such commit: follow \(MetalUISource.defaultBranch))
+      --branch <branch>     follow a branch instead of pinning a commit
       --cross-platform      also run on Linux and Windows through the SDL backend
                             (needs --local)
       -h, --help            show this help
     """
 
-private var defaultRemoteURL: String {
-    if case let .remote(url, _) = MetalUISource.defaultRemote { return url }
-    return ""
+/// What looking for a commit to pin found (SC-I).
+package enum PinLookup: Equatable, Sendable {
+    case revision(String)
+    /// Why there is no pin.
+    case unavailable(String)
+}
+
+/// The checkout this `metalui` was compiled from (SC-I): `#filePath` is this
+/// file's path at build time, `<checkout>/Sources/MetalUIScaffold/Scaffold.swift`.
+/// A copy of the executable moved elsewhere still names it; if it is gone, git
+/// finds no repository there and the lookup falls back.
+package let scaffolderCheckout = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path
+
+/// The commit of `url` to pin (SC-I): `git merge-base HEAD origin/master` in
+/// `checkout`, when `checkout`'s `origin` is `url` — the newest commit of the
+/// remote's default branch, as last fetched, that the scaffolder's own source
+/// contains. So the pin exists on the remote (a local, unpushed HEAD is never
+/// pinned) and is as close as the remote gets to the code that wrote the
+/// template. `git` runs one git command and returns its trimmed standard
+/// output, or `nil` when it fails.
+package func lookUpPin(of url: String, in checkout: String, git: ([String]) -> String?) -> PinLookup {
+    guard let origin = git(["-C", checkout, "config", "--get", "remote.origin.url"]) else {
+        return .unavailable("\(checkout), which this metalui was built from, is not a git checkout "
+            + "with an origin remote, or git is not on the PATH")
+    }
+    guard normalizedRepository(origin) == normalizedRepository(url) else {
+        return .unavailable("\(checkout), which this metalui was built from, is a clone of \(origin), not \(url)")
+    }
+    let branch = MetalUISource.defaultBranch
+    guard let commit = git(["-C", checkout, "merge-base", "HEAD", "refs/remotes/origin/\(branch)"]),
+          isCommitHash(commit) else {
+        return .unavailable("\(checkout) has no origin/\(branch) that HEAD shares a commit with "
+            + "(`git fetch origin` there, then run metalui again)")
+    }
+    return .revision(commit)
+}
+
+/// `https://host/a/b.git`, `ssh://git@host/a/b` and `git@host:a/b.git` are
+/// one repository: `host/a/b`, lowercased.
+func normalizedRepository(_ url: String) -> String {
+    var text = url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    for scheme in ["https://", "http://", "ssh://", "git://"] where text.hasPrefix(scheme) {
+        text.removeFirst(scheme.count)
+    }
+    let firstSlash = text.firstIndex(of: "/") ?? text.endIndex
+    if let at = text.firstIndex(of: "@"), at < firstSlash { text = String(text[text.index(after: at)...]) }
+    if let colon = text.firstIndex(of: ":"), colon < (text.firstIndex(of: "/") ?? text.endIndex) {
+        text.replaceSubrange(colon...colon, with: "/")
+    }
+    while text.hasSuffix("/") { text.removeLast() }
+    if text.hasSuffix(".git") { text.removeLast(4) }
+    return text
+}
+
+private func isCommitHash(_ text: String) -> Bool {
+    (text.count == 40 || text.count == 64) && text.unicodeScalars.allSatisfy { "0123456789abcdef".unicodeScalars.contains($0) }
+}
+
+/// Runs `git` from the PATH; its trimmed standard output, or `nil` when git is
+/// missing or exits non-zero.
+package func runGit(_ arguments: [String]) -> String? {
+    let environment = ProcessInfo.processInfo.environment
+    #if os(Windows)
+    let (separator, names): (Character, [String]) = (";", ["git.exe", "git"])
+    #else
+    let (separator, names): (Character, [String]) = (":", ["git"])
+    #endif
+    let directories = (environment["PATH"] ?? environment["Path"] ?? "").split(separator: separator)
+    guard let git = directories.lazy.flatMap({ directory in
+        names.lazy.map { URL(fileURLWithPath: String(directory)).appendingPathComponent($0) }
+    }).first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) else { return nil }
+    let process = Process()
+    process.executableURL = git
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    do { try process.run() } catch { return nil }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { return nil }
+    return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 /// Parses `arguments` (without the program name). `workingDirectory` resolves
-/// a relative `--local` or `--path`.
-package func parseScaffoldCommand(_ arguments: [String], workingDirectory: String) throws -> ScaffoldCommand {
+/// a relative `--local` or `--path`; `pinLookup` is asked for a commit of the
+/// URL only when neither `--revision` nor `--branch` (nor `--local`) is given
+/// (SC-I).
+package func parseScaffoldCommand(_ arguments: [String], workingDirectory: String,
+                                  pinLookup: (String) -> PinLookup) throws -> ScaffoldCommand {
     var remaining = arguments[...]
     guard let verb = remaining.popFirst() else { throw ScaffoldError.usage(scaffoldUsage) }
     if verb == "-h" || verb == "--help" || verb == "help" { return .help }
@@ -478,6 +729,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
     var local: String?
     var url: String?
     var branch: String?
+    var revision: String?
     var crossPlatform = false
 
     func value(for option: String) throws -> String {
@@ -494,6 +746,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
         case "--local": local = absolute(try value(for: argument), in: workingDirectory)
         case "--url": url = try value(for: argument)
         case "--branch": branch = try value(for: argument)
+        case "--revision": revision = try value(for: argument)
         case "--cross-platform": crossPlatform = true
         default:
             guard !argument.hasPrefix("-"), name == nil else {
@@ -503,20 +756,37 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
         }
     }
     guard let name else { throw ScaffoldError.usage("missing <Name>\n\n" + scaffoldUsage) }
-    if local != nil, url != nil || branch != nil {
-        throw ScaffoldError.usage("--local cannot be combined with --url or --branch")
+    if local != nil, url != nil || branch != nil || revision != nil {
+        throw ScaffoldError.usage("--local cannot be combined with --url, --branch or --revision")
+    }
+    if branch != nil, revision != nil {
+        throw ScaffoldError.usage("--branch and --revision cannot be combined")
     }
     let source: MetalUISource
+    var note: String?
     if let local {
         source = .local(path: local)
-    } else if case let .remote(defaultURL, defaultBranch) = MetalUISource.defaultRemote {
-        source = .remote(url: url ?? defaultURL, branch: branch ?? defaultBranch)
     } else {
-        preconditionFailure("the default MetalUI source is remote")
+        let url = url ?? MetalUISource.defaultURL
+        if let revision {
+            source = .remote(url: url, reference: .revision(revision))
+        } else if let branch {
+            source = .remote(url: url, reference: .branch(branch))
+        } else {
+            switch pinLookup(url) {
+            case let .revision(commit):
+                source = .remote(url: url, reference: .revision(commit))
+            case let .unavailable(why):
+                let fallback = MetalUISource.defaultBranch
+                source = .remote(url: url, reference: .branch(fallback))
+                note = "MetalUI is not pinned to a commit: \(why). The package follows branch \(fallback) "
+                    + "instead; pin it with --revision <commit> (README.md, \"Updating MetalUI\")."
+            }
+        }
     }
     return .new(ScaffoldOptions(name: name, bundleIdentifier: bundleIdentifier, source: source,
                                 crossPlatform: crossPlatform),
-                parentDirectory: parent)
+                parentDirectory: parent, note: note)
 }
 
 private func absolute(_ path: String, in workingDirectory: String) -> String {
@@ -543,20 +813,27 @@ package func validateCheckout(_ path: String) throws {
 }
 
 /// `metalui` itself: parses, generates, writes, and says what to run next.
-/// Returns the process's exit status.
+/// Returns the process's exit status. `pinLookup` defaults to git in the
+/// checkout this executable was built from (SC-I).
 package func runScaffold(_ arguments: [String], workingDirectory: String,
+                         pinLookup: (String) -> PinLookup = { lookUpPin(of: $0, in: scaffolderCheckout, git: runGit) },
                          output: (String) -> Void, error: (String) -> Void) -> Int32 {
     do {
-        switch try parseScaffoldCommand(arguments, workingDirectory: workingDirectory) {
+        switch try parseScaffoldCommand(arguments, workingDirectory: workingDirectory, pinLookup: pinLookup) {
         case .help:
             output(scaffoldUsage)
             return 0
-        case let .new(options, parent):
+        case let .new(options, parent, note):
             if case let .local(path) = options.source { try validateCheckout(path) }
             let files = try scaffoldFiles(options)
             let destination = URL(fileURLWithPath: parent).appendingPathComponent(options.name)
             try writeScaffold(files, to: destination)
-            output("Created \(destination.path)\n\n  cd \(destination.path)\n  swift run \(options.name)\n")
+            if let note { error("metalui: note: \(note)") }
+            var message = "Created \(destination.path)\n\n  cd \(destination.path)\n  swift run \(options.name)\n"
+            if case let .remote(_, .revision(commit)) = options.source {
+                message += "\nMetalUI is pinned to \(commit); README.md says how to update it.\n"
+            }
+            output(message)
             return 0
         }
     } catch let failure as ScaffoldError {
