@@ -39,9 +39,13 @@ func runDemo() throws {
     // width/height transposition.
     let window: Window
     if metalViewDemo {
+        // Both made once, outside the content closure that runs every frame:
+        // the counter must persist (MV-O) and the shader compiles once.
+        let draws = MetalViewDemoDraws()
+        let surface = shaderQuadDraw()
         window = try app.openWindow(title: "MetalUI — MetalView",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
-                                    content: { metalViewDemoContent(surface: shaderQuadDraw()) })
+                                    content: { metalViewDemoContent(draws: draws, surface: surface) })
     } else if dragAndDropDemo {
         window = try app.openWindow(title: "MetalUI — Drag and Drop",
                                     size: Size(width: Pixels(920), height: Pixels(560)),

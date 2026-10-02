@@ -439,7 +439,7 @@ private struct NotMetal: GPUSurfaceContext {
 ///
 /// Mutation **M2n**: the demo's main surface `.onDemand`.
 @Test @MainActor func theMetalViewDemoTreeRequestsOneContinuousAndOneOnDemandSurface() throws {
-    var root = metalViewDemoContent { _ in }
+    var root = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     let frame = Frame(contentSize: Size(width: px(920), height: px(560)), scaleFactor: 1)
     frame.render(&root)
     let requests = frame.surfaceRequests
@@ -449,4 +449,78 @@ private struct NotMetal: GPUSurfaceContext {
     #expect(onDemand.value != nil, "the small surface redraws on its stepper's value")
     let main = try #require(requests.first { $0.policy == .continuous })
     #expect(main.target.width > onDemand.target.width, "the continuous one is the main viewport")
+}
+
+// MARK: - 2.13 the demo's draw count advances
+
+/// **2.13** (`MV-N` item 4, corrected). The MetalView demo's header counts the
+/// large surface's draws, and the count it shows **advances**: over six ticks
+/// of a real `Window` (its content closure rebuilding the tree every frame,
+/// as `main.swift`'s does) the header reads the counter the draws incremented,
+/// one frame behind. A counter held in a never-written `@State` would read 0
+/// forever — an absent `StateTable` entry re-seeds from the freshly built
+/// struct's initial value every frame — so the counter is created once,
+/// outside the content closure, and passed in.
+///
+/// Mutation **M2o**: hold the counter in `@State` again (the header reads 0).
+@Test @MainActor func theMetalViewDemosDrawCountAdvances() throws {
+    let draws = MetalViewDemoDraws()
+    let (window, platform) = try window(side: 920, startsDisplayLink: true) {
+        metalViewDemoContent(draws: draws) { _ in }
+    }
+    defer { withExtendedLifetime(window) {} }
+    platform.simulateResize(to: Size(width: px(920), height: px(560)))
+    platform.simulateAccessibilityRequest(.activate)
+    for tick in 1...6 { platform.simulateTick(timestamp: Double(tick)) }
+    try #require(draws.count >= 5, "set up: the continuous surface drew on every tick: \(draws.count)")
+    let tree = try #require(platform.publishedAccessibilityTrees.last, "no tree published")
+    let header = tree.nodes.values.compactMap(\.value).filter { $0.hasPrefix("Viewport draws: ") }
+    try #require(header.count == 1, "one count line (a static text's string is its value): \(header)")
+    let shown = try #require(Int(header[0].dropFirst("Viewport draws: ".count)))
+    #expect(shown >= 4 && shown <= draws.count, "the header shows the advancing count: \(shown) of \(draws.count)")
+}
+
+// MARK: - 2.14 a resize on the Metal renderer
+
+/// **2.14** (`MV-E` items 1–2, at the Metal level; probe D1: the drawable
+/// follows the bounds × the backing scale). An `.onDemand` surface whose frame
+/// grows between ticks gets a **new** `bgra8Unorm` texture at the new
+/// bounds × 2 and draws once into it, `isNewTarget` set; an unchanged tick
+/// after that draws nothing. The table-level twin is lane 1's
+/// `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating`.
+///
+/// Mutation **M2p**: `SurfaceTargetTable.update` ignores a size change (lane
+/// 1's V1, re-run here so the Metal renderer's own path is seen to redden).
+@Test @MainActor func aResizedSurfaceGetsANewTargetAtItsNewDeviceSizeAndRedrawsOnce() throws {
+    struct Seen { var texture: any MTLTexture; var isNew: Bool }
+    let log = Captured<[Seen]>()
+    log.value = []
+    let width = Counter()
+    width.value = 30
+    let (window, platform) = try window(startsDisplayLink: true) {
+        GPUSurface { ctx in
+            let metal = ctx as! MetalDrawContext
+            log.value!.append(Seen(texture: metal.target, isNew: ctx.isNewTarget))
+        }
+        .frame(width: px(Float(width.value)), height: px(20))
+    }
+    defer { withExtendedLifetime(window) {} }
+    platform.scaleFactor = 2
+    platform.fakeSurface.scaleFactor = 2
+    platform.simulateTick(timestamp: 1)
+    var seen: [Seen] { log.value! }
+    try #require(seen.count == 1, "set up: the first tick drew once")
+    #expect([seen[0].texture.width, seen[0].texture.height] == [60, 40] as [Int])
+
+    width.value = 45
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 2)
+    try #require(seen.count == 2, "the resize redrew: \(seen.count)")
+    #expect(seen[1].texture !== seen[0].texture, "into a new texture")
+    #expect([seen[1].texture.width, seen[1].texture.height] == [90, 40] as [Int], "at the new bounds × 2")
+    #expect(seen[1].texture.pixelFormat == .bgra8Unorm && seen[1].isNew)
+
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 3)
+    #expect(seen.count == 2, "an unchanged size: no redraw")
 }

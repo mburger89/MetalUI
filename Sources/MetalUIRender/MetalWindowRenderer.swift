@@ -93,7 +93,6 @@ public final class MetalWindowRenderer: WindowRenderer {
             precondition(commandBuffer.status == .notEnqueued,
                          "MetalWindowRenderer: a surface's draw left the frame's command buffer "
                          + "\(commandBuffer.status) — a draw must not commit, enqueue or schedule it (MV-F item 5)")
-            surfaceTable.didDraw(request)
         }
         var targets: [SurfaceID: any MTLTexture] = [:]
         for target in scene.surfaceTargets {
@@ -107,6 +106,11 @@ public final class MetalWindowRenderer: WindowRenderer {
         }
         surface.present(pending.frame, in: commandBuffer)
         commandBuffer.commit()
+        // Recorded only once the frame is committed: a failed encode drops
+        // the buffer and the draws in it, so an `.onDemand` surface must draw
+        // again next frame rather than show a target nothing wrote (`MV-F`
+        // item 6).
+        for drawn in toDraw { surfaceTable.didDraw(drawn.request) }
         finishedFrames += 1
         return true
     }

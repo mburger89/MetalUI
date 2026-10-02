@@ -19,7 +19,12 @@ import MetalUI
 /// counter the large surface's draw increments: a draw runs in the renderer,
 /// after the build, and must not write `@State` (write from input, never from
 /// a phase). So the number lags the drawing by one frame and freezes — with
-/// the window idle — while paused.
+/// the window idle — while paused. **The caller creates the counter once and
+/// passes it in** (`main.swift` does so outside `openWindow`'s content
+/// closure, which runs every frame): held in a never-written `@State` it was
+/// re-seeded from the freshly built struct's initial value every frame —
+/// `StateTable.peek` reads an absent entry as absent — so the header read 0
+/// forever (`MV-O`; pinned by `theMetalViewDemosDrawCountAdvances`).
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move (`MV-K` item 1). Each section is its own
@@ -27,23 +32,30 @@ import MetalUI
 /// Windows stack rule `demoContent()`'s note records; built on a 1 MB thread by
 /// `everyProductionTreeBuildsOnAOneMegabyteThread`.
 @MainActor
-public func metalViewDemoContent(surface: @escaping @MainActor (any GPUSurfaceContext) -> Void) -> some Element {
-    metalViewDemoRoot(MetalViewDemo(draw: surface))
+public func metalViewDemoContent(draws: MetalViewDemoDraws,
+                                 surface: @escaping @MainActor (any GPUSurfaceContext) -> Void) -> some Element {
+    metalViewDemoRoot(MetalViewDemo(draw: surface, draws: draws))
 }
 
-/// The untracked draw counter (see `metalViewDemoContent`'s doc).
+/// The MetalView demo's untracked draw counter (see `metalViewDemoContent`'s
+/// doc): the large surface's draw increments it, the header reads it. Create
+/// one per demo window, outside the window's content closure.
 @MainActor
-final class MetalViewDemoDraws {
-    var count = 0
+public final class MetalViewDemoDraws {
+    /// The large surface's draws so far.
+    public internal(set) var count = 0
+    /// A counter at zero.
+    public init() {}
 }
 
-/// The demo's state: whether the large surface is paused, the small one's
-/// tint, and the draw counter (a reference in `@State`, so it persists).
+/// The demo's state: whether the large surface is paused and the small one's
+/// tint. The draw counter is the caller's, not `@State` (see
+/// `metalViewDemoContent`'s doc).
 struct MetalViewDemo: Component {
     let draw: @MainActor (any GPUSurfaceContext) -> Void
+    let draws: MetalViewDemoDraws
     @State var paused = false
     @State var tint = 2
-    @State var draws = MetalViewDemoDraws()
 
     var content: some ElementGroup {
         metalViewDemoHeader(paused: paused, draws: draws.count)
