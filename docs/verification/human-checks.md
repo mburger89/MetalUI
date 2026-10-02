@@ -333,6 +333,58 @@ title ("—" before one) and fills with the accent colour while targeted.
   `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`.
   **Observed:**
 
+## O. The application icon (user request 2026-10-01, not a plan task)
+
+*Source: record §70 (app icon), rulings `AI-A`…`AI-M`
+(`docs/superpowers/2026-10-01-app-icon-decisions.md`), spec §7.* Both demos
+assign `app.icon = demoIcon()` before opening a window: six generated square
+bitmaps (16 to 512 px) of a **blue (`#2F6FEB`) rounded square with a white
+disc in its centre**, hard-edged (no anti-aliasing, `AI-G`). The conversions
+and the calls are pinned headless; whether a shell actually shows the icon is
+not observable from a test process (no test runs as a `.regular` app with a
+Dock tile, and none looks at a taskbar).
+
+- [ ] **O1. The Dock icon (AppKit)**: `swift run MetalUIDemo` (an unbundled
+  executable). The Dock tile shows the blue rounded square with the white
+  disc from launch — not the generic executable icon, not even briefly after
+  the window appears; ⌘-Tab shows the same. Quit with **Q**: the tile goes
+  away with the process and no blue icon lingers. This is the only check of
+  `AppKitPlatform.run()`'s re-assignment after `setActivationPolicy(.regular)`
+  (`AI-E` item 4, unpinned by design, `AI-K`). Pinned up to
+  `applicationIconImage` by
+  `settingTheIconOnTheAppKitPlatformSetsTheApplicationIconImage`,
+  `anIconImageHoldsOneRepresentationPerTextureSmallestFirst`,
+  `anIconRepresentationDrawsWithoutASecondPremultiply`,
+  `theDemoIconsPixelsAreTheSpecifiedShape`. **Observed:**
+- [ ] **O2. The Dock icon (SDL on macOS)**: `python3
+  Backends/SDL/scripts/fetch-accesskit.py` once, then `cd Backends/SDL &&
+  PKG_CONFIG_PATH=$PWD/.accesskit swift run MetalUISDLDemo`. SDL's Cocoa
+  backend turns the window icon into the application's Dock icon: the tile
+  shows the same blue square and white disc, not a generic icon (`AI-F` item
+  6). Pinned by `settingTheIconAppliesItToEveryOpenWindow` and
+  `aWindowOpenedAfterTheIconIsSetGetsIt` (`SDL_SetWindowIcon` answers true on
+  macOS, `Backends/SDL`) and
+  `anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`. **Observed:**
+- [ ] **O3. Linux (X11, then Wayland)**: the same `MetalUISDLDemo` command on
+  a Linux desktop. **X11**: the window's title bar (where the window manager
+  draws an icon there) and the task bar or dock show the blue square with the
+  white disc (SDL writes `_NET_WM_ICON`). **Wayland**: SDL can set an icon
+  only where the compositor offers `xdg-toplevel-icon-v1`; elsewhere — GNOME
+  Shell among them, which takes icons from an installed `.desktop` file
+  (`docs/packaging.md`) — a generic icon is the expected answer, not a
+  failure. Note the desktop, compositor and version either way. The rounded
+  square's edge should be clean, with no dark fringe — a fringe would mean
+  the backend wanted premultiplied alpha (`AI-F`'s "cost if wrong"; the demo
+  icon is hard-edged, so its only partial alpha comes from SDL's own scaling).
+  Pinned by `unpremultiplyingRestoresStraightAlpha` and
+  `anIconSurfaceCarriesEveryLargerTextureAsAnAlternate`. **Observed:**
+- [ ] **O4. Windows**: the same `MetalUISDLDemo` command (with the flags
+  `fetch-accesskit.py` prints). The title bar's small icon, the taskbar button
+  and Alt-Tab show the blue square with the white disc. With the display
+  scaled above 100%, the taskbar icon is sharp (an alternate, not the 16 px
+  primary scaled up). Pinned by
+  `anIconSurfaceCarriesEveryLargerTextureAsAnAlternate`. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

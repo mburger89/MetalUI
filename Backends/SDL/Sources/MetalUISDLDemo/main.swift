@@ -33,6 +33,9 @@ func runDemo() throws {
 
     let platform = try SDLPlatform()
     let app = App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    // The demo's generated icon (ruling `AI-G`; human checks O2–O4): every
+    // window's icon, and on macOS the Dock's.
+    app.icon = demoIcon()
     // `METALUI_DND_DEMO=1`: drag and drop's chips and wells (ruling DN-Q) —
     // drops from other applications arrive through SDL's drop events (DN-M);
     // a chip cannot leave the window (divergence 101).
