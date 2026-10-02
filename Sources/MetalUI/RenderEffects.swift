@@ -245,6 +245,9 @@ struct PrepaintEffect {
 /// force — and the range of accessibility records.
 struct ShareCandidate {
     let rect: Bounds<Pixels>
+    /// The clip in force at the registration, in the same space as `rect`
+    /// (`GX-U` item 2: a record's pre-effect visible rect is `rect` cut by it).
+    let clip: Bounds<Pixels>
     var hitboxes: [(index: Int, raw: Bounds<Pixels>, clip: Bounds<Pixels>)] = []
     var accessibility: Range<Int> = 0..<0
 }
@@ -298,7 +301,11 @@ extension Frame {
         defer {
             clipBase = prepaintEffects.removeLast().savedClipBase
         }
-        shareWithEnclosingWrappers(at: rect)
+        // The floor the effect's element entered at (`GX-U`): a legacy
+        // element's effects open before any child enters, and a proposal
+        // chain's layers enter no element between them, so it is still that
+        // element's own.
+        shareWithEnclosingWrappers(at: rect, floor: shareFloorAtEntry)
         return body()
     }
 
@@ -309,13 +316,17 @@ extension Frame {
                                             content: () -> R) -> R {
         let rect = scrolled(bounds)
         let firstRecord = axEmissions.count
-        shareCollecting.append(ShareCandidate(rect: rect))
+        shareCollecting.append(ShareCandidate(rect: rect, clip: activeClip))
         register()
         var candidate = shareCollecting.removeLast()
         candidate.accessibility = firstRecord..<axEmissions.count
-        shareCandidates.append(candidate)
-        defer { shareCandidates.removeLast() }
-        return content()
+        // A sharing wrapper is transparent (`GX-U`): candidates outside it
+        // stay reachable from its content, through its own.
+        return passingShareFloorThrough {
+            shareCandidates.append(candidate)
+            defer { shareCandidates.removeLast() }
+            return content()
+        }
     }
 
     /// Paint inside `effect` (`GX-G`): a scope mapping every primitive emitted
@@ -351,11 +362,15 @@ extension Frame {
         defer { clipBase = savedBase }
         let savedEffects = prepaintEffects
         let savedCandidates = shareCandidates
+        let savedFloors = (shareFloor, shareFloorAtEntry)
         prepaintEffects = []
         shareCandidates = []
+        shareFloor = 0
+        shareFloorAtEntry = 0
         defer {
             prepaintEffects = savedEffects
             shareCandidates = savedCandidates
+            (shareFloor, shareFloorAtEntry) = savedFloors
         }
         guard paintScopes.contains(where: { $0.kind == .effect }) else { return body() }
         paintScopes.append(PaintScope(kind: .barrier, effect: .identity, entryClipDepth: clipDepth))

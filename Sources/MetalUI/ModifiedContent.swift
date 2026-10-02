@@ -264,7 +264,12 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        prepaintLayer(prefix.count + inner.count, id: id, bounds: bounds, layout: &layout, pass: &pass)
+        // A chain is one child, layer over layer: it passes the share floor
+        // through (`GX-U`), so a wrapper outside it still reaches an effect
+        // layer inside it; its content's own entry is a barrier again.
+        pass.frame.passingShareFloorThrough {
+            prepaintLayer(prefix.count + inner.count, id: id, bounds: bounds, layout: &layout, pass: &pass)
+        }
     }
 
     /// Registers layer `depth` (`prefix.count + inner.count` is the outermost,

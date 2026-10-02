@@ -2452,9 +2452,16 @@ public final class Frame {
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
     /// clip as the outer clip, its accessibility records the bounding box.
-    func shareWithEnclosingWrappers(at rect: Bounds<Pixels>) {
+    ///
+    /// Only candidates at or above `floor` are reachable (`GX-U`): the share
+    /// floor the effect's own element entered at, so a candidate outside any
+    /// element that is not a sharing wrapper or a modifier chain — a `ZStack`,
+    /// an overlay or background attachment, a stack, a grid, a leaf — is not
+    /// patched, whatever its rect.
+    func shareWithEnclosingWrappers(at rect: Bounds<Pixels>, floor: Int) {
         guard let effect = prepaintEffects.last else { return }
         for k in shareCandidates.indices.reversed() {
+            guard k >= floor else { break }
             let candidate = shareCandidates[k]
             guard candidate.rect == rect else { break }
             for entry in candidate.hitboxes {
@@ -2466,8 +2473,14 @@ public final class Frame {
             }
             for index in candidate.accessibility where index < axEmissions.count {
                 var geometry = axEmissions[index].geometry
+                // As `accessibilityGeometry` computes it inside an effect: the
+                // bounding box of the pre-effect visible rect (the rect cut by
+                // the clip in force at the wrapper's registration), cut by the
+                // effect's outer clip (`GX-U` item 2).
                 geometry.frame = effect.composed.boundingBox(of: candidate.rect)
-                geometry.visibleFrame = Self.intersect(geometry.visibleFrame, geometry.frame)
+                geometry.visibleFrame = Self.intersect(
+                    effect.outerClip,
+                    effect.composed.boundingBox(of: Self.intersect(candidate.clip, candidate.rect)))
                 axEmissions[index].geometry = geometry
             }
         }
@@ -2481,6 +2494,43 @@ public final class Frame {
     /// transform, innermost last (`GX-P` item 1), and the one collecting now.
     var shareCandidates: [ShareCandidate] = []
     var shareCollecting: [ShareCandidate] = []
+
+    /// The lowest index of `shareCandidates` an effect may still patch
+    /// (`GX-U`). Every element entry raises it to the stack's count for the
+    /// element's prepaint (`enteringShareBarrier`); a sharing wrapper and a
+    /// modifier chain lower it back to `shareFloorAtEntry` for their content.
+    var shareFloor = 0
+
+    /// `shareFloor` as it stood just before the element whose prepaint is
+    /// running was entered — what a transparent element passes through.
+    var shareFloorAtEntry = 0
+
+    /// `body` — one element's prepaint — behind a share barrier (`GX-U`): no
+    /// candidate open outside it is reachable unless the element passes the
+    /// floor through (`passingShareFloorThrough`). Pure bookkeeping: two
+    /// integers saved and restored, nothing registered.
+    func enteringShareBarrier<R>(_ body: () -> R) -> R {
+        let saved = shareFloor
+        let savedAtEntry = shareFloorAtEntry
+        shareFloorAtEntry = saved
+        shareFloor = shareCandidates.count
+        defer {
+            shareFloor = saved
+            shareFloorAtEntry = savedAtEntry
+        }
+        return body()
+    }
+
+    /// `body` with the floor the current element entered at (`GX-U`): what a
+    /// sharing wrapper (`GX-P` item 1's list) and a modifier chain (one child,
+    /// layer over layer) do for their content, so a candidate outside them
+    /// stays reachable through them.
+    func passingShareFloorThrough<R>(_ body: () -> R) -> R {
+        let saved = shareFloor
+        shareFloor = shareFloorAtEntry
+        defer { shareFloor = saved }
+        return body()
+    }
 
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales

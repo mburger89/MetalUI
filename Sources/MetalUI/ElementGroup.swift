@@ -163,9 +163,14 @@ extension Element {
         // accessibility reads `isHidden`, which covers both paths. Mirrored per inner
         // layer by `ModifiedContent.prepaintLayer` and in `AnyElement`'s entry below.
         pass.frame.recordElementBounds(layout.id, pass.bounds(of: layout.node))
-        return pass.frame.suppressingAccessibilityIfHidden(layout.node) {
-            pass.frame.disablingHitTestingIfHidden(layout.node) {
-                prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
+        // A share barrier (`GX-U`): an effect inside this element reaches a
+        // wrapper's registration outside it only if the element passes the
+        // floor through (a sharing wrapper, a modifier chain).
+        return pass.frame.enteringShareBarrier {
+            pass.frame.suppressingAccessibilityIfHidden(layout.node) {
+                pass.frame.disablingHitTestingIfHidden(layout.node) {
+                    prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
+                }
             }
         }
     }
@@ -690,13 +695,19 @@ extension AnyElement: ElementGroup {
         // `isHidden`**: this entry never had the legacy `display: none` suppression
         // (record §18); since stage 9 deleted the legacy path, `isHidden` reads
         // `hiddenNodes` alone and the two are the same set.
+        // `Element.prepaintGroup`'s share barrier (`GX-U`), mirrored; the
+        // erased element's own prepaint decides whether it passes it through.
         guard pass.frame.hiddenNodes.contains(layout.node) else {
-            prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+            pass.frame.enteringShareBarrier {
+                prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+            }
             return
         }
         pass.frame.withAccessibilitySuppressed(except: nil) {
             pass.frame.withHitTestingDisabled {
-                prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+                pass.frame.enteringShareBarrier {
+                    prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+                }
             }
         }
     }
