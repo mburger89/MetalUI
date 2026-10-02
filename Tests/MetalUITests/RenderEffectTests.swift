@@ -470,8 +470,11 @@ private let linear1 = Animation.linear(duration: 1)
 /// `.padding(0)` chain, and differ from the bare content's. Mutation **M2v**:
 /// the layer not counted.
 @Test @MainActor func aProposalEffectIsOneIdentityLevel() throws {
-    func tapIDs(_ e: some Element) -> [GlobalElementID] {
-        effectFrame(e).hitboxes.filter { $0.handlers.gestures.count > 0 }.map(\.id)
+    // Inside a stack, not at the root: the root has no parent, so a layer that
+    // handed its content its parent's level would give the root's own id
+    // back and could not be told apart (M2v's first spelling stayed green).
+    func tapIDs(_ e: some ProposalElementGroup) -> [GlobalElementID] {
+        effectFrame(VStack { e }).hitboxes.filter { $0.handlers.gestures.count > 0 }.map(\.id)
     }
     let bare = tapIDs(fxBar(40, 20).onTapGesture {})
     let padded = tapIDs(fxBar(40, 20).onTapGesture {}.padding(Edges(all: px(0))))
