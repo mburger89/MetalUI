@@ -578,7 +578,9 @@ scale ladder with an evicting atlas is the remedy, and is its own design.
 
 Amended: **90** (a `Path`'s `.continuous` rounded rect is drawn circular,
 `GX-C`), **91** (`clipShape` of a path traps too, `GX-D`), **97** (a shape's
-stroke width and `StrokeStyle` snap where SwiftUI animates them, N8). The
+stroke width and `StrokeStyle` snap where SwiftUI animates them, N8), and
+**41** (a handler outside a rect-changing layer over an effect hits its
+axis-aligned frame, `GX-P` item 2 — added by the critic round). The
 shapes spec's §9 table loses its `Path`/`path(in:)` and `StrokeStyle` rows
 (lifted, pointing here) and `docs/divergences.md`'s absences row drops `Path`
 and `StrokeStyle`. `docs/api-overview.md` gains the surface; every new public
