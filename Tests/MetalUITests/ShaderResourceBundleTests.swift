@@ -52,12 +52,23 @@ private func path(_ url: URL) -> String {
     url.resolvingSymlinksInPath().standardizedFileURL.path
 }
 
-/// The bundle the seam resolves for a fake app whose main and code bundle are
-/// both `app` (a statically linked executable).
+/// An empty fake bundle standing in for the bundle holding MetalUI's code,
+/// in its own directory beside `app` — so `code.resourceURL` and the
+/// code bundle's directory never alias the main bundle's candidates, and
+/// dropping a main-bundle candidate cannot be hidden by a code-bundle one.
+private func codeBundle(beside app: URL) throws -> Bundle {
+    let directory = app.deletingLastPathComponent().appendingPathComponent("code", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return try #require(Bundle(url: try makeApp(in: directory)), "the fake code bundle is not a bundle")
+}
+
+/// The bundle the seam resolves for a fake app as `Bundle.main`, with an
+/// empty code bundle (`codeBundle(beside:)`).
 private func resolve(app: URL, environment: [String: String] = [:]) throws -> Bundle {
     let main = try #require(Bundle(url: app), "the fake app is not a bundle")
+    let code = try codeBundle(beside: app)
     return try ShaderLibrary.resourceBundle(
-        candidates: ShaderLibrary.candidateDirectories(main: main, code: main, environment: environment))
+        candidates: ShaderLibrary.candidateDirectories(main: main, code: code, environment: environment))
 }
 
 /// **R1** (`AI-N` item 1). A resource bundle in the app's `Contents/Resources`
@@ -116,7 +127,8 @@ private func resolve(app: URL, environment: [String: String] = [:]) throws -> Bu
     let main = try #require(Bundle(url: app))
     // A debug build also searches this package's own build directories, which
     // hold the real bundle; keep only the fake app's own candidates.
-    let candidates = ShaderLibrary.candidateDirectories(main: main, code: main, environment: [:])
+    let code = try codeBundle(beside: app)
+    let candidates = ShaderLibrary.candidateDirectories(main: main, code: code, environment: [:])
         .filter { path($0).hasPrefix(directory.path) }
     try #require(candidates.count >= 3, "candidates: \(candidates)")
     do {
