@@ -1,13 +1,12 @@
-# 71 — `metalui new` (application scaffolding)
+# 72 — `metalui new` (application scaffolding)
 
 Branch `feat/scaffold`, first stacked on `feat/app-icon` (PR #38), rebased
 onto master after #38 merged (`95234db`). **Not a plan task**: user request
 2026-10-01. Rulings `SC-A`…`SC-E` in
 `docs/superpowers/2026-10-01-scaffold-decisions.md` (next unused `SC-F`).
-User guide: `docs/getting-started.md`. **Numbering**: §71 was free on master
-at the time; `feat/metal-view` was also told to take "§71 or later" (record
-§70's header) — whichever line merges second renumbers, per the 24→25
-precedent.
+User guide: `docs/getting-started.md`. **Numbering**: written as §71; `feat/metal-view` (PR #40) merged first
+and took §71, so this line renumbered to §72 at its rebase onto `65c0cc7`
+(the 24→25 precedent).
 
 **Status: LANDED.** No public declaration (`SC-A`), no SwiftUI behaviour
 claimed, no divergence, no probe, no human check owed beyond what a user sees
@@ -89,3 +88,10 @@ path (`…/Temp/x/D:/a/MetalUI/MetalUI`). Fixed in `4ebfb25` (a drive letter
 followed by `/` or `\`, or a leading `\`, is absolute). Those two tests are
 the pin; on macOS they cannot see the case, so the red is Windows CI's run
 `36970584289`, not a local mutation.
+
+## §5 Counts after the rebase onto `65c0cc7` (metal view merged)
+
+`swift package clean`, native build, unfiltered `--no-parallel`: **2112 tests
+in 3 suites passed** (master's 2093 + 19), 129 typecheck guards (master's;
+none added; `FR-J no-argument frame: succeeded=true`). §3's 2068 was taken on
+`95234db`, before metal view.

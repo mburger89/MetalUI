@@ -1,7 +1,7 @@
 # Scaffold decisions (`SC-`)
 
 `metalui new`: a new application package that depends on MetalUI. User
-request 2026-10-01 (not a plan task), on `feat/scaffold`. Record §71. The
+request 2026-10-01 (not a plan task), on `feat/scaffold`. Record §72. The
 user chose, up front: a CLI in this package; macOS by default with an opt-in
 SDL path; a git-URL dependency overridable to a local path; `.app` packaging
 generated, built on the app-icon line's `docs/packaging.md` (PR #38).
@@ -59,8 +59,8 @@ the `.desktop` entry and the one-line `.rc`. The generated app leaves
 ## SC-E — what is tested, what was run
 
 19 unit tests pin the generated text, validation, the writer and the command
-line; each of fourteen mutations reddens its named test (record §71 §2). That
+line; each of fourteen mutations reddens its named test (record §72 §2). That
 a generated package *builds* is `aGeneratedPackageBuildsAgainstThisCheckout`,
 env-gated (`METALUI_RUN_SCAFFOLD_BUILD_TEST=1`) because it is a second full
-MetalUI build; it counts while skipped. The launches in record §71 §1 are
+MetalUI build; it counts while skipped. The launches in record §72 §1 are
 runs, not tests.
