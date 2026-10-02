@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUIPlatform
+import MetalUIScene
 import SDLBridge
 
 public struct SDLPlatformError: Error, CustomStringConvertible {
@@ -102,6 +103,10 @@ public final class SDLPlatform: Platform {
     /// Windows open and not yet closed.
     var openWindowCount: Int { windows.count }
 
+    /// SKELETON (lane 2 red): does nothing.
+    public func setApplicationIcon(_ images: [ImageTexture]) {
+    }
+
     /// Ends ``run()`` after the current iteration.
     public func stop() { running = false }
 
@@ -167,6 +172,9 @@ public final class SDLWindow: PlatformWindow {
     }
 
     public var renderer: any WindowRenderer { windowRenderer! }
+
+    /// SKELETON (lane 2 red): never set.
+    private(set) var iconResult: (textures: [ObjectIdentifier], applied: Bool)?
 
     var rawHandle: UnsafeMutableRawPointer { UnsafeMutableRawPointer(handle) }
 
