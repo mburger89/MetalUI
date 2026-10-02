@@ -1,7 +1,7 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-U` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's, `GX-U` lane 2's review round)
+task). Rulings `GX-A`…`GX-V` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's, `GX-U` lane 2's review round, `GX-V` lane 3's)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;
@@ -549,7 +549,9 @@ rasterization at `insertIntoScene`, leaf groups), `Passes.swift`
 | 3.26 | `aLegacyShadowReturnsSelfAndShadowsTheWholeElement` | — | M3y: legacy shadow ignored |
 | 3.27 | `aMetalViewsShadowIsItsQuad` (divergence 104 pin) | — | M3z: surface skipped |
 | 3.28 | `theLooksDemoShowsPathsShadowsAndTransforms` — `looksDemoContent()` through a fake window: ≥ 2 path images, ≥ 3 shadow images, ≥ 2 transform records, and the tap rotates the square (record angle 45° after `simulateTick` past the animation) | — | M3aa: section left out of the composer |
-| G3.1 | `thePathAndShadowSpellingsCompileFromAPlainImport` (whole-file) | no API | MG3.1: `StrokeStyle.init` made `internal` |
+| G3.1 | `thePathAndShadowSpellingsCompileFromAPlainImport` (whole-file) | no API | MG3.1: `Path.addRects(_:)` made `internal` (`GX-V` item 13: `StrokeStyle.init` internal fails the looks demo's module build first) |
+| 3.29 | `aTextUnderScaleEffectIsResampledNotReRasterized` (divergence 106 pin, `GX-V` item 10) | green (pin) | — |
+| 3.30 | `aShapesStrokeWidthSnaps` (divergence 97 amended pin, `GX-V` item 10) | green (pin) | — |
 | G3.2 | `anOutsideShapeCanWritePathInAlone` (whole-file) | no API | MG3.2: `path(in:)` removed from the protocol |
 | G3.3 | `aThemeWrittenBeforeTheShadowTokenStillCompiles` (whole-file, `GX-Q`) — an outside `Theme(background:…scrim:)` with no `shadow:` | no token | MG3.3: the `shadow:` default removed |
 
