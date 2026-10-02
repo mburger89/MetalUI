@@ -170,3 +170,33 @@ private func ids(_ textures: [ImageTexture]) -> [ObjectIdentifier] { textures.ma
     #expect(later.iconResult == nil, "a window opened after [] got \(String(describing: later.iconResult))")
     #expect(mui_window_set_icon_null_calls() == nullCalls)
 }
+
+#if os(macOS)
+import AppKit
+
+/// S7 — SDL received the icon, observed from outside the wrapper: SDL's
+/// Cocoa backend turns `SDL_SetWindowIcon`'s surface into
+/// `NSApplication.applicationIconImage`, whose size is the primary
+/// texture's (`AI-I`: the getter's size is the one fact that discriminates).
+/// The getter is first reset to a 7 × 7 image, so the reading cannot be a
+/// previous test's icon. Both paths: an open window (`setApplicationIcon`)
+/// and a window opened later (`openSDLWindow`'s stored icon). S4/S5's
+/// `applied` is only the wrapper's own return value; mutation V7 (the
+/// wrapper returns `true` without calling `SDL_SetWindowIcon`) leaves them
+/// green and reddens this.
+@MainActor
+@Test func sdlsCocoaBackendReceivesTheIconAsTheApplicationIcon() throws {
+    let platform = try iconPlatform()
+    let sentinel = NSSize(width: 7, height: 7)
+    NSApplication.shared.applicationIconImage = NSImage(size: sentinel)
+    _ = try openWindow(platform, "icon S7 open")
+    #expect(NSApplication.shared.applicationIconImage?.size == sentinel)
+    platform.setApplicationIcon([square(20), square(40)])
+    #expect(NSApplication.shared.applicationIconImage?.size == NSSize(width: 20, height: 20),
+            "after setApplicationIcon: \(String(describing: NSApplication.shared.applicationIconImage?.size))")
+    NSApplication.shared.applicationIconImage = NSImage(size: sentinel)
+    _ = try openWindow(platform, "icon S7 later")
+    #expect(NSApplication.shared.applicationIconImage?.size == NSSize(width: 20, height: 20),
+            "after a later window opened: \(String(describing: NSApplication.shared.applicationIconImage?.size))")
+}
+#endif
