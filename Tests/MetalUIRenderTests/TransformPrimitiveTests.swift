@@ -305,3 +305,112 @@ let untransformedPinHash: UInt64 = 0xc1c0_b5e3_50b2_17a8
     #expect(pixel(pixels, 22, 22, width: 200).a == 0, "outside the ellipse")
     #expect(pixel(pixels, 100, 70, width: 200).a == 255, "inside")
 }
+
+/// A glyph `slot` of coverage 255, `width`×`height`, packed into a fresh
+/// atlas.
+@MainActor
+private func solidGlyphSlot(width: Int, height: Int) -> (GlyphAtlas, AtlasSlot) {
+    let atlas = GlyphAtlas(width: 64, height: 64)
+    let font = FontKey(resolvedPostScriptName: "SolidSlot", size: 10, variations: [],
+                       matrix: .init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0))
+    atlas.beginFrame()
+    let packed = atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
+        GlyphImage(width: width, height: height, bytes: [UInt8](repeating: 255, count: width * height))
+    }!
+    atlas.endFrame()
+    return (atlas, packed.slot)
+}
+
+/// 1.5b — 1.5's outer mask on the other two transformed kinds. A solid glyph
+/// and a solid image over local (20, 45.5, 60, 10), turned a quarter about
+/// (50, 50) (screen x = 100 − y, y = x: x 44.5…54.5, y 20…80), under a
+/// screen outer mask cutting y < 50: (50, 30) is cut, (50, 70) drawn, and
+/// the edges at screen x 44.5 and 54.5 cut columns 44 and 54 in half (the
+/// glyph's own `quad_edge`; without it the clamped sample fills the fringe).
+/// The unmasked arm draws (50, 30), so the arms disagree.
+@Test @MainActor func aTransformedGlyphAndImageAreCutByTheScreenOuterMask() throws {
+    let (atlas, slot) = solidGlyphSlot(width: 60, height: 10)
+    let white = ImageTexture(width: 1, height: 1, straightRGBA: [255, 255, 255, 255])
+    let local = Bounds(origin: Point(x: ScaledPixels(20), y: ScaledPixels(45.5)),
+                       size: Size(width: ScaledPixels(60), height: ScaledPixels(10)))
+    let whole = Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                       size: Size(width: ScaledPixels(200), height: ScaledPixels(200)))
+    for kind in ["glyph", "image"] {
+        func draw(outer: MUIBounds?) throws -> [UInt8] {
+            var scene = Scene()
+            let t = quarterTurn(about: 50, 50, outer: outer)
+            if kind == "glyph" {
+                scene.insert(MUIGlyph(bounds: local, slot: slot, contentMask: whole,
+                                      color: Hsla(h: 0, s: 0, l: 0, a: 1), order: 0), transform: t)
+            } else {
+                scene.insert(MUIImage(bounds: mb(20, 45.5, 60, 10), contentMask: mb(0, 0, 200, 200),
+                                      maskCornerRadii: corners(0), opacity: 1, texture: 0, filter: 0, order: 0),
+                             texture: white, transform: t)
+            }
+            return try render(scene, width: 100, height: 100, atlas: kind == "glyph" ? atlas : nil)
+        }
+        let masked = try draw(outer: mb(0, 50, 100, 50)), open = try draw(outer: nil)
+        #expect(pixel(open, 50, 30, width: 100).a == 255, "\(kind): unmasked draws (50, 30)")
+        #expect(pixel(masked, 50, 30, width: 100).a == 0, "\(kind): the outer mask cuts (50, 30)")
+        #expect(pixel(masked, 50, 70, width: 100).a == 255, "\(kind): (50, 70) is drawn")
+        for x in [44, 54] {
+            let a = pixel(masked, x, 70, width: 100).a
+            #expect(a > 100 && a < 155, "\(kind): edge column \(x) alpha \(a)")
+        }
+        #expect(pixel(masked, 43, 70, width: 100).a == 0 && pixel(masked, 55, 70, width: 100).a == 0,
+                "\(kind): nothing past the edge columns")
+    }
+}
+
+/// 1.5c — the LOCAL content mask antialiases in screen pixels: under a
+/// uniform scale of 2 a 200×200 rect with a local mask (10.125, 10.125, 30,
+/// 30) is cut at screen 20.25…80.25, a quarter pixel from a pixel centre,
+/// so exactly columns 20 and 80 are partial. With the mask's distances left
+/// in local units (`mask_coverage_scaled`'s `* s` dropped) the band is ±1
+/// screen pixel and column 19 reads partial too (1.4's reasoning).
+@Test @MainActor func aScaledContentMaskAntialiasesInScreenPixels() throws {
+    var scene = Scene()
+    scene.insert(solidRect(mb(0, 0, 100, 100), mask: mb(10.125, 10.125, 30, 30)),
+                 transform: transformRecord(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0))
+    let pixels = try render(scene)
+    let row = (0..<200).map { pixel(pixels, $0, 50, width: 200).a }
+    let partial = (1..<199).filter { row[$0] > 0 && row[$0] < 255 }
+    #expect(partial == [20, 80], "partial columns \(partial)")
+    #expect(row[50] == 255 && row[10] == 0 && row[120] == 0)
+}
+
+/// 1.31 (ruling GX-S item 13) — `insert(_:transform: nil)` always writes
+/// index 0: a primitive carrying a stale index (captured from a scene with a
+/// table, replayed into one without) loses it and keeps its low byte.
+@Test func aNilInsertClearsAStaleTransformIndex() {
+    var scene = Scene()
+    var rect = solidRect(mb(0, 0, 1, 1), shape: 1)
+    rect.shape = 1 | 5 << 8
+    scene.insert(rect)
+    let glyph = MUIGlyph(bounds: mb(0, 0, 1, 1), atlasBounds: mb(0, 0, 1, 1), contentMask: mb(0, 0, 1, 1),
+                         maskCornerRadii: corners(0), color: MUIHsla(h: 0, s: 0, l: 0, a: 1), order: 0, transform: 7)
+    scene.insert(glyph)
+    let image = MUIImage(bounds: mb(0, 0, 1, 1), contentMask: mb(0, 0, 1, 1), maskCornerRadii: corners(0),
+                         opacity: 1, texture: 0, filter: 1 | 4 << 8, order: 0)
+    scene.insert(image, texture: ImageTexture(width: 1, height: 1, straightRGBA: [0, 0, 0, 255]))
+    #expect(scene.transforms.isEmpty)
+    #expect(scene.rects[0].shape == 1)
+    #expect(scene.glyphs[0].transform == 0)
+    #expect(scene.images[0].filter == 1)
+}
+
+/// 1.32 (ruling GX-S item 12) — a renderer binds one zero transform record
+/// for every scene with no transforms, allocated once, not per frame.
+@Test @MainActor func aSceneWithoutTransformsReusesOneZeroRecord() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    var scene = Scene()
+    scene.insert(solidRect(mb(10, 10, 20, 20)))
+    scene.finalize()
+    let size = Size(width: DevicePixels(64), height: DevicePixels(64))
+    _ = try renderer.renderOffscreen(scene, size: size)
+    let first = try #require(renderer.lastBoundTransformBuffer)
+    _ = try renderer.renderOffscreen(scene, size: size)
+    let second = try #require(renderer.lastBoundTransformBuffer)
+    #expect(first === second, "the zero record is reused across frames")
+}

@@ -125,11 +125,17 @@ public struct Scene: Sendable {
 
     /// Adds a rectangle on `layer`, under `transform` when given (ruling
     /// GX-F): its `bounds` and `contentMask` are then local, mapped by the
-    /// record; `nil` draws it exactly as before transforms existed.
+    /// record; `nil` draws it exactly as before transforms existed. **The
+    /// index is always written**: `nil` clears `shape` bits 8…31 (and the
+    /// glyph's `transform`, the image's `filter` bits 8…31), so a primitive
+    /// captured from one scene and re-inserted into another never keeps a
+    /// stale index into a table the new scene does not hold — a replay that
+    /// must stay transformed passes its record again. Pinned by
+    /// `aNilInsertClearsAStaleTransformIndex`.
     public mutating func insert(_ rect: MUIRect, layer: Int = 0, transform: MUITransform? = nil) {
         var rect = rect
         let index = transformIndex(transform)
-        if index != 0 { rect.shape = (rect.shape & 0xFF) | index << 8 }
+        rect.shape = (rect.shape & 0xFF) | index << 8
         rects.append(rect)
         rectSequence.append(nextSequence)
         rectLayer.append(layer)
@@ -141,7 +147,7 @@ public struct Scene: Sendable {
     public mutating func insert(_ glyph: MUIGlyph, layer: Int = 0, transform: MUITransform? = nil) {
         var glyph = glyph
         let index = transformIndex(transform)
-        if index != 0 { glyph.transform = index }
+        glyph.transform = index
         glyphs.append(glyph)
         glyphSequence.append(nextSequence)
         glyphLayer.append(layer)
@@ -155,7 +161,7 @@ public struct Scene: Sendable {
                                 transform: MUITransform? = nil) {
         var image = image
         let index = transformIndex(transform)
-        if index != 0 { image.filter = (image.filter & 0xFF) | index << 8 }
+        image.filter = (image.filter & 0xFF) | index << 8
         if let index = textures.firstIndex(where: { $0 === texture }) {
             image.texture = MUIUInt(index)
         } else {
@@ -178,7 +184,7 @@ public struct Scene: Sendable {
                                 transform: MUITransform? = nil) {
         var quad = quad
         let index = transformIndex(transform)
-        if index != 0 { quad.filter = (quad.filter & 0xFF) | index << 8 }
+        quad.filter = (quad.filter & 0xFF) | index << 8
         if let index = surfaceTargets.firstIndex(where: { $0.id == surface.id }) {
             precondition(surfaceTargets[index] == surface,
                          "Scene: surface \(surface.id.rawValue) inserted at \(surface.width)×\(surface.height) "

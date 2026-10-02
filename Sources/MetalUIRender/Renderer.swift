@@ -48,6 +48,14 @@ public final class Renderer {
     private let glyphPipeline: any MTLRenderPipelineState
     private let imagePipeline: any MTLRenderPipelineState
     private let unitVertexBuffer: any MTLBuffer
+    /// The one zero `MUITransform` record bound for a scene with no
+    /// transforms (every production frame until an effect draws), allocated
+    /// once per renderer rather than per frame (ruling GX-S item 12).
+    private let zeroTransformBuffer: any MTLBuffer
+    /// The transform table the last encode bound — read by
+    /// `aSceneWithoutTransformsReusesOneZeroRecord` to pin that the zero
+    /// record is not reallocated per frame.
+    private(set) var lastBoundTransformBuffer: (any MTLBuffer)?
 
     /// The GPU copy of a ``MetalUIText/GlyphAtlas``, maintained by
     /// ``upload(_:)``. `nil` until the first upload; a scene carrying glyphs is
@@ -150,6 +158,11 @@ public final class Renderer {
             options: .storageModeShared
         ) else { throw RendererError.bufferAllocationFailed }
         self.unitVertexBuffer = buffer
+        guard let zero = device.makeBuffer(length: MemoryLayout<MUITransform>.stride,
+                                           options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+        self.zeroTransformBuffer = zero
     }
 
     /// Encode one view's worth of the scene into an existing command buffer,
@@ -222,11 +235,7 @@ public final class Renderer {
         // transforms holds — never reads.
         let transformBuffer: any MTLBuffer
         if scene.transforms.isEmpty {
-            guard let dummy = device.makeBuffer(length: MemoryLayout<MUITransform>.stride,
-                                                options: .storageModeShared) else {
-                throw RendererError.bufferAllocationFailed
-            }
-            transformBuffer = dummy
+            transformBuffer = zeroTransformBuffer
         } else {
             guard let table = device.makeBuffer(bytes: scene.transforms,
                                                 length: MemoryLayout<MUITransform>.stride * scene.transforms.count,
@@ -235,6 +244,7 @@ public final class Renderer {
             }
             transformBuffer = table
         }
+        lastBoundTransformBuffer = transformBuffer
 
         // **One draw per run, pipeline bound only when the kind changes.** This
         // is what makes a rect able to occlude text: before the draw list,

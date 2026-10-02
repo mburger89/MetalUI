@@ -5,6 +5,7 @@ import MetalUIScene
 import MetalUIShaderTypes
 @testable import MetalUISDL
 import SDLReplay
+import ReplayFixture
 
 // RS-D: `SDLWindowRenderer` draws a frame exactly as the replay path does —
 // the path `PortableReplay` holds to the Metal renderer's pixels in CI on
@@ -238,4 +239,40 @@ private func transformedScene(atlas: GlyphAtlas) throws -> Scene {
     #expect(rgba(drawn, 70, 15) == rgba(drawn, 70, 60), "the turned bar reaches (70, 15)")
     #expect(rgba(drawn, 25, 60) != rgba(drawn, 70, 60), "and leaves its old bounds")
     #expect(drawn == expected)
+}
+
+/// S1.3 (ruling GX-S item 7) — `replay_render` refuses a run whose record
+/// names a transform past the table, per kind and at the exact boundary:
+/// `transformedScene`'s rects name entry 1, its glyphs 2, its image 3, so
+/// each kind's runs alone render with exactly that many records and are
+/// refused with one fewer. (`mui_renderer_finish` runs the same
+/// `transforms_valid`; a `Scene` cannot build such a record — `insert`
+/// always writes the index it assigns — so that call site is defensive and
+/// pinned only through this one.)
+@MainActor
+@Test func aRecordNamingAMissingTransformIsRefused() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let frame = try transformedScene(atlas: atlas)
+    let replayer = try SDLReplayer(shaderDirectory: SDLWindowRenderer.bundledShaderDirectory,
+                                   driver: SDLWindowRenderer.defaultDriver)
+    let full = try ReplayFixture(scene: frame, atlas: atlas, width: UInt32(width), height: UInt32(height),
+                                 projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                 reference: [UInt8](repeating: 0, count: width * height * 4))
+    try #require(full.transformCount == 3)
+    let stride = Int(ReplayFixture.transformStride)
+    for (kind, index) in [(FixtureRun.Kind.rect, 1), (.glyph, 2), (.image, 3)] {
+        let runs = full.runs.filter { $0.kind == kind }
+        try #require(!runs.isEmpty, "\(kind) has runs")
+        var exact = full
+        exact.transforms = Array(full.transforms.prefix(index * stride))
+        #expect(throws: Never.self, "\(kind) with \(index) records renders") {
+            _ = try replayer.render(exact, runs: runs)
+        }
+        var short = full
+        short.transforms = Array(full.transforms.prefix((index - 1) * stride))
+        let error = #expect(throws: ReplayError.self, "\(kind) with \(index - 1) records is refused") {
+            _ = try replayer.render(short, runs: runs)
+        }
+        #expect(error?.description.contains("names a missing transform") == true, "\(String(describing: error))")
+    }
 }
