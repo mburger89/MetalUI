@@ -214,7 +214,7 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
              contentMask: mask,
              maskCornerRadii: maskRadii,
              color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
-             order: 0, _reserved: 0)
+             order: 0, transform: 0)
 }
 
 /// A glyph clipped to the left half of its box.

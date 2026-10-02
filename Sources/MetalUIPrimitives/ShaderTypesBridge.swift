@@ -110,6 +110,23 @@ extension MUIGlyph {
                   maskCornerRadii: MUICorners(maskCornerRadii),
                   color: MUIHsla(color),
                   order: order,
-                  _reserved: 0)
+                  transform: 0)
     }
+}
+
+// The words a transform index rides in (ruling GX-F): bits 0…7 keep the
+// shape or filter kind, bits 8…31 hold 1 + the index into `Scene.transforms`
+// (0: none). Every shader compares the low byte only.
+extension MUIRect {
+    /// `shape`'s kind (`MUIShape`), without the transform index.
+    package var shapeKind: UInt32 { shape & 0xFF }
+    /// 1 + the index into `Scene.transforms`, or 0 for none.
+    package var transformIndex: UInt32 { shape >> 8 }
+}
+
+extension MUIImage {
+    /// `filter`'s kind (`MUIImageFilter`), without the transform index.
+    package var filterKind: UInt32 { filter & 0xFF }
+    /// 1 + the index into `Scene.transforms`, or 0 for none.
+    package var transformIndex: UInt32 { filter >> 8 }
 }

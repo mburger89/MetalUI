@@ -56,6 +56,10 @@ public struct Scene: Sendable {
     /// every renderer resolves to its own texture (`MV-E`).
     public private(set) var surfaceTargets: [SurfaceTarget] = []
 
+    /// Per-instance affines (ruling GX-F), in first-use order; a primitive
+    /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``).
+    public private(set) var transforms: [MUITransform] = []
+
     /// Built by ``finalize()``. Empty until then.
     public private(set) var drawList: [DrawRun] = []
 
@@ -100,7 +104,7 @@ public struct Scene: Sendable {
     public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty }
 
     /// Adds a rectangle on `layer`.
-    public mutating func insert(_ rect: MUIRect, layer: Int = 0) {
+    public mutating func insert(_ rect: MUIRect, layer: Int = 0, transform: MUITransform? = nil) {
         rects.append(rect)
         rectSequence.append(nextSequence)
         rectLayer.append(layer)
@@ -108,7 +112,7 @@ public struct Scene: Sendable {
     }
 
     /// Adds a glyph on `layer`.
-    public mutating func insert(_ glyph: MUIGlyph, layer: Int = 0) {
+    public mutating func insert(_ glyph: MUIGlyph, layer: Int = 0, transform: MUITransform? = nil) {
         glyphs.append(glyph)
         glyphSequence.append(nextSequence)
         glyphLayer.append(layer)
@@ -118,7 +122,8 @@ public struct Scene: Sendable {
     /// Appends `image`, sampling `texture`. Its `texture` field is set here,
     /// to `texture`'s index in ``textures`` — a texture drawn twice is carried
     /// once.
-    public mutating func insert(_ image: MUIImage, texture: ImageTexture, layer: Int = 0) {
+    public mutating func insert(_ image: MUIImage, texture: ImageTexture, layer: Int = 0,
+                                transform: MUITransform? = nil) {
         var image = image
         if let index = textures.firstIndex(where: { $0 === texture }) {
             image.texture = MUIUInt(index)
@@ -138,7 +143,8 @@ public struct Scene: Sendable {
     /// its source) is carried once. **One id, one size per scene**: the same
     /// id at a different size traps, since a renderer can bind only one
     /// texture per target.
-    public mutating func insert(_ quad: MUIImage, surface: SurfaceTarget, layer: Int = 0) {
+    public mutating func insert(_ quad: MUIImage, surface: SurfaceTarget, layer: Int = 0,
+                                transform: MUITransform? = nil) {
         var quad = quad
         if let index = surfaceTargets.firstIndex(where: { $0.id == surface.id }) {
             precondition(surfaceTargets[index] == surface,

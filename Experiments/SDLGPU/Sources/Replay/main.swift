@@ -96,7 +96,7 @@ func fixture(width: Int, height: Int, atlas: GlyphAtlas, addedText: Bool) throws
                                Float(packed.slot.width), Float(packed.slot.height)),
                 atlasBounds: bounds(Float(packed.slot.x), Float(packed.slot.y), Float(packed.slot.width), Float(packed.slot.height)),
                 contentMask: clip ?? mask, maskCornerRadii: corners(clip == nil ? 0 : 12),
-                color: color(0.55, 0.1, 0.95), order: order, _reserved: 0))
+                color: color(0.55, 0.1, 0.95), order: order, transform: 0))
             order += 1
         }
     }

@@ -24,7 +24,7 @@ private func makeGlyph(order: MUIUInt, x: Float = 0) -> MUIGlyph {
         maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
         order: order,
-        _reserved: 0)
+        transform: 0)
 }
 
 private func makeRect() -> MUIRect {
@@ -129,7 +129,7 @@ private func makeRect() -> MUIRect {
                                     bottomRight: 63, bottomLeft: 64),
         color: MUIHsla(h: 0.125, s: 0.25, l: 0.375, a: 0.5),
         order: 7,
-        _reserved: 0)
+        transform: 0)
     var rect = makeRect()
 
     let slots = 32
@@ -223,7 +223,7 @@ private func sprite(_ slot: AtlasSlot, at origin: (x: Float, y: Float),
         maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(color),
         order: order,
-        _reserved: 0)
+        transform: 0)
 }
 
 private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {

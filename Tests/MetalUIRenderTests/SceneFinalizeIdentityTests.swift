@@ -41,7 +41,7 @@ private func glyph(id: Float, order: MUIUInt) -> MUIGlyph {
                                     size: MUISize(width: 1000, height: 1000)),
              maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
              color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
-             order: order, _reserved: 0)
+             order: order, transform: 0)
 }
 
 private func emit(_ script: [Emission], into scene: inout Scene) {

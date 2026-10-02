@@ -186,3 +186,56 @@ private func replayPixels(_ scene: Scene, atlas: GlyphAtlas) throws -> [UInt8] {
     let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
     #expect(!renderer.finishFrame(scene: Scene(), atlas: GlyphAtlas(width: 16, height: 16)))
 }
+
+/// A rect, a glyph run and an image under transforms (ruling GX-F): the bar
+/// local (20, 50, 100, 20) turned a quarter about (70, 60) (screen x 60…80,
+/// y 10…110), the text turned 17°, the image turned a quarter.
+private func transformedScene(atlas: GlyphAtlas) throws -> Scene {
+    var scene = Scene()
+    let mask = bounds(0, 0, Float(width), Float(height))
+    func record(_ a: Float, _ b: Float, _ c: Float, _ d: Float, _ tx: Float, _ ty: Float) -> MUITransform {
+        MUITransform(a: a, b: b, c: c, d: d, tx: tx, ty: ty, pixelScale: abs(a * d - b * c).squareRoot(), _reserved: 0,
+                     outerMask: mask, outerMaskRadii: corners(0))
+    }
+    scene.insert(MUIRect(bounds: mask, contentMask: mask, maskCornerRadii: corners(0),
+                         background: color(0.6, 0.2, 0.15), borderColor: color(0, 0, 0),
+                         cornerRadii: corners(0), borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+                         order: 0, shape: 0))
+    scene.insert(MUIRect(bounds: bounds(20, 50, 100, 20), contentMask: mask, maskCornerRadii: corners(0),
+                         background: color(0.3, 0.7, 0.5), borderColor: color(0.1, 0.8, 0.7),
+                         cornerRadii: corners(6), borderWidths: MUIEdges(top: 2, right: 2, bottom: 2, left: 2),
+                         order: 0, shape: 0), transform: record(0, 1, -1, 0, 130, -10))
+    var text = Scene()
+    let font = try PortableFont(data: [UInt8](Data(contentsOf: fontURL)), size: 15)
+    atlas.beginFrame()
+    try PortableText.emit("Turned", font: font, origin: (120.5, 40.25), scaleFactor: 1,
+                          color: color(0.55, 0.1, 0.95), contentMask: mask, into: &text, atlas: atlas)
+    atlas.endFrame()
+    let (s, c) = (Float(0.29237170472273677), Float(0.9563047559630354))   // 17°
+    for glyph in text.glyphs {
+        scene.insert(glyph, transform: record(c, s, -s, c, 150 - c * 150 + s * 40, 40 - s * 150 - c * 40))
+    }
+    scene.insert(MUIImage(bounds: bounds(150, 70, 60, 20), contentMask: mask, maskCornerRadii: corners(0),
+                          opacity: 1, texture: 0, filter: MUIUInt(MUIImageFilterLinear.rawValue), order: 0),
+                 texture: checker, transform: record(0, 1, -1, 0, 260, -100))
+    scene.finalize()
+    return scene
+}
+
+/// S1.2 (ruling GX-F) — a transformed frame draws in `SDLWindowRenderer`
+/// exactly as the replay path draws it, and the transform is really applied:
+/// the turned bar covers (70, 15), outside its untransformed bounds.
+@MainActor
+@Test func aTransformedFrameIsTheReplayPathsFrame() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let frame = try transformedScene(atlas: atlas)
+    try #require(frame.transforms.count == 3, "bar, text, image")
+    let expected = try replayPixels(frame, atlas: atlas)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    try #require(renderer.beginFrame() == 1)
+    try #require(renderer.finishFrame(scene: frame, atlas: atlas))
+    let drawn = try renderer.readPixels(width: width, height: height)
+    #expect(rgba(drawn, 70, 15) == rgba(drawn, 70, 60), "the turned bar reaches (70, 15)")
+    #expect(rgba(drawn, 25, 60) != rgba(drawn, 70, 60), "and leaves its old bounds")
+    #expect(drawn == expected)
+}

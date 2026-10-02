@@ -55,6 +55,30 @@ typedef enum {
     MUIShapeEllipse     = 1
 } MUIShape;
 
+// An affine per instance (ruling GX-F): 64 bytes, four `float4` lanes, so the
+// SDL bridge uploads the table as it is. A primitive names one by
+// 1 + its index in `Scene.transforms`: `MUIRect.shape` bits 8…31,
+// `MUIImage.filter` bits 8…31 (surfaces share the record), `MUIGlyph.transform`.
+// Index 0 means identity and is never stored, so bits 0…7 of `shape`/`filter`
+// keep their kind and every scene written before this struct existed keeps
+// its bytes.
+//
+// The primitive's `bounds` and `contentMask` are then LOCAL (device pixels
+// before the affine); `x' = a x + c y + tx`, `y' = b x + d y + ty` maps them
+// to the render target. `pixelScale` is `sqrt|ad − bc|` — screen pixels per
+// local pixel — which scales every signed distance before the half-pixel
+// antialiasing threshold and sizes the vertex stage's one-pixel fringe.
+// `outerMask` is the clip in force where the transform began, in SCREEN
+// space, multiplied in at the fragment's screen position.
+typedef struct {
+    float a, b, c, d;
+    float tx, ty;
+    float pixelScale;
+    MUIUInt _reserved;
+    MUIBounds  outerMask;
+    MUICorners outerMaskRadii;
+} MUITransform;
+
 // One glyph sprite: a 1:1 blit of an R8 coverage bitmap, tinted.
 //
 // `bounds` and `atlasBounds` are the SAME size in every case this renderer can
@@ -78,7 +102,12 @@ typedef struct {
     MUICorners maskCornerRadii;
     MUIHsla   color;         // tint; the R8 atlas carries coverage only
     MUIUInt   order;
-    MUIUInt   _reserved;
+    // 1 + an index into the scene's transform table (`MUITransform`, ruling
+    // GX-F), or 0 for none — the word that was `_reserved`, always 0, so every
+    // scene written before this field existed draws exactly as it did and the
+    // struct's size and the replay packing (6 lanes) are unchanged (the
+    // precedent is `MUIRect.shape`, TE-AQ item 7).
+    MUIUInt   transform;
 } MUIGlyph;
 
 // One image: the whole of `Scene.textures[texture]` (premultiplied RGBA8, sRGB
@@ -105,14 +134,18 @@ typedef enum {
     MUIRectBufferVertices   = 0,
     MUIRectBufferRects      = 1,
     MUIRectBufferViewport   = 2,
-    MUIRectBufferProjection = 3
+    MUIRectBufferProjection = 3,
+    // The scene's `MUITransform` table, vertex and fragment (ruling GX-F).
+    MUIRectBufferTransforms = 4
 } MUIRectBufferIndex;
 
 typedef enum {
     MUIGlyphBufferVertices   = 0,
     MUIGlyphBufferGlyphs     = 1,
     MUIGlyphBufferViewport   = 2,
-    MUIGlyphBufferProjection = 3
+    MUIGlyphBufferProjection = 3,
+    // The scene's `MUITransform` table, vertex and fragment (ruling GX-F).
+    MUIGlyphBufferTransforms = 4
 } MUIGlyphBufferIndex;
 
 typedef enum {
@@ -123,7 +156,9 @@ typedef enum {
     MUIImageBufferVertices   = 0,
     MUIImageBufferImages     = 1,
     MUIImageBufferViewport   = 2,
-    MUIImageBufferProjection = 3
+    MUIImageBufferProjection = 3,
+    // The scene's `MUITransform` table, vertex and fragment (ruling GX-F).
+    MUIImageBufferTransforms = 4
 } MUIImageBufferIndex;
 
 typedef enum {
@@ -134,7 +169,8 @@ typedef enum {
     MUIProbeBufferOut   = 0,
     MUIProbeBufferRect  = 1,
     MUIProbeBufferGlyph = 2,
-    MUIProbeBufferImage = 3
+    MUIProbeBufferImage = 3,
+    MUIProbeBufferTransform = 4
 } MUIProbeBufferIndex;
 
 #endif

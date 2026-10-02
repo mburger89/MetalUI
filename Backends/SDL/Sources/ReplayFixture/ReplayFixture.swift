@@ -64,6 +64,7 @@ public struct ReplayFixture: Equatable, Sendable {
     public static let rectStride = UInt32(MemoryLayout<MUIRect>.stride)
     public static let glyphStride = UInt32(MemoryLayout<MUIGlyph>.stride)
     public static let imageStride = UInt32(MemoryLayout<MUIImage>.stride)
+    public static let transformStride = UInt32(MemoryLayout<MUITransform>.stride)
     public static let maxDimension: UInt32 = 4096
 
     public var width: UInt32
@@ -72,6 +73,8 @@ public struct ReplayFixture: Equatable, Sendable {
     public var glyphs: [UInt8]
     public var images: [UInt8]
     public var textures: [FixtureTexture]
+    /// The scene's `MUITransform` table (version 3, ruling GX-F).
+    public var transforms: [UInt8] = []
     public var runs: [FixtureRun]
     public var atlasWidth: UInt32
     public var atlasHeight: UInt32

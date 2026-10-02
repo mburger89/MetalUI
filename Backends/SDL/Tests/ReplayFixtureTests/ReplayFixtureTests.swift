@@ -200,6 +200,8 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     #expect(ReplayFixture.glyphStride == 88)
     // An image is four float4 lanes, uploaded unpadded (ruling TE-AF).
     #expect(ReplayFixture.imageStride == 64)
+    // The transform table is four float4 lanes a record (ruling GX-F).
+    #expect(ReplayFixture.transformStride == 64)
 }
 
 /// S1.1 — version 2 carries image records and the textures they sample
@@ -300,4 +302,31 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("cannot record a surface"), "aborted, but not at the fixture's check:\n\(stderr)")
+}
+
+/// S1.1 (ruling GX-F) — version 3 carries the scene's `MUITransform` table
+/// (64 bytes a record) after the textures, and a fixture made from a scene
+/// carries its table; a table that is not whole records is rejected.
+@Test func aVersionThreeFixtureRoundTripsTransforms() throws {
+    #expect(ReplayFixture.transformStride == 64)
+    var scene = Scene()
+    var rect = MUIRect()
+    rect.bounds = MUIBounds(origin: MUIPoint(x: 1, y: 1), size: MUISize(width: 2, height: 2))
+    let t = MUITransform(a: 0, b: 1, c: -1, d: 0, tx: 3, ty: 0, pixelScale: 1, _reserved: 0,
+                         outerMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4, height: 4)),
+                         outerMaskRadii: MUICorners(topLeft: 1, topRight: 2, bottomRight: 3, bottomLeft: 4))
+    scene.insert(rect, transform: t)
+    scene.finalize()
+    let fixture = try ReplayFixture(scene: scene, atlas: GlyphAtlas(width: 1, height: 1), width: 4, height: 4,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 64))
+    #expect(fixture.transforms == withUnsafeBytes(of: t) { Array($0) })
+    let bytes = fixture.encoded()
+    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0], "version 3")
+    let decoded = try ReplayFixture(decoding: bytes)
+    #expect(decoded == fixture)
+    #expect(decoded.transforms.count == 64)
+    var bad = fixture
+    bad.transforms = [1, 2, 3]
+    #expect(throws: FixtureError.self) { try bad.validate() }
 }
