@@ -1,6 +1,6 @@
 # App icon — design
 
-User request 2026-10-01; **not a plan task**. Rulings `AI-A`…`AI-K` in
+User request 2026-10-01; **not a plan task**. Rulings `AI-A`…`AI-M` in
 [`../2026-10-01-app-icon-decisions.md`](../2026-10-01-app-icon-decisions.md)
 (binding; this spec is the implementation plan). Record:
 `docs/record/70-app-icon.md` (Record phase). Branch `feat/app-icon` from
@@ -76,7 +76,8 @@ C bridge (`SDLBridge.h`/`.c`, `AI-F` item 2):
 extern const uint32_t MUI_PIXELFORMAT_RGBA32;            // = SDL_PIXELFORMAT_RGBA32
 void *mui_icon_surface_create(int32_t w, int32_t h, const uint8_t *straight_rgba); // NULL on failure
 bool  mui_icon_surface_add_alternate(void *primary, void *image);
-bool  mui_window_set_icon(void *window, void *surface);
+bool  mui_window_set_icon(void *window, void *surface);  // refuses NULL, counted (AI-M item 1)
+uint32_t mui_window_set_icon_null_calls(void);          // test instrument (AI-M item 1)
 void  mui_surface_destroy(void *surface);
 // test readback:
 uint32_t mui_surface_format(void *surface);

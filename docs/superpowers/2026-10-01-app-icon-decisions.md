@@ -4,7 +4,7 @@ Rulings for the application icon (user request 2026-10-01; **not a plan
 task**). Spec: [`specs/2026-10-01-app-icon-design.md`](specs/2026-10-01-app-icon-design.md).
 Record: `../record/70-app-icon.md` (§69 is the concurrent `metal-view` line's).
 
-Prefix **`AI-`**, lettered. **Next unused: `AI-M`.** (This line moves in the
+Prefix **`AI-`**, lettered. **Next unused: `AI-N`.** (This line moves in the
 commit that appends a ruling; read the last `## AI-` heading.)
 
 Branch `feat/app-icon` from `330f02b` (master: drag and drop merged, PR #36).
@@ -339,3 +339,63 @@ Test names: 1.1 `anAppThatNeverSetsAnIconNeverCallsThePlatform`, 1.2
    `demoIcon`) in **100** families; the map's `Platform.swift` row for the
    requirement claims no census row today and is kept so a future
    `public` spelling there maps to `app-icon`.
+
+## AI-M — lane 2's measurements: the SDL mutation table, a `NULL` counter, packaging's resource-bundle rule (lane 2)
+
+**Ruling.** Recorded from lane 2 (commits `c5aa5b4` red, `b1f4116` green,
+and the docs commit carrying this ruling); no change to `AI-F`'s design.
+1. **One instrument beyond the spec's bridge**: `mui_window_set_icon` refuses
+   a `NULL` surface itself (returns `false` through `SDL_SetError`, never
+   calling SDL) and counts it in `mui_window_set_icon_null_calls()`. S6 reads
+   the counter before and after `[]`, so `AI-F` item 5's "`NULL` is never
+   passed" is pinned by a reading, not by inspection (MS10 below).
+2. **Red**, over a skeleton (`straightRGBA` identity, `makeSurface` `nil`,
+   `setApplicationIcon` empty, `iconResult` never set): `Backends/SDL`
+   **22 + 47**, 6 issues, one per test — S1 `SDLIconTests.swift:59`
+   (`straightRGBA`), S2 `:79` and S3 `:101` (`makeSurface` `nil`), S4 `:129`,
+   S5 `:146`, S6 `:164` (`iconResult` `nil`). **Green**: 22 + 47 passed on
+   macOS; the `swift:6.4-noble` `metalui-portable-ax` container **22 + 45**
+   (the two macOS-only run-loop tests absent, as before: 39 + 6).
+3. **Mutation table**, each applied to the green tree from a copy, the whole
+   `Backends/SDL` suite (`PKG_CONFIG_PATH=.accesskit swift test --no-parallel`,
+   unfiltered), restored; `git status` showed no tracked change after every
+   one:
+
+| Mutation | Reddened (line) |
+|---|---|
+| MS1 `straightRGBA` returns the premultiplied bytes | S1 (`:59`), S2 (`:91`) |
+| MS2 no `min(255, …)` clamp | S1 by trap (`Fatal error: Not enough bits to represent the passed value`); the run truncates with no second summary line |
+| MS3 `a == 0` keeps its colours | S1 (`:59`) |
+| MS4 `w`/`h` swapped at `mui_icon_surface_create` | S2 (`:84`, size 2 × 3) |
+| MS5 surface created from the premultiplied bytes | S2 (`:91`, `:92`) |
+| MS6 `mui_icon_surface_add_alternate` skipped | S3 (`:107`, image count 1) |
+| MS7 applied to the first open window only | S4 (`:129`) |
+| MS8 `openSDLWindow` skips the stored icon | S5 (`:146`) |
+| MS9 `[]` keeps the last non-empty icon for new windows | S6 (`:170`) |
+| MS10 `[]` passes `NULL` to every open window | S6 (`:171`, the `NULL` counter) |
+
+Test names: S1 `unpremultiplyingRestoresStraightAlpha`, S2
+`anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow`, S3
+`anIconSurfaceCarriesEveryLargerTextureAsAnAlternate`, S4
+`settingTheIconAppliesItToEveryOpenWindow`, S5
+`aWindowOpenedAfterTheIconIsSetGetsIt`, S6
+`clearingTheIconLeavesOpenWindowsAndGivesNewOnesNone`.
+
+4. **`applied` off macOS is not asserted**: S4/S5 expect `applied == true`
+   only under `#if os(macOS)`; in the Linux container they pass on the
+   textures alone. Whether a real X11/Wayland/Windows shell shows the icon is
+   human checks O3/O4.
+5. **Packaging (`AI-H`) found a build-system difference, measured**: under
+   Swift 6.4's **default** build system the generated `Bundle.module`
+   accessor searches `Bundle.main.resourceURL` (`Contents/Resources`) first
+   and, in release, no build directory — so `docs/packaging.md` puts
+   `MetalUI_MetalUIRender.bundle` in `Contents/Resources`; an ad-hoc signed
+   `.app` of `MetalUIDemo` laid out that way verifies and stays running, and
+   the same bundle without the resource bundle exits at once (`unable to find
+   bundle named MetalUI_MetalUIRender`, status 133). Under `--build-system
+   native` the accessor searches only the `.app`'s root and the absolute build
+   directory; a resource bundle at the root makes `codesign --sign` refuse
+   (`unsealed contents present in the bundle root`). The document says to
+   package with the default build system. Windows' link step and every look
+   stay **unverified** there.
+

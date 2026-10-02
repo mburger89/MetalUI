@@ -1,0 +1,258 @@
+# Packaging a MetalUI application with its icon
+
+**Build-side, not framework API** (ruling `AI-H`,
+`docs/superpowers/2026-10-01-app-icon-decisions.md`). Nothing on this page is
+a MetalUI type or function: it is how each operating system finds an
+application's icon *before the program runs* — in Finder, a file manager, a
+launcher, Explorer — which no runtime API can reach.
+
+**`App.icon` is the other half.** `app.icon = [ImageBitmap]` (`AI-A`) is the
+runtime override: it sets the Dock icon of an unbundled `swift run`
+executable (`NSApplication.applicationIconImage`, `AI-E`) and every SDL
+window's icon (`SDL_SetWindowIcon`, `AI-F`). A properly packaged application
+normally needs **neither** — the bundle's, the `.desktop` file's or the
+executable's own icon is shown from launch — and leaving `App.icon` at `[]`
+(its default) never touches it (`AI-C` item 1). Use both only when the
+running icon should differ from the installed one. SwiftUI has no runtime icon API;
+a SwiftUI app's icon is its bundle's, exactly as below.
+
+**What "verified" means here.** Every command was either run on 2026-10-01
+(macOS 27 on Apple silicon, or a `swift:6.4-noble` Linux container) and is
+marked **verified** with what was checked, or is marked **unverified**. No
+command was run on Windows. Looking at an icon on screen is a human check
+(`docs/verification/human-checks.md`, group O).
+
+The examples use one 1024 × 1024 PNG, `icon-1024.png`, and an application
+called `MyApp`, built from a SwiftPM executable product `MyApp`.
+
+## macOS: an `.app` bundle with an `.icns`
+
+A SwiftPM executable is a bare Mach-O file; Finder shows it with the generic
+executable icon, and the Dock does too unless `App.icon` is set while it
+runs. Build the executable, then lay the bundle out by hand.
+
+### 1. The `.icns` — verified
+
+```sh
+mkdir MyApp.iconset
+for n in 16 32 128 256 512; do
+  sips -z $n $n icon-1024.png --out MyApp.iconset/icon_${n}x${n}.png
+  sips -z $((n*2)) $((n*2)) icon-1024.png --out MyApp.iconset/icon_${n}x${n}@2x.png
+done
+iconutil -c icns MyApp.iconset -o MyApp.icns
+```
+
+**Verified**: `file MyApp.icns` reads `Mac OS X icon, … "ic12" type`, and
+`iconutil -c iconset MyApp.icns` round-trips all ten images. The iconset's
+file names are `iconutil`'s convention (`icon_<size>x<size>[@2x].png`). An asset catalog (`AppIcon` in
+an `.xcassets`, compiled by `actool`) is the Xcode route and needs an Xcode
+project or `xcrun actool` — **unverified** here.
+
+### 2. The bundle — verified (signed ad hoc, launched)
+
+```sh
+swift build -c release --product MyApp
+BIN=$(swift build -c release --product MyApp --show-bin-path)
+mkdir -p MyApp.app/Contents/MacOS MyApp.app/Contents/Resources
+cp "$BIN/MyApp" MyApp.app/Contents/MacOS/
+cp MyApp.icns MyApp.app/Contents/Resources/
+# MetalUI's Metal shaders are a SwiftPM resource bundle (target MetalUIRender).
+cp -R "$BIN/MetalUI_MetalUIRender.bundle" MyApp.app/Contents/Resources/
+```
+
+`MyApp.app/Contents/Info.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>         <string>MyApp</string>
+    <key>CFBundleIdentifier</key>         <string>com.example.MyApp</string>
+    <key>CFBundleName</key>               <string>MyApp</string>
+    <key>CFBundlePackageType</key>        <string>APPL</string>
+    <key>CFBundleShortVersionString</key> <string>1.0</string>
+    <key>CFBundleVersion</key>            <string>1</string>
+    <key>CFBundleIconFile</key>           <string>MyApp</string>
+    <key>LSMinimumSystemVersion</key>     <string>14.0</string>
+    <key>NSHighResolutionCapable</key>    <true/>
+</dict>
+</plist>
+```
+
+`CFBundleIconFile` names the `.icns` in `Contents/Resources`, with or without
+its extension. Then:
+
+```sh
+plutil -lint MyApp.app/Contents/Info.plist
+codesign --force --sign - MyApp.app          # ad hoc; a Developer ID for distribution
+codesign --verify --strict --verbose=2 MyApp.app
+```
+
+**Verified** with `MetalUIDemo` as `MyApp` (Swift 6.4, the default build
+system): `plutil -lint` reads `OK`; the ad-hoc signature verifies `valid on
+disk` and `satisfies its Designated Requirement`; launched from
+`Contents/MacOS`, the app was still running after six seconds. **Control**:
+the same bundle with `MetalUI_MetalUIRender.bundle` removed exits at once
+(status 133) with `unable to find bundle named MetalUI_MetalUIRender` — so
+the launch does discriminate. The binary links no non-system dynamic library
+(`otool -L`). Whether Finder and the Dock show the `.icns` is a look, not
+checked (the demo also sets `App.icon` at runtime, which would hide the
+bundle's icon once running; a check of the bundle icon alone needs an app
+that leaves `App.icon` at `[]`). Notarization (`notarytool`) — **unverified**.
+
+**Where the resource bundle goes, and why.** SwiftPM generates the
+`Bundle.module` accessor. Under the **default** build system (Swift 6.4) it
+searches `Bundle.main.resourceURL` (an app's `Contents/Resources`), the
+framework's resources, then `Bundle.main.bundleURL` — and in a release build
+nothing else, so the launch above is a real test. Under **`--build-system
+native`** (deprecated, used by this repository's own test runs) the accessor
+searches only `Bundle.main.bundleURL` (the `.app`'s **root**) and the
+absolute build directory; a bundle at the root is outside `Contents/`, and
+`codesign --sign` refuses it (`unsealed contents present in the bundle root`,
+verified), and the build-directory fallback makes any
+launch on the build machine succeed whatever the layout. Package with the
+default build system.
+
+## Linux: a `.desktop` file and the hicolor icon theme
+
+Desktop shells find an application's icon through its **desktop entry**,
+which names an icon by theme name; the icon itself lives in the hicolor
+theme, one PNG per size.
+
+### 1. The icons — verified (layout)
+
+```sh
+for n in 16 32 48 64 128 256 512; do
+  mkdir -p hicolor/${n}x${n}/apps
+  # any resizer; on macOS: sips -z $n $n, elsewhere e.g. ImageMagick's
+  # `magick icon-1024.png -resize ${n}x${n}` (unverified)
+  sips -z $n $n icon-1024.png --out hicolor/${n}x${n}/apps/com.example.MyApp.png
+done
+# per user:
+mkdir -p ~/.local/share/icons && cp -r hicolor ~/.local/share/icons/
+# system-wide (packages): /usr/share/icons/hicolor/<size>/apps/
+```
+
+**Verified**: the tree copied into `~/.local/share/icons/hicolor/<n>x<n>/apps/`
+inside the container. `gtk-update-icon-cache ~/.local/share/icons/hicolor`
+refreshes a GTK cache where one exists — **unverified** (not installed in the
+container).
+
+### 2. The desktop entry — verified (validator)
+
+`com.example.MyApp.desktop`:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=My App
+Comment=A MetalUI application
+Exec=/opt/myapp/MyApp
+Icon=com.example.MyApp
+Terminal=false
+Categories=Utility;
+StartupWMClass=MyApp
+```
+
+```sh
+desktop-file-validate com.example.MyApp.desktop
+desktop-file-install --dir="$HOME/.local/share/applications" com.example.MyApp.desktop
+```
+
+**Verified** in `swift:6.4-noble` with `apt-get install desktop-file-utils`:
+`desktop-file-validate` prints nothing (valid) and `desktop-file-install`
+installs it. `Icon=` is the theme name (no path, no extension).
+
+### 3. Matching the running window to the entry — unverified
+
+A shell associates a *running* window with its desktop entry by the window's
+application id: the Wayland `app_id`, or the X11 `WM_CLASS` (which
+`StartupWMClass` matches). SDL3's application id is its `SDL_APP_ID` hint
+(`SDL_hints.h`: "used by desktop compositors to identify and group windows
+together, as well as match applications with associated desktop settings and
+icons"; set before SDL initialises), which an environment variable of the
+same name sets, as SDL hints generally can:
+
+```sh
+SDL_APP_ID=com.example.MyApp /opt/myapp/MyApp
+```
+
+Name the desktop file after that id (`com.example.MyApp.desktop`); GNOME
+Shell on Wayland shows the entry's icon only when they match. MetalUI's SDL
+platform does not set an application id itself. **Unverified** — no Linux
+desktop session was available, and whether SDL's X11 backend also derives
+`WM_CLASS` from the hint was not checked; human check O3 covers the running
+icon.
+
+## Windows: an `.ico` embedded as a resource
+
+Explorer, the Start menu and a shortcut show the icon embedded in the `.exe`
+(the first `ICON` group resource); `SDL_SetWindowIcon` (`App.icon`) sets only
+the running window's title-bar and taskbar icon.
+
+### 1. The `.ico` — verified (on macOS)
+
+An `.ico` with PNG entries (Windows Vista and later), from square PNGs of 256
+px or less — no external tool needed:
+
+```python
+#!/usr/bin/env python3
+# make-ico.py out.ico 16.png 24.png 32.png 48.png 64.png 256.png
+import struct, sys
+out, pngs = sys.argv[1], sys.argv[2:]
+images = []
+for path in pngs:
+    data = open(path, "rb").read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", f"{path} is not a PNG"
+    width, height = struct.unpack(">II", data[16:24])
+    assert width == height <= 256, f"{path} is {width}x{height}"
+    images.append((width, data))
+header = struct.pack("<HHH", 0, 1, len(images))
+offset = 6 + 16 * len(images)
+entries, blobs = b"", b""
+for side, data in images:
+    entries += struct.pack("<BBBBHHII", side % 256, side % 256, 0, 0, 1, 32, len(data), offset)
+    blobs += data
+    offset += len(data)
+open(out, "wb").write(header + entries + blobs)
+```
+
+**Verified**: from six `sips`-resized PNGs, `file MyApp.ico` reads `MS
+Windows icon resource - 6 icons, 16x16 with PNG image data, …` and `sips`
+opens it (256 px). ImageMagick's
+`magick icon-1024.png -define icon:auto-resize=256,64,48,32,24,16 MyApp.ico`
+does the same — **unverified** (not installed).
+
+### 2. The resource script and the link — partly verified
+
+`MyApp.rc`:
+
+```
+1 ICON "MyApp.ico"
+```
+
+Compile it to a `.res` with the Windows SDK's `rc.exe` (installed with the
+Visual Studio components the Swift toolchain on Windows requires) or LLVM's
+`llvm-rc`:
+
+```bat
+rc.exe /fo MyApp.res MyApp.rc
+:: or
+llvm-rc /FO MyApp.res MyApp.rc
+```
+
+then hand the `.res` to the linker, which accepts it as an input file:
+
+```bat
+swift build -c release --product MyApp -Xlinker MyApp.res
+```
+
+**Verified**: only the compile, with `llvm-rc` (LLVM 18, `apt-get install
+llvm` in `swift:6.4-noble`): it writes `MyApp.res`, and `llvm-readobj
+--coff-resources` lists `ICON (ID 3)`, name 1. **Unverified**: `rc.exe`, the
+`-Xlinker MyApp.res` link (whether `lld-link`/`link.exe` as driven by
+`swift build` takes the path as given — it may need to be absolute, or to go
+in a `linkerSettings: [.unsafeFlags([...])]` of the executable target, which
+a package depended on by others cannot use), and the icon Explorer then
+shows. Human check O4 covers the running window's icon only.
