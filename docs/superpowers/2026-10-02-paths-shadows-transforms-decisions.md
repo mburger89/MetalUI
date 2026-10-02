@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-V`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-W`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -1102,3 +1102,178 @@ not a sharing wrapper (a future single-child wrapper element) stops it: a
 handler written outside it over an effect keeps its axis-aligned frame
 (divergence 41), the conservative answer. A new sharing wrapper owes a
 `sharingRegistrationsWithEffects` call, which passes the floor through.
+
+---
+
+## GX-V — Lane 3's readings: paths and shadows as vectors to the scene, the leaf walk, three amended tests, frame 7's rasters
+
+**Ruling.** Lane 3 (`Path`, styles, shadows, the demo, the documents) built
+`GX-C`, `GX-D`, `GX-E`, `GX-J`, `GX-K`, `GX-L` (its pin), `GX-M` and `GX-Q` as
+written, with these readings, each measured in the lane:
+
+1. **`everyTokenDiffersBetweenLightAndDark` exempts `.shadow` by name.**
+   `GX-J` gives both themes SwiftUI's one default (black at 0.33, probe SH2);
+   the sweep over `allCases` would redden on the first token two themes share
+   by design. `noTwoTokensCollideWithinAVariant` is unchanged and still holds
+   (light's `scrollIndicator` is black at 0.35, not 0.33).
+   `theSubscriptReturnsEachTokensOwnProperty` gains the `shadow` arm (it
+   passes `shadow:`), and `theDefaultShadowColourIsTheShadowToken` pins the
+   value.
+2. **`ShapeCompileGuards` G2.1's control is amended.** `GX-D` defaults both
+   requirements, so the old control (a conformer without `geometry(in:)`)
+   compiles — and traps at its first paint, 3.4. The control is now the same
+   struct with `geometry(in:)` but no `Shape` conformance, refused at `.fill`:
+   the positive's `.fill`/`.stroke`/`HStack` membership still come from
+   `Shape`. Measured: `with succeeded=true`, `without succeeded=false`.
+3. **`CloseoutTests` F1.3 counts the I1 bitmaps only** (the untransformed
+   images sampling the 16 × 8 or a 4 × 4 texture): the Q section adds path and
+   shadow rasters and a turned 4 × 4 checker, so "4 images" in the whole scene
+   no longer reads I1. Its intent (fit, fill, nearest, bilinear) is unchanged.
+4. **A path is a vector until `insertIntoScene`.** `CapturedPrimitive.path`
+   carries `PathPaint`: the outline in points, the fill rule or stroke
+   parameters, a `local` map (points → device pixels: the scale factor and the
+   scroll translation at emission), the colour and the mask in force. A
+   flattening scope composes its map into `local` (and maps an inner mask, as
+   for a rect); a non-flattening one gives it a transform record by the
+   generic path. At `insertIntoScene` the composed map is
+   `transform ∘ local`, and `RasterPlacement` decides the masks: with no
+   transform the image carries the path's own mask (the GPU cuts a rounded
+   clip exactly); with one the image carries the **outer** mask and the local
+   mask's coverage (a rounded rect rasterized under the transform) is
+   multiplied into the raster. **A path's image is therefore always
+   untransformed** (index 0), rotated or scaled — 3.11, 3.12.
+5. **The paint-scope walk carries leaves, not primitives.** A primitive
+   arriving at `insertThroughScopes` is a one-primitive leaf; a text draw's
+   glyphs are buffered between `beginLeafGroup`/`endLeafGroup` (only while a
+   paint scope is open — the empty-stack fast path is untouched) and arrive as
+   one leaf. Each scope maps every leaf; a shadow scope emits, per leaf,
+   `[shadow(leaf)]` and then the leaf, so to every scope further out the
+   shadow is itself a leaf (SH11, 3.22). A shadow item's own mask is the clip
+   at its scope's entry, so its `innerMask` against an outer scope is read at
+   that depth (`CapturedPrimitive.maskDepth`), not at the emission depth. A
+   `Deferred`'s barrier stops a shadow as it stops an effect, and is pushed
+   when either is open.
+6. **Frame 7 gains MetalUIPath's rasters** (`GX-S` item 5's owed item):
+   `Experiments/SDLGPU`'s `pathRasters` renders a 240 × 64 tree (a star filled
+   nonzero, the same star even-odd, a dashed round-joined stroke, a blurred
+   shadow) through `renderFrame` and inserts its four images, moved by a whole
+   pixel offset so every nearest texel stays centred on its pixel (`TE-AR`
+   item 5). Measured: `Replay --portable --record` passes all 8 frames, frame
+   7 at 0 differing pixels on SDL's Metal backend (6 rects, 28 glyphs, 6
+   images, 9 transforms). CI's `--expect 8` is unchanged.
+7. **Shadow animation keys.** Proposal: radius and offsets on
+   `$anim-layer.shadow` (layout, `animatedNumbers`, the radius clamped ≥ 0),
+   the colour on `$anim-layer.shadow.colour` (paint, `storedAnimatedColor`).
+   Legacy: radius and offsets ride `$anim-effects` with the other effects
+   (`RenderEffectSpec.shadow`, kind tag 3), the colour on
+   `$anim-effects.shadow<k>` in paint. All store keys — the reserved
+   `StateTable` names stay seven. A shadow opens no prepaint scope (it never
+   hits and publishes nothing) and does not count in `effectScopesPushed`, so
+   2.21 is unmoved.
+8. **`nonisolated public` hides a declaration from the census.**
+   `closeout-public-api.sh` reads declarations that begin with `public`/`open`;
+   `Path`'s members (main-actor isolation comes from `Shape: ProposalElement`,
+   and SwiftUI's `Path` is nonisolated) first spelled `nonisolated public`
+   were invisible to the census and to `closeout-undocumented.sh` — 24
+   declarations. They are spelled `public nonisolated`. No other source file
+   uses the hidden order (grep of `^\s*nonisolated public`, recorded).
+9. **Arms re-derived in the lane** (the red run's own readings): 3.3's
+   recording shape sits at (18, 10) so the 68 × 40 root's centred origin is a
+   whole point (66, 80) — at (17, 9) it is (66.5, 80.5); 3.6's ellipse allows
+   8 disagreements (four cubics approximate an ellipse to 0.027 % of its
+   radius, about 0.016 points at r 60; measured 4 — the rounded rectangle,
+   capsule and circle read 0); 3.16 shadows "Hi, there" ("Shadowed" at 20 pt
+   inks 43 % of its box, over the 40 % bound). `RasterMath.multiply` trims to
+   the two masks' overlap (3.20's inner clip read the unclipped 80 × 80 box
+   with zero texels outside the clip).
+10. **Two pins beyond the spec's 28**, each green on arrival: 3.29
+    `aTextUnderScaleEffectIsResampledNotReRasterized` (divergence 106: a glyph
+    under `scaleEffect(3)` keeps its atlas slot and is drawn three times
+    larger) and 3.30 `aShapesStrokeWidthSnaps` (divergence 97 amended: a
+    stroke width written under `withAnimation` is the final width half-way).
+    The divergences needed pins; neither had one.
+11. **`strokeBorder` of a `Path` strokes the path itself** (a `Path` ignores
+    its rect, so the half-width inset reaches nothing). SwiftUI offers
+    `strokeBorder` only on an `InsettableShape`, which `Path` is not; MetalUI
+    offers it on every `Shape` (`TE-AG` item 3). Unprobed, MetalUI's own.
+12. **Red run** (`53f18ac`, the skeleton: no rasters, no shadow items, the
+    defaults non-trapping, every stroke a band, the Q section uncomposed;
+    filtered to the lane's files, 65 tests): 26 of the 28 spec tests red;
+    green on arrival 3.5 (the built-ins' SDF pin) and 3.21 (a shadow
+    registers nothing — true of no shadow), and the three guards (the API
+    exists; each mutated red below).
+13. **the mutation table** (whole unfiltered suite each, 2224 tests, the
+    `FR-J` line present, `git status` clean after every restore; on
+    `a131187`). Every spec mutation reddens its named test.
+    M3a (the path scaled into its frame) → 3.1, 3.25; M3b (a fixed colour) →
+    3.2, 3.14; M3c (`path(in:)` handed the window rect) → 3.3 alone; M3d (the
+    reentrancy check removed: the recursion overflows the stack with no
+    message) → 3.4 alone; M3e (every fill routed through the path) → a
+    truncated run (`Index out of range` in an existing test reading a rect
+    that is now an image) with nineteen existing shape, overlay, background,
+    border and preview tests red before it, and 3.5 red in a supplementary
+    filtered run (the truncation fell before it); M3f (corner control arms
+    0.5 for 0.5523) → 3.6 alone; M3g (`ShapeView` drops the `FillStyle`) →
+    3.7 alone; M3h (every stroke rasterized) → 3.8, 3.30, 3.5, F1.3 and eight
+    `ShapeStrokeTests`/`ShapeTests` band pins; M3i (a path's `contains` its
+    box) → 3.9 alone; M3j (a path clip as its box) → 3.10 alone; M3k (the
+    raster made at the local resolution, the image transformed) → 3.11,
+    3.12, 3.14; M3l (no cache) → 3.13, 3.14; **M3m, four**: the colour
+    dropped from the tint key, the transform, the clip, the path each dropped
+    from the coverage key → 3.14 each (the path's also 3.25: its frame
+    reused the narrow raster); M3n (one composited shadow, after the
+    content) → 3.15, 3.16, 3.22, 3.23, 3.26, 3.28; M3o (no leaf group: a
+    shadow per glyph) → 3.16, 3.26; M3p (sigma = radius / 2) → 3.17, 3.24;
+    M3q (the default `.textPrimary`) → 3.18 alone; M3r (the leaf's colour
+    alpha ignored) → 3.19 alone; M3s (the silhouette ignores the leaf's
+    masks) → 3.20 alone; M3t (the shadow's grown bounds registered as a
+    hitbox) → 3.21 alone; M3u (shadow images not leaves) → 3.22 alone; M3v
+    (the offset not mapped) → 3.23 alone; M3w (the radius snaps) → 3.24
+    alone; **M3x is not run**: no code interpolates a path to remove — 3.25 is
+    a pin of absence (red on the skeleton only because nothing drew), and it
+    is discriminated by M3a and M3m-path; M3y (the legacy `.shadow` returns
+    `self` unchanged) → 3.16, 3.26, 3.28 (its first spelling, the paint
+    scope skipped in `withRenderEffects`, failed to compile — a closure
+    capturing the non-escaping `body` — and was replaced); M3z (a surface's
+    silhouette empty) → 3.27 alone; M3aa (the Q section left out of the
+    composer) → 3.28 alone. Guards: **MG3.1** (`Path.addRects(_:)` made
+    `internal`) → G3.1 alone — the spec's `StrokeStyle.init` made `internal`
+    fails the package build before any test runs (the looks demo, another
+    module, calls it), so a spelling no other module uses was chosen;
+    **MG3.2** (`path(in:)` removed from the protocol, its default made
+    `internal`) → G3.2, then a trap at 3.3's recording shape (its
+    `path(in:)` is no longer a witness, so the default `geometry(in:)` reaches
+    the default `path(in:)` and `GX-D`'s check fires); **MG3.3** (the
+    `shadow:` default removed, the two in-repo pre-token themes in
+    `AXNodeTests`/`AnimationTests` given `shadow:` so the suite builds) →
+    G3.3 alone.
+
+14. **Counts** (`a131187`): **2224 tests in 3 suites** (2191 + 33: the
+    spec's 28, the two pins of item 10, the three guards), guards **133**
+    (130 + G3.1–G3.3), 0 goldens; the `FR-J` line present; 0 `error:` on both
+    build systems, the one `warning:` SwiftPM's deprecation notice under
+    native, 0 under `swift build --build-tests`. Census **2086** declarations
+    in **105** families (`paths`, `stroke-styles`, `shadows` added); both
+    closeout checks print nothing. **0 px against `dc96395` in all fourteen
+    offscreen images**, every scene identical
+    (`docs/probes/demo-pixels/compare.sh`). Divergences 76 live (104–106
+    added here), next label 110. The screen was locked at the lane's close
+    (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`): no
+    real-window capture, no probe re-run, the demo not launched.
+15. **Off the root suite** (`a131187`): `Backends/SDL`
+    (`PKG_CONFIG_PATH=$PWD/.accesskit`) builds with 0 `error:` and runs
+    **24 + 57**, unmoved; `Experiments/SDLGPU`'s `Replay --portable --record`
+    passes all 8 frames (item 6), and on its fixtures `PortableReplay --expect
+    8` (SDL Metal, every frame 0 px) and `DemoCapture` (the demo's scene
+    byte-for-byte macOS's, 0 px) PASS on macOS; Linux llvmpipe and Windows
+    D3D12 confirm on push. A `swift:6.4-noble` aarch64 container
+    (`metalui-portable`, Swift 6.4, Ubuntu 24.04; OrbStack started and stopped
+    after) builds with 0 `error:`/`warning:` and runs **199 + 22 + 21 + 31 +
+    18 + 6**, as lane 2's.
+
+**Cost if wrong.** Items 1–3 change existing tests' instruments, each for a
+ruled reason with the old intent kept. Item 4 rasterizes a path whose clip
+was pushed inside an effect with a CPU mask (exact to the rasterizer's
+coverage) rather than the GPU's analytic one. Item 8 is a census blind spot:
+a future declaration spelled `nonisolated public` (or with any other leading
+modifier) would escape both closeout checks silently.
