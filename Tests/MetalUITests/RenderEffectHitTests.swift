@@ -171,6 +171,16 @@ private let deg90 = Angle.degrees(90)
     }
     #expect("\(try frameOf(label().offset(x: px(50), y: px(20))))" == rect(o.x.value + 50, o.y.value + 20, 33, 24), "X1")
     #expect("\(try frameOf(label().rotationEffect(deg90)))" == rect(cx - 12, cy - 16.5, 24, 33), "X2")
+    // The visible frame on both written orders (review round): no clip, so
+    // it is the frame itself.
+    func visible(_ order: String, _ element: some Element) throws {
+        let f = effectFrame(element, accessibility: true)
+        let record = try #require(f.axEmissions.first { $0.declared.label == "x" })
+        #expect("\(record.geometry.visibleFrame)" == rect(cx - 12, cy - 16.5, 24, 33),
+                "X2 \(order): visible frame \(record.geometry.visibleFrame)")
+    }
+    try visible("inside", label().rotationEffect(deg90))
+    try visible("after", fxBar(33, 24).rotationEffect(deg90).accessibilityLabel("x"))
     #expect("\(try frameOf(label().scaleEffect(2)))" == rect(cx - 33, cy - 24, 66, 48), "X4")
     #expect("\(try frameOf(label().scaleEffect(0.5, anchor: .topLeading)))" == rect(o.x.value, o.y.value, 16.5, 12), "X5")
     // Divergence 107's pin: at 45° MetalUI still answers the bounding box,
@@ -303,8 +313,52 @@ private let deg90 = Angle.degrees(90)
 /// follows it: `.rotationEffect(90°).accessibilityLabel("x")` on the 160 × 20
 /// bar publishes the turned 20 × 160 bounding box. Mutation **M2x**.
 @Test @MainActor func anAccessibilityRecordWrittenAfterAnEffectFollowsIt() throws {
-    let f = effectFrame(fxBar().rotationEffect(deg90).accessibilityLabel("x"), accessibility: true)
-    let record = try #require(f.axEmissions.first { $0.declared.label == "x" })
-    #expect("\(record.geometry.frame)" == "\(Bounds(origin: pt(90, 20), size: Size(width: px(20), height: px(160))))",
-            "the turned bounding box: \(record.geometry.frame)")
+    // Both written orders publish the same frame AND visible frame (review
+    // round): the shared record's visible frame is the bounding box of its
+    // pre-effect visible rect, not that rect cut by the new bounding box.
+    let turned = "\(Bounds(origin: pt(90, 20), size: Size(width: px(20), height: px(160))))"
+    func check(_ order: String, _ element: some Element) throws {
+        let f = effectFrame(element, accessibility: true)
+        let record = try #require(f.axEmissions.first { $0.declared.label == "x" })
+        #expect("\(record.geometry.frame)" == turned, "\(order): the turned bounding box: \(record.geometry.frame)")
+        #expect("\(record.geometry.visibleFrame)" == turned,
+                "\(order): the turned visible frame: \(record.geometry.visibleFrame)")
+    }
+    try check("after", fxBar().rotationEffect(deg90).accessibilityLabel("x"))
+    try check("before", fxBar().accessibilityLabel("x").rotationEffect(deg90))
+}
+
+// MARK: - 2.32 (GX-U, review round)
+
+/// **2.32** (`GX-U`). A wrapper whose content is a `ZStack` or an `.overlay`
+/// does not share an effect on one of their children, even at an equal rect:
+/// the corner (53, 53) of the unrotated square beside a rotated one still hits
+/// the tap outside the stack (divergence 41's axis-aligned frame), as it does
+/// with no rotation. Mutation **MU1**: the share floor ignored.
+@Test @MainActor func aWrapperOverAZStackOrOverlayDoesNotShareAChildsEffect() throws {
+    let points = [pt(53, 53), pt(100, 100)]
+    let log = HitLog()
+    func square(_ token: ColorToken) -> ModifiedContent<Color, LayoutModifier> {
+        Color(token).frame(width: px(100), height: px(100))
+    }
+    let (w0, p0) = try hitWindow {
+        ZStack { square(.accent); square(.separator) }.onTapGesture { log.entries.append("tap") }
+    }
+    try #require(clicks(p0, w0, log, points) == [true, true], "control: no rotation")
+    let (w1, p1) = try hitWindow {
+        ZStack { square(.accent); square(.separator).rotationEffect(.degrees(45)) }
+            .onTapGesture { log.entries.append("tap") }
+    }
+    #expect(clicks(p1, w1, log, points) == [true, true], "a ZStack's rotated child")
+    let (w2, p2) = try hitWindow {
+        square(.accent).overlay { square(.separator).rotationEffect(.degrees(45)) }
+            .onTapGesture { log.entries.append("tap") }
+    }
+    #expect(clicks(p2, w2, log, points) == [true, true], "an overlay's rotated content")
+    let (w3, p3) = try hitWindow {
+        square(.accent).background { square(.separator).rotationEffect(.degrees(45)) }
+            .onTapGesture { log.entries.append("tap") }
+    }
+    #expect(clicks(p3, w3, log, points) == [true, true], "a background's rotated content")
+    withExtendedLifetime((w0, w1, w2, w3)) {}
 }
