@@ -31,6 +31,9 @@ import MetalUIDemoContent
 final class TransitionHarness {
     let table = StateTable()
     let store = AnimationStore()
+    /// One registry across the harness's frames, as a `Window` holds one
+    /// (MetalView, `MV-E` item 6) — so a surface's id continuity is exercised.
+    let surfaces = SurfaceRegistry()
     var accessibility = false
 
     @discardableResult
@@ -39,7 +42,7 @@ final class TransitionHarness {
         var root = element
         let frame = Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)), scaleFactor: scaleFactor,
                           stateTable: table, timestamp: t, transaction: animation, animationStore: store,
-                          collectsAccessibility: accessibility, reportsUnlowerableFields: true)
+                          surfaceRegistry: surfaces, collectsAccessibility: accessibility, reportsUnlowerableFields: true)
         frame.render(&root)
         #expect(frame.unlowerableFields.isEmpty, "t \(t): \(frame.unlowerableFields)")
         return frame

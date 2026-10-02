@@ -223,7 +223,7 @@ private func redraw(_ window: Window) {
     #expect(!onDemand.hasActiveAnimations && !onDemand.wantsAnotherFrame, "an .onDemand surface raises neither")
 
     let shown = Flag(true)
-    let (window, _, _) = try spiedWindow {
+    let (window, _, spy) = try spiedWindow {
         HStack {
             if shown.value { surface(.continuous).frame(width: px(20), height: px(20)) }
         }
@@ -231,6 +231,7 @@ private func redraw(_ window: Window) {
     defer { withExtendedLifetime(window) {} }
     #expect(window.hasActiveAnimations, "the window keeps animating while it paints")
     #expect(!window.needsRedraw, "without being dirtied")
+    #expect(spy.frames.last?.map(\.policy) == [.continuous], "the request carries the element's policy (MV-M)")
     shown.value = false
     redraw(window)
     #expect(!window.hasActiveAnimations && !window.needsRedraw, "gone: the link may pause")
@@ -385,4 +386,178 @@ private func redraw(_ window: Window) {
     platform.simulateInput(.mouseDown(MouseEvent(position: pt(150, 150))))
     platform.simulateInput(.mouseUp(MouseEvent(position: pt(150, 150))))
     #expect(log.entries == ["tap"], "a tap reaches it through onTapGesture")
+}
+
+// MARK: - Lane 1 review round (MV-M)
+
+private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
+    .scrollWheel(ScrollEvent(position: position, delta: Point(x: px(0), y: px(deltaY)), isMomentum: false))
+}
+
+/// **1.21** (`MV-D`, `MV-M` item 1). A surface inside a `Deferred` portal is
+/// composited on the portal's hoisted layer, exactly as an `Image` there is —
+/// not on layer 0, under the scrim and the presentation's own background.
+/// The image arm must read a non-zero layer before the comparison is believed
+/// (1.17's tree has no portal, so both read 0 there and cannot separate).
+///
+/// Mutation **A**: `drawSurface` inserts on layer 0 instead of `activeLayer`.
+@Test @MainActor func aSurfaceInsideADeferredPortalIsCompositedOnThePortalsLayer() throws {
+    let bitmap = ImageBitmap(width: 1, height: 1, rgba: [255, 0, 0, 255])
+    let frame = render(Row {
+        Box().frame(width: px(10), height: px(10))
+        Deferred { surface().frame(width: px(40), height: px(40)) }
+        Deferred { Image(decorative: bitmap, scale: 1).resizable().frame(width: px(40), height: px(40)) }
+    })
+    let scene = frame.scene
+    try #require(scene.surfaces.count == 1 && scene.images.count == 1, "set up: one surface, one image")
+    let imageLayer = scene.layer(of: .image, at: 0)
+    try #require(imageLayer != 0, "the portal must hoist the image off layer 0: \(imageLayer)")
+    #expect(scene.layer(of: .surface, at: 0) == imageLayer, "the surface shares the portal's layer")
+}
+
+/// **1.22** (`MV-D`, `MV-G` item 4, `MV-M` item 2). A surface in a scrolled
+/// `ProposalScrollView` is composited at its scrolled place — moved up by the
+/// stored offset, level with an `Image` beside it — and once it is scrolled
+/// wholly out of the viewport it emits no quad and no request. Window 120 pt;
+/// content a 40-pt bar, a row of a 60×40 surface and a 60×40 image, then three
+/// 40-pt bars: 200 pt, 80 pt of travel. At the 80 ceiling the row spans
+/// −40…0, outside the 0…120 viewport.
+///
+/// Mutation **B**: `drawSurface` drops `activeOffset` (`let translated = bounds`).
+@Test @MainActor func aScrolledSurfaceMovesWithItsScrollerAndRequestsNothingOnceScrolledOut() throws {
+    let bitmap = ImageBitmap(width: 1, height: 1, rgba: [255, 0, 0, 255])
+    let (window, platform, spy) = try spiedWindow(side: 120) {
+        ProposalScrollView(.vertical, elementID: ElementID("scroller")) {
+            VStack(spacing: px(0)) {
+                Rectangle(width: px(120), height: px(40), color: .accent)
+                HStack(spacing: px(0)) {
+                    surface().frame(width: px(60), height: px(40))
+                    Image(decorative: bitmap, scale: 1).resizable().frame(width: px(60), height: px(40))
+                }
+                Rectangle(width: px(120), height: px(40), color: .accent)
+                Rectangle(width: px(120), height: px(40), color: .accent)
+                Rectangle(width: px(120), height: px(40), color: .accent)
+            }
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    let region = try #require(window.lastScrollRegions.first, "set up: one scroll region")
+    func offset() -> Double? { window.stateTable.peek(region.id, as: ScrollState.self)?.offset }
+    func scroll(_ deltaY: Float) {
+        platform.simulateInput(wheel(at: pt(60, 100), deltaY: deltaY))
+        window.drawFrameIfNeeded()
+    }
+    let rest = window.lastScene
+    try #require(rest.surfaces.count == 1 && rest.images.count == 1, "set up: both paint unscrolled")
+    let restY = rest.surfaces[0].bounds.origin.y
+
+    scroll(-30)
+    try #require(offset() == 30, "set up: scrolled 30, read \(String(describing: offset()))")
+    let scrolled = window.lastScene
+    try #require(scrolled.surfaces.count == 1 && scrolled.images.count == 1, "both still paint")
+    #expect(scrolled.surfaces[0].bounds.origin.y == restY - 30, "moved up by the offset")
+    #expect(scrolled.surfaces[0].bounds.origin.y == scrolled.images[0].bounds.origin.y, "level with the image")
+    #expect(spy.frames.last?.count == 1, "visible: it requests")
+
+    for _ in 0..<4 { scroll(-30) }
+    try #require(offset() == 80, "set up: at the 80 ceiling, read \(String(describing: offset()))")
+    #expect(window.lastScene.surfaces.isEmpty, "scrolled out: no quad")
+    #expect(spy.frames.last?.isEmpty == true, "scrolled out: no request")
+}
+
+/// **1.23** (`MV-G` item 4, `MV-M` item 3). A surface that stops being painted
+/// loses its id, so one re-inserted while its removal ghost still shows gets a
+/// new target rather than the ghost's — through one registry across frames
+/// (`TransitionHarness.surfaces`, as a `Window` holds one).
+///
+/// Mutation **D**: `SurfaceRegistry.endFrame()` keeps every id.
+@Test @MainActor func aSurfaceReinsertedDuringItsRemovalGetsANewTarget() throws {
+    let h = TransitionHarness()
+    func tree(_ shown: Bool) -> some Element {
+        Column {
+            Stack {
+                Box().frame(width: px(200), height: px(100))
+                if shown { surface().frame(width: px(50), height: px(30)).transition(.opacity) }
+            }
+        }
+    }
+    let rest = h.frame(0, nil, tree(true))
+    try #require(rest.surfaceRequests.count == 1, "set up: the live surface requests")
+    let old = rest.surfaceRequests[0].target.id
+    h.frame(0, .linear(duration: 1), tree(false))
+    let mid = h.frame(0.5, nil, tree(false))
+    try #require(mid.scene.surfaceTargets.map(\.id) == [old], "set up: the ghost references the old target")
+    let back = h.frame(0.6, .linear(duration: 1), tree(true))
+    try #require(back.surfaceRequests.count == 1, "the re-inserted surface requests")
+    #expect(back.surfaceRequests[0].target.id != old, "a new target, not the ghost's")
+}
+
+/// **1.24** (`MV-D`, `MV-M` item 4). A surface inside a clip that is itself
+/// inside a `.transition(.scale)` group (an inner mask) has its mask and radii
+/// scaled with it mid-insertion, exactly as an `Image` in the same place —
+/// `TransitionEffect.apply`'s `.surface` arm is a copy of the image arm's, so
+/// it is pinned on its own. The mid-flight mask must differ from the settled
+/// one before the comparison is believed.
+///
+/// Mutation **G**: drop the `if inner { … }` block from the `.surface` arm.
+@Test @MainActor func aSurfacesInnerMaskScalesWithItsTransitionAsAnImagesDoes() throws {
+    let bitmap = ImageBitmap(width: 1, height: 1, rgba: [255, 0, 0, 255])
+    func mid<C: ProposalElementGroup>(_ content: @escaping () -> C) -> (rest: Frame, mid: Frame) {
+        let h = TransitionHarness()
+        func tree(_ shown: Bool) -> some Element {
+            Column {
+                Stack {
+                    Box().frame(width: px(200), height: px(100))
+                    if shown {
+                        HStack(spacing: px(0)) { content() }
+                            .clipShape(RoundedRectangle(cornerRadius: px(8)))
+                            .transition(.scale)
+                    }
+                }
+            }
+        }
+        h.frame(0, nil, tree(false))
+        h.frame(0, .linear(duration: 1), tree(true))
+        let m = h.frame(0.5, nil, tree(true))
+        let r = h.frame(2, nil, tree(true))
+        return (r, m)
+    }
+    let s = mid { surface().frame(width: px(40), height: px(40)) }
+    let i = mid { Image(decorative: bitmap, scale: 1).resizable().frame(width: px(40), height: px(40)) }
+    try #require(s.mid.scene.surfaces.count == 1 && i.mid.scene.images.count == 1
+                 && s.rest.scene.surfaces.count == 1, "set up: one quad each")
+    let sq = s.mid.scene.surfaces[0], iq = i.mid.scene.images[0]
+    try #require(floats(sq.bounds) == floats(iq.bounds), "set up: both scaled to one place")
+    try #require(floats(iq.contentMask) != floats(s.rest.scene.surfaces[0].contentMask),
+                 "the mid-flight mask must differ from the settled one")
+    #expect(floats(sq.contentMask) == floats(iq.contentMask), "the mask scales with it")
+    #expect(floats(sq.maskCornerRadii) == floats(iq.maskCornerRadii), "and its radii")
+}
+
+/// **1.25** (`MV-L` item 1, `MV-M` item 5). Among siblings sharing one `.id`,
+/// the occurrence counts every surface **reached** by paint, not only those
+/// that pass the no-GPU-work guards — so a sibling made transparent does not
+/// shift the next one onto its target (where, at one size, an `.onDemand`
+/// surface would show the other's last contents without redrawing).
+///
+/// Both siblings carry `.opacity` so their surfaces share one
+/// `GlobalElementID` (a modifier layer is an id level, `MC-C`).
+///
+/// Mutation **H**: count the occurrence after the guards (the fix reverted).
+@Test @MainActor func aSkippedSiblingDoesNotShiftASharedIDsNextSurfaceOntoItsTarget() throws {
+    let firstShown = Flag(true)
+    let (window, _, spy) = try spiedWindow {
+        HStack(spacing: px(0)) {
+            surface().frame(width: px(50), height: px(50)).opacity(firstShown.value ? 1 : 0).id("a")
+            surface().frame(width: px(50), height: px(50)).opacity(1).id("a")
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    let before = try #require(spy.frames.last).map(\.target.id)
+    try #require(before.count == 2 && before[0] != before[1], "set up: two targets: \(before)")
+    firstShown.value = false
+    redraw(window)
+    let after = try #require(spy.frames.last).map(\.target.id)
+    try #require(after.count == 1, "set up: the transparent sibling requests nothing: \(after)")
+    #expect(after == [before[1]], "the second keeps its own target: \(after) vs \(before)")
 }

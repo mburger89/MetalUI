@@ -82,3 +82,19 @@ private let targetB = SurfaceTarget(id: SurfaceID(rawValue: 2), width: 8, height
     #expect(scene.highestLayer == 3)
     #expect((0..<3).map { scene.layer(of: .surface, at: $0) } == [0, 3, 1])
 }
+
+/// **1.3b** (`MV-M` item 6). One `SurfaceID` inserted at two sizes in one scene
+/// traps: a renderer binds one texture per target, and `Frame` never builds
+/// such a scene (a live surface's id is minted per frame at one size, and an id
+/// that stops painting is never reused, so a ghost's or a drag preview's
+/// replay names its source's size or a retired id). 1.3's same-size repeat is
+/// the control: it does not trap.
+///
+/// Mutation **F**: `precondition(true || …)`.
+@Test func oneSurfaceIDAtTwoSizesInOneSceneTraps() async {
+    await #expect(processExitsWith: .failure) {
+        var scene = Scene()
+        scene.insert(quad(), surface: SurfaceTarget(id: SurfaceID(rawValue: 1), width: 20, height: 10))
+        scene.insert(quad(), surface: SurfaceTarget(id: SurfaceID(rawValue: 1), width: 21, height: 10))
+    }
+}
