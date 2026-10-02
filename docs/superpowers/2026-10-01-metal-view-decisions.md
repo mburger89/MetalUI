@@ -657,3 +657,13 @@ seven left it green. Each is now pinned or fixed, red first (`66483c2`):
    carries `.continuous` (1.16 already pins `.onDemand`).
 
 Root count **2051 → 2057** (1.21–1.25, 1.3b).
+
+**Mutations, each on `0005509`, full unfiltered suite (2057), restored from a
+copy, `git status --short` clean after each**: A (`layer: 0` in
+`drawSurface`) reddens only 1.21; B (`let translated = bounds` in
+`drawSurface` alone, not `drawImage`'s identical lines) only 1.22 (4
+issues); D (`endFrame()` keeps every id) only 1.23; F
+(`precondition(true || …)`) only 1.3b; G (the `.surface` arm's inner-mask
+block dropped) only 1.24 (2 issues); M (every request `.onDemand`) only
+1.15; H (the occurrence counted after the guards — this ruling's fix
+reverted) only 1.25.
