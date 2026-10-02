@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-N`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-O`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -667,3 +667,102 @@ issues); D (`endFrame()` keeps every id) only 1.23; F
 block dropped) only 1.24 (2 issues); M (every request `.onDemand`) only
 1.15; H (the occurrence counted after the guards — this ruling's fix
 reverted) only 1.25.
+
+## MV-N — lane 2: the Metal renderer, `MetalView` and the demo as built; four mutations respelled, two exit tests strengthened
+
+Lane 2 (`636eb7b` red, `bbaf217` green, `b22ea9d` the exit-test fix) built spec §4's
+Metal paragraph, `MetalDrawContext`, `MetalView` and `MV-J`'s demo as
+designed. What the lane decided that the design did not say:
+
+1. **`MetalDrawContext.init` is `package`**: app code cannot construct one, so
+   a draw is never handed a forged buffer or target. Guard G2.1's negative
+   arm (`theMetalViewSpellingsCompileFromAPlainImport`) is that refusal
+   ("initializer is inaccessible due to 'package' protection level").
+2. **`frameIndex`** is the count of frames `finishFrame` finished before this
+   one (the first frame's draws see 0). **`pixelSize`** is read off the
+   created texture.
+3. **`MetalView` is layout-, paint- and identity-transparent** around one
+   `GPUSurface` (it forwards all three phases with its own id), so every
+   `GPUSurface` rule holds for it unchanged; its downcast lives in an
+   internal `MetalView.drawThunk(_:)`, the seam test 2.10 drives.
+4. **The demo's draw counter** is a plain reference held in `@State` and read
+   during the build — never a `@State` write from the draw, which runs in the
+   renderer (a phase write, CLAUDE.md "`@State`"). It lags the drawing by one
+   frame and freezes, with the window idle, while paused.
+5. **The parity literal** is `SurfaceParity` in
+   `Tests/MetalUIRenderTests/SurfaceCompositingTests.swift` (test 2.11): a
+   black 40 × 40 rect, surface A (texel (200, 100, 40, 255), radius-6 mask,
+   opacity 0.5) and surface B (opaque blue). Over opaque black every expected
+   channel is an exact integer — (100, 50, 20, 255) at A's centre — so no
+   GPU rounding ambiguity enters the literal lane 3 copies. Test 2.3 (another
+   target) cites its RGB inline; its window has a transparent clear, so its
+   alpha is checked to ±1.
+6. **Exit tests 2.8 and 2.10 read the trap's message**
+   (`observing: [\.standardErrorContent]`, "MV-F item 5" / "MV-A item 2").
+   **Found by mutation**: M2j (the status precondition dropped) first left
+   2.8 green — Metal aborts a doubly committed command buffer later in the
+   same frame by itself, so a bare `.failure` cannot tell MetalUI's check
+   from Metal's.
+7. **Mutation spellings corrected against spec §8's table.** M2d binds the
+   atlas texture where one exists (`atlasTexture ?? texture`). M2h moves the
+   table onto the shared `Renderer` as a stored property (the table's
+   accessor forwarding to it). M2i cannot be "never call `release`": Metal's
+   `release` closure is empty by design (dropping the reference IS the
+   release, `TE-AF`'s rule), so the table's counters move whatever it does —
+   test 2.7 therefore also holds a **weak** reference to the `MTLTexture`
+   and requires it freed once the frame that last sampled it completes, and
+   M2i is the leak (`release` keeps the handle in a static array). M2m is the
+   index offset by one **modulo the target count** (2.11 has two targets, so
+   the plain +1 would trap out of range rather than read a wrong colour).
+8. **A mutation that changes a stored property's layout needs `swift package
+   clean`**: M2h, first built incrementally (both a static-backed and a
+   `Renderer`-backed spelling), segfaulted the test process in 2.7 with
+   impossible counter readings in 2.2 — CLAUDE.md's `direct field offset`
+   hazard, not a finding. Rebuilt clean it reddens 2.6 alone.
+
+**Mutations**, each from a copy of the committed file (`bbaf217`; M2h, M2j,
+M2l and M2m re-run on the exit-test fix), full unfiltered suite (2070),
+`git status --short` clean after each:
+
+| mutation | file | reddens |
+|---|---|---|
+| M2a draws after `encode` | `MetalWindowRenderer.swift` | 2.1, 2.3, 2.9 |
+| M2b `.surface` runs skipped in `encode` | `Renderer.swift` | 2.1, 2.2, 2.3, 2.6, 2.9, 2.11 |
+| M2c a fresh table every frame | `MetalWindowRenderer.swift` | 2.2, 2.4, 2.5, 2.6, 2.7 |
+| M2d the atlas bound for surface runs | `Renderer.swift` | 2.1, 2.2, 2.3, 2.6, 2.9 |
+| M2e `.bgra8Unorm_srgb` targets | `MetalWindowRenderer.swift` | 2.3, 2.4 |
+| M2f targets sized in points | `MetalWindowRenderer.swift` | 2.4 |
+| M2g only new targets drawn | `MetalWindowRenderer.swift` | 2.4, 2.5 |
+| M2h the table on the shared `Renderer` (clean build) | both | 2.6 |
+| M2i `release` leaks the handle | `MetalWindowRenderer.swift` | 2.7 |
+| M2j status precondition dropped | `MetalWindowRenderer.swift` | 2.8 |
+| M2k `MetalView` forwards a fresh command buffer | `MetalView.swift` | 2.9 |
+| M2l `MetalView` skips a non-Metal context | `MetalView.swift` | 2.10 |
+| M2m target index + 1 (mod count) | `Renderer.swift` | 2.11 |
+| M2n the demo's main surface `.onDemand` | `MetalViewDemo.swift` | 2.12 |
+| G2.1 `renderPassDescripter` in the positive fixture | the guard | G2.1 |
+
+(2.1 `aSurfaceFillIsCompositedOnTheFirstFrame`, 2.2
+`anOnDemandSurfaceKeepsItsContentsWhenTheWindowRedrawsForAnotherReason`, 2.3
+`aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage`, 2.4
+`aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime`, 2.5
+`aContinuousSurfaceDrawsOnEveryTickAndAnOnDemandOneOnce`, 2.6
+`twoWindowsKeepTheirOwnTargets`, 2.7
+`aSurfacesTargetIsReleasedWhenItsElementLeaves`, 2.8
+`aSurfaceDrawThatCommitsTheCommandBufferTraps`, 2.9
+`aMetalViewDrawsWithTheRenderersDeviceAndTheFramesCommandBuffer`, 2.10
+`aMetalViewGivenANonMetalContextTraps`, 2.11
+`aSurfaceRunSamplesItsTargetThroughTheImagePipeline`, 2.12
+`theMetalViewDemoTreeRequestsOneContinuousAndOneOnDemandSurface`.)
+
+**Still unpinned, stated**: a new target's clear to transparent (`MV-E` item
+5; fresh private memory reads zero either way — spec §8 already says so).
+
+Root count **2057 → 2070** (2.1–2.12, G2.1); guards +1. 0 px against
+`330f02b` in all fourteen offscreen images (`compare.sh`, scenes identical);
+`Expected.swift` unedited; `everyProductionTreeBuildsOnAOneMegabyteThread`
+green with the new tree; 0 `error:`/`warning:` on the default build system,
+SwiftPM's deprecation notice alone under native; `Backends/SDL` builds (0
+`error:`); a `swift:6.4-noble` container builds the root package with 0
+`error:`/`warning:`.
+

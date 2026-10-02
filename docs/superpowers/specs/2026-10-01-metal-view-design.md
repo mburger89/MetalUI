@@ -281,15 +281,15 @@ Files: `Sources/MetalUIRender/MetalWindowRenderer.swift`, `Renderer.swift`,
 |---|---|---|---|
 | 2.1 | `aSurfaceFillIsCompositedOnTheFirstFrame` (window, `ctx.clear` red, pixel read inside and outside) | lane 1's stub ignores surfaces | M2a: run the draws after `renderer.encode`; M2b: skip `.surface` runs in `encode` |
 | 2.2 | `anOnDemandSurfaceKeepsItsContentsWhenTheWindowRedrawsForAnotherReason` (draw count stays 1, pixel stays red) | ditto | M2c: release and recreate every target every frame |
-| 2.3 | `aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage` (C1–C3; pixel-equal to an `Image` of the same colour; an unclipped arm separates; the parity literal) | ditto | M2d: bind the atlas/wrong texture for surface runs |
+| 2.3 | `aSurfaceIsClippedRoundedAndFadedExactlyAsAnImage` (C1–C3; pixel-equal to an `Image` of the same colour; an unclipped arm separates; the parity literal) | ditto | M2d: bind the atlas/wrong texture for surface runs (`atlasTexture ?? texture`, `MV-N` item 7) |
 | 2.4 | `aSurfaceDrawReceivesItsDevicePixelBgraTargetScaleAndTime` (scale 2, `simulateTick(timestamp:)`) | ditto | M2e: allocate `.bgra8Unorm_srgb`; M2f: size in points |
 | 2.5 | `aContinuousSurfaceDrawsOnEveryTickAndAnOnDemandOneOnce` | ditto | M2g: draw only new targets |
-| 2.6 | `twoWindowsKeepTheirOwnTargets` (both at `SurfaceID(1)`, **different sizes**, one shared `Renderer`; frames drawn **alternately** A, B, A, B — each window's draw count stays 1 and `createdCount` 1, pixels per window; `MV-L` item 6: drawn A, A, B, B a shared table would release once and still read 1 on the second of each pair) | ditto | M2h: move the table onto the shared `Renderer` |
-| 2.7 | `aSurfacesTargetIsReleasedWhenItsElementLeaves` (`package` counters) | ditto | M2i: never call `release` |
-| 2.8 | `aSurfaceDrawThatCommitsTheCommandBufferTraps` (exit test) | no check | M2j: drop the status precondition |
+| 2.6 | `twoWindowsKeepTheirOwnTargets` (both at `SurfaceID(1)`, **different sizes**, one shared `Renderer`; frames drawn **alternately** A, B, A, B — each window's draw count stays 1 and `createdCount` 1, pixels per window; `MV-L` item 6: drawn A, A, B, B a shared table would release once and still read 1 on the second of each pair) | ditto | M2h: move the table onto the shared `Renderer` (a clean build: it changes stored layout, `MV-N` item 8) |
+| 2.7 | `aSurfacesTargetIsReleasedWhenItsElementLeaves` (`package` counters and a weak reference to the texture, `MV-N` item 7) | ditto | M2i: `release` leaks the handle (Metal's `release` is empty by design) |
+| 2.8 | `aSurfaceDrawThatCommitsTheCommandBufferTraps` (exit test reading "MV-F item 5" on stderr, `MV-N` item 6) | no check | M2j: drop the status precondition |
 | 2.9 | `aMetalViewDrawsWithTheRenderersDeviceAndTheFramesCommandBuffer` (encodes its own pass → no "encoder already active") | `MetalView` absent | M2k: `MetalView` forwards a fresh command buffer |
-| 2.10 | `aMetalViewGivenANonMetalContextTraps` (exit test, internal thunk) | ditto | M2l: skip instead of trap |
-| 2.11 | `aSurfaceRunSamplesItsTargetThroughTheImagePipeline` (RenderTests, `renderOffscreen(_:size:surfaces:)`, a hand-filled texture under a rounded mask) | overload absent | M2m: offset the texture index by one |
+| 2.10 | `aMetalViewGivenANonMetalContextTraps` (exit test, internal thunk, reading "MV-A item 2") | ditto | M2l: skip instead of trap |
+| 2.11 | `aSurfaceRunSamplesItsTargetThroughTheImagePipeline` (RenderTests, `renderOffscreen(_:size:surfaces:)`, a hand-filled texture under a rounded mask) | overload absent | M2m: offset the texture index by one, modulo the target count (`MV-N` item 7) |
 | 2.12 | `theMetalViewDemoTreeRequestsOneContinuousAndOneOnDemandSurface` | tree absent | M2n: demo's main surface `.onDemand` |
 | — | `everyProductionTreeBuildsOnAOneMegabyteThread` (gains the tree) | — | must stay green |
 | — | new target cleared to transparent (`MV-E` item 5) | **unpinned by pixels**: fresh private memory usually reads zero; stated, not hidden | — |
