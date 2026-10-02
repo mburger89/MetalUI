@@ -232,8 +232,12 @@ AccessKit through `Backends/SDL`.
 `MetalUILayout` (the layout kernel: `LayoutTree`, `ProposalLayout`,
 `ProposedSize`, rounding — 77), `MetalUIPlatform` (`Platform`,
 `PlatformWindow`, `WindowRenderer`, input events, the accessibility tree),
-`MetalUIScene` (`Scene`, the glyph atlas, `FontKey`, `ImageTexture`),
+`MetalUIScene` (`Scene` — with its per-instance `MUITransform` table,
+`Scene.transforms`/`insert(_:…transform:)`, `GX-F` — the glyph atlas,
+`FontKey`, `ImageTexture`),
 `MetalUIRender` (the Metal renderer), `MetalUIAppKit` (the AppKit platform),
 `MetalUIPrimitives`, `MetalUITextSystem`, `MetalUIText`, `MetalUIFreeType`,
-`MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUISystemFonts`, and
+`MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUISystemFonts`,
+`MetalUIPath` (paths, strokes, exact-area coverage, blur — `package` API,
+no product, imports nothing, `GX-B`), and
 `MetalUIDemoContent` (the demo trees, importable by tests).

@@ -845,6 +845,21 @@ and `GX-F` as written, with these readings, each measured in the lane:
     is a bleed. The spec's two 255 slots cannot show one (a bleed of 255
     into 255 is invisible).
 
+11. **The mutation table** (whole unfiltered suite each, `git status`
+    clean after every restore; M1a–M1c on `3169cb3`, the rest on `2026d98`):
+    every spec mutation reddens its named test. M1a → 1.1, 1.3, 1.4, 1.5;
+    M1b → 1.2 alone (the pin is the only test that sees index 0's fringe);
+    M1c → 1.3, 1.4; M1d → 1.4 (after item 1's fix; green before it); M1e,
+    M1f → 1.5; M1g → 1.6; M1h → 1.7; M1i → 1.7, 1.8; M1j → 1.9; M1k → 1.10;
+    M1l → 1.11; M1m → 1.12 alone; M1n → twelve `MetalUIPathTests`; M1o →
+    1.14, 1.22, 1.26; M1p → 1.15, 1.26; M1q → eight; M1r → 1.17, 1.18, 1.19,
+    1.26; M1s → 1.18, 1.26; M1t → 1.19, 1.26; M1u → 1.20, 1.26; M1v → 1.21,
+    1.22, 1.24, 1.26; M1w → 1.22, 1.26; M1x → 1.23, 1.26; M1y → 1.24; M1z →
+    1.25; M1aa′ → 1.18, 1.26; M1ab → 1.19, 1.26, 1.27; M1ac → 1.26, 1.28;
+    M1ad → 1.29; M1ae → 1.30; in `Backends/SDL`, M1af → S1.1 and M1ag (the
+    window renderer binding the dummy record) → S1.2. The bit-identity pins
+    1.26 and 1.27 pass unchanged in a `swift:6.4-noble` aarch64 container.
+
 **Cost if wrong.** Items 1–3 are instruments: each names the arm it
 replaced and why the old one could not discriminate. Item 5 leaves frame 7
 without CPU rasters until lane 3; the rasters reach the screen through the
