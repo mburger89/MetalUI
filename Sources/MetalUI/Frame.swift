@@ -520,16 +520,34 @@ public final class Frame {
     /// no `clipped(to:offsetBy:)` block is active — the same "no clip" answer
     /// `fill`/`draw` always passed before this stack existed.
     var activeClip: Bounds<Pixels> {
-        clipStack.last?.clip ?? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
-                                       size: contentSize)
+        guard clipBase > 0 else {
+            return clipStack.last?.clip ?? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                  size: contentSize)
+        }
+        return clipStack.count > clipBase ? clipStack[clipStack.count - 1].clip : Self.unboundedLocalClip
     }
+
+    /// The first `clipStack` entry `activeClip` reads (ruling `GX-G`): 0 —
+    /// every entry — outside every render effect. A non-flattening effect scope
+    /// (always, in prepaint) sets it to the stack's depth at its entry, so the
+    /// clips pushed inside it intersect among themselves in its LOCAL space and
+    /// the clip outside becomes the scope's outer mask; a `Deferred` sets it
+    /// below its root clip. `activeOffset` ignores it: the scroll translation
+    /// stays in force inside an effect. Restored by whoever moved it.
+    var clipBase = 0
+
+    /// The clip a render effect's content sees before any clip is pushed inside
+    /// it: unbounded, in local points (`GX-G`).
+    static let unboundedLocalClip = Bounds(origin: Point(x: Pixels(-1_000_000), y: Pixels(-1_000_000)),
+                                           size: Size(width: Pixels(2_000_000), height: Pixels(2_000_000)))
 
     /// The corner radii of the clip currently in effect, in logical points.
     /// All zero — a square clip — when no `clipped(to:offsetBy:)` block is
     /// active, or when one is active but was pushed with no radii (every call
     /// site written before this existed).
     var activeClipRadii: Corners<Pixels> {
-        clipStack.last?.radii ?? Corners(all: Pixels(0))
+        guard clipBase > 0 else { return clipStack.last?.radii ?? Corners(all: Pixels(0)) }
+        return clipStack.count > clipBase ? clipStack[clipStack.count - 1].radii : Corners(all: Pixels(0))
     }
 
     /// The translation currently in effect, in logical points. Zero when no
@@ -1060,7 +1078,18 @@ public final class Frame {
                                handlers: handlers,
                                origin: Point(x: Pixels(elementOrigin.x.value + activeOffset.x.value),
                                              y: Pixels(elementOrigin.y.value + activeOffset.y.value)),
-                               shape: shape?.offsetBy(dx: activeOffset.x.value, dy: activeOffset.y.value)))
+                               shape: shape?.offsetBy(dx: activeOffset.x.value, dy: activeOffset.y.value),
+                               // Inside render effects: the local rect above, the inverse
+                               // composed map and the outer clip (`GX-I`).
+                               transform: prepaintEffects.last.map {
+                                   HitboxTransform(inverse: $0.inverse, outerClip: $0.outerClip)
+                               }))
+        // A proposal wrapper's own registration, noted for an effect at the same
+        // rect to transform (`GX-P` item 1).
+        if !shareCollecting.isEmpty {
+            shareCollecting[shareCollecting.count - 1].hitboxes.append(
+                (index: hitboxes.count - 1, raw: translated, clip: activeClip))
+        }
         return HitboxID(index: hitboxes.count - 1)
     }
 
@@ -1533,9 +1562,18 @@ public final class Frame {
     /// from the record's first position.
     private func accessibilityGeometry(for bounds: Bounds<Pixels>) -> AccessibilityGeometry {
         let translated = translatedByActiveOffset(bounds)
-        return AccessibilityGeometry(frame: translated,
-                                     visibleFrame: Self.intersect(activeClip, translated),
-                                     layer: activeLayer)
+        guard let effect = prepaintEffects.last else {
+            return AccessibilityGeometry(frame: translated,
+                                         visibleFrame: Self.intersect(activeClip, translated),
+                                         layer: activeLayer)
+        }
+        // Inside render effects: the transformed frame's bounding box, its
+        // visible part cut by the outer clip (`GX-I`; X1, X2, X4, X5).
+        return AccessibilityGeometry(
+            frame: effect.composed.boundingBox(of: translated),
+            visibleFrame: Self.intersect(effect.outerClip,
+                                         effect.composed.boundingBox(of: Self.intersect(activeClip, translated))),
+            layer: activeLayer)
     }
 
     /// `bounds` moved by the active scroll translation — what `insertHitbox`,
@@ -1580,6 +1618,7 @@ public final class Frame {
         // fix. Unclipped, unlike the hitbox: a frame is where the node IS, and a
         // client reads what is scrolled out of view too (arm R17).
         resolved.frame = translatedByActiveOffset(bounds)
+        if let effect = prepaintEffects.last { resolved.frame = effect.composed.boundingBox(of: resolved.frame) }
         resolved.children = children
         resolved.isValid = true
         axNodes[id] = resolved
@@ -2190,10 +2229,10 @@ public final class Frame {
                                 bottom: borderWidths.bottom.scaled(by: scaleFactor),
                                 left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0, shape: shape)
-        if transitionScopes.isEmpty {
+        if paintScopes.isEmpty {
             scene.insert(rect, layer: activeLayer)
         } else {
-            insertThroughTransitions(.rect(rect, layer: activeLayer, innerMask: false))
+            insertThroughScopes(.rect(rect, layer: activeLayer, innerMask: false))
         }
     }
 
@@ -2211,10 +2250,10 @@ public final class Frame {
                              contentMask: activeClip.scaled(by: scaleFactor),
                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                              opacity: activeOpacity, filter: filter, order: 0)
-        if transitionScopes.isEmpty {
+        if paintScopes.isEmpty {
             scene.insert(image, texture: texture, layer: activeLayer)
         } else {
-            insertThroughTransitions(.image(image, texture: texture, layer: activeLayer, innerMask: false))
+            insertThroughScopes(.image(image, texture: texture, layer: activeLayer, innerMask: false))
         }
     }
 
@@ -2239,7 +2278,7 @@ public final class Frame {
     /// arithmetic line for line: `bounds` in points, translated by
     /// `activeOffset` then scaled, the mask `activeClip` with its radii,
     /// scaled, the opacity `activeOpacity`, on `activeLayer`, linear-filtered,
-    /// through `insertThroughTransitions` so a transition's ghost and a drag
+    /// through `insertThroughScopes` so a transition's ghost and a drag
     /// preview replay it as they replay an image.
     ///
     /// The target is `Int((pt × scale).rounded())` device pixels per axis,
@@ -2277,7 +2316,7 @@ public final class Frame {
                             contentMask: clip.scaled(by: scaleFactor),
                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                             opacity: activeOpacity, filter: .linear, order: 0)
-        insertThroughTransitions(.surface(quad, target: target, layer: activeLayer, innerMask: false))
+        insertThroughScopes(.surface(quad, target: target, layer: activeLayer, innerMask: false))
         surfaceRequests.append(SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: timestamp,
                                                   policy: policy, value: value, draw: draw))
         if policy == .continuous { noteActiveAnimation() }
@@ -2362,21 +2401,22 @@ public final class Frame {
                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                              color: Hsla(h: color.h, s: color.s, l: color.l,
                                          a: color.a * activeOpacity), order: 0)
-        if transitionScopes.isEmpty {
+        if paintScopes.isEmpty {
             scene.insert(glyph, layer: activeLayer)
         } else {
-            insertThroughTransitions(.glyph(glyph, layer: activeLayer, innerMask: false))
+            insertThroughScopes(.glyph(glyph, layer: activeLayer, innerMask: false))
         }
     }
 
     // MARK: - Transitions (plan task 13, lane 3, ruling `AN-AE`/`AN-AK`)
 
-    /// The transitioning groups painting now, innermost last — pushed and
-    /// popped by `TransitionGroup.paintGroup` around a CLAIMED group's content
-    /// only. **Empty in every frame of a tree without `.transition`**, and the
-    /// three emitters above then insert exactly as they always did: nothing
-    /// they compute passes through here.
-    var transitionScopes: [TransitionPaintScope] = []
+    /// The paint scopes open now, innermost last (ruling `GX-G`, generalizing
+    /// plan task 13's transition stack): a CLAIMED `TransitionGroup`'s, a
+    /// render effect's, a drag source's capture, a `Deferred`'s barrier.
+    /// **Empty in every frame of a tree without `.transition`, an effect or an
+    /// open drag**, and the emitters above then insert exactly as they always
+    /// did: nothing they compute passes through here.
+    var paintScopes: [PaintScope] = []
 
     // MARK: - The drag preview (drag and drop, lane 2, ruling `DN-J`)
 
@@ -2408,6 +2448,40 @@ public final class Frame {
     /// `rotationEffect`, `scaleEffect` or `offset`.
     var effectScopesPushed = 0
 
+    /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
+    /// innermost first, stopping at the first that is not — gets the
+    /// innermost open effect's map: its hitboxes the inverse and their own
+    /// clip as the outer clip, its accessibility records the bounding box.
+    func shareWithEnclosingWrappers(at rect: Bounds<Pixels>) {
+        guard let effect = prepaintEffects.last else { return }
+        for k in shareCandidates.indices.reversed() {
+            let candidate = shareCandidates[k]
+            guard candidate.rect == rect else { break }
+            for entry in candidate.hitboxes {
+                var hitbox = hitboxes[entry.index]
+                let outerClip = hitbox.transform?.outerClip ?? entry.clip
+                hitbox.bounds = entry.raw
+                hitbox.transform = HitboxTransform(inverse: effect.inverse, outerClip: outerClip)
+                hitboxes[entry.index] = hitbox
+            }
+            for index in candidate.accessibility where index < axEmissions.count {
+                var geometry = axEmissions[index].geometry
+                geometry.frame = effect.composed.boundingBox(of: candidate.rect)
+                geometry.visibleFrame = Self.intersect(geometry.visibleFrame, geometry.frame)
+                axEmissions[index].geometry = geometry
+            }
+        }
+    }
+
+
+    /// The render effects open in prepaint, innermost last (`GX-I`).
+    var prepaintEffects: [PrepaintEffect] = []
+
+    /// Proposal wrappers whose registrations an effect at their rect may still
+    /// transform, innermost last (`GX-P` item 1), and the one collecting now.
+    var shareCandidates: [ShareCandidate] = []
+    var shareCollecting: [ShareCandidate] = []
+
     /// How many clips are pushed — a transitioning group's entry depth, so a
     /// primitive can tell a clip set inside the group (which moves and scales
     /// with it) from the one in effect where the group starts (which stays).
@@ -2416,33 +2490,46 @@ public final class Frame {
     /// One emitted primitive through every open transitioning group, innermost
     /// first: each captures it as it arrives (for a ghost), then applies its
     /// effect, and the result reaches the scene.
-    private func insertThroughTransitions(_ primitive: CapturedPrimitive) {
+    private func insertThroughScopes(_ primitive: CapturedPrimitive) {
         var primitive = primitive
         let depth = clipStack.count
-        for scope in transitionScopes.reversed() {
-            primitive = primitive.withInnerMask(depth > scope.entryClipDepth)
-            scope.captures.append(primitive)
-            if !scope.effect.isIdentity { primitive = scope.effect.apply(to: primitive) }
+        var pastBarrier = false
+        for scope in paintScopes.reversed() {
+            switch scope.kind {
+            case .barrier:
+                pastBarrier = true
+                continue
+            case .effect where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed (`GX-G`)
+            default:
+                break
+            }
+            primitive.innerMask = depth > scope.entryClipDepth
+            primitive.outerMaskInner = primitive.transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
+            if scope.capturing { scope.captures.append(primitive) }
+            if !scope.effect.isIdentity {
+                guard let mapped = scope.effect.apply(to: primitive, flattens: scope.flattens,
+                                                      outer: scope.outer) else { return }
+                primitive = mapped
+            }
         }
         insertIntoScene(primitive)
     }
 
-    /// A primitive straight into the scene on its own layer — a ghost's
-    /// replay (`TransitionStore.paintGhosts`) and the end of the path above.
+    /// Inserts a processed primitive, with its transform record when it has
+    /// one (`GX-F`); `nil` writes index 0.
     func insertIntoScene(_ primitive: CapturedPrimitive) {
-        switch primitive {
-        case .rect(let rect, let layer, _): scene.insert(rect, layer: layer)
-        case .glyph(let glyph, let layer, _): scene.insert(glyph, layer: layer)
-        case .image(let image, let texture, let layer, _): scene.insert(image, texture: texture, layer: layer)
-        case .surface(let quad, let target, let layer, _): scene.insert(quad, surface: target, layer: layer)
+        let transform = primitive.transform?.record
+        switch primitive.kind {
+        case .rect(let rect): scene.insert(rect, layer: primitive.layer, transform: transform)
+        case .glyph(let glyph): scene.insert(glyph, layer: primitive.layer, transform: transform)
+        case .image(let image, let texture):
+            scene.insert(image, texture: texture, layer: primitive.layer, transform: transform)
+        case .surface(let quad, let target):
+            scene.insert(quad, surface: target, layer: primitive.layer, transform: transform)
         }
     }
 
-    /// This frame's primitives, in paint order. Call after `render`.
-    ///
-    /// A copy, so `scene` stays the *emission* record: a test that asserts
-    /// which element painted first reads `scene`, and one that asserts what the
-    /// GPU receives reads this.
     func finalizedScene() -> Scene {
         var finalized = scene
         finalized.finalize()

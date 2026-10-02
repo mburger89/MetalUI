@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **70 live divergences**, each measured (a probe
+place it knowingly does not: **73 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`, next label 104). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms' lane 2 added 107–109 and amended 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P` — 104–106 are allocated to that branch's lane 3 by `GX-M`, next label 110). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -46,7 +46,7 @@ scheduled).
 | 33 | role of a labelled generic node | `AXUnknown` (also under `.ignore`, a removed `.isButton`, a labelled shape) | `AXGroup` | `AB-F`, `IX-V` | `anAccessibilityElementIgnoresItsChildrenByDefault` | none |
 | 34 | `Stack` accessibility order | front to back | declaration order | `AB-P` | unpinned (record §04's 2026-09-15 table) | none |
 | 38 | a negative fixed size or maximum | diagnosed and floored at 0 (H6, H10) | traps at registration (a negative minimum is floored as SwiftUI does) | `SA-J`, `FR-L`, `FR-R` | `aNegativeFixedFrameDimensionTraps`, `aNegativeFrameMaximumTraps` | none |
-| 41 | default hit region | content-derived: a stack's empty middle misses (H1) | the element's whole frame (a bare `Shape`'s too) | `OM-I` | `metalUIsDefaultHitRegionIsTheElementsWholeFrame` | none |
+| 41 | default hit region | content-derived: a stack's empty middle misses (H1); under a render effect a handler written outside a padding hits only the turned content (probe `swiftui-paths-shadows-transforms.swift` H1b's reading) | the element's whole frame (a bare `Shape`'s too); a handler written outside a rect-changing layer (`.padding`) over a `rotationEffect`/`scaleEffect`/`offset` hits its own axis-aligned frame — write it inside the padding or before the effect (`GX-P` item 2) | `OM-I`, `GX-P` | `metalUIsDefaultHitRegionIsTheElementsWholeFrame`, `aHandlerOutsideAPaddingOverAnEffectHitsItsAxisAlignedFrame` | none |
 | 42 | a padded click target | edge misses in both orders (P1/P2) | hittable in its padding when the `onClick` is written after the padding | `OM-K` | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` | none |
 | 43 | content shape against a clip | a grown content shape hits through `.clipped()` (H6) | a grown (negative-inset) content shape is intersected with an ancestor's clip; `clipShape`'s own hit region is its rect, not its rounded geometry | `OM-AJ`, `IX-L` item 2 | `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`, `aClipShapesCornersStayHittableAndItsRectBoundsTheHit` | none |
 | 44 | `allowsHitTesting(false)` on an inner layer | no hit in either order (X1–X3) | does not reach a click written on a later layer | `OM-AL` | `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt` | none |
@@ -98,6 +98,9 @@ scheduled).
 | 101 | a drag leaving the window | a system drag session from the start; its translucent preview leaves the window with it (P6c, P18) | AppKit hands the drag to an `NSDraggingSession` at the window's edge, its image the payload's own (a file's icon, a text badge), not the preview; on SDL a drag cannot leave the window (SDL3 has no outgoing drag API) | `DN-K` | `leavingTheWindowHandsTheDragToThePlatformWhenItCan`, `anSDLWindowCannotBeginAnExternalDrag` (`Backends/SDL`) | none |
 | 102 | hovering an external drop on SDL | targets only a destination whose type matches (P16) | SDL gives no types until the drop, so the deepest destination is targeted whatever its type (a non-matching one turns `false` at the drop and runs no action); a URL dragged from a browser arrives as text, so a `URL` destination refuses it. The AppKit backend knows the types and matches SwiftUI | `DN-M` | `anExternalDropWithUnknownTypesTargetsOptimistically`, `sdlDropEventsBecomeOneDropSession` (`Backends/SDL`) | none |
 | 103 | when a drawing surface re-runs | a `Canvas` re-runs whenever its declaring view's body re-runs, even for a change it does not read (probe R1); not when idle (R0) or when only its own view's unchanged inputs are re-evaluated (R3); and on a value it reads (R2) | MetalUI rebuilds the whole tree every dirty frame, so "the declaring body re-ran" is every frame: an `.onDemand` `GPUSurface`/`MetalView` redraws only for a new target (first sight, resize, rescale) or a changed `value:` — R0, R2 and R3's answers, not R1's. Remedy: pass what the drawing reads as `value:` | `MV-G` item 5 | `aRequestedTargetIsCreatedAndDrawnOnceThenReused`, `aChangedValueRedrawsAndAnUnchangedOneDoesNot` | none |
+| 107 | an accessibility frame under a rotation off a right angle | a 33 × 24 view turned 45° reports a 35.36 square (probe `swiftui-paths-shadows-transforms.swift` X3, unexplained); offset, scale and 90° report the transformed frame's bounding box (X1, X2, X4, X5) | the bounding box of the transformed frame at every angle — 40.31 square at 45° | `GX-I` | `theAccessibilityFrameIsTheTransformedBoundingBox` | none |
+| 108 | a legacy element's render effects against its own background and border | a modifier written after `.rotationEffect` is outside it: a background written after the effect is not turned (T8) | `rotationEffect`/`scaleEffect`/`offset` on a `StyledElement` return `Self` and always wrap the whole element — background, content and border — whatever order they are written in (the legacy `Decoration` is order-insensitive, divergence 47's reason); their order among themselves is kept. The proposal vocabulary follows SwiftUI (one layer each) | `GX-H` | `aLegacyEffectWrapsTheWholeElementWhateverTheOrder` | none |
+| 109 | a clip between two nested rotations | the clip turns with the outer rotation and cuts the inner content exactly | the clip becomes its axis-aligned screen bounding box (a primitive carries one local mask and one screen mask, not a mask per effect) | `GX-G` | `aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox` | none |
 
 ## Retired
 
@@ -147,6 +150,7 @@ stated.
 |---|---|---|
 | `App`/`Scene` lifecycle; iOS, iPadOS, tvOS, watchOS, visionOS, touch, safe areas, `UIAccessibility` | out of scope: MetalUI is macOS, Linux and Windows desktop windowing | `PB-A` |
 | `LazyVGrid`/`LazyHGrid`/`GridItem` | not built; the windowing they need exists (`WindowedRowsLayout`) | `GR-L` |
+| `transformEffect`, `projectionEffect`, `rotation3DEffect`; a render effect on a `Component` | not built: a public affine type and a projective primitive; on a `Component` declare the effect on its members or a wrapping element | `GX-A`, `GX-P` item 5 |
 | two-axis scrolling; `scrollPosition(id:)`; an animated `scrollTo`/scroll offset | not built | `CN-M`, `DD-AB` items 5–6, `CX-I` item 2 |
 | `ButtonStyle`/`PrimitiveButtonStyle` as open protocols, `.borderedProminent`, `.link`, `.toggleStyle`, `.pickerStyle(.menu)`, menus, `.contextMenu` | not built (`ButtonStyle`/`PickerStyle` are closed structs) | `IX-E`, `IX-M` |
 | `.sequenced`, `@GestureState`, `GestureMask`, a custom gesture `body`, location taps | not built | `IX-B` |

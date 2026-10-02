@@ -551,6 +551,9 @@ extension LayoutModifier: ModifierLayerKind {
                 result = inside()
             }
             return result!
+        case .rotationEffect, .scaleEffect, .offset:
+            // Hitboxes and accessibility records inside follow the effect (`GX-I`).
+            return pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
         default:
             return inside()
         }
@@ -581,6 +584,8 @@ extension LayoutModifier: ModifierLayerKind {
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "border.colour"), pass: pass)
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
                       borderColor: color, borderWidths: Edges(all: width))
+        case .rotationEffect, .scaleEffect, .offset:
+            pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
         default:
             inside()
         }

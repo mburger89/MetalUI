@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (1997 of them, in
-fifteen modules) belongs to one of 100 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2031 of them, in
+fifteen modules) belongs to one of 102 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -126,6 +126,21 @@ portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 `.strokeBorder`), `.background(_:in:)`; `Image` (`.resizable`,
 `.interpolation` — 93), `Image.Interpolation`, `ContentMode`; `ImageBitmap`
 (M, the portable image type).
+
+## Render effects — A / D
+
+`.rotationEffect(_:anchor:)`, `.scaleEffect(_:anchor:)` (a `Double` or a
+`SizeD`), `.scaleEffect(x:y:anchor:)`, `.offset(x:y:)`, `.offset(_:)` and
+`Angle` (paths, shadows and transforms, rulings `GX-G`…`GX-I`, `GX-P`): render
+only — the layout is unchanged, hit testing follows the drawn shape and the
+accessibility frame is the transformed frame's bounding box (107 at angles off
+a right angle). On the proposal vocabulary each is one `LayoutModifier` layer
+(`.rotationEffect`, `.scaleEffect`, `.offset` cases); on a `StyledElement`
+each returns `Self` and wraps the whole element whatever the written order
+(108). A clip between two nested rotations is its screen bounding box (109); a
+handler written outside a padding over an effect hits its own axis-aligned
+frame (41). Angle, factors, anchor and offset animate. Not offered:
+`transformEffect`, `projectionEffect`, `rotation3DEffect`.
 
 ## Input, gestures, focus — A / M
 

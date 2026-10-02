@@ -211,9 +211,11 @@ public struct TextField: Element, StyledElement {
         handlers.isFocusable = true
         handlers.textInput = TextInputTarget(
             text: text, caretOffsets: geometry.textOffsets, originX: originX,
-            caretRect: Bounds(origin: Point(x: Pixels(Float(caretX)),
-                                            y: Pixels(Float(geometry.lineY + Double(offset.y.value)))),
-                              size: Size(width: Pixels(1), height: Pixels(Float(geometry.lineHeight)))),
+            caretRect: pass.frame.effectBoundingBox(   // under render effects (`GX-I`)
+                of: Bounds(origin: Point(x: Pixels(Float(caretX)),
+                                         y: Pixels(Float(geometry.lineY + Double(offset.y.value)))),
+                           size: Size(width: Pixels(1), height: Pixels(Float(geometry.lineHeight)))),
+                ownEffects: decoration.renderEffects, bounds: bounds),
             onChange: onChange, onSubmit: submit)
         if handlers.axNode.isEmpty {
             handlers.axNode = AXNode(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)

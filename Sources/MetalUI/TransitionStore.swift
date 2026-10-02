@@ -250,7 +250,7 @@ final class TransitionStore {
 
     /// Opens a claimed group's paint: its insertion's effect at this frame's
     /// timestamp (identity when none is in flight), capturing what it emits.
-    func beginPaint(_ key: GlobalElementID, frame: Frame) -> TransitionPaintScope? {
+    func beginPaint(_ key: GlobalElementID, frame: Frame) -> PaintScope? {
         guard let record = records[key] else { return nil }
         let scaleFactor = frame.scaleFactor
         let offset = frame.activeOffset
@@ -261,7 +261,7 @@ final class TransitionStore {
                                     height: r.size.height.value * scaleFactor))
         }
         records[key]?.surfaceRect = surfaceRect
-        var effect = TransitionEffect.identity
+        var effect = RenderEffect.identity
         if let insertion = insertions[key] {
             let a = activeness(of: insertion, at: frame.timestamp)
             if a.isFinished {
@@ -269,16 +269,16 @@ final class TransitionStore {
             } else {
                 frame.noteActiveAnimation()
                 if let surfaceRect {
-                    effect = TransitionEffect(atoms: insertion.atoms, activeness: a.value,
+                    effect = RenderEffect(atoms: insertion.atoms, activeness: a.value,
                                               rect: surfaceRect, scaleFactor: scaleFactor)
                 }
             }
         }
-        return TransitionPaintScope(effect: effect, entryClipDepth: frame.clipDepth)
+        return PaintScope(effect: effect, entryClipDepth: frame.clipDepth)
     }
 
     /// Closes a claimed group's paint: its capture becomes the group's record.
-    func endPaint(_ key: GlobalElementID, scope: TransitionPaintScope) {
+    func endPaint(_ key: GlobalElementID, scope: PaintScope) {
         capturedThisFrame += scope.captures.count
         records[key]?.captures = scope.captures
     }
@@ -294,10 +294,11 @@ final class TransitionStore {
         for (_, ghost) in ghosts {
             frame.noteActiveAnimation()
             let a = activeness(of: ghost, at: frame.timestamp)
-            let effect = TransitionEffect(atoms: ghost.atoms, activeness: a.value, rect: ghost.rect,
-                                          scaleFactor: frame.scaleFactor)
+            let effect = RenderEffect(atoms: ghost.atoms, activeness: a.value, rect: ghost.rect,
+                                      scaleFactor: frame.scaleFactor)
             for primitive in ghost.captures {
-                frame.insertIntoScene(effect.apply(to: primitive))
+                guard let replayed = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
+                frame.insertIntoScene(replayed)
             }
         }
     }
@@ -319,17 +320,40 @@ final class TransitionStore {
     }
 }
 
-/// A claimed group's paint in progress (`Frame.transitionScopes`): the effect
-/// applied to everything its content emits, the clip depth at its entry, and
-/// what it captured (before its own effect) for a ghost.
+/// One open paint scope (`Frame.paintScopes`, ruling `GX-G`): a claimed
+/// transition group's (plan task 13, `AN-AE`), a render effect's (`GX-H`), a
+/// drag source's capture (`DN-J`), or a `Deferred`'s barrier, past which an
+/// outer effect does not reach (`GX-G`; a portal is not transformed). Each
+/// processes every primitive emitted inside it, innermost first: the effect
+/// applied, and — for a transition or a capture — what it received kept
+/// (before its own effect) for a ghost or a preview.
 @MainActor
-final class TransitionPaintScope {
-    let effect: TransitionEffect
+final class PaintScope {
+    enum Kind { case transition, effect, capture, barrier }
+
+    let kind: Kind
+    let effect: RenderEffect
     let entryClipDepth: Int
+    /// Whether a plain primitive is mapped on the CPU (every transition and
+    /// capture; an effect whose map is a translation plus a uniform positive
+    /// scale) rather than given a transform record.
+    let flattens: Bool
+    /// A non-flattening effect's outer mask: the clip at its entry.
+    let outer: OuterMask?
     var captures: [CapturedPrimitive] = []
 
-    init(effect: TransitionEffect, entryClipDepth: Int) {
+    var capturing: Bool { kind == .transition || kind == .capture }
+
+    init(kind: Kind, effect: RenderEffect, entryClipDepth: Int, flattens: Bool = true, outer: OuterMask? = nil) {
+        self.kind = kind
         self.effect = effect
         self.entryClipDepth = entryClipDepth
+        self.flattens = flattens
+        self.outer = outer
+    }
+
+    /// A claimed transition group's scope.
+    convenience init(effect: RenderEffect, entryClipDepth: Int) {
+        self.init(kind: .transition, effect: effect, entryClipDepth: entryClipDepth)
     }
 }

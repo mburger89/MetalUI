@@ -46,7 +46,7 @@ struct Hitbox {
     /// Window-space, **translated by the active offset and intersected with the
     /// active clip** at registration time — where the thing actually paints,
     /// not where the engine stored it. See `Frame.insertHitbox`.
-    let bounds: Bounds<Pixels>
+    var bounds: Bounds<Pixels>
 
     /// The owning element. **The key that survives frames**, and therefore the
     /// one anything cross-frame reads: `HitboxID` is a per-frame index and
@@ -145,14 +145,21 @@ struct Hitbox {
     /// The clipped rect first, then the shape, so a content shape can only
     /// shrink a hit region the clip already bounds (divergence 43).
     func contains(_ point: Point<Pixels>) -> Bool {
-        bounds.contains(point) && (shape?.contains(point) ?? true)
+        guard let transform else { return bounds.contains(point) && (shape?.contains(point) ?? true) }
+        // Inside render effects (`GX-I`): the outer clip in window space, then
+        // the local rect and shape at the inverse-mapped point; a degenerate
+        // map (a zero scale) contains nothing.
+        guard transform.outerClip.contains(point), let inverse = transform.inverse else { return false }
+        let local = inverse.apply(point)
+        return bounds.contains(local) && (shape?.contains(local) ?? true)
     }
 
     /// `point` in the space `bounds` and `origin` are in — the window point
     /// itself outside every effect, mapped through the stored inverse inside
     /// one (`GX-P` item 3).
     func localPoint(_ point: Point<Pixels>) -> Point<Pixels> {
-        point
+        guard let inverse = transform?.inverse else { return point }
+        return inverse.apply(point)
     }
 }
 

@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUILayout
+import MetalUIPrimitives
 
 // Paths, shadows and transforms, lane 2 — render effects (rulings `GX-G`,
 // `GX-H`, `GX-I`, `GX-P`). Spec
@@ -70,6 +71,18 @@ enum RenderEffectSpec: Hashable, Sendable {
 }
 
 // MARK: - The proposal vocabulary (one `LayoutModifier` layer each, `GX-H`)
+
+extension LayoutModifier {
+    /// The render effect this layer applies, or `nil` for every other case.
+    var renderEffect: RenderEffectSpec? {
+        switch self {
+        case let .rotationEffect(angle, anchor): .rotation(angle, anchor: anchor)
+        case let .scaleEffect(x, y, anchor): .scale(x: x, y: y, anchor: anchor)
+        case let .offset(x, y): .offset(x: x, y: y)
+        default: nil
+        }
+    }
+}
 
 extension ProposalElementGroup {
     /// Rotates this view's rendering by `angle` about `anchor` of its own
@@ -213,21 +226,141 @@ extension PaintPass {
     }
 }
 
-// MARK: - Frame (skeleton — red commit)
+// MARK: - Frame
+
+/// One render effect open in prepaint (`GX-I`): the composed map from the
+/// innermost effect's local points to window points, its inverse (`nil` when
+/// degenerate), the clip at the outermost effect's entry in window points, and
+/// the `clipBase` to restore.
+struct PrepaintEffect {
+    let composed: Affine2D
+    let inverse: Affine2D?
+    let outerClip: Bounds<Pixels>
+    let savedClipBase: Int
+}
+
+/// A proposal wrapper's own registrations (`GX-P` item 1): its rect (window
+/// points, in the space of the effects open where it registered), and what it
+/// registered — each hitbox with its untranslated-by-clip rect and the clip in
+/// force — and the range of accessibility records.
+struct ShareCandidate {
+    let rect: Bounds<Pixels>
+    var hitboxes: [(index: Int, raw: Bounds<Pixels>, clip: Bounds<Pixels>)] = []
+    var accessibility: Range<Int> = 0..<0
+}
 
 extension Frame {
+    /// `bounds` moved by the scroll translation — the space primitives,
+    /// hitboxes and an effect's anchor are in (`GX-P` item 4).
+    func scrolled(_ bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                             y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+               size: bounds.size)
+    }
+
+    /// `rect` (window points, already scrolled) as the platform should see it
+    /// under the open prepaint effects and an element's own `ownEffects` over
+    /// `bounds` — the bounding box of the transformed rect (`GX-I`: a focused
+    /// field's caret handed to `setTextInputArea`).
+    func effectBoundingBox(of rect: Bounds<Pixels>, ownEffects: [RenderEffectSpec] = [],
+                           bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        guard !prepaintEffects.isEmpty || !ownEffects.isEmpty else { return rect }
+        var composed = prepaintEffects.last?.composed ?? .identity
+        let scrolledBounds = scrolled(bounds)
+        for effect in ownEffects.reversed() { composed = composed.concatenating(effect.affine(in: scrolledBounds)) }
+        return composed.boundingBox(of: rect)
+    }
+
+    /// Prepaint inside `effect` (`GX-I`): composes its map onto the open ones,
+    /// splits the clip (the clip in force becomes the outer clip, window
+    /// space; clips pushed inside intersect in local space), transforms the
+    /// registrations of enclosing proposal wrappers at the same rect
+    /// (`GX-P` item 1), and runs `body`.
     func prepaintWithRenderEffect<R>(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> R) -> R {
-        body()
+        effectScopesPushed += 1
+        let rect = scrolled(bounds)
+        let map = effect.affine(in: rect)
+        let outerClip: Bounds<Pixels>
+        if let top = prepaintEffects.last {
+            // The clip at this entry is in the enclosing effect's local space:
+            // its bounding box in window space, cut by that effect's outer clip
+            // (divergence 109).
+            outerClip = clipDepth > clipBase
+                ? Self.intersect(top.outerClip, top.composed.boundingBox(of: activeClip))
+                : top.outerClip
+        } else {
+            outerClip = activeClip
+        }
+        let composed = (prepaintEffects.last?.composed ?? .identity).concatenating(map)
+        prepaintEffects.append(PrepaintEffect(composed: composed, inverse: composed.inverted,
+                                              outerClip: outerClip, savedClipBase: clipBase))
+        clipBase = clipDepth
+        defer {
+            clipBase = prepaintEffects.removeLast().savedClipBase
+        }
+        shareWithEnclosingWrappers(at: rect)
+        return body()
     }
 
-    func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
-        body()
-    }
-
+    /// Runs `register` (a proposal wrapper's own registration) noting what it
+    /// registers, then `content` with that noted as a share candidate
+    /// (`GX-P` item 1). Free outside every effect but a candidate push.
     func sharingRegistrationsWithEffects<R>(at bounds: Bounds<Pixels>, register: () -> Void,
                                             content: () -> R) -> R {
+        let rect = scrolled(bounds)
+        let firstRecord = axEmissions.count
+        shareCollecting.append(ShareCandidate(rect: rect))
         register()
+        var candidate = shareCollecting.removeLast()
+        candidate.accessibility = firstRecord..<axEmissions.count
+        shareCandidates.append(candidate)
+        defer { shareCandidates.removeLast() }
         return content()
+    }
+
+    /// Paint inside `effect` (`GX-G`): a scope mapping every primitive emitted
+    /// in `body` — flattened on the CPU for a translation plus a uniform
+    /// positive scale, a transform record otherwise, which splits the clip at
+    /// entry. A degenerate map (a zero scale) paints nothing.
+    func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
+        effectScopesPushed += 1
+        let map = effect.affine(in: scrolled(bounds))
+        guard map.determinant != 0, map.determinant.isFinite else { return }
+        let device = map.scaledToDevice(scaleFactor)
+        let flattens = device.isUniformPositiveScaleTranslation
+        let outer = flattens ? nil : OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
+                                               radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
+                                               depth: clipDepth)
+        let scope = PaintScope(kind: .effect, effect: RenderEffect(affine: device), entryClipDepth: clipDepth,
+                               flattens: flattens, outer: outer)
+        let savedBase = clipBase
+        if !flattens { clipBase = clipDepth }
+        paintScopes.append(scope)
+        body()
+        paintScopes.removeLast()
+        clipBase = savedBase
+    }
+
+    /// A `Deferred`'s reset of the effect stack (`GX-G`), both phases: no open
+    /// prepaint effect reaches its registrations, a barrier stops every open
+    /// paint effect, and `clipBase` drops below the portal's root clip. A
+    /// frame with no effect open pushes nothing.
+    func withoutRenderEffects<R>(_ body: () -> R) -> R {
+        let savedBase = clipBase
+        clipBase = clipDepth
+        defer { clipBase = savedBase }
+        let savedEffects = prepaintEffects
+        let savedCandidates = shareCandidates
+        prepaintEffects = []
+        shareCandidates = []
+        defer {
+            prepaintEffects = savedEffects
+            shareCandidates = savedCandidates
+        }
+        guard paintScopes.contains(where: { $0.kind == .effect }) else { return body() }
+        paintScopes.append(PaintScope(kind: .barrier, effect: .identity, entryClipDepth: clipDepth))
+        defer { paintScopes.removeLast() }
+        return body()
     }
 }
 
@@ -237,4 +370,34 @@ extension Frame {
 @MainActor
 func legacyEffectsAnimationKey(for id: GlobalElementID) -> GlobalElementID {
     .child(of: id, at: 0, name: ElementID("$anim-effects"))
+}
+
+/// A legacy element's `Decoration.renderEffects` at this frame (ruling
+/// `GX-H`): every number of every effect (`RenderEffectSpec.numbers`) on one
+/// store track at `legacyEffectsAnimationKey(for:)`, interpolated exactly as a
+/// proposal layer's are. A change in the list's kinds (an effect added,
+/// removed or of another kind) snaps the structure (`LR-AS`).
+@MainActor
+func animatedRenderEffects(_ declared: [RenderEffectSpec], for id: GlobalElementID, frame: Frame,
+                           transaction: Animation?) -> [RenderEffectSpec] {
+    let key = legacyEffectsAnimationKey(for: id)
+    let kindsKey = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-effects.kinds"))
+    let kinds = declared.map(\.kindTag)
+    let numbers = declared.flatMap(\.numbers).map { Optional($0) }
+    let store = frame.animationStore
+    if store.value(at: kindsKey, as: [Int].self) != kinds {
+        store.set(kinds, at: kindsKey)
+        store.set(StoredNumberTracks(baseline: numbers, inFlight: [:]), at: key)
+    }
+    let values = animatedNumbers(numbers, at: key, frame: frame, transaction: transaction,
+                                 range: -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude)
+        .map { $0 ?? 0 }
+    var out: [RenderEffectSpec] = []
+    var cursor = 0
+    for effect in declared {
+        let count = effect.numbers.count
+        out.append(effect.with(values[cursor..<cursor + count]))
+        cursor += count
+    }
+    return out
 }

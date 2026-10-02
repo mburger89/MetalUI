@@ -511,15 +511,18 @@ public struct PrepaintPass {
     /// `withoutScrollContext`. Pinned by
     /// `aListInADeferredInsideAScrollViewMeasuresNoScrollerOrigin`.
     public func deferred(_ body: () -> Void) {
-        frame.pushLayer()
-        frame.pushRootClip()
-        frame.pushScrollerFrame(nil)
-        defer {
-            frame.popScrollerFrame()
-            frame.popClip()
-            frame.popLayer()
+        // A portal is not transformed by an enclosing render effect (`GX-G`).
+        frame.withoutRenderEffects {
+            frame.pushLayer()
+            frame.pushRootClip()
+            frame.pushScrollerFrame(nil)
+            defer {
+                frame.popScrollerFrame()
+                frame.popClip()
+                frame.popLayer()
+            }
+            body()
         }
-        body()
     }
 
     /// Runs `body` — a scroller's content prepaint — with `scroller` as the
@@ -699,13 +702,15 @@ public struct PaintPass {
     /// unbalanced stack — one that hoists without ever restoring — is not
     /// expressible.
     public func deferred(_ body: () -> Void) {
-        frame.pushLayer()
-        frame.pushRootClip()
-        defer {
-            frame.popClip()
-            frame.popLayer()
+        frame.withoutRenderEffects {
+            frame.pushLayer()
+            frame.pushRootClip()
+            defer {
+                frame.popClip()
+                frame.popLayer()
+            }
+            body()
         }
-        body()
     }
 
     // MARK: - Text

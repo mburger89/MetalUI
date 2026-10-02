@@ -301,7 +301,7 @@ private func redraw(_ window: Window) {
 /// target — referenced, so a renderer's table keeps it — with **no request**,
 /// so it is not redrawn: the ghost shows the last contents, fading.
 ///
-/// Mutation **M1x**: drop `.surface` from `TransitionEffect.apply`'s replay
+/// Mutation **M1x**: drop `.surface` from `RenderEffect.apply` (plan task 13's `TransitionEffect.apply`, generalized by `GX-G`)'s replay
 /// (the ghost loses the quad).
 @Test @MainActor func aRemovedSurfacesGhostReferencesItsTargetWithoutARequest() throws {
     let h = TransitionHarness()
@@ -495,7 +495,7 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
 /// **1.24** (`MV-D`, `MV-M` item 4). A surface inside a clip that is itself
 /// inside a `.transition(.scale)` group (an inner mask) has its mask and radii
 /// scaled with it mid-insertion, exactly as an `Image` in the same place —
-/// `TransitionEffect.apply`'s `.surface` arm is a copy of the image arm's, so
+/// `RenderEffect.apply` (plan task 13's `TransitionEffect.apply`, generalized by `GX-G`)'s `.surface` arm is a copy of the image arm's, so
 /// it is pinned on its own. The mid-flight mask must differ from the settled
 /// one before the comparison is believed.
 ///

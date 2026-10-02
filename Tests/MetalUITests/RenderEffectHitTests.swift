@@ -152,8 +152,9 @@ private let deg90 = Angle.degrees(90)
 /// **2.15** (X1, X2, X4, X5). The accessibility frame is the transformed
 /// frame's bounding box: offset (50, 20) moves it; 90° swaps its sides about
 /// the centre; scale 2 doubles it about the centre; scale 0.5 at
-/// `.topLeading` halves it from the corner. Mutation **M2m**: the untransformed
-/// bounds published.
+/// `.topLeading` halves it from the corner; at 45° it is the bounding box,
+/// not SwiftUI's smaller square (divergence 107). Mutation **M2m**: the
+/// untransformed bounds published.
 @Test @MainActor func theAccessibilityFrameIsTheTransformedBoundingBox() throws {
     func frameOf(_ e: some Element) throws -> Bounds<Pixels> {
         let f = effectFrame(e, accessibility: true)
@@ -172,6 +173,12 @@ private let deg90 = Angle.degrees(90)
     #expect("\(try frameOf(label().rotationEffect(deg90)))" == rect(cx - 12, cy - 16.5, 24, 33), "X2")
     #expect("\(try frameOf(label().scaleEffect(2)))" == rect(cx - 33, cy - 24, 66, 48), "X4")
     #expect("\(try frameOf(label().scaleEffect(0.5, anchor: .topLeading)))" == rect(o.x.value, o.y.value, 16.5, 12), "X5")
+    // Divergence 107's pin: at 45° MetalUI still answers the bounding box,
+    // (33 + 24) / √2 = 40.305 square, where SwiftUI reports 35.358 (X3).
+    let turned = try frameOf(label().rotationEffect(.degrees(45)))
+    #expect(abs(turned.size.width.value - 40.305) < 0.01 && abs(turned.size.height.value - 40.305) < 0.01
+                && abs(turned.origin.x.value - (cx - 20.1525)) < 0.01,
+            "divergence 107: the 45° bounding box: \(turned)")
 }
 
 // MARK: - 2.27 (H1b, GX-P item 1)

@@ -238,13 +238,15 @@ public struct TextEditor: Element, StyledElement {
         let caretRect = Bounds(origin: Point(x: Pixels(Float(originX + g.displayLines.x(of: g.caretIndex))),
                                              y: Pixels(Float(originY + Double(caretLine) * g.lineHeight))),
                                size: Size(width: Pixels(1), height: Pixels(Float(g.lineHeight))))
+        let caretArea = pass.frame.effectBoundingBox(of: caretRect, ownEffects: decoration.renderEffects,
+                                                     bounds: bounds)   // under render effects (`GX-I`)
         var handlers = self.handlers
         handlers.isFocusable = true
         var textLines = g.textLines
         textLines.lineHeight = g.lineHeight
         textLines.visibleHeight = Double(bounds.size.height.value)
         handlers.textInput = TextInputTarget(
-            text: text, caretOffsets: [], originX: originX, caretRect: caretRect,
+            text: text, caretOffsets: [], originX: originX, caretRect: caretArea,
             onChange: onChange, onSubmit: nil, lines: textLines, originY: originY,
             lineHeight: g.lineHeight, maxScrollY: g.maxScrollY)
         if handlers.axNode.isEmpty {

@@ -63,6 +63,25 @@ func fxMatches(_ t: MUITransform?, _ expected: Affine2D, tolerance: Double = 1e-
         && abs(a.tx - expected.tx) < tolerance && abs(a.ty - expected.ty) < tolerance
 }
 
+/// Where `rect`'s four corners land on screen — through its record, if any. A
+/// flattened inner effect moves the bounds and an outer record maps them, so
+/// two emissions are compared by this, not by their records alone.
+func fxQuad(_ rect: MUIRect, in scene: Scene) -> [(Double, Double)] {
+    let m = effectRecord(rect, in: scene).map(fxAffine) ?? .identity
+    let b = rect.bounds
+    let x = Double(b.origin.x), y = Double(b.origin.y), w = Double(b.size.width), h = Double(b.size.height)
+    return [m.apply(x, y), m.apply(x + w, y), m.apply(x, y + h), m.apply(x + w, y + h)].map { ($0.x, $0.y) }
+}
+
+/// Whether `rect` lands where `expected` maps `plain` (each corner within 1e-3).
+func fxLands(_ rect: MUIRect, in scene: Scene, as expected: Affine2D, from plain: MUIBounds) -> Bool {
+    let x = Double(plain.origin.x), y = Double(plain.origin.y)
+    let w = Double(plain.size.width), h = Double(plain.size.height)
+    let want = [expected.apply(x, y), expected.apply(x + w, y), expected.apply(x, y + h), expected.apply(x + w, y + h)]
+    let got = fxQuad(rect, in: scene)
+    return zip(got, want).allSatisfy { abs($0.0 - $1.x) < 1e-3 && abs($0.1 - $1.y) < 1e-3 }
+}
+
 /// One headless frame of `element` in a fresh harness (200 × 200, scale 1).
 @MainActor @discardableResult
 func effectFrame<E: Element>(_ element: E, side: Float = 200, scaleFactor: Float = 1,
@@ -225,7 +244,9 @@ private let linear1 = Animation.linear(duration: 1)
 
 /// **2.7** (T11). Rotation-then-offset is `T · R`, offset-then-rotation
 /// `R · T` (R about the layer's own centre, which an offset does not move) —
-/// the two records differ by those matrices, on both vocabularies. Mutation
+/// the bar's corners land where those matrices put them, on both vocabularies
+/// (an inner offset is flattened into the bounds, so corners, not records,
+/// are compared). Mutation
 /// **M2g**: composition reversed.
 @Test @MainActor func effectsComposeInWrittenOrder() throws {
     let plain = try #require(effectRects(effectFrame(fxBar(100, 20)).finalizedScene()).first)
@@ -235,18 +256,18 @@ private let linear1 = Animation.linear(duration: 1)
     let rotateThenOffset = t.concatenating(r), offsetThenRotate = r.concatenating(t)
     try #require(!(abs(rotateThenOffset.tx - offsetThenRotate.tx) < 1e-3
                    && abs(rotateThenOffset.ty - offsetThenRotate.ty) < 1e-3), "the predictions disagree")
-    func record(_ e: some Element) throws -> MUITransform? {
+    func lands(_ e: some Element, as expected: Affine2D) throws -> Bool {
         let scene = effectFrame(e).finalizedScene()
-        return effectRecord(try #require(effectRects(scene).first), in: scene)
+        return fxLands(try #require(effectRects(scene).first), in: scene, as: expected, from: plain.bounds)
     }
-    let p1 = try record(fxBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)))
-    let p2 = try record(fxBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)))
-    #expect(fxMatches(p1, rotateThenOffset), "proposal rotation then offset: \(fxDescribe(p1))")
-    #expect(fxMatches(p2, offsetThenRotate), "proposal offset then rotation: \(fxDescribe(p2))")
-    let l1 = try record(fxLegacyBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)))
-    let l2 = try record(fxLegacyBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)))
-    #expect(fxMatches(l1, rotateThenOffset), "legacy rotation then offset: \(fxDescribe(l1))")
-    #expect(fxMatches(l2, offsetThenRotate), "legacy offset then rotation: \(fxDescribe(l2))")
+    #expect(try lands(fxBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)), as: rotateThenOffset),
+            "proposal rotation then offset")
+    #expect(try lands(fxBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)), as: offsetThenRotate),
+            "proposal offset then rotation")
+    #expect(try lands(fxLegacyBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)), as: rotateThenOffset),
+            "legacy rotation then offset")
+    #expect(try lands(fxLegacyBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)), as: offsetThenRotate),
+            "legacy offset then rotation")
 }
 
 // MARK: - 2.8 (T7, T7b)
@@ -399,10 +420,10 @@ private let linear1 = Animation.linear(duration: 1)
     let f1 = effectFrame(fxLegacyBar(100, 20).onClick {}.rotationEffect(.degrees(45)).offset(x: px(30)))
     let f2 = effectFrame(fxLegacyBar(100, 20).onClick {}.offset(x: px(30)).rotationEffect(.degrees(45)))
     let s1 = f1.finalizedScene(), s2 = f2.finalizedScene()
-    let r1 = effectRecord(try #require(effectRects(s1).first), in: s1)
-    let r2 = effectRecord(try #require(effectRects(s2).first), in: s2)
-    #expect(fxMatches(r1, t.concatenating(r)), "rotation then offset: \(fxDescribe(r1))")
-    #expect(fxMatches(r2, r.concatenating(t)), "offset then rotation: \(fxDescribe(r2))")
+    #expect(fxLands(try #require(effectRects(s1).first), in: s1, as: t.concatenating(r), from: plain.bounds),
+            "rotation then offset")
+    #expect(fxLands(try #require(effectRects(s2).first), in: s2, as: r.concatenating(t), from: plain.bounds),
+            "offset then rotation")
     let ids = [plainFrame, f1, f2].map { $0.hitboxes.filter { $0.handlers.onClick != nil }.map(\.id) }
     #expect(ids[0].count == 1 && ids[1] == ids[0] && ids[2] == ids[0], "no id moves: \(ids)")
 }

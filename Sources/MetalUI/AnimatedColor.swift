@@ -429,7 +429,12 @@ extension PaintPass {
         // Drag and drop's snapshot (`DN-J`, `DN-X` item 2): one push here, for
         // every `StyledElement` site — nothing without an open session.
         capturingDragSnapshot(for: id) {
-            paintDecorationUncaptured(decoration, in: bounds, for: id, content: content)
+            // The element's own render effects wrap its background, content and
+            // border (ruling `GX-H`; divergence 108), inside the drag capture so
+            // a preview carries the transform (`GX-G`).
+            withRenderEffects(decoration.renderEffects, bounds: bounds) {
+                paintDecorationUncaptured(decoration, in: bounds, for: id, content: content)
+            }
         }
     }
 
