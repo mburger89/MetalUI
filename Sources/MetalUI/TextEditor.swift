@@ -281,10 +281,10 @@ public struct TextEditor: Element, StyledElement {
             if g.display.isEmpty {
                 var color = textColor
                 color.a *= 0.45
-                for glyph in system.placeGlyphs(placeholder, font: font, wrappingAt: max(Double(bounds.size.width.value), smallestWrapWidth),
-                                                origin: (x: g.contentX, y: top), scaleFactor: pass.scaleFactor) {
-                    pass.draw(glyph, color: color)
-                }
+                pass.drawGlyphs(system.placeGlyphs(placeholder, font: font,
+                                                   wrappingAt: max(Double(bounds.size.width.value), smallestWrapWidth),
+                                                   origin: (x: g.contentX, y: top), scaleFactor: pass.scaleFactor),
+                                color: color)
             }
             var selectionColor = pass.theme[.accent]
             selectionColor.a *= 0.3
@@ -301,10 +301,9 @@ public struct TextEditor: Element, StyledElement {
                     if line.endsInHardBreak && g.selection.contains(line.range.upperBound) { x1 += 4 }
                     pass.fill(rect(x0, x1, y: y, height: g.lineHeight), color: selectionColor)
                 }
-                for glyph in system.placeGlyphs(String(characters[line.range]), font: font, wrappingAt: nil,
-                                                origin: (x: g.contentX, y: y), scaleFactor: pass.scaleFactor) {
-                    pass.draw(glyph, color: textColor)
-                }
+                pass.drawGlyphs(system.placeGlyphs(String(characters[line.range]), font: font, wrappingAt: nil,
+                                                   origin: (x: g.contentX, y: y), scaleFactor: pass.scaleFactor),
+                                color: textColor)
                 if let marked = g.composition {
                     let a = max(marked.lowerBound, line.range.lowerBound), b = min(marked.upperBound, line.range.upperBound)
                     if a < b {

@@ -1,21 +1,47 @@
 import MetalUICore
 import MetalUILayout
 
-// Fill, stroke and strokeBorder (plan task 11, part 2; ruling `TE-AI`).
-// Colours are `ColorToken`s (spec §7.9); there is no `ShapeStyle`, no
-// gradient and no `StrokeStyle` (spec §9).
+// Fill, stroke and strokeBorder (plan task 11, part 2; ruling `TE-AI`), and
+// since paths, shadows and transforms their `FillStyle`/`StrokeStyle` forms
+// (`GX-E`). Colours are `ColorToken`s (spec §7.9); there is no `ShapeStyle`
+// and no gradient (spec §9).
 
 extension Shape {
     /// Fills the shape with the foreground style (`foregroundStyle ??
     /// .textPrimary`, `TE-AH`) — SwiftUI's `fill()`.
     public func fill() -> ShapeView<Self> {
-        ShapeView(shape: self, layers: [.fill(nil)])
+        ShapeView(shape: self, layers: [.fill(nil, nil)])
     }
 
     /// Fills the shape with `token`; it wins over the foreground style
     /// (probe F3).
     public func fill(_ token: ColorToken) -> ShapeView<Self> {
-        ShapeView(shape: self, layers: [.fill(token)])
+        ShapeView(shape: self, layers: [.fill(token, nil)])
+    }
+
+    /// Fills the shape with the foreground style under `style` — SwiftUI's
+    /// `fill(style:)` (`GX-E`; even-odd, probe PA2).
+    public func fill(style: FillStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.fill(nil, style)])
+    }
+
+    /// Fills the shape with `token` under `style` (`GX-E`).
+    public func fill(_ token: ColorToken, style: FillStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.fill(token, style)])
+    }
+
+    /// Strokes the shape's outline with `style`, centred on its edge — SwiftUI's
+    /// `stroke(_:style:)` (`GX-E`; probe ST1–ST10). A built-in shape stroked
+    /// with only a width (a miter join, no dash) keeps the renderer's exact
+    /// band; anything else is stroked on the CPU and drawn as an image.
+    public func stroke(_ token: ColorToken, style: StrokeStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.stroke(token, style)])
+    }
+
+    /// Strokes inside the shape's edge with `style` — the shape inset by half
+    /// the width, stroked (`GX-E`, `TE-AE`'s rule).
+    public func strokeBorder(_ token: ColorToken, style: StrokeStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.strokeBorder(token, style)])
     }
 
     /// Strokes the shape's outline, centred on its edge (probe K1): the
@@ -23,7 +49,7 @@ extension Shape {
     /// its radii grown by half the width where they are not zero (K6, K7,
     /// K12). Changes no layout (K5); a width ≤ 0 draws nothing (K9).
     public func stroke(_ token: ColorToken, lineWidth: Pixels = Pixels(1)) -> ShapeView<Self> {
-        ShapeView(shape: self, layers: [.stroke(token, lineWidth)])
+        ShapeView(shape: self, layers: [.stroke(token, StrokeStyle(lineWidth: lineWidth))])
     }
 
     /// Strokes inside the shape's edge (probe K2). A corner whose radius is
@@ -31,7 +57,7 @@ extension Shape {
     /// shorter side fills (K10). Offered on every `Shape` — every geometry
     /// MetalUI draws is insettable (`TE-AG` item 3).
     public func strokeBorder(_ token: ColorToken, lineWidth: Pixels = Pixels(1)) -> ShapeView<Self> {
-        ShapeView(shape: self, layers: [.strokeBorder(token, lineWidth)])
+        ShapeView(shape: self, layers: [.strokeBorder(token, StrokeStyle(lineWidth: lineWidth))])
     }
 }
 
@@ -44,9 +70,10 @@ public struct ShapeView<S: Shape>: Element {
     public var shape: S
 
     enum Layer: Sendable, Equatable {
-        case fill(ColorToken?)
-        case stroke(ColorToken, Pixels)
-        case strokeBorder(ColorToken, Pixels)
+        /// A fill; `nil` style means the geometry's own (a path's) or nonzero.
+        case fill(ColorToken?, FillStyle?)
+        case stroke(ColorToken, StrokeStyle)
+        case strokeBorder(ColorToken, StrokeStyle)
     }
 
     var layers: [Layer]
@@ -58,17 +85,32 @@ public struct ShapeView<S: Shape>: Element {
 
     /// Adds a fill over the layers so far.
     public func fill(_ token: ColorToken) -> ShapeView<S> {
-        ShapeView(shape: shape, layers: layers + [.fill(token)])
+        ShapeView(shape: shape, layers: layers + [.fill(token, nil)])
+    }
+
+    /// Adds a fill under `style` over the layers so far (`GX-E`).
+    public func fill(_ token: ColorToken, style: FillStyle) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.fill(token, style)])
     }
 
     /// Adds a centred stroke over the layers so far.
     public func stroke(_ token: ColorToken, lineWidth: Pixels = Pixels(1)) -> ShapeView<S> {
-        ShapeView(shape: shape, layers: layers + [.stroke(token, lineWidth)])
+        ShapeView(shape: shape, layers: layers + [.stroke(token, StrokeStyle(lineWidth: lineWidth))])
+    }
+
+    /// Adds a centred stroke under `style` over the layers so far (`GX-E`).
+    public func stroke(_ token: ColorToken, style: StrokeStyle) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.stroke(token, style)])
     }
 
     /// Adds an inside stroke over the layers so far.
     public func strokeBorder(_ token: ColorToken, lineWidth: Pixels = Pixels(1)) -> ShapeView<S> {
-        ShapeView(shape: shape, layers: layers + [.strokeBorder(token, lineWidth)])
+        ShapeView(shape: shape, layers: layers + [.strokeBorder(token, StrokeStyle(lineWidth: lineWidth))])
+    }
+
+    /// Adds an inside stroke under `style` over the layers so far (`GX-E`).
+    public func strokeBorder(_ token: ColorToken, style: StrokeStyle) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.strokeBorder(token, style)])
     }
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
@@ -85,18 +127,50 @@ public struct ShapeView<S: Shape>: Element {
         let geometry = shape.geometry(in: bounds)
         for layer in layers {
             switch layer {
-            case let .fill(token):
-                paintShapeFill(geometry, token: token, pass: pass)
-            case let .stroke(token, width):
-                paintShapeStroke(geometry, token: token, width: width, outset: true, pass: pass)
-            case let .strokeBorder(token, width):
-                paintShapeStroke(geometry, token: token, width: width, outset: false, pass: pass)
+            case let .fill(token, style):
+                paintShapeFill(geometry, token: token, style: style, pass: pass)
+            case let .stroke(token, style):
+                paintStyledStroke(shape, geometry, bounds: bounds, token: token, style: style, outset: true,
+                                  pass: pass)
+            case let .strokeBorder(token, style):
+                paintStyledStroke(shape, geometry, bounds: bounds, token: token, style: style, outset: false,
+                                  pass: pass)
             }
         }
     }
 }
 
 extension ShapeView: ProposalElement {}
+
+/// One stroke layer under `style` (`GX-E`). **Routing keeps every existing
+/// stroke on its primitive**: a built-in geometry (a rounded rectangle or an
+/// ellipse) whose style is plain apart from its width draws the SDF band
+/// (`paintShapeStroke`, unchanged). Anything else — a round or bevel join, a
+/// dash, any path — is stroked on the CPU: `stroke` strokes the outline
+/// itself, `strokeBorder` the shape's outline in its rect inset by half the
+/// width (`TE-AE`'s rule). A width ≤ 0 draws nothing (ST10).
+@MainActor
+func paintStyledStroke<S: Shape>(_ shape: S, _ geometry: ShapeGeometry, bounds: Bounds<Pixels>,
+                                 token: ColorToken, style: StrokeStyle, outset: Bool, pass: PaintPass) {
+    guard style.lineWidth.value > 0 else { return }
+    if geometry.pathAndStyle == nil {   // SKELETON (lane 3 red): always the band
+        paintShapeStroke(geometry, token: token, width: style.lineWidth, outset: outset, pass: pass)
+        return
+    }
+    let path: Path
+    if outset {
+        path = geometry.pathAndStyle?.path ?? Path(geometry)
+    } else {
+        let half = style.lineWidth.value / 2
+        let inset = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + half),
+                                         y: Pixels(bounds.origin.y.value + half)),
+                           size: Size(width: Pixels(max(0, bounds.size.width.value - 2 * half)),
+                                      height: Pixels(max(0, bounds.size.height.value - 2 * half))))
+        let g = shape.geometry(in: inset)
+        path = g.pathAndStyle?.path ?? Path(g)
+    }
+    pass.drawPath(path, stroke: style, color: pass.theme[token])
+}
 
 /// One stroke layer (`TE-AI`). **strokeBorder(w)**: one `MUIRect` over the
 /// geometry's rect, border `w`, a clear background, each outer radius kept

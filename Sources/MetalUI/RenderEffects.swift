@@ -15,6 +15,8 @@ enum RenderEffectSpec: Hashable, Sendable {
     case rotation(Angle, anchor: UnitPoint)
     case scale(x: Double, y: Double, anchor: UnitPoint)
     case offset(x: Pixels, y: Pixels)
+    /// A shadow (`GX-J`): no map — a paint scope that shadows each leaf.
+    case shadow(ColorToken, radius: Pixels, x: Pixels, y: Pixels)
 
     /// The effect's map in points over `rect` — the element's rectangle in the
     /// space its primitives are emitted in (already moved by the scroll
@@ -34,6 +36,8 @@ enum RenderEffectSpec: Hashable, Sendable {
             return .scale(x: x, y: y, about: ax, ay)
         case let .offset(x, y):
             return .translation(x: Double(x.value), y: Double(y.value))
+        case .shadow:
+            return .identity
         }
     }
 
@@ -44,6 +48,7 @@ enum RenderEffectSpec: Hashable, Sendable {
         case let .rotation(angle, anchor): [angle.radians, anchor.x, anchor.y]
         case let .scale(x, y, anchor): [x, y, anchor.x, anchor.y]
         case let .offset(x, y): [Double(x.value), Double(y.value)]
+        case let .shadow(_, radius, x, y): [Double(radius.value), Double(x.value), Double(y.value)]
         }
     }
 
@@ -53,6 +58,7 @@ enum RenderEffectSpec: Hashable, Sendable {
         case .rotation: 0
         case .scale: 1
         case .offset: 2
+        case .shadow: 3
         }
     }
 
@@ -66,7 +72,16 @@ enum RenderEffectSpec: Hashable, Sendable {
             return .scale(x: n[0], y: n[1], anchor: UnitPoint(x: n[2], y: n[3]))
         case .offset:
             return .offset(x: Pixels(Float(n[0])), y: Pixels(Float(n[1])))
+        case let .shadow(token, _, _, _):
+            return .shadow(token, radius: Pixels(Float(max(0, n[0]))), x: Pixels(Float(n[1])), y: Pixels(Float(n[2])))
         }
+    }
+
+    /// Whether this is a shadow, which has no prepaint scope (a shadow never
+    /// hits and publishes nothing, `GX-J`).
+    var isShadow: Bool {
+        if case .shadow = self { return true }
+        return false
     }
 }
 
@@ -186,7 +201,9 @@ extension PrepaintPass {
     /// `bounds` (`GX-I`): hitboxes store the inverse composed map and the
     /// outer clip, accessibility records the transformed bounding box.
     func withRenderEffect<R>(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> R) -> R {
-        frame.prepaintWithRenderEffect(effect, bounds: bounds, body)
+        // A shadow registers nothing and moves nothing (`GX-J`; H5, X6).
+        guard !effect.isShadow else { return body() }
+        return frame.prepaintWithRenderEffect(effect, bounds: bounds, body)
     }
 
     /// `body` inside each of `effects` in written order (the last written is
@@ -217,11 +234,18 @@ extension PaintPass {
     }
 
     /// `body` inside each of `effects` in written order (the last written is
-    /// the outermost).
-    func withRenderEffects(_ effects: [RenderEffectSpec], bounds: Bounds<Pixels>, _ body: () -> Void) {
+    /// the outermost). A shadow opens a shadow scope (`GX-J`), its colour on a
+    /// store track under `id` when one is given (`legacyShadowColourKey`).
+    func withRenderEffects(_ effects: [RenderEffectSpec], bounds: Bounds<Pixels>, id: GlobalElementID? = nil,
+                           _ body: () -> Void) {
         guard let outermost = effects.last else { return body() }
-        withRenderEffect(outermost, bounds: bounds) {
-            withRenderEffects(Array(effects.dropLast()), bounds: bounds, body)
+        let inner = { withRenderEffects(Array(effects.dropLast()), bounds: bounds, id: id, body) }
+        if case let .shadow(token, radius, x, y) = outermost {
+            let color = id.map { storedAnimatedColor(token, at: legacyShadowColourKey(for: $0, index: effects.count - 1),
+                                                     pass: self) } ?? theme[token]
+            withShadow(color: color, radius: radius, x: x, y: y, inner)
+        } else {
+            withRenderEffect(outermost, bounds: bounds, inner)
         }
     }
 }
@@ -372,7 +396,7 @@ extension Frame {
             shareCandidates = savedCandidates
             (shareFloor, shareFloorAtEntry) = savedFloors
         }
-        guard paintScopes.contains(where: { $0.kind == .effect }) else { return body() }
+        guard paintScopes.contains(where: { $0.kind == .effect || $0.kind == .shadow }) else { return body() }
         paintScopes.append(PaintScope(kind: .barrier, effect: .identity, entryClipDepth: clipDepth))
         defer { paintScopes.removeLast() }
         return body()

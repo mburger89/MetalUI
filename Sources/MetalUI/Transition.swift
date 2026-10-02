@@ -326,6 +326,27 @@ struct RenderEffect: Equatable {
                 }
                 q.opacity *= alpha
                 p.kind = .surface(q, target: target)
+            case .path(var path):
+                // A path stays a vector until it reaches the scene (`GX-B`): the
+                // map composes onto its own, so it is rasterized at the scale it
+                // is drawn at.
+                path.local = affine.concatenating(path.local)
+                if p.innerMask {
+                    path.contentMask = map(path.contentMask)
+                    path.maskCornerRadii = map(path.maskCornerRadii)
+                }
+                path.color.a *= alpha
+                p.kind = .path(path)
+            case .shadow(var shadow):
+                // A shadow's offset and blur follow the composed map (`GX-J`;
+                // T10, T14): its leaf stays in creation space under `local`.
+                shadow.local = affine.concatenating(shadow.local)
+                if p.innerMask {
+                    shadow.contentMask = map(shadow.contentMask)
+                    shadow.maskCornerRadii = map(shadow.maskCornerRadii)
+                }
+                shadow.color.a *= alpha
+                p.kind = .shadow(shadow)
             }
             return p
         }
@@ -405,6 +426,11 @@ struct CapturedPrimitive {
         /// references the target, with no draw request — it shows the last
         /// contents.
         case surface(MUIImage, target: SurfaceTarget)
+        /// A path, still a vector (`GX-B`): rasterized at `insertIntoScene`.
+        case path(PathPaint)
+        /// One leaf's shadow (`GX-J`): rasterized at `insertIntoScene`, drawn
+        /// just before its leaf.
+        case shadow(ShadowPaint)
     }
 
     var kind: Kind
@@ -436,7 +462,16 @@ struct CapturedPrimitive {
         case .glyph(let g): g.bounds
         case .image(let i, _): i.bounds
         case .surface(let q, _): q.bounds
+        case .path(let path): path.bounds
+        case .shadow(let shadow): shadow.bounds
         }
+    }
+
+    /// The clip depth this primitive's own mask was read at, given the depth at
+    /// its emission: a shadow's mask is its scope's entry clip (`GX-J`).
+    func maskDepth(emittedAt depth: Int) -> Int {
+        if case let .shadow(shadow) = kind { return shadow.entryDepth }
+        return depth
     }
 
     /// Where it lands on screen: its bounds, or their bounding box under its
@@ -462,6 +497,12 @@ struct CapturedPrimitive {
         case .surface(var q, let target):
             q.opacity *= alpha
             kind = .surface(q, target: target)
+        case .path(var path):
+            path.color.a *= alpha
+            kind = .path(path)
+        case .shadow(var shadow):
+            shadow.color.a *= alpha
+            kind = .shadow(shadow)
         }
     }
 }

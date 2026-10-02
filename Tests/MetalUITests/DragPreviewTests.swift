@@ -364,6 +364,8 @@ private struct Named: Identifiable, Hashable {
                 Issue.record("\(name): no site here paints an image")
             case .surface:
                 Issue.record("\(name): no site here paints a surface")
+            case .path, .shadow:
+                Issue.record("\(name): no site here paints a path or a shadow")
             }
         }
         platform.simulateInput(up(moved(p, 50)))

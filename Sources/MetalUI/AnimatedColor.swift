@@ -432,7 +432,7 @@ extension PaintPass {
             // The element's own render effects wrap its background, content and
             // border (ruling `GX-H`; divergence 108), inside the drag capture so
             // a preview carries the transform (`GX-G`).
-            withRenderEffects(decoration.renderEffects, bounds: bounds) {
+            withRenderEffects(decoration.renderEffects, bounds: bounds, id: id) {
                 paintDecorationUncaptured(decoration, in: bounds, for: id, content: content)
             }
         }

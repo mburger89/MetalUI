@@ -50,6 +50,13 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
     /// replaced the window" indistinguishable to the only check that can see
     /// either — a human looking at the demo.
     case scrim
+    /// A shadow's default colour (ruling `GX-J`): black at 0.33 alpha in both
+    /// appearances — SwiftUI's default `shadow(radius:)` colour reads 171 over
+    /// white (probe SH2). **The one token the two themes share**, by
+    /// SwiftUI's own answer (`everyTokenDiffersBetweenLightAndDark` exempts it
+    /// by name). **New since paths, shadows and transforms**: an exhaustive
+    /// `switch` over `ColorToken` outside the package gains an arm.
+    case shadow
 }
 
 /// The mapping from `ColorToken` to colour, for one appearance (spec §7.9).
@@ -86,11 +93,18 @@ public struct Theme: Sendable, Hashable {
     public var scrollIndicator: Hsla
     /// The dimming behind a modal presentation.
     public var scrim: Hsla
+    /// A shadow's default colour (`GX-J`).
+    public var shadow: Hsla
 
-    /// A theme from one colour per token.
+    /// SwiftUI's default shadow colour: black at 0.33 alpha (probe SH2).
+    public static let defaultShadow = Hsla.rgb(0x000000, alpha: 0.33)
+
+    /// A theme from one colour per token. `shadow` is trailing and defaulted
+    /// (ruling `GX-Q`), so a theme written before the token existed compiles
+    /// unchanged and gets SwiftUI's default.
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
                 accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla,
-                scrim: Hsla) {
+                scrim: Hsla, shadow: Hsla = Theme.defaultShadow) {
         self.background = background
         self.surface = surface
         self.surfaceSecondary = surfaceSecondary
@@ -99,6 +113,7 @@ public struct Theme: Sendable, Hashable {
         self.textPrimary = textPrimary
         self.scrollIndicator = scrollIndicator
         self.scrim = scrim
+        self.shadow = shadow
     }
 
     /// The colour this theme gives `token`.
@@ -112,11 +127,13 @@ public struct Theme: Sendable, Hashable {
         case .textPrimary:      textPrimary
         case .scrollIndicator:  scrollIndicator
         case .scrim:            scrim
+        case .shadow:           shadow
         }
     }
 
-    /// **No two tokens share a value, in either variant, and no token holds the
-    /// same value in both.** That is a property of these constants rather than
+    /// **No two tokens share a value, in either variant, and no token but
+    /// `shadow` holds the same value in both** (`shadow` is SwiftUI's one
+    /// default for both appearances, probe SH2). That is a property of these constants rather than
     /// of the type, and it is asserted — `everyTokenDiffersBetweenLightAndDark`
     /// and `noTwoTokensCollideWithinAVariant` in `ThemeTests.swift`. A theme
     /// where two tokens coincide gives a green test at a point where the two are
@@ -130,7 +147,8 @@ public struct Theme: Sendable, Hashable {
         separator:        .rgb(0xC8CDD6),
         textPrimary:      .rgb(0x14181F),
         scrollIndicator:  .rgb(0x000000, alpha: 0.35),
-        scrim:            .rgb(0x0B1020, alpha: 0.32))
+        scrim:            .rgb(0x0B1020, alpha: 0.32),
+        shadow:           Theme.defaultShadow)
 
     /// See `light` for why every value here differs from its counterpart.
     public static let dark = Theme(
@@ -141,7 +159,8 @@ public struct Theme: Sendable, Hashable {
         separator:        .rgb(0x3A4260),
         textPrimary:      .rgb(0xE9EDF5),
         scrollIndicator:  .rgb(0xFFFFFF, alpha: 0.35),
-        scrim:            .rgb(0x000000, alpha: 0.42))
+        scrim:            .rgb(0x000000, alpha: 0.42),
+        shadow:           Theme.defaultShadow)
 
     /// The theme the host's current appearance calls for.
     ///

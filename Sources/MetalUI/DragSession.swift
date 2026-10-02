@@ -304,6 +304,12 @@ extension CapturedPrimitive {
         case .surface(var q, let target):
             q.contentMask = mask; q.maskCornerRadii = square
             p.kind = .surface(q, target: target)
+        case .path(var path):
+            path.contentMask = mask; path.maskCornerRadii = square
+            p.kind = .path(path)
+        case .shadow(var shadow):
+            shadow.contentMask = mask; shadow.maskCornerRadii = square
+            p.kind = .shadow(shadow)
         }
         return p
     }

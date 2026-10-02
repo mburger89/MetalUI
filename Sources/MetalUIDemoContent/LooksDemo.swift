@@ -4,9 +4,11 @@ import MetalUI
 /// `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`. It is the runnable surface for
 /// the human checks no other demo tree builds — `docs/verification/human-checks.md`
 /// items **H1** (`controlSize`'s drawn font), **I1** (shapes, strokes, a rounded
-/// clip, images and their interpolation), **J1** (gestures on a trackpad) and
+/// clip, images and their interpolation), **J1** (gestures on a trackpad),
 /// **K1–K3** (transitions, Reduce Motion's cross-fade, `.scale`'s mid-flight
-/// glyphs). It asserts nothing; a human looks.
+/// glyphs) and, since paths, shadows and transforms, **Q1–Q6** (paths, strokes
+/// and dashes, shadows, rotated and scaled content). It asserts nothing; a
+/// human looks.
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move. Every section is its own function, passed as
@@ -18,19 +20,21 @@ public func looksDemoContent() -> some Element {
     looksRoot(text: looksTextSection(),
               shapes: looksShapesSection(),
               gestures: looksGesturesSection(),
-              transitions: looksTransitionsSection())
+              transitions: looksTransitionsSection(),
+              pathsShadowsTransforms: looksPathsShadowsTransformsSection())
 }
 
 @MainActor
 private func looksRoot(text: some Element, shapes: some Element,
-                       gestures: some Element, transitions: some Element) -> some Element {
+                       gestures: some Element, transitions: some Element,
+                       pathsShadowsTransforms: some Element) -> some Element {
     Column(gap: Pixels(18)) {
-        Text("Looks — human checks H1, I1, J1, K1–K3").font(size: 20)
+        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6").font(size: 20)
         Row(gap: Pixels(32)) {
             Column(gap: Pixels(18)) {
                 text
                 shapes
-            }
+            }   // SKELETON (lane 3 red): the Q section not yet composed
             .alignItems(.flexStart)
             Column(gap: Pixels(18)) {
                 gestures
@@ -216,5 +220,90 @@ struct LooksTransitionRow: Component {
                 }
             }
         }
+    }
+}
+
+// MARK: - Q1–Q6: paths, shadows and transforms
+
+/// A five-point star through the points of a pentagram — every edge crosses
+/// two others, so nonzero fills the centre and even-odd leaves it empty (Q1).
+private func looksStar(side: Double) -> Path {
+    Path { path in
+        let c = side / 2, r = side / 2
+        // The five outer points, every second one, as a pentagram is drawn.
+        let unit: [(Double, Double)] = [(0, -1), (0.5878, 0.809), (-0.9511, -0.309), (0.9511, -0.309),
+                                        (-0.5878, 0.809)]
+        path.move(to: Point(x: Pixels(Float(c + r * unit[0].0)), y: Pixels(Float(c + r * unit[0].1))))
+        for p in unit.dropFirst() {
+            path.addLine(to: Point(x: Pixels(Float(c + r * p.0)), y: Pixels(Float(c + r * p.1))))
+        }
+        path.closeSubpath()
+    }
+}
+
+/// A zig-zag polyline, 120 wide (Q2).
+private let looksZigZag = Path { path in
+    path.move(to: Point(x: Pixels(6), y: Pixels(34)))
+    for i in 1...6 {
+        path.addLine(to: Point(x: Pixels(Float(6 + 18 * i)), y: Pixels(i % 2 == 0 ? 34 : 8)))
+    }
+}
+
+/// **Q1–Q6.** The star filled nonzero and even-odd (Q1); the zig-zag stroked
+/// width 6 with round caps and joins, and dashed `[12, 6]` (Q2); a card and a
+/// text with shadows (Q3); a text turned 30° and an image turned −15° (Q4); a
+/// path star and a text each under `scaleEffect(3)` — the star crisp, the text
+/// soft (divergence 106, Q5); and a square that turns 45° more on each tap,
+/// animated, its hover and tap region following the drawn diamond (Q6).
+@MainActor
+private func looksPathsShadowsTransformsSection() -> some Element {
+    Column(gap: Pixels(10)) {
+        Text("Q1–Q6 · paths, shadows, transforms").font(size: 15)
+        Row(gap: Pixels(16)) {
+            looksStar(side: 64).fill(.accent).frame(width: Pixels(64), height: Pixels(64))
+            looksStar(side: 64).fill(.accent, style: FillStyle(eoFill: true))
+                .frame(width: Pixels(64), height: Pixels(64))
+            looksZigZag.stroke(.accent, style: StrokeStyle(lineWidth: Pixels(6), lineCap: .round, lineJoin: .round))
+                .frame(width: Pixels(120), height: Pixels(42))
+            looksZigZag.stroke(.accent, style: StrokeStyle(lineWidth: Pixels(6), dash: [Pixels(12), Pixels(6)]))
+                .frame(width: Pixels(120), height: Pixels(42))
+        }
+        Row(gap: Pixels(24)) {
+            Box {
+                Text("A card with a shadow")
+            }
+            .padding(Pixels(12))
+            .background(.surface)
+            .cornerRadius(Pixels(10))
+            .shadow(radius: Pixels(8), y: Pixels(4))
+            Text("A shadowed text").font(size: 18).shadow(radius: Pixels(2), x: Pixels(1), y: Pixels(2))
+        }
+        Row(gap: Pixels(32)) {
+            Text("Rotated").font(size: 18).rotationEffect(.degrees(30))
+            Image(decorative: looksChecker, scale: 1).resizable().interpolation(.none)
+                .frame(width: Pixels(48), height: Pixels(48))
+                .rotationEffect(.degrees(-15))
+            looksStar(side: 16).fill(.accent).frame(width: Pixels(16), height: Pixels(16)).scaleEffect(3)
+                .frame(width: Pixels(56), height: Pixels(56))
+            Text("Aa").font(size: 12).scaleEffect(3).frame(width: Pixels(56), height: Pixels(56))
+            LooksRotatingSquare()
+        }
+    }
+    .alignItems(.flexStart)
+}
+
+/// **Q6.** A 60 × 60 square that turns 45° more on each tap, under
+/// `withAnimation(.easeInOut(duration: 0.6))`; it brightens while hovered, and
+/// both the hover and the tap region follow the drawn diamond.
+struct LooksRotatingSquare: Component {
+    @State var turns = 0
+
+    var content: some ElementGroup {
+        Box()
+            .frame(width: Pixels(60), height: Pixels(60))
+            .background(.accent)
+            .hoverBackground(.separator)
+            .rotationEffect(.degrees(Double(turns) * 45))
+            .onTapGesture { withAnimation(.easeInOut(duration: 0.6)) { turns += 1 } }
     }
 }

@@ -586,6 +586,11 @@ extension LayoutModifier: ModifierLayerKind {
                       borderColor: color, borderWidths: Edges(all: width))
         case .rotationEffect, .scaleEffect, .offset:
             pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
+        case let .shadow(token, radius, x, y):
+            // The colour fades on a store track (`GX-J`, `AN-AB`'s colour
+            // precedent); radius and offset were animated in layout.
+            let color = storedAnimatedColor(token, at: layerAnimationKey(id, "shadow.colour"), pass: pass)
+            pass.withShadow(color: color, radius: radius, x: x, y: y, inside)
         default:
             inside()
         }
@@ -635,7 +640,7 @@ extension LayoutModifier: ModifierLayerKind {
         case let .layoutPriority(priority):
             return pass.requestNativeLayoutPriority(child: child, priority: priority)
         case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset:
+             .rotationEffect, .scaleEffect, .offset, .shadow:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

@@ -21,14 +21,21 @@ private let skipReason: Comment =
 /// `ProposalElement`. **Control**: the same struct without `geometry(in:)`
 /// fails, naming it — so the positive compiles for the reason given.
 ///
+/// **Control amended by `GX-V` item 2** (paths, shadows and transforms):
+/// since `GX-D` both `geometry(in:)` and `path(in:)` are defaulted, so a
+/// conformer missing `geometry(in:)` compiles (and traps at its first paint,
+/// test 3.4). The control is now the same struct with `geometry(in:)` but
+/// **without the `Shape` conformance** — it fails at `.fill`, so the
+/// positive's `.fill`, `.stroke` and `HStack` membership come from `Shape`.
+///
 /// Mutations: **MG2a** `sizeThatFits`'s default removed (the positive fails);
 /// **MG2a′** `Shape` refines `Element` instead of `ProposalElement` (the
 /// `HStack` arm fails).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anOutsideShapeNeedsOnlyItsGeometry() throws {
-    func fixture(_ body: String) -> String {
+    func fixture(_ body: String, conformance: String = ": Shape") -> String {
         """
-        public struct Diamondish: Shape {
+        public struct Diamondish\(conformance) {
             public init() {}
         \(body)
         }
@@ -46,7 +53,11 @@ func anOutsideShapeNeedsOnlyItsGeometry() throws {
                 .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(2)))
             }
         """), importing: "MetalUI")
-    let without = try typecheckFile(fixture(""), importing: "MetalUI")
+    let without = try typecheckFile(fixture("""
+            public func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
+                .roundedRectangle(rect, cornerRadii: Corners(all: Pixels(2)))
+            }
+        """, conformance: ""), importing: "MetalUI")
 
     print("""
         G2.1 outside shape: with succeeded=\(with.succeeded) messages=[\(with.messages)]; \
@@ -62,8 +73,8 @@ func anOutsideShapeNeedsOnlyItsGeometry() throws {
                  without:
                  \(without.output)
                  """)
-    #expect(without.messages.contains("geometry"),
-            "the control must be refused FOR geometry(in:):\n\(without.output)")
+    #expect(without.messages.contains("fill"),
+            "the control must be refused FOR .fill (no Shape conformance):\n\(without.output)")
 }
 
 /// **G2.2 — `Rectangle(color:)` is deprecated toward `.fill(_:)`** (`TE-AH`):

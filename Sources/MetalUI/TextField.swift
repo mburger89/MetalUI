@@ -254,11 +254,9 @@ public struct TextField: Element, StyledElement {
             let showsPlaceholder = g.display.isEmpty
             var color = textColor
             if showsPlaceholder { color.a *= 0.45 }
-            for glyph in system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
-                                            wrappingAt: nil, origin: (x: x0, y: g.lineY),
-                                            scaleFactor: pass.scaleFactor) {
-                pass.draw(glyph, color: color)
-            }
+            pass.drawGlyphs(system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
+                                               wrappingAt: nil, origin: (x: x0, y: g.lineY),
+                                               scaleFactor: pass.scaleFactor), color: color)
             if let marked = g.composition {
                 pass.fill(rect(g.offsets[marked.lowerBound], g.offsets[marked.upperBound],
                                y: g.lineY + g.lineHeight - 1, height: 1), color: textColor)

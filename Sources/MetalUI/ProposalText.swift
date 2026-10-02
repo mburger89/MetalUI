@@ -100,12 +100,10 @@ public struct ProposalText: ProposalElement {
         let laid = textLines(string, font: font, system: system, wrappingAt: width,
                              height: Double(bounds.size.height.value), style: style)
         let color = pass.theme[style.foreground]
-        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
-                                        origin: (x: Double(bounds.origin.x.value),
-                                                 y: Double(bounds.origin.y.value)),
-                                        scaleFactor: pass.scaleFactor) {
-            pass.draw(glyph, color: color)
-        }
+        pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
+                                           origin: (x: Double(bounds.origin.x.value),
+                                                    y: Double(bounds.origin.y.value)),
+                                           scaleFactor: pass.scaleFactor), color: color)
     }
 }
 

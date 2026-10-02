@@ -329,7 +329,18 @@ final class TransitionStore {
 /// (before its own effect) for a ghost or a preview.
 @MainActor
 final class PaintScope {
-    enum Kind { case transition, effect, capture, barrier }
+    enum Kind { case transition, effect, capture, barrier, shadow }
+
+    /// A shadow scope's shadow (`GX-J`): its colour, radius and offset in
+    /// device pixels of the space it was pushed in, and the clip at its entry.
+    struct Shadow {
+        var color: Hsla
+        var radius: Double
+        var dx: Double
+        var dy: Double
+        var mask: MUIBounds
+        var radii: MUICorners
+    }
 
     let kind: Kind
     let effect: RenderEffect
@@ -340,16 +351,20 @@ final class PaintScope {
     let flattens: Bool
     /// A non-flattening effect's outer mask: the clip at its entry.
     let outer: OuterMask?
+    /// A shadow scope's shadow, `nil` for every other kind.
+    let shadow: Shadow?
     var captures: [CapturedPrimitive] = []
 
     var capturing: Bool { kind == .transition || kind == .capture }
 
-    init(kind: Kind, effect: RenderEffect, entryClipDepth: Int, flattens: Bool = true, outer: OuterMask? = nil) {
+    init(kind: Kind, effect: RenderEffect, entryClipDepth: Int, flattens: Bool = true, outer: OuterMask? = nil,
+         shadow: Shadow? = nil) {
         self.kind = kind
         self.effect = effect
         self.entryClipDepth = entryClipDepth
         self.flattens = flattens
         self.outer = outer
+        self.shadow = shadow
     }
 
     /// A claimed transition group's scope.

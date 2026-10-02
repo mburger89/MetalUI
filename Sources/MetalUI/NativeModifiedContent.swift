@@ -44,6 +44,10 @@ public enum LayoutModifier: Sendable {
     case scaleEffect(x: Double, y: Double, anchor: UnitPoint)
     /// `offset(x:y:)`: the content's rendering moved; layout unchanged (`GX-H`).
     case offset(x: Pixels, y: Pixels)
+    /// `shadow(color:radius:x:y:)`: a shadow under each leaf of the content;
+    /// layout, hit testing and accessibility unchanged (ruling `GX-J`). **New
+    /// since paths, shadows and transforms**, like the three effects above.
+    case shadow(ColorToken, radius: Pixels, x: Pixels, y: Pixels)
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,

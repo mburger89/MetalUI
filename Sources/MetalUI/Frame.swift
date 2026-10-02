@@ -2541,7 +2541,22 @@ public final class Frame {
     /// first: each captures it as it arrives (for a ghost), then applies its
     /// effect, and the result reaches the scene.
     private func insertThroughScopes(_ primitive: CapturedPrimitive) {
-        var primitive = primitive
+        // Inside a text draw (`beginLeafGroup`), the glyphs wait for the
+        // group's end, so a shadow scope sees the whole text as one leaf.
+        if leafGroup != nil {
+            leafGroup!.append(primitive)
+            return
+        }
+        insertThroughScopes(leaf: [primitive])
+    }
+
+    /// One leaf — a primitive, or one text draw's glyphs — through every open
+    /// paint scope, innermost first: each captures what arrives (for a ghost or
+    /// a drag preview) and applies its map; a shadow scope puts the leaf's
+    /// shadow before it, itself a leaf to every scope further out (`GX-J`;
+    /// SH5, SH11). What survives reaches the scene in order.
+    private func insertThroughScopes(leaf: [CapturedPrimitive]) {
+        var leaves: [[CapturedPrimitive]] = [leaf]
         let depth = clipStack.count
         var pastBarrier = false
         for scope in paintScopes.reversed() {
@@ -2549,25 +2564,50 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed (`GX-G`)
+            case .effect where pastBarrier, .shadow where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed or shadowed (`GX-G`)
             default:
                 break
             }
-            primitive.innerMask = depth > scope.entryClipDepth
-            primitive.outerMaskInner = primitive.transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
-            if scope.capturing { scope.captures.append(primitive) }
-            if !scope.effect.isIdentity {
-                guard let mapped = scope.effect.apply(to: primitive, flattens: scope.flattens,
-                                                      outer: scope.outer) else { return }
-                primitive = mapped
+            var next: [[CapturedPrimitive]] = []
+            for var group in leaves {
+                for i in group.indices {
+                    group[i].innerMask = group[i].maskDepth(emittedAt: depth) > scope.entryClipDepth
+                    group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
+                }
+                if scope.capturing { scope.captures.append(contentsOf: group) }
+                if scope.shadow != nil {
+                    next.append(group)   // SKELETON (lane 3 red): no shadow item yet
+                    continue
+                }
+                if !scope.effect.isIdentity {
+                    group = group.compactMap {
+                        scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                    }
+                    if group.isEmpty { continue }
+                }
+                next.append(group)
             }
+            leaves = next
         }
-        insertIntoScene(primitive)
+        for group in leaves {
+            for primitive in group { insertIntoScene(primitive) }
+        }
+    }
+
+    /// The shadow of `leaf` under a shadow scope (`GX-J`), in the space the
+    /// leaf reached it in.
+    private func shadowItem(of leaf: [CapturedPrimitive], _ shadow: PaintScope.Shadow,
+                            entryDepth: Int) -> CapturedPrimitive {
+        let paint = ShadowPaint(leaf: leaf, color: shadow.color, radius: shadow.radius, dx: shadow.dx,
+                                dy: shadow.dy, local: .identity, contentMask: shadow.mask,
+                                maskCornerRadii: shadow.radii, entryDepth: entryDepth)
+        return CapturedPrimitive(kind: .shadow(paint), layer: leaf.first?.layer ?? activeLayer, innerMask: false)
     }
 
     /// Inserts a processed primitive, with its transform record when it has
-    /// one (`GX-F`); `nil` writes index 0.
+    /// one (`GX-F`); `nil` writes index 0. A path or a shadow is rasterized
+    /// here, in device pixels, into one untransformed image (`GX-B`, `GX-J`).
     func insertIntoScene(_ primitive: CapturedPrimitive) {
         let transform = primitive.transform?.record
         switch primitive.kind {
@@ -2577,7 +2617,61 @@ public final class Frame {
             scene.insert(image, texture: texture, layer: primitive.layer, transform: transform)
         case .surface(let quad, let target):
             scene.insert(quad, surface: target, layer: primitive.layer, transform: transform)
+        case .path, .shadow:
+            return   // SKELETON (lane 3 red): not yet rasterized
         }
+    }
+
+    /// The glyphs of the text draw in progress, while a paint scope is open —
+    /// `nil` otherwise (`GX-J`: a text draw is one leaf, SH4/SH5e).
+    var leafGroup: [CapturedPrimitive]?
+
+    /// Opens a text draw's leaf group; nothing when no paint scope is open
+    /// (the emitters then insert directly, as they always did).
+    func beginLeafGroup() {
+        leafGroup = paintScopes.isEmpty ? nil : []
+    }
+
+    /// Sends the group's glyphs through the scopes as one leaf.
+    func endLeafGroup() {
+        guard let group = leafGroup else { return }
+        leafGroup = nil
+        if !group.isEmpty { insertThroughScopes(leaf: group) }
+    }
+
+    /// Emits a path (`GX-B`): `path`'s points (window points, before the scroll
+    /// translation) filled or stroked in `color`, under the active offset,
+    /// clip, opacity and layer, as `fill` places a rect. It stays a vector
+    /// through the paint scopes and is rasterized in the scene's device pixels
+    /// at `insertIntoScene`.
+    func drawPath(_ path: Path, mode: PathPaint.Mode, color: Hsla) {
+        guard !path.isEmpty, color.a > 0 else { return }
+        let s = Double(scaleFactor)
+        let local = Affine2D(a: s, d: s, tx: Double(activeOffset.x.value) * s, ty: Double(activeOffset.y.value) * s)
+        let paint = PathPaint(geometry: path.storage, mode: mode, local: local,
+                              color: Hsla(h: color.h, s: color.s, l: color.l, a: color.a * activeOpacity),
+                              contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
+                              maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
+        let primitive = CapturedPrimitive(kind: .path(paint), layer: activeLayer, innerMask: false)
+        if paintScopes.isEmpty {
+            insertIntoScene(primitive)
+        } else {
+            insertThroughScopes(primitive)
+        }
+    }
+
+    /// Paint inside a shadow scope (`GX-J`): every leaf emitted in `body` gets
+    /// its own shadow just before it. `radius`, `x` and `y` in points; the clip
+    /// in force cuts the shadow, clips pushed inside shape the silhouette.
+    func paintWithShadow(color: Hsla, radius: Pixels, x: Pixels, y: Pixels, _ body: () -> Void) {
+        let s = Double(scaleFactor)
+        let shadow = PaintScope.Shadow(color: color, radius: max(0, Double(radius.value)) * s,
+                                       dx: Double(x.value) * s, dy: Double(y.value) * s,
+                                       mask: MUIBounds(activeClip.scaled(by: scaleFactor)),
+                                       radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
+        paintScopes.append(PaintScope(kind: .shadow, effect: .identity, entryClipDepth: clipDepth, shadow: shadow))
+        body()
+        paintScopes.removeLast()
     }
 
     func finalizedScene() -> Scene {
@@ -2632,6 +2726,7 @@ public final class Frame {
         // `ShapingCache.beginFrame()`'s own doc comment.
         textSystem.beginFrame()
         animationStore.beginFrame()
+        animationStore.rasters.beginFrame()
 
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
@@ -2701,6 +2796,7 @@ public final class Frame {
         applyScrollResolutions()
         animationStore.transitions.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
+        animationStore.rasters.endFrame()  // drops every raster this frame did not draw (GX-K)
         surfaceRegistry.endFrame()  // drops every surface this frame did not paint (MV-E)
 
         // After the frame, not before — but **not for the reason it is tempting
