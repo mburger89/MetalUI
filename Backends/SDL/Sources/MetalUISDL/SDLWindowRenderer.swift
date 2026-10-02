@@ -139,15 +139,18 @@ public final class SDLWindowRenderer: WindowRenderer {
         return failed ? nil : handles
     }
 
-    public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {
+    public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         // Exhaustive (ruling TE-AF): the old `kind == .glyph ? 1 : 0` drew an
         // image run as rects.
-        let runs = scene.drawList.map { run -> ReplayRun in
+        // `surfaces` is ignored and `.surface` runs are dropped until
+        // MetalView's lane 3 (spec §8: lane 1's signature-only hand-off).
+        let runs = scene.drawList.compactMap { run -> ReplayRun? in
             let kind: UInt32
             switch run.kind {
             case .rect: kind = 0
             case .glyph: kind = 1
             case .image: kind = 2
+            case .surface: return nil
             }
             return ReplayRun(kind: kind, start: UInt32(run.start), count: UInt32(run.count))
         }

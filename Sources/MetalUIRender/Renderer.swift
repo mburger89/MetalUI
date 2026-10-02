@@ -234,6 +234,10 @@ public final class Renderer {
                 // One texture per run: `Scene.finalize` breaks a run where it changes.
                 try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
                                  into: encoder, viewport: &viewport, projection: &projection)
+            case .surface:
+                // MetalView lane 1's hand-off (spec §8): no target texture
+                // reaches `encode` until lane 2, so a surface run draws nothing.
+                continue
             }
         }
     }

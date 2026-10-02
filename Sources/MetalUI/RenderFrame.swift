@@ -15,6 +15,12 @@ import MetalUITextSystem
 /// `ImageRenderer` analogue of probe `swiftui-environment-control-state.swift`
 /// S1 and V0 (rulings EV-AA, EV-AB). Its `accessibilityReduceMotion` is
 /// `false`, stamped (ruling `AN-AD`): a headless frame has no platform to ask.
+///
+/// **An app-owned surface (`GPUSurface`, `MetalView`) appears as its quad and
+/// its `SurfaceTarget` only** (MetalView, `MV-H` item 5): a scene is data, so the
+/// frame's draw requests are dropped and the app's `draw` never runs — a
+/// renderer handed this scene has no entry for the target and draws nothing
+/// for its run. Each call uses a fresh surface registry.
 @MainActor
 public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>, scaleFactor: Float,
                                        textSystem: any TextSystem, atlas: GlyphAtlas,

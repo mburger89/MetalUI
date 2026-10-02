@@ -1,7 +1,12 @@
 import MetalUIShaderTypes
 
 /// Which pipeline a primitive belongs to. One case per instanced draw.
-public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image }
+///
+/// `.surface` (MetalView, ruling `MV-C`) is an app-owned GPU surface's quad:
+/// an `MUIImage` record drawn by the image pipeline with the surface's render
+/// target bound as its texture. **Public break** (`MV-C` item 3): an
+/// exhaustive `switch` outside the package adds a `.surface` arm.
+public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image, surface }
 
 /// One instanced draw: `count` primitives of `kind`, starting at `start` in
 /// that kind's own array.
@@ -41,14 +46,25 @@ public struct Scene: Sendable {
     /// `WindowRenderer.finishFrame(scene:atlas:)` keeps its signature (`RS-A`).
     public private(set) var textures: [ImageTexture] = []
 
+    /// App-owned GPU surfaces' quads (MetalView, ruling `MV-C`): the image
+    /// record, drawn by the image pipeline, its `texture` field indexing
+    /// ``surfaceTargets`` rather than ``textures``.
+    public private(set) var surfaces: [MUIImage] = []
+
+    /// The render targets ``surfaces`` sample, one per distinct `SurfaceID`,
+    /// in first-use order — an opaque id and a device-pixel size each, which
+    /// every renderer resolves to its own texture (`MV-E`).
+    public private(set) var surfaceTargets: [SurfaceTarget] = []
+
     /// Built by ``finalize()``. Empty until then.
     public private(set) var drawList: [DrawRun] = []
 
     /// Emission sequence per kind, so `finalize()` can tiebreak equal orders
     /// across types. Not public: it is bookkeeping for one method.
     ///
-    /// **Plain arrays — six since the image kind (ruling TE-AF), four
-    /// before — not `[PrimitiveKind: [Int]]` dictionaries.**
+    /// **Plain arrays — eight since the surface kind (ruling `MV-C` item 2),
+    /// six since the image kind (ruling TE-AF), four before — not
+    /// `[PrimitiveKind: [Int]]` dictionaries.**
     /// The dictionary form did a subscript per `insert` and two per element in
     /// `finalize()`, each handing back a whole `[Int]` before the integer index,
     /// and `clear()` replaced both dictionaries outright, dropping their
@@ -56,6 +72,7 @@ public struct Scene: Sendable {
     private var rectSequence: [Int] = []
     private var glyphSequence: [Int] = []
     private var imageSequence: [Int] = []
+    private var surfaceSequence: [Int] = []
     private var nextSequence = 0
 
     /// Layer per primitive, parallel to `rectSequence`/`glyphSequence`.
@@ -67,6 +84,7 @@ public struct Scene: Sendable {
     private var rectLayer: [Int] = []
     private var glyphLayer: [Int] = []
     private var imageLayer: [Int] = []
+    private var surfaceLayer: [Int] = []
 
     /// An empty scene.
     public init() {}
@@ -77,8 +95,9 @@ public struct Scene: Sendable {
     /// `isEmpty` that missed one array would silently draw nothing in any
     /// frame whose paint emitted only that kind — a blank run with no error
     /// anywhere. Pinned by `aSceneHoldingOnlyAGlyphIsNotEmpty` and
-    /// `aSceneHoldingOnlyAnImageIsNotEmpty` (ruling TE-AF item 4).
-    public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty }
+    /// `aSceneHoldingOnlyAnImageIsNotEmpty` (ruling TE-AF item 4) and
+    /// `aSceneHoldingOnlyASurfaceIsNotEmpty` (`MV-C` item 2).
+    public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty }
 
     /// Adds a rectangle on `layer`.
     public mutating func insert(_ rect: MUIRect, layer: Int = 0) {
@@ -113,11 +132,34 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// Appends `quad`, sampling `surface`'s render target (ruling `MV-C`). Its
+    /// `texture` field is set here, to the target's index in
+    /// ``surfaceTargets`` — a surface drawn twice (a drag preview replaying
+    /// its source) is carried once. **One id, one size per scene**: the same
+    /// id at a different size traps, since a renderer can bind only one
+    /// texture per target.
+    public mutating func insert(_ quad: MUIImage, surface: SurfaceTarget, layer: Int = 0) {
+        var quad = quad
+        if let index = surfaceTargets.firstIndex(where: { $0.id == surface.id }) {
+            precondition(surfaceTargets[index] == surface,
+                         "Scene: surface \(surface.id.rawValue) inserted at \(surface.width)×\(surface.height) "
+                         + "and \(surfaceTargets[index].width)×\(surfaceTargets[index].height) (MV-C)")
+            quad.texture = MUIUInt(index)
+        } else {
+            quad.texture = MUIUInt(surfaceTargets.count)
+            surfaceTargets.append(surface)
+        }
+        surfaces.append(quad)
+        surfaceSequence.append(nextSequence)
+        surfaceLayer.append(layer)
+        nextSequence += 1
+    }
+
     /// The highest layer any primitive was inserted on, or `nil` for an empty
     /// scene — what a drag preview rises above (ruling `DN-J`). Computed, so
     /// a frame that never asks pays nothing.
     public var highestLayer: Int? {
-        [rectLayer.max(), glyphLayer.max(), imageLayer.max()].compactMap { $0 }.max()
+        [rectLayer.max(), glyphLayer.max(), imageLayer.max(), surfaceLayer.max()].compactMap { $0 }.max()
     }
 
     /// The layer of the `index`th primitive of `kind` — in emission order
@@ -128,6 +170,7 @@ public struct Scene: Sendable {
         case .rect: rectLayer[index]
         case .glyph: glyphLayer[index]
         case .image: imageLayer[index]
+        case .surface: surfaceLayer[index]
         }
     }
 
@@ -137,13 +180,17 @@ public struct Scene: Sendable {
         glyphs.removeAll(keepingCapacity: true)
         images.removeAll(keepingCapacity: true)
         textures.removeAll(keepingCapacity: true)
+        surfaces.removeAll(keepingCapacity: true)
+        surfaceTargets.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
         rectSequence.removeAll(keepingCapacity: true)
         glyphSequence.removeAll(keepingCapacity: true)
         imageSequence.removeAll(keepingCapacity: true)
+        surfaceSequence.removeAll(keepingCapacity: true)
         rectLayer.removeAll(keepingCapacity: true)
         glyphLayer.removeAll(keepingCapacity: true)
         imageLayer.removeAll(keepingCapacity: true)
+        surfaceLayer.removeAll(keepingCapacity: true)
         nextSequence = 0
     }
 
@@ -203,14 +250,17 @@ public struct Scene: Sendable {
     /// number of runs stays the draw-call count. Images keep their
     /// `texture` index through the permutation — it indexes ``textures``,
     /// which is never reordered. Pinned by `imageRunsBreakWhereTheTextureChanges`.
+    /// **A surface run breaks where its target changes**, for the same reason
+    /// (ruling `MV-C` item 2); pinned by `surfaceRunsBreakWhereTheTargetChanges`.
     public mutating func finalize() {
         let rectCount = rects.count
         let glyphCount = glyphs.count
         let imageCount = images.count
+        let surfaceCount = surfaces.count
 
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
-        merged.reserveCapacity(rectCount + glyphCount + imageCount)
+        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount)
         for i in 0..<rectCount {
             merged.append((rectLayer[i], rects[i].order, rectSequence[i], .rect, i))
         }
@@ -219,6 +269,9 @@ public struct Scene: Sendable {
         }
         for i in 0..<imageCount {
             merged.append((imageLayer[i], images[i].order, imageSequence[i], .image, i))
+        }
+        for i in 0..<surfaceCount {
+            merged.append((surfaceLayer[i], surfaces[i].order, surfaceSequence[i], .surface, i))
         }
         merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
 
@@ -235,6 +288,9 @@ public struct Scene: Sendable {
         var sortedImages: [MUIImage] = []
         var sortedImageSequence: [Int] = []
         var sortedImageLayer: [Int] = []
+        var sortedSurfaces: [MUIImage] = []
+        var sortedSurfaceSequence: [Int] = []
+        var sortedSurfaceLayer: [Int] = []
         var runs: [DrawRun] = []
         sortedRects.reserveCapacity(rectCount)
         sortedRectSequence.reserveCapacity(rectCount)
@@ -245,6 +301,9 @@ public struct Scene: Sendable {
         sortedImages.reserveCapacity(imageCount)
         sortedImageSequence.reserveCapacity(imageCount)
         sortedImageLayer.reserveCapacity(imageCount)
+        sortedSurfaces.reserveCapacity(surfaceCount)
+        sortedSurfaceSequence.reserveCapacity(surfaceCount)
+        sortedSurfaceLayer.reserveCapacity(surfaceCount)
 
         for entry in merged {
             let kind = entry.3
@@ -255,7 +314,8 @@ public struct Scene: Sendable {
             // permutation.
             let start: Int
             // An image continues the previous run only while it samples the
-            // same texture as that run's images.
+            // same texture as that run's images; a surface only while it
+            // samples the same target (`MV-C` item 2).
             var sameTexture = true
             switch kind {
             case .rect:
@@ -275,6 +335,13 @@ public struct Scene: Sendable {
                 sortedImages.append(image)
                 sortedImageSequence.append(entry.2)
                 sortedImageLayer.append(entry.0)
+            case .surface:
+                start = sortedSurfaces.count
+                let quad = surfaces[entry.4]
+                if let previous = sortedSurfaces.last { sameTexture = previous.texture == quad.texture }
+                sortedSurfaces.append(quad)
+                sortedSurfaceSequence.append(entry.2)
+                sortedSurfaceLayer.append(entry.0)
             }
             if let last = runs.last, last.kind == kind, sameTexture {
                 runs[runs.count - 1] =
@@ -293,6 +360,9 @@ public struct Scene: Sendable {
         images = sortedImages
         imageSequence = sortedImageSequence
         imageLayer = sortedImageLayer
+        surfaces = sortedSurfaces
+        surfaceSequence = sortedSurfaceSequence
+        surfaceLayer = sortedSurfaceLayer
         drawList = runs
     }
 }

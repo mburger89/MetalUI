@@ -34,7 +34,11 @@ public final class MetalWindowRenderer: WindowRenderer {
 
     /// Encodes `scene` sampling `atlas` into the acquired drawable, presents
     /// and commits; `false` if `beginFrame()` acquired nothing.
-    public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {
+    ///
+    /// **`surfaces` is ignored until MetalView's lane 2** (spec §8: lane 1's
+    /// signature-only hand-off): no target is created or drawn, and
+    /// `Renderer.encode` skips `.surface` runs.
+    public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         guard let pending else { return false }
         self.pending = nil
         // The atlas texture is written only while it has never been bound,

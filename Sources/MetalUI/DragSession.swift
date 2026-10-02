@@ -278,6 +278,7 @@ extension CapturedPrimitive {
         case .rect(let r, _, _): r.bounds
         case .glyph(let g, _, _): g.bounds
         case .image(let i, _, _, _): i.bounds
+        case .surface(let q, _, _, _): q.bounds
         }
     }
 
@@ -296,6 +297,9 @@ extension CapturedPrimitive {
         case .image(var i, let texture, _, let inner):
             if !inner { i.contentMask = mask; i.maskCornerRadii = square }
             return .image(i, texture: texture, layer: layer, innerMask: inner)
+        case .surface(var q, let target, _, let inner):
+            if !inner { q.contentMask = mask; q.maskCornerRadii = square }
+            return .surface(q, target: target, layer: layer, innerMask: inner)
         }
     }
 }

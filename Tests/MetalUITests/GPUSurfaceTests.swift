@@ -114,12 +114,12 @@ private func redraw(_ window: Window) {
         return (frame.scene.surfaceTargets[0], frame.scene.surfaces[0])
     }
     let d1 = try target(100, 60, 2)
-    #expect([d1.0.width, d1.0.height] == [200, 120], "D1: bounds × scale")
+    #expect([d1.0.width, d1.0.height] == [200, 120] as [Int], "D1: bounds × scale")
     #expect(floats(d1.1.bounds).suffix(2) == [200, 120], "the quad in device pixels")
     let fractional = try target(101, 61, 1.5)
-    #expect([fractional.0.width, fractional.0.height] == [152, 92], "rounded, not floored")
+    #expect([fractional.0.width, fractional.0.height] == [152, 92] as [Int], "rounded, not floored")
     let huge = try target(9000, 10, 1)
-    #expect([huge.0.width, huge.0.height] == [8192, 10], "clamped to 8192")
+    #expect([huge.0.width, huge.0.height] == [8192, 10] as [Int], "clamped to 8192")
     #expect(huge.1.bounds.size.width == 9000, "the quad is not clamped")
 }
 
@@ -143,7 +143,7 @@ private func redraw(_ window: Window) {
     try #require(first.count == 2 && second.count == 2, "two requests a frame: \(first), \(second)")
     #expect(first[0].id != first[1].id, "two placements, two ids")
     #expect(first == second, "the same ids and sizes next frame")
-    #expect([first[0].width, first[1].width] == [50, 60], "in paint order")
+    #expect([first[0].width, first[1].width] == [50, 60] as [Int], "in paint order")
 }
 
 /// **1.13b** (`MV-L` item 1; divergence 72's shape). Two siblings sharing one
@@ -180,7 +180,7 @@ private func redraw(_ window: Window) {
 /// Mutations **M1r**: drop the clip test (the clipped arm only); **M1s**: drop
 /// the opacity test (the transparent arm only).
 @Test @MainActor func aZeroSizedClippedOrTransparentSurfaceRequestsNothing() throws {
-    func strip(lead: Float) -> some ProposalElementGroup {
+    func strip(lead: Float) -> some Element & ProposalElementGroup {
         HStack(spacing: px(0)) {
             Rectangle().frame(width: px(lead), height: px(10))
             surface().frame(width: px(20), height: px(10))
@@ -255,7 +255,7 @@ private func redraw(_ window: Window) {
     let requests = spy.frames[0]
     try #require(requests.count == 1, "one request: \(requests.map(\.target))")
     let r = requests[0]
-    #expect([r.target.width, r.target.height] == [40, 30])
+    #expect([r.target.width, r.target.height] == [40, 30] as [Int])
     #expect(r.scaleFactor == 1 && r.time == 2.5 && r.policy == .onDemand)
     #expect(r.value == AnyHashable(5))
     #expect(window.lastScene.surfaceTargets == [r.target], "the request names the scene's target")
@@ -272,7 +272,7 @@ private func redraw(_ window: Window) {
 /// Mutation **M1w**: emit with no `activeClip`.
 @Test @MainActor func aSurfaceQuadTakesTheActiveClipRadiiOpacityAndLayerAsAnImageDoes() throws {
     let bitmap = ImageBitmap(width: 1, height: 1, rgba: [255, 0, 0, 255])
-    func clipped<C: ProposalElementGroup>(_ content: C) -> some ProposalElementGroup {
+    func clipped<C: ProposalElementGroup>(_ content: C) -> some Element & ProposalElementGroup {
         HStack(spacing: px(0)) { content }.clipShape(RoundedRectangle(cornerRadius: px(8))).opacity(0.5)
     }
     let s = render(clipped(surface().frame(width: px(40), height: px(40))), scaleFactor: 2).scene

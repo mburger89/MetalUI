@@ -1,14 +1,15 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **69 live divergences**, each measured (a probe
+place it knowingly does not: **70 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
 failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
-drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`, next label 103). Its dated
+drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
+added 103, ruling `MV-G`, next label 104). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -96,6 +97,7 @@ scheduled).
 | 100 | a disabled drag source or drop destination | still drags (P9) and still takes the drop (P8) | the one disabled gate removes both: a `.disabled` source does not drag, a `.disabled` destination is never targeted and takes no drop | `DN-G` | `aDisabledSourceDoesNotDragAndADisabledDestinationRefuses` | none |
 | 101 | a drag leaving the window | a system drag session from the start; its translucent preview leaves the window with it (P6c, P18) | AppKit hands the drag to an `NSDraggingSession` at the window's edge, its image the payload's own (a file's icon, a text badge), not the preview; on SDL a drag cannot leave the window (SDL3 has no outgoing drag API) | `DN-K` | `leavingTheWindowHandsTheDragToThePlatformWhenItCan`, `anSDLWindowCannotBeginAnExternalDrag` (`Backends/SDL`) | none |
 | 102 | hovering an external drop on SDL | targets only a destination whose type matches (P16) | SDL gives no types until the drop, so the deepest destination is targeted whatever its type (a non-matching one turns `false` at the drop and runs no action); a URL dragged from a browser arrives as text, so a `URL` destination refuses it. The AppKit backend knows the types and matches SwiftUI | `DN-M` | `anExternalDropWithUnknownTypesTargetsOptimistically`, `sdlDropEventsBecomeOneDropSession` (`Backends/SDL`) | none |
+| 103 | when a drawing surface re-runs | a `Canvas` re-runs whenever its declaring view's body re-runs, even for a change it does not read (probe R1); not when idle (R0) or when only its own view's unchanged inputs are re-evaluated (R3); and on a value it reads (R2) | MetalUI rebuilds the whole tree every dirty frame, so "the declaring body re-ran" is every frame: an `.onDemand` `GPUSurface`/`MetalView` redraws only for a new target (first sight, resize, rescale) or a changed `value:` — R0, R2 and R3's answers, not R1's. Remedy: pass what the drawing reads as `value:` | `MV-G` item 5 | `aRequestedTargetIsCreatedAndDrawnOnceThenReused`, `aChangedValueRedrawsAndAnUnchangedOneDoesNot` | none |
 
 ## Retired
 
@@ -156,6 +158,8 @@ stated.
 | `.onDrag`/`.onDrop` (`NSItemProvider`), `DropDelegate`; table-row and tab drop variants | not built: `NSItemProvider` is Apple-only and cannot cross the portable surface, and `DropDelegate` is a second surface for the same behaviour — `draggable(_:)`/`dropDestination(for:action:isTargeted:)` are offered | `DN-A` item 2 |
 | the `DropSession` family: `dropDestination(for:isEnabled:action:)`, `onDropSessionUpdated`, `dropConfiguration`, `onDragSessionUpdated`, `dragConfiguration`, `dragContainer`, `draggable(containerItemID:)`, `dragPreviewsFormation` | not built (macOS 26 API: a session object with phases, multi-item containers and preview formations is a second design) | `DN-A` item 2 |
 | `Transferable`'s conformer spelling, `static var transferRepresentation` (`DataRepresentation`, `CodableRepresentation`, `ProxyRepresentation`, `FileRepresentation`); CoreTransferable's `async` loading | not built: a MetalUI conformer writes `Transferable`'s four synchronous members (`String`, `URL` and `Data` conform already) | `DN-B` item 1, `DN-S` item 4 |
+| `NSViewRepresentable` (hosting an arbitrary `NSView`, an `MTKView` among them) | not built: app GPU work goes through `GPUSurface`/`MetalView`, which MetalUI composites itself | `MV-F` item 6 |
+| for an app-owned surface (spec §7.7's sketch): a depth attachment, EDR / `rgba16Float` targets, a per-element error channel, device-loss rebuild | not built: the app allocates its own depth texture sized from `pixelSize`; targets are `bgra8Unorm` (§7.8); an encoding error fails the frame's command buffer, which Metal's validation reports | `MV-F` item 6 |
 
 <a id="scope"></a>
 ## What this list does not cover

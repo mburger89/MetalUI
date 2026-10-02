@@ -134,16 +134,40 @@ public enum PlatformError: Error, CustomStringConvertible {
 /// What a window's frames are drawn with (ruling RS-A): one scene and the
 /// glyph atlas it samples, into the window's drawable. `Window` calls
 /// ``beginFrame()`` before building a frame — it needs the scale factor the
-/// frame will be drawn at — and ``finishFrame(scene:atlas:)`` after.
+/// frame will be drawn at — and ``finishFrame(scene:atlas:surfaces:)`` after.
 @MainActor
 public protocol WindowRenderer: AnyObject {
     /// Acquires the next drawable and returns its device scale factor, or
     /// `nil` when none is available this tick; the window stays dirty and
-    /// retries, and ``finishFrame(scene:atlas:)`` is not called.
+    /// retries, and ``finishFrame(scene:atlas:surfaces:)`` is not called.
     func beginFrame() -> Float?
 
-    /// Uploads `atlas` if it changed, draws `scene` into the drawable
+    /// Uploads `atlas` if it changed, runs the frame's app-owned GPU
+    /// `surfaces` (MetalView, ruling `MV-F`), draws `scene` into the drawable
     /// ``beginFrame()`` acquired, and presents it. `false` means the frame was
     /// not drawn; the window stays dirty and retries.
-    func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool
+    ///
+    /// `surfaces` are the frame's **app surfaces' draw requests**, in paint
+    /// order — not the renderer's drawable (`MV-L`'s rejected finding). Each is
+    /// resolved against the renderer's own per-window `SurfaceTargetTable`
+    /// (`MV-E`) and drawn, on the main actor, into the frame's command buffer
+    /// **before** the scene is encoded, so the app's pass completes before
+    /// the composite samples it (`MV-F` item 3).
+    ///
+    /// **No default implementation** (`MV-F` item 1, `EV-AB`'s reason): a
+    /// renderer that forgets surfaces fails to compile rather than drawing a
+    /// blank viewport. Pinned by
+    /// `aWindowRendererWithoutTheSurfacesFinishFrameDoesNotCompile`.
+    /// **Migration** (`MV-K` item 3): an external conformer adds the
+    /// parameter; one with no surface support may ignore it and composites
+    /// nothing for surface runs.
+    func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool
+}
+
+extension WindowRenderer {
+    /// A frame with no app surfaces — so every existing **caller** compiles
+    /// (`MV-F` item 1).
+    public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {
+        finishFrame(scene: scene, atlas: atlas, surfaces: [])
+    }
 }
