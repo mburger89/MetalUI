@@ -511,10 +511,10 @@ an arm in `Tests/MetalUITests/GridElementTests.swift`, `GridCompileGuards.swift`
 |---|---|---|
 | continuous corners (`RoundedCornerStyle.continuous`) drawn exactly | the rect SDF is circular; Apple's continuous curve has no closed form this renderer carries | none — divergence 90 |
 | elliptical corners (`RoundedRectangle(cornerSize:)`), `UnevenRoundedRectangle` | not offered; the primitive has per-corner circular radii, so `UnevenRoundedRectangle` is drawable, but the task names neither | none (plan task 15's inventory) |
-| `Path`, custom `path(in:)` shapes | no path-coverage or tessellation primitive | none |
+| ~~`Path`, custom `path(in:)` shapes~~ | **lifted 2026-10-02** by paths, shadows and transforms: `Path` and `Shape.path(in:)` are built, rasterized on the CPU (`MetalUIPath`) and drawn through the image pipeline, which already holds replay parity (`GX-B`, `GX-C`, `GX-D`; spec `2026-10-02-paths-shadows-transforms-design.md`) | — |
 | gradients and any `ShapeStyle` but a colour token | §7.9 (tokens), and no gradient primitive | none |
-| `StrokeStyle` (dash, cap, join, miter limit) | no stroke primitive; a rect's corner is its join | none |
-| an ellipse clip, `clipShape(Ellipse())` | the mask is a rounded rect on every primitive | none — divergence 91 (a trap) |
+| ~~`StrokeStyle` (dash, cap, join, miter limit)~~ | **lifted 2026-10-02**: `StrokeStyle`, `LineCap`, `LineJoin` and dashes are built by the CPU stroker; a plain-width stroke of a built-in keeps the SDF band (`GX-E`) | — |
+| an ellipse clip, `clipShape(Ellipse())`; since 2026-10-02 a path clip too | the mask is a rounded rect on every primitive | none — divergence 91 (a trap; amended by `GX-D`) |
 | two crossing rounded clips | one mask per primitive | none — divergence 92 |
 | `.interpolation(.high)` | bilinear only | none — divergence 93 |
 | `Image(_:bundle:)`, `Image(nsImage:)`, `Image(systemName:)` (SF Symbols), `resizable(capInsets:resizingMode:)`, `renderingMode`, `symbolRenderingMode`, `Image(decorative:scale:orientation:)`'s `orientation:` | no asset catalog, no AppKit image type crosses the seam, SF Symbols are out of the task's scope | none |

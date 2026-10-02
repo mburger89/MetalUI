@@ -30,39 +30,39 @@ public struct Path: Shape, Equatable, Sendable {
     var storage: PathGeometry
 
     /// An empty path.
-    nonisolated public init() { storage = PathGeometry() }
+    public nonisolated init() { storage = PathGeometry() }
 
     nonisolated init(storage: PathGeometry) { self.storage = storage }
 
     /// A closed rectangle.
-    nonisolated public init(_ rect: Bounds<Pixels>) {
+    public nonisolated init(_ rect: Bounds<Pixels>) {
         self.init()
         addRect(rect)
     }
 
     /// A rounded rectangle whose corners have `cornerRadius` (clamped to half
     /// the shorter side).
-    nonisolated public init(roundedRect rect: Bounds<Pixels>, cornerRadius: Pixels,
+    public nonisolated init(roundedRect rect: Bounds<Pixels>, cornerRadius: Pixels,
                 style: RoundedCornerStyle = .continuous) {
         self.init()
         addRoundedRect(in: rect, cornerSize: Size(width: cornerRadius, height: cornerRadius), style: style)
     }
 
     /// A rounded rectangle whose corners are `cornerSize` ellipse quadrants.
-    nonisolated public init(roundedRect rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
+    public nonisolated init(roundedRect rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
                 style: RoundedCornerStyle = .continuous) {
         self.init()
         addRoundedRect(in: rect, cornerSize: cornerSize, style: style)
     }
 
     /// The ellipse inscribed in `rect` (equal to `Ellipse()`'s, probe PA5).
-    nonisolated public init(ellipseIn rect: Bounds<Pixels>) {
+    public nonisolated init(ellipseIn rect: Bounds<Pixels>) {
         self.init()
         addEllipse(in: rect)
     }
 
     /// A path built by `build` — SwiftUI's `Path { path in … }`.
-    nonisolated public init(_ build: (inout Path) -> Void) {
+    public nonisolated init(_ build: (inout Path) -> Void) {
         self.init()
         build(&self)
     }
@@ -76,32 +76,32 @@ public struct Path: Shape, Equatable, Sendable {
     }
 
     /// Starts a new subpath at `point`.
-    nonisolated public mutating func move(to point: Point<Pixels>) { storage.move(to: Self.point(point)) }
+    public nonisolated mutating func move(to point: Point<Pixels>) { storage.move(to: Self.point(point)) }
 
     /// A line from the current point to `point` (a move on an empty path).
-    nonisolated public mutating func addLine(to point: Point<Pixels>) { storage.addLine(to: Self.point(point)) }
+    public nonisolated mutating func addLine(to point: Point<Pixels>) { storage.addLine(to: Self.point(point)) }
 
     /// A line through each of `points`, the first a move when the path is
     /// empty — SwiftUI's `addLines(_:)`, which starts a new subpath.
-    nonisolated public mutating func addLines(_ points: [Point<Pixels>]) {
+    public nonisolated mutating func addLines(_ points: [Point<Pixels>]) {
         guard let first = points.first else { return }
         move(to: first)
         for point in points.dropFirst() { addLine(to: point) }
     }
 
     /// A quadratic Bézier from the current point to `point`.
-    nonisolated public mutating func addQuadCurve(to point: Point<Pixels>, control: Point<Pixels>) {
+    public nonisolated mutating func addQuadCurve(to point: Point<Pixels>, control: Point<Pixels>) {
         storage.addQuadCurve(to: Self.point(point), control: Self.point(control))
     }
 
     /// A cubic Bézier from the current point to `point`.
-    nonisolated public mutating func addCurve(to point: Point<Pixels>, control1: Point<Pixels>, control2: Point<Pixels>) {
+    public nonisolated mutating func addCurve(to point: Point<Pixels>, control1: Point<Pixels>, control2: Point<Pixels>) {
         storage.addCurve(to: Self.point(point), control1: Self.point(control1), control2: Self.point(control2))
     }
 
     /// A circular arc about `center` — a line (or a move) to its start, then
     /// cubics of at most 90°. `clockwise` reads in y-up terms (PA3).
-    nonisolated public mutating func addArc(center: Point<Pixels>, radius: Pixels, startAngle: Angle, endAngle: Angle,
+    public nonisolated mutating func addArc(center: Point<Pixels>, radius: Pixels, startAngle: Angle, endAngle: Angle,
                                 clockwise: Bool) {
         storage.addArc(center: Self.point(center), radius: Double(radius.value), startAngle: startAngle.radians,
                        endAngle: endAngle.radians, clockwise: clockwise)
@@ -109,26 +109,26 @@ public struct Path: Shape, Equatable, Sendable {
 
     /// The arc of `radius` tangent to the lines from the current point to
     /// `tangent1End` and from there to `tangent2End`.
-    nonisolated public mutating func addArc(tangent1End: Point<Pixels>, tangent2End: Point<Pixels>, radius: Pixels) {
+    public nonisolated mutating func addArc(tangent1End: Point<Pixels>, tangent2End: Point<Pixels>, radius: Pixels) {
         storage.addArc(tangent1End: Self.point(tangent1End), tangent2End: Self.point(tangent2End),
                        radius: Double(radius.value))
     }
 
     /// A closed rectangle subpath, clockwise on screen.
-    nonisolated public mutating func addRect(_ rect: Bounds<Pixels>) {
+    public nonisolated mutating func addRect(_ rect: Bounds<Pixels>) {
         storage.addRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
                         width: Double(rect.size.width.value), height: Double(rect.size.height.value))
     }
 
     /// A closed rectangle subpath for each of `rects`.
-    nonisolated public mutating func addRects(_ rects: [Bounds<Pixels>]) {
+    public nonisolated mutating func addRects(_ rects: [Bounds<Pixels>]) {
         for rect in rects { addRect(rect) }
     }
 
     /// A closed rounded-rectangle subpath with `cornerSize` corners, each
     /// clamped to half its side. `.continuous` is drawn circular
     /// (divergence 90).
-    nonisolated public mutating func addRoundedRect(in rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
+    public nonisolated mutating func addRoundedRect(in rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
                                         style: RoundedCornerStyle = .continuous) {
         storage.addRoundedRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
                                width: Double(rect.size.width.value), height: Double(rect.size.height.value),
@@ -136,26 +136,26 @@ public struct Path: Shape, Equatable, Sendable {
     }
 
     /// The closed ellipse inscribed in `rect`.
-    nonisolated public mutating func addEllipse(in rect: Bounds<Pixels>) {
+    public nonisolated mutating func addEllipse(in rect: Bounds<Pixels>) {
         storage.addEllipse(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
                            width: Double(rect.size.width.value), height: Double(rect.size.height.value))
     }
 
     /// Every subpath of `path`.
-    nonisolated public mutating func addPath(_ path: Path) { storage.append(path.storage) }
+    public nonisolated mutating func addPath(_ path: Path) { storage.append(path.storage) }
 
     /// Closes the current subpath with a line back to its start.
-    nonisolated public mutating func closeSubpath() { storage.closeSubpath() }
+    public nonisolated mutating func closeSubpath() { storage.closeSubpath() }
 
     /// Whether the path has no elements.
-    nonisolated public var isEmpty: Bool { storage.isEmpty }
+    public nonisolated var isEmpty: Bool { storage.isEmpty }
 
     /// The end of the last element, or `nil` on an empty path.
-    nonisolated public var currentPoint: Point<Pixels>? { storage.currentPoint.map(Self.point) }
+    public nonisolated var currentPoint: Point<Pixels>? { storage.currentPoint.map(Self.point) }
 
     /// The smallest rectangle holding the path's outline (its flattened
     /// curves, not their control points); a zero rectangle when empty.
-    nonisolated public var boundingRect: Bounds<Pixels> {
+    public nonisolated var boundingRect: Bounds<Pixels> {
         var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
         for line in Flattener.flatten(storage, tolerance: Self.hitTolerance) {
             for p in line.points {
@@ -178,7 +178,7 @@ public struct Path: Shape, Equatable, Sendable {
     /// when `eoFill` — SwiftUI's `contains(_:eoFilled:)`. Every subpath counts
     /// as closed (PA6). This is the hit test of `contentShape(_:)` over a path
     /// (`GX-D`).
-    nonisolated public func contains(_ point: Point<Pixels>, eoFill: Bool = false) -> Bool {
+    public nonisolated func contains(_ point: Point<Pixels>, eoFill: Bool = false) -> Bool {
         let x = Double(point.x.value), y = Double(point.y.value)
         var winding = 0
         for line in Flattener.flatten(storage, tolerance: Self.hitTolerance) where line.points.count > 2 {
@@ -196,7 +196,7 @@ public struct Path: Shape, Equatable, Sendable {
     }
 
     /// This path moved by `(dx, dy)`.
-    nonisolated public func offsetBy(dx: Pixels, dy: Pixels) -> Path {
+    public nonisolated func offsetBy(dx: Pixels, dy: Pixels) -> Path {
         Path(storage: storage.applying(.translation(Double(dx.value), Double(dy.value))))
     }
 

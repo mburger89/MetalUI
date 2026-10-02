@@ -282,11 +282,14 @@ func transformRecord(degrees: Double = 0, scaleX: Float = 1, scaleY: Float = 1, 
 /// scale(2, 0.5), a rect with one rounded corner flipped `x: −1`, a glyph run
 /// turned 90° and one turned 17°, a linear and a nearest image turned 30°,
 /// and a turned rect under a screen outer mask (rounded) with a local content
-/// mask. Fractional positions throughout, so edges antialias. (`GX-S` item 5:
-/// MetalUIPath's rasters join this frame in lane 3, through MetalUI's public
-/// `Path` and `.shadow` — a separate package cannot call `package` API.)
+/// mask. Fractional positions throughout, so edges antialias. MetalUIPath's
+/// CPU rasters join it (`GX-S` item 5, lane 3, `GX-V` item 6): a star filled
+/// nonzero and the same star even-odd, a round-joined dashed stroke and a
+/// blurred shadow, made by MetalUI's public `Path`/`.shadow` through
+/// `renderFrame` — the production path — and inserted as the images they are.
 @MainActor
 func transformsFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let rasters = try pathRasters(atlas: atlas)
     var scene = Scene()
     let mask = bounds(0, 0, Float(width), Float(height))
     func rect(_ b: MUIBounds, _ c: MUIHsla, radii: MUICorners = corners(0), border: Float = 0, ellipse: Bool = false,
@@ -344,8 +347,52 @@ func transformsFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
     rect(bounds(545.5, 200.25, 70, 140), color(0.94, 0.8, 0.6), radii: corners(10), border: 3,
          clip: bounds(545.5, 200.25, 70, 75),
          transform: transformRecord(degrees: -30, about: 580.5, 270.25, outer: bounds(525, 230, 105, 125), outerRadius: 20))
+    // The CPU rasters, moved by a whole pixel offset into a free region (so a
+    // nearest texel stays centred on its pixel, `TE-AR` item 5).
+    for image in rasters.images {
+        var moved = image
+        moved.bounds.origin.x += 285
+        moved.bounds.origin.y += 150
+        moved.contentMask = mask
+        scene.insert(moved, texture: rasters.textures[Int(image.texture)])
+    }
     scene.finalize()
     return scene
+}
+
+/// Frame 7's CPU rasters (`GX-V` item 6): a 240 × 64 tree of paths and a
+/// shadow through `renderFrame`, its images (nearest, integer device bounds).
+@MainActor
+func pathRasters(atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    func star(_ side: Double) -> Path {
+        Path { path in
+            let unit: [(Double, Double)] = [(0, -1), (0.5878, 0.809), (-0.9511, -0.309), (0.9511, -0.309),
+                                            (-0.5878, 0.809)]
+            let c = side / 2
+            path.move(to: Point(x: Pixels(Float(c + c * unit[0].0)), y: Pixels(Float(c + c * unit[0].1))))
+            for p in unit.dropFirst() {
+                path.addLine(to: Point(x: Pixels(Float(c + c * p.0)), y: Pixels(Float(c + c * p.1))))
+            }
+            path.closeSubpath()
+        }
+    }
+    let zigzag = Path { path in
+        path.move(to: Point(x: Pixels(4), y: Pixels(40)))
+        for i in 1...4 { path.addLine(to: Point(x: Pixels(Float(4 + 14 * i)), y: Pixels(i % 2 == 0 ? 40 : 14))) }
+    }
+    return renderFrame({
+        HStack(spacing: 8) {
+            star(52).fill(.accent).frame(width: Pixels(52), height: Pixels(52))
+            star(52).fill(.accent, style: FillStyle(eoFill: true)).frame(width: Pixels(52), height: Pixels(52))
+            zigzag.stroke(.textPrimary, style: StrokeStyle(lineWidth: Pixels(5), lineCap: .round, lineJoin: .round,
+                                                           dash: [Pixels(9), Pixels(4)]))
+                .frame(width: Pixels(64), height: Pixels(52))
+            Color(.surface).frame(width: Pixels(44), height: Pixels(30))
+                .shadow(color: .textPrimary, radius: Pixels(4), x: Pixels(2), y: Pixels(3))
+        }
+    }, size: Size(width: Pixels(240), height: Pixels(64)), scaleFactor: 1, textSystem: system, atlas: atlas)
 }
 
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
