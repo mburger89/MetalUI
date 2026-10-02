@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-P`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-Q`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -841,3 +841,88 @@ Mutations from a copy of `c5191e0`, full unfiltered suite (**2072**),
 |---|---|---|
 | M2o the counter in `@State` again | `MetalViewDemo.swift` | 2.13 |
 | M2p the table ignores a size change | `GPUSurface.swift` (`MetalUIPlatform`) | 2.14, `aResizeReplacesTheTargetAndARescaleRedrawsWithoutReallocating` |
+
+## MV-P — lane 3: the SDL renderer's surfaces, the SDL demo, the checks as built; M3c respelled, the parity scene given an image
+
+Lane 3 (`f222db0` red, `20ce04f` green) built spec §4's SDL paragraph,
+`SDLGPUDrawContext`, the SDL demo, human-checks section O and the API
+overview's "GPU surfaces" section as designed. No change to
+`mui_renderer_finish`, `images_valid` or `replay.hlsl`. What the lane decided
+that the design did not say:
+
+1. **`mui_renderer_submission_count` counts every renderer submission** —
+   `mui_renderer_finish`'s, `mui_renderer_create_texture`'s **and
+   `mui_renderer_read_offscreen`'s** (spec §4 named the first two; the
+   readback is a submission too, and a counter that skipped it would not be
+   "every `SDL_Submit…`"). Test 3.4 reads no pixels between its frames, so
+   the readback never enters a per-frame delta.
+2. **The parity scene holds an ordinary image ahead of the surfaces.** Over
+   `SurfaceParity`'s scene alone (no `scene.textures`) the texture-index
+   offset is 0, so M3b (the offset forgotten) binds the right targets and
+   reddens nothing. Test 3.1 renders a 60 × 40 target: `SurfaceParity`'s
+   40 × 40 square, literal pixels unchanged, plus a 20-point strip holding a
+   1 × 1 green `ImageTexture` drawn before the surfaces — under M3b surface A
+   binds the green texture. The literal is copied (another package cannot
+   import the root's test target) and compared within
+   `ParityTolerance.outsideGlyphs`: a uniform target samples to its own texel
+   under any filter weight, so `insideGlyphs`' sub-texel reason does not arise.
+   `MetalUISDLTests` gains a direct `ReplayFixture` dependency
+   (`Backends/SDL/Package.swift`) for `ParityTolerance`.
+3. **M3c respelled.** Spec §8's "draw after `mui_renderer_finish`" — the draws
+   recorded into the frame's command buffer after `mui_renderer_finish` has
+   submitted it — **hung** the SDL test process on SDL's Metal backend at the
+   first surface test (killed after ~20 minutes, no summary line): it is not
+   an instrument. Respelled as the draws run after the frame's composite —
+   parked and recorded into the **next** frame's buffer — which is what
+   "after the scene" means for what a viewer sees.
+4. **A draw is recorded only once its frame is submitted**, `MV-O` item 2's
+   rule carried to SDL: `didDraw` and `finishedFrames += 1` run after a
+   successful `mui_renderer_finish`.
+5. **`finishFrame` with no frame begun returns `false` before any surface
+   work** (it reads `mui_renderer_command_buffer`, `nil` outside
+   begin…finish); `finishingWithoutBeginningDrawsNothing` is unchanged.
+6. **`SDLGPUDrawContext.init` is `package`**, as `MetalDrawContext`'s
+   (`MV-N` item 1): app code cannot hand a draw a forged buffer or target.
+   `clear` goes through `mui_gpu_clear_texture`, which refuses a null buffer
+   or texture rather than calling SDL.
+7. **`SDLWindowRenderer.frameCommandBuffer`** (`package`, the bridge's
+   current buffer) exists so test 3.5 can compare the context's buffer with
+   the frame's own.
+
+**Mutations**, each from a copy of the committed file (`20ce04f`), full
+unfiltered `Backends/SDL` `swift test --no-parallel` (23 + 46), `git status
+--short` clean after each:
+
+| mutation | file | reddens |
+|---|---|---|
+| M3a surface quads not appended | `SDLWindowRenderer.swift` | 3.1, 3.2, 3.3, 3.4, 3.5 (the bridge's `images_valid` refuses the frame) |
+| M3b texture-index offset forgotten | `SDLWindowRenderer.swift` | 3.1 |
+| M3c draws after the composite (next frame's buffer, item 3) | `SDLWindowRenderer.swift` | 3.1, 3.2, 3.3, 3.4, 3.5 |
+| M3c as spec §8 spelled it (into the submitted buffer) | `SDLWindowRenderer.swift` | — hangs the process (item 3) |
+| M3d a fresh table every frame | `SDLWindowRenderer.swift` | 3.2, 3.3, 3.4, 3.5 |
+| M3e `release` does nothing | `SDLWindowRenderer.swift` | 3.3, 3.4 |
+| M3f a new target cleared in its own submitted buffer | `SDLBridge.c` | 3.4 (the submission clause alone) |
+| M3f′ `retire_fence` → `release_fence` in `mui_renderer_finish` | `SDLBridge.c` | 3.4 (the fence clause), `backToBackFramesNeverReleaseAnUnsignaledFence`, `imageTexturesPersistAndAreReleasedWhenAbsent` |
+| M3g a fresh command buffer for the context | `SDLBridge.c` | 3.1, 3.2, 3.3, 3.4, 3.5 (3.5's buffer clause among them) |
+| M3h `.surface` mapped to `.image` | `ReplayFixture.swift` | 3.6 (exit status and message) |
+
+(3.1 `anSDLSurfaceFillMatchesTheMetalParityLiteral`, 3.2
+`anSDLSurfaceIsDrawnBeforeTheSceneAndKeptAcrossFrames`, 3.3
+`anSDLSurfaceTargetIsReleasedWhenNoLongerReferenced`, 3.4
+`surfaceFramesSubmitOnceAndNeverReleaseAnUnsignaledFence`, 3.5
+`theSDLDrawContextCarriesTheFramesCommandBufferAndTarget`, 3.6
+`aSceneWithASurfaceIsNotRecordable`.) M3f′ also reddens
+`imageTexturesPersistAndAreReleasedWhenAbsent`, which spec §8 did not name:
+it asserts the same fence count after its frames.
+
+**Counts.** `Backends/SDL` on macOS **23 + 46** (`ReplayFixtureTests` +1,
+`MetalUISDLTests` +5 — spec §9's +6); a `swift:6.4-noble` (aarch64, Mesa
+lavapipe) container builds `Backends/SDL` and the root package's portable
+targets with 0 `error:` and runs **23 + 44** (44 = 39 + 5; two
+`MetalUISDLTests` are macOS-only), every surface test passing on Vulkan.
+Root suite unmoved at **2072** (lane 3 changes no root `Sources/`/`Tests/`
+file); 0 px against `330f02b` in all fourteen offscreen images, every scene
+identical. The real-window capture was not taken: the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`. The SDL demo ran
+five seconds under `METALUI_METALVIEW_DEMO=1` without a crash (screen
+locked — not a look; section O8 is owed to a human).

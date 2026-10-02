@@ -160,9 +160,10 @@ private func close(_ a: [Int], _ b: [Int], within tolerance: Int) -> Bool {
 /// with an unchanged request is not drawn again and the second frame shows the
 /// same pixels from the kept target.
 ///
-/// Mutations **M3c** (draws run after `mui_renderer_finish`: the first frame
-/// shows the background) and **M3d** (the table replaced every frame: two
-/// targets, two draws).
+/// Mutations **M3c** (the draws run after the frame's composite — parked and
+/// recorded into the NEXT frame's buffer, `MV-P` item 3: the first frame shows
+/// the background) and **M3d** (the table replaced every frame: two targets,
+/// two draws).
 @MainActor
 @Test func anSDLSurfaceIsDrawnBeforeTheSceneAndKeptAcrossFrames() throws {
     let renderer = try offscreenRenderer()
