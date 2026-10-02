@@ -3,7 +3,8 @@
 Branch `feat/scaffold`, first stacked on `feat/app-icon` (PR #38), rebased
 onto master after #38 merged (`95234db`). **Not a plan task**: user request
 2026-10-01. Rulings `SC-A`…`SC-E` in
-`docs/superpowers/2026-10-01-scaffold-decisions.md` (next unused `SC-F`).
+`docs/superpowers/2026-10-01-scaffold-decisions.md`, and `SC-F`…`SC-I` from
+the review fixes (§6; next unused `SC-J`).
 User guide: `docs/getting-started.md`. **Numbering**: written as §71; `feat/metal-view` (PR #40) merged first
 and took §71, so this line renumbered to §72 at its rebase onto `65c0cc7`
 (the 24→25 precedent).
