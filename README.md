@@ -103,6 +103,14 @@ macOS 14+, Swift 6.4 toolchain, a Metal-capable device.
 swift run -c release MetalUIDemo
 ```
 
+To start your own app instead — a package with a window, `@State` and a
+script that bundles a signed `.app` — see
+[`docs/getting-started.md`](docs/getting-started.md):
+
+```bash
+swift run --package-path MetalUI metalui new MyApp   # from beside a clone
+```
+
 Demo keys: **M** modal, **Space** theme, **F**/**Escape** focus, **=**/**-**
 count, **A** animation, **Q** quit.
 

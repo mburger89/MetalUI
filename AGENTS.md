@@ -36,7 +36,8 @@ summary.
   `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `AI-` (app
   icon, next `AI-O`; own decisions doc
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
-  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), …; the full
+  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-F`;
+  `2026-10-01-scaffold-decisions.md`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -83,7 +84,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   merge).
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
-  (sum them). Twelve env-gated oracle/measure tests count while skipped.
+  (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
 - **`--no-parallel` always**: CoreText font registration and `malloc_logger`
   tests race under a parallel run. **Adding an AppKit test? Run the whole
   suite unfiltered** (`--filter` is a different program).
@@ -117,7 +118,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty one-way-dependent targets plus `Tests/MetalUITestSupport`;
+Twenty-two one-way-dependent targets (the last two `MetalUIScaffold` and
+`MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
 Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
@@ -325,6 +327,14 @@ Packaging (bundle/`.desktop`/`.ico`) is build-side: `docs/packaging.md`.
 throw `ShaderLibraryError.resourceMissing` naming every directory tried, not
 trap. A new resource lookup in `MetalUIRender` goes through
 `ShaderLibrary.resourceBundle(candidates:)` too.
+
+**Scaffolding** (`SC-`, record §71, `docs/getting-started.md`): `metalui new`
+is the `MetalUICLI` executable over `MetalUIScaffold` — Foundation only, every
+declaration `package` (a tool, not API: no inventory row). `--cross-platform`
+requires `--local` (`Backends/SDL` is path-only, `SC-C`). **A change to
+`docs/packaging.md`'s recipe, `App`'s initialisers or the starter's API
+changes the generated text too** — re-run
+`METALUI_RUN_SCAFFOLD_BUILD_TEST=1 swift test --filter aGeneratedPackageBuildsAgainstThisCheckout`.
 
 **`StyledElement`** has four requirements (`style`, `decoration`, `elementID`,
 `handlers`). A conformer calls `registerAndScope(...)` in `prepaint` and
