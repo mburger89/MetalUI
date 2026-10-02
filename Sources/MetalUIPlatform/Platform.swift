@@ -140,11 +140,6 @@ public protocol Platform: AnyObject {
     func setApplicationIcon(_ images: [ImageTexture])
 }
 
-// RED-FIRST SKELETON — removed by the implementation commit.
-extension Platform {
-    public func setApplicationIcon(_ images: [ImageTexture]) {}
-}
-
 /// Why a platform could not open a window.
 public enum PlatformError: Error, CustomStringConvertible {
     case windowCreationFailed

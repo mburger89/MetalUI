@@ -142,7 +142,27 @@ public final class App {
     /// `CFBundleIconFile`); this is AppKit's runtime override,
     /// `NSApplication.applicationIconImage`, made portable. Shipping a bundle
     /// with its own icon is build-side: `docs/packaging.md`.
-    public var icon: [ImageBitmap] = []
+    public var icon: [ImageBitmap] = [] {
+        didSet { platform.setApplicationIcon(App.normalized(icon)) }
+    }
+
+    /// The platform contract of ``icon`` (`AI-C` item 3): the bitmaps' own
+    /// textures (no copy), sorted by `width × height` ascending and stable, a
+    /// bitmap repeating an earlier `(width, height)` pair dropped — the first
+    /// written wins.
+    static func normalized(_ bitmaps: [ImageBitmap]) -> [ImageTexture] {
+        var seen: [(Int, Int)] = []
+        var kept: [(index: Int, texture: ImageTexture)] = []
+        for (index, bitmap) in bitmaps.enumerated()
+        where !seen.contains(where: { $0 == (bitmap.width, bitmap.height) }) {
+            seen.append((bitmap.width, bitmap.height))
+            kept.append((index, bitmap.texture))
+        }
+        return kept.sorted {
+            let (a, b) = ($0.texture.width * $0.texture.height, $1.texture.width * $1.texture.height)
+            return a != b ? a < b : $0.index < $1.index
+        }.map(\.texture)
+    }
 
     /// Runs the platform's event loop, handing every window its input and
     /// display-link ticks until the platform stops.

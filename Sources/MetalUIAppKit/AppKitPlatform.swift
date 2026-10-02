@@ -731,12 +731,19 @@ public final class AppKitPlatform: Platform {
     /// the bundle's icon, else the generic executable icon. The image is
     /// assigned again when ``run()`` starts the application.
     public func setApplicationIcon(_ images: [ImageTexture]) {
+        iconImage = AppKitIcon.image(from: images)
+        NSApplication.shared.applicationIconImage = iconImage
     }
 
     /// Runs `NSApplication`'s event loop; returns when the application stops.
     public func run() {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
+        // `AI-E` item 4: an icon set before `run()` is assigned again once the
+        // process is a regular application with a Dock tile. Defensive and
+        // **pinned by no test** (`AI-K`: no headless test can call `run()`);
+        // human check O1 is its only check.
+        if let iconImage { app.applicationIconImage = iconImage }
         app.activate(ignoringOtherApps: true)
         app.run()
     }
