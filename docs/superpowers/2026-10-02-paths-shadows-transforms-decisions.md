@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-U`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-V`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -947,7 +947,9 @@ image pipeline frame 6 already holds to parity.
    inner offset is flattened into the bounds before the outer rotation
    records, so the record holds `R` alone and `R · T` is in the bounds. The
    red run's failure showed it; the corrected arms (`fxLands`) still redden
-   under M2g.
+   under M2g. **Amended by `GX-U` item 4**: these corrected arms landed with the
+   implementation (`7568ac2`), not on the red commit; re-run since against
+   `267fd8e`'s skeleton sources they redden (2.7 all four arms, 2.22 both).
 6. **A focused field's caret area** is mapped in `TextField`/`TextEditor`
    (`Frame.effectBoundingBox`, including the field's own legacy effects, which
    open only inside its `registerAndScope`), not in `Window`.
@@ -971,7 +973,7 @@ image pipeline frame 6 already holds to parity.
     census 2031 declarations, 102 families; the smallest thread building
     every production tree **672 KB** (arm64 debug, 16 KB bisection, 656
     failing — 656 KB was recorded at drag and drop's close, not re-taken at
-    `dc96395`), inside the 1 MB budget. 0 px against `dc96395` in all
+    `dc96395`; **re-taken at `dc96395` by `GX-U` item 5: also 672 KB**), inside the 1 MB budget. 0 px against `dc96395` in all
     fourteen offscreen images, every scene identical. `swift build --build-tests`
     0 warnings; `Backends/SDL` builds and runs 24 + 57; a `swift:6.4-noble`
     aarch64 container builds with 0 `error:`/`warning:` and runs 199 + 22 +
@@ -1017,3 +1019,86 @@ image pipeline frame 6 already holds to parity.
 rounding keeps its axis-aligned frame. Item 3's unbounded clip is a finite
 ±10⁶ points, beyond any window. Item 1's degenerate drop means a composed
 zero scale over rotated content draws nothing, as `GX-H`'s zero scale does.
+
+---
+
+## GX-U — The share stops at any element but a sharing wrapper; a shared record's visible frame (review round)
+
+**Finding.** `GX-T` item 4's share mechanism tested rect equality alone, so a
+wrapper whose content is a `ZStack`, an `.overlay` or a `.background`
+attachment shared an effect on **one** of their children at the same rect:
+`ZStack { square; square.rotationEffect(45°) }.onTapGesture { }` (two
+100 × 100 squares) lost the unrotated square's corner (53, 53) — neither
+SwiftUI's answer (the union of the children's shapes) nor divergence 41's
+(the wrapper's whole axis-aligned frame). `GX-P` item 1 limits the share to a
+chain of effect, handler, gesture, draggable, drop, accessibility or
+environment layers; the implementation did not check what lay between.
+Separately, a shared accessibility record's `visibleFrame` was the old
+axis-aligned visible rect cut by the new bounding box — a 90° turn of the
+160 × 20 bar published `(90, 90, 20 × 20)` where the other written order (and
+the direct path) published `(90, 20, 20 × 160)`; AppKit hit-tests
+accessibility by `visibleFrame`. Nothing pinned `visibleFrame` under an
+effect (the reviewer's V4 — the direct path's visible frame untransformed —
+reddened nothing).
+
+**Ruling.**
+
+1. **A share floor.** `Frame.shareFloor` is the lowest index of
+   `shareCandidates` an effect may patch. Every element entry —
+   `Element.prepaintGroup` and its copy in `AnyElement`'s group entry — raises
+   it to the stack's count for the element's prepaint
+   (`Frame.enteringShareBarrier`, recording the floor it entered at as
+   `shareFloorAtEntry`). A **sharing wrapper** (the five of `GX-T` item 4)
+   lowers it back to its entry floor for its content
+   (`passingShareFloorThrough`), so a candidate outside it stays reachable.
+   An effect patches only candidates at or above the floor **its own
+   element** entered at — the modifier chain carrying the effect layer (whose
+   layers enter no element between them) or the legacy element (whose effects
+   open before any child enters). An `EnvironmentScope`, a `TransactionScope`
+   and the other identity- or layout-transparent groups are not elements and
+   raise nothing. So a `ZStack`, an overlay or background attachment, a
+   stack, a grid, a leaf — any other element between the wrapper and the
+   effect — stops the share; rect equality (`GX-T` item 4) still stops a
+   rect-changing layer inside a chain. The `ZStack`/overlay/background cases
+   then answer divergence 41's axis-aligned frame, as with no rotation.
+   `withoutRenderEffects` (a `Deferred`) resets both floors with the stack.
+2. **A shared record's visible frame is computed as the direct path's**
+   (`accessibilityGeometry` inside an effect): the bounding box of the
+   record's pre-effect visible rect (the wrapper's rect cut by the clip in
+   force at its registration, now stored on `ShareCandidate.clip`), cut by
+   the effect's outer clip. Both written orders now publish the same frame
+   and visible frame.
+3. **Tests**: 2.32 `aWrapperOverAZStackOrOverlayDoesNotShareAChildsEffect`
+   (new: a `ZStack`, an `.overlay` and a `.background` with a rotated child,
+   the unrotated corner (53, 53) hits, control with no rotation); 2.31 asserts
+   frame and visible frame on both written orders; 2.15 asserts the X2 visible
+   frame on both orders; 2.27 gains a two-wrapper arm
+   (`.rotationEffect(90°).accessibilityLabel("x").onTapGesture`). Red first
+   (`e3dd354`: 2.32's three arms, 2.31's and 2.15's after-order visible
+   frames). Mutations (whole unfiltered suite, 2191 tests, `FR-J` present,
+   `git status` clean after each): **MU1** (the floor ignored in
+   `shareWithEnclosingWrappers`) → 2.32 alone (three issues), on `3206ed1`
+   and re-run on the final code; **MU2** (the visible frame back to the
+   intersection) → 2.15, 2.31; **V4** (the direct path's visible frame
+   untransformed) → 2.15, 2.31 — it reddened nothing before this ruling;
+   **MU4** (a sharing wrapper does not pass the floor through) → 2.27 alone
+   (its new arm). **MU3** (the modifier chain does not pass the floor through,
+   as first written) stayed green: the effect reads its own element's entry
+   floor, so the chain's pass-through was dead code — **deleted**, not kept
+   unpinned.
+4. **Red-first gap, recorded**: 2.7's and 2.22's current arms (`fxLands`,
+   `GX-T` item 5) landed in the implementation commit `7568ac2`, not on the
+   red commit `267fd8e`. Re-run against `267fd8e`'s sources with today's
+   `RenderEffectTests.swift`, they redden: 2.7 all four arms, 2.22 both — so
+   they rest on that run and on M2g, not on M2g alone.
+5. **The stack budget's baseline**: the bisection (16 KB steps, an exit test
+   per size, `buildEveryProductionTree(onAThreadOf:)`, arm64 debug, native
+   build system) reads **672 KB at `dc96395`** (656 fails) and **672 KB at
+   `3206ed1`** — lane 2 moves it by less than one step. The rise from drag and
+   drop's 656 KB predates this branch.
+
+**Cost if wrong.** An element that should be transparent to the share and is
+not a sharing wrapper (a future single-child wrapper element) stops it: a
+handler written outside it over an effect keeps its axis-aligned frame
+(divergence 41), the conservative answer. A new sharing wrapper owes a
+`sharingRegistrationsWithEffects` call, which passes the floor through.

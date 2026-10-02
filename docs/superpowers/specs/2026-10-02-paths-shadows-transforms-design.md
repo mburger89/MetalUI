@@ -1,7 +1,7 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-T` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's)
+task). Rulings `GX-A`…`GX-U` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's, `GX-U` lane 2's review round)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;
@@ -227,7 +227,9 @@ the inverse composed affine and the outer clip; accessibility records store
 the bounding box of the transformed bounds. A registration made by a proper
 ancestor at the effect's own rect (a handler, gesture, draggable, drop
 destination or accessibility layer written after the effect) is transformed
-too; a rect-changing layer between them stops it (`GX-P` items 1–2). `Window`
+too; a rect-changing layer between them stops it (`GX-P` items 1–2), and so
+does any element between them that is not such a wrapper — a `ZStack`, an
+overlay or background attachment, a stack (`GX-U`). `Window`
 maps an event point through the hit hitbox's inverse before a gesture leaf, a
 value track, a text press or a drop destination reads it (`GX-P` item 3). A zero scale skips the content's
 paint (nothing drawn) and registers hitboxes that contain nothing. Layout is
@@ -496,7 +498,8 @@ through the hit hitbox's inverse, `GX-P` item 3), and the handler wrappers
 | 2.28 | `aHandlerOutsideAPaddingOverAnEffectHitsItsAxisAlignedFrame` (divergence 41 amended pin, `GX-P` item 2) | — | M2y: propagation through a rect-changing layer |
 | 2.29 | `pointConsumersReadTheDeclarersLocalPoint` (`GX-P` item 3) — a `Slider` under `scaleEffect(x: 2, anchor: .leading)` pressed at its drawn 75 % reads 0.75; a `DragGesture` under a 90° rotation dragged +20 in window x reports translation (0, −20); a drop's action location under `offset(x: 40)` is destination-local | — | M2z: `Window` passes the raw window point |
 | 2.30 | `anEffectInAScrolledScrollerTurnsAboutItsScrolledAnchor` (`GX-P` item 4) — paint record and hitbox both about the scrolled centre | — | M2aa: anchor omits `activeOffset` |
-| 2.31 | `anAccessibilityRecordWrittenAfterAnEffectFollowsIt` — `.rotationEffect(90°).accessibilityLabel("x")` on the proposal path publishes the transformed bounding box | — | M2x |
+| 2.31 | `anAccessibilityRecordWrittenAfterAnEffectFollowsIt` — `.rotationEffect(90°).accessibilityLabel("x")` on the proposal path publishes the transformed bounding box, frame and visible frame, on both written orders (`GX-U` item 2) | — | M2x; MU2, V4 |
+| 2.32 | `aWrapperOverAZStackOrOverlayDoesNotShareAChildsEffect` (`GX-U` item 1) — a tap over a `ZStack`, an `.overlay` or a `.background` whose child is rotated at the same rect still hits the unrotated corner (53, 53) | — | MU1: the share floor ignored |
 | G2.1 | `theRenderEffectSpellingsCompileFromAPlainImport` (whole-file guard) | no API | MG2.1: one spelling made `internal` |
 
 ### Lane 3 — `Path`, styles, shadows, the demo, the documents
