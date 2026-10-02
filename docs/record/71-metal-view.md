@@ -449,4 +449,4 @@ rulings `AI-A`…`AI-N`) merged into `feat/metal-view` at `5f5dfea`.
    --no-parallel` printed **`Test run with 2093 tests in 3 suites passed after
    110.170 seconds`** (2072 + master's 21), the `FR-J no-argument frame:
    succeeded=true` line present. Guards **129** (128 + `AppIconCompileGuards`'
-   one). `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): `swift build --build-tests` 0 `error:`, `swift test --no-parallel` **23 + 55** (the branch's 23 + 48 plus the app icon's seven `SDLIconTests`; master read 22 + 48). Pixels: PIXELS.
+   one). `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): `swift build --build-tests` 0 `error:`, `swift test --no-parallel` **23 + 55** (the branch's 23 + 48 plus the app icon's seven `SDLIconTests`; master read 22 + 48). Pixels: `docs/probes/demo-pixels/compare.sh <scratch> 95234db 4157f76` (the merge commit) reads **0 differing pixels and identical scenes in all fourteen** images, the controls non-zero where they must be (light vs dark 1 048 576, default vs modal 1 031 003, prod default vs modal 491 221).
