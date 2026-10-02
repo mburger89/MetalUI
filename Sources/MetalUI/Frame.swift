@@ -2252,6 +2252,9 @@ public final class Frame {
     /// `requestAnotherFrame()` (CLAUDE.md "Animation": never raise both).
     func drawSurface(id: GlobalElementID, bounds: Bounds<Pixels>, policy: RedrawPolicy,
                      value: AnyHashable?, draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+        // Counted before the guards, so a skipped sibling sharing one `.id`
+        // keeps its place (`MV-M` item 5).
+        let occurrence = surfaceRegistry.occurrence(for: id)
         let width = min(Self.maxSurfaceTargetSide, Int((bounds.size.width.value * scaleFactor).rounded()))
         let height = min(Self.maxSurfaceTargetSide, Int((bounds.size.height.value * scaleFactor).rounded()))
         guard width > 0, height > 0 else { return }
@@ -2269,7 +2272,7 @@ public final class Frame {
             - max(translated.origin.y.value, clip.origin.y.value)
         guard overlapWidth > 0, overlapHeight > 0 else { return }
 
-        let target = SurfaceTarget(id: surfaceRegistry.id(for: id), width: width, height: height)
+        let target = SurfaceTarget(id: surfaceRegistry.id(for: id, occurrence: occurrence), width: width, height: height)
         let quad = MUIImage(bounds: translated.scaled(by: scaleFactor),
                             contentMask: clip.scaled(by: scaleFactor),
                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),

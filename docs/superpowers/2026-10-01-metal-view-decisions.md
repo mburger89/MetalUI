@@ -13,7 +13,7 @@ Record: `../record/69-metal-view.md`. Evidence:
 on-screen window, `R…` when `Canvas` re-runs; its header carries the recorded
 output and the reading).
 
-Prefix **`MV-`**, lettered. **Next unused: `MV-M`.** (This line moves in the
+Prefix **`MV-`**, lettered. **Next unused: `MV-N`.** (This line moves in the
 commit that appends a ruling; read the last `## MV-` heading.)
 
 Branch `feat/metal-view` from `330f02b` (master: drag and drop merged, PR
@@ -601,3 +601,59 @@ in another decisions doc; this feature's rulings, rejections included, are
 (23 tests, the seam change) but its files are disjoint from lanes 2 and 3
 except the signature-only hand-off edits spec §8 names.
 
+## MV-M — lane 1's review round: four unpinned clauses pinned, the occurrence counted before the guards, the scene's one-id-one-size trap ruled
+
+The reviewer of lane 1 (`2cc857f`) ran mutations against the 2051-test suite;
+seven left it green. Each is now pinned or fixed, red first (`66483c2`):
+
+1. **The layer** (mutation A, `layer: 0` for `activeLayer` in
+   `Frame.drawSurface`). 1.17 compared a surface's layer to an image's in a
+   tree with no portal, both 0. New 1.21,
+   `aSurfaceInsideADeferredPortalIsCompositedOnThePortalsLayer`: both inside
+   a `Deferred`, the image's layer `try #require`d non-zero.
+2. **The scroll offset** (mutation B, `let translated = bounds`). New 1.22,
+   `aScrolledSurfaceMovesWithItsScrollerAndRequestsNothingOnceScrolledOut`:
+   a surface beside an image in a real `ProposalScrollView`, scrolled 30
+   (moved up 30, level with the image, one request) and then to its 80
+   ceiling (no quad, no request).
+3. **Registry continuity** (mutation D, `endFrame()` keeps every id).
+   `TransitionHarness` now holds one `SurfaceRegistry` across its frames, as
+   a `Window` does. New 1.23,
+   `aSurfaceReinsertedDuringItsRemovalGetsANewTarget`. The reviewer's
+   scenario — the live surface and its ghost in one scene — does not arise:
+   an insertion during a removal deletes that key's ghost
+   (`TransitionStore`), so the re-inserted surface is alone; what the test
+   pins is that it gets a new target rather than the one the ghost kept
+   alive in the renderer's table (which, `.onDemand` at one size, would not
+   redraw — `MV-G` item 4's "coming back is a new target").
+4. **The `.surface` arm of `TransitionEffect.apply`** (mutation G, the
+   inner-mask block dropped). New 1.24,
+   `aSurfacesInnerMaskScalesWithItsTransitionAsAnImagesDoes`: a clip inside a
+   `.transition(.scale)` group, mid-insertion, surface and image masks and
+   radii equal, the mid mask `try #require`d different from the settled one.
+5. **The occurrence is counted before the no-GPU-work guards** (a fix, not
+   only a pin). `MV-L` item 1's occurrence counted only surfaces that passed
+   `drawSurface`'s zero-size, clip and opacity guards, so among siblings
+   sharing one `.id` (divergence 72) a skipped earlier sibling shifted the
+   next one onto its target — at one size an `.onDemand` surface then showed
+   the other's last contents undrawn. `SurfaceRegistry.occurrence(for:)` now
+   runs first and `id(for:occurrence:)` after the guards (only that call
+   marks a surface painted, so an unpainted one still loses its id at
+   `endFrame()`). New 1.25,
+   `aSkippedSiblingDoesNotShiftASharedIDsNextSurfaceOntoItsTarget` (red
+   before: `after == [before[1]]` read `[before[0]]`). A `.hidden()` surface
+   is not reached by paint at all and does not count — it is skipped as
+   every other hidden element is.
+6. **`Scene.insert(_:surface:layer:)`'s one-id-one-size precondition is
+   ruled an invariant** (mutation F). A renderer binds one texture per
+   target, and `Frame` never builds such a scene: a live surface's id is
+   minted per frame at one size, an id that stops painting is never reused,
+   and a ghost's or a drag preview's replay names its source's size or a
+   retired id. Kept as a trap; pinned by the exit test 1.3b,
+   `oneSurfaceIDAtTwoSizesInOneSceneTraps` (1.3's same-size repeat is the
+   non-trapping control).
+7. **The policy reaches the request** (mutation M, every request
+   `.onDemand`). 1.15 now also asserts the `.continuous` surface's request
+   carries `.continuous` (1.16 already pins `.onDemand`).
+
+Root count **2051 → 2057** (1.21–1.25, 1.3b).

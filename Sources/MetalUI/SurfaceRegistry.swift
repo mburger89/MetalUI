@@ -13,7 +13,8 @@ import MetalUIScene
 /// do not move (`theSevenRetentionSlotsAreMutuallyDistinct`).
 ///
 /// **The key is (`GlobalElementID`, occurrence)**, the occurrence counting
-/// surfaces with that id already painted this frame — so two siblings sharing
+/// surfaces with that id already reached by paint this frame, whether or not
+/// they passed the no-GPU-work guards (`MV-M` item 5) — so two siblings sharing
 /// one `.id` (divergence 72) get two targets rather than two requests for one,
 /// which a renderer's `SurfaceTargetTable` traps on (`MV-L` item 1). Each keeps
 /// its target across frames while the paint order holds.
@@ -40,11 +41,21 @@ final class SurfaceRegistry {
     /// How many surfaces hold an id — test observability.
     var count: Int { ids.count }
 
-    /// The id of the next surface painted for `element` this frame, minted on
-    /// first sight.
-    func id(for element: GlobalElementID) -> SurfaceID {
+    /// The occurrence of the next surface reached by paint for `element` this
+    /// frame, counted **before** `Frame.drawSurface`'s no-GPU-work guards —
+    /// so a sibling sharing one `.id` that is skipped (zero-sized, clipped
+    /// out, transparent) still holds its place and does not shift the next one
+    /// onto its target (`MV-M` item 5).
+    func occurrence(for element: GlobalElementID) -> Int {
         let occurrence = occurrences[element, default: 0]
         occurrences[element] = occurrence + 1
+        return occurrence
+    }
+
+    /// The id of the surface painted for `element` at `occurrence` this frame,
+    /// minted on first sight. Only a surface that reaches this call is
+    /// painted, so only it keeps its id past ``endFrame()``.
+    func id(for element: GlobalElementID, occurrence: Int) -> SurfaceID {
         let key = Key(element: element, occurrence: occurrence)
         painted.insert(key)
         if let id = ids[key] { return id }
