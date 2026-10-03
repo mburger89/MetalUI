@@ -204,9 +204,11 @@ func thePopoverSitsOnItsArrowEdgeOfTheAnchor(edge: Edge, origin: [Float]) throws
 }
 
 /// **3.5** (P4a, `MN-Y` item 1). A press outside the popover writes its
-/// binding `false` from input — at the press — and then reaches the `Button`
-/// it lands on, which runs once on the release. Mutation: claim the press
-/// after dismissing.
+/// binding `false` from input — at the press — and the `Button` it lands on
+/// runs once on the release. **This test does not separate a passed-on press
+/// from a claimed one** (a `Button` clicks from `active` on the release
+/// either way); 3.28 owns "passes on" (`MN-AH` item 2). Mutation **V3.5a**:
+/// return before the dismissal loop (nothing dismissed).
 @MainActor
 @Test func aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn() throws {
     let log = PLog()
@@ -573,5 +575,119 @@ private struct PCounter: Component {
     #expect(rect.background.h == surface.h && rect.background.l == surface.l, "the .surface fill")
     #expect(images.count == 1, "one image, the shadow — no arrow path: \(images.count)")
     #expect(glyphs.isEmpty)
+    withExtendedLifetime(window) {}
+}
+
+// MARK: - 3.27–3.29: the review round (`MN-AH`)
+
+/// **3.27** (`MN-AH` item 1, `MN-L` item 2). The proposal path presents too,
+/// through its own entry (`requestProposalLayout`): a fixed 40 × 20
+/// `HStack { ProposalText }` root — centred at (180, 190), `CN-J` — with a
+/// popover shows it on the second frame at the legacy placement; the wrapper
+/// is one identity level for its caller (every element of the plain root sits
+/// one level deeper, at cursor 0 under the wrapper, with the same bounds; the
+/// popover's content under cursor 1); an outside press dismisses it.
+/// Mutation **VX.4**: lay out `PopoverSlot(nil)` in place of `layOutPopover`
+/// in `requestProposalLayout`.
+@MainActor
+@Test func aProposalPathPopoverPresentsPlacesAndDismisses() throws {
+    let log = PLog()
+    let (plain, _) = try popoverWindow {
+        HStack { ProposalText("a") }.frame(width: px(40), height: px(20))
+    }
+    let (window, platform) = try popoverWindow(settle: false) {
+        HStack { ProposalText("a") }.frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log)) { content100x50() }
+    }
+    #expect(window.lastOpenPopovers.isEmpty, "frame 0: no anchor yet")
+    try #require(window.needsRedraw, "frame 0 asked for another")
+    window.drawFrameIfNeeded()
+    let open = try #require(window.lastOpenPopovers.first, "frame 1: presented")
+    #expect(xywh(open.anchor) == [180, 190, 40, 20], "the anchor is the centred root")
+    #expect(xywh(open.bounds) == [138, 108, 124, 74], "above it, 8 pt away, centred")
+    // Identity: the wrapper takes the plain root's id `R`; each plain element
+    // under `R` moves one level down, behind `child(R, 0)`.
+    let root = open.id
+    try #require(plain.lastElementBounds[root] != nil, "the wrapper takes the plain root's id")
+    func rebased(_ id: GlobalElementID) -> GlobalElementID {
+        guard id != root, let parent = id.parent else { return GlobalElementID.child(of: root, at: 0, name: nil) }
+        return GlobalElementID(component: id.component, parent: rebased(parent))
+    }
+    try #require(plain.lastElementBounds.count >= 3, "frame layer, HStack, text: \(plain.lastElementBounds.count)")
+    for (id, bounds) in plain.lastElementBounds {
+        #expect(window.lastElementBounds[rebased(id)] == bounds, "\(id) sits one level down, unmoved")
+    }
+    let slot = GlobalElementID.child(of: root, at: 1, name: nil)
+    #expect(window.lastElementBounds.keys.contains { id in
+        var cursor: GlobalElementID? = id.parent
+        while let c = cursor { if c == slot { return true }; cursor = c.parent }
+        return false
+    }, "the popover's content descends from cursor 1")
+    platform.simulateInput(ldown(20, 20))
+    #expect(log.entries == ["shown=false"], "an outside press dismisses, from input")
+    platform.simulateInput(lup(20, 20))
+    redraw(window)
+    #expect(window.lastOpenPopovers.isEmpty)
+    withExtendedLifetime((plain, window)) {}
+}
+
+/// **3.28** (`MN-AH` item 2, `MN-Y` item 1). The outside press that dismisses
+/// is **passed on**, not merely followed by a click: a `TapGesture` beneath
+/// forms its arena at the press, so it runs only when the press reached it
+/// (3.5's `Button` runs on the release from `active` alone, so a claimed press
+/// still clicks it). Mutation **V3.5b**: claim a press that dismissed a popover.
+@MainActor
+@Test func theDismissingPressReachesAGestureBeneath() throws {
+    let log = PLog()
+    let (window, platform) = try popoverWindow {
+        Column {
+            Box().frame(width: px(400), height: px(100)).onTapGesture { log.entries.append("tap") }
+            Box().frame(width: px(1), height: px(90))
+            Row {
+                Box().frame(width: px(180), height: px(1))
+                Box().frame(width: px(40), height: px(20)).popover(isPresented: shownBinding(log)) { content100x50() }
+                Box().frame(width: px(180), height: px(1))
+            }
+            Box().frame(width: px(1), height: px(190))
+        }
+    }
+    _ = try chrome(window)
+    platform.simulateInput(ldown(200, 50))
+    platform.simulateInput(lup(200, 50))
+    #expect(log.entries == ["shown=false", "tap"], "dismissed, then the press formed the tap's arena")
+    withExtendedLifetime(window) {}
+}
+
+/// **3.29** (`MN-AH` item 4, `MN-Y` item 2). The anchor press that dismisses is
+/// consumed **with its release**, on either button: the window's raw
+/// `onInput` sees neither the press nor the release (a plain-`Box` anchor
+/// claims no click, so an unclaimed release would fall through to it).
+/// Control: a press and release elsewhere, no popover open, reach `onInput`.
+/// Mutation **VX.1**: drop the release claim in `dispatchPopovers`.
+@MainActor
+@Test(arguments: [false, true])
+func theAnchorPressesReleaseIsConsumedToo(secondary: Bool) throws {
+    let log = PLog()
+    let (window, platform) = try popoverWindow { centred(log, edge: nil) }
+    var raw: [String] = []
+    window.onInput = { event in
+        switch event {
+        case .mouseDown, .rightMouseDown: raw.append("down")
+        case .mouseUp, .rightMouseUp: raw.append("up")
+        default: break
+        }
+        return false
+    }
+    _ = try chrome(window)
+    let at = MouseEvent(position: pt(200, 200))
+    platform.simulateInput(secondary ? .rightMouseDown(at) : .mouseDown(at))
+    platform.simulateInput(secondary ? .rightMouseUp(at) : .mouseUp(at))
+    #expect(log.entries == ["shown=false"])
+    #expect(raw == [], "neither the press nor its release reached onInput: \(raw)")
+    redraw(window)
+    try #require(window.lastOpenPopovers.isEmpty)
+    platform.simulateInput(.mouseDown(MouseEvent(position: pt(20, 20))))
+    platform.simulateInput(.mouseUp(MouseEvent(position: pt(20, 20))))
+    #expect(raw == ["down", "up"], "control: an unclaimed press and release reach onInput")
     withExtendedLifetime(window) {}
 }

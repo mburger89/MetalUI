@@ -262,3 +262,49 @@ func aPressAWheelAKeyOrLeavingHidesTheTooltip(_ cause: String) throws {
     #expect(scene.layer(of: .rect, at: index) == scene.highestLayer, "the highest layer")
     withExtendedLifetime(window) {}
 }
+
+// MARK: - 3.30–3.31: the review round (`MN-AH` item 3)
+
+/// **3.30** (`MN-P` item 2, divergence 113). The window leaving key hides a
+/// shown tooltip; it does not return while the pointer stays in the region.
+/// Control: a `.key` report leaves it shown. Mutation **VX.2**: drop
+/// `hideTooltip()` from the window's control-active-state handler.
+@MainActor
+@Test func theWindowLeavingKeyHidesTheTooltip() throws {
+    let (window, platform) = try tooltipWindow { helpRoot() }
+    try show(window, platform)
+    platform.simulateControlActiveStateChange(to: .key)
+    #expect(window.visibleTooltip != nil, "control: still key, still shown")
+    platform.simulateControlActiveStateChange(to: .inactive)
+    #expect(window.visibleTooltip == nil, "hidden when the window leaves key")
+    platform.simulateTick(timestamp: 12)
+    platform.simulateTick(timestamp: 13.5)
+    #expect(window.visibleTooltip == nil, "and spent until the pointer leaves")
+    withExtendedLifetime(window) {}
+}
+
+/// **3.31** (`MN-AG` item 6). While a menu is open a move over a help region
+/// starts no tooltip; once the menu closes the same move does. Mutation
+/// **VX.3**: drop the `menuSession == nil` guard in `trackTooltip`.
+@MainActor
+@Test func noTooltipStartsWhileAMenuIsOpen() throws {
+    let (window, platform) = try tooltipWindow { helpRoot() }
+    platform.presentsMenusNatively = false
+    let attachment = ContextualAttachment(menu: { MenuItems([Button("Copy") {}]) }, help: nil)
+    try #require(window.openContextMenu(attachment, isEnabled: true,
+                                        declaringID: GlobalElementID(component: .positional(0), parent: nil),
+                                        at: pt(300, 300), openingPress: false), "a menu fixture is open")
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    platform.simulateInput(moved(20, 20))
+    platform.simulateTick(timestamp: 10)
+    platform.simulateTick(timestamp: 11)
+    #expect(window.visibleTooltip == nil, "a menu is open: no tooltip")
+    platform.simulateInput(key("\u{1b}"))
+    try #require(window.menuSession == nil, "Escape closed the menu")
+    platform.simulateInput(moved(30, 30))
+    platform.simulateTick(timestamp: 12)
+    platform.simulateTick(timestamp: 13)
+    #expect(window.visibleTooltip?.text == "Explains", "control: with the menu closed, the move shows it")
+    withExtendedLifetime(window) {}
+}
