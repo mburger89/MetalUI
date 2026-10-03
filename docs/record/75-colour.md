@@ -120,7 +120,7 @@ Suite **2328 → 2376** (+48); typecheck guards **142 → 147** (+5; 141 → 146
 | `MetalUIPlatformTests/PlatformTests.swift` | 1 | AppKit: `setPreferredColorScheme` sets `NSWindow.appearance` and reports once |
 | `MetalUITests/LooksColourDemoTests.swift` | 1 | the colour section paints literal, dynamic and palette swatches, the toggle drives the window |
 | `Backends/SDL/.../SDLColorSchemeTests.swift` | 1 | a preference is recorded and the system theme still reports |
-| edited: `AnimationTests`, `ModifierAnimationTests`, `ShadowTests`, `CloseoutTests` (F1.3: nine `onClick` hitboxes became ten, the scheme toggle), `Fakes`, four other guard files (conformer arm) | — | existing arms re-spelled or extended |
+| edited: `AnimationTests`, `ModifierAnimationTests`, `ShadowTests`, `CloseoutTests` (F1.3: nine `onClick` hitboxes became ten, the scheme toggle), `Fakes`, four other guard files (conformer arm), `ModifiedElementTests` and `ModifierCompositionProofTests` (their hand-written `StyledElement` fixture paints `decoration.background`, now a `Color`, through `pass.resolve(_:)` instead of `pass.theme[token]`) | — | existing arms re-spelled or extended |
 
 Linux (`swift:6.4-noble`): 199 + 22 + **36** + 31 + 18 + 6 (the third group was
 21; the 15 portable colour tests). 0 `error:`/`warning:`.
