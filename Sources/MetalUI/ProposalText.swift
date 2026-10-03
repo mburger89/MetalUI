@@ -15,7 +15,7 @@ public struct ProposalText: ProposalElement {
     /// The text drawn.
     public var string: String
     /// The text's own colour; `nil` inherits the foreground style.
-    public var foregroundColor: ColorToken?
+    public var foregroundColor: Color?
     /// This text's own font request, weight and slope (ruling TE-B), as
     /// `Text`'s.
     var fontRequest: TextFontRequest = .inherit
@@ -48,11 +48,19 @@ public struct ProposalText: ProposalElement {
         return copy
     }
 
-    /// The semantic token used to tint this run's glyphs.
-    public func foregroundColor(_ token: ColorToken) -> ProposalText {
+    /// This text's own colour, `nil` to inherit — SwiftUI's
+    /// `foregroundColor(_:)` with its optional (`CR-E` item 4).
+    public func foregroundColor(_ color: Color?) -> ProposalText {
         var copy = self
-        copy.foregroundColor = token
+        copy.foregroundColor = color
         return copy
+    }
+
+    /// The semantic token used to tint this run's glyphs.
+    /// The `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundColor(_ token: ColorToken) -> ProposalText {
+        foregroundColor(Color(token))
     }
 
     public struct Layout { var node: LayoutNodeID }
@@ -99,7 +107,7 @@ public struct ProposalText: ProposalElement {
         // own answer, so the lines layout measured.
         let laid = textLines(string, font: font, system: system, wrappingAt: width,
                              height: Double(bounds.size.height.value), style: style)
-        let color = pass.theme[style.foreground]
+        let color = pass.resolve(style.foreground)
         pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
                                            origin: (x: Double(bounds.origin.x.value),
                                                     y: Double(bounds.origin.y.value)),

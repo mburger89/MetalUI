@@ -12,7 +12,7 @@ struct TextStyleRequest {
     var font: TextFontRequest = .inherit
     var weight: Font.Weight?
     var italic = false
-    var foreground: ColorToken?
+    var foreground: Color?
 }
 
 /// A text's resolved style: the face to ask the text system for, the glyph
@@ -20,7 +20,7 @@ struct TextStyleRequest {
 /// `.multilineTextAlignment` above it wrote.
 struct ResolvedTextStyle: Equatable {
     var descriptor: FontDescriptor
-    var foreground: ColorToken
+    var foreground: Color
     var lineLimit: TextLineLimit
     var truncation: TextTruncation
     var alignment: TextLineAlignment

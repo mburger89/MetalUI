@@ -30,7 +30,7 @@ public struct TextEditor: Element, StyledElement {
     /// Called with the edited text after each edit.
     public var onChange: @MainActor (String) -> Void
     /// The text's own colour; `nil` inherits the foreground style.
-    public var foregroundColor: ColorToken?
+    public var foregroundColor: Color?
     /// The field's own font request (ruling TE-F item 2): inherit the
     /// environment's font, the default font, or an explicit one.
     var fontRequest: TextFontRequest = .inherit
@@ -78,11 +78,19 @@ public struct TextEditor: Element, StyledElement {
         return copy
     }
 
-    /// Sets the text's colour.
-    public func foregroundColor(_ token: ColorToken) -> TextEditor {
+    /// This text's own colour, `nil` to inherit — SwiftUI's
+    /// `foregroundColor(_:)` with its optional (`CR-E` item 4).
+    public func foregroundColor(_ color: Color?) -> TextEditor {
         var copy = self
-        copy.foregroundColor = token
+        copy.foregroundColor = color
         return copy
+    }
+
+    /// Sets the text's colour.
+    /// The `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundColor(_ token: ColorToken) -> TextEditor {
+        foregroundColor(Color(token))
     }
 
     public struct Layout {
@@ -270,7 +278,7 @@ public struct TextEditor: Element, StyledElement {
         pass.withState(id, initial: TextEditState()) { state = $0 }
         let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
-        let textColor = pass.theme[foregroundColor ?? .textPrimary]
+        let textColor = pass.resolve(foregroundColor ?? .textPrimary)
         let characters = Array(g.display)
         let top = g.contentY - g.scrollY, bottom = Double(bounds.origin.y.value + bounds.size.height.value)
         func rect(_ x0: Double, _ x1: Double, y: Double, height: Double) -> Bounds<Pixels> {

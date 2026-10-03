@@ -66,12 +66,21 @@ private func sameShape<A: Shape & Hashable>(_ lhs: A, _ rhs: any Shape & Hashabl
 }
 
 extension ElementGroup {
+    /// Places `shape`, filled with `color`, behind this view — SwiftUI's
+    /// `background(_:in:)`, the same as `background { shape.fill(color) }`
+    /// (probe O2, 0 px). A `Color` since the colour work (`CR-E`).
+    public func background<S: Shape>(_ color: Color, in shape: S)
+        -> BackgroundModifier<Self, ShapeView<S>> {
+        BackgroundModifier(content: self) { shape.fill(color) }
+    }
+
     /// Places `shape`, filled with `token`, behind this view — SwiftUI's
     /// `background(_:in:)`, the same as `background { shape.fill(token) }`
-    /// (probe O2, 0 px).
+    /// (probe O2, 0 px). The `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
     public func background<S: Shape>(_ token: ColorToken, in shape: S)
         -> BackgroundModifier<Self, ShapeView<S>> {
-        BackgroundModifier(content: self) { shape.fill(token) }
+        background(Color(token), in: shape)
     }
 
     /// Places `shape`, filled with the window's canvas token `.background`,

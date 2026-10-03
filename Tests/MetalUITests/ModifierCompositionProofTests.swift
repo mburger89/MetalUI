@@ -149,8 +149,8 @@ private struct CountingLeaf: StyledElement {
         log.paint[name, default: 0] += 1
         log.events.append("paint \(name)")
         log.taps[name] = taps
-        if let token = decoration.background {
-            pass.fill(bounds, color: pass.theme[token])
+        if let color = decoration.background {
+            pass.fill(bounds, color: pass.resolve(color))
         }
         if pass.isHovered(id) {
             pass.fill(bounds, color: pass.theme[.textPrimary])

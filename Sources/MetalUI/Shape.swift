@@ -237,7 +237,7 @@ extension Shape {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout ShapeLayout, prepaint: inout Void,
                                pass: inout PaintPass) {
-        paintShapeFill(geometry(in: bounds), token: nil, pass: pass)
+        paintShapeFill(geometry(in: bounds), color: nil, pass: pass)
     }
 }
 
@@ -247,9 +247,9 @@ extension Shape {
 /// rasterized and drawn as an image (`GX-B`). `style` overrides a path
 /// geometry's own fill style when given.
 @MainActor
-func paintShapeFill(_ geometry: ShapeGeometry, token: ColorToken?, style: FillStyle? = nil, pass: PaintPass) {
-    let resolved = token ?? pass.environment.foregroundStyle ?? .textPrimary
-    let color = pass.theme[resolved]
+func paintShapeFill(_ geometry: ShapeGeometry, color declared: Color?, style: FillStyle? = nil, pass: PaintPass) {
+    let resolved = declared ?? pass.environment.foregroundStyle ?? .textPrimary
+    let color = pass.resolve(resolved)
     if let (path, own) = geometry.pathAndStyle {
         pass.drawPath(path, fill: style ?? own, color: color)
         return

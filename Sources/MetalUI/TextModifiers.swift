@@ -30,14 +30,31 @@ extension ElementGroup {
     }
 
     /// The glyph colour of every text below that names none (TE-D; probes
-    /// C2, C6). A token, not a `ShapeStyle`, for §7.9's reason.
-    public func foregroundStyle(_ token: ColorToken) -> EnvironmentScope<Self> {
-        environment(\.foregroundStyle, token)
+    /// C2, C6) — a `Color`, not a `ShapeStyle` (`CR-E`; a leading-dot
+    /// `.secondary` is `Color.secondary`, divergence 119, `CR-U`).
+    public func foregroundStyle(_ color: Color) -> EnvironmentScope<Self> {
+        environment(\.foregroundStyle, color)
     }
 
-    /// ``foregroundStyle(_:)`` under SwiftUI's older name (probe C3).
+    /// The glyph colour of every text below that names none (TE-D; probes
+    /// C2, C6). The `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundStyle(_ token: ColorToken) -> EnvironmentScope<Self> {
+        foregroundStyle(Color(token))
+    }
+
+    /// ``foregroundStyle(_:)`` under SwiftUI's older name (probe C3), with its
+    /// optional: `nil` clears an outer writer's colour, so a text below that
+    /// names none paints the default `textPrimary` (`CR-E` item 4).
+    public func foregroundColor(_ color: Color?) -> EnvironmentScope<Self> {
+        environment(\.foregroundStyle, color)
+    }
+
+    /// ``foregroundStyle(_:)`` under SwiftUI's older name (probe C3). The
+    /// `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
     public func foregroundColor(_ token: ColorToken) -> EnvironmentScope<Self> {
-        environment(\.foregroundStyle, token)
+        foregroundColor(Color(token))
     }
 
     /// At most `number` lines (`nil`: no limit), the last truncated
@@ -105,11 +122,20 @@ extension Text {
     }
 
     /// This text's own glyph colour, winning over the environment's (probes
-    /// C1, C4, C5) — the same field as ``foregroundColor(_:)``.
-    public func foregroundStyle(_ token: ColorToken) -> Text {
+    /// C1, C4, C5) — the same field as ``foregroundColor(_:)``. A `Color`
+    /// since the colour work (`CR-E`).
+    public func foregroundStyle(_ color: Color) -> Text {
         var copy = self
-        copy.foregroundColor = token
+        copy.foregroundColor = color
         return copy
+    }
+
+    /// This text's own glyph colour, winning over the environment's (probes
+    /// C1, C4, C5) — the same field as ``foregroundColor(_:)``. The
+    /// `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundStyle(_ token: ColorToken) -> Text {
+        foregroundStyle(Color(token))
     }
 }
 
@@ -135,11 +161,18 @@ extension ProposalText {
         return copy
     }
 
-    /// This text's own glyph colour (TE-D).
-    public func foregroundStyle(_ token: ColorToken) -> ProposalText {
+    /// This text's own glyph colour (TE-D), a `Color` (`CR-E`).
+    public func foregroundStyle(_ color: Color) -> ProposalText {
         var copy = self
-        copy.foregroundColor = token
+        copy.foregroundColor = color
         return copy
+    }
+
+    /// This text's own glyph colour (TE-D). The `ColorToken` spelling, kept
+    /// (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundStyle(_ token: ColorToken) -> ProposalText {
+        foregroundStyle(Color(token))
     }
 }
 

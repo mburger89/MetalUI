@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-W`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-X`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -602,3 +602,41 @@ red). `docs/divergences.md`'s next label becomes **120** (lane 3).
    only assigns `theme` (relying on `theme`'s guard to dirty) — reddens, since
    the theme does not change. Without it, 2.3's mutation (remove the scheme's
    equality guard) can be green for the wrong reason.
+
+## CR-W — Lane 1's implementation findings: four places the design met the source (revises `CR-C` item 3, `CR-D`, `CR-E`, `CR-G`)
+
+**Ruling.**
+
+1. **`LayoutModifier`'s three colour payloads are retyped to `Color`**:
+   `.background(Color)`, `.border(Color, width:cornerRadius:)`,
+   `.shadow(Color, radius:x:y:)`. `LayoutModifier` is a public enum with
+   public cases (`ModifiedContent(content:modifier:)` builds one), which
+   `CR-E` item 3's list of stored properties missed. A leading-dot
+   construction (`modifier: .background(.accent)`) compiles unchanged through
+   the token statics; a `ColorToken` variable in a case payload, or a pattern
+   that uses the bound payload as a `ColorToken`, breaks — **migration**:
+   `Color(token)`, and `pass.resolve(_:)` for a read. Adding parallel
+   `Color` cases instead would break every exhaustive `switch` outside the
+   package and keep two spellings of one layer.
+2. **`CR-D`'s extension needs an explicit `@MainActor`**: written as
+   `extension Color: Element`, Swift 6.4 inferred the members nonisolated
+   ("call to main actor-isolated instance method `requestNativeLeaf` in a
+   synchronous nonisolated context") — the probe's `I1` arm had a conformance
+   with no members. `@MainActor extension Color: Element` isolates exactly the
+   conformance's members; the value, its initialisers and statics stay
+   nonisolated (guard 1.23 green).
+3. **A literal folds `opacity(_:)` into its own opacity** (revises `CR-C`
+   item 3 and spec §3.1's "a *= clamp(opacity)" for literals only): `srgb`'s
+   fourth component is multiplied, unclamped, and clamped once at
+   resolution — SwiftUI's own product rule (probe `O4`: `1.5` is kept). The
+   separate multiplier is kept for the token, dynamic and palette providers,
+   clamped when applied. A NaN product is stored as 0 (`CR-R`).
+4. **A palette colour stores its key's metatype** (`any ThemeColorKey.Type`,
+   compared and hashed by `ObjectIdentifier`), not `(ObjectIdentifier,
+   defaultValue:, name)` (spec §3.5): the default and the trap's name are read
+   from the type, so the payload is 16 bytes and `Color` stays at 24
+   (`aColorIsAtMostTwentyFourBytes`).
+
+**Cost if wrong.** Item 1 is a public break with a one-token migration;
+items 2–4 are invisible at a call site.
+

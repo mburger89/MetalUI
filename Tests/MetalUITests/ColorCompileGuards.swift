@@ -71,8 +71,8 @@ func everyColorTokenSpellingStillCompiles() throws {
             _ = ProposalText("x").foregroundColor(.textPrimary).foregroundColor(t).foregroundStyle(t)
             _ = TextField("", text: .constant("")).foregroundColor(.textPrimary).foregroundColor(t)
             _ = TextEditor(text: .constant("")).foregroundColor(.textPrimary).foregroundColor(t)
-            _ = HStack { Text("x") }.foregroundStyle(.accent).foregroundStyle(t)
-            _ = HStack { Text("x") }.foregroundColor(.accent).foregroundColor(t)
+            _ = Box { Text("x") }.foregroundStyle(.accent).foregroundStyle(t)
+            _ = Box { Text("x") }.foregroundColor(.accent).foregroundColor(t)
             _ = Background(.surface) { leaf }
             _ = Background(t) { leaf }
             _ = Rectangle(width: Pixels(1), height: Pixels(1), color: .accent)
@@ -101,7 +101,7 @@ func theSwiftUISpellingsTypecheckWithoutAmbiguity() throws {
             _ = Text("x").foregroundColor(.red)
             _ = Text("x").foregroundColor(nil)
             _ = Text("x").foregroundStyle(.secondary)
-            _ = HStack { Text("x") }.foregroundStyle(.secondary)
+            _ = Box { Text("x") }.foregroundStyle(.secondary)
             _ = Box().background(.surface)
             _ = Rectangle().fill(.red)
             _ = Rectangle().stroke(.blue, lineWidth: 2)

@@ -96,6 +96,13 @@ public struct Theme: Sendable, Hashable {
     /// A shadow's default colour (`GX-J`).
     public var shadow: Hsla
 
+    /// An app palette's overrides, by key (ruling `CR-N`): part of the
+    /// theme's `==` and hash, so a palette change through `Window.theme`
+    /// repaints by the existing guard. `Theme.light`/`.dark` hold none.
+    /// **Never consulted by `subscript(token:)`** — a palette key is not a
+    /// `ColorToken` (`everyBuiltInTokenIsUntouchedByAPalette`).
+    var palette: [ObjectIdentifier: Color] = [:]
+
     /// SwiftUI's default shadow colour: black at 0.33 alpha (probe SH2).
     public static let defaultShadow = Hsla.rgb(0x000000, alpha: 0.33)
 
@@ -129,6 +136,20 @@ public struct Theme: Sendable, Hashable {
         case .scrim:            scrim
         case .shadow:           shadow
         }
+    }
+
+    /// The colour this theme gives the app palette key `key` (ruling
+    /// `CR-N`): its override, else `key.defaultValue`. Setting it stores an
+    /// override in this theme value only — per variant:
+    /// `window.darkTheme[Brand.self] = .purple`.
+    public subscript<K: ThemeColorKey>(key: K.Type) -> Color {
+        get { palette[ObjectIdentifier(key)] ?? K.defaultValue }
+        set { palette[ObjectIdentifier(key)] = newValue }
+    }
+
+    /// The colour a palette colour's key resolves to in this theme.
+    func paletteColor(_ key: PaletteKey) -> Color {
+        palette[key.id] ?? key.type.defaultValue
     }
 
     /// **No two tokens share a value, in either variant, and no token but

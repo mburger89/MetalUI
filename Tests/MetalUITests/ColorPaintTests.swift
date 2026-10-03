@@ -159,10 +159,11 @@ private let roundJoin = StrokeStyle(lineWidth: px(6), lineJoin: .round)
         Rectangle().fill(.blue).strokeBorder(.red, style: roundJoin).frame(width: px(40), height: px(40)))
 
     // TextModifiers.swift, Text.swift, ProposalText.swift, TextField.swift, TextEditor.swift.
-    arm("ElementGroup.foregroundStyle", .glyph, HStack { Text("Hi") }.foregroundStyle(.red))
-    arm("ElementGroup.foregroundColor", .glyph, HStack { Text("Hi") }.foregroundColor(.red))
+    arm("ElementGroup.foregroundStyle", .glyph, HStack { HStack { ProposalText("Hi") }.foregroundStyle(.red) })
+    arm("ElementGroup.foregroundColor", .glyph, HStack { HStack { ProposalText("Hi") }.foregroundColor(.red) })
+    arm("ElementGroup.foregroundStyle over a legacy Text", .glyph, Box { Box { Text("Hi") }.foregroundStyle(.red) })
     arm("ElementGroup.foregroundStyle over a bare shape", .fill,
-        HStack { Circle().frame(width: px(40), height: px(40)) }.foregroundStyle(.red))
+        HStack { HStack { Circle().frame(width: px(40), height: px(40)) }.foregroundStyle(.red) })
     arm("Text.foregroundColor", .glyph, Text("Hi").foregroundColor(.red))
     arm("Text.foregroundStyle", .glyph, Text("Hi").foregroundStyle(.red))
     arm("ProposalText.foregroundColor", .glyph, ProposalText("Hi").foregroundColor(.red))
@@ -181,7 +182,7 @@ private let roundJoin = StrokeStyle(lineWidth: px(6), lineJoin: .round)
             "onTap(hoverColor:): no FF383C wash at 0.22: \(describe(tapScene))")
 
     // CR-U: the text's own `.secondary` wins over a red parent and is Color.secondary's value.
-    let tinted = painted(HStack { Text("Hi").foregroundStyle(.secondary) }.foregroundStyle(.red))
+    let tinted = painted(HStack { HStack { ProposalText("Hi").foregroundStyle(.secondary) }.foregroundStyle(.red) })
     let text = Theme.light.textPrimary.toRgba()
     let secondary = Rgba(r: text.r, g: text.g, b: text.b, a: text.a * 0.588)
     #expect(carries(tinted, secondary, at: .glyph) && !carries(tinted, redLight, at: .glyph),
@@ -259,7 +260,7 @@ private struct ResolveProbe: ProposalElement {
     let a = Color(red: 0.1, green: 0.2, blue: 0.3), b = Color(red: 0.9, green: 0.8, blue: 0.7)
     let table = StateTable()
     func frame(_ scheme: ColorScheme, _ t: Double, _ animation: Animation?) -> Frame {
-        var root = legacyBox().background(Color(light: a, dark: b)).environment(\.colorScheme, scheme)
+        var root = Box { legacyBox().background(Color(light: a, dark: b)).environment(\.colorScheme, scheme) }
         let f = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1, stateTable: table,
                       timestamp: t, transaction: animation)
         f.render(&root)

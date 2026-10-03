@@ -49,19 +49,19 @@ func componentOpAnimationKey(_ id: GlobalElementID, member: Int, op k: Int) -> G
     .child(of: .child(of: id, at: member, name: nil), at: 0, name: ElementID("$anim-op\(k)"))
 }
 
-/// A colour token's animated value on a track in the `AnimationStore` —
+/// A colour's animated value (keyed on the declared `Color`, `CR-H`) on a track in the `AnimationStore` —
 /// `animatedColor`'s recipe (`advanceColor`), stored in the store instead of on
 /// `$anim-color`. A first sighting (no track: new, or dropped by a frame that
 /// did not paint it) stores the baseline and paints the declared colour.
 @MainActor
-func storedAnimatedColor(_ token: ColorToken, at key: GlobalElementID, pass: PaintPass) -> Hsla {
+func storedAnimatedColor(_ color: Color, at key: GlobalElementID, pass: PaintPass) -> Hsla {
     let store = pass.frame.animationStore
-    let theme = pass.theme
+    let context = pass.frame.colorContext
     guard let existing = store.value(at: key, as: AnimatedColorState.self) else {
-        store.set(AnimatedColorState(token: token, inFlight: nil), at: key)
-        return theme[token]
+        store.set(AnimatedColorState(color: color, inFlight: nil), at: key)
+        return context.resolve(color)
     }
-    let (state, value) = advanceColor(token, from: existing, theme: theme, now: pass.timestamp,
+    let (state, value) = advanceColor(color, from: existing, context: context, now: pass.timestamp,
                                       transaction: pass.transaction ?? Animation.pendingTransaction)
     if state != existing { store.set(state, at: key) }
     if state.inFlight != nil {

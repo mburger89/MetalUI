@@ -177,6 +177,16 @@ public struct EnvironmentValues {
     /// becomes an opacity cross-fade on the same animation.
     public internal(set) var accessibilityReduceMotion: Bool = false
 
+    /// The colour scheme content below is drawn in — SwiftUI's `colorScheme`
+    /// (ruling `CR-J` item 2). `.light` in a bare value (probe
+    /// `swiftui-colour.swift` E0), so a windowless `Frame` and `renderFrame`
+    /// read `.light`; a `Window` stamps its effective scheme into the root at
+    /// draw. **Readable while building** (`@Environment(\.colorScheme)`) and
+    /// in every phase, and writable by a scope (probe V1), whose subtree then
+    /// resolves dynamic colours — and tokens, through the window's variant
+    /// for that scheme (`CR-K`, `CR-S`) — in it. Reading it never writes.
+    public var colorScheme: ColorScheme = .light
+
     /// The size controls below should take — SwiftUI's `controlSize` (ruling
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
@@ -218,7 +228,7 @@ public struct EnvironmentValues {
     /// The glyph colour of a `Text` or `ProposalText` below that names none
     /// (ruling TE-D). **Internal**: SwiftUI has no public key; written by
     /// `.foregroundStyle(_:)`/`.foregroundColor(_:)`.
-    var foregroundStyle: ColorToken?
+    var foregroundStyle: Color?
 
     /// `.fontWeight(_:)` over whichever font a text below resolves (TE-B
     /// item 3). Internal, as SwiftUI's is.

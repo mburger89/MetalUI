@@ -132,8 +132,13 @@ func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// live animation into a second slot written only while one runs. Neither is
 /// this task's, and 120 bytes per backgrounded element is three orders of
 /// magnitude below the 7.5 KB ruling U existed to remove.
+///
+/// **Keyed on the declared `Color` since the colour work** (ruling `CR-H`
+/// item 3): `color` was a `ColorToken`. A theme swap or a scheme change moves
+/// what an unchanged `Color` resolves to without moving the `Color`, so it
+/// re-resolves and never starts a fade. Stride re-measured in record §75.
 struct AnimatedColorState: Equatable {
-    var token: ColorToken
+    var color: Color
     var inFlight: ColorAnimation?
 }
 
@@ -177,22 +182,26 @@ struct AnimatedColorState: Equatable {
 /// closes it in three arms, because the two halves need different curve models
 /// to be visible at all: a DURATION curve ignores `initialVelocity` by design,
 /// so only a SPRING interrupt can ever see `velocity: .zero`.
+///
+/// **`to` is the declared `Color`** (ruling `CR-H` item 3; it was `toToken`):
+/// a token, dynamic or palette end re-resolves every frame, a literal end
+/// resolves to itself.
 struct ColorAnimation: Equatable {
     var from: ColorEnd
-    var toToken: ColorToken
+    var to: Color
     var startTime: Double
     var animation: Animation
     var velocity: RgbaVelocity
 }
 
 enum ColorEnd: Equatable {
-    case token(ColorToken)
+    /// A declared colour, re-resolved against every frame's context.
+    case declared(Color)
     case fixed(Rgba)
 
-    @MainActor
-    func resolve(in theme: Theme) -> Rgba {
+    func resolve(in context: ColorContext) -> Rgba {
         switch self {
-        case let .token(token): return theme[token].toRgba()
+        case let .declared(color): return context.resolve(color).toRgba()
         case let .fixed(color): return color
         }
     }
@@ -525,12 +534,12 @@ extension PaintPass {
 /// transitions are out of scope (spec §8) and a box that was painting nothing
 /// has no colour to fade from.
 @MainActor
-func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
+func animatedColor(_ color: Color?, for id: GlobalElementID,
                    pass: inout PaintPass) -> Hsla? {
-    guard let token else { return nil }
+    guard let color else { return nil }
 
-    let theme = pass.theme
-    let declared = theme[token]
+    let context = pass.frame.colorContext
+    let declared = context.resolve(color)
     let slotID = animColorRetentionSlot(for: id)
     let now = pass.timestamp
     // The frame's parked transaction first, the lexical one as a fallback —
@@ -542,12 +551,12 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
         // from an undefined prior state — `animated(_:_:for:pass:)`'s ruling Q,
         // and the same choice SwiftUI makes for a value that appears
         // already-placed.
-        let baseline = AnimatedColorState(token: token, inFlight: nil)
+        let baseline = AnimatedColorState(color: color, inFlight: nil)
         pass.frame.stateTable.withState(slotID, initial: baseline) { $0 = baseline }
         return declared
     }
 
-    let (newState, value) = advanceColor(token, from: existing, theme: theme, now: now,
+    let (newState, value) = advanceColor(color, from: existing, context: context, now: now,
                                          transaction: transaction)
     let inFlight = newState.inFlight
     if newState != existing {
@@ -591,9 +600,9 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
 /// from the current colour and velocity, a snap without a transaction.
 /// Returns the state to store and the colour to paint.
 @MainActor
-func advanceColor(_ token: ColorToken, from existing: AnimatedColorState, theme: Theme, now: Double,
+func advanceColor(_ color: Color, from existing: AnimatedColorState, context: ColorContext, now: Double,
                   transaction: Animation?) -> (state: AnimatedColorState, value: Hsla) {
-    let declared = theme[token]
+    let declared = context.resolve(color)
     var inFlight = existing.inFlight
     var value = declared
 
@@ -601,19 +610,19 @@ func advanceColor(_ token: ColorToken, from existing: AnimatedColorState, theme:
         // BOTH ends re-resolve against THIS frame's theme, every frame. This is
         // the line step 6's mutation replaces, and the line that makes the
         // phase choice load-bearing rather than decorative.
-        let from = running.from.resolve(in: theme)
-        let to = theme[running.toToken].toRgba()
+        let from = running.from.resolve(in: context)
+        let to = context.resolve(running.to).toRgba()
         let current = lerpComponents(running.animation, elapsed: now - running.startTime,
                                      from: from, to: to, velocity: running.velocity)
 
-        if token != running.toToken {
+        if color != running.to {
             // The DECLARED token changed mid-flight. Note the comparison is on
             // the token, never on the resolved colour: a theme swap must not
             // reach here.
             if let transaction {
                 // Interruption re-targets from where the colour IS and with the
                 // momentum it has (spec §7), not from `running.from`.
-                inFlight = ColorAnimation(from: .fixed(current.value), toToken: token,
+                inFlight = ColorAnimation(from: .fixed(current.value), to: color,
                                           startTime: now, animation: transaction,
                                           velocity: current.velocity)
                 value = current.value.toHsla()
@@ -627,20 +636,20 @@ func advanceColor(_ token: ColorToken, from existing: AnimatedColorState, theme:
         } else {
             value = current.value.toHsla()
         }
-    } else if token != existing.token, let transaction {
+    } else if color != existing.color, let transaction {
         // A genuine declaration change with a transaction in flight. The frame
         // that STARTS a transition reads its own `from` — the baseline, not the
         // target — at elapsed 0.
-        inFlight = ColorAnimation(from: .token(existing.token), toToken: token,
+        inFlight = ColorAnimation(from: .declared(existing.color), to: color,
                                   startTime: now, animation: transaction,
                                   velocity: .zero)
-        value = theme[existing.token]
+        value = context.resolve(existing.color)
     }
     // Otherwise: unchanged, or changed with no transaction in flight. Both
     // snap — `value` is already `declared`, and the asymmetry between this
     // branch and the one above is the whole of what `withAnimation` buys.
 
-    return (AnimatedColorState(token: token, inFlight: inFlight), value)
+    return (AnimatedColorState(color: color, inFlight: inFlight), value)
 }
 
 /// The four components, each through the same `Animation` curve, independently.

@@ -344,13 +344,21 @@ public struct Padding<Content: ProposalElementGroup>: Element {
 public struct Background<Content: ProposalElementGroup>: Element {
     /// The content painted over the background.
     public var content: Content
-    /// The fill painted beneath the content's bounds.
-    public var color: ColorToken
+    /// The fill painted beneath the content's bounds (a `Color` since
+    /// `CR-E` item 3).
+    public var color: Color
 
     /// Paints `color` beneath `content`, leaving its layout alone.
-    public init(_ color: ColorToken, @ElementBuilder content: () -> Content) {
+    public init(_ color: Color, @ElementBuilder content: () -> Content) {
         self.content = content()
         self.color = color
+    }
+
+    /// Paints `token` beneath `content` — the `ColorToken` spelling, kept
+    /// (`CR-E` item 1).
+    @_disfavoredOverload
+    public init(_ color: ColorToken, @ElementBuilder content: () -> Content) {
+        self.init(Color(color), content: content)
     }
 
     public struct Layout { var content: Content.GroupLayout }
@@ -373,7 +381,7 @@ public struct Background<Content: ProposalElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
+        pass.fill(bounds, color: pass.resolve(color), cornerRadii: Corners(all: Pixels(0)))
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
@@ -485,7 +493,8 @@ public struct Spacer: Element {
 /// remains the explicit fixed leaf convenience used by the existing migration
 /// preview and tests, and keeps its `.surface` default.
 ///
-/// **`color` is `ColorToken?` since plan task 11 part 2** (`TE-AQ` item 2, a
+/// **`color` is `Color?` since the colour work (`CR-E` item 3), `ColorToken?`
+/// since plan task 11 part 2** (`TE-AQ` item 2, a
 /// ruled public break): `nil` is the foreground style, which a bare
 /// `Rectangle()` stores. **Migration**: a reader writes `rect.color ?? token`;
 /// a writer is unchanged. A ``ShapeView``'s layers never read it.
@@ -494,18 +503,26 @@ public struct Rectangle: Shape, Hashable {
     public var width: Pixels
     /// The height answered when the rectangle does not respond to the proposal.
     public var height: Pixels
-    /// The fill, or `nil` for the foreground style (`TE-AH`).
-    public var color: ColorToken?
+    /// The fill, or `nil` for the foreground style (`TE-AH`); a `Color`
+    /// since `CR-E` item 3.
+    public var color: Color?
     private var respondsToProposal: Bool
 
     public typealias Layout = ShapeLayout
 
     /// A fixed-size rectangle filled with `color`.
-    public init(width: Pixels, height: Pixels, color: ColorToken = .surface) {
+    public init(width: Pixels, height: Pixels, color: Color = .surface) {
         self.width = width
         self.height = height
         self.color = color
         respondsToProposal = false
+    }
+
+    /// A fixed-size rectangle filled with `token` — the `ColorToken` spelling,
+    /// kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public init(width: Pixels, height: Pixels, color: ColorToken = .surface) {
+        self.init(width: width, height: height, color: Color(color))
     }
 
     /// A rectangle that answers its proposal and fills with the foreground
@@ -522,7 +539,7 @@ public struct Rectangle: Shape, Hashable {
     public init(color: ColorToken) {
         width = Pixels(10)
         height = Pixels(10)
-        self.color = color
+        self.color = Color(color)
         respondsToProposal = true
     }
 
@@ -562,26 +579,21 @@ public struct Rectangle: Shape, Hashable {
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout ShapeLayout, prepaint: inout Void, pass: inout PaintPass) {
-        paintShapeFill(geometry(in: bounds), token: color, pass: pass)
+        paintShapeFill(geometry(in: bounds), color: color, pass: pass)
     }
 }
 
-/// A semantic colour field that accepts every concrete proposal it receives.
+/// `Color` as a view: a colour field that accepts every concrete proposal it
+/// receives (ruling `CR-D` — the conformance is this extension, so the value
+/// and its statics stay usable off the main actor).
 ///
 /// This is the native equivalent of a SwiftUI `Color` used as a background:
 /// an overlay can offer it the window's current size and it responds with that
 /// size, rather than retaining an initial fixed canvas. Like SwiftUI `Color`,
 /// an unspecified axis uses a 10pt ideal so it remains a useful stack child.
-public struct Color: Element {
-    /// The colour the view fills its bounds with.
-    public var color: ColorToken
-
-    /// A view that fills whatever it is offered with `color`, SwiftUI's `Color`
-    /// as a view.
-    public init(_ color: ColorToken) {
-        self.color = color
-    }
-
+@MainActor
+extension Color: Element {
+    /// The layout a `Color` view keeps: its leaf node.
     public struct Layout { var node: LayoutNodeID }
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
@@ -600,7 +612,7 @@ public struct Color: Element {
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
-        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
+        pass.fill(bounds, color: pass.resolve(self), cornerRadii: Corners(all: Pixels(0)))
     }
 }
 

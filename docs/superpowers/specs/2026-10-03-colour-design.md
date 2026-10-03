@@ -1,7 +1,7 @@
 # Colour and colour scheme — design
 
 **Status: design (2026-10-03).** User request 2026-10-02, an item of the
-gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-V` (critic revisions `CR-Q`…`CR-V`, §13) in
+gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-W` (critic revisions `CR-Q`…`CR-V`, §13; lane 1's findings `CR-W`) in
 [`../2026-10-03-colour-decisions.md`](../2026-10-03-colour-decisions.md).
 Record: `docs/record/75-colour.md`. Probes (new, outputs in their headers):
 `docs/probes/swiftui-colour.swift` (SwiftUI, run three times byte-identical),
@@ -566,3 +566,9 @@ ruling in the decisions doc; the sections above are edited to match:
   `.primary`; 1.15 gains the tinted-parent arm; next label 120.
 - **`CR-V`** (§6.2): 2.10 compares element-id sets with a following sibling;
   new **2.22** `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`.
+- **`CR-W`** (lane 1, implementation): `LayoutModifier`'s `.background`,
+  `.border` and `.shadow` payloads are retyped to `Color` (a public enum the
+  §1.1 inventory missed; migration note owed by lane 3); `CR-D`'s extension
+  is `@MainActor extension Color: Element`; a literal folds `opacity(_:)`
+  into its own opacity (§3.1's multiplier stays for the other providers); a
+  palette colour stores its key's metatype (§3.5).
