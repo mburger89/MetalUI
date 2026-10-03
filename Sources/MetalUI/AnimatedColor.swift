@@ -136,7 +136,10 @@ func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// **Keyed on the declared `Color` since the colour work** (ruling `CR-H`
 /// item 3): `color` was a `ColorToken`. A theme swap or a scheme change moves
 /// what an unchanged `Color` resolves to without moving the `Color`, so it
-/// re-resolves and never starts a fade. Stride re-measured in record §75.
+/// re-resolves and never starts a fade. Stride re-measured at the branch
+/// check (record §75 §11): `AnimatedColorState` **160** (was 120),
+/// `Optional<ColorAnimation>` **136** (was 112), `Color` 24 — the 120/112
+/// figures above are the token-era ones.
 struct AnimatedColorState: Equatable {
     var color: Color
     var inFlight: ColorAnimation?

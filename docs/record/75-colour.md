@@ -263,3 +263,71 @@ decisions doc (`CR-AB`).
 | SDL native decorations following a preference | SDL3 has no API (`CR-M`) | none |
 | the demo's `scheme:` label pinned by a test | needs a text-run reader (§6) | none |
 | groups S1–S4 | an agent cannot look | the user |
+
+## §11 Branch check (2026-10-03, adversarial, `30a3dbf..126622a`)
+
+- **Suite**: `swift package clean`, native build (0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice), unfiltered
+  `swift test --build-system native --no-parallel`: **`Test run with 2376
+  tests in 3 suites passed after 126.031 seconds`**, `FR-J no-argument frame:
+  succeeded=true` present. `swift build --build-tests` (default build system):
+  0 `warning:`, 0 `error:`. `cmp CLAUDE.md AGENTS.md` identical; the inventory
+  and undocumented checks print nothing; a re-run of
+  `closeout-public-api.sh` equals the committed census (2305 rows).
+  `MetalUILayout` imports only `MetalUICore`, `MetalUIScene` only
+  `MetalUIShaderTypes`; no file under `Sources/MetalUIRender`,
+  `Backends/SDL/Shaders`, `Sources/MetalUILayout`, `Sources/MetalUIScene`,
+  `Sources/MetalUIShaderTypes` changed; `Expected.swift` unedited.
+- **Unmoved, green in that run**: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour` (its file gains only the 1.21
+  literal arms), `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. Edits to
+  pre-existing tests are additive arms or the `Color` re-spelling of a fixture
+  (§2); no hit-testing, accessibility, focus, `List` or text-input source
+  changed beyond `pass.resolve` at a colour read.
+- **Two mutations of the checker's own design** (each on `126622a` plus the
+  §2 doc fix, restored from a copy, `git status --short` clean after, full
+  unfiltered native suite):
+  - **BC1** — `Color.resolved`'s `.dynamic` case always takes `light`
+    (`Color.swift`): **11 reddened** — `aDynamicColourFollowsTheEnvironmentsScheme`,
+    `aLaterPreferenceChangeAppliesOnTheNextFrame`,
+    `anAppearanceChangeRebuildsWithTheNewScheme`,
+    `aPaletteKeyResolvesItsDefaultPerScheme`,
+    `aRootPreferenceIsInTheFirstPresentedFrame`,
+    `aSchemeChangeNeverStartsAFadeOnADynamicColour`,
+    `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`,
+    `everyNamedStaticResolvesToTheProbedValueInBothSchemes`,
+    `paintPassResolveUsesTheElementsScopedThemeAndScheme`,
+    `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours`,
+    `theSemanticStaticsResolveThroughTheTheme`.
+  - **BC2** — `Theme`'s palette subscript setter stores nothing
+    (`Theme.swift`, `set { _ = newValue }`): **6 reddened** —
+    `aPaletteCycleTrapsNamingTheKey`, `aPaletteOverrideIsPartOfTheThemesEquality`,
+    `aPaletteOverrideOnTheWindowsVariantRepaints`,
+    `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame`,
+    `aThemeOverrideWinsAndIsPerTheme`,
+    `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours`.
+  - A first draft of BC2 (key `advanceColor`'s fade on the resolved value
+    instead of the declared `Color`) was discarded unrun: with one context both
+    sides resolve alike, so it is the original's behaviour, not a mutant.
+- **Stride, owed by `CR-H` item 3 and not recorded until now** (a temporary
+  `@testable` print, removed): `MemoryLayout<AnimatedColorState>.stride`
+  **160** (120 at `30a3dbf`), `Optional<ColorAnimation>` **136** (112),
+  `MemoryLayout<Color>` size and stride 24, `AnimatedElementState` 456 (not
+  attributed to this branch: the 320 in that comment is 2026-09-30's, plan task
+  13 lane 2, before later milestones). The
+  `AnimatedColor.swift` comment that said "re-measured in record §75" now
+  carries the figures.
+- **Pixels**: `compare.sh <scratch> 30a3dbf 126622a` — controls as recorded
+  (1048576, 1031003, 454895, 0, 1048576, 0; 544 and 216 distinct), all
+  fourteen images `differing=0`, `scene identical`.
+- **Linux** (`swift:6.4-noble`, OrbStack already running and left as found,
+  `git archive` of `126622a`, `--scratch-path` inside the container): 0
+  `error:`/`warning:`; `MetalUILayoutTests` 199, `MetalUICoreTests` 22,
+  `MetalUICrossPlatformTests` 36 passed (the other three groups not re-run).
+- **`Backends/SDL` on macOS** (`PKG_CONFIG_PATH=$PWD/.accesskit`): 0 `error:`,
+  **24 + 63** passed; its `warning:` lines are the pre-existing linker
+  (Homebrew SDL3 built for a newer macOS) and pkg-config rpath notices.
+- **Real window**: the lock probe read `CGSSessionScreenIsLocked = 1`,
+  `displayAsleep main: 1` — no capture, no demo launch. Group S stays owed.
