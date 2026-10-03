@@ -136,6 +136,11 @@ struct Hitbox {
     /// (the clip at the effect's entry, window space) tested first.
     var transform: HitboxTransform? = nil
 
+    /// For a contextual region (menus, `MN-Q`): whether its element was enabled
+    /// when it registered — a disabled element's menu opens with every item
+    /// disabled (C9). `true` for every other hitbox.
+    var contextualEnabled = true
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,

@@ -614,7 +614,7 @@ private struct MenuCounter: Component {
 }
 
 /// **1.23** (`MN-F` item 3). A press outside every level dismisses the menu
-/// and is consumed with its release: the `Button` beneath does not run.
+/// and is consumed with its release: the click target beneath does not run.
 /// Mutation: return `false` after dismissing.
 @MainActor
 @Test func aPressOutsideTheMenuDismissesItAndReachesNothingBeneath() throws {
@@ -622,7 +622,7 @@ private struct MenuCounter: Component {
     let (window, platform) = try menuWindow(native: false) {
         controlRoot(width: 400, height: 400) {
             Box().frame(width: px(200), height: px(400)).contextMenu { fullMenuContent(log) }
-            Button("Under") { log.entries.append("under") }.frame(width: px(200), height: px(400))
+            Box().frame(width: px(200), height: px(400)).onClick { log.entries.append("under") }
         }
     }
     platform.simulateInput(rdown(10, 10))
@@ -632,9 +632,9 @@ private struct MenuCounter: Component {
     #expect(window.menuSession == nil, "and dismissed the menu")
     platform.simulateInput(lup(300, 300))
     redraw(window)
-    #expect(log.entries.isEmpty, "the button beneath did not run: \(log.entries)")
+    #expect(log.entries.isEmpty, "the target beneath did not run: \(log.entries)")
     controlClick(platform, at: pt(300, 300))
-    #expect(log.entries == ["under"], "control: with no menu open the button runs")
+    #expect(log.entries == ["under"], "control: with no menu open the target runs")
     withExtendedLifetime(window) {}
 }
 

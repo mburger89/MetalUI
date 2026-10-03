@@ -75,6 +75,7 @@ public struct MenuItems: MenuContent {
 
     init(_ children: [any MenuContent]) { self.children = children }
 
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes(children.flatMap { $0._menuNodes(in: context).nodes })
     }
@@ -107,6 +108,7 @@ public struct Divider: MenuContent {
     /// A separator.
     public init() {}
 
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes([MenuNode(kind: .separator, title: "", isEnabled: false)])
     }
@@ -117,6 +119,7 @@ public struct Divider: MenuContent {
 /// `.keyboardShortcut` shown — and **inactive while the menu is closed** (C12,
 /// `MN-D` item 3). `role:` is accepted and drawn the same (C1).
 extension Button: MenuContent where Label == Text {
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes([MenuNode(kind: .action, title: box.content.first.string, isEnabled: context.isEnabled,
                              shortcut: shortcut, run: handlers.onClick ?? action)])
@@ -126,6 +129,7 @@ extension Button: MenuContent where Label == Text {
 /// A toggle item: an on/off state that choosing flips by writing `!isOn`
 /// through its binding (C1, C4).
 extension Toggle: MenuContent where Label == Text {
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         let binding = isOn
         let on = binding.wrappedValue
@@ -136,6 +140,7 @@ extension Toggle: MenuContent where Label == Text {
 
 /// A disabled item showing the string (C1's "Plain text item").
 extension Text: MenuContent {
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes([MenuNode(kind: .text, title: string, isEnabled: false)])
     }
@@ -146,6 +151,7 @@ extension Text: MenuContent {
 /// `.disabled(true)` disables an item and `.disabled(false)` under a disabled
 /// ancestor leaves it disabled (`EV-D`'s AND).
 extension EnvironmentScope: MenuContent where Content: MenuContent {
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         var values = EnvironmentValues()
         values.isEnabled = context.isEnabled
@@ -156,6 +162,7 @@ extension EnvironmentScope: MenuContent where Content: MenuContent {
 
 /// A submenu item: its title and its items, evaluated with it (C1, C3).
 extension Menu: MenuContent where Label == Text {
+    /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         let items = content()._menuNodes(in: context).nodes
         return _MenuNodes([MenuNode(kind: .submenu(items), title: label.string, isEnabled: context.isEnabled)])

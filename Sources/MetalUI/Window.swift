@@ -607,7 +607,10 @@ public final class Window {
         // move between displays through `onResize`, and the next frame's
         // `displayScale` is the drawable's scale that `beginFrame()` returns.
         // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
-        platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
+        platformWindow.onResize = { [weak self] _, _ in
+            self?.dismissInWindowMenu()   // `MN-F` item 3
+            self?.setNeedsRedraw()
+        }
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
@@ -621,6 +624,7 @@ public final class Window {
             // Assigning drives `controlActiveState`'s guarded `didSet`, which
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
+            if state != .key { self?.dismissInWindowMenu() }   // `MN-F` item 3
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
             // Assigning drives the guarded `didSet`, which marks the window
@@ -667,6 +671,14 @@ public final class Window {
                 return answer
             }
             if self.dispatchDragSession(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // An open menu takes input next (ruling `MN-F` item 3), then the
+            // context-menu stage opens one on a secondary press and takes a
+            // native menu's outcome (`MN-C`, `MN-E`). Every later stage
+            // ignores the secondary button (`MN-B` item 4, divergence 110).
+            if self.dispatchMenuSession(event) || self.dispatchContextMenu(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -730,6 +742,12 @@ public final class Window {
                 return true
             }
             if self.dispatchKey(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // Shift-F10 and the Menu key off Apple (ruling `MN-G` item 1):
+            // after a caller's raw `onKey`, before shortcuts.
+            if self.dispatchContextMenuKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1128,6 +1146,9 @@ public final class Window {
             frame.dragPreviewOrigin = session.previewOrigin
             frame.previousDragSnapshot = session.snapshot
         }
+        if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
+            frame.menuPanelLevels = session.levels
+        }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1145,6 +1166,7 @@ public final class Window {
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
+        lastContextMenus = frame.contextMenuRecords
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
@@ -1216,10 +1238,16 @@ public final class Window {
         if accessibility.frameDidRender(
             emissionCount: frame.axEmissions.count,
             retry: frame.wantsAccessibilityRetry,
-            AccessibilityTreeBuilder.buildResult(emissions: frame.axEmissions, focused: focusedElement,
-                                                 hitboxes: frame.hitboxes,
-                                                 pressOnly: frame.accessibilityPressOnly,
-                                                 focusRegistry: frame.focusRegistry),
+            { () -> AccessibilityBuild in
+                var build = AccessibilityTreeBuilder.buildResult(
+                    emissions: frame.axEmissions, focused: focusedElement, hitboxes: frame.hitboxes,
+                    pressOnly: frame.accessibilityPressOnly, focusRegistry: frame.focusRegistry,
+                    menus: Set(frame.contextMenuRecords.keys))
+                // The in-window menu: a root after the content's, published
+                // even under modal isolation (`MN-F` item 4, `MN-AB`).
+                appendMenuPanel(to: &build)
+                return build
+            }(),
             to: platformWindow) {
             setNeedsRedraw()
         }
@@ -1512,6 +1540,9 @@ public final class Window {
             active = nil
         case .mouseMoved(let mouse), .mouseDragged(let mouse):
             lastMousePosition = mouse.position
+        case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
+            // A secondary press moves the pointer, never `active` (`MN-B` item 4).
+            lastMousePosition = mouse.position
         default:
             break
         }
@@ -1595,6 +1626,22 @@ public final class Window {
 
     /// The in-window menu's font: the default control font (`MN-F` item 2).
     var menuFont: FontKey { textSystem.resolveFont(MenuPanel.fontDescriptor) }
+
+    /// The release a menu stage owes a claim: the up of a press it claimed
+    /// (`MN-F` item 3's consumed outside press, a right press that opened a
+    /// native menu). `true` for the secondary button, `false` for the primary.
+    var menuClaimsRelease: Bool?
+
+    /// Asks the platform to show `menu` itself (`MN-C`).
+    func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        platformWindow.presentMenu(menu, at: position)
+    }
+
+    /// Clears `active` for a press the open menu consumed, so the press never
+    /// draws pressed and its release completes no click beneath (`MN-F` item 3).
+    func releasePressForMenu() {
+        active = nil
+    }
 
     /// The current press's gesture arena (plan task 12 part 1, `IX-D`), or
     /// `nil` when no press with a gesture in its arena is undecided. Formed at

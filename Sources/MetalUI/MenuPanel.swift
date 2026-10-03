@@ -136,3 +136,70 @@ enum MenuPanel {
         max(margin, min(value, window - margin - extent))
     }
 }
+
+// MARK: - Paint (`MN-F` item 2)
+
+extension Frame {
+    /// Paints the open in-window menu after every other paint, the drag
+    /// preview included, on a layer above every layer the frame used: per
+    /// level a `.surface` panel with a `.separator` border and the default
+    /// shadow; the highlighted row in `.accent` with `.background` text; a
+    /// `✓` for an on item, the title, the shortcut right-aligned, `▸` on a
+    /// submenu row, a hairline for a separator; disabled rows at half opacity.
+    /// Text goes through `textSystem` (`TS-A`). Nothing without a menu.
+    func paintMenuPanel() {
+        guard !menuPanelLevels.isEmpty else { return }
+        let layer = (scene.highestLayer ?? 0) + 1
+        let font = textSystem.resolveFont(MenuPanel.fontDescriptor)
+        let lineHeight = Float(textSystem.fontMetrics(font).lineHeight)
+        withPaintLayer(layer) {
+            for level in menuPanelLevels {
+                paintWithShadow(color: theme[.shadow], radius: Pixels(MenuPanel.shadowRadius), x: Pixels(0),
+                                y: Pixels(MenuPanel.shadowY)) {
+                    fill(level.frame, color: theme[.surface],
+                         cornerRadii: Corners(all: Pixels(MenuPanel.cornerRadius)),
+                         borderColor: theme[.separator], borderWidths: Edges(all: Pixels(1)))
+                }
+                for index in level.items.indices {
+                    paintMenuRow(level, index, font: font, lineHeight: lineHeight)
+                }
+            }
+        }
+    }
+
+    private func paintMenuRow(_ level: MenuSession.Level, _ index: Int, font: FontKey, lineHeight: Float) {
+        let item = level.items[index]
+        let row = level.rowFrame(index)
+        if case .separator = item.kind {
+            let y = row.origin.y.value + row.size.height.value / 2
+            fill(Bounds(origin: Point(x: Pixels(row.origin.x.value + 6), y: Pixels(y)),
+                        size: Size(width: Pixels(row.size.width.value - 12), height: Pixels(1))),
+                 color: theme[.separator])
+            return
+        }
+        let highlighted = level.highlighted == index
+        if highlighted {
+            fill(Bounds(origin: Point(x: Pixels(row.origin.x.value + 4), y: row.origin.y),
+                        size: Size(width: Pixels(row.size.width.value - 8), height: row.size.height)),
+                 color: theme[.accent], cornerRadii: Corners(all: Pixels(4)))
+        }
+        let color = theme[highlighted ? .background : .textPrimary]
+        let top = Double(row.origin.y.value + (row.size.height.value - lineHeight) / 2)
+        func text(_ string: String, x: Float) {
+            let glyphs = textSystem.placeGlyphs(string, font: font, wrappingAt: nil,
+                                                origin: (x: Double(x), y: top), scaleFactor: scaleFactor)
+            for glyph in glyphs { draw(glyph, color: color) }
+        }
+        func width(_ string: String) -> Float { Float(textSystem.measure(string, font: font, wrappingAt: nil).widestLine) }
+        if !item.isEnabled { pushOpacity(MenuPanel.disabledOpacity) }
+        if item.isOn { text("✓", x: row.origin.x.value + 6) }
+        text(item.title, x: row.origin.x.value + MenuPanel.checkColumn)
+        let trailing = row.origin.x.value + row.size.width.value
+        if case .submenu = item.kind {
+            text("▸", x: trailing - MenuPanel.arrowColumn + 4)
+        } else if let shortcut = MenuPanel.shortcutText(item.shortcut, platform: TextEditing.platform) {
+            text(shortcut, x: trailing - MenuPanel.trailingPadding - width(shortcut))
+        }
+        if !item.isEnabled { popOpacity() }
+    }
+}

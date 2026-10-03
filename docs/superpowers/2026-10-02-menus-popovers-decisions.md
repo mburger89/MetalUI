@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AE`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AF`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -936,3 +936,53 @@ item (guard G1.2 spells `Menu("Sub") { … }` inside a context menu only);
 lane 2 adds `extension Menu: Element, StyledElement` and the pull-down's
 behaviour in `PullDownMenu.swift`, and guard G2.1 spells `Menu("…")` as a
 view.
+
+---
+
+# Lane 1 (2026-10-02)
+
+## MN-AE — What lane 1 settled in building the seam (amends MN-R, MN-G, spec §3.9, test 1.34)
+
+**Ruling.**
+
+1. **AppKit has no modern spelling for a menu item's mark character**: the
+   SDK's `NSAccessibilityProtocols.h` has no `MarkChar` method (grep reads
+   nothing), and the attribute-dictionary API that carries
+   `AXMenuItemMarkChar` (`accessibilityAttributeValue(_:)`) is deprecated
+   since macOS 10.10 — overriding it warns, and the branch gates on 0
+   `warning:`. So `.menuItemCheckBox` publishes as `AXMenuItem` whose
+   **value is the number 1 or 0** (a check box's footing, `DD-U` item 1),
+   not a `✓` mark character. Test 1.34 asserts the value. A native `NSMenu`
+   (lane 2) publishes AppKit's own mark; this answer is the drawn menu's
+   only. AccessKit's `MENU_ITEM_CHECK_BOX` carries `toggled` (S1.1).
+2. **A context menu is something to say** (`MN-G` item 2): an element with a
+   menu records an accessibility node even when nothing else would make it
+   (a `Box` with only `.contextMenu`, or a proposal `ContextualModifier`, a
+   declaration outside the synthesize gate as `accessibilityAction` is,
+   `IX-AF` item 3), so a client has a node to ask to show the menu. Additive:
+   only a tree holding a menu changes.
+3. **`.showMenu` is advertised only by an enabled node** (`AB-H`: a disabled
+   node advertises no actions); the request still opens a disabled
+   element's menu, every item disabled (C9), and is refused for a node with
+   no recorded menu (C11n).
+4. **The keyboard opener walks the focus chain** (`Window.focusChain`, the
+   focused id and its `GlobalElementID` ancestors) for the nearest element
+   with a menu — the same answer as spec §3.2's "`parentOf` in the last focus
+   registry", through the walk every other key stage uses.
+5. **A native menu's release is claimed for the secondary button only**: an
+   AppKit `NSMenu` tracks the right release inside `popUp`, so the host view
+   may never see it, and a claim that waited for any next release would eat
+   an unrelated primary click. An in-window menu's consumed outside press
+   claims the release of its own button.
+6. **An open in-window menu treats Return, Enter (`U+0003`) and Space alike**
+   (`MN-F` item 3), and a focused `TextField`'s Space — which arrives as
+   `.textInput(" ")` — chooses too, so a field under a menu cannot swallow it.
+
+**Reasoning.** Items 1 and 5 are platform facts found while implementing;
+items 2–4 make the spec's sentences concrete without moving any existing
+answer; item 6 is the panel's own keyboard rule.
+
+**Cost if wrong.** Item 1 is one row of the bridge's role table (a
+`MarkChar` method in a future SDK would replace the value). The rest are one
+function each, pinned by tests 1.30, 1.34, 1.35 and 1.24.
+

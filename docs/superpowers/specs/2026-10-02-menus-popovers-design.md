@@ -1,7 +1,7 @@
 # Menus, popovers and tooltips — design
 
 **Status: design (2026-10-02), revised by the critic round (2026-10-02,
-rulings `MN-U`…`MN-AD`, §11).** User request 2026-10-02, an item of the
+rulings `MN-U`…`MN-AD`, §11) and by lane 1 (`MN-AE`).** User request 2026-10-02, an item of the
 gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-AD` in
 [`../2026-10-02-menus-popovers-decisions.md`](../2026-10-02-menus-popovers-decisions.md).
 Record: `docs/record/74-menus-popovers.md`. Probes:
@@ -525,7 +525,7 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.20 | `rightArrowOpensASubmenuAndLeftArrowClosesIt` | levels 2 then 1; submenu beside its row | open the submenu at the pointer |
 | 1.21 | `hoveringASubmenuRowOpensItAndAShallowerRowClosesIt` | moves open and close levels | never close deeper levels on hover |
 | 1.22 | `escapeClosesTheDeepestLevelFirst` | two Escapes: submenu, then root | close every level on the first Escape |
-| 1.23 | `aPressOutsideTheMenuDismissesItAndReachesNothingBeneath` | session gone; a `Button` beneath did not run | return `false` after dismissing |
+| 1.23 | `aPressOutsideTheMenuDismissesItAndReachesNothingBeneath` | session gone; an `onClick` target beneath did not run | return `false` after dismissing |
 | 1.24 | `aClickOrAPressDragReleaseOnAnItemChoosesIt` | click chooses; right-down, move, right-up over an item chooses; right-up without a move does not | choose on the opening press's release without a move |
 | 1.25 | `theOpenMenuIsPaintedAboveEverything` | the panel's primitives are the scene's last, above a drag preview fixture | emit before `paintDragPreview()` |
 | 1.26 | `theInWindowMenuPublishesAMenuOfMenuItems` | `.menu` root with `.menuItem`/`.menuItemCheckBox` children, disabled flag, focus on the highlight; `.press(item)` chooses | publish the rows as `.button` |
@@ -542,8 +542,8 @@ root-package tests below are in `Tests/MetalUITests` through
 
 AppKit-side, lane 1, in `AppKitAccessibilityTests` (existing file):
 1.34 `theAppKitBridgePublishesTheMenuRolesAndPerformsShowMenu` — roles
-`AXMenu`/`AXMenuItem`/`AXMenuButton`/`AXPopover`, the mark char for a `"1"`
-checkbox item, `accessibilityPerformShowMenu` → one `.showMenu` request and
+`AXMenu`/`AXMenuItem`/`AXMenuButton`/`AXPopover`, the number 1 as a `"1"`
+checkbox item's value (`MN-AE` item 1: no modern mark-character method), `accessibilityPerformShowMenu` → one `.showMenu` request and
 `false` without the action. Mutation: map `.menuButton` to `AXButton`.
 
 `Backends/SDL/Tests/MetalUISDLTests/AccessKitMenuTests.swift` (new, lane 1):

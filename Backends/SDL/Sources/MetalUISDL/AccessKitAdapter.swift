@@ -218,6 +218,9 @@ final class AccessKitAdapter: @unchecked Sendable {
         if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
         if let hint = node.hint { accesskit_node_set_description(out, hint) }
         if let authorID = node.authorID { accesskit_node_set_author_id(out, authorID) }
+        if node.hasPopupMenu {
+            accesskit_node_set_has_popup(out, accesskit_has_popup(UInt8(ACCESSKIT_HAS_POPUP_MENU.rawValue)))
+        }
         for (index, name) in node.customActions.enumerated() {
             let action = accesskit_custom_action_new(Int32(index))!
             accesskit_custom_action_set_description(action, name)
@@ -244,6 +247,10 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .spinButton: ACCESSKIT_ROLE_SPIN_BUTTON.rawValue
         case .heading: ACCESSKIT_ROLE_HEADING.rawValue
         case .link: ACCESSKIT_ROLE_LINK.rawValue
+        case .menu: ACCESSKIT_ROLE_MENU.rawValue
+        case .menuItem: ACCESSKIT_ROLE_MENU_ITEM.rawValue
+        case .menuItemCheckBox: ACCESSKIT_ROLE_MENU_ITEM_CHECK_BOX.rawValue
+        case .dialog: ACCESSKIT_ROLE_DIALOG.rawValue
         }
         return UInt8(value)
     }
@@ -255,6 +262,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .increment: ACCESSKIT_ACTION_INCREMENT.rawValue
         case .decrement: ACCESSKIT_ACTION_DECREMENT.rawValue
         case .customAction: ACCESSKIT_ACTION_CUSTOM_ACTION.rawValue
+        case .showContextMenu: ACCESSKIT_ACTION_SHOW_CONTEXT_MENU.rawValue
         }
         return UInt8(value)
     }
@@ -263,6 +271,7 @@ final class AccessKitAdapter: @unchecked Sendable {
 extension AccessKitSnapshot {
     /// The snapshot action an AccessKit action code means, if MetalUI has one.
     static func action(_ code: UInt8) -> Action? {
-        [Action.click, .focus, .increment, .decrement, .customAction].first { AccessKitAdapter.code($0) == code }
+        [Action.click, .focus, .increment, .decrement, .customAction, .showContextMenu]
+            .first { AccessKitAdapter.code($0) == code }
     }
 }

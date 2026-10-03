@@ -812,8 +812,15 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
-        if (e->button.button != SDL_BUTTON_LEFT) return false;
-        out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
+        // The primary button, and the secondary one as its own kinds (ruling
+        // MN-B item 3); every other button is dropped. A ctrl-click stays a
+        // primary press (MN-AC item 1: off Apple it is List's toggle).
+        if (e->button.button == SDL_BUTTON_LEFT)
+            out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
+        else if (e->button.button == SDL_BUTTON_RIGHT)
+            out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_RIGHT_DOWN : MUI_EVENT_RIGHT_UP;
+        else
+            return false;
         out->window_id = e->button.windowID; out->x = e->button.x; out->y = e->button.y;
         out->clicks = e->button.clicks; out->modifiers = mods(SDL_GetModState());
         return true;
@@ -884,6 +891,11 @@ bool mui_push_event(const MUIEvent *in) {
         e.type = in->kind == MUI_EVENT_MOUSE_DOWN ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
         e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_LEFT;
         e.button.down = in->kind == MUI_EVENT_MOUSE_DOWN; e.button.clicks = (Uint8)in->clicks;
+        e.button.x = in->x; e.button.y = in->y; break;
+    case MUI_EVENT_RIGHT_DOWN: case MUI_EVENT_RIGHT_UP:
+        e.type = in->kind == MUI_EVENT_RIGHT_DOWN ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+        e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_RIGHT;
+        e.button.down = in->kind == MUI_EVENT_RIGHT_DOWN; e.button.clicks = (Uint8)in->clicks;
         e.button.x = in->x; e.button.y = in->y; break;
     case MUI_EVENT_MOUSE_MOVE:
         e.type = SDL_EVENT_MOUSE_MOTION; e.motion.windowID = in->window_id;

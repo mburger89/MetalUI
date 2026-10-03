@@ -514,6 +514,12 @@ public final class SDLWindow: PlatformWindow {
         case Int(MUI_EVENT_MOUSE_UP):
             _ = onInput?(.mouseUp(MouseEvent(position: position, modifiers: modifiers,
                                              clickCount: Int(event.clicks))))
+        case Int(MUI_EVENT_RIGHT_DOWN):   // the secondary button (ruling MN-B item 3)
+            _ = onInput?(.rightMouseDown(MouseEvent(position: position, modifiers: modifiers,
+                                                    clickCount: Int(event.clicks))))
+        case Int(MUI_EVENT_RIGHT_UP):
+            _ = onInput?(.rightMouseUp(MouseEvent(position: position, modifiers: modifiers,
+                                                  clickCount: Int(event.clicks))))
         case Int(MUI_EVENT_MOUSE_MOVE):
             endDropSessionOnMotion()
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
@@ -595,6 +601,7 @@ public enum SDLKeys {
         0x4000_0050: "\u{f702}", 0x4000_004F: "\u{f703}",   // left, right
         0x4000_004A: "\u{f729}", 0x4000_004D: "\u{f72b}",   // home, end
         0x4000_004B: "\u{f72c}", 0x4000_004E: "\u{f72d}",   // page up, page down
+        0x4000_0065: "\u{f735}",   // SDLK_APPLICATION → NSMenuFunctionKey, the Menu key (ruling MN-G)
         0x4000_003A: "\u{f704}", 0x4000_003B: "\u{f705}", 0x4000_003C: "\u{f706}", 0x4000_003D: "\u{f707}",
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",
         0x4000_0042: "\u{f70c}", 0x4000_0043: "\u{f70d}", 0x4000_0044: "\u{f70e}", 0x4000_0045: "\u{f70f}",
