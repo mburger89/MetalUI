@@ -117,12 +117,15 @@ private func xywh(_ b: Bounds<Pixels>) -> [Float] {
 
 // MARK: - 3.1–3.4: placement
 
+/// Each edge and the chrome's expected origin for the centred anchor.
+private let edgeOrigins: [(Edge, [Float])] = [(.top, [138, 108]), (.bottom, [138, 218]), (.leading, [48, 163]),
+                                               (.trailing, [228, 163])]
+
 /// **3.1** (P1, `MN-M` item 3). The popover sits on its arrow edge's side of
 /// the anchor, 8 pt away, centred along the other axis: a 124 × 74 chrome for
 /// the 40 × 20 anchor at (180, 190). Mutation: swap `.top` and `.bottom`.
 @MainActor
-@Test(arguments: [(Edge.top, [138, 108]), (.bottom, [138, 218]), (.leading, [48, 163]), (.trailing, [228, 163])]
-      as [(Edge, [Float])])
+@Test(arguments: edgeOrigins)
 func thePopoverSitsOnItsArrowEdgeOfTheAnchor(edge: Edge, origin: [Float]) throws {
     let log = PLog()
     let (window, _) = try popoverWindow { centred(log, edge: edge) }
@@ -182,8 +185,9 @@ func thePopoverSitsOnItsArrowEdgeOfTheAnchor(edge: Edge, origin: [Float]) throws
 
 // MARK: - 3.5–3.8, 3.26: dismissal and interaction
 
-/// The 400 × 100 `Under` button at the top, the 40 × 20 anchor at (180, 190)
-/// with a popover holding the 100 × 50 `In` button.
+/// The `Under` button centred in a 400 × 100 frame at the top (its label's
+/// hitbox around (200, 50)), the 40 × 20 anchor at (180, 190) with a popover
+/// holding the 100 × 50 `In` button.
 @MainActor private func underAndAnchor(_ log: PLog) -> some Element {
     Column {
         Button("Under") { log.entries.append("under") }.frame(width: px(400), height: px(100))
@@ -208,9 +212,9 @@ func thePopoverSitsOnItsArrowEdgeOfTheAnchor(edge: Edge, origin: [Float]) throws
     let log = PLog()
     let (window, platform) = try popoverWindow { underAndAnchor(log) }
     _ = try chrome(window)
-    platform.simulateInput(ldown(20, 50))
+    platform.simulateInput(ldown(200, 50))
     #expect(log.entries == ["shown=false"], "dismissed at the press, from input")
-    platform.simulateInput(lup(20, 50))
+    platform.simulateInput(lup(200, 50))
     #expect(log.entries == ["shown=false", "under"], "then the press reached the button beneath")
     redraw(window)
     #expect(window.lastOpenPopovers.isEmpty)
@@ -269,7 +273,7 @@ private let utf8 = PasteboardType(identifier: "public.utf8-plain-text",
 
 /// **3.8** (`MN-N` item 4, `MN-Z`). The popover is a presentation on a higher
 /// layer: a press and a drop on the chrome's padding reach nothing beneath (the
-/// `Under` button there neither runs nor takes the drop), and a press-drag
+/// 400 × 190 `Under` click target there neither runs nor takes the drop), and a press-drag
 /// inside it reaches no declaring ancestor's `DragGesture` (`IX-Q`). Controls:
 /// the same drop and drag outside the popover reach both. Mutations: drop the
 /// chrome's blocking hitbox; register the popover at the declarer's layer.
@@ -279,7 +283,7 @@ private let utf8 = PasteboardType(identifier: "public.utf8-plain-text",
     let (window, platform) = try popoverWindow {
         Box {
             Column {
-                Button("Under") { log.entries.append("under") }.frame(width: px(400), height: px(190))
+                Box().frame(width: px(400), height: px(190)).onClick { log.entries.append("under") }
                     .dropDestination(for: String.self, action: { _, _ in log.entries.append("drop"); return true },
                                      isTargeted: { log.entries.append("T=\($0)") })
                 Row {
@@ -511,19 +515,34 @@ private struct PCounter: Component {
     withExtendedLifetime(window) {}
 }
 
-/// **3.15** (`MN-M` item 2). A popover writes no `StateTable` entry of its own:
-/// the count is the same shown and dismissed (its content holds no state).
-/// Mutation: keep the anchor in `StateTable`.
+/// **3.15** (`MN-M` item 2). A popover writes no `StateTable` entry of its own
+/// — its anchor lives in the window's anchor map: every entry presenting adds
+/// descends from the popover's slot (the chrome's and content's own element
+/// slots), none sits under the wrapper elsewhere, and dismissing returns the
+/// table to its dismissed count (`ID-C`). Mutation: keep the anchor in
+/// `StateTable`.
 @MainActor
 @Test func aPopoverWritesNoStateTableEntry() throws {
     let log = PLog()
     log.shown = false
     let (window, _) = try popoverWindow { centred(log, edge: nil) }
     let dismissed = window.stateTable.count
+    let before = window.stateTable.ids
     log.shown = true
     redraw(window)
-    try #require(window.lastOpenPopovers.count == 1)
-    #expect(window.stateTable.count == dismissed)
+    let wrapper = try #require(window.lastOpenPopovers.first, "presented").id
+    let slot = GlobalElementID.child(of: wrapper, at: 1, name: nil)
+    let added = window.stateTable.ids.subtracting(before)
+    func descends(_ id: GlobalElementID, from ancestor: GlobalElementID) -> Bool {
+        var cursor: GlobalElementID? = id
+        while let current = cursor { if current == ancestor { return true }; cursor = current.parent }
+        return false
+    }
+    try #require(!added.isEmpty, "the chrome and content write their element slots")
+    #expect(added.allSatisfy { descends($0, from: slot) }, "every added entry is inside the popover's slot")
+    log.shown = false
+    redraw(window)
+    #expect(window.stateTable.count == dismissed, "dismissed again: the popover's entries are gone")
     withExtendedLifetime(window) {}
 }
 

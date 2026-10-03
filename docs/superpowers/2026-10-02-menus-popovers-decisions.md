@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AG`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AH`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1075,3 +1075,79 @@ existing answer.
 **Cost if wrong.** Item 1 is one argument (`ControlKeys`' platform); item 3 a
 stale id in an edge no test reaches; items 7–8 are what human checks R1/R4
 look at.
+
+---
+
+# Lane 3 (2026-10-03)
+
+## MN-AG — What lane 3 settled in building popovers, tooltips and the demo (amends MN-L item 2, MN-M items 2 and 5, MN-P item 2, MN-Q, spec §3.7, §3.10, test 3.15)
+
+**Ruling.**
+
+1. **The chrome's panel is painted by `AnchoredPresentation`, not decorated
+   on the `Box`.** A legacy `Box` paints its fill and its border as two
+   primitives (`paintDecorationBody`: fill, content, then a transparent
+   bordered rect, so the border sits over the content), and a shadow is per
+   leaf (`GX-J`) — so a decorated chrome cast two shadows, the ring's a faint
+   second outline (found by running test 3.16: two rects, two shadow
+   images). The chrome `Box` now only pads (12) and carries the name and the
+   popover hint; `AnchoredPresentation.paint` emits one `.surface` rounded
+   rect (radius 10) with its 1-pt `.separator` border inside one shadow scope
+   (radius 8, y 2 — `MenuPanel`'s), then the content. Still no new drawable
+   primitive (`TE-AD` not triggered).
+2. **`item:`'s name is the chrome `Box`'s own `elementID`** (a
+   `StyledElement`'s own `id(_:)` wins where both apply), not an
+   `IdentifiedGroup` wrapper: one type for both spellings
+   (`OptionalGroup<AnchoredPresentation<Box<P>>>`) and **no new naming site**
+   — `Box`'s `elementID` is an existing one, so `everyNamingSiteStartsAReturningNameFresh`
+   needs no arm. A different item's id resets the old name's state (`ID-R`),
+   pinned by test 3.12.
+3. **Every `PopoverModifier` records its anchor, presented or not** (in its
+   prepaint, through `Frame.recordPresentationAnchor`, after its content's
+   prepaint), so a popover presented from input appears on the very next
+   frame; only one presented before its anchor was ever laid out waits a
+   frame (test 3.14). A presented popover whose anchor moved asks for one
+   more frame (test 3.13). The previous frame's map reaches layout as
+   `Frame.previousPresentationAnchors`, handed in by `Window`.
+4. **`PopoverModifier` is not a `StyledElement`** (`DraggablePreviewModifier`'s
+   shape): on the legacy vocabulary nothing chains after `.popover` — a second
+   `.popover`, a `.padding` — so write `.popover` last; on the proposal path it
+   is a `ProposalElementGroup` and chains. G3.1's first fixture chained two
+   legacy popovers and was refused (found by running); it was re-spelt.
+   Owner none.
+5. **The popover stage holds Escape too**: one `Window.dispatchPopovers`
+   between the open menu's stage and the context menu's, so Escape is handled
+   after a drag session and an open menu and before scrolling, text input and
+   the keymap (`MN-N` item 2's "before the keymap"). A dismissed popover
+   leaves `Window.lastOpenPopovers` at once, so a second event before the next
+   frame does not dismiss it twice.
+6. **The tooltip's "a menu opening" hide rule is every event while a menu is
+   open**: the press or key that opens a menu already hides the tooltip by the
+   press and key rules, and while `menuSession` exists every event hides it. A
+   menu opened by an accessibility request leaves a shown tooltip until the
+   next event (test 3.25 uses that to put both on screen). A flipped tooltip's
+   bottom sits **4 pt above the pointer** (spec §3.10 named no gap).
+7. **`.help` on the proposal path registers as `accessibilityHint`'s wrapper
+   does** — `ContextualModifier.prepaint` declares the hint and registers
+   synthesizing when its attachment carries help (a menu-only wrapper still
+   registers non-synthesizing, as lane 1 built it), so the two publish one
+   tree (test 3.22, proposal arm).
+8. **Test 3.15 is restated**: a presented popover's chrome and content write
+   their own element slots (`$anim`, `$anim-color` — every legacy `Box` does),
+   so the count is not equal shown and dismissed. The test now asserts every
+   entry presenting adds descends from the popover's slot (cursor 1), and that
+   dismissing returns the table to its dismissed count (`ID-C`). The
+   mutation (keep the anchor in `StateTable`, under the wrapper) still reddens
+   it.
+9. **`lowerAnchoredPresentation` lives in `AnchoredPresentation.swift`**, an
+   extension of `LayoutPass` beside its one caller, not in
+   `LegacyLowering.swift`; `lowerPresentation` and `Deferred` are untouched.
+
+**Reasoning.** Items 1, 4 and 8 were found by running the red tests; the rest
+make the spec's sentences concrete. None moves an existing answer: no
+existing spelling gains a level, `Deferred` and `lowerPresentation` are
+unchanged, and the default demo's pixels are unmoved.
+
+**Cost if wrong.** Item 1 is one paint call; item 2 one line; item 4 a
+`StyledElement` conformance (the `DraggablePreviewModifier` precedent would
+move with it).

@@ -1392,6 +1392,7 @@ public final class Frame {
         declaration.logicalIndex = nil
         declaration.selectionHint = false
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
+        declaration.popoverHint = false      // MN-O, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1416,7 +1417,8 @@ public final class Frame {
             // A context menu is a declaration too (`MN-G` item 2): its node
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
-                || handlers.axNode.selectionHint || declaresAction || declaresNamedAction
+                || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
@@ -1539,6 +1541,27 @@ public final class Frame {
     /// window points (spec §3.4): `Window.lastPresentationAnchors` after the
     /// frame. Frame-scoped, never `StateTable`.
     private(set) var presentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The anchors the LAST frame recorded, handed in by `Window` (spec §3.7,
+    /// `MN-M` item 2): a popover is placed against its anchor's last completed
+    /// bounds, since presentations are laid out before the root. Empty for a
+    /// frame rendered without a window.
+    var previousPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The popovers this frame presented, in registration order — so the
+    /// topmost last (spec §3.7): `Window.lastOpenPopovers` after the frame.
+    /// Frame-scoped, never `StateTable`.
+    private(set) var openPopovers: [OpenPopover] = []
+
+    /// Registers an open popover (`AnchoredPresentation.prepaint`).
+    func registerOpenPopover(_ popover: OpenPopover) {
+        openPopovers.append(popover)
+    }
+
+    /// The tooltip on screen, handed in by `Window` before it renders
+    /// (`MN-P` item 2); `nil` with none, so a frame without one paints
+    /// nothing more.
+    var tooltip: VisibleTooltip?
 
     /// The window's handle a pull-down presents through (spec §3.4); `nil` for
     /// a frame rendered without a window.
@@ -2864,6 +2887,7 @@ public final class Frame {
         animationStore.transitions.paintGhosts(&paintPass)
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
+        paintTooltip()  // a tooltip, above everything (MN-P item 2)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

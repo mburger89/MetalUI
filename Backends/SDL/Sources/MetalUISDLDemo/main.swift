@@ -41,6 +41,8 @@ func runDemo() throws {
     // drops from other applications arrive through SDL's drop events (DN-M);
     // a chip cannot leave the window (divergence 101).
     // `METALUI_TEXT_INPUT_DEMO=1`: roadmap item 14's two text fields (TI-F).
+    // `METALUI_MENUS_DEMO=1`: menus, popovers and tooltips (human check R2) —
+    // the context menu is drawn in the window (`MN-F`); SDL has no menu bar.
     // `METALUI_METALVIEW_DEMO=1`: MetalView's demo (ruling MV-J, human checks
     // section O) — the large surface clears to a colour cycling with
     // `ctx.time` through the SDL renderer's draw context; the counter and the
@@ -59,6 +61,8 @@ func runDemo() throws {
                              content: { metalViewDemoContent(draws: metalViewDraws, surface: metalViewSurface) })
         : environment["METALUI_DND_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 drag and drop", size: size, content: dragAndDropDemoContent)
+        : environment["METALUI_MENUS_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 menus", size: size, content: menusDemoContent)
         : environment["METALUI_TEXT_INPUT_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 text input", size: size, content: textInputDemoContent)
         : try app.openWindow(title: "MetalUI — SDL3", size: size, content: demoContent)

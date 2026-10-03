@@ -521,6 +521,73 @@ headed **"Q1–Q6 · paths, shadows, transforms"** (left column, below I1).
   `aRotatedSquaresFrameCornerMissesAndItsTipHits`, `hoverAndGestureArenasFollowTheTransform`.
   **Observed:**
 
+## R. Menus, popovers and tooltips (user request 2026-10-02, not a plan task)
+
+*Source: record §74 `74-menus-popovers.md`, rulings `MN-A`…`MN-AG`
+(`docs/superpowers/2026-10-02-menus-popovers-decisions.md`), spec §8.* The
+probes (`docs/probes/swiftui-menus-popovers.swift`, `docs/probes/swiftui-commands.swift`)
+ran in a **locked** session, so a native menu's tracking, a popover's Escape
+and outside click, the tooltip and the key-window order of a shortcut are
+unmeasured against SwiftUI; MetalUI's answers are pinned headless and nothing
+below has been seen on a real display. Run
+`METALUI_MENUS_DEMO=1 swift run -c release MetalUIDemo` (AppKit) and, for R2,
+`METALUI_MENUS_DEMO=1` with `Backends/SDL`'s `MetalUISDLDemo` on Linux or
+Windows.
+
+- [ ] **R1. The native context menu**: a right click and a control-click on the
+  card each open a native menu — Copy, Rename, a separator, Colour ▸ (Red,
+  Green, Blue), Pinned (✓ once chosen), Delete greyed, Duplicate showing ⌘D —
+  looking as a SwiftUI app's does (host the probe's C1 view in a window to
+  compare). Choosing an item updates the status line. Pinned by
+  `aRightPressOverAContextMenuPresentsItsItemsToThePlatform`,
+  `anAppKitMenuIsBuiltFromThePlatformMenu`, `aChosenNativeItemArrivesAsAMenuActionAfterThePopUpReturns`
+  (`AppKitMenuTests`; the production `NSMenu.popUp` is pinned by none, `MN-AF`
+  item 7). **Observed:**
+- [ ] **R2. The drawn menu (SDL)**: on Linux or Windows the same right click
+  draws MetalUI's menu: rows highlight under the pointer, Colour opens its
+  submenu on hover, ↑ ↓ → ← move, Return chooses, Escape closes a level, an
+  outside click dismisses without clicking what it lands on, Shift-F10 and the
+  Menu key open the focused element's menu. Pinned by `ContextMenuTests` 1.16–1.28
+  and `SDLMenuInputTests`. **Observed:**
+- [ ] **R3. The menu bar (AppKit)**: the application menu has About, Hide
+  (⌘H), Hide Others, Show All and Quit (⌘Q quits); File has New Note (⌘N) after
+  the New item's slot and Close (⌘W); Edit ▸ Copy and Paste reach a focused
+  `TextField` (the popover's field) by click and by key; a Demo menu sits
+  before Window with Say Hello (⇧⌘H) and Pinned. Pinned by
+  `theDefaultMenuBarHasTheStandardMenus`, `theMainMenuMapsStandardActionsToAppKitSelectors`,
+  `theEditMenuReachesTheFocusedFieldAsItsKeys`. **Observed:**
+- [ ] **R4. One shortcut, one action**: ⌘D (the card's Duplicate, a context
+  item — inactive while the menu is closed, C12) and ⇧⌘H (Say Hello) each fire
+  once per press, the status line naming them. Re-run
+  `swiftui-commands.swift` unlocked with a key window to settle `MN-J` item 4's
+  order, and confirm AppKit hands `performKeyEquivalent(with:)` and
+  `keyDown(with:)` the same event (`MN-AF` item 8). Pinned by
+  `aButtonsShortcutWinsOverACommandsAndFiresOnce`,
+  `aKeyEquivalentDeclinedByTheWindowIsNotDeliveredAgainAsAKeyDown`. **Observed:**
+- [ ] **R5. The popover**: Show popover presents a rounded panel above the
+  button (no arrow — divergence 112), 8 pt from it; drag the window small so it
+  cannot fit above: it flips below, and is kept inside the window (divergence
+  111). Escape closes it; a click outside closes it **and** reaches what it
+  lands on; a click on Show popover closes it (it does not re-open); clicks in
+  the field and on Close work. Re-run the probe's P3/P4 unlocked to see whether
+  a native transient `NSPopover`'s outside click reaches what it lands on
+  (`MN-Y` passes it through on P4a's reading). Pinned by `PopoverTests` 3.1–3.8,
+  3.26. **Observed:**
+- [ ] **R6. Tooltips**: rest the pointer on "Hover me": after about a second a
+  small panel appears below the pointer with the text; a click, a key, the
+  wheel or moving off hides it, and it returns only after leaving and coming
+  back. "Me too"'s text wraps. Compare the delay and look with a native AppKit
+  tooltip (re-run the probe's H7 unlocked; divergence 113). Pinned by
+  `TooltipTests` 3.17–3.21, 3.24. **Observed:**
+- [ ] **R7. VoiceOver**: VO-Shift-M on the card opens its menu; the popover
+  reads as a popover (VoiceOver does not trap focus in it); a hint's text is
+  read as help. Pinned by `aShowMenuRequestOpensTheElementsMenu`,
+  `thePopoverPublishesAPopoverNodeAndIsolatesNothing`,
+  `helpPublishesTheSameTreeAsAccessibilityHint`. **Observed:**
+- [ ] **R8. A right click presses nothing**: a right click on Show popover does
+  not present the popover (divergence 110; a SwiftUI `Button` would press).
+  Pinned by `aSecondaryPressNeverRunsOnClickOrATap`. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

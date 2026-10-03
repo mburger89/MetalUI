@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **78 live divergences**, each measured (a probe
+place it knowingly does not: **81 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips lane 1 added 110 and 114, rulings `MN-B`, `MN-V` — 111–113 are reserved for its lane 3, next label 115). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–114 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113, rulings `MN-M`, `MN-P` — next label 115). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -105,6 +105,9 @@ scheduled).
 | 108 | a legacy element's render effects against its own background and border | a modifier written after `.rotationEffect` is outside it: a background written after the effect is not turned (T8) | `rotationEffect`/`scaleEffect`/`offset` on a `StyledElement` return `Self` and always wrap the whole element — background, content and border — whatever order they are written in (the legacy `Decoration` is order-insensitive, divergence 47's reason); their order among themselves is kept. The proposal vocabulary follows SwiftUI (one layer each) | `GX-H` | `aLegacyEffectWrapsTheWholeElementWhateverTheOrder` | none |
 | 109 | a clip between two nested rotations | the clip turns with the outer rotation and cuts the inner content exactly | the clip becomes its axis-aligned screen bounding box (a primitive carries one local mask and one screen mask, not a mask per effect) | `GX-G` | `aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox` | none |
 | 110 | a secondary (right) click | presses a plain `Button` and fires an `.onTapGesture` (probe `swiftui-menus-popovers.swift` C6, C6t; an AppKit `NSButton` ignores it, C6n); on a `Button` with a context menu the right-down opened no menu and the up pressed the button (C7b, C7b') | a secondary press runs no `onClick`, gesture, drag, text-field or slider press and focuses nothing; it only opens context menus (and on AppKit a control-click is one) | `MN-B` item 4 | `aSecondaryPressNeverRunsOnClickOrATap` | none |
+| 111 | a popover near the window's edge | the popover is its own window (`_NSPopoverWindow`, probe `swiftui-menus-popovers.swift` P1): it extends past the presenting window (`.bottom` 30 pt below it, `.leading` 69 pt left of it) and flips against the **screen** (P5) | drawn inside the window: on its edge's side, flipped to the opposite side when it does not fit and does there, then clamped inside the window with 8 pt | `MN-M` items 3–4 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge`, `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` | none |
+| 112 | a popover's arrow | `NSPopover` draws an arrow pointing at the anchor | no arrow: a `.surface` rounded rectangle (radius 10) with a `.separator` border and the default shadow, 8 pt from the anchor | `MN-M` item 5 | `thePopoverChromeIsARoundedPanelWithNoArrow` | none |
+| 113 | `.help(_:)`'s tooltip | AppKit's native tooltip (its look and delay unmeasured: H7 found no tooltip window in a locked session) | drawn by MetalUI on every platform: 1.0 s of display-link time, below the pointer, flipped and clamped inside the window; hidden by a press, wheel, key, leaving or the window leaving key | `MN-P` items 2–3 | `aTooltipAppearsAfterTheHoverDelayOfTickTime` | none |
 | 114 | a cover over a context-menu view | an opaque view with no handler covering it blocks its menu (C14's `Color`) | an element registers a hitbox only with a pointer handler, so a cover that only paints does not block — the menu beneath opens; a covering pointer target (an `onClick`, a gesture) does block | `MN-V` item 2 | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath`, `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath` | none |
 
 ## Retired
@@ -159,6 +162,7 @@ stated.
 | two-axis scrolling; `scrollPosition(id:)`; an animated `scrollTo`/scroll offset | not built | `CN-M`, `DD-AB` items 5–6, `CX-I` item 2 |
 | `ButtonStyle`/`PrimitiveButtonStyle` as open protocols, `.borderedProminent`, `.link`, `.toggleStyle`, `.pickerStyle(.menu)` | not built (`ButtonStyle`/`PickerStyle` are closed structs; `.contextMenu` is built since menus, popovers and tooltips, `MN-E`) | `IX-E`, `IX-M` |
 | `Picker`, `Section`, `Label`/image items and a non-`Text`-labelled `Button` inside a menu; `Divider` as a view in a stack; menu type-select, a scrolling menu taller than the window, a submenu-open delay; `.contextMenu(forSelectionType:)`, `.contextMenu(menuItems:preview:)` | not built (a picker's options are found only inside layout; a view `Divider` needs the stack's axis; the rest a second design) | `MN-D` item 5, `MN-H` item 3, `MN-T` |
+| `.popover(attachmentAnchor:)`, `.presentationCompactAdaptation`, a drawn popover arrow; `.help(Text)`, `.help` on a menu item; a native AppKit tooltip | not built (the anchor is always the wrapped element's bounds; the arrow and native tooltip are divergences 112 and 113) | `MN-L` item 3, `MN-P`, `MN-T` |
 | a context menu off Apple | MetalUI draws its own in-window menu where the platform has none (SDL); there is no SwiftUI there to compare | `MN-C`, `MN-F` |
 | Windows' open-on-release context-menu convention | MetalUI opens a context menu on the press on every platform | `MN-E` item 3 |
 | `.sequenced`, `@GestureState`, `GestureMask`, a custom gesture `body`, location taps | not built | `IX-B` |

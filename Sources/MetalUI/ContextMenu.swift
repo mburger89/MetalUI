@@ -98,12 +98,17 @@ public struct ContextualModifier<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.contextual = attachment
+        // `.help` is `accessibilityHint`'s declaration too (`MN-P` item 1),
+        // registered as `AccessibilityModifier` registers it — synthesizing,
+        // so the two publish one tree.
+        let help = attachment.help
+        if let help { handlers.axNode.declarations.hint = help }
         // A wrapper's registration follows an effect written inside it at the
         // same rect (`GX-P` item 1).
         let frame = pass.frame
         return frame.sharingRegistrationsWithEffects(at: bounds, register: {
             pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                                  synthesizesAccessibility: false)
+                                  synthesizesAccessibility: help != nil)
         }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 

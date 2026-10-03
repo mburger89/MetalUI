@@ -1,7 +1,7 @@
 # Menus, popovers and tooltips — design
 
 **Status: design (2026-10-02), revised by the critic round (2026-10-02,
-rulings `MN-U`…`MN-AD`, §11), by lane 1 (`MN-AE`) and by lane 2 (`MN-AF`).** User request 2026-10-02, an item of the
+rulings `MN-U`…`MN-AD`, §11), by lane 1 (`MN-AE`), by lane 2 (`MN-AF`) and by lane 3 (`MN-AG`).** User request 2026-10-02, an item of the
 gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-AD` in
 [`../2026-10-02-menus-popovers-decisions.md`](../2026-10-02-menus-popovers-decisions.md).
 Record: `docs/record/74-menus-popovers.md`. Probes:
@@ -267,8 +267,8 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
 macOS (P7).
 
 (`PopoverModifier` conforms to `ProposalElementGroup` when `Content` does, as
-`DraggablePreviewModifier`'s pattern requires; lane 3 follows whichever shape
-that file uses.)
+`DraggablePreviewModifier`'s pattern requires. It is not a `StyledElement`, so
+on the legacy vocabulary nothing chains after `.popover` — `MN-AG` item 4.)
 
 ## 3. How it works
 
@@ -396,20 +396,22 @@ none unless a test sets it.
 
 `PopoverModifier.requestLayout`: content at cursor 0; slot at cursor 1 —
 `OptionalGroup<AnchoredPresentation<Box<PopoverContent>>>` (the Box is the
-chrome: `.surface`, radius 10, `.separator` border, padding 12, the default
-shadow) — produced only while presented **and** the anchor map has this id's
-bounds (else `requestAnotherFrame()`); under `item:` the content is wrapped
-in `IdentifiedGroup` named `"\(item.id)"`. `AnchoredPresentation` copies
+chrome's padding, 12; its panel — `.surface`, radius 10, `.separator` border,
+the default shadow — is painted by `AnchoredPresentation` as one bordered rect
+under one shadow, `MN-AG` item 1) — produced only while presented **and** the
+anchor map has this id's bounds (else `requestAnotherFrame()`); under `item:`
+the chrome `Box`'s own `elementID` is `"\(item.id)"` (`MN-AG` item 2). `AnchoredPresentation` copies
 `Deferred`'s three halves (`withoutScrollContext` in layout, `pass.deferred`
 in prepaint and paint) but lowers through a new
-`LayoutPass.lowerAnchoredPresentation(_:_:anchor:edge:)` beside
-`lowerPresentation`: the root is a native custom layout,
+`LayoutPass.lowerAnchoredPresentation(_:anchor:edge:)` (in
+`AnchoredPresentation.swift`, `MN-AG` item 9) beside `lowerPresentation`: the root is a native custom layout,
 `PopoverPlacement: ProposalLayout` (window-sized answer; measures the child
 at a nil proposal capped to the window less 16; places it by §2's rule —
-`PopoverPlacement.origin(anchor:size:edge:window:) -> PointD`, pure), queued
+`PopoverPlacement.origin(anchor:size:edge:window:) -> Point<Pixels>`, pure), queued
 in `frame.lowering.presentations` like `Deferred`'s, the parent handed a 0×0
-placeholder. `prepaint` records the wrapper's bounds in the anchor map
-(requesting one more frame if they changed while presented) and registers an
+placeholder. `prepaint` records the wrapper's bounds in the anchor map, presented
+or not (requesting one more frame if they changed while presented, `MN-AG`
+item 3), and registers an
 open-popover entry `(id, layer, popover bounds, dismiss)` in a frame-scoped
 list. The chrome declares an accessibility node with role `.popover`, and
 its prepaint inserts a **raw opaque hitbox** at the chrome's bounds (no
@@ -425,8 +427,9 @@ popovers topmost first; while the point is outside the current one, call its
 id)`) and continue. **The press then continues through dispatch** (P4a,
 `MN-Y`) — except a press on a dismissed popover's own anchor bounds, which
 is claimed with its release (a toggling anchor closes rather than
-re-presents). Escape (`.keyDown` `U+1B`, no modifiers), as a stage after the
-menu's and before `dispatchAction`, dismisses the topmost one.
+re-presents). Escape (`.keyDown` `U+1B`, no modifiers), in the same stage —
+after the menu's and before `dispatchAction` (`MN-AG` item 5) — dismisses the
+topmost one.
 
 ### 3.9 Accessibility (lane 1; popover role lane 3)
 
@@ -451,10 +454,11 @@ on every pointer move, `contextualTarget(at:)` restricted to help regions
 `advanceTooltip(to: tick)` call (display-link callback, beside
 `advanceGestures`) stamps `since`; a later tick ≥ `since + 1.0` shows it at
 the latest pointer position inside the region
-(`TooltipPlacement.origin(pointer:size:window:)`, pure).
+(`TooltipPlacement.origin(pointer:size:window:)`, pure; flipped, its bottom
+4 pt above the pointer, `MN-AG` item 6).
 Hide rules per `MN-P` item 2 (`.mouseDown`, `.rightMouseDown`,
-`.scrollWheel`, `.keyDown`, leaving, a menu opening, `controlActiveState`
-leaving `.key`); after a hide the region is `spent` until left. Painted by
+`.scrollWheel`, `.keyDown`, leaving, any event while a menu is open
+(`MN-AG` item 6), `controlActiveState` leaving `.key`); after a hide the region is `spent` until left. Painted by
 the frame after the menu panel. The link's pause decision adds "a tooltip is
 pending".
 
@@ -615,7 +619,7 @@ Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
 | 3.12 | `popoverItemFollowsTheItemAndResetsOnANewID` | nil → none; id 1 → shown; id 2 → fresh state | drop the `IdentifiedGroup` |
 | 3.13 | `aPopoverFollowsItsAnchorWithinOneFrame` | anchor moved → `requestAnotherFrame`, next frame placed at the new bounds | no another-frame request |
 | 3.14 | `anInitiallyPresentedPopoverAppearsOnTheSecondFrame` | frame 0 none, frame 1 shown | produce with a zero anchor on frame 0 |
-| 3.15 | `aPopoverWritesNoStateTableEntry` | table count equal shown vs not (beyond its content's own) | keep the anchor in `StateTable` |
+| 3.15 | `aPopoverWritesNoStateTableEntry` | every entry presenting adds descends from the popover's slot (the chrome's and content's own element slots); dismissing returns the count (`MN-AG` item 8) | keep the anchor in `StateTable` |
 | 3.16 | `thePopoverChromeIsARoundedPanelWithNoArrow` (112) | one `.surface` rect radius 10 + shadow, no other primitive than the content's | (pin of the absence: add a triangle path) |
 | 3.17 | `aTooltipAppearsAfterTheHoverDelayOfTickTime` (113) | ticks 10.0 (stamp), 10.9 none, 11.0 shown | delay 0 |
 | 3.18 | `theTooltipDelayIsStampedFromTheFirstTickAfterEntering` | `lastTick` 0, enter, tick 50.0 stamps, 50.5 none | stamp from the stale `lastTick` |

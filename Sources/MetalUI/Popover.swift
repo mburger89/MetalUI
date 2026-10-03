@@ -35,10 +35,13 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         self.dismiss = dismiss
     }
 
-    /// What `requestLayout` hands the later phases (lane 3's red stub: the
-    /// anchor alone, no popover).
+    /// What `requestLayout` hands the later phases: the anchor's layout and
+    /// the popover's slot, its layout and (once prepainted) its prepaint.
     public struct Layout {
         var content: Content.GroupLayout
+        var slot: PopoverSlot<PopoverContent>
+        var slotLayout: PopoverSlot<PopoverContent>.GroupLayout
+        var slotPrepaint: PopoverSlot<PopoverContent>.GroupPrepaint?
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -46,17 +49,73 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         precondition(children.count == 1, "a popover modifier requires one child")
-        return (children[0], Layout(content: contentLayout))
+        let (slot, slotLayout) = layOutPopover(id, at: &cursor, pass: &pass)
+        return (children[0], Layout(content: contentLayout, slot: slot, slotLayout: slotLayout, slotPrepaint: nil))
+    }
+
+    /// The popover's slot at `cursor` (1): an evaluated optional produced only
+    /// while presented **and** the last frame recorded this wrapper's anchor
+    /// (`MN-M` item 2) — a presentation with no anchor yet asks for one more
+    /// frame and appears on it. Its placeholder joins no parent: this wrapper
+    /// hands its parent the anchor's node alone (`DN-Y` item 2's footing).
+    func layOutPopover(_ id: GlobalElementID, at cursor: inout Int,
+                       pass: inout LayoutPass) -> (PopoverSlot<PopoverContent>, PopoverSlot<PopoverContent>.GroupLayout) {
+        let frame = pass.frame
+        var slot = PopoverSlot<PopoverContent>(nil)
+        if let (name, body) = presented() {
+            if let anchor = frame.previousPresentationAnchors[id] {
+                slot = PopoverSlot(AnchoredPresentation(content: Self.chrome(body, name: name), owner: id,
+                                                        anchor: anchor, edge: edge, dismiss: dismiss))
+            } else {
+                frame.requestAnotherFrame()
+            }
+        }
+        let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        return (slot, layout)
+    }
+
+    /// The chrome's box (`MN-M` item 5): the content padded by 12, named by
+    /// `item:`'s id (`ID-R`), published as a `.popover` node (`MN-O`). Its
+    /// panel — a `.surface` rounded rectangle (radius 10) with a 1-pt
+    /// `.separator` border and the default shadow — is painted by
+    /// `AnchoredPresentation` as one bordered rect (a legacy `Box` would paint
+    /// its fill and border as two primitives, each with its own shadow).
+    static func chrome(_ body: PopoverContent, name: String?) -> Box<PopoverContent> {
+        var box = Box(content: body)
+        box.style.padding = Edges(all: .pixels(Pixels(PopoverChrome.padding)))
+        box.elementID = name.map { ElementID($0) }
+        box.handlers.axNode.popoverHint = true
+        return box
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // The anchor map (`MN-M` item 2): this frame's bounds, for the next
+        // frame's placement. A presented popover whose anchor moved asks for
+        // one more frame, which places it at the new bounds.
+        let frame = pass.frame
+        let previous = frame.previousPresentationAnchors[id]
+        frame.recordPresentationAnchor(id, bounds: bounds)
+        if layout.slot.wrapped != nil, let previous, frame.presentationAnchors[id] != previous {
+            frame.requestAnotherFrame()
+        }
+        var slot = layout.slot
+        var slotLayout = layout.slotLayout
+        let slotPrepaint = slot.prepaintGroup(layout: &slotLayout, pass: &pass)
+        layout.slot = slot
+        layout.slotLayout = slotLayout
+        layout.slotPrepaint = slotPrepaint
+        return result
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        if var slotPrepaint = layout.slotPrepaint {
+            layout.slot.paintGroup(layout: &layout.slotLayout, prepaint: &slotPrepaint, pass: &pass)
+            layout.slotPrepaint = slotPrepaint
+        }
     }
 }
 
@@ -67,8 +126,21 @@ extension PopoverModifier: ProposalElementGroup, ProposalElement where Content: 
         let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
                                                                            pass: &pass)
         precondition(children.count == 1, "a popover modifier requires one native child")
-        return (children[0], Layout(content: contentLayout))
+        let (slot, slotLayout) = layOutPopover(id, at: &cursor, pass: &pass)
+        return (children[0], Layout(content: contentLayout, slot: slot, slotLayout: slotLayout, slotPrepaint: nil))
     }
+}
+
+/// A popover's slot: an evaluated optional (`ID-C`) holding the anchored
+/// presentation of the chrome.
+typealias PopoverSlot<P: ElementGroup> = OptionalGroup<AnchoredPresentation<Box<P>>>
+
+/// The chrome's look (`MN-M` item 5), every constant here.
+enum PopoverChrome {
+    static let cornerRadius: Float = 10
+    static let padding: Float = 12
+    static let shadowRadius: Float = 8
+    static let shadowY: Float = 2
 }
 
 /// `isPresented:`'s presentation: the content while the binding is `true`.
@@ -146,5 +218,45 @@ extension ProposalElementGroup {
         -> PopoverModifier<Self, P> {
         PopoverModifier(content: self, edge: arrowEdge, presented: presenting(item, content),
                         dismiss: { item.wrappedValue = nil })
+    }
+}
+
+// MARK: - Window's popover stage (spec §3.8)
+
+extension Window {
+    /// The popovers' stage (rulings `MN-N`, `MN-Y`), between the open menu's
+    /// and the context menu's:
+    ///
+    /// - a press (either button) walks the open popovers topmost first and,
+    ///   while the point is outside the current one, dismisses it — the
+    ///   binding written from input under its declarer's dispatch (`ID-F`) —
+    ///   then **passes on** to the rest of dispatch (P4a, `MN-Y` item 1),
+    ///   unless it landed on a dismissed popover's own anchor: that press is
+    ///   consumed with its release, so a toggling anchor closes (`MN-Y` item 2);
+    /// - Escape with no modifiers dismisses the topmost popover, before the
+    ///   keymap (`MN-N` item 2).
+    func dispatchPopovers(_ event: InputEvent) -> Bool {
+        switch event {
+        case .mouseUp where popoverClaimsRelease == false, .rightMouseUp where popoverClaimsRelease == true:
+            popoverClaimsRelease = nil
+            return true
+        case .mouseDown(let mouse), .rightMouseDown(let mouse):
+            var onAnchor = false
+            while let top = lastOpenPopovers.last, !top.bounds.contains(mouse.position) {
+                lastOpenPopovers.removeLast()
+                StateDispatch.dispatching(to: top.id) { top.dismiss() }
+                if top.anchor.contains(mouse.position) { onAnchor = true }
+            }
+            guard onAnchor else { return false }
+            releasePressForMenu()   // never drawn pressed, never a click on release
+            if case .rightMouseDown = event { popoverClaimsRelease = true } else { popoverClaimsRelease = false }
+            return true
+        case .keyDown(let key) where key.charactersIgnoringModifiers == "\u{1b}" && key.modifiers.isEmpty:
+            guard let top = lastOpenPopovers.popLast() else { return false }
+            StateDispatch.dispatching(to: top.id) { top.dismiss() }
+            return true
+        default:
+            return false
+        }
     }
 }

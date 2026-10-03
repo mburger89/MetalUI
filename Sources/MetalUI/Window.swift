@@ -624,7 +624,10 @@ public final class Window {
             // Assigning drives `controlActiveState`'s guarded `didSet`, which
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
-            if state != .key { self?.dismissInWindowMenu() }   // `MN-F` item 3
+            if state != .key {
+                self?.dismissInWindowMenu()   // `MN-F` item 3
+                self?.hideTooltip()   // `MN-P` item 2
+            }
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
             // Assigning drives the guarded `didSet`, which marks the window
@@ -659,6 +662,8 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // The tooltip watches every event and claims none (`MN-P` item 2).
+            self.trackTooltip(event)
             // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
             // outside answers for itself — "an accepting destination is under
             // the pointer" or "a destination took it", not "claimed" — and an
@@ -678,7 +683,10 @@ public final class Window {
             // context-menu stage opens one on a secondary press and takes a
             // native menu's outcome (`MN-C`, `MN-E`). Every later stage
             // ignores the secondary button (`MN-B` item 4, divergence 110).
-            if self.dispatchMenuSession(event) || self.dispatchContextMenu(event) {
+            // Between them, the popovers' stage (spec §3.8, `MN-N`, `MN-Y`): an
+            // outside press dismisses and passes on, an anchor's is consumed,
+            // Escape dismisses the topmost — before the keymap.
+            if self.dispatchMenuSession(event) || self.dispatchPopovers(event) || self.dispatchContextMenu(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -788,6 +796,7 @@ public final class Window {
                 // its callback from input's footing, so a `@State` write lands
                 // in the frame drawn below and is not a phase write.
                 self?.advanceGestures(to: t)
+                self?.advanceTooltip(to: t)   // the tooltip's timer, on the same footing (MN-P item 2)
                 self?.drawFrameIfNeeded()
             }
         }
@@ -1149,6 +1158,8 @@ public final class Window {
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
+        frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
+        frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
             frame.dragSourceID = session.sourceID
             frame.dragPreviewTranslation = session.translation
@@ -1177,6 +1188,7 @@ public final class Window {
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
         lastPresentationAnchors = frame.presentationAnchors
+        lastOpenPopovers = frame.openPopovers
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
@@ -1231,6 +1243,10 @@ public final class Window {
         // lets the link pause (pinned by
         // `aPendingGestureKeepsFramesComingOnlyWhilePending`).
         if gestureArena?.needsTicks == true { setNeedsRedraw() }
+        // A pending tooltip's timer needs the next tick to reach
+        // `advanceTooltip` — only while pending (`MN-P` item 2, `IX-C` item
+        // 4's footing; pinned by `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`).
+        if tooltipTracker.isPending { setNeedsRedraw() }
 
         // The animation half of the same idea, and deliberately NOT the same
         // mechanism. `wantsAnotherFrame` marks the window dirty; this records
@@ -1640,9 +1656,22 @@ public final class Window {
     }
 
     /// The anchors the last frame recorded, by element, in window points (spec
-    /// §3.4, `MN-AD`): a `Menu`'s bounds today, a popover's anchor in lane 3.
+    /// §3.4, `MN-AD`): a `Menu`'s bounds and a popover's anchor (lane 3,
+    /// `MN-M` item 2), handed to the next frame for its popovers' placement.
     /// The window-owned anchor map; frame-scoped, never `StateTable`.
     var lastPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The popovers the last frame presented, topmost last (spec §3.8): the
+    /// dismissal stage's table. A dismissed one leaves it at once, so a second
+    /// event before the next frame does not dismiss it again.
+    var lastOpenPopovers: [OpenPopover] = []
+
+    /// The release a popover's consumed anchor press owes a claim (`MN-Y`
+    /// item 2): `true` for the secondary button, `false` for the primary.
+    var popoverClaimsRelease: Bool?
+
+    /// The tooltip's state (`MN-P` item 2) — on `Window`, never `StateTable`.
+    var tooltipTracker = TooltipTracker()
 
     /// The handle every frame hands its pull-down menus (spec §3.4).
     var menuPresenter: MenuPresenter {

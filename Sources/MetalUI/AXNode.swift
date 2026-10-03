@@ -180,6 +180,14 @@ public struct AXNode: Equatable {
     /// slot (`AB-U`). Internal.
     var menuButtonHint = false
 
+    /// **A role hint, not a declaration** (menus, popovers and tooltips,
+    /// ruling `MN-O`): set by a popover's chrome, published as `.popover`
+    /// (SwiftUI's `AXPopover`, arm P2). Stripped by `Frame.registerHandlers`
+    /// before `isEmpty`'s gate as `menuButtonHint` is, so the chrome writes
+    /// neither `Frame.axNodes` nor a `$ax` slot (`AB-U`); it still makes the
+    /// chrome's record, as a selection hint does. Internal.
+    var popoverHint = false
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own
