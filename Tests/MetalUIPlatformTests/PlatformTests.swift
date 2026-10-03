@@ -269,3 +269,42 @@ import MetalUIRender
     #expect(deltas[1].x == Pixels(3))
     #expect(deltas[1].y == Pixels(-2))
 }
+
+/// **2.20** (colour and colour scheme, ruling `CR-M`). A preferred colour
+/// scheme sets the `NSWindow`'s own appearance — so its title bar and native
+/// menus follow — and the change comes back through `onAppearanceChange` as
+/// the forced scheme; `nil` clears the override and the application's
+/// appearance is reported again (probe `swiftui-colour.swift` `P8b`).
+///
+/// Mutation: map `.dark` to `.aqua` (the first two expectations redden).
+@MainActor
+@Test func settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let platform = AppKitPlatform(device: device)
+    let saved = NSApplication.shared.appearance
+    defer { NSApplication.shared.appearance = saved }
+    NSApplication.shared.appearance = NSAppearance(named: .aqua)
+
+    let title = "Preferred \(UUID().uuidString)"
+    let window = try platform.openWindow(title: title,
+                                         size: Size(width: Pixels(200), height: Pixels(200)))
+    let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
+    defer { nsWindow.close() }
+    try #require(window.appearance == .light, "the premise: an aqua application")
+
+    var fired: [Appearance] = []
+    window.onAppearanceChange = { fired.append($0) }
+
+    window.setPreferredColorScheme(.dark)
+    #expect(nsWindow.appearance?.name == .darkAqua)
+    #expect(window.appearance == .dark)
+    #expect(fired.last == .dark, "the forced appearance must be reported: \(fired)")
+
+    window.setPreferredColorScheme(nil)
+    #expect(nsWindow.appearance == nil, "nil follows the application")
+    #expect(window.appearance == .light)
+    #expect(fired.last == .light, "clearing must report the application's appearance: \(fired)")
+
+    window.setPreferredColorScheme(.light)
+    #expect(nsWindow.appearance?.name == .aqua)
+}

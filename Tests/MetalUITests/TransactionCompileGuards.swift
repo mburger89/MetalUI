@@ -81,6 +81,9 @@ private func conformer(pair: String) -> String {
         // arm here carries it; `DragAndDropCompileGuards` pins it.
         func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
+        // Colour scheme (`CR-M`), defaultless too, so every arm here carries
+        // it; `ColorSchemeCompileGuards` pins it.
+        func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
     \(pair)
     }
     """
