@@ -71,6 +71,15 @@ func everyColorTokenSpellingStillCompiles() throws {
             _ = ProposalText("x").foregroundColor(.textPrimary).foregroundColor(t).foregroundStyle(t)
             _ = TextField("", text: .constant("")).foregroundColor(.textPrimary).foregroundColor(t)
             _ = TextEditor(text: .constant("")).foregroundColor(.textPrimary).foregroundColor(t)
+            // The result types are pinned: each of these four has an
+            // `ElementGroup` fallback returning `EnvironmentScope<Self>`, so
+            // without the annotation a deleted own twin still compiles.
+            let _: Text = Text("x").foregroundColor(t)
+            let _: Text = Text("x").foregroundStyle(t)
+            let _: ProposalText = ProposalText("x").foregroundColor(t)
+            let _: ProposalText = ProposalText("x").foregroundStyle(t)
+            let _: TextField = TextField("", text: .constant("")).foregroundColor(t)
+            let _: TextEditor = TextEditor(text: .constant("")).foregroundColor(t)
             _ = Box { Text("x") }.foregroundStyle(.accent).foregroundStyle(t)
             _ = Box { Text("x") }.foregroundColor(.accent).foregroundColor(t)
             _ = Background(.surface) { leaf }

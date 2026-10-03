@@ -517,8 +517,14 @@ first build (build twice from the same pre-frame state)" must redden the
 **Reasoning.** Item 2 is a correctness defect in the committed design: `Color`
 is `Hashable` and `CR-H` item 3 compares **declared** `Color`s to decide
 whether a colour changed. `Float.nan != Float.nan`, so a NaN colour would be
-"changed" on every frame, writing the `$anim-color` slot during paint and
-re-arming a fade under any transaction — the display link never pauses. Item 1
+"changed" on every build, and every build made under a transaction would
+re-arm a fade (`advanceColor`). **Corrected by `CR-X` item 1**: the display
+link stays awake only while builds under a transaction keep arriving (an app
+animating something else on every frame); after one such build the next
+transactionless build snaps the fade (`color != running.to` with no
+transaction) and the link pauses with or without the canonicalisation. What
+item 2 protects is equality — `Color(red: .nan, …) == Color(red: 0, …)` — and
+so no fade on a rebuild under a transaction. Item 1
 and 3: a `Decoration` holds three background and three border colours, a
 `ColorToken` is one byte, a `Double` `Color` about 48; elements are copied
 through deep generic chains on 1 MB Windows stacks.
@@ -526,9 +532,10 @@ through deep generic chains on 1 MB Windows stacks.
 **Tests.** 1.6 gains the arm `Color(red: .nan, green: 0, blue: 0) ==
 Color(red: 0, green: 0, blue: 0)`; `ColorPaintTests` gains
 `aNaNColourSettlesAndLetsTheDisplayLinkPause` (a `Box` whose background is a
-NaN literal, under `withAnimation`: after two frames a third
-`drawFrameIfNeeded()` pauses). Mutation: drop the canonicalisation — both
-redden.
+NaN literal, rebuilt under `withAnimation` on each of five frames: after each
+one nothing is live, then a quiet frame pauses the link — `CR-X` item 1; the
+first version rebuilt under a transaction once and could not see the
+mutation). Mutation: drop the canonicalisation — both redden.
 
 ## CR-S — The theme variants live on the `Frame`, not in `EnvironmentValues` (revises `CR-K` item 2)
 

@@ -86,7 +86,8 @@ private let roundJoin = StrokeStyle(lineWidth: px(6), lineJoin: .round)
 /// that site emits its colour. Mutations, one at a time: in
 /// `StyledElement.background(_ color:)`, `Text.foregroundColor(_ color:)` and
 /// `Shape.fill(_ color:)` replace the forwarded colour with `.surface` —
-/// exactly that arm reddens. **`CR-U`'s tinted-parent arm**: a `Text` under
+/// that arm reddens; `Shape.fill` also reddens the `background(_:in:)` arm,
+/// which forwards to `shape.fill` (`CR-X` item 3, mutation M13). **`CR-U`'s tinted-parent arm**: a `Text` under
 /// `.foregroundStyle(.red)` with its own `.foregroundStyle(.secondary)` paints
 /// `Color.secondary`'s resolved value, not a red (divergence 119).
 @Test @MainActor func aLiteralColourReachesEveryColourTakingSite() {
@@ -326,9 +327,15 @@ private struct CycleKey: ThemeColorKey { static let defaultValue = Color.red }
 @MainActor @Observable private final class NaNModel { var flips = 0 }
 
 /// **`CR-R` item 2.** A NaN literal is stored as 0, so the declared colour
-/// equals itself frame to frame: a box painting it, rebuilt once under a
-/// transaction, settles and lets the display link pause. Mutation: drop the
-/// canonicalisation.
+/// equals itself frame to frame. The hazard needs a build under a transaction
+/// on EVERY frame (an app animating something else each frame): one build
+/// under a transaction is not enough, because the next transactionless build
+/// snaps the fade (`advanceColor`'s running branch, `color != running.to` with
+/// no transaction) and the link pauses with or without the canonicalisation.
+/// So each of five frames is rebuilt under `withAnimation`, and after each
+/// one nothing may be live; only then does a quiet frame pause the link.
+/// Mutation (`Color.canonical` returns its argument): every frame re-arms a
+/// fade and the first per-frame `hasActiveAnimations` arm reddens.
 @Test @MainActor func aNaNColourSettlesAndLetsTheDisplayLinkPause() throws {
     let model = NaNModel()
     let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200, startsDisplayLink: true) {
@@ -338,10 +345,13 @@ private struct CycleKey: ThemeColorKey { static let defaultValue = Color.red }
     platform.simulateTick(timestamp: 100)
     platform.simulateTick(timestamp: 100.1)
     try #require(platform.pauseCalls.last == true, "set up: a settled window pauses")
-    withAnimation(.linear(duration: 1)) { model.flips += 1 }
-    platform.simulateTick(timestamp: 100.2)
-    platform.simulateTick(timestamp: 100.3)
-    platform.simulateTick(timestamp: 100.4)
+    for frame in 0..<5 {
+        withAnimation(.linear(duration: 1)) { model.flips += 1 }
+        platform.simulateTick(timestamp: 100.2 + Double(frame) * 0.1)
+        #expect(!window.hasActiveAnimations,
+                "frame \(frame), rebuilt under a transaction: the NaN colour is unchanged, nothing live")
+    }
+    platform.simulateTick(timestamp: 100.8)
+    platform.simulateTick(timestamp: 100.9)
     #expect(platform.pauseCalls.last == true, "the NaN colour settled and the display link paused")
-    #expect(!window.hasActiveAnimations, "nothing live")
 }

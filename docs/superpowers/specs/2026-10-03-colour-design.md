@@ -343,7 +343,7 @@ and every reddened test is named in the lane's report (and record §75).
 
 | # | Test | Asserts | Red-before | Mutation |
 |---|---|---|---|---|
-| 1.15 | `aLiteralColourReachesEveryColourTakingSite` | one arm per §2.5 row and vocabulary (≈24 arms): render with `.red` (light), read the emitted rect/glyph/raster tint = `FF383C` | does not compile | in three sites — `StyledElement.background(_ color:)`, `Text.foregroundColor(_ color:)`, `Shape.fill(_ color:)` — replace the forwarded colour with `.surface`, one at a time; exactly that arm reddens each time |
+| 1.15 | `aLiteralColourReachesEveryColourTakingSite` | one arm per §2.5 row and vocabulary (≈24 arms): render with `.red` (light), read the emitted rect/glyph/raster tint = `FF383C` | does not compile | in three sites — `StyledElement.background(_ color:)`, `Text.foregroundColor(_ color:)`, `Shape.fill(_ color:)` — replace the forwarded colour with `.surface`, one at a time; that arm reddens each time, and `Shape.fill`'s also reddens the `background(_:in:)` arm, which forwards to `shape.fill` (`CR-X` item 3) |
 | 1.16 | `aColorViewFillsWithItsColourAndOpacityIsTheValueMethod` | `Color.red` as a view: one rect `FF383C`; `Color.red.opacity(0.5)`: one rect at alpha 0.5, and with `recordsElementBounds` the frame records as many element ids as for a bare `Color.red` (no opacity layer, so no extra identity level) | does not compile | make `Color.opacity` `@_disfavoredOverload` (the layer wins: scope count 1) |
 | 1.17 | `paintPassResolveUsesTheElementsScopedThemeAndScheme` | inside `.theme(.dark)` and `.environment(\.colorScheme, .dark)` scopes, `pass.resolve(.surface)` and `pass.resolve(.red)` read the scoped answers | does not compile | `PaintPass.resolve` uses the root theme |
 | 1.18 | `aSchemeChangeNeverStartsAFadeOnADynamicColour` | `Box().background(Color(light:A, dark:B))` under `.environment(\.colorScheme, s)`; frame 1 light; then inside `withAnimation(.linear(duration: 1))` frame 2 with `s = .dark`: reads B at once, `hasActiveAnimations == false` | does not compile | key the baseline on the resolved colour instead of the declared `Color` |
@@ -553,8 +553,9 @@ ruling in the decisions doc; the sections above are edited to match:
   builds again in the same `beginFrame()`; nothing is discarded. Test 2.11
   gains a `StateTable`-entry arm.
 - **`CR-R`** (§2.2, §3.1): `Color` stores `Float`; NaN → 0 at init (a NaN
-  declared colour would compare unequal to itself every frame and keep the
-  display link awake through `advanceColor`); `MemoryLayout<Color>.size <= 24`
+  declared colour would compare unequal to itself on every build and re-arm a
+  fade on each build made under a transaction — the link stays awake only
+  while such builds keep arriving, `CR-X` item 1); `MemoryLayout<Color>.size <= 24`
   pinned; `Decoration`/`BorderStyle`/`Text`/`EnvironmentValues` sizes recorded
   before and after. Lane 1 adds the NaN arm to 1.6 and
   `aNaNColourSettlesAndLetsTheDisplayLinkPause`.
