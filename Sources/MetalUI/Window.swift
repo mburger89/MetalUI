@@ -1209,12 +1209,17 @@ public final class Window {
         // first build is adopted in full — nothing is discarded or rolled back
         // (`StateTable`, `AnimationStore`, focus, scroll requests and surfaces
         // saw an ordinary frame); only the second is published and encoded.
+        // The second build snaps every change (`Frame.snapsEveryChange`,
+        // `CR-Q` item 3): a value animated on the scheme, or a transition on a
+        // scheme-dependent conditional, does not start from the first build,
+        // so the presented frame equals one build in the target scheme
+        // (test 2.11b).
         let schemeBefore = colorScheme
         if applyTreeColorSchemePreference(of: frame), framesDrawn == 0, colorScheme != schemeBefore {
             // The second build re-derives every "another frame" request the
             // first made; the scheme change that dirtied is consumed by it.
             needsRedraw = false
-            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
+            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor, snapsEveryChange: true)
             _ = applyTreeColorSchemePreference(of: frame)
         }
 
@@ -1293,7 +1298,8 @@ public final class Window {
     /// focus decision, `@FocusState` reconciliation and the "another frame"
     /// answers. Accessibility publication and `finishFrame` stay with the
     /// caller, which runs them once, for the build it presents.
-    private func buildAndAdoptFrame(scaleFactor drawScaleFactor: Float) -> (Frame, Scene) {
+    private func buildAndAdoptFrame(scaleFactor drawScaleFactor: Float,
+                                    snapsEveryChange: Bool = false) -> (Frame, Scene) {
         // Layout is offered the window's **logical** size, taken from the
         // platform window rather than divided out of `view.viewport`. The
         // viewport is in device pixels, so recovering points from it means
@@ -1334,6 +1340,7 @@ public final class Window {
                           focusedElement: focusHandedIn,
                           transaction: transaction.animation,
                           disablesAnimations: transaction.disablesAnimations,
+                          snapsEveryChange: snapsEveryChange,
                           animationStore: animationStore,
                           surfaceRegistry: surfaceRegistry,
                           collectsAccessibility: accessibility.isActive,

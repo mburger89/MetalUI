@@ -298,6 +298,16 @@ public final class Frame {
     /// `animation`. The call stack is the stack, as for `environmentTop`.
     private(set) var transactionTop: Transaction
 
+    /// Whether every change in this build snaps (ruling `CR-Q` item 3): the
+    /// root transaction and every scope's carry no animation, whatever a
+    /// `withAnimation`, `.animation(_:value:)` or `.transaction(_:)` says.
+    /// Set only on the first frame's second build, which re-runs the tree in
+    /// the scheme its preference chose: diffing it against the adopted first
+    /// build is not a change anyone made, so nothing may animate or
+    /// transition from it — the presented frame equals one build in the
+    /// target scheme.
+    let snapsEveryChange: Bool
+
     /// How many `TransactionScope`s are open around the element being
     /// visited — part of `.animation(_:value:)`'s store key, so two scopes
     /// nested at one position keep separate values (spec test 1.11).
@@ -308,6 +318,7 @@ public final class Frame {
     func withTransactionScope<R>(_ transaction: Transaction, _ body: () -> R) -> R {
         let saved = transactionTop
         transactionTop = transaction
+        if snapsEveryChange { transactionTop.animation = nil }
         transactionDepth += 1
         defer {
             transactionTop = saved
@@ -2084,6 +2095,7 @@ public final class Frame {
          focusedElement: GlobalElementID? = nil,
          transaction: Animation? = nil,
          disablesAnimations: Bool = false,
+         snapsEveryChange: Bool = false,
          animationStore: AnimationStore = AnimationStore(),
          surfaceRegistry: SurfaceRegistry = SurfaceRegistry(),
          collectsAccessibility: Bool = false,
@@ -2118,8 +2130,9 @@ public final class Frame {
         self.activeElement = activeElement
         self.focusedElement = focusedElement
         self.transaction = transaction
-        var rootTransaction = Transaction(animation: transaction)
-        rootTransaction.disablesAnimations = disablesAnimations
+        var rootTransaction = Transaction(animation: snapsEveryChange ? nil : transaction)
+        rootTransaction.disablesAnimations = disablesAnimations || snapsEveryChange
+        self.snapsEveryChange = snapsEveryChange
         self.transactionTop = rootTransaction
         self.animationStore = animationStore
         self.surfaceRegistry = surfaceRegistry
