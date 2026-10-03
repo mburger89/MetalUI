@@ -126,6 +126,12 @@ public final class App {
             #endif
         }
         windows.append(window)
+        // The app's scheme and themes reach the window before its first frame
+        // (rulings `CR-L` item 4, `CR-N` item 4), so it never presents in the
+        // platform's scheme first.
+        window.lightTheme = lightTheme
+        window.darkTheme = darkTheme
+        window.preferredColorScheme = preferredColorScheme
 
         // Paint once now rather than waiting for a display-link tick. The link
         // does not fire while the view is hidden or off-display, which would
@@ -158,6 +164,32 @@ public final class App {
     /// with its own icon is build-side: `docs/packaging.md`.
     public var icon: [ImageBitmap] = [] {
         didSet { platform.setApplicationIcon(App.normalized(icon)) }
+    }
+
+    /// A preferred colour scheme for every window of this app (ruling `CR-L`
+    /// item 4, MetalUI-only — SwiftUI spells it as a scene's root
+    /// `.preferredColorScheme`): each assignment sets every open window's
+    /// `Window.preferredColorScheme`, and each later window gets it before
+    /// its first frame, so it never flashes the platform's scheme. A tree's
+    /// own `.preferredColorScheme` still wins inside its window. `nil` (the
+    /// default) follows the platform.
+    public var preferredColorScheme: ColorScheme? {
+        didSet { for window in windows { window.preferredColorScheme = preferredColorScheme } }
+    }
+
+    /// The light theme of every window of this app (ruling `CR-N` item 4,
+    /// MetalUI-only; default `.light`): each assignment — a palette override
+    /// `app.lightTheme[Key.self] = …` included — sets every open window's
+    /// `Window.lightTheme`, and each later window gets it before its first
+    /// frame.
+    public var lightTheme: Theme = .light {
+        didSet { for window in windows { window.lightTheme = lightTheme } }
+    }
+
+    /// The dark theme of every window of this app (ruling `CR-N` item 4;
+    /// default `.dark`). See ``lightTheme``.
+    public var darkTheme: Theme = .dark {
+        didSet { for window in windows { window.darkTheme = darkTheme } }
     }
 
     /// The platform contract of ``icon`` (`AI-C` item 3): the bitmaps' own

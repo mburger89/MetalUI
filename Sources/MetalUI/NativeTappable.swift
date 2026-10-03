@@ -10,17 +10,26 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
     public var content: Content
     /// Run when a press and release land on the content.
     public var action: @MainActor () -> Void
-    /// The fill painted while the pointer is over the content, if any.
-    public var hoverColor: ColorToken?
+    /// The fill painted while the pointer is over the content, if any (a
+    /// `Color` since `CR-E` item 3).
+    public var hoverColor: Color?
     /// A `.contentShape(_:)` written after the tap (ruling `IX-L`), or `nil`.
     var shape: ContentShape?
 
     /// Makes `content` a pointer target that runs `action` on a click.
-    public init(content: Content, hoverColor: ColorToken? = nil,
+    public init(content: Content, hoverColor: Color? = nil,
                 action: @escaping @MainActor () -> Void) {
         self.content = content
         self.action = action
         self.hoverColor = hoverColor
+    }
+
+    /// Makes `content` a pointer target that runs `action` on a click. The
+    /// `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public init(content: Content, hoverColor: ColorToken? = nil,
+                action: @escaping @MainActor () -> Void) {
+        self.init(content: content, hoverColor: hoverColor.map(Color.init), action: action)
     }
 
     public struct Layout { var content: Content.GroupLayout }
@@ -56,7 +65,7 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         if let hoverColor, pass.isHovered(id) {
             pass.opacity(0.22) {
-                pass.fill(bounds, color: pass.theme[hoverColor])
+                pass.fill(bounds, color: pass.resolve(hoverColor))
             }
         }
     }
@@ -83,16 +92,24 @@ extension ProposalElementGroup {
     /// This is the canonical public spelling for the replacement layout path.
     /// The proposal-only receiver keeps CSS-layout elements from entering a
     /// mixed tree that would otherwise trap during layout registration.
-    public func onTap(hoverColor: ColorToken? = nil,
+    public func onTap(hoverColor: Color? = nil,
                       _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
         OnTapModifier(content: self, hoverColor: hoverColor, action: action)
+    }
+
+    /// Registers `action` when this proposal-layout subtree is clicked. The
+    /// `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public func onTap(hoverColor: ColorToken? = nil,
+                      _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
+        onTap(hoverColor: hoverColor.map(Color.init), action)
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "onTap")
     public func nativeOnTap(hoverColor: ColorToken? = nil,
                             _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
-        onTap(hoverColor: hoverColor, action)
+        onTap(hoverColor: hoverColor.map(Color.init), action)
     }
 }
 

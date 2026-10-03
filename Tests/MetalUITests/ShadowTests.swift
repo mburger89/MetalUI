@@ -230,6 +230,13 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
         square().shadow(color: on ? .accent : .textPrimary, radius: px(on ? 10 : 0), x: px(on ? 20 : 0), y: px(0))
     }
     try expectHalfWayShadow(tree)
+    // 1.22 (colour lane 1, `CR-H` item 3): a literal arm — orange (1, 0.5, 0)
+    // → blue (0, 0, 1). Mutation: snap a colour that is not token-backed.
+    func literal(_ on: Bool) -> some Element {
+        square().shadow(color: on ? Color(red: 0, green: 0, blue: 1) : Color(red: 1, green: 0.5, blue: 0),
+                        radius: px(on ? 10 : 0), x: px(on ? 20 : 0), y: px(0))
+    }
+    try expectHalfWayShadow(literal, from: Rgba(r: 1, g: 0.5, b: 0), to: Rgba(r: 0, g: 0, b: 1))
 }
 
 /// **3.24b** (`GX-V` item 7). The legacy `.shadow` animates the same way:
@@ -243,12 +250,20 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
                                    x: px(on ? 20 : 0), y: px(0))
     }
     try expectHalfWayShadow(tree)
+    // 1.22 (colour lane 1): the legacy track's literal arm.
+    func literal(_ on: Bool) -> ModifiedElement<Box<EmptyGroup>> {
+        fxLegacyBar(40, 40).shadow(color: on ? Color(red: 0, green: 0, blue: 1) : Color(red: 1, green: 0.5, blue: 0),
+                                   radius: px(on ? 10 : 0), x: px(on ? 20 : 0), y: px(0))
+    }
+    try expectHalfWayShadow(literal, from: Rgba(r: 1, g: 0.5, b: 0), to: Rgba(r: 0, g: 0, b: 1))
 }
 
 /// Half-way through `tree(false)` → `tree(true)` under `linear1`: the 40 × 40
 /// square at (80, 80)'s shadow is padded about 3 × 5, offset 10, and its
 /// colour lies between `.textPrimary` and `.accent`.
-@MainActor private func expectHalfWayShadow<E: Element>(_ tree: (Bool) -> E) throws {
+@MainActor private func expectHalfWayShadow<E: Element>(_ tree: (Bool) -> E,
+                                                         from: Rgba = Theme.light[.textPrimary].toRgba(),
+                                                         to: Rgba = Theme.light[.accent].toRgba()) throws {
     let h = TransitionHarness()
     h.frame(0, nil, tree(false), side: 200)
     h.frame(0, linear1, tree(true), side: 200)
@@ -259,7 +274,6 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     #expect(pad >= 13 && pad <= 17, "sigma 5's padding, not 10's 30: \(pad) in \(gxDescribe(b))")
     #expect(abs(b.origin.x + pad - 90) <= 0.5, "offset 10: \(gxDescribe(b))")
     let texel = gxTexel(images[0].texture, Int(110 - b.origin.x), Int(100 - b.origin.y))
-    let from = Theme.light[.textPrimary].toRgba(), to = Theme.light[.accent].toRgba()
     let blue = Double(texel[2]) / max(1, Double(texel[3]))
     #expect(blue > Double(from.b) + 0.05 && blue < Double(to.b) - 0.05,
             "blue between \(from.b) and \(to.b): \(blue) from \(texel)")

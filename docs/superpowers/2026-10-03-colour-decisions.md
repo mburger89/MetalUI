@@ -1,0 +1,909 @@
+# Colour and colour scheme — decisions
+
+Rulings for colour values, colour scheme and an app palette in the theme
+(user request 2026-10-02, an item of the gpui-gap priority list; **not a plan
+task**). Spec:
+[`specs/2026-10-03-colour-design.md`](specs/2026-10-03-colour-design.md).
+Record: `../record/75-colour.md` (§75 stood: master published no later record). Evidence:
+[`../probes/swiftui-colour.swift`](../probes/swiftui-colour.swift) (**new**;
+arm ids `R…` literal initialisers, `N…` named statics, `O…` opacity, `Q…`
+equality, `D…` dynamic colours, `E…` the environment's scheme, `P…`
+`preferredColorScheme`, `V…` an environment write, `T…` a live appearance
+change; its header carries the recorded output, run three times
+byte-identical, and the reading), and the language probes
+[`../probes/swift-colour-overloads.swift`](../probes/swift-colour-overloads.swift)
+(arms `O1`…`O7`, `I1`; compiled and run) with its separating arm
+[`../probes/swift-colour-isolation-negative.swift`](../probes/swift-colour-isolation-negative.swift)
+(must fail). Where SwiftUI has no answer (an app palette, a theme), the
+ruling says so and names gpui's approach as the comparison, not as evidence.
+
+Prefix **`CR-`**, lettered. **Next unused: `CR-AC`.** (This line moves in the
+commit that appends a ruling; read the last `## CR-` heading.)
+
+Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
+merged, PR #44). Baseline at `30a3dbf`: see spec §0. `docs/divergences.md`
+line 12: **next label 116** (CLAUDE.md's "next label 104" is stale; the file
+is the authority).
+
+**Carried items.** Design spec §7.9 (binding): "Colors in element code are
+**semantic tokens** … never literals" — `ColorToken`'s own doc repeats it as
+the reason `background(_:)` takes a token. `CR-B` supersedes that sentence.
+Divergence 1 (sRGB authored on a Display P3 layer) — `CR-I` extends it to
+literals. `EV-G` (the theme is readable only in `PaintPass`, `.theme(_:)` its
+only writer) — kept by `CR-H`/`CR-K`. `EV-AB`/`AN-AD` (a platform value
+stamped over the root environment, guarded) — the pattern `CR-J` copies.
+`AN-` colour rulings (`animatedColor`/`animatedBackground`, RGB interpolation,
+a theme swap never starts a fade) — kept by `CR-H`. `TE-AD` (a new drawable
+capability lands in both shaders) — not triggered (`CR-I`). No decisions
+doc's "Carried…" section names a literal colour, a colour scheme or a palette.
+
+---
+
+## CR-A — Scope: what this branch builds, what it defers
+
+**Ruling.** Build, SwiftUI-spelled and probe-backed:
+
+1. A `Color` **value** (`CR-C`): `Color(red:green:blue:opacity:)`,
+   `Color(_:red:green:blue:opacity:)` over `Color.RGBColorSpace`
+   (`.sRGB`, `.sRGBLinear`), `Color(white:opacity:)`,
+   `Color(_:white:opacity:)`, `Color(hue:saturation:brightness:opacity:)`,
+   SwiftUI's nineteen named statics (`CR-F`), `opacity(_:)` (`CR-G`),
+   `Color.Resolved` and `resolve(in:)` (`CR-H`); MetalUI-only
+   `Color(_ token:)` (kept), `Color(_ hsla:)`, `Color(light:dark:)` (`CR-O`),
+   `Color(_ key:)` over a `ThemeColorKey` (`CR-N`) and nine token-named
+   statics (`CR-E`). It stays a view that fills its proposal.
+2. `Color` accepted **everywhere a `ColorToken` is** on both vocabularies,
+   every `ColorToken` spelling still compiling (`CR-E`), animating exactly as
+   tokens do (`CR-H`), drawing identically on Metal and SDL with no shader
+   change (`CR-I`).
+3. `ColorScheme` and `@Environment(\.colorScheme)` readable while building
+   (`CR-J`), the window's light/dark theme variants (`CR-K`),
+   `.preferredColorScheme(_:)` window-wide with SwiftUI's reduction rule
+   (`CR-L`), one new defaultless `PlatformWindow` requirement (`CR-M`).
+4. An app palette in the theme: `ThemeColorKey`, `Theme` subscript, app-wide
+   theme variants (`CR-N`).
+5. A looks-demo section and human-checks group S.
+
+**Deferred, each named in spec §10 with a reason and owner (none unless
+named)**: a `ShapeStyle` protocol, gradients, materials and hierarchical
+styles (`.foregroundStyle(.secondary)` resolves the `Color.secondary` value,
+not SwiftUI's hierarchical level); `.tint(_:)`/`.accentColor(_:)`;
+`Color.RGBColorSpace.displayP3` (divergence 1's owner: none — needs a
+colour-managed pipeline); asset-catalog `Color("Name", bundle:)`;
+`Color(nsColor:)`/`Color(cgColor:)` interop; `Color.Resolved`'s initialiser,
+`linearRed`… accessors and `Color(_ resolved:)`; `colorSchemeContrast` and
+Increase Contrast variants; reading the user's system accent colour;
+`preferredColorScheme` scoped to a presentation (MetalUI's popovers are
+in-window, `MN-M`); a `Text` glyph colour fade (unchanged: glyph tint does not
+animate today); SDL native decorations following a preference (`CR-M`).
+
+**Reasoning.** The request is a port of a real ~8,500-line app whose whole look
+is RGB colours chosen per scheme; the five items are the minimum that lets it
+be written without a hand-written paint pass. Everything deferred is either a
+second feature with its own probe surface (`ShapeStyle`, gradients, tint) or
+needs a pipeline MetalUI does not have (P3).
+
+**Cost if wrong.** A deferred item a port needs first is a later item, not a
+redesign: every deferral is additive over the `Color` value.
+
+## CR-B — Literal colours are admitted; design spec §7.9's ban is superseded
+
+**Ruling.** Element code may write a literal colour. Design spec §7.9's
+"semantic tokens … never literals" and `ColorToken`'s doc that repeats it are
+superseded by this ruling (the Record phase amends both texts with a pointer
+here). `ColorToken` stays, unchanged, as the theme's built-in vocabulary.
+
+**Reasoning.** SwiftUI is the design authority and its whole colour surface is
+literals plus dynamic system colours (probe `N`: every hue static is dynamic).
+§7.9's risk — "a literal would paint the same pixels in both appearances,
+invisibly" — is answered by two mechanisms that make following the scheme
+the easy spelling: dynamic colours (`CR-O`, and every named hue is one,
+`CR-F`) and palette keys (`CR-N`). A ban leaves the port's ~hundreds of RGB
+call sites with no spelling at all.
+
+**Cost if wrong.** An app can paint a fixed colour that ignores dark mode —
+exactly SwiftUI's exposure; the demo and migration guide steer to
+`Color(light:dark:)` and palette keys.
+
+## CR-C — The `Color` value: initialisers, storage, equality
+
+> **Revised by `CR-R`**: storage is `Float`, a NaN is stored as 0 at init, `MemoryLayout<Color>.size <= 24`.
+
+**Ruling.**
+
+1. `Color(red:green:blue:opacity:)` and `Color(.sRGB, …)` author
+   **gamma-encoded sRGB** (probe `R0`, `R1`: white 0.5 resolves 0.5, not
+   0.214; `R2`). `Color(.sRGBLinear, …)` converts to gamma at once with the
+   sRGB transfer function (`R3`: 0.2 → 0.4845). `Color(white:opacity:)` is
+   `(w, w, w)`; `Color(_:white:opacity:)` the same through the colour space.
+   `Color(hue:saturation:brightness:opacity:)` converts HSB to sRGB at once
+   (`R6`). `opacity` defaults to 1 everywhere, as in SwiftUI.
+2. **Stored as written, clamped when resolved.** Components and opacity are
+   stored unclamped (SwiftUI keeps `1.2`/`-0.1`/`1.5` in its resolved value,
+   `R5`, `O4`, `O5`); resolution clamps each to `0…1`, NaN to 0. SwiftUI's
+   `Color.Resolved` keeps the extended values and clamps only at draw — the
+   one observable difference is `Color.Resolved`'s fields (**divergence 118**,
+   `CR-H`). Nothing non-finite reaches a primitive.
+3. **Storage** is one internal enum plus an opacity multiplier:
+   `srgb(r, g, b, a)` (Doubles, as written), `token(ColorToken)`,
+   `indirect dynamic(light: Color, dark: Color)`,
+   `indirect palette(ObjectIdentifier, defaultValue: Color)`.
+   `Color` is `Hashable` and `Sendable`. **Equality compares components**:
+   `Color(white: 1) == .white` and `Color(red: 1, green: 1, blue: 1) ==
+   Color(white: 1)` (probe `Q4`, `Q5`) — `.white`/`.black`/`.clear` and
+   `Color(white:)` all store `srgb`. A dynamic colour equals only a dynamic
+   colour with equal halves (MetalUI's rule; SwiftUI's answer for a system
+   colour against its literal value was not probed and is not claimed).
+4. `Color(_ hsla: Hsla)` (MetalUI-only): the `Hsla` converted to `srgb` —
+   the bridge from MetalUI's existing colour currency and `Hsla.rgb(0x…)` hex.
+5. `Color(_ token:)` keeps its spelling and meaning (token-backed: follows the
+   active theme). The old stored `public var color: ColorToken` becomes a
+   deprecated get-only `ColorToken?` (the token, or `nil` for any other
+   colour); no source in the repository reads it (grep at `30a3dbf`).
+6. `.displayP3` is **not** a case (`CR-A`): SwiftUI converts P3 to extended
+   sRGB (`R4`), and MetalUI would then clamp and draw those numbers into a P3
+   layer (divergence 1) — wrong twice. A SwiftUI source line naming it fails
+   to compile rather than drawing the wrong colour.
+
+**Cost if wrong.** Clamping at resolution instead of draw differs only for an
+app that reads `Color.Resolved` of an out-of-gamut colour; additive to fix.
+
+## CR-D — `Color`'s `Element` conformance moves to an extension
+
+**Ruling.** `public struct Color: Hashable, Sendable` on its primary
+declaration; `extension Color: Element` separately.
+
+**Reasoning.** `Element` is `@MainActor`. A conformance on the primary
+declaration infers `@MainActor` for the whole type, so `Color.red` cannot be
+a nonisolated default argument or a `ThemeColorKey`'s nonisolated
+`static let defaultValue` (probe `swift-colour-isolation-negative.swift`:
+"main actor-isolated default value in a nonisolated context"); in an extension
+only the conformance's members are isolated (probe `swift-colour-overloads.swift`
+`I1`: clean). SwiftUI's `Color` is likewise usable off the main actor.
+
+**Cost if wrong.** None observable at a call site; a `swift package clean` is
+owed (a public type's isolation crosses a module boundary).
+
+## CR-E — `Color` is accepted everywhere a `ColorToken` is; every token spelling still compiles
+
+**Ruling.**
+
+1. Every public API that takes a `ColorToken` today gains a **`Color`
+   overload**, which becomes the implementation. The existing `ColorToken`
+   declaration is kept textually, marked **`@_disfavoredOverload`**, and
+   forwards `Color(token)`. Deprecated spellings (`nativeBackground`,
+   `nativeBorder`, `Rectangle(color:)`, `NativeTappable.nativeOnTap`) get no
+   `Color` twin.
+2. `Color` gains **nine token-named statics** (`background`, `surface`,
+   `surfaceSecondary`, `accent`, `separator`, `textPrimary`,
+   `scrollIndicator`, `scrim`, `shadow`), each `Color(.token)`. So
+   `.background(.surface)` is viable on both overloads and resolves to the
+   `Color` one (probe `O1`); a `ColorToken`-typed value takes the twin (`O2`);
+   `.red` exists only on `Color` (`O3`); a defaulted `color:` on both
+   (`shadow(radius:)`) resolves to `Color` (`O4`); an optional `Color?`
+   parameter is reached through implicit-member lookup (`O5`); a static
+   `shadow`/`background` coexists with the instance modifiers (`O7`).
+3. **Stored public colour properties are retyped to `Color`/`Color?`**:
+   `Decoration.background`/`hoverBackground`/`focusBackground`,
+   `BorderStyle.color`, `Background.color`, `Rectangle.color`,
+   `Text`/`ProposalText`/`TextField`/`TextEditor.foregroundColor`,
+   `NativeTappable.hoverColor`. A writer (`x.background = .surface`) and a
+   comparison (`== .accent`) compile unchanged through the statics; a reader
+   that used the value *as a `ColorToken`* (a `switch`, `theme[…]`) breaks —
+   migration: `pass.resolve(x)` or compare against `Color(.token)`.
+4. SwiftUI's signatures where they differ in optionality:
+   `foregroundColor(_ color: Color?)` takes an optional (`nil` = inherit), as
+   SwiftUI's does.
+
+**Reasoning.** One concrete type at every site is SwiftUI's shape for
+`foregroundColor`/`shadow(color:)`; SwiftUI's `some ShapeStyle` for
+`background`/`fill`/`border` is deferred (`CR-A`) because MetalUI has no
+second style to justify the protocol. The disfavored twin keeps a token
+variable compiling without making `.surface` ambiguous, and `@_disfavoredOverload`
+is already used in `Grid.swift`. Keeping the twin textually unchanged keeps
+its census row.
+
+**Cost if wrong.** Roughly forty twin declarations to maintain; a future
+`ShapeStyle` replaces both with one generic signature, additively.
+
+## CR-F — Named statics: which are fixed, which dynamic, which follow the theme
+
+**Ruling.**
+
+| Static | MetalUI value | Probe |
+|---|---|---|
+| `black`, `white`, `clear` | fixed sRGB `000000`, `FFFFFF`, `000000` @ 0 | `N` |
+| `gray`, `red`, `orange`, `yellow`, `green`, `mint`, `teal`, `cyan`, `blue`, `indigo`, `purple`, `pink`, `brown` | `Color(light:dark:)` of the probed macOS 27 values (spec §3.2 table) | `N` |
+| `primary` | `Color(.textPrimary)` | `N` (SwiftUI: label colour, black/white @ 0.8471) |
+| `secondary` | `Color(light: Color(.textPrimary).opacity(0.588), dark: Color(.textPrimary).opacity(0.648))` — SwiftUI's secondary/primary alpha ratio per scheme (0.4980/0.8471, 0.5490/0.8471) | `N` |
+| `accentColor` | `Color(.accent)` | `N` (SwiftUI: the system accent, here `.blue`) |
+
+**Divergences**: **116** — `primary`, `secondary`, `accentColor` resolve
+through MetalUI's theme, not the system's label and accent colours (a theme
+is MetalUI's whole colour model; a system label colour on a MetalUI
+`.surface` would be another app's palette); **117** — the thirteen hue statics
+are the macOS 27 values frozen, on every platform: no Increase Contrast
+variant, no tracking of a later OS's palette.
+
+**Cost if wrong.** A reference window side by side differs by these choices
+(human check S1); each is a table edit.
+
+## CR-G — `Color.opacity(_:)` multiplies; on a `Color` view it is the value method
+
+**Ruling.** `opacity(_ opacity: Double) -> Color` multiplies the stored
+opacity (`O2`, `O3`: twice multiplies), clamped at resolution. Written on a
+`Color` used as a view with a literal, `.opacity(0.5)` resolves to this
+method — the concrete type's member beats `ProposalBase.opacity(_: Float)`
+(probe `O6`), SwiftUI's own `Color.opacity` shape — so it is one fill at half
+alpha with **no opacity layer**: one fewer `ModifiedContent` layer than
+today's spelling would have built. A `Float`-typed argument still reaches the
+view modifier. No source at `30a3dbf` writes `Color(…).opacity(` (grep);
+the migration guide states the change.
+
+**Cost if wrong.** A `Color` view relying on an opacity *layer* (a
+transition or identity level under it) changes identity depth; a `Color` has
+no state, so only a sibling's structural slot could notice — none does.
+
+## CR-H — One resolution function; animation keys on the declared `Color`
+
+**Ruling.**
+
+1. **One internal function** resolves a `Color` against a context of
+   `(theme, colorScheme)`: `srgb` clamps; `token` returns `theme[token]`
+   **bit-exactly** (the existing `Hsla`, no round trip — so every existing
+   token draws 0 differing pixels); `dynamic` picks by the context's scheme;
+   `palette` resolves the theme's override or the key's default (`CR-N`);
+   opacity multiplies the result's alpha when it is not 1. Every paint site
+   that read `theme[token]` for a caller-supplied colour calls it, through
+   `PaintPass.resolve(_:) -> Hsla` (public, MetalUI-only) or the internal
+   frame equivalent.
+2. The context's scheme is the **environment's `colorScheme`** at the element,
+   and its theme the environment's theme (`EV-G`), both scoped.
+3. **Animation**: `AnimatedColorState.token` and `ColorAnimation.toToken`
+   become the declared `Color`, `ColorEnd.token` carries a `Color`. A theme
+   swap **or a scheme change** moves what an unchanged `Color` resolves to
+   without moving the `Color`, so it re-resolves and never starts a fade —
+   the existing `aThemeSwapAloneNeverStartsAFadeOnASettledElement` argument,
+   extended. RGB interpolation, clamping in flight, the interruption rule and
+   `noteActiveAnimation()` are unchanged. `MemoryLayout<AnimatedColorState>.stride`
+   (120 at `30a3dbf`) is re-measured and recorded.
+4. `Color.resolve(in: EnvironmentValues) -> Color.Resolved` (SwiftUI's,
+   macOS 14) is public: `red`, `green`, `blue`, `opacity` as `Float`,
+   gamma-encoded sRGB (probe `R1`), clamped (divergence 118). **The `Theme`
+   value stays paint-only** (`EV-G`; `readingTheThemeDuringLayoutDoesNotCompile`
+   and its two siblings unchanged): a colour resolves wherever an environment
+   is in hand, as in SwiftUI; the theme itself does not leak.
+
+**Cost if wrong.** If keying animation on `Color` misses a case, a scheme
+switch fades instead of snapping — pinned by
+`aSchemeChangeNeverStartsAFadeOnADynamicColour`.
+
+## CR-I — No renderer change; divergence 1 covers literals
+
+**Ruling.** Every primitive already carries a resolved colour (`MUIRect`
+background/border, `MUIGlyph` colour, a path's or shadow's raster tint);
+`Color` resolves to the same `Hsla` before emission. **No change to
+`shaders.metal` or `replay.hlsl`**; `TE-AD` is not triggered; the branch
+check verifies `git diff 30a3dbf -- Sources/MetalUIRender/Shaders
+Backends/SDL/Shaders` is empty. A literal is interpreted exactly as a token
+is: sRGB numbers written to a layer whose colour space is Display P3 on
+AppKit (divergence 1, amended to say literals share it) and to an sRGB
+swapchain on SDL.
+
+## CR-J — `ColorScheme`, the environment's `colorScheme`, and the window's stamp
+
+**Ruling.**
+
+1. `MetalUICore`'s `Appearance` enum is **renamed `ColorScheme`** (SwiftUI's
+   name; `.light`, `.dark`, `CaseIterable` in that order, probe `Q6`), and
+   `public typealias Appearance = ColorScheme` stays, **not deprecated**, so
+   every platform conformer, `Theme.forAppearance(_:)` and test fake compiles
+   unchanged.
+2. `EnvironmentValues.colorScheme` is public get/set, `.light` in a bare value
+   (probe `E0`); readable while building (`@Environment(\.colorScheme)`), in
+   every phase, and writable by a scope (probe `V1`).
+3. `Window` stamps the root's `colorScheme` from its **effective scheme**
+   (`CR-L`) at every draw, over `Window.environment`, beside
+   `controlActiveState` and `accessibilityReduceMotion` (`EV-AB`'s pattern),
+   and exposes it as `public private(set) var colorScheme`. **Guarded**: a
+   report of the scheme the window already has does not repaint. An
+   appearance change re-renders the whole tree (immediate mode; probe `T1`:
+   SwiftUI re-runs the body too).
+4. Reading it never writes: a read in any phase leaves the display link free
+   to pause.
+
+## CR-K — The window's theme variants; a scheme write selects one
+
+> **Revised by `CR-S`**: the variants live on the `Frame`, not in `EnvironmentValues` (item 2).
+
+**Ruling.**
+
+1. `Window.lightTheme` and `Window.darkTheme` (public, default `.light`,
+   `.dark`) are the variants. Whenever the effective scheme or either variant
+   changes, `Window.theme` is set to the scheme's variant. `Window.theme`
+   **keeps its meaning**: the active root theme, writable, replaced on the
+   next scheme change — exactly today's behaviour, where an appearance change
+   replaced it with `Theme.forAppearance`. Defaults reproduce today's theme
+   in both schemes, so 0 pixels move.
+2. The variants reach the root environment (internal fields, stamped by the
+   frame like `theme`, re-stamped after every transform). A scope that
+   **changes `colorScheme`** (`.environment(\.colorScheme, .dark)`, or a
+   `\.self` reset to a bare value) sets its subtree's theme to that scheme's
+   variant — SwiftUI's subtree flips with the write (`V1`), so MetalUI's
+   tokens flip too.
+3. `.theme(_:)` still pins the subtree's tokens to one theme and does **not**
+   change `colorScheme`; dynamic and palette colours inside it follow the
+   environment's scheme (`CR-H` item 2). To darken a subtree completely, write
+   the scheme.
+
+**gpui comparison** (SwiftUI has no theme): zed's theme family carries a light
+and a dark appearance chosen by the window's appearance — the same pair.
+
+## CR-L — `.preferredColorScheme(_:)`: window-wide, SwiftUI's reduction, precedence
+
+> **Revised by `CR-T`** (item 3: the main root ranks before presentation roots) and **`CR-Q`** (item 5: two ordinary builds, one presented — nothing discarded).
+
+**Ruling.**
+
+1. `.preferredColorScheme(_ colorScheme: ColorScheme?)` on `ElementGroup`
+   (both vocabularies), returning an `EnvironmentScope` — layout- and
+   identity-transparent, values unchanged; it **reports** a preference.
+2. **Window-wide** (probe `P1`: the sibling reads it and the `NSWindow`'s
+   appearance is set), not a scope write (`V1` is the separating arm).
+3. **Reduction** (probes `P3`…`P7`): an outer modifier **replaces** its
+   content's value, `nil` included (`P5`, `P6`); among siblings the **first
+   non-nil** wins (`P3`, `P4`, `P7`). Implemented as: only a scope with no
+   enclosing preference scope counts, and the first such scope with a non-nil
+   value, in layout order, decides. A `List` row out of window is not laid out
+   and does not count; a `Deferred` presentation root counts in the frame's
+   layout order (presentations before the root — stated, unprobed: SwiftUI's
+   popover is its own window).
+4. **Precedence**: the tree's preference, else `Window.preferredColorScheme`
+   (public, MetalUI-only, programmatic), else the platform's appearance.
+   `App.preferredColorScheme` (MetalUI-only) assigns every open window's and
+   each later window's before its first frame. Clearing the preference
+   returns to the platform's appearance (`P8b`).
+5. **When it applies.** On a window's **first** frame a preference that
+   differs from the scheme it was built with discards that build and rebuilds
+   once before presenting (no light flash at launch; nothing was evaluated
+   "last frame", so transitions and state are unaffected). After the first
+   frame a changed preference applies on the **next** frame (the frame is
+   marked dirty; one frame drawn in the old scheme). SwiftUI's own body ran
+   light then dark (`P1` reads); whether it presented the light pass is
+   unmeasured and not claimed.
+
+**Cost if wrong.** If the first-frame rebuild proves unsafe, the fallback is
+next-frame everywhere — a one-frame flash at launch for a root preference;
+`App.preferredColorScheme` never flashes.
+
+## CR-M — `PlatformWindow.setPreferredColorScheme(_:)`, defaultless
+
+**Ruling.** `func setPreferredColorScheme(_ colorScheme: ColorScheme?)` on
+`PlatformWindow`, **no default** (`EV-AB`'s reason), called by `Window`
+whenever the requested preference (tree ?? window) changes, and only then.
+
+- **AppKit**: `NSWindow.appearance` = `NSAppearance(named: .aqua/.darkAqua)`,
+  or `nil` to follow the application (`P8b`), so the title bar, native menus
+  and context menus match (probe `P1`'s `window.appearance`). The change
+  reaches `Window` through the existing `viewDidChangeEffectiveAppearance` →
+  `onAppearanceChange` path, which then reports the forced appearance — the
+  effective scheme agrees either way.
+- **SDL**: SDL3 has no per-window appearance. The window records the value
+  (internal, for tests) and keeps reporting `SDL_GetSystemTheme`
+  (`mui_system_theme`); `SDL_EVENT_SYSTEM_THEME_CHANGED` already reaches
+  `onAppearanceChange`. Content follows the preference; native decorations
+  follow the system — a documented platform constraint, not a SwiftUI
+  divergence (SwiftUI has no Linux/Windows answer).
+- **Fakes** (`FakePlatformWindow` and every compile-guard conformer) record
+  the calls. **Migration note**: a third-party conformer adds the method.
+
+## CR-N — An app palette in the theme: `ThemeColorKey`
+
+**Ruling.**
+
+1. `public protocol ThemeColorKey { static var defaultValue: Color { get } }`
+   — `EnvironmentKey`'s shape. The default is usually `Color(light:dark:)`.
+2. `Color(_ key: K.Type)` (MetalUI-only) is a palette colour; apps spell
+   `extension Color { static let brand = Color(Brand.self) }`.
+3. `Theme` gains `subscript<K: ThemeColorKey>(key: K.Type) -> Color { get set }`:
+   the override if set, else `K.defaultValue`. Overrides are stored in the
+   `Theme` (an internal `[ObjectIdentifier: Color]`), so they are part of its
+   `==`/hash — a palette change through `Window.theme` repaints by the
+   existing guard. Overrides are **per theme value**, hence per variant:
+   `window.darkTheme[Brand.self] = …` or `app.darkTheme[Brand.self] = …`.
+4. `App.lightTheme`/`App.darkTheme` (MetalUI-only) assign every open window's
+   variants and each later window's before its first frame.
+5. Resolution of a palette colour that reaches itself again traps naming the
+   key (`"ThemeColorKey cycle through Brand"`), at a depth of 16.
+6. **The built-in tokens are untouched**: `Theme`'s nine stored properties,
+   its exhaustive `switch`, `everyTokenDiffersBetweenLightAndDark` and
+   `noTwoTokensCollideWithinAVariant` mean exactly what they meant; a palette
+   key is not a `ColorToken`.
+
+**Reasoning.** The user chose palette-in-theme over app-side constants.
+SwiftUI's answer is an asset catalog's named colour (`Color("Brand")`, string
+keyed, light/dark appearances in the catalog — probe header `D` note); a typed
+key gives the same "one name, two appearances" without a catalog or a string,
+and an override per theme gives the "re-skin" a catalog cannot. gpui
+comparison: zed's `ThemeColors` is a fixed struct of named fields per theme —
+closed, where this is open.
+
+**Cost if wrong.** An app that wants a third scheme or contrast variant has
+none (`CR-A` deferred); additive.
+
+## CR-O — `Color(light:dark:)`, a dynamic colour
+
+**Ruling.** `Color(light: Color, dark: Color)` (MetalUI-only — SwiftUI has no
+such initialiser: `xcrun swiftc -typecheck` of `Color(light: .red, dark:
+.blue)` on the macOS 27 SDK reports "extra argument 'dark' in call"; SwiftUI
+expresses it only through `NSColor(name:dynamicProvider:)`, probe `D1`). It
+resolves by the environment's scheme (`CR-H`); halves may themselves be
+dynamic, token-backed or palette colours; `opacity(_:)` on a dynamic colour
+applies after the half is chosen (`D2`).
+
+## CR-P — Lanes, ownership and verification
+
+**Ruling.** Three lanes, run one at a time in the worktree, on disjoint
+files (spec §8): **L1** the colour value, palette and every colour-taking API;
+**L2** the colour scheme, theme variants, `preferredColorScheme`, the
+platform requirement on AppKit, SDL and every fake, `App`'s variants;
+**L3** the looks demo, human-checks group S, divergences 116–118 and
+amendment of 1, migration and API overview, the inventory map and census,
+the Linux container and SDL verification. The decisions doc and spec are
+append-only and shared (sequential lanes). **L1 and L2 leave
+`closeout-undocumented.sh` empty at their commits; the inventory map and
+census are L3's** (one file each — a shared file would break disjointness),
+and `closeout-inventory-check.sh` is required empty at L3's commit and the
+branch check.
+
+---
+
+**Critic pass (2026-10-03).** Re-ran the three committed probes: the SwiftUI
+probe's 102 output lines are byte-identical to its header; the overload probe
+prints its recorded line; the negative probe fails with its recorded error.
+One new probe, `../probes/swiftui-colour-hierarchical.swift` (arm `H`).
+`CR-Q`…`CR-V` revise `CR-C`, `CR-K`, `CR-L` and the spec's test tables; each
+names what it supersedes.
+
+## CR-Q — The first-frame preference: two ordinary builds, one presented (revises `CR-L` item 5)
+
+**Ruling.** On a window's first frame (`framesDrawn == 0`), when the
+preference the build collected changes the effective scheme, `Window` applies
+it and runs the **build-and-adopt half** of `drawFrameIfNeeded` (from `Frame`
+construction through the focus read-back, `lastFocusStates`,
+`wantsAnotherFrame`, gesture/tooltip ticks and `hasActiveAnimations`) a second
+time inside the same `beginFrame()`. The first build is **adopted in full** —
+an ordinary frame whose scene is simply not encoded; the accessibility
+publication and `finishFrame` run once, for the second build. The second
+build gets no parked transaction (the first consumed it). Nothing is
+discarded or rolled back. After the first frame the next-frame rule stands.
+
+**Reasoning.** `CR-L`'s "discard that build and rebuild from the same inputs"
+is not implementable without undoing the first build's side effects on
+window-owned stores: `StateTable` seeding and its sweep generation (TB-AH ages
+by frames swept), `AnimationStore` entries, the scroll-request queue the frame
+drains, `@FocusState` reconciliation and `SurfaceRegistry` targets. Two
+ordinary frames are exactly the fallback path (a next-frame change) minus one
+present, so identity, state retention and animation see nothing new: the
+second build sees the first as its previous frame, as any frame does. A
+`GPUSurface` records a draw only after its frame commits (`MV-F`), so the
+unencoded first build's requests are simply re-issued by the second.
+
+**Test.** 2.11 unchanged in its assertions (`framesDrawn == 1`, the presented
+scene's `.surface` is `Theme.dark.surface`), plus: a `@State` counter seeded
+in the first build has one entry, not two; mutation "skip adoption of the
+first build (build twice from the same pre-frame state)" must redden the
+`StateTable` arm or be recorded as the finding.
+
+## CR-R — `Color` stores `Float` components; NaN is canonicalised at init (revises `CR-C` items 2 and 3)
+
+**Ruling.**
+
+1. The `srgb` payload and the opacity multiplier are **`Float`** (the public
+   initialisers keep SwiftUI's `Double` parameters and convert at init).
+   Every consumer is `Float` already — `Hsla`, `Rgba`, `MUIHsla` and
+   SwiftUI's own `Color.Resolved` fields — so `Double` storage carried
+   precision nothing downstream can use, at twice the size.
+2. **A NaN component or opacity is stored as 0 at init.** Out-of-range finite
+   values are still stored as written (`R5`, `O4`, `O5`) and clamped at
+   resolution, so every resolved answer `CR-C` promised is unchanged (a NaN
+   already resolved to 0).
+3. `MemoryLayout<Color>.size <= 24` is pinned, and the lane records
+   `MemoryLayout<Decoration>.size`, `BorderStyle`, `Text` and
+   `EnvironmentValues` at `30a3dbf` and at its commit;
+   `everyProductionTreeBuildsOnAOneMegabyteThread` stays green.
+
+**Reasoning.** Item 2 is a correctness defect in the committed design: `Color`
+is `Hashable` and `CR-H` item 3 compares **declared** `Color`s to decide
+whether a colour changed. `Float.nan != Float.nan`, so a NaN colour would be
+"changed" on every build, and every build made under a transaction would
+re-arm a fade (`advanceColor`). **Corrected by `CR-X` item 1**: the display
+link stays awake only while builds under a transaction keep arriving (an app
+animating something else on every frame); after one such build the next
+transactionless build snaps the fade (`color != running.to` with no
+transaction) and the link pauses with or without the canonicalisation. What
+item 2 protects is equality — `Color(red: .nan, …) == Color(red: 0, …)` — and
+so no fade on a rebuild under a transaction. Item 1
+and 3: a `Decoration` holds three background and three border colours, a
+`ColorToken` is one byte, a `Double` `Color` about 48; elements are copied
+through deep generic chains on 1 MB Windows stacks.
+
+**Tests.** 1.6 gains the arm `Color(red: .nan, green: 0, blue: 0) ==
+Color(red: 0, green: 0, blue: 0)`; `ColorPaintTests` gains
+`aNaNColourSettlesAndLetsTheDisplayLinkPause` (a `Box` whose background is a
+NaN literal, rebuilt under `withAnimation` on each of five frames: after each
+one nothing is live, then a quiet frame pauses the link — `CR-X` item 1; the
+first version rebuilt under a transaction once and could not see the
+mutation). Mutation: drop the canonicalisation — both redden.
+
+## CR-S — The theme variants live on the `Frame`, not in `EnvironmentValues` (revises `CR-K` item 2)
+
+**Ruling.** `lightTheme`/`darkTheme` are **not** `EnvironmentValues` fields.
+The frame holds the window's pair (`Frame.lightTheme`/`darkTheme`, `Frame.init`
+parameters defaulting to `.light`/`.dark`), and `Frame.scopedValues(applying:
+.transform)` reads them when a scope changes `colorScheme`. Everything else in
+`CR-K` stands.
+
+**Reasoning.** No scope writes a variant — `CR-K` item 2 itself says they are
+"re-stamped after every transform", i.e. always the root's value — so a
+per-scope copy is pure overhead: two `Theme`s (nine 16-byte `Hsla`s and the
+palette dictionary each) added to every `EnvironmentValues` copy, on the
+environment stack and in every scope's stack frame. A field that can never
+differ from the root's is the frame's.
+
+**Lanes.** `EnvironmentValues.swift` gains only `colorScheme` (lane 1); the
+frame fields are lane 2's (`Frame.swift`).
+
+## CR-T — A presentation root's preference ranks after the main root's (revises `CR-L` item 3)
+
+**Ruling.** The reduction of `CR-L` item 3 runs over the **main root first**,
+then the presentation roots in their run order: the first non-nil
+top-level preference in the main tree wins; only if it has none does a
+presentation root's count. Implemented as two slots in the frame (the main
+root's, the first presentation's), chosen after `renderRoot`.
+
+**Reasoning.** `LR-CH` lays presentation roots out **before** the root, so
+"first in layout order" made an open popover's, menu's or tooltip's
+preference beat the window's own root preference — an ordering accident of
+the layout runs, not a design. SwiftUI gives a popover its own window
+(`MN-M`), so it has no answer to copy; the rule that keeps the root
+authoritative and a transient presentation subordinate is the conservative
+one. Unprobed for SwiftUI and not claimed.
+
+**Test.** 2.9 gains arm `PR`: root `.preferredColorScheme(.light)` with an
+open popover whose content writes `.preferredColorScheme(.dark)` → light; and
+a root with no preference → the popover's dark. Mutation: plain layout order
+(the first arm reddens).
+
+## CR-U — `.foregroundStyle(.secondary)` resolves the `Color` static; divergence 119
+
+**Ruling.** MetalUI's `foregroundStyle(_:)`/`background(_:)`/`fill(_:)` take a
+concrete `Color` (`CR-E`), so a leading-dot `.secondary` or `.primary` there
+is `Color.secondary`/`Color.primary`. SwiftUI's generic `S: ShapeStyle`
+parameter infers **`HierarchicalShapeStyle`** for the same spelling (probe
+`swiftui-colour-hierarchical.swift` `H1`, `H2`; `.red` infers `Color`, `H3`;
+control `H0`). The spelling compiles in both and names different things:
+**divergence 119** (MetalUI's choice, pending the deferred `ShapeStyle`). How
+a hierarchical style renders under a tinted parent is unmeasured and not
+claimed. Pin: guard 1.25's `.foregroundStyle(.secondary)` line plus a paint
+arm in 1.15 (`Text` under `.foregroundStyle(.red)` with its own
+`.foregroundStyle(.secondary)` paints `Color.secondary`'s resolved value, not a
+red). `docs/divergences.md`'s next label becomes **120** (lane 3).
+
+## CR-V — Two test-design defects in the spec's lane 2 table
+
+**Ruling.**
+
+1. **2.10** asserted layout equality and `@State` survival across a change of
+   the preferred *value*; its mutation ("the scope consumes a cursor slot")
+   reddens neither — a consistently consumed slot changes no layout and no
+   identity *between frames of one tree*. 2.10 instead compares the
+   recorded element-id sets (`recordsElementBounds`) of the tree with and
+   without `.preferredColorScheme(.dark)` on a scope that has a **following
+   sibling**: equal. The cursor-slot mutation shifts that sibling's id.
+2. **New 2.22** `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`:
+   `window.lightTheme = .dark; window.darkTheme = .dark`, then an appearance
+   change to dark → `needsRedraw`, and the next frame paints a
+   `Color(light:dark:)` box's dark half. Mutation: `colorScheme`'s `didSet`
+   only assigns `theme` (relying on `theme`'s guard to dirty) — reddens, since
+   the theme does not change. Without it, 2.3's mutation (remove the scheme's
+   equality guard) can be green for the wrong reason.
+
+## CR-W — Lane 1's implementation findings: four places the design met the source (revises `CR-C` item 3, `CR-D`, `CR-E`, `CR-G`)
+
+**Ruling.**
+
+1. **`LayoutModifier`'s three colour payloads are retyped to `Color`**:
+   `.background(Color)`, `.border(Color, width:cornerRadius:)`,
+   `.shadow(Color, radius:x:y:)`. `LayoutModifier` is a public enum with
+   public cases (`ModifiedContent(content:modifier:)` builds one), which
+   `CR-E` item 3's list of stored properties missed. A leading-dot
+   construction (`modifier: .background(.accent)`) compiles unchanged through
+   the token statics; a `ColorToken` variable in a case payload, or a pattern
+   that uses the bound payload as a `ColorToken`, breaks — **migration**:
+   `Color(token)`, and `pass.resolve(_:)` for a read. Adding parallel
+   `Color` cases instead would break every exhaustive `switch` outside the
+   package and keep two spellings of one layer.
+2. **`CR-D`'s extension needs an explicit `@MainActor`**: written as
+   `extension Color: Element`, Swift 6.4 inferred the members nonisolated
+   ("call to main actor-isolated instance method `requestNativeLeaf` in a
+   synchronous nonisolated context") — the probe's `I1` arm had a conformance
+   with no members. `@MainActor extension Color: Element` isolates exactly the
+   conformance's members; the value, its initialisers and statics stay
+   nonisolated (guard 1.23 green).
+3. **A literal folds `opacity(_:)` into its own opacity** (revises `CR-C`
+   item 3 and spec §3.1's "a *= clamp(opacity)" for literals only): `srgb`'s
+   fourth component is multiplied, unclamped, and clamped once at
+   resolution — SwiftUI's own product rule (probe `O4`: `1.5` is kept). The
+   separate multiplier is kept for the token, dynamic and palette providers,
+   clamped when applied. A NaN product is stored as 0 (`CR-R`).
+4. **A palette colour stores its key's metatype** (`any ThemeColorKey.Type`,
+   compared and hashed by `ObjectIdentifier`), not `(ObjectIdentifier,
+   defaultValue:, name)` (spec §3.5): the default and the trap's name are read
+   from the type, so the payload is 16 bytes and `Color` stays at 24
+   (`aColorIsAtMostTwentyFourBytes`).
+
+**Cost if wrong.** Item 1 is a public break with a one-token migration;
+items 2–4 are invisible at a call site.
+
+## CR-X — Lane 1 review: four measured corrections to its tests' claims (revises `CR-R`'s reasoning and tests; spec §6.1 rows 1.15, 1.23–1.25)
+
+**Ruling.**
+
+1. **`CR-R` item 2 protects equality, not the display link on its own.** A
+   NaN colour re-arms a fade on every build made under a transaction; after
+   one such build, the next transactionless build snaps it (`advanceColor`'s
+   running branch, `color != running.to` with no transaction), so the link
+   pauses with or without the canonicalisation. The link stays awake only
+   while builds under a transaction keep arriving.
+   `aNaNColourSettlesAndLetsTheDisplayLinkPause` now rebuilds under
+   `withAnimation` on each of five frames and asserts nothing is live after
+   each, then that a quiet frame pauses.
+2. **Guard 1.24 pins result types** for `Text`, `ProposalText`, `TextField`
+   and `TextEditor` (`let _: Text = Text("x").foregroundColor(t)`, …): each
+   also has an `ElementGroup` fallback returning `EnvironmentScope<Self>`, so
+   a deleted own twin compiled and silently changed the result type.
+3. **Spec row 1.15**: replacing `Shape.fill(_ color:)`'s colour reddens its
+   own arm **and** `background(_:in:)`'s, which forwards to `shape.fill`.
+4. **Guards 1.23–1.25 are the second line of defence** for most of their
+   documented mutations: those fail the package or test build first. Guard
+   1.25 pins `Text`'s own three spellings to return `Text` (SwiftUI's do), and
+   so gains a mutation it alone sees. For 1.23 none is known: every member
+   its fixture touches is also used nonisolated in the package or by the
+   nonisolated cross-platform tests.
+
+**Measured** (branch `feat/colour`, full unfiltered native suite, 2353 tests,
+each mutation restored from a copy, `git status --short` clean after each):
+
+| Id | Mutation (spelling) | Run by | Result |
+|---|---|---|---|
+| M12 | `StyledElement.background(_ color:)` forwards `.surface` | reviewer | 1.15 arm `StyledElement.background` only |
+| M13 | `Shape.fill(_ color:)` forwards `.surface` | reviewer | 1.15 arms `Shape.fill` and `background(_:in:)` |
+| M19 | `Element` on `Color`'s primary declaration | reviewer | package build fails (`Color.swift:331`, `TextStyleResolution.swift:31`) |
+| M19b | `@MainActor static let red` | reviewer | test build fails (`ColorValueTests.swift:82`) |
+| M20 | delete `@_disfavoredOverload public func foregroundColor(_ token: ColorToken) -> Text` | before item 2: reviewer; after: this lane | before: 0 red; after: `everyColorTokenSpellingStillCompiles` only ("cannot convert value of type 'EnvironmentScope<Text>' to specified type 'Text'") |
+| M21 | `StyledElement.background(_ token:)` not disfavoured | reviewer | package build fails (`DragAndDropDemo.swift:45`) |
+| M22 | `Shadow.swift` token twin not disfavoured | reviewer | test build fails (`ShadowTests.swift:44`) |
+| M23 | `canonical(_:)` returns `value` | before item 1: reviewer; after: this lane | before: `opacityMultipliesAndClampsAtResolution` only; after: `aNaNColourSettlesAndLetsTheDisplayLinkPause` and `opacityMultipliesAndClampsAtResolution` |
+| M25 | legacy shadow token twin not disfavoured | reviewer | package build fails (`LooksDemo.swift:279`) |
+| M26 | delete `onTap(hoverColor: ColorToken)` twin | reviewer | `everyColorTokenSpellingStillCompiles` only |
+| M27 | `Text.foregroundColor(_ color: Color)` (non-optional) | this lane | `theSwiftUISpellingsTypecheckWithoutAmbiguity` only ("'nil' is not compatible with expected argument type 'Color'") |
+| M28 | `@MainActor public init<K: ThemeColorKey>(_ key: K.Type)` | this lane | test build fails (`ColorPaletteTests.swift:22`, `:24`, `:33`, `:35`) |
+| M29 | `@MainActor public func opacity(_:)` | this lane | package build fails (`Color.swift:265`, `Color.secondary`) |
+
+A predecessor's uncommitted `Color(white:)` → `red: white * white` mutation
+was found unreverted and reverted by the reviewer; its results were never
+reported and are not claimed here.
+
+**Cost if wrong.** Test-claim corrections only; no source changed.
+
+## CR-Y — Lane 2's implementation findings (refines `CR-K` item 1, `CR-Q`, `CR-T`; spec §3.4, §6.2 rows 2.6, 2.9, 2.11)
+
+**Ruling.**
+
+1. **Preferences are collected during the element walk, not in the layout
+   runs.** `.preferredColorScheme` reports from `EnvironmentScope`'s two
+   layout entries — the build (`requestLayout`), which runs before any native
+   layout run. A popover's chrome and a `Deferred`'s content are *built*
+   inside their declarer's walk; `LR-CH`'s "presentations before the root"
+   orders `Frame.computeRootLayout`'s runs, which collect nothing. So a root
+   scope that encloses a popover's declarer already wins by depth (`CR-L`
+   item 3); what `CR-T` must order is a main-tree preference on a sibling
+   **after** the declarer. Implemented as two slots (`Frame.
+   mainColorSchemePreference`, `presentationColorSchemePreference`): an
+   `AnchoredPresentation`'s content always collects into the presentation
+   slot; a `Deferred`'s content does when it turns out to be absolute (known
+   only after its build — `Frame.beginPresentationPreferences`/
+   `endPresentationPreferences`), and an in-flow `Deferred` is the main tree,
+   in walk order. 2.9's arm `PR` therefore puts the main preference on the
+   popover declarer's following sibling, and gains arm `PD` (an absolute
+   `Deferred`, and an in-flow one). `Deferred.swift` and
+   `AnchoredPresentation.swift` carry the bookkeeping (outside lane 2's file
+   list; required by `CR-T`).
+2. **The inactive variant does not touch `theme`.** `CR-K` item 1's
+   "whenever … either variant changes, `Window.theme` is set to the scheme's
+   variant" is narrowed to the *active* variant: assigning `darkTheme` in a
+   light window leaves `theme` alone, so a direct `window.theme` write lasts
+   until the next scheme change or a write of the active variant (2.15).
+3. **The second first-frame build starts clean.** `CR-Q`'s second build runs
+   with `needsRedraw` cleared: the scheme change that dirtied is consumed by
+   it, and every "another frame" request (`wantsAnotherFrame`, gestures,
+   tooltip, a `@State` write in a phase) is re-derived by the second build.
+   2.11 asserts `needsRedraw == false` after the first frame. **Refuted for
+   a value animated on the scheme** (`CR-Z`): the second build diffed against
+   the first and started that animation, presenting the light value at t = 0
+   and leaving the window animating; the second build now snaps every
+   change.
+4. **2.11's `StateTable` arm compares against a one-build control.** The
+   table holds 8 entries after one build of 2.11's tree, not 1, so "one entry, not two"
+   became "the entries one build of the same tree, drawn in a dark fake,
+   holds". `CR-Q`'s mutation "skip adoption of the first build (build twice
+   from the same pre-frame state)" **has no spelling**: the window has no
+   snapshot or restore of its stores — which is exactly `CR-Q`'s reason for
+   adopting — so the arm guards only against duplicated entries, and that is
+   recorded rather than claimed.
+5. **AppKit reports once.** `AppKitWindow.setPreferredColorScheme` sets
+   `NSWindow.appearance` and then reports through `onAppearanceChange` only
+   if the effective appearance differs from the last one reported (seeded at
+   init), so the report is made exactly once whether or not AppKit calls
+   `viewDidChangeEffectiveAppearance` synchronously. Measured (mutation
+   M2.20b below): headless AppKit calls it synchronously, so the explicit
+   report is insurance for a host that defers it, kept.
+6. **Migration** (lane 3 transcribes it into `docs/migration.md`): a
+   `PlatformWindow` conformer outside this repository adds
+   `func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}`. Nothing
+   else in lane 2 is a public break: `Window.colorScheme`,
+   `preferredColorScheme`, `lightTheme`, `darkTheme`, `App`'s three and the
+   modifier are additive; `Frame.init`'s two new parameters are internal and
+   defaulted.
+
+**Measured** (branch `feat/colour` at `c287ecd`, full unfiltered native
+suite of 2374 tests per mutation; M2.18 re-run with the default appended at file scope after a first spelling broke the protocol, each restored from a copy, `git status
+--short` empty after each):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| M2.1 | drop the root `colorScheme` stamp | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`, `anAppearanceChangeRebuildsWithTheNewScheme`, `preferredColorSchemeIsWindowWide`, `readingTheColorSchemeInEveryPhaseLetsTheDisplayLinkPause`, `theWindowStampsItsPlatformsAppearanceAsTheColorScheme` |
+| M2.2 | stamp the scheme captured at the first draw (`lazy var initialColorScheme`) | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`, `anAppearanceChangeRebuildsWithTheNewScheme`, `preferredColorSchemeIsWindowWide` |
+| M2.3 | remove `colorScheme`'s equality guard | `aReportOfTheCurrentSchemeDoesNotWakeTheDisplay`, `settingTheThemeToItsCurrentValueDoesNotWakeTheDisplay` |
+| M2.22 | `colorScheme`'s `didSet` only assigns `theme` (no `setNeedsRedraw()`) | `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme` |
+| M2.4 | write the stamp into `Window.environment` each draw | 59 tests, among them `readingTheColorSchemeInEveryPhaseLetsTheDisplayLinkPause`, `windowDrawsOnlyWhenDirty`, `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt` (every settle-and-pause test: the write dirties each draw) |
+| M2.5 | drop the variant re-stamp in `scopedValues` | `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree` |
+| M2.6 | re-stamp `colorScheme` from the top after a transform (the spec's spelling) | `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree`, `aSchemeChangeNeverStartsAFadeOnADynamicColour`, `paintPassResolveUsesTheElementsScopedThemeAndScheme` — 2.6 stays green: the mutation also disables the dark scope 2.6 stands on (instrument limit); M2.6b is 2.6's separating spelling |
+| M2.6b | select a variant only on a change *to* dark | `aSelfResetBelowADarkScopeReadsLightAndTheLightVariant` |
+| M2.7 | `.theme(_:)` also writes `colorScheme = .dark` | `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`, `anExplicitThemeScopePinsTokensButNotTheScheme` |
+| M2.8 | `.preferredColorScheme` as a scope write of `colorScheme` | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity`, `aRootPreferenceIsInTheFirstPresentedFrame`, `clearingThePreferenceReturnsToThePlatformsAppearance`, `preferredColorSchemeIsWindowWide`, `thePreferredColorSchemeReductionMatchesSwiftUI`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.9a | last non-nil top-level wins | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms P3, P4, PD in-flow) |
+| M2.9b | innermost wins (no depth rule) | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms P3, P4, P5, P6) |
+| M2.9c | plain walk order (presentation content counted as main tree) | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms PR main, PD main) |
+| M2.10a | the scope consumes a cursor slot (both entries) | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` |
+| M2.10b | only `requestGroupLayout` reports | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` |
+| M2.11 | drop the first-frame rebuild | `aRootPreferenceIsInTheFirstPresentedFrame` |
+| M2.12 | a changed tree preference is recorded but never applied | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `clearingThePreferenceReturnsToThePlatformsAppearance`, `preferredColorSchemeIsWindowWide`, `thePreferredColorSchemeReductionMatchesSwiftUI`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.13 | keep the last non-nil tree preference | `clearingThePreferenceReturnsToThePlatformsAppearance`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.14 | window preference before the tree's | `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.15 | `theme = Theme.forAppearance(colorScheme)`, ignoring the variants | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame`, `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` |
+| M2.16 | `App` assigns after `openWindow`'s first draw | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
+| M2.17 | drop the variant → `theme` propagation (both variants together; only the dark half reddened anything — per-half rows MJ, MD in `CR-Z`) | `aPaletteOverrideOnTheWindowsVariantRepaints`, `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
+| M2.18 | a protocol-extension default for `setPreferredColorScheme` | `aPlatformWindowWithoutSetPreferredColorSchemeDoesNotCompile` |
+| M2.19 | delete `typealias Appearance` | package build fails (`Sources/MetalUIPlatform/Platform.swift:20`: cannot find type 'Appearance' in scope) — guard 2.19 is the second line of defence (`CR-X` item 4's footing): every conformer spells `Appearance` |
+| M2.20 | AppKit maps `.dark` to `.aqua` | `settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt` |
+| M2.20b | drop AppKit's explicit report after the `NSWindow.appearance` write | none — **green**: headless AppKit calls `viewDidChangeEffectiveAppearance` synchronously from the write, so the explicit report is insurance, kept (item 5) |
+| M2.21 | `SDLWindow.setPreferredColorScheme` stores nothing (`Backends/SDL`, its own suite of 24 + 63) | `setPreferredColorSchemeIsRecordedAndTheSystemThemeStillReports` |
+
+**Cost if wrong.** Item 1: a tree whose only preference sits inside an
+absolute `Deferred` declared before a main-tree preference would differ from
+plain walk order — the conservative `CR-T` choice, unprobed for SwiftUI.
+Items 2–6 are invisible at a call site.
+
+## CR-Z — Lane 2 review: the second first-frame build snaps every change; the light variant's two halves pinned (revises `CR-Q`, `CR-Y` items 2 and 3; spec §3.4, §6.2 rows 2.11, 2.15, 2.17)
+
+**Ruling.**
+
+1. **The first frame's second build snaps every change.** `CR-Q` adopts the
+   first build, so the second sees a scheme change from light to dark and,
+   before this ruling, started any `.animation(_:value:)` keyed on a value
+   derived from the scheme (and would have run a transition on a
+   scheme-dependent conditional, or animated under a `.transaction(_:)` that
+   sets an animation): the presented first frame drew the light value at
+   t = 0 and `hasActiveAnimations` stayed true — contradicting `CR-Q`'s "no
+   light flash". `Frame` gains an internal `snapsEveryChange` (set only for
+   that second build, `buildAndAdoptFrame(scaleFactor:snapsEveryChange:)`):
+   the root transaction carries no animation and `disablesAnimations`, and
+   `withTransactionScope` clears every scope's animation, so every animated
+   helper, `TransitionGroup` and value scope reads `nil` and snaps. The
+   value scopes still store their values, so the next ordinary frame diffs
+   against the target scheme. Re-seeding the stores from the second build
+   was the alternative; it needs a snapshot of window stores the window does
+   not have (`CR-Y` item 4). The presented frame now equals one build in
+   the target scheme (test **2.11b**,
+   `theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild`, against a
+   one-build dark control). An animation the first build legitimately
+   started with nothing to diff (none can on a first frame) is not touched.
+2. **The light variant's two halves are pinned on their own** (`OM-AI`).
+   2.17 gains a light-window arm (`window.lightTheme[Brand.self] = …` →
+   `needsRedraw`, `window.theme` carries it, the override painted); 2.15
+   gains "assigning `lightTheme` in a dark window leaves `theme` alone"
+   (`CR-Y` item 2, now pinned for both variants).
+3. **Not changed: `Deferred`.** `Deferred.swift` and
+   `AnchoredPresentation.swift` gained only `begin`/`endPresentation
+   Preferences` around the content build (`CR-Y` item 1; pinned by 2.9 via
+   mutations MC and MF). Layout, identity and pixels are unchanged (14/14
+   demo images at 0 px). The Record phase lists this touch on `Deferred`
+   under MUST NOT MOVE.
+
+**Measured** (branch `feat/colour`, fix `snapsEveryChange` committed after `8fa0b51`, full
+unfiltered native suite of 2375 tests per mutation, each restored from a
+copy, `git status --short` empty after each):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| MK | the second build without `snapsEveryChange` (`buildAndAdoptFrame(scaleFactor: drawScaleFactor, snapsEveryChange: false)`, `Window.swift`) | `theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild` |
+| MJ | delete `theme = lightTheme` in `Window.lightTheme`'s `didSet` | `aPaletteOverrideOnTheWindowsVariantRepaints` (its light arm; the review measured it green before the arm) |
+| MD | `lightTheme`'s guard reduced to `lightTheme != oldValue` | `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` (its light-variant arm; a first spelling of the arm assigned `customTheme()`, equal to the dark window's current `theme`, and stayed green under MD — the arm now assigns a third theme, `#require`d distinct) |
+
+**Cost if wrong.** Item 1: a first frame whose scheme comes from the tree
+shows no animation of anything that differs between the two builds — the
+same as a window opened in that scheme, which is the point.
+
+## CR-AA — Lane 3's implementation findings: the demo's layout, its palette spelling, the SDL demo, one re-derived count (refines spec §7, §6.3 row 3.3, §9 S4)
+
+**Ruling.**
+
+1. **The colour section sits below the two columns**, not in either: both
+   columns are already ~530–560 pt tall in the 720 pt window, and 22 labelled
+   swatches need a row of their own. The looks window grows to **1180 × 880**
+   (`MetalUIDemo` and the new SDL mode). The swatches are two rows (11 + 11)
+   of 92-pt label columns.
+2. **Every swatch has the `.separator` border**, not only `clear` (spec §7
+   item 1): one spelling for all 22 (a `ForEach` over a `[(String, Color)]`
+   table, so no swatch's type differs), and the border is what makes `white`
+   on a light `.surface` and `black` on a dark one visible too.
+3. **The palette key and the override are public in `MetalUIDemoContent`**
+   (`LooksBrand: ThemeColorKey`, `looksBrandDarkOverride`), so `MetalUIDemo`,
+   `MetalUISDLDemo` and test 3.1 apply the same override with one spelling,
+   `darkTheme[LooksBrand.self] = looksBrandDarkOverride`. They are census rows
+   of the `demo-content` family (M), as every demo declaration is.
+4. **`MetalUISDLDemo` gains `METALUI_LOOKS_DEMO=1`** (outside lane 3's file
+   list; type plumbing only): human check S4 named an SDL run that no SDL demo
+   mode could make.
+5. **Test 3.3**: `theLooksDemoDrawsEverySurfaceItsHumanChecksName` (F1.3)
+   required nine `onClick` hitboxes; the scheme toggle is a tenth. It is
+   re-derived to **10**; the toggle is the lowest of them, so the test's
+   "first transition button" press is unchanged. `theLooksDemoShowsPathsShadowsAndTransforms`
+   (3.28) and `everyProductionTreeBuildsOnAOneMegabyteThread` (3.2) needed
+   nothing.
+6. **Test 3.1 also drives the toggle** from input (System → Light → Dark →
+   System in a dark fake window: the window's scheme, the swatches and the
+   fake's `preferredColorSchemeRequests` follow, the last request `nil`).
+
+**Measured** (branch `feat/colour` at `e464d27`, full unfiltered native
+suite of 2376 tests, restored from a copy, `git status --short` empty after):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| M3.1 | the demo's `light/dark` swatch written as the light-only literal `Color(red: 0.95, green: 0.75, blue: 0.20)` (`LooksDemo.swift`) | `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours` (its "dynamic, dark" arm, `LooksColourDemoTests.swift:95`) — only it |
+
+**Cost if wrong.** A taller window than a small laptop screen shows; the
+content scrolls nowhere, so the bottom row would be cut — resize it.
+
+
+## CR-AB — The Record phase: the demo's scheme label is unpinned on purpose; the branch is closed (refines `CR-AA`, spec §6.3)
+
+**Ruling.**
+
+1. **The demo's `scheme:` label is covered by human checks S2 and S3 only.**
+   The lane 3 verifier's mutation M3.4 (`LooksSchemeLabel` shows the constant
+   `scheme: light`) left the full suite green. Pinning it needs a reader of a
+   scene's text runs that no demo test has; the behaviour underneath — a view
+   reading `@Environment(\.colorScheme)` while building, following an
+   appearance change and a preference — is pinned by `ColorSchemeTests`
+   (2.1–2.12). Not fixed, recorded (record §75 §6).
+2. **Counts at close**: 2328 → 2376 tests (+25 lane 1, +22 lane 2, +1 lane 3),
+   142 → 147 typecheck guards, `Backends/SDL` 24 + 62 → 24 + 63, 86 live
+   divergences (next label 120), Linux container 199 + 22 + 36 + 31 + 18 + 6.
+3. **`CLAUDE.md` carries the rules only**: the `CR-` prefix and one paragraph;
+   everything else is record §75.
+
+**Cost if wrong.** Item 1: a demo label could regress unseen until a human
+runs S2/S3.

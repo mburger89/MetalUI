@@ -252,7 +252,7 @@ extension Box {
 /// plan task 7, stage 10 (`LR-FM` item 1).
 public struct Decoration: Sendable, Hashable {
     /// The fill painted beneath the element's content, or `nil` for none.
-    public var background: ColorToken?
+    public var background: Color?
     /// The radius of every corner of the background and border. Paint-only on
     /// a legacy element (it clips nothing and moves no hitbox — divergence 47);
     /// `clipShape(_:)` or the proposal `.cornerRadius(_:)` clip.
@@ -272,7 +272,7 @@ public struct Decoration: Sendable, Hashable {
     /// for every element that registers a hitbox whether or not it declares one
     /// of these; this field only says whether the resolved answer changes what
     /// is drawn.
-    public var hoverBackground: ColorToken?
+    public var hoverBackground: Color?
 
     /// The background to paint instead of `background` — and instead of
     /// `hoverBackground` — while this element holds keyboard focus.
@@ -286,7 +286,7 @@ public struct Decoration: Sendable, Hashable {
     /// `animatedBackground(_:for:pass:)` is the one site (shared by `Box`,
     /// `Stack` and `Text`); `focusOutranksHoverWhenAnElementIsBoth` pins it on
     /// `Box` and `everyBackgroundPaintingSiteHonoursHoverAndFocus` on all three.
-    public var focusBackground: ColorToken?
+    public var focusBackground: Color?
 
     // MARK: Plan task 5, lane 2 — appended, never reordered
 
@@ -468,9 +468,9 @@ public struct Decoration: Sendable, Hashable {
 
     /// A decoration with every field given, each defaulting to "paints
     /// nothing": no background or border, square corners, opacity 1, no clip.
-    public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),
-                hoverBackground: ColorToken? = nil,
-                focusBackground: ColorToken? = nil,
+    public init(background: Color? = nil, cornerRadius: Pixels = Pixels(0),
+                hoverBackground: Color? = nil,
+                focusBackground: Color? = nil,
                 border: BorderStyle? = nil,
                 hoverBorder: BorderStyle? = nil,
                 focusBorder: BorderStyle? = nil,
@@ -486,6 +486,24 @@ public struct Decoration: Sendable, Hashable {
         self.focusBorder = focusBorder
         self.opacity = opacity
         self.clipsContent = clipsContent
+    }
+
+    /// A decoration with every field given — the `ColorToken` spelling, kept
+    /// (`CR-E` item 1): each token is its `Color`.
+    @_disfavoredOverload
+    public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),
+                hoverBackground: ColorToken? = nil,
+                focusBackground: ColorToken? = nil,
+                border: BorderStyle? = nil,
+                hoverBorder: BorderStyle? = nil,
+                focusBorder: BorderStyle? = nil,
+                opacity: Float = 1,
+                clipsContent: Bool = false) {
+        self.init(background: background.map(Color.init), cornerRadius: cornerRadius,
+                  hoverBackground: hoverBackground.map(Color.init),
+                  focusBackground: focusBackground.map(Color.init),
+                  border: border, hoverBorder: hoverBorder, focusBorder: focusBorder,
+                  opacity: opacity, clipsContent: clipsContent)
     }
 }
 
@@ -505,25 +523,39 @@ public struct Decoration: Sendable, Hashable {
 /// a door beside an open window. `withWidths(_:)` is the only other way in, and
 /// it validates identically.
 public struct BorderStyle: Sendable, Hashable {
-    /// Resolved once per frame against `PaintPass.theme`, exactly as
-    /// `Decoration.background` is: a border is a semantic token, never a
-    /// literal (spec §7.9).
-    public var color: ColorToken
+    /// Resolved once per frame at the element's position, exactly as
+    /// `Decoration.background` is. A `Color` since the colour work (`CR-E`
+    /// item 3).
+    public var color: Color
 
     /// Points, drawn inside the element's box. See this type's doc for why the
     /// setter is private.
     public private(set) var widths: Edges<Pixels>
 
     /// Traps on a negative or non-finite width. Pinned by an exit test.
-    public init(_ color: ColorToken, width: Pixels) {
+    public init(_ color: Color, width: Pixels) {
         self.init(color, widths: Edges(all: width))
     }
 
     /// Traps on a negative or non-finite width on any edge.
-    public init(_ color: ColorToken, widths: Edges<Pixels>) {
+    public init(_ color: Color, widths: Edges<Pixels>) {
         Self.validate(widths)
         self.color = color
         self.widths = widths
+    }
+
+    /// Traps on a negative or non-finite width. The `ColorToken` spelling,
+    /// kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public init(_ color: ColorToken, width: Pixels) {
+        self.init(Color(color), widths: Edges(all: width))
+    }
+
+    /// Traps on a negative or non-finite width on any edge. The `ColorToken`
+    /// spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
+    public init(_ color: ColorToken, widths: Edges<Pixels>) {
+        self.init(Color(color), widths: widths)
     }
 
     /// The only other way to set `widths`; validates identically.
@@ -842,14 +874,22 @@ extension StyledElement {
 
     // MARK: Paint (spec §7.9)
 
-    /// Fills this element's border box with a **semantic token**, resolved
-    /// against the frame's theme when `paint` runs.
+    /// Fills this element's border box with `color`, resolved at the
+    /// element's position when `paint` runs.
     ///
-    /// There is no `Hsla` overload. A literal colour would paint identically in
-    /// both appearances while looking exactly like a themed one at the call
-    /// site, which is §7.9's whole objection to literals.
+    /// A `Color` since the colour work (`CR-E`; `CR-B` supersedes §7.9's ban
+    /// on literals): a literal, a dynamic colour, a palette colour or a
+    /// token. A `Color(light:dark:)` or palette colour is the spelling that
+    /// follows the scheme.
+    public func background(_ color: Color) -> Self {
+        decorating { $0.background = color; $0.noteWrite(.plainFill) }
+    }
+
+    /// ``background(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func background(_ token: ColorToken) -> Self {
-        decorating { $0.background = token; $0.noteWrite(.plainFill) }
+        background(Color(token))
     }
 
     /// Fills with `token` instead of `background(_:)` while the pointer is over
@@ -866,8 +906,18 @@ extension StyledElement {
     /// Deliberately not folded into `onClick(_:)`: an element may want the hit
     /// target without the affordance — a whole row that is clickable while the
     /// highlight lives on a child — and one modifier writes one field.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func hoverBackground(_ color: Color) -> Self {
+        decorating { $0.hoverBackground = color; $0.noteWrite(.hoverFill) }
+    }
+
+    /// ``hoverBackground(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func hoverBackground(_ token: ColorToken) -> Self {
-        decorating { $0.hoverBackground = token; $0.noteWrite(.hoverFill) }
+        hoverBackground(Color(token))
     }
 
     /// Fills with `token` instead of `background(_:)` — and instead of
@@ -883,8 +933,18 @@ extension StyledElement {
     /// — so an element declaring this and nothing else paints its plain
     /// background forever, exactly as `hoverBackground(_:)` does without a
     /// click handler.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func focusBackground(_ color: Color) -> Self {
+        decorating { $0.focusBackground = color; $0.noteWrite(.focusFill) }
+    }
+
+    /// ``focusBackground(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func focusBackground(_ token: ColorToken) -> Self {
-        decorating { $0.focusBackground = token; $0.noteWrite(.focusFill) }
+        focusBackground(Color(token))
     }
 
     /// Rounds all four corners of the background by the same radius.
@@ -1368,13 +1428,33 @@ extension StyledElement {
     /// (`OM-W`).
     ///
     /// Traps on a negative or non-finite width — see `BorderStyle`.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func border(_ color: Color, width: Pixels) -> Self {
+        decorating { $0.border = BorderStyle(color, width: width); $0.noteWrite(.plainBorder) }
+    }
+
+    /// ``border(_:width:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func border(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.border = BorderStyle(token, width: width); $0.noteWrite(.plainBorder) }
+        border(Color(token), width: width)
     }
 
     /// The per-edge form of `border(_:width:)`.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func border(_ color: Color, widths: Edges<Pixels>) -> Self {
+        decorating { $0.border = BorderStyle(color, widths: widths); $0.noteWrite(.plainBorder) }
+    }
+
+    /// ``border(_:widths:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func border(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.border = BorderStyle(token, widths: widths); $0.noteWrite(.plainBorder) }
+        border(Color(token), widths: widths)
     }
 
     /// Draws this border instead of `border(_:width:)`'s while the pointer is
@@ -1384,13 +1464,33 @@ extension StyledElement {
     /// `hoverBackground(_:)` does not: `onClick(_:)` is the only thing that puts
     /// an element into the hitbox list, so `.hoverBorder(…)` alone compiles and
     /// draws the plain border forever.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func hoverBorder(_ color: Color, width: Pixels) -> Self {
+        decorating { $0.hoverBorder = BorderStyle(color, width: width); $0.noteWrite(.hoverBorder) }
+    }
+
+    /// ``hoverBorder(_:width:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func hoverBorder(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.hoverBorder = BorderStyle(token, width: width); $0.noteWrite(.hoverBorder) }
+        hoverBorder(Color(token), width: width)
     }
 
     /// The per-edge form of `hoverBorder(_:width:)`.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func hoverBorder(_ color: Color, widths: Edges<Pixels>) -> Self {
+        decorating { $0.hoverBorder = BorderStyle(color, widths: widths); $0.noteWrite(.hoverBorder) }
+    }
+
+    /// ``hoverBorder(_:widths:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func hoverBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.hoverBorder = BorderStyle(token, widths: widths); $0.noteWrite(.hoverBorder) }
+        hoverBorder(Color(token), widths: widths)
     }
 
     /// **The focus ring**: draws this border instead of `border(_:width:)`'s —
@@ -1405,13 +1505,33 @@ extension StyledElement {
     /// It needs `focusable()` AND something to move focus: clicking does not
     /// focus (`Window.focus(_:)` is the only mover), so an element declaring
     /// this and nothing else draws its plain border forever.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func focusBorder(_ color: Color, width: Pixels) -> Self {
+        decorating { $0.focusBorder = BorderStyle(color, width: width); $0.noteWrite(.focusBorder) }
+    }
+
+    /// ``focusBorder(_:width:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func focusBorder(_ token: ColorToken, width: Pixels) -> Self {
-        decorating { $0.focusBorder = BorderStyle(token, width: width); $0.noteWrite(.focusBorder) }
+        focusBorder(Color(token), width: width)
     }
 
     /// The per-edge form of `focusBorder(_:width:)`.
+    ///
+    /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
+    /// a palette colour or a token.
+    public func focusBorder(_ color: Color, widths: Edges<Pixels>) -> Self {
+        decorating { $0.focusBorder = BorderStyle(color, widths: widths); $0.noteWrite(.focusBorder) }
+    }
+
+    /// ``focusBorder(_:widths:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
+    /// item 1).
+    @_disfavoredOverload
     public func focusBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
-        decorating { $0.focusBorder = BorderStyle(token, widths: widths); $0.noteWrite(.focusBorder) }
+        focusBorder(Color(token), widths: widths)
     }
 
     /// Multiplies the opacity of everything this element paints — its own

@@ -193,6 +193,88 @@ public final class Window {
         }
     }
 
+    // MARK: Colour scheme (rulings `CR-J`, `CR-K`, `CR-L`, `CR-M`)
+
+    /// The colour scheme this window draws in (ruling `CR-J` item 3): the
+    /// tree's `.preferredColorScheme`, else ``preferredColorScheme``, else the
+    /// platform window's appearance. Stamped over `environment` into the root's
+    /// `colorScheme` at every draw, beside `controlActiveState`, so
+    /// `@Environment(\.colorScheme)` reads it while building.
+    ///
+    /// **Guarded, and the guard dirties by itself**: a report of the scheme the
+    /// window already has does not repaint (`controlActiveState`'s reason);
+    /// a change repaints **even when the theme does not change** — both
+    /// variants may be one theme, and dynamic colours still flip (`CR-V` item
+    /// 2). A change also re-selects `theme` from the variants. Pinned by
+    /// `aReportOfTheCurrentSchemeDoesNotWakeTheDisplay` and
+    /// `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`.
+    public private(set) var colorScheme: ColorScheme {
+        didSet {
+            guard colorScheme != oldValue else { return }
+            setNeedsRedraw()
+            theme = colorScheme == .dark ? darkTheme : lightTheme
+        }
+    }
+
+    /// The platform window's appearance, as last reported (construction, then
+    /// `onAppearanceChange`).
+    private var platformAppearance: ColorScheme
+
+    /// The preference the last built frame collected from the tree
+    /// (`Frame.collectedColorSchemePreference`).
+    private var treeColorSchemePreference: ColorScheme?
+
+    /// The preference last handed to `PlatformWindow.setPreferredColorScheme`
+    /// — `nil` until one is requested, so a window nobody asks is never told.
+    private var requestedColorScheme: ColorScheme?
+
+    /// A programmatic preference for this window (ruling `CR-L` item 4,
+    /// MetalUI-only): used when the tree expresses none, and itself beating
+    /// the platform's appearance. `nil` (the default) is no preference.
+    /// `App.preferredColorScheme` assigns it on every window.
+    public var preferredColorScheme: ColorScheme? {
+        didSet {
+            guard preferredColorScheme != oldValue else { return }
+            updateColorScheme()
+        }
+    }
+
+    /// The theme this window uses in the light scheme (ruling `CR-K`,
+    /// MetalUI-only; default `.light`). While the window is light, assigning
+    /// it sets ``theme``; a palette override on it (`lightTheme[Key.self] =`)
+    /// is an assignment, so it repaints. `App.lightTheme` assigns it on every
+    /// window.
+    public var lightTheme: Theme = .light {
+        didSet {
+            guard lightTheme != oldValue, colorScheme == .light else { return }
+            theme = lightTheme
+        }
+    }
+
+    /// The theme this window uses in the dark scheme (ruling `CR-K`; default
+    /// `.dark`). See ``lightTheme``.
+    public var darkTheme: Theme = .dark {
+        didSet {
+            guard darkTheme != oldValue, colorScheme == .dark else { return }
+            theme = darkTheme
+        }
+    }
+
+    /// Recomputes the requested and effective schemes: tells the platform when
+    /// the request (tree ?? window) changed, then assigns ``colorScheme``,
+    /// whose guarded `didSet` repaints and re-selects the theme. The request
+    /// is recorded **before** the platform call, so an `onAppearanceChange`
+    /// the call fires synchronously (AppKit's forced appearance) re-enters
+    /// here without asking again.
+    private func updateColorScheme() {
+        let requested = treeColorSchemePreference ?? preferredColorScheme
+        if requested != requestedColorScheme {
+            requestedColorScheme = requested
+            platformWindow.setPreferredColorScheme(requested)
+        }
+        colorScheme = requested ?? platformAppearance
+    }
+
     /// The window's animation state that is not `StateTable` state (ruling
     /// `AN-AB`): handed to every frame it builds, which drops what it did not
     /// touch.
@@ -586,7 +668,11 @@ public final class Window {
         self.textSystem = textSystem
         #endif
         self.platformWindow = platformWindow
-        self.theme = Theme.forAppearance(platformWindow.appearance)
+        self.platformAppearance = platformWindow.appearance
+        self.colorScheme = platformWindow.appearance
+        // The variants' defaults are `Theme.forAppearance`'s two themes, so
+        // this is the theme the window always started with (`CR-K` item 1).
+        self.theme = platformWindow.appearance == .dark ? Theme.dark : Theme.light
         self.controlActiveState = platformWindow.controlActiveState
         self.accessibilityReduceMotion = platformWindow.accessibilityReduceMotion
         self.renderRoot = { frame in
@@ -615,10 +701,14 @@ public final class Window {
             self?.handleAccessibilityRequest(request) ?? false
         }
         platformWindow.onAppearanceChange = { [weak self] appearance in
-            // Assigning drives `theme`'s `didSet`, which is what marks the
-            // window dirty — §7.9's "swap the active theme and mark §4.4's
-            // dirty flag".
-            self?.theme = Theme.forAppearance(appearance)
+            // The platform's appearance is one input to the effective scheme
+            // (`CR-L` item 4); assigning `colorScheme` drives its guarded
+            // `didSet`, which marks the window dirty and swaps the active
+            // theme to the scheme's variant — §7.9's "swap the active theme
+            // and mark §4.4's dirty flag" (`CR-J`, `CR-K`).
+            guard let self else { return }
+            self.platformAppearance = appearance
+            self.updateColorScheme()
         }
         platformWindow.onControlActiveStateChange = { [weak self] state in
             // Assigning drives `controlActiveState`'s guarded `didSet`, which
@@ -1107,6 +1197,109 @@ public final class Window {
             return
         }
 
+        // The build-and-adopt half (ruling `CR-Q`): an ordinary frame, every
+        // window-owned store updated from it.
+        var (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
+
+        // The tree's colour-scheme preference (rulings `CR-L`, `CR-Q`). After
+        // the first frame a change applies on the next one: `updateColorScheme`
+        // dirties through `colorScheme`'s guard. On the FIRST frame a change
+        // of the effective scheme is applied now and the half runs once more
+        // inside this `beginFrame()`, so no light flash is presented. The
+        // first build is adopted in full — nothing is discarded or rolled back
+        // (`StateTable`, `AnimationStore`, focus, scroll requests and surfaces
+        // saw an ordinary frame); only the second is published and encoded.
+        // The second build snaps every change (`Frame.snapsEveryChange`,
+        // `CR-Q` item 3): a value animated on the scheme, or a transition on a
+        // scheme-dependent conditional, does not start from the first build,
+        // so the presented frame equals one build in the target scheme
+        // (test 2.11b).
+        let schemeBefore = colorScheme
+        if applyTreeColorSchemePreference(of: frame), framesDrawn == 0, colorScheme != schemeBefore {
+            // The second build re-derives every "another frame" request the
+            // first made; the scheme change that dirtied is consumed by it.
+            needsRedraw = false
+            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor, snapsEveryChange: true)
+            _ = applyTreeColorSchemePreference(of: frame)
+        }
+
+        // After the focus read-back, so a published focus is the frame's
+        // decision (AB-J). Builds only while a client is active (AB-B). A
+        // `List` still waiting for its viewport asks for one more frame, which
+        // this honours at most once per run of asking frames (AB-X rule 3).
+        if accessibility.frameDidRender(
+            emissionCount: frame.axEmissions.count,
+            retry: frame.wantsAccessibilityRetry,
+            { () -> AccessibilityBuild in
+                var build = AccessibilityTreeBuilder.buildResult(
+                    emissions: frame.axEmissions, focused: focusedElement, hitboxes: frame.hitboxes,
+                    pressOnly: frame.accessibilityPressOnly, focusRegistry: frame.focusRegistry,
+                    menus: Set(frame.contextMenuRecords.keys))
+                // The in-window menu: a root after the content's, published
+                // even under modal isolation (`MN-F` item 4, `MN-AB`).
+                appendMenuPanel(to: &build)
+                return build
+            }(),
+            to: platformWindow) {
+            setNeedsRedraw()
+        }
+
+        // **Before `encode`, and the ordering is the whole point.** Paint has
+        // just packed whatever glyphs this frame needed and the scene holds
+        // `AtlasSlot`s pointing at them; `encode` draws against whatever
+        // texture the renderer has. Uploading afterwards would leave the *first*
+        // frame of any new glyph sampling a texture that does not contain it —
+        // blank text that fixes itself on the next redraw, which is the
+        // intermittent failure spec §4.2 names and which no amount of staring
+        // at a second frame reveals.
+        //
+        // Unconditional rather than guarded on `scene.glyphs.isEmpty`: only the
+        // atlas knows which pixels changed, it already answers "nothing" with a
+        // `nil` dirty rect, and a guard here would couple the upload to a
+        // property of the scene that can drift from it.
+        //
+        // **This method commits and never waits, and `upload` is safe anyway —
+        // but only because of an invariant `Renderer` maintains, not because of
+        // anything here.** There is no semaphore on this path, so frame N-1's
+        // draw may still be sampling the atlas texture while this call runs.
+        // `Renderer.atlasTextureWasEncoded` is what makes that harmless: a
+        // texture is written only while it has never been bound, and a dirty
+        // upload after an encode allocates a replacement. **If you add an
+        // in-flight semaphore here, that invariant becomes redundant rather than
+        // wrong** — do not remove it in the same change, because the atlas is
+        // the only persistent CPU-mutated GPU resource in the renderer and it
+        // would be the only thing standing between a torn glyph and a frame.
+        //
+        // The frame's app-owned surfaces' requests ride along (MetalView,
+        // `MV-F`): the renderer runs them into this frame's command buffer
+        // after its atlas upload and before it encodes `scene`.
+        guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
+                                                  surfaces: frame.surfaceRequests) else {
+            setNeedsRedraw()
+            return
+        }
+        framesDrawn += 1
+    }
+
+    /// Records the preference `frame` collected and, when it changed,
+    /// recomputes the scheme (ruling `CR-L`). Answers whether it changed.
+    private func applyTreeColorSchemePreference(of frame: Frame) -> Bool {
+        let collected = frame.collectedColorSchemePreference
+        guard collected != treeColorSchemePreference else { return false }
+        treeColorSchemePreference = collected
+        updateColorScheme()
+        return true
+    }
+
+    /// The build-and-adopt half of `drawFrameIfNeeded` (ruling `CR-Q`): builds
+    /// one frame at `scaleFactor` — taking the parked root transaction, so a
+    /// second call in one `beginFrame()` gets none — and adopts it: the read-
+    /// backs (`lastScene`, hitboxes, focus, menus, popovers, drag), the
+    /// focus decision, `@FocusState` reconciliation and the "another frame"
+    /// answers. Accessibility publication and `finishFrame` stay with the
+    /// caller, which runs them once, for the build it presents.
+    private func buildAndAdoptFrame(scaleFactor drawScaleFactor: Float,
+                                    snapsEveryChange: Bool = false) -> (Frame, Scene) {
         // Layout is offered the window's **logical** size, taken from the
         // platform window rather than divided out of `view.viewport`. The
         // viewport is in device pixels, so recovering points from it means
@@ -1139,12 +1332,15 @@ public final class Window {
                           textSystem: textSystem,
                           glyphAtlas: glyphAtlas,
                           theme: theme,
+                          lightTheme: lightTheme,
+                          darkTheme: darkTheme,
                           timestamp: lastTick,
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn,
                           transaction: transaction.animation,
                           disablesAnimations: transaction.disablesAnimations,
+                          snapsEveryChange: snapsEveryChange,
                           animationStore: animationStore,
                           surfaceRegistry: surfaceRegistry,
                           collectsAccessibility: accessibility.isActive,
@@ -1155,6 +1351,7 @@ public final class Window {
         var rootEnvironment = environment
         rootEnvironment.controlActiveState = controlActiveState
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
+        rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
@@ -1256,63 +1453,7 @@ public final class Window {
         // answer is the whole answer, and a flag that only ever went true is
         // a window whose display link never pauses again.
         hasActiveAnimations = frame.hasActiveAnimations
-
-        // After the focus read-back, so a published focus is the frame's
-        // decision (AB-J). Builds only while a client is active (AB-B). A
-        // `List` still waiting for its viewport asks for one more frame, which
-        // this honours at most once per run of asking frames (AB-X rule 3).
-        if accessibility.frameDidRender(
-            emissionCount: frame.axEmissions.count,
-            retry: frame.wantsAccessibilityRetry,
-            { () -> AccessibilityBuild in
-                var build = AccessibilityTreeBuilder.buildResult(
-                    emissions: frame.axEmissions, focused: focusedElement, hitboxes: frame.hitboxes,
-                    pressOnly: frame.accessibilityPressOnly, focusRegistry: frame.focusRegistry,
-                    menus: Set(frame.contextMenuRecords.keys))
-                // The in-window menu: a root after the content's, published
-                // even under modal isolation (`MN-F` item 4, `MN-AB`).
-                appendMenuPanel(to: &build)
-                return build
-            }(),
-            to: platformWindow) {
-            setNeedsRedraw()
-        }
-
-        // **Before `encode`, and the ordering is the whole point.** Paint has
-        // just packed whatever glyphs this frame needed and the scene holds
-        // `AtlasSlot`s pointing at them; `encode` draws against whatever
-        // texture the renderer has. Uploading afterwards would leave the *first*
-        // frame of any new glyph sampling a texture that does not contain it —
-        // blank text that fixes itself on the next redraw, which is the
-        // intermittent failure spec §4.2 names and which no amount of staring
-        // at a second frame reveals.
-        //
-        // Unconditional rather than guarded on `scene.glyphs.isEmpty`: only the
-        // atlas knows which pixels changed, it already answers "nothing" with a
-        // `nil` dirty rect, and a guard here would couple the upload to a
-        // property of the scene that can drift from it.
-        //
-        // **This method commits and never waits, and `upload` is safe anyway —
-        // but only because of an invariant `Renderer` maintains, not because of
-        // anything here.** There is no semaphore on this path, so frame N-1's
-        // draw may still be sampling the atlas texture while this call runs.
-        // `Renderer.atlasTextureWasEncoded` is what makes that harmless: a
-        // texture is written only while it has never been bound, and a dirty
-        // upload after an encode allocates a replacement. **If you add an
-        // in-flight semaphore here, that invariant becomes redundant rather than
-        // wrong** — do not remove it in the same change, because the atlas is
-        // the only persistent CPU-mutated GPU resource in the renderer and it
-        // would be the only thing standing between a torn glyph and a frame.
-        //
-        // The frame's app-owned surfaces' requests ride along (MetalView,
-        // `MV-F`): the renderer runs them into this frame's command buffer
-        // after its atlas upload and before it encodes `scene`.
-        guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
-                                                  surfaces: frame.surfaceRequests) else {
-            setNeedsRedraw()
-            return
-        }
-        framesDrawn += 1
+        return (frame, scene)
     }
 
     /// Applies a wheel delta to the topmost **opaque hitbox** under the

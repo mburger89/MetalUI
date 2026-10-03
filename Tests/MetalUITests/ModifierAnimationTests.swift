@@ -350,6 +350,20 @@ struct ClipProbe: ProposalElement {
     arm("border colour", {
         leaf.frame(width: Pixels(50), height: Pixels(40)).border($0 ? .accent : .background, width: Pixels(2))
     }) { borderRect($0)?.borderColor.l }
+    // 1.22 (colour lane 1, `CR-H` item 3): one literal arm per colour track --
+    // the proposal background and border (`storedAnimatedColor`) and the
+    // legacy border's store track. Mutation: snap a colour that is not
+    // token-backed.
+    let dim = Color(white: 0.2), bright = Color(white: 0.8)
+    arm("background colour literal", {
+        leaf.frame(width: Pixels(50), height: Pixels(40)).background($0 ? bright : dim)
+    }) { rect($0, height: 40)?.background.l }
+    arm("border colour literal", {
+        leaf.frame(width: Pixels(50), height: Pixels(40)).border($0 ? bright : dim, width: Pixels(2))
+    }) { borderRect($0)?.borderColor.l }
+    arm("legacy border colour literal", {
+        Box().cssWidth(Pixels(50)).cssHeight(Pixels(40)).border($0 ? bright : dim, width: Pixels(2))
+    }) { borderRect($0)?.borderColor.l }
 }
 
 // MARK: - 2.9

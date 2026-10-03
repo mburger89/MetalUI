@@ -106,7 +106,7 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             // strut 1 in every style. A chrome field a caller has not replaced
             // is dropped; a caller's own fill or border survives.
             strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(0))))
-            if decorated.background == Self.chromeBackground { decorated.background = nil }
+            if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
             if decorated.cornerRadius == Self.chromeCornerRadius { decorated.cornerRadius = Pixels(0) }
             if decorated.border == Self.chromeBorder { decorated.border = nil }
         }

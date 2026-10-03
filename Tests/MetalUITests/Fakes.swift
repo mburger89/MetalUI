@@ -196,6 +196,14 @@ final class FakePlatformWindow: PlatformWindow {
         onAppearanceChange?(newAppearance)
     }
 
+    /// Every `setPreferredColorScheme` argument, in call order (ruling
+    /// `CR-M`). The fake's `appearance` is left alone: it plays the platform's
+    /// own appearance, which `Window` combines with the preference itself.
+    private(set) var preferredColorSchemeRequests: [ColorScheme?] = []
+    func setPreferredColorScheme(_ colorScheme: ColorScheme?) {
+        preferredColorSchemeRequests.append(colorScheme)
+    }
+
     /// Change the key state and notify, the getter already reporting it.
     ///
     /// **Fires on every call, a no-op included** — `AppKitWindow` and

@@ -591,6 +591,13 @@ public struct PaintPass {
     /// and prepaint reads resolved rects. See `Frame.theme`.
     public var theme: Theme { frame.theme }
 
+    /// `color` resolved at this element's position (ruling `CR-H` item 1):
+    /// against its scoped theme (the nearest `.theme(_:)`, else the window's
+    /// variant for the scheme) and its environment's `colorScheme` — the one
+    /// resolution every colour-taking site paints through. A token returns
+    /// `theme[token]` bit-exactly; a literal is clamped.
+    public func resolve(_ color: Color) -> Hsla { frame.resolve(color) }
+
     /// This frame's display-link timestamp, in seconds. Identical for every
     /// element in one frame.
     public var timestamp: Double { frame.timestamp }

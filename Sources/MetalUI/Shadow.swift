@@ -22,9 +22,19 @@ extension ProposalElementGroup {
     /// ``ColorToken/shadow`` (black at 0.33, SH2). **Render only**: no layout
     /// change (SH8), no hit region (H5), nothing published (X6). Colour,
     /// radius and offset animate. One layer, one identity level (`MC-C`).
-    public func shadow(color: ColorToken = .shadow, radius: Pixels, x: Pixels = Pixels(0),
+    /// `color` is any `Color` since the colour work (`CR-E`).
+    public func shadow(color: Color = .shadow, radius: Pixels, x: Pixels = Pixels(0),
                        y: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
         _wrapLayout(.shadow(color, radius: radius, x: x, y: y))
+    }
+
+    /// The `ColorToken` spelling of ``shadow(color:radius:x:y:)``, kept
+    /// (`CR-E` item 1); disfavoured, so `shadow(radius:)` takes the `Color`
+    /// default (probe `swift-colour-overloads.swift` O4).
+    @_disfavoredOverload
+    public func shadow(color: ColorToken = .shadow, radius: Pixels, x: Pixels = Pixels(0),
+                       y: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        shadow(color: Color(color), radius: radius, x: x, y: y)
     }
 }
 
@@ -37,9 +47,18 @@ extension StyledElement {
     /// wraps the whole element: its background, content and border
     /// (divergence 108). A `Box`'s background and border are one primitive, so
     /// one shadow (divergence 104). See the proposal spelling for the rules.
-    public func shadow(color: ColorToken = .shadow, radius: Pixels, x: Pixels = Pixels(0),
+    /// `color` is any `Color` since the colour work (`CR-E`).
+    public func shadow(color: Color = .shadow, radius: Pixels, x: Pixels = Pixels(0),
                        y: Pixels = Pixels(0)) -> Self {
         appendingRenderEffect(.shadow(color, radius: radius, x: x, y: y))
+    }
+
+    /// The `ColorToken` spelling of ``shadow(color:radius:x:y:)``, kept
+    /// (`CR-E` item 1).
+    @_disfavoredOverload
+    public func shadow(color: ColorToken = .shadow, radius: Pixels, x: Pixels = Pixels(0),
+                       y: Pixels = Pixels(0)) -> Self {
+        shadow(color: Color(color), radius: radius, x: x, y: y)
     }
 }
 

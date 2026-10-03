@@ -86,11 +86,11 @@ public struct Text: Element, StyledElement {
         set { fontRequest = .legacy(family: fontFamily, size: newValue) }
     }
 
-    /// The colour the glyphs are tinted with. `nil` means
-    /// ``ColorToken/textPrimary``, resolved against the frame's theme like any
-    /// other token — never a literal, so unthemed text cannot end up black in a
-    /// dark window.
-    public var foregroundColor: ColorToken?
+    /// The colour the glyphs are tinted with. `nil` means the environment's
+    /// foreground style, else ``ColorToken/textPrimary`` resolved against the
+    /// frame's theme — so unthemed text cannot end up black in a dark window.
+    /// A `Color` since the colour work (`CR-E` item 3).
+    public var foregroundColor: Color?
 
     /// A text leaf showing `string`, measured and drawn through the frame's
     /// text system (`TS-A`).
@@ -109,13 +109,19 @@ public struct Text: Element, StyledElement {
         return copy
     }
 
-    /// The token the glyphs are tinted with. A semantic token rather than an
-    /// `Hsla`, for §7.9's reason: a literal would paint identically in both
-    /// appearances while looking exactly like a themed colour at the call site.
-    public func foregroundColor(_ token: ColorToken) -> Text {
+    /// This text's own colour, `nil` to inherit — SwiftUI's
+    /// `foregroundColor(_:)` with its optional (`CR-E` item 4).
+    public func foregroundColor(_ color: Color?) -> Text {
         var copy = self
-        copy.foregroundColor = token
+        copy.foregroundColor = color
         return copy
+    }
+
+    /// The token the glyphs are tinted with. The `ColorToken` spelling, kept
+    /// (`CR-E` item 1).
+    @_disfavoredOverload
+    public func foregroundColor(_ token: ColorToken) -> Text {
+        foregroundColor(Color(token))
     }
 
     public struct Layout {
@@ -321,7 +327,7 @@ public struct Text: Element, StyledElement {
         let height = Double(pass.bounds(of: glyphNode ?? layout.node).size.height.value)
         let laid = textLines(string, font: font, system: system, wrappingAt: width, height: height,
                              style: textStyle)
-        let color = pass.theme[textStyle.foreground]
+        let color = pass.resolve(textStyle.foreground)
 
         pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
                                            origin: (x: Double(origin.x.value), y: Double(origin.y.value)),

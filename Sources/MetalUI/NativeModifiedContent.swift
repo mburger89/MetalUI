@@ -25,13 +25,16 @@ public enum LayoutModifier: Sendable {
     /// ideal ratio (`TE-AM`).
     case aspectRatio(Double?, contentMode: AspectRatioContentMode = .fit)
     case layoutPriority(Double)
-    case background(ColorToken)
+    /// A fill behind the content. **A `Color` since the colour work** (ruling
+    /// `CR-W`): a `ColorToken` here was the only colour it could carry.
+    case background(Color)
     case clip(cornerRadius: Pixels = Pixels(0))
     /// SwiftUI's `clipShape(_:)` (plan task 11, part 2, `TE-AJ` item 1): the
     /// shape's geometry in the layer's bounds, pushed as `.clip` pushes its
     /// rounded rect. An ellipse geometry traps (divergence 91).
     case clipShape(any Shape)
-    case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
+    /// A border over the content (a `Color` since `CR-W`).
+    case border(Color, width: Pixels, cornerRadius: Pixels = Pixels(0))
     case opacity(Float)
     case allowsHitTesting(Bool)
     /// `rotationEffect(_:anchor:)`: the content's rendering, hit region and
@@ -47,7 +50,8 @@ public enum LayoutModifier: Sendable {
     /// `shadow(color:radius:x:y:)`: a shadow under each leaf of the content;
     /// layout, hit testing and accessibility unchanged (ruling `GX-J`). **New
     /// since paths, shadows and transforms**, like the three effects above.
-    case shadow(ColorToken, radius: Pixels, x: Pixels, y: Pixels)
+    /// The colour is a `Color` since the colour work (`CR-W`).
+    case shadow(Color, radius: Pixels, x: Pixels, y: Pixels)
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,
@@ -104,16 +108,24 @@ extension ProposalElementGroup {
         fixedSize(horizontal: horizontal, vertical: vertical)
     }
 
+    /// Paints `color` behind this native subtree without changing its
+    /// proposal, measurement, or placement (a `Color`, `CR-E`).
+    public func background(_ color: Color) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.background(color))
+    }
+
     /// Paints a semantic token behind this native subtree without changing its
-    /// proposal, measurement, or placement.
+    /// proposal, measurement, or placement — the `ColorToken` spelling, kept
+    /// (`CR-E` item 1).
+    @_disfavoredOverload
     public func background(_ token: ColorToken) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        _wrapLayout(.background(token))
+        background(Color(token))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "background")
     public func nativeBackground(_ token: ColorToken) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        background(token)
+        background(Color(token))
     }
 
     /// Clips this native subtree to its resolved bounds.
@@ -127,17 +139,26 @@ extension ProposalElementGroup {
         clip(cornerRadius: cornerRadius)
     }
 
-    /// Draws a border over this native subtree without changing its layout.
+    /// Draws a border in `color` over this native subtree without changing
+    /// its layout (a `Color`, `CR-E`).
+    public func border(_ color: Color, width: Pixels,
+                       cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.border(color, width: width, cornerRadius: cornerRadius))
+    }
+
+    /// Draws a border over this native subtree without changing its layout —
+    /// the `ColorToken` spelling, kept (`CR-E` item 1).
+    @_disfavoredOverload
     public func border(_ token: ColorToken, width: Pixels,
                        cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        _wrapLayout(.border(token, width: width, cornerRadius: cornerRadius))
+        border(Color(token), width: width, cornerRadius: cornerRadius)
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "border")
     public func nativeBorder(_ token: ColorToken, width: Pixels,
                              cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        border(token, width: width, cornerRadius: cornerRadius)
+        border(Color(token), width: width, cornerRadius: cornerRadius)
     }
 
     /// Applies paint-only opacity to this proposal-layout subtree.

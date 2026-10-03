@@ -110,8 +110,8 @@ private struct LayerLeaf: StyledElement {
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                         prepaint: inout Void, pass: inout PaintPass) {
         log.taps[name] = taps
-        if let token = decoration.background {
-            pass.fill(bounds, color: pass.theme[token])
+        if let color = decoration.background {
+            pass.fill(bounds, color: pass.resolve(color))
         }
     }
 }

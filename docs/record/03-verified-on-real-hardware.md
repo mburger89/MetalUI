@@ -1925,3 +1925,20 @@ a focused field); R4 one shortcut, one action (⌘D, ⇧⌘H) and the order prob
 re-run unlocked; R5 the popover (placement, flip, Escape, outside click, anchor
 click); R6 the tooltip's delay and look against a native one; R7 VoiceOver; R8
 a right click presses nothing (divergence 110).
+
+## 2026-10-03: colour and colour scheme (record §75) — looks owed
+
+No existing demo image changed: the fourteen offscreen images read **0
+differing pixels and identical scenes against `30a3dbf`**. The screen was
+**locked** throughout, so SwiftUI's resolved colours were read by probe (the
+thirteen hues, black, white, gray and the labels in light and dark) and no
+MetalUI colour, appearance switch or forced appearance has been seen on a real
+display. **Owed, new here — `docs/verification/human-checks.md` group S, none
+performed (an agent cannot)**: S1 the colour section's swatches against a
+SwiftUI reference side by side, light and dark (MetalUI slightly more saturated,
+divergence 1; `primary`/`secondary`/`accentColor` differ by design, divergence
+116); S2 live appearance switching — content, title bar, dynamic and palette
+swatches flip within a frame, nothing fades, the `scheme:` label follows (the
+label is unpinned by any test, record §75 §6); S3 the System/Light/Dark toggle
+forces the whole window, no one-frame flash; S4 SDL (Linux or Windows) follows
+the system theme live while its native decorations stay.

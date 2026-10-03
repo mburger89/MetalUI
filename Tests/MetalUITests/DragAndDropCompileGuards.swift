@@ -160,6 +160,9 @@ private func conformer(member: String) -> String {
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
+        // Colour scheme (`CR-M`), defaultless too, so every arm here carries
+        // it; `ColorSchemeCompileGuards` pins it.
+        func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
     \(member)
     }
     """

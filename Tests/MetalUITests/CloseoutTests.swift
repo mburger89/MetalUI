@@ -472,7 +472,10 @@ private struct OptionalWithStateProbe: Element {
     }
     let accentBefore = accentCount(scene)
     let buttons = window.lastHitboxes.filter { $0.handlers.onClick != nil }
-    try #require(buttons.count == 9, "the nine transition buttons: \(buttons.count)")
+    // Nine transition buttons and, since colour and colour scheme (spec §6.3
+    // test 3.3), the colour section's scheme toggle — the lowest of the ten,
+    // so `first` below is still the first transition button.
+    try #require(buttons.count == 10, "the nine transition buttons and the scheme toggle: \(buttons.count)")
     let first = try #require(buttons.min { $0.bounds.origin.y < $1.bounds.origin.y })
     let point = Point(x: first.bounds.origin.x + Pixels(4), y: first.bounds.origin.y + Pixels(4))
     platform.simulateInput(.mouseDown(MouseEvent(position: point)))

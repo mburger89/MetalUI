@@ -588,6 +588,69 @@ Windows.
   not present the popover (divergence 110; a SwiftUI `Button` would press).
   Pinned by `aSecondaryPressNeverRunsOnClickOrATap`. **Observed:**
 
+## S. Colour and colour scheme (user request 2026-10-02, not a plan task)
+
+*Source: record §75 `75-colour.md`, rulings `CR-A`…`CR-Z`
+(`docs/superpowers/2026-10-03-colour-decisions.md`), spec §9
+(`docs/superpowers/specs/2026-10-03-colour-design.md`).* The SwiftUI probe
+(`docs/probes/swiftui-colour.swift`) read every named static's resolved value
+in light and dark, but every session so far ran with the screen **locked**:
+no MetalUI colour, no live appearance switch and no forced appearance has been
+seen on a real display. MetalUI's answers are pinned headless. Run
+`METALUI_LOOKS_DEMO=1 swift run -c release MetalUIDemo` (AppKit; the colour
+section is the looks window's bottom row) and, for S4, `METALUI_LOOKS_DEMO=1`
+with `Backends/SDL`'s `MetalUISDLDemo` on Linux or Windows.
+
+- [ ] **S1. Colours against a SwiftUI reference, side by side**: beside the
+  demo, run a SwiftUI window of the same swatches (save as `/tmp/ref.swift`,
+  `xcrun swiftc -parse-as-library /tmp/ref.swift -o /tmp/ref && /tmp/ref`):
+
+  ```swift
+  import SwiftUI
+  @main struct Ref: App {
+      var body: some Scene { WindowGroup { HStack(spacing: 4) {
+          ForEach(Array([Color.gray, .red, .orange, .yellow, .green, .mint, .teal, .cyan, .blue,
+                         .indigo, .purple, .pink, .brown, .black, .white, .clear, .primary,
+                         .secondary, .accentColor, Color(red: 0.2, green: 0.4, blue: 0.6)].enumerated()),
+                  id: \.offset) { $0.element.frame(width: 28, height: 28).border(.separator) }
+      }.padding() } }
+  }
+  ```
+
+  Expect each hue to match in hue and lightness, **slightly more saturated**
+  in MetalUI (sRGB numbers on a Display P3 layer, divergence 1), the literal
+  likewise; `primary`, `secondary` and `accentColor` differ by design — they
+  follow MetalUI's theme, not the system's label and accent colours
+  (divergence 116). Repeat with System Settings → Appearance on Dark: the dark
+  halves (spec §3.2). The `light/dark` swatch is a pale gold in light and a
+  blue in dark; the `LooksBrand` swatch a purple in light and a **green** in
+  dark (the demo's override of the palette key, `CR-N`). Pinned by
+  `everyNamedStaticResolvesToTheProbedValueInBothSchemes`,
+  `theSemanticStaticsResolveThroughTheTheme`,
+  `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours`. **Observed:**
+- [ ] **S2. Live appearance switching**: with the demo open and the toggle on
+  System, switch System Settings → Appearance between Light and Dark. The
+  content, the title bar and the dynamic and palette swatches flip within a
+  frame; **nothing fades** (`CR-H` item 3); the `scheme:` label reads the new
+  scheme. Pinned by `anAppearanceChangeRebuildsWithTheNewScheme`,
+  `aSchemeChangeNeverStartsAFadeOnADynamicColour`,
+  `theWindowFollowsTheApplicationsEffectiveAppearance`. **Observed:**
+- [ ] **S3. The scheme toggle**: press "Appearance: System" — it cycles Light,
+  Dark, System. Light and Dark force the **whole window** — content and title
+  bar — regardless of the system setting (`.preferredColorScheme` is
+  window-wide, `CR-L`), and the `scheme:` label follows; System returns to the system's appearance. No
+  one-frame flash on a toggle. Pinned by `preferredColorSchemeIsWindowWide`,
+  `aLaterPreferenceChangeAppliesOnTheNextFrame`,
+  `clearingThePreferenceReturnsToThePlatformsAppearance`,
+  `settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt`.
+  **Observed:**
+- [ ] **S4. SDL (Linux or Windows)**: the system theme switch (GNOME/KDE dark
+  style, Windows' app mode) is followed live as in S2. Under the toggle the
+  content flips while the **native decorations stay with the system** — SDL3
+  has no per-window appearance (`CR-M`). Pinned by
+  `setPreferredColorSchemeIsRecordedAndTheSystemThemeStillReports`
+  (`Backends/SDL`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

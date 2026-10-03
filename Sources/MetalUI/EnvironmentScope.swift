@@ -12,6 +12,9 @@ import MetalUILayout
 enum EnvironmentWrite {
     case transform(@MainActor (inout EnvironmentValues) -> Void)
     case theme(Theme)
+    /// `.preferredColorScheme(_:)` (ruling `CR-L`): changes no value; the
+    /// scope reports it to the frame while its content builds.
+    case preferredColorScheme(ColorScheme?)
 }
 
 /// What an `EnvironmentScope` carries between phases: the values it computed in
@@ -76,10 +79,20 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
         // The ONLY place the write runs (ruling EV-V). `parent` and `cursor`
         // are forwarded unchanged: a scope is not a level in the tree.
         let values = pass.frame.scopedValues(applying: write)
-        let (nodes, layout) = pass.frame.withEnvironment(values) {
-            content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        let (nodes, layout) = reportingPreference(pass.frame) {
+            pass.frame.withEnvironment(values) {
+                content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+            }
         }
         return (nodes, EnvironmentScopeLayout(values: values, content: layout))
+    }
+
+    /// Runs `body` under the frame's preference bookkeeping when this scope
+    /// is a `.preferredColorScheme` (ruling `CR-L`), and plainly otherwise.
+    /// Layout only: prepaint and paint report nothing.
+    func reportingPreference<R>(_ frame: Frame, _ body: () -> R) -> R {
+        guard case .preferredColorScheme(let value) = write else { return body() }
+        return frame.withColorSchemePreference(value, body)
     }
 
     public mutating func prepaintGroup(layout: inout EnvironmentScopeLayout<Content.GroupLayout>,
@@ -117,9 +130,11 @@ extension EnvironmentScope: ProposalElementGroup where Content: ProposalElementG
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], EnvironmentScopeLayout<Content.GroupLayout>) {
         let values = pass.frame.scopedValues(applying: write)      // once (EV-V)
-        let (nodes, layout) = pass.frame.withEnvironment(values) {  // the push (EV-A)
-            content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
-        }                                                            // parent, cursor unchanged (EV-B)
+        let (nodes, layout) = reportingPreference(pass.frame) {    // CR-L, this entry's own report
+            pass.frame.withEnvironment(values) {                     // the push (EV-A)
+                content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+            }                                                        // parent, cursor unchanged (EV-B)
+        }
         return (nodes, EnvironmentScopeLayout(values: values, content: layout))
     }
 }
@@ -187,5 +202,27 @@ extension ElementGroup {
     /// portal escapes clip, offset and layer, not scope.
     public func theme(_ theme: Theme) -> EnvironmentScope<Self> {
         EnvironmentScope(content: self, write: .theme(theme))
+    }
+
+    /// Sets the preferred colour scheme for the **whole window** this content
+    /// is in — SwiftUI's `preferredColorScheme(_:)` (ruling `CR-L`, probe
+    /// `swiftui-colour.swift` `P1`): every element in the window, siblings
+    /// included, builds in it, and the platform window is asked to present it
+    /// (`NSWindow.appearance` on AppKit). `nil` expresses no preference: the
+    /// window's own `Window.preferredColorScheme`, else the platform's
+    /// appearance.
+    ///
+    /// **SwiftUI's reduction** (probes `P3`…`P7`): an outer modifier replaces
+    /// its content's value, `nil` included; among siblings the first non-nil
+    /// wins. A preference in the main tree beats one inside a popover or a
+    /// `Deferred` presentation root (`CR-T`).
+    ///
+    /// **When it applies**: on a window's first frame, before anything is
+    /// presented (`CR-Q`); afterwards on the frame after the one that changed
+    /// it. Transparent to layout and identity, like every scope; it is not an
+    /// environment write — to change a subtree's scheme, write
+    /// `.environment(\.colorScheme, …)`.
+    public func preferredColorScheme(_ colorScheme: ColorScheme?) -> EnvironmentScope<Self> {
+        EnvironmentScope(content: self, write: .preferredColorScheme(colorScheme))
     }
 }

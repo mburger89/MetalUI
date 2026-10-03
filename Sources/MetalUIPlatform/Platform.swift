@@ -33,6 +33,23 @@ public protocol PlatformWindow: AnyObject {
     /// assumption.
     var onAppearanceChange: ((Appearance) -> Void)? { get set }
 
+    /// Asks the platform to present this window in `colorScheme`, or — `nil`
+    /// — to follow the application's appearance again (ruling `CR-M`).
+    /// `Window` calls it whenever its requested scheme (the tree's
+    /// `.preferredColorScheme`, else `Window.preferredColorScheme`) changes,
+    /// and only then. AppKit sets `NSWindow.appearance`, so the title bar and
+    /// native menus follow, and reports the forced appearance back through
+    /// `onAppearanceChange`; SDL3 has no per-window appearance, so `SDLWindow`
+    /// records the value and keeps reporting the system theme — content
+    /// follows the preference through `Window`, decorations follow the system.
+    ///
+    /// **No default implementation** (`EV-AB`'s reason): a conformer that
+    /// forgets it fails to compile rather than silently ignoring a preference.
+    /// Pinned by `aPlatformWindowWithoutSetPreferredColorSchemeDoesNotCompile`.
+    /// **Migration**: a conformer outside this repository adds
+    /// `func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}`.
+    func setPreferredColorScheme(_ colorScheme: ColorScheme?)
+
     /// The window's key state (ruling EV-AB): `.key` while it receives
     /// keyboard input, `.active` while its application (on SDL: another of the
     /// platform's windows) does, `.inactive` otherwise. Read at window

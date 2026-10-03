@@ -96,7 +96,7 @@ lay them out and align them (divergence 56).
 |---|---|---|
 | `.padding(px)` / `.padding(Edges<Length>)` | `.padding(Edges<Pixels>)` | the proposal `.padding` splits by argument type: there is no proposal `.padding(Pixels)` |
 | `.frame(…)` | `.frame(…)` | the same surface on both vocabularies, lowered onto the same kernel frame |
-| `.background(token)` | `.background(token)` | |
+| `.background(token)` | `.background(token)` | both also take a `Color` since colour and colour scheme (`CR-E`): `.background(.red)`, `.background(Color(red: 0.2, green: 0.4, blue: 0.6))` |
 | `.cornerRadius(r)` | `.cornerRadius(r)` / `.clipShape(RoundedRectangle(cornerRadius: r))` | the legacy one rounds fill and border and clips nothing; the proposal one clips, as SwiftUI's (divergence 47) |
 | `.border(token, width:)` | `.border(token, width:)` | the legacy band follows a corner radius; the proposal band is square (divergence 49) |
 | `.clipped()` / `.clipShape(s)` | `.clipped()` / `.clipShape(s)` | |
@@ -106,6 +106,30 @@ lay them out and align them (divergence 56).
 | `.onClick { }` | `Button { } label: { }`, or `.onTap { }` / `.onTapGesture { }` | `onClick` is press-and-release-on-one-element (Button semantics); `.onTapGesture` is SwiftUI's tap gesture (`IX-B`) |
 | `.hoverBackground`, `.focusBackground`, `.focusBorder` | (MetalUI-only) | |
 | `.onKey`, `.onAction`, `.keyContext`, `.focusable()` | (MetalUI-only; the keymap) | `.focused(_:)`/`@FocusState` for focus state |
+
+### Colours — literals, dynamic colours, an app palette, the colour scheme
+
+Since colour and colour scheme (rulings `CR-A`…`CR-Z`), `Color` is SwiftUI's
+value and every site that took a `ColorToken` — `background`, `border`,
+`fill`, `stroke`, `strokeBorder`, `shadow(color:)`, `foregroundColor`/
+`foregroundStyle`, `Background`, `Rectangle(width:height:color:)`,
+`onTap(hoverColor:)`, `hoverBackground`/`focusBackground`/`hoverBorder`/
+`focusBorder` — takes a `Color` on both vocabularies. Every `ColorToken`
+spelling still compiles: `.background(.surface)` now picks the `Color` static
+`Color.surface`, which resolves bit-exactly to the token; a `ColorToken`
+variable takes the kept token overload.
+
+| SwiftCrossUI / hand-written paint pass | MetalUI | note |
+|---|---|---|
+| an RGB colour (`Color(r, g, b)`, `Hsla.rgb(0x…)` in `paint`) | `Color(red: 0.2, green: 0.4, blue: 0.6)`, `Color(.sRGB, red:…)`, `Color(.sRGBLinear, red:…)`, `Color(white: 0.5)`, `Color(hue:saturation:brightness:)`, `Color(Hsla.rgb(0x336699))` | gamma sRGB as SwiftUI (`CR-C`); drawn on a Display P3 layer like every MetalUI colour (divergence 1) |
+| SwiftUI's named colours | `.red`, `.blue`, … `.brown`, `.gray`, `.black`, `.white`, `.clear`, `.primary`, `.secondary`, `.accentColor` | hues are the macOS 27 values in light and dark (divergence 117); `primary`/`secondary`/`accentColor` follow the theme (divergence 116) |
+| a colour picked per light/dark at the call site | `Color(light: …, dark: …)` | MetalUI-only (SwiftUI has no such initialiser, probe `D1`); resolves against the element's `colorScheme` and never fades on a switch (`CR-H`) |
+| an app's palette of named colours (SwiftUI: an asset catalog) | `enum Brand: ThemeColorKey { static var defaultValue: Color { Color(light: …, dark: …) } }`, then `Color(Brand.self)` anywhere a colour goes; override per variant with `app.darkTheme[Brand.self] = …` (or `window.lightTheme`/`darkTheme`, or a `.theme(_:)` scope's `Theme`) | `CR-N`; the built-in tokens are untouched by a palette |
+| `.opacity(0.5)` on a colour | `Color.red.opacity(0.5)` | multiplies; on a `Color` view it is now the value method — one fill, no opacity layer (`CR-G`) |
+| `@Environment(\.colorScheme)` | the same, readable while building | stamped from the window's appearance (`CR-J`); `.environment(\.colorScheme, .dark)` changes a subtree and selects the window's dark theme variant (`CR-S`) |
+| `.preferredColorScheme(.dark)` | the same, window-wide, as SwiftUI | also sets the platform window's appearance (AppKit `NSWindow.appearance`; SDL's decorations stay with the system, `CR-M`); `Window.preferredColorScheme` / `App.preferredColorScheme` set it programmatically (`CR-L`) |
+| a theme switch by hand (`window.theme = .dark` on an appearance change) | nothing: the window selects `lightTheme`/`darkTheme` by its scheme | assign `window.lightTheme`/`darkTheme` (or `App`'s) to customise a variant (`CR-K`) |
+| a colour read in a custom `paint` | `pass.resolve(color) -> Hsla` | the element's scoped theme and scheme (`CR-H`); `Color.resolve(in: environment)` gives SwiftUI's `Color.Resolved`, clamped (divergence 118) |
 
 ## Part 2 — breaking and behaviour changes since 2026-09-12
 
@@ -139,6 +163,9 @@ public-API removals the records list. **Source** changes stop compiling;
 | an exhaustive `switch` over `InputEvent` | add `.rightMouseDown`, `.rightMouseUp` and `.menuAction` arms (or `default:`) | `MN-B` item 1, `MN-C` item 4 |
 | a `Platform` conformer outside the package (menus) | implement `setMenuBar(_ menuBar: PlatformMenuBar)` (an empty body, or recording it, is honest where the platform has no menu bar) — no default | `MN-I` item 3 |
 | an exhaustive `switch` over `AccessibilityRole` or `AccessibilityRequest` | add `.menu`, `.menuItem`, `.menuItemCheckBox`, `.menuButton`, `.popover` and `.showMenu(_:)` arms (or `default:`) | `MN-R` |
+| a stored colour property read **as a `ColorToken`** — `Decoration.background`/`hoverBackground`/`focusBackground`, `BorderStyle.color`, `Background.color`, `Rectangle.color`, `Text`/`ProposalText`/`TextField`/`TextEditor.foregroundColor`, `OnTapModifier.hoverColor` are now `Color`/`Color?` | a write (`x.background = .surface`) and a comparison (`rect.color == .accent`) compile unchanged; a `switch` or `theme[x]` over the value becomes `pass.resolve(x)` in paint, or a comparison against `Color(.token)` | `CR-E` item 3 |
+| `LayoutModifier.background`, `.border`, `.shadow` payloads as `ColorToken` | they are `Color`: a leading-dot construction (`.background(.accent)`) compiles unchanged; a `ColorToken` variable in a payload becomes `Color(token)`, and a pattern that uses the bound payload as a token reads it with `pass.resolve(_:)` | `CR-W` item 1 |
+| a `PlatformWindow` conformer outside the package (colour scheme) | implement `func setPreferredColorScheme(_ colorScheme: ColorScheme?)` — an empty body, or recording the value, is honest where the platform has no per-window appearance; no default | `CR-M`, `CR-Y` item 6 |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
 
@@ -153,6 +180,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | `HStack`/`VStack(spacing:alignment:content:)` | `init(alignment:spacing:content:)` with a typed alignment | `CN-I` |
 | `Rectangle(color:)` | `Rectangle().fill(token)` | `TE-AC` |
 | `AXNode.actions`, `AXActionKind`, `AXNode(…actions:…)` | `.accessibilityAction(_:)`, `.accessibilityAdjustableAction(_:)` | `IX-Y` item 4 |
+| `Color.color` (the `ColorToken` a `Color` view held; now `ColorToken?`, `nil` for a literal) | compare the `Color` (`c == .surface`), or resolve it with `PaintPass.resolve(_:)` | `CR-E`, `CR-D` |
 
 ### Behaviour changes (compile unchanged, answer differently)
 
@@ -178,6 +206,10 @@ public-API removals the records list. **Source** changes stop compiling;
 | **an AppKit app has a menu bar** — every `App` installs `NSApp.mainMenu` (About, Hide, Quit; File ▸ Close; Edit; Window), so ⌘Q, ⌘H, ⌥⌘H, ⌘W and ⌘M act when nothing in the window claims them, and Edit ▸ Cut/Copy/Paste/Undo reach a focused `TextField`/`TextEditor` as their keys. SDL draws no bar | bind the key in the window (a `Button`'s `.keyboardShortcut`, a keymap binding or `onKey` still wins, `MN-J`), or replace a group with `App.commands { CommandGroup(replacing:) { } }` | `MN-I` item 4, `MN-K` |
 | **AppKit ⌘-keys arrive through `performKeyEquivalent`** — offered to the window before the main menu, once per event — and reach the same `onInput` pipeline as before | nothing; a ⌘-key is still one `.keyDown` | `MN-J` item 3 |
 | **a key an app command binds is claimed by the command stage** (after a `Button`'s shortcut, before Tab traversal): it no longer reaches Tab traversal or the window's `onInput` fallback | bind it in the window to keep it there | `MN-J` item 1 |
+| **`Appearance` is `ColorScheme`** (a typealias, not deprecated): `PlatformWindow.appearance`, `Theme.forAppearance(_:)` and every `Appearance` spelling compile unchanged | write `ColorScheme` in new code | `CR-J` item 1 |
+| **the window's theme follows its colour scheme through `lightTheme`/`darkTheme`** (defaults `.light`/`.dark`, so an uncustomised window paints as before); a forced `.preferredColorScheme` now also selects the variant | customise `window.lightTheme`/`darkTheme` (or `App`'s) instead of re-assigning `theme` on an appearance change; a direct `window.theme = …` still lasts until the next scheme change | `CR-K`, `CR-Z` item 2 |
+| `.opacity(0.5)` written on a `Color` **view** with a literal argument is the value method: one fill at half alpha and **no opacity layer** (it was an opacity layer, one identity level) | nothing — a `Color` holds no state; pass a `Float` to reach the view modifier | `CR-G` |
+| design spec §7.9's "never literals" is superseded: literal colours are part of the API | — | `CR-B` |
 | a `Shape` conformer that implements **neither** `geometry(in:)` nor `path(in:)` compiles (both are now defaulted, each in terms of the other) and **traps at its first paint naming `GX-D`** — where it failed to compile | implement either; SwiftUI shapes port by writing `path(in:)` (its rect is local, origin (0, 0)) | `GX-D` |
 
 ## See also

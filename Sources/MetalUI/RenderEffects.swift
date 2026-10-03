@@ -16,7 +16,7 @@ enum RenderEffectSpec: Hashable, Sendable {
     case scale(x: Double, y: Double, anchor: UnitPoint)
     case offset(x: Pixels, y: Pixels)
     /// A shadow (`GX-J`): no map — a paint scope that shadows each leaf.
-    case shadow(ColorToken, radius: Pixels, x: Pixels, y: Pixels)
+    case shadow(Color, radius: Pixels, x: Pixels, y: Pixels)
 
     /// The effect's map in points over `rect` — the element's rectangle in the
     /// space its primitives are emitted in (already moved by the scroll
@@ -242,7 +242,7 @@ extension PaintPass {
         let inner = { withRenderEffects(Array(effects.dropLast()), bounds: bounds, id: id, body) }
         if case let .shadow(token, radius, x, y) = outermost {
             let color = id.map { storedAnimatedColor(token, at: legacyShadowColourKey(for: $0, index: effects.count - 1),
-                                                     pass: self) } ?? theme[token]
+                                                     pass: self) } ?? resolve(token)
             withShadow(color: color, radius: radius, x: x, y: y, inner)
         } else {
             withRenderEffect(outermost, bounds: bounds, inner)

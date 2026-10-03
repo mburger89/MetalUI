@@ -28,8 +28,8 @@ func runDemo() throws {
     // selectable list, a `ForEach` over a binding.
     let controlsDemo = ProcessInfo.processInfo.environment["METALUI_CONTROLS_DEMO"] == "1"
     // Plan task 15's human looks (`docs/verification/human-checks.md` H1, I1,
-    // J1, K1–K3): controlSize's drawn font, shapes/clip/images, gestures,
-    // transitions.
+    // J1, K1–K3, Q1–Q6, S1–S3): controlSize's drawn font, shapes/clip/images,
+    // gestures, transitions, paths/shadows/transforms, colour and scheme.
     let looksDemo = ProcessInfo.processInfo.environment["METALUI_LOOKS_DEMO"] == "1"
     // Drag and drop's human looks (`docs/verification/human-checks.md` N1–N8,
     // ruling DN-Q): chips, a draggable list, four wells.
@@ -72,8 +72,11 @@ func runDemo() throws {
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: dragAndDropDemoContent)
     } else if looksDemo {
+        // Colour and colour scheme's human looks (group S): the palette
+        // swatch shows the app's dark override, not `LooksBrand`'s default.
+        app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
         window = try app.openWindow(title: "MetalUI — Looks",
-                                    size: Size(width: Pixels(1180), height: Pixels(720)),
+                                    size: Size(width: Pixels(1180), height: Pixels(880)),
                                     content: looksDemoContent)
     } else if controlsDemo {
         window = try app.openWindow(title: "MetalUI — Controls",

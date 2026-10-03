@@ -249,6 +249,20 @@ public final class SDLWindow: PlatformWindow {
     /// per-window appearance.
     public var appearance: Appearance { mui_system_theme() == 1 ? .dark : .light }
 
+    /// The last `setPreferredColorScheme(_:)` argument (ruling `CR-M`),
+    /// recorded for tests; nothing else reads it.
+    public private(set) var preferredColorScheme: ColorScheme?
+
+    /// Records the preference and does nothing else (ruling `CR-M`): SDL3 has
+    /// no per-window appearance, so `appearance` keeps reporting the system
+    /// theme and `SDL_EVENT_SYSTEM_THEME_CHANGED` still reaches
+    /// `onAppearanceChange`. `Window` applies the preference to the content
+    /// itself; the native decorations follow the system — a documented
+    /// platform constraint, not a SwiftUI divergence.
+    public func setPreferredColorScheme(_ colorScheme: ColorScheme?) {
+        preferredColorScheme = colorScheme
+    }
+
     public var onInput: ((InputEvent) -> Bool)?
     public var onResize: ((Size<Pixels>, Float) -> Void)?
     public var onAppearanceChange: ((Appearance) -> Void)?
