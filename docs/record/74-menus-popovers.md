@@ -3,11 +3,11 @@
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Branch `feat/menus-popovers` from `b9da519`. Spec
 `docs/superpowers/specs/2026-10-02-menus-popovers-design.md`; rulings
-`MN-A`…`MN-T` in `docs/superpowers/2026-10-02-menus-popovers-decisions.md`;
-probes `docs/probes/swiftui-menus-popovers.swift` and
-`docs/probes/swiftui-commands.swift` (both new). This file is written in
-phases: the design section now, each lane's section as it lands, the Record
-phase's close last (renumbered then if another line publishes §74 first).
+`MN-A`…`MN-AH` in `docs/superpowers/2026-10-02-menus-popovers-decisions.md`;
+probes `docs/probes/swiftui-menus-popovers.swift`,
+`docs/probes/swiftui-commands.swift` and `docs/probes/swiftui-popover-chaining.swift` (all new). This file was written in
+phases (design, one section per lane, the Record phase's close §6); master had
+not moved past `b9da519` at the close, so §74 stands.
 
 ## §1 Design (2026-10-02)
 
@@ -575,8 +575,8 @@ spec §6.3's mutation column now records each one and the tests it reddened
 being no `IdentifiedGroup`; V3.15's and V3.22's first spellings did not build
 and were re-spelt — V3.22 writes the help as the accessibility identifier).
 V3.5 (claim every non-anchor press, `guard onAnchor else { return true }`)
-failed with 216 issues but not test 3.5; besides 3.8 it reddened, outside lane
-3: .
+failed with 216 issues but not test 3.5; besides 3.8 it reddened 121 tests
+outside lane 3.
 
 Seven review findings (one major, six minor), answered red-first in
 `d6c62fe` (tests) and `551cff2` (3.27 re-spelt), ruling `MN-AH` (next unused
@@ -589,7 +589,7 @@ each restore:
 |---|---|---|---|
 | no proposal-path popover runs (major) | 3.27 `aProposalPathPopoverPresentsPlacesAndDismisses` | VX.4: `PopoverSlot(nil)` laid out in place of `layOutPopover` in `requestProposalLayout` | against the first spelling (a root `HStack {…}.frame(…).popover`): **nothing** (2327 passed) — a root `.popover` takes the legacy `requestLayout`; re-spelt with the popover inside an `HStack` (`551cff2`): 3.27 only (1 issue) |
 | 3.5's mutation cannot redden 3.5 (minor) | 3.28 `theDismissingPressReachesAGestureBeneath` owns "passes on"; 3.5's doc comment and spec row restated, its mutation V3.5a | V3.5b: claim a press that dismissed a popover | 3.8 `aPopoverIsAPresentationOnAHigherLayer`, 3.28 (2 issues) |
-| | | V3.5a: the dismissal loop never runs (`while false, let top = …`), on `551cff2` | 3.5, 3.8, 3.12, 3.26, 3.27, 3.28 (15 issues) |
+| | | V3.5a: the dismissal loop never runs (`while false, let top = …`), on `551cff2` | 3.5, 3.8, 3.12, 3.26, 3.27, 3.28 and 3.29 (both cases) (15 issues; 3.29 found by the Record phase's verifier, the issue total unchanged by the earlier list's omission) |
 | leaving key hides the tooltip, unpinned (minor) | 3.30 `theWindowLeavingKeyHidesTheTooltip`; divergence 113's pin gains it | VX.2: `self?.hideTooltip()` deleted from `onControlActiveStateChange` | 3.30 only (2 issues) |
 | a menu open hides the tooltip, unpinned (minor) | 3.31 `noTooltipStartsWhileAMenuIsOpen` | VX.3: the `guard menuSession == nil` block deleted from `trackTooltip` | 3.31 only (2 issues) |
 | the anchor release claim unpinned (minor) | kept; 3.29 `theAnchorPressesReleaseIsConsumedToo` (×2): without it a lone release reaches the raw `onInput` (`MN-AH` item 4) | VX.1: the `.mouseUp where popoverClaimsRelease == false, .rightMouseUp …` case deleted | 3.29 only (both cases, 4 issues) |
@@ -608,3 +608,128 @@ file, public declaration, census row or pixel moves in this round
 (`git diff 63c80fe -- Sources` is empty), so the pixel, real-window, SDL and
 container readings of §5 stand. The Record phase owes record 04 sections for
 divergences 111–113 and 115.
+
+## §6 Record phase — what landed, the close (2026-10-03)
+
+`git fetch` at the close: `origin/master` is still `b9da519`, so nothing was
+merged and §74 was not renumbered. All three lanes' verifiers returned `ok:
+true`; their mutation tables are in §3.x, §4 and §5.1 (the Record phase adds
+none of its own: it changes no `Sources/` or `Tests/` file).
+
+**What landed.**
+
+- **Seam** (`MetalUIPlatform`): `InputEvent.rightMouseDown/rightMouseUp/menuAction`
+  (`MN-B`, a secondary press never presses, divergence 110), the closed
+  `PlatformMenu`/`PlatformMenuItem`/`PlatformKeyEquivalent`/`StandardMenuAction`/
+  `PlatformMenuBar` vocabulary, defaultless `PlatformWindow.presentMenu(_:at:) -> Bool`
+  and `Platform.setMenuBar(_:)` (migration notes), five accessibility roles
+  (`menu`, `menuItem`, `menuItemCheckBox`, `menuButton`, `popover`) and the
+  `showMenu` request (`MN-R`).
+- **Context menus** (`ContextMenu.swift`, `MenuContent.swift`, `MenuSession.swift`,
+  `MenuPanel.swift`): `.contextMenu { }` on both vocabularies over a closed
+  `MenuContent` (`Button`, `Toggle`, `Menu`, `Divider`, `if`/`for`), evaluated at
+  each open (`MN-D`); AppKit builds an `NSMenu` (`AppKitMenus.swift`), SDL and any
+  platform answering `false` get MetalUI's drawn menu with keyboard, hover,
+  submenus, outside-click dismissal and AccessKit nodes; Shift-F10 and the Menu
+  key open the focused element's menu off Apple (`MN-G`).
+- **Menu bar** (`Commands.swift`): `App.commands { CommandMenu / CommandGroup(before:/after:/replacing:) }`
+  over SwiftUI's `CommandGroupPlacement` spellings; every AppKit app installs the
+  standard main menu (a behavioural migration note); command shortcuts are one
+  stage after `Button` shortcuts in the window's pipeline, and AppKit offers a
+  ⌘-key to that pipeline before the main menu, once (`MN-I`…`MN-K`, `MN-AA`).
+  SDL draws no bar (shortcuts still fire).
+- **`Menu("Title") { }`** (`PullDownMenu.swift`): a button opening its items below
+  itself, an `AXMenuButton` (`MN-H`).
+- **Popovers** (`Popover.swift`, `AnchoredPresentation.swift`): the four
+  `.popover(isPresented:/item:arrowEdge:content:)` spellings, anchored to the
+  declaring element, flipped then clamped in the window, no arrow, dismissed from
+  input (divergences 111, 112; `MN-L`…`MN-O`, `MN-Y`).
+- **Tooltips** (`Tooltip.swift`): `.help(_:)` publishes `accessibilityHint`'s tree on
+  both bridges and draws a tick-timed tooltip (1.0 s; divergence 113).
+- **Demo**: `menusDemoContent()` (`MenusDemo.swift`, its own function) behind
+  `METALUI_MENUS_DEMO=1` on `MetalUIDemo` and `MetalUISDLDemo`.
+
+**Tests per file** (`@Test` counts at HEAD; guards among them).
+`ContextMenuTests` 37, `PopoverTests` 20, `AppKitMenuTests` 11, `TooltipTests`
+11, `CommandsTests` 7, `PullDownMenuTests` 4, `MenuCompileGuards` 4,
+`PopoverCompileGuards` 3, `CommandsCompileGuards` 2, `AppKitAccessibilityTests`
++1; `Backends/SDL`: `SDLMenuInputTests` 2, `AccessKitMenuTests` 2,
+`SDLMenuBarTests` 1 (plus `MetalUISDLTests`' S1.1–S3.2 and S2.1 from §3 and §4).
+Parameterized tests count once.
+
+**Counts at the close.** `swift package clean`, `swift build --build-system native
+--build-tests`, unfiltered `swift test --build-system native --no-parallel`:
+see §6.1 for the reading. Climb: 2227 (`b9da519`) → lane 1 2269 (+42) → lane 2
+2293 (+24) → lane 3 2327 (+34). Guards 133 → 142 (lane 1 +4, lane 2 +2, lane 3
++3); goldens 0; `Backends/SDL` 24 + 57 → 24 + 62; census 2086 → 2206 (lane 3's 2197 plus nine `MetalUIDemoContent` rows —
+`menusDemoContent` and `MenusDemoModel` — that its census file had not
+re-recorded; re-taken at the close, both inventory scripts print nothing);
+divergences 76 → 82 live (110–115 added, none retired, none amended), next
+label 116; rulings `MN-A`…`MN-AH`, next `MN-AI`; human checks group R, R1–R8.
+
+**Probes.** `swiftui-menus-popovers.swift` (groups C, M, P, H), `swiftui-commands.swift`
+(plain and full builds) and `swiftui-popover-chaining.swift` (CH1, CH2, a
+NEGATIVE separating arm): each run twice, byte-identical, outputs in their
+headers. The first two ran in a **locked** session (§1), so seven readings are
+broken instruments and owned by human checks (C5c/C5n, P3, P3b, P4a, P4c, H7,
+the shortcut order of `MN-J` item 4).
+
+**Red runs.** Every lane wrote its tests red first (each lane's section names
+its red commit and readings). Every new
+typecheck guard was mutated red once (G1.x in §3, G2.1/G2.2 in §4, G3.1–G3.3 in
+§5/§5.1).
+
+**Mutation tables.** Lane 1's verifier, six mutations, each reddening exactly
+the named test: the focus-chain walk (`shiftF10AndTheMenuKeyOpenTheFocusedElementsAncestorsMenuOffApple`),
+the bottom-leading anchor (that test and `aShowMenuRequestOpensTheElementsMenu`),
+the disabled advertisement and refusal (`aDisabledElementAdvertisesNoShowMenuButTheRequestOpensItsMenuDisabled`,
+both), the field's space key (`aFocusedFieldsSpaceChoosesTheHighlightedInWindowItem`),
+the per-attachment cache (`theMenuIsEvaluatedAtEachOpen`). Lane 2's: `MANCH`
+(`aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame`), `M1.31c`
+(`aPullDownMenuWritesNoAXNodeAndNoAXSlot`, 4 issues), `M2.9b`
+(`aKeyEquivalentDeclinedByTheWindowIsNotDeliveredAgainAsAKeyDown`), and `M1.32`
+(forwarding `isEnabled: true`) reddened nothing **by design** — `MN-AF` item 9
+documents the forward as belt-and-braces. Lane 3's: VX.4, V3.5a, V3.5b, VX.1–VX.3
+and MG3.3 as in §5.1. No suite hung.
+
+**Pixels and real window.** 0 differing pixels, scenes identical, against
+`b9da519` in all fourteen offscreen images (§5); `capture.sh` ran once unlocked
+(default 0, preview 0). The menus demo itself was not launched: the instrument
+sends no input, so the look is human checks R1–R8.
+
+**Hazards for the next branch.**
+
+- **AppKit behaviour moved** (migration.md): control-click is a secondary press
+  (`MN-AC`); every AppKit app has a main menu; ⌘-keys reach `onInput` through
+  `performKeyEquivalent`; a key a command binds is claimed after `Button`
+  shortcuts and before Tab traversal.
+- A root `.popover` takes the legacy `requestLayout`; a proposal-path popover
+  must sit under a proposal container to be exercised (test 3.27, VX.4's first
+  spelling stayed green against a root fixture).
+- `PopoverModifier` is not a `StyledElement` (divergence 115): write styled
+  modifiers before `.popover`.
+- `Observation` must be imported explicitly off Apple (`MenusDemo.swift`, found
+  by the container).
+- Stale build artifacts (`Tooltip.*`) remain in the main checkout's `.build`: run
+  `swift package clean` there before its next build.
+- A new menu-bearing platform adds `presentMenu` and `setMenuBar` with honest
+  bodies; a new handler-registering site gains an arm in the D2 guard and the
+  context-menu gate (`MN-U`).
+
+**Deferred, owner none** (spec §10; divergences "Not offered"): `Picker`,
+`Section`, `Label`/image items inside a menu; `Divider` as a stack view; menu
+type-select, a scrolling menu, a submenu-open delay; `.contextMenu(forSelectionType:)`
+and `menuItems:preview:`; `.popover(attachmentAnchor:)`, a drawn arrow,
+`.help(Text)`, a native AppKit tooltip; an in-window menu bar on SDL; Windows'
+open-on-release convention. Looks owed: human-checks group R (record §03).
+
+### §6.1 Verification at the close
+
+Unmutated, after `swift package clean`, at the Record phase's HEAD (this commit
+changes only documents and `closeout-public-api.tsv`): `swift build
+--build-system native --build-tests` 0 `error:`, the one `warning:` SwiftPM's
+deprecation notice; unfiltered `swift test --build-system native --no-parallel`:
+**`Test run with 2327 tests in 3 suites passed after 122.769 seconds`**, one
+summary line, the `FR-J no-argument frame: succeeded=true` line present.
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+Counts **2327 / 0 / 142** as the lanes read them.

@@ -830,3 +830,11 @@ by `paintShapeFill`'s non-antialiased branch (MV8 pins it). The renderer's
 `MUITransform._reserved` word is reserved padding, not a declared property.
 `Shape.path(in:)` and `geometry(in:)` each default to the other (a conformer
 that writes neither traps, `GX-D`). Nothing declared is unread.
+
+## 2026-10-03: no row added or deleted (menus, popovers and tooltips)
+
+Record §74. `Menu`, `CommandMenu`, `CommandGroup`, `.popover` and `.help` are
+all read: `PlatformMenuItem.shortcut` and `.isOn` by the AppKit builder and the
+drawn menu, `.popover`'s `arrowEdge` by `MN-M`'s placement. `.popover(attachmentAnchor:)`
+is **not declared** (a test pins its absence, `aPopoverHasNoAttachmentAnchorParameter`),
+so it is not an inert property. Nothing declared is unread.

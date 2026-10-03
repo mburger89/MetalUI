@@ -2191,6 +2191,15 @@ MetalUIDemoContent	Sources/MetalUIDemoContent/DemoContent.swift:1240	-	func	text
 MetalUIDemoContent	Sources/MetalUIDemoContent/DemoIcon.swift:10	-	func	demoIcon
 MetalUIDemoContent	Sources/MetalUIDemoContent/DragAndDropDemo.swift:27	-	func	dragAndDropDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:19	-	func	looksDemoContent
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:25	-	func	menusDemoContent
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:33	-	class	MenusDemoModel
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:35	MenusDemoModel	var	status
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:37	MenusDemoModel	var	pinned
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:39	MenusDemoModel	var	showPopover
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:41	MenusDemoModel	var	note
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:44	MenusDemoModel	init	init
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:48	-	let	menusDemoModel
+MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:52	-	func	menusDemoPinned
 MetalUIDemoContent	Sources/MetalUIDemoContent/MetalViewDemo.swift:35	-	func	metalViewDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/MetalViewDemo.swift:44	-	class	MetalViewDemoDraws
 MetalUIDemoContent	Sources/MetalUIDemoContent/MetalViewDemo.swift:46	MetalViewDemoDraws	var	count

@@ -2181,3 +2181,43 @@ stroke width and `StrokeStyle` snap where SwiftUI animates them, pin
 `StrokeStyle`; gains `transformEffect`, `projectionEffect`, `rotation3DEffect`,
 `compositingGroup`, `drawingGroup`, inner shadows, `.blur` (spec §9). Live
 count **70 → 76**, next label **110**.
+
+## 2026-10-03: 110–115 added, none retired or amended; 82 live, next label 116 (menus, popovers and tooltips)
+
+Record §74; rulings `MN-B`, `MN-V`, `MN-M`, `MN-P`, `MN-AG`, `MN-AH`; the
+published list is `docs/divergences.md`. Not a plan task — user request
+2026-10-02. **Added, kept, owner none:**
+
+- **110** — a secondary (right) click: SwiftUI presses a plain `Button` and fires
+  `.onTapGesture` (probe `swiftui-menus-popovers.swift` C6, C6t; an AppKit
+  `NSButton` ignores it, C6n; on a `Button` with a context menu the down opened no
+  menu and the up pressed, C7b). MetalUI's secondary press runs no `onClick`,
+  gesture, drag, text-field or slider press and focuses nothing. Pin
+  `aSecondaryPressNeverRunsOnClickOrATap`.
+- **111** — a popover near the window's edge: SwiftUI's popover is its own
+  window, extends past the presenting window and flips against the screen (P1,
+  P5); MetalUI draws inside the window, flips to the opposite side when it does
+  not fit and then clamps with 8 pt. Pins `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge`,
+  `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow`.
+- **112** — no popover arrow: a `.surface` rounded rectangle (radius 10),
+  `.separator` border, default shadow, 8 pt from the anchor. Pin
+  `thePopoverChromeIsARoundedPanelWithNoArrow`.
+- **113** — `.help`'s tooltip is drawn by MetalUI on every platform (1.0 s of
+  display-link time, below the pointer); AppKit's native tooltip look and delay
+  are unmeasured (H7, locked). Pins `aTooltipAppearsAfterTheHoverDelayOfTickTime`,
+  `theWindowLeavingKeyHidesTheTooltip`.
+- **114** — a cover that only paints does not block the context menu beneath it
+  (an element registers a hitbox only with a pointer handler); SwiftUI's opaque
+  view does (C14). Pins `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath`,
+  `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath`.
+- **115** — what may follow `.popover`: SwiftUI chains anything (probe
+  `swiftui-popover-chaining.swift` CH1, with its CH2 control and NEGATIVE
+  separating arm); on the legacy vocabulary `PopoverModifier` is not a
+  `StyledElement`, so a `StyledElement` modifier and a second `.popover` do not
+  compile. Pin guard G3.3 `aStyledModifierCannotFollowALegacyPopover`.
+
+**Nothing retired or amended.** "Not offered" gains `Picker`/`Section`/image items
+in a menu, a view `Divider`, menu type-select, `.contextMenu(forSelectionType:)`,
+`.popover(attachmentAnchor:)`, `.help(Text)` and a native tooltip, an in-window
+menu bar, and loses `.contextMenu` and menus from the `ButtonStyle` row. Live
+count **76 → 82**, next label **116**.

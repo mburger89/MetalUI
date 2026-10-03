@@ -1,6 +1,6 @@
 # Menus, popovers and tooltips — design
 
-**Status: design (2026-10-02), revised by the critic round (2026-10-02,
+**Status: built and verified `ok` on `feat/menus-popovers` (2026-10-03; three lanes, record §74); design (2026-10-02), revised by the critic round (2026-10-02,
 rulings `MN-U`…`MN-AD`, §11), by lane 1 (`MN-AE`), by lane 2 (`MN-AF`) and by lane 3 (`MN-AG`).** User request 2026-10-02, an item of the
 gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-AD` in
 [`../2026-10-02-menus-popovers-decisions.md`](../2026-10-02-menus-popovers-decisions.md).
@@ -609,7 +609,7 @@ Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
 | 3.2 | `theDefaultArrowEdgeIsTop` (P7, `MN-X`) | no edge and `arrowEdge: nil` both above | **V3.2** `edge ?? .top` → `edge ?? .bottom` → verifier: 3.2, 3.6, 3.8, 3.11, 3.12, 3.13, 3.14, 3.16 |
 | 3.3 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge` (P5, 111) | flipped | **V3.3** each flip ternary → its own side → verifier: 3.3 |
 | 3.4 | `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` (111) | on its side, clamped 8 pt | **V3.4** flip when the own side does not fit, fitting the other or not → verifier: 3.4 |
-| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` (P4a, `MN-Y`) | binding false from input at the press; the `Button` beneath ran once on the release (cannot separate a passed-on press from a claimed one — 3.28 owns that, `MN-AH` item 2) | **V3.5a** the dismissal loop never runs (`while false, …`) → this round: 3.8, 3.26, 3.5, 3.27, 3.12, 3.28<br>**V3.5** claim every non-anchor press (`return true`) → verifier: 3.8 and 121 tests outside lane 3 (record §74 §5.1)<br>**V3.5b** claim a press that dismissed a popover → verifier: 3.8; this round: 3.8, 3.28 |
+| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` (P4a, `MN-Y`) | binding false from input at the press; the `Button` beneath ran once on the release (cannot separate a passed-on press from a claimed one — 3.28 owns that, `MN-AH` item 2) | **V3.5a** the dismissal loop never runs (`while false, …`) → this round: 3.8, 3.26, 3.5, 3.27, 3.12, 3.28, 3.29 (both cases; 3.29 re-found by the Record phase's verifier)<br>**V3.5** claim every non-anchor press (`return true`) → verifier: 3.8 and 121 tests outside lane 3, 216 issues in all (record §74 §5.1)<br>**V3.5b** claim a press that dismissed a popover → verifier: 3.8; this round: 3.8, 3.28 |
 | 3.6 | `aPressInsideThePopoverReachesItsContent` | inner `Button` runs; popover stays | **V3.6** dismiss on every press (drop `!top.bounds.contains`) → verifier: 3.6, 3.8, 3.11, 3.12 |
 | 3.7 | `escapeDismissesTheTopmostPopoverBeforeTheKeymap` | keymap Escape binding did not run; inner popover first | **V3.7a** run the popover stage for keys after `dispatchAction` → verifier: 3.7<br>**V3.7b** Escape dismisses the bottommost popover → verifier: 3.7 |
 | 3.8 | `aPopoverIsAPresentationOnAHigherLayer` | a press and a drop on the chrome's padding reach nothing beneath; an ancestor's `DragGesture` does not reach a press inside | **V3.8** drop the chrome's blocking hitbox (`MN-Z`) → verifier: 3.8 |

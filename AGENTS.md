@@ -38,7 +38,8 @@ summary.
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
-  `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), …; the full
+  `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AI`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -51,7 +52,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **70 live, next label 104**; retired labels are
+  live SwiftUI difference — **82 live, next label 116**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
   (groups A–P, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -69,14 +70,16 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-02, `feat/paths-shadows-transforms` from `dc96395`): 2227
-  tests, 0 goldens, 133 typecheck guards** (2124 + 103 tests, 129 + 4 guards;
-  `Backends/SDL` 24 + 57; census 2086 in 105 families; Linux container
-  199 + 22 + 21 + 31 + 18 + 6 at lane 3, record §73 §9). Before it,
+- **Counts (2026-10-03, `feat/menus-popovers` from `b9da519`): 2327
+  tests, 0 goldens, 142 typecheck guards** (2227 + 100 tests, 133 + 9 guards;
+  `Backends/SDL` 24 + 62; census 2206; Linux container
+  199 + 22 + 21 + 31 + 18 + 6, unmoved, record §74 §6). Before it,
+  `feat/paths-shadows-transforms` from `dc96395`: 2227 / 0 / 133 (2124 + 103 tests, 129 + 4 guards;
+  `Backends/SDL` 24 + 57; census 2086 in 105 families, record §73 §9). Before it,
   `fix/scaffold-review` from `6c05f3d`: 2124 / 0 / 129 (2112 + the review fixes' 12 scaffold
   tests, record §72 §6.6). Before that, `feat/scaffold` on master `65c0cc7`:
   2112 (master's 2093 + the scaffold's 19, no guard added; master's own were taken on `feat/metal-view` after merging
@@ -87,7 +90,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73.
+  merge), §72, §73, §74.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -153,10 +156,10 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)` — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool` — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
-  one too: `setApplicationIcon(_:)`** (`AI-B`), beside it for the same reason,
+  two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
@@ -358,7 +361,7 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **fifteen**
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **sixteen**
 members; `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 
@@ -488,6 +491,23 @@ draw), silhouette on the CPU, blur sigma = radius, a shadow never hits and a
 re-rasterized (divergence 106). A new public declaration spelled
 `nonisolated public` hides from the census — write `public nonisolated`.
 
+**Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
+`InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
+`.contextMenu { }` (both vocabularies, a closed `MenuContent` evaluated at each
+open) goes to the platform through the defaultless `PlatformWindow.presentMenu`
+— a native `NSMenu` on AppKit, MetalUI's drawn menu where it answers `false`
+(SDL) — and the choice returns as a queued `InputEvent.menuAction`, run under
+`StateDispatch`. `App.commands { CommandMenu/CommandGroup }` reaches
+`Platform.setMenuBar` (every AppKit app gets the standard main menu); **the
+window's shortcut pipeline is the one shortcut path** (`Button` first, commands
+one stage after, AppKit offering a ⌘-key to it before the main menu, once —
+`MN-J`). `.popover` is an anchored presentation root, flipped then clamped
+inside the window, no arrow, dismissed from input; `.help` is the accessibility
+hint plus a drawn, tick-timed tooltip. The new handler member `contextual` is
+non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
+role/request needs a row on both bridges**; a new `StyledElement` modifier
+cannot follow a legacy `.popover` (divergence 115).
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -600,7 +620,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (70 live, next label 104). A new
+- **Divergences**: `docs/divergences.md` (82 live, next label 116). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
