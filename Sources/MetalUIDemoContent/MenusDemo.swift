@@ -1,4 +1,5 @@
 import MetalUI
+import Observation
 import Foundation
 
 /// The menus, popovers and tooltips demo (spec
