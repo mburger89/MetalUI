@@ -404,3 +404,161 @@ deprecation notice; `swift build --build-tests` 0 `warning:`.
 
 No public declaration, census row, `Sources/` behaviour or pixel moves (one
 source comment in `PullDownMenu.swift`).
+
+## §5 Lane 3 — popovers, `.help` and the tooltip, the demo (2026-10-03)
+
+From `1cecaf5` (lane 2's fix round, 2293 tests). Commits `8d14ff7` (red),
+`a91314b` (implementation), `defb937` (the demo's `Observation` import, found
+by the Linux container). Ruling `MN-AG` (decisions doc, next unused `MN-AH`).
+
+**Built.** `Popover.swift`: `PopoverModifier<Content, PopoverContent>` (both
+vocabularies; `ProposalElementGroup` when its content is), the four
+`.popover(isPresented:/item:arrowEdge:content:)` spellings (`arrowEdge: Edge?
+= nil`, `nil` is `.top`), the evaluated-optional slot at cursor 1 —
+`OptionalGroup<AnchoredPresentation<Box<P>>>`, produced while presented and
+anchored, `item:` naming the chrome `Box` by the item's id — and
+`Window.dispatchPopovers` (an outside press dismisses from input under
+`StateDispatch` and passes on; a press on a dismissed popover's anchor is
+consumed with its release; Escape dismisses the topmost; between the open
+menu's stage and the context menu's). `AnchoredPresentation.swift`:
+`Deferred`'s three halves with its own lowering — `lowerAnchoredPresentation`
+queues a window-sized `PopoverPlacement` (`ProposalLayout`: measure at nil,
+capped at the window less 16; `origin(anchor:size:edge:window:)`, pure: 8-pt
+gap, centred, flip, clamp 8) in `LoweringState.presentations`; prepaint
+inserts the raw opaque blocking hitbox (`MN-Z`) and registers the
+`OpenPopover`; paint draws the panel (one bordered rect, one shadow, `MN-AG`
+item 1). `Frame.previousPresentationAnchors`/`openPopovers`/`tooltip`,
+`Window.lastOpenPopovers`/`popoverClaimsRelease`/`tooltipTracker`.
+`AXNode.popoverHint` → `.popover` (stripped before `isEmpty`, no `$ax`).
+`Tooltip.swift`: `.help` on both vocabularies (`StyledElement` returns `Self`:
+the hint plus `ContextualAttachment.help`; the proposal spelling a
+`ContextualModifier`, which now declares the hint and registers synthesizing
+when it carries help, `MN-AG` item 7), `TooltipTracker` (idle → pending →
+shown → spent), `Window.trackTooltip` (every event, never claiming),
+`advanceTooltip(to:)` in the display-link callback beside `advanceGestures`,
+the pause rule (`isPending` keeps the link awake), `hideTooltip` on leaving
+key, `TooltipPlacement.origin(pointer:size:window:)` and `Frame.paintTooltip`
+after the menu panel. `MetalUIDemoContent/MenusDemo.swift`
+(`menusDemoContent()`, each section its own function; `MenusDemoModel`),
+`METALUI_MENUS_DEMO=1` in `MetalUIDemo` (with `app.commands { CommandMenu("Demo")
+…; CommandGroup(after: .newItem) … }`) and in `MetalUISDLDemo`; `menusDemoContent()`
+joins `buildEveryProductionTree`. `docs/verification/human-checks.md` group R
+(R1–R8); divergences 111–113 and an absences row; inventory families
+`popovers` and `help` (class A, P1 and H1); census **2184 → 2197**;
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+**Red** (`8d14ff7`, full unfiltered suite against the stubs: `Test run with
+2321 tests in 3 suites failed after 137.437 seconds with 47 issues`): all 26
+tests red, each first line
+
+| Test | First red line |
+|---|---|
+| 3.1 `thePopoverSitsOnItsArrowEdgeOfTheAnchor` (×4) | `PopoverTests.swift:129: window.lastOpenPopovers.last` |
+| 3.2 `theDefaultArrowEdgeIsTop` | `:144: window.lastOpenPopovers.last` |
+| 3.3 `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge` | `:164: window.lastOpenPopovers.last` |
+| 3.4 `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` | `:179: window.lastOpenPopovers.last` |
+| 3.5 `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` | `:210: window.lastOpenPopovers.last` |
+| 3.6 `aPressInsideThePopoverReachesItsContent` | `:226: window.lastOpenPopovers.last` |
+| 3.7 `escapeDismissesTheTopmostPopoverBeforeTheKeymap` | `:255: window.lastOpenPopovers.count == 2` |
+| 3.8 `aPopoverIsAPresentationOnAHigherLayer` | `:297: window.lastOpenPopovers.last` |
+| 3.9 `thePopoverPublishesAPopoverNodeAndIsolatesNothing` | `:362: popovers.count == 1` |
+| 3.10 `aPopoverAddsOneIdentityLevelOnlyForItsCaller` | `:395: !wrapped.lastOpenPopovers.isEmpty` |
+| 3.11 `aRepresentedPopoversContentStartsFresh` | `:436: log.entries == ["n=1", "n=2"]` |
+| 3.12 `popoverItemFollowsTheItemAndResetsOnANewID` | `:462: window.lastOpenPopovers.count == 1` |
+| 3.13 `aPopoverFollowsItsAnchorWithinOneFrame` | `:488: window.lastOpenPopovers.last` |
+| 3.14 `anInitiallyPresentedPopoverAppearsOnTheSecondFrame` | `:508: window.needsRedraw` |
+| 3.15 `aPopoverWritesNoStateTableEntry` | `:525: window.lastOpenPopovers.count == 1` |
+| 3.16 `thePopoverChromeIsARoundedPanelWithNoArrow` | `:541: scene.highestLayer` |
+| 3.17 `aTooltipAppearsAfterTheHoverDelayOfTickTime` | `TooltipTests.swift:72: window.visibleTooltip?.text == "Explains"` |
+| 3.18 `theTooltipDelayIsStampedFromTheFirstTickAfterEntering` | `:89: window.visibleTooltip != nil` |
+| 3.19 `aPressAWheelAKeyOrLeavingHidesTheTooltip` (×4) | `:99: window.visibleTooltip?.text == "Explains"` |
+| 3.20 `aHiddenTooltipReturnsOnlyAfterLeavingAndReentering` | `:122: window.visibleTooltip?.text == "Explains"` |
+| 3.21 `theTooltipIsPlacedBelowThePointerAndFlippedInsideTheWindow` | `:151: origin(50, 50) == [50, 68]` |
+| 3.22 `helpPublishesTheSameTreeAsAccessibilityHint` | `:183: help == hint` |
+| 3.23 `aHelpRegionAddsNoPointerTarget` | `:199: window.lastHitboxes.contains { … help == "h" }` |
+| 3.24 `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending` | `:229: window.visibleTooltip != nil` |
+| 3.25 `theTooltipIsPaintedAboveEverything` | `:243: window.visibleTooltip?.text == "Explains"` |
+| 3.26 `aPressOnTheAnchorDismissesThePopoverAndIsConsumed` | `:333: window.lastOpenPopovers.last` |
+
+(Line numbers are the red commit's.) The guards: G3.1's first fixture chained
+two legacy `.popover`s, which `PopoverModifier` does not offer (`MN-AG` item
+4), and G3.2's first negative was refused for an uninferrable `P`, not for
+`attachmentAnchor`; both were re-spelt before the commit and are **green
+against the stubs by construction** (spellings guards) — their mutations
+below.
+
+**Found by running** (`MN-AG`): test 3.16 read two rects and two shadow
+images — a legacy `Box` paints fill and border as two primitives, so the panel
+moved into `AnchoredPresentation.paint` (item 1); test 3.15's "count equal"
+was false by the chrome's and content's own `$anim`/`$anim-color` slots, so
+it was restated (item 8); 3.5 pressed outside a `Button`'s hitbox (a legacy
+`.frame` layer leaves the button its label's size), and 3.8's cover was a
+`Button` whose hitbox did not reach the chrome's padding — 3.5 now presses the
+label, 3.8's cover is a frame-sized `.onClick` `Box`; 3.1's `@Test(arguments:)`
+literal spanned a line the inventory's `CITE` scan stops at, so the arguments
+became a named constant; the Linux container refused `@Observable` in
+`MenusDemo.swift` (no `import Observation`; Foundation re-exports it only on
+Apple) — `defb937`.
+
+**Guard mutations** (commit `a91314b` first, restored from a copy, full
+unfiltered suite, `git status --short` clean after each):
+
+| # | Mutation | Reddened (only) |
+|---|---|---|
+| MG3.1 | `extension StyledElement { public func help(_ text: Text) -> Self { self } }` in `Tooltip.swift` (`helpText succeeded=true`) | `thePopoverAndHelpSpellingsCompileFromAPlainImport` (1 issue; 2321 tests) |
+| MG3.2 | `StyledElement.popover(isPresented:attachmentAnchor: Int = 0, arrowEdge:content:)` forwarding, in `Popover.swift` (`with succeeded=true`) | `aPopoverHasNoAttachmentAnchorParameter` (1 issue; 2321 tests) |
+
+Spec §6.3's mutation column for 3.1–3.26 is the lane verifier's.
+
+**Counts.** `swift build --build-system native --build-tests`: 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice. Unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 2321
+tests in 3 suites passed after 147.992 seconds`** (2293 + 26 + 2 guards; 3.1
+and 3.19 parameterized, counted once each), the `FR-J no-argument frame:
+succeeded=true` line present; re-taken after `swift package clean` (public
+`Window`, `Frame` and `AXNode` gained stored properties): the same 2321,
+passed after 133.096 seconds. Guards 139 → **141** (G3.1, G3.2; spec §6.4's
+141); goldens 0. `swift build --build-tests` (default build system): 0
+`warning:`, 0 `error:`. `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`):
+builds with 0 `error:` (its only `warning:`s the environment's — Homebrew
+SDL3's dylib built for macOS 27 and SwiftPM's `-Wl,-rpath` notice) and runs
+**24 + 62**, unmoved (no lane-3 SDL test: popovers and tooltips are portable
+`MetalUI` code, exercised through `FakePlatformWindow`; `MetalUISDLDemo`
+gained the `METALUI_MENUS_DEMO` branch). A `swift:6.4-noble` container
+(OrbStack, already running; left as found), over a `git archive` of `defb937`
+with `--scratch-path` inside the container, builds with 0 `error:`/`warning:`
+and runs **199 + 22 + 21 + 31 + 18 + 6**, unmoved (its first run, over
+`a91314b`, failed to build `MenusDemo.swift`: `unknown attribute
+'Observable'`). Divergences 78 → **81 live** (111–113), next label 115.
+`MetalUILayout` and `MetalUIScene` untouched (`git diff b9da519` reads nothing
+under either). `DemoFrameDeterminismTests`' `Expected.swift` unedited.
+`MemoryLayout<Handlers>.size` unmoved at 464 (`contextual` already existed;
+`popoverHint` fits `AXNode`'s padding); `everyProductionTreeBuildsOnAOneMegabyteThread`
+green with `menusDemoContent()` added, on macOS and in the container. A
+throwaway (uncommitted) test rendered `menusDemoContent()` through a 900-pt
+`FakePlatformWindow`: the popover presented (224 × 96 at (199, 122)) and a
+tooltip showed after 1.1 s of ticks.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> b9da519 HEAD` (HEAD
+`a91314b`): **0 differing pixels, scene identical, in all fourteen images**;
+the controls as at `b9da519` (light vs dark 1048576, default vs modal
+1031003, default vs animation 454895, f0 vs f3 0, preview light vs dark
+1048576, chrome legacy vs proposal 0, distinct 544/216, prod default vs modal
+491221, distinct prod 529, indicator rects 0).
+
+**Real window.** The lock probe read no `CGSSessionScreenIsLocked` line and
+`displayAsleep main: 0`, so `docs/probes/window-capture/capture.sh <scratch>
+b9da519 HEAD` (HEAD `defb937`) ran: each window's pair 0 differing,
+**`b9da519 → HEAD` default 0, preview 0** (1840 × 1176), control default vs
+preview 958986. The menus demo was not launched (no input is sent by the
+instrument; the popover's look, the tooltip and the menu bar are human checks
+R3, R5, R6).
+
+**Deferred / owed.** Spec §6.3's mutation column (3.1–3.26) is the lane
+verifier's. `PopoverModifier` is not a `StyledElement`, so nothing chains
+after a legacy `.popover` (`MN-AG` item 4), owner none. The popover's Escape
+and outside click against a native `NSPopover`, the tooltip's delay against
+AppKit's, and the look of both are unmeasured (locked probes) — human checks
+R5, R6; VoiceOver R7. No SDL test covers a popover or a tooltip (portable
+code; R2/R5 under `MetalUISDLDemo`). The Record phase owes CLAUDE.md,
+AGENTS.md, README, record index and records 03/04/05.
