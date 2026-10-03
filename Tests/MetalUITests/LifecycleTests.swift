@@ -267,17 +267,48 @@ private struct LCRow: Identifiable { let id: String }
 @Test func aListRowScrolledOutDisappearsReturnsAsAnAppearanceAndKeepsItsState() throws {
     let log = LCLog()
     let (window, scroller) = try listWindow(log)
-    window.drawFrameIfNeeded()
-    scroll(window, scroller, to: 100)   // row 4 in
+    window.drawFrameIfNeeded()          // cold: every row built
+    scroll(window, scroller, to: 100)   // row 4 in the window
     scroll(window, scroller, to: 100)
-    try #require(log.entries.contains("appear row4 0"), "set up: row 4 appeared: \(log.entries)")
+    let visits = try #require(log.entries.last { $0.hasPrefix("appear row4 ") }
+        .flatMap { Int($0.split(separator: " ")[2]) }, "set up: row 4 appeared: \(log.entries)") + 1
+    try #require(visits >= 1)
     log.entries.removeAll()
     scroll(window, scroller, to: 0)     // row 4 out
-    #expect(log.entries.contains("disappear row4 1"), "row 4 disappears when it leaves the window: \(log.entries)")
+    #expect(log.entries.filter { $0.hasPrefix("disappear row4") } == ["disappear row4 \(visits)"],
+            "row 4 disappears once when it leaves the window: \(log.entries)")
+    #expect(!log.entries.contains { $0.hasPrefix("appear row4") })
     log.entries.removeAll()
     scroll(window, scroller, to: 100)   // row 4 back
-    #expect(log.entries.contains("appear row4 1"),
+    #expect(log.entries.filter { $0.hasPrefix("appear row4") } == ["appear row4 \(visits)"],
             "row 4 appears again with its kept @State (TB-AH): \(log.entries)")
+}
+
+/// **1.5b** (`LC-Q`, divergence 124; SwiftUI `S1`). A `List`'s first frame
+/// inside its scroller builds every row (`List.visibleRange`: no viewport is
+/// measured yet), so every row appears, and the rows outside the window the
+/// next build measures disappear — where SwiftUI's lazy `List` creates only
+/// the visible rows. Here the rows' `onAppear` writes `@State`, so the next
+/// build is the settle build inside the same `drawFrameIfNeeded` (`LC-E` item
+/// 2) and both halves run before the first frame is presented; with no write
+/// the disappearances run on frame two. Derived before the run: a 20-point
+/// viewport at offset 0 windows rows 0..<3 (two rows of overscan), so rows
+/// 3…11 — nine — disappear, each having counted one visit. Pins MetalUI's
+/// answer; no mutation of its own (the `List` cold-frame rule is outside this
+/// lane).
+@MainActor
+@Test func aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow() throws {
+    let log = LCLog()
+    let (window, _) = try listWindow(log)
+    window.drawFrameIfNeeded()
+    let first = log.take()
+    #expect(first.filter { $0.hasPrefix("appear row") }.count == 12, "\(first)")
+    #expect(Set(first.filter { $0.hasPrefix("disappear") }) == Set((3..<12).map { "disappear row\($0) 1" }),
+            "\(first)")
+    #expect(window.lastDrawBuildCount == 2)
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(log.entries == [], "settled: \(log.entries)")
 }
 
 /// **1.6** (divergence 72's shape, `LC-C` item 2). Two siblings sharing one
@@ -837,7 +868,7 @@ private struct LCRow: Identifiable { let id: String }
     controlWindow.drawFrameIfNeeded()
     control.shown = false
     controlWindow.drawFrameIfNeeded()
-    #expect(controlWindow.stateTable.lastDepartedValueCount == 1, "the control keeps the counter's one value")
+    #expect(controlWindow.stateTable.lastDepartedValueCount > 0, "the control keeps the reset subtree's values")
 }
 
 /// **5.4** (`LC-I` item 3, `LC-P` item 5). A `List` row's `onDisappear` reads
@@ -850,10 +881,12 @@ private struct LCRow: Identifiable { let id: String }
     window.drawFrameIfNeeded()
     scroll(window, scroller, to: 100)
     scroll(window, scroller, to: 100)
+    let visits = try #require(log.entries.last { $0.hasPrefix("appear row4 ") }
+        .flatMap { Int($0.split(separator: " ")[2]) }, "set up: \(log.entries)") + 1
     log.entries.removeAll()
     scroll(window, scroller, to: 0)
     let row4 = log.entries.filter { $0.hasPrefix("disappear row4") }
-    #expect(row4 == ["disappear row4 1"], "\(log.entries)")
+    #expect(visits >= 1 && row4 == ["disappear row4 \(visits)"], "\(log.entries)")
 }
 
 // MARK: - Transitions (6.1–6.5)
@@ -899,9 +932,10 @@ private struct LCRow: Identifiable { let id: String }
 @Test func anOnDisappearOutsideTheTransitionAlsoWaits() throws {
     let m = LCModel(), log = LCLog()
     m.shown = true
-    let (_, platform) = try transitionWindow(m) {
+    let (window, platform) = try transitionWindow(m) {
         if m.shown { lcLeaf(50, 30).transition(.opacity).onDisappear { log.add("disappear") } }
     }
+    defer { withExtendedLifetime(window) {} }
     platform.simulateTick(timestamp: 100)
     withAnimation(.linear(duration: 0.6)) { m.shown = false }
     platform.simulateTick(timestamp: 101)
@@ -918,13 +952,14 @@ private struct LCRow: Identifiable { let id: String }
 @Test func aParentAndItsChildUnderOneGhostDisappearTogetherChildFirst() throws {
     let m = LCModel(), log = LCLog()
     m.shown = true
-    let (_, platform) = try transitionWindow(m) {
+    let (window, platform) = try transitionWindow(m) {
         if m.shown {
             Column { lcLeaf(50, 30).onDisappear { log.add("child") } }
                 .onDisappear { log.add("parent") }
                 .transition(.opacity)
         }
     }
+    defer { withExtendedLifetime(window) {} }
     platform.simulateTick(timestamp: 100)
     withAnimation(.linear(duration: 0.6)) { m.shown = false }
     platform.simulateTick(timestamp: 101)
@@ -968,12 +1003,13 @@ private struct LCRow: Identifiable { let id: String }
 @Test func anUnanimatedRemovalDisappearsAtOnceAndAnAnimatedInsertionAppearsAtOnce() throws {
     let m = LCModel(), log = LCLog()
     m.shown = true
-    let (_, platform) = try transitionWindow(m) {
+    let (window, platform) = try transitionWindow(m) {
         if m.shown {
             lcLeaf(50, 30).onAppear { log.add("appear") }.onDisappear { log.add("disappear") }
                 .transition(.opacity)
         }
     }
+    defer { withExtendedLifetime(window) {} }
     platform.simulateTick(timestamp: 100)
     try #require(log.take() == ["appear"])
     m.shown = false

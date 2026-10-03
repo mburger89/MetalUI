@@ -329,6 +329,53 @@ final class StateTable {
         loopExtents[slot] = extent
     }
 
+    // MARK: - Departed state for `onDisappear` (lifecycle, ruling `LC-I`)
+
+    /// Whether this sweep's resets keep what they delete — set by
+    /// `Frame.render` before each sweep, true only when the last build held an
+    /// `onDisappear` (`LifecycleStore.hasDisappearActions`), so a tree without
+    /// one keeps nothing (`LC-M`). **No retention rule moves**: the same
+    /// entries are deleted at the same sweep; the values are only copied out.
+    /// `noteProduced`'s mid-frame reset keeps nothing.
+    var retainsDepartedValues = false
+
+    private var departedValues: [GlobalElementID: Any] = [:]
+    private var departedRootsKept: Set<GlobalElementID> = []
+
+    /// How many values the last `takeDepartedState()` handed over — test
+    /// observability (`LC-K`): 0 for a tree without an `onDisappear`.
+    private(set) var lastDepartedValueCount = 0
+
+    /// What the last sweep's resets kept, emptied — `nil` when nothing was
+    /// reset while keeping. `Frame.render` hands it to the lifecycle right
+    /// after the sweep, which attaches it to that build's disappearances.
+    func takeDepartedState() -> DepartedState? {
+        lastDepartedValueCount = departedValues.count
+        guard !departedValues.isEmpty || !departedRootsKept.isEmpty else { return nil }
+        defer {
+            departedValues.removeAll()
+            departedRootsKept.removeAll()
+        }
+        return DepartedState(values: departedValues, roots: departedRootsKept)
+    }
+
+    /// The overlay a disappearance reads and writes through, `nil` outside one.
+    private var departedOverlay: DepartedState?
+
+    /// Runs `body` — one `onDisappear` — reading through `state` (`LC-I`
+    /// item 2): `peek` answers an overlay value first, and a write to an id at
+    /// or under one of its `roots` lands in the overlay only — never in
+    /// storage, never firing `onWrite` — so the departed identity is not
+    /// resurrected and content that returns starts fresh. With `state` `nil`
+    /// (nothing was reset: a `List` row out of its window) reads and writes are
+    /// the table's own.
+    func withDepartedOverlay(_ state: DepartedState?, _ body: () -> Void) {
+        let saved = departedOverlay
+        departedOverlay = state
+        defer { departedOverlay = saved }
+        body()
+    }
+
     // MARK: - `@FocusState` (plan task 12 part 1, ruling `IX-J`)
 
     /// Every `@FocusState` bound since the window last took them, by slot —
@@ -389,7 +436,11 @@ final class StateTable {
     private func resetQueuedEntries() {
         guard !departedRoots.isEmpty || !absentSlots.isEmpty else { return }
         resetScanWork += storage.count
-        removeEntries { id in
+        if retainsDepartedValues {
+            departedRootsKept.formUnion(departedRoots)
+            departedRootsKept.formUnion(absentSlots)
+        }
+        removeEntries(keepingDeparted: retainsDepartedValues) { id in
             if departedRoots.contains(id) { return true }
             var cursor = id.parent
             while let ancestor = cursor {
@@ -405,12 +456,13 @@ final class StateTable {
     /// Deletes every entry `doomed` selects, except `$ax`: collected in one walk
     /// of the keys, then removed. A deleted `$focus` slot is reported in
     /// `resetFocusSlots` (plan task 12 part 1, `IX-I`).
-    private func removeEntries(where doomed: (GlobalElementID) -> Bool) {
+    private func removeEntries(keepingDeparted: Bool = false, where doomed: (GlobalElementID) -> Bool) {
         for id in storage.keys where !Self.isWindowRetained(id) && doomed(id) {
             doomedKeys.append(id)
         }
         for id in doomedKeys {
-            storage.removeValue(forKey: id)
+            let removed = storage.removeValue(forKey: id)
+            if keepingDeparted, let removed { departedValues[id] = removed.value }
             marked.remove(id)
             if id.component == Self.focusRetentionName { resetFocusSlots.insert(id) }
         }
@@ -733,6 +785,10 @@ final class StateTable {
     /// was never anchored to the slot's stored type there either — so this
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S) {
+        if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
+            departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
+            return
+        }
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
         isDirty = true
         onWrite?()
@@ -769,6 +825,10 @@ final class StateTable {
     /// Pinned by `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`
     /// and its separating arm `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue`.
     func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
+        if let overlay = departedOverlay {
+            if let value = overlay.values[id] { return value as? S }
+            if overlay.roots.contains(where: { id.isOrDescends(from: $0) }) { return nil }
+        }
         guard let entry = storage[id] else { return nil }
         return entry.value as? S
     }
@@ -896,4 +956,13 @@ final class StateTable {
             }
         }
     }
+}
+
+/// What one sweep's resets deleted while a disappearance might read it
+/// (ruling `LC-I`): the deleted values by id, and the reset roots — an id at
+/// or under one is departed. A value type, so an overlay's writes stay in the
+/// copy the disappearance holds.
+struct DepartedState {
+    var values: [GlobalElementID: Any]
+    let roots: Set<GlobalElementID>
 }

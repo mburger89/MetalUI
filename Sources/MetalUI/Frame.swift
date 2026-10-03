@@ -327,6 +327,18 @@ public final class Frame {
         return body()
     }
 
+    /// How many `LifecycleScope`s are open around the element being visited —
+    /// part of a lifecycle entry's store key, so two lifecycle modifiers
+    /// stacked at one position keep two entries (ruling `LC-C` item 2).
+    private(set) var lifecycleDepth = 0
+
+    /// Runs `body` one lifecycle scope deeper.
+    func withLifecycleScope<R>(_ body: () -> R) -> R {
+        lifecycleDepth += 1
+        defer { lifecycleDepth -= 1 }
+        return body()
+    }
+
     /// The window's `AnimationStore` (ruling `AN-AB`): animation state kept
     /// out of `StateTable`. A `Frame` built without a window gets a fresh one.
     let animationStore: AnimationStore
@@ -391,7 +403,10 @@ public final class Frame {
     /// True from `render`'s first line to its last, and nowhere else (ruling
     /// EV-Z). Not cleared in a `defer`, for the reason `render`'s atlas bracket
     /// gives: the only way out of `render` early is a trap, which aborts.
-    private var isRendering = false
+    ///
+    /// `private(set)`, not `private`: a lifecycle test reads it from inside an
+    /// action to prove the action runs outside the build (ruling `LC-E`).
+    private(set) var isRendering = false
 
     /// The values every scope starts from: `Window.environment`, set by
     /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
@@ -3019,6 +3034,9 @@ public final class Frame {
         // purpose (branch state resets rather than carries; a vacated slot is
         // not "reserved") depends on sweep ordering, and a future edit should
         // not preserve their `isLive` lines *for* this reason.
+        // The sweep keeps what it resets only when the last build held an
+        // `onDisappear` that may read it (ruling `LC-I` item 1).
+        stateTable.retainsDepartedValues = animationStore.lifecycle.hasDisappearActions
         stateTable.sweep()
         // **Focus leaves with its identity** (plan task 12 part 1, ruling
         // `IX-I`; probe arms F1, F2): when this frame's sweep reset the focused
@@ -3031,6 +3049,12 @@ public final class Frame {
            stateTable.resetFocusSlots.contains(Self.focusRetentionSlot(for: focused)) {
             focusedElement = nil
         }
+        // The lifecycle's build closes AFTER the sweep (ruling `LC-E` item 1):
+        // its disappearances read the values the sweep reset (`LC-I`), and its
+        // parked ones the ghosts `paintGhosts` left alive (`LC-H`). Nothing
+        // runs here — the window runs the events after the build.
+        animationStore.lifecycle.endFrame(liveGhosts: animationStore.transitions.liveGhosts,
+                                          departed: stateTable.takeDepartedState())
         isRendering = false
     }
 }

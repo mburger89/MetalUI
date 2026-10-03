@@ -145,6 +145,13 @@ final class TransitionStore {
     /// Ghosts in flight.
     var ghostCount: Int { ghosts.count }
 
+    /// Each live ghost's key and its group's position (`key.parent`) — read by
+    /// the lifecycle after `paintGhosts`, so a landed ghost is already gone
+    /// (ruling `LC-H`).
+    var liveGhosts: [(key: GlobalElementID, position: GlobalElementID)] {
+        ghosts.map { ($0.key, $0.key.parent!) }
+    }
+
     /// The store key of the group at `cursor` under `parent` — the position it
     /// sits at, `.animation(_:value:)`'s keying (`AN-Y`), so it collides with
     /// no id its content mints.

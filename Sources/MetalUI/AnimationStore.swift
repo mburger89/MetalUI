@@ -35,6 +35,13 @@ final class AnimationStore {
     /// here so a `Window`'s frames share one and a headless frame gets its own.
     let rasters = RasterCache()
 
+    /// The lifecycle modifiers' entries, parked disappearances and unrun
+    /// events (ruling `LC-D`), owned here so a `Window`'s frames share one and
+    /// a headless frame gets its own. **`endFrame()` does not close it**: the
+    /// lifecycle's build ends after `StateTable.sweep()` (`Frame.render`), whose
+    /// departed values its disappearances read (`LC-I`).
+    let lifecycle = LifecycleStore()
+
     /// Interpolations performed by the last completed frame — a work counter
     /// (spec test 2.12), counted by `noteInterpolation()`.
     private(set) var lastFrameInterpolations = 0
