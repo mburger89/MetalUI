@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2305 of them, in
-fifteen modules) belongs to one of 117 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2315 of them, in
+fifteen modules) belongs to one of 118 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -335,6 +335,35 @@ On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,
 `AXTrait` are the neutral record a `StyledElement` declares (M); `AXNode.actions`
 and `AXActionKind` are deprecated (X). Bridged to NSAccessibility on macOS and
 AccessKit through `Backends/SDL`.
+
+## Lifecycle — A / D
+
+`.onAppear(perform:)`, `.onDisappear(perform:)` and `.onChange(of:initial:_:)`
+in both closure forms (`{ oldValue, newValue in }` and `{ }`, over an
+`Equatable` value) on every element group of both vocabularies (A; `LC-B`,
+`LC-G`; probe `swiftui-lifecycle.swift`). Each returns `LifecycleScope<Content>`
+— layout- and identity-transparent, typed `ProposalElementGroup` over proposal
+content; `LifecycleScopeLayout` is its group layout (M). **Presence is
+membership in a build**, keyed on the scope's position: hidden, transparent,
+zero-sized and clipped content is present; an `if` removing content, an `.id`
+change inside the modifier, and a `List` row leaving its window are
+disappearances; a modifier on a `ForEach` or group fires once for the group,
+while it has content (`LC-C`, `LC-P`). **Actions run after the build, outside
+every phase, under the element's `StateDispatch`** — a `@State`, `Binding` or
+`@Observable` write there is legal; one settle build presents the first level
+of writes in the same frame (`LC-E`). `onChange` compares against the previous
+build's value for the same identity, coalesces writes between frames, and fires
+on first sight only with `initial: true`. Order: changes, then appears, then
+disappears, each children first (`LC-F`). A disappearance under a removal
+transition waits for the fade to end; `onDisappear` reads its element's state
+as it was (`LC-H`, `LC-I`). Closing a window runs every present `onDisappear`
+once; a headless `renderFrame` runs no action (`LC-J`). Divergences 120–125: a
+legacy decoration after the scope does not compile, and a scope cannot be a
+window's root (120); the settle bound (121); one fixed order (122); re-inserted
+mid-fade content is fresh (123); a `List`'s first frame appears every row
+(124); a never-written `@State` default is re-seeded (125). `.task` is not
+offered: a main-actor task never runs inside the SDL loop (`LC-L`;
+[`migration.md`](migration.md#lifecycle--onappear-ondisappear-onchange)).
 
 ## Animation and transitions — A
 

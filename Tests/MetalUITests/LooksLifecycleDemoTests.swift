@@ -24,6 +24,7 @@ private func close(_ a: Rgba, _ b: Rgba, tolerance: Float = 1.0 / 255) -> Bool {
 // module's private constants).
 private let appearedColour = Rgba(r: 0.20, g: 0.65, b: 0.35, a: 1)
 private let disappearedColour = Rgba(r: 0.85, g: 0.30, b: 0.25, a: 1)
+private let fadedColour = Rgba(r: 0.90, g: 0.60, b: 0.15, a: 1)
 private let changesColour = Rgba(r: 0.25, g: 0.45, b: 0.85, a: 1)
 
 /// The width of the 6-tall bar painted in `colour`, or 0 when none is painted
@@ -48,9 +49,11 @@ private func settle(_ window: Window) {
 
 /// The section's controls, found from its stepper: the stepper's increment
 /// half is the looks demo's only 20 × 12 clickable hitbox pair's upper one; the
-/// "Toggle tile" button is the leftmost clickable hitbox on the stepper's row.
+/// "Toggle tile" button is the leftmost clickable hitbox on the stepper's row,
+/// "Toggle fading tile" the next.
 @MainActor
-private func controls(_ window: Window) throws -> (toggle: Bounds<Pixels>, increment: Bounds<Pixels>) {
+private func controls(_ window: Window) throws
+    -> (toggle: Bounds<Pixels>, fading: Bounds<Pixels>, increment: Bounds<Pixels>) {
     let clickable = window.lastHitboxes.filter { $0.handlers.onClick != nil }.map(\.bounds)
     let halves = clickable.filter { $0.size.width.value == 20 && $0.size.height.value == 12 }
     try #require(halves.count == 2, "the stepper's two halves: \(halves)")
@@ -60,27 +63,32 @@ private func controls(_ window: Window) throws -> (toggle: Bounds<Pixels>, incre
         let mid = $0.origin.y.value + $0.size.height.value / 2
         return mid > rowTop && mid < rowBottom && $0.origin.x.value + $0.size.width.value < increment.origin.x.value
     }
-    let toggle = try #require(onRow.min { $0.origin.x < $1.origin.x }, "no button left of the stepper")
-    return (toggle, increment)
+    let buttons = onRow.sorted { $0.origin.x < $1.origin.x }
+    try #require(buttons.count == 2, "two buttons left of the stepper: \(buttons)")
+    return (buttons[0], buttons[1], increment)
 }
 
 /// **10.1** (spec §5.3, §6; `LC-N`). `looksDemoContent()` in a fake window:
 /// every counter starts at 0; clicking the section's "Toggle tile" twice
 /// inserts and removes the tile, so the appear and disappear bars are each 8
 /// wide (one count); the stepper's increment changes the value its `onChange`
-/// watches, so the change bar is 8. Mutation: the section's `onDisappear`
-/// increments the appear counter.
+/// watches, so the change bar is 8. Then the fading tile (T1's shape, `LC-H`):
+/// inserted and removed under its 0.8 s animation, its "faded" bar stays 0
+/// mid-fade and is 8 once the fade has ended. Mutation: the section's
+/// `onDisappear` increments the appear counter.
 @MainActor
 @Test func theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    let (window, platform) = try makeFakeWindow(device: device, size: 1400) { looksDemoContent() }
+    let (window, platform) = try makeFakeWindow(device: device, size: 1400, startsDisplayLink: true) {
+        looksDemoContent()
+    }
     window.drawFrameIfNeeded()
     settle(window)
     #expect(barWidth(window.lastScene, appearedColour) == 0, "nothing has appeared yet")
     #expect(barWidth(window.lastScene, disappearedColour) == 0)
     #expect(barWidth(window.lastScene, changesColour) == 0)
 
-    let (toggle, increment) = try controls(window)
+    let (toggle, fading, increment) = try controls(window)
     click(platform, toggle)
     settle(window)
     #expect(barWidth(window.lastScene, appearedColour) == 8, "the tile appeared once")
@@ -96,4 +104,18 @@ private func controls(_ window: Window) throws -> (toggle: Bounds<Pixels>, incre
     #expect(barWidth(window.lastScene, changesColour) == 8, "one change")
     #expect(barWidth(window.lastScene, appearedColour) == 8 && barWidth(window.lastScene, disappearedColour) == 8)
     #expect(!window.needsRedraw, "the section settles")
+
+    // The fading tile: in, then out under the 0.8 s animation, driven by the
+    // display link's ticks (the removal's start is the first tick after it).
+    click(platform, fading)
+    platform.simulateTick(timestamp: 200)
+    platform.simulateTick(timestamp: 201)
+    click(platform, fading)
+    platform.simulateTick(timestamp: 202)
+    platform.simulateTick(timestamp: 202.4)
+    #expect(barWidth(window.lastScene, fadedColour) == 0, "mid-fade: the onDisappear waits for the ghost")
+    platform.simulateTick(timestamp: 203)
+    platform.simulateTick(timestamp: 203.1)
+    #expect(barWidth(window.lastScene, fadedColour) == 8, "the fade ended: one disappearance")
+    #expect(barWidth(window.lastScene, appearedColour) == 8, "the fading tile has no onAppear")
 }

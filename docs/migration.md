@@ -131,6 +131,27 @@ variable takes the kept token overload.
 | a theme switch by hand (`window.theme = .dark` on an appearance change) | nothing: the window selects `lightTheme`/`darkTheme` by its scheme | assign `window.lightTheme`/`darkTheme` (or `App`'s) to customise a variant (`CR-K`) |
 | a colour read in a custom `paint` | `pass.resolve(color) -> Hsla` | the element's scoped theme and scheme (`CR-H`); `Color.resolve(in: environment)` gives SwiftUI's `Color.Resolved`, clamped (divergence 118) |
 
+### Lifecycle — onAppear, onDisappear, onChange
+
+Since lifecycle modifiers (rulings `LC-A`…`LC-S`), `.onAppear`, `.onDisappear`
+and `.onChange(of:initial:_:)` exist on both vocabularies with SwiftUI's
+spellings and, where a probe measured it (`swiftui-lifecycle.swift`), SwiftUI's
+answers. Five things port differently:
+
+| SwiftUI / SwiftCrossUI | MetalUI | note |
+|---|---|---|
+| `.task { await … }`, `.task(id:) { … }` | **not offered** — start the async work from `.onAppear` and cancel it from `.onDisappear`: `.onAppear { monitor = Monitor(); monitor?.start() } .onDisappear { monitor?.stop() }` | a main-actor `Task` never runs inside `Backends/SDL`'s loop, which does not drain the main queue (probe `swift-main-actor-task-loop.swift` `B1`, macOS and Linux), so `.task` would start on macOS and silently never on Linux/Windows; owner: the SDL run loop's main-queue drain (`LC-L`) |
+| `Text("a").onAppear { … }.onTapGesture { … }`, `.padding()` after it — any order | write `Self`-returning legacy decorations (`.onClick`, `.background(_:)`, `.padding(_:)`, …) **before** the lifecycle modifier: `Text("a").onClick { … }.onAppear { … }`; `.frame`, `.id`, `.overlay` and the typed vocabulary's modifiers may follow it | the scope is a transparent `ElementGroup`, like `.animation(_:value:)` (divergence 120); for the same reason a window's root cannot be one — `openWindow(…) { Column { content.onAppear { … } } }` |
+| a chain of actions (an `onAppear` whose write inserts content whose own `onAppear` writes) settles before the first draw | the first level's writes are presented in the same frame (one settle build); each later level's one frame later — never a loop | divergence 121 (`LC-E` item 3) |
+| a modifier on a `ForEach` or `Group` | the same — it fires **once for the group**, not per child, and only while the group has content: an empty `ForEach` does not appear; it appears with its first row and disappears with its last | as SwiftUI (`A6`, `A6b`; `LC-P` item 1); write the modifier on the row inside the `ForEach` for per-row callbacks |
+| `@State var monitor = Monitor()` started in `onAppear`, stopped in `onDisappear` | write the instance in `onAppear` (`@State var monitor: Monitor? = nil`), or hold it in an `@Observable` model | a never-written `@State` default is re-seeded every build, so the two actions would reach different instances (divergence 125) |
+
+Order is one rule (changes, then appears, then disappears, each children
+first — divergence 122); a disappearance under a removal transition runs when
+the fade ends; a `List` row leaving its window disappears, and a `List`'s
+first frame appears every row once (divergence 124); closing a window runs
+every present `onDisappear` once (`LC-J`).
+
 ## Part 2 — breaking and behaviour changes since 2026-09-12
 
 Collected from every ruling's migration note

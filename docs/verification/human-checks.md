@@ -32,7 +32,7 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
    `METALUI_NATIVE_LAYOUT_PREVIEW=1` (the proposal preview),
    `METALUI_CONTROLS_DEMO=1` (the controls demo),
    `METALUI_TEXT_INPUT_DEMO=1` (two `TextField`s and a `TextEditor`),
-   `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×720: H1, I1, J1, K1–K3),
+   `METALUI_LOOKS_DEMO=1` (the looks demo, 1180×880: H1, I1, J1, K1–K3, Q1–Q6, S1–S3, T1–T2),
    `METALUI_DND_DEMO=1` (drag and drop: N1–N8),
    `METALUI_METALVIEW_DEMO=1` (MetalView, app-owned GPU surfaces: P1–P8).
 3. **Demo keys**: **M** modal (translucent scrim), **Space** theme, **F**/**Esc**
@@ -650,6 +650,38 @@ with `Backends/SDL`'s `MetalUISDLDemo` on Linux or Windows.
   has no per-window appearance (`CR-M`). Pinned by
   `setPreferredColorSchemeIsRecordedAndTheSystemThemeStillReports`
   (`Backends/SDL`). **Observed:**
+
+## T. Lifecycle modifiers — onAppear, onDisappear, onChange (user request 2026-10-02, not a plan task)
+
+*Source: record §76 `76-lifecycle.md`, rulings `LC-A`…`LC-S`
+(`docs/superpowers/2026-10-03-lifecycle-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-03-lifecycle-design.md`).* Every lifecycle
+answer is pinned headless (`LifecycleTests`, `LooksLifecycleDemoTests`, and
+`SDLLifecycleTests` in `Backends/SDL`), with the display link driven by
+`simulateTick(timestamp:)`; nobody has watched a removal fade end on a real
+display link. Run `METALUI_LOOKS_DEMO=1 swift run -c release MetalUIDemo`
+(AppKit); the lifecycle section is at the top of the looks window's left
+column, beside H1: "Toggle tile", "Toggle fading tile", a stepper, and four counters
+(appeared, disappeared, faded, changes), each as text and as a bar 8 points per
+count.
+
+- [ ] **T1. A disappearance waits for its fade**: press "Toggle fading tile" to
+  show the tile, then press it again. The tile fades out over about 0.8 s; the
+  **faded** counter (and its orange bar) moves **when the fade ends**, not on
+  the click (`LC-H`, probe `swiftui-lifecycle.swift` `T1`/`T3`). Pressing it
+  again during the fade brings the tile back and the counter does not move
+  (`T4`; divergence 123). Pinned by `anOnDisappearOutsideTheTransitionAlsoWaits`,
+  `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState`,
+  `theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges`.
+  **Observed:**
+- [ ] **T2. Counters stay paired**: press "Toggle tile" quickly five times on
+  and five off (ten presses). At rest the **appeared** and **disappeared**
+  counters are equal (5 and 5), the bars equal length, and the window goes
+  idle (no busy display link). Press the stepper's + three times: **changes**
+  reads 3. Pinned by `anIfThatInsertsContentRunsItsOnAppearOnce`,
+  `anIfThatRemovesContentRunsItsOnDisappearOnce`, `aSettledWindowGoesIdle`,
+  `theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges`.
+  **Observed:**
 
 ## Sign-off
 
