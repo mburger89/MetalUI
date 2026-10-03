@@ -106,3 +106,128 @@ honest fakes; the demo touches no default-mode image.
 **Revised expectations**: 2308 root tests (lane 1 35, lane 2 20, lane 3 26),
 141 guards, `Backends/SDL` +5, live divergences 81 (110–114), next label 115.
 Rulings `MN-U`…`MN-AD`; next unused `MN-AE`.
+
+## §3 Lane 1 — the seam, context menus, SDL input (2026-10-02)
+
+**Commits.** `bdf9d96` (red: the declarations and stubs, the tests),
+`24da763` (implementation), then this record's commit.
+
+**What landed** (spec §2.1–§2.3, §3.1–§3.3, §3.9, §3.11's input; ruling
+`MN-AE` for what building it settled):
+
+- `MetalUIPlatform`: `InputEvent.rightMouseDown`/`.rightMouseUp`/
+  `.menuAction(MenuActionEvent)`; `Menus.swift` (`PlatformKeyEquivalent`,
+  `StandardMenuAction`, `PlatformMenuItem`, `PlatformMenu` — `PlatformMenuBar`
+  is lane 2's); `PlatformWindow.presentMenu(_:at:)` with **no default**:
+  `AppKitWindow` an interim `false` (lane 2 replaces it with `NSMenu`),
+  `SDLWindow` a final `false`, `FakePlatformWindow` a settable answer that
+  records every call, and the three compile-guard fixtures
+  (`ControlStateCompileGuards`, `TransactionCompileGuards`,
+  `DragAndDropCompileGuards`); five roles, `AccessibilityActions.showMenu`,
+  `AccessibilityRequest.showMenu`.
+- `MetalUI`: `MenuContent` (closed: an `@_spi(MenuInternals)` requirement),
+  `MenuContentBuilder`, `MenuItems`, `Divider` (menu-only), the conformances
+  of `Button`/`Toggle` (with a `Text` label), `Text`, `EnvironmentScope` and
+  `Menu` (as a submenu item), and `Menu`'s declaration with its storage
+  (`MN-AD`); `Button`'s `action`/`box`/`shortcut` and `Toggle`'s `isOn`/`box`
+  went from `private` to internal for the item conformances — no public
+  surface moved. `.contextMenu` on `StyledElement` (returns `Self`) and on
+  `ProposalElementGroup` (`ContextualModifier<Content>`, one level for its
+  caller). `Handlers.contextual` (`ContextualAttachment`, a class box):
+  `MemoryLayout<Handlers>.size` **456 → 464**.
+- `Frame.registerHandlers`: the non-opaque contextual region inside the
+  `allowsHitTesting` gate and before the disabled gate (`MN-U`), carrying the
+  element's `isEnabled` (`Hitbox.contextualEnabled`); a per-frame
+  `contextMenuRecords` table for the keyboard and accessibility openers; a
+  context menu counts as something to say for accessibility (`MN-AE` item 2).
+- `Window`: `contextualTarget(at:where:)` (`MN-V`: one ranking over opaque
+  hitboxes and regions, an opaque hit yielding its own or its nearest
+  same-layer ancestor's region); the menu stage and the context-menu stage
+  after the drag session (`MN-F` item 3, `MN-E`); the `.menuAction` stage
+  (token-checked, enabled items only, run under `StateDispatch`); the
+  keyboard opener after the raw `onKey` bubble (`MN-G` item 1, `MN-AE` item
+  4); resize and losing key dismiss the in-window menu; the panel's nodes
+  appended after the builder's isolation (`MN-AB`); `.showMenu` and a press
+  on a panel row in `WindowAccessibility`. `MenuSession.swift` (the session,
+  `ContextMenuKeys`), `MenuPanel.swift` (pure layout and placement, the
+  paint after `paintDragPreview()` through `Frame.fill`/`draw` and the
+  existing shadow — no new primitive).
+- Bridges: AppKit `AXMenu`/`AXMenuItem`/`AXMenuButton`/`AXPopover`, a check
+  item's state as its numeric value (`MN-AE` item 1), and
+  `accessibilityPerformShowMenu` overridden on every element (the inherited
+  one forwards to an unimplemented `accessibilityPerformAction:` and threw an
+  `NSInvalidArgumentException` on the red run). AccessKit `MENU`,
+  `MENU_ITEM`, `MENU_ITEM_CHECK_BOX` (toggled), `BUTTON` + `has_popup MENU`
+  (a new `AccessKitSnapshot.Node.hasPopupMenu`), a non-modal `DIALOG`, and
+  `SHOW_CONTEXT_MENU` both ways.
+- `Backends/SDL`: `SDLBridge.c` reports `SDL_BUTTON_RIGHT` as
+  `MUI_EVENT_RIGHT_DOWN`/`_UP` (appended kinds, nothing renumbered; a
+  ctrl-click stays primary, `MN-AC` item 1), the injection path takes them,
+  and `mui_push_raw_mouse_event` with C-exported `mui_sdl_*` type, button and
+  mask constants drives SDL's own queue in tests; `SDLKeys.named` maps
+  `SDLK_APPLICATION` to `U+F735`.
+- Docs: divergences 110 and 114 (78 live; 111–113 reserved for lane 3, next
+  label 115), four documented absences, migration rows (`presentMenu`, the
+  three enum switches, AppKit's control-click), inventory family
+  `context-menus` (`ContextMenu.swift`, `MenuContent.swift`; `Menus.swift` is
+  the existing `platform` family's catch-all), census **2086 → 2146**, both
+  checks print nothing.
+
+**Red first** (`bdf9d96`, filtered run of the new files): 32 of the 34
+`ContextMenuTests` red, each on its first `#require`/`#expect` (no region
+registered, no `presentMenu` call, no `menuSession`, no `.showMenu` node, or
+`ContextMenuKeys` answering `false`); `theAppKitBridgePublishesTheMenuRoles…`
+red with 6 issues (roles `.group`, no value, `performShowMenu` `false`);
+`Backends/SDL` S1.1 red (9 issues), S3.1 red (the right button dropped), S3.2
+red (no `U+F735`). **Green on arrival, each then reddened by its own
+mutation**: 1.8 `aSecondaryPressNeverRunsOnClickOrATap` (a pin of an
+absence), 1.33 `handlersGainsOneReferenceMember` (the member landed with the
+declarations), S1.2 `anSDLWindowDeclinesToPresentAMenu` (SDL's final answer
+landed with the requirement), and the four guards (declarations). G1.4's
+first run was a broken instrument — the fixture spliced a literal
+`\(member)` — fixed before the red commit.
+
+**Mutations** (each applied after committing, restored from a copy, full
+unfiltered suite, `git status --short` clean after each):
+
+| # | mutation | reddened (and nothing else) |
+|---|---|---|
+| MG1.1 | every `@_spi(MenuInternals)` removed from `MenuContent.swift` | `anOutsideTypeCannotConformToMenuContent` |
+| MG1.2 | `MenuContentBuilder.buildArray` removed (the positive arm's `for` fails; the spec's "Divider made an Element" would need a whole conformance) | `theMenuSpellingsCompileFromAPlainImport` |
+| MG1.3 | `extension Picker: MenuContent` | `aPickerIsNotAMenuItem` |
+| MG1.4 | a protocol-extension default `presentMenu` answering `false` | `aPlatformWindowWithoutPresentMenuDoesNotCompile` |
+| M1.8 | `.rightMouseDown`/`Up` rewritten to `.mouseDown`/`Up` at the top of `onInput` | `aSecondaryPressNeverRunsOnClickOrATap` (3 issues) and every test that opens a menu (35 issues in all) |
+| M1.33 | a second, inline `String?` member beside `contextual` | `handlersGainsOneReferenceMember`, `theNewDeclarationsCostHandlersAtMostOnePointer` |
+
+The remaining rows of spec §6.1's mutation column are the lane verifier's.
+
+**Counts.** `swift build --build-system native --build-tests`: 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice. Unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 2266
+tests in 3 suites passed after 125.920 seconds`** (2227 + 35 + 4 guards),
+the `FR-J no-argument frame: succeeded=true` line present. Guards 133 → 137.
+`Backends/SDL`: **24 + 61** (`MetalUISDLTests` +4: S1.1, S1.2, S3.1, S3.2). Re-taken after
+`swift package clean` (a public type gained a stored property): the same
+2266, passed after 119.436 seconds. `swift build --build-tests` (default build
+system): 0 `warning:`. A `swift:6.4-noble` container (OrbStack, started and
+stopped) builds with 0 `error:`/`warning:` and runs **199 + 22 + 21 + 31 + 18
++ 6**, as at record §73. `MetalUILayout` and `MetalUIScene` untouched;
+`Menus.swift` imports only `MetalUICore`. `DemoFrameDeterminismTests`'
+`Expected.swift` unedited. `ContextualModifier` registers no click, so it gets
+no arm in D2 (`everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`),
+which also has no drop-destination or draggable arm.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> b9da519 HEAD`
+(HEAD `24da763`): **0 differing pixels, scene identical, in all fourteen
+images**; controls as at `b9da519`.
+
+**Stack budget.** The smallest thread building every production tree, by a
+16 KB bisection with the existing harness (`buildEveryProductionTree`, exit
+tests, throwaway file, not committed): **704 KB SIGBUS / 720 KB passes at
+`24da763`; 688 KB SIGBUS / 704 KB passes at `b9da519`** on this machine and
+toolchain (record §73 read 672 KB — a different build, re-measured here
+rather than compared) — one step, from the 8 bytes every `Handlers` gained;
+inside 1 MB (`everyProductionTreeBuildsOnAOneMegabyteThread` green).
+
+**Not taken.** The real-window capture and any demo launch: the lock probe
+read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`.
