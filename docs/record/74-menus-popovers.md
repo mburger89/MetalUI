@@ -231,3 +231,24 @@ inside 1 MB (`everyProductionTreeBuildsOnAOneMegabyteThread` green).
 
 **Not taken.** The real-window capture and any demo launch: the lock probe
 read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`.
+
+### §3.1 Lane 1 review fix round (2026-10-02)
+
+Five review findings (two major, three minor), each answered red-first by a
+mutation run through the full unfiltered suite (`--build-system native
+--no-parallel`, one summary line each; `git status --short` empty after every
+restore). Unmutated: **`Test run with 2269 tests in 3 suites passed after
+120.510 seconds`** (2266 + 3 new tests; 1.4 gained arms, not a test), the
+`FR-J no-argument frame: succeeded=true` line present.
+
+| Finding | Answer | Mutation | Reddened |
+|---|---|---|---|
+| keyboard opener unreached (major) | internal seam `Window.contextMenuKeyPlatform` (defaults to `TextEditing.platform`, read by `dispatchContextMenuKey`); test 1.29b `shiftF10AndTheMenuKeyOpenTheFocusedElementsAncestorsMenuOffApple` | `for id in focusChain` → `focusChain.first` | 1.29b only (2 issues) |
+| `MN-AE` item 3 unpinned (major) | test 1.30b `aDisabledElementAdvertisesNoShowMenuButTheRequestOpensItsMenuDisabled` | advertise `.showMenu` without `record.isEnabled` | 1.30b only |
+| | | refuse `.showMenu` for a disabled record | 1.30b only (2 issues) |
+| `MN-AE` item 6 unpinned (minor) | test 1.38 `aFocusedFieldsSpaceChoosesTheHighlightedInWindowItem` (positive control: with the menu closed the same `.textInput(" ")` types) | `text == " "` → `text == "never"` | 1.38 only (3 issues) |
+| 1.4 cannot see per-frame caching (minor) | 1.4 gains two no-frame arms: Flag re-chosen (blind — a toggle reads its binding when the platform items are built, so caching `MenuItems` leaves it green, found by running), and a title read from the model in the content closure | cache `MenuItems` in the frame's `ContextualAttachment` | green before the title arm; `theMenuIsEvaluatedAtEachOpen` only after |
+| migration row not live (minor) | `docs/migration.md`'s control-click row marked *pending lane 2* | — | — |
+
+The seam is internal and production never writes it; no public declaration,
+census or inventory row moves. Nothing in `Sources/` changes behaviour.
