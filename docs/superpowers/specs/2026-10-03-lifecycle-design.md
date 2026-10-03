@@ -1,8 +1,8 @@
 # Lifecycle modifiers — onAppear, onDisappear, onChange — design
 
-**Status: lane 1 IMPLEMENTED (2026-10-03, `LC-Q`) — lane 2 owed.** User request
+**Status: lanes 1 and 2 IMPLEMENTED (2026-10-03, `LC-Q`, `LC-T`) — the Record phase owed.** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
-Rulings `LC-A`…`LC-Q` (`LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
+Rulings `LC-A`…`LC-T` (`LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).
 Record: `docs/record/76-lifecycle.md` (Record phase). Probes (new, outputs in
 their headers): `docs/probes/swiftui-lifecycle.swift` (SwiftUI, run three
@@ -382,10 +382,18 @@ Expected count after both lanes (corrected by `LC-P` item 4: tests 10.2 and
 2376 + 47 (lane 1: 44 tests with `LC-Q`'s 1.5b + 3 guards) + 1 (lane 2's 10.1) = **2424 tests**
 in the main package, `canTypecheck`-gated declarations 146 → 149;
 `Backends/SDL` + 2. Re-measure; a count is stale when a test lands.
+**Measured (`LC-T` item 5):** `LC-S` added five (2428), so with 10.1 the main
+package reads **2429 tests in 3 suites**; `Backends/SDL` **24 + 65**.
 
 ## 6. Demo (lane 2)
 
-`looksLifecycleSection()` in `LooksDemo.swift`, its own function passed to
+**As built (`LC-T` items 2–3):** the section is `LooksLifecycle()` alone
+(its title inside the component's body), composed beside H1 by its own
+`looksBesideH1(text:lifecycle:)` and passed to `looksRoot` as its `text:`
+argument — under the transitions the looks content grew past its 880-point
+window, and composed inline or with an outer `Column` the tree overflowed a
+1 MB thread; the counters sit two by two; the title line gains "T1–T2". As
+designed: `looksLifecycleSection()` in `LooksDemo.swift`, its own function passed to
 `looksRoot` as a seventh argument (title line gains "T1"): a
 `LooksLifecycle: Component` with `@State var appeared = 0, disappeared = 0,
 faded = 0, changes = 0, shown = false, fadingShown = false, value = 0`;

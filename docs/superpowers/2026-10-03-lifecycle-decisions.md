@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-T`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-U`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -759,3 +759,79 @@ Test 5.5 pins divergence 125 and is green by design; its separating arm is
 
 **Cost if wrong.** Item 1 is a recorded divergence with a working spelling;
 items 2–5 and 7 add pins only.
+
+## LC-T — Lane 2's findings: a demo census, the 1 MB stack twice, the SDL test target, the count
+
+**Ruling.** Lane 2 built the looks demo's lifecycle section (`LC-N`), tests
+10.1–10.3, the API overview's Lifecycle section, the migration subsection and
+human-checks group T, and measured five places the design did not foresee.
+
+1. **`CloseoutTests` F1.3 counts the looks demo's clickable hitboxes** (ten
+   since colour: nine transition buttons and the scheme toggle). The section
+   adds four — its two buttons and its stepper's two halves — so the pin reads
+   **fourteen**, and since the section sits above the transitions (item 2) the
+   test finds the first transition button as the topmost of the nine sharing
+   one left edge, not the topmost of all. An edited existing test, owed by the
+   demo, not a moved rule.
+2. **Placement: beside H1, not under the transitions.** Under the transitions
+   the looks content measured **1000** points tall (804 at `047f0ab`), past
+   the 1180 × 880 window `MetalUIDemo` opens it in; at the foot of the left
+   column, 968. Beside H1's narrow column, compacted (counters two by two), it
+   measures **817** — the window still holds it. Measured headless
+   (`looksDemoContent()` in a 1400-point fake window, the extent of every rect
+   narrower than the window).
+3. **The 1 MB thread overflowed twice** (`everyProductionTreeBuildsOnAOneMegabyteThread`,
+   the Windows stack rule). Composing the `Row { text; lifecycle }` inline in
+   `looksRoot` failed on macOS arm64 (`.signal(SIGBUS)`, two runs out of two);
+   moving it into its own `looksBesideH1(text:lifecycle:)` passed on macOS but
+   failed in `swift:6.4-noble` aarch64 (`.signal(SIGSEGV)`; green at lane 1's
+   head `8cefc01`). The section is now `LooksLifecycle()` alone, its title
+   inside the component's body (built lazily, not as part of the tree value):
+   green on both. **Windows' own 1 MB thread is not measured here** — CI
+   confirms on push.
+4. **`Backends/SDL`'s test target gains `MetalUI`** (`Package.swift`, outside
+   `LC-O`'s file list): tests 10.2 and 10.3 drive an `App` over a hidden-window
+   `SDLPlatform`. The SDL window `App` opened is reached through a forwarding
+   `Platform` in the test file (`SDLPlatform.windows` is private), so nothing
+   in `Sources/` changes.
+5. **The expected count.** Spec §5.3's 2424 predates `LC-S`'s five
+   (2428 at `8cefc01`); with test 10.1 the main package reads **2429 tests in
+   3 suites**. `Backends/SDL` reads **24 + 65** (63 + tests 10.2, 10.3).
+
+Also: `docs/divergences.md`'s "Not offered" table has no row for `.task`
+(`LC-L` defers it with an owner); the API overview and the migration page say
+so and link `LC-L`'s reason. Adding the row belongs to the Record phase
+(`divergences.md` is lane 1's file).
+
+**Measured.** On `feat/lifecycle`, each mutation applied by a script to the
+spelling at `e3394e8`, the full unfiltered suites run (native `swift test
+--no-parallel`, 6-minute hang limit, none hung; and `Backends/SDL`'s `swift
+test` with `PKG_CONFIG_PATH=$PWD/.accesskit` where named), the file restored
+from a copy, `git status --short` clean after each:
+
+| # | spelling mutated | main package | `Backends/SDL` |
+|---|---|---|---|
+| M10.1 | `LooksDemo.swift`: `.onDisappear { disappeared += 1 }` → `.onDisappear { appeared += 1 }` | 1 test: `theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges` | not run (the demo is not in it) |
+| M10.2 | `Window.drawFrameIfNeeded`: the whole `if drainLifecycle() { … drainLifecycle() }` block deleted | 39 tests, 58 issues: every `LifecycleTests` test that runs an action (1.1–1.12 but 1.8, 2.1–2.4, 3.1–3.4, 4.1–4.4, 4.6, 4.7, 5.1, 5.2, 5.4–5.6, 6.1–6.6, 7.1) and `theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges` | 2 tests: `anOnAppearRunsInAnSDLWindowsFirstFrame`, `closingAnSDLWindowRunsItsOnDisappear` (its `try #require` that the first frame appeared) |
+| M10.3 | `App.openWindow`'s `onClose`: `window?.runDisappearancesForClose()` deleted | 2 tests: `closingTheWindowRunsEveryPresentOnDisappearOnce`, `closingTheWindowAlsoRunsParkedDisappearances` | 1 test: `closingAnSDLWindowRunsItsOnDisappear` |
+
+Red before the section existed (test 10.1, `5a0a6cc`):
+`LooksLifecycleDemoTests.swift:56:9: Expectation failed: halves.count == 2 —
+the stepper's two halves: []`. Tests 10.2 and 10.3 passed on arrival (lane 1
+committed); their red is M10.2 and M10.3.
+
+**Gate, at `d294515`.** Native: `Test run with 2429 tests in 3 suites
+passed`, `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice; `swift build --build-tests` 0
+`warning:`. Pixels: `compare.sh <scratch> 047f0ab HEAD` — controls as recorded
+in record §75 (1048576, 1031003, 454895, 0, 1048576, 0; 544 and 216 distinct),
+all fourteen images `differing=0`, `scene identical`; `Expected.swift`
+unedited. `swift:6.4-noble` (OrbStack, already running, left running; `git
+archive` plus the fixed file): 0 `warning:`/`error:`, 199 + 22 + 36 passed.
+`Backends/SDL`: 0 `error:`, 24 + 65 passed. Both closeout scripts print
+nothing (no public declaration added). Lock probe:
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` — no real-window
+capture, no demo launch; group T stays owed.
+
+**Cost if wrong.** Items 1–3 are the demo's; item 4 is a test-target
+dependency; item 5 is a count.
