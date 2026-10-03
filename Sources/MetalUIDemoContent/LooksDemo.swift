@@ -7,8 +7,9 @@ import MetalUI
 /// clip, images and their interpolation), **J1** (gestures on a trackpad),
 /// **K1–K3** (transitions, Reduce Motion's cross-fade, `.scale`'s mid-flight
 /// glyphs) and, since paths, shadows and transforms, **Q1–Q6** (paths, strokes
-/// and dashes, shadows, rotated and scaled content). It asserts nothing; a
-/// human looks.
+/// and dashes, shadows, rotated and scaled content) and, since colour and colour
+/// scheme, **S1–S3** (literal, dynamic and palette colours, live appearance
+/// switching, the scheme toggle). It asserts nothing; a human looks.
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move. Every section is its own function, passed as
@@ -21,15 +22,16 @@ public func looksDemoContent() -> some Element {
               shapes: looksShapesSection(),
               gestures: looksGesturesSection(),
               transitions: looksTransitionsSection(),
-              pathsShadowsTransforms: looksPathsShadowsTransformsSection())
+              pathsShadowsTransforms: looksPathsShadowsTransformsSection(),
+              colour: looksColourSection())
 }
 
 @MainActor
 private func looksRoot(text: some Element, shapes: some Element,
                        gestures: some Element, transitions: some Element,
-                       pathsShadowsTransforms: some Element) -> some Element {
+                       pathsShadowsTransforms: some Element, colour: some Element) -> some Element {
     Column(gap: Pixels(18)) {
-        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6").font(size: 20)
+        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3").font(size: 20)
         Row(gap: Pixels(32)) {
             Column(gap: Pixels(18)) {
                 text
@@ -44,6 +46,7 @@ private func looksRoot(text: some Element, shapes: some Element,
             .alignItems(.flexStart)
         }
         .alignItems(.flexStart)
+        colour
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
@@ -306,5 +309,117 @@ struct LooksRotatingSquare: Component {
             .hoverBackground(.separator)
             .rotationEffect(.degrees(Double(turns) * 45))
             .onTapGesture { withAnimation(.easeInOut(duration: 0.6)) { turns += 1 } }
+    }
+}
+
+// MARK: - S1–S3: colour and colour scheme
+
+/// The looks demo's app palette key (ruling `CR-N`): a purple that follows
+/// light and dark through the window's theme. `MetalUIDemo` overrides its dark
+/// value with ``looksBrandDarkOverride`` when `METALUI_LOOKS_DEMO=1`, so the
+/// palette swatch shows a theme override, not the key's default (human check
+/// S1).
+public enum LooksBrand: ThemeColorKey {
+    /// A purple: `(0.55, 0.25, 0.85)` light, `(0.70, 0.45, 0.95)` dark.
+    public static var defaultValue: Color {
+        Color(light: Color(red: 0.55, green: 0.25, blue: 0.85),
+              dark: Color(red: 0.70, green: 0.45, blue: 0.95))
+    }
+}
+
+/// The demo's override of ``LooksBrand`` in the dark theme variant — a green
+/// unlike the key's dark default — set by `MetalUIDemo` with
+/// `app.darkTheme[LooksBrand.self] = looksBrandDarkOverride`.
+public let looksBrandDarkOverride = Color(red: 0.30, green: 0.85, blue: 0.70)
+
+/// The 22 swatches in order (spec §7 item 1): SwiftUI's thirteen hues, the
+/// three fixed colours, the three semantic statics, a fixed literal, a
+/// `Color(light:dark:)` and the palette colour.
+private let looksColourSwatches: [(String, Color)] = [
+    ("gray", .gray), ("red", .red), ("orange", .orange), ("yellow", .yellow),
+    ("green", .green), ("mint", .mint), ("teal", .teal), ("cyan", .cyan),
+    ("blue", .blue), ("indigo", .indigo), ("purple", .purple),
+    ("pink", .pink), ("brown", .brown), ("black", .black), ("white", .white),
+    ("clear", .clear), ("primary", .primary), ("secondary", .secondary),
+    ("accentColor", .accentColor),
+    ("literal", Color(red: 0.2, green: 0.4, blue: 0.6)),
+    ("light/dark", Color(light: Color(red: 0.95, green: 0.75, blue: 0.20),
+                         dark: Color(red: 0.20, green: 0.30, blue: 0.75))),
+    ("LooksBrand", Color(LooksBrand.self)),
+]
+
+/// **S1–S3.** Every swatch is a 28 × 28 `Color` view over a `.separator`
+/// border (so `white` and `clear` show), labelled in `.secondary`; a label
+/// that reads `@Environment(\.colorScheme)` while building; and a button
+/// cycling System → Light → Dark through `.preferredColorScheme`, which is
+/// window-wide (`CR-L`): the whole window, title bar included, follows it.
+@MainActor
+private func looksColourSection() -> some Element {
+    Column(gap: Pixels(8)) {
+        Text("S1–S3 · colour and colour scheme").font(size: 15)
+        LooksColourSection()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The colour section's state: the scheme the toggle prefers (`nil` =
+/// System, the window's own appearance).
+struct LooksColourSection: Component {
+    @State var choice: ColorScheme? = nil
+
+    private var choiceName: String {
+        switch choice {
+        case nil: "System"
+        case .light?: "Light"
+        case .dark?: "Dark"
+        }
+    }
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(8)) {
+            Row(gap: Pixels(4)) {
+                ForEach(Array(0..<11), id: \.self) { index in LooksSwatch(index: index) }
+            }
+            Row(gap: Pixels(4)) {
+                ForEach(Array(11..<looksColourSwatches.count), id: \.self) { index in LooksSwatch(index: index) }
+            }
+            Row(gap: Pixels(16)) {
+                LooksSchemeLabel()
+                Button("Appearance: \(choiceName)") {
+                    switch choice {
+                    case nil: choice = .light
+                    case .light?: choice = .dark
+                    case .dark?: choice = nil
+                    }
+                }
+            }
+        }
+        .alignItems(.flexStart)
+        .preferredColorScheme(choice)
+    }
+}
+
+/// One swatch and its label, 92 wide so the two rows line up.
+struct LooksSwatch: Component {
+    let index: Int
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(3)) {
+            looksColourSwatches[index].1
+                .frame(width: Pixels(28), height: Pixels(28))
+                .border(.separator, width: Pixels(1))
+            Text(looksColourSwatches[index].0).font(size: 11).foregroundColor(.secondary)
+        }
+        .frame(width: Pixels(92))
+    }
+}
+
+/// Prints the scheme it read while building — `scheme: light` or
+/// `scheme: dark` (human check S2).
+struct LooksSchemeLabel: Component {
+    @Environment(\.colorScheme) var scheme
+
+    var content: some ElementGroup {
+        Text(scheme == .dark ? "scheme: dark" : "scheme: light")
     }
 }
