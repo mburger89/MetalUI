@@ -330,6 +330,9 @@ Departed state:
 | 5.2 | `aWriteInOnDisappearIsLostAndReturningContentStartsFresh` | written 99, never-written slot written too; returned content reads 0 for both (`D1`) | overlay writes fall through to `storage` |
 | 5.3 | `noDepartedValuesAreKeptWithoutAnOnDisappear` | `lastDepartedValueCount == 0` for an `if` removal with no lifecycle modifier | `retainsDepartedValues = true` always |
 | 5.4 | `aListRowsOnDisappearReadsItsRetainedLiveState` | the row's live `@State` value, not the initial | `peek` under `withDepartedOverlay` answers only from the overlay (nil outside it) — `LC-P` item 5 |
+| 5.5 | `aNeverWrittenStateDefaultIsReseededSoOnAppearAndOnDisappearSeeDifferentInstances` | pins divergence 125 (`D2`, `LC-S` item 1): start 1, stop a later instance | green by design; separating arm 5.6 |
+| 5.6 | `aMonitorAssignedInOnAppearIsTheOneOnDisappearStops` | the documented spelling starts and stops one instance | `departedOverlay = nil` (M5.1) |
+| 5.7 | `eachRemovalCountsOnlyTheDepartedValuesItsOwnSweepKept` | `takeDepartedState()` empties its buffers (`LC-S` item 3) | delete its clearing `defer` (V3) |
 
 Transitions (`startsDisplayLink: true`, `simulateTick(timestamp:)`):
 
@@ -340,6 +343,7 @@ Transitions (`startsDisplayLink: true`, `simulateTick(timestamp:)`):
 | 6.3 | `aParentAndItsChildUnderOneGhostDisappearTogetherChildFirst` | `[child, parent]` after the fade (`T5`) | release parked events in stored order reversed |
 | 6.4 | `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` | re-inserted at t + 0.15: no disappear, no second appear, ever; nested `@State` reads initial (`T4`; divergence 123) | do not cancel a parked event whose key returned |
 | 6.5 | `anUnanimatedRemovalDisappearsAtOnceAndAnAnimatedInsertionAppearsAtOnce` | `T0`, `T2` | park every disappearance for one build |
+| 6.6 | `aGhostParkedOnDisappearReadsTheStateItsElementHad` | a ghost-parked `onDisappear` reads `a = 7` (`LC-I` item 1, `LC-S` item 2) | the parked event built with `departed: nil` (V1) |
 
 Window and headless:
 
@@ -363,6 +367,7 @@ Performance (branching tree, literals derived before the run):
 | 9.1 | `theLifecycleSpellingsTypecheckFromAnExternalModule` | `typecheckFile`, plain `import MetalUI`: `.onAppear { model.start() }` (`@MainActor` model), `.onAppear()`, `.onDisappear(perform: f)`, `.onChange(of: x) { old, new in }`, `{ }`, `{ _, _ in }`, `initial: true`, on `Text` and `ProposalText`, then `.frame`/`.id` after | delete the zero-parameter overload |
 | 9.2 | `aNonEquatableOnChangeValueDoesNotCompile` | negative | drop the `Equatable` constraint |
 | 9.3 | `aLegacyDecorationAfterALifecycleModifierDoesNotCompile` | negative: `Text("a").onAppear {}.onClick {}` (divergence 120) | move `.onClick` before `.onAppear` in the fixture |
+| 9.4 | `aLifecycleModifierOnAWindowRootNeedsAContainer` | negative: `openWindow(…) { Text("a").onAppear {} }`; positive: the root inside `Column { }` (divergence 120, `LC-S` item 7) | wrap the negative's root in `Column { }` (MG9.4) |
 
 ### 5.3 Lane 2 tests
 

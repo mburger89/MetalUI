@@ -735,7 +735,27 @@ and two documentation errors. Each is fixed here; nothing in
    the same root inside `Column { }`). Mutation MG9.4 (the negative's root
    wrapped).
 
-**Measured.** See the table below (filled by the fix pass's mutation runs).
+**Measured.** On `feat/lifecycle` at `e4f8f1d` (the fix pass's tests
+committed first), each mutation applied by a script, `swift build
+--build-system native --build-tests`, the **full unfiltered** `swift test
+--build-system native --no-parallel` (6-minute hang limit, none hung), the
+file restored with `git checkout` and `git status --short` clean after each.
+Unmutated baseline: **2428 tests in 3 suites passed** (2423 + tests 5.5, 5.6,
+5.7, 6.6 and guard 9.4); `FR-J no-argument frame: succeeded=true`;
+`LC-B window root: positive succeeded=true; negative succeeded=false`. Every
+row printed `Test run with 2428 tests in 3 suites`.
+
+| # | spelling mutated | result | tests reddened |
+|---|---|---|---|
+| V1 | parked event: `Parked(key:, event: LifecycleEvent(owner: event.owner, action: event.action, departed: nil))` | 1 test | `aGhostParkedOnDisappearReadsTheStateItsElementHad` |
+| V3 | `takeDepartedState()`'s `defer { departedValues.removeAll(); departedRootsKept.removeAll() }` deleted | 1 test (2 issues) | `eachRemovalCountsOnlyTheDepartedValuesItsOwnSweepKept` |
+| V5 | `runDisappearancesForClose`: `event.action()` without `StateDispatch.dispatching` | 1 test | `closingTheWindowRunsEveryPresentOnDisappearOnce` |
+| V14 | `} else {` with only the `onAppear` under `!cancelled.contains(key)` (the `initial: true` firing outside it) | 1 test | `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
+| M5.1 | `departedOverlay = nil` in `withDepartedOverlay` (re-run for 5.6) | 5 tests | `aGhostParkedOnDisappearReadsTheStateItsElementHad`, `aMonitorAssignedInOnAppearIsTheOneOnDisappearStops`, `aWriteInOnDisappearIsLostAndReturningContentStartsFresh`, `eachRemovalCountsOnlyTheDepartedValuesItsOwnSweepKept`, `onDisappearReadsItsOwnStateAsItWasLastFrame` |
+| MG9.4 | guard 9.4's negative fixture: root wrapped in `Column { }` | 1 test | `aLifecycleModifierOnAWindowRootNeedsAContainer` |
+
+Test 5.5 pins divergence 125 and is green by design; its separating arm is
+5.6 (one instance, where 5.5 reaches two).
 
 **Cost if wrong.** Item 1 is a recorded divergence with a working spelling;
 items 2–5 and 7 add pins only.
