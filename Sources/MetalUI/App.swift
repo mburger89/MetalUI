@@ -37,6 +37,12 @@ public final class App {
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
     /// Whether closing the last window ends the process through AppKit.
     private let terminatesThroughAppKit: Bool
+    /// The menu bar's commands, `nil` until `commands(content:)` (ruling
+    /// `MN-I`); re-evaluated whenever the bar's content is needed.
+    var commandsContent: (@MainActor () -> any Commands)?
+    /// The command items' actions from the bar's last evaluation, by item id —
+    /// what `PlatformMenuBar.perform` runs (spec §3.6).
+    var menuBarActions: [Int: @MainActor () -> Void] = [:]
 
     #if canImport(MetalUIAppKit)
     /// The Metal device the AppKit platform draws with; `nil` for an app on

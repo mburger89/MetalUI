@@ -24,6 +24,21 @@ final class MetalHostView: NSView {
     /// from (ruling `DN-K` item 2).
     var lastDragEvent: NSEvent?
 
+    /// The event AppKit is dispatching — `NSApp.currentEvent` in production; a
+    /// test scripts it (ruling `MN-AA`: an Edit action tells a menu click from
+    /// a declined key equivalent by it).
+    var currentEvent: @MainActor () -> NSEvent? = { NSApp.currentEvent }
+
+    /// The last key equivalent offered to the window, by identity (`MN-J` item
+    /// 3): AppKit may hand the same declined event to `keyDown(with:)`, and an
+    /// Edit action may run with it current (`MN-AA`); neither delivers it again.
+    var lastOfferedKeyEquivalent: NSEvent?
+
+    /// Whether a control-press is in flight (`MN-B`, `MN-AC` item 1): it went
+    /// out as `.rightMouseDown`, so its up is `.rightMouseUp` and a drag in
+    /// between is dropped.
+    var controlClickInFlight = false
+
     init(surface: MetalLayerSurface) {
         self.surface = surface
         super.init(frame: .zero)
@@ -641,6 +656,21 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         false
     }
 
+    /// Pops `menu` up at `point` (host-view coordinates) in `view` and returns
+    /// once AppKit's tracking loop ends — `NSMenu.popUp(positioning:at:in:)`
+    /// in production; a test injects a presenter that performs an item or
+    /// dismisses (spec §3.5).
+    var menuPresenter: @MainActor (NSMenu, NSPoint, NSView) -> Void = { menu, point, view in
+        menu.popUp(positioning: nil, at: point, in: view)
+    }
+
+    /// Runs `deliver` after `presentMenu` has returned, never inside it (`MN-C`
+    /// item 4) — the next main-actor turn in production; a test holds the block
+    /// and runs it after the call.
+    var scheduleMenuOutcome: @MainActor (_ deliver: @escaping @MainActor () -> Void) -> Void = { deliver in
+        Task { @MainActor in deliver() }
+    }
+
     /// Starts an `NSDraggingSession` from `event` — the host view's own in
     /// production; a test injects a recorder (ruling `DN-X` item 1).
     lazy var startDraggingSession: @MainActor ([NSDraggingItem], NSEvent) -> Void = { [weak self] items, event in
@@ -740,6 +770,9 @@ public final class AppKitPlatform: Platform {
         iconImage = AppKitIcon.image(from: images)
         NSApplication.shared.applicationIconImage = iconImage
     }
+
+    /// Lane 2 red stub (ruling `MN-I` item 3): installs nothing yet.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) {}
 
     /// Runs `NSApplication`'s event loop; returns when the application stops.
     public func run() {

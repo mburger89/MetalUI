@@ -93,3 +93,26 @@ public struct PlatformMenu: Sendable, Equatable {
         self.items = items
     }
 }
+
+/// The application's menu bar (ruling `MN-I`): the content, asked for whenever
+/// the platform needs it — at install and each time one of its menus opens, so
+/// a toggle's state and a disabled item stay live — and the callback a chosen
+/// command item runs. Handed to `Platform.setMenuBar(_:)`.
+///
+/// Every item's `id` is unique across the whole bar; a `standardAction` item is
+/// the platform's own command (Quit, Copy …) and never reaches `perform`.
+public struct PlatformMenuBar {
+    /// The bar's top-level menus, left to right, evaluated afresh at each call.
+    public var content: @MainActor () -> [PlatformMenu]
+    /// Runs the command item `item` (an id from the last `content()`), from
+    /// input.
+    public var perform: @MainActor (_ item: Int) -> Void
+
+    /// A menu bar whose menus are `content()` and whose command items run
+    /// through `perform`.
+    public init(content: @escaping @MainActor () -> [PlatformMenu],
+                perform: @escaping @MainActor (_ item: Int) -> Void) {
+        self.content = content
+        self.perform = perform
+    }
+}

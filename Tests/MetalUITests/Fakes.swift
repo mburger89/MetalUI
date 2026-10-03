@@ -419,4 +419,11 @@ final class FakePlatform: Platform {
     func setApplicationIcon(_ images: [ImageTexture]) {
         iconCalls.append(images)
     }
+
+    /// Every `setMenuBar` argument, in call order (ruling `MN-I` item 3).
+    private(set) var menuBars: [PlatformMenuBar] = []
+
+    func setMenuBar(_ menuBar: PlatformMenuBar) {
+        menuBars.append(menuBar)
+    }
 }

@@ -153,6 +153,21 @@ public protocol Platform: AnyObject {
     /// conformer outside this repository adds
     /// `func setApplicationIcon(_: [ImageTexture]) {}`.
     func setApplicationIcon(_ images: [ImageTexture])
+
+    /// Installs the application's menu bar (ruling `MN-I`): AppKit builds
+    /// `NSApp.mainMenu` from `menuBar.content()`, rebuilding a menu each time
+    /// it opens, and runs a chosen command item through `menuBar.perform`;
+    /// SDL records it and draws nothing (Linux and Windows SDL windows have no
+    /// menu bar — a command's shortcut still works through `Window`, `MN-J`).
+    /// `App` calls it once at init and again from `App.commands(content:)`; a
+    /// later call replaces the bar.
+    ///
+    /// **No default implementation** (`AB-R`/`EV-AB`/`DN-C`'s reason): a
+    /// conformer that forgets it fails to compile rather than silently showing
+    /// no menu bar. Pinned by `aPlatformWithoutSetMenuBarDoesNotCompile`.
+    /// **Migration**: a conformer outside this repository adds
+    /// `func setMenuBar(_: PlatformMenuBar) {}`.
+    func setMenuBar(_ menuBar: PlatformMenuBar)
 }
 
 /// Why a platform could not open a window.

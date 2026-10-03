@@ -195,8 +195,15 @@ public struct Menu<Label: ElementGroup, Content: MenuContent> {
     @MainActor
     public init(@MenuContentBuilder content: @escaping @MainActor () -> Content,
                 @ElementBuilder label: () -> Label) {
-        self.style = Style()
-        self.decoration = Decoration()
+        // `Button`'s automatic chrome (lane 2, `MN-H` item 1): a caller's
+        // `.background`/`.border` replaces it as it would on a `Button`.
+        var style = Style()
+        style.flexDirection = .row
+        style.alignItems = .center
+        style.justifyContent = .center
+        self.style = style
+        self.decoration = Decoration(background: .surfaceSecondary, cornerRadius: Pixels(5),
+                                     border: BorderStyle(.separator, width: Pixels(1)))
         self.content = content
         self.label = label()
     }

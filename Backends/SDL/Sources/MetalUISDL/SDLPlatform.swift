@@ -126,6 +126,13 @@ public final class SDLPlatform: Platform {
         applyIcon(to: Array(windows.values))
     }
 
+    /// The menu bar `App` last installed (ruling `MN-I` item 3), read by a
+    /// test. Lane 2 red stub: not stored yet.
+    private(set) var menuBar: PlatformMenuBar?
+
+    /// Lane 2 red stub.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) {}
+
     /// Builds one surface for the stored icon, sets it on `targets` and
     /// destroys it at once (`SDL_SetWindowIcon` keeps its own copy), so no
     /// surface outlives the call. Nothing with no icon or no target.

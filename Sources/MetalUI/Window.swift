@@ -1614,6 +1614,11 @@ public final class Window {
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
     var menuSession: MenuSession?
 
+    /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
+    /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
+    /// command stage. `nil` for a window built without an `App`.
+    var commandShortcuts: (@MainActor () -> [(KeyboardShortcut, @MainActor () -> Void)])?
+
     /// The last menu token handed out; each presentation takes the next.
     var lastMenuToken = 0
 
