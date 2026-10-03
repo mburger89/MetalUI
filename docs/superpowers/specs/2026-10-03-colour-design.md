@@ -250,8 +250,9 @@ frame's variant for the new scheme (`CR-S`). `.theme(t)` sets `theme` only.
 case: values unchanged; in **both** `EnvironmentScope.requestGroupLayout` and
 `requestProposalGroupLayout`, `frame.withColorSchemePreference(value) { content }`:
 if `frame.preferenceScopeDepth == 0 && frame.preferredColorScheme == nil`,
-record `value` — into the main root's slot, or, while a presentation root is
-being laid out, the presentation slot; the main root's non-nil value wins
+record `value` — into the main tree's slot, or, while a presentation root's
+content is being **built** (an `AnchoredPresentation`; a `Deferred` whose content
+turns out absolute), the presentation slot (`CR-Y` item 1); the main root's non-nil value wins
 (`CR-T`); depth `+= 1` around the content. Prepaint and paint do
 nothing. After `renderRoot(frame)`: if `framesDrawn == 0` and the collected
 preference changes the effective scheme, apply it, **adopt the first build in
@@ -386,12 +387,12 @@ the `BackgroundChainTests`. A test broken only by a stored property's retyping
 | 2.3 | `aReportOfTheCurrentSchemeDoesNotWakeTheDisplay` | after a settled frame, `simulateAppearanceChange(.light)` in a light window leaves `needsRedraw == false` | `window.colorScheme` does not compile | remove `colorScheme`'s equality guard |
 | 2.4 | `readingTheColorSchemeInEveryPhaseLetsTheDisplayLinkPause` | an element reading `pass.environment.colorScheme` in layout, prepaint and paint; after two draws a third `drawFrameIfNeeded()` pauses (`pausesEntered` + 1, `framesDrawn` unchanged) | stamp absent | write the stamp into `Window.environment` each draw (its `didSet` dirties) |
 | 2.5 | `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree` | light window, `window.darkTheme = custom`: a `.background(.surface)` under `.environment(\.colorScheme, .dark)` reads `custom.surface`, its sibling `Theme.light.surface` (probe `V1`) | `darkTheme` does not compile | drop the variant re-stamp in `scopedValues` |
-| 2.6 | `aSelfResetBelowADarkScopeReadsLightAndTheLightVariant` | `.environment(\.self, EnvironmentValues())` under a dark scope: scheme `.light`, `.surface` = light variant | — | re-stamp `colorScheme` from the top after a transform |
+| 2.6 | `aSelfResetBelowADarkScopeReadsLightAndTheLightVariant` | `.environment(\.self, EnvironmentValues())` under a dark scope: scheme `.light`, `.surface` = light variant | — | select a variant only on a change *to* dark (M2.6b; the original spelling, re-stamping `colorScheme` from the top, also disables the dark scope the test stands on, `CR-Y`) |
 | 2.7 | `anExplicitThemeScopePinsTokensButNotTheScheme` | `.theme(.dark)` in a light window: `.surface` dark, `colorScheme` `.light`, `.red` the light half (`CR-K` 3) | — | `.theme(_:)` also writes `colorScheme = .dark` |
 | 2.8 | `preferredColorSchemeIsWindowWide` | child `.preferredColorScheme(.dark)` (probe `P1`): the **sibling** logs `.dark` next frame; the fake recorded `[.dark]` | modifier does not compile | implement it as a scope write (`.environment(\.colorScheme, …)`): the sibling arm reddens |
-| 2.9 | `thePreferredColorSchemeReductionMatchesSwiftUI` | arms `P3` dark, `P4` light, `P5` light, `P6` none (platform's), `P7` dark — each its own window | — | last-wins (P3, P4 redden); separately, inner-wins (P5, P6 redden) |
+| 2.9 | `thePreferredColorSchemeReductionMatchesSwiftUI` | arms `P3` dark, `P4` light, `P5` light, `P6` none (platform's), `P7` dark — each its own window; arm `PR` (`CR-T`, `CR-Y`): a popover whose content prefers dark, declared before a sibling preferring light → light, and without that sibling → dark; arm `PD`: the same for an absolute `Deferred`, plus an in-flow `Deferred` (main tree, walk order) → dark | — | last-wins (P3, P4 redden); separately, inner-wins (P5, P6 redden); plain walk order (PR main, PD main redden) |
 | 2.10 | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` | legacy and proposal arms: the same tree with and without `.preferredColorScheme(.dark)` lays out identically, and a `@State` counter below it survives a change of the preferred value | — | make the scope consume a cursor slot (both arms); separately, record the preference only in `requestGroupLayout` (the proposal arm reddens, `OM-AI`) |
-| 2.11 | `aRootPreferenceIsInTheFirstPresentedFrame` | root `.preferredColorScheme(.dark)` in a light fake: after the window's first `drawFrameIfNeeded()`, `framesDrawn == 1` and `lastScene`'s `.surface` rect is `Theme.dark.surface` | — | drop the first-frame rebuild |
+| 2.11 | `aRootPreferenceIsInTheFirstPresentedFrame` | root `.preferredColorScheme(.dark)` in a light fake: after the window's first `drawFrameIfNeeded()`, `framesDrawn == 1` and `lastScene`'s `.surface` rect is `Theme.dark.surface`; `StateTable.count` equals a one-build control's (`CR-Q`, `CR-Y` item 4); `needsRedraw == false` | — | drop the first-frame rebuild |
 | 2.12 | `aLaterPreferenceChangeAppliesOnTheNextFrame` | state flipped from input: the next frame is light and dirty, the one after dark, then `needsRedraw == false` | — | never re-dirty on a changed preference |
 | 2.13 | `clearingThePreferenceReturnsToThePlatformsAppearance` | `.dark` → `nil` (`P8b`): the fake records `[.dark, nil]`, scheme = the fake's appearance | — | keep the last non-nil |
 | 2.14 | `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` | `window.preferredColorScheme = .light`, tree `.dark` → dark; tree `nil` → light; both `nil` → platform | — | swap tree and window precedence |
@@ -573,3 +574,10 @@ ruling in the decisions doc; the sections above are edited to match:
   is `@MainActor extension Color: Element`; a literal folds `opacity(_:)`
   into its own opacity (§3.1's multiplier stays for the other providers); a
   palette colour stores its key's metatype (§3.5).
+- **`CR-Y`** (lane 2, implementation): preferences are collected during the
+  element walk, so `CR-T`'s separation is two slots filled while a
+  presentation's content is *built*; 2.9's `PR` arm puts the main preference
+  on a following sibling and gains `PD`. The inactive variant does not touch
+  `theme`. `CR-Q`'s second build starts with `needsRedraw` cleared; its "skip
+  adoption" mutation has no spelling. AppKit reports a forced appearance once.
+  Migration: a `PlatformWindow` conformer adds `setPreferredColorScheme`.

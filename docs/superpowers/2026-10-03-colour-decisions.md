@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-Y`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -697,3 +697,98 @@ was found unreverted and reverted by the reviewer; its results were never
 reported and are not claimed here.
 
 **Cost if wrong.** Test-claim corrections only; no source changed.
+
+## CR-Y — Lane 2's implementation findings (refines `CR-K` item 1, `CR-Q`, `CR-T`; spec §3.4, §6.2 rows 2.6, 2.9, 2.11)
+
+**Ruling.**
+
+1. **Preferences are collected during the element walk, not in the layout
+   runs.** `.preferredColorScheme` reports from `EnvironmentScope`'s two
+   layout entries — the build (`requestLayout`), which runs before any native
+   layout run. A popover's chrome and a `Deferred`'s content are *built*
+   inside their declarer's walk; `LR-CH`'s "presentations before the root"
+   orders `Frame.computeRootLayout`'s runs, which collect nothing. So a root
+   scope that encloses a popover's declarer already wins by depth (`CR-L`
+   item 3); what `CR-T` must order is a main-tree preference on a sibling
+   **after** the declarer. Implemented as two slots (`Frame.
+   mainColorSchemePreference`, `presentationColorSchemePreference`): an
+   `AnchoredPresentation`'s content always collects into the presentation
+   slot; a `Deferred`'s content does when it turns out to be absolute (known
+   only after its build — `Frame.beginPresentationPreferences`/
+   `endPresentationPreferences`), and an in-flow `Deferred` is the main tree,
+   in walk order. 2.9's arm `PR` therefore puts the main preference on the
+   popover declarer's following sibling, and gains arm `PD` (an absolute
+   `Deferred`, and an in-flow one). `Deferred.swift` and
+   `AnchoredPresentation.swift` carry the bookkeeping (outside lane 2's file
+   list; required by `CR-T`).
+2. **The inactive variant does not touch `theme`.** `CR-K` item 1's
+   "whenever … either variant changes, `Window.theme` is set to the scheme's
+   variant" is narrowed to the *active* variant: assigning `darkTheme` in a
+   light window leaves `theme` alone, so a direct `window.theme` write lasts
+   until the next scheme change or a write of the active variant (2.15).
+3. **The second first-frame build starts clean.** `CR-Q`'s second build runs
+   with `needsRedraw` cleared: the scheme change that dirtied is consumed by
+   it, and every "another frame" request (`wantsAnotherFrame`, gestures,
+   tooltip, a `@State` write in a phase) is re-derived by the second build.
+   2.11 asserts `needsRedraw == false` after the first frame.
+4. **2.11's `StateTable` arm compares against a one-build control.** The
+   table holds 8 entries after one build of 2.11's tree, not 1, so "one entry, not two"
+   became "the entries one build of the same tree, drawn in a dark fake,
+   holds". `CR-Q`'s mutation "skip adoption of the first build (build twice
+   from the same pre-frame state)" **has no spelling**: the window has no
+   snapshot or restore of its stores — which is exactly `CR-Q`'s reason for
+   adopting — so the arm guards only against duplicated entries, and that is
+   recorded rather than claimed.
+5. **AppKit reports once.** `AppKitWindow.setPreferredColorScheme` sets
+   `NSWindow.appearance` and then reports through `onAppearanceChange` only
+   if the effective appearance differs from the last one reported (seeded at
+   init), so the report is made exactly once whether or not AppKit calls
+   `viewDidChangeEffectiveAppearance` synchronously. Measured (mutation
+   M2.20b below): headless AppKit calls it synchronously, so the explicit
+   report is insurance for a host that defers it, kept.
+6. **Migration** (lane 3 transcribes it into `docs/migration.md`): a
+   `PlatformWindow` conformer outside this repository adds
+   `func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}`. Nothing
+   else in lane 2 is a public break: `Window.colorScheme`,
+   `preferredColorScheme`, `lightTheme`, `darkTheme`, `App`'s three and the
+   modifier are additive; `Frame.init`'s two new parameters are internal and
+   defaulted.
+
+**Measured** (branch `feat/colour` at `c287ecd`, full unfiltered native
+suite of 2374 tests per mutation; M2.18 re-run with the default appended at file scope after a first spelling broke the protocol, each restored from a copy, `git status
+--short` empty after each):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| M2.1 | drop the root `colorScheme` stamp | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`, `anAppearanceChangeRebuildsWithTheNewScheme`, `preferredColorSchemeIsWindowWide`, `readingTheColorSchemeInEveryPhaseLetsTheDisplayLinkPause`, `theWindowStampsItsPlatformsAppearanceAsTheColorScheme` |
+| M2.2 | stamp the scheme captured at the first draw (`lazy var initialColorScheme`) | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`, `anAppearanceChangeRebuildsWithTheNewScheme`, `preferredColorSchemeIsWindowWide` |
+| M2.3 | remove `colorScheme`'s equality guard | `aReportOfTheCurrentSchemeDoesNotWakeTheDisplay`, `settingTheThemeToItsCurrentValueDoesNotWakeTheDisplay` |
+| M2.22 | `colorScheme`'s `didSet` only assigns `theme` (no `setNeedsRedraw()`) | `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme` |
+| M2.4 | write the stamp into `Window.environment` each draw | 59 tests, among them `readingTheColorSchemeInEveryPhaseLetsTheDisplayLinkPause`, `windowDrawsOnlyWhenDirty`, `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt` (every settle-and-pause test: the write dirties each draw) |
+| M2.5 | drop the variant re-stamp in `scopedValues` | `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree` |
+| M2.6 | re-stamp `colorScheme` from the top after a transform (the spec's spelling) | `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree`, `aSchemeChangeNeverStartsAFadeOnADynamicColour`, `paintPassResolveUsesTheElementsScopedThemeAndScheme` — 2.6 stays green: the mutation also disables the dark scope 2.6 stands on (instrument limit); M2.6b is 2.6's separating spelling |
+| M2.6b | select a variant only on a change *to* dark | `aSelfResetBelowADarkScopeReadsLightAndTheLightVariant` |
+| M2.7 | `.theme(_:)` also writes `colorScheme = .dark` | `aWholeValueWriteResetsTheDisplayScaleButNotTheTheme`, `anExplicitThemeScopePinsTokensButNotTheScheme` |
+| M2.8 | `.preferredColorScheme` as a scope write of `colorScheme` | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity`, `aRootPreferenceIsInTheFirstPresentedFrame`, `clearingThePreferenceReturnsToThePlatformsAppearance`, `preferredColorSchemeIsWindowWide`, `thePreferredColorSchemeReductionMatchesSwiftUI`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.9a | last non-nil top-level wins | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms P3, P4, PD in-flow) |
+| M2.9b | innermost wins (no depth rule) | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms P3, P4, P5, P6) |
+| M2.9c | plain walk order (presentation content counted as main tree) | `thePreferredColorSchemeReductionMatchesSwiftUI` (arms PR main, PD main) |
+| M2.10a | the scope consumes a cursor slot (both entries) | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` |
+| M2.10b | only `requestGroupLayout` reports | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` |
+| M2.11 | drop the first-frame rebuild | `aRootPreferenceIsInTheFirstPresentedFrame` |
+| M2.12 | a changed tree preference is recorded but never applied | `aLaterPreferenceChangeAppliesOnTheNextFrame`, `aRootPreferenceIsInTheFirstPresentedFrame`, `clearingThePreferenceReturnsToThePlatformsAppearance`, `preferredColorSchemeIsWindowWide`, `thePreferredColorSchemeReductionMatchesSwiftUI`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.13 | keep the last non-nil tree preference | `clearingThePreferenceReturnsToThePlatformsAppearance`, `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.14 | window preference before the tree's | `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
+| M2.15 | `theme = Theme.forAppearance(colorScheme)`, ignoring the variants | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame`, `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` |
+| M2.16 | `App` assigns after `openWindow`'s first draw | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
+| M2.17 | drop the variant → `theme` propagation (both variants) | `aPaletteOverrideOnTheWindowsVariantRepaints`, `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
+| M2.18 | a protocol-extension default for `setPreferredColorScheme` | `aPlatformWindowWithoutSetPreferredColorSchemeDoesNotCompile` |
+| M2.19 | delete `typealias Appearance` | package build fails (`Sources/MetalUIPlatform/Platform.swift:20`: cannot find type 'Appearance' in scope) — guard 2.19 is the second line of defence (`CR-X` item 4's footing): every conformer spells `Appearance` |
+| M2.20 | AppKit maps `.dark` to `.aqua` | `settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt` |
+| M2.20b | drop AppKit's explicit report after the `NSWindow.appearance` write | none — **green**: headless AppKit calls `viewDidChangeEffectiveAppearance` synchronously from the write, so the explicit report is insurance, kept (item 5) |
+| M2.21 | `SDLWindow.setPreferredColorScheme` stores nothing (`Backends/SDL`, its own suite of 24 + 63) | `setPreferredColorSchemeIsRecordedAndTheSystemThemeStillReports` |
+
+**Cost if wrong.** Item 1: a tree whose only preference sits inside an
+absolute `Deferred` declared before a main-tree preference would differ from
+plain walk order — the conservative `CR-T` choice, unprobed for SwiftUI.
+Items 2–6 are invisible at a call site.
