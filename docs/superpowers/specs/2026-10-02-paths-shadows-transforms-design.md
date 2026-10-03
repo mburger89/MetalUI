@@ -552,6 +552,9 @@ rasterization at `insertIntoScene`, leaf groups), `Passes.swift`
 | G3.1 | `thePathAndShadowSpellingsCompileFromAPlainImport` (whole-file) | no API | MG3.1: `Path.addRects(_:)` made `internal` (`GX-V` item 13: `StrokeStyle.init` internal fails the looks demo's module build first) |
 | 3.29 | `aTextUnderScaleEffectIsResampledNotReRasterized` (divergence 106 pin, `GX-V` item 10) | green (pin) | — |
 | 3.30 | `aShapesStrokeWidthSnaps` (divergence 97 amended pin, `GX-V` item 10) | green (pin) | — |
+| 3.24b | `aLegacyShadowsColourRadiusAndOffsetAnimate` (review round, `GX-V` item 16) | red by mutation | MV2, MV3 |
+| 3.31 | `aDeferredStopsAnEnclosingShadow` (review round, `GX-V` items 5, 16) | red by mutation | MV1, MV1b |
+| 3.32 | `aFadingTransitionScalesAPathsAndAShadowsAlpha` (review round, `GX-V` item 16) | red by mutation | MV6, MV6b |
 | G3.2 | `anOutsideShapeCanWritePathInAlone` (whole-file) | no API | MG3.2: `path(in:)` removed from the protocol |
 | G3.3 | `aThemeWrittenBeforeTheShadowTokenStillCompiles` (whole-file, `GX-Q`) — an outside `Theme(background:…scrim:)` with no `shadow:` | no token | MG3.3: the `shadow:` default removed |
 

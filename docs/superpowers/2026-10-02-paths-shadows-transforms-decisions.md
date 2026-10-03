@@ -1271,6 +1271,40 @@ written, with these readings, each measured in the lane:
     after) builds with 0 `error:`/`warning:` and runs **199 + 22 + 21 + 31 +
     18 + 6**, as lane 2's.
 
+16. **Review round** (lane 3's verifier: two majors, four minors; each
+    finding's mutation re-run here, whole unfiltered suite, **2227 tests**,
+    the `FR-J` line present, `git status` clean after every restore). Three
+    tests added and four extended, red-first by mutation (each mutation was
+    green on the 2224-test suite, per the review): **3.31**
+    `aDeferredStopsAnEnclosingShadow` (item 5's barrier: a shadowed legacy
+    column casts its in-flow bar's shadow and none for its `Deferred` box) —
+    **MV1** (`insertThroughScopes` lets `.shadow` past the barrier) and
+    **MV1b** (`withoutRenderEffects` pushes no barrier when only a shadow is
+    open) → 3.31 alone each; **3.24b** `aLegacyShadowsColourRadiusAndOffsetAnimate`
+    (item 7's legacy half; 3.24's assertions shared through one helper) —
+    **MV2** (the legacy colour always `theme[token]`) and **MV3**
+    (`RenderEffectSpec.with(_:)` returns `self` for a shadow) → 3.24b alone
+    each; **3.32** `aFadingTransitionScalesAPathsAndAShadowsAlpha` (a
+    `.transition(.opacity)` half-way: a path's solid texel and a shadow-only
+    texel read 128 ± 2, 255 at rest) — **MV6** (the `.path` arm of
+    `RenderEffect.apply` drops the alpha) and **MV6b** (the `.shadow` arm) →
+    3.32 alone each; 3.20 now requires one cut shadow and reads its exact
+    bounds (90, 90, 30 × 30) — **MV9** (no shadow under an entry clip under
+    100 px wide) → 3.20 alone; 3.21 gains a window arm, a shadow on each
+    vocabulary pushing **0** effect scopes (item 7's counter claim) — **MV4**
+    (`PrepaintPass.withRenderEffect`'s shadow guard removed) → 3.21 alone;
+    3.9 gains an even-odd ring (`ShapeGeometry.path(_, style: FillStyle(eoFill:
+    true))` as a `contentShape`, the hole missing, the band hitting, and
+    `Path.contains(_:eoFill:)` directly) — **MV13** (`eoFill` ignored) → 3.9
+    alone; 3.7 gains `Circle().fill(_, style: FillStyle(antialiased: false))`
+    drawing one image whose alphas are exactly {0, 255} — **MV8** (the
+    non-antialiased branch of `paintShapeFill` disabled) → 3.7 alone. One
+    reading on the way: an outside shape answering `geometry(in:)` with
+    `.path` answers in the rect's own space (window points), unlike
+    `path(in:)`, whose local path the default `geometry(in:)` moves to the
+    rect — 3.9's ring offsets itself by `rect.origin`. Counts **2227 / 0 /
+    133**.
+
 **Cost if wrong.** Items 1–3 change existing tests' instruments, each for a
 ruled reason with the old intent kept. Item 4 rasterizes a path whose clip
 was pushed inside an effect with a CPU mask (exact to the rasterizer's
