@@ -55,6 +55,551 @@
 // and S2 the SETS of rows appearing and disappearing at each step are
 // identical, and their ORDER differs from run to run (hash order).
 //
+// RE-RUN 2026-10-03 by the critic pass (ruling LC-P), same machine and
+// toolchain, screen LOCKED (CGSSessionScreenIsLocked = 1, displayAsleep main:
+// 1). The design's arms unchanged, one run: byte-identical to the reading
+// below outside S1/S2 (whose per-step row sets agree). Then arms A6, A6b and
+// E2b added and the whole file run twice: 535 lines each, stderr empty, the
+// process exiting on its own within 10 s of the K2 block; the two runs are
+// byte-identical outside S1 and S2 (row sets equal per step, order differs).
+// The second of those runs, verbatim:
+//
+//   === L0 control: a hosted view's onAppear fires
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//   === L0b separating: the same view under `if false` never appears
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//   === A1 insertion order: grandparent > parent > two children (one `if` inserts all)
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     appear child2
+//     appear child1
+//     appear parent
+//     appear grandparent
+//     -- settled after show = true
+//     -- show = false
+//     disappear child2
+//     disappear child1
+//     disappear parent
+//     disappear grandparent
+//     -- settled after show = false
+//   === A2 siblings in one container, each its own `if`, all inserted in one update
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     appear s3
+//     appear s2
+//     appear s1
+//     -- settled after show = true
+//     -- show = false
+//     disappear s1
+//     disappear s2
+//     disappear s3
+//     -- settled after show = false
+//   === A3 stacked modifiers on one view: .onAppear{a}.onAppear{b}, .onDisappear{a}.onDisappear{b}
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     appear inner(a)
+//     appear outer(b)
+//     -- settled after show = true
+//     -- show = false
+//     disappear inner(a)
+//     disappear outer(b)
+//     -- settled after show = false
+//   === A4 if/else branch swap: does the new branch appear before the old disappears?
+//     -- host
+//     -- ordered front
+//     appear else
+//     -- initial settled
+//     -- flag = true
+//     appear then
+//     disappear else
+//     -- settled after flag = true
+//     -- flag = false
+//     appear else
+//     disappear then
+//     -- settled after flag = false
+//   === A5 one update that removes one sibling and inserts another
+//     -- host
+//     -- ordered front
+//     appear old
+//     -- initial settled
+//     -- flag = true
+//     appear new
+//     disappear old
+//     -- settled after flag = true
+//   === A6 .onAppear/.onDisappear on a ForEach: count 0 -> 3 -> 1 -> 0 -> 2
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- count = 3
+//     appear foreach
+//     -- settled after count = 3
+//     -- count = 1
+//     -- settled after count = 1
+//     -- count = 0
+//     disappear foreach
+//     -- settled after count = 0
+//     -- count = 2
+//     appear foreach
+//     -- settled after count = 2
+//   === A6b .onAppear/.onDisappear on a Group of two views, the group under an `if`
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- flag = true
+//     appear group
+//     -- settled after flag = true
+//     -- flag = false
+//     disappear group
+//     -- settled after flag = false
+//   === F1 onAppear relative to the first update and draw; onAppear writes count = 1
+//     -- host
+//     body count=0
+//     make v=0
+//     update v=0
+//     -- ordered front
+//     appear (writes count=1)
+//     body count=1
+//     update v=1
+//     draw v=1
+//     -- initial settled
+//     -- display()
+//     -- settled after display()
+//   === F2b hand-driven: contentView, layout, display, spin, display — no orderFront
+//     -- contentView = host
+//     body count=0
+//     -- layoutSubtreeIfNeeded
+//     make v=0
+//     update v=0
+//     appear (writes count=1)
+//     body count=1
+//     update v=1
+//     -- display()
+//     -- spin
+//     draw v=1
+//     -- display() again
+//   === F3 re-entrancy: an onAppear that inserts content whose own onAppear inserts more
+//     -- host
+//     -- ordered front
+//     appear first
+//     first's action: more = true
+//     appear second (writes count=1)
+//     appear third
+//     -- initial settled
+//   === C1 onChange(of:) { old, new in } — v 0 -> 1
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1
+//     change old=0 new=1
+//     -- settled after v = 1
+//   === C2 zero-parameter form onChange(of:) { } — v 0 -> 1
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1
+//     change (zero-param) v=1
+//     -- settled after v = 1
+//   === C3 initial: true — fires on appear? with what (old, new)?
+//     -- host
+//     -- ordered front
+//     appear
+//     change old=5 new=5
+//     -- initial settled
+//     -- v = 6
+//     change old=5 new=6
+//     -- settled after v = 6
+//   === C3b initial: true, onChange written INSIDE onAppear (order flips?)
+//     -- host
+//     -- ordered front
+//     change old=5 new=5
+//     appear
+//     -- initial settled
+//   === C4 initial: false (default) — no fire on appear
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//   === C5 two writes in one update: v = 1; v = 2
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1; v = 2
+//     change old=0 new=2
+//     -- settled after v = 1; v = 2
+//   === C6 a change undone within one update: v = 1; v = 0
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1; v = 0
+//     -- settled after v = 1; v = 0
+//   === C7 a write of the same value: v = 0
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 0
+//     -- settled after v = 0
+//   === C8 parent vs child onChange on one value; and relative to body and draw
+//     -- host
+//     body v=0
+//     make v=0
+//     update v=0
+//     -- ordered front
+//     draw v=0
+//     -- initial settled
+//     -- v = 1
+//     body v=1
+//     update v=1
+//     child change 0->1
+//     parent change 0->1
+//     draw v=1
+//     -- settled after v = 1
+//     -- display()
+//     -- settled after display()
+//   === C9 a cascade: onChange(v) writes w; onChange(w) fires in the same turn?
+//     -- host
+//     body v=0 w=0
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1
+//     body v=1 w=0
+//     change v -> 1, writes w
+//     body v=1 w=10
+//     change w -> 10
+//     -- settled after v = 1
+//   === C10 identity reset: .onChange(of: v).id(k); k and v change together
+//     -- host
+//     -- ordered front
+//     appear k=0
+//     -- initial settled
+//     -- k = 1; v = 1
+//     appear k=1
+//     disappear
+//     -- settled after k = 1; v = 1
+//     -- v = 2
+//     change old=1 new=2
+//     -- settled after v = 2
+//   === C11 sibling order on one value change
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- v = 1
+//     change b
+//     change a
+//     -- settled after v = 1
+//   === C12 onChange and onAppear of content inserted by the same update
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     change show (existing view)
+//     appear b
+//     -- settled after show = true
+//   === C13 a removed view does not see the change that removes it
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     disappear b
+//     -- settled after show = true
+//   === E1 control: an `if` removes content
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- flag = true
+//     disappear x
+//     -- settled after flag = true
+//   === E2 .id() change: order of the old disappear and the new appear
+//     -- host
+//     -- ordered front
+//     appear k=0
+//     -- initial settled
+//     -- k = 1
+//     appear k=1
+//     disappear (was k=0?)
+//     -- settled after k = 1
+//   === E2b .id(k) then .onAppear/.onDisappear/.onChange outside it; k and v change together
+//     -- host
+//     -- ordered front
+//     appear k=0
+//     -- initial settled
+//     -- k = 1; v = 1
+//     change old=0 new=1
+//     -- settled after k = 1; v = 1
+//   === E3 .hidden(): appears while hidden; toggling an outer condition
+//     -- host
+//     -- ordered front
+//     appear hidden
+//     -- initial settled
+//     -- flag = true
+//     appear late-hidden
+//     -- settled after flag = true
+//   === E4 opacity 0: appears; 1 -> 0 -> 1 fires nothing
+//     -- host
+//     -- ordered front
+//     appear faded
+//     -- initial settled
+//     -- opaque toggled
+//     -- settled after opaque toggled
+//     -- opaque toggled back
+//     -- settled after opaque toggled back
+//   === E5 zero-size frame and a clipped-out view: still appear?
+//     -- host
+//     -- ordered front
+//     appear offscreen
+//     appear zero
+//     -- initial settled
+//   === D1 onDisappear reads its own @State; a write there; re-inserted content starts fresh
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     appear reads n=0, writes n=7
+//     -- settled after show = true
+//     -- show = false
+//     disappear reads n=7, writes n=99
+//     -- settled after show = false
+//     -- show = true again
+//     appear reads n=0, writes n=7
+//     -- settled after show = true again
+//   === S1 List(0..<200) rows in a 100 pt frame, scrolled to row 150 then back to 0
+//     -- host
+//     -- ordered front
+//     appear row0
+//     appear row1
+//     appear row2
+//     appear row3
+//     -- initial settled
+//     -- scrollTo(150)
+//     -- settled after scrollTo(150)
+//     -- scrollTo(0)
+//     -- settled after scrollTo(0)
+//     -- AppKit scroll to y = 3000
+//     (appKit scroll: 1 NSScrollView(s))
+//     disappear row0
+//     disappear row1
+//     disappear row2
+//     disappear row3
+//     appear row126
+//     appear row123
+//     appear row124
+//     appear row125
+//     appear row127
+//     appear row128
+//     -- settled after AppKit scroll to y = 3000
+//     -- AppKit scroll to y = 0
+//     (appKit scroll: 1 NSScrollView(s))
+//     disappear row123
+//     disappear row124
+//     disappear row125
+//     disappear row126
+//     disappear row127
+//     disappear row128
+//     appear row2
+//     appear row0
+//     appear row1
+//     appear row3
+//     -- settled after AppKit scroll to y = 0
+//   === S2 ScrollView { LazyVStack } same
+//     -- host
+//     -- ordered front
+//     appear row4
+//     appear row3
+//     appear row0
+//     appear row1
+//     appear row6
+//     appear row5
+//     appear row2
+//     -- initial settled
+//     -- scrollTo(150)
+//     -- settled after scrollTo(150)
+//     -- scrollTo(0)
+//     -- settled after scrollTo(0)
+//     -- AppKit scroll to y = 3000
+//     (appKit scroll: 1 NSScrollView(s))
+//     disappear row2
+//     disappear row1
+//     disappear row0
+//     disappear row6
+//     disappear row4
+//     disappear row5
+//     disappear row3
+//     appear row191
+//     appear row189
+//     appear row187
+//     appear row192
+//     appear row188
+//     appear row193
+//     appear row190
+//     -- settled after AppKit scroll to y = 3000
+//     -- AppKit scroll to y = 0
+//     (appKit scroll: 1 NSScrollView(s))
+//     disappear row193
+//     disappear row187
+//     disappear row192
+//     disappear row188
+//     disappear row190
+//     disappear row189
+//     disappear row191
+//     appear row5
+//     appear row3
+//     appear row6
+//     appear row1
+//     appear row4
+//     appear row0
+//     appear row2
+//     -- settled after AppKit scroll to y = 0
+//   === S3 separating: ScrollView { VStack } (not lazy) — 30 rows, scrolled
+//     -- host
+//     -- ordered front
+//     appear row29
+//     appear row28
+//     appear row27
+//     appear row26
+//     appear row25
+//     appear row24
+//     appear row23
+//     appear row22
+//     appear row21
+//     appear row20
+//     appear row19
+//     appear row18
+//     appear row17
+//     appear row16
+//     appear row15
+//     appear row14
+//     appear row13
+//     appear row12
+//     appear row11
+//     appear row10
+//     appear row9
+//     appear row8
+//     appear row7
+//     appear row6
+//     appear row5
+//     appear row4
+//     appear row3
+//     appear row2
+//     appear row1
+//     appear row0
+//     -- initial settled
+//     -- scrollTo(25)
+//     -- settled after scrollTo(25)
+//     -- AppKit scroll to y = 500
+//     (appKit scroll: 1 NSScrollView(s))
+//     -- settled after AppKit scroll to y = 500
+//   === T0 control: removal with no animation
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- flag = true (no animation)
+//     disappear x
+//     -- settled after flag = true (no animation)
+//   === T1 removal under withAnimation(.linear(duration: 0.6)) with .transition(.opacity)
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear x
+//     -- settled after spin 1.0 more
+//   === T2 insertion under withAnimation(.linear(duration: 0.6)) with .transition(.opacity)
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     appear x
+//     -- settled after withAnimation(0.6) { flag = true }
+//   === T3 onDisappear written OUTSIDE the transition: .transition(.opacity).onDisappear
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear x (outer)
+//     -- settled after spin 1.0 more
+//   === T4 removal under a 0.6 s fade, re-inserted 0.2 s in
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 0.15, then withAnimation(0.6) { flag = false }
+//     -- settled after spin 0.15, then withAnimation(0.6) { flag = false }
+//     -- spin 1.0 more
+//     -- settled after spin 1.0 more
+//   === T5 the parent of a fading child: parent removed under animation, child has no transition
+//     -- host
+//     -- ordered front
+//     appear child
+//     appear parent
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear child
+//     disappear parent
+//     -- settled after spin 1.0 more
+//   === W1 window orderOut (hidden, not closed)
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- orderOut
+//     -- settled after orderOut
+//     -- orderFront
+//     -- settled after orderFront
+//   === W2 window close()
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- close()
+//     -- settled after close()
+//   === W3 contentView = nil (the hosting view leaves the window)
+//     -- host
+//     -- ordered front
+//     appear x
+//     -- initial settled
+//     -- contentView = nil
+//     disappear x
+//     -- settled after contentView = nil
+//   === K1 .task: start relative to onAppear; cancelled when an `if` removes it
+//     -- host
+//     -- ordered front
+//     appear
+//     task start
+//     -- initial settled
+//     -- flag = true
+//     disappear
+//     task cancelled: true
+//     -- settled after flag = true
+//   === K2 .task(id:): restarted when id changes
+//     -- host
+//     -- ordered front
+//     task start k=0
+//     -- initial settled
+//     -- k = 1
+//     task start k=1
+//     task k=0 cancelled
+//     -- settled after k = 1
+//
 // READING NOTES (what each ruling may rest on):
 // - L0/L0b: onAppear fires for hosted content, never for content an `if false`
 //   does not produce.
@@ -65,6 +610,13 @@
 // - A1/A3 (removal): the same reverse pre-order (child2, child1, parent,
 //   grandparent; inner(a), outer(b)). A2 (removal, three separately removed
 //   siblings): FORWARD order s1, s2, s3 — the one arm that disagrees.
+// - A6/A6b (critic pass): a modifier on a ForEach or a Group fires ONCE for
+//   the group, not per child, and only while the group has at least one view
+//   (an empty ForEach does not appear; 3 -> 1 fires nothing; -> 0 disappears;
+//   -> 2 appears again).
+// - E2b (critic pass): lifecycle modifiers written OUTSIDE `.id(k)` do not
+//   fire on a `k` change, and their onChange compares across the identities
+//   (only `change old=0 new=1`) — the separating arm for E2/C10.
 // - A4/A5/E2/C10: in one update, the new content's onAppear runs BEFORE the old
 //   content's onDisappear (if/else swap, sibling swap, `.id` change).
 // - F1/F2b: onAppear runs after the first body evaluation and before the first
@@ -281,6 +833,28 @@ arm("A5 one update that removes one sibling and inserts another", { m in
     }
 }, steps: [("flag = true", { m, _, _ in m.flag = true })])
 
+// Added by the critic pass (ruling LC-P): a lifecycle modifier on a group of
+// several views — once for the group, or once per child?
+arm("A6 .onAppear/.onDisappear on a ForEach: count 0 -> 3 -> 1 -> 0 -> 2", { m in
+    VStack {
+        ForEach(0..<m.count, id: \.self) { i in Text("r\(i)") }
+            .onAppear { log("appear foreach") }.onDisappear { log("disappear foreach") }
+    }
+}, steps: [("count = 3", { m, _, _ in m.count = 3 }),
+           ("count = 1", { m, _, _ in m.count = 1 }),
+           ("count = 0", { m, _, _ in m.count = 0 }),
+           ("count = 2", { m, _, _ in m.count = 2 })])
+
+arm("A6b .onAppear/.onDisappear on a Group of two views, the group under an `if`", { m in
+    VStack {
+        if m.flag {
+            Group { Text("a"); Text("b") }
+                .onAppear { log("appear group") }.onDisappear { log("disappear group") }
+        }
+    }
+}, steps: [("flag = true", { m, _, _ in m.flag = true }),
+           ("flag = false", { m, _, _ in m.flag = false })])
+
 // ------------------------------------------------------------ F: first frame
 arm("F1 onAppear relative to the first update and draw; onAppear writes count = 1", { m in
     let _ = log("body count=\(m.count)")
@@ -419,6 +993,15 @@ arm("E2 .id() change: order of the old disappear and the new appear", { m in
     Text("x").onAppear { log("appear k=\(m.k)") }.onDisappear { log("disappear (was k=\(m.k - 1)?)") }
         .id(m.k)
 }, steps: [("k = 1", { m, _, _ in m.k = 1 })])
+
+// Added by the critic pass (ruling LC-P): the lifecycle modifiers written
+// OUTSIDE `.id` — the order CLAUDE.md's ".id() outermost" rule forbids in
+// MetalUI, but which compiles in both. The separating arm for E2/C10.
+arm("E2b .id(k) then .onAppear/.onDisappear/.onChange outside it; k and v change together", { m in
+    Text("x").id(m.k)
+        .onAppear { log("appear k=\(m.k)") }.onDisappear { log("disappear") }
+        .onChange(of: m.v) { old, new in log("change old=\(old) new=\(new)") }
+}, steps: [("k = 1; v = 1", { m, _, _ in m.k = 1; m.v = 1 })])
 
 arm("E3 .hidden(): appears while hidden; toggling an outer condition", { m in
     VStack {

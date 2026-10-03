@@ -2,7 +2,7 @@
 
 **Status: DESIGNED (2026-10-03) — lanes 1 and 2 owed.** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
-Rulings `LC-A`…`LC-O` in
+Rulings `LC-A`…`LC-P` in (`LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).
 Record: `docs/record/76-lifecycle.md` (Record phase). Probes (new, outputs in
 their headers): `docs/probes/swiftui-lifecycle.swift` (SwiftUI, run three
@@ -51,6 +51,14 @@ was left running.
 
 ### 1.2 SwiftUI's answers (probe `swiftui-lifecycle.swift`, macOS 27.0.1)
 
+- **Presence is per modified group, while it has content** (`LC-P`): a
+  modifier on a `ForEach` or `Group` fires **once for the group**, not per
+  child, and only while the group produces at least one view — an empty
+  `ForEach` does not appear; it appears when it first has rows, disappears when
+  it has none (`A6`, `A6b`). A lifecycle modifier written **outside** `.id`
+  keys on the position: an `.id` change fires no appear/disappear there and
+  its `onChange` compares across the two identities (`E2b`: only
+  `change old=0 new=1`).
 - **Presence is hierarchy membership**: `.hidden()`, opacity 0, zero size and
   clipped-out content appear (`E3`–`E5`); a lazy `List`/`LazyVStack` row
   disappears when scrolled out and appears when scrolled in (`S1`, `S2`); a
@@ -113,11 +121,14 @@ re-record `closeout-public-api.tsv`; both closeout scripts print nothing.
   initial: Bool) }` — the two `onChange` forms both build `.change` (the
   zero-parameter form wraps `{ _, _ in action() }`); `nil` actions build a
   scope that notes nothing.
-- `LifecycleScope.requestGroupLayout(under:at:pass:)`:
-  `pass.frame.noteLifecycle(write, under: parent, at: cursor)` **before**
-  recursing (pre-order registration, `LC-F`), then
-  `pass.frame.withLifecycleScope { content.requestGroupLayout(under: parent,
-  at: &cursor, pass: &pass) }` (depth + 1 around the content, `LC-C` item 2).
+- `LifecycleScope.requestGroupLayout(under:at:pass:)`: reserves its
+  registration order **before** recursing (pre-order, `LC-F`) — `let order =
+  pass.frame.reserveLifecycleOrder()` — then `let (nodes, layout) =
+  pass.frame.withLifecycleScope { content.requestGroupLayout(under: parent,
+  at: &cursor, pass: &pass) }` (depth + 1 around the content, `LC-C` item 2),
+  then **only when `nodes` is non-empty** `pass.frame.noteLifecycle(write,
+  order: order, under: parent, at: cursorBefore)` (`LC-P` item 1: a group
+  with no content is absent — no entry, no `onChange` comparison).
   `prepaintGroup`/`paintGroup` forward with no work. **The typed
   `requestProposalGroupLayout` is a line-for-line copy, pinned on its own**
   (test 1.10).
@@ -243,7 +254,7 @@ piece is in `MetalUI`, which both platforms drive through
 | 120 | a legacy decoration after a lifecycle modifier | any order compiles | `Self`-returning `StyledElement` decorations (`onClick`, `background(_:)`, `padding(_:)`) after `.onAppear`/`.onDisappear`/`.onChange` do not compile; write them first | `LC-B` item 4 | `aLegacyDecorationAfterALifecycleModifierDoesNotCompile` |
 | 121 | an action chain | settles to a fixed point before the first draw (`F3`, `C9`) | two levels of actions per drawn frame; the first level's writes are presented, each later level's one frame later | `LC-E` item 3 | `aChainOfAppearancesSettlesOneLevelOfWritesPerPresentedFrame` |
 | 122 | callback order | reverse pre-order except separately removed siblings (forward, `A2`); a lazy container's scroll order varies by run (`S1`, `S2`) | changes → appears → disappears, each reverse pre-order, always | `LC-F` | `removalRunsInReversePreOrderEvenForSeparatelyRemovedSiblings` |
-| 123 | content re-inserted during its removal transition | keeps the view and its state (`T4`) | runs neither callback (as SwiftUI) but its `@State` is fresh (`ID-C` reset it at removal) | `LC-H` | `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
+| 123 | content re-inserted during its removal transition | keeps the view and its state (`T4`) | runs neither callback (as SwiftUI) but its `@State` is fresh (`ID-C` reset it at removal) and its `onChange` compares against nothing on return (`LC-D` dropped the entry at removal; `LC-P` item 8) | `LC-H` | `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
 
 Header count moves 86 → 90 live, next label 124.
 
@@ -271,6 +282,8 @@ Presence and identity:
 | 1.8 | `addingALifecycleModifierMovesNoIdentity` | recorded element ids and a nested `@State` equal with and without the scope | `cursor += 1` in `requestGroupLayout` |
 | 1.9 | `lifecycleModifiersFireInsideAComponentAnEnvironmentScopeAndADeferred` | each fires once | (composition; pinned by 1.1's mutation — no own) |
 | 1.10 | `theTypedProposalScopeNotesLikeTheUntypedOne` | a `ProposalText().onAppear` inside `HStack` fires; ids equal | delete `noteLifecycle` from `requestProposalGroupLayout` only |
+| 1.11 | `aLifecycleModifierWrittenOutsideIdKeysOnThePosition` | `Text("x").id(k).onAppear{}.onDisappear{}.onChange(of: v){}`, `k` and `v` changed in one write: no appear, no disappear, one change `(0, 1)`; recorded ids equal those without the scope (`E2b`, `LC-P` item 2) | key the entry on the content's first node's element id instead of the scope's position |
+| 1.12 | `aGroupModifierFiresOncePerGroupAndOnlyWhileItHasContent` | `ForEach(0..<n).onAppear/.onDisappear`, n 0 → 3 → 1 → 0 → 2: `[appear]` at 3, nothing at 1, `[disappear]` at 0, `[appear]` at 2, nothing at 0 initially; a two-child group under an `if`: one appear, one disappear (`A6`, `A6b`, `LC-P` item 1) | note the entry whether or not `nodes` is empty |
 
 Order:
 
@@ -311,7 +324,7 @@ Departed state:
 | 5.1 | `onDisappearReadsItsOwnStateAsItWasLastFrame` | reads 7 (`D1`) | `withDepartedOverlay` ignores the overlay |
 | 5.2 | `aWriteInOnDisappearIsLostAndReturningContentStartsFresh` | written 99, never-written slot written too; returned content reads 0 for both (`D1`) | overlay writes fall through to `storage` |
 | 5.3 | `noDepartedValuesAreKeptWithoutAnOnDisappear` | `lastDepartedValueCount == 0` for an `if` removal with no lifecycle modifier | `retainsDepartedValues = true` always |
-| 5.4 | `aListRowsOnDisappearReadsItsRetainedLiveState` | the row's live `@State` value, not the initial | (pinned by 5.1/1.5 — no own) |
+| 5.4 | `aListRowsOnDisappearReadsItsRetainedLiveState` | the row's live `@State` value, not the initial | `peek` under `withDepartedOverlay` answers only from the overlay (nil outside it) — `LC-P` item 5 |
 
 Transitions (`startsDisplayLink: true`, `simulateTick(timestamp:)`):
 
@@ -354,8 +367,10 @@ Performance (branching tree, literals derived before the run):
 | 10.2 | `anOnAppearRunsInAnSDLWindowsFirstFrame` | `Backends/SDL/Tests/MetalUISDLTests/SDLLifecycleTests.swift` (helper arms `armMainRunLoopExitCheck()`) | an `SDLPlatform` window's first tick runs the action and presents its write | delete the drain call in `drawFrameIfNeeded` (on the lane-2 branch spelling) |
 | 10.3 | `closingAnSDLWindowRunsItsOnDisappear` | same file | `MUI_EVENT_CLOSE` path (`onClose`) runs it once | remove the call from `App`'s `onClose` |
 
-Expected count after both lanes: 2376 + 44 (lane 1: 41 tests + 3 guards) +
-3 (lane 2) = **2423 tests**, `canTypecheck`-gated declarations 146 → 149;
+Expected count after both lanes (corrected by `LC-P` item 4: tests 10.2 and
+10.3 live in `Backends/SDL`, a separate package the 2376 does not count):
+2376 + 46 (lane 1: 43 tests + 3 guards) + 1 (lane 2's 10.1) = **2423 tests**
+in the main package, `canTypecheck`-gated declarations 146 → 149;
 `Backends/SDL` + 2. Re-measure; a count is stale when a test lands.
 
 ## 6. Demo (lane 2)
@@ -384,7 +399,7 @@ disappear counters stay equal at rest. Not run — an agent cannot.
 
 ## 8. Lanes
 
-**Lane 1** (Opus; files in `LC-O`): §2, §3, §4, tests 1.1–9.3, inventory and
+**Lane 1** (Opus; files in `LC-O`): §2, §3, §4, tests 1.1–9.3 (1.11 and 1.12 included), inventory and
 census. Gate: unfiltered native suite, both closeout scripts silent,
 `swift build --build-tests` 0 warnings, `theSevenRetentionSlotsAreMutuallyDistinct`
 and every `ID-`/`TB-AH`/transition test unchanged and green. **Lane 2** (after

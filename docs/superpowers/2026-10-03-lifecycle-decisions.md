@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-P`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-Q`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -134,7 +134,9 @@ often, the fix is the same one `.animation(_:value:)` and `.environment` owe
 **Ruling.**
 
 1. **An element is present in a build when its `LifecycleScope` reaches
-   `requestGroupLayout` (or the typed entry) in that build.** `appear` =
+   `requestGroupLayout` (or the typed entry) in that build** — **and its
+   content registers at least one node there** (amended by `LC-P` item 1:
+   a modifier on an empty `ForEach` is absent, `A6`). `appear` =
    present this build, absent the last completed build; `disappear` = the
    reverse. Nothing about pixels: a `.hidden()`, opacity-0, zero-size or
    clipped-out element is present (probe `E3`, `E4`, `E5`), and toggling its
@@ -308,6 +310,10 @@ appearance are **both cancelled** (`T4`: SwiftUI runs neither). A removal with
 no animation makes no ghost and disappears at once (`T0`); an insertion
 appears at once, whatever its animation (`T2`).
 
+**Amended by `LC-P` item 7:** a removed group that painted nothing makes no
+ghost (`TransitionStore.afterLayout` needs captures), so its `onDisappear`
+runs at once.
+
 **Not moved:** the re-inserted content's `@State` is fresh (`ID-C` reset it at
 the removal), where SwiftUI keeps the view (`T4`) — a pre-existing difference
 this branch records as divergence **123** and does not change.
@@ -444,3 +450,83 @@ LooksDemo.swift`, `Tests/MetalUITests/LooksLifecycleDemoTests.swift` (new),
 `docs/verification/human-checks.md` (group T). The Record phase
 (CLAUDE.md/AGENTS.md, README, record §76, record index, and record §04's
 sections for divergences 120–123 — an existing record file) follows both.
+
+## LC-P — The critic pass: two probe arms added, presence needs content, counts and pins corrected
+
+**Ruling.** The committed design (`98703df`) was attacked against the
+branch's rules. The SwiftUI probe was re-run unchanged (one run): every arm
+outside `S1`/`S2` byte-identical to the design's reading, `S1`/`S2`'s row
+sets equal per step with a different order, as its header says; the runtime
+probe was re-run on macOS and in `swift:6.4-noble`: its three recorded lines
+byte for byte. Findings, each fixed here or in the spec:
+
+1. **Presence needs content (new arms `A6`, `A6b`).** `LC-C` left open what a
+   modifier on a group of several views does. SwiftUI fires it **once per
+   group, not per child**, and **only while the group produces at least one
+   view**: `ForEach(0..<n).onAppear/.onDisappear`, n 0 → 3 → 1 → 0 → 2, logs
+   `appear` at 3, nothing at 1, `disappear` at 0, `appear` at 2, and nothing
+   for the empty first build; a two-view `Group` under an `if` logs one
+   appear and one disappear. The design would have fired an empty
+   `ForEach`'s `onAppear` on the first build (`ID-B`: a loop takes its slot
+   whether or not it produces content). **Amended:** the scope reserves its
+   registration order before recursing and notes its entry only when its
+   content returned a non-empty node list (spec §3.1); an empty group has no
+   entry, so it does not appear, its `onChange` compares nothing, and the
+   content's return compares against nothing (`LC-D`). Test 1.12.
+2. **A lifecycle modifier outside `.id` (new arm `E2b`).** CLAUDE.md's
+   "`.id()` outermost" governs `ModifiedContent` layers; a transparent scope
+   outside an `IdentifiedGroup` compiles (as `TransactionScope` does) and the
+   design's key is the position without the name. SwiftUI agrees: `Text("x")
+   .id(k).onAppear{}.onDisappear{}.onChange(of: v){}`, `k` and `v` changed
+   together, logs only `change old=0 new=1` — no appear, no disappear. Not a
+   divergence; pinned by test 1.11.
+3. **The probe header did not carry the recorded output** (`SA-O`), only a
+   reading. The second of the critic's two final runs (the design's arms plus
+   `A6`, `A6b`, `E2b`; the two byte-identical outside `S1`/`S2`) is now in
+   the header verbatim, with the comparison above.
+4. **The expected count double-counted `Backends/SDL`.** Tests 10.2 and 10.3
+   are in the separate `MetalUISDL` package, which the 2376 does not count;
+   corrected in spec §5.3 (lane 1 now 43 tests + 3 guards with 1.11 and 1.12;
+   main package 2423, SDL + 2).
+5. **Test 5.4 had no mutation of its own** — its red rested on others'. It now
+   has one: `peek` under the overlay answers only from the overlay, which
+   turns a `List` row's retained live read into the initial value. (Test 1.9
+   stays a composition test reddened by 1.1's mutation, as the spec says — a
+   per-container mutation would be a mutation of `Component`,
+   `EnvironmentScope` or `Deferred`, files outside both lanes.)
+6. **A write in an `onDisappear` run at window close** dirties a closed
+   window: AppKit's `windowWillClose` invalidates the display link before
+   `onClose`, SDL sets `closed` (so `linkRunning` is false) before it, and
+   App quit follows on AppKit. Nothing draws; the write is lost with the
+   window. Stated, not a new rule.
+7. **A removed transitioned group that painted nothing** (no captures: an
+   empty or fully clipped group) makes no ghost, so its disappearance is not
+   parked. Unprobed against SwiftUI; recorded on `LC-H`, no divergence until a
+   probe shows one; owner none.
+8. **`T4`'s `onChange`.** Content re-inserted mid-ghost compares its next
+   change against nothing (its entry was dropped at the removal build), where
+   SwiftUI's kept view compares against its old value — folded into
+   divergence 123's row (spec §4) rather than a new label.
+9. **Observation sessions under the settle build.** When only a `@State`
+   write dirtied (the first build's session unconsumed), the settle build arms
+   a second session; both read the sentinel and are flushed by the next
+   frame's tick, so outstanding sessions stay bounded at two — exactly what
+   `CR-Q`'s second build already does. Not a defect.
+10. **Rejected: splitting lane 1.** Lane 1 is large (the store, the scope,
+    `StateTable`'s overlay, the window drain, transitions parking, close, 46
+    pinned declarations), but every piece meets in `LifecycleStore.endFrame`
+    and `drainLifecycle`; any split shares `Lifecycle.swift` or
+    `LifecycleTests.swift` between lanes, which `LC-O` and CLAUDE.md's
+    disjoint-files rule forbid. Lanes stay as `LC-O` gives them.
+
+Checked and found sound (no change): no new `Platform`/`PlatformWindow`/
+`WindowRenderer` requirement, no Apple type in a portable surface, no
+primitive or shader change, no C enum, no `Handlers` growth, no
+`StateTable` slot (`theSevenRetentionSlotsAreMutuallyDistinct` untouched),
+`MC-A`/`MC-C`/`MC-P` untouched; the looks demo is outside the fourteen images
+and `Expected.swift`; `StateDispatch.resolve` walks the owner's ancestors, so
+an action written in a `Component`'s body and dispatched to a scope inside it
+reaches the `Component`'s `@State` (`ID-F`); every `Element` returns exactly
+one node (`Deferred` included), so item 1 changes nothing for a single
+element. `.task` stays deferred (`LC-L`): its probe re-ran identically on
+both platforms.
