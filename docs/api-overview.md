@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2086 of them, in
-fifteen modules) belongs to one of 105 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2305 of them, in
+fifteen modules) belongs to one of 117 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -55,7 +55,8 @@ the window's top layer — a portal for modals, popovers and tooltips
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
-  carried and mirrors nothing (25). `Theme`/`ColorToken`/`.theme(_:)` are
+  carried and mirrors nothing (25); `colorScheme`, readable while building
+  ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
   MetalUI's scoped, paint-only colour tokens (M).
 
 ## Layout, SwiftUI vocabulary — A
@@ -72,7 +73,7 @@ algorithms (51, 58, 70, 89). `Grid`, `GridRow`, `.gridCellColumns`,
 Modifiers on proposal content (each one layer of one flat
 `ModifiedContent<Content, LayoutModifier>`): `.frame` (fixed and flexible;
 38), `.padding(Edges<Pixels>)`, `.fixedSize`, `.aspectRatio`/`.scaledToFit`/
-`.scaledToFill`, `.background(token)`, `.background(alignment:content:)` (57,
+`.scaledToFill`, `.background(_ color:)`, `.background(alignment:content:)` (57,
 73), `.overlay(alignment:content:)` (73), `.border`, `.opacity` (46),
 `.clipShape`/`.clipped`/`.cornerRadius`/`.clip` (91, 92), `.allowsHitTesting`
 (41, 44), `.contentShape`, `.onTap`, the gestures, the accessibility
@@ -152,6 +153,49 @@ is one leaf, a `Box`'s background and border one, a surface its quad (104); a
 triple box blur of sigma = radius (105); render only: no layout, hit region or
 accessibility change. Colour, radius and offset animate. Not offered:
 `compositingGroup`, `drawingGroup`, inner shadows.
+
+## Colour — A / D / M
+
+**Values (A; 1, 116–118).** `Color` is SwiftUI's value and still a view that
+fills its proposal: `Color(red:green:blue:opacity:)`, `Color(.sRGB | .sRGBLinear,
+red:…)`, `Color(white:opacity:)`, `Color(hue:saturation:brightness:opacity:)`
+— gamma sRGB, stored as written and clamped at resolution (`CR-C`, 118);
+`opacity(_:)` multiplies (on a `Color` view it is this value method, `CR-G`);
+equality compares components. Statics: the thirteen hues and `gray` are the
+macOS 27 light/dark values (117), `black`/`white`/`clear` fixed, `primary`/
+`secondary`/`accentColor` through the theme (116). `Color.Resolved` and
+`resolve(in:)` give clamped sRGB components. A literal is drawn like a token:
+sRGB numbers on a Display P3 layer (1). No `.displayP3`, no asset catalog, no
+`ShapeStyle` (`.foregroundStyle(.secondary)` is `Color.secondary`, 119).
+
+**Theme-backed and dynamic (M).** `Color(.surface)` / `Color.surface` (the
+nine tokens as statics, bit-exact), `Color(_ hsla:)`, `Color(light:dark:)`
+(MetalUI-only; resolves against the element's `colorScheme`, `CR-O`), and an
+app palette: a `ThemeColorKey` type with a `defaultValue`, read with
+`Color(Key.self)` and overridden per theme with `theme[Key.self] = …`
+(`CR-N`; SwiftUI's answer is an asset catalog). `PaintPass.resolve(_:)` turns
+any `Color` into the `Hsla` a custom `paint` draws, against the element's
+scoped theme and scheme (`CR-H`).
+
+**Everywhere a token went.** `background`, `border`, `fill`, `stroke`,
+`strokeBorder`, `shadow(color:)`, `foregroundColor`/`foregroundStyle`,
+`Background`, `Rectangle(width:height:color:)`, `onTap(hoverColor:)` and the
+legacy `hoverBackground`/`focusBackground`/`hoverBorder`/`focusBorder` take a
+`Color` on both vocabularies; each `ColorToken` overload is kept, disfavoured
+(`CR-E`). Colours animate as tokens do — RGB interpolation, a theme or scheme
+change re-resolves and never fades (`CR-H`). No renderer change (`CR-I`).
+
+**Colour scheme (A / M).** `ColorScheme` (`.light`, `.dark`; `Appearance` is
+its typealias) and `@Environment(\.colorScheme)`, readable while building,
+stamped from the window's appearance; an appearance change rebuilds
+(`CR-J`). `.environment(\.colorScheme, …)` changes a subtree and selects the
+window's matching theme variant (`CR-S`). `.preferredColorScheme(_:)` (A) is
+window-wide with SwiftUI's reduction and sets the platform window's appearance
+— AppKit's `NSWindow.appearance`; SDL's decorations stay with the system
+(`CR-L`, `CR-M`). `Window.colorScheme`, `preferredColorScheme`, `lightTheme`,
+`darkTheme` and `App`'s three defaults (M): the window's theme is the variant
+for its scheme (`CR-K`). At the seam, `PlatformWindow.setPreferredColorScheme(_:)`,
+defaultless.
 
 ## Render effects — A / D
 

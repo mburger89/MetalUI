@@ -110,7 +110,14 @@ F	sizing-modifiers	X	-	-	-	-	FR-I LR-ER LR-EU CN-O	width/height/minWidth/minHeig
 F	flex-basis-fraction	X	-	-	-	-	CX-C	flexBasis(fraction:)/flexBasis(percent:): no SwiftUI counterpart; declare a length or a .frame
 F	core-geometry	M	-	-	-	-	C-1 PC-A	MetalUICore geometry and units (Point, Size, Bounds, Edges, Corners, Axes, Pixels, Rems, Length, Dimension, …)
 F	core-color	M	-	-	-	1	F-1 TB-A	Hsla/Rgba: colours authored in sRGB, composited in a Display P3 layer (1)
-F	core-appearance	M	-	-	-	-	EV-H	Appearance: the host's light/dark appearance, selecting the theme
+F	core-appearance	M	-	-	-	-	EV-H CR-J	Appearance: the pre-colour name of ColorScheme, kept as a typealias, not deprecated (CR-J)
+F	color-value	A	swiftui-colour.swift	R1	literalInitialisersAuthorGammaSRGB	1 116 117 118	CR-B CR-C CR-F CR-G CR-H CR-R	Color as a value: sRGB/sRGBLinear/white/HSB initialisers (gamma sRGB, R1), RGBColorSpace, SwiftUI's named statics (hues frozen at macOS 27, 117; primary/secondary/accentColor through the theme, 116), opacity(_:) multiplies, component equality, Resolved/resolve(in:) clamped (118); literals share the P3 layer (1)
+F	color-theme-backed	M	-	-	-	-	CR-E CR-H CR-N CR-O	Color(_ token:), Color(_ hsla:), Color(light:dark:), Color(_ key:) over a ThemeColorKey, the nine token-named statics, PaintPass.resolve(_:): colours that resolve through the scoped theme and colour scheme
+F	color-deprecated	X	-	-	-	-	CR-D CR-E	Color.color (the ColorToken a Color view held): compare against Color(.token), or resolve with PaintPass.resolve(_:)
+F	theme-palette	M	-	-	-	-	CR-N	ThemeColorKey and Theme[key:]: an app palette in the theme, a typed key with a default (often Color(light:dark:)), overridable per theme variant; SwiftUI's answer is an asset catalog
+F	color-scheme	A	swiftui-colour.swift	E0	aBareEnvironmentReadsLightLikeSwiftUI	-	CR-J	ColorScheme (.light, .dark) and EnvironmentValues.colorScheme: readable while building, stamped from the window's appearance, light in a bare environment (E0)
+F	preferred-color-scheme	A	swiftui-colour.swift	P1	preferredColorSchemeIsWindowWide	-	CR-L CR-T CR-Q	.preferredColorScheme(_:): window-wide, SwiftUI's reduction (first non-nil top-level wins), sets the platform window's appearance (P1)
+F	window-color-scheme	M	-	-	-	-	CR-J CR-K CR-L CR-N	Window.colorScheme/preferredColorScheme/lightTheme/darkTheme and App.preferredColorScheme/lightTheme/darkTheme: the window's scheme and theme variants, app-wide defaults
 F	control-active-state	A	swiftui-environment-control-state.swift	V0	controlActiveStateIsKeyInABareValueAndAWindowlessFrameAndAScopeCanWriteIt	-	EV-AB	ControlActiveState: key/active/inactive, SwiftUI's cases; the platform mapping is MetalUI's own (C1–C3 unmeasured)
 F	layout-direction-type	D	-	-	-	25	EV-K	LayoutDirection: carried, read by no container (25)
 F	layout-kernel	M	-	-	-	77	SA-L SA-M GR-C	MetalUILayout's LayoutTree, node ids, registrars, measure functions, grid marks, spacing, rounding (77)
@@ -148,9 +155,11 @@ M	MetalUI	TransitionGroup.swift	.*	.*	.*	transition
 M	MetalUI	AnyElement.swift	-	ElementObject	.*	element-protocols
 M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
 M	MetalUI	App.swift	App	icon	.*	app-icon
+M	MetalUI	App.swift	App	(preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	App.swift	.*	.*	.*	host
 M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
+M	MetalUI	Window.swift	Window	(colorScheme|preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	Window.swift	.*	.*	.*	host
 M	MetalUI	AXNode.swift	-	AXActionKind	.*	axnode-actions
 M	MetalUI	AXNode.swift	AXNode	actions	.*	axnode-actions
@@ -201,6 +210,7 @@ M	MetalUI	EnvironmentProperty.swift	.*	.*	.*	environment
 M	MetalUI	EnvironmentScope.swift	ElementGroup	theme	.*	theme
 M	MetalUI	EnvironmentScope.swift	ElementGroup	dynamicTypeSize	.*	environment-dynamic-type
 M	MetalUI	EnvironmentScope.swift	ElementGroup	controlSize	.*	environment-control
+M	MetalUI	EnvironmentScope.swift	ElementGroup	preferredColorScheme	.*	preferred-color-scheme
 M	MetalUI	EnvironmentScope.swift	.*	.*	.*	environment
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|controlSize)	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	-	ControlSize	.*	environment-control
@@ -209,6 +219,7 @@ M	MetalUI	EnvironmentValues.swift	EnvironmentValues	dynamicTypeSize	.*	environme
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	layoutDirection	.*	environment-layout-direction
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	locale	.*	environment-locale
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(font|lineLimit|truncationMode|multilineTextAlignment)	.*	text-modifiers
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	colorScheme	.*	color-scheme
 M	MetalUI	EnvironmentValues.swift	.*	.*	.*	environment
 M	MetalUI	Flex.swift	.*	.*	.*	legacy-containers
 M	MetalUI	Stack.swift	.*	.*	.*	legacy-containers
@@ -252,6 +263,11 @@ M	MetalUI	NativeElements.swift	(FixedSize)	.*	.*	fixed-size
 M	MetalUI	NativeElements.swift	Rectangle	init	init\(color:	rectangle-color-init
 M	MetalUI	NativeElements.swift	-	(Rectangle)	.*	shapes
 M	MetalUI	NativeElements.swift	(Rectangle)	.*	.*	shapes
+M	MetalUI	Color.swift	Color	color	.*	color-deprecated
+M	MetalUI	Color.swift	Color	(background|surface|surfaceSecondary|accent|separator|textPrimary|scrollIndicator|scrim|shadow)	.*	color-theme-backed
+M	MetalUI	Color.swift	Color	init	(ColorToken|Hsla|light:|ThemeColorKey)	color-theme-backed
+M	MetalUI	Color.swift	-	ThemeColorKey	.*	theme-palette
+M	MetalUI	Color.swift	(-|Color|Color\.RGBColorSpace|Color\.Resolved)	.*	.*	color-value
 M	MetalUI	NativeElements.swift	-	(Color)	.*	color-fill
 M	MetalUI	NativeElements.swift	(Color)	.*	.*	color-fill
 M	MetalUI	Angle.swift	.*	.*	.*	render-effects
@@ -283,6 +299,7 @@ M	MetalUI	NativeTappable.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeTappable.swift	ProposalElementGroup	nativeOnTap	.*	native-aliases
 M	MetalUI	NativeTappable.swift	.*	.*	.*	on-click
 M	MetalUI	Passes.swift	LayoutPass	(requestNative.*)	.*	kernel-registrars
+M	MetalUI	Passes.swift	PaintPass	resolve	.*	color-theme-backed
 M	MetalUI	Passes.swift	.*	.*	.*	passes
 M	MetalUI	Picker.swift	.*	.*	.*	picker
 M	MetalUI	ProposalLayoutContainer.swift	.*	.*	.*	proposal-layout
@@ -305,11 +322,13 @@ M	MetalUI	TextEditor.swift	.*	.*	.*	text-input
 M	MetalUI	TextField.swift	TextField	init	Binding<String>	text-input-binding
 M	MetalUI	TextField.swift	.*	.*	.*	text-input
 M	MetalUI	TextModifiers.swift	.*	.*	.*	text-modifiers
+M	MetalUI	Theme.swift	Theme	subscript	ThemeColorKey	theme-palette
 M	MetalUI	Theme.swift	.*	.*	.*	theme
 M	MetalUI	UnitPoint.swift	.*	.*	.*	unit-point
 
 # ---------------------------------------------------------------- other targets
-M	MetalUICore	Appearance.swift	.*	.*	.*	core-appearance
+M	MetalUICore	ColorScheme.swift	-	Appearance	.*	core-appearance
+M	MetalUICore	ColorScheme.swift	-	ColorScheme	.*	color-scheme
 M	MetalUICore	Color.swift	.*	.*	.*	core-color
 M	MetalUICore	ControlActiveState.swift	.*	.*	.*	control-active-state
 M	MetalUICore	LayoutDirection.swift	.*	.*	.*	layout-direction-type

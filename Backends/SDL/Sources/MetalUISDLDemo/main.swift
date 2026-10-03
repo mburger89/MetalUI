@@ -48,6 +48,9 @@ func runDemo() throws {
     // `ctx.time` through the SDL renderer's draw context; the counter and the
     // drawing are made once, outside the content closure that runs every
     // frame (MV-O item 1).
+    // `METALUI_LOOKS_DEMO=1`: the looks demo (human check S4 — the colour
+    // section's swatches and scheme toggle; the window's decorations stay with
+    // the system theme, `CR-M`), with the app's dark palette override.
     let environment = ProcessInfo.processInfo.environment
     let size = Size(width: Pixels(920), height: Pixels(560))
     let metalViewDraws = MetalViewDemoDraws()
@@ -56,7 +59,13 @@ func runDemo() throws {
         ctx.clear(red: 0.5 + 0.5 * sin(t), green: 0.5 + 0.5 * sin(t + 2.1), blue: 0.5 + 0.5 * sin(t + 4.2),
                   alpha: 1)
     }
-    let window = environment["METALUI_METALVIEW_DEMO"] == "1"
+    if environment["METALUI_LOOKS_DEMO"] == "1" {
+        app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
+    }
+    let window = environment["METALUI_LOOKS_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 looks", size: Size(width: Pixels(1180), height: Pixels(880)),
+                             content: looksDemoContent)
+        : environment["METALUI_METALVIEW_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 MetalView", size: size,
                              content: { metalViewDemoContent(draws: metalViewDraws, surface: metalViewSurface) })
         : environment["METALUI_DND_DEMO"] == "1"
