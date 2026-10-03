@@ -99,6 +99,7 @@ extension Window {
             return true
         case .press(let node):
             guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID else { return false }
+            if let chosen = pressMenuRow(id) { return chosen }   // the in-window menu (MN-F item 4)
             return press(id, redirectsLeft: 4)
         case .increment(let node):
             guard isOfferedUnderIsolation(node) else { return false }
@@ -142,6 +143,14 @@ extension Window {
         case .selectRows(let table, let rows):
             guard isOfferedUnderIsolation(table) else { return false }
             return selectRows(table, rows)
+        case .showMenu(let node):
+            // A recorded context menu (`MN-G` item 2), at the element's
+            // bottom-leading corner; refused for a node without one (C11n).
+            guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID,
+                  let record = lastContextMenus[id] else { return false }
+            let opened = openContextMenu(of: id, record)
+            if opened { setNeedsRedraw() }
+            return opened
         }
     }
 

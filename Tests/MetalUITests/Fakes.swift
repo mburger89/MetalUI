@@ -292,6 +292,16 @@ final class FakePlatformWindow: PlatformWindow {
         return externalDragResult
     }
 
+    /// Every `presentMenu` call, in order (ruling `MN-C` item 3).
+    private(set) var presentedMenus: [(menu: PlatformMenu, at: Point<Pixels>)] = []
+    /// What `presentMenu` answers; `false`, as SDL does, by default — so
+    /// `Window` draws its in-window menu.
+    var presentsMenusNatively = false
+    func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        presentedMenus.append((menu, position))
+        return presentsMenusNatively
+    }
+
     /// Delivers a drag from outside the window (ruling `DN-C`), as the
     /// platform's drop path would, and answers what the window answered.
     @discardableResult
@@ -408,5 +418,12 @@ final class FakePlatform: Platform {
 
     func setApplicationIcon(_ images: [ImageTexture]) {
         iconCalls.append(images)
+    }
+
+    /// Every `setMenuBar` argument, in call order (ruling `MN-I` item 3).
+    private(set) var menuBars: [PlatformMenuBar] = []
+
+    func setMenuBar(_ menuBar: PlatformMenuBar) {
+        menuBars.append(menuBar)
     }
 }

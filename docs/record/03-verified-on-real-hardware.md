@@ -1908,3 +1908,20 @@ text); Q4 rotated text and image edges; Q5 a crisp path versus soft text under
 and click over the drawn diamond only). SwiftUI's answers were measured in a
 real unlocked window by `swiftui-paths-shadows-transforms.swift`; MetalUI's
 are pinned headless.
+
+## 2026-10-03: menus, popovers and tooltips (record §74) — looks owed
+
+No demo look changes: the fourteen offscreen images read **0 differing pixels and
+identical scenes against `b9da519`** (no production tree uses a new API), and
+`capture.sh` ran once on an unlocked screen (`b9da519 -> HEAD` default 0,
+preview 0). Both SwiftUI probes of the design ran in a **locked** session, so
+SwiftUI's control-click, popover Escape/outside click, tooltip and shortcut
+order are unmeasured; nothing the branch draws or opens has been seen on a real
+display. **Owed, new here — `docs/verification/human-checks.md` group R, none
+performed (an agent cannot)**: R1 the native context menu (look, ⌘D hint,
+choosing an item); R2 the drawn menu on Linux/Windows (hover, submenu, keys,
+outside click); R3 the menu bar (standard menus, File/Demo items, Edit reaching
+a focused field); R4 one shortcut, one action (⌘D, ⇧⌘H) and the order probe
+re-run unlocked; R5 the popover (placement, flip, Escape, outside click, anchor
+click); R6 the tooltip's delay and look against a native one; R7 VoiceOver; R8
+a right click presses nothing (divergence 110).

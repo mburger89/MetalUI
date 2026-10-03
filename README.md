@@ -382,6 +382,13 @@ transform, layout does not — drawn identically on Metal and SDL. Paths and
 shadows are rasterized on the CPU by the portable `MetalUIPath` target. The real
 looks are `docs/verification/human-checks.md` group Q, unrun.
 `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows them.
+**Menus, popovers and tooltips** (user request 2026-10-02, not a plan task; record
+§74): `.contextMenu { }` (a native `NSMenu` on AppKit, MetalUI's drawn menu on SDL),
+`Menu("Title") { }`, `App.commands { CommandMenu / CommandGroup }` with the standard
+AppKit menu bar, `.popover(isPresented:/item:arrowEdge:content:)` and `.help` on both
+vocabularies — a secondary press never presses a `Button` (divergence 110). The real
+looks are `docs/verification/human-checks.md` group R, unrun.
+`METALUI_MENUS_DEMO=1 swift run MetalUIDemo` is its demo.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the
@@ -390,7 +397,7 @@ walking the demo, the controls demo and the text-input demo against the
 trees the tests pin, but **only a human can run it**; task 12's own box
 stays unticked until someone does. The decisions documents are prefixed
 `SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`,
-`TE-`, `IX-`, `AN-`, `PB-`, `CX-` and `DN-`.
+`TE-`, `IX-`, `AN-`, `PB-`, `CX-`, `DN-` and `MN-`.
 
 The accessibility bridge publishes text, click targets, focusable and
 adjustable elements, declared and named actions, hidden/combined/contained

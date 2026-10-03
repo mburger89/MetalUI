@@ -565,7 +565,11 @@ private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, 
 /// bound is 448 + 8 — measured 456 at lane 1 (2026-10-01, arm64 debug). The
 /// `AXNode` bound and this test's answer for the seven declarations are
 /// unchanged.
+///
+/// **U row (menus, ruling `MN-AC` item 2)**: one more reference,
+/// `contextual` (a class box), so 448 + 8 + 8 — test 1.33
+/// `handlersGainsOneReferenceMember` pins the exact 464.
 @Test func theNewDeclarationsCostHandlersAtMostOnePointer() {
     #expect(MemoryLayout<AXNode>.size <= 113 + 8, "AXNode: \(MemoryLayout<AXNode>.size)")
-    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
 }

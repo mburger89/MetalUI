@@ -172,6 +172,22 @@ public struct AXNode: Equatable {
     /// `Picker` option declares the public `.selected` trait instead.
     var selectionHint = false
 
+    /// **A role hint, not a declaration** (menus, ruling `MN-H` item 2): set by
+    /// `Menu`'s pull-down button, published as `.menuButton` (SwiftUI's
+    /// `AXMenuButton`, arm M1) where the node would otherwise be a `.button`.
+    /// Stripped by `Frame.registerHandlers` before `isEmpty`'s gate exactly as
+    /// `selectionHint` is, so it writes neither `Frame.axNodes` nor a `$ax`
+    /// slot (`AB-U`). Internal.
+    var menuButtonHint = false
+
+    /// **A role hint, not a declaration** (menus, popovers and tooltips,
+    /// ruling `MN-O`): set by a popover's chrome, published as `.popover`
+    /// (SwiftUI's `AXPopover`, arm P2). Stripped by `Frame.registerHandlers`
+    /// before `isEmpty`'s gate as `menuButtonHint` is, so the chrome writes
+    /// neither `Frame.axNodes` nor a `$ax` slot (`AB-U`); it still makes the
+    /// chrome's record, as a selection hint does. Internal.
+    var popoverHint = false
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own

@@ -48,12 +48,12 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     public var decoration: Decoration
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
-    private var action: @MainActor () -> Void
-    private var box: Box<Pair<Label, Box<EmptyGroup>>>
+    var action: @MainActor () -> Void
+    var box: Box<Pair<Label, Box<EmptyGroup>>>
     /// The role (`IX-E` item 1): stored and read by nothing.
     private(set) var role: ButtonRole?
     private var buttonStyleValue: ButtonStyle = .automatic
-    private var shortcut: KeyboardShortcut?
+    var shortcut: KeyboardShortcut?
 
     /// A button that runs `action` when pressed (a click, Space or Return when
     /// focused, or an accessibility press), drawn around `label` with the

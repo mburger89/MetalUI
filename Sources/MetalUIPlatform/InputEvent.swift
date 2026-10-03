@@ -144,7 +144,37 @@ public enum InputEvent: Sendable {
     /// **Migration** (`DN-C` item 3): an exhaustive `switch` over `InputEvent`
     /// outside this package adds a `.drop` case or a `default:`.
     case drop(DropEvent)
+    /// A secondary-button press (ruling `MN-B`): the right button on every
+    /// platform, and on AppKit a control-modified primary press too (`MN-AC`
+    /// item 1). It runs no `onClick`, gesture or drag; `Window` hands it only
+    /// to the context-menu stage (divergence 110).
+    ///
+    /// **Migration** (`MN-B` item 1): an exhaustive `switch` over `InputEvent`
+    /// outside this package adds the three menu cases or a `default:`.
+    case rightMouseDown(MouseEvent)
+    /// The release of a secondary press (`MN-B`).
+    case rightMouseUp(MouseEvent)
+    /// A natively presented menu's outcome (ruling `MN-C` item 4): the item
+    /// chosen from the `PlatformMenu` whose token it names, or `nil` for a
+    /// dismissal. Delivered after `PlatformWindow.presentMenu(_:at:)` returned,
+    /// never inside it.
+    case menuAction(MenuActionEvent)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
+}
+
+/// The outcome of a natively presented menu (ruling `MN-C` item 4).
+public struct MenuActionEvent: Sendable, Equatable {
+    /// The presented `PlatformMenu`'s `token`.
+    public var menu: Int
+    /// The chosen item's `PlatformMenuItem.id`; `nil` when the menu was
+    /// dismissed with no choice.
+    public var item: Int?
+
+    /// The outcome of the menu `menu`: `item` chosen, or none.
+    public init(menu: Int, item: Int?) {
+        self.menu = menu
+        self.item = item
+    }
 }
 
 // MARK: - Drag and drop (ruling `DN-C`)

@@ -134,6 +134,8 @@ private struct HandlerFingerprint: Equatable {
     /// draggables.
     var dropDestination = false
     var draggableCount = 0
+    /// Menus (`MN-Q`): the context-menu/help attachment.
+    var contextual = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -152,6 +154,7 @@ private struct HandlerFingerprint: Equatable {
         focusBinding = h.focusBinding != nil
         dropDestination = h.dropDestination != nil
         draggableCount = h.gestures.filter(\.isDraggable).count
+        contextual = h.contextual != nil
     }
 }
 

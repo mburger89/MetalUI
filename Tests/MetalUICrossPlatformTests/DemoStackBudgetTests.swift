@@ -32,6 +32,7 @@ private func buildEveryProductionTree() {
     _ = looksDemoContent()
     _ = dragAndDropDemoContent()
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
+    _ = menusDemoContent()
 }
 
 /// Windows' default thread stack size.

@@ -1318,6 +1318,33 @@ public final class Frame {
             only.dropDestination = destination
             _ = insertHitbox(bounds, id: id, opaque: false, handlers: only, origin: bounds.origin)
         }
+        // A context menu and help (menus, rulings `MN-Q`, `MN-U`, `MN-V`): a
+        // NON-opaque contextual region at the element's own bounds (clipped as
+        // every hitbox is), carrying only the attachment and whether the element
+        // is enabled. **Inside the `allowsHitTesting` gate** (C13: a right press
+        // under `.allowsHitTesting(false)` opens no menu) — unlike a drop
+        // destination's — and **before the disabled gate** (C9: a disabled
+        // element's menu opens, every item disabled). `hidden()` withholds it
+        // through the same gate. Registered after the element's own opaque
+        // hitbox, so the region ranks above it, and before its content's.
+        if let contextual = handlers.contextual {
+            if hitTestingDisabledDepth == 0 {
+                var only = Handlers()
+                only.contextual = contextual
+                let index = insertHitbox(bounds, id: id, opaque: false, handlers: only, origin: bounds.origin).index
+                hitboxes[index].contextualEnabled = enabled
+            }
+            // The keyboard and accessibility openers' record (`MN-G`): not a
+            // hitbox query, so outside the `allowsHitTesting` gate (`MN-U`), but
+            // not inside a hidden subtree.
+            if contextual.menu != nil, keyboardHiddenDepth == 0 {
+                contextMenuRecords[id] = ContextMenuRecord(
+                    attachment: contextual, isEnabled: enabled,
+                    bounds: Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                 y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                   size: bounds.size))
+            }
+        }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
         // `Text.prepaint` — which call this and nothing else — dropped a
@@ -1364,6 +1391,8 @@ public final class Frame {
         var declaration = handlers.axNode
         declaration.logicalIndex = nil
         declaration.selectionHint = false
+        declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
+        declaration.popoverHint = false      // MN-O, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1385,8 +1414,12 @@ public final class Frame {
             // a non-synthesizing conformer (a proposal wrapper, G6's action over
             // a gesture) still publishes it.
             let declaresNamedAction = handlers.actions[ObjectIdentifier(AccessibilityNamedAction.self)] != nil
+            // A context menu is a declaration too (`MN-G` item 2): its node
+            // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
-                || handlers.axNode.selectionHint || declaresAction || declaresNamedAction
+                || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || declaresAction || declaresNamedAction
+                || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
                         || accessibleText != nil))
@@ -1498,6 +1531,49 @@ public final class Frame {
     /// hitbox answers; a mouse click still finds nothing. Last registration
     /// wins, as click dispatch ranks a later hitbox above an earlier one.
     private(set) var accessibilityPressOnly: [GlobalElementID: @MainActor () -> Void] = [:]
+
+    /// The context menus this frame's elements declared, by element (menus,
+    /// spec §3.1): `Window`'s keyboard and accessibility openers' table
+    /// (`MN-G`). Frame-scoped, never `StateTable`.
+    private(set) var contextMenuRecords: [GlobalElementID: ContextMenuRecord] = [:]
+
+    /// The presentation anchors this frame's elements recorded, by element, in
+    /// window points (spec §3.4): `Window.lastPresentationAnchors` after the
+    /// frame. Frame-scoped, never `StateTable`.
+    private(set) var presentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The anchors the LAST frame recorded, handed in by `Window` (spec §3.7,
+    /// `MN-M` item 2): a popover is placed against its anchor's last completed
+    /// bounds, since presentations are laid out before the root. Empty for a
+    /// frame rendered without a window.
+    var previousPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The popovers this frame presented, in registration order — so the
+    /// topmost last (spec §3.7): `Window.lastOpenPopovers` after the frame.
+    /// Frame-scoped, never `StateTable`.
+    private(set) var openPopovers: [OpenPopover] = []
+
+    /// Registers an open popover (`AnchoredPresentation.prepaint`).
+    func registerOpenPopover(_ popover: OpenPopover) {
+        openPopovers.append(popover)
+    }
+
+    /// The tooltip on screen, handed in by `Window` before it renders
+    /// (`MN-P` item 2); `nil` with none, so a frame without one paints
+    /// nothing more.
+    var tooltip: VisibleTooltip?
+
+    /// The window's handle a pull-down presents through (spec §3.4); `nil` for
+    /// a frame rendered without a window.
+    var menuPresenter: MenuPresenter?
+
+    /// Records `bounds` (this element's, in the current offset) as `id`'s
+    /// presentation anchor, in window points.
+    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>) {
+        presentationAnchors[id] = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                       y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                         size: bounds.size)
+    }
 
     /// Set by a collecting `List` whose window is unbounded only because its
     /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`
@@ -2424,6 +2500,20 @@ public final class Frame {
     /// `nil` in every frame without a session, so nothing below runs.
     var dragSourceID: GlobalElementID?
 
+    /// The open in-window menu's levels, root first, handed in by `Window`
+    /// before it renders (menus, `MN-F` item 2); empty with none open, so a
+    /// frame without a menu paints nothing more.
+    var menuPanelLevels: [MenuSession.Level] = []
+
+    /// Runs `body` with `layer` as the active paint layer — the in-window
+    /// menu's, above every layer the frame used (`MN-F` item 2). Opens no
+    /// accessibility portal: the menu publishes through `Window`, not records.
+    func withPaintLayer(_ layer: Int, _ body: () -> Void) {
+        layerStack.append(layer)
+        defer { layerStack.removeLast() }
+        body()
+    }
+
     /// `pointer − press point`, in points: how far the snapshot is replayed
     /// from where the source painted it (`DN-J` item 1).
     var dragPreviewTranslation = Point(x: Pixels(0), y: Pixels(0))
@@ -2796,6 +2886,8 @@ public final class Frame {
         }
         animationStore.transitions.paintGhosts(&paintPass)
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
+        paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
+        paintTooltip()  // a tooltip, above everything (MN-P item 2)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

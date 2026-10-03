@@ -361,6 +361,14 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     override func accessibilityPerformDecrement() -> Bool {
         mainActorAnswer(self, fallback: false) { $0.perform(.decrement, .decrement($0.id)) }
     }
+    /// Opens the node's context menu (rulings `MN-G` item 2, `MN-W`): sends
+    /// `.showMenu` for a node advertising it, `false` and nothing otherwise
+    /// (C11n). Overridden for every node — `NSAccessibilityElement`'s own
+    /// answer forwards to the legacy `accessibilityPerformAction:`, which it
+    /// does not implement.
+    override func accessibilityPerformShowMenu() -> Bool {
+        mainActorAnswer(self, fallback: false) { $0.perform(.showMenu, .showMenu($0.id)) }
+    }
     override func isAccessibilitySelectorAllowed(_ selector: Selector) -> Bool {
         let answer: Bool? = mainActorAnswer(self, fallback: false) { $0.allows(selector) }
         return answer ?? super.isAccessibilitySelectorAllowed(selector)
@@ -418,6 +426,14 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // `AXHeading` (arm T1), spelled by its raw value for macOS 14.
         case .heading: NSAccessibility.Role(rawValue: "AXHeading")
         case .link: .link
+        // Menus (rulings `MN-R`, `MN-AE`): a check-box item is an `AXMenuItem`
+        // whose on state is its value (the mark character has no modern
+        // NSAccessibility method); `.menuButton` is SwiftUI's `Menu` (M1),
+        // `.popover` its popover window's role (P2).
+        case .menu: .menu
+        case .menuItem, .menuItemCheckBox: .menuItem
+        case .menuButton: .menuButton
+        case .popover: .popover
         }
     }
 
@@ -491,7 +507,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         let node = node
         guard let string = node.value else { return nil }
         switch node.role {
-        case .checkBox, .radioButton, .slider, .incrementor:
+        case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox:
             if let number = Double(string) { return NSNumber(value: number) }
             return string
         default:
@@ -572,6 +588,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case #selector(NSAccessibilityElement.accessibilityPerformPress): allows(.press)
         case #selector(NSAccessibilityElement.accessibilityPerformIncrement): allows(.increment)
         case #selector(NSAccessibilityElement.accessibilityPerformDecrement): allows(.decrement)
+        case #selector(NSAccessibilityElement.accessibilityPerformShowMenu): allows(.showMenu)
         case #selector(NSAccessibilityElement.accessibilityRowCount),
              #selector(NSAccessibilityElement.accessibilityRows),
              #selector(NSAccessibilityElement.accessibilityVisibleRows):

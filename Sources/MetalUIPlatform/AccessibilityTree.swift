@@ -51,6 +51,21 @@ public enum AccessibilityRole: Equatable, Sendable {
     case heading
     /// A link — the `.isLink` trait (`IX-X`; AppKit `AXLink`, AccessKit `LINK`).
     case link
+    /// A menu — one level of a drawn menu panel (ruling `MN-R`; AppKit
+    /// `AXMenu`, AccessKit `MENU`).
+    case menu
+    /// One item of a menu (`MN-R`; AppKit `AXMenuItem`, AccessKit `MENU_ITEM`).
+    case menuItem
+    /// A menu item with an on/off state, its value `"1"` or `"0"` (`MN-R`;
+    /// AppKit `AXMenuItem` with a `✓` mark character when on, AccessKit
+    /// `MENU_ITEM_CHECK_BOX`).
+    case menuItemCheckBox
+    /// A button that opens a menu — `Menu("…")` (`MN-H` item 2; AppKit
+    /// `AXMenuButton`, AccessKit `BUTTON` with a menu popup).
+    case menuButton
+    /// A popover's panel (`MN-O`; AppKit `AXPopover`, AccessKit a non-modal
+    /// `DIALOG`).
+    case popover
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from
@@ -66,6 +81,9 @@ public struct AccessibilityActions: OptionSet, Equatable, Sendable {
     public static let increment = AccessibilityActions(rawValue: 1 << 1)
     /// The node's value can be decreased.
     public static let decrement = AccessibilityActions(rawValue: 1 << 2)
+    /// The node has a context menu a client may open (ruling `MN-G` item 2;
+    /// AppKit `accessibilityPerformShowMenu`, AccessKit `SHOW_CONTEXT_MENU`).
+    public static let showMenu = AccessibilityActions(rawValue: 1 << 3)
 }
 
 /// What a node says and what it can do. No geometry: see `AccessibilityGeometry`,
@@ -230,4 +248,11 @@ public enum AccessibilityRequest: Equatable {
     /// `setAccessibilitySelectedRows(_:)`, LA3, LB2). A single-selection list
     /// ignores a request for more than one row (LA4).
     case selectRows(AccessibilityNodeID, [AccessibilityNodeID])
+    /// Open the node's context menu, anchored at its bottom-leading corner
+    /// (ruling `MN-G` item 2). Refused for a node without one (C11n, `MN-W`).
+    ///
+    /// **Migration** (`MN-R`): an exhaustive `switch` over
+    /// `AccessibilityRequest` or `AccessibilityRole` outside this package adds
+    /// the new cases or a `default:`.
+    case showMenu(AccessibilityNodeID)
 }

@@ -812,8 +812,15 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
-        if (e->button.button != SDL_BUTTON_LEFT) return false;
-        out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
+        // The primary button, and the secondary one as its own kinds (ruling
+        // MN-B item 3); every other button is dropped. A ctrl-click stays a
+        // primary press (MN-AC item 1: off Apple it is List's toggle).
+        if (e->button.button == SDL_BUTTON_LEFT)
+            out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
+        else if (e->button.button == SDL_BUTTON_RIGHT)
+            out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_RIGHT_DOWN : MUI_EVENT_RIGHT_UP;
+        else
+            return false;
         out->window_id = e->button.windowID; out->x = e->button.x; out->y = e->button.y;
         out->clicks = e->button.clicks; out->modifiers = mods(SDL_GetModState());
         return true;
@@ -885,6 +892,11 @@ bool mui_push_event(const MUIEvent *in) {
         e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_LEFT;
         e.button.down = in->kind == MUI_EVENT_MOUSE_DOWN; e.button.clicks = (Uint8)in->clicks;
         e.button.x = in->x; e.button.y = in->y; break;
+    case MUI_EVENT_RIGHT_DOWN: case MUI_EVENT_RIGHT_UP:
+        e.type = in->kind == MUI_EVENT_RIGHT_DOWN ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+        e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_RIGHT;
+        e.button.down = in->kind == MUI_EVENT_RIGHT_DOWN; e.button.clicks = (Uint8)in->clicks;
+        e.button.x = in->x; e.button.y = in->y; break;
     case MUI_EVENT_MOUSE_MOVE:
         e.type = SDL_EVENT_MOUSE_MOTION; e.motion.windowID = in->window_id;
         e.motion.x = in->x; e.motion.y = in->y; break;
@@ -953,6 +965,31 @@ bool mui_push_raw_drop_event(uint32_t sdl_type, uint32_t window_id, float x, flo
     // As the synthetic text events above: SDL keeps the pointer, so the copy
     // is leaked on purpose (a test pushes a handful).
     e.drop.data = data ? SDL_strdup(data) : NULL;
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
+const uint32_t mui_sdl_event_mouse_button_down = SDL_EVENT_MOUSE_BUTTON_DOWN;
+const uint32_t mui_sdl_event_mouse_button_up = SDL_EVENT_MOUSE_BUTTON_UP;
+const uint32_t mui_sdl_event_mouse_motion = SDL_EVENT_MOUSE_MOTION;
+const uint8_t mui_sdl_button_left = SDL_BUTTON_LEFT;
+const uint8_t mui_sdl_button_right = SDL_BUTTON_RIGHT;
+const uint32_t mui_sdl_button_lmask = SDL_BUTTON_LMASK;
+const uint32_t mui_sdl_button_rmask = SDL_BUTTON_RMASK;
+
+bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t button, uint32_t state,
+                              float x, float y) {
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = sdl_type;
+    if (sdl_type == SDL_EVENT_MOUSE_BUTTON_DOWN || sdl_type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        e.button.windowID = window_id; e.button.button = button; e.button.clicks = 1;
+        e.button.down = sdl_type == SDL_EVENT_MOUSE_BUTTON_DOWN; e.button.x = x; e.button.y = y;
+    } else if (sdl_type == SDL_EVENT_MOUSE_MOTION) {
+        e.motion.windowID = window_id; e.motion.state = state; e.motion.x = x; e.motion.y = y;
+    } else {
+        return SDL_SetError("not a mouse event");
+    }
     e.common.timestamp = SDL_GetTicksNS();
     return SDL_PushEvent(&e);
 }

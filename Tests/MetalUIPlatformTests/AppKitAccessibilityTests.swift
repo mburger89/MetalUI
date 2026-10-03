@@ -897,3 +897,37 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         _ = held
     }
 }
+
+// MARK: - Menus (menus, popovers and tooltips, lane 1)
+
+/// **1.34** (rulings `MN-R`, `MN-AE`, `MN-G` item 2; probe arms M1, P2, C11,
+/// C11n). The five menu roles map to `AXMenu`, `AXMenuItem` (a check-box item
+/// too, its on state the number 1 as its value, `MN-AE`), `AXMenuButton` and
+/// `AXPopover`; `accessibilityPerformShowMenu` sends one `.showMenu` request
+/// for a node advertising the action and answers `false` without sending for
+/// one that does not. Mutation: map `.menuButton` to `AXButton`.
+@Test @MainActor func theAppKitBridgePublishesTheMenuRolesAndPerformsShowMenu() throws {
+    let h = try makeHarness(signal: true)
+    defer { h.nsWindow.close() }
+    h.bridge.publish(makeTree(roots: ["menu", "button", "popover", "plain"], [
+        "menu": Entry(node: node(.menu, "L-menu", children: ["item", "check"]), frame: rect(0, 0, 10, 20)),
+        "item": Entry(node: node(.menuItem, "L-item", actions: .press), frame: rect(0, 0, 10, 10)),
+        "check": Entry(node: node(.menuItemCheckBox, "L-check", value: "1", actions: .press),
+                       frame: rect(0, 10, 10, 10)),
+        "button": Entry(node: node(.menuButton, "L-mb", actions: [.press, .showMenu]), frame: rect(0, 20, 10, 10)),
+        "popover": Entry(node: node(.popover, "L-pop"), frame: rect(0, 30, 10, 10)),
+        "plain": Entry(node: node(.button, "L-plain", actions: .press), frame: rect(0, 40, 10, 10)),
+    ]))
+    let roots = elements(h.host.accessibilityChildren())
+    try #require(roots.count == 4)
+    #expect(roots.map { $0.accessibilityRole() } == [.menu, .menuButton, .popover, .button])
+    let items = elements(roots[0].accessibilityChildren())
+    try #require(items.count == 2)
+    #expect(items.map { $0.accessibilityRole() } == [.menuItem, .menuItem], "a check-box item is an AXMenuItem")
+    #expect((items[1].accessibilityValue() as? NSNumber)?.intValue == 1, "its on state is the number 1 (MN-AE)")
+    h.log.requests = []
+    #expect(roots[1].accessibilityPerformShowMenu(), "the menu button performs show-menu")
+    #expect(h.log.requests == [.showMenu(nid("button"))], "one request: \(h.log.requests)")
+    #expect(!roots[3].accessibilityPerformShowMenu(), "a node without the action answers false (C11n)")
+    #expect(h.log.requests.count == 1, "and sends nothing")
+}

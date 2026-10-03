@@ -247,6 +247,39 @@ seam, `Platform.setApplicationIcon(_:)` over `ImageTexture`s, defaultless
 (`AI-B`). Shipping an icon with the application itself is build-side:
 [`packaging.md`](packaging.md).
 
+## Menus, popovers and tooltips — A / D / M
+
+**Context menus (A; 110, 114).** `.contextMenu { }` on both vocabularies, over a
+closed `MenuContent` builder: `Button` (with `.keyboardShortcut` shown, `.disabled`
+greyed), `Toggle` (a checked item), `Menu("Sub") { }` (a submenu), `Divider()`,
+and `if`/`for`; evaluated at each open (`MN-D`). Opened by a right press (a
+control-click on AppKit), the menu key or Shift-F10 off Apple, or VoiceOver's
+show-menu. A native `NSMenu` on AppKit, MetalUI's drawn menu (keyboard, hover,
+submenus, outside click) where the platform declines — SDL — through the
+defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
+`InputEvent.menuAction`. A secondary press never presses a `Button` (D 110).
+`Picker`, `Section` and image items are not offered.
+
+**Pull-down (A).** `Menu("Title") { }` as a view: a button that opens its items
+below itself, published as a menu button.
+
+**Menu bar (A / M).** `App.commands { CommandMenu("Name") { }; CommandGroup(after:/before:/replacing:) { } }`
+with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
+Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
+Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
+`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL draws no bar;
+command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
+
+**Popovers (A / D 111, 112, 115).** `.popover(isPresented:arrowEdge:content:)` and
+`.popover(item:arrowEdge:content:)`: anchored to the declaring element, placed on
+`arrowEdge`'s side (default `.top`), flipped then clamped inside the window, no
+arrow; an outside press or Escape writes the binding false from input, and the
+outside press then reaches what it lands on. Published as a non-modal popover.
+
+**Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
+both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
+a press, wheel, key or leaving.
+
 ## Accessibility — A / M
 
 On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,

@@ -159,6 +159,7 @@ private func conformer(member: String) -> String {
         func writeClipboard(_ text: String) {}
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
+        func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
     \(member)
     }
     """

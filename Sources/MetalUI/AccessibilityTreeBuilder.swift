@@ -52,16 +52,18 @@ enum AccessibilityTreeBuilder {
                       focused: GlobalElementID?,
                       hitboxes: [Hitbox],
                       pressOnly: [GlobalElementID: @MainActor () -> Void] = [:],
-                      focusRegistry: FocusRegistry) -> AccessibilityTree {
+                      focusRegistry: FocusRegistry,
+                      menus: Set<GlobalElementID> = []) -> AccessibilityTree {
         buildResult(emissions: emissions, focused: focused, hitboxes: hitboxes, pressOnly: pressOnly,
-                    focusRegistry: focusRegistry).tree
+                    focusRegistry: focusRegistry, menus: menus).tree
     }
 
     static func buildResult(emissions: [AXEmission],
                             focused: GlobalElementID?,
                             hitboxes: [Hitbox],
                             pressOnly: [GlobalElementID: @MainActor () -> Void] = [:],
-                            focusRegistry: FocusRegistry) -> AccessibilityBuild {
+                            focusRegistry: FocusRegistry,
+                            menus: Set<GlobalElementID> = []) -> AccessibilityBuild {
         // 1. Collect. One record per id, at its first position with its last
         //    content (AB-O): two siblings given the same `.id(_:)` mint one
         //    `GlobalElementID`, and publishing it twice would give one element
@@ -141,6 +143,13 @@ enum AccessibilityTreeBuilder {
             }
             if focusRegistry.actionHandler(for: id, type: adjustment) != nil {
                 actions.formUnion([.increment, .decrement])
+            }
+            // A context menu a client may open (menus, `MN-G` item 2): from the
+            // frame's declared menus, not a hitbox — still advertised under
+            // `allowsHitTesting(false)` (`MN-U`) — and, as every action, not by
+            // a disabled node.
+            if menus.contains(id), record.isEnabled {
+                actions.insert(.showMenu)
             }
             let names = focusRegistry.actionHandler(for: id, type: namedAction) != nil ? declarations.actionNames : []
             state[id] = Resolving(record: record, position: position, role: record.declared.role,
@@ -611,6 +620,10 @@ enum AccessibilityTreeBuilder {
         if traits.contains(.isLink), plain.contains(role) || role == .button { role = .link }
         if traits.contains(.isButton), plain.contains(role) { role = .button }
         if traits.contains(.isHeader), plain.contains(role) { role = .heading }
+        // `Menu`'s pull-down button (`MN-H` item 2, M1): a button with the hint.
+        if node.record.declared.menuButtonHint, role == .button { role = .menuButton }
+        // A popover's chrome (`MN-O`, P2): its group publishes as a popover.
+        if node.record.declared.popoverHint, role == .group { role = .popover }
         return role
     }
 }

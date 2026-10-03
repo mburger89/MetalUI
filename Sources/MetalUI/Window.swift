@@ -607,7 +607,10 @@ public final class Window {
         // move between displays through `onResize`, and the next frame's
         // `displayScale` is the drawable's scale that `beginFrame()` returns.
         // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
-        platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
+        platformWindow.onResize = { [weak self] _, _ in
+            self?.dismissInWindowMenu()   // `MN-F` item 3
+            self?.setNeedsRedraw()
+        }
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
@@ -621,6 +624,10 @@ public final class Window {
             // Assigning drives `controlActiveState`'s guarded `didSet`, which
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
+            if state != .key {
+                self?.dismissInWindowMenu()   // `MN-F` item 3
+                self?.hideTooltip()   // `MN-P` item 2
+            }
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
             // Assigning drives the guarded `didSet`, which marks the window
@@ -655,6 +662,8 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // The tooltip watches every event and claims none (`MN-P` item 2).
+            self.trackTooltip(event)
             // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
             // outside answers for itself — "an accepting destination is under
             // the pointer" or "a destination took it", not "claimed" — and an
@@ -667,6 +676,17 @@ public final class Window {
                 return answer
             }
             if self.dispatchDragSession(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // An open menu takes input next (ruling `MN-F` item 3), then the
+            // context-menu stage opens one on a secondary press and takes a
+            // native menu's outcome (`MN-C`, `MN-E`). Every later stage
+            // ignores the secondary button (`MN-B` item 4, divergence 110).
+            // Between them, the popovers' stage (spec §3.8, `MN-N`, `MN-Y`): an
+            // outside press dismisses and passes on, an anchor's is consumed,
+            // Escape dismisses the topmost — before the keymap.
+            if self.dispatchMenuSession(event) || self.dispatchPopovers(event) || self.dispatchContextMenu(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -733,11 +753,25 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Shift-F10 and the Menu key off Apple (ruling `MN-G` item 1):
+            // after a caller's raw `onKey`, before shortcuts.
+            if self.dispatchContextMenuKey(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // A `Button`'s keyboard shortcut (plan task 12 part 1, `IX-F` item
             // 4): after the keymap, a focused field's editing keys and the raw
             // `onKey` bubble, so each claims a key first (`B4i`, `X2`); before
             // Tab traversal. Needs no focus (`B4e`).
             if self.dispatchShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // The app's commands (ruling `MN-J`): directly after a `Button`'s
+            // shortcut, so a keystroke both claim fires the button alone, and
+            // before Tab traversal. **Migration**: a key a command binds no
+            // longer reaches Tab traversal or the window's own `onInput`.
+            if self.dispatchCommandShortcut(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -762,6 +796,7 @@ public final class Window {
                 // its callback from input's footing, so a `@State` write lands
                 // in the frame drawn below and is not a phase write.
                 self?.advanceGestures(to: t)
+                self?.advanceTooltip(to: t)   // the tooltip's timer, on the same footing (MN-P item 2)
                 self?.drawFrameIfNeeded()
             }
         }
@@ -1122,11 +1157,17 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
+        frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
+        frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
+        frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
             frame.dragSourceID = session.sourceID
             frame.dragPreviewTranslation = session.translation
             frame.dragPreviewOrigin = session.previewOrigin
             frame.previousDragSnapshot = session.snapshot
+        }
+        if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
+            frame.menuPanelLevels = session.levels
         }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
@@ -1145,6 +1186,9 @@ public final class Window {
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
+        lastContextMenus = frame.contextMenuRecords
+        lastPresentationAnchors = frame.presentationAnchors
+        lastOpenPopovers = frame.openPopovers
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
@@ -1199,6 +1243,10 @@ public final class Window {
         // lets the link pause (pinned by
         // `aPendingGestureKeepsFramesComingOnlyWhilePending`).
         if gestureArena?.needsTicks == true { setNeedsRedraw() }
+        // A pending tooltip's timer needs the next tick to reach
+        // `advanceTooltip` — only while pending (`MN-P` item 2, `IX-C` item
+        // 4's footing; pinned by `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`).
+        if tooltipTracker.isPending { setNeedsRedraw() }
 
         // The animation half of the same idea, and deliberately NOT the same
         // mechanism. `wantsAnotherFrame` marks the window dirty; this records
@@ -1216,10 +1264,16 @@ public final class Window {
         if accessibility.frameDidRender(
             emissionCount: frame.axEmissions.count,
             retry: frame.wantsAccessibilityRetry,
-            AccessibilityTreeBuilder.buildResult(emissions: frame.axEmissions, focused: focusedElement,
-                                                 hitboxes: frame.hitboxes,
-                                                 pressOnly: frame.accessibilityPressOnly,
-                                                 focusRegistry: frame.focusRegistry),
+            { () -> AccessibilityBuild in
+                var build = AccessibilityTreeBuilder.buildResult(
+                    emissions: frame.axEmissions, focused: focusedElement, hitboxes: frame.hitboxes,
+                    pressOnly: frame.accessibilityPressOnly, focusRegistry: frame.focusRegistry,
+                    menus: Set(frame.contextMenuRecords.keys))
+                // The in-window menu: a root after the content's, published
+                // even under modal isolation (`MN-F` item 4, `MN-AB`).
+                appendMenuPanel(to: &build)
+                return build
+            }(),
             to: platformWindow) {
             setNeedsRedraw()
         }
@@ -1512,6 +1566,9 @@ public final class Window {
             active = nil
         case .mouseMoved(let mouse), .mouseDragged(let mouse):
             lastMousePosition = mouse.position
+        case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
+            // A secondary press moves the pointer, never `active` (`MN-B` item 4).
+            lastMousePosition = mouse.position
         default:
             break
         }
@@ -1575,6 +1632,89 @@ public final class Window {
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
         runClick(handler, on: hit.id, modifiers: mouse.modifiers)
         return true
+    }
+
+    // MARK: Menus (menus, popovers and tooltips, lane 1 — `MN-C`, `MN-F`)
+
+    /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
+    /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
+    var menuSession: MenuSession?
+
+    /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
+    /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
+    /// command stage. `nil` for a window built without an `App`.
+    var commandShortcuts: (@MainActor () -> [(KeyboardShortcut, @MainActor () -> Void)])?
+
+    /// Runs the first enabled command shortcut, in menu order, that `event`
+    /// matches (`MN-J` item 1), from input — exact modifiers, as a `Button`'s
+    /// (`IX-F` item 2). `false` for a window with no app or no match.
+    func dispatchCommandShortcut(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event, let shortcuts = commandShortcuts?(),
+              let match = shortcuts.first(where: { $0.0.matches(key) }) else { return false }
+        match.1()
+        return true
+    }
+
+    /// The anchors the last frame recorded, by element, in window points (spec
+    /// §3.4, `MN-AD`): a `Menu`'s bounds and a popover's anchor (lane 3,
+    /// `MN-M` item 2), handed to the next frame for its popovers' placement.
+    /// The window-owned anchor map; frame-scoped, never `StateTable`.
+    var lastPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The popovers the last frame presented, topmost last (spec §3.8): the
+    /// dismissal stage's table. A dismissed one leaves it at once, so a second
+    /// event before the next frame does not dismiss it again.
+    var lastOpenPopovers: [OpenPopover] = []
+
+    /// The release a popover's consumed anchor press owes a claim (`MN-Y`
+    /// item 2): `true` for the secondary button, `false` for the primary.
+    var popoverClaimsRelease: Bool?
+
+    /// The tooltip's state (`MN-P` item 2) — on `Window`, never `StateTable`.
+    var tooltipTracker = TooltipTracker()
+
+    /// The handle every frame hands its pull-down menus (spec §3.4).
+    var menuPresenter: MenuPresenter {
+        if let existing = menuPresenterStorage { return existing }
+        let made = MenuPresenter(window: self)
+        menuPresenterStorage = made
+        return made
+    }
+    private var menuPresenterStorage: MenuPresenter?
+
+    /// The last menu token handed out; each presentation takes the next.
+    var lastMenuToken = 0
+
+    /// The context menus the last frame recorded, by element (spec §3.1): the
+    /// keyboard and accessibility openers' table (`MN-G`).
+    var lastContextMenus: [GlobalElementID: ContextMenuRecord] = [:]
+
+    /// The platform convention the keyboard context-menu opener reads (`MN-G`
+    /// item 1): `TextEditing.platform` always, in production. A test sets it to
+    /// `.other` so the Shift-F10/Menu-key path, compiled for Linux and Windows,
+    /// is exercised on macOS too.
+    var contextMenuKeyPlatform: TextEditing.Platform = TextEditing.platform
+
+    /// The text system an in-window menu measures and draws through (`TS-A`).
+    var menuTextSystem: any TextSystem { textSystem }
+
+    /// The in-window menu's font: the default control font (`MN-F` item 2).
+    var menuFont: FontKey { textSystem.resolveFont(MenuPanel.fontDescriptor) }
+
+    /// The release a menu stage owes a claim: the up of a press it claimed
+    /// (`MN-F` item 3's consumed outside press, a right press that opened a
+    /// native menu). `true` for the secondary button, `false` for the primary.
+    var menuClaimsRelease: Bool?
+
+    /// Asks the platform to show `menu` itself (`MN-C`).
+    func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        platformWindow.presentMenu(menu, at: position)
+    }
+
+    /// Clears `active` for a press the open menu consumed, so the press never
+    /// draws pressed and its release completes no click beneath (`MN-F` item 3).
+    func releasePressForMenu() {
+        active = nil
     }
 
     /// The current press's gesture arena (plan task 12 part 1, `IX-D`), or

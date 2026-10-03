@@ -12,6 +12,8 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case checkBox, radioButton, radioGroup, slider, spinButton
         /// `.heading` and `.link` (plan task 12 part 2, `IX-AD`).
         case heading, link
+        /// The menu roles and a popover's dialog (ruling `MN-R`).
+        case menu, menuItem, menuItemCheckBox, dialog
     }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
@@ -20,6 +22,8 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// is queued as `AccessKitAdapter.Queued.customAction`, never through
         /// `request(_:number:ids:)`.
         case customAction
+        /// `SHOW_CONTEXT_MENU` — a node with a context menu (`MN-G` item 2).
+        case showContextMenu
     }
 
     public struct Node: Equatable, Sendable {
@@ -54,6 +58,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A selectable row: `selected` is sent as `false` when not selected,
         /// AccessKit's "selectable, not selected" (`IX-AA` item 2).
         public var isSelectable: Bool = false
+        /// A button that opens a menu — `.menuButton` (ruling `MN-R`): sent as
+        /// AccessKit's `has_popup = MENU`.
+        public var hasPopupMenu: Bool = false
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -64,6 +71,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.rowCount == b.rowCount && a.rowIndex == b.rowIndex
                 && a.hint == b.hint && a.authorID == b.authorID
                 && a.customActions == b.customActions && a.isSelectable == b.isSelectable
+                && a.hasPopupMenu == b.hasPopupMenu
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -135,6 +143,7 @@ extension AccessKitSnapshot {
             if node.actions.contains(.decrement) { actions.insert(.decrement) }
             if node.isFocusable { actions.insert(.focus) }
             if !node.customActions.isEmpty { actions.insert(.customAction) }
+            if node.actions.contains(.showMenu) { actions.insert(.showContextMenu) }
             let frame = tree.geometry[id]?.frame
             nodes.append(Node(
                 id: ids.number(for: id), role: role(node.role), label: node.label, value: node.value,
@@ -147,7 +156,7 @@ extension AccessKitSnapshot {
                 toggled: toggled(node), numericValue: numericValue(node),
                 rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
-                isSelectable: node.isSelectable))
+                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -171,13 +180,21 @@ extension AccessKitSnapshot {
         case .incrementor: .spinButton
         case .heading: .heading
         case .link: .link
+        // Menus (ruling `MN-R`): a menu button is a `BUTTON` with a menu popup
+        // (`hasPopupMenu`), a popover a `DIALOG` never marked modal (`MN-O`).
+        case .menu: .menu
+        case .menuItem: .menuItem
+        case .menuItemCheckBox: .menuItemCheckBox
+        case .menuButton: .button
+        case .popover: .dialog
         }
     }
 
-    /// A check box's or radio button's toggled state from its `"1"`/`"0"`
-    /// value (ruling `DD-U` item 1); `nil` for any other role or value.
+    /// A check box's, radio button's or check-box menu item's toggled state
+    /// from its `"1"`/`"0"` value (rulings `DD-U` item 1, `MN-R`); `nil` for
+    /// any other role or value.
     static func toggled(_ node: AccessibilityNode) -> Bool? {
-        guard node.role == .checkBox || node.role == .radioButton else { return nil }
+        guard node.role == .checkBox || node.role == .radioButton || node.role == .menuItemCheckBox else { return nil }
         switch node.value {
         case "1": return true
         case "0": return false
@@ -201,6 +218,7 @@ extension AccessKitSnapshot {
         case .increment: return .increment(id)
         case .decrement: return .decrement(id)
         case .customAction: return nil
+        case .showContextMenu: return .showMenu(id)
         }
     }
 

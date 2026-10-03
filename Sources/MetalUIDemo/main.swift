@@ -37,11 +37,29 @@ func runDemo() throws {
     // MetalView's human looks (`docs/verification/human-checks.md` section O,
     // ruling MV-J): an animated shader quad drawn by app code, UI over it.
     let metalViewDemo = ProcessInfo.processInfo.environment["METALUI_METALVIEW_DEMO"] == "1"
+    // Menus, popovers and tooltips' human looks (`docs/verification/human-checks.md`
+    // group R): a context menu, a popover, tooltips, a pull-down and — in
+    // this mode only — two commands on the menu bar.
+    let menusDemo = ProcessInfo.processInfo.environment["METALUI_MENUS_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if metalViewDemo {
+    if menusDemo {
+        app.commands {
+            CommandMenu("Demo") {
+                Button("Say Hello") { menusDemoModel.status = "Hello from the menu bar" }
+                    .keyboardShortcut("h", modifiers: [.command, .shift])
+                Toggle("Pinned", isOn: menusDemoPinned())
+            }
+            CommandGroup(after: .newItem) {
+                Button("New Note") { menusDemoModel.status = "New Note from the menu bar" }.keyboardShortcut("n")
+            }
+        }
+        window = try app.openWindow(title: "MetalUI — Menus",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: menusDemoContent)
+    } else if metalViewDemo {
         // Both made once, outside the content closure that runs every frame:
         // the counter must persist (MV-O) and the shader compiles once.
         let draws = MetalViewDemoDraws()

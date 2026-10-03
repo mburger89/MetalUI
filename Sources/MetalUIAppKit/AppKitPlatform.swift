@@ -24,6 +24,21 @@ final class MetalHostView: NSView {
     /// from (ruling `DN-K` item 2).
     var lastDragEvent: NSEvent?
 
+    /// The event AppKit is dispatching — `NSApp.currentEvent` in production; a
+    /// test scripts it (ruling `MN-AA`: an Edit action tells a menu click from
+    /// a declined key equivalent by it).
+    var currentEvent: @MainActor () -> NSEvent? = { NSApp.currentEvent }
+
+    /// The last key equivalent offered to the window, by identity (`MN-J` item
+    /// 3): AppKit may hand the same declined event to `keyDown(with:)`, and an
+    /// Edit action may run with it current (`MN-AA`); neither delivers it again.
+    var lastOfferedKeyEquivalent: NSEvent?
+
+    /// Whether a control-press is in flight (`MN-B`, `MN-AC` item 1): it went
+    /// out as `.rightMouseDown`, so its up is `.rightMouseUp` and a drag in
+    /// between is dropped.
+    var controlClickInFlight = false
+
     init(surface: MetalLayerSurface) {
         self.surface = surface
         super.init(frame: .zero)
@@ -124,16 +139,41 @@ final class MetalHostView: NSView {
         return m
     }
 
+    private func mouseEvent(_ event: NSEvent) -> MouseEvent {
+        MouseEvent(position: point(event), modifiers: modifiers(event), clickCount: event.clickCount)
+    }
+
+    /// A control-press is a secondary press on AppKit alone (rulings `MN-B`,
+    /// `MN-AC` item 1 — SDL keeps it primary for `List`'s toggle): it goes out
+    /// as `.rightMouseDown`, its release as `.rightMouseUp`, and a drag between
+    /// them is dropped. **Migration**: a control-click no longer presses a
+    /// `Button` or runs an `onClick`/tap here.
     override func mouseDown(with event: NSEvent) {
-        _ = onInput?(.mouseDown(MouseEvent(position: point(event),
-                                           modifiers: modifiers(event),
-                                           clickCount: event.clickCount)))
+        if event.modifierFlags.contains(.control) {
+            controlClickInFlight = true
+            _ = onInput?(.rightMouseDown(mouseEvent(event)))
+            return
+        }
+        _ = onInput?(.mouseDown(mouseEvent(event)))
     }
 
     override func mouseUp(with event: NSEvent) {
-        _ = onInput?(.mouseUp(MouseEvent(position: point(event),
-                                         modifiers: modifiers(event),
-                                         clickCount: event.clickCount)))
+        if controlClickInFlight {
+            controlClickInFlight = false
+            _ = onInput?(.rightMouseUp(mouseEvent(event)))
+            return
+        }
+        _ = onInput?(.mouseUp(mouseEvent(event)))
+    }
+
+    /// The secondary button (`MN-B`): overridden whole, so `NSView`'s default —
+    /// popping up `self.menu` and passing the event on — never runs.
+    override func rightMouseDown(with event: NSEvent) {
+        _ = onInput?(.rightMouseDown(mouseEvent(event)))
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        _ = onInput?(.rightMouseUp(mouseEvent(event)))
     }
 
     // This fires because `updateTrackingAreas()` above installs a tracking
@@ -203,6 +243,7 @@ final class MetalHostView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if controlClickInFlight { return }   // a secondary press does not drag (MN-B item 4)
         lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
                                               modifiers: modifiers(event))))
@@ -241,12 +282,36 @@ final class MetalHostView: NSView {
     /// `doCommand(by:)`. A command key, or any key with text input off, is a
     /// plain `keyDown`, so shortcuts behave as before.
     override func keyDown(with event: NSEvent) {
+        // A key equivalent the window already declined (`MN-J` item 3): AppKit
+        // hands the same event here after the main menu passed on it.
+        if event === lastOfferedKeyEquivalent { return }
         if textInputCaret != nil, !event.modifierFlags.contains(.command) {
             keyInFlight = event
             defer { keyInFlight = nil }
             if inputContext?.handleEvent(event) == true { return }
         }
         _ = onInput?(.keyDown(keyEvent(event)))
+    }
+
+    /// A ⌘-key reaches the window **before the main menu** (ruling `MN-J` item
+    /// 3): while this view is first responder, AppKit's key-equivalent pass
+    /// offers the event here first and the answer is the window's claim — so a
+    /// `Button`'s, a field's or a command's ⌘-key wins over the menu, and the
+    /// menu sees only what the window declined (Quit, Hide, Minimize…). A ⌃-key
+    /// is offered the same way (`MN-AI`), so a ⌃K command cannot take ⌃K from a
+    /// `Button` or a field's editing keys — except while marked text is
+    /// composing, when it belongs to the input method. The event is remembered
+    /// by identity and never offered twice; `keyDown(with:)` and the Edit
+    /// actions (`MN-AA`) skip it.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        let offered = flags.contains(.command) || (flags.contains(.control) && !hasMarkedText())
+        guard event.type == .keyDown, offered, window?.firstResponder === self else {
+            return super.performKeyEquivalent(with: event)
+        }
+        if event === lastOfferedKeyEquivalent { return false }
+        lastOfferedKeyEquivalent = event
+        return onInput?(.keyDown(keyEvent(event))) ?? false
     }
 
     override func keyUp(with event: NSEvent) {
@@ -635,6 +700,36 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         return true
     }
 
+    /// Shows `menu` as a native `NSMenu` (ruling `MN-C` item 2) popped up at
+    /// `position` in the host view — flipped, so MetalUI's point is the host
+    /// view's — and answers `true`. AppKit's tracking loop runs inside the
+    /// call; the outcome, the chosen item's id or `nil` for a dismissal, is
+    /// delivered as `.menuAction` **after** the call returns (`MN-C` item 4), so
+    /// `Window`'s dispatch is never re-entered.
+    func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        let target = AppKitMenuTarget()
+        let built = AppKitMenuBuilder.menu(from: menu, target: target)
+        menuPresenter(built, NSPoint(x: CGFloat(position.x.value), y: CGFloat(position.y.value)), hostView)
+        let outcome = MenuActionEvent(menu: menu.token, item: target.chosen)
+        scheduleMenuOutcome { [weak self] in _ = self?.onInput?(.menuAction(outcome)) }
+        return true
+    }
+
+    /// Pops `menu` up at `point` (host-view coordinates) in `view` and returns
+    /// once AppKit's tracking loop ends — `NSMenu.popUp(positioning:at:in:)`
+    /// in production; a test injects a presenter that performs an item or
+    /// dismisses (spec §3.5).
+    var menuPresenter: @MainActor (NSMenu, NSPoint, NSView) -> Void = { menu, point, view in
+        menu.popUp(positioning: nil, at: point, in: view)
+    }
+
+    /// Runs `deliver` after `presentMenu` has returned, never inside it (`MN-C`
+    /// item 4) — the next main-actor turn in production; a test holds the block
+    /// and runs it after the call.
+    var scheduleMenuOutcome: @MainActor (_ deliver: @escaping @MainActor () -> Void) -> Void = { deliver in
+        Task { @MainActor in deliver() }
+    }
+
     /// Starts an `NSDraggingSession` from `event` — the host view's own in
     /// production; a test injects a recorder (ruling `DN-X` item 1).
     lazy var startDraggingSession: @MainActor ([NSDraggingItem], NSEvent) -> Void = { [weak self] items, event in
@@ -733,6 +828,22 @@ public final class AppKitPlatform: Platform {
     public func setApplicationIcon(_ images: [ImageTexture]) {
         iconImage = AppKitIcon.image(from: images)
         NSApplication.shared.applicationIconImage = iconImage
+    }
+
+    /// The installed menu bar's delegate and command target, kept alive here
+    /// (an `NSMenu`'s delegate and an item's target are weak).
+    private var installedMenuBar: AppKitMenuBar?
+
+    /// Installs `NSApp.mainMenu` built from `menuBar` (ruling `MN-I` item 3):
+    /// each top-level menu rebuilt from fresh content when it opens, standard
+    /// items on AppKit's own selectors (the application menu's targeting
+    /// `NSApp`, the rest the responder chain — the host view answers the Edit
+    /// items, `MN-K`), command items running `menuBar.perform`. A later call
+    /// replaces the bar.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) {
+        let bar = AppKitMenuBar(menuBar)
+        installedMenuBar = bar
+        NSApplication.shared.mainMenu = bar.makeMainMenu()
     }
 
     /// Runs `NSApplication`'s event loop; returns when the application stops.

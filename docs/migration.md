@@ -135,6 +135,10 @@ public-API removals the records list. **Source** changes stop compiling;
 | an exhaustive `switch` over `LayoutModifier` | add `.rotationEffect`, `.scaleEffect`, `.offset` and `.shadow` arms (or `default:`) — paths, shadows and transforms | `GX-H`, `GX-J` |
 | an exhaustive `switch` over `ColorToken` | add a `.shadow` arm (black at 0.33 in both themes). A custom `Theme(background:…scrim:)` compiles unchanged: `shadow:` is a trailing defaulted parameter | `GX-J`, `GX-Q` |
 | `MUIGlyph(… _reserved: 0)` (the C struct's memberwise initialiser) | `transform: 0` — the word is renamed, still 0 for an untransformed glyph; the bridging `MUIGlyph(bounds:slot:contentMask:…)` initialiser is unchanged | `GX-F` |
+| a `PlatformWindow` conformer outside the package (menus) | implement `presentMenu(_:at:) -> Bool` (answer `false` where the platform has no menu API; `Window` then draws the menu) — no default | `MN-C` item 1 |
+| an exhaustive `switch` over `InputEvent` | add `.rightMouseDown`, `.rightMouseUp` and `.menuAction` arms (or `default:`) | `MN-B` item 1, `MN-C` item 4 |
+| a `Platform` conformer outside the package (menus) | implement `setMenuBar(_ menuBar: PlatformMenuBar)` (an empty body, or recording it, is honest where the platform has no menu bar) — no default | `MN-I` item 3 |
+| an exhaustive `switch` over `AccessibilityRole` or `AccessibilityRequest` | add `.menu`, `.menuItem`, `.menuItemCheckBox`, `.menuButton`, `.popover` and `.showMenu(_:)` arms (or `default:`) | `MN-R` |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
 
@@ -170,6 +174,10 @@ public-API removals the records list. **Source** changes stop compiling;
 | a press under `allowsHitTesting(false)` is advertised to and run by an accessibility client | — | `IX-Z` |
 | **an optional `@State` with a non-`nil` default reads it before its first write** (it read `nil`); the public `withState(_:initial:_:)` over an optional likewise returns `initial` for an absent entry | workarounds that wrote the value first are unaffected | `CX-F`, `CX-Q` item 1 |
 | a legacy frame's `idealWidth`/`idealHeight` answer an unspecified axis (they trapped) | — | stage 9, `CX-R` |
+| **on AppKit a control-click is a secondary press** (`MetalHostView`, lane 2): it no longer presses a `Button` or runs an `onClick`, tap or drag — it opens a context menu, or does nothing (SwiftUI's right click presses a `Button`, divergence 110). Off Apple a ctrl-click stays a primary press (`List`'s toggle) | bind the action to a context menu item, or test the primary press's modifiers | `MN-AC` item 1, `MN-B` item 4 |
+| **an AppKit app has a menu bar** — every `App` installs `NSApp.mainMenu` (About, Hide, Quit; File ▸ Close; Edit; Window), so ⌘Q, ⌘H, ⌥⌘H, ⌘W and ⌘M act when nothing in the window claims them, and Edit ▸ Cut/Copy/Paste/Undo reach a focused `TextField`/`TextEditor` as their keys. SDL draws no bar | bind the key in the window (a `Button`'s `.keyboardShortcut`, a keymap binding or `onKey` still wins, `MN-J`), or replace a group with `App.commands { CommandGroup(replacing:) { } }` | `MN-I` item 4, `MN-K` |
+| **AppKit ⌘-keys arrive through `performKeyEquivalent`** — offered to the window before the main menu, once per event — and reach the same `onInput` pipeline as before | nothing; a ⌘-key is still one `.keyDown` | `MN-J` item 3 |
+| **a key an app command binds is claimed by the command stage** (after a `Button`'s shortcut, before Tab traversal): it no longer reaches Tab traversal or the window's `onInput` fallback | bind it in the window to keep it there | `MN-J` item 1 |
 | a `Shape` conformer that implements **neither** `geometry(in:)` nor `path(in:)` compiles (both are now defaulted, each in terms of the other) and **traps at its first paint naming `GX-D`** — where it failed to compile | implement either; SwiftUI shapes port by writing `path(in:)` (its rect is local, origin (0, 0)) | `GX-D` |
 
 ## See also

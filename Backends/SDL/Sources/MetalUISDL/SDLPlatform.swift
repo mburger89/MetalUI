@@ -126,6 +126,19 @@ public final class SDLPlatform: Platform {
         applyIcon(to: Array(windows.values))
     }
 
+    /// The menu bar `App` last installed (ruling `MN-I` item 3), read by a
+    /// test.
+    private(set) var menuBar: PlatformMenuBar?
+
+    /// Records the menu bar and draws nothing (ruling `MN-I` item 3): SDL3 has
+    /// no menu-bar API, and Linux and Windows SDL windows show none. A
+    /// command's keyboard shortcut still works — `Window`'s command stage
+    /// (`MN-J`) needs no platform menu. An in-window menu bar is deferred,
+    /// owner none.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) {
+        self.menuBar = menuBar
+    }
+
     /// Builds one surface for the stored icon, sets it on `targets` and
     /// destroys it at once (`SDL_SetWindowIcon` keeps its own copy), so no
     /// surface outlives the call. Nothing with no icon or no target.
@@ -377,6 +390,12 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
+    /// Always `false` (ruling `MN-C` item 3): SDL3 has no menu API, so
+    /// `Window` draws the menu in the window (`MN-F`).
+    public func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        false
+    }
+
     // MARK: Drops in (ruling `DN-M`)
 
     /// The drop session SDL's events are building, or `nil` between them.
@@ -508,6 +527,12 @@ public final class SDLWindow: PlatformWindow {
         case Int(MUI_EVENT_MOUSE_UP):
             _ = onInput?(.mouseUp(MouseEvent(position: position, modifiers: modifiers,
                                              clickCount: Int(event.clicks))))
+        case Int(MUI_EVENT_RIGHT_DOWN):   // the secondary button (ruling MN-B item 3)
+            _ = onInput?(.rightMouseDown(MouseEvent(position: position, modifiers: modifiers,
+                                                    clickCount: Int(event.clicks))))
+        case Int(MUI_EVENT_RIGHT_UP):
+            _ = onInput?(.rightMouseUp(MouseEvent(position: position, modifiers: modifiers,
+                                                  clickCount: Int(event.clicks))))
         case Int(MUI_EVENT_MOUSE_MOVE):
             endDropSessionOnMotion()
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
@@ -589,6 +614,7 @@ public enum SDLKeys {
         0x4000_0050: "\u{f702}", 0x4000_004F: "\u{f703}",   // left, right
         0x4000_004A: "\u{f729}", 0x4000_004D: "\u{f72b}",   // home, end
         0x4000_004B: "\u{f72c}", 0x4000_004E: "\u{f72d}",   // page up, page down
+        0x4000_0065: "\u{f735}",   // SDLK_APPLICATION → NSMenuFunctionKey, the Menu key (ruling MN-G)
         0x4000_003A: "\u{f704}", 0x4000_003B: "\u{f705}", 0x4000_003C: "\u{f706}", 0x4000_003D: "\u{f707}",
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",
         0x4000_0042: "\u{f70c}", 0x4000_0043: "\u{f70d}", 0x4000_0044: "\u{f70e}", 0x4000_0045: "\u{f70f}",
