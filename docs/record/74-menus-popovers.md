@@ -353,9 +353,7 @@ tests in 3 suites passed after 125.080 seconds`** (2269 + 20 + 2 guards), the
 `FR-J no-argument frame: succeeded=true` line present; re-taken after
 `swift package clean` (public `App`, `AppKitPlatform` and `AXNode` gained
 stored properties): the same 2291, passed after 121.224 seconds. Guards
-139 → 141 (G2.1, G2.2; spec §6.4's 141 reached with lane 3's two still to
-come — the spec's figure counted lane 1's four as four, lane 1 landed four
-plus its own review's none; re-take at the Record phase). `swift build
+137 → 139 (G2.1, G2.2; spec §6.4's 141 with lane 3's two). `swift build
 --build-tests` (default build system): 0 `warning:`, 0 `error:`.
 `Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): **24 + 62**
 (`MetalUISDLTests` +1, S2.1). A `swift:6.4-noble` container (OrbStack, already
