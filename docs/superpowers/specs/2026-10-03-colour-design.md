@@ -588,3 +588,8 @@ ruling in the decisions doc; the sections above are edited to match:
   change (`Frame.snapsEveryChange`), so a value animated on the scheme does
   not start from the first build (2.11b); 2.15 and 2.17 gain light-variant
   arms (MD, MJ).
+- **`CR-AA`** (lane 3, implementation): the colour section is a row below the
+  two columns and the looks window is 1180 × 880 (§7); every swatch has the
+  `.separator` border; `LooksBrand` and `looksBrandDarkOverride` are public
+  demo-content declarations; `MetalUISDLDemo` gains `METALUI_LOOKS_DEMO=1`
+  for S4; F1.3's onClick count is re-derived 9 → 10 (§6.3 row 3.3).

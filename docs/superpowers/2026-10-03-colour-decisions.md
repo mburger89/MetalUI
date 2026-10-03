@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-AA`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AB`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -846,4 +846,45 @@ copy, `git status --short` empty after each):
 **Cost if wrong.** Item 1: a first frame whose scheme comes from the tree
 shows no animation of anything that differs between the two builds — the
 same as a window opened in that scheme, which is the point.
+
+## CR-AA — Lane 3's implementation findings: the demo's layout, its palette spelling, the SDL demo, one re-derived count (refines spec §7, §6.3 row 3.3, §9 S4)
+
+**Ruling.**
+
+1. **The colour section sits below the two columns**, not in either: both
+   columns are already ~530–560 pt tall in the 720 pt window, and 22 labelled
+   swatches need a row of their own. The looks window grows to **1180 × 880**
+   (`MetalUIDemo` and the new SDL mode). The swatches are two rows (11 + 11)
+   of 92-pt label columns.
+2. **Every swatch has the `.separator` border**, not only `clear` (spec §7
+   item 1): one spelling for all 22 (a `ForEach` over a `[(String, Color)]`
+   table, so no swatch's type differs), and the border is what makes `white`
+   on a light `.surface` and `black` on a dark one visible too.
+3. **The palette key and the override are public in `MetalUIDemoContent`**
+   (`LooksBrand: ThemeColorKey`, `looksBrandDarkOverride`), so `MetalUIDemo`,
+   `MetalUISDLDemo` and test 3.1 apply the same override with one spelling,
+   `darkTheme[LooksBrand.self] = looksBrandDarkOverride`. They are census rows
+   of the `demo-content` family (M), as every demo declaration is.
+4. **`MetalUISDLDemo` gains `METALUI_LOOKS_DEMO=1`** (outside lane 3's file
+   list; type plumbing only): human check S4 named an SDL run that no SDL demo
+   mode could make.
+5. **Test 3.3**: `theLooksDemoDrawsEverySurfaceItsHumanChecksName` (F1.3)
+   required nine `onClick` hitboxes; the scheme toggle is a tenth. It is
+   re-derived to **10**; the toggle is the lowest of them, so the test's
+   "first transition button" press is unchanged. `theLooksDemoShowsPathsShadowsAndTransforms`
+   (3.28) and `everyProductionTreeBuildsOnAOneMegabyteThread` (3.2) needed
+   nothing.
+6. **Test 3.1 also drives the toggle** from input (System → Light → Dark →
+   System in a dark fake window: the window's scheme, the swatches and the
+   fake's `preferredColorSchemeRequests` follow, the last request `nil`).
+
+**Measured** (branch `feat/colour` at `e464d27`, full unfiltered native
+suite of 2376 tests, restored from a copy, `git status --short` empty after):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| M3.1 | the demo's `light/dark` swatch written as the light-only literal `Color(red: 0.95, green: 0.75, blue: 0.20)` (`LooksDemo.swift`) | `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours` (its "dynamic, dark" arm, `LooksColourDemoTests.swift:95`) — only it |
+
+**Cost if wrong.** A taller window than a small laptop screen shows; the
+content scrolls nowhere, so the bottom row would be cut — resize it.
 
