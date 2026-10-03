@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-U`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AE`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -702,3 +702,237 @@ red once. Expected counts in spec §6.6.
 
 **Ruling.** Spec §10's table is the list: every item there is owner none
 unless it names a human check; none blocks the branch.
+
+---
+
+# Critic round (2026-10-02)
+
+The critic re-ran both probes first: `swiftui-menus-popovers.swift` as
+committed reproduced its 130 recorded lines byte for byte; both
+`swiftui-commands.swift` builds reproduced theirs (only the process name in
+the application menu's titles follows the binary's name). Four arms were then
+appended to the menus probe after C10 (C11n, C13c, C13, C14; extended form
+run twice, byte-identical, header re-recorded). The SDK's own
+`SwiftUI.swiftinterface` (macOS 27.0 SDK) was read for every public spelling
+the design copies. The rulings below fix what that found; each names what it
+amends. Earlier rulings keep their text; where one is amended, this round's
+ruling is the authority.
+
+---
+
+## MN-U — A context menu and a help region sit inside the `allowsHitTesting` gate (C13; amends MN-E item 2, MN-P item 2, MN-Q)
+
+**Ruling.** The contextual region (menu and help) is registered in
+`Frame.registerHandlers` **inside** the `allowsHitTesting` gate (beside the
+pointer hitbox) and **outside** the disabled gate: `.allowsHitTesting(false)`
+opens no context menu and shows no tooltip; a disabled element's menu still
+opens with every item disabled (C9, unchanged). This **differs from drop
+destinations** (`DN-G` registers outside the `allowsHitTesting` gate) by
+measurement, not by oversight. The accessibility show-menu action is not a
+hitbox query and is still advertised under `allowsHitTesting(false)` (`IX-Z`'s
+footing; MetalUI's own, unmeasured). New test 1.35
+`aContextMenuUnderAllowsHitTestingFalseDoesNotOpen` (mutation: register the
+region outside the gate).
+
+**Evidence.** C13c (positive control: a right press on the menu view begins
+tracking `["X"]`) against C13 (the same view under `.allowsHitTesting(false)`:
+tracking `[]`).
+
+**Cost if wrong.** One registration moved; pinned by 1.35 either way.
+
+---
+
+## MN-V — A covering pointer target blocks the menu beneath; a painted-only cover cannot (C14; amends MN-E item 1, test 1.10; divergence 114)
+
+**Ruling.**
+
+1. **One lookup, `contextualTarget(at:)`, shared by menus and tooltips**:
+   rank the opaque pointer hitboxes and the contextual regions together by
+   the one ranking (`topmostHitbox(in:at:where:)` over the union — no second
+   ranking). If the topmost entry is a contextual region, it is the target. If
+   it is an opaque hitbox, the target is the region of **that hitbox's element
+   or its nearest ancestor with one** (by the `GlobalElementID` parent chain,
+   the arena's own ancestry, `IX-Q`) — so `Button("B").contextMenu { … }`
+   and `Box { Button }.contextMenu { … }` open, C8's nesting holds, and **an
+   unrelated pointer target covering the region blocks it** (C14). `DN-F`'s
+   layer rule is subsumed: a presentation's hitbox on a higher layer ranks
+   first and is not a descendant.
+2. **Divergence 114, kept, owner none**: SwiftUI's opaque cover blocks with no
+   handler at all (C14's `Color.blue`); MetalUI registers no hitbox for an
+   element without pointer handlers, so a cover that only paints does not
+   block — the menu beneath opens. Making every painted element a hitbox
+   would move hit testing (must-not-move).
+3. The tooltip uses the same lookup — **MetalUI's own for `.help`**,
+   unmeasured (H7's instrument shows no tooltip at all headless).
+
+Test 1.10 becomes `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath`
+(mutation: rank the contextual regions alone); new test 1.36
+`aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath` pins 114 (mutation:
+require a hitbox owned by the region's element or a descendant, which also
+reddens 1.1 — a `Box` with a menu and no handlers has no hitbox).
+
+**Evidence.** C14 (`menu tracking began []` under the cover) against C13c.
+
+**Cost if wrong.** One function; both tests pin it.
+
+---
+
+## MN-W — Show-menu on a node without a menu answers `false` (C11n; evidence for MN-G item 2)
+
+**Ruling.** Unchanged behaviour, now measured: `accessibilityPerformShowMenu`
+on a node with no context menu answers `false` and opens nothing (C11n), as
+`MN-G` item 2 ruled. The dumps' `[showMenu]` marks every node (it records
+`responds(to:)`, which every accessibility element answers) and is **not**
+evidence of an advertised action; neither is C11/C11c's empty
+`actionNames`. Test 1.30 stands.
+
+---
+
+## MN-X — The public spellings follow the SDK's (amends MN-I item 1, MN-L item 1, spec §2.5–§2.6)
+
+**Ruling.** Read from the macOS 27.0 SDK's `SwiftUI.swiftinterface`:
+
+1. **`arrowEdge: Edge? = nil`**, not `Edge = .top`: both `.popover`
+   spellings take an optional edge defaulting to `nil`; `nil` places the
+   popover on the top edge on macOS (P7: the default sat where `.top` did).
+   `attachmentAnchor:` (which precedes `arrowEdge:` in SwiftUI) stays not
+   offered (`MN-L` item 3), so every SwiftUI call site that omits it compiles
+   unchanged. Test 3.2 `theDefaultArrowEdgeIsTop` passes no edge and passes
+   `nil` explicitly. Guard G3.1 spells `arrowEdge: nil`.
+2. **`App.commands(content:)`**: SwiftUI labels the closure `content:`
+   (`func commands<Content: Commands>(@CommandsBuilder content:)`); MetalUI's
+   is `public func commands<C: Commands>(@CommandsBuilder content: @escaping
+   @MainActor () -> C)`. Trailing-closure call sites read the same; G2.1
+   also spells `commands(content:)`.
+3. `CommandMenu(_ name: String, content:)` and `CommandGroup(before:/after:/
+   replacing:, addition:)` match SwiftUI's labels. `CommandGroupPlacement` is
+   `Sendable, Hashable` where SwiftUI's is only `Sendable` — additive (a
+   dictionary key in `menuBarContent()`), as `Transaction`'s `Sendable` was
+   (`AN-AH` item 5). Every stored menu closure is `@escaping` where SwiftUI's
+   are not (evaluated later, `MN-D` item 4, `MN-I` item 1); a call site reads
+   the same.
+
+**Cost if wrong.** A spelling; G2.1/G3.1 pin it.
+
+---
+
+## MN-Y — A press outside a popover dismisses it and then reaches what it lands on; a press on the anchor is consumed (P4a; amends MN-N items 1 and 5)
+
+**Ruling.**
+
+1. A press (left or right) outside every open popover dismisses them,
+   topmost first, writing `false`/`nil` from input under `StateDispatch`,
+   and **then continues through dispatch as an ordinary press** — the
+   `Button` it lands on runs, a context menu beneath opens.
+2. **A press on a popover's own anchor** dismisses that popover and is
+   **consumed** with its release, so `Button { shown.toggle() }` closes the
+   popover rather than re-presenting it. MetalUI's own (unmeasured).
+3. A press inside a popover reaches its content (test 3.6) and is never a
+   pass-through to what lies beneath the popover (`MN-Z`).
+
+**Reasoning.** The design consumed the press on the strength of `IN-W`'s
+scrim, but the probe's only reading points the other way: P4a's outside
+click reached `Under` (`log ["under"]`) exactly as P4b's did with no popover
+(the popover not dismissing is the locked session's broken half — the window
+never became key); `NSPopover.Behavior.transient`'s documented rule is to
+close when the user interacts with something outside it, which presumes the
+interaction happens. Human check R5 re-runs P4 unlocked. Menus still consume
+(an `NSMenu`'s tracking loop does; `MN-F` item 3, unchanged).
+
+Test 3.5 becomes `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn`
+(mutation: claim the press after dismissing); new test 3.26
+`aPressOnTheAnchorDismissesThePopoverAndIsConsumed` (mutation: treat the
+anchor as any outside point — the toggling anchor re-presents).
+
+**Cost if wrong.** One `return`; both tests pin it either way.
+
+---
+
+## MN-Z — The popover chrome blocks what lies beneath it (amends MN-N item 4, spec §3.7)
+
+**Ruling.** The chrome `Box` has no handlers, so it would register no hitbox,
+and a press on its padding would fall through to a `Button` on a lower layer.
+`AnchoredPresentation`'s prepaint therefore inserts a **raw opaque hitbox** at
+the chrome's bounds (`PrepaintPass.insertHitbox`, no handler, not focusable,
+publishing nothing, never a press for accessibility) **before** the content
+registers, so the content ranks above it. It blocks a press, a wheel and a
+drop beneath, and is the "not a descendant" entry `MN-V` needs. Test 3.8's
+mutation becomes "drop the chrome's blocking hitbox" (its old mutation,
+register at the declarer's layer, is kept as a second row).
+
+---
+
+## MN-AA — The Edit menu never re-delivers a key the window declined (amends MN-K)
+
+**Ruling.** With a main menu installed, a ⌘-key the window declines in
+`performKeyEquivalent` goes on to the main menu; if an Edit item matches and
+validates (a field is focused but did not claim the key — e.g. ⌘Z with an
+empty history), its action (`undo:` …) would deliver the same key to
+`onInput` a second time. Each Edit action therefore delivers nothing when
+`NSApp.currentEvent` is the event `performKeyEquivalent` already offered
+(the identity `MN-J` item 3 remembers); a menu **click** (a mouse event as
+the current event) delivers the key. New test 2.18
+`anEditKeyTheWindowDeclinedIsNotDeliveredAgainByTheEditMenu` (mutation: drop
+the identity check in the action).
+
+---
+
+## MN-AB — The in-window menu is exempt from modal isolation (amends MN-F item 4)
+
+**Ruling.** `IX-X`'s isolation publishes only the topmost `.isModal`
+subtree and refuses requests outside it (divergence 95). A menu opened from
+inside a modal (a context menu on a control in the sheet) would vanish from
+the tree and its `press` be refused. The panel's window-owned root is
+therefore **always published** (after the isolated subtree) and its item ids
+are always accepted — it is the platform's menu, above every modal, as an
+`NSMenu` is. New test 1.37
+`theInWindowMenuIsPublishedAndPressableUnderModalIsolation` (mutation: build
+the panel's root inside the isolation filter).
+
+---
+
+## MN-AC — Control-click is AppKit's alone; existing pins and shared state that move (amends MN-B, MN-Q, MN-I)
+
+**Ruling.**
+
+1. Only `MetalHostView` turns a control-press into `.rightMouseDown`. SDL
+   **never** does: off Apple ctrl-click is `List(selection:)`'s toggle
+   (`DD-Z`, `ControlKeys`' shortcut modifier), so it stays a primary press.
+   **Migration note** (lane 1, `docs/migration.md`): on AppKit a
+   control-click no longer presses a `Button` or runs an `onClick`/tap — it
+   is a secondary press (`MN-B` item 4, divergence 110).
+2. **An existing pin moves**: `AccessibilityModifierTests.swift`'s
+   `MemoryLayout<Handlers>.size <= 440 + 8 + 8` is raised by 8 in the change
+   that adds `contextual` (lane 1), beside new test 1.33's exact 464.
+3. **Shared test-process state**: `App.init` on `AppKitPlatform` now sets
+   `NSApp.mainMenu`, and `FrameLoopTests` builds `App(device:)` — so every
+   later AppKit test in the process runs with MetalUI's main menu installed.
+   Lane 2 runs the whole suite unfiltered (as every AppKit change does), and
+   tests 2.13–2.16 save and restore `NSApp.mainMenu`.
+
+---
+
+## MN-AD — Lanes rebalanced (amends MN-S, spec §5)
+
+**Ruling.** Lane 1 also takes the SDL right button and Menu key
+(`SDLBridge.c` + header, `SDLPlatform.named`; tests S3.1/S3.2 move to it),
+because lane 1's in-window menu is the SDL path and would otherwise land
+with no real input until lane 3. The `Menu` pull-down moves to lane 2
+(`PullDownMenu.swift`, tests 1.31/1.32 keep their numbers but are lane 2's;
+lane 2 creates the window-owned anchor map, lane 3 extends it) — lane 2
+already owns native pop-up placement. Lane 1 keeps the `.menuButton` role in
+the vocabulary (`MN-R`). Expected counts: lane 1 35 tests (1.1–1.30, 1.33–
+1.37), lane 2 20 (2.1–2.18, 1.31, 1.32), lane 3 26 (3.1–3.26): **2227 + 81
+= 2308** root tests; guards unchanged at **141**; `Backends/SDL` +5; live
+divergences 76 → **81** (110–114), next label **115**. `MN-S`'s "spec §6.6"
+is a typo for §6.4.
+
+**The `Menu` type straddles the two lanes**, so the split is by file:
+lane 1 declares `public struct Menu<Label, Content>` itself in
+`MenuContent.swift` — both initialisers, its stored properties (the four
+`StyledElement` requirements' storage included, since stored properties
+cannot live in an extension) and its `MenuContent` conformance as a submenu
+item (guard G1.2 spells `Menu("Sub") { … }` inside a context menu only);
+lane 2 adds `extension Menu: Element, StyledElement` and the pull-down's
+behaviour in `PullDownMenu.swift`, and guard G2.1 spells `Menu("…")` as a
+view.

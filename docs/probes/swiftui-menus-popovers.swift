@@ -41,6 +41,18 @@
 // main: 1), so the app never became active and had no key window. Compiled
 // form, run twice: stdout byte-identical (131 lines), exit 0, stderr empty.
 //
+// CRITIC ROUND, 2026-10-02 (same machine, screen locked): the recorded
+// program was first re-run unchanged — its stdout matched the 130 output lines
+// below it byte for byte. Four arms were then APPENDED after C10 (nothing
+// above them changed): C11n (show-menu on a node with no contextMenu — the
+// separating arm C11 lacked: every node responds to the selector, so the
+// dumps' `[showMenu]` is not an advertised action), C13c/C13 (a right press on
+// a contextMenu view, then the same under `.allowsHitTesting(false)`) and C14
+// (the menu view covered by an opaque sibling with no menu). Extended form run
+// twice: stdout byte-identical (137 lines), exit 0, stderr empty. The P0/P3/
+// P4a lines list three more windows than before (C13c, C13, C14 stay open);
+// no other line moved. Rulings MN-U, MN-V, MN-W rest on these arms.
+//
 // WHAT THE LOCKED SCREEN COSTS (read before resting a ruling on an arm):
 // - C5c/C5n: a synthesized control-left-click opens NO menu even on a plain
 //   AppKit NSView with `menu` set (C5n), which right-click opens — AppKit's
@@ -114,10 +126,17 @@
 //     menu: ["X enabled=false"]
 //   === C10 Text.contextMenu {} (empty)
 //     menu: nil
+//     C11n control (no contextMenu) accessibilityPerformShowMenu -> false, menu tracking began []
+//   === C13c Text.contextMenu{X} right press (control)
+//     menu tracking began ["[\"X\"]"]
+//   === C13 Text.contextMenu{X}.allowsHitTesting(false) right press
+//     menu tracking began []
+//   === C14 ZStack { Text.contextMenu{Beneath}; Color.blue cover } right press
+//     menu tracking began []
 //   === M1 Menu(Title) { A; Divider; B }
 //   --- P: popover
 //   === P1 popover arrowEdge .bottom
-//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
+//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
 //     popover window _NSPopoverWindow frame rel main=(57,-30,186x106) main=300x232 key=false level=0
 //     NSPopover behavior=1 animates=true shown=true contentSize=(186.0, 106.0)
 //     P2 popover window AX:
@@ -131,22 +150,22 @@
 //         AccessibilityNode role=AXButton sub=nil label=Under value=nil [showMenu] kids=0
 //         AccessibilityNode role=AXButton sub=nil label=Anchor value=nil [showMenu] kids=0
 //       NSAccessibilityReparentingCellProxy role=nil sub=nil label=nil value=nil kids=0
-//     P3 Escape -> shown=true windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
+//     P3 Escape -> shown=true windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
 //     P3b popover window made key: key=false keyWindow=nil
-//     P3b Escape -> shown=true windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
+//     P3b Escape -> shown=true windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
 //   === P1 popover arrowEdge .top
-//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
+//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
 //     popover window _NSPopoverWindow frame rel main=(57,100,186x106) main=300x232 key=false level=0
 //     NSPopover behavior=1 animates=true shown=true contentSize=(186.0, 106.0)
-//     P4a outside click on Under while shown -> shown=true log ["under"] windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
+//     P4a outside click on Under while shown -> shown=true log ["under"] windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,_NSPopoverWindow
 //     P4b same click again -> shown=true log ["under", "under"]
 //     P4c popover key, outside click on Under -> shown=true log ["under"]
 //   === P1 popover arrowEdge .leading
-//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
+//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
 //     popover window _NSPopoverWindow frame rel main=(-69,35,186x106) main=300x232 key=false level=0
 //     NSPopover behavior=1 animates=true shown=true contentSize=(186.0, 106.0)
 //   === P1 popover arrowEdge .trailing
-//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
+//     P0 control (not shown): windows NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow,NSWindow
 //     popover window _NSPopoverWindow frame rel main=(184,35,186x106) main=300x232 key=false level=0
 //     NSPopover behavior=1 animates=true shown=true contentSize=(186.0, 106.0)
 //   === P5 arrowEdge .bottom, window at the screen's bottom
@@ -492,6 +511,54 @@ MainActor.assumeIsolated {
     // C10: an empty contextMenu.
     let c10 = host("C10 Text.contextMenu {} (empty)", Text("T").frame(width: 200, height: 100).contextMenu { })
     print("  menu: \(contextMenu(c10).map { "\($0.items.count) items" } ?? "nil")")
+
+    // Critic round (2026-10-02): C11n, C13c, C13, C14 — appended so every line
+    // above is unchanged. Each right press is a real NSApp.sendEvent (C5r's
+    // instrument, which opens a menu headless) and reads menu tracking.
+    @MainActor func rightPressTracking(_ h: NSView, at p: CGPoint) -> [String] {
+        var got: [String] = []
+        let o = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { n in
+            let menu = n.object as? NSMenu
+            got.append("\(menu?.items.map(\.title) ?? [])")
+            RunLoop.main.perform(inModes: [.eventTracking, .common, .modalPanel]) { menu?.cancelTrackingWithoutAnimation() }
+        }
+        let w = h.window!
+        let t = Timer(timeInterval: 0.5, repeats: false) { _ in NSApp.sendEvent(mouse(.rightMouseUp, w, p)) }
+        RunLoop.main.add(t, forMode: .eventTracking)
+        NSApp.sendEvent(mouse(.rightMouseDown, w, p)); spin(0.3); t.invalidate()
+        NSApp.sendEvent(mouse(.rightMouseUp, w, p)); spin(0.1)
+        NotificationCenter.default.removeObserver(o)
+        return got
+    }
+    // C11n: accessibilityPerformShowMenu on a node with NO contextMenu (C0's
+    // text) — the separating arm for C11 (every node responds to the selector,
+    // so `[showMenu]` in the dumps is not evidence of an advertised action).
+    do {
+        var bn: [String] = []
+        let on = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { n in
+            let menu = n.object as? NSMenu; bn.append("\(menu?.items.count ?? -1) items")
+            RunLoop.main.perform(inModes: [.eventTracking, .common, .modalPanel]) { menu?.cancelTrackingWithoutAnimation() }
+        }
+        if let node = find(c0, where: { str(kv($0, "accessibilityRole")) == "AXStaticText" }) {
+            typealias Fn = @convention(c) (AnyObject, Selector) -> Bool
+            let ok = unsafeBitCast(node.method(for: Selector(("accessibilityPerformShowMenu"))), to: Fn.self)(node, Selector(("accessibilityPerformShowMenu")))
+            spin(0.4)
+            print("  C11n control (no contextMenu) accessibilityPerformShowMenu -> \(ok), menu tracking began \(bn)")
+        } else { print("  C11n control node not found") }
+        NotificationCenter.default.removeObserver(on)
+    }
+    // C13c (positive control) / C13: a contextMenu view, then the same with
+    // .allowsHitTesting(false) — does a right press still open its menu?
+    let c13c = host("C13c Text.contextMenu{X} right press (control)", Text("T").frame(width: 200, height: 100).background(Color.gray).contextMenu { Button("X") {} })
+    print("  menu tracking began \(rightPressTracking(c13c, at: CGPoint(x: 100, y: 50)))")
+    let c13 = host("C13 Text.contextMenu{X}.allowsHitTesting(false) right press", Text("T").frame(width: 200, height: 100).background(Color.gray).contextMenu { Button("X") {} }.allowsHitTesting(false))
+    print("  menu tracking began \(rightPressTracking(c13, at: CGPoint(x: 100, y: 50)))")
+    // C14: a contextMenu view covered by an opaque sibling with no menu
+    // (ZStack, same window) — does the cover block the menu beneath?
+    let c14 = host("C14 ZStack { Text.contextMenu{Beneath}; Color.blue cover } right press",
+                   ZStack { Text("T").frame(width: 200, height: 100).background(Color.gray).contextMenu { Button("Beneath") {} }
+                            Color.blue.frame(width: 200, height: 100) })
+    print("  menu tracking began \(rightPressTracking(c14, at: CGPoint(x: 100, y: 50)))")
 
     // M: Menu("Title") { } as a pull-down button.
     let m1 = host("M1 Menu(Title) { A; Divider; B }", Menu("Title") { Button("A") { log.lines.append("mA") }; Divider(); Button("B") {} }.frame(width: 150))

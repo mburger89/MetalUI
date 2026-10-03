@@ -1,7 +1,8 @@
 # Menus, popovers and tooltips — design
 
-**Status: design (2026-10-02).** User request 2026-10-02, an item of the
-gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-T` in
+**Status: design (2026-10-02), revised by the critic round (2026-10-02,
+rulings `MN-U`…`MN-AD`, §11).** User request 2026-10-02, an item of the
+gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-AD` in
 [`../2026-10-02-menus-popovers-decisions.md`](../2026-10-02-menus-popovers-decisions.md).
 Record: `docs/record/74-menus-popovers.md`. Probes:
 `docs/probes/swiftui-menus-popovers.swift` (groups C, M, P, H) and
@@ -57,6 +58,10 @@ typecheck guards (record §73), 0 goldens, 76 live divergences, next label
   **C9** — a disabled view's menu opens with its items disabled. **C10** — an
   empty menu: none. **C11** — `accessibilityPerformShowMenu` opens the menu.
   **C12** — a context item's shortcut is inactive while the menu is closed.
+- **C11n** (critic round) — show-menu on a node with no context menu
+  answers `false` and opens nothing. **C13c/C13** — a right press opens the
+  menu; under `.allowsHitTesting(false)` it does not. **C14** — an opaque
+  sibling with no menu covering the view blocks its menu.
 - **M1** — `Menu("Title")` publishes `AXMenuButton`.
 - **P1** — a popover is an `_NSPopoverWindow` (`NSPopover.behavior` 1 =
   `.transient`), placed on `arrowEdge`'s side of the anchor, extending past
@@ -64,8 +69,9 @@ typecheck guards (record §73), 0 goldens, 76 live divergences, next label
   **P5** — flipped to above when the **screen** has no room below. **P7** —
   the default edge is `.top`. **P6** — `item:` presents. **P2/P2b** — the
   popover window is `AXPopover` holding the content; the main window keeps
-  publishing (not modal). **P3/P4** — Escape and outside clicks unmeasured
-  (never key).
+  publishing (not modal). **P3/P4** — Escape and dismissal by an outside
+  click unmeasured (never key); P4a's outside click **reached** the button
+  beneath, as P4b's did with no popover (`MN-Y`).
 - **H1–H5** — `.help` sets `AXHelp`; whichever of `.help`/
   `.accessibilityHint` is outer wins; an outer `.help` beats an inner one; a
   container distributes it. **H6/H7** — no `toolTip` property, no tooltip
@@ -234,7 +240,7 @@ public struct CommandGroupPlacement: Sendable, Hashable {
 }
 extension App {
     /// The menu bar's commands (`MN-I`); a second call replaces the first.
-    public func commands<C: Commands>(@CommandsBuilder _ content: @escaping @MainActor () -> C)
+    public func commands<C: Commands>(@CommandsBuilder content: @escaping @MainActor () -> C)   // MN-X item 2
 }
 ```
 
@@ -248,13 +254,16 @@ Front; `.help` = (empty). File also holds Close ⌘W after `.newItem`'s slot.
 
 ```swift
 extension StyledElement {   // and the same two on ProposalElementGroup
-    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge = .top,
+    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge? = nil,
         @ElementBuilder content: @escaping @MainActor () -> P) -> PopoverModifier<Self, P>
-    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge = .top,
+    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge? = nil,
         @ElementBuilder content: @escaping @MainActor (Item) -> P) -> PopoverModifier<Self, P>
 }
 public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGroup>: Element { }
 ```
+
+`arrowEdge` is SwiftUI's own optional (`MN-X` item 1); `nil` is `.top` on
+macOS (P7).
 
 (`PopoverModifier` conforms to `ProposalElementGroup` when `Content` does, as
 `DraggablePreviewModifier`'s pattern requires; lane 3 follows whichever shape
@@ -266,9 +275,10 @@ that file uses.)
 
 `Handlers.contextual: ContextualAttachment?` (sixteenth member; a final
 class: `menu: (@MainActor () -> MenuItems)?`, `help: String?`). In the
-5-argument `Frame.registerHandlers`, beside the drop destination, **outside**
-the `allowsHitTesting` gate and **before** the disabled gate's exit, an
-element with an attachment registers a non-opaque **contextual region**
+5-argument `Frame.registerHandlers`, **inside** the `allowsHitTesting`
+gate (beside the pointer hitbox — C13, `MN-U`; unlike the drop destination)
+and **before** the disabled gate's exit, an element with an attachment
+registers a non-opaque **contextual region**
 (bounds clipped as every hitbox is, layer, the element's id, the attachment,
 and the element's `isEnabled`). `Handlers.isPointerTarget` ignores it (no
 new opaque target, `DN-E`'s shape). `ContextualModifier.prepaint` registers
@@ -281,9 +291,11 @@ each frame), never `StateTable`.
 `Window.onInput` gains, **after** the drag-session stage and **before**
 scrolling: (1) the open in-window menu's stage (`MenuSession.dispatch`,
 `MN-F` item 3), (2) the popover dismissal stage (lane 3, §3.8), (3) the
-context-menu stage: on `.rightMouseDown`, `topmostHitbox(in:at:where:)` over
-contextual regions with a menu (`DN-F`'s layer rule: a region on a lower
-layer than the topmost hitbox at the point is not eligible) → evaluate the
+context-menu stage: on `.rightMouseDown`, `contextualTarget(at:)` (`MN-V`:
+the one ranking over opaque pointer hitboxes and contextual regions
+together; a region on top is the target, an opaque hitbox on top yields the
+region of its element or nearest ancestor with one, an unrelated cover
+blocks — C14) restricted to regions with a menu → evaluate the
 closure **under `StateDispatch.dispatching(to: id)`** with the region's
 environment's `isEnabled` (`MN-D`) → `PlatformMenu` (token = a counter;
 items numbered depth-first; a disabled region disables every item) → if it
@@ -320,7 +332,8 @@ session to the frame as it hands the drag session. Accessibility: the window
 appends the panel's nodes as a root after the content's roots
 (`WindowAccessibility.swift`), ids synthesized from a window-reserved
 `GlobalElementID` name (`$menu-panel`, never written to `StateTable`),
-`focused` = the highlighted row; `.press(itemID)` chooses.
+`focused` = the highlighted row; `.press(itemID)` chooses. The panel's root
+is published and its ids accepted **even under modal isolation** (`MN-AB`).
 
 ### 3.4 `Menu` pull-down (lane 1)
 
@@ -328,7 +341,7 @@ appends the panel's nodes as a root after the content's roots
 `⌄` text) and sets `role` on its declared node to `.menuButton`. Its action,
 running from input, asks the window to present its items anchored at its own
 bounds from this frame's prepaint (stored in a window-owned anchor map keyed
-by its id, the same map popovers use — lane 1 creates it, lane 3 extends it):
+by its id, the same map popovers use — lane 2 creates it, lane 3 extends it, `MN-AD`):
 native at the bottom-leading point, else the panel below it. Disabled:
 `Button`'s gate (no hitbox, no focus).
 
@@ -348,7 +361,11 @@ native at the bottom-leading point, else the panel below it. Disabled:
   (identity), remember it and return `onInput?(.keyDown(…)) ?? false`.
   `keyDown(with:)` returns at once for the remembered event.
 - Edit actions (`MN-K`): `@objc func cut(_:)` … `delete(_:)` deliver the
-  key; `validateMenuItem(_:)` answers `textInputCaret != nil` for them.
+  key — **unless `NSApp.currentEvent` is the event `performKeyEquivalent`
+  already offered** (`MN-AA`: no second delivery of a declined key);
+  `validateMenuItem(_:)` answers `textInputCaret != nil` for them.
+- Control-click mapping is AppKit's alone (`MN-AC` item 1): SDL keeps a
+  ctrl-click a primary press (`List`'s toggle there, `DD-Z`).
 - `AppKitPlatform.setMenuBar`: builds `NSApp.mainMenu` from `content()`
   (top-level `NSMenuItem`s with submenus whose `NSMenuDelegate.menuNeedsUpdate`
   rebuilds their items from a fresh `content()`); standard items map to
@@ -392,15 +409,21 @@ in `frame.lowering.presentations` like `Deferred`'s, the parent handed a 0×0
 placeholder. `prepaint` records the wrapper's bounds in the anchor map
 (requesting one more frame if they changed while presented) and registers an
 open-popover entry `(id, layer, popover bounds, dismiss)` in a frame-scoped
-list. The chrome declares an accessibility node with role `.popover`.
+list. The chrome declares an accessibility node with role `.popover`, and
+its prepaint inserts a **raw opaque hitbox** at the chrome's bounds (no
+handler, not focusable, publishing nothing) before its content registers, so
+a press, wheel or drop on the chrome's padding never reaches what lies
+beneath (`MN-Z`).
 
 ### 3.8 Popover dismissal (lane 3; `Window.swift`)
 
 The stage of §3.2 item (2): on `.mouseDown`/`.rightMouseDown`, walk the open
 popovers topmost first; while the point is outside the current one, call its
 `dismiss` (binding write from input under `StateDispatch.dispatching(to:
-id)`) and continue; if any was dismissed, claim the press and swallow its
-release. Escape (`.keyDown` `U+1B`, no modifiers), as a stage after the
+id)`) and continue. **The press then continues through dispatch** (P4a,
+`MN-Y`) — except a press on a dismissed popover's own anchor bounds, which
+is claimed with its release (a toggling anchor closes rather than
+re-presents). Escape (`.keyDown` `U+1B`, no modifiers), as a stage after the
 menu's and before `dispatchAction`, dismisses the topmost one.
 
 ### 3.9 Accessibility (lane 1; popover role lane 3)
@@ -421,8 +444,8 @@ set, mapped back to `.showMenu`. C enum raw values converted explicitly
 
 `.help(text)` = `accessibilityHint(text)` (same declaration write, so the
 same tree) **plus** `contextual.help = text`. `TooltipTracker` (window-owned):
-on every pointer move, the topmost help region (one ranking, layer rule) is
-found; entering a new region sets `pending(region, since: nil)`; the next
+on every pointer move, `contextualTarget(at:)` restricted to help regions
+(`MN-V` item 3, the menu's own lookup) is found; entering a new region sets `pending(region, since: nil)`; the next
 `advanceTooltip(to: tick)` call (display-link callback, beside
 `advanceGestures`) stamps `since`; a later tick ≥ `since + 1.0` shows it at
 the latest pointer position inside the region
@@ -433,7 +456,7 @@ leaving `.key`); after a hide the region is `spent` until left. Painted by
 the frame after the menu panel. The link's pause decision adds "a tooltip is
 pending".
 
-### 3.11 SDL (lane 1: `presentMenu`; lane 2: `setMenuBar`; lane 3: input)
+### 3.11 SDL (lane 1: `presentMenu` and input, `MN-AD`; lane 2: `setMenuBar`)
 
 `SDLWindow.presentMenu` returns `false`. `SDLPlatform.setMenuBar` stores the
 bar (`menuBar` internal, read by a test) and draws nothing. `SDLBridge.c`:
@@ -450,6 +473,7 @@ with only the right button held is a `mouseMoved`. `SDLPlatform.named` gains
 | 111 | the popover is its own window, extends past the presenting window and flips against the screen (P1, P5) | drawn inside the window, flipped and clamped against it | `MN-M` | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge`, `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` | 3 |
 | 112 | an arrow points at the anchor | no arrow | `MN-M` | `thePopoverChromeIsARoundedPanelWithNoArrow` | 3 |
 | 113 | AppKit's native tooltip (look, delay unmeasured) | drawn by MetalUI, 1.0 s of tick time | `MN-P` | `aTooltipAppearsAfterTheHoverDelayOfTickTime` | 3 |
+| 114 | an opaque view with no handler covering a context-menu view blocks its menu (C14) | an element registers a hitbox only with pointer handlers, so a cover that only paints does not block; a covering pointer target does | `MN-V` | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath`, `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath` | 1 |
 
 Documented absences (the absences table): every row of §10; "SDL draws no
 menu bar" and "an in-window context menu off Apple" (no SwiftUI there).
@@ -458,9 +482,9 @@ menu bar" and "an in-window context menu off Apple" (no SwiftUI there).
 
 | Lane | Owns | Builds |
 |---|---|---|
-| **1 — the seam and context menus** (Opus) | `MetalUIPlatform/{InputEvent,Platform,AccessibilityTree}.swift`, `MetalUIPlatform/Menus.swift` (new, minus `PlatformMenuBar`'s use); `MetalUI/{MenuContent,ContextMenu,MenuSession,MenuPanel,PullDownMenu}.swift` (new), `Handlers.swift`, `Frame.swift`, `Window.swift`, `WindowAccessibility.swift`, `AccessibilityTreeBuilder.swift`, `AccessibilityRequests.swift`; `MetalUIAppKit/AppKitAccessibility.swift` (roles, show-menu); `AppKitPlatform.swift` **only** an interim `presentMenu` returning `false`; `Backends/SDL/Sources/MetalUISDL/{SDLPlatform,AccessKitTree,AccessKitAdapter}.swift` (`presentMenu` → `false`, roles, `SHOW_CONTEXT_MENU`); `Tests/MetalUITests/Fakes.swift` and every guard fixture's `presentMenu`; `ModifierTests`'/`OuterModifierMatrixTests`' fingerprints; `docs/migration.md` rows; divergence 110. | §2.1 (but `setMenuBar`), §2.2–§2.4 (not `.help`), §3.1–§3.4, §3.9, §3.11's `presentMenu`. |
-| **2 — AppKit and the menu bar** (Opus) | `MetalUIAppKit/AppKitMenus.swift` (new), `AppKitPlatform.swift`; `MetalUI/{Commands,App}.swift`; `Window.swift` (the command stage); `MetalUIPlatform/Platform.swift` + `Menus.swift` (`setMenuBar`, `PlatformMenuBar`); `SDLPlatform.swift` (`setMenuBar`); the fake `Platform` and the guard fixture; migration row. | §2.5, §3.5, §3.6, §3.11's `setMenuBar`. |
-| **3 — popovers, tooltips, SDL input, demo** (Opus) | `MetalUI/{Popover,AnchoredPresentation,Tooltip}.swift` (new), `LegacyLowering.swift`/`Passes.swift` (the anchored lowering), `ContextMenu.swift` (`.help`), `Window.swift` (dismissal, tooltip stages), `Frame.swift` (tooltip paint); `SDLBridge.c` + header, `SDLPlatform.swift` (right button, Menu key); `MetalUIDemoContent` (new section file), `MetalUIDemo/main.swift`; `docs/verification/human-checks.md` group R; divergences 111–113. | §2.6, §3.7, §3.8, §3.10, §3.11's input, §7, §8. |
+| **1 — the seam and context menus** (Opus) | `MetalUIPlatform/{InputEvent,Platform,AccessibilityTree}.swift`, `MetalUIPlatform/Menus.swift` (new, minus `PlatformMenuBar`'s use); `MetalUI/{MenuContent,ContextMenu,MenuSession,MenuPanel,PullDownMenu}.swift` (new), `Handlers.swift`, `Frame.swift`, `Window.swift`, `WindowAccessibility.swift`, `AccessibilityTreeBuilder.swift`, `AccessibilityRequests.swift`; `MetalUIAppKit/AppKitAccessibility.swift` (roles, show-menu); `AppKitPlatform.swift` **only** an interim `presentMenu` returning `false`; `Backends/SDL/Sources/MetalUISDL/{SDLPlatform,AccessKitTree,AccessKitAdapter}.swift` (`presentMenu` → `false`, roles, `SHOW_CONTEXT_MENU`, the Menu key), `Backends/SDL/Sources/SDLBridge/SDLBridge.c` + header (right button, `MN-AD`); `Tests/MetalUITests/Fakes.swift` and every guard fixture's `presentMenu`; `ModifierTests`'/`OuterModifierMatrixTests`' fingerprints, `AccessibilityModifierTests`' size bound (`MN-AC`); `docs/migration.md` rows (incl. AppKit control-click); divergences 110, 114. | §2.1 (but `setMenuBar`), §2.2–§2.3 (not `.help`), §3.1–§3.3, §3.9, §3.11's `presentMenu` and input. |
+| **2 — AppKit, the menu bar and `Menu`** (Opus) | `MetalUIAppKit/AppKitMenus.swift` (new), `AppKitPlatform.swift`; `MetalUI/{Commands,App,PullDownMenu}.swift` (`MN-AD`; lane 2 creates the anchor map); `Window.swift` (the command stage, the pull-down's anchor); `MetalUIPlatform/Platform.swift` + `Menus.swift` (`setMenuBar`, `PlatformMenuBar`); `SDLPlatform.swift` (`setMenuBar`); the fake `Platform` and the guard fixture; migration row. | §2.4, §2.5, §3.4, §3.5, §3.6, §3.11's `setMenuBar`. |
+| **3 — popovers, tooltips, SDL input, demo** (Opus) | `MetalUI/{Popover,AnchoredPresentation,Tooltip}.swift` (new), `LegacyLowering.swift`/`Passes.swift` (the anchored lowering), `ContextMenu.swift` (`.help`), `Window.swift` (dismissal, tooltip stages), `Frame.swift` (tooltip paint); `MetalUIDemoContent` (new section file), `MetalUIDemo/main.swift`; `docs/verification/human-checks.md` group R; divergences 111–113. | §2.6, §3.7, §3.8, §3.10, §7, §8. |
 
 Docs (`CLAUDE.md`, `AGENTS.md`, `README.md`, record index, record 03/04/05)
 are the Record phase's, Sonnet.
@@ -488,7 +512,7 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.7 | `anEmptyContextMenuPresentsNothingAndDoesNotClaimThePress` (C10) | no call; `onInput` answers `false` | present an empty menu |
 | 1.8 | `aSecondaryPressNeverRunsOnClickOrATap` (110) | right press+release over `Button`, `.onTapGesture`, `.draggable`, `TextField` runs/opens/focuses nothing | let `.rightMouseDown` fall through to `dispatchGestures` as a `.mouseDown` |
 | 1.9 | `aPresentationOnAHigherLayerBlocksAContextMenuBeneath` | a `Deferred` presentation over the region: no menu | drop the layer rule from the ranking filter |
-| 1.10 | `aCoveringViewWithoutAMenuDoesNotBlockTheMenuBeneath` | same-layer opaque cover: menu opens | require the topmost opaque hitbox to own the region |
+| 1.10 | `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath` (C14, `MN-V`) | a same-layer `onClick` cover with no menu: no menu; `Box { Button }.contextMenu` over the button: menu opens | rank the contextual regions alone |
 | 1.11 | `aContextMenuItemsShortcutDoesNotFireWhileClosed` (C12) | ⌘K runs nothing | register item shortcuts in `FocusRegistry` |
 | 1.12 | `aDisabledItemCannotBeChosen` | `.menuAction` naming `.disabled(true)`'s id runs nothing | skip the item's `isEnabled` check |
 | 1.13 | `aToggleItemWritesItsBinding` (C4) | `!isOn` written, from input | write `isOn` unchanged |
@@ -509,9 +533,12 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.28 | `aResizeOrLosingKeyDismissesTheInWindowMenu` | each closes it | ignore `controlActiveState` |
 | 1.29 | `theContextMenuKeysAreShiftF10AndTheMenuKeyOffAppleOnly` | `ContextMenuKeys.opens` rows for `.other` true, `.mac` false; on this platform Shift-F10 opens nothing | answer `true` on `.mac` |
 | 1.30 | `aShowMenuRequestOpensTheElementsMenu` (C11) | only a menu-bearing node advertises `.showMenu`; the request presents at its bottom-leading corner | advertise `.showMenu` on every node |
-| 1.31 | `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` (M1) | role `.menuButton`; click presents at bounds' bottom-leading | present at the pointer |
-| 1.32 | `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | keys open; `.disabled(true)` does not | ignore the disabled gate |
-| 1.33 | `handlersGainsOneReferenceMember` | `MemoryLayout<Handlers>.size == 464` | store the closure and help string inline |
+| 1.31 | (**lane 2**, `MN-AD`) `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` (M1) | role `.menuButton`; click presents at bounds' bottom-leading | present at the pointer |
+| 1.32 | (**lane 2**) `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | keys open; `.disabled(true)` does not | ignore the disabled gate |
+| 1.33 | `handlersGainsOneReferenceMember` | `MemoryLayout<Handlers>.size == 464` (and `AccessibilityModifierTests`' existing bound raised by 8, `MN-AC`) | store the closure and help string inline |
+| 1.35 | `aContextMenuUnderAllowsHitTestingFalseDoesNotOpen` (C13, `MN-U`) | no `presentMenu`; the press unclaimed; the show-menu action still advertised | register the region outside the gate |
+| 1.36 | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath` (114) | a background-only `Box` over the region: menu opens | require a hitbox owned by the region's element or a descendant |
+| 1.37 | `theInWindowMenuIsPublishedAndPressableUnderModalIsolation` (`MN-AB`) | inside an `.isModal` sheet: the panel's `.menu` root published, `.press(item)` runs it | build the panel's root inside the isolation filter |
 
 AppKit-side, lane 1, in `AppKitAccessibilityTests` (existing file):
 1.34 `theAppKitBridgePublishesTheMenuRolesAndPerformsShowMenu` — roles
@@ -528,7 +555,7 @@ S1.1 `theAccessKitBridgeMapsTheMenuRolesAndShowContextMenu` (roles, toggled,
 Guards (lane 1), `MenuCompileGuards.swift`, each whole-file `typecheckFile`,
 each mutated red once: G1.1 `anOutsideTypeCannotConformToMenuContent`; G1.2
 `theMenuSpellingsCompileFromAPlainImport` (`.contextMenu` on `Box` and on an
-`HStack`, `Menu("…")`, `Divider()`, a `Toggle` and a `.disabled(true)` and a
+`HStack`, `Menu("…") { }` as a submenu item, `Divider()`, a `Toggle` and a `.disabled(true)` and a
 `.keyboardShortcut` item, `if`/`for` in the builder); G1.3
 `aPickerIsNotAMenuItem`; G1.4 `aPlatformWindowWithoutPresentMenuDoesNotCompile`.
 
@@ -553,11 +580,14 @@ each mutated red once: G1.1 `anOutsideTypeCannotConformToMenuContent`; G1.2
 | 2.15 | `aMenuBarItemRunsItsCommand` | performing the built item runs the command action once | target nothing |
 | 2.16 | `theMenuBarIsRefreshedWhenAMenuOpens` | toggled state after `menuNeedsUpdate` | build items once at install |
 | 2.17 | `everyAppInstallsTheDefaultMenuBar` (fake `Platform`) | `setMenuBar` called once by `App(platform:)` | install only from `commands` |
+| 2.18 | `anEditKeyTheWindowDeclinedIsNotDeliveredAgainByTheEditMenu` (`MN-AA`) | ⌘Z declined by the window, then `undo:` with that event current: one `.keyDown`; `undo:` from a menu click: one | drop the identity check in the action |
+
+Tests 2.13–2.16 save and restore `NSApp.mainMenu` (`MN-AC` item 3).
 
 `Backends/SDL` (lane 2): S2.1 `sdlRecordsTheMenuBarAndDrawsNothing`.
 
 Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
-`theCommandsSpellingsCompileFromAPlainImport`; G2.2
+`theCommandsSpellingsCompileFromAPlainImport` (also `commands(content:)` spelled out and `Menu("…")` as a view, `MN-X`, `MN-AD`); G2.2
 `aPlatformWithoutSetMenuBarDoesNotCompile`.
 
 ### 6.3 Lane 3 — `PopoverTests.swift`, `TooltipTests.swift`
@@ -565,13 +595,13 @@ Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
 | # | Test | Asserts | Mutation |
 |---|---|---|---|
 | 3.1 | `thePopoverSitsOnItsArrowEdgeOfTheAnchor` (×4, P1) | 8-pt gap on each edge's side, centred across | swap `.top`/`.bottom` |
-| 3.2 | `theDefaultArrowEdgeIsTop` (P7) | above | default `.bottom` |
+| 3.2 | `theDefaultArrowEdgeIsTop` (P7, `MN-X`) | no edge and `arrowEdge: nil` both above | map `nil` to `.bottom` |
 | 3.3 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge` (P5, 111) | flipped | drop the flip |
 | 3.4 | `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` (111) | on its side, clamped 8 pt | flip anyway |
-| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesNothingBeneath` | binding false from input; a `Button` beneath did not run; its release swallowed | return `false` after dismissing |
+| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` (P4a, `MN-Y`) | binding false from input; the `Button` beneath ran once | claim the press after dismissing |
 | 3.6 | `aPressInsideThePopoverReachesItsContent` | inner `Button` runs; popover stays | dismiss on every press |
 | 3.7 | `escapeDismissesTheTopmostPopoverBeforeTheKeymap` | keymap Escape binding did not run; inner popover first | run the stage after `dispatchAction` |
-| 3.8 | `aPopoverIsAPresentationOnAHigherLayer` | blocks a press and a drop beneath; an ancestor's `DragGesture` does not reach a press inside | register at the declarer's layer |
+| 3.8 | `aPopoverIsAPresentationOnAHigherLayer` | a press and a drop on the chrome's padding reach nothing beneath; an ancestor's `DragGesture` does not reach a press inside | drop the chrome's blocking hitbox (`MN-Z`); register at the declarer's layer |
 | 3.9 | `thePopoverPublishesAPopoverNodeAndIsolatesNothing` (P2/P2b) | `.popover` node holding the content; the window's other nodes still published | mark it `.isModal` |
 | 3.10 | `aPopoverAddsOneIdentityLevelOnlyForItsCaller` | content at 0 under the wrapper; siblings' ids unmoved | put the slot at `-1` (collides with `.overlay`, `MC-P`) |
 | 3.11 | `aRepresentedPopoversContentStartsFresh` | `@State` inside reset after dismiss/present (`ID-C`) | keep the slot produced while dismissed |
@@ -589,8 +619,9 @@ Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
 | 3.23 | `aHelpRegionAddsNoPointerTarget` | a click passes to the element beneath; `isPointerTarget` unchanged | make the region opaque |
 | 3.24 | `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending` | pause calls: unpaused while pending, paused once shown and idle | leave the link paused |
 | 3.25 | `theTooltipIsPaintedAboveEverything` | its primitives last, after an open menu fixture | emit before the panel |
+| 3.26 | `aPressOnTheAnchorDismissesThePopoverAndIsConsumed` (`MN-Y` item 2) | a `Button { shown.toggle() }` anchor: false after the press, still false next frame | treat the anchor as any outside point |
 
-`Backends/SDL` (lane 3): S3.1 `aRightButtonEventBecomesARightMouseDownAndUp`
+`Backends/SDL` (**lane 1** since `MN-AD`): S3.1 `aRightButtonEventBecomesARightMouseDownAndUp`
 (C-exported constants; `armMainRunLoopExitCheck()`); S3.2
 `theApplicationKeyIsTheMenuFunctionKey`.
 
@@ -603,12 +634,13 @@ Guards (lane 3), `PopoverCompileGuards.swift`: G3.1
 
 ### 6.4 Counts (expected; the lanes re-take them)
 
-Root package: 2227 + 34 (lane 1: 1.1–1.34) + 17 (lane 2) + 25 (lane 3; 3.1
-and 3.19 count once each if parameterized as one `@Test` with arguments) =
-**2303**; guards 133 + 4 + 2 + 2 = **141**; goldens 0. `Backends/SDL`
+Root package (revised by `MN-AD`): 2227 + 35 (lane 1: 1.1–1.30, 1.33–1.37)
++ 20 (lane 2: 2.1–2.18, 1.31, 1.32) + 26 (lane 3: 3.1–3.26; 3.1 and 3.19
+count once each if parameterized as one `@Test` with arguments) = **2308**;
+guards 133 + 4 + 2 + 2 = **141**; goldens 0. `Backends/SDL`
 `MetalUISDLTests` +5. `MemoryLayout<Handlers>.size` 456 → 464; the smallest
-thread building every production tree re-measured. Live divergences 76 → 80,
-next label 114.
+thread building every production tree re-measured. Live divergences 76 → 81
+(110–114), next label 115.
 
 ## 7. The demo (`METALUI_MENUS_DEMO=1`, lane 3)
 
@@ -639,7 +671,7 @@ fire once, and re-run `swiftui-commands.swift` unlocked with a key window to
 settle `MN-J` item 4's order; R5 the popover's look and placement, flipping at
 the window's edge, Escape, an outside click (and whether a native transient
 `NSPopover`'s outside click reaches what it lands on — re-run P3/P4
-unlocked); R6 the tooltip's delay and look against a native AppKit tooltip
+unlocked; `MN-Y` passes it through on P4a's reading); R6 the tooltip's delay and look against a native AppKit tooltip
 (re-run H7 unlocked); R7 VoiceOver: VO-Shift-M on the card opens its menu,
 the popover reads as a popover, `.help` is read as help; R8 a right click on
 a `Button` does not press it (divergence 110; a SwiftUI `Button` does).
@@ -681,5 +713,22 @@ triggered.
 | an in-window menu bar on Linux/Windows | SDL has no native bar; shortcuts already work | none |
 | a native tooltip on AppKit (113) | `MN-P` | none |
 | `.help(Text)`, `.help` on a menu item | small; not asked for | none |
-| the key-window order of a menu/Button shortcut, a popover's outside click and Escape, the tooltip delay, control-click | unmeasured in a locked session | human checks R4, R5, R6, R1 |
+| the key-window order of a menu/Button shortcut, a popover's outside-click dismissal and Escape, the tooltip delay, control-click | unmeasured in a locked session | human checks R4, R5, R6, R1 |
 | Windows' open-on-release context-menu convention | MetalUI opens on the press everywhere (`MN-E` item 3) | none |
+
+## 11. Critic round (2026-10-02)
+
+Both probes re-run as committed first (byte-identical to their headers);
+four arms appended to the menus probe (C11n, C13c, C13, C14) and the SDK's
+`SwiftUI.swiftinterface` read for every copied spelling. Fixed in this spec,
+each by a ruling: the contextual region sits inside the `allowsHitTesting`
+gate (C13, `MN-U`); one lookup ranks pointer hitboxes and regions together
+so a covering pointer target blocks, a painted-only cover does not
+(divergence 114, `MN-V`); show-menu's `false` on a non-menu node is now
+measured (C11n, `MN-W`); `arrowEdge: Edge? = nil` and `commands(content:)`
+(`MN-X`); an outside press dismisses and passes through, the anchor's press
+is consumed (P4a, `MN-Y`); the popover chrome's blocking hitbox (`MN-Z`); no
+second delivery of a declined Edit key (`MN-AA`); the in-window menu above
+modal isolation (`MN-AB`); control-click AppKit-only with a migration note,
+the existing `Handlers` size pin, the main menu in the shared test process
+(`MN-AC`); lanes rebalanced and counts re-derived (`MN-AD`).
