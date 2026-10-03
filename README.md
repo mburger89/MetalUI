@@ -397,7 +397,7 @@ walking the demo, the controls demo and the text-input demo against the
 trees the tests pin, but **only a human can run it**; task 12's own box
 stays unticked until someone does. The decisions documents are prefixed
 `SA-`, `MC-`, `EV-`, `AB-`, `FR-`, `OM-`, `CN-`, `LR-`, `GR-`, `ID-`, `DD-`,
-`TE-`, `IX-`, `AN-`, `PB-`, `CX-` and `DN-`.
+`TE-`, `IX-`, `AN-`, `PB-`, `CX-`, `DN-` and `MN-`.
 
 The accessibility bridge publishes text, click targets, focusable and
 adjustable elements, declared and named actions, hidden/combined/contained
