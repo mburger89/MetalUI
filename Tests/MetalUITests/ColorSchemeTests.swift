@@ -583,7 +583,10 @@ private struct SchemeAnimated: Component {
     // The light half's guard (review of lane 2, `OM-AI`): a light variant
     // assigned in a dark window leaves its theme alone. Mutation MD: drop
     // `colorScheme == .light` from `lightTheme`'s guard.
-    window.lightTheme = customTheme()
+    var otherLight = Theme.light
+    otherLight.surface = Hsla.rgb(0x654321)
+    try #require(otherLight != custom && otherLight != window.lightTheme)
+    window.lightTheme = otherLight
     #expect(window.theme == custom, "a light variant does not touch a dark window's theme")
 }
 

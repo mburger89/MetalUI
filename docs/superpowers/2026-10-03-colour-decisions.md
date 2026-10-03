@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-Z`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AA`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -730,7 +730,11 @@ reported and are not claimed here.
    with `needsRedraw` cleared: the scheme change that dirtied is consumed by
    it, and every "another frame" request (`wantsAnotherFrame`, gestures,
    tooltip, a `@State` write in a phase) is re-derived by the second build.
-   2.11 asserts `needsRedraw == false` after the first frame.
+   2.11 asserts `needsRedraw == false` after the first frame. **Refuted for
+   a value animated on the scheme** (`CR-Z`): the second build diffed against
+   the first and started that animation, presenting the light value at t = 0
+   and leaving the window animating; the second build now snaps every
+   change.
 4. **2.11's `StateTable` arm compares against a one-build control.** The
    table holds 8 entries after one build of 2.11's tree, not 1, so "one entry, not two"
    became "the entries one build of the same tree, drawn in a dark fake,
@@ -781,7 +785,7 @@ suite of 2374 tests per mutation; M2.18 re-run with the default appended at file
 | M2.14 | window preference before the tree's | `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` |
 | M2.15 | `theme = Theme.forAppearance(colorScheme)`, ignoring the variants | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame`, `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` |
 | M2.16 | `App` assigns after `openWindow`'s first draw | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
-| M2.17 | drop the variant → `theme` propagation (both variants) | `aPaletteOverrideOnTheWindowsVariantRepaints`, `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
+| M2.17 | drop the variant → `theme` propagation (both variants together; only the dark half reddened anything — per-half rows MJ, MD in `CR-Z`) | `aPaletteOverrideOnTheWindowsVariantRepaints`, `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` |
 | M2.18 | a protocol-extension default for `setPreferredColorScheme` | `aPlatformWindowWithoutSetPreferredColorSchemeDoesNotCompile` |
 | M2.19 | delete `typealias Appearance` | package build fails (`Sources/MetalUIPlatform/Platform.swift:20`: cannot find type 'Appearance' in scope) — guard 2.19 is the second line of defence (`CR-X` item 4's footing): every conformer spells `Appearance` |
 | M2.20 | AppKit maps `.dark` to `.aqua` | `settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt` |
@@ -792,3 +796,54 @@ suite of 2374 tests per mutation; M2.18 re-run with the default appended at file
 absolute `Deferred` declared before a main-tree preference would differ from
 plain walk order — the conservative `CR-T` choice, unprobed for SwiftUI.
 Items 2–6 are invisible at a call site.
+
+## CR-Z — Lane 2 review: the second first-frame build snaps every change; the light variant's two halves pinned (revises `CR-Q`, `CR-Y` items 2 and 3; spec §3.4, §6.2 rows 2.11, 2.15, 2.17)
+
+**Ruling.**
+
+1. **The first frame's second build snaps every change.** `CR-Q` adopts the
+   first build, so the second sees a scheme change from light to dark and,
+   before this ruling, started any `.animation(_:value:)` keyed on a value
+   derived from the scheme (and would have run a transition on a
+   scheme-dependent conditional, or animated under a `.transaction(_:)` that
+   sets an animation): the presented first frame drew the light value at
+   t = 0 and `hasActiveAnimations` stayed true — contradicting `CR-Q`'s "no
+   light flash". `Frame` gains an internal `snapsEveryChange` (set only for
+   that second build, `buildAndAdoptFrame(scaleFactor:snapsEveryChange:)`):
+   the root transaction carries no animation and `disablesAnimations`, and
+   `withTransactionScope` clears every scope's animation, so every animated
+   helper, `TransitionGroup` and value scope reads `nil` and snaps. The
+   value scopes still store their values, so the next ordinary frame diffs
+   against the target scheme. Re-seeding the stores from the second build
+   was the alternative; it needs a snapshot of window stores the window does
+   not have (`CR-Y` item 4). The presented frame now equals one build in
+   the target scheme (test **2.11b**,
+   `theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild`, against a
+   one-build dark control). An animation the first build legitimately
+   started with nothing to diff (none can on a first frame) is not touched.
+2. **The light variant's two halves are pinned on their own** (`OM-AI`).
+   2.17 gains a light-window arm (`window.lightTheme[Brand.self] = …` →
+   `needsRedraw`, `window.theme` carries it, the override painted); 2.15
+   gains "assigning `lightTheme` in a dark window leaves `theme` alone"
+   (`CR-Y` item 2, now pinned for both variants).
+3. **Not changed: `Deferred`.** `Deferred.swift` and
+   `AnchoredPresentation.swift` gained only `begin`/`endPresentation
+   Preferences` around the content build (`CR-Y` item 1; pinned by 2.9 via
+   mutations MC and MF). Layout, identity and pixels are unchanged (14/14
+   demo images at 0 px). The Record phase lists this touch on `Deferred`
+   under MUST NOT MOVE.
+
+**Measured** (branch `feat/colour`, fix `snapsEveryChange` committed after `8fa0b51`, full
+unfiltered native suite of 2375 tests per mutation, each restored from a
+copy, `git status --short` empty after each):
+
+| Id | Mutation (spelling) | Reddened |
+|---|---|---|
+| MK | the second build without `snapsEveryChange` (`buildAndAdoptFrame(scaleFactor: drawScaleFactor, snapsEveryChange: false)`, `Window.swift`) | `theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild` |
+| MJ | delete `theme = lightTheme` in `Window.lightTheme`'s `didSet` | `aPaletteOverrideOnTheWindowsVariantRepaints` (its light arm; the review measured it green before the arm) |
+| MD | `lightTheme`'s guard reduced to `lightTheme != oldValue` | `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` (its light-variant arm; a first spelling of the arm assigned `customTheme()`, equal to the dark window's current `theme`, and stayed green under MD — the arm now assigns a third theme, `#require`d distinct) |
+
+**Cost if wrong.** Item 1: a first frame whose scheme comes from the tree
+shows no animation of anything that differs between the two builds — the
+same as a window opened in that scheme, which is the point.
+

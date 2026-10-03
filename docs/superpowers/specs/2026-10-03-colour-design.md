@@ -258,7 +258,9 @@ nothing. After `renderRoot(frame)`: if `framesDrawn == 0` and the collected
 preference changes the effective scheme, apply it, **adopt the first build in
 full** and run the build-and-adopt half once more inside the same
 `beginFrame()`; only the second build is published to accessibility and
-encoded (`CR-Q` — nothing is discarded); otherwise, on a change, apply it and
+encoded (`CR-Q` — nothing is discarded; the second build snaps every
+change, `CR-Z`, so nothing animates or transitions from the first);
+otherwise, on a change, apply it and
 `setNeedsRedraw()`.
 
 ### 3.5 Palette (`CR-N`)
@@ -393,12 +395,13 @@ the `BackgroundChainTests`. A test broken only by a stored property's retyping
 | 2.9 | `thePreferredColorSchemeReductionMatchesSwiftUI` | arms `P3` dark, `P4` light, `P5` light, `P6` none (platform's), `P7` dark — each its own window; arm `PR` (`CR-T`, `CR-Y`): a popover whose content prefers dark, declared before a sibling preferring light → light, and without that sibling → dark; arm `PD`: the same for an absolute `Deferred`, plus an in-flow `Deferred` (main tree, walk order) → dark | — | last-wins (P3, P4 redden); separately, inner-wins (P5, P6 redden); plain walk order (PR main, PD main redden) |
 | 2.10 | `aPreferenceOnBothVocabulariesIsTransparentToLayoutAndIdentity` | legacy and proposal arms: the same tree with and without `.preferredColorScheme(.dark)` lays out identically, and a `@State` counter below it survives a change of the preferred value | — | make the scope consume a cursor slot (both arms); separately, record the preference only in `requestGroupLayout` (the proposal arm reddens, `OM-AI`) |
 | 2.11 | `aRootPreferenceIsInTheFirstPresentedFrame` | root `.preferredColorScheme(.dark)` in a light fake: after the window's first `drawFrameIfNeeded()`, `framesDrawn == 1` and `lastScene`'s `.surface` rect is `Theme.dark.surface`; `StateTable.count` equals a one-build control's (`CR-Q`, `CR-Y` item 4); `needsRedraw == false` | — | drop the first-frame rebuild |
+| 2.11b | `theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild` | a view whose fill derives from the scheme under `.animation(.default, value: scheme)`, root `.preferredColorScheme(.dark)` in a light fake: the first presented fill is the dark half and `hasActiveAnimations == false`, as a one-build dark control (`CR-Z` item 1) | — | build the second frame without `snapsEveryChange` (MK) |
 | 2.12 | `aLaterPreferenceChangeAppliesOnTheNextFrame` | state flipped from input: the next frame is light and dirty, the one after dark, then `needsRedraw == false` | — | never re-dirty on a changed preference |
 | 2.13 | `clearingThePreferenceReturnsToThePlatformsAppearance` | `.dark` → `nil` (`P8b`): the fake records `[.dark, nil]`, scheme = the fake's appearance | — | keep the last non-nil |
 | 2.14 | `theTreesPreferenceWinsOverTheWindowsAndTheWindowsOverThePlatform` | `window.preferredColorScheme = .light`, tree `.dark` → dark; tree `nil` → light; both `nil` → platform | — | swap tree and window precedence |
-| 2.15 | `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` | `darkTheme = custom`, appearance → dark → `theme == custom`; `window.theme = .light` in dark → painted light until the next scheme change | — | `theme = Theme.forAppearance(…)` ignoring the variants |
+| 2.15 | `theWindowsThemeFollowsItsVariantsAndADirectWriteLastsUntilTheNextChange` | `darkTheme = custom`, appearance → dark → `theme == custom`; `window.theme = .light` in dark → painted light until the next scheme change; `lightTheme = custom` in a dark window leaves `theme` alone (`CR-Z` item 2) | — | `theme = Theme.forAppearance(…)` ignoring the variants; MD (drop `colorScheme == .light` from `lightTheme`'s guard) |
 | 2.16 | `appSchemeAndThemesReachEveryWindowBeforeItsFirstFrame` | `App(platform: FakePlatform)`; `app.darkTheme[Brand.self] = X`, `app.preferredColorScheme = .dark`, then `openWindow`: its first scene shows X; assigning again re-themes open windows | — | assign after `openWindow`'s first draw |
-| 2.17 | `aPaletteOverrideOnTheWindowsVariantRepaints` | `window.darkTheme[Brand.self] = X` in a dark window → `needsRedraw`, next frame X | — | drop the variant → `theme` propagation |
+| 2.17 | `aPaletteOverrideOnTheWindowsVariantRepaints` | `window.darkTheme[Brand.self] = X` in a dark window → `needsRedraw`, next frame X; the same with `lightTheme` in a light window (`CR-Z` item 2) | — | drop the variant → `theme` propagation; MJ (delete `theme = lightTheme`) |
 
 **`Tests/MetalUITests/ColorSchemeCompileGuards.swift` (new; two guards, each mutated red once)**
 
@@ -581,3 +584,7 @@ ruling in the decisions doc; the sections above are edited to match:
   `theme`. `CR-Q`'s second build starts with `needsRedraw` cleared; its "skip
   adoption" mutation has no spelling. AppKit reports a forced appearance once.
   Migration: a `PlatformWindow` conformer adds `setPreferredColorScheme`.
+- **`CR-Z`** (lane 2 review): the first frame's second build snaps every
+  change (`Frame.snapsEveryChange`), so a value animated on the scheme does
+  not start from the first build (2.11b); 2.15 and 2.17 gain light-variant
+  arms (MD, MJ).
