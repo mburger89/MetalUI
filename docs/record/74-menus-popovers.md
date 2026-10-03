@@ -555,10 +555,56 @@ instrument; the popover's look, the tooltip and the menu bar are human checks
 R3, R5, R6).
 
 **Deferred / owed.** Spec §6.3's mutation column (3.1–3.26) is the lane
-verifier's. `PopoverModifier` is not a `StyledElement`, so nothing chains
-after a legacy `.popover` (`MN-AG` item 4), owner none. The popover's Escape
+verifier's (recorded in §5.1). `PopoverModifier` is not a `StyledElement`, so
+a `StyledElement` modifier and a second `.popover` cannot follow a legacy
+`.popover` (`MN-AG` item 4, reworded and made divergence 115 by `MN-AH`),
+owner none. The popover's Escape
 and outside click against a native `NSPopover`, the tooltip's delay against
 AppKit's, and the look of both are unmeasured (locked probes) — human checks
 R5, R6; VoiceOver R7. No SDL test covers a popover or a tooltip (portable
 code; R2/R5 under `MetalUISDLDemo`). The Record phase owes CLAUDE.md,
 AGENTS.md, README, record index and records 03/04/05.
+
+### §5.1 Lane 3 review fix round (2026-10-03)
+
+The lane verifier's mutations V3.1–V3.26 (with V3.5b, V3.7a/b, V3.16a/b) and
+VX.1–VX.4 ran on `defb937`'s sources, each through the full unfiltered
+native suite (2321 tests) with `git status --short` clean after each restore;
+spec §6.3's mutation column now records each one and the tests it reddened
+(`MN-AH` item 6; row 3.12's is "drop the chrome `Box`'s `elementID`", there
+being no `IdentifiedGroup`; V3.15's and V3.22's first spellings did not build
+and were re-spelt — V3.22 writes the help as the accessibility identifier).
+V3.5 (claim every non-anchor press, `guard onAnchor else { return true }`)
+failed with 216 issues but not test 3.5; besides 3.8 it reddened, outside lane
+3: .
+
+Seven review findings (one major, six minor), answered red-first in
+`d6c62fe` (tests) and `551cff2` (3.27 re-spelt), ruling `MN-AH` (next unused
+`MN-AI`). This round's mutations (the verifier's spellings from its
+`mutants.py`, plus V3.5a and MG3.3) each through the full unfiltered native
+suite, `git status --short` showing no `Sources/` or `Tests/` path after
+each restore:
+
+| Finding | Answer | Mutation | Reddened |
+|---|---|---|---|
+| no proposal-path popover runs (major) | 3.27 `aProposalPathPopoverPresentsPlacesAndDismisses` | VX.4: `PopoverSlot(nil)` laid out in place of `layOutPopover` in `requestProposalLayout` | against the first spelling (a root `HStack {…}.frame(…).popover`): **nothing** (2327 passed) — a root `.popover` takes the legacy `requestLayout`; re-spelt with the popover inside an `HStack` (`551cff2`): 3.27 only (1 issue) |
+| 3.5's mutation cannot redden 3.5 (minor) | 3.28 `theDismissingPressReachesAGestureBeneath` owns "passes on"; 3.5's doc comment and spec row restated, its mutation V3.5a | V3.5b: claim a press that dismissed a popover | 3.8 `aPopoverIsAPresentationOnAHigherLayer`, 3.28 (2 issues) |
+| | | V3.5a: the dismissal loop never runs (`while false, let top = …`), on `551cff2` | 3.5, 3.8, 3.12, 3.26, 3.27, 3.28 (15 issues) |
+| leaving key hides the tooltip, unpinned (minor) | 3.30 `theWindowLeavingKeyHidesTheTooltip`; divergence 113's pin gains it | VX.2: `self?.hideTooltip()` deleted from `onControlActiveStateChange` | 3.30 only (2 issues) |
+| a menu open hides the tooltip, unpinned (minor) | 3.31 `noTooltipStartsWhileAMenuIsOpen` | VX.3: the `guard menuSession == nil` block deleted from `trackTooltip` | 3.31 only (2 issues) |
+| the anchor release claim unpinned (minor) | kept; 3.29 `theAnchorPressesReleaseIsConsumedToo` (×2): without it a lone release reaches the raw `onInput` (`MN-AH` item 4) | VX.1: the `.mouseUp where popoverClaimsRelease == false, .rightMouseUp …` case deleted | 3.29 only (both cases, 4 issues) |
+| chaining after a legacy `.popover` has no divergence row (minor) | divergence 115 (82 live, next label 116); new probe `docs/probes/swiftui-popover-chaining.swift` (CH1 chains `.padding` and a second `.popover` after `.popover`, CH2 control, NEGATIVE separating arm; run twice, identical); guard G3.3 `aStyledModifierCannotFollowALegacyPopover`; `MN-AG` item 4 reworded (`ElementGroup`-level `.frame`/`.id`/`.overlay`/`.background`/`.environment` do follow) | MG3.3: `public func padding(_ points: Pixels) -> Self { self }` on `PopoverModifier` | G3.3 only (1 issue) |
+| stale build artifacts in the main checkout (minor) | reported to the user (`swift package clean` there before its next build); the main checkout was not touched | — | — |
+| spec §6.3's mutation column is the plan (minor) | replaced with what was run (above), row 3.12 corrected | — | — |
+
+**Counts.** Unmutated, on `551cff2`: **`Test run with 2327 tests in 3 suites
+passed after 124.376 seconds`** (2321 + 3.27–3.31 + G3.3; 3.29 parameterized,
+counted once), the `FR-J no-argument frame: succeeded=true` line and G3.3's
+`MN-AH popover chaining:` line present; native build 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice; `swift build --build-tests` 0
+`warning:`; `closeout-inventory-check.sh` and `closeout-undocumented.sh` print
+nothing. Guards 141 → **142**. No `Sources/`
+file, public declaration, census row or pixel moves in this round
+(`git diff 63c80fe -- Sources` is empty), so the pixel, real-window, SDL and
+container readings of §5 stand. The Record phase owes record 04 sections for
+divergences 111–113 and 115.

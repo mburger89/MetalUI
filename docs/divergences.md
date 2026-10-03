@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **81 live divergences**, each measured (a probe
+place it knowingly does not: **82 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–114 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113, rulings `MN-M`, `MN-P` — next label 115). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–114 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH` — next label 116). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -107,8 +107,9 @@ scheduled).
 | 110 | a secondary (right) click | presses a plain `Button` and fires an `.onTapGesture` (probe `swiftui-menus-popovers.swift` C6, C6t; an AppKit `NSButton` ignores it, C6n); on a `Button` with a context menu the right-down opened no menu and the up pressed the button (C7b, C7b') | a secondary press runs no `onClick`, gesture, drag, text-field or slider press and focuses nothing; it only opens context menus (and on AppKit a control-click is one) | `MN-B` item 4 | `aSecondaryPressNeverRunsOnClickOrATap` | none |
 | 111 | a popover near the window's edge | the popover is its own window (`_NSPopoverWindow`, probe `swiftui-menus-popovers.swift` P1): it extends past the presenting window (`.bottom` 30 pt below it, `.leading` 69 pt left of it) and flips against the **screen** (P5) | drawn inside the window: on its edge's side, flipped to the opposite side when it does not fit and does there, then clamped inside the window with 8 pt | `MN-M` items 3–4 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge`, `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` | none |
 | 112 | a popover's arrow | `NSPopover` draws an arrow pointing at the anchor | no arrow: a `.surface` rounded rectangle (radius 10) with a `.separator` border and the default shadow, 8 pt from the anchor | `MN-M` item 5 | `thePopoverChromeIsARoundedPanelWithNoArrow` | none |
-| 113 | `.help(_:)`'s tooltip | AppKit's native tooltip (its look and delay unmeasured: H7 found no tooltip window in a locked session) | drawn by MetalUI on every platform: 1.0 s of display-link time, below the pointer, flipped and clamped inside the window; hidden by a press, wheel, key, leaving or the window leaving key | `MN-P` items 2–3 | `aTooltipAppearsAfterTheHoverDelayOfTickTime` | none |
+| 113 | `.help(_:)`'s tooltip | AppKit's native tooltip (its look and delay unmeasured: H7 found no tooltip window in a locked session) | drawn by MetalUI on every platform: 1.0 s of display-link time, below the pointer, flipped and clamped inside the window; hidden by a press, wheel, key, leaving or the window leaving key | `MN-P` items 2–3 | `aTooltipAppearsAfterTheHoverDelayOfTickTime`, `theWindowLeavingKeyHidesTheTooltip` | none |
 | 114 | a cover over a context-menu view | an opaque view with no handler covering it blocks its menu (C14's `Color`) | an element registers a hitbox only with a pointer handler, so a cover that only paints does not block — the menu beneath opens; a covering pointer target (an `onClick`, a gesture) does block | `MN-V` item 2 | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath`, `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath` | none |
+| 115 | what may follow `.popover` | any modifier, a second `.popover` included: the popover is one more `ModifiedContent` layer (probe `swiftui-popover-chaining.swift` CH1) | on the legacy vocabulary `PopoverModifier` is not a `StyledElement`: `ElementGroup`-level modifiers (`.frame`, `.id`, `.overlay`, `.background`, `.environment`, …) follow it, but a `StyledElement` modifier (`.padding`, `.cornerRadius`, …) and a second `.popover` do not compile — write them before `.popover`; on the proposal path it is a `ProposalElementGroup` and chains | `MN-AG` item 4, `MN-AH` item 5 | `aStyledModifierCannotFollowALegacyPopover` (G3.3) | none |
 
 ## Retired
 

@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AH`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AI`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1110,11 +1110,14 @@ look at.
    more frame (test 3.13). The previous frame's map reaches layout as
    `Frame.previousPresentationAnchors`, handed in by `Window`.
 4. **`PopoverModifier` is not a `StyledElement`** (`DraggablePreviewModifier`'s
-   shape): on the legacy vocabulary nothing chains after `.popover` — a second
-   `.popover`, a `.padding` — so write `.popover` last; on the proposal path it
-   is a `ProposalElementGroup` and chains. G3.1's first fixture chained two
-   legacy popovers and was refused (found by running); it was re-spelt.
-   Owner none.
+   shape): on the legacy vocabulary a `StyledElement` modifier (`.padding`,
+   `.cornerRadius`, …) and a second `.popover` cannot follow `.popover` —
+   write them before it — while the `ElementGroup`-level modifiers (`.frame`,
+   `.id`, `.overlay`, `.background`, `.environment`, …) still do; on the
+   proposal path it is a `ProposalElementGroup` and chains. G3.1's first
+   fixture chained two legacy popovers and was refused (found by running); it
+   was re-spelt. Owner none. *(Wording corrected and made divergence 115 by
+   `MN-AH` item 5; it first read "nothing chains".)*
 5. **The popover stage holds Escape too**: one `Window.dispatchPopovers`
    between the open menu's stage and the context menu's, so Escape is handled
    after a drag session and an open menu and before scrolling, text input and
@@ -1151,3 +1154,53 @@ unchanged, and the default demo's pixels are unmoved.
 **Cost if wrong.** Item 1 is one paint call; item 2 one line; item 4 a
 `StyledElement` conformance (the `DraggablePreviewModifier` precedent would
 move with it).
+
+## MN-AH — Lane 3's review fix round (amends MN-AG items 4 and 6, MN-Y items 1–2, MN-P item 2, spec §6.3)
+
+**Ruling.**
+
+1. **The proposal path's popover is pinned at runtime** — test 3.27
+   `aProposalPathPopoverPresentsPlacesAndDismisses`: a fixed 40 × 20
+   `ProposalText` with a popover **inside an `HStack`** presents on the second
+   frame at the legacy placement, is one identity level for its caller (every
+   plain element from its position down one level deeper behind cursor 0 with
+   its bounds unmoved, the content under cursor 1) and is dismissed by an
+   outside press. **`requestProposalLayout` is reached only from a proposal
+   container**: a `.popover` at the window's root takes the legacy
+   `requestLayout` whatever its content — the first spelling of 3.27 (a root
+   `HStack { … }.frame(…).popover`) stayed green under VX.4, found by running.
+   Before 3.27, VX.4 (the proposal entry never presenting) left the suite
+   green.
+2. **"Passes on" (`MN-Y` item 1) is test 3.28's**
+   (`theDismissingPressReachesAGestureBeneath`): a `TapGesture` beneath forms
+   its arena at the press, so it runs only when the dismissing press reached
+   it. Test 3.5 cannot separate the two — a `Button` clicks on the release
+   from `active` alone — and its doc comment and spec row now say so; its
+   mutation is V3.5a (skip the dismissal).
+3. **Two tooltip hide rules are pinned**: the window leaving key (3.30
+   `theWindowLeavingKeyHidesTheTooltip`, divergence 113's pin gains it) and
+   no tooltip starting while a menu is open (3.31
+   `noTooltipStartsWhileAMenuIsOpen`, `MN-AG` item 6).
+4. **The anchor press's release claim (`Window.popoverClaimsRelease`) stays**
+   and is pinned by 3.29 `theAnchorPressesReleaseIsConsumedToo` (both
+   buttons). It is not redundant: `releasePressForMenu()` clears `active`, so
+   the release completes no click, but an unclaimed release would still fall
+   through every stage to the window's raw `onInput` as a lone release whose
+   press it never saw.
+5. **Divergence 115**: what may follow a legacy `.popover` (`MN-AG` item 4,
+   reworded). SwiftUI chains any modifier after `.popover`, a second one
+   included (new probe `docs/probes/swiftui-popover-chaining.swift` CH1,
+   control CH2, separating arm NEGATIVE). Pinned by the plain-import guard
+   G3.3 `aStyledModifierCannotFollowALegacyPopover` (refuses `.padding` and a
+   second `.popover` after a legacy `.popover`; control: `.frame`, `.overlay`,
+   `.id` after it and `.padding` before it compile). Owner none.
+6. **Spec §6.3's mutation column records what was run** (the lane verifier's
+   V3.1–V3.26, V3.5b and VX.1–VX.4, and this round's V3.5a and MG3.3), with
+   the tests each reddened; row 3.12's mutation is "drop the chrome `Box`'s
+   `elementID`" (there is no `IdentifiedGroup`, `MN-AG` item 2).
+
+**Reasoning.** Each item answers a review finding with a test shown red by
+the mutation named for it, or with a doc that no longer claims more than the
+suite pins. No `Sources/` behaviour, public declaration or pixel moves.
+
+**Cost if wrong.** Tests and docs only; item 4's claim is one `switch` case.

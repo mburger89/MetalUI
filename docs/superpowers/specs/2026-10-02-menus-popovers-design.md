@@ -603,34 +603,39 @@ Guards (lane 2), `CommandsCompileGuards.swift`: G2.1
 
 ### 6.3 Lane 3 — `PopoverTests.swift`, `TooltipTests.swift`
 
-| # | Test | Asserts | Mutation |
+| # | Test | Asserts | Mutation run → tests reddened (lane 3 verifier on `defb937`'s sources; this round's on `d6c62fe`, VX.4 and V3.5a re-run on `551cff2`; `MN-AH` item 6) |
 |---|---|---|---|
-| 3.1 | `thePopoverSitsOnItsArrowEdgeOfTheAnchor` (×4, P1) | 8-pt gap on each edge's side, centred across | swap `.top`/`.bottom` |
-| 3.2 | `theDefaultArrowEdgeIsTop` (P7, `MN-X`) | no edge and `arrowEdge: nil` both above | map `nil` to `.bottom` |
-| 3.3 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge` (P5, 111) | flipped | drop the flip |
-| 3.4 | `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` (111) | on its side, clamped 8 pt | flip anyway |
-| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` (P4a, `MN-Y`) | binding false from input; the `Button` beneath ran once | claim the press after dismissing |
-| 3.6 | `aPressInsideThePopoverReachesItsContent` | inner `Button` runs; popover stays | dismiss on every press |
-| 3.7 | `escapeDismissesTheTopmostPopoverBeforeTheKeymap` | keymap Escape binding did not run; inner popover first | run the stage after `dispatchAction` |
-| 3.8 | `aPopoverIsAPresentationOnAHigherLayer` | a press and a drop on the chrome's padding reach nothing beneath; an ancestor's `DragGesture` does not reach a press inside | drop the chrome's blocking hitbox (`MN-Z`); register at the declarer's layer |
-| 3.9 | `thePopoverPublishesAPopoverNodeAndIsolatesNothing` (P2/P2b) | `.popover` node holding the content; the window's other nodes still published | mark it `.isModal` |
-| 3.10 | `aPopoverAddsOneIdentityLevelOnlyForItsCaller` | content at 0 under the wrapper; siblings' ids unmoved | put the slot at `-1` (collides with `.overlay`, `MC-P`) |
-| 3.11 | `aRepresentedPopoversContentStartsFresh` | `@State` inside reset after dismiss/present (`ID-C`) | keep the slot produced while dismissed |
-| 3.12 | `popoverItemFollowsTheItemAndResetsOnANewID` | nil → none; id 1 → shown; id 2 → fresh state | drop the `IdentifiedGroup` |
-| 3.13 | `aPopoverFollowsItsAnchorWithinOneFrame` | anchor moved → `requestAnotherFrame`, next frame placed at the new bounds | no another-frame request |
-| 3.14 | `anInitiallyPresentedPopoverAppearsOnTheSecondFrame` | frame 0 none, frame 1 shown | produce with a zero anchor on frame 0 |
-| 3.15 | `aPopoverWritesNoStateTableEntry` | every entry presenting adds descends from the popover's slot (the chrome's and content's own element slots); dismissing returns the count (`MN-AG` item 8) | keep the anchor in `StateTable` |
-| 3.16 | `thePopoverChromeIsARoundedPanelWithNoArrow` (112) | one `.surface` rect radius 10 + shadow, no other primitive than the content's | (pin of the absence: add a triangle path) |
-| 3.17 | `aTooltipAppearsAfterTheHoverDelayOfTickTime` (113) | ticks 10.0 (stamp), 10.9 none, 11.0 shown | delay 0 |
-| 3.18 | `theTooltipDelayIsStampedFromTheFirstTickAfterEntering` | `lastTick` 0, enter, tick 50.0 stamps, 50.5 none | stamp from the stale `lastTick` |
-| 3.19 | `aPressAWheelAKeyOrLeavingHidesTheTooltip` (×4) | hidden | drop the press rule |
-| 3.20 | `aHiddenTooltipReturnsOnlyAfterLeavingAndReentering` | moves inside after a press: never; leave + enter + delay: shown | clear `spent` on any move |
-| 3.21 | `theTooltipIsPlacedBelowThePointerAndFlippedInsideTheWindow` | 18 pt below; near the bottom, above; clamped 4 pt | no flip |
-| 3.22 | `helpPublishesTheSameTreeAsAccessibilityHint` (H1–H5) | trees equal for each shape: one element, Button with outer/inner hint (H3/H3b), container distribution (H4), outer beats inner (H5), both vocabularies | write the help as the label |
-| 3.23 | `aHelpRegionAddsNoPointerTarget` | a click passes to the element beneath; `isPointerTarget` unchanged | make the region opaque |
-| 3.24 | `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending` | pause calls: unpaused while pending, paused once shown and idle | leave the link paused |
-| 3.25 | `theTooltipIsPaintedAboveEverything` | its primitives last, after an open menu fixture | emit before the panel |
-| 3.26 | `aPressOnTheAnchorDismissesThePopoverAndIsConsumed` (`MN-Y` item 2) | a `Button { shown.toggle() }` anchor: false after the press, still false next frame | treat the anchor as any outside point |
+| 3.1 | `thePopoverSitsOnItsArrowEdgeOfTheAnchor` (×4, P1) | 8-pt gap on each edge's side, centred across | **V3.1** `edge == .top` → `edge == .bottom` in `PopoverPlacement.origin` → verifier: 3.1, 3.2, 3.4, 3.6, 3.8, 3.11, 3.12, 3.13, 3.14, 3.16 |
+| 3.2 | `theDefaultArrowEdgeIsTop` (P7, `MN-X`) | no edge and `arrowEdge: nil` both above | **V3.2** `edge ?? .top` → `edge ?? .bottom` → verifier: 3.2, 3.6, 3.8, 3.11, 3.12, 3.13, 3.14, 3.16 |
+| 3.3 | `aPopoverThatWouldLeaveTheWindowFlipsToTheOppositeEdge` (P5, 111) | flipped | **V3.3** each flip ternary → its own side → verifier: 3.3 |
+| 3.4 | `aPopoverThatFitsNeitherSideIsClampedInsideTheWindow` (111) | on its side, clamped 8 pt | **V3.4** flip when the own side does not fit, fitting the other or not → verifier: 3.4 |
+| 3.5 | `aPressOutsideThePopoverWritesFalseAndReachesWhatItLandsOn` (P4a, `MN-Y`) | binding false from input at the press; the `Button` beneath ran once on the release (cannot separate a passed-on press from a claimed one — 3.28 owns that, `MN-AH` item 2) | **V3.5a** the dismissal loop never runs (`while false, …`) → this round: 3.8, 3.26, 3.5, 3.27, 3.12, 3.28<br>**V3.5** claim every non-anchor press (`return true`) → verifier: 3.8 and 121 tests outside lane 3 (record §74 §5.1)<br>**V3.5b** claim a press that dismissed a popover → verifier: 3.8; this round: 3.8, 3.28 |
+| 3.6 | `aPressInsideThePopoverReachesItsContent` | inner `Button` runs; popover stays | **V3.6** dismiss on every press (drop `!top.bounds.contains`) → verifier: 3.6, 3.8, 3.11, 3.12 |
+| 3.7 | `escapeDismissesTheTopmostPopoverBeforeTheKeymap` | keymap Escape binding did not run; inner popover first | **V3.7a** run the popover stage for keys after `dispatchAction` → verifier: 3.7<br>**V3.7b** Escape dismisses the bottommost popover → verifier: 3.7 |
+| 3.8 | `aPopoverIsAPresentationOnAHigherLayer` | a press and a drop on the chrome's padding reach nothing beneath; an ancestor's `DragGesture` does not reach a press inside | **V3.8** drop the chrome's blocking hitbox (`MN-Z`) → verifier: 3.8 |
+| 3.9 | `thePopoverPublishesAPopoverNodeAndIsolatesNothing` (P2/P2b) | `.popover` node holding the content; the window's other nodes still published | **V3.9** drop the `.group` → `.popover` role mapping → verifier: 3.9 |
+| 3.10 | `aPopoverAddsOneIdentityLevelOnlyForItsCaller` | content at 0 under the wrapper; siblings' ids unmoved | **V3.10** lay the slot out at `-1` → verifier: 3.10, 3.15 |
+| 3.11 | `aRepresentedPopoversContentStartsFresh` | `@State` inside reset after dismiss/present (`ID-C`) | **V3.11** leave the slot unevaluated while dismissed → verifier: 3.11, 3.15 |
+| 3.12 | `popoverItemFollowsTheItemAndResetsOnANewID` | nil → none; id 1 → shown; id 2 → fresh state | **V3.12** drop the chrome `Box`'s `elementID` (`box.elementID = nil`) → verifier: 3.12 |
+| 3.13 | `aPopoverFollowsItsAnchorWithinOneFrame` | anchor moved → `requestAnotherFrame`, next frame placed at the new bounds | **V3.13** no another-frame request when the anchor moved → verifier: 3.13 |
+| 3.14 | `anInitiallyPresentedPopoverAppearsOnTheSecondFrame` | frame 0 none, frame 1 shown | **V3.14** present on frame 0 against a zero anchor → verifier: 3.1, 3.2, 3.3, 3.4, 3.6, 3.8, 3.11, 3.13, 3.14, 3.16 |
+| 3.15 | `aPopoverWritesNoStateTableEntry` | every entry presenting adds descends from the popover's slot (the chrome's and content's own element slots); dismissing returns the count (`MN-AG` item 8) | **V3.15** write a `$popoverAnchor` `StateTable` entry under the wrapper while presented → verifier: 3.15 |
+| 3.16 | `thePopoverChromeIsARoundedPanelWithNoArrow` (112) | one `.surface` rect radius 10 + shadow, no other primitive than the content's | **V3.16a** an extra 8 × 8 `.surface` fill (an "arrow") → verifier: 3.16<br>**V3.16b** corner radius 0 → verifier: 3.16 |
+| 3.17 | `aTooltipAppearsAfterTheHoverDelayOfTickTime` (113) | ticks 10.0 (stamp), 10.9 none, 11.0 shown | **V3.17** delay 0 → verifier: 3.17, 3.18, 3.24 |
+| 3.18 | `theTooltipDelayIsStampedFromTheFirstTickAfterEntering` | `lastTick` 0, enter, tick 50.0 stamps, 50.5 none | **V3.18** stamp from the stale `lastTick` → verifier: 3.17, 3.18, 3.24 |
+| 3.19 | `aPressAWheelAKeyOrLeavingHidesTheTooltip` (×4) | hidden | **V3.19** drop the press rule → verifier: 3.19, 3.20 |
+| 3.20 | `aHiddenTooltipReturnsOnlyAfterLeavingAndReentering` | moves inside after a press: never; leave + enter + delay: shown | **V3.20** clear `spent` on a move inside the region → verifier: 3.20 |
+| 3.21 | `theTooltipIsPlacedBelowThePointerAndFlippedInsideTheWindow` | 18 pt below; near the bottom, above; clamped 4 pt | **V3.21** no flip → verifier: 3.21 |
+| 3.22 | `helpPublishesTheSameTreeAsAccessibilityHint` (H1–H5) | trees equal for each shape: one element, Button with outer/inner hint (H3/H3b), container distribution (H4), outer beats inner (H5), both vocabularies | **V3.22** write the help as the accessibility identifier (the planned "as the label" did not build) → verifier: 3.22 |
+| 3.23 | `aHelpRegionAddsNoPointerTarget` | a click passes to the element beneath; `isPointerTarget` unchanged | **V3.23** register a help region opaque → verifier: 3.17, 3.18, 3.19, 3.20, 3.23, 3.24, 3.25 |
+| 3.24 | `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending` | pause calls: unpaused while pending, paused once shown and idle | **V3.24** no redraw while pending → verifier: 3.24 |
+| 3.25 | `theTooltipIsPaintedAboveEverything` | its primitives last, after an open menu fixture | **V3.25** paint the tooltip before the menu panel → verifier: 3.25 |
+| 3.26 | `aPressOnTheAnchorDismissesThePopoverAndIsConsumed` (`MN-Y` item 2) | a `Button { shown.toggle() }` anchor: false after the press, still false next frame | **V3.26** never note the anchor (`onAnchor` stays false) → verifier: 3.26 |
+| 3.27 | `aProposalPathPopoverPresentsPlacesAndDismisses` (`MN-AH` item 1) | a fixed 40 × 20 `ProposalText` with a popover inside an `HStack` root (the proposal entry; a root `.popover` takes the legacy one): none on frame 0, presented on frame 1 at [138, 108, 124, 74]; every plain element one level down behind cursor 0 with its bounds; content under cursor 1; an outside press dismisses | **VX.4** lay out `PopoverSlot(nil)` in `requestProposalLayout` → verifier, before this test: nothing; this round: 3.27 |
+| 3.28 | `theDismissingPressReachesAGestureBeneath` (`MN-AH` item 2) | an outside press dismisses and forms the arena of a `TapGesture` beneath, which runs on the release | **V3.5b** claim a press that dismissed a popover → verifier, before this test: 3.8; this round: 3.8, 3.28 |
+| 3.29 | `theAnchorPressesReleaseIsConsumedToo` (×2, `MN-AH` item 4) | on either button the anchor press and its release never reach the raw `onInput`; control: an unclaimed press and release do | **VX.1** drop the release claim in `dispatchPopovers` → verifier, before this test: nothing; this round: 3.29 |
+| 3.30 | `theWindowLeavingKeyHidesTheTooltip` (113, `MN-AH` item 3) | `.key` leaves it shown; `.inactive` hides it and it stays spent | **VX.2** drop `hideTooltip()` on leaving key → verifier, before this test: nothing; this round: 3.30 |
+| 3.31 | `noTooltipStartsWhileAMenuIsOpen` (`MN-AG` item 6, `MN-AH` item 3) | with an in-window menu open a move over a help region shows none after the delay; after Escape closes it, one does | **VX.3** drop the `menuSession == nil` guard in `trackTooltip` → verifier, before this test: nothing; this round: 3.31 |
 
 `Backends/SDL` (**lane 1** since `MN-AD`): S3.1 `aRightButtonEventBecomesARightMouseDownAndUp`
 (C-exported constants; `armMainRunLoopExitCheck()`); S3.2
@@ -641,7 +646,9 @@ Demo: `menusDemoContent()` joins `buildEveryProductionTree` (the existing
 
 Guards (lane 3), `PopoverCompileGuards.swift`: G3.1
 `thePopoverAndHelpSpellingsCompileFromAPlainImport`; G3.2
-`aPopoverHasNoAttachmentAnchorParameter`.
+`aPopoverHasNoAttachmentAnchorParameter`; G3.3
+`aStyledModifierCannotFollowALegacyPopover` (divergence 115, `MN-AH` item 5;
+mutation MG3.3, a `padding(_: Pixels) -> Self` on `PopoverModifier`).
 
 ### 6.4 Counts (expected; the lanes re-take them)
 
@@ -651,7 +658,10 @@ count once each if parameterized as one `@Test` with arguments) = **2308**;
 guards 133 + 4 + 2 + 2 = **141**; goldens 0. `Backends/SDL`
 `MetalUISDLTests` +5. `MemoryLayout<Handlers>.size` 456 → 464; the smallest
 thread building every production tree re-measured. Live divergences 76 → 81
-(110–114), next label 115.
+(110–114), next label 115. **Lane 3's review round** (`MN-AH`): + 5 tests
+(3.27–3.31; 3.29 parameterized, counted once) + 1 guard (G3.3) on the
+measured 2321 → **2327**, guards 141 → **142**; divergence 115 → 82 live,
+next label 116.
 
 ## 7. The demo (`METALUI_MENUS_DEMO=1`, lane 3)
 
