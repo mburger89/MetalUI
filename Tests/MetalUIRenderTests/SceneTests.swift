@@ -66,3 +66,58 @@ private func rect(order: UInt32, x: Float) -> MUIRect {
     #expect(s.isEmpty)
     #expect(s.images.isEmpty && s.textures.isEmpty)
 }
+
+private func record(_ tx: Float) -> MUITransform {
+    MUITransform(a: 0, b: 1, c: -1, d: 0, tx: tx, ty: 0, pixelScale: 1, _reserved: 0,
+                 outerMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 100, height: 100)),
+                 outerMaskRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0))
+}
+
+/// 1.10 (ruling GX-F) — a transform is carried once and named from 1: rects
+/// under T, T, none, U leave the table [T, U] and the packed words naming
+/// 1, 1, 0, 2 above the shape byte; a glyph and an image under U name 2 in
+/// `transform` and above the filter byte. (Only CONSECUTIVE equal records
+/// share an entry — one effect's primitives; a later return to T would be a
+/// new entry.) `finalize()` (twice) permutes the
+/// primitives and never the table; `clear()` empties it.
+@Test func theTransformTableIsCarriedOnceAndIndexedFromOne() {
+    var s = Scene()
+    let t = record(10), u = record(20)
+    s.insert(rect(order: 0, x: 0), transform: t)
+    s.insert(rect(order: 0, x: 1), transform: t)
+    s.insert(rect(order: 0, x: 2))
+    s.insert(rect(order: 0, x: 3), transform: u)
+    s.insert(MUIGlyph(bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
+                      atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
+                      contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
+                      maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                      color: MUIHsla(h: 0, s: 0, l: 0, a: 1), order: 0, transform: 0), transform: u)
+    let texture = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 0, 255])
+    s.insert(MUIImage(bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
+                      contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 1, height: 1)),
+                      maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                      opacity: 1, texture: 0, filter: 1, order: 0), texture: texture, transform: u)
+    func check(_ label: String) {
+        #expect(s.transforms.map(\.tx) == [10, 20], "\(label): table")
+        #expect(s.rects.map { $0.shape >> 8 } == [1, 1, 0, 2], "\(label): rect indices")
+        #expect(s.rects.map { $0.shape & 0xFF } == [0, 0, 0, 0], "\(label): rect shapes")
+        #expect(s.glyphs.map(\.transform) == [2], "\(label): glyph")
+        #expect(s.images.map(\.filter) == [1 | 2 << 8], "\(label): image")
+    }
+    check("inserted")
+    s.finalize(); check("finalized")
+    s.finalize(); check("finalized twice")
+    s.clear()
+    #expect(s.transforms.isEmpty)
+}
+
+/// 1.11 — a transform is per instance, so two rects under different
+/// transforms are still one run (one draw call).
+@Test func aTransformNeverBreaksARun() {
+    var s = Scene()
+    s.insert(rect(order: 0, x: 0), transform: record(10))
+    s.insert(rect(order: 0, x: 1), transform: record(20))
+    s.insert(rect(order: 0, x: 2))
+    s.finalize()
+    #expect(s.drawList.map { "\($0.kind) \($0.start)+\($0.count)" } == ["rect 0+3"])
+}

@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (1997 of them, in
-fifteen modules) belongs to one of 100 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2086 of them, in
+fifteen modules) belongs to one of 105 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -121,11 +121,54 @@ portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 
 ## Shapes and images — A
 
-`Shape` (`geometry(in:)`), `Rectangle`, `RoundedRectangle`/`RoundedCornerStyle`
-(90), `Circle`, `Capsule`, `Ellipse`, `ShapeView` (`.fill`, `.stroke`,
-`.strokeBorder`), `.background(_:in:)`; `Image` (`.resizable`,
-`.interpolation` — 93), `Image.Interpolation`, `ContentMode`; `ImageBitmap`
-(M, the portable image type).
+`Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's
+`path(in:)` — both defaulted, implement either; one implementing neither
+traps naming `GX-D`), `ShapeGeometry` (`.roundedRectangle`, `.ellipse`,
+`.path`), `Rectangle`, `RoundedRectangle`/`RoundedCornerStyle` (90),
+`Circle`, `Capsule`, `Ellipse`, `ShapeView` (`.fill`, `.stroke`,
+`.strokeBorder`, each also with a `FillStyle`/`StrokeStyle`),
+`.background(_:in:)`; `Image` (`.resizable`, `.interpolation` — 93),
+`Image.Interpolation`, `ContentMode`; `ImageBitmap` (M, the portable image
+type).
+
+**Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
+mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
+`addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,
+`closeSubpath`, `contains(_:eoFill:)`, `offsetBy`, `boundingRect`) over
+`Point`/`Bounds`; a `Shape` and a view drawing its own coordinates from its
+layout origin; rasterized on the CPU in device pixels after every effect (crisp
+under `scaleEffect`), drawn as an image, cached by value. `FillStyle`
+(nonzero, even-odd, antialiased), `StrokeStyle` (width, `LineCap`,
+`LineJoin`, miter limit, dashes). A plain-width stroke of a built-in keeps the
+renderer's exact band. `clipShape` of a path traps (91); a stroke width snaps
+(97). Not offered: `applying`/`transform:`, `addRelativeArc`,
+`trimmedPath`/`trim`, `strokedPath`.
+
+**Shadows** (`GX-J`, `GX-Q`): `.shadow(color:radius:x:y:)` on both
+vocabularies (a `LayoutModifier` case; on a `StyledElement` it returns `Self`),
+default colour `ColorToken.shadow` (black at 0.33 in both themes; `Theme`'s
+initialiser takes it as a trailing defaulted `shadow:`). Per leaf — a text draw
+is one leaf, a `Box`'s background and border one, a surface its quad (104); a
+triple box blur of sigma = radius (105); render only: no layout, hit region or
+accessibility change. Colour, radius and offset animate. Not offered:
+`compositingGroup`, `drawingGroup`, inner shadows.
+
+## Render effects — A / D
+
+`.rotationEffect(_:anchor:)`, `.scaleEffect(_:anchor:)` (a `Double` or a
+`SizeD`), `.scaleEffect(x:y:anchor:)`, `.offset(x:y:)`, `.offset(_:)` and
+`Angle` (paths, shadows and transforms, rulings `GX-G`…`GX-I`, `GX-P`): render
+only — the layout is unchanged, hit testing follows the drawn shape and the
+accessibility frame is the transformed frame's bounding box (107 at angles off
+a right angle). On the proposal vocabulary each is one `LayoutModifier` layer
+(`.rotationEffect`, `.scaleEffect`, `.offset` cases); on a `StyledElement`
+each returns `Self` and wraps the whole element whatever the written order
+(108). A clip between two nested rotations is its screen bounding box (109); a
+handler written outside a padding over an effect hits its own axis-aligned
+frame (41). Angle, factors, anchor and offset animate. Text and images under
+a scale or rotation are resampled, not re-rasterized (106); paths and shadows
+are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
+`rotation3DEffect`.
 
 ## Input, gestures, focus — A / M
 
@@ -232,8 +275,12 @@ AccessKit through `Backends/SDL`.
 `MetalUILayout` (the layout kernel: `LayoutTree`, `ProposalLayout`,
 `ProposedSize`, rounding — 77), `MetalUIPlatform` (`Platform`,
 `PlatformWindow`, `WindowRenderer`, input events, the accessibility tree),
-`MetalUIScene` (`Scene`, the glyph atlas, `FontKey`, `ImageTexture`),
+`MetalUIScene` (`Scene` — with its per-instance `MUITransform` table,
+`Scene.transforms`/`insert(_:…transform:)`, `GX-F` — the glyph atlas,
+`FontKey`, `ImageTexture`),
 `MetalUIRender` (the Metal renderer), `MetalUIAppKit` (the AppKit platform),
 `MetalUIPrimitives`, `MetalUITextSystem`, `MetalUIText`, `MetalUIFreeType`,
-`MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUISystemFonts`, and
+`MetalUIHarfBuzz`, `MetalUIPortableText`, `MetalUISystemFonts`,
+`MetalUIPath` (paths, strokes, exact-area coverage, blur — `package` API,
+no product, imports nothing, `GX-B`), and
 `MetalUIDemoContent` (the demo trees, importable by tests).

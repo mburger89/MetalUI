@@ -35,7 +35,7 @@ struct AXEmission {
     /// 0 outside every `Deferred`; otherwise that portal's per-frame ordinal
     /// (AB-V). A parent must share it.
     let portal: Int
-    let geometry: AccessibilityGeometry
+    var geometry: AccessibilityGeometry
     /// Whether the element declared `accessibilityAction(_:)` (plan task 12 part
     /// 2, `IX-Y` item 1), read from `handlers.actions` **ungated**: a disabled
     /// element with a declared action is still a button, with no press (A7).

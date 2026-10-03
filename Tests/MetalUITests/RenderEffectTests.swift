@@ -1,0 +1,521 @@
+import Testing
+import Metal
+import MetalUICore
+import MetalUILayout
+import MetalUIPlatform
+import MetalUIScene
+import MetalUIDemoContent
+@testable import MetalUI
+
+// Paths, shadows and transforms, lane 2 — render effects in paint (rulings
+// `GX-G`, `GX-H`; spec
+// `docs/superpowers/specs/2026-10-02-paths-shadows-transforms-design.md` §8,
+// tests 2.1–2.9, 2.18–2.26). SwiftUI's side is
+// `docs/probes/swiftui-paths-shadows-transforms.swift`, arms T1–T11.
+//
+// Every arm renders headless `Frame`s (`TransitionHarness`, a 200-point
+// square at scale 1 unless it says otherwise — points and device pixels agree)
+// and reads the scene: a primitive under a flattened effect has moved bounds
+// and transform index 0; one under a record keeps its local bounds and names
+// an entry of `scene.transforms`.
+
+// MARK: - Fixtures
+
+private func px(_ v: Float) -> Pixels { Pixels(v) }
+
+@MainActor func isToken(_ c: MUIHsla, _ token: ColorToken) -> Bool {
+    let t = Theme.light[token]
+    return abs(c.h - t.h) < 0.001 && abs(c.s - t.s) < 0.001 && abs(c.l - t.l) < 0.001 && c.a > 0
+}
+
+/// Every rect `frame` painted in `token`, in emission order.
+@MainActor func effectRects(_ scene: Scene, _ token: ColorToken = .accent) -> [MUIRect] {
+    scene.rects.filter { isToken($0.background, token) }
+}
+
+/// The transform record a rect names, or `nil` for index 0.
+func effectRecord(_ rect: MUIRect, in scene: Scene) -> MUITransform? {
+    let index = Int(rect.transformIndex)
+    guard index > 0, index <= scene.transforms.count else { return nil }
+    return scene.transforms[index - 1]
+}
+
+func fxDescribe(_ b: MUIBounds) -> String {
+    "(\(b.origin.x), \(b.origin.y), \(b.size.width)×\(b.size.height))"
+}
+
+func fxDescribe(_ t: MUITransform?) -> String {
+    guard let t else { return "nil" }
+    return "[a \(t.a) b \(t.b) c \(t.c) d \(t.d) tx \(t.tx) ty \(t.ty) s \(t.pixelScale) outer \(fxDescribe(t.outerMask))]"
+}
+
+/// A record's affine as an `Affine2D`.
+func fxAffine(_ t: MUITransform) -> Affine2D {
+    Affine2D(a: Double(t.a), b: Double(t.b), c: Double(t.c), d: Double(t.d), tx: Double(t.tx), ty: Double(t.ty))
+}
+
+/// Whether `t` is `expected` within `tolerance` on every coefficient.
+func fxMatches(_ t: MUITransform?, _ expected: Affine2D, tolerance: Double = 1e-3) -> Bool {
+    guard let t else { return false }
+    let a = fxAffine(t)
+    return abs(a.a - expected.a) < tolerance && abs(a.b - expected.b) < tolerance
+        && abs(a.c - expected.c) < tolerance && abs(a.d - expected.d) < tolerance
+        && abs(a.tx - expected.tx) < tolerance && abs(a.ty - expected.ty) < tolerance
+}
+
+/// Where `rect`'s four corners land on screen — through its record, if any. A
+/// flattened inner effect moves the bounds and an outer record maps them, so
+/// two emissions are compared by this, not by their records alone.
+func fxQuad(_ rect: MUIRect, in scene: Scene) -> [(Double, Double)] {
+    let m = effectRecord(rect, in: scene).map(fxAffine) ?? .identity
+    let b = rect.bounds
+    let x = Double(b.origin.x), y = Double(b.origin.y), w = Double(b.size.width), h = Double(b.size.height)
+    return [m.apply(x, y), m.apply(x + w, y), m.apply(x, y + h), m.apply(x + w, y + h)].map { ($0.x, $0.y) }
+}
+
+/// Whether `rect` lands where `expected` maps `plain` (each corner within 1e-3).
+func fxLands(_ rect: MUIRect, in scene: Scene, as expected: Affine2D, from plain: MUIBounds) -> Bool {
+    let x = Double(plain.origin.x), y = Double(plain.origin.y)
+    let w = Double(plain.size.width), h = Double(plain.size.height)
+    let want = [expected.apply(x, y), expected.apply(x + w, y), expected.apply(x, y + h), expected.apply(x + w, y + h)]
+    let got = fxQuad(rect, in: scene)
+    return zip(got, want).allSatisfy { abs($0.0 - $1.x) < 1e-3 && abs($0.1 - $1.y) < 1e-3 }
+}
+
+/// One headless frame of `element` in a fresh harness (200 × 200, scale 1).
+@MainActor @discardableResult
+func effectFrame<E: Element>(_ element: E, side: Float = 200, scaleFactor: Float = 1,
+                             accessibility: Bool = false) -> Frame {
+    let h = TransitionHarness()
+    h.accessibility = accessibility
+    return h.frame(0, nil, element, side: side, scaleFactor: scaleFactor)
+}
+
+/// A proposal bar of `w × h` filled with `.accent`.
+@MainActor func fxBar(_ w: Float = 160, _ h: Float = 20) -> ModifiedContent<Color, LayoutModifier> {
+    Color(.accent).frame(width: px(w), height: px(h))
+}
+
+/// A legacy box of `w × h` filled with `.accent`.
+@MainActor func fxLegacyBar(_ w: Float = 160, _ h: Float = 20) -> ModifiedElement<Box<EmptyGroup>> {
+    Box().frame(width: px(w), height: px(h)).background(.accent)
+}
+
+private let deg90 = Angle.degrees(90)
+private let linear1 = Animation.linear(duration: 1)
+
+// MARK: - 2.1 (T1, T6b)
+
+/// **2.1** (T1, T6b). `HStack { a.rotationEffect(45°); b }`: `b` paints where
+/// it paints with no effect (the layer answers its content's size), and `a`'s
+/// rect keeps its own bounds and carries a record rotating 45° about its
+/// centre. Red before: no record. Mutation **M2a**: the layer answers the
+/// rotated bounding box.
+@Test @MainActor func aRotationEffectChangesPaintAndNotLayout() throws {
+    func tree(_ angle: Double?) -> some Element {
+        HStack(spacing: 0) {
+            if let angle { fxBar(100, 20).rotationEffect(.degrees(angle)) } else { fxBar(100, 20) }
+            Color(.separator).frame(width: px(40), height: px(20))
+        }
+    }
+    let plain = effectFrame(tree(nil)).finalizedScene()
+    let turned = effectFrame(tree(45)).finalizedScene()
+    let bPlain = try #require(effectRects(plain, .separator).first)
+    let bTurned = try #require(effectRects(turned, .separator).first)
+    #expect(fxDescribe(bTurned.bounds) == fxDescribe(bPlain.bounds), "b unmoved: \(fxDescribe(bTurned.bounds))")
+    let aPlain = try #require(effectRects(plain).first)
+    let a = try #require(effectRects(turned).first)
+    #expect(fxDescribe(a.bounds) == fxDescribe(aPlain.bounds), "a keeps its local bounds")
+    let record = effectRecord(a, in: turned)
+    let cx = Double(a.bounds.origin.x + a.bounds.size.width / 2)
+    let cy = Double(a.bounds.origin.y + a.bounds.size.height / 2)
+    #expect(fxMatches(record, .rotation(radians: Double.pi / 4, about: cx, cy)),
+            "a 45° record about its centre: \(fxDescribe(record))")
+    #expect(effectRecord(bTurned, in: turned) == nil, "b untransformed")
+}
+
+// MARK: - 2.2 (T2)
+
+/// **2.2** (T2). 90° about `.topLeading` maps local (100, 0) from the anchor
+/// to (0, 100) — positive degrees are clockwise in y-down coordinates. Mutation
+/// **M2b**: the sign flipped.
+@Test @MainActor func positiveDegreesRotateClockwiseAboutTheAnchor() throws {
+    let scene = effectFrame(fxBar(100, 20).rotationEffect(deg90, anchor: .topLeading)).finalizedScene()
+    let a = try #require(effectRects(scene).first)
+    let record = try #require(effectRecord(a, in: scene), "a record")
+    let ox = Double(a.bounds.origin.x), oy = Double(a.bounds.origin.y)
+    let mapped = fxAffine(record).apply(ox + 100, oy)
+    #expect(abs(mapped.x - ox) < 1e-3 && abs(mapped.y - (oy + 100)) < 1e-3,
+            "(100, 0) from the anchor lands at (0, 100): \(mapped) from (\(ox), \(oy))")
+}
+
+// MARK: - 2.3 (T3, T6)
+
+/// **2.3** (T3, T6). `scaleEffect(2)` and `offset(x: 30, y: 10)` are flattened
+/// on the CPU: bounds mapped, transform index 0, `scene.transforms` empty — on
+/// both vocabularies. Mutation **M2c**: always a record.
+@Test @MainActor func aUniformScaleAndAnOffsetAreFlattenedOnTheCPU() throws {
+    let plain = try #require(effectRects(effectFrame(fxBar(40, 20)).finalizedScene()).first)
+    let cx = plain.bounds.origin.x + 20, cy = plain.bounds.origin.y + 10
+
+    let scaled = effectFrame(fxBar(40, 20).scaleEffect(2)).finalizedScene()
+    let s = try #require(effectRects(scaled).first)
+    #expect(fxDescribe(s.bounds) == fxDescribe(MUIBounds(origin: MUIPoint(x: cx - 40, y: cy - 20),
+                                                     size: MUISize(width: 80, height: 40))),
+            "scale 2 about the centre: \(fxDescribe(s.bounds))")
+    #expect(scaled.transforms.isEmpty && s.transformIndex == 0, "flattened: \(scaled.transforms.count)")
+
+    let moved = effectFrame(fxBar(40, 20).offset(x: px(30), y: px(10))).finalizedScene()
+    let o = try #require(effectRects(moved).first)
+    #expect(o.bounds.origin.x == plain.bounds.origin.x + 30 && o.bounds.origin.y == plain.bounds.origin.y + 10,
+            "offset moves the bounds: \(fxDescribe(o.bounds))")
+    #expect(moved.transforms.isEmpty, "flattened")
+
+    let legacy = effectFrame(fxLegacyBar(40, 20).offset(x: px(30), y: px(10))).finalizedScene()
+    let l = try #require(effectRects(legacy).first)
+    #expect(l.bounds.origin.x == plain.bounds.origin.x + 30 && legacy.transforms.isEmpty,
+            "the legacy offset is flattened too: \(fxDescribe(l.bounds))")
+}
+
+// MARK: - 2.4 (T4, T5)
+
+/// **2.4** (T4, T5). A non-uniform scale, a negative (flipping) scale and a
+/// rotation are records; the bounds stay local. Mutation **M2d**: a non-uniform
+/// scale flattened.
+@Test @MainActor func aNonUniformNegativeOrRotatingEffectIsARecord() throws {
+    let plain = try #require(effectRects(effectFrame(fxBar(40, 20)).finalizedScene()).first)
+    func check(_ name: String, _ element: some Element) throws {
+        let scene = effectFrame(element).finalizedScene()
+        let r = try #require(effectRects(scene).first, "\(name)")
+        #expect(effectRecord(r, in: scene) != nil, "\(name): a record")
+        #expect(fxDescribe(r.bounds) == fxDescribe(plain.bounds), "\(name): local bounds \(fxDescribe(r.bounds))")
+    }
+    try check("x2 y0.5", fxBar(40, 20).scaleEffect(x: 2, y: 0.5))
+    try check("x -1", fxBar(40, 20).scaleEffect(x: -1))
+    try check("−1", fxBar(40, 20).scaleEffect(-1))
+    try check("30°", fxBar(40, 20).rotationEffect(.degrees(30)))
+    let squash = effectFrame(fxBar(40, 20).scaleEffect(x: 2, y: 0.5)).finalizedScene()
+    let r = try #require(effectRects(squash).first)
+    let cx = Double(plain.bounds.origin.x + 20), cy = Double(plain.bounds.origin.y + 10)
+    #expect(fxMatches(effectRecord(r, in: squash), .scale(x: 2, y: 0.5, about: cx, cy)),
+            "T4's map about the centre: \(fxDescribe(effectRecord(r, in: squash)))")
+}
+
+// MARK: - 2.5 (T4b, T6c)
+
+/// **2.5** (T4b, T6c). `scaleEffect(SizeD(2, 0.5))` draws exactly what
+/// `scaleEffect(x: 2, y: 0.5)` does, and `offset(Size(30, 10))` what
+/// `offset(x: 30, y: 10)` does. Mutation **M2e**: the size forms drop `height`.
+@Test @MainActor func scaleEffectSizeEqualsXYAndOffsetSizeEqualsXY() throws {
+    func record(_ e: some Element) throws -> String {
+        let scene = effectFrame(e).finalizedScene()
+        let r = try #require(effectRects(scene).first)
+        return fxDescribe(r.bounds) + fxDescribe(effectRecord(r, in: scene))
+    }
+    let sizeForm = try record(fxBar(40, 20).scaleEffect(SizeD(width: 2, height: 0.5)))
+    let xy = try record(fxBar(40, 20).scaleEffect(x: 2, y: 0.5))
+    let widthOnly = try record(fxBar(40, 20).scaleEffect(x: 2, y: 1))
+    try #require(xy != widthOnly, "the arms must disagree")
+    #expect(sizeForm == xy, "size form \(sizeForm) vs x:y: \(xy)")
+    let offsetSize = try record(fxBar(40, 20).offset(Size(width: px(30), height: px(10))))
+    let offsetXY = try record(fxBar(40, 20).offset(x: px(30), y: px(10)))
+    let offsetX = try record(fxBar(40, 20).offset(x: px(30)))
+    try #require(offsetXY != offsetX, "the offset arms must disagree")
+    #expect(offsetSize == offsetXY, "offset size \(offsetSize) vs x:y: \(offsetXY)")
+    let legacySize = try record(fxLegacyBar(40, 20).scaleEffect(SizeD(width: 2, height: 0.5)))
+    let legacyXY = try record(fxLegacyBar(40, 20).scaleEffect(x: 2, y: 0.5))
+    #expect(legacySize == legacyXY, "legacy size form \(legacySize) vs \(legacyXY)")
+}
+
+// MARK: - 2.6 (T5b)
+
+/// **2.6** (T5b). `scaleEffect(0)` draws nothing; `scaleEffect(1)` draws the
+/// bar. Mutation **M2f**: a zero scale emitted.
+@Test @MainActor func aZeroScaleDrawsNothing() throws {
+    let one = effectFrame(fxBar(40, 20).scaleEffect(1)).finalizedScene()
+    try #require(effectRects(one).count == 1, "control: scale 1 draws the bar")
+    let zero = effectFrame(fxBar(40, 20).scaleEffect(0)).finalizedScene()
+    #expect(effectRects(zero).isEmpty, "scale 0 draws nothing: \(effectRects(zero).map { fxDescribe($0.bounds) })")
+    let legacyZero = effectFrame(fxLegacyBar(40, 20).scaleEffect(x: 0, y: 1)).finalizedScene()
+    #expect(effectRects(legacyZero).isEmpty, "a legacy zero factor draws nothing")
+}
+
+// MARK: - 2.7 (T11)
+
+/// **2.7** (T11). Rotation-then-offset is `T · R`, offset-then-rotation
+/// `R · T` (R about the layer's own centre, which an offset does not move) —
+/// the bar's corners land where those matrices put them, on both vocabularies
+/// (an inner offset is flattened into the bounds, so corners, not records,
+/// are compared). Mutation
+/// **M2g**: composition reversed.
+@Test @MainActor func effectsComposeInWrittenOrder() throws {
+    let plain = try #require(effectRects(effectFrame(fxBar(100, 20)).finalizedScene()).first)
+    let cx = Double(plain.bounds.origin.x + 50), cy = Double(plain.bounds.origin.y + 10)
+    let r = Affine2D.rotation(radians: Double.pi / 4, about: cx, cy)
+    let t = Affine2D.translation(x: 30, y: 0)
+    let rotateThenOffset = t.concatenating(r), offsetThenRotate = r.concatenating(t)
+    try #require(!(abs(rotateThenOffset.tx - offsetThenRotate.tx) < 1e-3
+                   && abs(rotateThenOffset.ty - offsetThenRotate.ty) < 1e-3), "the predictions disagree")
+    func lands(_ e: some Element, as expected: Affine2D) throws -> Bool {
+        let scene = effectFrame(e).finalizedScene()
+        return fxLands(try #require(effectRects(scene).first), in: scene, as: expected, from: plain.bounds)
+    }
+    #expect(try lands(fxBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)), as: rotateThenOffset),
+            "proposal rotation then offset")
+    #expect(try lands(fxBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)), as: offsetThenRotate),
+            "proposal offset then rotation")
+    #expect(try lands(fxLegacyBar(100, 20).rotationEffect(.degrees(45)).offset(x: px(30)), as: rotateThenOffset),
+            "legacy rotation then offset")
+    #expect(try lands(fxLegacyBar(100, 20).offset(x: px(30)).rotationEffect(.degrees(45)), as: offsetThenRotate),
+            "legacy offset then rotation")
+}
+
+// MARK: - 2.8 (T7, T7b)
+
+/// **2.8** (T7, T7b). A clip written inside a rotation turns with it — the
+/// rect's `contentMask` is the clip in local space and the record's outer mask
+/// the surface — and one written outside stays: the outer mask is the clip in
+/// screen space and the local mask unbounded. Mutation **M2h**: the clip not
+/// split at the effect's entry.
+@Test @MainActor func aClipInsideAnEffectTurnsWithItAndOneOutsideStays() throws {
+    let inside = effectFrame(fxBar(40, 20).clipped().rotationEffect(deg90)).finalizedScene()
+    let a = try #require(effectRects(inside).first)
+    let ra = try #require(effectRecord(a, in: inside), "inside: a record")
+    #expect(fxDescribe(a.contentMask) == fxDescribe(a.bounds), "inside: the local mask is the clip: \(fxDescribe(a.contentMask))")
+    #expect(ra.outerMask.size.width >= 200 && ra.outerMask.size.height >= 200,
+            "inside: the outer mask is the surface: \(fxDescribe(ra.outerMask))")
+
+    let outside = effectFrame(fxBar(40, 20).rotationEffect(deg90).clipped()).finalizedScene()
+    let b = try #require(effectRects(outside).first)
+    let rb = try #require(effectRecord(b, in: outside), "outside: a record")
+    #expect(fxDescribe(rb.outerMask) == fxDescribe(b.bounds), "outside: the outer mask is the clip on screen: \(fxDescribe(rb.outerMask))")
+    #expect(b.contentMask.size.width > 10_000, "outside: the local mask is unbounded: \(fxDescribe(b.contentMask))")
+}
+
+// MARK: - 2.9 (T8)
+
+/// **2.9** (T8). A background written after a proposal effect is outside it
+/// (index 0); one written before is inside (a record). Mutation **M2i**: the
+/// scope pushed around the whole chain.
+@Test @MainActor func aBackgroundAfterAProposalEffectIsNotTransformed() throws {
+    let after = effectFrame(fxBar(40, 20).rotationEffect(deg90).background(.separator)).finalizedScene()
+    let bgAfter = try #require(effectRects(after, .separator).first)
+    let barAfter = try #require(effectRects(after).first)
+    #expect(effectRecord(bgAfter, in: after) == nil, "after: the background untransformed")
+    #expect(effectRecord(barAfter, in: after) != nil, "after: the bar rotated")
+    let before = effectFrame(fxBar(40, 20).background(.separator).rotationEffect(deg90)).finalizedScene()
+    let bgBefore = try #require(effectRects(before, .separator).first)
+    #expect(effectRecord(bgBefore, in: before) != nil, "before: the background rotated too")
+}
+
+// MARK: - 2.18
+
+/// **2.18**. A removal ghost of rotated content replays its transform: the
+/// ghost's rect names a record equal to the live frame's. Mutation **M2p**:
+/// `CapturedPrimitive` drops its transform.
+@Test @MainActor func aGhostOfRotatedContentReplaysItsTransform() throws {
+    func stage(_ shown: Bool) -> some Element {
+        Stack {
+            Box().frame(width: px(200), height: px(100))
+            if shown { fxLegacyBar(50, 30).rotationEffect(.degrees(30)).transition(.opacity) }
+        }
+    }
+    let h = TransitionHarness()
+    let rest = h.frame(0, nil, stage(true), side: 300).finalizedScene()
+    let live = try #require(effectRects(rest).first)
+    let liveRecord = try #require(effectRecord(live, in: rest), "set up: the live tile is rotated")
+    _ = h.frame(0, linear1, stage(false), side: 300)
+    let mid = h.frame(0.5, nil, stage(false), side: 300).finalizedScene()
+    let ghost = try #require(effectRects(mid).first, "a ghost half-way")
+    let ghostRecord = effectRecord(ghost, in: mid)
+    #expect(fxMatches(ghostRecord, fxAffine(liveRecord)), "the ghost turns as the live tile did: \(fxDescribe(ghostRecord))")
+    #expect(abs(ghost.background.a - live.background.a * 0.5) < 0.01, "and fades: \(ghost.background.a)")
+}
+
+// MARK: - 2.19
+
+/// **2.19**. A drag preview of rotated content replays its transform composed
+/// with the preview's translation. Mutation **M2p**.
+@Test @MainActor func aDragPreviewOfRotatedContentReplaysItsTransform() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
+        Row {
+            Box().frame(width: px(200), height: px(200)).background(.accent)
+                .rotationEffect(.degrees(30)).draggable("s")
+            Box().frame(width: px(200), height: px(200))
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    platform.simulateResize(to: Size(width: px(400), height: px(200)))
+    window.drawFrameIfNeeded()
+    let source = try #require(effectRects(window.lastScene).first)
+    let sourceRecord = try #require(effectRecord(source, in: window.lastScene), "set up: the source is rotated")
+    func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px(y)) }
+    platform.simulateInput(.mouseDown(MouseEvent(position: pt(100, 100))))
+    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(101, 100))))
+    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(150, 100))))
+    window.drawFrameIfNeeded()
+    let rects = effectRects(window.lastScene)
+    try #require(rects.count == 2, "the source and its preview: \(rects.count)")
+    let preview = rects[1]
+    let expected = Affine2D.translation(x: 50, y: 0).concatenating(fxAffine(sourceRecord))
+    #expect(fxMatches(effectRecord(preview, in: window.lastScene), expected),
+            "the preview turns and moves: \(fxDescribe(effectRecord(preview, in: window.lastScene)))")
+    platform.simulateInput(.mouseUp(MouseEvent(position: pt(150, 100))))
+}
+
+// MARK: - 2.20
+
+/// **2.20** (`GX-G`). A `Deferred` inside a rotated element is not rotated: its
+/// primitives name index 0 and its hitboxes store no transform, while a
+/// sibling outside the `Deferred` is rotated. Mutation **M2q**: `Deferred`
+/// keeps the stack.
+@Test @MainActor func aDeferredInsideAnEffectIsNotTransformed() throws {
+    let frame = effectFrame(
+        Column {
+            Box().frame(width: px(60), height: px(20)).background(.separator).onClick {}
+            Deferred { Box().frame(width: px(50), height: px(30)).background(.accent).onClick {} }
+        }
+        .frame(width: px(160), height: px(100))
+        .rotationEffect(.degrees(30)))
+    let scene = frame.finalizedScene()
+    let sibling = try #require(effectRects(scene, .separator).first)
+    try #require(effectRecord(sibling, in: scene) != nil, "control: the sibling is rotated")
+    let portal = try #require(effectRects(scene).first)
+    #expect(effectRecord(portal, in: scene) == nil, "the portal's rect is not rotated")
+    let clickable = frame.hitboxes.filter { $0.handlers.onClick != nil }
+    try #require(clickable.count == 2, "two click targets: \(clickable.count)")
+    #expect(clickable[0].transform != nil, "the sibling's hitbox is transformed")
+    #expect(clickable[1].transform == nil, "the portal's hitbox is plain")
+}
+
+// MARK: - 2.21
+
+/// **2.21** (`GX-G`). The demo through a `Window` pushes no effect scope and
+/// its scene has no transform; a tree with one effect pushes some. Mutation
+/// **M2r**: a scope pushed for every element.
+@Test @MainActor func aTreeWithoutEffectsPushesNoScope() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (control, _) = try makeFakeWindow(device: device, size: 200) { fxBar(40, 20).rotationEffect(deg90) }
+    control.drawFrameIfNeeded()
+    try #require(control.lastEffectScopesPushed > 0, "control: an effect pushes a scope")
+    let (window, _) = try makeFakeWindow(device: device, size: 800) { demoContent() }
+    window.drawFrameIfNeeded()
+    #expect(window.lastEffectScopesPushed == 0, "the demo pushes none: \(window.lastEffectScopesPushed)")
+    #expect(window.lastScene.transforms.isEmpty, "and records no transform")
+}
+
+// MARK: - 2.22
+
+/// **2.22** (`GX-H`). The legacy vocabulary keeps written order among effects
+/// (`rotation.offset` ≠ `offset.rotation`, each the predicted matrix) and moves
+/// no id: the click target's id equals the effect-free tree's. Mutation
+/// **M2s**: the list sorted.
+@Test @MainActor func theLegacyVocabularyKeepsWrittenOrderAmongEffectsAndMovesNoID() throws {
+    let plainFrame = effectFrame(fxLegacyBar(100, 20).onClick {})
+    let plain = try #require(effectRects(plainFrame.finalizedScene()).first)
+    let cx = Double(plain.bounds.origin.x + 50), cy = Double(plain.bounds.origin.y + 10)
+    let r = Affine2D.rotation(radians: Double.pi / 4, about: cx, cy)
+    let t = Affine2D.translation(x: 30, y: 0)
+    let f1 = effectFrame(fxLegacyBar(100, 20).onClick {}.rotationEffect(.degrees(45)).offset(x: px(30)))
+    let f2 = effectFrame(fxLegacyBar(100, 20).onClick {}.offset(x: px(30)).rotationEffect(.degrees(45)))
+    let s1 = f1.finalizedScene(), s2 = f2.finalizedScene()
+    #expect(fxLands(try #require(effectRects(s1).first), in: s1, as: t.concatenating(r), from: plain.bounds),
+            "rotation then offset")
+    #expect(fxLands(try #require(effectRects(s2).first), in: s2, as: r.concatenating(t), from: plain.bounds),
+            "offset then rotation")
+    let ids = [plainFrame, f1, f2].map { $0.hitboxes.filter { $0.handlers.onClick != nil }.map(\.id) }
+    #expect(ids[0].count == 1 && ids[1] == ids[0] && ids[2] == ids[0], "no id moves: \(ids)")
+}
+
+// MARK: - 2.23 (divergence 108)
+
+/// **2.23** (divergence 108). A legacy effect wraps the whole element whatever
+/// the written order: a background written after the effect is still
+/// transformed, and so is a border. Mutation **M2t**: the background excluded.
+@Test @MainActor func aLegacyEffectWrapsTheWholeElementWhateverTheOrder() throws {
+    let after = effectFrame(Box().frame(width: px(40), height: px(20)).rotationEffect(deg90).background(.accent))
+        .finalizedScene()
+    let a = try #require(effectRects(after).first)
+    #expect(effectRecord(a, in: after) != nil, "a background written after the effect is rotated")
+    let bordered = effectFrame(Box().frame(width: px(40), height: px(20)).background(.accent)
+        .border(.separator, width: px(2)).rotationEffect(deg90)).finalizedScene()
+    let ring = try #require(bordered.rects.first { $0.borderWidths.top > 0 }, "the border ring")
+    #expect(effectRecord(ring, in: bordered) != nil, "the border is rotated too")
+}
+
+// MARK: - 2.24 (divergence 109)
+
+/// **2.24** (divergence 109). A clip between two nested rotations becomes its
+/// screen bounding box: the 40 × 20 clip under the outer 90° is the 20 × 40
+/// rect about the same centre, and that is the composed record's outer mask.
+/// Mutation **M2u**: the middle clip dropped.
+@Test @MainActor func aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox() throws {
+    let scene = effectFrame(fxBar(40, 20).rotationEffect(deg90).clipped().rotationEffect(deg90)).finalizedScene()
+    let r = try #require(effectRects(scene).first)
+    let record = try #require(effectRecord(r, in: scene), "a record")
+    let cx = r.bounds.origin.x + 20, cy = r.bounds.origin.y + 10
+    let expected = MUIBounds(origin: MUIPoint(x: cx - 10, y: cy - 20), size: MUISize(width: 20, height: 40))
+    #expect(abs(record.outerMask.origin.x - expected.origin.x) < 1e-3
+                && abs(record.outerMask.origin.y - expected.origin.y) < 1e-3
+                && abs(record.outerMask.size.width - 20) < 1e-3 && abs(record.outerMask.size.height - 40) < 1e-3,
+            "the outer mask is the clip's screen bounding box: \(fxDescribe(record.outerMask))")
+    #expect(fxMatches(record, .rotation(radians: Double.pi, about: Double(cx), Double(cy))), "180° in all")
+}
+
+// MARK: - 2.25 (MC-C)
+
+/// **2.25** (`MC-A`/`MC-C`). A proposal effect is one identity level: the
+/// content's ids under `.rotationEffect` equal those under a one-layer
+/// `.padding(0)` chain, and differ from the bare content's. Mutation **M2v**:
+/// the layer not counted.
+@Test @MainActor func aProposalEffectIsOneIdentityLevel() throws {
+    // Inside a stack, not at the root: the root has no parent, so a layer that
+    // handed its content its parent's level would give the root's own id
+    // back and could not be told apart (M2v's first spelling stayed green).
+    func tapIDs(_ e: some ProposalElementGroup) -> [GlobalElementID] {
+        effectFrame(VStack { e }).hitboxes.filter { $0.handlers.gestures.count > 0 }.map(\.id)
+    }
+    let bare = tapIDs(fxBar(40, 20).onTapGesture {})
+    let padded = tapIDs(fxBar(40, 20).onTapGesture {}.padding(Edges(all: px(0))))
+    let rotated = tapIDs(fxBar(40, 20).onTapGesture {}.rotationEffect(deg90))
+    let scaled = tapIDs(fxBar(40, 20).onTapGesture {}.scaleEffect(2))
+    let moved = tapIDs(fxBar(40, 20).onTapGesture {}.offset(x: px(3)))
+    try #require(bare.count == 1 && padded.count == 1 && bare != padded, "the arms disagree: \(bare) \(padded)")
+    #expect(rotated == padded && scaled == padded && moved == padded,
+            "one level each: \(rotated) \(scaled) \(moved) vs \(padded)")
+}
+
+// MARK: - 2.26 (GX-R item 2)
+
+/// **2.26** (`GX-R` item 2). The `.scale` and `.move` transitions' emitted
+/// rects half-way, at scale 2, equal literals recorded at `dc96395`'s
+/// arithmetic: generalizing `TransitionEffect` into `RenderEffect` moved no
+/// byte. Green on arrival (a pin). Mutation **M2w′**: the transition's affine
+/// composes its translation before its scale.
+@Test @MainActor func aTransitionsCapturedBytesDoNotMove() throws {
+    func stage(_ shown: Bool, _ transition: AnyTransition) -> some Element {
+        Stack {
+            Box().frame(width: px(200), height: px(100))
+            if shown {
+                Box().frame(width: px(50), height: px(30)).background(.accent).cornerRadius(px(6))
+                    .border(.separator, width: px(3)).transition(transition)
+            }
+        }
+    }
+    func midway(_ transition: AnyTransition) -> String {
+        let h = TransitionHarness()
+        h.frame(0, nil, stage(false, transition), side: 300, scaleFactor: 2)
+        h.frame(0, linear1, stage(true, transition), side: 300, scaleFactor: 2)
+        let scene = h.frame(0.5, nil, stage(true, transition), side: 300, scaleFactor: 2).finalizedScene()
+        return scene.rects.filter { $0.background.a > 0 || $0.borderWidths.top > 0 }.map {
+            "\(fxDescribe($0.bounds)) r\($0.cornerRadii.topLeft) w\($0.borderWidths.top) m\(fxDescribe($0.contentMask))"
+        }.joined(separator: " | ")
+    }
+    let scale = midway(.scale(scale: 0.5, anchor: .bottomTrailing))
+    let move = midway(.move(edge: .leading))
+    let both = midway(AnyTransition.scale.combined(with: .offset(x: px(10), y: px(4))))
+    #expect(scale == "(275.0, 285.0, 75.0×45.0) r9.0 w0.0 m(0.0, 0.0, 600.0×600.0) | (275.0, 285.0, 75.0×45.0) r9.0 w4.5 m(0.0, 0.0, 600.0×600.0)", "scale: \(scale)")
+    #expect(move == "(200.0, 270.0, 100.0×60.0) r12.0 w0.0 m(0.0, 0.0, 600.0×600.0) | (200.0, 270.0, 100.0×60.0) r12.0 w6.0 m(0.0, 0.0, 600.0×600.0)", "move: \(move)")
+    #expect(both == "(285.0, 289.0, 50.0×30.0) r6.0 w0.0 m(0.0, 0.0, 600.0×600.0) | (285.0, 289.0, 50.0×30.0) r6.0 w3.0 m(0.0, 0.0, 600.0×600.0)", "both: \(both)")
+}

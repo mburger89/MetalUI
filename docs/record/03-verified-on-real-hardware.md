@@ -1891,3 +1891,20 @@ demo on SDL. SwiftUI's compositing of an app's Metal layer and `Canvas`'s
 re-runs were measured in a real unlocked window by probe groups `C` and `R`;
 MetalUI's own answers are pinned headless and nothing has been seen on a real
 display.
+
+## 2026-10-02: paths, shadows and transforms (record §73) — looks owed
+
+No real-window capture was taken: the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1` at lane 3's close, so
+`capture.sh` was **not run**; the last unlocked reading remains 2026-09-30
+(`6c961e3 -> 1b093b8`, 0 differing). The fourteen offscreen images read **0
+differing pixels and identical scenes against `dc96395`** (no production tree
+uses a new API). Nothing the branch draws has been seen on a real display.
+**Owed, new here — `docs/verification/human-checks.md` group Q, none performed
+(an agent cannot)**: Q1 fills (nonzero versus even-odd stars); Q2 strokes and
+dashes; Q3 shadows in light and dark (per leaf, glyph-shaped, no box behind
+text); Q4 rotated text and image edges; Q5 a crisp path versus soft text under
+`scaleEffect(3)` (divergence 106); Q6 the rotating square (smooth turn, hover
+and click over the drawn diamond only). SwiftUI's answers were measured in a
+real unlocked window by `swiftui-paths-shadows-transforms.swift`; MetalUI's
+are pinned headless.

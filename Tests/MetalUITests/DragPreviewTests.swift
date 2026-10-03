@@ -345,8 +345,8 @@ private struct Named: Identifiable, Hashable {
         let rects = Set(scene.rects.map(fingerprint))
         let glyphs = Set(scene.glyphs.map(fingerprint))
         for primitive in snapshot {
-            switch primitive {
-            case .rect(var r, _, _):
+            switch primitive.kind {
+            case .rect(var r):
                 r.bounds = MUIBounds(origin: MUIPoint(x: r.bounds.origin.x + 50, y: r.bounds.origin.y),
                                      size: r.bounds.size)
                 r.background.a *= 0.7
@@ -354,7 +354,7 @@ private struct Named: Identifiable, Hashable {
                 #expect(scene.rects.contains { bounds($0.bounds) == bounds(r.bounds)
                         && abs($0.background.a - r.background.a) < 1e-5 },
                         "\(name): a translucent translated copy of \(fingerprint(r)) in \(rects)")
-            case .glyph(var g, _, _):
+            case .glyph(var g):
                 g.bounds = MUIBounds(origin: MUIPoint(x: g.bounds.origin.x + 50, y: g.bounds.origin.y),
                                      size: g.bounds.size)
                 #expect(scene.glyphs.contains { bounds($0.bounds) == bounds(g.bounds)
@@ -364,6 +364,8 @@ private struct Named: Identifiable, Hashable {
                 Issue.record("\(name): no site here paints an image")
             case .surface:
                 Issue.record("\(name): no site here paints a surface")
+            case .path, .shadow:
+                Issue.record("\(name): no site here paints a path or a shadow")
             }
         }
         platform.simulateInput(up(moved(p, 50)))

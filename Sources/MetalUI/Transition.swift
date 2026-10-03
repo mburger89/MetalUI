@@ -207,21 +207,32 @@ extension AnyTransition.Kind {
     }
 }
 
-/// A resolved transition at one activeness, in the scene's device pixels: an
-/// alpha multiplier and the affine map `p′ = scale × p + (tx, ty)`.
-struct TransitionEffect: Equatable {
+/// What one paint scope does to every primitive emitted inside it, in the
+/// scene's device pixels: an alpha multiplier and an affine map (ruling `GX-G`,
+/// generalizing plan task 13's `TransitionEffect`). A transition's map is a
+/// uniform scale about its anchor and a translation, computed exactly as
+/// before — in `Float`, stored in `Double` without rounding — so transitions'
+/// captured and emitted bytes do not move (test 2.26).
+struct RenderEffect: Equatable {
     var alpha: Float = 1
-    var scale: Float = 1
-    var tx: Float = 0
-    var ty: Float = 0
+    var affine = Affine2D.identity
 
-    static let identity = TransitionEffect()
+    static let identity = RenderEffect()
 
     var isIdentity: Bool { self == .identity }
 
-    /// `atoms` at `activeness` over `rect` (device pixels): every scale about
-    /// its anchor first, then every translation; alphas multiply.
+    init() {}
+
+    init(alpha: Float = 1, affine: Affine2D) {
+        self.alpha = alpha
+        self.affine = affine
+    }
+
+    /// A transition's `atoms` at `activeness` over `rect` (device pixels):
+    /// every scale about its anchor first, then every translation; alphas
+    /// multiply. `Float` arithmetic, as plan task 13 computed it.
     init(atoms: [TransitionAtom], activeness a: Double, rect: MUIBounds, scaleFactor: Float) {
+        var scale: Float = 1, tx: Float = 0, ty: Float = 0
         for atom in atoms {
             guard case .scale(let target, let anchor) = atom else { continue }
             let s = Float(1 + (target - 1) * a)
@@ -243,85 +254,267 @@ struct TransitionEffect: Equatable {
                 break
             }
         }
+        affine = Affine2D(a: Double(scale), d: Double(scale), tx: Double(tx), ty: Double(ty))
     }
 
-    init() {}
+    // The flattened map in `Float`, coefficient by coefficient — for a
+    // transition exactly plan task 13's `scale * x + tx`.
+    private var sx: Float { Float(affine.a) }
+    private var sy: Float { Float(affine.d) }
 
     func map(_ b: MUIBounds) -> MUIBounds {
-        MUIBounds(origin: MUIPoint(x: scale * b.origin.x + tx, y: scale * b.origin.y + ty),
-                  size: MUISize(width: scale * b.size.width, height: scale * b.size.height))
+        MUIBounds(origin: MUIPoint(x: sx * b.origin.x + Float(affine.tx), y: sy * b.origin.y + Float(affine.ty)),
+                  size: MUISize(width: sx * b.size.width, height: sy * b.size.height))
     }
 
     func map(_ c: MUICorners) -> MUICorners {
-        MUICorners(topLeft: c.topLeft * scale, topRight: c.topRight * scale,
-                   bottomRight: c.bottomRight * scale, bottomLeft: c.bottomLeft * scale)
+        MUICorners(topLeft: c.topLeft * sx, topRight: c.topRight * sx,
+                   bottomRight: c.bottomRight * sx, bottomLeft: c.bottomLeft * sx)
     }
 
-    /// `primitive` under this effect. `innerMask`: its clip was set inside the
-    /// transitioning content, so the clip moves and scales with it; otherwise
-    /// the clip in effect at the content's entry stays put.
-    func apply(to primitive: CapturedPrimitive) -> CapturedPrimitive {
-        switch primitive {
-        case .rect(var r, let layer, let inner):
-            r.bounds = map(r.bounds)
-            if inner {
-                r.contentMask = map(r.contentMask)
-                r.maskCornerRadii = map(r.maskCornerRadii)
+    /// `primitive` under this effect, or `nil` when the result draws nothing
+    /// (a degenerate map over transformed content).
+    ///
+    /// - A primitive with no transform under a `flattens` scope (every
+    ///   transition; an effect whose map is a translation plus a uniform
+    ///   positive scale) is mapped on the CPU: bounds, radii, border widths, and
+    ///   its mask when `innerMask` (its clip was pushed inside the scope) — the
+    ///   clip in effect at the scope's entry stays put.
+    /// - Otherwise the map composes onto its transform record (`M ∘ T`). Its
+    ///   local geometry never moves; its outer mask moves with a flattening map
+    ///   when `outerMaskInner`, and under a non-flattening one becomes its
+    ///   bounding box cut by the scope's own outer mask (divergence 109).
+    func apply(to primitive: CapturedPrimitive, flattens: Bool, outer: OuterMask?) -> CapturedPrimitive? {
+        var p = primitive
+        if p.transform == nil && flattens {
+            switch p.kind {
+            case .rect(var r):
+                r.bounds = map(r.bounds)
+                if p.innerMask {
+                    r.contentMask = map(r.contentMask)
+                    r.maskCornerRadii = map(r.maskCornerRadii)
+                }
+                r.cornerRadii = map(r.cornerRadii)
+                r.borderWidths = MUIEdges(top: r.borderWidths.top * sx, right: r.borderWidths.right * sx,
+                                          bottom: r.borderWidths.bottom * sx, left: r.borderWidths.left * sx)
+                r.background.a *= alpha
+                r.borderColor.a *= alpha
+                p.kind = .rect(r)
+            case .glyph(var g):
+                g.bounds = map(g.bounds)
+                if p.innerMask {
+                    g.contentMask = map(g.contentMask)
+                    g.maskCornerRadii = map(g.maskCornerRadii)
+                }
+                g.color.a *= alpha
+                p.kind = .glyph(g)
+            case .image(var i, let texture):
+                i.bounds = map(i.bounds)
+                if p.innerMask {
+                    i.contentMask = map(i.contentMask)
+                    i.maskCornerRadii = map(i.maskCornerRadii)
+                }
+                i.opacity *= alpha
+                p.kind = .image(i, texture: texture)
+            case .surface(var q, let target):
+                // The quad moves, never the target (MV-E item 2): a `.scale`
+                // transition resamples it, it never reallocates.
+                q.bounds = map(q.bounds)
+                if p.innerMask {
+                    q.contentMask = map(q.contentMask)
+                    q.maskCornerRadii = map(q.maskCornerRadii)
+                }
+                q.opacity *= alpha
+                p.kind = .surface(q, target: target)
+            case .path(var path):
+                // A path stays a vector until it reaches the scene (`GX-B`): the
+                // map composes onto its own, so it is rasterized at the scale it
+                // is drawn at.
+                path.local = affine.concatenating(path.local)
+                if p.innerMask {
+                    path.contentMask = map(path.contentMask)
+                    path.maskCornerRadii = map(path.maskCornerRadii)
+                }
+                path.color.a *= alpha
+                p.kind = .path(path)
+            case .shadow(var shadow):
+                // A shadow's offset and blur follow the composed map (`GX-J`;
+                // T10, T14): its leaf stays in creation space under `local`.
+                shadow.local = affine.concatenating(shadow.local)
+                if p.innerMask {
+                    shadow.contentMask = map(shadow.contentMask)
+                    shadow.maskCornerRadii = map(shadow.maskCornerRadii)
+                }
+                shadow.color.a *= alpha
+                p.kind = .shadow(shadow)
             }
-            r.cornerRadii = map(r.cornerRadii)
-            r.borderWidths = MUIEdges(top: r.borderWidths.top * scale, right: r.borderWidths.right * scale,
-                                      bottom: r.borderWidths.bottom * scale, left: r.borderWidths.left * scale)
+            return p
+        }
+        p.multiplyAlpha(alpha)
+        guard var t = p.transform else {
+            // A plain primitive under a non-flattening effect: its geometry is
+            // already local (the scope split the clip at its entry, `GX-G`).
+            guard let outer, affine.determinant != 0 else { return nil }
+            p.transform = PrimitiveTransform(affine: affine, outerMask: outer.bounds,
+                                             outerMaskRadii: outer.radii, outerDepth: outer.depth)
+            return p
+        }
+        t.affine = affine.concatenating(t.affine)
+        guard t.affine.determinant != 0, t.affine.determinant.isFinite else { return nil }
+        if flattens {
+            if p.outerMaskInner {
+                t.outerMask = map(t.outerMask)
+                t.outerMaskRadii = map(t.outerMaskRadii)
+            }
+        } else if let outer {
+            if t.outerMask.size.width >= PrimitiveTransform.unboundedThreshold {
+                t.outerMask = outer.bounds
+                t.outerMaskRadii = outer.radii
+            } else {
+                let box = affine.boundingBox(of: t.outerMask)
+                t.outerMask = box.intersection(outer.bounds)
+                t.outerMaskRadii = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+            }
+            t.outerDepth = outer.depth
+        }
+        p.transform = t
+        return p
+    }
+}
+
+/// A non-flattening effect scope's outer mask (`GX-G`): the clip in force at
+/// its entry, in the space the scope's map maps into, and the clip depth it
+/// was read at.
+struct OuterMask {
+    var bounds: MUIBounds
+    var radii: MUICorners
+    var depth: Int
+}
+
+/// A primitive's transform record carried by value (`GX-G`), so a ghost or a
+/// drag preview replays transformed content in a later frame without reading a
+/// stale scene index: the composed map (local device pixels → screen), the
+/// outer mask in screen space, and the clip depth that mask was read at.
+struct PrimitiveTransform {
+    var affine: Affine2D
+    var outerMask: MUIBounds
+    var outerMaskRadii: MUICorners
+    var outerDepth: Int
+
+    /// A mask at least this wide (device pixels) is the unbounded local clip.
+    static let unboundedThreshold: Float = 100_000
+
+    /// The scene's record (`MUITransform`, `GX-F`).
+    var record: MUITransform {
+        MUITransform(a: Float(affine.a), b: Float(affine.b), c: Float(affine.c), d: Float(affine.d),
+                     tx: Float(affine.tx), ty: Float(affine.ty), pixelScale: Float(affine.linearScale),
+                     _reserved: 0, outerMask: outerMask, outerMaskRadii: outerMaskRadii)
+    }
+}
+
+/// One primitive as a paint scope receives it — what a transition's ghost and
+/// a drag preview replay (`GX-G`). `innerMask` and `outerMaskInner` are
+/// relative to the scope that last read it: whether its own clip, and its
+/// transform's outer mask, were pushed inside that scope.
+struct CapturedPrimitive {
+    enum Kind {
+        case rect(MUIRect)
+        case glyph(MUIGlyph)
+        case image(MUIImage, texture: ImageTexture)
+        /// An app-owned surface's quad over its render target (MetalView,
+        /// ruling `MV-D`): a ghost or a drag preview replays the quad and so
+        /// references the target, with no draw request — it shows the last
+        /// contents.
+        case surface(MUIImage, target: SurfaceTarget)
+        /// A path, still a vector (`GX-B`): rasterized at `insertIntoScene`.
+        case path(PathPaint)
+        /// One leaf's shadow (`GX-J`): rasterized at `insertIntoScene`, drawn
+        /// just before its leaf.
+        case shadow(ShadowPaint)
+    }
+
+    var kind: Kind
+    var layer: Int
+    var innerMask: Bool
+    var transform: PrimitiveTransform? = nil
+    var outerMaskInner = false
+
+    static func rect(_ r: MUIRect, layer: Int, innerMask: Bool) -> CapturedPrimitive {
+        CapturedPrimitive(kind: .rect(r), layer: layer, innerMask: innerMask)
+    }
+
+    static func glyph(_ g: MUIGlyph, layer: Int, innerMask: Bool) -> CapturedPrimitive {
+        CapturedPrimitive(kind: .glyph(g), layer: layer, innerMask: innerMask)
+    }
+
+    static func image(_ i: MUIImage, texture: ImageTexture, layer: Int, innerMask: Bool) -> CapturedPrimitive {
+        CapturedPrimitive(kind: .image(i, texture: texture), layer: layer, innerMask: innerMask)
+    }
+
+    static func surface(_ q: MUIImage, target: SurfaceTarget, layer: Int, innerMask: Bool) -> CapturedPrimitive {
+        CapturedPrimitive(kind: .surface(q, target: target), layer: layer, innerMask: innerMask)
+    }
+
+    /// The primitive's own bounds, in (local) device pixels.
+    var bounds: MUIBounds {
+        switch kind {
+        case .rect(let r): r.bounds
+        case .glyph(let g): g.bounds
+        case .image(let i, _): i.bounds
+        case .surface(let q, _): q.bounds
+        case .path(let path): path.bounds
+        case .shadow(let shadow): shadow.bounds
+        }
+    }
+
+    /// The clip depth this primitive's own mask was read at, given the depth at
+    /// its emission: a shadow's mask is its scope's entry clip (`GX-J`).
+    func maskDepth(emittedAt depth: Int) -> Int {
+        if case let .shadow(shadow) = kind { return shadow.entryDepth }
+        return depth
+    }
+
+    /// Where it lands on screen: its bounds, or their bounding box under its
+    /// transform.
+    var screenBounds: MUIBounds {
+        guard let transform else { return bounds }
+        return transform.affine.boundingBox(of: bounds)
+    }
+
+    mutating func multiplyAlpha(_ alpha: Float) {
+        guard alpha != 1 else { return }
+        switch kind {
+        case .rect(var r):
             r.background.a *= alpha
             r.borderColor.a *= alpha
-            return .rect(r, layer: layer, innerMask: inner)
-        case .glyph(var g, let layer, let inner):
-            g.bounds = map(g.bounds)
-            if inner {
-                g.contentMask = map(g.contentMask)
-                g.maskCornerRadii = map(g.maskCornerRadii)
-            }
+            kind = .rect(r)
+        case .glyph(var g):
             g.color.a *= alpha
-            return .glyph(g, layer: layer, innerMask: inner)
-        case .image(var i, let texture, let layer, let inner):
-            i.bounds = map(i.bounds)
-            if inner {
-                i.contentMask = map(i.contentMask)
-                i.maskCornerRadii = map(i.maskCornerRadii)
-            }
+            kind = .glyph(g)
+        case .image(var i, let texture):
             i.opacity *= alpha
-            return .image(i, texture: texture, layer: layer, innerMask: inner)
-        case .surface(var q, let target, let layer, let inner):
-            // The quad moves, never the target (MV-E item 2): a `.scale`
-            // transition resamples it, it never reallocates.
-            q.bounds = map(q.bounds)
-            if inner {
-                q.contentMask = map(q.contentMask)
-                q.maskCornerRadii = map(q.maskCornerRadii)
-            }
+            kind = .image(i, texture: texture)
+        case .surface(var q, let target):
             q.opacity *= alpha
-            return .surface(q, target: target, layer: layer, innerMask: inner)
+            kind = .surface(q, target: target)
+        case .path(var path):
+            path.color.a *= alpha
+            kind = .path(path)
+        case .shadow(var shadow):
+            shadow.color.a *= alpha
+            kind = .shadow(shadow)
         }
     }
 }
 
-/// One primitive a transitioning group emitted, as the scene received it before
-/// the group's own effect — what a ghost replays. `innerMask` is relative to
-/// the capturing group: whether its clip was pushed inside the group.
-enum CapturedPrimitive {
-    case rect(MUIRect, layer: Int, innerMask: Bool)
-    case glyph(MUIGlyph, layer: Int, innerMask: Bool)
-    case image(MUIImage, texture: ImageTexture, layer: Int, innerMask: Bool)
-    /// An app-owned surface's quad over its render target (MetalView, ruling
-    /// `MV-D`): a ghost or a drag preview replays the quad and so references
-    /// the target, with no draw request — it shows the last contents.
-    case surface(MUIImage, target: SurfaceTarget, layer: Int, innerMask: Bool)
-
-    func withInnerMask(_ inner: Bool) -> CapturedPrimitive {
-        switch self {
-        case .rect(let r, let layer, _): .rect(r, layer: layer, innerMask: inner)
-        case .glyph(let g, let layer, _): .glyph(g, layer: layer, innerMask: inner)
-        case .image(let i, let t, let layer, _): .image(i, texture: t, layer: layer, innerMask: inner)
-        case .surface(let q, let t, let layer, _): .surface(q, target: t, layer: layer, innerMask: inner)
-        }
+extension MUIBounds {
+    /// The overlap of two bounds, empty (zero size at the first's origin
+    /// clamp) when they do not meet.
+    func intersection(_ other: MUIBounds) -> MUIBounds {
+        let minX = max(origin.x, other.origin.x), minY = max(origin.y, other.origin.y)
+        let maxX = min(origin.x + size.width, other.origin.x + other.size.width)
+        let maxY = min(origin.y + size.height, other.origin.y + other.size.height)
+        return MUIBounds(origin: MUIPoint(x: minX, y: minY),
+                         size: MUISize(width: max(maxX - minX, 0), height: max(maxY - minY, 0)))
     }
 }

@@ -49,11 +49,14 @@ public final class SDLReplayer {
         try fixture.rects.withUnsafeBytes { rects in
             try fixture.glyphs.withUnsafeBytes { glyphs in
                 try fixture.images.withUnsafeBytes { images in
+                  try fixture.transforms.withUnsafeBytes { transforms in
                     try draw(width: fixture.width, height: fixture.height, rects: rects, glyphs: glyphs,
-                             images: images, textures: fixture.textures.map { ($0.width, $0.height, $0.pixels) },
+                             images: images, transforms: transforms,
+                             textures: fixture.textures.map { ($0.width, $0.height, $0.pixels) },
                              runs: runs ?? fixture.runs, atlas: fixture.atlas,
                              atlasWidth: fixture.atlasWidth, atlasHeight: fixture.atlasHeight,
                              projection: fixture.projection)
+                  }
                 }
             }
         }
@@ -66,12 +69,14 @@ public final class SDLReplayer {
         return try scene.rects.withUnsafeBytes { rects in
             try scene.glyphs.withUnsafeBytes { glyphs in
                 try scene.images.withUnsafeBytes { images in
+                  try scene.transforms.withUnsafeBytes { transforms in
                     try draw(width: UInt32(width), height: UInt32(height), rects: rects, glyphs: glyphs,
-                             images: images,
+                             images: images, transforms: transforms,
                              textures: scene.textures.map { (UInt32($0.width), UInt32($0.height), $0.pixels) },
                              runs: sceneRuns, atlas: atlas.pixels,
                              atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height),
                              projection: projection)
+                  }
                 }
             }
         }
@@ -83,7 +88,8 @@ public final class SDLReplayer {
     }
 
     private func draw(width: UInt32, height: UInt32, rects: UnsafeRawBufferPointer, glyphs: UnsafeRawBufferPointer,
-                      images: UnsafeRawBufferPointer, textures: [(UInt32, UInt32, [UInt8])],
+                      images: UnsafeRawBufferPointer, transforms: UnsafeRawBufferPointer,
+                      textures: [(UInt32, UInt32, [UInt8])],
                       runs: [FixtureRun], atlas: [UInt8], atlasWidth: UInt32, atlasHeight: UInt32,
                       projection: [Float]) throws -> [UInt8] {
         precondition(projection.count == 16, "projection must be a 4x4 matrix")
@@ -106,6 +112,7 @@ public final class SDLReplayer {
                             replay_render(gpu, width, height,
                                 rects.baseAddress, UInt32(rects.count), glyphs.baseAddress, UInt32(glyphs.count),
                                 images.baseAddress, UInt32(images.count),
+                                transforms.baseAddress, UInt32(transforms.count),
                                 textureBuffer.baseAddress, UInt32(cTextures.count),
                                 runBuffer.baseAddress, UInt32(cRuns.count),
                                 atlasBuffer.baseAddress, atlasWidth, atlasHeight,

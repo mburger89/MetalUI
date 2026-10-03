@@ -31,6 +31,10 @@ final class AnimationStore {
     /// stub the frame calls at three points; lane 3 fills it.
     let transitions = TransitionStore()
 
+    /// The window's CPU rasters — paths and shadows (ruling `GX-K`), owned
+    /// here so a `Window`'s frames share one and a headless frame gets its own.
+    let rasters = RasterCache()
+
     /// Interpolations performed by the last completed frame — a work counter
     /// (spec test 2.12), counted by `noteInterpolation()`.
     private(set) var lastFrameInterpolations = 0

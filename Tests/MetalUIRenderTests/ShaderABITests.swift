@@ -48,7 +48,7 @@ import MetalUIShaderTypes
         maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         order: 0,
-        _reserved: 0)
+        transform: 0)
 
     let slots = 32
     let outBuffer = try #require(device.makeBuffer(length: slots * MemoryLayout<UInt32>.stride,
@@ -164,4 +164,41 @@ import MetalUIShaderTypes
     #expect(v[11] == 120)    // sizeof(MUIRect)
     #expect(v[12] == 9)      // MUIRect.order
     #expect(v[13] == 1)      // MUIRect.shape
+}
+
+/// 1.12 (ruling GX-F) — `MUITransform` is 64 bytes, four `float4` lanes, and
+/// Metal reads every field where Swift wrote it (`transform_abi_probe`, its
+/// own kernel); `MUIGlyph.transform` sits where `_reserved` did, offset 84,
+/// so the glyph's size and every recorded scene are unchanged. Distinct
+/// values per field: `tx`/`ty` are adjacent floats, so a probe reading one
+/// for the other reports a wrong number.
+@Test func metalAndSwiftAgreeOnTheTransformStruct() throws {
+    #expect(MemoryLayout<MUITransform>.size == 64 && MemoryLayout<MUITransform>.stride == 64)
+    #expect(MemoryLayout<MUIGlyph>.size == 88)
+    #expect(MemoryLayout<MUIGlyph>.offset(of: \MUIGlyph.transform) == 84)
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let library = try ShaderLibrary.make(device: device)
+    let function = try #require(library.makeFunction(name: "transform_abi_probe"))
+    let pipeline = try device.makeComputePipelineState(function: function)
+    let queue = try #require(device.makeCommandQueue())
+    var transform = MUITransform(a: 1.5, b: 2.5, c: 3.5, d: 4.5, tx: 5.5, ty: 6.5, pixelScale: 7.5, _reserved: 8,
+                                 outerMask: MUIBounds(origin: MUIPoint(x: 9, y: 10), size: MUISize(width: 11, height: 12)),
+                                 outerMaskRadii: MUICorners(topLeft: 13, topRight: 14, bottomRight: 15, bottomLeft: 16))
+    let slots = 16
+    let out = try #require(device.makeBuffer(length: slots * MemoryLayout<UInt32>.stride, options: .storageModeShared))
+    let input = try #require(device.makeBuffer(bytes: &transform, length: 64, options: .storageModeShared))
+    let commandBuffer = try #require(queue.makeCommandBuffer())
+    let encoder = try #require(commandBuffer.makeComputeCommandEncoder())
+    encoder.setComputePipelineState(pipeline)
+    encoder.setBuffer(out, offset: 0, index: Int(MUIProbeBufferOut.rawValue))
+    encoder.setBuffer(input, offset: 0, index: Int(MUIProbeBufferTransform.rawValue))
+    encoder.dispatchThreads(MTLSize(width: 1, height: 1, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+    encoder.endEncoding()
+    commandBuffer.commit()
+    commandBuffer.waitUntilCompleted()
+    #expect(commandBuffer.error == nil)
+    let v = out.contents().bindMemory(to: UInt32.self, capacity: slots)
+    // Each float field ×10 (x.5 → an exact integer), then `_reserved` as is.
+    #expect((0..<16).map { v[$0] } == [64, 15, 25, 35, 45, 55, 65, 75, 8, 90, 100, 110, 120, 130, 140, 160])
 }

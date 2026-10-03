@@ -196,6 +196,6 @@ public enum PortableText {
             size: MUISize(width: Float(packed.slot.width), height: Float(packed.slot.height)))
         scene.insert(MUIGlyph(bounds: bounds, atlasBounds: slot, contentMask: contentMask,
                               maskCornerRadii: maskCornerRadii,
-                              color: color, order: order, _reserved: 0), layer: layer)
+                              color: color, order: order, transform: 0), layer: layer)
     }
 }

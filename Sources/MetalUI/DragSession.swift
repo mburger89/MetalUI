@@ -57,6 +57,9 @@ struct DropTargetState {
     let id: GlobalElementID
     let target: DropDestinationTarget
     let origin: Point<Pixels>
+    /// The destination region, whose stored inverse maps a window point into
+    /// the space `origin` is in (`GX-P` item 3).
+    var region: Hitbox? = nil
 }
 
 extension Window {
@@ -174,7 +177,7 @@ extension Window {
             return nil
         }
         guard destination.accepts(items) else { return nil }
-        return DropTargetState(id: region.id, target: destination, origin: region.origin)
+        return DropTargetState(id: region.id, target: destination, origin: region.origin, region: region)
     }
 
     /// Moves the target to whatever `dropTarget(at:items:)` answers, the old
@@ -206,6 +209,7 @@ extension Window {
     func deliver(_ items: [DropItem], at point: Point<Pixels>) -> Bool {
         guard let target = dropTarget else { return false }
         untarget()
+        let point = target.region?.localPoint(point) ?? point
         let location = Point(x: Pixels(point.x.value - target.origin.x.value),
                              y: Pixels(point.y.value - target.origin.y.value))
         return StateDispatch.dispatching(to: target.id) { target.target.deliver(items, at: location) }
@@ -215,7 +219,7 @@ extension Window {
 extension PaintPass {
     /// Runs `body`, capturing what it emits as the drag preview's snapshot
     /// when `id` is the open session's source (`DN-J` item 1): an identity
-    /// `TransitionPaintScope`, so the scene receives exactly what it would
+    /// capture `PaintScope`, so the scene receives exactly what it would
     /// have, and a source inside a `.transition` group is captured before the
     /// transition's effect (`DN-U` item 6). A frame without a session never
     /// pushes one. Called by `paintDecoration` — every `StyledElement` site —
@@ -225,10 +229,10 @@ extension PaintPass {
             body()
             return
         }
-        let scope = TransitionPaintScope(effect: .identity, entryClipDepth: frame.clipDepth)
-        frame.transitionScopes.append(scope)
+        let scope = PaintScope(kind: .capture, effect: .identity, entryClipDepth: frame.clipDepth)
+        frame.paintScopes.append(scope)
         body()
-        frame.transitionScopes.removeLast()
+        frame.paintScopes.removeLast()
         // The last scope to close for the source wins: one source painted by
         // two nested helpers under one id (`Button` over its own `Box`) closes
         // the outer, the superset, last.
@@ -255,15 +259,15 @@ extension Frame {
         guard dragSourceID != nil else { return }
         let snapshot = dragSnapshot ?? previousDragSnapshot
         guard let first = snapshot.first else { return }
-        var effect = TransitionEffect()
-        effect.alpha = Self.dragPreviewOpacity
-        effect.tx = dragPreviewTranslation.x.value * scaleFactor
-        effect.ty = dragPreviewTranslation.y.value * scaleFactor
-        let union = snapshot.dropFirst().reduce(first.bounds) { $0.union($1.bounds) }
+        let effect = RenderEffect(alpha: Self.dragPreviewOpacity,
+                                  affine: .translation(x: Double(dragPreviewTranslation.x.value * scaleFactor),
+                                                       y: Double(dragPreviewTranslation.y.value * scaleFactor)))
+        let union = snapshot.dropFirst().reduce(first.screenBounds) { $0.union($1.screenBounds) }
         let mask = effect.map(union)
         let layer = (scene.highestLayer ?? 0) + 1
         for primitive in snapshot {
-            insertIntoScene(effect.apply(to: primitive).replayed(mask: mask, layer: layer))
+            guard let moved = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
+            insertIntoScene(moved.replayed(mask: mask, layer: layer))
         }
     }
 
@@ -272,35 +276,42 @@ extension Frame {
 }
 
 extension CapturedPrimitive {
-    /// The primitive's own bounds, in device pixels.
-    var bounds: MUIBounds {
-        switch self {
-        case .rect(let r, _, _): r.bounds
-        case .glyph(let g, _, _): g.bounds
-        case .image(let i, _, _, _): i.bounds
-        case .surface(let q, _, _, _): q.bounds
-        }
-    }
-
     /// This primitive on `layer`: a primitive captured with an inner mask keeps
-    /// its own (already moved by `TransitionEffect.apply`); any other is masked
-    /// to `mask` with square corners (`DN-Y`).
+    /// its own (already moved by `RenderEffect.apply`); any other is masked
+    /// to `mask` with square corners (`DN-Y`). A transformed primitive keeps
+    /// its local mask and has its OUTER mask replaced instead, unless that was
+    /// pushed inside the source too (`GX-G`).
     func replayed(mask: MUIBounds, layer: Int) -> CapturedPrimitive {
         let square = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
-        switch self {
-        case .rect(var r, _, let inner):
-            if !inner { r.contentMask = mask; r.maskCornerRadii = square }
-            return .rect(r, layer: layer, innerMask: inner)
-        case .glyph(var g, _, let inner):
-            if !inner { g.contentMask = mask; g.maskCornerRadii = square }
-            return .glyph(g, layer: layer, innerMask: inner)
-        case .image(var i, let texture, _, let inner):
-            if !inner { i.contentMask = mask; i.maskCornerRadii = square }
-            return .image(i, texture: texture, layer: layer, innerMask: inner)
-        case .surface(var q, let target, _, let inner):
-            if !inner { q.contentMask = mask; q.maskCornerRadii = square }
-            return .surface(q, target: target, layer: layer, innerMask: inner)
+        var p = self
+        p.layer = layer
+        if var t = p.transform {
+            if !outerMaskInner { t.outerMask = mask; t.outerMaskRadii = square }
+            p.transform = t
+            return p
         }
+        guard !innerMask else { return p }
+        switch p.kind {
+        case .rect(var r):
+            r.contentMask = mask; r.maskCornerRadii = square
+            p.kind = .rect(r)
+        case .glyph(var g):
+            g.contentMask = mask; g.maskCornerRadii = square
+            p.kind = .glyph(g)
+        case .image(var i, let texture):
+            i.contentMask = mask; i.maskCornerRadii = square
+            p.kind = .image(i, texture: texture)
+        case .surface(var q, let target):
+            q.contentMask = mask; q.maskCornerRadii = square
+            p.kind = .surface(q, target: target)
+        case .path(var path):
+            path.contentMask = mask; path.maskCornerRadii = square
+            p.kind = .path(path)
+        case .shadow(var shadow):
+            shadow.contentMask = mask; shadow.maskCornerRadii = square
+            p.kind = .shadow(shadow)
+        }
+        return p
     }
 }
 

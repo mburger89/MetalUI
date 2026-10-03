@@ -211,9 +211,11 @@ public struct TextField: Element, StyledElement {
         handlers.isFocusable = true
         handlers.textInput = TextInputTarget(
             text: text, caretOffsets: geometry.textOffsets, originX: originX,
-            caretRect: Bounds(origin: Point(x: Pixels(Float(caretX)),
-                                            y: Pixels(Float(geometry.lineY + Double(offset.y.value)))),
-                              size: Size(width: Pixels(1), height: Pixels(Float(geometry.lineHeight)))),
+            caretRect: pass.frame.effectBoundingBox(   // under render effects (`GX-I`)
+                of: Bounds(origin: Point(x: Pixels(Float(caretX)),
+                                         y: Pixels(Float(geometry.lineY + Double(offset.y.value)))),
+                           size: Size(width: Pixels(1), height: Pixels(Float(geometry.lineHeight)))),
+                ownEffects: decoration.renderEffects, bounds: bounds),
             onChange: onChange, onSubmit: submit)
         if handlers.axNode.isEmpty {
             handlers.axNode = AXNode(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)
@@ -252,11 +254,9 @@ public struct TextField: Element, StyledElement {
             let showsPlaceholder = g.display.isEmpty
             var color = textColor
             if showsPlaceholder { color.a *= 0.45 }
-            for glyph in system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
-                                            wrappingAt: nil, origin: (x: x0, y: g.lineY),
-                                            scaleFactor: pass.scaleFactor) {
-                pass.draw(glyph, color: color)
-            }
+            pass.drawGlyphs(system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
+                                               wrappingAt: nil, origin: (x: x0, y: g.lineY),
+                                               scaleFactor: pass.scaleFactor), color: color)
             if let marked = g.composition {
                 pass.fill(rect(g.offsets[marked.lowerBound], g.offsets[marked.upperBound],
                                y: g.lineY + g.lineHeight - 1, height: 1), color: textColor)

@@ -323,10 +323,8 @@ public struct Text: Element, StyledElement {
                              style: textStyle)
         let color = pass.theme[textStyle.foreground]
 
-        for glyph in system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
-                                        origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
-                                        scaleFactor: pass.scaleFactor) {
-            pass.draw(glyph, color: color)
-        }
+        pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
+                                           origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
+                                           scaleFactor: pass.scaleFactor), color: color)
     }
 }

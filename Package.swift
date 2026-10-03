@@ -35,6 +35,7 @@ var products: [Product] = [
 
 var metalUIDependencies: [Target.Dependency] = [
     "MetalUICore", "MetalUILayout", "MetalUITextSystem", "MetalUIPlatform", "MetalUIPrimitives",
+    "MetalUIPath",
 ]
 #if os(macOS)
 metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
@@ -153,6 +154,12 @@ var targets: [Target] = [
         // Glyph rasterization with no Apple framework (rulings FT-B, FT-K):
         // imports only MetalUIScene and CFreeType.
         .target(name: "MetalUIFreeType", dependencies: ["MetalUIScene", "CFreeType"]),
+
+        // Paths, strokes, coverage, blur and alpha compositing on the CPU
+        // (ruling GX-B). Imports NOTHING — no Foundation, no MetalUICore — so
+        // its bytes are the same on every platform (`package` API only).
+        .target(name: "MetalUIPath"),
+        .testTarget(name: "MetalUIPathTests", dependencies: ["MetalUIPath"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),

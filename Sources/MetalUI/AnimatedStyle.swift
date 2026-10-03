@@ -333,6 +333,20 @@ struct AnimatedFieldState: Equatable {
 @MainActor
 func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
              pass: inout LayoutPass) -> (Style, Decoration) {
+    var (animatedStyle, animatedDecoration) = animatedStyleAndDecoration(style, decoration, for: id, pass: &pass)
+    // The legacy render effects animate on the animation store, never in the
+    // `$anim` baseline's `StateTable` slot (ruling `GX-H`).
+    if !decoration.renderEffects.isEmpty {
+        animatedDecoration.renderEffects = animatedRenderEffects(
+            decoration.renderEffects, for: id, frame: pass.frame,
+            transaction: pass.transaction ?? Animation.pendingTransaction)
+    }
+    return (animatedStyle, animatedDecoration)
+}
+
+@MainActor
+private func animatedStyleAndDecoration(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
+                                        pass: inout LayoutPass) -> (Style, Decoration) {
     let slotID = animRetentionSlot(for: id)
     let now = pass.frame.timestamp
     // **The FRAME's transaction first, the lexical one only as a fallback.**

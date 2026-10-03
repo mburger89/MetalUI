@@ -62,8 +62,10 @@ public struct AccessibilityModifier<Content: ProposalElementGroup>: Element {
     private mutating func registerAndPrepaint(_ id: GlobalElementID, _ bounds: Bounds<Pixels>,
                                               _ layout: inout Layout,
                                               _ pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil, synthesizesAccessibility: true)
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {   // `GX-P` item 1
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil, synthesizesAccessibility: true)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,

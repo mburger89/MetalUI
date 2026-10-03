@@ -116,13 +116,17 @@ F	layout-direction-type	D	-	-	-	25	EV-K	LayoutDirection: carried, read by no con
 F	layout-kernel	M	-	-	-	77	SA-L SA-M GR-C	MetalUILayout's LayoutTree, node ids, registrars, measure functions, grid marks, spacing, rounding (77)
 F	platform	M	-	-	-	-	RS-A AB-R EV-AB AN-AD	MetalUIPlatform: Platform/PlatformWindow/WindowRenderer, input events, the neutral accessibility tree
 F	render	M	-	-	-	-	RS-B RS-C	MetalUIRender/MetalUIPrimitives/MetalUIAppKit: the Metal renderer, surfaces, shader library, the AppKit platform
-F	scene	M	-	-	-	-	PS-A PS-B TE-AF	MetalUIScene: Scene, draw runs, the glyph atlas, FontKey, GlyphImage, ImageTexture
+F	scene	M	-	-	-	-	PS-A PS-B TE-AF GX-F	MetalUIScene: Scene, draw runs, the glyph atlas, FontKey, GlyphImage, ImageTexture, the per-instance transform table
 F	text-system	M	-	-	-	-	TS-A TS-B TX-B	MetalUIText/MetalUITextSystem: the TextSystem seam and its CoreText conformer
 F	portable-text	M	-	-	-	-	FT-B SH-B PT-A LB-A FN-A FB-A BD-B SF-A	MetalUIFreeType/MetalUIHarfBuzz/MetalUIPortableText/MetalUISystemFonts: the portable text pipeline
 F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importable by tests
 F	transferable	A	swiftui-drag-and-drop.swift	T5	aStringExportsAndImportsUTF8PlainTextOnly	-	DN-B DN-S	Transferable/ContentType: MetalUI's own synchronous Data-based protocol with CoreTransferable's call-site spellings; String/URL/Data conform; transferRepresentation is not offered
 F	drag-and-drop	A	swiftui-drag-and-drop.swift	P14	isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction	100 101 102	DN-A DN-D DN-F DN-G DN-H DN-J DN-K DN-M	draggable(_:)/draggable(_:preview:)/dropDestination(for:action:isTargeted:) and their modifiers: a drag begins on the first move, outranks tap/long press/click, the one hit ranking finds the destination, isTargeted false before the next true
 F	gpu-surface	A	swiftui-metal-view.swift	G1	aSurfaceAnswersItsProposalAndTenOnANilAxis	103	MV-A MV-B MV-G MV-I	GPUSurface/MetalView: an app-owned GPU surface, a proposal leaf sized like Canvas (the proposal, 10 on a nil axis), composited as an image through the clip, opacity, layer and transitions; .onDemand redraws on a new target or a changed value (103), .continuous every painted frame
+F	render-effects	A	swiftui-paths-shadows-transforms.swift	T1	aRotationEffectChangesPaintAndNotLayout	41 107 108 109	GX-G GX-H GX-I GX-P	rotationEffect/scaleEffect/offset (and Angle) on both vocabularies: render only — layout unchanged, hit testing and the accessibility frame follow the transform (41 amended, 107); the legacy spellings return Self and wrap the whole element (108); a clip between two nested rotations is its screen bounding box (109); animate on the animation store
+F	paths	A	swiftui-paths-shadows-transforms.swift	PA1	aPathViewAnswersItsProposalAndDrawsAtItsOwnCoordinates	90 91 97	GX-B GX-C GX-D GX-K	Path (and Shape.path(in:), ShapeGeometry.path): SwiftUI's mutators over Point/Bounds, a Shape and a view drawing its own coordinates from its layout origin, rasterized on the CPU in device pixels after every effect and drawn as an image (cached by value); .continuous corners circular (90); a path clip traps (91); a path view snaps (97)
+F	stroke-styles	A	swiftui-paths-shadows-transforms.swift	PA2	evenOddFillStyleEmptiesTheRing	97	GX-E	FillStyle/StrokeStyle/LineCap/LineJoin and the styled fill/stroke/strokeBorder: nonzero and even-odd, caps, joins, the miter limit and dashes; a plain-width stroke of a built-in keeps its SDF band; a stroke width snaps (97)
+F	shadows	A	swiftui-paths-shadows-transforms.swift	SH5	aShadowIsDrawnBelowEachLeaf	104 105	GX-J GX-K GX-Q	shadow(color:radius:x:y:) on both vocabularies: per leaf (a text draw is one leaf; a background and border one primitive, a surface its quad — 104), a triple box blur of sigma = radius (105), the default colour ColorToken.shadow; render only — no layout, hit region or accessibility change; colour, radius and offset animate
 F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
 
 # ---------------------------------------------------------------- MetalUI
@@ -245,6 +249,13 @@ M	MetalUI	NativeElements.swift	-	(Rectangle)	.*	shapes
 M	MetalUI	NativeElements.swift	(Rectangle)	.*	.*	shapes
 M	MetalUI	NativeElements.swift	-	(Color)	.*	color-fill
 M	MetalUI	NativeElements.swift	(Color)	.*	.*	color-fill
+M	MetalUI	Angle.swift	.*	.*	.*	render-effects
+M	MetalUI	RenderEffects.swift	.*	.*	.*	render-effects
+M	MetalUI	Path.swift	.*	.*	.*	paths
+M	MetalUI	Shadow.swift	.*	.*	.*	shadows
+M	MetalUI	StrokeStyle.swift	.*	.*	.*	stroke-styles
+M	MetalUI	NativeModifiedContent.swift	LayoutModifier	shadow	.*	shadows
+M	MetalUI	NativeModifiedContent.swift	LayoutModifier	rotationEffect|scaleEffect|offset	.*	render-effects
 M	MetalUI	NativeModifiedContent.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	nativeFrame	.*	native-frame-alias
 M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	native.*	.*	native-aliases

@@ -18,9 +18,12 @@ void replay_destroy(ReplayGPU *gpu);
 bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Synchronous diagnostic renderer. Copies caller bytes before returning.
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
+// `transforms` is the scene's MUITransform table (64 bytes a record, ruling
+// GX-F); 0 bytes binds one zero record, which index 0 never reads.
 bool replay_render(ReplayGPU *gpu, uint32_t width, uint32_t height,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
-    const void *images, uint32_t image_bytes, const ReplayTexture *textures, uint32_t texture_count,
+    const void *images, uint32_t image_bytes, const void *transforms, uint32_t transform_bytes,
+    const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
     const float *projection, uint8_t *bgra);
@@ -52,9 +55,11 @@ void mui_renderer_release_texture(MUIRenderer *r, void *texture);
 // Draws into the target `begin` acquired and submits. The atlas is uploaded
 // whole when `atlas_dirty` is set or its size changed. `textures[i]` is the
 // texture an image record's `texture` field `i` names (from create_texture).
+// `transforms`: the scene's MUITransform table, as for replay_render.
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
-    const void *images, uint32_t image_bytes, void *const *textures, uint32_t texture_count,
+    const void *images, uint32_t image_bytes, const void *transforms, uint32_t transform_bytes,
+    void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height, bool atlas_dirty,
     const float *projection);

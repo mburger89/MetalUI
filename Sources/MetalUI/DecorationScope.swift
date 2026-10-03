@@ -66,6 +66,16 @@ extension PrepaintPass {
                              accessibleText: String? = nil,
                              synthesizesAccessibility: Bool = true,
                              content: () -> R) -> R {
+        // The element's own render effects wrap its whole registration and its
+        // content (ruling `GX-H`): its hitbox and accessibility record follow.
+        guard decoration.renderEffects.isEmpty else {
+            var plain = decoration
+            plain.renderEffects = []
+            return withRenderEffects(decoration.renderEffects, bounds: bounds) {
+                registerAndScope(handlers, plain, at: bounds, for: id, accessibleText: accessibleText,
+                                 synthesizesAccessibility: synthesizesAccessibility, content: content)
+            }
+        }
         // `accessibilityHidden(true)` (plan task 12 part 2, `IX-W` item 1)
         // opens the accessibility suppression scope around the receiver's own
         // registration AND its content, so nothing inside records (H1, H2) and

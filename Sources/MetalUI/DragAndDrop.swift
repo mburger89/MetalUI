@@ -182,9 +182,13 @@ public struct DraggableModifier<Content: ProposalElementGroup>: Element {
         var handlers = Handlers()
         handlers.gestures = [attachment]
         // As `GestureModifier`: synthesizes no accessibility node (`DN-N`).
-        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false)
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // A wrapper's registration follows an effect written inside it at the
+        // same rect (`GX-P` item 1).
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                  synthesizesAccessibility: false)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -225,9 +229,13 @@ public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.dropDestination = target
-        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false)
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // A wrapper's registration follows an effect written inside it at the
+        // same rect (`GX-P` item 1).
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                  synthesizesAccessibility: false)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -333,9 +341,11 @@ public struct DraggablePreviewModifier<Content: ElementGroup, Preview: ElementGr
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.gestures = [attachment]
-        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false)
-        let result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let frame = pass.frame
+        let result = frame.sharingRegistrationsWithEffects(at: bounds, register: {   // `GX-P` item 1
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                  synthesizesAccessibility: false)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
         // The preview registers no hitbox and publishes nothing (`DN-J` item 3,
         // `DN-X` item 3): a look, not a control.
         var slot = layout.slot

@@ -397,7 +397,9 @@ final class ArenaLeaf {
     }
 
     func local(_ point: Point<Pixels>) -> Point<Pixels> {
-        Point(x: point.x - origin.x, y: point.y - origin.y)
+        // Through the declarer's render effects first (`GX-P` item 3).
+        let point = region.localPoint(point)
+        return Point(x: point.x - origin.x, y: point.y - origin.y)
     }
 }
 

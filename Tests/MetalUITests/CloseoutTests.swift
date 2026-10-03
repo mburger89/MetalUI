@@ -452,7 +452,14 @@ private struct OptionalWithStateProbe: Element {
     let scene = window.lastScene
     let ellipses = scene.rects.filter { $0.shape == 1 }
     #expect(ellipses.count == 2, "the ellipse fill and band: \(ellipses.count)")
-    #expect(scene.images.count == 4, "fit, fill, nearest, bilinear: \(scene.images.count)")
+    // Only the I1 images (the 16 × 8 and 4 × 4 bitmaps outside the Q section,
+    // `GX-V` item 3): the Q section adds path and shadow rasters and a 4 × 4
+    // checker of its own, turned, which carries a transform record.
+    let bitmaps = scene.images.filter {
+        let t = scene.textures[Int($0.texture)]
+        return ((t.width == 16 && t.height == 8) || (t.width == 4 && t.height == 4)) && $0.transformIndex == 0
+    }
+    #expect(bitmaps.count == 4, "fit, fill, nearest, bilinear: \(bitmaps.count)")
     let deepest = window.lastNativeLayoutDeepestLevel
     print("LOOKS DEMO deepest native level: \(deepest)")
     #expect(deepest > 0 && deepest <= 72, "\(deepest)")

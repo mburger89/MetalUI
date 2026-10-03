@@ -1146,6 +1146,7 @@ public final class Window {
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
+        lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
             dragSession?.snapshot = captured   // kept when the source stops painting (DN-H item 4)
         }
@@ -1590,6 +1591,9 @@ public final class Window {
     /// (ruling `DN-J`; test 2.14) — 0 in every frame without a session.
     private(set) var lastDragCapturedPrimitives = 0
 
+    /// The last frame's `Frame.effectScopesPushed` (ruling `GX-G`, test 2.21).
+    private(set) var lastEffectScopesPushed = 0
+
     /// The destination currently targeted — by the in-window session or by a
     /// drag from outside — whose `isTargeted(true)` has run and whose `false`
     /// is owed (`DN-H` item 1).
@@ -1914,15 +1918,18 @@ public final class Window {
         case .mouseDown(let mouse):
             guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
                   let track = lastHitboxes[index].handlers.valueTrack else { return false }
+            // The slider's own local point under a render effect (`GX-P` item 3).
+            let local = lastHitboxes[index].localPoint(mouse.position)
             StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
-                track.track(toWindowX: Double(mouse.position.x.value))
+                track.track(toWindowX: Double(local.x.value))
             }
             return true
         case .mouseDragged(let mouse):
             guard let id = active,
-                  let track = lastHitboxes.last(where: { $0.id == id && $0.handlers.valueTrack != nil })?
-                      .handlers.valueTrack else { return false }
-            StateDispatch.dispatching(to: id) { track.track(toWindowX: Double(mouse.position.x.value)) }
+                  let region = lastHitboxes.last(where: { $0.id == id && $0.handlers.valueTrack != nil }),
+                  let track = region.handlers.valueTrack else { return false }
+            let local = region.localPoint(mouse.position)
+            StateDispatch.dispatching(to: id) { track.track(toWindowX: Double(local.x.value)) }
             return true
         default:
             return false
@@ -1936,18 +1943,20 @@ public final class Window {
             guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
                   let target = lastHitboxes[index].handlers.textInput else { return false }
             let id = lastHitboxes[index].id
+            let local = lastHitboxes[index].localPoint(mouse.position)   // `GX-P` item 3
             focus(id)
-            setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(mouse.position.x.value),
-                                                                   y: Double(mouse.position.y.value)),
+            setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(local.x.value),
+                                                                   y: Double(local.y.value)),
                                               clickCount: mouse.clickCount,
                                               extend: mouse.modifiers.contains(.shift),
                                               text: currentText(id, target), state: editState(id)))
             return true
         case .mouseDragged(let mouse):
-            guard let id = active,
-                  let target = lastHitboxes.first(where: { $0.id == id })?.handlers.textInput else { return false }
-            setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(mouse.position.x.value),
-                                                                  y: Double(mouse.position.y.value)),
+            guard let id = active, let region = lastHitboxes.first(where: { $0.id == id }),
+                  let target = region.handlers.textInput else { return false }
+            let local = region.localPoint(mouse.position)   // `GX-P` item 3
+            setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(local.x.value),
+                                                                  y: Double(local.y.value)),
                                              text: currentText(id, target), state: editState(id)))
             return true
         case .textInput(let inserted):

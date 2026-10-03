@@ -258,6 +258,7 @@ public final class SDLWindowRenderer: WindowRenderer {
         let ok = scene.rects.withUnsafeBytes { rects in
             scene.glyphs.withUnsafeBytes { glyphs in
                 images.withUnsafeBytes { images in
+                  scene.transforms.withUnsafeBytes { transforms in
                     optionalHandles.withUnsafeBufferPointer { textureBuffer in
                         runs.withUnsafeBufferPointer { runBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
@@ -266,6 +267,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         rects.baseAddress, UInt32(rects.count),
                                                         glyphs.baseAddress, UInt32(glyphs.count),
                                                         images.baseAddress, UInt32(images.count),
+                                                        transforms.baseAddress, UInt32(transforms.count),
                                                         textureBuffer.baseAddress, UInt32(optionalHandles.count),
                                                         runBuffer.baseAddress, UInt32(runs.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
@@ -274,6 +276,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                             }
                         }
                     }
+                  }
                 }
             }
         }

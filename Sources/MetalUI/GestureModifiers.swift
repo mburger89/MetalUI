@@ -90,9 +90,13 @@ public struct GestureModifier<Content: ProposalElementGroup>: Element {
         handlers.contentShape = shape
         // As `OnTapModifier`: routes a press like any hitbox and synthesizes no
         // accessibility node (ruling AB-Y).
-        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
-                              synthesizesAccessibility: false)
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // A wrapper's registration follows an effect written inside it at the
+        // same rect (`GX-P` item 1).
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                  synthesizesAccessibility: false)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,

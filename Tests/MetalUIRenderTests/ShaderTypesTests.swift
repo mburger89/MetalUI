@@ -122,7 +122,7 @@ import MetalUIShaderTypes
     #expect(g.color.a == 0.2)
 
     #expect(g.order == 3)
-    #expect(g._reserved == 0)
+    #expect(g.transform == 0)
 }
 
 @Test func bufferIndicesAreStable() {

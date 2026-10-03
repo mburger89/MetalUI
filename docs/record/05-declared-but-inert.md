@@ -821,3 +821,12 @@ renderers. `RedrawPolicy` and `GPUSurface`'s `value:` are read on every frame
 the surface paints. `SurfaceTarget`'s size is read by both renderers'
 allocation. Nothing here is declared and inert: the one thing a surface cannot
 carry, a depth attachment, is not declared at all (`MV-F` item 6).
+
+## 2026-10-02: no row added or deleted (paths, shadows and transforms)
+
+Record §73. `StrokeStyle.miterLimit` is read by the stroker's miter-to-bevel
+decision, `dash`/`dashPhase` by its arc-length walk, `FillStyle.isAntialiased`
+by `paintShapeFill`'s non-antialiased branch (MV8 pins it). The renderer's
+`MUITransform._reserved` word is reserved padding, not a declared property.
+`Shape.path(in:)` and `geometry(in:)` each default to the other (a conformer
+that writes neither traps, `GX-D`). Nothing declared is unread.

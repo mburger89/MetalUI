@@ -24,6 +24,37 @@ static const char *const kind_names[] = {"rect", "glyph", "image"};
 /* An image record is 64 bytes, four float4 lanes (MUIImage): bounds,
    contentMask, maskCornerRadii, then opacity, texture, filter, order. */
 enum { IMAGE_STRIDE = 64, IMAGE_TEXTURE_OFFSET = 52 };
+/* A transform record is 64 bytes, four float4 lanes (MUITransform, ruling
+   GX-F); an empty table binds one zero record, which index 0 never reads. */
+enum { TRANSFORM_STRIDE = 64 };
+static const uint8_t empty_transform[TRANSFORM_STRIDE] = {0};
+/* Where each record keeps its transform index: rect `shape` (offset 116) and
+   image `filter` (offset 56) bits 8…31, glyph `transform` (offset 84). */
+enum { RECT_STRIDE = 120, GLYPH_STRIDE = 88, RECT_SHAPE_OFFSET = 116, GLYPH_TRANSFORM_OFFSET = 84,
+       IMAGE_FILTER_OFFSET = 56 };
+
+/* Every record a run draws names a transform the table holds (the shaders
+   read record i − 1 for index i, ruling GX-F), checked once, as images_valid
+   checks textures. A scene, or a recorded fixture, can never name one past
+   the table; anything else is refused rather than read out of bounds. */
+static bool transforms_valid(const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
+                             const void *images, uint32_t ib, uint32_t tb,
+                             const ReplayRun *runs, uint32_t count) {
+    uint32_t table = tb / TRANSFORM_STRIDE;
+    for (uint32_t i = 0; i < count; i++) {
+        const uint8_t *base; uint32_t stride, offset, shift, bytes;
+        if (runs[i].kind == KIND_RECT) { base = rects; stride = RECT_STRIDE; offset = RECT_SHAPE_OFFSET; shift = 8; bytes = rb; }
+        else if (runs[i].kind == KIND_GLYPH) { base = glyphs; stride = GLYPH_STRIDE; offset = GLYPH_TRANSFORM_OFFSET; shift = 0; bytes = gb; }
+        else { base = images; stride = IMAGE_STRIDE; offset = IMAGE_FILTER_OFFSET; shift = 8; bytes = ib; }
+        if ((uint64_t)runs[i].start + runs[i].count > bytes / stride) return SDL_SetError("run past its records");
+        for (uint32_t j = runs[i].start; j < runs[i].start + runs[i].count; j++) {
+            uint32_t word;
+            memcpy(&word, base + (size_t)j * stride + offset, sizeof(word));
+            if ((word >> shift) > table) return SDL_SetError("a record names a missing transform");
+        }
+    }
+    return true;
+}
 static uint32_t image_texture(const void *images, uint32_t index) {
     uint32_t texture;
     memcpy(&texture, (const uint8_t *)images + index * IMAGE_STRIDE + IMAGE_TEXTURE_OFFSET, sizeof(texture));
@@ -52,7 +83,9 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
         .code = (const Uint8 *)source, .code_size = size,
         .entrypoint = entry, .format = g->format,
         .stage = fragment ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX,
-        .num_storage_buffers = fragment ? 1 : 2,
+        /* Records, then the transform table (ruling GX-F); the vertex stage
+           also reads the unit quad first. */
+        .num_storage_buffers = fragment ? 2 : 3,
         .num_uniform_buffers = fragment ? 0 : 2,
         .num_samplers = fragment && kind != KIND_RECT ? 1 : 0
     };
@@ -209,7 +242,8 @@ static bool images_valid(const void *images, uint32_t ib, uint32_t texture_count
 
 bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
-    const void *images, uint32_t ib, const ReplayTexture *textures, uint32_t texture_count,
+    const void *images, uint32_t ib, const void *transforms, uint32_t tb,
+    const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
     const float *projection, uint8_t *out) {
@@ -217,11 +251,13 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     if (!w || !h || w > 4096 || h > 4096 || !aw || !ah || aw > 4096 || ah > 4096)
         return SDL_SetError("invalid fixture dimensions");
     if (!images_valid(images, ib, texture_count, runs, count)) return false;
+    if (tb % TRANSFORM_STRIDE) return SDL_SetError("unexpected MetalUI transform ABI");
+    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, tb, runs, count)) return false;
     for (uint32_t t = 0; t < texture_count; t++)
         if (!textures[t].width || !textures[t].height || textures[t].width > 4096 || textures[t].height > 4096)
             return SDL_SetError("invalid image texture dimensions");
-    SDL_GPUBuffer *buffers[4] = {0};
-    SDL_GPUTransferBuffer *uploads[5] = {0}, *download = NULL;
+    SDL_GPUBuffer *buffers[5] = {0};
+    SDL_GPUTransferBuffer *uploads[6] = {0}, *download = NULL;
     SDL_GPUTexture *atlas_texture = NULL;
     SDL_GPUTexture **image_textures = NULL;
     SDL_GPUTransferBuffer **image_uploads = NULL;
@@ -246,8 +282,8 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     }
     const float quad[] = {0,0, 1,0, 0,1, 1,1};
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {quad, rects, glyphs, images};
-    uint32_t sizes[] = {sizeof(quad), rb, gb, ib};
+    const void *data[] = {quad, rects, glyphs, images, tb ? transforms : empty_transform};
+    uint32_t sizes[] = {sizeof(quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE};
     if (g->portable) {
         // The existing CPU ABI is scalar-packed (120/88 bytes). SDL storage
         // uses 16-byte lanes, so round each record up, never reinterpret it.
@@ -266,7 +302,7 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
             data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
         }
     }
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = {
             .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i]
@@ -275,21 +311,21 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
         uploads[i] = transfer(g, sizes[i], false, data[i]);
         if (!buffers[i] || !uploads[i]) goto cleanup;
     }
-    uploads[4] = transfer(g, aw * ah, false, atlas);
+    uploads[5] = transfer(g, aw * ah, false, atlas);
     // 256-byte pitch also works for a future D3D readback path.
     uint32_t pitch = (w * 4 + 255) & ~255u;
     download = transfer(g, pitch * h, true, NULL);
-    if (!uploads[4] || !download) goto cleanup;
+    if (!uploads[5] || !download) goto cleanup;
     cmd = SDL_AcquireGPUCommandBuffer(g->device);
     if (!cmd) goto cleanup;
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 4; i++) if (sizes[i]) {
+    for (int i = 0; i < 5; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[4] };
+    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[5] };
     SDL_GPUTextureRegion atlas_dst = { .texture = atlas_texture, .w = aw, .h = ah, .d = 1 };
     SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
     for (uint32_t t = 0; t < texture_count; t++) {
@@ -308,10 +344,11 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     for (uint32_t i = 0; i < count; i++) {
         uint32_t kind = runs[i].kind;
         SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
-        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives};
+        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives, buffers[4]};
+        SDL_GPUBuffer *fragment_buffers[] = {primitives, buffers[4]};
         SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect);
-        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 2);
-        SDL_BindGPUFragmentStorageBuffers(pass, 0, &primitives, 1);
+        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
+        SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
         if (kind == KIND_GLYPH) {
             SDL_GPUTextureSamplerBinding binding = {atlas_texture, g->sampler};
             SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
@@ -343,8 +380,8 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     if (fence) SDL_ReleaseGPUFence(g->device, fence);
-    for (int i = 0; i < 4; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
-    for (int i = 0; i < 5; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
+    for (int i = 0; i < 5; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
+    for (int i = 0; i < 6; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
     for (uint32_t t = 0; t < texture_count && image_textures; t++) {
         if (image_textures[t]) SDL_ReleaseGPUTexture(g->device, image_textures[t]);
         if (image_uploads && image_uploads[t]) SDL_ReleaseGPUTransferBuffer(g->device, image_uploads[t]);
@@ -574,7 +611,8 @@ bool mui_gpu_blit_texture(void *cmd, void *source, uint32_t sw, uint32_t sh,
 
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
-    const void *images, uint32_t ib, void *const *textures, uint32_t texture_count,
+    const void *images, uint32_t ib, const void *transforms, uint32_t tb,
+    void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah, bool atlas_dirty,
     const float *projection) {
@@ -582,18 +620,20 @@ bool mui_renderer_finish(MUIRenderer *r,
     SDL_GPUDevice *d = r->gpu->device;
     SDL_GPUCommandBuffer *cmd = r->cmd;
     r->cmd = NULL;
-    SDL_GPUBuffer *buffers[4] = {0};
-    SDL_GPUTransferBuffer *uploads[5] = {0};
+    SDL_GPUBuffer *buffers[5] = {0};
+    SDL_GPUTransferBuffer *uploads[6] = {0};
     void *packed[2] = {0};
     bool ok = false;
     if (!images_valid(images, ib, texture_count, runs, count)) goto cleanup;
+    if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
+    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, tb, runs, count)) goto cleanup;
 
     /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
        16-byte lanes, so each record is copied into a 128/96-byte slot. An
        image (64 bytes) is already four whole lanes. */
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {aligned_quad, rects, glyphs, images};
-    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb, ib};
+    const void *data[] = {aligned_quad, rects, glyphs, images, tb ? transforms : empty_transform};
+    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE};
     const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
     for (int i = 0; i < 2; i++) {
         if (sizes[i + 1] % old_stride[i]) { SDL_SetError("unexpected MetalUI primitive ABI"); goto cleanup; }
@@ -606,7 +646,7 @@ bool mui_renderer_finish(MUIRenderer *r,
                    (const uint8_t *)data[i + 1] + j * old_stride[i], old_stride[i]);
         data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
     }
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = { .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i] };
         buffers[i] = SDL_CreateGPUBuffer(d, &info);
@@ -621,18 +661,18 @@ bool mui_renderer_finish(MUIRenderer *r,
         if (!r->atlas) goto cleanup;
     }
     if (atlas_new || atlas_dirty) {
-        uploads[4] = transfer(r->gpu, aw * ah, false, atlas);
-        if (!uploads[4]) goto cleanup;
+        uploads[5] = transfer(r->gpu, aw * ah, false, atlas);
+        if (!uploads[5]) goto cleanup;
     }
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 4; i++) if (sizes[i]) {
+    for (int i = 0; i < 5; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    if (uploads[4]) {
-        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[4] };
+    if (uploads[5]) {
+        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[5] };
         SDL_GPUTextureRegion atlas_dst = { .texture = r->atlas, .w = aw, .h = ah, .d = 1 };
         SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
     }
@@ -649,10 +689,11 @@ bool mui_renderer_finish(MUIRenderer *r,
         uint32_t kind = runs[i].kind;
         SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
         if (!primitives) continue;
-        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives};
+        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives, buffers[4]};
+        SDL_GPUBuffer *fragment_buffers[] = {primitives, buffers[4]};
         SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? r->gpu->glyph : kind == KIND_IMAGE ? r->gpu->image : r->gpu->rect);
-        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 2);
-        SDL_BindGPUFragmentStorageBuffers(pass, 0, &primitives, 1);
+        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
+        SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
         if (kind == KIND_GLYPH) {
             SDL_GPUTextureSamplerBinding binding = {r->atlas, r->gpu->sampler};
             SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
@@ -677,8 +718,8 @@ bool mui_renderer_finish(MUIRenderer *r,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     /* SDL releases these once the GPU no longer uses them. */
-    for (int i = 0; i < 4; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
-    for (int i = 0; i < 5; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
+    for (int i = 0; i < 5; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
+    for (int i = 0; i < 6; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
     free(packed[0]); free(packed[1]);
     return ok;
 }

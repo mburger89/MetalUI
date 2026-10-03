@@ -156,6 +156,7 @@ extension LayoutModifier {
         func px(_ value: Double?) -> Pixels? { value.map { Pixels(Float($0)) } }
         func raw(_ value: Pixels?) -> Double? { value.map { Double($0.value) } }
         let size = 0.0...Double.greatestFiniteMagnitude
+        let any = -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude
         switch self {
         case let .frame(width, height, alignment):
             let v = numbers("frame", [raw(width), raw(height)], size)
@@ -193,6 +194,22 @@ extension LayoutModifier {
         case let .border(token, width, cornerRadius):
             let v = numbers("border", [raw(width)], size)
             self = .border(token, width: px(v[0])!, cornerRadius: cornerRadius)
+        case let .rotationEffect(angle, anchor):
+            // The angle and its anchor (`GX-H`; N1, N9).
+            let v = numbers("rotationEffect", [angle.radians, anchor.x, anchor.y], any)
+            self = .rotationEffect(Angle(radians: v[0]!), anchor: UnitPoint(x: v[1]!, y: v[2]!))
+        case let .scaleEffect(x, y, anchor):
+            // Both factors and their anchor (N2, N2b).
+            let v = numbers("scaleEffect", [x, y, anchor.x, anchor.y], any)
+            self = .scaleEffect(x: v[0]!, y: v[1]!, anchor: UnitPoint(x: v[2]!, y: v[3]!))
+        case let .offset(x, y):
+            // Both components (N3).
+            let v = numbers("offset", [raw(x), raw(y)], any)
+            self = .offset(x: px(v[0])!, y: px(v[1])!)
+        case let .shadow(token, radius, x, y):
+            // The radius and both offsets (`GX-J`; N4, N5); the colour in paint.
+            let v = numbers("shadow", [raw(radius), raw(x), raw(y)], any)
+            self = .shadow(token, radius: px(max(0, v[0]!))!, x: px(v[1])!, y: px(v[2])!)
         case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting:
             break
         }

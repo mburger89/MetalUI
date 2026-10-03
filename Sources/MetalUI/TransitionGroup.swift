@@ -61,9 +61,9 @@ public struct TransitionGroup<Content: ElementGroup>: ElementGroup {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
             return
         }
-        pass.frame.transitionScopes.append(scope)
+        pass.frame.paintScopes.append(scope)
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
-        pass.frame.transitionScopes.removeLast()
+        pass.frame.paintScopes.removeLast()
         pass.frame.animationStore.transitions.endPaint(key, scope: scope)
     }
 }

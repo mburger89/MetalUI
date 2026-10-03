@@ -46,7 +46,7 @@ struct Hitbox {
     /// Window-space, **translated by the active offset and intersected with the
     /// active clip** at registration time — where the thing actually paints,
     /// not where the engine stored it. See `Frame.insertHitbox`.
-    let bounds: Bounds<Pixels>
+    var bounds: Bounds<Pixels>
 
     /// The owning element. **The key that survives frames**, and therefore the
     /// one anything cross-frame reads: `HitboxID` is a per-frame index and
@@ -127,6 +127,15 @@ struct Hitbox {
     /// carries one.
     let shape: ShapeGeometry?
 
+    /// The render effects in force where it was registered (ruling `GX-I`), or
+    /// `nil` outside every effect — then `bounds`, `origin` and `shape` are in
+    /// window points, as before effects existed. With one, they are in the
+    /// **local** space the declarer was laid out and emitted in: `bounds`
+    /// clipped only by clips pushed inside the effect, the window point mapped
+    /// through `transform.inverse` before it is tested, and `transform.outerClip`
+    /// (the clip at the effect's entry, window space) tested first.
+    var transform: HitboxTransform? = nil
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,
@@ -136,8 +145,32 @@ struct Hitbox {
     /// The clipped rect first, then the shape, so a content shape can only
     /// shrink a hit region the clip already bounds (divergence 43).
     func contains(_ point: Point<Pixels>) -> Bool {
-        bounds.contains(point) && (shape?.contains(point) ?? true)
+        guard let transform else { return bounds.contains(point) && (shape?.contains(point) ?? true) }
+        // Inside render effects (`GX-I`): the outer clip in window space, then
+        // the local rect and shape at the inverse-mapped point; a degenerate
+        // map (a zero scale) contains nothing.
+        guard transform.outerClip.contains(point), let inverse = transform.inverse else { return false }
+        let local = inverse.apply(point)
+        return bounds.contains(local) && (shape?.contains(local) ?? true)
     }
+
+    /// `point` in the space `bounds` and `origin` are in — the window point
+    /// itself outside every effect, mapped through the stored inverse inside
+    /// one (`GX-P` item 3).
+    func localPoint(_ point: Point<Pixels>) -> Point<Pixels> {
+        guard let inverse = transform?.inverse else { return point }
+        return inverse.apply(point)
+    }
+}
+
+/// What a hitbox registered inside render effects stores (ruling `GX-I`): the
+/// inverse of the composed map (window points → the declarer's local points),
+/// `nil` when the map is degenerate (a zero scale — the hitbox then contains
+/// nothing), and the clip in force at the outermost effect's entry, in window
+/// points.
+struct HitboxTransform {
+    let inverse: Affine2D?
+    let outerClip: Bounds<Pixels>
 }
 
 /// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one
