@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-S`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-T`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -116,7 +116,12 @@ and whose disappear cancels it.
    guard `aLegacyDecorationAfterALifecycleModifierDoesNotCompile`. Write the
    decoration first; the typed vocabulary's modifiers and every
    `ElementGroup` wrapper (`.frame`, `.background(alignment:content:)`,
-   `.overlay`, `.id`) compile after it.
+   `.overlay`, `.id`) compile after it. **Amended by `LC-S` item 7:** for
+   the same reason a lifecycle modifier cannot be a window's root —
+   `App.openWindow<Root: Element>` takes an `Element` — so wrap the root in a
+   container (`openWindow(…) { Column { content.onAppear { … } } }`); pinned
+   by `aLifecycleModifierOnAWindowRootNeedsAContainer` (guard 9.4), recorded
+   in divergence 120's row.
 
 **Reasoning.** The transparent scope is the one shape the codebase already
 pins for a modifier with no layout and no identity (`TransactionScope`,
@@ -345,9 +350,20 @@ MetalUI's `sweep()` has already reset the departed subtree (`ID-C`/`ID-R`/
    before; no live read changes outside a disappearance; a `List` row out of
    its window has nothing departed and reads its live, retained state.
 
-**Reasoning.** Without it, `@State var monitor = …; .onDisappear {
-monitor.stop() }` — the SMK shape — would call `stop()` on the initial value,
-not the instance `onAppear` started.
+**Reasoning.** Without it, an `onDisappear` would read the reset (initial)
+values of state its element wrote — `D1`'s `n = 7` would read 0.
+
+**Corrected by `LC-S` item 1** (this paragraph said the overlay fixes
+`@State var monitor = Monitor(); .onAppear { monitor.start() }; .onDisappear
+{ monitor.stop() }`, the SMK shape; refuted by measurement): a `@State`
+default that is **never written** is not in the table at all — `peek` answers
+`nil` and every build re-seeds it from the new default — so the overlay has
+nothing to keep, and `onAppear` (build 1) and `onDisappear` (the last present
+build) reach different instances (`["start 1", "stop 4"]` after four builds).
+SwiftUI keeps the default's first evaluation (`D2`). Divergence **125**; the
+working spelling assigns the instance in `onAppear` (`monitor = Monitor();
+monitor?.start()`), which writes the slot, so it is kept while present and
+read here at the disappearance — or holds it in an `@Observable` model.
 
 **Cost if wrong.** Memory for one build's departed values (more only while a
 ghost holds a parked event), paid only when an `onDisappear` exists.
@@ -658,9 +674,68 @@ suites`; the count is the tests reddened, each named.
 2. **3.6 has no mutation of its own**: "compare an absent key against the last
    value under its owner" needs a store the design deliberately does not have
    (`LC-D`); M3.3 (fire a first sighting) reddens it, recorded as its spelling.
-3. **M4.2 and M4.5 redden far outside the lane** (65 and 145 tests): an
+3. **M4.2 and M4.5 redden far outside the lane** (47 and 96 tests, each
+   named in its row; an earlier draft of this item said 65 and 145, which are
+   not test counts — `LC-S` item 6): an
    unconditional settle build or an always-dirty drain changes every window
    test's build count, pause and animation timing — the reason `LC-E` item 2
    settles only on a write.
 4. Every guard reddened once under its mutation (MG9.1–MG9.3), each the one
    guard.
+
+## LC-S — The fix pass: divergence 125, four pins owed, a window root
+
+**Ruling.** The review of lane 1 found one design claim refuted, four
+rulings whose clause no test pinned (each mutation green on the full suite)
+and two documentation errors. Each is fixed here; nothing in
+`Sources/` changes.
+
+1. **A never-written `@State` default is re-seeded every build — divergence
+   125.** `LC-I`'s reasoning is corrected (above): the SMK shape written with
+   a default (`@State var monitor = Monitor()`) starts one instance and stops
+   another. SwiftUI keeps the first evaluation (probe arm **`D2`**, added and
+   run: `made Mon 1` … `made Mon 4`, `appear start Mon 1`, `disappear stop
+   Mon 1`; the `made` lines are the separating arm — the default *is*
+   re-evaluated, and discarded). Making `@State` keep its first value would
+   move state retention (a never-written slot would become a stored entry,
+   with every `TB-AH`/`ID-C` count that implies), which this item's
+   "MUST NOT MOVE" forbids without a ruling of its own — **not done**; owner:
+   none scheduled. The documented spelling is to write the instance in
+   `onAppear` (`@State var monitor: Monitor? = nil; .onAppear { monitor =
+   Monitor(); monitor?.start() } .onDisappear { monitor?.stop() }`) or hold it
+   in an `@Observable` model. Pins: test 5.5
+   `aNeverWrittenStateDefaultIsReseededSoOnAppearAndOnDisappearSeeDifferentInstances`
+   (the divergence, green on arrival — it pins MetalUI's answer) and its
+   separating arm 5.6 `aMonitorAssignedInOnAppearIsTheOneOnDisappearStops`
+   (one instance, `["start 1"]` then `["stop 1"]`).
+2. **A ghost-parked disappearance keeps its own departed state** (`LC-I`
+   item 1's "a parked event keeps its own") — pinned by test 6.6
+   `aGhostParkedOnDisappearReadsTheStateItsElementHad`: an `LCHolder` removed
+   under a 0.6 s fade reads `a = 7` in the `onDisappear` that runs after the
+   ghost ends. Mutation V1 (the parked event built with `departed: nil`).
+3. **`takeDepartedState()` empties what it hands over** — pinned by test 5.7
+   `eachRemovalCountsOnlyTheDepartedValuesItsOwnSweepKept`: a build that
+   resets nothing counts 0, a second removal of the same shape counts the
+   first's number. Mutation V3 (the clearing `defer` deleted).
+4. **Close-time disappearances run under `StateDispatch`** (`LC-J` item 1) —
+   test 7.1 now records `StateDispatch.owner` in a close-time `onDisappear`
+   and expects the owner the same scope's `onAppear` saw. Mutation V5
+   (`runDisappearancesForClose` calls `event.action()` directly).
+5. **An `initial: true` firing is cancelled under a live ghost like an
+   appearance** (`LC-Q` item 4) — test 6.4 gains an `.onChange(of: 5,
+   initial: true)` that fires with the first appearance and not on the
+   re-insertion. Mutation V14 (the initial firing outside the `!cancelled`
+   check).
+6. **`LC-R` finding 3's counts** read 65 and 145; the table's rows name 47
+   and 96 tests. Corrected to the table.
+7. **A lifecycle modifier cannot be a window's root** (`LifecycleScope` is an
+   `ElementGroup`; `App.openWindow` takes an `Element`). `LC-B` item 4 and
+   divergence 120 now say "wrap the root in a container"; new negative guard
+   9.4 `aLifecycleModifierOnAWindowRootNeedsAContainer` (positive control:
+   the same root inside `Column { }`). Mutation MG9.4 (the negative's root
+   wrapped).
+
+**Measured.** See the table below (filled by the fix pass's mutation runs).
+
+**Cost if wrong.** Item 1 is a recorded divergence with a working spelling;
+items 2–5 and 7 add pins only.

@@ -971,8 +971,12 @@ private struct LCRow: Identifiable { let id: String }
 
 /// **6.4** (`T4`, divergence 123). Content re-inserted during its removal
 /// ghost runs neither callback, ever, and its nested `@State` is fresh (the
-/// tile is 50 wide again, not the 60 its own `onAppear` grew it to).
-/// Mutation: do not cancel a parked event whose key returned.
+/// tile is 50 wide again, not the 60 its own `onAppear` grew it to). An
+/// `initial: true` `onChange` on the same content is cancelled the same way
+/// (`LC-Q` item 4): it fires with the first appearance and not on the
+/// re-insertion. Mutations: do not cancel a parked event whose key returned
+/// (M6.4); take the `initial: true` firing out of the `!cancelled` check (V14,
+/// `LC-S` item 5).
 @MainActor
 @Test func reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState() throws {
     let m = LCModel(), log = LCLog()
@@ -980,11 +984,12 @@ private struct LCRow: Identifiable { let id: String }
     let (window, platform) = try transitionWindow(m) {
         if m.shown {
             LCGrowingTile().onAppear { log.add("appear") }.onDisappear { log.add("disappear") }
+                .onChange(of: 5, initial: true) { log.add("initial") }
                 .transition(.opacity)
         }
     }
     platform.simulateTick(timestamp: 100)
-    try #require(log.take() == ["appear"])
+    try #require(log.take() == ["appear", "initial"])
     try #require(window.lastScene.rects.contains { $0.bounds.size.width == 60 }, "set up: grown")
     withAnimation(.linear(duration: 0.6)) { m.shown = false }
     platform.simulateTick(timestamp: 101)
@@ -1029,23 +1034,32 @@ private struct LCRow: Identifiable { let id: String }
 }
 
 /// **7.1** (`W3`, `LC-J` item 1). Closing a window runs every present
-/// element's `onDisappear` once, in reverse pre-order; a second close runs
-/// nothing. Mutation: remove the call from `App`'s `onClose`.
+/// element's `onDisappear` once, in reverse pre-order, each under its
+/// element's `StateDispatch` — the owner the same scope's `onAppear` saw; a
+/// second close runs nothing. Mutations: remove the call from `App`'s
+/// `onClose` (M7.1); call `event.action()` directly in
+/// `runDisappearancesForClose` (V5, `LC-S` item 4).
 @MainActor
 @Test func closingTheWindowRunsEveryPresentOnDisappearOnce() throws {
     let log = LCLog()
+    var appearOwner: GlobalElementID?
+    var closeOwner: GlobalElementID?
     let (app, platform) = try lcApp()
     try app.openWindow(title: "Lifecycle", size: Size(width: Pixels(100), height: Pixels(100)),
                        startsDisplayLink: false) {
         Column {
             Column { lcLeaf().onDisappear { log.add("child") } }.onDisappear { log.add("parent") }
-            lcLeaf().onDisappear { log.add("sibling") }
+            lcLeaf()
+                .onAppear { appearOwner = StateDispatch.owner }
+                .onDisappear { closeOwner = StateDispatch.owner; log.add("sibling") }
         }
     }
     let fake = try #require(platform.openedWindows.first)
     try #require(log.entries.isEmpty)
+    let expectedOwner = try #require(appearOwner, "set up: the first frame's onAppear ran under a dispatch")
     fake.onClose?()
     #expect(log.take() == ["sibling", "child", "parent"])
+    #expect(closeOwner == expectedOwner, "close-time onDisappear dispatch: \(String(describing: closeOwner))")
     fake.onClose?()
     #expect(log.entries == [], "a second close runs nothing")
 }
@@ -1150,4 +1164,156 @@ private struct LCRow: Identifiable { let id: String }
     #expect(window.animationStore.lifecycle.lastFrameWork == 118)
     window.setNeedsRedraw(); window.drawFrameIfNeeded()
     #expect(window.animationStore.lifecycle.lastFrameWork == 117)
+}
+
+// MARK: - Lane 1's fix pass (ruling `LC-S`): 5.5–5.7, 6.6
+
+/// A device monitor whose every construction takes the next serial, so a test
+/// can tell which instance `start()` and `stop()` reached (`D2`).
+@MainActor final class LCMonitorFactory {
+    var made = 0
+    let log: LCLog
+    init(_ log: LCLog) { self.log = log }
+    func make() -> LCMonitor {
+        made += 1
+        return LCMonitor(serial: made, log: log)
+    }
+}
+
+@MainActor final class LCMonitor {
+    let serial: Int
+    let log: LCLog
+    init(serial: Int, log: LCLog) { self.serial = serial; self.log = log }
+    func start() { log.add("start \(serial)") }
+    func stop() { log.add("stop \(serial)") }
+}
+
+/// The SMK shape written with a never-written `@State` default (divergence
+/// 125): the default is re-seeded every build, so `onAppear` and `onDisappear`
+/// reach different instances.
+private struct LCDefaultMonitorPane: Component {
+    let factory: LCMonitorFactory
+    let value: Int
+    @State var monitor: LCMonitor
+    init(factory: LCMonitorFactory, value: Int) {
+        self.factory = factory
+        self.value = value
+        _monitor = State(wrappedValue: factory.make())
+    }
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(10 + Float(value)), height: Pixels(20))
+            .onAppear { monitor.start() }
+            .onDisappear { monitor.stop() }
+    }
+}
+
+/// The documented spelling (divergence 125, `LC-S` item 1): the instance is
+/// assigned in `onAppear`, so it is a written `@State` value — kept while the
+/// pane is present and read by `onDisappear` through its departed state.
+private struct LCAssignedMonitorPane: Component {
+    let factory: LCMonitorFactory
+    let value: Int
+    @State var monitor: LCMonitor? = nil
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(10 + Float(value)), height: Pixels(20))
+            .onAppear { monitor = factory.make(); monitor?.start() }
+            .onDisappear { monitor?.stop() }
+    }
+}
+
+/// **5.5** (`D2`, divergence 125, `LC-S` item 1). SwiftUI keeps a `@State`
+/// default's first evaluation for the view's lifetime (`D2`: start and stop
+/// both reach `Mon 1` of four made). MetalUI re-seeds a never-written default
+/// every build: four builds while present, then a removal — `onAppear` reached
+/// instance 1 and `onDisappear` a later one. This pins the divergence; the
+/// separating arm is 5.6. A fix that keeps the first value reddens this test —
+/// read divergence 125 first.
+@MainActor
+@Test func aNeverWrittenStateDefaultIsReseededSoOnAppearAndOnDisappearSeeDifferentInstances() throws {
+    let m = LCModel(), log = LCLog()
+    let factory = LCMonitorFactory(log)
+    m.shown = true
+    let (window, _) = try lcWindow { Column { if m.shown { LCDefaultMonitorPane(factory: factory, value: m.value) } } }
+    window.drawFrameIfNeeded()
+    for v in 1...3 { m.value = v; window.drawFrameIfNeeded() }
+    try #require(log.take() == ["start 1"])
+    m.shown = false
+    window.drawFrameIfNeeded()
+    let stops = log.take()
+    #expect(stops.count == 1 && stops != ["stop 1"], "re-seeded every build (divergence 125): \(stops)")
+    #expect(factory.made > 1, "the default was evaluated per build: \(factory.made)")
+}
+
+/// **5.6** (`LC-S` item 1, `LC-I`). The documented spelling — the instance
+/// assigned in `onAppear` — starts and stops ONE instance across the same four
+/// builds and removal. The separating arm of 5.5. Mutation M5.1 — the
+/// overlay ignored (M5.1) reads `nil` and stops nothing.
+@MainActor
+@Test func aMonitorAssignedInOnAppearIsTheOneOnDisappearStops() throws {
+    let m = LCModel(), log = LCLog()
+    let factory = LCMonitorFactory(log)
+    m.shown = true
+    let (window, _) = try lcWindow { Column { if m.shown { LCAssignedMonitorPane(factory: factory, value: m.value) } } }
+    window.drawFrameIfNeeded()
+    for v in 1...3 { m.value = v; window.drawFrameIfNeeded() }
+    try #require(log.take() == ["start 1"])
+    m.shown = false
+    window.drawFrameIfNeeded()
+    #expect(log.entries == ["stop 1"], "\(log.entries)")
+    #expect(factory.made == 1)
+}
+
+/// **5.7** (`LC-I` item 1, `LC-S` item 3). `takeDepartedState()` empties what
+/// it hands over: a build that resets nothing counts 0 departed values, and a
+/// second removal counts only its own (the same as the first, for the same
+/// shape). Mutation V3: delete the `defer` clearing `departedValues` and
+/// `departedRootsKept` (the steady build reports the first removal's values,
+/// the second removal both).
+@MainActor
+@Test func eachRemovalCountsOnlyTheDepartedValuesItsOwnSweepKept() throws {
+    let m = LCModel(), log = LCLog()
+    m.s1 = true
+    m.s2 = true
+    let (window, _) = try lcWindow {
+        Column {
+            if m.s1 { LCHolder(log: log) }
+            if m.s2 { LCHolder(log: log) }
+            lcLeaf(10, 10 + Float(m.value))
+        }
+    }
+    window.drawFrameIfNeeded()
+    m.s1 = false
+    window.drawFrameIfNeeded()
+    let first = window.stateTable.lastDepartedValueCount
+    try #require(first > 0, "set up: the first removal kept values")
+    m.value = 1
+    window.drawFrameIfNeeded()
+    #expect(window.stateTable.lastDepartedValueCount == 0, "a build that reset nothing keeps nothing")
+    m.s2 = false
+    window.drawFrameIfNeeded()
+    #expect(window.stateTable.lastDepartedValueCount == first,
+            "the second removal counts its own: \(window.stateTable.lastDepartedValueCount) vs \(first)")
+}
+
+/// **6.6** (`LC-I` item 1, `LC-H`, `LC-S` item 2). A disappearance parked on a
+/// removal ghost keeps its own departed state: the `onDisappear` that runs
+/// after the fade reads the `@State` its `onAppear` wrote (a = 7), not the
+/// reset initial value. Mutation V1: build the parked event with
+/// `departed: nil` in `LifecycleStore.endFrame`.
+@MainActor
+@Test func aGhostParkedOnDisappearReadsTheStateItsElementHad() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try transitionWindow(m) {
+        if m.shown { LCHolder(log: log).transition(.opacity) }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["appear a=0 b=0"])
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.lifecycle.parkedCount == 1, "set up: parked on the ghost")
+    platform.simulateTick(timestamp: 101.3)
+    try #require(log.entries == [], "mid-fade: \(log.entries)")
+    platform.simulateTick(timestamp: 101.7)
+    #expect(log.entries == ["disappear a=7 b=0"], "\(log.entries)")
 }

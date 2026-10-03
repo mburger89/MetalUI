@@ -41,6 +41,11 @@
 //   m.target)` inside the reader's closure never fires here (no
 //   `(scrollTo …)` line is logged), so those steps scroll nothing.
 // - D1: a view's own `@State` read and written from its onDisappear.
+// - D2: a never-written `@State var mon = Mon()` default, its view re-initialised
+//   three times (each `Mon()` evaluation logs `made Mon <serial>`): which
+//   instance onAppear and onDisappear see. The `made` lines are the separating
+//   arm inside the arm — the default IS re-evaluated, so a framework that kept
+//   the latest evaluation would log a later serial at the disappearance.
 // - W1–W3: the window ordered out, closed (`isReleasedWhenClosed = false`, the
 //   host retained), and the hosting view removed from it.
 // - K1/K2: `.task` and `.task(id:)` — recorded for the owner of the deferred
@@ -62,6 +67,12 @@
 // E2b added and the whole file run twice: 535 lines each, stderr empty, the
 // process exiting on its own within 10 s of the K2 block; the two runs are
 // byte-identical outside S1 and S2 (row sets equal per step, order differs).
+// RE-RUN 2026-10-03 by lane 1's fix pass (divergence 125), same machine and
+// toolchain, screen LOCKED (CGSSessionScreenIsLocked = 1, displayAsleep main:
+// 1). Arm D2 added after D1 and the whole file run once: 555 lines, stderr
+// empty; byte-identical to the reading below outside S1/S2 and the new D2
+// block (spliced in below after D1).
+//
 // The second of those runs, verbatim:
 //
 //   === L0 control: a hosted view's onAppear fires
@@ -372,6 +383,26 @@
 //     -- show = true again
 //     appear reads n=0, writes n=7
 //     -- settled after show = true again
+//   === D2 a never-written @State default: onAppear and onDisappear see one instance across re-inits
+//     -- host
+//     -- ordered front
+//     -- initial settled
+//     -- show = true
+//     made Mon 1
+//     appear start Mon 1
+//     -- settled after show = true
+//     -- v = 1
+//     made Mon 2
+//     -- settled after v = 1
+//     -- v = 2
+//     made Mon 3
+//     -- settled after v = 2
+//     -- v = 3
+//     made Mon 4
+//     -- settled after v = 3
+//     -- show = false
+//     disappear stop Mon 1
+//     -- settled after show = false
 //   === S1 List(0..<200) rows in a 100 pt frame, scrolled to row 150 then back to 0
 //     -- host
 //     -- ordered front
@@ -661,6 +692,11 @@
 //   onDisappear NOR a second onAppear — SwiftUI keeps the view.
 // - D1: onDisappear reads its own `@State` as it was (n = 7); its write
 //   (n = 99) is lost: content inserted again starts fresh (n = 0).
+// - D2: SwiftUI keeps the FIRST evaluation of a `@State` default for the
+//   view's lifetime: the default is evaluated on every re-init (`made Mon 1`
+//   … `made Mon 4`) and discarded, and onAppear and onDisappear both see
+//   `Mon 1`. MetalUI re-seeds a never-written default every build (divergence
+//   125).
 // - W1: ordering a window out fires nothing; W2: `close()` with the host
 //   retained fires nothing; W3: removing the hosting view from the window runs
 //   onDisappear.
@@ -769,6 +805,22 @@ struct Leaf: View {
     let name: String
     var body: some View {
         Text(name).onAppear { log("appear \(name)") }.onDisappear { log("disappear \(name)") }
+    }
+}
+
+/// D2's instrument: every `Mon()` evaluation takes the next serial and logs it,
+/// so a re-init of `MonLeaf` (its `v` changes) is visible as a `made` line.
+nonisolated(unsafe) var monSerial = 0
+final class Mon {
+    let serial: Int
+    init() { monSerial += 1; serial = monSerial; log("made Mon \(serial)") }
+}
+struct MonLeaf: View {
+    let v: Int
+    @State var mon = Mon()
+    var body: some View {
+        Text("v=\(v)").onAppear { log("appear start Mon \(mon.serial)") }
+            .onDisappear { log("disappear stop Mon \(mon.serial)") }
     }
 }
 
@@ -1027,6 +1079,15 @@ arm("D1 onDisappear reads its own @State; a write there; re-inserted content sta
 }, steps: [("show = true", { m, _, _ in m.show = true }),
            ("show = false", { m, _, _ in m.show = false }),
            ("show = true again", { m, _, _ in m.show = true })])
+
+arm("D2 a never-written @State default: onAppear and onDisappear see one instance across re-inits", { m in
+    if m.show { MonLeaf(v: m.v) }
+}, setup: { _ in monSerial = 0 },
+   steps: [("show = true", { m, _, _ in m.show = true }),
+           ("v = 1", { m, _, _ in m.v = 1 }),
+           ("v = 2", { m, _, _ in m.v = 2 }),
+           ("v = 3", { m, _, _ in m.v = 3 }),
+           ("show = false", { m, _, _ in m.show = false })])
 
 // ------------------------------------------------------------ S: scrolling
 arm("S1 List(0..<200) rows in a 100 pt frame, scrolled to row 150 then back to 0", { m in

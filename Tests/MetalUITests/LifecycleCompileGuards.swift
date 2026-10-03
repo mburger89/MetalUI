@@ -8,7 +8,7 @@ import MetalUITestSupport
 //
 // **A guard skips silently when `.build/<triple>/debug/Modules` is absent**
 // (CLAUDE.md, "Guards"); grep the log for `LC-B spellings`, `LC-G equatable`
-// and `LC-B decoration order` to know each ran.
+// `LC-B decoration order` and `LC-B window root` to know each ran.
 
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
@@ -124,4 +124,44 @@ func aLegacyDecorationAfterALifecycleModifierDoesNotCompile() throws {
                  """)
     #expect(negative.messages.contains("onClick"),
             "the negative must be refused for onClick:\n\(negative.output)")
+}
+
+/// **9.4** (`LC-B` item 4, divergence 120, `LC-S` item 7). A lifecycle
+/// modifier cannot be a window's root: `App.openWindow` takes an `Element`
+/// and `LifecycleScope` is an `ElementGroup`. Wrapping the root in a container
+/// compiles (the positive control, the spelling divergence 120 names).
+///
+/// Mutation **MG9.4**: wrap the negative fixture's root in `Column { }` (it
+/// compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aLifecycleModifierOnAWindowRootNeedsAContainer() throws {
+    let positive = try typecheckFile("""
+        @MainActor func open(_ app: App) throws {
+            _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
+                Column { Text("a").onAppear {} }
+            }
+        }
+        """, importing: "MetalUI")
+    let negative = try typecheckFile("""
+        @MainActor func open(_ app: App) throws {
+            _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
+                Text("a").onAppear {}
+            }
+        }
+        """, importing: "MetalUI")
+    print("""
+        LC-B window root: positive succeeded=\(positive.succeeded); negative \
+        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
+        """)
+    try #require(positive.succeeded && !negative.succeeded,
+                 """
+                 a lifecycle modifier inside a container root must compile and one as the root \
+                 must not, or this guard cannot fail:
+                 positive:
+                 \(positive.output)
+                 negative:
+                 \(negative.output)
+                 """)
+    #expect(negative.messages.contains("Element"),
+            "the negative must be refused for Element conformance:\n\(negative.output)")
 }
