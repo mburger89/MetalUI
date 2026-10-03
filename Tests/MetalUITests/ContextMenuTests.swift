@@ -239,6 +239,29 @@ private struct MenuCounter: Component {
     #expect(flatten(third.items).first { $0.title == "Flag" }?.isOn == true,
             "reopened with no frame between, the menu shows it on again")
     withExtendedLifetime(window) {}
+
+    // A toggle reads its binding when the platform items are built, so the
+    // arm above cannot see a cache of the evaluated `MenuItems`; a title read
+    // from the model when the content closure runs can. Two opens, no frame
+    // between, the first open's item renaming the second's.
+    let model = MLog()
+    let (window2, platform2) = try menuWindow {
+        Box().frame(width: px(400), height: px(400)).contextMenu {
+            Button(model.entries.isEmpty ? "Before" : "After") { model.entries.append("renamed") }
+        }
+    }
+    platform2.simulateInput(rdown(10, 10))
+    platform2.simulateInput(rup(10, 10))
+    let before = try #require(platform2.presentedMenus.last?.menu)
+    try #require(before.items.map(\.title) == ["Before"])
+    platform2.simulateInput(.menuAction(MenuActionEvent(menu: before.token, item: 1)))
+    try #require(model.entries == ["renamed"])
+    platform2.simulateInput(rdown(10, 10))
+    platform2.simulateInput(rup(10, 10))
+    let after = try #require(platform2.presentedMenus.last?.menu)
+    try #require(after.token != before.token)
+    #expect(after.items.map(\.title) == ["After"], "the content closure ran again at the second open")
+    withExtendedLifetime(window2) {}
 }
 
 /// **1.5** (C8). Nested context menus: the inner one opens over the inner
