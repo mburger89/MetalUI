@@ -733,3 +733,94 @@ deprecation notice; unfiltered `swift test --build-system native --no-parallel`:
 summary line, the `FR-J no-argument frame: succeeded=true` line present.
 `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
 Counts **2327 / 0 / 142** as the lanes read them.
+
+### §6.2 Branch check (2026-10-03, adversarial, `b9da519..f7d8496`)
+
+- **Suite**: `swift package clean`, native build (0 `error:`, the one `warning:`
+  SwiftPM's deprecation notice), unfiltered `swift test --build-system native
+  --no-parallel`: **`Test run with 2327 tests in 3 suites passed after 124.841
+  seconds`**, `FR-J no-argument frame: succeeded=true`. `swift build
+  --build-tests` (default build system): 0 `warning:`, 0 `error:`. Guards: a
+  `@Test`-body grep for `typecheck(`/`typecheckFile(` reads 132 → 141 (the same
+  instrument at both commits; it misses one guard the lanes count, so +9 agrees
+  with 133 → 142).
+- **Docs**: `cmp CLAUDE.md AGENTS.md` identical; every `MN-` id cited in a
+  changed file resolves to a `## MN-` heading (`MN-AI` is only the next-unused
+  line); all 113 backticked names of 25+ characters added to changed `.md`
+  files resolve (109 test functions, four source names). The census re-taken
+  reads byte-identical to `closeout-public-api.tsv` (2206); both inventory
+  scripts print nothing. **Fixed**: `docs/divergences.md`'s dated header said
+  menus "added 110–114" while listing 115 — now 110–115.
+- **Mutations** (each on `f7d8496`, restored from a copy, `git status --short`
+  clean after, full unfiltered suite):
+  - **MA** — `Window.swift`: `dispatchCommandShortcut` swapped ahead of
+    `dispatchShortcut`. Reddened exactly
+    `aButtonsShortcutWinsOverACommandsAndFiresOnce` (1 issue).
+  - **MB** — `Frame.registerHandlers`: the contextual region inserted
+    `opaque: true`. Reddened 39 tests, every one new on this branch (47
+    issues): `aChosenItemRunsItsActionFromInputUnderStateDispatch`,
+    `aClickOrAPressDragReleaseOnAnItemChoosesIt`,
+    `aContextMenuItemsShortcutDoesNotFireWhileClosed`,
+    `aContextMenuMovesNoIDAndWritesNoStateTableEntry`,
+    `aCoveringPointerTargetWithoutAMenuBlocksTheMenuBeneath`,
+    `aDeclinedNativeMenuOpensInWindowAtThePointer`,
+    `aDisabledElementsMenuOpensWithEveryItemDisabled`,
+    `aDisabledItemCannotBeChosen`,
+    `aFocusedFieldsSpaceChoosesTheHighlightedInWindowItem`,
+    `aHelpRegionAddsNoPointerTarget`,
+    `aHiddenTooltipReturnsOnlyAfterLeavingAndReentering`,
+    `aMenuActionWithAStaleTokenRunsNothing`,
+    `anEmptyContextMenuPresentsNothingAndDoesNotClaimThePress`,
+    `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath`,
+    `aPresentationOnAHigherLayerBlocksAContextMenuBeneath`,
+    `aPressOutsideTheMenuDismissesItAndReachesNothingBeneath`,
+    `aResizeOrLosingKeyDismissesTheInWindowMenu`,
+    `aRightPressOverAContextMenuPresentsItsItemsToThePlatform`,
+    `arrowKeysMoveTheHighlightOverEnabledRowsWithoutWrapping`,
+    `aToggleItemWritesItsBinding`, `aTooltipAppearsAfterTheHoverDelayOfTickTime`,
+    `escapeClosesTheDeepestLevelFirst`,
+    `hoveringASubmenuRowOpensItAndAShallowerRowClosesIt`,
+    `menuItemsResolveDisabledThroughTheEnvironmentScope`,
+    `noTooltipStartsWhileAMenuIsOpen`,
+    `returnChoosesTheHighlightedItemAndClosesTheMenu`,
+    `rightArrowOpensASubmenuAndLeftArrowClosesIt`,
+    `shiftF10AndTheMenuKeyOpenTheFocusedElementsAncestorsMenuOffApple`,
+    `theInnermostContextMenuOpens`, `theInWindowMenuFlipsAndClampsInsideTheWindow`,
+    `theInWindowMenuIsPublishedAndPressableUnderModalIsolation`,
+    `theInWindowMenuPublishesAMenuOfMenuItems`,
+    `theInWindowMenuWritesNoStateTableEntry`, `theMenuIsEvaluatedAtEachOpen`,
+    `theOpenMenuIsPaintedAboveEverything`,
+    `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`,
+    `theTooltipDelayIsStampedFromTheFirstTickAfterEntering`,
+    `theTooltipIsPaintedAboveEverything`, `theWindowLeavingKeyHidesTheTooltip`.
+- **Pixels**: `compare.sh <scratch> b9da519 HEAD` — controls as recorded, all
+  fourteen images `differing=0`, `scene identical`.
+- **`Backends/SDL`** on macOS: 0 `error:`, **24 + 62** passed. **Linux**
+  (`swift:6.4-noble`, OrbStack already running and left as found, `git archive`
+  of `f7d8496`, `--scratch-path` inside the container): builds with 0
+  `error:`/`warning:`, **199 + 22 + 21 + 31 + 18 + 6**.
+- **Unmoved**: no file under `Sources/MetalUILayout`, `Sources/MetalUIScene`,
+  `Sources/MetalUIShaderTypes` or either shader changed; `Expected.swift`
+  unedited; the files holding `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` unedited and green.
+  Pre-existing tests edited only for `Handlers`' sixteenth member
+  (`HandlerShape`, `HandlerFingerprint`, the modifier table 54 → 55, the
+  `Handlers` size bound +8) and the two new defaultless requirements in
+  conformer fixtures.
+- **Finding (code, not fixed here)**: `MN-J` item 3 routes only
+  **⌘-modified** keys to the window before the main menu. A throwaway
+  (uncommitted, deleted) test installed `CommandMenu` items bound to ⌃K and
+  to a plain N: `NSApp.mainMenu.performKeyEquivalent` claimed both and ran
+  the commands, `MetalHostView.performKeyEquivalent` declined ⌃K, and
+  `NSApp.sendEvent(⌃K)` ran the menu's command without the window seeing the
+  key (plain N reached the window, the menu did not fire). So on AppKit a
+  command bound to a ⌃ shortcut without ⌘ (⌥ unmeasured) pre-empts a `Button` with the
+  same shortcut and a focused field's editing key (⌃A, ⌃E, ⌃K…), against
+  `MN-J` item 2. The window was not key in that session (locked), so the
+  key-window order is AppKit's documented one, not a measurement. Fix:
+  offer every key-down carrying ⌘ **or ⌃** (and ⌥, once measured) in `performKeyEquivalent`, with
+  a test pinning a ⌃-key `Button` over a ⌃-key command.
