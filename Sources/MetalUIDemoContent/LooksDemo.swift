@@ -34,7 +34,7 @@ public func looksDemoContent() -> some Element {
 /// `everyProductionTreeBuildsOnAOneMegabyteThread`: composed inline in
 /// `looksRoot` it overflowed a 1 MB thread in a debug build — `LC-T`).
 @MainActor
-private func looksBesideH1(text: some Element, lifecycle: some Element) -> some Element {
+private func looksBesideH1(text: some Element, lifecycle: some ElementGroup) -> some Element {
     Row(gap: Pixels(32)) {
         text
         lifecycle
@@ -449,13 +449,13 @@ struct LooksSchemeLabel: Component {
 /// count, 6 tall, in its own colour, so a test reads it from the scene
 /// (`theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges`). T1:
 /// the "faded" counter moves when the fade ends, not on the click (`LC-H`).
+///
+/// The section is the component alone, its title inside its body: the looks
+/// tree is built whole on a 1 MB thread, and a `Column` and `Text` here
+/// overflowed it in a `swift:6.4-noble` debug build (`LC-T`).
 @MainActor
-private func looksLifecycleSection() -> some Element {
-    Column(gap: Pixels(6)) {
-        Text("T1–T2 · onAppear, onDisappear, onChange").font(size: 15)
-        LooksLifecycle()
-    }
-    .alignItems(.flexStart)
+private func looksLifecycleSection() -> some ElementGroup {
+    LooksLifecycle()
 }
 
 /// The four counters' bar colours, in the section's order.
@@ -480,6 +480,7 @@ struct LooksLifecycle: Component {
 
     var content: some ElementGroup {
         Column(gap: Pixels(6)) {
+            Text("T1–T2 · onAppear, onDisappear, onChange").font(size: 15)
             Row(gap: Pixels(8)) {
                 Button("Toggle tile") { shown.toggle() }
                 Button("Toggle fading tile") {
