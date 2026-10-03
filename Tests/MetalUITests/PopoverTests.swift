@@ -581,43 +581,51 @@ private struct PCounter: Component {
 // MARK: - 3.27–3.29: the review round (`MN-AH`)
 
 /// **3.27** (`MN-AH` item 1, `MN-L` item 2). The proposal path presents too,
-/// through its own entry (`requestProposalLayout`): a fixed 40 × 20
-/// `HStack { ProposalText }` root — centred at (180, 190), `CN-J` — with a
-/// popover shows it on the second frame at the legacy placement; the wrapper
-/// is one identity level for its caller (every element of the plain root sits
-/// one level deeper, at cursor 0 under the wrapper, with the same bounds; the
-/// popover's content under cursor 1); an outside press dismisses it.
-/// Mutation **VX.4**: lay out `PopoverSlot(nil)` in place of `layOutPopover`
-/// in `requestProposalLayout`.
+/// through its own entry (`requestProposalLayout`, which a proposal container
+/// calls — a root `.popover` takes the legacy `requestLayout`, found by
+/// running VX.4 against a root fixture): a fixed 40 × 20 `ProposalText`
+/// inside an `HStack` root — centred at (180, 190), `CN-J` — with a popover
+/// shows it on the second frame at the legacy placement; the wrapper is one
+/// identity level for its caller (every plain element from the wrapper's
+/// position down sits one level deeper, behind cursor 0, with the same
+/// bounds; the `HStack` is unmoved; the popover's content under cursor 1); an
+/// outside press dismisses it. Mutation **VX.4**: lay out `PopoverSlot(nil)`
+/// in place of `layOutPopover` in `requestProposalLayout`.
 @MainActor
 @Test func aProposalPathPopoverPresentsPlacesAndDismisses() throws {
     let log = PLog()
     let (plain, _) = try popoverWindow {
-        HStack { ProposalText("a") }.frame(width: px(40), height: px(20))
+        HStack { ProposalText("a").frame(width: px(40), height: px(20)) }
     }
     let (window, platform) = try popoverWindow(settle: false) {
-        HStack { ProposalText("a") }.frame(width: px(40), height: px(20))
-            .popover(isPresented: shownBinding(log)) { content100x50() }
+        HStack {
+            ProposalText("a").frame(width: px(40), height: px(20))
+                .popover(isPresented: shownBinding(log)) { content100x50() }
+        }
     }
     #expect(window.lastOpenPopovers.isEmpty, "frame 0: no anchor yet")
     try #require(window.needsRedraw, "frame 0 asked for another")
     window.drawFrameIfNeeded()
     let open = try #require(window.lastOpenPopovers.first, "frame 1: presented")
-    #expect(xywh(open.anchor) == [180, 190, 40, 20], "the anchor is the centred root")
+    #expect(xywh(open.anchor) == [180, 190, 40, 20], "the anchor is the centred 40 × 20 child")
     #expect(xywh(open.bounds) == [138, 108, 124, 74], "above it, 8 pt away, centred")
-    // Identity: the wrapper takes the plain root's id `R`; each plain element
-    // under `R` moves one level down, behind `child(R, 0)`.
-    let root = open.id
-    try #require(plain.lastElementBounds[root] != nil, "the wrapper takes the plain root's id")
+    // Identity: the wrapper takes the plain frame layer's id `W`; each plain
+    // element at or under `W` moves one level down, behind `child(W, 0)`.
+    let wrapper = open.id
+    try #require(plain.lastElementBounds[wrapper] != nil, "the wrapper takes the plain frame layer's id")
     func rebased(_ id: GlobalElementID) -> GlobalElementID {
-        guard id != root, let parent = id.parent else { return GlobalElementID.child(of: root, at: 0, name: nil) }
+        var cursor: GlobalElementID? = id
+        var under = false
+        while let c = cursor { if c == wrapper { under = true }; cursor = c.parent }
+        guard under else { return id }
+        guard id != wrapper, let parent = id.parent else { return GlobalElementID.child(of: wrapper, at: 0, name: nil) }
         return GlobalElementID(component: id.component, parent: rebased(parent))
     }
-    try #require(plain.lastElementBounds.count >= 3, "frame layer, HStack, text: \(plain.lastElementBounds.count)")
+    try #require(plain.lastElementBounds.count >= 3, "HStack, frame layer, text: \(plain.lastElementBounds.count)")
     for (id, bounds) in plain.lastElementBounds {
-        #expect(window.lastElementBounds[rebased(id)] == bounds, "\(id) sits one level down, unmoved")
+        #expect(window.lastElementBounds[rebased(id)] == bounds, "\(id) → \(rebased(id)), bounds unmoved")
     }
-    let slot = GlobalElementID.child(of: root, at: 1, name: nil)
+    let slot = GlobalElementID.child(of: wrapper, at: 1, name: nil)
     #expect(window.lastElementBounds.keys.contains { id in
         var cursor: GlobalElementID? = id.parent
         while let c = cursor { if c == slot { return true }; cursor = c.parent }
