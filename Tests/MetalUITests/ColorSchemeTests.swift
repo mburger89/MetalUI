@@ -441,6 +441,44 @@ private struct Counter: Component {
     #expect(window.needsRedraw == false, "the second build settled the frame")
 }
 
+/// A component whose fill is derived from the scheme and animates on it, for
+/// 2.11b.
+private struct SchemeAnimated: Component {
+    @Environment(\.colorScheme) var scheme
+    var content: some ElementGroup {
+        Box().frame(width: px(13), height: px(10))
+            .background(scheme == .dark ? darkHalf : lightHalf)
+            .animation(.default, value: scheme)
+    }
+}
+
+/// **2.11b** (`CR-Q` item 3, review of lane 2). The presented first frame
+/// equals one build in the target scheme even when a view animates on a value
+/// derived from the scheme: the second build snaps every change against the
+/// first, so the fill is the dark half at once and nothing is left animating —
+/// as the control (the same tree built once in a dark fake) shows. Mutation:
+/// build the second frame without `snapsEveryChange` — the light fill is
+/// presented at t = 0 and the window stays animating.
+@MainActor
+@Test func theFirstFrameRebuildStartsNoAnimationFromTheFirstBuild() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (control, _) = try makeFakeWindow(device: device, appearance: .dark) {
+        Row { Row { SchemeAnimated() } }
+    }
+    control.drawFrameIfNeeded()
+    try #require(control.hasActiveAnimations == false, "the control: one dark build animates nothing")
+
+    let (window, _) = try makeFakeWindow(device: device, appearance: .light) {
+        Row { Row { SchemeAnimated() }.preferredColorScheme(.dark) }
+    }
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == 1)
+    #expect(fill(window.lastScene, width: 13).map { close($0, darkHalfRGBA) } == true,
+            "\(describe(window.lastScene))")
+    #expect(window.hasActiveAnimations == false, "the second build must not animate from the first")
+    #expect(window.needsRedraw == false)
+}
+
 /// **2.12** (`CR-L` item 5). After the first frame, a preference flipped from
 /// input applies on the next frame: that frame builds light and leaves the
 /// window dirty, the one after builds dark, then the window is clean.
@@ -541,6 +579,12 @@ private struct Counter: Component {
     platform.simulateAppearanceChange(to: .light)
     platform.simulateAppearanceChange(to: .dark)
     #expect(window.theme == custom, "the next scheme change re-selects the variant")
+
+    // The light half's guard (review of lane 2, `OM-AI`): a light variant
+    // assigned in a dark window leaves its theme alone. Mutation MD: drop
+    // `colorScheme == .light` from `lightTheme`'s guard.
+    window.lightTheme = customTheme()
+    #expect(window.theme == custom, "a light variant does not touch a dark window's theme")
 }
 
 /// **2.16** (`CR-L` item 4, `CR-N` item 4). `App`'s scheme and themes reach a
@@ -574,7 +618,9 @@ private struct Counter: Component {
 }
 
 /// **2.17** (`CR-N` item 3). A palette override on the window's active variant
-/// repaints. Mutation: drop the variant → `theme` propagation.
+/// repaints, on both halves: a dark window's dark variant and a light
+/// window's light variant. Mutations: MJ (light half) and the dark half's
+/// `theme = darkTheme` each redden their own arm.
 @MainActor
 @Test func aPaletteOverrideOnTheWindowsVariantRepaints() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
@@ -587,6 +633,19 @@ private struct Counter: Component {
     #expect(window.needsRedraw)
     window.drawFrameIfNeeded()
     #expect(fills(window.lastScene, brandOverrideRGBA), "\(describe(window.lastScene))")
+
+    // The light half (review of lane 2, `OM-AI`): the same override on a light
+    // window's light variant. Mutation MJ: delete `theme = lightTheme`.
+    let (light, _) = try makeFakeWindow(device: device, appearance: .light) {
+        Row { box(10).background(Color(Brand.self)) }
+    }
+    light.drawFrameIfNeeded()
+    try #require(light.needsRedraw == false)
+    light.lightTheme[Brand.self] = brandOverride
+    #expect(light.needsRedraw, "a light window's light-variant override repaints")
+    #expect(light.theme[Brand.self] == brandOverride, "and reaches the window's theme")
+    light.drawFrameIfNeeded()
+    #expect(fills(light.lastScene, brandOverrideRGBA), "\(describe(light.lastScene))")
 }
 
 /// **2.22** (`CR-V` item 2). A scheme change repaints even when both variants
