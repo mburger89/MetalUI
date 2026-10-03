@@ -252,3 +252,136 @@ restore). Unmutated: **`Test run with 2269 tests in 3 suites passed after
 
 The seam is internal and production never writes it; no public declaration,
 census or inventory row moves. Nothing in `Sources/` changes behaviour.
+
+## §4 Lane 2 — AppKit, the menu bar, the `Menu` pull-down (2026-10-02)
+
+From `d3520ef` (lane 1's fix round, 2269 tests). Commits `6f25891` (red) and
+`071046e` (implementation). Ruling `MN-AF` (decisions doc, next unused
+`MN-AG`).
+
+**Built.** `AppKitMenus.swift`: `AppKitMenuBuilder` (a `PlatformMenu` →
+`NSMenu`, `autoenablesItems = false` on every level, states, key equivalents
+with their mask, each action item's tag its id), `AppKitMenuTarget`,
+`AppKitMenuBar` (the main menu, `menuNeedsUpdate` rebuilding a menu from fresh
+content as it opens; standard items on AppKit's selectors — the application
+menu's and Bring All to Front targeting `NSApp`, the rest the responder chain;
+command items calling `PlatformMenuBar.perform`), and the host view's Edit
+actions (`cut:` … `delete:` deliver the item's key; `validateMenuItem` enables
+them only while a caret is set, `MN-K`; nothing is delivered when
+`currentEvent` is the key equivalent the window declined, `MN-AA`).
+`AppKitPlatform.swift`: `presentMenu` pops the menu up through the replaceable
+`menuPresenter` and delivers `.menuAction` through `scheduleMenuOutcome` after
+returning (`MN-C` item 4); `rightMouseDown`/`Up`; a control-press is a
+secondary press with its drag dropped (`MN-AC` item 1);
+`performKeyEquivalent(with:)` offers a ⌘-key to the window first and never
+twice (identity, `MN-J` item 3), `keyDown(with:)` skipping the remembered
+event; `setMenuBar` installs `NSApp.mainMenu`. `Commands.swift`: `Commands`
+(closed, SPI requirement), `CommandItems`, `CommandsBuilder`, `CommandMenu`,
+`CommandGroup` (before/after/replacing), `CommandGroupPlacement` (nine),
+`MenuBarModel` and `App.commands(content:)`; every `App` initialiser installs
+the default bar (`MN-I` item 4) and every window it opens gets
+`commandShortcuts`. `Window.dispatchCommandShortcut` directly after
+`dispatchShortcut` (`MN-J`). `Platform.setMenuBar(_:)`, no default: AppKit,
+SDL (records), `FakePlatform` (records) and `AppIconCompileGuards`' fixture.
+`PullDownMenu.swift`: `extension Menu: Element, StyledElement` over
+`Button<Pair<Label, Text>>` (the `⌄` hidden from accessibility), the window-owned
+anchor map (`Window.lastPresentationAnchors` ← `Frame.presentationAnchors`),
+`MenuPresenter`, `Window.openPullDownMenu` (bottom-leading, through
+`openContextMenu(of:_:)`), and `AXNode.menuButtonHint` → `.menuButton`
+(stripped before `isEmpty` as `selectionHint` is). `Menu`'s initialiser now
+sets `Button`'s chrome as its default style and decoration.
+`docs/migration.md`: `setMenuBar` for a `Platform` conformer; an AppKit app
+has a menu bar; ⌘-keys through `performKeyEquivalent`; a command's key is
+claimed by the command stage; the control-click row is live (no longer
+*pending lane 2*). Inventory families `menu-bar` (A, `swiftui-commands.swift`
+PLAIN) and `pull-down-menu` (A, M1); census **2146 → 2184**;
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+**Red** (`6f25891`, full unfiltered suite: `Test run with 2291 tests in 3
+suites failed … with 25 issues`): 17 of the 20 root tests red, each first line
+
+| Test | First red line |
+|---|---|
+| 2.1 `anAppKitMenuIsBuiltFromThePlatformMenu` | `AppKitMenuTests.swift:136: menu.items.count == 6` |
+| 2.2 `aChosenNativeItemArrivesAsAMenuActionAfterThePopUpReturns` | `:176: shown` |
+| 2.3 `aDismissedNativeMenuArrivesAsANilMenuAction` | `:193: appKit.presentMenu(c1Menu, at: pt(10, 10))` |
+| 2.4 `aRightMouseDownAndAControlClickReachOnInputAsRightMouseDown` | `:214: log.entries == ["rdown(30,40)", …]` |
+| 2.5 `theHostViewOffersACommandKeyToTheWindowBeforeTheMainMenu` | `:232: view.performKeyEquivalent(…⌘k…)` |
+| 2.13 `theMainMenuMapsStandardActionsToAppKitSelectors` | `:286: NSApplication.shared.mainMenu` |
+| 2.14 `theEditMenuReachesTheFocusedFieldAsItsKeys` | `:312: log.entries == ["key[⌘x]", …]` |
+| 2.15 `aMenuBarItemRunsItsCommand` | `:332: NSApplication.shared.mainMenu` |
+| 2.16 `theMenuBarIsRefreshedWhenAMenuOpens` | `:352: NSApplication.shared.mainMenu` |
+| 2.18 `anEditKeyTheWindowDeclinedIsNotDeliveredAgainByTheEditMenu` | `:376: log.entries == ["key[⌘z]"]` |
+| 2.7 `aCommandsShortcutFiresWhenNothingInTheWindowClaimsIt` | `CommandsTests.swift:108: fake.simulateInput(key("j", .command))` |
+| 2.10 `theDefaultMenuBarHasTheStandardMenus` | `:138: describe(app.menuBarContent()) == […]` |
+| 2.11 `aCommandMenuIsInsertedBeforeTheWindowMenu` | `:151: menus.map(\.title) == […]` |
+| 2.12 `commandGroupsPlaceTheirItemsBeforeAfterAndReplacing` | `:168: describe(app.menuBarContent()) == […]` |
+| 2.17 `everyAppInstallsTheDefaultMenuBar` | `:187: platform.menuBars.count == 1` |
+| 1.31 `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` | `PullDownMenuTests.swift:58: buttons.count == 1` |
+| 1.32 `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | `:91: platform.presentedMenus.count == 2` |
+
+**Green on arrival, by construction**: 2.6
+`aButtonsShortcutWinsOverACommandsAndFiresOnce` (the stub had no command
+stage, so the button alone answered) and 2.8 `aDisabledCommandsShortcutDoesNothing`
+(nothing ran) — each is the mutation column's to redden (the verifier's). A
+first red run truncated with no summary line (an unguarded `describe(menus)[3]`
+in 2.11 trapped on the stub's empty bar); fixed to `try #require` on the
+titles (practices shape 13) before the recorded red run. `Backends/SDL`:
+S2.1 `sdlRecordsTheMenuBarAndDrawsNothing` red at
+`SDLMenuBarTests.swift:25: platform.menuBar`.
+
+**Found by running** (`MN-AF` item 1): 1.32 as specified ("Space and Return
+each open") stayed red after the implementation — `ControlKeys.activatesButton`
+is Space on a Mac, Return only off Apple, and `Menu` is `Button`'s keys. The
+spec's `MN-H` item 1 was amended, not the key table; 1.32 now asserts Space
+opens it and Return does so only off Apple.
+
+**Guard mutations** (commit first, restored from a copy, full unfiltered
+suite, `git status --short` clean after each):
+
+| # | Mutation | Reddened (only) |
+|---|---|---|
+| MG2.1 | every `@_spi(MenuInternals)` removed from `Commands.swift` (the fabricated conformance compiles: `fabricated succeeded=true`) | `theCommandsSpellingsCompileFromAPlainImport` |
+| MG2.2 | `extension Platform { public func setMenuBar(_:) {} }` (`without succeeded=true`) | `aPlatformWithoutSetMenuBarDoesNotCompile` |
+
+The rest of spec §6.2's mutation column is the lane verifier's.
+
+**Counts.** `swift build --build-system native --build-tests`: 0 `error:`,
+the one `warning:` SwiftPM's deprecation notice. Unfiltered
+`swift test --build-system native --no-parallel`: **`Test run with 2291
+tests in 3 suites passed after 125.080 seconds`** (2269 + 20 + 2 guards), the
+`FR-J no-argument frame: succeeded=true` line present; re-taken after
+`swift package clean` (public `App`, `AppKitPlatform` and `AXNode` gained
+stored properties): the same 2291, passed after 121.224 seconds. Guards
+139 → 141 (G2.1, G2.2; spec §6.4's 141 reached with lane 3's two still to
+come — the spec's figure counted lane 1's four as four, lane 1 landed four
+plus its own review's none; re-take at the Record phase). `swift build
+--build-tests` (default build system): 0 `warning:`, 0 `error:`.
+`Backends/SDL` (`PKG_CONFIG_PATH=$PWD/.accesskit`): **24 + 62**
+(`MetalUISDLTests` +1, S2.1). A `swift:6.4-noble` container (OrbStack, already
+running; left as found) builds with 0 `error:`/`warning:` and runs **199 + 22
++ 21 + 31 + 18 + 6**, unmoved (no lane-2 test is in a portable suite; the
+container shows `Commands.swift`, `PullDownMenu.swift` and the `Platform`
+requirement compile off Apple). `MetalUILayout` and `MetalUIScene` untouched.
+`DemoFrameDeterminismTests`' `Expected.swift` unedited.
+`MemoryLayout<Handlers>.size` unmoved at 464 (the hint fits `AXNode`'s
+padding; `handlersGainsOneReferenceMember` green); no production tree gained an
+element, so the stack budget was not re-bisected.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> b9da519 HEAD` (HEAD
+`071046e`): **0 differing pixels, scene identical, in all fourteen images**;
+controls as at `b9da519`.
+
+**Real window.** The lock probe read no `CGSSessionScreenIsLocked` line and
+`displayAsleep main: 0`, so `docs/probes/window-capture/capture.sh <scratch>
+b9da519 HEAD` ran: each window's pair 0 differing, **`b9da519 → HEAD`
+default 0, preview 0** (1840 × 1176), control default vs preview 958986. The
+menu bar itself, a native context menu's look, ⌘Q and the Edit menu by click
+were not exercised — no input is sent (human checks R1, R3, R4).
+
+**Deferred / owed.** The AppKit seams' production defaults (`NSMenu.popUp`,
+the next-turn scheduler, `NSApp.currentEvent`) and the event-identity reading
+are pinned by no test (`MN-AF` items 7–8; human checks R1, R4). A closed
+menu's stale tag after a structural change, dispatched by the main menu rather
+than the window (`MN-AF` item 3), owner none. Lane 3 extends the anchor map
+for popovers.
