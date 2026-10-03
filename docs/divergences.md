@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–114 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH` — next label 116). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–115 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH` — next label 116). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
