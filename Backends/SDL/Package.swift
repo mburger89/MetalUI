@@ -41,7 +41,10 @@ let package = Package(
                 linkerSettings: ["bcrypt", "ntdll", "propsys", "runtimeobject", "uiautomationcore",
                                  "userenv", "ws2_32", "ole32", "oleaut32", "user32", "advapi32"]
                     .map { .linkedLibrary($0, .when(platforms: [.windows])) }),
+        // `MetalUI` for the lifecycle tests (ruling `LC-O`'s lane 2: an `App`
+        // over `SDLPlatform`, spec tests 10.2 and 10.3).
         .testTarget(name: "MetalUISDLTests", dependencies: ["MetalUISDL", "SDLReplay", "ReplayFixture",
+                                                           .product(name: "MetalUI", package: "MetalUI"),
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .executableTarget(name: "PortableReplay", dependencies: ["SDLReplay", "ReplayFixture"]),
