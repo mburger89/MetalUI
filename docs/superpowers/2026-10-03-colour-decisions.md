@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-X`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -647,3 +647,53 @@ red). `docs/divergences.md`'s next label becomes **120** (lane 3).
 **Cost if wrong.** Item 1 is a public break with a one-token migration;
 items 2–4 are invisible at a call site.
 
+## CR-X — Lane 1 review: four measured corrections to its tests' claims (revises `CR-R`'s reasoning and tests; spec §6.1 rows 1.15, 1.23–1.25)
+
+**Ruling.**
+
+1. **`CR-R` item 2 protects equality, not the display link on its own.** A
+   NaN colour re-arms a fade on every build made under a transaction; after
+   one such build, the next transactionless build snaps it (`advanceColor`'s
+   running branch, `color != running.to` with no transaction), so the link
+   pauses with or without the canonicalisation. The link stays awake only
+   while builds under a transaction keep arriving.
+   `aNaNColourSettlesAndLetsTheDisplayLinkPause` now rebuilds under
+   `withAnimation` on each of five frames and asserts nothing is live after
+   each, then that a quiet frame pauses.
+2. **Guard 1.24 pins result types** for `Text`, `ProposalText`, `TextField`
+   and `TextEditor` (`let _: Text = Text("x").foregroundColor(t)`, …): each
+   also has an `ElementGroup` fallback returning `EnvironmentScope<Self>`, so
+   a deleted own twin compiled and silently changed the result type.
+3. **Spec row 1.15**: replacing `Shape.fill(_ color:)`'s colour reddens its
+   own arm **and** `background(_:in:)`'s, which forwards to `shape.fill`.
+4. **Guards 1.23–1.25 are the second line of defence** for most of their
+   documented mutations: those fail the package or test build first. Guard
+   1.25 pins `Text`'s own three spellings to return `Text` (SwiftUI's do), and
+   so gains a mutation it alone sees. For 1.23 none is known: every member
+   its fixture touches is also used nonisolated in the package or by the
+   nonisolated cross-platform tests.
+
+**Measured** (branch `feat/colour`, full unfiltered native suite, 2353 tests,
+each mutation restored from a copy, `git status --short` clean after each):
+
+| Id | Mutation (spelling) | Run by | Result |
+|---|---|---|---|
+| M12 | `StyledElement.background(_ color:)` forwards `.surface` | reviewer | 1.15 arm `StyledElement.background` only |
+| M13 | `Shape.fill(_ color:)` forwards `.surface` | reviewer | 1.15 arms `Shape.fill` and `background(_:in:)` |
+| M19 | `Element` on `Color`'s primary declaration | reviewer | package build fails (`Color.swift:331`, `TextStyleResolution.swift:31`) |
+| M19b | `@MainActor static let red` | reviewer | test build fails (`ColorValueTests.swift:82`) |
+| M20 | delete `@_disfavoredOverload public func foregroundColor(_ token: ColorToken) -> Text` | before item 2: reviewer; after: this lane | before: 0 red; after: `everyColorTokenSpellingStillCompiles` only ("cannot convert value of type 'EnvironmentScope<Text>' to specified type 'Text'") |
+| M21 | `StyledElement.background(_ token:)` not disfavoured | reviewer | package build fails (`DragAndDropDemo.swift:45`) |
+| M22 | `Shadow.swift` token twin not disfavoured | reviewer | test build fails (`ShadowTests.swift:44`) |
+| M23 | `canonical(_:)` returns `value` | before item 1: reviewer; after: this lane | before: `opacityMultipliesAndClampsAtResolution` only; after: `aNaNColourSettlesAndLetsTheDisplayLinkPause` and `opacityMultipliesAndClampsAtResolution` |
+| M25 | legacy shadow token twin not disfavoured | reviewer | package build fails (`LooksDemo.swift:279`) |
+| M26 | delete `onTap(hoverColor: ColorToken)` twin | reviewer | `everyColorTokenSpellingStillCompiles` only |
+| M27 | `Text.foregroundColor(_ color: Color)` (non-optional) | this lane | `theSwiftUISpellingsTypecheckWithoutAmbiguity` only ("'nil' is not compatible with expected argument type 'Color'") |
+| M28 | `@MainActor public init<K: ThemeColorKey>(_ key: K.Type)` | this lane | test build fails (`ColorPaletteTests.swift:22`, `:24`, `:33`, `:35`) |
+| M29 | `@MainActor public func opacity(_:)` | this lane | package build fails (`Color.swift:265`, `Color.secondary`) |
+
+A predecessor's uncommitted `Color(white:)` → `red: white * white` mutation
+was found unreverted and reverted by the reviewer; its results were never
+reported and are not claimed here.
+
+**Cost if wrong.** Test-claim corrections only; no source changed.

@@ -13,7 +13,15 @@ private let skipReason: Comment =
 /// **1.23** (`CR-D`). `Color`'s statics are usable off the main actor: a
 /// nonisolated default argument and a `ThemeColorKey`'s nonisolated
 /// `static let`. Mutation: move `Element` onto `Color`'s primary declaration
-/// ("main actor-isolated default value in a nonisolated context").
+/// ("main actor-isolated default value in a nonisolated context"). **That
+/// mutation fails the package build first** (`Color.swift`,
+/// `TextStyleResolution.swift`), as do `@MainActor` on `static let red`
+/// (`ColorValueTests`), on `opacity(_:)` (`Color.secondary`'s initialiser) and
+/// on `init(_ key:)` (`ColorPaletteTests`): every member this fixture touches
+/// is also used nonisolated inside the package or by the nonisolated
+/// cross-platform tests, so no mutation this guard alone sees is known
+/// (`CR-X` item 4). It stays as the one plain-import check of what an
+/// external module can write — a second line of defence.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func colourStaticsAreUsableOffTheMainActor() throws {
     let result = try typecheckFile("""
@@ -30,10 +38,17 @@ func colourStaticsAreUsableOffTheMainActor() throws {
 /// **1.24** (`CR-E` items 1 and 3). Every `ColorToken` spelling still
 /// compiles: each colour-taking site with a leading-dot token and with a
 /// `ColorToken` variable (which only the disfavoured twin accepts), a write of
-/// a retyped stored property, and a comparison against one. Mutations: delete
-/// `Text.foregroundColor(_ token:)`'s twin (the variable line fails); remove
-/// `@_disfavoredOverload` from `StyledElement.background(_ token:)`
-/// (`.background(.surface)` becomes ambiguous).
+/// a retyped stored property, and a comparison against one. `Text`,
+/// `ProposalText`, `TextField` and `TextEditor` have their result types
+/// pinned: each also has an `ElementGroup` fallback returning
+/// `EnvironmentScope<Self>`, which would silently accept a deleted own twin.
+/// Mutations seen by this guard alone: delete `Text.foregroundColor(_ token:)`'s
+/// twin (M20: "cannot convert value of type 'EnvironmentScope<Text>' to
+/// specified type 'Text'"; only this guard reddens), and delete
+/// `onTap(hoverColor: ColorToken)`'s twin (M26). Removing
+/// `@_disfavoredOverload` from `StyledElement.background(_ token:)` (M21)
+/// **fails the package build first** (`DragAndDropDemo.swift` ambiguous) —
+/// this guard is the second line of defence there (`CR-X` item 2).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func everyColorTokenSpellingStillCompiles() throws {
     let result = try typecheckFile("""
@@ -101,8 +116,12 @@ func everyColorTokenSpellingStillCompiles() throws {
 }
 
 /// **1.25** (`CR-E`, `CR-U`). SwiftUI's spellings typecheck with no
-/// ambiguity. Mutation: remove `@_disfavoredOverload` from `Shadow.swift`'s
-/// token twin (`shadow(radius:)` becomes ambiguous).
+/// ambiguity; `Text`'s own spellings are pinned to return `Text`. Removing
+/// `@_disfavoredOverload` from `Shadow.swift`'s token twin (M22) or the legacy
+/// shadow twin (M25) **fails the build first** (`ShadowTests.swift`,
+/// `LooksDemo.swift` ambiguous); a mutation this guard alone sees: make
+/// `Text.foregroundColor(_ color:)` take a non-optional `Color` (M27, the
+/// `foregroundColor(nil)` line; `CR-X` item 4).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theSwiftUISpellingsTypecheckWithoutAmbiguity() throws {
     let result = try typecheckFile("""
