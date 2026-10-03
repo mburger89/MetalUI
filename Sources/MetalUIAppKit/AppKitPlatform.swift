@@ -609,13 +609,14 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         observeControlActiveState()
         lastAccessibilityReduceMotion = accessibilityReduceMotion
         observeAccessibilityReduceMotion()
+        lastReportedAppearance = appearance
         accessibilityBridge.hostView = hostView
         hostView.accessibilityBridge = accessibilityBridge
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
         hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
         hostView.onAppearanceChange = { [weak self] in
             guard let self else { return }
-            self.onAppearanceChange?(self.appearance)
+            self.reportAppearance()
         }
         syncSurfaceGeometry()
     }
@@ -646,6 +647,30 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var appearance: Appearance {
         let dark = hostView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return dark ? .dark : .light
+    }
+
+    /// The appearance last handed to `onAppearanceChange`, so
+    /// `setPreferredColorScheme(_:)` reports a forced change exactly once
+    /// whether or not AppKit calls `viewDidChangeEffectiveAppearance`
+    /// synchronously from the `NSWindow.appearance` write.
+    private var lastReportedAppearance: Appearance?
+
+    private func reportAppearance() {
+        let current = appearance
+        lastReportedAppearance = current
+        onAppearanceChange?(current)
+    }
+
+    /// Sets the `NSWindow`'s own appearance (ruling `CR-M`): `.aqua` or
+    /// `.darkAqua`, or `nil` to follow the application again (probe
+    /// `swiftui-colour.swift` `P8b`) — so the title bar, native menus and
+    /// context menus match the content. The resulting effective appearance
+    /// is reported through `onAppearanceChange` (once, if it changed), so
+    /// `Window`'s platform appearance agrees with the forced one. Pinned by
+    /// `settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt`.
+    func setPreferredColorScheme(_ colorScheme: ColorScheme?) {
+        window.appearance = colorScheme.map { NSAppearance(named: $0 == .dark ? .darkAqua : .aqua) } ?? nil
+        if appearance != lastReportedAppearance { reportAppearance() }
     }
 
     /// The layer surface, still reachable for the platform tests that draw

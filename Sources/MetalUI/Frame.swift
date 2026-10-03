@@ -443,10 +443,84 @@ public final class Frame {
         case .transform(let transform):
             transform(&values)
             values.theme = environmentTop.theme
+            // A scope that changes the scheme gets the window's variant for
+            // it (rulings `CR-K` item 2, `CR-S`): SwiftUI's subtree flips with
+            // the write (probe `V1`), so the tokens flip too. Pinned by
+            // `aColorSchemeScopeSelectsTheWindowsVariantForItsSubtree` and
+            // `aSelfResetBelowADarkScopeReadsLightAndTheLightVariant`.
+            if values.colorScheme != environmentTop.colorScheme {
+                values.theme = values.colorScheme == .dark ? darkTheme : lightTheme
+            }
         case .theme(let theme):
-            values.theme = theme
+            values.theme = theme   // tokens only; `colorScheme` untouched (`CR-K` item 3)
+        case .preferredColorScheme:
+            break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
         }
         return values
+    }
+
+    // MARK: - Colour scheme preference (rulings `CR-L`, `CR-T`)
+
+    /// The window's light and dark themes (rulings `CR-K`, `CR-S`):
+    /// `Window.lightTheme`/`darkTheme`, handed in through `init`. A scope that
+    /// changes `colorScheme` sets its subtree's theme to the new scheme's
+    /// variant. Frame fields, not environment fields — no scope writes them.
+    let lightTheme: Theme
+    let darkTheme: Theme
+
+    /// How many `.preferredColorScheme` scopes enclose the element being
+    /// built. Only a scope at depth 0 reports (`CR-L` item 3): an outer
+    /// modifier replaces its content's value, `nil` included (probes `P5`,
+    /// `P6`).
+    private var colorSchemePreferenceDepth = 0
+    /// The first non-nil top-level preference in the main tree, in build
+    /// order (probes `P3`, `P4`, `P7`).
+    private(set) var mainColorSchemePreference: ColorScheme?
+    /// The first non-nil top-level preference inside a presentation root —
+    /// a popover's chrome or an absolute `Deferred` — counted only when the
+    /// main tree has none (`CR-T`).
+    private(set) var presentationColorSchemePreference: ColorScheme?
+
+    /// This frame's preference, read by `Window` after the build: the main
+    /// tree's, else a presentation root's (`CR-T`).
+    var collectedColorSchemePreference: ColorScheme? {
+        mainColorSchemePreference ?? presentationColorSchemePreference
+    }
+
+    /// Runs `body` — a `.preferredColorScheme(value)` scope's content — after
+    /// recording `value` if this scope is top-level and no earlier top-level
+    /// scope decided (`CR-L` item 3). Called from both of `EnvironmentScope`'s
+    /// layout entries (`OM-AI`'s two halves).
+    func withColorSchemePreference<R>(_ value: ColorScheme?, _ body: () -> R) -> R {
+        if colorSchemePreferenceDepth == 0 && mainColorSchemePreference == nil {
+            mainColorSchemePreference = value
+        }
+        colorSchemePreferenceDepth += 1
+        defer { colorSchemePreferenceDepth -= 1 }
+        return body()
+    }
+
+    /// Opens a presentation candidate's content build (`CR-T`): preferences
+    /// recorded inside it are kept apart from the main tree's. Returns the
+    /// main tree's value so far, for `endPresentationPreferences`.
+    func beginPresentationPreferences() -> ColorScheme? {
+        let saved = mainColorSchemePreference
+        mainColorSchemePreference = nil
+        return saved
+    }
+
+    /// Closes what `beginPresentationPreferences` opened. A presentation
+    /// root's first preference goes to the presentation slot; content that
+    /// turned out not to be one (an in-flow `Deferred`) is the main tree, in
+    /// build order.
+    func endPresentationPreferences(saved: ColorScheme?, isPresentation: Bool) {
+        let inner = mainColorSchemePreference
+        if isPresentation {
+            if presentationColorSchemePreference == nil { presentationColorSchemePreference = inner }
+            mainColorSchemePreference = saved
+        } else {
+            mainColorSchemePreference = saved ?? inner
+        }
     }
 
     /// Runs `body` with `values` as the top, restoring the previous top when it
@@ -2002,6 +2076,8 @@ public final class Frame {
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
          theme: Theme = .light,
+         lightTheme: Theme = .light,
+         darkTheme: Theme = .dark,
          timestamp: Double = 0,
          mousePosition: Point<Pixels>? = nil,
          activeElement: GlobalElementID? = nil,
@@ -2030,6 +2106,8 @@ public final class Frame {
         #endif
         self.glyphAtlas = glyphAtlas
         self.rootTheme = theme
+        self.lightTheme = lightTheme
+        self.darkTheme = darkTheme
         var root = EnvironmentValues()
         root.theme = theme
         root.displayScale = Self.displayScale(forScaleFactor: scaleFactor)

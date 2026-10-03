@@ -51,9 +51,11 @@ struct AnchoredPresentation<Content: Element>: Element {
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, LayoutState) {
         var cursor = 0
+        let savedPreference = pass.frame.beginPresentationPreferences()   // `CR-T`
         let (nodes, contentLayout) = pass.withoutScrollContext {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
+        pass.frame.endPresentationPreferences(saved: savedPreference, isPresentation: true)
         let node = nodes[0]
         let frame = pass.frame
         _ = frame.lowering.consume(node)

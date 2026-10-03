@@ -408,8 +408,8 @@ private struct Counter: Component {
 
 /// **2.11** (`CR-L` item 5, `CR-Q`). A root preference is in the first
 /// presented frame: one frame drawn, and its scene's `.surface` is the dark
-/// theme's. The first build is adopted, not discarded: the `@State` it seeded
-/// is one table entry, and the window was asked once. Mutation: drop the
+/// theme's. The first build is adopted, not discarded: the table holds the
+/// entries one build of the same tree holds, and the window was asked once. Mutation: drop the
 /// first-frame rebuild.
 @MainActor
 @Test func aRootPreferenceIsInTheFirstPresentedFrame() throws {
@@ -429,7 +429,14 @@ private struct Counter: Component {
     #expect(fill(window.lastScene, width: 11).map { close($0, Theme.dark.surface.toRgba()) } == true,
             "\(describe(window.lastScene))")
     #expect(fill(window.lastScene, width: 14).map { close($0, darkHalfRGBA) } == true, "\(describe(window.lastScene))")
-    #expect(window.stateTable.count == 1, "one @State, one entry: \(window.stateTable.count)")
+    // The control: the same tree with no preference, built once in a dark
+    // fake. Two adopted builds keyed the same ids hold the same entries.
+    let (control, _) = try makeFakeWindow(device: device, appearance: .dark) {
+        Row { Row { box(11).background(.surface); Counter() } }
+    }
+    control.drawFrameIfNeeded()
+    #expect(window.stateTable.count == control.stateTable.count,
+            "two builds, one set of entries: \(window.stateTable.count) vs \(control.stateTable.count)")
     #expect(platform.preferredColorSchemeRequests == [.dark])
     #expect(window.needsRedraw == false, "the second build settled the frame")
 }

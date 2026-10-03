@@ -81,9 +81,14 @@ public struct Deferred<Content: Element>: Element {
         // scrolled — and a `List` inside a portal duly windowed against an
         // offset it does not move by, emptying itself as the list behind it
         // scrolled. See `LayoutPass.withoutScrollContext`.
+        // A preference inside a presentation root ranks after the main
+        // tree's (`CR-T`); whether this is one is known only after the build.
+        let savedPreference = pass.frame.beginPresentationPreferences()
         let (nodes, contentLayout) = pass.withoutScrollContext {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
+        let isPresentation = pass.frame.lowering.items[nodes[0]]?.declared.position == .absolute
+        pass.frame.endPresentationPreferences(saved: savedPreference, isPresentation: isPresentation)
         // `content` is a single `Element`, so `requestGroupLayout`'s default
         // (`SingleElementLayout`) always hands back exactly one node — this
         // becomes `Deferred`'s own node, reached through `content`'s own
