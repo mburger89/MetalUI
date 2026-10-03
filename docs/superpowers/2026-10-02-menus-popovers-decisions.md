@@ -1029,13 +1029,18 @@ function each, pinned by tests 1.30, 1.34, 1.35 and 1.24.
    publishes no label; MetalUI's folded label is the title). The `.menuButton`
    role rides an internal `AXNode.menuButtonHint`, stripped before
    `isEmpty`'s gate as `selectionHint` is (`DD-U` item 4), so it writes no
-   `$ax` slot and moves no retention.
+   `$ax` slot and moves no retention. Pinned by test 1.31c
+   (`aPullDownMenuWritesNoAXNodeAndNoAXSlot`, fix round).
 6. **The window-owned anchor map is `Window.lastPresentationAnchors`**, copied
    from the frame's `presentationAnchors` after each frame (window points, as
    `contextMenuRecords`' bounds are); a `Menu` records its bounds in
    `prepaint`. A frame reaches its window through a `MenuPresenter` handle
    (weak), handed to each frame as `ScrollViewProxy`'s queue is. Lane 3
-   extends the map for popovers.
+   extends the map for popovers. The bounds are translated by
+   `activeOffset` (the scroll translation), pinned by test 1.31b
+   (`aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame`, fix
+   round): a popover anchored through this map inherits that pin only for
+   the recording site it shares.
 7. **AppKit seams are test-replaceable closures on `AppKitWindow`**:
    `menuPresenter` (production `NSMenu.popUp(positioning:at:in:)` in the
    flipped host view, so MetalUI's point is the view's) and
@@ -1049,9 +1054,22 @@ function each, pinned by tests 1.30, 1.34, 1.35 and 1.24.
    `NSApp.currentEvent` while the main menu runs a matched item), the reading
    `MN-J` item 3 and `MN-AA` rest on. If a real session shows a copy instead,
    a ⌘-key the window declined is delivered twice — human check R4.
+9. **(fix round) A disabled `Menu`'s gate is `Button`'s**, the disabled
+   gate in `Frame.registerHandlers` (no hitbox, no focus entry, a refused
+   accessibility press), so a disabled `Menu`'s open never runs. The
+   `isEnabled` `Menu.prepaint` forwards to `openPullDown` (and on into the
+   `ContextMenuRecord`) is redundant — forcing it `true` reddens nothing
+   (mutation M1.32) — and is kept as belt-and-braces so the record a
+   pull-down builds says what a context menu's would. Test 1.32's mutation
+   is "skip `Button`'s gate"; it was renamed
+   `aPullDownMenuOpensFromButtonsActivationKeysAndNotWhenDisabled` to match
+   item 1's amended keys.
+10. **(fix round) `performKeyEquivalent(with:)` declines an event it has
+    already offered** (its own identity guard, beside `keyDown(with:)`'s):
+    pinned by test 2.9's repeat offer (mutation M2.9b).
 
 **Reasoning.** Item 1 keeps `Menu` exactly `Button`'s keyboard citizen (one
-table, `DD-R`). Items 2–8 make the spec's sentences concrete; none moves an
+table, `DD-R`). Items 2–10 make the spec's sentences concrete; none moves an
 existing answer.
 
 **Cost if wrong.** Item 1 is one argument (`ControlKeys`' platform); item 3 a

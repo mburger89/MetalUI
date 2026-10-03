@@ -52,6 +52,9 @@ extension Menu: Element, StyledElement {
         // (`MN-H` item 1): a click, Space/Return when focused, an
         // accessibility press — and none of them while disabled, `Button`'s
         // one gate. The menu's own open replaces a caller's `onClick`.
+        // `isEnabled` below is belt-and-braces (`MN-AF` item 9): `Button`'s
+        // gate already keeps a disabled menu's open from running, so forcing
+        // it `true` reddens nothing; it keeps the record honest.
         let presenter = pass.frame.menuPresenter
         let isEnabled = pass.frame.environmentTop.isEnabled
         let content = content

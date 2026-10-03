@@ -318,7 +318,7 @@ suites failed … with 25 issues`): 17 of the 20 root tests red, each first line
 | 2.12 `commandGroupsPlaceTheirItemsBeforeAfterAndReplacing` | `:168: describe(app.menuBarContent()) == […]` |
 | 2.17 `everyAppInstallsTheDefaultMenuBar` | `:187: platform.menuBars.count == 1` |
 | 1.31 `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` | `PullDownMenuTests.swift:58: buttons.count == 1` |
-| 1.32 `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | `:91: platform.presentedMenus.count == 2` |
+| 1.32 `aPullDownMenuOpensFromButtonsActivationKeysAndNotWhenDisabled` | `:91: platform.presentedMenus.count == 2` |
 
 **Green on arrival, by construction**: 2.6
 `aButtonsShortcutWinsOverACommandsAndFiresOnce` (the stub had no command

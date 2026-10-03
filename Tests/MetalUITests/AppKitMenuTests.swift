@@ -237,8 +237,10 @@ private let appName = ProcessInfo.processInfo.processName
 
 /// **2.9** (`MN-J` item 3). A key equivalent the window declined goes on to
 /// the main menu and then to `keyDown(with:)` as the same event: it is not
-/// delivered a second time. Another event through `keyDown` still is (the
-/// positive control). Mutation: remove the identity check.
+/// delivered a second time — nor when `performKeyEquivalent` is offered the
+/// same event again (M2.9b: remove that method's own repeat guard). Another
+/// event through `keyDown` still is (the positive control). Mutation: remove
+/// the identity check.
 @MainActor
 @Test func aKeyEquivalentDeclinedByTheWindowIsNotDeliveredAgainAsAKeyDown() throws {
     let (_, appKit, nsWindow, log) = try hostWindow { _ in false }
@@ -246,6 +248,7 @@ private let appName = ProcessInfo.processInfo.processName
     let view = appKit.hostView
     let event = try keyDown("j", keyCode: 38, .command, in: nsWindow)
     #expect(!view.performKeyEquivalent(with: event))
+    #expect(!view.performKeyEquivalent(with: event), "a repeat offer is declined")
     view.keyDown(with: event)
     #expect(log.entries == ["key[⌘j]"], "one delivery for one event")
     view.keyDown(with: try keyDown("j", keyCode: 38, .command, in: nsWindow))
