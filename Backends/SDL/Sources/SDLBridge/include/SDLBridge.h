@@ -111,7 +111,10 @@ enum {
     // them (not on BEGIN); FILE's `text` is the path, TEXT's the text — both
     // owned by SDL until the next poll, so copy them at once.
     MUI_EVENT_DROP_BEGIN, MUI_EVENT_DROP_POSITION, MUI_EVENT_DROP_FILE, MUI_EVENT_DROP_TEXT,
-    MUI_EVENT_DROP_COMPLETE
+    MUI_EVENT_DROP_COMPLETE,
+    // The secondary (right) button (ruling MN-B item 3). Appended after
+    // DROP_COMPLETE, so no earlier kind renumbers.
+    MUI_EVENT_RIGHT_DOWN, MUI_EVENT_RIGHT_UP
 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
@@ -156,6 +159,22 @@ extern const uint32_t mui_sdl_event_drop_position;
 extern const uint32_t mui_sdl_event_drop_file;
 extern const uint32_t mui_sdl_event_drop_text;
 extern const uint32_t mui_sdl_event_drop_complete;
+// Pushes an unflattened SDL_EVENT_MOUSE_BUTTON_DOWN/UP (`sdl_type`, one of the
+// mui_sdl_event_mouse_button_* constants below) for `button`, or an
+// SDL_EVENT_MOUSE_MOTION with `state` (a mask of the mui_sdl_button_*mask
+// constants), for `window_id` at (x, y) — so a test reaches translate's
+// pointer arms through SDL's own queue (ruling MN-B item 3). For tests.
+bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t button, uint32_t state,
+                              float x, float y);
+// SDL's pointer event types, buttons and masks, for tests. Exported from C so
+// Swift never spells an SDL enum's `rawValue` (Int32 on Windows, MN-AD).
+extern const uint32_t mui_sdl_event_mouse_button_down;
+extern const uint32_t mui_sdl_event_mouse_button_up;
+extern const uint32_t mui_sdl_event_mouse_motion;
+extern const uint8_t mui_sdl_button_left;
+extern const uint8_t mui_sdl_button_right;
+extern const uint32_t mui_sdl_button_lmask;
+extern const uint32_t mui_sdl_button_rmask;
 // Whether SDL reports the window as having keyboard focus
 // (SDL_WINDOW_INPUT_FOCUS) — read once, when a window opens (ruling EV-AB).
 bool mui_window_has_input_focus(void *window);

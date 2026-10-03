@@ -957,6 +957,31 @@ bool mui_push_raw_drop_event(uint32_t sdl_type, uint32_t window_id, float x, flo
     return SDL_PushEvent(&e);
 }
 
+const uint32_t mui_sdl_event_mouse_button_down = SDL_EVENT_MOUSE_BUTTON_DOWN;
+const uint32_t mui_sdl_event_mouse_button_up = SDL_EVENT_MOUSE_BUTTON_UP;
+const uint32_t mui_sdl_event_mouse_motion = SDL_EVENT_MOUSE_MOTION;
+const uint8_t mui_sdl_button_left = SDL_BUTTON_LEFT;
+const uint8_t mui_sdl_button_right = SDL_BUTTON_RIGHT;
+const uint32_t mui_sdl_button_lmask = SDL_BUTTON_LMASK;
+const uint32_t mui_sdl_button_rmask = SDL_BUTTON_RMASK;
+
+bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t button, uint32_t state,
+                              float x, float y) {
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = sdl_type;
+    if (sdl_type == SDL_EVENT_MOUSE_BUTTON_DOWN || sdl_type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        e.button.windowID = window_id; e.button.button = button; e.button.clicks = 1;
+        e.button.down = sdl_type == SDL_EVENT_MOUSE_BUTTON_DOWN; e.button.x = x; e.button.y = y;
+    } else if (sdl_type == SDL_EVENT_MOUSE_MOTION) {
+        e.motion.windowID = window_id; e.motion.state = state; e.motion.x = x; e.motion.y = y;
+    } else {
+        return SDL_SetError("not a mouse event");
+    }
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
 bool mui_window_has_input_focus(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_INPUT_FOCUS) != 0;
 }

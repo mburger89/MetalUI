@@ -171,6 +171,7 @@ extension AccessKitSnapshot {
         case .incrementor: .spinButton
         case .heading: .heading
         case .link: .link
+        case .menu, .menuItem, .menuItemCheckBox, .menuButton, .popover: .genericContainer  // STUB (red first)
         }
     }
 

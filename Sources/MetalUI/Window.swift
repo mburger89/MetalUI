@@ -1577,6 +1577,25 @@ public final class Window {
         return true
     }
 
+    // MARK: Menus (menus, popovers and tooltips, lane 1 — `MN-C`, `MN-F`)
+
+    /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
+    /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
+    var menuSession: MenuSession?
+
+    /// The last menu token handed out; each presentation takes the next.
+    var lastMenuToken = 0
+
+    /// The context menus the last frame recorded, by element (spec §3.1): the
+    /// keyboard and accessibility openers' table (`MN-G`).
+    var lastContextMenus: [GlobalElementID: ContextMenuRecord] = [:]
+
+    /// The text system an in-window menu measures and draws through (`TS-A`).
+    var menuTextSystem: any TextSystem { textSystem }
+
+    /// The in-window menu's font: the default control font (`MN-F` item 2).
+    var menuFont: FontKey { textSystem.resolveFont(MenuPanel.fontDescriptor) }
+
     /// The current press's gesture arena (plan task 12 part 1, `IX-D`), or
     /// `nil` when no press with a gesture in its arena is undecided. Formed at
     /// a `mouseDown`, kept past the release only while a tap sequence waits for

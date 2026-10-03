@@ -30,8 +30,8 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     public var decoration: Decoration
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
-    private var isOn: Binding<Bool>
-    private var box: Box<Pair<Box<EmptyGroup>, Label>>
+    var isOn: Binding<Bool>
+    var box: Box<Pair<Box<EmptyGroup>, Label>>
 
     /// A checkbox bound to `isOn`, labelled by `label`; a click, Space when
     /// focused or an accessibility press flips it. SwiftUI's

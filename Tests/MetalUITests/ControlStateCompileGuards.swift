@@ -45,6 +45,7 @@ private func conformer(pair: String) -> String {
         // Drag and drop's hand-off (`DN-C` item 2), defaultless too, so every
         // arm here carries it; `DragAndDropCompileGuards` pins it.
         func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
+        func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
         // Plan task 13's Reduce Motion pair (`AN-AD`), defaultless too, so
         // every arm here carries it; `TransactionCompileGuards` pins it.
         var accessibilityReduceMotion: Bool { false }

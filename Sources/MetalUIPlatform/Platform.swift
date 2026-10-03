@@ -113,6 +113,21 @@ public protocol PlatformWindow: AnyObject {
     /// (`DN-C` item 3): a conformer outside this repository adds
     /// `func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }`.
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool
+
+    /// Shows `menu` itself at `position` (window points, the menu's top-left
+    /// corner) and answers whether it did (ruling `MN-C`). `false` — SDL, which
+    /// has no menu API — means "draw it yourself", and `Window` opens its
+    /// in-window menu (`MN-F`). A choice comes back later as
+    /// `InputEvent.menuAction`, delivered after this call returned, never
+    /// inside it (`MN-C` item 4).
+    ///
+    /// **No default implementation** (`MN-C` item 1, `EV-AB`'s reason): a
+    /// conformer that forgets it fails to compile rather than silently never
+    /// showing a menu. Pinned by
+    /// `aPlatformWindowWithoutPresentMenuDoesNotCompile`. **Migration**: a
+    /// conformer outside this repository adds
+    /// `func presentMenu(_: PlatformMenu, at: Point<Pixels>) -> Bool { false }`.
+    func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

@@ -142,6 +142,8 @@ extension Window {
         case .selectRows(let table, let rows):
             guard isOfferedUnderIsolation(table) else { return false }
             return selectRows(table, rows)
+        case .showMenu:
+            return false  // STUB (red first)
         }
     }
 

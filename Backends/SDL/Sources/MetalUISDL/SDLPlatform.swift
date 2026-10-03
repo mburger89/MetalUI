@@ -377,6 +377,12 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
+    /// Always `false` (ruling `MN-C` item 3): SDL3 has no menu API, so
+    /// `Window` draws the menu in the window (`MN-F`).
+    public func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        false
+    }
+
     // MARK: Drops in (ruling `DN-M`)
 
     /// The drop session SDL's events are building, or `nil` between them.

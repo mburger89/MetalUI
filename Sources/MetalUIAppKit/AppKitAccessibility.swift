@@ -361,6 +361,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     override func accessibilityPerformDecrement() -> Bool {
         mainActorAnswer(self, fallback: false) { $0.perform(.decrement, .decrement($0.id)) }
     }
+    override func accessibilityPerformShowMenu() -> Bool { false }  // STUB (red first)
     override func isAccessibilitySelectorAllowed(_ selector: Selector) -> Bool {
         let answer: Bool? = mainActorAnswer(self, fallback: false) { $0.allows(selector) }
         return answer ?? super.isAccessibilitySelectorAllowed(selector)
@@ -418,6 +419,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // `AXHeading` (arm T1), spelled by its raw value for macOS 14.
         case .heading: NSAccessibility.Role(rawValue: "AXHeading")
         case .link: .link
+        case .menu, .menuItem, .menuItemCheckBox, .menuButton, .popover: .group  // STUB (red first)
         }
     }
 

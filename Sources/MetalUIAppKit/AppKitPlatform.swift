@@ -635,6 +635,12 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         return true
     }
 
+    /// Declines, for now (ruling `MN-S`): the interim answer until lane 2's
+    /// native `NSMenu` lands, so `Window` draws its in-window menu here too.
+    func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
+        false
+    }
+
     /// Starts an `NSDraggingSession` from `event` — the host view's own in
     /// production; a test injects a recorder (ruling `DN-X` item 1).
     lazy var startDraggingSession: @MainActor ([NSDraggingItem], NSEvent) -> Void = { [weak self] items, event in

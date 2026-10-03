@@ -314,6 +314,14 @@ public struct Handlers {
     /// SwiftUI agrees, probe `R6e`).
     var dropDestination: DropDestinationTarget?
 
+    // MARK: Context menu and help (menus, popovers and tooltips, ruling `MN-Q`)
+
+    /// The element's `.contextMenu` closure and `.help` text, or `nil` — the
+    /// sixteenth member, one reference (a class box) for `IX-N`'s Windows stack
+    /// budget: 456 → 464 bytes (`MN-Q`). Registers a **non-opaque** contextual
+    /// region (`Frame.registerHandlers`), never a pointer target (`MN-V`).
+    var contextual: ContextualAttachment?
+
     /// No handlers: the element is not a pointer target, not focusable and has
     /// no key context.
     public init() {}
