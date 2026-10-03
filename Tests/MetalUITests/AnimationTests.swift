@@ -2706,6 +2706,58 @@ final class AnimationDriveModel {
         m.elementID = ElementID("site")
         return m
     }
+
+    // **1.21** (colour lane 1, `CR-H` item 3): the same five sites with
+    // LITERAL colours, blue (0, 0, 1) -> orange (1, 0.5, 0). Hand-derived:
+    // blue is HSL (0.666667, 1, 0.5); the RGB midpoint (0.5, 0.25, 0.5) has
+    // max 0.5 (r), min 0.25, delta 0.25, l 0.375, s 0.25 / (1 - |0.75 - 1|) =
+    // 0.333333, h ((0.25 - 0.5) / 0.25 mod 6) / 6 + 1 = 0.833333. Mutation:
+    // snap whenever the declared colour is not token-backed -- these arms
+    // redden, the token arms above stay green (the separating property).
+    func checkLiteral<E: Element>(_ site: String,
+                                  _ make: @escaping @MainActor (Color) -> E) throws {
+        let table = StateTable()
+        let blue = Color(red: 0, green: 0, blue: 1), orange = Color(red: 1, green: 0.5, blue: 0)
+        let baseline = try painted(table, 0, make(blue))
+        expectColor(baseline, h: 0.666667, s: 1, l: 0.5, "\(site) literal: the resting baseline")
+        var started: Hsla?
+        try withAnimationThrowing(.linear(duration: 1)) {
+            started = try painted(table, 0, make(orange))
+        }
+        expectColor(started, h: 0.666667, s: 1, l: 0.5, "\(site) literal: the start frame reads its `from`")
+        let mid = try painted(table, 0.5, make(orange))
+        expectColor(mid, h: 0.833333, s: 0.333333, l: 0.375,
+                    "\(site) literal: this painting site does not animate a literal colour")
+    }
+    try checkLiteral("Box") { color in
+        var b = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(color)
+        b.elementID = ElementID("site")
+        return b
+    }
+    try checkLiteral("Stack") { color in
+        var s = Stack { Box() }.cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(color)
+        s.elementID = ElementID("site")
+        return s
+    }
+    try checkLiteral("Text") { color in
+        var t = Text("hi").background(color)
+        t.elementID = ElementID("site")
+        return t
+    }
+    try checkLiteral("ModifiedElement inner layer") { color in
+        var m = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4)))).background(color)
+            .padding(Edges(all: .pixels(Pixels(8))))
+        m.elementID = ElementID("site")
+        return m
+    }
+    try checkLiteral("ModifiedElement outermost layer") { color in
+        var m = Box().cssWidth(Pixels(40)).cssHeight(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4))))
+            .padding(Edges(all: .pixels(Pixels(8)))).background(color)
+        m.elementID = ElementID("site")
+        return m
+    }
 }
 
 /// **The composition the whole idle criterion turns on, and the one no
