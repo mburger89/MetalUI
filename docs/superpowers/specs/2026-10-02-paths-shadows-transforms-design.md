@@ -474,7 +474,7 @@ through the hit hitbox's inverse, `GX-P` item 3), and the handler wrappers
 | 2.2 | `positiveDegreesRotateClockwiseAboutTheAnchor` (T2) — 90° at `.topLeading` maps local (100, 0) to (0, 100) from the anchor | — | M2b: sign flipped |
 | 2.3 | `aUniformScaleAndAnOffsetAreFlattenedOnTheCPU` (T3, T6) — bounds mapped, `scene.transforms` empty | — | M2c: always a record |
 | 2.4 | `aNonUniformNegativeOrRotatingEffectIsARecord` (T4, T5) | — | M2d: non-uniform flattened |
-| 2.5 | `scaleEffectSizeEqualsXY` (T4b) and `offsetSizeEqualsXY` (T6c) | — | M2e: size form drops `height` |
+| 2.5 | `scaleEffectSizeEqualsXYAndOffsetSizeEqualsXY` (T4b, T6c — one test, both arms) | — | M2e: size form drops `height` |
 | 2.6 | `aZeroScaleDrawsNothing` (T5b) | — | M2f: zero scale emitted |
 | 2.7 | `effectsComposeInWrittenOrder` (T11) — rotation-then-offset and offset-then-rotation records differ by the predicted matrices, on both vocabularies | — | M2g: composition reversed |
 | 2.8 | `aClipInsideAnEffectTurnsWithItAndOneOutsideStays` (T7, T7b) | — | M2h: the clip not split at entry |

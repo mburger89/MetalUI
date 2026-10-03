@@ -163,9 +163,6 @@ struct Hitbox {
     }
 }
 
-/// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one
-/// reference (ruling `IX-L`; `IX-N`'s Windows stack budget) — never a `Shape`
-/// existential stored inline.
 /// What a hitbox registered inside render effects stores (ruling `GX-I`): the
 /// inverse of the composed map (window points → the declarer's local points),
 /// `nil` when the map is degenerate (a zero scale — the hitbox then contains
@@ -176,6 +173,9 @@ struct HitboxTransform {
     let outerClip: Bounds<Pixels>
 }
 
+/// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one
+/// reference (ruling `IX-L`; `IX-N`'s Windows stack budget) — never a `Shape`
+/// existential stored inline.
 final class ContentShape {
     private let geometryIn: @MainActor (Bounds<Pixels>) -> ShapeGeometry
 

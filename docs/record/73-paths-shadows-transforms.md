@@ -336,3 +336,57 @@ effect's scale (106 — needs a quantized scale ladder with an evicting atlas);
 (`GX-P` item 5); gradients, SF Symbols, colour glyphs. **Owed to CI on push**:
 Linux and Windows builds, `MetalUIPathTests` and the transform replay on
 llvmpipe and D3D12.
+
+## §11 Adversarial branch check (2026-10-02)
+
+Re-taken independently over `dc96395..8141567`:
+
+- After `swift package clean`, `swift build --build-system native --build-tests`
+  gives 0 `error:`, and the one `warning:` is SwiftPM's deprecation notice.
+  `swift build --build-tests` (the default build system) gives 0 `error:`
+  and 0 `warning:`.
+- The unfiltered `swift test --build-system native --no-parallel` prints
+  `Test run with 2227 tests in 3 suites passed after 119.365 seconds`, and
+  the `FR-J no-argument frame: succeeded=true` line is present.
+- Guards: `enabled(if: canTypecheck` reads **132** across `Tests/` against
+  128 at `dc96395`. Adding `theTypecheckGuardsRanWhereTheyAreRequired` gives
+  **133**.
+- `cmp CLAUDE.md AGENTS.md` is clean.
+- **Two mutations of the checker's own**, each run as a full unfiltered
+  suite, then restored with a clean `git status`:
+  - **C1**: `Hitbox.contains` tests the window point against the local rect
+    and skips `inverse.apply`. This reddens 6 tests:
+    `aRotatedHitboxIsHitWhereItIsDrawn`,
+    `aRotatedSquaresFrameCornerMissesAndItsTipHits`,
+    `aTapWrittenAfterAnEffectHitsTheTransformedFrame`,
+    `hoverAndGestureArenasFollowTheTransform`,
+    `pointConsumersReadTheDeclarersLocalPoint` and
+    `scaleAndOffsetMoveTheHitRegion` (16 issues).
+  - **C2**: `Rasterizer`'s even-odd branch clamps the winding as nonzero
+    does. This reddens 3 tests: `evenOddFillStyleEmptiesTheRing`,
+    `nonZeroFillsASameDirectionRingAndEvenOddEmptiesIt` and
+    `theRasterizerIsBitIdenticalEverywhere` (3 issues).
+- `docs/probes/demo-pixels/compare.sh` from `dc96395` to `8141567`: all
+  fourteen images read `differing=0` and the scenes are identical. The
+  controls are unchanged from `dc96395`'s own values.
+- `Replay --portable --record`: all 8 frames pass, and frame 7 has 0
+  differing pixels with 9 transforms. `PortableReplay --expect 8` on SDL's
+  Metal backend passes. `Backends/SDL` runs **24 + 57**.
+- A `swift:6.4-noble` container builds with 0 `error:`/`warning:` and runs
+  **199 + 22 + 21 + 31 + 18 + 6**.
+- The census reads **2086**, and the inventory and undocumented checks print
+  nothing.
+- No identity, hit-testing, accessibility or animation test file outside the
+  new ones was edited, and all of them stay green. Among them:
+  `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyBackgroundPaintingSiteAnimatesItsColour` and
+  `aPresentationsContainingBlockIsTheWindowWhateverSurroundsIt`.
+- The lock probe read locked (`displayAsleep main: 1`), so no real-window
+  capture was taken. Group Q stays owed to a human.
+- **Doc defects fixed**:
+  - Spec test row 2.5 named two tests that do not exist. It now names the
+    one test, `scaleEffectSizeEqualsXYAndOffsetSizeEqualsXY`.
+  - In `Hitbox.swift`, `ContentShape`'s doc comment had been separated from
+    its class by the new `HitboxTransform` declaration. It is now back above
+    `ContentShape`, and the change is comment-only.
