@@ -39,7 +39,8 @@ summary.
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), …; the full
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
+  `2026-10-03-colour-decisions.md`, next `CR-AC`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -52,9 +53,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **82 live, next label 116**; retired labels are
+  live SwiftUI difference — **86 live, next label 120**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–P, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–S, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -74,8 +75,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-03, `feat/menus-popovers` from `b9da519`): 2328
-  tests, 0 goldens, 142 typecheck guards** (2227 + 101 tests, 133 + 9 guards;
+- **Counts (2026-10-03, `feat/colour` from `30a3dbf`): 2376
+  tests, 0 goldens, 147 typecheck guards** (2328 + 48 tests, 142 + 5 guards;
+  `Backends/SDL` 24 + 63; census 2305; Linux container
+  199 + 22 + 36 + 31 + 18 + 6, record §75 §2). Before it,
+  `feat/menus-popovers` from `b9da519`: 2328 / 0 / 142 (2227 + 101 tests, 133 + 9 guards;
   `Backends/SDL` 24 + 62; census 2206; Linux container
   199 + 22 + 21 + 31 + 18 + 6, unmoved, record §74 §6). Before it,
   `feat/paths-shadows-transforms` from `dc96395`: 2227 / 0 / 133 (2124 + 103 tests, 129 + 4 guards;
@@ -90,7 +94,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74.
+  merge), §72, §73, §74, §75.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -156,7 +160,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool` — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
@@ -508,6 +512,26 @@ non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
 cannot follow a legacy `.popover` (divergence 115).
 
+**Colour and colour scheme (`CR-`, record §75).** `Color` is SwiftUI's **value**
+(`Color.swift`: literals are gamma sRGB, drawn on the P3 layer like a token,
+divergence 1; 24 bytes, nonisolated; `opacity(_:)` multiplies; `Color(light:dark:)`,
+a palette `Color(Key.self)` and a token `Color(.surface)` never fade on a scheme
+switch). Every colour-taking site has a `Color` implementation **and** a
+`@_disfavoredOverload` `ColorToken` twin forwarding `Color(token)` — a new site
+owes both, or `.background(.surface)` is ambiguous (guards 1.24/1.25); `Element`
+stays on `Color`'s `@MainActor` extension, never its primary declaration
+(`CR-D`, `CR-W` 2). **One resolution function**, `PaintPass.resolve(_:)`, reads
+the element's scoped theme and scheme; no renderer or shader change. An app
+palette is a `ThemeColorKey` (`Theme[key]`, part of `Theme`'s equality); the nine
+built-in tokens keep the exhaustive switch. **The window stamps
+`EnvironmentValues.colorScheme` (never a `Window.environment` write: that
+dirties every draw) and selects `lightTheme`/`darkTheme`**; `.preferredColorScheme`
+is window-wide, collected during the element walk, and reaches the platform
+through the defaultless `PlatformWindow.setPreferredColorScheme(_:)` (SDL records
+only, `CR-M`). A scheme from the tree is in the first presented frame: two
+ordinary builds, the second snapping every change (`CR-Q`, `CR-Z`). `Appearance`
+is a typealias of `ColorScheme`.
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -620,7 +644,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (82 live, next label 116). A new
+- **Divergences**: `docs/divergences.md` (86 live, next label 120). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

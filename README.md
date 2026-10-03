@@ -389,6 +389,14 @@ AppKit menu bar, `.popover(isPresented:/item:arrowEdge:content:)` and `.help` on
 vocabularies — a secondary press never presses a `Button` (divergence 110). The real
 looks are `docs/verification/human-checks.md` group R, unrun.
 `METALUI_MENUS_DEMO=1 swift run MetalUIDemo` is its demo.
+**Colour and colour scheme** (user request 2026-10-02, not a plan task; record §75):
+`Color` is SwiftUI's value — `Color(red:green:blue:)`, `Color(white:)`, the named
+statics, `.opacity(_:)`, `Color(light:dark:)` and an app palette in the theme
+(`ThemeColorKey`) — accepted wherever a `ColorToken` was; `@Environment(\.colorScheme)`
+is readable while building views and `.preferredColorScheme(_:)` forces a window's
+appearance (AppKit `NSWindow.appearance`; SDL follows the system theme). The real
+looks are `docs/verification/human-checks.md` group S, unrun.
+`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows them.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

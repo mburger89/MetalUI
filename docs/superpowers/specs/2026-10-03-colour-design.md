@@ -1,7 +1,7 @@
 # Colour and colour scheme — design
 
-**Status: design (2026-10-03).** User request 2026-10-02, an item of the
-gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-W` (critic revisions `CR-Q`…`CR-V`, §13; lane 1's findings `CR-W`) in
+**Status: LANDED (2026-10-03) — every agent-doable clause is built; the looks are owed to a human (human checks group S). Record §75.** User request 2026-10-02, an item of the
+gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-AB` (critic revisions `CR-Q`…`CR-V`, §13; lane findings `CR-W`…`CR-AB`) in
 [`../2026-10-03-colour-decisions.md`](../2026-10-03-colour-decisions.md).
 Record: `docs/record/75-colour.md`. Probes (new, outputs in their headers):
 `docs/probes/swiftui-colour.swift` (SwiftUI, run three times byte-identical),

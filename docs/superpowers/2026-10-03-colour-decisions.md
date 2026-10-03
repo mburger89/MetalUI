@@ -4,8 +4,7 @@ Rulings for colour values, colour scheme and an app palette in the theme
 (user request 2026-10-02, an item of the gpui-gap priority list; **not a plan
 task**). Spec:
 [`specs/2026-10-03-colour-design.md`](specs/2026-10-03-colour-design.md).
-Record: `../record/75-colour.md` (written at the Record phase; renumbered
-there if another line publishes §75 first). Evidence:
+Record: `../record/75-colour.md` (§75 stood: master published no later record). Evidence:
 [`../probes/swiftui-colour.swift`](../probes/swiftui-colour.swift) (**new**;
 arm ids `R…` literal initialisers, `N…` named statics, `O…` opacity, `Q…`
 equality, `D…` dynamic colours, `E…` the environment's scheme, `P…`
@@ -18,7 +17,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-AB`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AC`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -888,3 +887,23 @@ suite of 2376 tests, restored from a copy, `git status --short` empty after):
 **Cost if wrong.** A taller window than a small laptop screen shows; the
 content scrolls nowhere, so the bottom row would be cut — resize it.
 
+
+## CR-AB — The Record phase: the demo's scheme label is unpinned on purpose; the branch is closed (refines `CR-AA`, spec §6.3)
+
+**Ruling.**
+
+1. **The demo's `scheme:` label is covered by human checks S2 and S3 only.**
+   The lane 3 verifier's mutation M3.4 (`LooksSchemeLabel` shows the constant
+   `scheme: light`) left the full suite green. Pinning it needs a reader of a
+   scene's text runs that no demo test has; the behaviour underneath — a view
+   reading `@Environment(\.colorScheme)` while building, following an
+   appearance change and a preference — is pinned by `ColorSchemeTests`
+   (2.1–2.12). Not fixed, recorded (record §75 §6).
+2. **Counts at close**: 2328 → 2376 tests (+25 lane 1, +22 lane 2, +1 lane 3),
+   142 → 147 typecheck guards, `Backends/SDL` 24 + 62 → 24 + 63, 86 live
+   divergences (next label 120), Linux container 199 + 22 + 36 + 31 + 18 + 6.
+3. **`CLAUDE.md` carries the rules only**: the `CR-` prefix and one paragraph;
+   everything else is record §75.
+
+**Cost if wrong.** Item 1: a demo label could regress unseen until a human
+runs S2/S3.
