@@ -31,7 +31,7 @@ public enum AppError: Error, CustomStringConvertible {
 /// `TextSystem`, which a non-Apple build must supply (it has no CoreText).
 @MainActor
 public final class App {
-    private let platform: any Platform
+    let platform: any Platform
     private var windows: [Window] = []
     /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
@@ -66,6 +66,7 @@ public final class App {
         self.makeTextSystem = textSystem
         self.platform = AppKitPlatform(renderer: try Renderer(device: device))
         self.terminatesThroughAppKit = true
+        installMenuBar()   // MN-I item 4: every app has the default bar
     }
 
     /// An app on `platform` — the SDL platform on macOS too — drawing text
@@ -75,6 +76,7 @@ public final class App {
         self.makeTextSystem = textSystem
         self.platform = platform
         self.terminatesThroughAppKit = platform is AppKitPlatform
+        installMenuBar()   // MN-I item 4
     }
     #else
     /// An app on `platform` — `Backends/SDL`'s `SDLPlatform` — drawing text
@@ -84,6 +86,7 @@ public final class App {
         self.makeTextSystem = textSystem
         self.platform = platform
         self.terminatesThroughAppKit = false
+        installMenuBar()   // MN-I item 4
     }
     #endif
 
@@ -107,10 +110,15 @@ public final class App {
                             startsDisplayLink: startsDisplayLink,
                             textSystem: makeTextSystem?(),
                             content: content)
-        // Closing the last window must end the process: there is no app delegate
-        // and no menu bar anywhere in the framework, so this close button is the
-        // only way out. AppKit's run loop is ended here; SDL's `run()` returns
-        // on its own once its last window has closed.
+        // A command's shortcut reaches this window's command stage (ruling
+        // `MN-J`), evaluated afresh at each keystroke that gets that far.
+        window.commandShortcuts = { [weak self] in self?.enabledCommandShortcuts() ?? [] }
+        // Closing the last window must end the process: there is no app
+        // delegate, so on SDL this close button is the only way out (AppKit's
+        // menu bar also has Quit since `MN-I` — this comment's earlier "no menu
+        // bar anywhere in the framework" is corrected). AppKit's run loop is
+        // ended here; SDL's `run()` returns on its own once its last window has
+        // closed.
         let terminates = terminatesThroughAppKit
         platformWindow.onClose = {
             #if canImport(AppKit)

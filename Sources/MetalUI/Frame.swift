@@ -1391,6 +1391,7 @@ public final class Frame {
         var declaration = handlers.axNode
         declaration.logicalIndex = nil
         declaration.selectionHint = false
+        declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1533,6 +1534,23 @@ public final class Frame {
     /// spec §3.1): `Window`'s keyboard and accessibility openers' table
     /// (`MN-G`). Frame-scoped, never `StateTable`.
     private(set) var contextMenuRecords: [GlobalElementID: ContextMenuRecord] = [:]
+
+    /// The presentation anchors this frame's elements recorded, by element, in
+    /// window points (spec §3.4): `Window.lastPresentationAnchors` after the
+    /// frame. Frame-scoped, never `StateTable`.
+    private(set) var presentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The window's handle a pull-down presents through (spec §3.4); `nil` for
+    /// a frame rendered without a window.
+    var menuPresenter: MenuPresenter?
+
+    /// Records `bounds` (this element's, in the current offset) as `id`'s
+    /// presentation anchor, in window points.
+    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>) {
+        presentationAnchors[id] = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                       y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                         size: bounds.size)
+    }
 
     /// Set by a collecting `List` whose window is unbounded only because its
     /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`

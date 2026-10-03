@@ -759,6 +759,14 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // The app's commands (ruling `MN-J`): directly after a `Button`'s
+            // shortcut, so a keystroke both claim fires the button alone, and
+            // before Tab traversal. **Migration**: a key a command binds no
+            // longer reaches Tab traversal or the window's own `onInput`.
+            if self.dispatchCommandShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Tab and shift-Tab move focus (ruling TI-J) — last of the key
             // stages, so a keymap binding, a field and a raw `onKey` all see
             // the key first.
@@ -1140,6 +1148,7 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
+        frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
         if let session = dragSession {   // the drag preview (DN-J)
             frame.dragSourceID = session.sourceID
             frame.dragPreviewTranslation = session.translation
@@ -1167,6 +1176,7 @@ public final class Window {
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
+        lastPresentationAnchors = frame.presentationAnchors
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         lastEffectScopesPushed = frame.effectScopesPushed
         if let captured = frame.dragSnapshot, dragSession != nil {
@@ -1618,6 +1628,30 @@ public final class Window {
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
     /// command stage. `nil` for a window built without an `App`.
     var commandShortcuts: (@MainActor () -> [(KeyboardShortcut, @MainActor () -> Void)])?
+
+    /// Runs the first enabled command shortcut, in menu order, that `event`
+    /// matches (`MN-J` item 1), from input — exact modifiers, as a `Button`'s
+    /// (`IX-F` item 2). `false` for a window with no app or no match.
+    func dispatchCommandShortcut(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event, let shortcuts = commandShortcuts?(),
+              let match = shortcuts.first(where: { $0.0.matches(key) }) else { return false }
+        match.1()
+        return true
+    }
+
+    /// The anchors the last frame recorded, by element, in window points (spec
+    /// §3.4, `MN-AD`): a `Menu`'s bounds today, a popover's anchor in lane 3.
+    /// The window-owned anchor map; frame-scoped, never `StateTable`.
+    var lastPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// The handle every frame hands its pull-down menus (spec §3.4).
+    var menuPresenter: MenuPresenter {
+        if let existing = menuPresenterStorage { return existing }
+        let made = MenuPresenter(window: self)
+        menuPresenterStorage = made
+        return made
+    }
+    private var menuPresenterStorage: MenuPresenter?
 
     /// The last menu token handed out; each presentation takes the next.
     var lastMenuToken = 0

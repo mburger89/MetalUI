@@ -48,8 +48,20 @@ extension Menu: Element, StyledElement {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,
                                   pass: inout PrepaintPass) -> Button<Pair<Label, Text>>.PrepaintState {
-        // Lane 2 red stub: the button opens nothing yet.
-        layout.button.handlers = handlers
+        // The button's action opens the menu, anchored at this frame's bounds
+        // (`MN-H` item 1): a click, Space/Return when focused, an
+        // accessibility press — and none of them while disabled, `Button`'s
+        // one gate. The menu's own open replaces a caller's `onClick`.
+        let presenter = pass.frame.menuPresenter
+        let isEnabled = pass.frame.environmentTop.isEnabled
+        let content = content
+        pass.frame.recordPresentationAnchor(id, bounds: bounds)
+        var composed = handlers
+        composed.onClick = { [weak presenter] in
+            presenter?.openPullDown(id, isEnabled: isEnabled, content: { MenuItems([content()]) })
+        }
+        composed.axNode.menuButtonHint = true   // M1: AXMenuButton (MN-H item 2)
+        layout.button.handlers = composed
         return layout.button.prepaint(id, bounds: bounds, layout: &layout.inner, pass: &pass)
     }
 
@@ -60,6 +72,14 @@ extension Menu: Element, StyledElement {
 }
 
 extension Window {
-    /// Presents `id`'s pull-down menu (`MN-H` item 1) — lane 2 red stub.
-    func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, content: @escaping @MainActor () -> MenuItems) {}
+    /// Presents `id`'s pull-down menu at its bottom-leading corner (`MN-H`
+    /// item 1): natively there when the platform shows menus, else the drawn
+    /// panel below it — the context menu's own path (`MN-C`, `MN-F`), its items
+    /// evaluated now, under `id`'s dispatch. Nothing without an anchor.
+    func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, content: @escaping @MainActor () -> MenuItems) {
+        guard let bounds = lastPresentationAnchors[id] else { return }
+        let record = ContextMenuRecord(attachment: ContextualAttachment(menu: content, help: nil),
+                                       isEnabled: isEnabled, bounds: bounds)
+        _ = openContextMenu(of: id, record)
+    }
 }

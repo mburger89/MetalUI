@@ -1,7 +1,7 @@
 # Menus, popovers and tooltips — design
 
 **Status: design (2026-10-02), revised by the critic round (2026-10-02,
-rulings `MN-U`…`MN-AD`, §11) and by lane 1 (`MN-AE`).** User request 2026-10-02, an item of the
+rulings `MN-U`…`MN-AD`, §11), by lane 1 (`MN-AE`) and by lane 2 (`MN-AF`).** User request 2026-10-02, an item of the
 gpui-gap priority list; **not a plan task**. Rulings `MN-A`…`MN-AD` in
 [`../2026-10-02-menus-popovers-decisions.md`](../2026-10-02-menus-popovers-decisions.md).
 Record: `docs/record/74-menus-popovers.md`. Probes:
@@ -225,7 +225,8 @@ extension Menu where Label == Text {
 
 ```swift
 public protocol Commands { /* one @_spi(MenuInternals) requirement */ }
-@resultBuilder public enum CommandsBuilder { /* buildBlock, buildOptional, buildEither */ }
+@resultBuilder public enum CommandsBuilder { /* buildExpression, buildBlock, buildOptional, buildEither */ }
+public struct CommandItems: Commands { }   // what a block builds (MN-AF item 2)
 public struct CommandMenu<Content: MenuContent>: Commands {
     public init(_ name: String, @MenuContentBuilder content: @escaping @MainActor () -> Content)
 }
@@ -337,6 +338,7 @@ is published and its ids accepted **even under modal isolation** (`MN-AB`).
 
 ### 3.4 `Menu` pull-down (lane 1)
 
+(`MN-AF` items 1, 5, 6 settle the keys, the role hint and the anchor map.)
 `Menu` wraps `Button`'s chrome (`Button(action:label:)` with the label plus a
 `⌄` text) and sets `role` on its declared node to `.menuButton`. Its action,
 running from input, asks the window to present its items anchored at its own
@@ -536,7 +538,7 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.30 | `aShowMenuRequestOpensTheElementsMenu` (C11) | only a menu-bearing node advertises `.showMenu`; the request presents at its bottom-leading corner | advertise `.showMenu` on every node |
 | 1.30b | `aDisabledElementAdvertisesNoShowMenuButTheRequestOpensItsMenuDisabled` (`MN-AE` item 3, fix round) | a `.disabled(true)` element's node lacks `.showMenu`; `.showMenu(node)` still opens its menu, every item disabled | advertise regardless of `isEnabled`; refuse a disabled record |
 | 1.31 | (**lane 2**, `MN-AD`) `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` (M1) | role `.menuButton`; click presents at bounds' bottom-leading | present at the pointer |
-| 1.32 | (**lane 2**) `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | keys open; `.disabled(true)` does not | ignore the disabled gate |
+| 1.32 | (**lane 2**) `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | `Button`'s keys open (Space; Return off Apple only, `MN-AF` item 1); `.disabled(true)` does not | ignore the disabled gate |
 | 1.33 | `handlersGainsOneReferenceMember` | `MemoryLayout<Handlers>.size == 464` (and `AccessibilityModifierTests`' existing bound raised by 8, `MN-AC`) | store the closure and help string inline |
 | 1.35 | `aContextMenuUnderAllowsHitTestingFalseDoesNotOpen` (C13, `MN-U`) | no `presentMenu`; the press unclaimed; the show-menu action still advertised | register the region outside the gate |
 | 1.36 | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath` (114) | a background-only `Box` over the region: menu opens | require a hitbox owned by the region's element or a descendant |

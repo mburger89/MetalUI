@@ -127,11 +127,17 @@ public final class SDLPlatform: Platform {
     }
 
     /// The menu bar `App` last installed (ruling `MN-I` item 3), read by a
-    /// test. Lane 2 red stub: not stored yet.
+    /// test.
     private(set) var menuBar: PlatformMenuBar?
 
-    /// Lane 2 red stub.
-    public func setMenuBar(_ menuBar: PlatformMenuBar) {}
+    /// Records the menu bar and draws nothing (ruling `MN-I` item 3): SDL3 has
+    /// no menu-bar API, and Linux and Windows SDL windows show none. A
+    /// command's keyboard shortcut still works — `Window`'s command stage
+    /// (`MN-J`) needs no platform menu. An in-window menu bar is deferred,
+    /// owner none.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) {
+        self.menuBar = menuBar
+    }
 
     /// Builds one surface for the stored icon, sets it on `targets` and
     /// destroys it at once (`SDL_SetWindowIcon` keeps its own copy), so no

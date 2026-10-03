@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AF`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AG`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -986,3 +986,74 @@ answer; item 6 is the panel's own keyboard rule.
 `MarkChar` method in a future SDK would replace the value). The rest are one
 function each, pinned by tests 1.30, 1.34, 1.35 and 1.24.
 
+
+---
+
+# Lane 2 (2026-10-02)
+
+## MN-AF — What lane 2 settled in building AppKit, the menu bar and the pull-down (amends MN-H item 1, MN-I, MN-C, spec §2.5, §3.4–§3.6, test 1.32)
+
+**Ruling.**
+
+1. **A `Menu` opens from `Button`'s activation keys, not "Space/Return"**:
+   the pull-down is `Button`'s chrome and keys (`MN-H` item 1), and
+   `ControlKeys.activatesButton` (`DD-R`) is Space on a Mac and Space or
+   Return elsewhere — macOS's Return presses the default button, not the
+   focused one. `MN-H` item 1's "Space/Return when focused" is amended to that
+   table; test 1.32 asserts Space opens it and Return does so only off Apple
+   (found by running: the spec's reading was red on this machine).
+2. **`CommandsBuilder`'s result type is `CommandItems`** (public, `MenuItems`'s
+   shape): a result builder's block must build a public type conforming to
+   `Commands`, which spec §2.5's sketch did not name.
+3. **The menu bar's ids are numbered depth-first in menu order at every
+   evaluation** (`MenuBarModel`), a group's standard items before its
+   additions; `PlatformMenuBar.perform` runs the action of the **last**
+   `content()` evaluation. AppKit's `menuNeedsUpdate` re-evaluates for the
+   menu about to open, so the open menu's tags are always the current
+   evaluation's; a closed menu's key equivalents carry the ids of its last
+   build, which equal the current ones whenever the commands' structure (not
+   only their state) is unchanged. A command whose structure changes between
+   evaluations (an `if` in the builder) and whose key the main menu — not the
+   window — dispatches may run the item now at that id; the window's command
+   stage (`MN-J`), the path every key reaches first, evaluates afresh and has
+   no such window. Owner none.
+4. **A separator joins two non-empty groups of a menu** (the PLAIN arm's
+   separators between About, the visibility group and Quit; between Undo/Redo
+   and the pasteboard group; between Minimize/Zoom and Bring All to Front), and
+   File's Close is a fixed group after `.newItem`'s. An empty Help group drops
+   the Help menu.
+5. **The pull-down's open replaces a caller's `.onClick` on the `Menu`**, as a
+   caller's `.onClick` replaces a `Button`'s action the other way round: the
+   menu's whole point is opening. Its `⌄` indicator is a `Text` marked
+   `.accessibilityHidden(true)`, so the button reads as its title alone (M1
+   publishes no label; MetalUI's folded label is the title). The `.menuButton`
+   role rides an internal `AXNode.menuButtonHint`, stripped before
+   `isEmpty`'s gate as `selectionHint` is (`DD-U` item 4), so it writes no
+   `$ax` slot and moves no retention.
+6. **The window-owned anchor map is `Window.lastPresentationAnchors`**, copied
+   from the frame's `presentationAnchors` after each frame (window points, as
+   `contextMenuRecords`' bounds are); a `Menu` records its bounds in
+   `prepaint`. A frame reaches its window through a `MenuPresenter` handle
+   (weak), handed to each frame as `ScrollViewProxy`'s queue is. Lane 3
+   extends the map for popovers.
+7. **AppKit seams are test-replaceable closures on `AppKitWindow`**:
+   `menuPresenter` (production `NSMenu.popUp(positioning:at:in:)` in the
+   flipped host view, so MetalUI's point is the view's) and
+   `scheduleMenuOutcome` (production the next main-actor turn,
+   `Task { @MainActor }`), and `MetalHostView.currentEvent` (production
+   `NSApp.currentEvent`). The production defaults are pinned by no test — a
+   locked session cannot run AppKit's tracking loop; human check R1.
+8. **Identity is the reading of AppKit's dispatch, not a measurement**: the
+   host view assumes AppKit hands the same `NSEvent` object to
+   `performKeyEquivalent(with:)` and then `keyDown(with:)` (and leaves it
+   `NSApp.currentEvent` while the main menu runs a matched item), the reading
+   `MN-J` item 3 and `MN-AA` rest on. If a real session shows a copy instead,
+   a ⌘-key the window declined is delivered twice — human check R4.
+
+**Reasoning.** Item 1 keeps `Menu` exactly `Button`'s keyboard citizen (one
+table, `DD-R`). Items 2–8 make the spec's sentences concrete; none moves an
+existing answer.
+
+**Cost if wrong.** Item 1 is one argument (`ControlKeys`' platform); item 3 a
+stale id in an edge no test reaches; items 7–8 are what human checks R1/R4
+look at.

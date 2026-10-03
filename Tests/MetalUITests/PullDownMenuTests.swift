@@ -75,10 +75,11 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     withExtendedLifetime(window) {}
 }
 
-/// **1.32** (`MN-H` item 1, `DD-R`). A focused `Menu` opens from Space and
-/// from Return (macOS's `Button` keys); a `.disabled(true)` one is not
-/// focusable, and neither a click, Tab then Space, nor an accessibility press
-/// opens it. Mutation: ignore the disabled gate.
+/// **1.32** (`MN-H` item 1 as amended by `MN-AF`, `DD-R`). A focused `Menu`
+/// opens from `Button`'s activation keys — Space on a Mac, not Return
+/// (`ControlKeys.activatesButton`; Return too off Apple); a `.disabled(true)`
+/// one is not focusable, and neither a click, Tab then Space, nor an
+/// accessibility press opens it. Mutation: ignore the disabled gate.
 @MainActor
 @Test func aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled() throws {
     let (window, platform) = try pullDownWindow { Menu("Actions") { Button("A") {} } }
@@ -87,8 +88,10 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     window.drawFrameIfNeeded()
     try #require(window.focusedElement != nil, "Tab focused the menu button")
     platform.simulateInput(key(" "))
+    #expect(platform.presentedMenus.count == 1, "Space opens the menu")
     platform.simulateInput(key("\r"))
-    #expect(platform.presentedMenus.count == 2, "Space and Return each open the menu")
+    #expect(platform.presentedMenus.count == (TextEditing.platform == .mac ? 1 : 2),
+            "Return opens it only where it presses a Button (off Apple)")
 
     let (disabled, disabledPlatform) = try pullDownWindow {
         Box { Menu("Actions") { Button("A") {} }.disabled(true) }.frame(width: px(400), height: px(400))

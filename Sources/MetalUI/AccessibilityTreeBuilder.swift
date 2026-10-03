@@ -620,6 +620,8 @@ enum AccessibilityTreeBuilder {
         if traits.contains(.isLink), plain.contains(role) || role == .button { role = .link }
         if traits.contains(.isButton), plain.contains(role) { role = .button }
         if traits.contains(.isHeader), plain.contains(role) { role = .heading }
+        // `Menu`'s pull-down button (`MN-H` item 2, M1): a button with the hint.
+        if node.record.declared.menuButtonHint, role == .button { role = .menuButton }
         return role
     }
 }
