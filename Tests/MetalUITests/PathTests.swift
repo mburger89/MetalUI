@@ -220,6 +220,31 @@ private let linear1 = Animation.linear(duration: 1)
     let o = hitbox.bounds.origin
     #expect(hitbox.contains(gxPoint(o.x.value + 20, o.y.value + 80)), "inside the triangle hits")
     #expect(!hitbox.contains(gxPoint(o.x.value + 80, o.y.value + 20)), "the box's other corner misses")
+    // Even-odd (`GX-D`, `GX-V`): a ring's hole misses, its band hits — the
+    // shape's own fill style reaches the hit test, and `Path.contains` honours
+    // `eoFill:` directly. Mutation **MV13**: `eoFill` ignored in `contains`.
+    let ringFrame = effectFrame(Box().frame(width: Pixels(100), height: Pixels(100)).background(.accent)
+        .onClick {}.contentShape(GXEvenOddRing()))
+    let ring = try #require(ringFrame.hitboxes.first { $0.handlers.onClick != nil }, "the ring's tap registered")
+    let r = ring.bounds.origin
+    #expect(!ring.contains(gxPoint(r.x.value + 50, r.y.value + 50)), "the even-odd hole misses")
+    #expect(ring.contains(gxPoint(r.x.value + 10, r.y.value + 10)), "the band hits")
+    #expect(!gxRing.contains(gxPoint(50, 50), eoFill: true) && gxRing.contains(gxPoint(50, 50)),
+            "Path.contains: even-odd empties the hole, nonzero fills it")
+}
+
+/// Two same-direction squares: a ring under even-odd, solid under nonzero.
+let gxRing = Path { p in
+    p.addRect(gxRect(0, 0, 100, 100))
+    p.addRect(gxRect(25, 25, 50, 50))
+}
+
+/// A shape whose geometry is `gxRing` filled even-odd, at `rect`'s origin
+/// (`geometry(in:)` answers in the rect's own space, unlike `path(in:)`).
+struct GXEvenOddRing: Shape {
+    func geometry(in rect: Bounds<Pixels>) -> ShapeGeometry {
+        .path(gxRing.offsetBy(dx: rect.origin.x, dy: rect.origin.y), style: FillStyle(eoFill: true))
+    }
 }
 
 // MARK: - 3.10 (divergence 91)

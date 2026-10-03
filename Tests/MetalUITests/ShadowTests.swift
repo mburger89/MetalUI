@@ -127,11 +127,9 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
 @Test @MainActor func aShadowIsCutByAnOuterClipAndShapedByAnInnerOne() throws {
     let outer = gxImages(effectFrame(square().shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))
         .clipped()).finalizedScene())
-    for entry in outer {
-        let b = entry.image.bounds
-        #expect(b.origin.x >= 80 && b.origin.y >= 80 && b.origin.x + b.size.width <= 120
-                && b.origin.y + b.size.height <= 120, "cut to the box: \(gxDescribe(b))")
-    }
+    try #require(outer.count == 1, "one cut shadow: \(outer.count)")
+    #expect(gxDescribe(outer[0].image.bounds) == "(90.0, 90.0, 30.0×30.0)",
+            "cut to the box: \(gxDescribe(outer[0].image.bounds))")
     let inner = gxImages(effectFrame(Color(.accent).frame(width: px(80), height: px(80))
         .frame(width: px(40), height: px(40)).clipped()
         .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene())
@@ -168,6 +166,18 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     #expect(shadowed.axEmissions.count == plain.axEmissions.count
             && zip(shadowed.axEmissions, plain.axEmissions).allSatisfy { $0.geometry.frame == $1.geometry.frame },
             "the same accessibility records")
+    // A shadow opens no prepaint scope (`GX-V` item 7): a window holding only
+    // shadows, on both vocabularies, pushes no effect scope (2.21's counter).
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, _) = try makeFakeWindow(device: device, size: 200) {
+        Column {
+            VStack { square().shadow(radius: px(10), x: px(10), y: px(10)) }
+            fxLegacyBar(40, 40).shadow(radius: px(10), x: px(10), y: px(10))
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(gxImages(window.lastScene).count == 2, "control: both shadows drew")
+    #expect(window.lastEffectScopesPushed == 0, "no scope for a shadow: \(window.lastEffectScopesPushed)")
 }
 
 // MARK: - 3.22 (SH11)
@@ -216,10 +226,30 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
 /// texel's colour lies between the two tokens'. Mutation **M3w**: the radius
 /// snaps.
 @Test @MainActor func shadowColourRadiusAndOffsetAnimate() throws {
-    let h = TransitionHarness()
     func tree(_ on: Bool) -> some Element {
         square().shadow(color: on ? .accent : .textPrimary, radius: px(on ? 10 : 0), x: px(on ? 20 : 0), y: px(0))
     }
+    try expectHalfWayShadow(tree)
+}
+
+/// **3.24b** (`GX-V` item 7). The legacy `.shadow` animates the same way:
+/// radius and offsets on `$anim-effects`, the colour on
+/// `$anim-effects.shadow<k>`. Mutations **MV2** (the colour always the
+/// declared token) and **MV3** (`RenderEffectSpec.with(_:)` returning `self`
+/// for a shadow, so radius and offset snap).
+@Test @MainActor func aLegacyShadowsColourRadiusAndOffsetAnimate() throws {
+    func tree(_ on: Bool) -> ModifiedElement<Box<EmptyGroup>> {
+        fxLegacyBar(40, 40).shadow(color: on ? .accent : .textPrimary, radius: px(on ? 10 : 0),
+                                   x: px(on ? 20 : 0), y: px(0))
+    }
+    try expectHalfWayShadow(tree)
+}
+
+/// Half-way through `tree(false)` → `tree(true)` under `linear1`: the 40 × 40
+/// square at (80, 80)'s shadow is padded about 3 × 5, offset 10, and its
+/// colour lies between `.textPrimary` and `.accent`.
+@MainActor private func expectHalfWayShadow<E: Element>(_ tree: (Bool) -> E) throws {
+    let h = TransitionHarness()
     h.frame(0, nil, tree(false), side: 200)
     h.frame(0, linear1, tree(true), side: 200)
     let images = gxImages(h.frame(0.5, nil, tree(true), side: 200).finalizedScene())
@@ -312,4 +342,59 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     let record = landed.transforms[Int(square.transformIndex) - 1]
     #expect(abs(Double(record.a) - 0.5.squareRoot()) < 1e-3 && abs(Double(record.b) - 0.5.squareRoot()) < 1e-3,
             "turned 45°: a \(record.a) b \(record.b)")
+}
+
+// MARK: - 3.31 (GX-V item 5, GX-G)
+
+/// **3.31** (`GX-V` item 5). A `Deferred`'s barrier stops a shadow as it stops
+/// an effect: a legacy column shadowed as a whole casts one shadow, its
+/// in-flow bar's, and the presentation's box inside it casts none. Mutations
+/// **MV1** (`insertThroughScopes` lets a shadow past the barrier) and **MV1b**
+/// (`withoutRenderEffects` pushes no barrier when only a shadow is open).
+@Test @MainActor func aDeferredStopsAnEnclosingShadow() throws {
+    let scene = effectFrame(Column {
+        Box().frame(width: px(60), height: px(20)).background(.separator)
+        Deferred { Box().frame(width: px(50), height: px(30)).background(.accent) }
+    }
+    .frame(width: px(160), height: px(100))
+    .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene()
+    let bar = try #require(scene.rects.first {
+        abs($0.background.h - Theme.light[.separator].h) < 0.001 && $0.bounds.size.width == 60
+    }, "the in-flow bar")
+    try #require(scene.rects.contains { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 },
+                 "the presentation drew")
+    let images = gxImages(scene)
+    #expect(images.count == 1, "one shadow, the bar's: \(images.map { gxDescribe($0.image.bounds) })")
+    #expect(images.first.map { $0.image.bounds.origin.x == bar.bounds.origin.x + 10
+                && $0.image.bounds.size.width == 60 } == true,
+            "the bar's, offset 10: \(images.map { gxDescribe($0.image.bounds) }) for \(gxDescribe(bar.bounds))")
+}
+
+// MARK: - 3.32 (GX-V, AN-AE)
+
+/// **3.32**. A fading transition scales a path's and a shadow's alpha: half-way
+/// through a `.transition(.opacity)` insertion, a path view's solid texel and
+/// a shadowed square's shadow-only texel read about 128 (255 at rest).
+/// Mutations **MV6** (the `.path` arm of `RenderEffect.apply` ignores the
+/// alpha) and **MV6b** (the `.shadow` arm does).
+@Test @MainActor func aFadingTransitionScalesAPathsAndAShadowsAlpha() throws {
+    func midInsertion<E: ProposalElementGroup>(_ content: E) throws -> (rest: Int, mid: Int) {
+        func stage(_ shown: Bool) -> some Element {
+            ZStack {
+                Color(.surface).frame(width: px(200), height: px(200))
+                if shown { content.transition(.opacity) }
+            }
+        }
+        let h = TransitionHarness()
+        h.frame(0, nil, stage(false), side: 200)
+        h.frame(0, linear1, stage(true), side: 200)
+        let mid = gxImages(h.frame(0.5, nil, stage(true), side: 200).finalizedScene())
+        let rest = gxImages(effectFrame(stage(true)).finalizedScene())
+        try #require(mid.count == 1 && rest.count == 1, "one image each: \(mid.count), \(rest.count)")
+        return (gxAlpha(rest[0], 125, 125), gxAlpha(mid[0], 125, 125))
+    }
+    let path = try midInsertion(gxRectPath(0, 0, 60, 60).fill(.accent).frame(width: px(60), height: px(60)))
+    #expect(path.rest == 255 && abs(path.mid - 128) <= 2, "the path: rest \(path.rest), mid \(path.mid)")
+    let shadow = try midInsertion(square().shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10)))
+    #expect(shadow.rest == 255 && abs(shadow.mid - 128) <= 2, "the shadow: rest \(shadow.rest), mid \(shadow.mid)")
 }

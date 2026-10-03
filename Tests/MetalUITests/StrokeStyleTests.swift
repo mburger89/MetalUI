@@ -32,6 +32,14 @@ import MetalUIScene
     let nonZero = try alphas(nil)
     #expect(evenOdd.centre == 0 && evenOdd.band == 255, "even-odd: \(evenOdd)")
     #expect(nonZero.centre == 255 && nonZero.band == 255, "nonzero: \(nonZero)")
+    // A built-in filled without antialiasing goes through the CPU rasterizer
+    // (`paintShapeFill`'s branch): one image whose alphas are only 0 and 255.
+    // Mutation **MV8**: the non-antialiased branch disabled.
+    let aliased = gxImages(effectFrame(Circle().fill(.accent, style: FillStyle(antialiased: false))
+        .frame(width: Pixels(40), height: Pixels(40))).finalizedScene())
+    try #require(aliased.count == 1, "one image: \(aliased.count)")
+    let alphas = Set(stride(from: 3, to: aliased[0].texture.pixels.count, by: 4).map { aliased[0].texture.pixels[$0] })
+    #expect(alphas == [0, 255], "only 0 and 255: \(alphas.sorted())")
 }
 
 // MARK: - 3.8 (GX-E)
