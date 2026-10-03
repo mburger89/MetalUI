@@ -1,8 +1,8 @@
 # Lifecycle modifiers — onAppear, onDisappear, onChange — design
 
-**Status: DESIGNED (2026-10-03) — lanes 1 and 2 owed.** User request
+**Status: lane 1 IMPLEMENTED (2026-10-03, `LC-Q`) — lane 2 owed.** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
-Rulings `LC-A`…`LC-P` in (`LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts) in
+Rulings `LC-A`…`LC-Q` (`LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).
 Record: `docs/record/76-lifecycle.md` (Record phase). Probes (new, outputs in
 their headers): `docs/probes/swiftui-lifecycle.swift` (SwiftUI, run three
@@ -147,9 +147,8 @@ re-record `closeout-public-api.tsv`; both closeout scripts print nothing.
   impossible (one write per scope), so `note` merges into the entry for
   `Key` (a stacked pair has two depths, two keys).
   - `note(_:key:owner:)` (layout): occurrence, order, merge; for `.change`,
-    compare against `previous[key]?.change` with `isEqual` → a change event
-    (bucket 1) when different; first sighting with `initial` → bucket 2.
-    `lastFrameWork += 1`.
+    `lastFrameWork += 1`. (`LC-Q` item 4: the `onChange` comparison and the
+    `initial` first firing moved to `endFrame`.)
   - `endFrame(ghosts: [(key: GlobalElementID, position: GlobalElementID)],
     departed: DepartedState?)` — called by `Frame.render` **after
     `stateTable.sweep()`**: appearances = keys in `current` not in
@@ -158,7 +157,9 @@ re-record `closeout-public-api.tsv`; both closeout scripts print nothing.
     not in `current` with `onDisappear`: parked when the entry's owner equals
     or descends from a live ghost's position, else bucket 3 with `departed`
     attached; parked events whose ghost is no longer live run (key absent) or
-    are cancelled (key present again). Sort each bucket by descending order
+    are cancelled (key present again). **`LC-Q` item 2:** a live ghost holds
+    every key that left under it (`ParkedGhost.keys`), with or without an
+    `onDisappear`, and a held key present again cancels its appearance. Sort each bucket by descending order
     (bucket 3 by the previous build's order), append to `pending`; swap
     `current`→`previous`; clear `current`, `occurrences`. Early return when
     `current`, `previous` and `parked` are all empty. `lastFrameWork` adds
@@ -216,7 +217,8 @@ each live ghost's key and `key.parent!` (the group's position). Read after
   lastDrawBuildCount = 0` (incremented per `buildAndAdoptFrame`, reset at
   the top of `drawFrameIfNeeded`).
 - `@discardableResult private func drainLifecycle() -> Bool`: guard
-  `!isDrainingLifecycle`; take events; `let wasDirty = needsRedraw;
+  `!isDrainingLifecycle`; take events, and take again until none are left
+  (`LC-Q` item 3); `let wasDirty = needsRedraw;
   needsRedraw = false`; for each event:
   `stateTable.withDepartedOverlay(event.departed) {
   StateDispatch.dispatching(to: event.owner) { event.action() } }`; `let
@@ -256,7 +258,9 @@ piece is in `MetalUI`, which both platforms drive through
 | 122 | callback order | reverse pre-order except separately removed siblings (forward, `A2`); a lazy container's scroll order varies by run (`S1`, `S2`) | changes → appears → disappears, each reverse pre-order, always | `LC-F` | `removalRunsInReversePreOrderEvenForSeparatelyRemovedSiblings` |
 | 123 | content re-inserted during its removal transition | keeps the view and its state (`T4`) | runs neither callback (as SwiftUI) but its `@State` is fresh (`ID-C` reset it at removal) and its `onChange` compares against nothing on return (`LC-D` dropped the entry at removal; `LC-P` item 8) | `LC-H` | `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
 
-Header count moves 86 → 90 live, next label 124.
+| 124 | a `List`'s first frame | only rows in view appear (`S1`) | every row appears on the cold frame; the rows outside the measured window disappear on the next build | `LC-Q` item 1 | `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow` |
+
+Header count moves 86 → 91 live, next label 125 (`LC-Q` added 124).
 
 ## 5. Tests
 
@@ -277,6 +281,7 @@ Presence and identity:
 | 1.3 | `aChangedIdRunsTheNewAppearBeforeTheOldDisappear` | log `[appear 1, disappear 0]` (`E2`) | swap buckets 2 and 3 |
 | 1.4 | `hiddenTransparentZeroSizedAndClippedElementsAppear` | 4 appearances (`E3`–`E5`); opacity toggle fires nothing (`E4`) | note from `paintGroup` instead of layout (hidden nodes skip paint) |
 | 1.5 | `aListRowScrolledOutDisappearsReturnsAsAnAppearanceAndKeepsItsState` | out: disappear; back within 2 generations: appear and its `@State` value kept (`S1`, `TB-AH`) | exempt children of `noteWindowedParent` parents from disappearance |
+| 1.5b | `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow` | 12 appearances, 9 disappearances (rows 3…11) in the first `drawFrameIfNeeded`, nothing after (divergence 124, `LC-Q` item 1) | none of its own (the `List` cold-frame rule is outside the lane) |
 | 1.6 | `twoSiblingsSharingOneIdAppearTwice` | 2 appearances (divergence 72's shape) | drop `occurrence` from `Key` |
 | 1.7 | `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst` | `[a, b]` on insertion and removal (`A3`) | drop `depth` from the key |
 | 1.8 | `addingALifecycleModifierMovesNoIdentity` | recorded element ids and a nested `@State` equal with and without the scope | `cursor += 1` in `requestGroupLayout` |
@@ -369,7 +374,7 @@ Performance (branching tree, literals derived before the run):
 
 Expected count after both lanes (corrected by `LC-P` item 4: tests 10.2 and
 10.3 live in `Backends/SDL`, a separate package the 2376 does not count):
-2376 + 46 (lane 1: 43 tests + 3 guards) + 1 (lane 2's 10.1) = **2423 tests**
+2376 + 47 (lane 1: 44 tests with `LC-Q`'s 1.5b + 3 guards) + 1 (lane 2's 10.1) = **2424 tests**
 in the main package, `canTypecheck`-gated declarations 146 → 149;
 `Backends/SDL` + 2. Re-measure; a count is stale when a test lands.
 

@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-Q`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-R`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -530,3 +530,57 @@ reaches the `Component`'s `@State` (`ID-F`); every `Element` returns exactly
 one node (`Deferred` included), so item 1 changes nothing for a single
 element. `.task` stays deferred (`LC-L`): its probe re-ran identically on
 both platforms.
+
+## LC-Q — Lane 1's implementation findings: a List's first frame, cancellation under a ghost, the drain loop
+
+**Ruling.** Lane 1 implemented the design (`LifecycleTests` 1.1–8.2,
+`LifecycleCompileGuards` 9.1–9.3) and measured four places where it was
+incomplete or wrong. Each is fixed here and in the spec.
+
+1. **A `List`'s first frame appears every row — divergence 124.** `List`'s
+   cold-frame rule builds every row while its scroller has no measured viewport
+   (`List.visibleRange`, "building everything on that first frame costs one slow
+   frame instead of a flash"). Presence is membership in a build (`LC-C`), so
+   every row's `onAppear` runs on the first build and the rows outside the
+   window the next build measures run `onDisappear`. Measured: a 12-row list in
+   a 20-point viewport logs twelve appearances and nine disappearances (rows
+   3…11); when the rows' `onAppear` writes `@State`, both halves run inside the
+   first `drawFrameIfNeeded` (the settle build is the windowed one), else the
+   disappearances run on frame two. SwiftUI's lazy `List` creates only the rows
+   in view (`S1`). Not fixed here — the cold-frame rule is `List`'s, outside
+   `LC-O`'s files, and changing it re-opens the flash it exists to prevent;
+   recorded as divergence **124**, pinned by
+   `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow`
+   (test 1.5b, a forty-fourth lane-1 test). Tests 1.5 and 5.4 read the visit
+   count the row last wrote instead of a literal, because the cold frame adds
+   one appearance before the scroll.
+2. **`LC-H`'s cancellation must cover every key under the ghost, not only the
+   parked ones.** The design parked only disappearances that have an
+   `onDisappear`; a returning element's `onAppear` sits in a different scope
+   (another depth, or a descendant) whose key was never parked, so it ran on
+   re-insertion — measured by test 6.4: `log == ["appear"]` and the tile's
+   nested `@State` re-grown to 60 by its own `onAppear`. **Amended:** a live
+   ghost holds every key that left under it (`ParkedGhost.keys`, with or without
+   an `onDisappear`) plus its parked events; a held key present again cancels
+   its appearance (and `initial: true` firing) and its parked event. Kept only
+   while a ghost is live, so a tree with no transition holds nothing.
+3. **The drain loops until no events are left** (`LC-E` item 4). The design
+   took the events once; an action that draws a frame synchronously leaves that
+   build's events in the store, and a drain that took once would leave them for
+   a next frame that a clean window never draws (test 4.6). Each pass's events
+   come from a build that already happened, so the loop is bounded by the builds
+   the actions drew; the re-entrancy guard keeps the nested build's events for
+   the outer pass, after the action that drew it (test 4.6's order `[first
+   begin, first end, inserted]`).
+4. **`onChange` compares in `endFrame`, not in `note`.** One place builds all
+   three buckets, so an `initial: true` firing is subject to the same `LC-H`
+   cancellation as an appearance; the counted work is unchanged (`LC-M`: K
+   registrations, one visit per entry of each build).
+
+Also measured: the control arm of test 5.3 (an `if` removing a counter beside an
+`onDisappear`) keeps **4** departed values, not the 1 the design assumed — the
+subtree's other entries are kept too; the test asserts `> 0` there and `== 0`
+for the arm the ruling is about.
+
+**Cost if wrong.** Item 1 is a recorded divergence with an owner; items 2–4 are
+internal to `Lifecycle.swift` and `Window.drainLifecycle`.
