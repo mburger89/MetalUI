@@ -1,7 +1,7 @@
 # Colour and colour scheme — design
 
 **Status: design (2026-10-03).** User request 2026-10-02, an item of the
-gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-P` in
+gpui-gap priority list; **not a plan task**. Rulings `CR-A`…`CR-V` (critic revisions `CR-Q`…`CR-V`, §13) in
 [`../2026-10-03-colour-decisions.md`](../2026-10-03-colour-decisions.md).
 Record: `docs/record/75-colour.md`. Probes (new, outputs in their headers):
 `docs/probes/swiftui-colour.swift` (SwiftUI, run three times byte-identical),
@@ -152,7 +152,7 @@ Stored properties retyped to `Color`/`Color?` (`CR-E` 3): the list in §1.1's
 ### 2.6 Colour scheme (lane 2)
 
 ```swift
-extension EnvironmentValues { public var colorScheme: ColorScheme }    // A — stored field added by lane 1 (EnvironmentValues.swift is lane 1's), stamped by lane 2
+extension EnvironmentValues { public var colorScheme: ColorScheme }    // A — stored field added by lane 1 (EnvironmentValues.swift is lane 1's), stamped by lane 2; the theme variants are NOT environment fields (CR-S)
 extension ElementGroup {
     public func preferredColorScheme(_ colorScheme: ColorScheme?) -> EnvironmentScope<Self>   // A (CR-L)
 }
@@ -236,25 +236,29 @@ the `$anim-color` slot name — is unchanged. Re-measure
 `lightTheme` or `darkTheme` changes: `theme = colorScheme == .dark ? darkTheme
 : lightTheme` (the existing guarded `didSet` repaints). `colorScheme` itself
 is guarded. At each draw: `rootEnvironment.colorScheme = colorScheme` beside
-`controlActiveState`; the frame stamps root `lightTheme`/`darkTheme`
+`controlActiveState`; the frame **holds** the window's `lightTheme`/`darkTheme`
 (new `Frame.init` parameters defaulting to `.light`/`.dark`, so every
-existing `Frame(…)` test call compiles) the way it stamps `theme`.
+existing `Frame(…)` test call compiles) as frame fields, not environment
+fields (`CR-S`).
 
 `Frame.scopedValues(applying: .transform)`: after the transform, re-stamp
-`theme`, `lightTheme`, `darkTheme` from the top (as `theme` is today); then if
+`theme` from the top (as today); then if
 `values.colorScheme != environmentTop.colorScheme`, set `values.theme` to the
-new scheme's variant. `.theme(t)` sets `theme` only.
+frame's variant for the new scheme (`CR-S`). `.theme(t)` sets `theme` only.
 
 `preferredColorScheme` is an `EnvironmentWrite.preferredColorScheme(ColorScheme?)`
 case: values unchanged; in **both** `EnvironmentScope.requestGroupLayout` and
 `requestProposalGroupLayout`, `frame.withColorSchemePreference(value) { content }`:
 if `frame.preferenceScopeDepth == 0 && frame.preferredColorScheme == nil`,
-record `value`; depth `+= 1` around the content. Prepaint and paint do
-nothing. After `renderRoot(frame)`: if `framesDrawn == 0` and
-`frame.preferredColorScheme != treePreference`, apply it and rebuild **once**
-(a fresh `Frame` from the same inputs, the same parked transaction and
-`focusHandedIn`) before anything is adopted from the first; otherwise, on a
-change, apply it and `setNeedsRedraw()`.
+record `value` — into the main root's slot, or, while a presentation root is
+being laid out, the presentation slot; the main root's non-nil value wins
+(`CR-T`); depth `+= 1` around the content. Prepaint and paint do
+nothing. After `renderRoot(frame)`: if `framesDrawn == 0` and the collected
+preference changes the effective scheme, apply it, **adopt the first build in
+full** and run the build-and-adopt half once more inside the same
+`beginFrame()`; only the second build is published to accessibility and
+encoded (`CR-Q` — nothing is discarded); otherwise, on a change, apply it and
+`setNeedsRedraw()`.
 
 ### 3.5 Palette (`CR-N`)
 
@@ -451,7 +455,7 @@ any non-zero is a finding, not a re-baseline). `Expected.swift` unedited.
 
 | Lane | Model | Owns |
 |---|---|---|
-| **L1** colour value, palette, every colour-taking API | opus | `Sources/MetalUICore/ColorScheme.swift` (new), `Sources/MetalUICore/Appearance.swift` (deleted); `Sources/MetalUI/`: `Color.swift` (new), `NativeElements.swift`, `Theme.swift`, `EnvironmentValues.swift` (incl. the `colorScheme` field and the internal `lightTheme`/`darkTheme` fields lane 2 stamps), `Passes.swift`, `AnimatedColor.swift`, `ProposalAnimation.swift`, `ModifiedContent.swift`, `RenderEffects.swift`, `Shadow.swift`, `Box.swift`, `NativeModifiedContent.swift`, `ClipShape.swift`, `ShapeView.swift`, `Shape.swift`, `Text.swift`, `ProposalText.swift`, `TextField.swift`, `TextEditor.swift`, `TextModifiers.swift`, `TextStyleResolution.swift`, `NativeTappable.swift`, `ControlLook.swift`, `Picker.swift`, `Slider.swift`, `Button.swift`, `Stack.swift` (the last five only if the retyping forces it); tests §6.1 and any test the retyping breaks |
+| **L1** colour value, palette, every colour-taking API | opus | `Sources/MetalUICore/ColorScheme.swift` (new), `Sources/MetalUICore/Appearance.swift` (deleted); `Sources/MetalUI/`: `Color.swift` (new), `NativeElements.swift`, `Theme.swift`, `EnvironmentValues.swift` (the `colorScheme` field only — the variants are frame fields, `CR-S`), `Passes.swift`, `AnimatedColor.swift`, `ProposalAnimation.swift`, `ModifiedContent.swift`, `RenderEffects.swift`, `Shadow.swift`, `Box.swift`, `NativeModifiedContent.swift`, `ClipShape.swift`, `ShapeView.swift`, `Shape.swift`, `Text.swift`, `ProposalText.swift`, `TextField.swift`, `TextEditor.swift`, `TextModifiers.swift`, `TextStyleResolution.swift`, `NativeTappable.swift`, `ControlLook.swift`, `Picker.swift`, `Slider.swift`, `Button.swift`, `Stack.swift` (the last five only if the retyping forces it); tests §6.1 and any test the retyping breaks |
 | **L2** colour scheme, variants, preference, platform | opus | `Sources/MetalUIPlatform/Platform.swift`, `Sources/MetalUIAppKit/AppKitPlatform.swift`, `Sources/MetalUI/Window.swift`, `Frame.swift`, `EnvironmentScope.swift`, `App.swift`; `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`; `Tests/MetalUITests/Fakes.swift`, `TransactionCompileGuards.swift`, `MenuCompileGuards.swift`, `ControlStateCompileGuards.swift`, `DragAndDropCompileGuards.swift`, `ThemeTests.swift` (only if forced); `Tests/MetalUIPlatformTests/PlatformTests.swift`; tests §6.2 |
 | **L3** demo, docs, inventory, cross-platform verification | sonnet for docs/inventory, opus for the demo | `Sources/MetalUIDemoContent/LooksDemo.swift`, `Sources/MetalUIDemo/main.swift`; `docs/divergences.md`, `docs/migration.md`, `docs/api-overview.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-inventory-map.tsv`, `docs/probes/closeout-public-api.tsv`; tests §6.3 |
 
@@ -528,8 +532,10 @@ isolation cross module boundaries) and after L2 (new requirement).
   1.4), **118** (`Color.Resolved` clamped where SwiftUI keeps extended range,
   pin 1.6); amend **1** (literals share it, `CR-I`); the documented-absences
   table gains `displayP3`, asset-catalog colours, `ShapeStyle`/gradients
-  (already listed: extend the row), `tint`. Header count and next label
-  (119) updated.
+  (already listed: extend the row), `tint`. **119** (`.foregroundStyle(.secondary)`/`.primary`
+  resolve the `Color` statics where SwiftUI infers `HierarchicalShapeStyle`,
+  `CR-U`, probe `swiftui-colour-hierarchical.swift`). Header count and next
+  label (120) updated.
 - **`docs/migration.md`**: literals and `Color(light:dark:)`; palette keys;
   the stored properties' retyping (`CR-E` 3) with the `pass.resolve(_:)` /
   `Color(.token)` recipe; `Color(…).opacity(0.5)` is now a value (`CR-G`);
@@ -537,3 +543,26 @@ isolation cross module boundaries) and after L2 (new requirement).
   (`CR-M`); `Appearance` → `ColorScheme`.
 - **`docs/api-overview.md`**: a Colour section (values, statics, scheme,
   preference, palette).
+
+## 13. Critic revisions (2026-10-03, `CR-Q`…`CR-V`)
+
+The three committed probes were re-run: identical output. Revisions, each a
+ruling in the decisions doc; the sections above are edited to match:
+
+- **`CR-Q`** (§3.4): the first-frame preference adopts the first build and
+  builds again in the same `beginFrame()`; nothing is discarded. Test 2.11
+  gains a `StateTable`-entry arm.
+- **`CR-R`** (§2.2, §3.1): `Color` stores `Float`; NaN → 0 at init (a NaN
+  declared colour would compare unequal to itself every frame and keep the
+  display link awake through `advanceColor`); `MemoryLayout<Color>.size <= 24`
+  pinned; `Decoration`/`BorderStyle`/`Text`/`EnvironmentValues` sizes recorded
+  before and after. Lane 1 adds the NaN arm to 1.6 and
+  `aNaNColourSettlesAndLetsTheDisplayLinkPause`.
+- **`CR-S`** (§2.6, §3.4, §8): the light/dark variants are `Frame` fields, not
+  `EnvironmentValues` fields.
+- **`CR-T`** (§3.4): the main root's preference ranks before presentation
+  roots'. Test 2.9 gains arm `PR`.
+- **`CR-U`** (§12): divergence **119**, `.foregroundStyle(.secondary)` /
+  `.primary`; 1.15 gains the tinted-parent arm; next label 120.
+- **`CR-V`** (§6.2): 2.10 compares element-id sets with a following sibling;
+  new **2.22** `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`.

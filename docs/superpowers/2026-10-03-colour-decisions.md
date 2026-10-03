@@ -18,7 +18,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-Q`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-W`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -107,6 +107,8 @@ exactly SwiftUI's exposure; the demo and migration guide steer to
 `Color(light:dark:)` and palette keys.
 
 ## CR-C — The `Color` value: initialisers, storage, equality
+
+> **Revised by `CR-R`**: storage is `Float`, a NaN is stored as 0 at init, `MemoryLayout<Color>.size <= 24`.
 
 **Ruling.**
 
@@ -313,6 +315,8 @@ swapchain on SDL.
 
 ## CR-K — The window's theme variants; a scheme write selects one
 
+> **Revised by `CR-S`**: the variants live on the `Frame`, not in `EnvironmentValues` (item 2).
+
 **Ruling.**
 
 1. `Window.lightTheme` and `Window.darkTheme` (public, default `.light`,
@@ -337,6 +341,8 @@ swapchain on SDL.
 and a dark appearance chosen by the window's appearance — the same pair.
 
 ## CR-L — `.preferredColorScheme(_:)`: window-wide, SwiftUI's reduction, precedence
+
+> **Revised by `CR-T`** (item 3: the main root ranks before presentation roots) and **`CR-Q`** (item 5: two ordinary builds, one presented — nothing discarded).
 
 **Ruling.**
 
@@ -450,3 +456,149 @@ append-only and shared (sequential lanes). **L1 and L2 leave
 census are L3's** (one file each — a shared file would break disjointness),
 and `closeout-inventory-check.sh` is required empty at L3's commit and the
 branch check.
+
+---
+
+**Critic pass (2026-10-03).** Re-ran the three committed probes: the SwiftUI
+probe's 102 output lines are byte-identical to its header; the overload probe
+prints its recorded line; the negative probe fails with its recorded error.
+One new probe, `../probes/swiftui-colour-hierarchical.swift` (arm `H`).
+`CR-Q`…`CR-V` revise `CR-C`, `CR-K`, `CR-L` and the spec's test tables; each
+names what it supersedes.
+
+## CR-Q — The first-frame preference: two ordinary builds, one presented (revises `CR-L` item 5)
+
+**Ruling.** On a window's first frame (`framesDrawn == 0`), when the
+preference the build collected changes the effective scheme, `Window` applies
+it and runs the **build-and-adopt half** of `drawFrameIfNeeded` (from `Frame`
+construction through the focus read-back, `lastFocusStates`,
+`wantsAnotherFrame`, gesture/tooltip ticks and `hasActiveAnimations`) a second
+time inside the same `beginFrame()`. The first build is **adopted in full** —
+an ordinary frame whose scene is simply not encoded; the accessibility
+publication and `finishFrame` run once, for the second build. The second
+build gets no parked transaction (the first consumed it). Nothing is
+discarded or rolled back. After the first frame the next-frame rule stands.
+
+**Reasoning.** `CR-L`'s "discard that build and rebuild from the same inputs"
+is not implementable without undoing the first build's side effects on
+window-owned stores: `StateTable` seeding and its sweep generation (TB-AH ages
+by frames swept), `AnimationStore` entries, the scroll-request queue the frame
+drains, `@FocusState` reconciliation and `SurfaceRegistry` targets. Two
+ordinary frames are exactly the fallback path (a next-frame change) minus one
+present, so identity, state retention and animation see nothing new: the
+second build sees the first as its previous frame, as any frame does. A
+`GPUSurface` records a draw only after its frame commits (`MV-F`), so the
+unencoded first build's requests are simply re-issued by the second.
+
+**Test.** 2.11 unchanged in its assertions (`framesDrawn == 1`, the presented
+scene's `.surface` is `Theme.dark.surface`), plus: a `@State` counter seeded
+in the first build has one entry, not two; mutation "skip adoption of the
+first build (build twice from the same pre-frame state)" must redden the
+`StateTable` arm or be recorded as the finding.
+
+## CR-R — `Color` stores `Float` components; NaN is canonicalised at init (revises `CR-C` items 2 and 3)
+
+**Ruling.**
+
+1. The `srgb` payload and the opacity multiplier are **`Float`** (the public
+   initialisers keep SwiftUI's `Double` parameters and convert at init).
+   Every consumer is `Float` already — `Hsla`, `Rgba`, `MUIHsla` and
+   SwiftUI's own `Color.Resolved` fields — so `Double` storage carried
+   precision nothing downstream can use, at twice the size.
+2. **A NaN component or opacity is stored as 0 at init.** Out-of-range finite
+   values are still stored as written (`R5`, `O4`, `O5`) and clamped at
+   resolution, so every resolved answer `CR-C` promised is unchanged (a NaN
+   already resolved to 0).
+3. `MemoryLayout<Color>.size <= 24` is pinned, and the lane records
+   `MemoryLayout<Decoration>.size`, `BorderStyle`, `Text` and
+   `EnvironmentValues` at `30a3dbf` and at its commit;
+   `everyProductionTreeBuildsOnAOneMegabyteThread` stays green.
+
+**Reasoning.** Item 2 is a correctness defect in the committed design: `Color`
+is `Hashable` and `CR-H` item 3 compares **declared** `Color`s to decide
+whether a colour changed. `Float.nan != Float.nan`, so a NaN colour would be
+"changed" on every frame, writing the `$anim-color` slot during paint and
+re-arming a fade under any transaction — the display link never pauses. Item 1
+and 3: a `Decoration` holds three background and three border colours, a
+`ColorToken` is one byte, a `Double` `Color` about 48; elements are copied
+through deep generic chains on 1 MB Windows stacks.
+
+**Tests.** 1.6 gains the arm `Color(red: .nan, green: 0, blue: 0) ==
+Color(red: 0, green: 0, blue: 0)`; `ColorPaintTests` gains
+`aNaNColourSettlesAndLetsTheDisplayLinkPause` (a `Box` whose background is a
+NaN literal, under `withAnimation`: after two frames a third
+`drawFrameIfNeeded()` pauses). Mutation: drop the canonicalisation — both
+redden.
+
+## CR-S — The theme variants live on the `Frame`, not in `EnvironmentValues` (revises `CR-K` item 2)
+
+**Ruling.** `lightTheme`/`darkTheme` are **not** `EnvironmentValues` fields.
+The frame holds the window's pair (`Frame.lightTheme`/`darkTheme`, `Frame.init`
+parameters defaulting to `.light`/`.dark`), and `Frame.scopedValues(applying:
+.transform)` reads them when a scope changes `colorScheme`. Everything else in
+`CR-K` stands.
+
+**Reasoning.** No scope writes a variant — `CR-K` item 2 itself says they are
+"re-stamped after every transform", i.e. always the root's value — so a
+per-scope copy is pure overhead: two `Theme`s (nine 16-byte `Hsla`s and the
+palette dictionary each) added to every `EnvironmentValues` copy, on the
+environment stack and in every scope's stack frame. A field that can never
+differ from the root's is the frame's.
+
+**Lanes.** `EnvironmentValues.swift` gains only `colorScheme` (lane 1); the
+frame fields are lane 2's (`Frame.swift`).
+
+## CR-T — A presentation root's preference ranks after the main root's (revises `CR-L` item 3)
+
+**Ruling.** The reduction of `CR-L` item 3 runs over the **main root first**,
+then the presentation roots in their run order: the first non-nil
+top-level preference in the main tree wins; only if it has none does a
+presentation root's count. Implemented as two slots in the frame (the main
+root's, the first presentation's), chosen after `renderRoot`.
+
+**Reasoning.** `LR-CH` lays presentation roots out **before** the root, so
+"first in layout order" made an open popover's, menu's or tooltip's
+preference beat the window's own root preference — an ordering accident of
+the layout runs, not a design. SwiftUI gives a popover its own window
+(`MN-M`), so it has no answer to copy; the rule that keeps the root
+authoritative and a transient presentation subordinate is the conservative
+one. Unprobed for SwiftUI and not claimed.
+
+**Test.** 2.9 gains arm `PR`: root `.preferredColorScheme(.light)` with an
+open popover whose content writes `.preferredColorScheme(.dark)` → light; and
+a root with no preference → the popover's dark. Mutation: plain layout order
+(the first arm reddens).
+
+## CR-U — `.foregroundStyle(.secondary)` resolves the `Color` static; divergence 119
+
+**Ruling.** MetalUI's `foregroundStyle(_:)`/`background(_:)`/`fill(_:)` take a
+concrete `Color` (`CR-E`), so a leading-dot `.secondary` or `.primary` there
+is `Color.secondary`/`Color.primary`. SwiftUI's generic `S: ShapeStyle`
+parameter infers **`HierarchicalShapeStyle`** for the same spelling (probe
+`swiftui-colour-hierarchical.swift` `H1`, `H2`; `.red` infers `Color`, `H3`;
+control `H0`). The spelling compiles in both and names different things:
+**divergence 119** (MetalUI's choice, pending the deferred `ShapeStyle`). How
+a hierarchical style renders under a tinted parent is unmeasured and not
+claimed. Pin: guard 1.25's `.foregroundStyle(.secondary)` line plus a paint
+arm in 1.15 (`Text` under `.foregroundStyle(.red)` with its own
+`.foregroundStyle(.secondary)` paints `Color.secondary`'s resolved value, not a
+red). `docs/divergences.md`'s next label becomes **120** (lane 3).
+
+## CR-V — Two test-design defects in the spec's lane 2 table
+
+**Ruling.**
+
+1. **2.10** asserted layout equality and `@State` survival across a change of
+   the preferred *value*; its mutation ("the scope consumes a cursor slot")
+   reddens neither — a consistently consumed slot changes no layout and no
+   identity *between frames of one tree*. 2.10 instead compares the
+   recorded element-id sets (`recordsElementBounds`) of the tree with and
+   without `.preferredColorScheme(.dark)` on a scope that has a **following
+   sibling**: equal. The cursor-slot mutation shifts that sibling's id.
+2. **New 2.22** `aSchemeChangeRepaintsEvenWhenBothVariantsAreTheSameTheme`:
+   `window.lightTheme = .dark; window.darkTheme = .dark`, then an appearance
+   change to dark → `needsRedraw`, and the next frame paints a
+   `Color(light:dark:)` box's dark half. Mutation: `colorScheme`'s `didSet`
+   only assigns `theme` (relying on `theme`'s guard to dirty) — reddens, since
+   the theme does not change. Without it, 2.3's mutation (remove the scheme's
+   equality guard) can be green for the wrong reason.
