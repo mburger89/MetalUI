@@ -107,9 +107,12 @@ func everyColorTokenSpellingStillCompiles() throws {
 func theSwiftUISpellingsTypecheckWithoutAmbiguity() throws {
     let result = try typecheckFile("""
         @MainActor func spellings() {
-            _ = Text("x").foregroundColor(.red)
-            _ = Text("x").foregroundColor(nil)
-            _ = Text("x").foregroundStyle(.secondary)
+            // `Text`'s own spellings return `Text`, as SwiftUI's do; pinned,
+            // because the `ElementGroup` fallback would otherwise accept each
+            // line as an `EnvironmentScope<Text>`.
+            let _: Text = Text("x").foregroundColor(.red)
+            let _: Text = Text("x").foregroundColor(nil)
+            let _: Text = Text("x").foregroundStyle(.secondary)
             _ = Box { Text("x") }.foregroundStyle(.secondary)
             _ = Box().background(.surface)
             _ = Rectangle().fill(.red)
