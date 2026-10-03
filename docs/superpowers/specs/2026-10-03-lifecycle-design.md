@@ -283,7 +283,7 @@ Presence and identity:
 | 1.5 | `aListRowScrolledOutDisappearsReturnsAsAnAppearanceAndKeepsItsState` | out: disappear; back within 2 generations: appear and its `@State` value kept (`S1`, `TB-AH`) | exempt children of `noteWindowedParent` parents from disappearance |
 | 1.5b | `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow` | 12 appearances, 9 disappearances (rows 3…11) in the first `drawFrameIfNeeded`, nothing after (divergence 124, `LC-Q` item 1) | none of its own (the `List` cold-frame rule is outside the lane) |
 | 1.6 | `twoSiblingsSharingOneIdAppearTwice` | 2 appearances (divergence 72's shape) | drop `occurrence` from `Key` |
-| 1.7 | `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst` | `[a, b]` on insertion and removal (`A3`) | drop `depth` from the key |
+| 1.7 | `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst` | `[a, b]` on insertion and removal (`A3`) | drop `depth` from the key — **green** (`LC-R` finding 1: the occurrence keeps stacked scopes apart); measured with M1.7b, depth and occurrence dropped |
 | 1.8 | `addingALifecycleModifierMovesNoIdentity` | recorded element ids and a nested `@State` equal with and without the scope | `cursor += 1` in `requestGroupLayout` |
 | 1.9 | `lifecycleModifiersFireInsideAComponentAnEnvironmentScopeAndADeferred` | each fires once | (composition; pinned by 1.1's mutation — no own) |
 | 1.10 | `theTypedProposalScopeNotesLikeTheUntypedOne` | a `ProposalText().onAppear` inside `HStack` fires; ids equal | delete `noteLifecycle` from `requestProposalGroupLayout` only |
