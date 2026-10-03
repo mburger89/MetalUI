@@ -824,3 +824,14 @@ Counts **2327 / 0 / 142** as the lanes read them.
   key-window order is AppKit's documented one, not a measurement. Fix:
   offer every key-down carrying ⌘ **or ⌃** (and ⌥, once measured) in `performKeyEquivalent`, with
   a test pinning a ⌃-key `Button` over a ⌃-key command.
+
+### §6.3 The ⌃-key finding fixed before merge (2026-10-03, `MN-AI`)
+
+The coordinating session fixed §6.2's finding on the branch, red first.
+New test 2.9c `theHostViewOffersAControlKeyToTheWindowBeforeTheMainMenu`
+(`AppKitMenuTests.swift`; its `describe` now prints ⌃) failed on `0e15ab4`
+with 2 issues (the ⌃K claim and the log). With the fix,
+`performKeyEquivalent` offers ⌘ or (⌃ and no marked text), and the AppKit
+menu tests pass. Mutation **MC**, which drops `&& !hasMarkedText()`,
+reddened 2.9c's composing arm (2 issues). ⌥ stays unmeasured. Counts
+**2328 / 0 / 142**, from the full suite below.

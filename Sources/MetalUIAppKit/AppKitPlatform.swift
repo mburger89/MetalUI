@@ -297,12 +297,16 @@ final class MetalHostView: NSView {
     /// 3): while this view is first responder, AppKit's key-equivalent pass
     /// offers the event here first and the answer is the window's claim — so a
     /// `Button`'s, a field's or a command's ⌘-key wins over the menu, and the
-    /// menu sees only what the window declined (Quit, Hide, Minimize…). The
-    /// event is remembered by identity and never offered twice; `keyDown(with:)`
-    /// and the Edit actions (`MN-AA`) skip it.
+    /// menu sees only what the window declined (Quit, Hide, Minimize…). A ⌃-key
+    /// is offered the same way (`MN-AI`), so a ⌃K command cannot take ⌃K from a
+    /// `Button` or a field's editing keys — except while marked text is
+    /// composing, when it belongs to the input method. The event is remembered
+    /// by identity and never offered twice; `keyDown(with:)` and the Edit
+    /// actions (`MN-AA`) skip it.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.type == .keyDown, event.modifierFlags.contains(.command),
-              window?.firstResponder === self else {
+        let flags = event.modifierFlags
+        let offered = flags.contains(.command) || (flags.contains(.control) && !hasMarkedText())
+        guard event.type == .keyDown, offered, window?.firstResponder === self else {
             return super.performKeyEquivalent(with: event)
         }
         if event === lastOfferedKeyEquivalent { return false }

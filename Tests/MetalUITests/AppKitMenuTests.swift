@@ -44,6 +44,7 @@ private func describe(_ event: InputEvent) -> String {
     case .rightMouseUp(let m): return "rup\(at(m))"
     case .keyDown(let k):
         var mods = ""
+        if k.modifiers.contains(.control) { mods += "⌃" }
         if k.modifiers.contains(.shift) { mods += "⇧" }
         if k.modifiers.contains(.command) { mods += "⌘" }
         let name = k.charactersIgnoringModifiers == "\u{7f}" ? "⌫" : k.charactersIgnoringModifiers
@@ -233,6 +234,34 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(!view.performKeyEquivalent(with: try keyDown("j", keyCode: 38, .command, in: nsWindow)))
     #expect(!view.performKeyEquivalent(with: try keyDown("k", keyCode: 40, [], in: nsWindow)))
     #expect(log.entries == ["key[⌘k]", "key[⌘j]"], "both ⌘-keys reached the window; the plain one did not")
+}
+
+/// **2.9c** (`MN-J` item 3, amended by `MN-AI`). A ⌃-key (no ⌘) reaches the
+/// window before the main menu too, so a `Button`'s or a field's ⌃-key wins
+/// over a menu-bar command bound to it — the branch check measured
+/// `NSApp.sendEvent(⌃K)` running a ⌃K command with the window never seeing the
+/// key. While marked text is composing, a ⌃-key is left to the input method
+/// (Kotoeri's ⌃J/⌃K convert) and is not offered. Mutation: guard on
+/// `.command` only (reddens the ⌃K claim); drop the marked-text condition
+/// (reddens the composing arm).
+@MainActor
+@Test func theHostViewOffersAControlKeyToTheWindowBeforeTheMainMenu() throws {
+    let (_, appKit, nsWindow, log) = try hostWindow { event in
+        if case .keyDown(let key) = event { return key.charactersIgnoringModifiers == "k" }
+        return false
+    }
+    try #require(nsWindow.makeFirstResponder(appKit.hostView), "the host view is first responder")
+    let view = appKit.hostView
+    #expect(view.performKeyEquivalent(with: try keyDown("k", keyCode: 40, .control, in: nsWindow)),
+            "the window claims ⌃K before the main menu sees it")
+    #expect(!view.performKeyEquivalent(with: try keyDown("j", keyCode: 38, .control, in: nsWindow)))
+    #expect(log.entries == ["key[⌃k]", "key[⌃j]"], "both ⌃-keys reached the window")
+    view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0),
+                       replacementRange: NSRange(location: NSNotFound, length: 0))
+    log.entries.removeAll()
+    #expect(!view.performKeyEquivalent(with: try keyDown("k", keyCode: 40, .control, in: nsWindow)),
+            "while composing, ⌃K is the input method's")
+    #expect(log.entries.isEmpty, "the composing ⌃-key was not offered to the window")
 }
 
 /// **2.9** (`MN-J` item 3). A key equivalent the window declined goes on to

@@ -39,7 +39,7 @@ summary.
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AI`), …; the full
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -74,8 +74,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-03, `feat/menus-popovers` from `b9da519`): 2327
-  tests, 0 goldens, 142 typecheck guards** (2227 + 100 tests, 133 + 9 guards;
+- **Counts (2026-10-03, `feat/menus-popovers` from `b9da519`): 2328
+  tests, 0 goldens, 142 typecheck guards** (2227 + 101 tests, 133 + 9 guards;
   `Backends/SDL` 24 + 62; census 2206; Linux container
   199 + 22 + 21 + 31 + 18 + 6, unmoved, record §74 §6). Before it,
   `feat/paths-shadows-transforms` from `dc96395`: 2227 / 0 / 133 (2124 + 103 tests, 129 + 4 guards;
@@ -500,8 +500,8 @@ open) goes to the platform through the defaultless `PlatformWindow.presentMenu`
 `StateDispatch`. `App.commands { CommandMenu/CommandGroup }` reaches
 `Platform.setMenuBar` (every AppKit app gets the standard main menu); **the
 window's shortcut pipeline is the one shortcut path** (`Button` first, commands
-one stage after, AppKit offering a ⌘-key to it before the main menu, once —
-`MN-J`). `.popover` is an anchored presentation root, flipped then clamped
+one stage after, AppKit offering a ⌘- or ⌃-key to it before the main menu,
+once; a ⌃-key not while composing — `MN-J`, `MN-AI`). `.popover` is an anchored presentation root, flipped then clamped
 inside the window, no arrow, dismissed from input; `.help` is the accessibility
 hint plus a drawn, tick-timed tooltip. The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility

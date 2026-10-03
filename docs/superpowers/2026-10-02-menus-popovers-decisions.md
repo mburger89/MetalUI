@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AI`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AJ`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1204,3 +1204,31 @@ the mutation named for it, or with a doc that no longer claims more than the
 suite pins. No `Sources/` behaviour, public declaration or pixel moves.
 
 **Cost if wrong.** Tests and docs only; item 4's claim is one `switch` case.
+
+## MN-AI — A ⌃-key reaches the window before the main menu too (amends MN-J item 3; the branch check's finding, record §74 §6.3)
+
+**Ruling.**
+
+1. `MetalHostView.performKeyEquivalent(with:)` offers a key-down to the
+   window first when it carries ⌘ **or ⌃**, so a `Button`'s or a focused
+   field's ⌃-key (⌃A, ⌃E, ⌃K…) wins over a menu-bar command bound to the
+   same key, as `MN-J` item 2 requires. ⌘ handling is unchanged.
+2. **While marked text is composing** (`hasMarkedText()`), a ⌃-key without
+   ⌘ is not offered: it stays the input method's (Kotoeri's ⌃J/⌃K convert)
+   and follows AppKit's own route.
+3. ⌥-only shortcuts are unchanged and unmeasured: ⌥ produces characters
+   (⌥E is a dead key), so offering it first would route text through the
+   window before the input context. Owner none.
+
+Pinned by 2.9c `theHostViewOffersAControlKeyToTheWindowBeforeTheMainMenu`:
+red on the old `.command`-only guard (the ⌃K claim and the log), and red on
+the fix without its marked-text condition (the composing arm).
+
+**Reasoning.** The branch check measured `NSApp.sendEvent(⌃K)` running a ⌃K
+command with the window never seeing the key. A ⌃-key the window declines
+still reaches the main menu, and `keyDown(with:)` skips the same event by
+identity, so nothing is delivered twice. A declined ⌃-key no longer passes
+through the input context, but with no marked text the context only turns it
+into `doCommand(by:)`, which delivers the same key-down.
+
+**Cost if wrong.** One condition in one method.
