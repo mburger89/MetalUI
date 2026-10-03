@@ -383,3 +383,24 @@ are pinned by no test (`MN-AF` items 7–8; human checks R1, R4). A closed
 menu's stale tag after a structural change, dispatched by the main menu rather
 than the window (`MN-AF` item 3), owner none. Lane 3 extends the anchor map
 for popovers.
+
+### §4.1 Lane 2 review fix round (2026-10-03)
+
+Four review findings (two major, two minor), each answered red-first by a
+mutation run through the full unfiltered suite (`--build-system native
+--no-parallel`, one summary line each; `git status --short` empty after every
+restore; mutations applied to `32e0240`, the spelling quoted). Unmutated:
+**`Test run with 2293 tests in 3 suites passed after 129.364 seconds`** (2291 +
+1.31b, 1.31c; 2.9 gained an arm, not a test), the `FR-J no-argument frame:
+succeeded=true` line present, 0 `error:`, the only native `warning:` SwiftPM's
+deprecation notice; `swift build --build-tests` 0 `warning:`.
+
+| Finding | Answer | Mutation | Reddened |
+|---|---|---|---|
+| `MN-AF` item 6's scroll translation unpinned (major) | test 1.31b `aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame`: a `Menu` 100 pt down a 200 × 200 scroller wheel-scrolled by 37 presents at the scrolled published frame's bottom-leading corner | MANCH: `bounds.origin.x.value + activeOffset.x.value` / `…y…` → `bounds.origin.x.value` / `…y…` in `Frame.recordPresentationAnchor` | 1.31b only (1 issue) |
+| `MN-AF` item 5's no-`$ax` claim unpinned (major) | test 1.31c `aPullDownMenuWritesNoAXNodeAndNoAXSlot`: client on and off, no `Frame.axNodes` entry and no `$ax` slot under the menu's id (its one hitbox's owner — the hidden `⌄` text declares a node of its own, found by running); separating arm, a declared `.selected` trait, writes both | M1.31c: `declaration.menuButtonHint = false` deleted from `Frame.registerHandlers` | 1.31c only (4 issues) |
+| `performKeyEquivalent`'s repeat guard unpinned (minor) | test 2.9 offers the same declined event twice before `keyDown(with:)`: one delivery (`MN-AF` item 10) | M2.9b: `if event === lastOfferedKeyEquivalent { return false }` deleted from `performKeyEquivalent(with:)` | 2.9 `aKeyEquivalentDeclinedByTheWindowIsNotDeliveredAgainAsAKeyDown` only (2 issues) |
+| the forwarded `isEnabled` is dead; 1.32's name stale (minor) | `MN-AF` item 9 and spec row 1.32: the gate is `Button`'s (`Frame.registerHandlers`), the forward kept as belt-and-braces with a source note; 1.32 renamed `aPullDownMenuOpensFromButtonsActivationKeysAndNotWhenDisabled` | — (the reviewer's M1.32 green stands; no test can see it) | — |
+
+No public declaration, census row, `Sources/` behaviour or pixel moves (one
+source comment in `PullDownMenu.swift`).
