@@ -1621,6 +1621,12 @@ public final class Window {
     /// keyboard and accessibility openers' table (`MN-G`).
     var lastContextMenus: [GlobalElementID: ContextMenuRecord] = [:]
 
+    /// The platform convention the keyboard context-menu opener reads (`MN-G`
+    /// item 1): `TextEditing.platform` always, in production. A test sets it to
+    /// `.other` so the Shift-F10/Menu-key path, compiled for Linux and Windows,
+    /// is exercised on macOS too.
+    var contextMenuKeyPlatform: TextEditing.Platform = TextEditing.platform
+
     /// The text system an in-window menu measures and draws through (`TS-A`).
     var menuTextSystem: any TextSystem { textSystem }
 

@@ -22,6 +22,7 @@ import MetalUIPlatform
 private final class MLog {
     var entries: [String] = []
     var flag = true
+    var text = "abc"
 }
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
@@ -207,8 +208,9 @@ private struct MenuCounter: Component {
 }
 
 /// **1.4** (C4c). The content is evaluated at each open: after Flag is
-/// chosen (it writes `false`), the reopened menu shows it off. Mutation: cache
-/// the evaluated items at registration.
+/// chosen (it writes `false`), the reopened menu shows it off — after a
+/// redraw, and again (back on) with no frame between two opens. Mutations:
+/// cache the evaluated items for good; cache them in the frame's attachment.
 @MainActor
 @Test func theMenuIsEvaluatedAtEachOpen() throws {
     let log = MLog()
@@ -225,6 +227,17 @@ private struct MenuCounter: Component {
     let second = try #require(platform.presentedMenus.last?.menu)
     try #require(second.token != first.token)
     #expect(flatten(second.items).first { $0.title == "Flag" }?.isOn == false, "the reopened menu shows it off")
+    // Two opens with NO frame between: the first open's choice writes the
+    // model, and the second open, with the same frame's registration, still
+    // shows the new value — evaluation is per open, not per frame.
+    platform.simulateInput(.menuAction(MenuActionEvent(menu: second.token, item: 7)))
+    try #require(log.flag == true, "choosing Flag again wrote true")
+    platform.simulateInput(rdown(10, 10))
+    platform.simulateInput(rup(10, 10))
+    let third = try #require(platform.presentedMenus.last?.menu)
+    try #require(third.token != second.token)
+    #expect(flatten(third.items).first { $0.title == "Flag" }?.isOn == true,
+            "reopened with no frame between, the menu shows it on again")
     withExtendedLifetime(window) {}
 }
 
@@ -816,6 +829,116 @@ private struct MenuCounter: Component {
             == pt(frame.origin.x.value, frame.origin.y.value + frame.size.height.value),
             "at the element's bottom-leading corner")
     #expect(platform.presentedMenus[0].menu.items.map(\.title) == ["X"])
+    withExtendedLifetime(window) {}
+}
+
+/// **1.29b** (`MN-G` item 1, `MN-AE` item 4). Off Apple — the window's
+/// `contextMenuKeyPlatform` seam set to `.other`, as `TextEditing.platform`
+/// reads on Linux and Windows — Shift-F10 and the Menu key each open the menu
+/// of the focused element's nearest **ancestor** carrying one, at that
+/// ancestor's bottom-leading corner, not the focused element's. Mutations:
+/// look only at the focused element itself (`focusChain.first`); anchor at the
+/// focused element's corner.
+@MainActor
+@Test func shiftF10AndTheMenuKeyOpenTheFocusedElementsAncestorsMenuOffApple() throws {
+    let (window, platform) = try menuWindow {
+        Row {
+            Box().frame(width: px(100), height: px(60)).focusable()
+        }
+        .frame(width: px(300), height: px(200))
+        .contextMenu { Button("Outer") {} }
+    }
+    window.contextMenuKeyPlatform = .other
+    let found = regions(window)
+    try #require(found.count == 1, "only the ancestor carries a menu: \(found.map(\.bounds))")
+    let outer = found[0].bounds
+    try #require(outer.size.width == px(300) && outer.size.height == px(200), "the ancestor's frame: \(outer)")
+    platform.simulateInput(key("\t"))
+    redraw(window)
+    let focused = try #require(window.focusedElement, "Tab focused the inner box")
+    try #require(focused != found[0].id, "the focused element is the inner box, not the menu-bearing ancestor")
+    let corner = pt(outer.origin.x.value, outer.origin.y.value + outer.size.height.value)
+    #expect(platform.simulateInput(key("\u{f70d}", .shift)), "Shift-F10 is claimed")
+    try #require(platform.presentedMenus.count == 1, "Shift-F10 opened a menu")
+    #expect(platform.presentedMenus[0].menu.items.map(\.title) == ["Outer"])
+    #expect(platform.presentedMenus[0].at == corner, "at the ancestor's bottom-leading corner")
+    platform.simulateInput(.menuAction(MenuActionEvent(menu: platform.presentedMenus[0].menu.token, item: nil)))
+    #expect(platform.simulateInput(key("\u{f735}")), "the Menu key is claimed")
+    try #require(platform.presentedMenus.count == 2, "the Menu key opened a menu")
+    #expect(platform.presentedMenus[1].menu.items.map(\.title) == ["Outer"])
+    #expect(platform.presentedMenus[1].at == corner, "at the ancestor's bottom-leading corner")
+    platform.simulateInput(.menuAction(MenuActionEvent(menu: platform.presentedMenus[1].menu.token, item: nil)))
+    #expect(!platform.simulateInput(key("\u{f70d}")), "plain F10 opens nothing")
+    #expect(platform.presentedMenus.count == 2)
+    withExtendedLifetime(window) {}
+}
+
+/// **1.30b** (`MN-AE` item 3, C9). A disabled element with a context menu,
+/// a client active: its published node advertises no `.showMenu` (`AB-H`),
+/// yet a `.showMenu` request naming it still opens its menu, every item
+/// disabled. Mutations: advertise `.showMenu` regardless of `isEnabled`;
+/// refuse the request for a disabled record.
+@MainActor
+@Test func aDisabledElementAdvertisesNoShowMenuButTheRequestOpensItsMenuDisabled() throws {
+    let log = MLog()
+    let (window, platform) = try menuWindow {
+        controlRoot(width: 400, height: 400) {
+            Text("Menu").frame(width: px(200), height: px(100)).contextMenu { fullMenuContent(log) }.disabled(true)
+        }
+    }
+    platform.simulateAccessibilityRequest(.activate)
+    redraw(window)
+    let tree = try #require(platform.publishedAccessibilityTrees.last)
+    try #require(window.lastContextMenus.count == 1, "the disabled element recorded its menu")
+    let menuNode = try #require(tree.nodes.keys.first { key in
+        (key.base as? GlobalElementID).map { window.lastContextMenus[$0] != nil } ?? false
+    }, "the menu-bearing element is published: \(tree.nodes.values.map { "\($0.role) \($0.isEnabled)" })")
+    let node = try #require(tree.nodes[menuNode])
+    #expect(!node.isEnabled, "published disabled")
+    #expect(!node.actions.contains(.showMenu), "a disabled node advertises no show-menu: \(node.actions)")
+    #expect(platform.simulateAccessibilityRequest(.showMenu(menuNode)), "the request is still handled (C9)")
+    let menu = try #require(platform.presentedMenus.last?.menu, "the disabled element's menu opened")
+    #expect(!menu.items.isEmpty)
+    #expect(flatten(menu.items).allSatisfy { !$0.isEnabled }, "every item disabled: \(describe(menu.items))")
+    withExtendedLifetime(window) {}
+}
+
+/// **1.38** (`MN-AE` item 6). With a `TextField` focused and the in-window
+/// menu open, the field's Space — `.textInput(" ")` — chooses the highlighted
+/// item and the field's text is unchanged; once the menu is closed the same
+/// event types into the field (the positive control: the field holds focus).
+/// Mutation: never treat `.textInput(" ")` as a choice.
+@MainActor
+@Test func aFocusedFieldsSpaceChoosesTheHighlightedInWindowItem() throws {
+    let log = MLog()
+    let binding = Binding(get: { log.text }, set: { log.text = $0 })
+    let (window, platform) = try menuWindow(native: false) {
+        Column {
+            TextField("F", text: binding).frame(width: px(400), height: px(30))
+            Box().frame(width: px(400), height: px(300)).contextMenu { fullMenuContent(log) }
+        }
+        .frame(width: px(400), height: px(400))
+    }
+    platform.simulateInput(key("\t"))
+    redraw(window)
+    try #require(window.focusedElement != nil, "Tab focused the field")
+    let menuRegion = try #require(regions(window).first?.bounds)
+    let p = centre(menuRegion)
+    platform.simulateInput(r(p))
+    platform.simulateInput(ru(p))
+    _ = try panel(window)
+    platform.simulateInput(key(downArrow))
+    platform.simulateInput(key(downArrow))
+    try #require(try panel(window).levels[0].highlighted == 1, "Delete highlighted")
+    #expect(platform.simulateInput(.textInput(" ")), "the menu claims the field's Space")
+    #expect(log.entries == ["delete"], "Space chose Delete")
+    #expect(window.menuSession == nil, "the menu closed")
+    redraw(window)
+    #expect(log.text == "abc", "the field's text is unchanged")
+    platform.simulateInput(.textInput(" "))
+    redraw(window)
+    try #require(window.focusedElement != nil)
+    #expect(log.text != "abc", "with the menu closed the field takes the Space: \(log.text)")
     withExtendedLifetime(window) {}
 }
 

@@ -506,7 +506,7 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.1 | `aRightPressOverAContextMenuPresentsItsItemsToThePlatform` | native fake: one `presentMenu` call at the press point; items Copy, Delete, separator, More▸[A, B], Flag (on), Off (disabled), Short (⌘K shown), a disabled Text item | drop `Divider`'s separator (emit nothing) |
 | 1.2 | `aChosenItemRunsItsActionFromInputUnderStateDispatch` | one element value placed twice; `.menuAction` for the second occurrence's menu writes the second's `@State` (`ID-F`) | run the action without `StateDispatch.dispatching` |
 | 1.3 | `aMenuActionWithAStaleTokenRunsNothing` | an old token's item id runs nothing | skip the token comparison |
-| 1.4 | `theMenuIsEvaluatedAtEachOpen` (C4c) | Flag chosen → reopened menu shows it off | cache the evaluated items at registration |
+| 1.4 | `theMenuIsEvaluatedAtEachOpen` (C4c) | Flag chosen → reopened menu shows it off, after a redraw and again with no frame between two opens | cache the evaluated items for good; cache them in the frame's attachment (the no-frame arm, fix round) |
 | 1.5 | `theInnermostContextMenuOpens` (C8) | inner menu at inner view, outer at outer-only area | rank the outermost region first |
 | 1.6 | `aDisabledElementsMenuOpensWithEveryItemDisabled` (C9) | presented, every item `isEnabled == false`; a `.menuAction` for one runs nothing | register the region after the disabled gate's exit |
 | 1.7 | `anEmptyContextMenuPresentsNothingAndDoesNotClaimThePress` (C10) | no call; `onInput` answers `false` | present an empty menu |
@@ -532,13 +532,16 @@ root-package tests below are in `Tests/MetalUITests` through
 | 1.27 | `theInWindowMenuWritesNoStateTableEntry` | table count equal open vs closed | store the session under `StateTable` |
 | 1.28 | `aResizeOrLosingKeyDismissesTheInWindowMenu` | each closes it | ignore `controlActiveState` |
 | 1.29 | `theContextMenuKeysAreShiftF10AndTheMenuKeyOffAppleOnly` | `ContextMenuKeys.opens` rows for `.other` true, `.mac` false; on this platform Shift-F10 opens nothing | answer `true` on `.mac` |
+| 1.29b | `shiftF10AndTheMenuKeyOpenTheFocusedElementsAncestorsMenuOffApple` (`MN-AE` item 4, fix round) | with `Window.contextMenuKeyPlatform = .other`: Shift-F10 and the Menu key open the focused element's ancestor's menu at the ancestor's bottom-leading corner; plain F10 nothing | walk only `focusChain.first` |
 | 1.30 | `aShowMenuRequestOpensTheElementsMenu` (C11) | only a menu-bearing node advertises `.showMenu`; the request presents at its bottom-leading corner | advertise `.showMenu` on every node |
+| 1.30b | `aDisabledElementAdvertisesNoShowMenuButTheRequestOpensItsMenuDisabled` (`MN-AE` item 3, fix round) | a `.disabled(true)` element's node lacks `.showMenu`; `.showMenu(node)` still opens its menu, every item disabled | advertise regardless of `isEnabled`; refuse a disabled record |
 | 1.31 | (**lane 2**, `MN-AD`) `aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself` (M1) | role `.menuButton`; click presents at bounds' bottom-leading | present at the pointer |
 | 1.32 | (**lane 2**) `aPullDownMenuOpensFromSpaceAndReturnAndNotWhenDisabled` | keys open; `.disabled(true)` does not | ignore the disabled gate |
 | 1.33 | `handlersGainsOneReferenceMember` | `MemoryLayout<Handlers>.size == 464` (and `AccessibilityModifierTests`' existing bound raised by 8, `MN-AC`) | store the closure and help string inline |
 | 1.35 | `aContextMenuUnderAllowsHitTestingFalseDoesNotOpen` (C13, `MN-U`) | no `presentMenu`; the press unclaimed; the show-menu action still advertised | register the region outside the gate |
 | 1.36 | `aPaintedCoverWithNoHitboxDoesNotBlockTheMenuBeneath` (114) | a background-only `Box` over the region: menu opens | require a hitbox owned by the region's element or a descendant |
 | 1.37 | `theInWindowMenuIsPublishedAndPressableUnderModalIsolation` (`MN-AB`) | inside an `.isModal` sheet: the panel's `.menu` root published, `.press(item)` runs it | build the panel's root inside the isolation filter |
+| 1.38 | `aFocusedFieldsSpaceChoosesTheHighlightedInWindowItem` (`MN-AE` item 6, fix round) | a focused `TextField`'s `.textInput(" ")` chooses the highlighted item, the text unchanged; with the menu closed it types | never treat `.textInput(" ")` as a choice |
 
 AppKit-side, lane 1, in `AppKitAccessibilityTests` (existing file):
 1.34 `theAppKitBridgePublishesTheMenuRolesAndPerformsShowMenu` — roles

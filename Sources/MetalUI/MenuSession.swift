@@ -249,7 +249,7 @@ extension Window {
     /// The keyboard opener (`MN-G` item 1): Shift-F10 or the Menu key off
     /// Apple opens the focused element's, or its nearest ancestor's, menu.
     func dispatchContextMenuKey(_ event: InputEvent) -> Bool {
-        guard case .keyDown(let key) = event, ContextMenuKeys.opens(key, platform: TextEditing.platform) else {
+        guard case .keyDown(let key) = event, ContextMenuKeys.opens(key, platform: contextMenuKeyPlatform) else {
             return false
         }
         for id in focusChain {
