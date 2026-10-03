@@ -1,6 +1,6 @@
 # Lifecycle modifiers — onAppear, onDisappear, onChange — design
 
-**Status: lanes 1 and 2 IMPLEMENTED (2026-10-03, `LC-Q`, `LC-T`) — the Record phase owed.** User request
+**Status: LANDED (2026-10-03) — lanes 1 and 2 and the fix pass implemented (`LC-Q`, `LC-S`, `LC-T`), the Record phase done (record §76); the looks are owed to a human (human-checks group T); `.task` is deferred with an owner (§9).** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
 Rulings `LC-A`…`LC-T` (`LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).

@@ -40,7 +40,8 @@ summary.
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
-  `2026-10-03-colour-decisions.md`, next `CR-AC`), …; the full
+  `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
+  `2026-10-03-lifecycle-decisions.md`, next `LC-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -53,9 +54,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **86 live, next label 120**; retired labels are
+  live SwiftUI difference — **92 live, next label 126**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–S, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–T, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -75,10 +76,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-03, `feat/colour` from `30a3dbf`): 2376
-  tests, 0 goldens, 147 typecheck guards** (2328 + 48 tests, 142 + 5 guards;
+- **Counts (2026-10-03, `feat/lifecycle` from `047f0ab`): 2429
+  tests, 0 goldens, 151 typecheck guards** (2376 + 53 tests, 147 + 4 guards;
+  `Backends/SDL` 24 + 65; census 2315; Linux container
+  199 + 22 + 36 + 31 + 18 + 6, record §76 §9). Before it,
+  `feat/colour` from `30a3dbf`: 2376 / 0 / 147 (2328 + 48 tests, 142 + 5 guards;
   `Backends/SDL` 24 + 63; census 2305; Linux container
-  199 + 22 + 36 + 31 + 18 + 6, record §75 §2). Before it,
+  199 + 22 + 36 + 31 + 18 + 6, record §75 §2). Before that,
   `feat/menus-popovers` from `b9da519`: 2328 / 0 / 142 (2227 + 101 tests, 133 + 9 guards;
   `Backends/SDL` 24 + 62; census 2206; Linux container
   199 + 22 + 21 + 31 + 18 + 6, unmoved, record §74 §6). Before it,
@@ -94,7 +98,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75.
+  merge), §72, §73, §74, §75, §76.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -532,6 +536,29 @@ only, `CR-M`). A scheme from the tree is in the first presented frame: two
 ordinary builds, the second snapping every change (`CR-Q`, `CR-Z`). `Appearance`
 is a typealias of `ColorScheme`.
 
+**Lifecycle (`LC-`, record §76).** `.onAppear`/`.onDisappear`/
+`.onChange(of:initial:_:)` are one transparent `LifecycleScope` on every
+`ElementGroup` (no node, no id level, no `Element` hook, `Handlers` unchanged;
+a legacy decoration after it, or it as a window root, does not compile —
+divergence 120). **Presence is membership in a build, keyed in the
+window-owned `LifecycleStore` (`AnimationStore`'s), never a `StateTable` slot**
+(`$lifecycle<depth>` is a store key, no `noteNamed`; the seven slots unmoved);
+a modifier on a group fires once while it has content. **Actions run after
+`buildAndAdoptFrame`, outside every phase and `withObservationTracking`, under
+`StateDispatch`** (`Window.drainLifecycle`, not re-entrant); a write dirties
+the window and costs one settle build, so an `onAppear` write is in the first
+frame — never run an action from `Frame.render`. Order: changes, appears,
+disappears, each reverse pre-order (`LC-F`). A disappearance under a removal
+ghost is parked until it ends, and re-insertion cancels both callbacks
+(`LC-H`); `onDisappear` reads departed `@State` through `StateTable`'s overlay,
+only while an `onDisappear` exists (`LC-I`). A never-written `@State` default
+is re-seeded every build: assign the instance in `onAppear` (divergence 125).
+A window close runs every `onDisappear` once (`App`'s `onClose` →
+`runDisappearancesForClose`); a headless `renderFrame` runs nothing.
+**`.task` is deferred**: a main-actor `Task` never runs in `SDLPlatform.run()`
+(`LC-L`; owner the plan's gap 10). A steady frame costs 3K for K scopes and 0
+with none.
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -644,7 +671,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (86 live, next label 120). A new
+- **Divergences**: `docs/divergences.md` (92 live, next label 126). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
