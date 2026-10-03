@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-W`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-X`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -1311,3 +1311,26 @@ was pushed inside an effect with a CPU mask (exact to the rasterizer's
 coverage) rather than the GPU's analytic one. Item 8 is a census blind spot:
 a future declaration spelled `nonisolated public` (or with any other leading
 modifier) would escape both closeout checks silently.
+
+---
+
+## GX-W — The Record phase's close
+
+**Ruling.** The Record phase (2026-10-02) wrote record §73, marked the spec
+BUILT, updated `CLAUDE.md`/`AGENTS.md` (the `GX-` prefix, the `MetalUIPath`
+import rule, the paths/shadows/transforms paragraph, the `Shape` line, the
+counts), `README.md`, records §03/§04/§05 and the record index, and re-took:
+
+1. `git fetch`: `origin/master` still `dc96395`; §73 needed no renumbering and
+   group Q no letter change.
+2. `swift package clean`, the native build (0 `error:`, the one SwiftPM
+   `warning:`) and the unfiltered `swift test --build-system native
+   --no-parallel`: **2227 tests in 3 suites passed**, the `FR-J` line present.
+   Guards **133** (129 + `PathCompileGuards` 3 + `RenderEffectCompileGuards`
+   1).
+3. Both closeout checks print nothing (census 2086, 105 families).
+4. The fourteen-image comparison against `dc96395` (§73 §7).
+
+**Reading.** Nothing in this phase moved a source file; every figure is read
+from a run, not from a lane's report. **Cost if wrong.** None beyond the
+documents.

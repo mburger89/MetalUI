@@ -2150,3 +2150,34 @@ reference type re-seeds every build — SwiftUI keeps its first initial value, b
 that is its documented contract and was **not probed on this branch**, so no
 row is filed (`MV-R` item 3; record §71 §10 owes the probe arm). Live count
 **69 → 70**, next label **104**.
+
+## 2026-10-02: 104–109 added, 41/90/91/97 amended, none retired; 76 live, next label 110 (paths, shadows and transforms)
+
+Record §73; rulings `GX-J`, `GX-L`, `GX-I`, `GX-H`, `GX-G`, `GX-C`, `GX-D`,
+`GX-E`, `GX-P`; the published list is `docs/divergences.md`. Not a plan task —
+user request 2026-10-02. **Added, kept, owner none:**
+
+- **104** — a shadow's leaves: a shadow is per leaf; a `Box`'s background and
+  border are one rect (SwiftUI draws two leaves), and a `MetalView` surface's
+  silhouette is its quad. Pins `aTextCastsOneGlyphShapedShadowBelowItsGlyphs`,
+  the per-leaf tests in `ShadowTests`.
+- **105** — the blur profile: a triple box blur fitted to sigma = radius
+  (probe SH3/SH3b), not SwiftUI's own kernel. Pin `theShadowBlurMatchesSwiftUIsProfile`.
+- **106** — text and images under a scale or rotation effect are resampled
+  from the device-scale atlas, SwiftUI re-rasterizes text at the effective
+  scale (T15b). Pin `aTextUnderScaleEffectIsResampledNotReRasterized`.
+- **107** — an accessibility frame under a non-right-angle rotation is the
+  transformed bounding box; SwiftUI reports a smaller square (X3). Pin
+  `theAccessibilityFrameIsTheTransformedBoundingBox`.
+- **108** — a legacy effect wraps the whole element, so a background written
+  after it is transformed too (T8).
+- **109** — a clip between two nested rotations (`GX-G`).
+
+**Amended:** 41 (a handler outside a rect-changing layer over an effect hits
+its axis-aligned frame, `GX-P` item 2), 90 (a `Path`'s `.continuous` rounded
+rect is drawn circular), 91 (`clipShape` of a path traps too), 97 (a shape's
+stroke width and `StrokeStyle` snap where SwiftUI animates them, pin
+`aShapesStrokeWidthSnaps`). **Nothing retired.** "Not offered" loses `Path` and
+`StrokeStyle`; gains `transformEffect`, `projectionEffect`, `rotation3DEffect`,
+`compositingGroup`, `drawingGroup`, inner shadows, `.blur` (spec §9). Live
+count **70 → 76**, next label **110**.

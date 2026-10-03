@@ -37,7 +37,8 @@ summary.
   icon, next `AI-O`; own decisions doc
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
-  `2026-10-01-scaffold-decisions.md`), …; the full
+  `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
+  `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -72,9 +73,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-02, `fix/scaffold-review` from `6c05f3d`): 2124 tests,
-  0 goldens, 129 typecheck guards** (2112 + the review fixes' 12 scaffold
-  tests, record §72 §6.6). Before it, `feat/scaffold` on master `65c0cc7`:
+- **Counts (2026-10-02, `feat/paths-shadows-transforms` from `dc96395`): 2227
+  tests, 0 goldens, 133 typecheck guards** (2124 + 103 tests, 129 + 4 guards;
+  `Backends/SDL` 24 + 57; census 2086 in 105 families; Linux container
+  199 + 22 + 21 + 31 + 18 + 6 at lane 3, record §73 §9). Before it,
+  `fix/scaffold-review` from `6c05f3d`: 2124 / 0 / 129 (2112 + the review fixes' 12 scaffold
+  tests, record §72 §6.6). Before that, `feat/scaffold` on master `65c0cc7`:
   2112 (master's 2093 + the scaffold's 19, no guard added; master's own were taken on `feat/metal-view` after merging
   `95234db`: 2072 + 21 tests, 128 + 1 guards); `Backends/SDL` 23 + 55 (branch 23 + 48, master's icon tests +7); public census 2000 in 101 families;
   Linux container 199 + 22 + 21 measured on the branch before the merge
@@ -83,7 +87,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72.
+  merge), §72, §73.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -120,8 +124,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty-two one-way-dependent targets (the last two `MetalUIScaffold` and
-`MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
+Twenty-three one-way-dependent targets (`MetalUIPath`, `GX-B`, and the last two
+`MetalUIScaffold` and `MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
 Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
@@ -131,6 +135,10 @@ these violations show.
   that must stay unspellable outside the package is `package`, with a
   plain-import guard (`PS-D`, `PS-E`).
 - `MetalUIFreeType` imports only `MetalUIScene`, `CFreeType` (`FT-K`).
+  **`MetalUIPath` imports nothing** (no Foundation, no `MetalUICore`; `package`
+  API; `GX-B`) — its coverage is bit-identical on every platform because its
+  trigonometry is its own `PathMath.sinCos`; a libm call or a Foundation import
+  there breaks that silently on macOS.
   `MetalUIHarfBuzz` imports only `CHarfBuzz` (`SH-K`). `MetalUITextSystem`
   imports only `MetalUIScene` (`TS-A`). `MetalUIPortableText` imports only
   `MetalUIScene`, `MetalUIShaderTypes`, `MetalUIHarfBuzz`, `MetalUIFreeType`,
@@ -441,15 +449,44 @@ A draw's counter or state must be passed in, never a never-written `@State`
 `Sources/MetalUIRender/Shaders/shaders.metal` and
 `Backends/SDL/Shaders/replay.hlsl` identically, checked through the SDL
 replay-parity harness, or it is a documented renderer constraint** — never a
-silent approximation (`TE-AD`). `Shape.geometry(in:)` returns a rounded rect
-or an ellipse only. Proposal-path `.clipShape` clips hitboxes to the bounding
-rect; legacy `.cornerRadius` stays paint-only (divergence 47). An ellipse
-clip traps (divergence 91). Renderer: no semaphore; the atlas is uploaded
+silent approximation (`TE-AD`). `Shape.geometry(in:)` returns a rounded rect,
+an ellipse or (`GX-D`) a `Path`; `path(in:)` and `geometry(in:)` each default to
+the other, so a conformer writes one. Proposal-path `.clipShape` clips hitboxes
+to the bounding rect; legacy `.cornerRadius` stays paint-only (divergence 47).
+An ellipse or path clip traps (divergence 91). Renderer: no semaphore; the atlas is uploaded
 **before** encode (`MetalWindowRenderer.finishFrame`). **Never release an SDL
 GPU fence the GPU has not signalled** (`retire_fence`). Image textures are
 cached per identity and released when a frame stops referencing them
 (`TE-AF`). `Text.requestLayout` uses unguarded `MainActor.assumeIsolated` —
 layout must stay synchronous on the main actor.
+
+**Paths, shadows, transforms (`GX-`, record §73).** **A path is rasterized on
+the CPU** by `MetalUIPath` (exact-area coverage, nonzero/even-odd, strokes with
+caps/joins/miter/dashes) in **device pixels after the composed transform**, and
+reaches the scene as an ordinary `MUIImage` (never a new primitive, no shader
+change for paths); it stays a vector (`CapturedPrimitive.path`) until
+`insertIntoScene`, and a window-owned `RasterCache` keyed by value hands back
+the same `ImageTexture` identity on a hit (a key missing a field draws a stale
+raster). **Render effects** (`.rotationEffect`/`.scaleEffect`/`.offset`) are
+layout-transparent: a 64-byte `MUITransform` side table indexed from words the
+primitives already have (`MUIRect.shape` bits 8…31, `MUIImage.filter` bits
+8…31, `MUIGlyph.transform`; **index 0 is identity and never stored**, so no
+stride or old scene byte moved); a new effect-aware primitive lands in
+`shaders.metal` and `replay.hlsl` identically (`TE-AD`). One
+`Frame.paintScopes` stack carries transitions, effects and shadows; an empty
+stack is the old fast path. **Hitboxes follow the transform** (local rect +
+inverse affine + outer clip; `Hitbox.contains` is the one test hover, gestures
+and drag read); accessibility frames are the transformed bounding box
+(divergence 107). A handler written after an effect shares it through the
+**share floor** (a `ZStack`/overlay/background between stops it, `GX-U`).
+Proposal effects are `LayoutModifier` layers (one id level each); legacy ones
+return `Self` into `Decoration.renderEffects`, around the whole element
+(divergence 108). **Shadows are per leaf** (a text draw's glyphs are one leaf
+via `beginLeafGroup`/`endLeafGroup` — a new text-drawing site brackets its
+draw), silhouette on the CPU, blur sigma = radius, a shadow never hits and a
+`Deferred` stops it; text and images under a scale are resampled, not
+re-rasterized (divergence 106). A new public declaration spelled
+`nonisolated public` hides from the census — write `public nonisolated`.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent

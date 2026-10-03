@@ -134,9 +134,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/metal-view` (2026-10-02 — MetalView, from `330f02b`)
-the suite reports **2072 tests** in one summary line over three suites, with
-**128** `swiftc -typecheck` guards and no goldens: stage 7a retired all 97
+On `feat/paths-shadows-transforms` (2026-10-02 — paths, shadows and transforms, from `dc96395`)
+the suite reports **2227 tests** in one summary line over three suites, with
+**133** `swiftc -typecheck` guards and no goldens: stage 7a retired all 97
 WebKit goldens (record §48) and stage 9 deleted the CSS engine, so no layout
 request reaches it (`theLegacyEngineSymbolsAreAbsentFromTheTestProcess`).
 Every legacy element (`Box`, `Row`, `Column`, `Stack`, `ScrollView`, `List`,
@@ -152,7 +152,7 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
 - [`docs/api-overview.md`](docs/api-overview.md) — the public surface by area,
   each with its SwiftUI-alignment class.
 - [`docs/divergences.md`](docs/divergences.md) — every difference from
-  SwiftUI that remains (70 live), with SwiftUI's answer, MetalUI's, the
+  SwiftUI that remains (76 live), with SwiftUI's answer, MetalUI's, the
   ruling and the pin.
 - [`docs/migration.md`](docs/migration.md) — legacy spellings to SwiftUI
   vocabulary, and every breaking change since 2026-09-12.
@@ -373,6 +373,15 @@ with `MetalView` as the macOS spelling over `MetalDrawContext` and
 `SDLGPUDrawContext` for `Backends/SDL`; `.onDemand`/`.continuous` redraw. The
 real looks are `docs/verification/human-checks.md` group P, unrun.
 `METALUI_METALVIEW_DEMO=1 swift run MetalUIDemo` is its demo.
+**Paths, shadows and transforms** (user request 2026-10-02, not a plan task;
+record §73): SwiftUI's `Path` (fills under nonzero and even-odd, `StrokeStyle`
+caps, joins, miter limit and dashes, `Shape.path(in:)`), `.shadow(color:radius:x:y:)`
+(per leaf, a Gaussian-fitted blur) and `.rotationEffect`/`.scaleEffect`/`.offset`
+on both vocabularies — paint, hit testing and accessibility frames follow the
+transform, layout does not — drawn identically on Metal and SDL. Paths and
+shadows are rasterized on the CPU by the portable `MetalUIPath` target. The real
+looks are `docs/verification/human-checks.md` group Q, unrun.
+`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows them.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

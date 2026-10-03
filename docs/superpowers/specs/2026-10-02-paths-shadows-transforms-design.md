@@ -1,12 +1,14 @@
 # Paths, shadows and transforms — design
 
 User request 2026-10-02 (item 3 of the gpui-gap priority list; not a plan
-task). Rulings `GX-A`…`GX-V` in (`GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's, `GX-U` lane 2's review round, `GX-V` lane 3's)
+task). Rulings `GX-A`…`GX-W` in (`GX-W` the Record phase's close, `GX-P`…`GX-R` from the critic round, `GX-S` lane 1's readings, `GX-T` lane 2's, `GX-U` lane 2's review round, `GX-V` lane 3's)
 [`../2026-10-02-paths-shadows-transforms-decisions.md`](../2026-10-02-paths-shadows-transforms-decisions.md);
 probe [`../../probes/swiftui-paths-shadows-transforms.swift`](../../probes/swiftui-paths-shadows-transforms.swift)
 (arms P1–P6, PA1–PA9, ST1–ST11, SH0–SH13, T0–T16, H1–H7, X1–X6, N1–N10;
 recorded 2026-10-02 with the screen unlocked, run twice byte-identical).
 Record: `docs/record/73-paths-shadows-transforms.md` (the Record phase).
+
+**Status: BUILT (2026-10-02) — landed on `feat/paths-shadows-transforms`; the looks (human checks group Q) are owed to a human.** Three lanes, all verified `ok`; root suite 2227 (2124 + 103), 133 guards, `Backends/SDL` 24 + 57, divergences 70 → 76 live (next label 110), 0 px against `dc96395` in all fourteen offscreen images, `Expected.swift` unedited. Record `docs/record/73-paths-shadows-transforms.md`; the Record phase's own close is `GX-W`. §9 is the deferral list as built.
 
 Branch `feat/paths-shadows-transforms` from `dc96395`. Baseline **2124 tests
 in 3 suites, 0 goldens, 129 typecheck guards**, 70 live divergences (next
