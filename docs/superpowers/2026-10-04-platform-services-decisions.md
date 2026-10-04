@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AG`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AH`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1060,6 +1060,57 @@ reddened test is named; the root baseline is **2453 tests**, `Backends/SDL`
 | M1.14 | `presentAlert` answers `true` | `sdlPresentAlertDeclines` |
 | M1.15 | the minimum rounded down | `sdlContentSizeLimitsReachSDLAndClamp` |
 | M1.16 | the `MOUSE_LEAVE` mapping removed (`translate`) | `sdlMouseLeaveDeliversPointerExited` |
+| M1.15b | the original call order — the minimum, then the maximum, no lift first (`SDLBridge.c` `mui_window_set_size_limits`, after `9b2c32e`, spelled `bool lifted = true;`) | `sdlContentSizeLimitsApplyInEitherOrder` (macOS and `swift:6.4-noble`: the raised minimum reads `[100, 100, 1440, 400]`, and the `600.5` pair's minimum is refused too) |
+| M1.15c | the maximum not raised to its rounded minimum (`SDLPlatform.setContentSizeLimits`' `atLeast` answering `high`) | `sdlContentSizeLimitsApplyInEitherOrder` |
+| M2.42b | the `maxSize` NaN precondition removed (`Window.maxSize`) | `aNaNLimitTraps` (the new `maxSize` arm; before it the suite was green — the review's V8) |
+| M2.43 | the frame's resize no longer re-raises the redraw (`drawFrameIfNeeded`'s `resizeCount` check removed) | `aResizeIntoContentLimitsOnALifecycleFrameOwesTheNextFrame` |
+| M2.44 | the content maximum kept when the mode leaves `.contentSize` (`windowResizability`'s `didSet`) | `leavingContentSizeDropsTheContentMaximumAtOnce` |
 | M1.18 | the drain removed (`SDLPlatform+MainQueue.swift`) | **Linux**: `theSDLLoopRunsAMainActorTaskStartedFromTopLevelCode` (`task ran=false resumed=false iterations=200000`), `aDialogAnsweredOnAnotherThreadResumesAnAwaitingTask` (`paths=[]`). **macOS: nothing** — SDL's Cocoa pump drains the main queue itself (`task … iterations=3`, `dialog … iterations=6`), recorded as `SV-H`'s "Cost if wrong" foresaw; the Linux container is the separating run |
 
-1.17 and 1.20 owe no mutation (spec §6.1).
+1.17 and 1.20 owe no mutation (spec §6.1). M1.15b…M2.44 were added by the
+lane's review fixes (`SV-AG`), applied after `9b2c32e`; root baseline then
+**2455**, `Backends/SDL` **77** (macOS) and **74** (`swift:6.4-noble`).
+
+## SV-AG — Lane 1's review fixes: SDL limit order, the `maxSize` NaN pin, a resize during a settle build, leaving `.contentSize` (amends `SV-M`, `SV-L` items 2 and 4)
+
+**Ruling.** Four findings of lane 1's review, each red first and mutated
+(`SV-AF` M1.15b…M2.44).
+
+1. **SDL applies the limits whatever order they change in.** SDL refuses a
+   minimum above the maximum still set ("Tried to set minimum size larger than
+   maximum size"), and the bridge set the minimum first and discarded the
+   answer — so raising the minimum past an old maximum (the configurator's
+   1440-wide minimum after a smaller `maxSize`, or a content minimum growing,
+   `W5`) kept the old minimum on Linux and Windows while AppKit and the fake
+   read correctly. `mui_window_set_size_limits` now lifts the maximum
+   (`SDL_SetWindowMaximumSize(w, 0, 0)`), sets the minimum, then the new
+   maximum; `SDLWindow.setContentSizeLimits` raises a maximum that rounds below
+   its minimum (one fractional value rounded up and down, `600.5` → 601/600)
+   to it, 0 staying "no limit". Test **1.15b**
+   `sdlContentSizeLimitsApplyInEitherOrder` (red at `214ff46` on macOS SDL:
+   `[100, 100, 1440, 400]`); green on macOS and in `swift:6.4-noble`.
+2. **`Window.maxSize`'s NaN trap is pinned**: `aNaNLimitTraps` gains a
+   `maxSize` arm (the review's V8 removed the precondition and the suite stayed
+   green).
+3. **A resize that arrives during a frame's builds owes the next frame**
+   (measured, confirming the review's inspection): a `.contentMinSize` root
+   larger than the window, on a frame whose `onAppear` writes what the build
+   read, resized the window inside the first build; the lifecycle's settle
+   build's `needsRedraw = false` cleared that resize's dirt, so the frame
+   encoded into a drawable taken before the resize was the last one drawn
+   until other input arrived (`aResizeIntoContentLimitsOnALifecycleFrameOwesTheNextFrame`
+   red at `214ff46`: no second present). `Window` counts `onResize` deliveries;
+   `drawFrameIfNeeded` re-raises the redraw after its builds when the count
+   moved since `beginFrame()`. The colour-scheme rebuild's clear is covered by
+   the same check. A frame with no resize is unchanged (no extra
+   `setNeedsRedraw`).
+4. **Leaving `.contentSize` drops the content maximum at once**: the
+   `windowResizability` setter clears the last frame's content maximum for
+   every mode but `.contentSize`, so the switch to `.contentMinSize` reaches
+   the platform without it rather than a frame later (red at `214ff46`: no
+   call was made, the platform kept `900 × 600`).
+   `leavingContentSizeDropsTheContentMaximumAtOnce`.
+
+**Cost if wrong.** Item 3 raises at most one extra frame per resize that lands
+inside a build; item 1's lift leaves the window momentarily without a maximum
+between two SDL calls on the main thread, where no event can be delivered.
