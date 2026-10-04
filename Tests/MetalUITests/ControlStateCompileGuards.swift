@@ -46,6 +46,12 @@ private func conformer(pair: String) -> String {
         // arm here carries it; `DragAndDropCompileGuards` pins it.
         func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
+        // Platform services (`SV-B`), defaultless too, so every arm here carries
+        // them; `PlatformServicesCompileGuards` pins them.
+        func presentFileDialog(_: PlatformFileDialog) -> Bool { false }
+        func presentAlert(_: PlatformAlert) -> Bool { false }
+        func dismissPresentation(token: Int) {}
+        func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}

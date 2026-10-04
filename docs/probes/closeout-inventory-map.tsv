@@ -141,6 +141,9 @@ F	paths	A	swiftui-paths-shadows-transforms.swift	PA1	aPathViewAnswersItsProposal
 F	stroke-styles	A	swiftui-paths-shadows-transforms.swift	PA2	evenOddFillStyleEmptiesTheRing	97	GX-E	FillStyle/StrokeStyle/LineCap/LineJoin and the styled fill/stroke/strokeBorder: nonzero and even-odd, caps, joins, the miter limit and dashes; a plain-width stroke of a built-in keeps its SDF band; a stroke width snaps (97)
 F	shadows	A	swiftui-paths-shadows-transforms.swift	SH5	aShadowIsDrawnBelowEachLeaf	104 105	GX-J GX-K GX-Q	shadow(color:radius:x:y:) on both vocabularies: per leaf (a text draw is one leaf; a background and border one primitive, a surface its quad — 104), a triple box blur of sigma = radius (105), the default colour ColorToken.shadow; render only — no layout, hit region or accessibility change; colour, radius and offset animate
 F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
+F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsAnswerAtAZeroProposal	126	SV-L	WindowResizability (.automatic, .contentMinSize, .contentSize): SwiftUI's cases as window state; .contentMinSize's minimum is the root's answer at a zero proposal (W1), .contentSize adds its answer at an infinite proposal (W2); .automatic asks the content nothing, and the limits carry no title-bar inset (126)
+F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
+F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -157,10 +160,13 @@ M	MetalUI	AnyElement.swift	-	ElementObject	.*	element-protocols
 M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
 M	MetalUI	App.swift	App	icon	.*	app-icon
 M	MetalUI	App.swift	App	(preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
+M	MetalUI	App.swift	App	openWindow	.*(minSize|windowResizability).*	window-sizing
 M	MetalUI	App.swift	.*	.*	.*	host
 M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
 M	MetalUI	Window.swift	Window	(colorScheme|preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
+M	MetalUI	Window.swift	Window	(minSize|maxSize|windowResizability)	.*	window-sizing
+M	MetalUI	WindowSizing.swift	.*	.*	.*	window-resizability
 M	MetalUI	Window.swift	.*	.*	.*	host
 M	MetalUI	AXNode.swift	-	AXActionKind	.*	axnode-actions
 M	MetalUI	AXNode.swift	AXNode	actions	.*	axnode-actions
@@ -342,6 +348,10 @@ M	MetalUILayout	.*	.*	.*	.*	layout-kernel
 M	MetalUIPlatform	Platform.swift	Platform	setMenuBar	.*	menu-bar
 M	MetalUIPlatform	Menus.swift	(-|PlatformMenuBar)	(PlatformMenuBar|content|perform|init)	.*	menu-bar
 M	MetalUIPlatform	Platform.swift	Platform	setApplicationIcon	.*	app-icon
+M	MetalUIPlatform	Presentations.swift	.*	.*	.*	platform-services-seam
+M	MetalUIPlatform	Platform.swift	PlatformWindow	(presentFileDialog|presentAlert|dismissPresentation|setContentSizeLimits)	.*	platform-services-seam
+M	MetalUIPlatform	InputEvent.swift	InputEvent	(pointerExited|fileDialogResult|alertResult)	.*	platform-services-seam
+M	MetalUIPlatform	AccessibilityTree.swift	AccessibilityRole	(popUpButton|alert)	.*	platform-services-seam
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render

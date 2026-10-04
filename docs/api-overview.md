@@ -26,6 +26,17 @@ environment, focus, keymap, input), `Frame`, `renderFrame(_:size:scaleFactor:tex
 for a headless frame. A window redraws on a display link, only when dirty.
 SwiftUI's `App`/`Scene` lifecycle is not offered.
 
+**Window sizing** (`SV-L`, `SV-M`; SwiftUI's `.defaultSize` and
+`.windowResizability` scene modifiers become window state, `App` not being a
+`Scene`): `App.openWindow(title:size:minSize:maxSize:windowResizability:startsDisplayLink:content:)`
+— `size` is the default size — and `Window.minSize`, `Window.maxSize`,
+`Window.windowResizability` (M), settable at any time; `WindowResizability`
+(A) `.automatic`, `.contentMinSize` (the root's answer at a zero proposal is
+the minimum, following the content), `.contentSize` (adds its answer at an
+infinite proposal as the maximum). `.automatic` asks the content nothing
+(divergence 126). The platform receives the effective limits through
+`PlatformWindow.setContentSizeLimits(minimum:maximum:)` only when they change.
+
 ## Elements — M
 
 MetalUI's equivalent of `View` is three protocols with gpui's phases:
@@ -380,7 +391,11 @@ offered: a main-actor task never runs inside the SDL loop (`LC-L`;
 `Appearance`, `ControlActiveState` (A), `LayoutDirection` (25)),
 `MetalUILayout` (the layout kernel: `LayoutTree`, `ProposalLayout`,
 `ProposedSize`, rounding — 77), `MetalUIPlatform` (`Platform`,
-`PlatformWindow`, `WindowRenderer`, input events, the accessibility tree),
+`PlatformWindow`, `WindowRenderer`, input events, the accessibility tree; the
+platform-services seam, `SV-B`: `PlatformFileType`, `PlatformFileDialog`,
+`FileDialogResultEvent`, `PlatformAlert`, `PlatformAlertButton`,
+`AlertResultEvent`, `InputEvent.pointerExited`/`.fileDialogResult`/`.alertResult`,
+`AccessibilityRole.popUpButton`/`.alert`),
 `MetalUIScene` (`Scene` — with its per-instance `MUITransform` table,
 `Scene.transforms`/`insert(_:…transform:)`, `GX-F` — the glyph atlas,
 `FontKey`, `ImageTexture`),

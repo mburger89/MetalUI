@@ -15,7 +15,9 @@ let package = Package(
         .library(name: "SDLReplay", targets: ["SDLReplay"]),
         .executable(name: "PortableReplay", targets: ["PortableReplay"]),
         .executable(name: "DemoCapture", targets: ["DemoCapture"]),
-        .executable(name: "MetalUISDLDemo", targets: ["MetalUISDLDemo"])
+        .executable(name: "MetalUISDLDemo", targets: ["MetalUISDLDemo"]),
+        // The main-queue drain, checked from top-level code (ruling SV-H).
+        .executable(name: "MainQueueDrainCheck", targets: ["MainQueueDrainCheck"])
     ],
     dependencies: [.package(name: "MetalUI", path: "../..")],
     targets: [
@@ -61,6 +63,12 @@ let package = Package(
             .product(name: "MetalUI", package: "MetalUI"),
             .product(name: "MetalUIDemoContent", package: "MetalUI"),
             .product(name: "MetalUIPortableText", package: "MetalUI")]),
+        // The SDL loop's main-queue drain in a process of its own (ruling
+        // SV-H item 3): `SDLMainQueueDrainTests` launches it.
+        .executableTarget(name: "MainQueueDrainCheck", dependencies: [
+            "MetalUISDL", "SDLBridge",
+            .product(name: "MetalUIPlatform", package: "MetalUI"),
+            .product(name: "MetalUICore", package: "MetalUI")]),
         .testTarget(name: "ReplayFixtureTests", dependencies: ["ReplayFixture",
                                                                .product(name: "MetalUIScene", package: "MetalUI")])
     ]

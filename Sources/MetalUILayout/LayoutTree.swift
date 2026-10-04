@@ -587,7 +587,13 @@ public final class LayoutTree {
     /// `isLayingOut` bracket, the same checkpoints 1 and 2 and depth guard as
     /// `computeNativeLayout`, and it too leaves its work in
     /// `lastNativeLayoutWork`.
-    func measureNativeLayout(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
+    ///
+    /// `package` so `MetalUI`'s window sizing can ask the root its limits
+    /// (ruling `SV-L` item 2: the answer at a zero proposal is
+    /// `.contentMinSize`'s minimum, at an infinite one `.contentSize`'s
+    /// maximum), **before** the frame's real layout so `lastNativeLayoutWork`
+    /// still reads the real run's work.
+    package func measureNativeLayout(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
         beginLayout()
         defer { endLayout() }
         let run = NativeLayoutRun(tree: self)

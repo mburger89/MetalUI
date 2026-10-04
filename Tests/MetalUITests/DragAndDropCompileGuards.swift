@@ -160,6 +160,12 @@ private func conformer(member: String) -> String {
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
+        // Platform services (`SV-B`), defaultless too, so every arm here carries
+        // them; `PlatformServicesCompileGuards` pins them.
+        func presentFileDialog(_: PlatformFileDialog) -> Bool { false }
+        func presentAlert(_: PlatformAlert) -> Bool { false }
+        func dismissPresentation(token: Int) {}
+        func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}

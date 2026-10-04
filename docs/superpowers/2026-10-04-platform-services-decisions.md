@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AE`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AF`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -952,3 +952,68 @@ lane 2 ≈ 47, lane 3 ≈ 43.
    and `.task` (`SV-H` item 5) are owned by the gpui-gap priority list — the
    Record phase adds a row for each there. The rest of spec §11 stays owner
    none (none is a configurator gap).
+
+---
+
+## SV-AE — Lane 1's findings: what the seam and the platforms measured (amends `SV-B` item 4, `SV-G` item 4, `SV-H` items 3–4, `SV-J` item 1, `SV-L` item 4, `SV-S`)
+
+**Ruling.** Each item was measured on lane 1's branch; where it refutes a line
+above, that line stands corrected by this one.
+
+1. **The real SDL dialog in CI's Linux image fails** (`SV-AB`, measured):
+   `SDL_ShowOpenFileDialog` answers through its callback, at once, with `NULL`
+   and `SDL_GetError()` = `File dialog driver unsupported (supported values for
+   SDL_HINT_FILE_DIALOG_DRIVER are 'zenity' and 'portal')` — delivered as
+   `.fileDialogResult(.failed(that text))` within the bounded pumps, two runs
+   of two. Test 1.12 asserts `.failed` and prints the text.
+2. **Main-queue latency on Linux is passes, not one pass** (corrects `SV-H`
+   item 4's "runs in the same iteration"): in `swift:6.4-noble`, under the
+   offscreen driver (a pass does almost no work), a main-actor task created
+   before the loop ran and resumed after **36 and 133** passes in two runs, and
+   a dialog answer resumed its awaiting task after **44** passes — and once
+   not within the first draft's 400-pass bound, which read a working drain as
+   broken; macOS took **2** and **5**. The drain works (1.18 and 1.19 green on
+   both); its latency is a short wall-clock interval, not a pass count, so
+   `MainQueueDrainCheck` bounds its loop at 200 000 passes and stops as soon as
+   the task finishes. Nothing in a frame depends on it.
+3. **`MainQueueDrainCheck`'s `dialog` mode awaits a raw continuation over
+   `SDLWindow.onInput`** (amends `SV-H` item 3, which named
+   `window.fileDialogs.openFiles` on an `App`): `FileDialogs` is lane 2's. The
+   check depends on `MetalUISDL`, `SDLBridge`, `MetalUIPlatform` and
+   `MetalUICore` only, and `SDLWindow.id` became `public` so the executable can
+   name the window to the bridge's test hook. Lane 2 may switch the mode to
+   `FileDialogs`; the thread hop and the drain it pins are the same.
+4. **`NSAlert` re-derives its buttons' key equivalents when it lays itself out
+   for the sheet** (amends `SV-J` item 1's mechanism, not its rule): a `"\r"`
+   set on `K3`'s Save while adding the buttons read `""` once attached. The
+   roles are applied after `beginSheetModal(for:)`; 1.6 asserts them on the
+   attached alert.
+5. **Ending an `NSSavePanel` sheet stops the main run loop it is called in**:
+   an interposed `CFRunLoopStop` traced `-[NSSavePanel didEndPanelWithReturnCode:]`
+   → `induceEventLoopIterationSoon` → `-[NSEvent _postAtStart:]` →
+   `CFRunLoopStop(main)`. From a Swift Testing job that stop lands on the
+   executor's outermost `CFRunLoopRun`, which returns, and the process exits 0
+   with no summary line (measured: the run ended at the next test; record
+   §61 §9's `NSApp.run` signal fix does not prevent it). The AppKit tests end
+   every sheet inside a **nested** run (`inNestedRun`), where the stop ends
+   only that run. Production is unaffected: under `-[NSApplication run]` the
+   stop lands on AppKit's own nested event wait.
+6. **Exactly one limits call before the first frame** (amends `SV-L` item 4):
+   `App.openWindow` assigns its three sizing parameters through
+   `Window.applySizing`, which reconciles once — assigning the properties one
+   by one sent `(min, nil)` then `(min, max)`. Test 2.40 asserts one call.
+7. **Conformers** (amends `SV-B` item 4): of the seven compile-guard files,
+   five hold a `PlatformWindow` conformer and gained the four members
+   (`ColorScheme`, `ControlState`, `DragAndDrop`, `Menu`, `Transaction`);
+   `AppIcon` and `Commands` hold only `Platform` conformers and need nothing,
+   as does `SDLLifecycleTests`' `RecordingSDLPlatform` (a `Platform`). Every
+   positive control is green.
+8. **AccessKit has no pop-up-button role** (`SV-S`, read from `accesskit.h`
+   0.23.0): `.popUpButton` is `COMBO_BOX` with `has_popup = MENU`, `.alert` is
+   `ALERT_DIALOG`.
+9. **SDL details**: `presentFileDialog` answers `false` only for a token
+   outside `Int32` (the bridge's event carries an `Int32`); the seam's
+   `title`/`prompt` are not parameters of SDL3's two calls and are not shown;
+   a window closed before its dialog answers frees the queued answer
+   unseen. `Window.onFrameAdopted` (internal) is the test hook 2.39 reads the
+   frame's recorded work through.

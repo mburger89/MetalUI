@@ -238,6 +238,7 @@ private func draw(_ window: Window) {
         Box().frame(width: Pixels(10), height: Pixels(10)).background(.accent)
     }
     let fake = try #require(platform.openedWindows.first)
+    #expect(fake.contentSizeLimitCalls.count == 1, "one pair, not one call per parameter")
     let first = try #require(fake.contentSizeLimitCalls.first)
     #expect(Limits(minimum: first.minimum, maximum: first.maximum)
             == Limits(minimum: size(40, 30), maximum: size(500, 400)))

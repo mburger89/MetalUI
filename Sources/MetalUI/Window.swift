@@ -662,6 +662,87 @@ public final class Window {
     /// (`LC-K`). 0 after a call that drew nothing.
     private(set) var lastDrawBuildCount = 0
 
+    /// Called with each frame `buildAndAdoptFrame` built, after its read-backs
+    /// — test observability (the frame's tree and its recorded work, spec test
+    /// 2.39). `nil` in production; nothing retains the frame.
+    var onFrameAdopted: (@MainActor (Frame) -> Void)?
+
+    // MARK: Window sizing (rulings `SV-L`, `SV-M`)
+
+    /// The smallest content size the user can resize the window to, in window
+    /// points; `nil`, the default, sets none (ruling `SV-L`). Combined per axis
+    /// with the content's own minimum under `.contentMinSize`/`.contentSize`
+    /// (the larger wins). A negative axis counts as 0; NaN traps. Applied at
+    /// once: a window smaller than it is resized to it.
+    public var minSize: Size<Pixels>? {
+        didSet {
+            ContentSizeLimits.requireNotNaN(minSize, "minSize")
+            reconcileContentSizeLimits()
+        }
+    }
+
+    /// The largest content size the user can resize the window to, in window
+    /// points; `nil`, the default, sets none (ruling `SV-L`). An infinite axis
+    /// is no limit on that axis; one below the minimum is raised to it; NaN
+    /// traps. Combined with the content's maximum under `.contentSize` (the
+    /// smaller wins).
+    public var maxSize: Size<Pixels>? {
+        didSet {
+            ContentSizeLimits.requireNotNaN(maxSize, "maxSize")
+            reconcileContentSizeLimits()
+        }
+    }
+
+    /// Whether the root's layout limits the window's size (ruling `SV-L`):
+    /// `.automatic`, the default, measures nothing (divergence 126);
+    /// `.contentMinSize` and `.contentSize` measure the root once per drawn
+    /// frame, before its real layout, so the limits follow the content.
+    public var windowResizability: WindowResizability = .automatic {
+        didSet {
+            guard windowResizability != oldValue else { return }
+            if windowResizability == .automatic { contentLimits = .none }
+            reconcileContentSizeLimits()
+            setNeedsRedraw()
+        }
+    }
+
+    /// Set while `applySizing` assigns several sizing properties, so they
+    /// reach the platform as one call.
+    private var isApplyingSizing = false
+
+    /// Assigns all three sizing properties and reconciles **once** — `App.openWindow`'s
+    /// parameters, so the platform hears one pair before the first frame
+    /// (`SV-L` item 4), not one per property.
+    func applySizing(minSize: Size<Pixels>?, maxSize: Size<Pixels>?, windowResizability: WindowResizability) {
+        isApplyingSizing = true
+        self.minSize = minSize
+        self.maxSize = maxSize
+        self.windowResizability = windowResizability
+        isApplyingSizing = false
+        reconcileContentSizeLimits()
+    }
+
+    /// The content's limits the last built frame measured (`.none` under
+    /// `.automatic`).
+    private var contentLimits = ContentSizeLimits.none
+    /// The limits last sent to the platform — `.none` before any, which a
+    /// window with no limits never moves from, so it never calls.
+    private var appliedContentSizeLimits = ContentSizeLimits.none
+
+    /// Sends the effective limits to the platform when they differ from the
+    /// last pair sent (ruling `SV-L` item 4): from `minSize`/`maxSize`/
+    /// `windowResizability`'s setters and after every built frame, so limits
+    /// that never change reach the platform once — and none, never.
+    private func reconcileContentSizeLimits() {
+        guard !isApplyingSizing else { return }
+        let effective = ContentSizeLimits.effective(minimum: minSize, maximum: maxSize,
+                                                    contentMinimum: contentLimits.minimum,
+                                                    contentMaximum: contentLimits.maximum)
+        guard effective != appliedContentSizeLimits else { return }
+        appliedContentSizeLimits = effective
+        platformWindow.setContentSizeLimits(minimum: effective.minimum, maximum: effective.maximum)
+    }
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
@@ -1425,6 +1506,7 @@ public final class Window {
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
+        frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
         frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
         frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
@@ -1523,6 +1605,16 @@ public final class Window {
         // answer is the whole answer, and a flag that only ever went true is
         // a window whose display link never pauses again.
         hasActiveAnimations = frame.hasActiveAnimations
+
+        // The content's limits follow the frame just built (ruling `SV-L`
+        // items 2 and 4): sent to the platform only when the effective pair
+        // changed. A resize the platform makes into them arrives through
+        // `onResize` and dirties the window for the next frame.
+        if windowResizability != .automatic {
+            contentLimits = ContentSizeLimits(minimum: frame.contentMinimum, maximum: frame.contentMaximum)
+            reconcileContentSizeLimits()
+        }
+        onFrameAdopted?(frame)
         return (frame, scene)
     }
 

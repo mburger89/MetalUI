@@ -513,6 +513,23 @@ public final class Frame {
         mainColorSchemePreference ?? presentationColorSchemePreference
     }
 
+    // MARK: Content size limits (ruling `SV-L` item 2)
+
+    /// Which of the root's limits `computeRootLayout` measures — the window's
+    /// `windowResizability`, set by `Window` before the build. `.automatic`,
+    /// the default, measures nothing.
+    var contentSizeLimitsMode: WindowResizability = .automatic
+    /// The root's answer at a zero proposal, under `.contentMinSize` or
+    /// `.contentSize`; `nil` otherwise. Read by `Window` after the build.
+    private(set) var contentMinimum: Size<Pixels>?
+    /// The root's answer at an infinite proposal, under `.contentSize`; `nil`
+    /// otherwise. An axis may be infinite (a greedy root): no maximum there.
+    private(set) var contentMaximum: Size<Pixels>?
+
+    private static func size(of measurement: LayoutMeasurement) -> Size<Pixels> {
+        Size(width: Pixels(Float(measurement.size.width)), height: Pixels(Float(measurement.size.height)))
+    }
+
     /// Runs `body` — a `.preferredColorScheme(value)` scope's content — after
     /// recording `value` if this scope is top-level and no earlier top-level
     /// scope decided (`CR-L` item 3). Called from both of `EnvironmentScope`'s
@@ -2332,8 +2349,20 @@ public final class Frame {
     /// **Before** the root, so `LayoutTree.lastNativeLayoutWork` still reads the
     /// root's own run (`SA-M`); separate runs, so a presentation's depth counts
     /// from its own root (`SA-L`) and the root's placement (`CN-J`) is untouched.
+    ///
+    /// **Content size limits first** (ruling `SV-L` item 2): under
+    /// `.contentMinSize` the root is measured at a zero proposal, under
+    /// `.contentSize` also at an infinite one — measure-only runs, before every
+    /// real run, so `lastNativeLayoutWork` still reads the root's own. Under
+    /// `.automatic` nothing is measured.
     func computeRootLayout(root: LayoutNodeID) {
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
+        if contentSizeLimitsMode != .automatic {
+            contentMinimum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .zero))
+            if contentSizeLimitsMode == .contentSize {
+                contentMaximum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .infinity))
+            }
+        }
         for presentation in lowering.presentations {
             tree.computeNativeLayout(root: presentation.root,
                                      proposal: ProposedSize(width: width, height: height),

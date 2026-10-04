@@ -47,6 +47,12 @@ private func conformer(member: String) -> String {
         func setDisplayLinkPaused(_ paused: Bool) {}
         func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
+        // Platform services (`SV-B`), defaultless too, so every arm here carries
+        // them; `PlatformServicesCompileGuards` pins them.
+        func presentFileDialog(_: PlatformFileDialog) -> Bool { false }
+        func presentAlert(_: PlatformAlert) -> Bool { false }
+        func dismissPresentation(token: Int) {}
+        func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
     \(member)
     }
     """

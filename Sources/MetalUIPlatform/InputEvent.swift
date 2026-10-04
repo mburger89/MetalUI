@@ -159,6 +159,20 @@ public enum InputEvent: Sendable {
     /// dismissal. Delivered after `PlatformWindow.presentMenu(_:at:)` returned,
     /// never inside it.
     case menuAction(MenuActionEvent)
+    /// The pointer left the window (ruling `SV-N` item 7): AppKit's tracking
+    /// area's `mouseExited`, SDL's `SDL_EVENT_WINDOW_MOUSE_LEAVE`. `Window`
+    /// forgets the pointer's position, so nothing reads as hovered.
+    ///
+    /// **Migration** (`SV-B` item 5): an exhaustive `switch` over `InputEvent`
+    /// outside this package adds the three platform-services cases or a
+    /// `default:`.
+    case pointerExited
+    /// A file dialog's answer (ruling `SV-B` item 2), delivered after
+    /// `PlatformWindow.presentFileDialog(_:)` returned, never inside it.
+    case fileDialogResult(FileDialogResultEvent)
+    /// A natively shown alert's answer (ruling `SV-B` item 2), delivered after
+    /// `PlatformWindow.presentAlert(_:)` returned, never inside it.
+    case alertResult(AlertResultEvent)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
 }
 

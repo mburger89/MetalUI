@@ -66,6 +66,15 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// A popover's panel (`MN-O`; AppKit `AXPopover`, AccessKit a non-modal
     /// `DIALOG`).
     case popover
+    /// A pop-up button showing its selection and opening a menu of choices —
+    /// a `.menu` `Picker` (ruling `SV-S`; AppKit `AXPopUpButton`, the probe's
+    /// `P0`–`P3`; AccessKit `COMBO_BOX` with a menu popup — `accesskit.h` 0.23
+    /// has no pop-up-button role).
+    case popUpButton
+    /// An alert drawn in the window (ruling `SV-S`; AppKit `AXGroup` with
+    /// subrole `AXDialog` — never published there, whose alert is native;
+    /// AccessKit `ALERT_DIALOG`).
+    case alert
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

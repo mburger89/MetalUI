@@ -48,6 +48,25 @@ private func turn(until done: () -> Bool) -> Bool {
     for _ in 0..<count { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005)) }
 }
 
+/// Runs `body` inside a **nested** run of the main run loop. Ending a panel's
+/// sheet calls `-[NSSavePanel induceEventLoopIterationSoon]`, which posts an
+/// event with `CFRunLoopStop(main)` — measured with an interposed
+/// `CFRunLoopStop` (backtrace: `didEndPanelWithReturnCode:` →
+/// `induceEventLoopIterationSoon` → `-[NSEvent _postAtStart:]`). Called from a
+/// test's own job, that stop lands on the run Swift Testing's executor is in,
+/// whose outermost `CFRunLoopRun` then returns and the process exits 0 with no
+/// summary line (it did: the run ended at the next test). Inside a nested run
+/// the stop ends only that run. Bounded by `turnLimit` turns.
+@MainActor private func inNestedRun(_ body: @escaping @MainActor () -> Void) {
+    var done = false
+    CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue) {
+        MainActor.assumeIsolated { body(); done = true }
+    }
+    CFRunLoopWakeUp(CFRunLoopGetMain())
+    for _ in 0..<turnLimit where !done { _ = CFRunLoopRunInMode(.defaultMode, 0.005, false) }
+    precondition(done, "the nested run never ran the block")
+}
+
 /// A real AppKit window of `width × height`, its `onInput` and `onResize`
 /// logging.
 @MainActor private func hostWindow(width: Float = 400, height: Float = 300)
@@ -66,7 +85,7 @@ private func turn(until done: () -> Bool) -> Bool {
 
 /// Ends whatever sheet is attached to `window`, then closes it.
 @MainActor private func tearDown(_ window: NSWindow) {
-    if let sheet = window.attachedSheet { window.endSheet(sheet, returnCode: .abort) }
+    if let sheet = window.attachedSheet { inNestedRun { window.endSheet(sheet, returnCode: .abort) } }
     turns(2)
     window.close()
 }
@@ -77,11 +96,11 @@ private let jsonType = PlatformFileType(identifier: "public.json",
                                         conformsTo: ["public.text", "public.data", "public.item"],
                                         filenameExtensions: ["json"])
 
-private func fileResults(_ log: Log) -> [FileDialogResultEvent] {
+@MainActor private func fileResults(_ log: Log) -> [FileDialogResultEvent] {
     log.events.compactMap { if case .fileDialogResult(let r) = $0 { r } else { nil } }
 }
 
-private func alertResults(_ log: Log) -> [AlertResultEvent] {
+@MainActor private func alertResults(_ log: Log) -> [AlertResultEvent] {
     log.events.compactMap { if case .alertResult(let r) = $0 { r } else { nil } }
 }
 
@@ -143,7 +162,7 @@ private func alertResults(_ log: Log) -> [AlertResultEvent] {
     let panel = try #require(nsWindow.attachedSheet as? NSOpenPanel)
     var duringCall = -1
     appKit.onSheetCompletionForTesting = { duringCall = log.events.count }
-    panel.cancel(nil)
+    inNestedRun { panel.cancel(nil) }
     try #require(turn { !fileResults(log).isEmpty }, "no answer arrived")
     turns(5)
     #expect(duringCall == 0, "nothing may be delivered inside AppKit's completion handler: \(duringCall)")
@@ -162,7 +181,7 @@ private func alertResults(_ log: Log) -> [AlertResultEvent] {
     #expect(appKit.presentFileDialog(PlatformFileDialog(token: 4, kind: .open(allowsMultipleSelection: false),
                                                         allowedTypes: [])))
     try #require(turn { nsWindow.attachedSheet != nil }, "no sheet attached")
-    appKit.dismissPresentation(token: 4)
+    inNestedRun { appKit.dismissPresentation(token: 4) }
     #expect(turn { nsWindow.attachedSheet == nil }, "the sheet must end")
     turns(20)
     #expect(fileResults(log).isEmpty, "a dismissed dialog answers nothing: \(fileResults(log))")
@@ -236,7 +255,7 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
                                                         button("Cancel", cancel: true)])))
     try #require(turn { nsWindow.attachedSheet != nil }, "no sheet attached")
     let alert = try #require(appKit.presentedAlert(token: 20))
-    alert.buttons[1].performClick(nil)
+    inNestedRun { alert.buttons[1].performClick(nil) }
     try #require(turn { !alertResults(log).isEmpty }, "no answer arrived")
     turns(5)
     #expect(alertResults(log) == [AlertResultEvent(token: 20, button: 1)])
