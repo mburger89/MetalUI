@@ -1,0 +1,767 @@
+# Platform services — decisions
+
+Rulings for file dialogs, alerts, window sizing, hover, `Divider` as a view and
+the menu `Picker` (user request 2026-10-02, an item of the gpui-gap priority
+list — the SMK configurator port's gaps 4, 5, 7, 8, 9, 10 and 12; **not a plan
+task**). Spec:
+[`specs/2026-10-04-platform-services-design.md`](specs/2026-10-04-platform-services-design.md).
+Record: `../record/77-platform-services.md` (Record phase). Evidence (all new,
+outputs and readings in their headers):
+[`../probes/swiftui-platform-services.swift`](../probes/swiftui-platform-services.swift)
+(arm ids `D…` the importer, `X…` the exporter, `A…`/`C1` alerts and the
+confirmation dialog, `H…` hover — **a recorded broken instrument**, `V…`
+`Divider`, `P…` the menu picker; run twice, 163 lines byte-identical),
+[`../probes/swiftui-window-sizing.swift`](../probes/swiftui-window-sizing.swift)
+(arms `W0`…`W5`, one build per arm, run twice from clean defaults) and
+[`../probes/swift-main-queue-drain-nested.swift`](../probes/swift-main-queue-drain-nested.swift)
+(arms `J0`…`J3`, macOS and `swift:6.4-noble`; it extends
+`swift-main-actor-task-loop.swift`'s `B1`/`B2`, whose Linux lines it
+reproduced). Where SwiftUI has no answer (Linux and Windows, an async platform
+call, hover — unmeasurable headless) the ruling says so and names gpui's
+approach as the comparison, not as evidence.
+
+Prefix **`SV-`**, lettered. **Next unused: `SV-X`.** (This line moves in the
+commit that appends a ruling; read the last `## SV-` heading.)
+
+Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
+#46). Baseline at `c2b8f48`, re-taken by the design session: spec §0.
+`docs/divergences.md` lines 4 and 12: **92 live, next label 126** (CLAUDE.md's
+"70 live, next label 104" is stale; the file is the authority).
+
+**Carried items.** `MN-C` (a native menu or "draw it yourself" through one
+defaultless `Bool` requirement; a choice comes back as a queued
+`InputEvent`, never re-entrantly) — the shape `SV-B` copies for dialogs and
+alerts. `MN-F` (the window-owned in-window menu panel: no id, no `StateTable`
+entry, painted after everything) — the shape `SV-J`'s drawn alert copies, and
+the panel `SV-Q` makes scroll. `MN-H` item 3 (`Divider` is menu-only, "the
+enclosing stack's axis … MetalUI's environment does not carry") — amended by
+`SV-O`. `MN-Q` (one new `Handlers` member plus one proposal wrapper per
+attachment) — the shape `SV-N` copies for hover. `DD-V`/`DD-AB` item 7 and
+divergence 81 (`.menu` not offered; the picker scope finds options during
+layout) — amended by `SV-P`. `LC-B`/`LC-C`/`LC-U` (a transparent scope keyed by
+position and depth; a registry outside `StateTable`) — the shape `SV-K`
+copies. `LC-E` (actions after the build, outside every phase, under
+`StateDispatch`) — where `SV-K` and `SV-N` run their callbacks. `LC-L` (`.task`
+deferred because the SDL loop starves main-actor tasks; owner: the plan's gap
+10) — `SV-H` is that owner. `IX-D`/`DN-E`/`DN-F` (the one ranking,
+`topmostHitbox(in:at:where:)`; arena membership by identity and layer) — the
+rule `SV-N` reuses. `GX-I`/`GX-P` (hitboxes follow render effects;
+`Hitbox.contains` is the one region test) — inherited by `SV-N` unchanged.
+`EV-AB`/`AB-R`/`DN-C`/`MN-C`/`AI-B`/`MV-F` (a new platform requirement has no
+default) — `SV-B`. `AI-N` is not triggered (no resource lookup). Window.swift's
+`lastMousePosition` doc ("deliberately sticky … a future task adding a real
+`mouseExited`-driven feature … can add the case") — `SV-N` item 7 is that task.
+
+---
+
+## SV-A — Scope: what this branch builds, what it defers
+
+**Ruling.** Build, SwiftUI-spelled where SwiftUI has a spelling, probe-backed,
+on AppKit **and** SDL (Linux, Windows; SDL on macOS too):
+
+1. **File dialogs** — `.fileImporter(isPresented:allowedContentTypes:allowsMultipleSelection:onCompletion:)`,
+   its single-URL overload, `.fileExporter(isPresented:item:contentTypes:defaultFilename:onCompletion:onCancellation:)`
+   (`SV-C`); a MetalUI-only async call usable from a `Button` action,
+   `FileDialogs.openFiles(…)`/`saveFile(…)` (`SV-D`); `ContentType` filename
+   extensions and `.json` (`SV-E`); AppKit sheets (`SV-F`), SDL's async dialogs
+   with the thread hop (`SV-G`); the SDL main-queue drain (`SV-H`, gap 10).
+2. **Alerts** — `.alert(_:isPresented:actions:message:)`, the `presenting:`
+   form, `.confirmationDialog(_:isPresented:actions:message:)` (`SV-I`):
+   native `NSAlert` sheets on AppKit, a drawn window-owned alert elsewhere
+   (`SV-J`), through one transparent presentation scope (`SV-K`).
+3. **Window sizing** — `minSize`/`maxSize` and `WindowResizability`
+   (`.automatic`, `.contentMinSize`, `.contentSize`) on `Window` and
+   `App.openWindow` (`SV-L`, `SV-M`).
+4. **Hover** — `.onHover(perform:)` and `.onContinuousHover(perform:)` from
+   input through the one ranking, plus `InputEvent.pointerExited` (`SV-N`).
+5. **`Divider()` as a view** in `HStack`/`VStack`/`Row`/`Column`, menus
+   unchanged (`SV-O`).
+6. **`.pickerStyle(.menu)`** over the native/in-window menu machinery
+   (`SV-P`), with a scrolling in-window menu for hundreds of options
+   (`SV-Q`).
+7. Two accessibility roles, `.popUpButton` and `.alert` (`SV-S`); a services
+   demo and human-checks group U (`SV-T`).
+
+**Deferred** (`SV-W`, spec §11): clipboard beyond text (`SV-R`), `.task`,
+`fileExporter(document:)`/`FileDocument`, folder selection, `fileMover`,
+dialog-customisation modifiers, alert text fields, `confirmationDialog`'s
+`titleVisibility:`, type-select in the drawn menu, the pop-up placement of the
+drawn picker menu, other hover coordinate spaces.
+
+**Cost if wrong.** Scope only; every item is independently removable.
+
+---
+
+## SV-B — The platform seam: four defaultless requirements, three input cases
+
+**Ruling.**
+
+1. `PlatformWindow` gains, **each with no default implementation**
+   (`AB-R`/`EV-AB`/`DN-C`/`MN-C`'s reason — a conformer that forgets one fails
+   to compile rather than silently never showing a dialog):
+   - `func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool` — `true`:
+     the platform shows it and will answer with
+     `InputEvent.fileDialogResult`; `false`: it cannot (the caller completes
+     with `FileDialogError.unavailable`).
+   - `func presentAlert(_ alert: PlatformAlert) -> Bool` — `true`: shown
+     natively, answered with `InputEvent.alertResult`; `false`: "draw it
+     yourself" (`SV-J`), `presentMenu`'s contract.
+   - `func dismissPresentation(token: Int)` — ends the dialog or alert
+     `token` names without an answer; a platform that cannot (SDL's file
+     dialogs) does nothing, and `Window` ignores the late answer (`SV-G`
+     item 5).
+   - `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?)`
+     — `SV-M`.
+2. `InputEvent` gains `.pointerExited` (the pointer left the window, `SV-N`
+   item 7), `.fileDialogResult(FileDialogResultEvent)` and
+   `.alertResult(AlertResultEvent)`. A result is **queued** by the platform and
+   delivered after the presenting call returned, never inside it (`MN-C` item
+   4's reason: `Window`'s dispatch is not re-entrant).
+3. Seam types live in a new `Sources/MetalUIPlatform/Presentations.swift`,
+   Foundation-free (`MetalUIPlatform` imports only `MetalUICore` and
+   `MetalUIScene`): paths are file-system path `String`s; `MetalUI` turns them
+   into `URL`s.
+4. **Every conformer implements all four honestly**: `AppKitWindow`
+   (`SV-F`, `SV-J`, `SV-M`), `SDLWindow` (`SV-G`, `SV-J` — `presentAlert`
+   answers `false`, `SV-M`), `FakePlatformWindow` (records every call; the two
+   `Bool`s are settable, `presentFileDialog` default `true`, `presentAlert`
+   default `false`, as `presentMenu`'s), `SDLLifecycleTests`' fake, and every
+   compile-guard conformer fixture (7 files; their positive controls stop
+   compiling the moment a requirement lands — the lane re-greens each by adding
+   the four members, which is the check that the guards still test what they
+   name).
+5. **Migration**: a conformer outside this repository adds
+   `func presentFileDialog(_: PlatformFileDialog) -> Bool { false }`,
+   `func presentAlert(_: PlatformAlert) -> Bool { false }`,
+   `func dismissPresentation(token: Int) {}` and
+   `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}`;
+   a `switch` over `InputEvent` outside this package adds the three cases or a
+   `default:`. Three new cases and new stored types crossing the
+   `MetalUIPlatform` → `MetalUI` boundary: `swift package clean` before the
+   first measured run (CLAUDE.md).
+
+**Reasoning.** One seam for every presentation keeps `Window` the single place
+that owns state, `StateDispatch` and the input order; the platform shows,
+answers and forgets. `MN-C`'s `Bool` lets one `Window` path serve a native
+platform and one that draws.
+
+**Cost if wrong.** A requirement too many is one external conformer's
+one-line stub; a missing one is a silent no-op — the asymmetry the precedent
+rulings chose.
+
+---
+
+## SV-C — File dialogs: SwiftUI's modifier subset and its semantics
+
+**Ruling.**
+
+1. **Offered** (macOS 14 SDK spellings, on `ElementGroup`, returning a
+   transparent `PresentationScope<Self>`, `SV-K`):
+   - `fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [ContentType], allowsMultipleSelection: Bool, onCompletion: @escaping (Result<[URL], Error>) -> Void)`
+   - `fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [ContentType], onCompletion: @escaping (Result<URL, Error>) -> Void)`
+   - `fileExporter<T: Transferable>(isPresented: Binding<Bool>, item: T?, contentTypes: [ContentType] = [], defaultFilename: String? = nil, onCompletion: @escaping (Result<URL, Error>) -> Void, onCancellation: @escaping () -> Void = {})`
+   `ContentType` is MetalUI's (`DN-B`), not `UTType`; `Transferable` is
+   MetalUI's synchronous one (`DN-S`). A file importing both MetalUI and
+   UniformTypeIdentifiers spells `[ContentType.json]` where `.json` is
+   ambiguous.
+2. **Presentation.** `isPresented` turning `true` presents after the frame
+   (`SV-K`); a modifier whose dialog is up is not presented again (`D5`).
+   Open: files only, `allowsMultipleSelection` as declared, the types as the
+   filter (`D1`, `D4`). Save: the name field is `defaultFilename` (extension
+   hidden), the filter `contentTypes`, prompt and title "Export" (`X1`, `X4`).
+   An exporter with `item == nil` still presents (`X5`).
+3. **Outcomes**, each delivered from input under `StateDispatch` to the
+   declaring element, **`isPresented` written `false` first**, then the
+   callback:
+   - importer chosen → `onCompletion(.success(urls))` (file URLs from the
+     platform's paths; the single-URL overload passes the first);
+   - importer cancelled → **no callback**, `isPresented = false` (`D2`, `D4`);
+   - exporter chosen → MetalUI writes the bytes (item 4) atomically to the
+     URL, then `onCompletion(.success(url))`, or `.failure(error)` when the
+     write throws or `item` is `nil` (`FileExportError.noItem`);
+   - exporter cancelled → `onCancellation()`, `isPresented = false` (`X3`,
+     `X4`);
+   - the platform failed (`.failed(message)`) or cannot show one (`false`)
+     → `onCompletion(.failure(FileDialogError.platform(message)/.unavailable))`,
+     `isPresented = false`;
+   - `isPresented` set `false` while shown → `dismissPresentation(token:)`, no
+     callback (`D3`).
+4. **The exported bytes**: `item.exported(as: t)` for the first of
+   `item.exportedContentTypes()` that conforms to the chosen content type `t`
+   (`contentTypes.first`, or the item's first exported type when
+   `contentTypes` is empty); when none conforms, the bytes of the item's
+   **first** exported representation. A `Data` exported as `.json` therefore
+   writes the data (the configurator's case: `JSONEncoder` output). The
+   type names the file; the item supplies the bytes.
+
+**Evidence.** `D1`–`D5`, `X1`, `X3`–`X5`. Completing a dialog headlessly is a
+broken instrument (`NSSavePanel.ok(_:)` raises "not implemented" — the panel is
+out of process), so **what SwiftUI writes for a save (item 4) and what it
+passes on an importer's success are unmeasured**: item 4 is MetalUI's rule,
+chosen so the port's `Data` + `.json` export works.
+
+**Cost if wrong.** If SwiftUI refuses a non-conforming representation, item 4
+writes a file SwiftUI would not; the app chose both the bytes and the type.
+
+---
+
+## SV-D — The async call: `FileDialogs`, from the environment and from `Window`
+
+**Ruling.**
+
+1. MetalUI-only (SwiftUI has no async file-panel call; the comparison is
+   gpui's `cx.prompt_for_paths(PathPromptOptions)` / `prompt_for_new_path`,
+   each a future of the chosen paths):
+   ```swift
+   public struct FileDialogs {
+       public func openFiles(allowedContentTypes: [ContentType], allowsMultipleSelection: Bool = false) async throws -> [URL]
+       public func saveFile(contentTypes: [ContentType] = [], defaultFilename: String? = nil) async throws -> URL?
+   }
+   extension EnvironmentValues { public internal(set) var fileDialogs: FileDialogs }  // stamped by Window
+   extension Window { public var fileDialogs: FileDialogs }
+   ```
+   The environment entry serves a `Button` action (`@Environment(\.fileDialogs)
+   var dialogs` … `Task { let urls = try await dialogs.openFiles(…) }`); the
+   `Window` property serves a menu-bar command, which runs outside any view.
+2. Cancellation returns `[]` / `nil` — **not** an error (gpui's `None`).
+   `FileDialogError`: `.noWindow` (an unbound environment's default, or the
+   window is gone — the struct holds the window **weakly**, so a captured
+   value never retains it: CLAUDE.md's `.onClick { window.x() }` cycle),
+   `.unavailable` (the platform answered `false`), `.busy` (a dialog or alert
+   is already up in that window — one at a time, as AppKit's one sheet),
+   `.platform(String)` (the platform reported a failure).
+3. **Cancelling the awaiting task** dismisses the dialog
+   (`dismissPresentation`) and throws `CancellationError`, so a test that
+   abandons an await does not hang (spec §6.2's bounded pattern).
+4. `fileDialogs` is `public internal(set)`, stamped by `Window`/`Frame` like
+   `displayScale` (CLAUDE.md "Environment"), never sourced from
+   `Window.environment`.
+
+**Reasoning.** The configurator's ~10 import/export sites are buttons and menu
+commands; an `await` keeps each one a few lines. The modifiers (`SV-C`) remain
+the SwiftUI spelling.
+
+**Cost if wrong.** A naming choice on a MetalUI-only type.
+
+---
+
+## SV-E — `ContentType` gains filename extensions and `.json`
+
+**Ruling.** `ContentType.init(_:conformingTo:filenameExtensions: [String] = [])`,
+`public var preferredFilenameExtension: String?` (UTType's spelling; the first
+extension), a stored `filenameExtensions` (internal), and new statics `.json`
+(`public.json`, conforming to `.text`, `["json"]`); `.plainText` gains `["txt"]`
+and `.utf8PlainText` inherits nothing (its own list is empty). The seam carries
+`PlatformFileType(identifier:conformsTo:filenameExtensions:)`.
+
+**Mapping.** AppKit: `UTType(identifier)` when the system knows it, else
+`UTType(filenameExtension:conformingTo: .data)` from the first extension; a
+list containing `.data` or `.item`, or one resolving to nothing, allows every
+file (`allowedContentTypes = []`). SDL: one `SDL_DialogFileFilter` per type
+with extensions (`name` = identifier, `pattern` = extensions joined by `;`);
+a type with no extensions contributes no filter, and a list with no filter
+passes `NULL` (every file) — **divergence 129**: off Apple a type is matched
+by extension only (`.text` filters nothing).
+
+**Cost if wrong.** A new stored property on a public struct crossing a module
+boundary: `swift package clean`; drag and drop's matching (`conformance`) is
+untouched.
+
+---
+
+## SV-F — AppKit: open and save panels are sheets on the window
+
+**Ruling.** `AppKitWindow.presentFileDialog` builds an `NSOpenPanel`
+(`canChooseFiles = true`, `canChooseDirectories = false`,
+`allowsMultipleSelection`, `allowedContentTypes`) or an `NSSavePanel`
+(`nameFieldStringValue`, `allowedContentTypes`, `isExtensionHidden = true`,
+`prompt`/`title` from the seam) and calls `beginSheetModal(for:)` — a sheet,
+not app-modal (`D1`: `attachedSheet=NSOpenPanel modalWindow=nil isSheet=true`;
+`X1` the same for the save panel). Its completion handler queues
+`.fileDialogResult` with `RunLoop.main.perform` (`MN-C` item 4). Answers
+`false` when the window already has an attached sheet.
+`dismissPresentation(token:)` ends the sheet (`endSheet(_:returnCode:
+.abort)`) and suppresses that answer.
+
+**Cost if wrong.** A look (human check U1).
+
+---
+
+## SV-G — SDL: async dialogs, a callback on any thread, a wake event
+
+**Ruling.**
+
+1. `SDLWindow.presentFileDialog` calls `SDL_ShowOpenFileDialog` /
+   `SDL_ShowSaveFileDialog` (since SDL 3.2; `allow_many`; `default_location` =
+   `defaultFilename` for a save, else `NULL`) with the window as parent and
+   answers `true` — failures arrive through the callback (`filelist == NULL`
+   → `.failed(SDL_GetError())`, empty → `.cancelled`).
+2. **The thread hop is C's, not Swift's.** SDL's callback "may be invoked
+   from a different thread" (SDL_dialog.h). `SDLBridge` copies the filters
+   onto the heap (SDL requires them valid until the callback) and frees them
+   in the callback; the callback copies the paths into a mutex-guarded result
+   queue keyed by token and calls `SDL_PushEvent` with a new
+   `MUI_EVENT_DIALOG` (thread-safe, `mui_wake_for_accessibility`'s
+   precedent). The main thread's `dispatch` takes the result
+   (`mui_take_dialog_result`) and calls `onInput(.fileDialogResult)`. No Swift
+   closure crosses the C callback; no main-queue hop is needed to *deliver*
+   the result.
+3. A bridge test hook, `mui_test_complete_dialog(token, paths, count)`, runs
+   the **same** callback from a new thread (`SDL_CreateThread`), so the thread
+   hop is tested without a real dialog.
+4. **Under the offscreen video driver** (CI's Linux image) a dialog cannot be
+   shown: the real-call test is gated `.enabled(if:)` on
+   `SDL_GetCurrentVideoDriver() == "offscreen"` and asserts the `.failed`
+   outcome; no test shows a real dialog on macOS or a desktop (it would wait
+   for a human).
+5. `dismissPresentation(token:)` cannot close an SDL dialog (SDL3 has no
+   call); `Window` forgets the token, so the eventual answer runs nothing.
+   Recorded in the spec's deferred table, owner none.
+
+**gpui comparison.** gpui's Linux backend uses the XDG desktop portal and
+delivers on its own executor; SDL3 does the same internally (portal, zenity
+fallback), so the bridge only owns the hop.
+
+**Cost if wrong.** If a backend calls back synchronously (Windows' modal
+dialog on the main thread), the push lands before `presentFileDialog` returns
+and is delivered next pump — still never re-entrant.
+
+---
+
+## SV-H — The SDL main-queue drain (gap 10), measured where it can work
+
+**Ruling.**
+
+1. `SDLPlatform.run(maxIterations:)` runs
+   `RunLoop.main.run(mode: .default, before: .distantPast)` once per
+   iteration, after dispatching events and before ticking (`B2`: a main-actor
+   `Task` then runs, macOS and Linux). Nothing else in the loop changes.
+2. **It works only outside a main-actor job** (`J1`, both OSes: inside a job
+   the drain starves the task; `J3`: so does the AppKit platform's run-loop
+   shape). Every MetalUI `main.swift` calls `app.run()` from synchronous
+   top-level code (the scaffold's generated mains, both demos), the shape
+   `B2` measured. **Documented** (`docs/getting-started.md`, `App.run()`'s
+   doc comment): call `App.run()` from synchronous top-level code, not from an
+   `async` main — on either platform, by `J1` and `J3`.
+3. **The test runs the loop in a process of its own**: a new executable target
+   in `Backends/SDL`, `MainQueueDrainCheck`, top-level code opening a hidden
+   `SDLPlatform` window, creating a main-actor `Task`, and running the loop
+   for a bounded number of iterations; mode `task` prints whether it ran and
+   resumed after a yield; mode `dialog` awaits `window.fileDialogs.openFiles`
+   on an `App` over `SDLPlatform` and completes it through the test hook from
+   another thread (`SV-G` item 3), printing the paths. `SDLMainQueueDrainTests`
+   launch it (`Process`, found beside the test product in the build
+   directory — its absence fails, never skips) and assert the output. A
+   Swift Testing test cannot run the loop itself: it is a main-actor job
+   (`J1`).
+4. The latency of main-queue work enqueued **from another thread** while every
+   display link is paused is up to the loop's 250 ms `mui_wait_event` timeout;
+   work enqueued from input (a `Task` in a button action) runs in the same
+   iteration. Measured as a count of iterations, not wall clock.
+5. `.task` stays deferred (`LC-L`); this branch removes its blocker. Owner:
+   none named (a lifecycle follow-up).
+
+**Cost if wrong.** If a platform's pump already drains the queue (SDL's Cocoa
+pump on macOS may), the extra pass is a no-op there; the Linux container is
+the separating run (spec §6.1 test 1.18's recorded mutation).
+
+---
+
+## SV-I — Alerts: SwiftUI's spellings, a closed actions builder, SwiftUI's buttons
+
+**Ruling.**
+
+1. **Offered** on `ElementGroup`, returning `PresentationScope<Self>`:
+   - `alert<A: AlertActions>(_ title: String, isPresented: Binding<Bool>, @AlertActionsBuilder actions: () -> A)` and with `message: () -> Text`;
+   - `alert<T>(_ title: String, isPresented: Binding<Bool>, presenting data: T?, @AlertActionsBuilder actions: (T) -> A, message: (T) -> Text)` (and without `message:`) — shown only while `data` is non-`nil`;
+   - `confirmationDialog(_ title: String, isPresented: Binding<Bool>, @AlertActionsBuilder actions: () -> A)` and with `message:` — the same presentation (`C1` = `A1`).
+   `titleVisibility:` is **not offered** (only `.visible` was measured; a call
+   site passing it does not compile — "Not offered" row).
+2. **`AlertActions` is closed** (one SPI requirement, `MenuContent`'s
+   precedent): `Button where Label == Text` (its title, `role`, action — the
+   role, stored and "read by nothing" since `IX-E`, is now read here; record
+   §05's row amends), `if`/`if-else`/`for` through `@AlertActionsBuilder`.
+   A `TextField` in an alert is not offered (deferred).
+3. **The buttons** — a pure resolver, `AlertButtons.resolve(_:)`, shared by
+   AppKit and the drawn alert, from `A1`–`A5`, `C1`:
+   - no actions → one "OK", the default (`A3`);
+   - order: the non-cancel buttons in declaration order, then the cancel
+     button (declared anywhere, `A4`) last;
+   - a destructive button with no cancel button gets a synthesized "Cancel"
+     (`A5`); plain buttons only get none (`A2`);
+   - **Escape** presses the cancel button (declared or synthesized), else
+     nothing (`A1`/`A6`, `A5`, `A2`, `A3`);
+   - **Return** presses the first button that is neither cancel nor
+     destructive, else nothing (`A2` `"A" key="\r"`, Return runs it; `A3`/`A5`
+     `defaultButtonCell`; `A1`/`A7`: none, Return does nothing);
+   - a destructive button is marked (`hasDestructiveAction`).
+4. **Outcomes** — any button: `isPresented = false` first, then its action,
+   under `StateDispatch` to the declaring element (`A8`; a synthesized button
+   runs nothing); `isPresented` set `false` while shown dismisses, no action
+   (`A9`). Actions and message are evaluated **at presentation**, not
+   re-evaluated while shown (`MN-D` item 4's footing: content is data at open).
+
+**Cost if wrong.** A button rule is one row of the resolver's table test.
+
+---
+
+## SV-J — Native `NSAlert` on AppKit, a drawn alert everywhere else
+
+**Ruling.**
+
+1. **AppKit answers `true`**: an `NSAlert` (`messageText` = title,
+   `informativeText` = message) with buttons added in the resolver's order
+   (NSAlert lays two side by side with the first on the right and stacks three
+   or more top-down — matching `A1`'s Cancel-left and `A5`'s Save-top), key
+   equivalents set explicitly (`"\r"` on the default, `"\u{1b}"` on the
+   cancel, `""` otherwise — NSAlert's own default would give the first button
+   Return, which `A1` refutes), `hasDestructiveAction`, and
+   `beginSheetModal(for:)` (`_NSAlertPanel` attached sheet, `A1`). The
+   completion queues `.alertResult(token, index)`.
+2. **SDL answers `false`**: `SDL_ShowMessageBox` is blocking (a nested loop:
+   no frames, no display link, no AccessKit updates while it is up) and fails
+   under the offscreen driver; `MN-F`'s precedent draws in-window instead.
+   **The drawn alert** is window-owned (no id in the app's tree, no
+   `StateTable` entry, `theSevenRetentionSlotsAreMutuallyDistinct` unmoved),
+   painted after everything else including the in-window menu (a menu open
+   when an alert presents is dismissed): a scrim over the window
+   (`.background` at 0.3 opacity), a `.surface` panel 260 wide, centred
+   horizontally, 24 from the top (a sheet's place), radius 10, the default
+   shadow; bold title, message, then the buttons — one or two side by side
+   (the resolver's first on the trailing side), three or more stacked; 28-pt
+   buttons, the default one `.accent` with `.background` text. Text through
+   `Frame.textSystem` (`TS-A`). Constants in one file, `AlertPanel.swift`.
+3. **It is modal**: while it is up it takes every pointer and key event first
+   (ahead of the drag session and the menu), consuming them; Return/Escape per
+   `SV-I` item 3; Tab, ←/→/↑/↓ move a focus ring among its buttons, Space
+   presses the ringed one; a click on a button presses it; anything else is
+   swallowed. The hover set is empty while it is up (`SV-N` item 6).
+   `.menuAction`, results and `.pointerExited` still pass.
+4. **Accessibility**: one `.alert` node (label = title, value = message),
+   children `.button` nodes, focus on the ringed button; a `press` chooses
+   (synthesized ids under a window-reserved name, `MN-F` item 4's footing).
+
+**gpui comparison.** gpui's `window.prompt(level, message, detail, answers)`
+is native where the platform has one and falls back to an in-window prompt
+renderer (`set_prompt_builder`) where it does not — the same split.
+
+**Cost if wrong.** If SDL's message box is wanted, `SDLWindow.presentAlert`
+returns `true` and calls it — one function, no API move.
+
+---
+
+## SV-K — One transparent `PresentationScope`, reconciled after the frame
+
+**Ruling.**
+
+1. `PresentationScope<Content: ElementGroup>: ElementGroup` (typed copy
+   `ProposalElementGroup where Content: ProposalElementGroup`) — **layout- and
+   identity-transparent**, `LifecycleScope`'s shape (`LC-B` item 2): no node,
+   no `ModifiedContent` layer, no cursor index, `Handlers` unchanged, no
+   `Element` group-default hook (`MC-B` not triggered). A legacy `Self`-
+   returning decoration after it does not compile, as after a lifecycle
+   modifier — divergence 120's row gains the presentation modifiers.
+2. **Registration** in layout, keyed as `LifecycleScope` keys
+   (`.named("$presentation<depth>")` under `.child(of: parent, at: cursor)`,
+   `LC-C`/`LC-U`'s depth): a record of the binding's current value, the
+   owner (`parent`, for `StateDispatch`) and closures that build the
+   `PlatformFileDialog`/`PlatformAlert` and run the outcome. Reads only — no
+   write in a phase. A window-owned `PresentationRegistry` holds the records
+   of the last build; never a `StateTable` entry.
+3. **Reconcile after the frame** (after `drainLifecycle`, outside every phase,
+   `LC-E`'s place): a record presented `true` with nothing in flight for its
+   key → present (one in flight per window: a later one waits while the first
+   is up, its `isPresented` still `true`); a key in flight whose record is
+   gone or `false` → `dismissPresentation`. An outcome arrives as input and
+   runs from input (`SV-C` item 3, `SV-I` item 4).
+4. A headless `renderFrame` presents nothing (`MV-H`'s footing).
+
+**Cost if wrong.** Internal to `Presentations.swift` and `Window`.
+
+---
+
+## SV-L — Window sizing: `minSize`, `maxSize`, `WindowResizability`
+
+**Ruling.**
+
+1. MetalUI's `App` is not a `Scene`, so SwiftUI's scene modifiers become
+   window state:
+   ```swift
+   public struct WindowResizability: Sendable, Equatable {
+       public static let automatic, contentSize, contentMinSize: WindowResizability
+   }
+   extension Window {
+       public var minSize: Size<Pixels>?            // window points
+       public var maxSize: Size<Pixels>?
+       public var windowResizability: WindowResizability
+   }
+   // App.openWindow(title:size:minSize:maxSize:windowResizability:startsDisplayLink:content:)
+   ```
+   `size:` is already `defaultSize` (`W3`). The new parameters default to
+   `nil`/`nil`/`.automatic`, so every existing call compiles and the scaffold's
+   generated text is unchanged.
+2. **`.contentMinSize`**: the minimum is the root's answer at a **zero**
+   proposal; **`.contentSize`** adds the maximum, its answer at an
+   **infinite** proposal (`W1`, `W2`: 400 × 300 and 900 × 600 for
+   `frame(minWidth: 400, maxWidth: 900, minHeight: 300, maxHeight: 600)`), each
+   measured once per drawn frame through the kernel's measure-only entry
+   (`LayoutTree.measureNativeLayout`, made `package`) **before** the real
+   layout, so `lastNativeLayoutWork` keeps the real run's work. The minimum
+   follows the content (`W5`). **`.automatic` measures nothing.**
+3. **Divergence 126**: SwiftUI's `.automatic` on macOS *is* `.contentMinSize`
+   (`W0` = `W1`); MetalUI's asks the content nothing (changing it would grow
+   every existing window whose content's minimum exceeds its size — the
+   fourteen demo images among them). Also: SwiftUI's limits include the
+   title-bar inset (+32 in `W0`–`W5`; full-size content), MetalUI's are the
+   root's (it has no safe areas, `PB-A`).
+4. **Effective limits** per axis: minimum = max(explicit, content), maximum =
+   min(explicit, content), a maximum below the minimum raised to it.
+   Negative values clamp to 0, an infinite maximum means none, NaN traps
+   (`SA-J`'s rule; an exit test pins it). `Window` calls
+   `setContentSizeLimits` only when the effective pair changes, and before the
+   first frame when `openWindow` was given limits.
+
+**Cost if wrong.** If `.automatic` should follow SwiftUI, it is one default —
+measured cost is one extra kernel measurement per frame per window.
+
+---
+
+## SV-M — Window sizing on the platforms: limits, and resize into them
+
+**Ruling.** `setContentSizeLimits(minimum:maximum:)` sets AppKit's
+`contentMinSize`/`contentMaxSize` (`nil` → `.zero` /
+`greatestFiniteMagnitude`) and SDL's `SDL_SetWindowMinimumSize` /
+`SDL_SetWindowMaximumSize` (minimum rounded up, maximum down; `nil` → 0, SDL's
+"no limit"). **Contract**: a window whose content size lies outside the new
+limits is resized into them by the platform (AppKit `setContentSize` of the
+clamped size — AppKit clamps a programmatic resize, `W0`; SDL clamps on its
+own), and the resize reaches `Window` through `onResize`. Fakes record the
+calls and apply the clamp to their `contentSize`.
+
+**Cost if wrong.** A look (human check U9: dragging the window edge stops).
+
+---
+
+## SV-N — `onHover` and `onContinuousHover`: from input, through the one ranking
+
+**Ruling.**
+
+1. **Spelling**: `onHover(perform: @escaping (Bool) -> Void)` and
+   `onContinuousHover(perform: @escaping (HoverPhase) -> Void)` with
+   `public enum HoverPhase: Equatable { case active(Point<Pixels>), ended }`
+   (local points — `DragGesture.Value`'s precedent for `Point<Pixels>`; the
+   `coordinateSpace:` parameter is not offered, `.local` only). On both
+   vocabularies by `MN-Q`'s shape: on a `StyledElement` it returns `Self`
+   through one new `Handlers` member, `hover: HoverAttachment?` (sixteen
+   members — `HandlerShape` and `HandlerFingerprint` each gain a field), no
+   identity level; on the typed path a `HoverModifier<Self>` wrapper
+   (`ContextualModifier`'s recipe: no node, one identity level for its caller
+   only, the region at its own bounds).
+2. **A hover region** is a **non-opaque** hitbox carrying only the attachment,
+   registered by `Frame.registerHandlers` at the element's hit region (its
+   content shape, as a draggable region's), after the element's own opaque
+   hitbox so it ranks above it — inside the `allowsHitTesting` gate and the
+   `.disabled` gate (unmeasured in SwiftUI; a disabled element is inert, as for
+   every pointer ask), and inside `hidden()`. The D2 guard gains the arm. A
+   tree with no hover attachment registers no extra hitbox (pinned). A hover
+   region never blocks a click beneath it.
+3. **The hovered set at a point `p`** — never a second lookup:
+   `t = topmostHitbox(in:at: p, where: { $0.opaque || $0.handlers.hover != nil })`;
+   the set is every hover region `h` with `h.layer == t.layer`,
+   `h.contains(p)` (the one region test, so render effects and content shapes
+   apply, `GX-I`) and `t.id` equal to or descending from `h.id` — the same
+   membership rule as the gesture arena's ancestors (`IX-D`). Nothing under
+   `p` → empty. A painted-only cover blocks nothing (divergence 114's rule);
+   an opaque target or a higher layer (a `Deferred` presentation, `IX-Q`)
+   covers hover beneath it.
+4. **When it is recomputed**: on every pointer event (`mouseMoved`,
+   `mouseDragged`, presses and releases), on `.pointerExited` (`p = nil`), and
+   after every drawn frame against the new hitboxes (content moving, appearing
+   or leaving under a still pointer). Callbacks run **from input** for the
+   first three and **after the frame** (with `drainLifecycle`, `LC-E`) for the
+   last; each under `StateDispatch.dispatching(to:)` its element.
+5. **Order and departure**: leavings first, innermost first; then enterings,
+   outermost first. An element that **leaves the tree** while hovered gets
+   `onHover(false)` (and `.ended`) after the frame, through the closure of the
+   last frame it was in — so a parent tracking "which key is hovered" never
+   keeps a stale `true`. `onContinuousHover` gets `.active(local)` on every
+   move inside, `local` = `Hitbox.localPoint(p) − origin`.
+6. While an in-window menu (`MN-F`) or a drawn alert (`SV-J`) is up, the
+   hovered set is empty.
+7. **`.pointerExited`** (AppKit: the existing tracking area's `mouseExited`,
+   `.mouseEnteredAndExited` already declared; SDL:
+   `SDL_EVENT_WINDOW_MOUSE_LEAVE` → `MUI_EVENT_MOUSE_LEAVE`) clears
+   `Window.lastMousePosition` — **amending its "deliberately sticky" decision**:
+   `PaintPass.isHovered` reads `false` after the pointer leaves the window.
+   No other paint-time query changes; `topmostOpaqueHitbox` and click
+   dispatch are untouched.
+
+**Evidence and comparison.** SwiftUI's hover is **unmeasured**: every `H` arm
+read `[]` under both instruments (synthesized `mouseMoved` through
+`NSWindow.sendEvent` and straight to the hosting view's `mouseMoved(with:)`),
+including H1's plain enter/leave — a broken instrument in an inactive app, so
+no rule here rests on SwiftUI. gpui's model is the comparison: a hitbox is
+hovered when it is under the mouse at or above the topmost hitbox that blocks
+the mouse (`HitboxBehavior::BlockMouse`), and `on_hover` fires on change —
+item 3 is that rule over MetalUI's one ranking. Human check U8.
+
+**Cost if wrong.** If SwiftUI fires a covered sibling or a disabled element,
+item 3's eligibility or item 2's gate moves — one predicate each.
+
+---
+
+## SV-O — `Divider()` as a view: the nearest stack's cross axis
+
+**Ruling** (amends `MN-H` item 3).
+
+1. `Divider` (today a `MenuContent`) also conforms to `Element` and
+   `ProposalElement`: a native leaf. Inside a menu builder it is still a
+   separator; inside an element builder it is a line.
+2. **Orientation** (`V1`–`V11`): vertical (1 wide) inside an `HStack` or
+   legacy `Row`; horizontal (1 tall) inside a `VStack` or `Column` and
+   **outside any stack** (`V3`, `V4`: a `ZStack` is no stack). The nearest of
+   those decides (`V5`, `V6`); every other wrapper is transparent (`V8` frame,
+   `V9` padding, `V11` group). Implementation: an internal axis stack on
+   `Frame`, pushed by `HStack`/`VStack`/`Row`/`Column` around their children's
+   layout request and by `ZStack` and `Grid` as "none", popped by `defer`;
+   the `Divider` reads the top at its layout and carries the axis to paint in
+   its layout state. A plain `Box` pushes nothing (its CSS-default
+   `flexDirection` would make every internal row a stack).
+3. **Size**: 1 point across (2 device pixels at 2×, `V12`); along, the
+   proposal (`proposal ?? 10`, `V3`, `V7`) — greedy, so a `Divider` in an
+   `HStack` makes the stack fill the proposed height (`V7`).
+4. **Colour**: the theme's `.separator` token — **divergence 127**: SwiftUI's
+   is black (light) / white (dark) at alpha 0.098 (`V12`, `V13`), MetalUI's
+   theme separator is opaque (`0xC8CDD6` / `0x3A4260`), the menus' separator
+   colour.
+5. **Accessibility**: none (`V15`: SwiftUI publishes only the texts).
+
+**Cost if wrong.** A look (human check U10) and one table of push sites.
+
+---
+
+## SV-P — `.pickerStyle(.menu)`: a pull-down showing the selection
+
+**Ruling** (amends `DD-V` item 4, `DD-AB` item 7 and divergence 81).
+
+1. `PickerStyle.menu` is offered. **`.automatic` stays segmented** —
+   divergence 81 narrows to "the automatic `Picker` is segmented where
+   SwiftUI's is a pop-up menu (`P0` = `P1`)"; the guard
+   `aMenuPickerStyleIsNotOffered` is replaced by its positive
+   (`aMenuPickerStyleCompiles`). **Migration**: none for callers.
+2. **Look and layout** (`P1`–`P3`): the title, 8, a pull-down button 24 tall
+   (`Menu`'s chrome, `MN-H` item 1, with the `⌄` indicator) whose label is the
+   selected option's title and whose width is its **widest** option title's
+   (`P1` 86 vs `P3` 102 — not stretched by a wider frame); a selection
+   matching no tag shows an empty label (`P5`).
+3. **Options are discovered without layout**: inside a `.menu` picker scope a
+   `TaggedElement` records `(tag, title)` and lays out **nothing** through its
+   group entry (one identity slot, no node), so a 300-option picker builds 300
+   records, not 300 subtrees. Reached through the single-element entry (a
+   modifier written after `.tag`) it registers one zero-size leaf. The title
+   is the content's `Text` string; any other content is titled
+   `String(describing: tag)` — **divergence 128** (SwiftUI draws the option's
+   view in its menu).
+4. **The menu at open**: a click, Space/Return when focused, or an
+   accessibility press opens the options recorded by **the last frame's**
+   layout (the scope is a class captured by the button's action, `DD-V`'s
+   footing) as toggle items, the selected one on (`P1`: `state=on`), through
+   `Window.openPullDownMenu` — `NSMenu` on AppKit (300 items in `P3`), the
+   in-window panel elsewhere (`SV-Q`); choosing writes the tag (`P1`: pick=1).
+   Placement below the button (the pull-down's, `MN-H`); SwiftUI's pop-up
+   placement is unmeasured — deferred.
+5. **Accessibility**: a new `.popUpButton` role (`SV-S`; `P0`–`P3`
+   `AXPopUpButton`), value = the selected title, label = the picker's title
+   through the partial fold (divergence 82's footing).
+6. Disabled: `Button`'s one gate.
+
+**Cost if wrong.** The look is human check U6; option discovery is internal to
+`Picker.swift`.
+
+---
+
+## SV-Q — The in-window menu scrolls (amends `MN-F` items 1–3)
+
+**Ruling.** A menu level taller than the window less two margins is clamped to
+that height and **scrolls**: a per-level offset; a wheel over the level scrolls
+it (today consumed and ignored); ↑/↓ moving the highlight scroll it into view;
+only rows intersecting the visible band are painted and hit-tested (paint and
+hit work O(visible), counted); a 12-pt band at a scrollable edge shows `▴`/`▾`.
+A pull-down opened by a menu picker starts with the **selected row**
+highlighted and scrolled into view. The accessibility node still lists every
+row. Type-select is deferred.
+
+**Cost if wrong.** A look (human check U7); constants in `MenuPanel.swift`.
+
+---
+
+## SV-R — Clipboard beyond text: deferred
+
+**Ruling.** Not built. Images or arbitrary `ContentType` data need two more
+defaultless requirements (typed read and write), an AppKit `NSPasteboard`
+mapping and SDL3's MIME-typed clipboard, for a use the configurator does not
+have (its clipboard is `TextField`/`TextEditor` text, which works). Owner:
+none.
+
+---
+
+## SV-S — Two accessibility roles: `.popUpButton`, `.alert`
+
+**Ruling.** `AccessibilityRole` gains `.popUpButton` (AppKit
+`AXPopUpButton`, `P0`–`P3`; AccessKit's pop-up button role if the header has
+one, else `COMBO_BOX` with `has_popup = MENU` — the lane reads
+`accesskit.h` and records which) and `.alert` (AppKit `AXGroup` with
+subrole `AXDialog` — never published on AppKit, whose alert is native;
+AccessKit `ALERT_DIALOG`). Both bridges translate both (the bridges' exhaustive
+role switches). New enum cases crossing a module boundary: `swift package
+clean`.
+
+---
+
+## SV-T — Demo and human checks
+
+**Ruling.** A new flag, `METALUI_SERVICES_DEMO=1` (`swift run MetalUIDemo`, and
+the same flag in `MetalUISDLDemo`), showing `servicesDemoContent()` from a new
+`Sources/MetalUIDemoContent/ServicesDemo.swift`, each section its own function
+handed to a generic composer (the 1 MB stack rule): Import/Export buttons
+(modifiers and the async call; the last result as text), a "Delete…" alert,
+three hover tiles (colour and an enter counter as text and a bar), `Divider`s
+in all four stacks, a 300-option menu picker; the window opened with
+`minSize: 900 × 600`. Not in the default demo: the fourteen offscreen images
+and `Expected.swift` do not move. **Human-checks group U** (spec §9).
+
+---
+
+## SV-U — Performance: counted, zero where unused
+
+**Ruling.** Counted work, literals derived before the run (`SA-M`): hover
+recompute visits each hitbox once per pointer event and once per frame **only
+when the tree has a hover region** (0 otherwise); `.automatic` resizability
+adds no measurement (`lastNativeLayoutWork` identical to a window without
+sizing); a `.menu` picker's options cost one record each and no layout node;
+the drawn menu paints O(visible rows). No wall clock.
+
+---
+
+## SV-V — Lanes: three, in order, with append-only shared registries
+
+**Ruling.** Three lanes run one at a time in this worktree (spec §10):
+**lane 1** the seam on every platform (`MetalUIPlatform`, `MetalUIAppKit`,
+`Backends/SDL`, fakes and guard fixtures, the drain), **lane 2** `Window`-side
+presentations, sizing and hover (`MetalUI` core files), **lane 3** `Divider`,
+the menu picker, the scrolling panel, the demo and the docs. Their source files
+are disjoint. Four registries are **append-only per lane** (each lane adds only
+its own rows): `docs/divergences.md`, `docs/probes/closeout-inventory-map.tsv`,
+`docs/probes/closeout-public-api.tsv` (re-recorded by each lane after its rows)
+and `Tests/MetalUITests/ModifierTests.swift`/`OuterModifierMatrixTests.swift`
+(lane 2 only). **Reasoning**: a new public declaration owes its row in the
+change that introduces it (CLAUDE.md), so each lane must pass
+`closeout-inventory-check.sh` at its own end; the lanes do not run
+concurrently, so an append-only file cannot conflict.
+
+---
+
+## SV-W — Deferred, with owners
+
+**Ruling.** Spec §11's table is the list; every item is owner none unless it
+names one. None blocks the branch.
