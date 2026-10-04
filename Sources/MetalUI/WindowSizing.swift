@@ -53,17 +53,18 @@ struct ContentSizeLimits: Equatable {
     /// checkpoint 2 on a NaN answer.
     static func effective(minimum: Size<Pixels>?, maximum: Size<Pixels>?,
                           contentMinimum: Size<Pixels>?, contentMaximum: Size<Pixels>?) -> ContentSizeLimits {
-        func floor0(_ v: Float) -> Float { max(v, 0) }
+        // Starting at 0 is what clamps a negative minimum (and, through the
+        // raise below, a negative maximum) to 0 — mutation M2.41b.
         var minW: Float = 0, minH: Float = 0
         for candidate in [minimum, contentMinimum].compactMap({ $0 }) {
-            minW = max(minW, floor0(candidate.width.value))
-            minH = max(minH, floor0(candidate.height.value))
+            minW = max(minW, candidate.width.value)
+            minH = max(minH, candidate.height.value)
         }
         let hasMinimum = minimum != nil || contentMinimum != nil
         var maxW = Float.infinity, maxH = Float.infinity
         for candidate in [maximum, contentMaximum].compactMap({ $0 }) {
-            maxW = min(maxW, floor0(candidate.width.value))
-            maxH = min(maxH, floor0(candidate.height.value))
+            maxW = min(maxW, candidate.width.value)
+            maxH = min(maxH, candidate.height.value)
         }
         maxW = max(maxW, minW)
         maxH = max(maxH, minH)
