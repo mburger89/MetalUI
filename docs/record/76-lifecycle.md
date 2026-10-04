@@ -465,13 +465,18 @@ applied with the fix and 1.7c, left the full unfiltered suite green at **2430**:
 the depth is redundant again and is kept unpinned (`LC-V` item 2). Counts
 **2430 / 0 / guards unchanged**.
 
-**CI on PR #46 (first push).** All four Linux `Build and replay` jobs failed
-`anOnAppearRunsInAnSDLWindowsFirstFrame` (10.2) at its four first-frame
-expectations; Windows and macOS passed. Under llvmpipe a hidden window has
-no drawable when `App.openWindow` draws, so that frame is skipped and left
-dirty for the loop (its comment already said so); the branch's Linux
-container ran only the root package, never `Backends/SDL`. Test 10.2 now
-drives the loop one iteration at a time until the `onAppear` has run and
-reads that frame. That is a test fix: the claim (the first *presented*
-frame runs it and presents its write) is unchanged. `Backends/SDL` on macOS:
-24 + 65.
+**CI on PR #46.** All four Linux `Build and replay` jobs failed 10.2
+`anOnAppearRunsInAnSDLWindowsFirstFrame` and 10.3
+`closingAnSDLWindowRunsItsOnDisappear` (no `onAppear` ever ran); Windows and
+macOS passed. A first fix that drove the loop until the `onAppear` ran
+failed the same way. **Reproduced in CI's own image**
+(`Backends/SDL/linux/Dockerfile`, built locally under OrbStack): it sets
+`SDL_VIDEO_DRIVER=offscreen`, under which a hidden window's
+`renderer.beginFrame()` answered `nil` on ten consecutive loop passes and its
+display link never ran (a scratch probe, deleted). So no `SDLPlatform`
+window frame builds there at all, and no lifecycle action can run: an
+environment limit, not a lifecycle defect. The branch's Linux container ran
+only the root package, never `Backends/SDL`. Both tests keep their original
+spelling and are gated `.enabled(if:)` on the driver not being `offscreen`;
+they run on macOS (24 + 65 here) and on Windows CI, and count while skipped
+on Linux.
