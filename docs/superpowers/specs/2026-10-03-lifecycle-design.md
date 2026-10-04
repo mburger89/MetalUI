@@ -2,7 +2,7 @@
 
 **Status: LANDED (2026-10-03) — lanes 1 and 2 and the fix pass implemented (`LC-Q`, `LC-S`, `LC-T`), the Record phase done (record §76); the looks are owed to a human (human-checks group T); `.task` is deferred with an owner (§9).** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
-Rulings `LC-A`…`LC-U` (`LC-U`: the branch check — the key's depth is load-bearing, and a `nil` action changes presence, a reported defect; `LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
+Rulings `LC-A`…`LC-V` (`LC-U`: the branch check; `LC-V`: a `nil` action is a present scope with no action, fixed, and the depth redundant again; `LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).
 Record: `docs/record/76-lifecycle.md` (Record phase). Probes (new, outputs in
 their headers): `docs/probes/swiftui-lifecycle.swift` (SwiftUI, run three

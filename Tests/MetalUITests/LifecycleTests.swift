@@ -330,8 +330,8 @@ private struct LCRow: Identifiable { let id: String }
 /// **1.7** (`A3`, `LC-C` item 2). Stacked lifecycle modifiers at one position
 /// keep separate entries, the inner one first on insertion and on removal.
 /// Mutation: M1.7b (drop `depth` and the occurrence). Dropping `depth` alone is
-/// green here; it reddens only when an inner action toggles to or from `nil`,
-/// and no committed test pins that (`LC-U` item 1).
+/// green, and since `LC-V` the depth is redundant with the occurrence: every
+/// stacked scope notes whenever the shared content is present (`LC-V` item 2).
 @MainActor
 @Test func stackedLifecycleModifiersKeepSeparateEntriesInnerFirst() throws {
     let m = LCModel(), log = LCLog()
@@ -351,6 +351,40 @@ private struct LCRow: Identifiable { let id: String }
     m.shown = false
     window.drawFrameIfNeeded()
     #expect(log.take() == ["disappear a", "disappear b"])
+}
+
+/// **1.7c** (`LC-V`, the branch check's `LC-U` item 2). An action that
+/// toggles to or from `nil` while its element stays built changes no presence:
+/// `onDisappear(perform: flag ? f : nil)` going non-nil → nil runs no
+/// `onDisappear`, and `onAppear(perform: flag ? f : nil)` going nil → non-nil
+/// runs no `onAppear`; a later real removal still runs the disappearance the
+/// action then holds. Mutation: note a scope only when its write is non-nil
+/// (`if let write, !nodes.isEmpty`).
+@MainActor
+@Test func anActionTogglingToOrFromNilChangesNoPresence() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    m.flag = true
+    let (window, _) = try lcWindow {
+        Column {
+            if m.shown {
+                lcLeaf()
+                    .onAppear(perform: m.flag ? nil : { log.add("appear") })
+                    .onDisappear(perform: m.flag ? { log.add("disappear on") } : nil)
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(log.take().isEmpty, "set up: present, the appear action nil")
+    m.flag = false
+    for _ in 0..<3 { window.setNeedsRedraw(); window.drawFrameIfNeeded() }
+    #expect(log.take().isEmpty, "a toggled action ran: the element never left or arrived")
+    m.flag = true
+    for _ in 0..<3 { window.setNeedsRedraw(); window.drawFrameIfNeeded() }
+    #expect(log.take().isEmpty, "toggling back ran nothing either")
+    m.shown = false
+    for _ in 0..<3 { window.setNeedsRedraw(); window.drawFrameIfNeeded() }
+    #expect(log.take() == ["disappear on"], "the real removal runs the action it holds")
 }
 
 /// **1.8** (`LC-B` item 2). Adding a lifecycle modifier moves no identity: the

@@ -65,8 +65,10 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
         let (nodes, layout) = pass.frame.withLifecycleScope {
             content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
-        // A group with no content is absent (LC-P item 1).
-        if let write, !nodes.isEmpty {
+        // A group with no content is absent (LC-P item 1). A nil action still
+        // notes an entry, so toggling an action to or from nil changes no
+        // presence (LC-V).
+        if !nodes.isEmpty {
             pass.frame.noteLifecycle(write, order: order, under: parent, at: start)
         }
         return (nodes, LifecycleScopeLayout(content: layout))
@@ -96,7 +98,7 @@ extension LifecycleScope: ProposalElementGroup where Content: ProposalElementGro
         let (nodes, layout) = pass.frame.withLifecycleScope {
             content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
-        if let write, !nodes.isEmpty {
+        if !nodes.isEmpty {
             pass.frame.noteLifecycle(write, order: order, under: parent, at: start)
         }
         return (nodes, LifecycleScopeLayout(content: layout))
@@ -116,7 +118,7 @@ extension Frame {
     /// two entries — a store key, never a `StateTable` id (no reserved name, no
     /// `noteNamed`). The owner, which the action is dispatched to, is the
     /// position.
-    func noteLifecycle(_ write: LifecycleWrite, order: Int, under parent: GlobalElementID?, at cursor: Int) {
+    func noteLifecycle(_ write: LifecycleWrite?, order: Int, under parent: GlobalElementID?, at cursor: Int) {
         let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
         let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$lifecycle\(lifecycleDepth)"))
         animationStore.lifecycle.note(write, scope: scope, owner: owner, order: order)
@@ -220,17 +222,20 @@ final class LifecycleStore {
     }
 
     /// A present scope (layout).
-    func note(_ write: LifecycleWrite, scope: GlobalElementID, owner: GlobalElementID, order: Int) {
+    /// A `nil` write is a present scope with no action (`LC-V`): its entry
+    /// keeps presence steady while an action toggles to or from `nil`.
+    func note(_ write: LifecycleWrite?, scope: GlobalElementID, owner: GlobalElementID, order: Int) {
         let occurrence = occurrences[scope, default: 0]
         occurrences[scope] = occurrence + 1
         var entry = Entry(order: order, owner: owner)
         switch write {
-        case .appear(let action): entry.onAppear = action
-        case .disappear(let action):
+        case .appear(let action)?: entry.onAppear = action
+        case .disappear(let action)?:
             entry.onDisappear = action
             currentHasDisappearActions = true
-        case .change(let value, let isEqual, let action, let initial):
+        case .change(let value, let isEqual, let action, let initial)?:
             entry.change = Change(value: value, isEqual: isEqual, action: action, initial: initial)
+        case nil: break
         }
         current[Key(scope: scope, occurrence: occurrence)] = entry
         workThisFrame += 1

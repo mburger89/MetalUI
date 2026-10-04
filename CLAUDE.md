@@ -41,7 +41,7 @@ summary.
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
-  `2026-10-03-lifecycle-decisions.md`, next `LC-V`), …; the full
+  `2026-10-03-lifecycle-decisions.md`, next `LC-W`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -76,8 +76,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-03, `feat/lifecycle` from `047f0ab`): 2429
-  tests, 0 goldens, 151 typecheck guards** (2376 + 53 tests, 147 + 4 guards;
+- **Counts (2026-10-03, `feat/lifecycle` from `047f0ab`): 2430
+  tests, 0 goldens, 151 typecheck guards** (2376 + 54 tests, 147 + 4 guards;
   `Backends/SDL` 24 + 65; census 2315; Linux container
   199 + 22 + 36 + 31 + 18 + 6, record §76 §9). Before it,
   `feat/colour` from `30a3dbf`: 2376 / 0 / 147 (2328 + 48 tests, 142 + 5 guards;

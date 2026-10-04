@@ -6,9 +6,9 @@ priority list. The motivation is a port — the SMK keyboard configurator
 (SwiftCrossUI): its device monitor starts and stops with the DEV pane
 (`onAppear`/`onDisappear`) and a load error becomes an alert through
 `onChange(of:)`; MetalUI had none of the three. Spec
-`docs/superpowers/specs/2026-10-03-lifecycle-design.md`; rulings `LC-A`…`LC-U`
+`docs/superpowers/specs/2026-10-03-lifecycle-design.md`; rulings `LC-A`…`LC-V`
 in the new decisions doc `docs/superpowers/2026-10-03-lifecycle-decisions.md`
-(next unused `LC-V`); probes `docs/probes/swiftui-lifecycle.swift` (new) and
+(next unused `LC-W`); probes `docs/probes/swiftui-lifecycle.swift` (new) and
 `docs/probes/swift-main-actor-task-loop.swift` (new).
 
 **Numbering.** Written as §76 on the first try: master had published §75 (colour)
@@ -453,3 +453,14 @@ Ruling `LC-U`. Everything below was re-taken on `feat/lifecycle` at `0813a47`.
   going from true to false logs `["disappear"]` on a still-present leaf.
   **Merge verdict: mergeable.** The defect is an edge spelling and is
   recorded with an owner. The human looks (group T) remain unperformed.
+
+### §12 The `nil`-action defect fixed before merge (2026-10-03, `LC-V`)
+
+The coordinating session fixed §11's code defect (`LC-U` item 2) on the
+branch, red first. New test 1.7c `anActionTogglingToOrFromNilChangesNoPresence`
+failed on `13135a0` (1 issue, the first toggle), and passes with the fix:
+both entry points note whenever their content is non-empty, and the store
+takes a `nil` write as an entry with no actions. M1.7 (depth dropped),
+applied with the fix and 1.7c, left the full unfiltered suite green at **2430**:
+the depth is redundant again and is kept unpinned (`LC-V` item 2). Counts
+**2430 / 0 / guards unchanged**.

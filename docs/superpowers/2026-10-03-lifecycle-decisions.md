@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-V`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-W`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -882,3 +882,28 @@ each measured with a scratch test (not committed) in the worktree:
 **Cost if wrong.** Item 1 corrects a record. Item 2's fix is expected to be
 additive, because no committed test toggles an action to or from `nil`.
 That is unmeasured: the fix was not applied here.
+
+## LC-V — A `nil` action is a present scope with no action (fixes LC-U item 2; amends LC-U item 1)
+
+**Ruling.**
+
+1. `LifecycleScope` notes an entry whenever its content registers nodes,
+   whatever its write; a `nil` write is an entry with no actions
+   (`LifecycleStore.note(_ write: LifecycleWrite?, …)`). Toggling an action to
+   or from `nil` while the element stays built runs nothing; a later real
+   removal runs the action the scope then holds (`LC-C` item 1 restored).
+   Pinned by 1.7c `anActionTogglingToOrFromNilChangesNoPresence`, red on
+   `13135a0` (the first toggle logged the disappearance).
+2. **With item 1, the key's depth is redundant again, and is kept.** `LC-U`
+   item 1's only counter-example was the `nil`-write scope that noted nothing.
+   Now every stacked scope at a position notes iff the shared content is
+   present, so the occurrence alone separates them. M1.7 (drop the depth),
+   applied with this fix and test 1.7c, left the full suite green (2430). The
+   depth stays as a second key component that costs nothing. It is
+   unpinned by design: a green mutant may be the correct spelling (`LR-X`).
+
+**Reasoning.** Presence is the content being built, so it must not read the
+action. One condition fewer in each entry point; the store gains a `nil` arm.
+
+**Cost if wrong.** If SwiftUI does fire on a toggled `nil` action (unprobed),
+restore `if let write` in the two entry points; 1.7c turns into its pin.
