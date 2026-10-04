@@ -15,7 +15,7 @@ has no answer (headless rendering, a window close with no host, a frame's
 settle bound) the ruling says so and names gpui's approach as the comparison,
 not as evidence.
 
-Prefix **`LC-`**, lettered. **Next unused: `LC-U`.** (This line moves in the
+Prefix **`LC-`**, lettered. **Next unused: `LC-V`.** (This line moves in the
 commit that appends a ruling; read the last `## LC-` heading.)
 
 Branch `feat/lifecycle` from `047f0ab` (master: colour and colour scheme
@@ -620,7 +620,7 @@ suites`; the count is the tests reddened, each named.
 | M1.4 | both entries: note only when `!nodes.allSatisfy(pass.frame.isHidden)` (paint's gate: hidden nodes skip) | 1 tests | `hiddenTransparentZeroSizedAndClippedElementsAppear` |
 | M1.5 | previous loop: skip an `onDisappear` when `departed == nil` (a List row's scroll resets nothing) | 3 tests | `aListRowScrolledOutDisappearsReturnsAsAnAppearanceAndKeepsItsState`, `aListRowsOnDisappearReadsItsRetainedLiveState`, `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow` |
 | M1.6 | `Key(scope:occurrence: 0)` | 1 tests | `twoSiblingsSharingOneIdAppearTwice` |
-| M1.7 | `"$lifecycle"` (depth dropped) | green | — |
+| M1.7 | `"$lifecycle"` (depth dropped) | green (a test gap, not a redundancy: `LC-U` item 1) | — |
 | M1.8 | untyped entry: `cursor += 1` after `let start = cursor` | 4 tests | `aParentAndItsChildUnderOneGhostDisappearTogetherChildFirst`, `addingALifecycleModifierMovesNoIdentity`, `anOnDisappearOutsideTheTransitionAlsoWaits`, `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
 | M1.10 | typed entry's `noteLifecycle` block deleted | 1 tests | `theTypedProposalScopeNotesLikeTheUntypedOne` |
 | M1.11 | owner and key named by the content's `elementID` (`(content as? any Element)?.elementID`) | 1 tests | `aLifecycleModifierWrittenOutsideIdKeysOnThePosition` |
@@ -662,7 +662,10 @@ suites`; the count is the tests reddened, each named.
 
 **Findings.**
 
-1. **M1.7 is green: the depth in the key is redundant with the occurrence.**
+1. **M1.7 is green.** **`LC-U` item 1 refutes the "redundant" reading below.**
+   An inner modifier whose action toggles to or from `nil` changes the number
+   of noted scopes at a position while the content stays present. As first
+   written: **the depth in the key is redundant with the occurrence.**
    Two stacked scopes at one position share the scope id without the depth, and
    the occurrence (assigned in note order, inner first) keeps them two entries
    in the same order every build; no structure can change how many scopes are
@@ -835,3 +838,47 @@ capture, no demo launch; group T stays owed.
 
 **Cost if wrong.** Items 1–3 are the demo's; item 4 is a test-target
 dependency; item 5 is a count.
+
+## LC-U — The adversarial branch check: the key's depth is load-bearing, a `nil` action is not presence
+
+**Ruling.** The branch `047f0ab..0813a47` was checked adversarially (record
+§76 §11). Everything the gate claims re-measured as claimed. Two findings,
+each measured with a scratch test (not committed) in the worktree:
+
+1. **M1.7's "the depth is redundant" is refuted.** `LC-R` finding 1 said no
+   structure changes how many scopes are stacked at a position without
+   changing their content's presence. One does: an inner modifier whose action
+   is `nil`. `LifecycleScope` notes an entry only when `write != nil`, so
+   `lcLeaf().onAppear(perform: flag ? f : nil).onDisappear { d() }` notes one
+   scope at the position while `flag` is false and two while it is true, and
+   the content stays present throughout. With the depth dropped (M1.7's
+   spelling, applied to `Lifecycle.swift` on `0813a47`), the outer scope's
+   `onDisappear` moves from occurrence 0 to occurrence 1 and back, and it
+   **fires on the still-present element**: the scratch test logged
+   `["disappear b"]` and reddened. Unmutated, it logged `["appear a"]` and
+   passed. The full unfiltered suite with the scratch test added had 2430
+   tests. Unmutated it passed. Under M1.7 it failed with 1 issue, and the only
+   test reddened was the scratch test. **The depth is kept because it is
+   needed, not for the precedent.** No committed test pins it. Test 1.7
+   catches only M1.7b, which drops both the depth and the occurrence.
+2. **A `nil` action changes presence (a code defect, reported).**
+   Unmutated, the same rule (`if let write, !nodes.isEmpty`) makes an action
+   that goes from non-nil to `nil` read as a disappearance. The scratch test
+   `lcLeaf().onDisappear(perform: flag ? { log("disappear") } : nil)` sets
+   `flag` from true to false while the leaf stays built, and it logs
+   `["disappear"]`: the `onDisappear` runs on a present element. In the same
+   way, an action that goes from `nil` to non-nil runs `onAppear` on an
+   element that has been present all along (item 1's unmutated
+   `["appear a"]`). Both contradict `LC-C` item 1, under which presence is the
+   content being built and registering nodes, not the action being set.
+   SwiftUI's answer for a toggled `nil` action was not probed, so this is
+   stated against `LC-C`, not against SwiftUI. The likely fix is to note an
+   entry with no actions whenever the content is non-empty, so presence no
+   longer depends on `write`. It costs nothing at K scopes. Owner: the branch
+   author, before or after merge (not a merge blocker: `onAppear(perform:)`
+   with a conditional `nil` is an unusual spelling, and the defect only fires
+   on a toggle).
+
+**Cost if wrong.** Item 1 corrects a record. Item 2's fix is expected to be
+additive, because no committed test toggles an action to or from `nil`.
+That is unmeasured: the fix was not applied here.

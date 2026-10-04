@@ -6,9 +6,9 @@ priority list. The motivation is a port — the SMK keyboard configurator
 (SwiftCrossUI): its device monitor starts and stops with the DEV pane
 (`onAppear`/`onDisappear`) and a load error becomes an alert through
 `onChange(of:)`; MetalUI had none of the three. Spec
-`docs/superpowers/specs/2026-10-03-lifecycle-design.md`; rulings `LC-A`…`LC-T`
+`docs/superpowers/specs/2026-10-03-lifecycle-design.md`; rulings `LC-A`…`LC-U`
 in the new decisions doc `docs/superpowers/2026-10-03-lifecycle-decisions.md`
-(next unused `LC-U`); probes `docs/probes/swiftui-lifecycle.swift` (new) and
+(next unused `LC-V`); probes `docs/probes/swiftui-lifecycle.swift` (new) and
 `docs/probes/swift-main-actor-task-loop.swift` (new).
 
 **Numbering.** Written as §76 on the first try: master had published §75 (colour)
@@ -231,10 +231,12 @@ reddened. Summary by group: presence (M1.1–M1.12) 1–17 tests each; order
 drain) reddens 96 tests outside the lane** — the reason `LC-E` item 2 settles
 only on a write; departed state (M5.1–M5.4) 1–3; transitions (M6.1–M6.5) 1–9;
 window (M7.1–M7.3) 1–2; performance (M8.1, M8.2) 1–2; guards (MG9.1–MG9.3) 1
-each. **Green: M1.7** (the depth dropped from the key) — the occurrence keeps
-two stacked scopes apart and no structure changes how many are stacked without
-changing their content's presence; kept anyway (the `$anim-value<depth>`
-precedent); test 1.7's mutation is **M1.7b** (depth and occurrence dropped),
+each. **Green: M1.7** (the depth dropped from the key). Lane 1 read it as
+redundant with the occurrence. **The branch check refuted that (`LC-U` item 1,
+§11):** an inner action toggled to or from `nil` changes how many scopes are
+noted at a position while the content stays present, and M1.7 then fires the
+outer `onDisappear` on a present element. The depth is load-bearing, and no
+committed test pins it; test 1.7's mutation is **M1.7b** (depth and occurrence dropped),
 which reddens 16 tests, 1.7 among them (`LR-X`: a green mutant may be the
 correct spelling). Test 3.6 has no mutation of its own (M3.3 reddens it).
 
@@ -268,8 +270,10 @@ mutations each redden exactly their one guard.
 
 ## §6 Green mutations and pins that prove less than they look
 
-- **M1.7 is green** (§5): the depth in the lifecycle key is redundant with the
-  occurrence; kept for the precedent.
+- **M1.7 is green** (§5). Lane 1 read the depth in the lifecycle key as
+  redundant with the occurrence. **That was refuted at the branch check
+  (`LC-U` item 1, §11):** the depth is load-bearing, and no committed test pins
+  it. A test gap, not a correct spelling.
 - **Test 5.5 is green by design.** It pins **divergence 125** — the
   never-written `@State` default is re-seeded every build, so `onAppear` (build
   1) and `onDisappear` (the last present build) reach different instances
@@ -387,3 +391,65 @@ Re-taken on `feat/lifecycle` after the docs below: `swift package clean`,
 | a transitioned group that painted nothing (no ghost, so no parked disappearance) | unprobed against SwiftUI (`LC-P` item 7) | none until a probe shows a difference |
 | human checks T1, T2 | an agent cannot; screen locked | a human (group T) |
 | Windows' 1 MB stack for the looks tree; Windows `Backends/SDL` | no Windows host here | `root-windows` CI on push |
+
+## §11 The adversarial branch check (2026-10-03, on `0813a47`)
+
+Ruling `LC-U`. Everything below was re-taken on `feat/lifecycle` at `0813a47`.
+
+- **Suite.** `swift package clean`, then `swift build --build-system native
+  --build-tests`, then the unfiltered `swift test --build-system native
+  --no-parallel`: **`Test run with 2429 tests in 3 suites passed after 127.761
+  seconds`**. The log has `FR-J no-argument frame: succeeded=true` and
+  `LC-B window root: positive succeeded=true; negative succeeded=false`. It
+  has 0 `error:`, and the only `warning:` is SwiftPM's native-build-system
+  deprecation notice. `swift build --build-tests` (the default build system)
+  has 0 `warning:`.
+- **Invariants.** These are unchanged and green in that run, and the branch
+  edits no existing test file except `CloseoutTests.swift`, whose demo button
+  census goes from 10 to 14 (`LC-T` item 1):
+  - `theSevenRetentionSlotsAreMutuallyDistinct`
+  - `everyNamingSiteStartsAReturningNameFresh`
+  - `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`
+  - `everyBackgroundPaintingSiteAnimatesItsColour`
+  - `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+  - `everyProductionTreeBuildsOnAOneMegabyteThread`
+  - `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+
+  No hit-testing, accessibility, animation, focus, `List` or text-input source
+  or test file is in the diff.
+- **Docs.** `cmp CLAUDE.md AGENTS.md` reports them identical. Every
+  `LC-` id cited in a changed doc resolves to a `## LC-` heading; `LC-U`
+  resolved only once this check appended it. Every other prefixed id in the
+  three lifecycle docs resolves to a heading. Every test name of 20 or more
+  characters cited in an added doc line resolves to a `func`. Every probe arm
+  cited in `docs/divergences.md` 120–125 and in the rulings is in
+  `swiftui-lifecycle.swift`.
+- **Inventory.** Both closeout scripts print nothing. **The census was stale**:
+  `d294515` moved four `LooksDemo.swift` declarations, which now sit at lines
+  22, 338, 340 and 349, while the census still recorded 20, 322, 324 and 333.
+  It is re-recorded here, still 2315 declarations.
+- **Pixels.** `compare.sh <scratch> 047f0ab HEAD` gives the same controls as
+  §9 (1048576, 1031003, 454895, 0, 1048576, 0; 544 and 216 distinct). All
+  fourteen images have `differing=0` and `scene identical`.
+- **Backends/SDL** (`PKG_CONFIG_PATH=$PWD/.accesskit`, macOS): **24 + 65
+  passed**, 0 `error:`. The warnings are the existing sdl `rpath` one and
+  `ld`'s macOS-27 dylib notices.
+- **Linux.** In `swift:6.4-noble` (OrbStack), on a `git archive` of HEAD,
+  `swift build --build-tests` has 0 `warning:` and 0 `error:`. `swift test
+  --skip-build` passes **199 + 22 + 36 + 31 + 18 + 6**. OrbStack was found
+  running and was stopped afterwards.
+- **Mutations of the checker's own design.** Each was applied to a copy of
+  `0813a47`'s source, run on the full unfiltered native suite, restored from
+  the copy, and followed by a clean `git status --short`:
+
+  | # | spelling mutated | result |
+  |---|---|---|
+  | BC1 | `Lifecycle.swift` `noteLifecycle`: `ElementID("$lifecycle\(lifecycleDepth)")` → `ElementID("$lifecycle")` (M1.7's spelling), with a scratch test added: an inner `onAppear(perform:)` toggled `nil` → non-nil → `nil` under an outer `onDisappear` | 2430 tests, 1 issue. Only the scratch test reddened (`["disappear b"]`; unmutated it logged `["appear a"]` and passed, 2430 passed). **`LC-R` finding 1's "redundant" is refuted**: `LC-U` item 1 |
+  | BC2 | `Window.drainLifecycle`: `StateDispatch.dispatching(to: event.owner) { event.action() }` → `event.action()` | 2429 tests, 2 issues: `actionsRunOutsideEveryPhaseUnderTheirElementsDispatch`, `closingTheWindowRunsEveryPresentOnDisappearOnce` |
+
+- **Code defect, reported and not fixed** (`LC-U` item 2): a lifecycle action
+  that toggles to or from `nil` changes presence. This was measured with a
+  filtered scratch run: `onDisappear(perform: flag ? f : nil)` with `flag`
+  going from true to false logs `["disappear"]` on a still-present leaf.
+  **Merge verdict: mergeable.** The defect is an edge spelling and is
+  recorded with an owner. The human looks (group T) remain unperformed.

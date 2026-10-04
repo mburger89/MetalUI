@@ -2,7 +2,7 @@
 
 **Status: LANDED (2026-10-03) — lanes 1 and 2 and the fix pass implemented (`LC-Q`, `LC-S`, `LC-T`), the Record phase done (record §76); the looks are owed to a human (human-checks group T); `.task` is deferred with an owner (§9).** User request
 2026-10-02, an item of the gpui-gap priority list; **not a plan task**.
-Rulings `LC-A`…`LC-T` (`LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
+Rulings `LC-A`…`LC-U` (`LC-U`: the branch check — the key's depth is load-bearing, and a `nil` action changes presence, a reported defect; `LC-T`: lane 2's findings — the demo's placement and the 1 MB stack, a demo census pin, the SDL test target, the count; `LC-P`: the critic pass, which amends `LC-C`, `LC-H` and this spec's tests and counts; `LC-Q`: lane 1's findings — divergence 124, cancellation of every key under a ghost, the drain loop) in
 [`../2026-10-03-lifecycle-decisions.md`](../2026-10-03-lifecycle-decisions.md).
 Record: `docs/record/76-lifecycle.md` (Record phase). Probes (new, outputs in
 their headers): `docs/probes/swiftui-lifecycle.swift` (SwiftUI, run three
@@ -283,7 +283,7 @@ Presence and identity:
 | 1.5 | `aListRowScrolledOutDisappearsReturnsAsAnAppearanceAndKeepsItsState` | out: disappear; back within 2 generations: appear and its `@State` value kept (`S1`, `TB-AH`) | exempt children of `noteWindowedParent` parents from disappearance |
 | 1.5b | `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow` | 12 appearances, 9 disappearances (rows 3…11) in the first `drawFrameIfNeeded`, nothing after (divergence 124, `LC-Q` item 1) | none of its own (the `List` cold-frame rule is outside the lane) |
 | 1.6 | `twoSiblingsSharingOneIdAppearTwice` | 2 appearances (divergence 72's shape) | drop `occurrence` from `Key` |
-| 1.7 | `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst` | `[a, b]` on insertion and removal (`A3`) | drop `depth` from the key — **green** (`LC-R` finding 1: the occurrence keeps stacked scopes apart); measured with M1.7b, depth and occurrence dropped |
+| 1.7 | `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst` | `[a, b]` on insertion and removal (`A3`) | drop `depth` from the key — **green**. `LC-R` finding 1 read this as redundant; `LC-U` item 1 refutes that, because the depth is needed when an inner action toggles to or from `nil`, and no committed test pins it. Measured with M1.7b, depth and occurrence dropped |
 | 1.8 | `addingALifecycleModifierMovesNoIdentity` | recorded element ids and a nested `@State` equal with and without the scope | `cursor += 1` in `requestGroupLayout` |
 | 1.9 | `lifecycleModifiersFireInsideAComponentAnEnvironmentScopeAndADeferred` | each fires once | (composition; pinned by 1.1's mutation — no own) |
 | 1.10 | `theTypedProposalScopeNotesLikeTheUntypedOne` | a `ProposalText().onAppear` inside `HStack` fires; ids equal | delete `noteLifecycle` from `requestProposalGroupLayout` only |

@@ -329,7 +329,9 @@ private struct LCRow: Identifiable { let id: String }
 
 /// **1.7** (`A3`, `LC-C` item 2). Stacked lifecycle modifiers at one position
 /// keep separate entries, the inner one first on insertion and on removal.
-/// Mutation: drop `depth` from the key.
+/// Mutation: M1.7b (drop `depth` and the occurrence). Dropping `depth` alone is
+/// green here; it reddens only when an inner action toggles to or from `nil`,
+/// and no committed test pins that (`LC-U` item 1).
 @MainActor
 @Test func stackedLifecycleModifiersKeepSeparateEntriesInnerFirst() throws {
     let m = LCModel(), log = LCLog()

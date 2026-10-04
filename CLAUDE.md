@@ -41,7 +41,7 @@ summary.
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
-  `2026-10-03-lifecycle-decisions.md`, next `LC-U`), …; the full
+  `2026-10-03-lifecycle-decisions.md`, next `LC-V`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
