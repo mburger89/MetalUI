@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AF`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AG`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1017,3 +1017,49 @@ above, that line stands corrected by this one.
    a window closed before its dialog answers frees the queued answer
    unseen. `Window.onFrameAdopted` (internal) is the test hook 2.39 reads the
    frame's recorded work through.
+
+---
+
+## SV-AF — Lane 1's mutation table (measured)
+
+**Ruling.** Each mutation was applied to `feat/platform-services` after
+`02aaa81` (the spelling below), the whole unfiltered suite run (root: `swift
+test --build-system native --no-parallel`; `Backends/SDL`: `swift test
+--skip-build --no-parallel` on macOS, the task's container recipe on Linux),
+the source restored from a copy and `git status --short` read clean. Every
+reddened test is named; the root baseline is **2453 tests**, `Backends/SDL`
+**76** (macOS) and **73** (`swift:6.4-noble`).
+
+| # | Mutation (site) | Reddened |
+|---|---|---|
+| MG1 | a `PlatformWindow` extension defaulting all four members (`Platform.swift`) | `aPlatformWindowWithoutPresentFileDialogDoesNotCompile`, `…WithoutPresentAlert…`, `…WithoutDismissPresentation…`, `…WithoutSetContentSizeLimits…` (each new guard red once) |
+| M1.1 | `allowsMultipleSelection = false` (`AppKitPresentations.swift`) | `appKitOpenDialogIsASheetWithTheDeclaredTypes` |
+| M1.2 | the name not copied | `appKitSaveDialogCarriesTheNameTypesAndExportPrompt` |
+| M1.3 | the answer delivered inside the completion handler | `appKitCancelledDialogArrivesAsQueuedInput` |
+| M1.4 | the `.abort` answer not suppressed | `appKitDismissPresentationEndsTheSheetAndAnswersNothing` |
+| M1.5 | the attached-sheet check dropped from `presentFileDialog` | `appKitSecondDialogWhileASheetIsUpAnswersFalse` |
+| M1.6 | the post-sheet key-equivalent loop removed (NSAlert's own) | `appKitAlertIsASheetWithSwiftUIsKeysAndOrder` |
+| M1.7 | the response code reported for the index | `appKitAlertButtonReportsItsIndexAfterTheSheetEnds` |
+| M1.8 | no resize into the limits | `appKitContentSizeLimitsReachTheWindowAndClampIt` |
+| M1.9 | `mouseExited` calls `super` only | `appKitMouseExitedDeliversPointerExited` |
+| M2.33 | measure under `.automatic` too (`Frame.computeRootLayout`) | `automaticResizabilityAsksTheContentNothing`, and five existing pins of the root's run: `aNativeRootIsCentredAtItsAnswer`, `aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout`, `aProposalTextInAStackIsShapedOncePerDistinctWidth`, `aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`, `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal` |
+| M2.34 | the change check dropped (`Window.reconcileContentSizeLimits`) | `explicitLimitsReachThePlatformOnlyWhenTheyChange`, `theContentMinimumFollowsTheContent` |
+| M2.35 | the minimum measured at the window's proposal | `contentMinSizeIsTheRootsAnswerAtAZeroProposal` |
+| M2.36 | no maximum measured | `contentSizeAddsTheRootsAnswerAtAnInfiniteProposal`, `explicitAndContentLimitsCombinePerAxis`, `limitsAreMeasuredBeforeTheRealLayout` |
+| M2.37 | the first content answer cached | `theContentMinimumFollowsTheContent` |
+| M2.38 | the explicit minimum ignored (`ContentSizeLimits.effective`) | `explicitAndContentLimitsCombinePerAxis`, `explicitLimitsReachThePlatformOnlyWhenTheyChange`, `negativeLimitsClampAndInfiniteMaximumMeansNone`, `openWindowAppliesLimitsBeforeTheFirstFrame` |
+| M2.39 | the measurement moved after the real layout | `contentMinSizeIsTheRootsAnswerAtAZeroProposal`, `contentSizeAddsTheRootsAnswerAtAnInfiniteProposal`, `limitsAreMeasuredBeforeTheRealLayout` |
+| M2.40 | `applySizing` deferred past the first `drawFrameIfNeeded` (`App.openWindow`) | `openWindowAppliesLimitsBeforeTheFirstFrame` |
+| M2.41 | each value's clamp to 0 removed | **nothing** — a broken instrument or dead code: the minimum's 0 start and the raise of the maximum to it already clamp. The clamp was dead and is deleted (`ce632d1`); M2.41b below is the mutation of the live spelling |
+| M2.41b | the minimum starting at `-infinity` | `negativeLimitsClampAndInfiniteMaximumMeansNone` |
+| M2.42 | the NaN precondition removed | `aNaNLimitTraps` |
+| M1.10 | `SDL_PushEvent` removed from the dialog callback (`SDLBridge.c`) | `sdlDialogResultFromAnotherThreadArrivesAsInput`, `sdlCancelledAndFailedDialogsMapTheirOutcomes`, `sdlDismissPresentationForgetsAndALateResultStillArrives`, `aDialogAnsweredOnAnotherThreadResumesAnAwaitingTask` (macOS) |
+| M1.11 | cancel and failure swapped (`SDLWindow.deliverDialogResult`) | `sdlCancelledAndFailedDialogsMapTheirOutcomes` |
+| M1.12 | `presentFileDialog` answers `false` without calling SDL (Linux image) | `sdlDialogInTheLinuxImageAnswersItsRecordedOutcome` |
+| M1.13 | `"*"` for a type without extensions | `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` |
+| M1.14 | `presentAlert` answers `true` | `sdlPresentAlertDeclines` |
+| M1.15 | the minimum rounded down | `sdlContentSizeLimitsReachSDLAndClamp` |
+| M1.16 | the `MOUSE_LEAVE` mapping removed (`translate`) | `sdlMouseLeaveDeliversPointerExited` |
+| M1.18 | the drain removed (`SDLPlatform+MainQueue.swift`) | **Linux**: `theSDLLoopRunsAMainActorTaskStartedFromTopLevelCode` (`task ran=false resumed=false iterations=200000`), `aDialogAnsweredOnAnotherThreadResumesAnAwaitingTask` (`paths=[]`). **macOS: nothing** — SDL's Cocoa pump drains the main queue itself (`task … iterations=3`, `dialog … iterations=6`), recorded as `SV-H`'s "Cost if wrong" foresaw; the Linux container is the separating run |
+
+1.17 and 1.20 owe no mutation (spec §6.1).
