@@ -72,11 +72,18 @@ private struct Widening: Component {
 }
 
 /// **10.2** (`LC-E` items 2–3, probe `F1`). An `SDLPlatform` window's first
-/// frame — the `drawFrameIfNeeded` `App.openWindow` runs — runs the
-/// `onAppear` after the build, outside every phase, and its `@State` write is
-/// presented in that same frame by the settle build: the scene holds the
-/// 70-wide box and not the 30-wide one, two builds ran, and the window is
-/// clean. Then the loop's ticks run it no more.
+/// presented frame runs the `onAppear` after the build, outside every phase,
+/// and its `@State` write is presented in that same frame by the settle build:
+/// the scene holds the 70-wide box and not the 30-wide one, two builds ran,
+/// and the window is clean. Then the loop's ticks run it no more.
+///
+/// **The first presented frame is not always `App.openWindow`'s.** On Linux
+/// under llvmpipe a hidden window has no drawable yet when `openWindow` draws,
+/// so that frame is skipped and the window stays dirty for the loop to retry
+/// (`App.openWindow`'s comment; measured by CI on PR #46, where the
+/// `openWindow`-only spelling of this test failed on all four Linux jobs and
+/// passed on Windows and macOS). The test therefore drives the loop one
+/// iteration at a time until the `onAppear` has run, and reads that frame.
 ///
 /// Mutation: delete the drain call (`if drainLifecycle() { … }`) in
 /// `Window.drawFrameIfNeeded`.
@@ -87,7 +94,12 @@ private struct Widening: Component {
     let window = try app.openWindow(title: "lifecycle 10.2", size: Size(width: Pixels(200), height: Pixels(100))) {
         Column { Widening(log: log) }
     }
-    #expect(log.entries == ["appear"], "the first frame ran the onAppear: \(log.entries)")
+    var iterations = 0
+    while log.entries.isEmpty && iterations < 20 {
+        platform.base.run(maxIterations: 1)
+        iterations += 1
+    }
+    #expect(log.entries == ["appear"], "the first presented frame ran the onAppear: \(log.entries)")
     let ratios = window.lastScene.rects.filter { $0.bounds.size.height > 0 }
         .map { $0.bounds.size.width / $0.bounds.size.height }
     #expect(ratios.contains(7) && !ratios.contains(3), "the write is presented in the first frame: \(ratios)")

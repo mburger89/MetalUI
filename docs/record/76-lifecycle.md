@@ -464,3 +464,14 @@ takes a `nil` write as an entry with no actions. M1.7 (depth dropped),
 applied with the fix and 1.7c, left the full unfiltered suite green at **2430**:
 the depth is redundant again and is kept unpinned (`LC-V` item 2). Counts
 **2430 / 0 / guards unchanged**.
+
+**CI on PR #46 (first push).** All four Linux `Build and replay` jobs failed
+`anOnAppearRunsInAnSDLWindowsFirstFrame` (10.2) at its four first-frame
+expectations; Windows and macOS passed. Under llvmpipe a hidden window has
+no drawable when `App.openWindow` draws, so that frame is skipped and left
+dirty for the loop (its comment already said so); the branch's Linux
+container ran only the root package, never `Backends/SDL`. Test 10.2 now
+drives the loop one iteration at a time until the `onAppear` has run and
+reads that frame. That is a test fix: the claim (the first *presented*
+frame runs it and presents its write) is unchanged. `Backends/SDL` on macOS:
+24 + 65.
