@@ -1942,3 +1942,19 @@ swatches flip within a frame, nothing fades, the `scheme:` label follows (the
 label is unpinned by any test, record §75 §6); S3 the System/Light/Dark toggle
 forces the whole window, no one-frame flash; S4 SDL (Linux or Windows) follows
 the system theme live while its native decorations stay.
+
+## 2026-10-03: lifecycle modifiers (record §76) — looks owed
+
+No existing demo image changed: the fourteen offscreen images read **0
+differing pixels and identical scenes against `047f0ab`**. The looks demo's new
+lifecycle section is outside them and was measured headless (1100 × 817, inside
+the 1180 × 880 window). The screen was **locked** throughout (`CGSSessionScreenIsLocked
+= 1`, `displayAsleep main: 1`), so the probe's SwiftUI answers were read by
+`swiftui-lifecycle.swift` and no MetalUI removal fade, counter or window close
+has been seen on a real display link. **Owed, new here —
+`docs/verification/human-checks.md` group T, none performed (an agent
+cannot)**: T1 the fading tile's disappear counter moves when the ~0.8 s fade
+ends, not on the click, and a press during the fade brings the tile back with no
+count; T2 ten presses of the plain tile leave the appear and disappear counters
+equal, the bars equal and the window idle, and the stepper's + three times reads
+3.

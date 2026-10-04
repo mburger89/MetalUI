@@ -473,10 +473,16 @@ private struct OptionalWithStateProbe: Element {
     let accentBefore = accentCount(scene)
     let buttons = window.lastHitboxes.filter { $0.handlers.onClick != nil }
     // Nine transition buttons and, since colour and colour scheme (spec §6.3
-    // test 3.3), the colour section's scheme toggle — the lowest of the ten,
-    // so `first` below is still the first transition button.
-    try #require(buttons.count == 10, "the nine transition buttons and the scheme toggle: \(buttons.count)")
-    let first = try #require(buttons.min { $0.bounds.origin.y < $1.bounds.origin.y })
+    // test 3.3), the colour section's scheme toggle; since lifecycle modifiers
+    // (ruling `LC-T` item 1), the lifecycle section's two buttons and its
+    // stepper's two halves: fourteen. The lifecycle section sits beside H1,
+    // above the transitions, so the first transition button is the topmost of
+    // the nine that share one left edge, not the topmost of all fourteen.
+    try #require(buttons.count == 14,
+                 "nine transition buttons, two lifecycle buttons, the stepper's halves, the scheme toggle: \(buttons.count)")
+    let column = try #require(Dictionary(grouping: buttons) { $0.bounds.origin.x.value }.values.first { $0.count == 9 },
+                              "the nine transition buttons share a left edge")
+    let first = try #require(column.min { $0.bounds.origin.y < $1.bounds.origin.y })
     let point = Point(x: first.bounds.origin.x + Pixels(4), y: first.bounds.origin.y + Pixels(4))
     platform.simulateInput(.mouseDown(MouseEvent(position: point)))
     platform.simulateInput(.mouseUp(MouseEvent(position: point)))

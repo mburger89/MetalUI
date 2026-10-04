@@ -653,6 +653,15 @@ public final class Window {
     /// flush happening to run on the main thread, rather than resting on that.
     private var isFlushing = false
 
+    /// Whether `drainLifecycle()` is running (ruling `LC-E` item 4).
+    private var isDrainingLifecycle = false
+
+    /// How many builds the last `drawFrameIfNeeded` made: 1, or 2 when a
+    /// lifecycle action wrote (the settle build, `LC-E` item 2) or the first
+    /// frame's scheme changed (`CR-Q`), 3 when both — test observability
+    /// (`LC-K`). 0 after a call that drew nothing.
+    private(set) var lastDrawBuildCount = 0
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
@@ -1098,6 +1107,7 @@ public final class Window {
     /// Builds and draws one frame if the window is dirty or an animation is
     /// running; otherwise pauses the display link.
     public func drawFrameIfNeeded() {
+        lastDrawBuildCount = 0
         // Binding design spec §4.4, and the widening M4 spec 1 could not make.
         // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
         // left mid-interpolation there needs this frame drawn to advance it —
@@ -1223,6 +1233,23 @@ public final class Window {
             _ = applyTreeColorSchemePreference(of: frame)
         }
 
+        // The lifecycle's actions (ruling `LC-E`): after the build — outside
+        // every phase, outside `Frame.render` and outside
+        // `withObservationTracking`'s apply closure, so an `@Observable` write
+        // reaches the armed session — and before accessibility and
+        // `finishFrame`. When they wrote, the window builds ONCE more inside
+        // this `beginFrame()` (`CR-Q`'s precedent) and presents that build, so
+        // an `onAppear`'s write is in the first frame (`F1`); that build's own
+        // actions run too, and their writes schedule the next frame (one level
+        // per presented frame, divergence 121). An action that writes nothing
+        // costs no second build.
+        if drainLifecycle() {
+            needsRedraw = false
+            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
+            _ = applyTreeColorSchemePreference(of: frame)
+            drainLifecycle()
+        }
+
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
         // `List` still waiting for its viewport asks for one more frame, which
@@ -1281,6 +1308,48 @@ public final class Window {
         framesDrawn += 1
     }
 
+    /// Runs every lifecycle event the builds so far produced (ruling `LC-E`),
+    /// each under `StateDispatch` for its element and, for a disappearance,
+    /// reading through its departed state (`LC-I`). Answers whether they
+    /// dirtied the window; `needsRedraw` ends as it was or-ed with that.
+    ///
+    /// **Not re-entrant** (`LC-E` item 4): an action that draws a frame
+    /// synchronously builds normally, and that build's events wait for this
+    /// drain's next pass — it loops until no events are left, and each pass's
+    /// events come from a build that already happened, so the loop is bounded
+    /// by the builds the actions themselves drew.
+    @discardableResult
+    private func drainLifecycle() -> Bool {
+        guard !isDrainingLifecycle else { return false }
+        isDrainingLifecycle = true
+        defer { isDrainingLifecycle = false }
+        let wasDirty = needsRedraw
+        needsRedraw = false
+        var events = animationStore.lifecycle.takeEvents()
+        while !events.isEmpty {
+            for event in events {
+                stateTable.withDepartedOverlay(event.departed) {
+                    StateDispatch.dispatching(to: event.owner) { event.action() }
+                }
+            }
+            events = animationStore.lifecycle.takeEvents()
+        }
+        let dirtied = needsRedraw
+        needsRedraw = wasDirty || dirtied
+        return dirtied
+    }
+
+    /// Closing the window (ruling `LC-J`): every present element's
+    /// `onDisappear`, then every parked one, each once, under `StateDispatch`
+    /// — called by `App`'s `onClose`. A second call finds nothing. A write
+    /// such an action makes dirties a window that will not draw again
+    /// (`LC-P` item 6).
+    func runDisappearancesForClose() {
+        for event in animationStore.lifecycle.closeAll() {
+            StateDispatch.dispatching(to: event.owner) { event.action() }
+        }
+    }
+
     /// Records the preference `frame` collected and, when it changed,
     /// recomputes the scheme (ruling `CR-L`). Answers whether it changed.
     private func applyTreeColorSchemePreference(of frame: Frame) -> Bool {
@@ -1324,6 +1393,7 @@ public final class Window {
         // ended. Taken (not merely read) so it is consumed by exactly one
         // build — spec §3's non-re-entrancy — whether or not this frame
         // contains anything that can use it.
+        lastDrawBuildCount += 1
         let transaction = Animation.takeParkedRootTransaction()
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: drawScaleFactor,

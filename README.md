@@ -382,6 +382,13 @@ transform, layout does not — drawn identically on Metal and SDL. Paths and
 shadows are rasterized on the CPU by the portable `MetalUIPath` target. The real
 looks are `docs/verification/human-checks.md` group Q, unrun.
 `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows them.
+**Lifecycle modifiers** (user request 2026-10-02, not a plan task; record §76):
+`.onAppear`, `.onDisappear` and `.onChange(of:initial:_:)` (both closure forms) on both
+vocabularies, run after the frame so a `@State`, `Binding` or `@Observable` write is legal
+and an `onAppear` write is in the first frame; a removal's `onDisappear` waits for its fade
+and a window close runs every one (divergences 120–125). `.task` is not offered yet (the SDL
+loop never runs main-actor tasks). The real looks are `docs/verification/human-checks.md`
+group T, unrun. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows the counters.
 **Menus, popovers and tooltips** (user request 2026-10-02, not a plan task; record
 §74): `.contextMenu { }` (a native `NSMenu` on AppKit, MetalUI's drawn menu on SDL),
 `Menu("Title") { }`, `App.commands { CommandMenu / CommandGroup }` with the standard

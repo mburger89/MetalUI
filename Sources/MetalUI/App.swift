@@ -120,7 +120,10 @@ public final class App {
         // ended here; SDL's `run()` returns on its own once its last window has
         // closed.
         let terminates = terminatesThroughAppKit
-        platformWindow.onClose = {
+        platformWindow.onClose = { [weak window] in
+            // Every present `onDisappear` runs once before anything ends
+            // (ruling `LC-J`): the window's content leaves with it (`W3`).
+            window?.runDisappearancesForClose()
             #if canImport(AppKit)
             if terminates { NSApplication.shared.terminate(nil) }
             #endif

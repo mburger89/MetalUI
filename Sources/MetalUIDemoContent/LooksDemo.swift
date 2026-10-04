@@ -9,7 +9,9 @@ import MetalUI
 /// glyphs) and, since paths, shadows and transforms, **Q1–Q6** (paths, strokes
 /// and dashes, shadows, rotated and scaled content) and, since colour and colour
 /// scheme, **S1–S3** (literal, dynamic and palette colours, live appearance
-/// switching, the scheme toggle). It asserts nothing; a human looks.
+/// switching, the scheme toggle) and, since lifecycle modifiers, **T1–T2**
+/// (`onAppear`/`onDisappear` counters, a disappearance that waits for its fade,
+/// an `onChange` counter). It asserts nothing; a human looks.
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move. Every section is its own function, passed as
@@ -18,7 +20,7 @@ import MetalUI
 /// `everyProductionTreeBuildsOnAOneMegabyteThread`.
 @MainActor
 public func looksDemoContent() -> some Element {
-    looksRoot(text: looksTextSection(),
+    looksRoot(text: looksBesideH1(text: looksTextSection(), lifecycle: looksLifecycleSection()),
               shapes: looksShapesSection(),
               gestures: looksGesturesSection(),
               transitions: looksTransitionsSection(),
@@ -26,12 +28,26 @@ public func looksDemoContent() -> some Element {
               colour: looksColourSection())
 }
 
+/// H1's narrow column and, beside it where the left column has room, the
+/// lifecycle section (T1–T2), so the window's height does not grow. Its own
+/// function, as every composition here is (the 1 MB stack budget,
+/// `everyProductionTreeBuildsOnAOneMegabyteThread`: composed inline in
+/// `looksRoot` it overflowed a 1 MB thread in a debug build — `LC-T`).
+@MainActor
+private func looksBesideH1(text: some Element, lifecycle: some ElementGroup) -> some Element {
+    Row(gap: Pixels(32)) {
+        text
+        lifecycle
+    }
+    .alignItems(.flexStart)
+}
+
 @MainActor
 private func looksRoot(text: some Element, shapes: some Element,
                        gestures: some Element, transitions: some Element,
                        pathsShadowsTransforms: some Element, colour: some Element) -> some Element {
     Column(gap: Pixels(18)) {
-        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3").font(size: 20)
+        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3, T1–T2").font(size: 20)
         Row(gap: Pixels(32)) {
             Column(gap: Pixels(18)) {
                 text
@@ -421,5 +437,109 @@ struct LooksSchemeLabel: Component {
 
     var content: some ElementGroup {
         Text(scheme == .dark ? "scheme: dark" : "scheme: light")
+    }
+}
+
+// MARK: - T1–T2: lifecycle modifiers
+
+/// **T1–T2** (ruling `LC-N`). Two buttons insert and remove a tile — the
+/// plain one at once, the fading one under `withAnimation(.easeInOut(duration:
+/// 0.8))` with `.transition(.opacity)` — and a stepper whose value an
+/// `onChange` watches. Each counter is drawn as text and as a bar 8 points per
+/// count, 6 tall, in its own colour, so a test reads it from the scene
+/// (`theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges`). T1:
+/// the "faded" counter moves when the fade ends, not on the click (`LC-H`).
+///
+/// The section is the component alone, its title inside its body: the looks
+/// tree is built whole on a 1 MB thread, and a `Column` and `Text` here
+/// overflowed it in a `swift:6.4-noble` debug build (`LC-T`).
+@MainActor
+private func looksLifecycleSection() -> some ElementGroup {
+    LooksLifecycle()
+}
+
+/// The four counters' bar colours, in the section's order.
+private let looksLifecycleBarColours: [Color] = [
+    Color(red: 0.20, green: 0.65, blue: 0.35),  // appeared
+    Color(red: 0.85, green: 0.30, blue: 0.25),  // disappeared
+    Color(red: 0.90, green: 0.60, blue: 0.15),  // faded
+    Color(red: 0.25, green: 0.45, blue: 0.85),  // changes
+]
+
+/// The section's state. The counters are written by the lifecycle actions,
+/// which run after the frame under the element's dispatch (`LC-E`), so the
+/// writes are legal and draw the next frame.
+struct LooksLifecycle: Component {
+    @State var appeared = 0
+    @State var disappeared = 0
+    @State var faded = 0
+    @State var changes = 0
+    @State var shown = false
+    @State var fadingShown = false
+    @State var value = 0
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(6)) {
+            Text("T1–T2 · onAppear, onDisappear, onChange").font(size: 15)
+            Row(gap: Pixels(8)) {
+                Button("Toggle tile") { shown.toggle() }
+                Button("Toggle fading tile") {
+                    withAnimation(.easeInOut(duration: 0.8)) { fadingShown.toggle() }
+                }
+                Stepper("Value \(value)", value: $value, in: 0...99)
+                    .onChange(of: value) { changes += 1 }
+            }
+            Row(gap: Pixels(8)) {
+                Stack {
+                    Box().frame(width: Pixels(120), height: Pixels(28)).background(.surfaceSecondary)
+                    if shown {
+                        Box { Text("tile").font(size: 13) }
+                            .frame(width: Pixels(120), height: Pixels(28))
+                            .background(.accent)
+                            .onAppear { appeared += 1 }
+                            .onDisappear { disappeared += 1 }
+                    }
+                }
+                Stack {
+                    Box().frame(width: Pixels(120), height: Pixels(28)).background(.surfaceSecondary)
+                    if fadingShown {
+                        Box { Text("fading tile").font(size: 13) }
+                            .frame(width: Pixels(120), height: Pixels(28))
+                            .background(.accent)
+                            .transition(.opacity)
+                            .onDisappear { faded += 1 }
+                    }
+                }
+            }
+            Row(gap: Pixels(16)) {
+                Column(gap: Pixels(3)) {
+                    LooksLifecycleCounter(label: "appeared", count: appeared, colour: looksLifecycleBarColours[0])
+                    LooksLifecycleCounter(label: "disappeared", count: disappeared,
+                                          colour: looksLifecycleBarColours[1])
+                }
+                .alignItems(.flexStart)
+                Column(gap: Pixels(3)) {
+                    LooksLifecycleCounter(label: "faded", count: faded, colour: looksLifecycleBarColours[2])
+                    LooksLifecycleCounter(label: "changes", count: changes, colour: looksLifecycleBarColours[3])
+                }
+                .alignItems(.flexStart)
+            }
+            .alignItems(.flexStart)
+        }
+        .alignItems(.flexStart)
+    }
+}
+
+/// One counter: its label and count, then a bar `8 × count` points wide.
+struct LooksLifecycleCounter: Component {
+    let label: String
+    let count: Int
+    let colour: Color
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(8)) {
+            Text("\(label) \(count)").font(size: 12).frame(width: Pixels(84))
+            colour.frame(width: Pixels(Float(8 * count)), height: Pixels(6))
+        }
     }
 }

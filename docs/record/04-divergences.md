@@ -2221,3 +2221,47 @@ in a menu, a view `Divider`, menu type-select, `.contextMenu(forSelectionType:)`
 `.popover(attachmentAnchor:)`, `.help(Text)` and a native tooltip, an in-window
 menu bar, and loses `.contextMenu` and menus from the `ButtonStyle` row. Live
 count **76 → 82**, next label **116**.
+
+## 2026-10-03: 120–125 added, none retired or amended; 92 live, next label 126 (lifecycle modifiers)
+
+Record §76; rulings `LC-B`, `LC-E`, `LC-F`, `LC-H`, `LC-P`, `LC-Q`, `LC-S`; the
+published list is `docs/divergences.md`. Not a plan task — user request
+2026-10-02. (Colour's 116–119 have no section here; their rows and record §75
+are the source.) **Added, kept:**
+
+- **120** — what may follow a lifecycle modifier: SwiftUI accepts any order;
+  `LifecycleScope` is a transparent `ElementGroup`, not a `StyledElement`, so a
+  `Self`-returning legacy decoration (`.onClick`, `.background(_:)`,
+  `.padding(_:)`) after it does not compile (measured: "value of type
+  'TransactionScope<Text>' has no member 'onClick'"; `.frame` compiles), and it
+  cannot be a window's root (`App.openWindow` takes an `Element`) — wrap the root
+  in a container. Pins `aLegacyDecorationAfterALifecycleModifierDoesNotCompile`,
+  `aLifecycleModifierOnAWindowRootNeedsAContainer`.
+- **121** — a chain of actions: SwiftUI settles to a fixed point before the
+  first draw (probe `swiftui-lifecycle.swift` `F3`, `C9`); MetalUI runs two
+  levels per drawn frame, presents the first level's writes (one settle build)
+  and each later level's one frame later. Pin
+  `aChainOfAppearancesSettlesOneLevelOfWritesPerPresentedFrame`.
+- **122** — callback order: SwiftUI is reverse pre-order except three separately
+  removed siblings (forward, `A2`) and varies by run in a lazy container
+  (`S1`/`S2`); MetalUI is changes, appears, disappears, each reverse pre-order,
+  always. Pin `removalRunsInReversePreOrderEvenForSeparatelyRemovedSiblings`.
+- **123** — content re-inserted during its removal transition: SwiftUI keeps the
+  view (`T4`); MetalUI runs neither callback (as SwiftUI) but the `@State` is
+  fresh (`ID-C` reset it) and the next `onChange` compares against nothing. Pin
+  `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState`.
+- **124** — a `List`'s first frame: SwiftUI creates only the rows in view
+  (`S1`); MetalUI's cold-frame rule builds every row, so every row appears and
+  the rows outside the next-measured window disappear. Pin
+  `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow`.
+- **125** — a never-written `@State` default: SwiftUI keeps its first evaluation
+  (`D2`: four `made`, `start Mon 1`, `stop Mon 1`); MetalUI re-seeds it every
+  build, so `onAppear` and `onDisappear` reach different instances. Write the
+  instance in `onAppear` or hold it in an `@Observable` model. Pins
+  `aNeverWrittenStateDefaultIsReseededSoOnAppearAndOnDisappearSeeDifferentInstances`
+  and, separating, `aMonitorAssignedInOnAppearIsTheOneOnDisappearStops`. This
+  corrected `LC-I`'s own reasoning (`LC-S` item 1).
+
+**Nothing retired or amended.** "Not offered" gains `.task`/`.task(id:)` (`LC-L`)
+and `onChange(of:perform:)`, `onReceive`, `scenePhase` and menu-content lifecycle
+(`LC-A`). Live count **86 → 92**, next label **126**.
