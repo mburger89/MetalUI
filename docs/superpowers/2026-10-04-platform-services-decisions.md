@@ -16,11 +16,15 @@ confirmation dialog, `H…` hover — **a recorded broken instrument**, `V…`
 [`../probes/swift-main-queue-drain-nested.swift`](../probes/swift-main-queue-drain-nested.swift)
 (arms `J0`…`J3`, macOS and `swift:6.4-noble`; it extends
 `swift-main-actor-task-loop.swift`'s `B1`/`B2`, whose Linux lines it
-reproduced). Where SwiftUI has no answer (Linux and Windows, an async platform
+reproduced), and — added by the critic pass —
+[`../probes/swiftui-alert-presenting.swift`](../probes/swiftui-alert-presenting.swift)
+(arms `R0`…`R4` `presenting:`, `K0`…`K3` the Return key; run twice, 38 lines
+byte-identical). The critic pass's corrections are `SV-X`…`SV-AD`; where they
+refute a line above, that line is corrected in place and names them. Where SwiftUI has no answer (Linux and Windows, an async platform
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-X`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AE`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -309,11 +313,12 @@ not app-modal (`D1`: `attachedSheet=NSOpenPanel modalWindow=nil isSheet=true`;
 3. A bridge test hook, `mui_test_complete_dialog(token, paths, count)`, runs
    the **same** callback from a new thread (`SDL_CreateThread`), so the thread
    hop is tested without a real dialog.
-4. **Under the offscreen video driver** (CI's Linux image) a dialog cannot be
-   shown: the real-call test is gated `.enabled(if:)` on
-   `SDL_GetCurrentVideoDriver() == "offscreen"` and asserts the `.failed`
-   outcome; no test shows a real dialog on macOS or a desktop (it would wait
-   for a human).
+4. **In CI's Linux image** the real-call test runs, gated `.enabled(if:)` on
+   `SDL_GetCurrentVideoDriver() == "offscreen"`; **what it asserts is measured
+   there first, not assumed** (`SV-AB`: SDL's Linux dialogs go through the XDG
+   portal or zenity, not the video driver, so "offscreen cannot show one" was
+   an unmeasured reason); no test shows a real dialog on macOS or a desktop (it
+   would wait for a human).
 5. `dismissPresentation(token:)` cannot close an SDL dialog (SDL3 has no
    call); `Window` forgets the token, so the eventual answer runs nothing.
    Recorded in the spec's deferred table, owner none.
@@ -373,7 +378,7 @@ the separating run (spec §6.1 test 1.18's recorded mutation).
 
 1. **Offered** on `ElementGroup`, returning `PresentationScope<Self>`:
    - `alert<A: AlertActions>(_ title: String, isPresented: Binding<Bool>, @AlertActionsBuilder actions: () -> A)` and with `message: () -> Text`;
-   - `alert<T>(_ title: String, isPresented: Binding<Bool>, presenting data: T?, @AlertActionsBuilder actions: (T) -> A, message: (T) -> Text)` (and without `message:`) — shown only while `data` is non-`nil`;
+   - `alert<T>(_ title: String, isPresented: Binding<Bool>, presenting data: T?, @AlertActionsBuilder actions: (T) -> A, message: (T) -> Text)` (and without `message:`) — presented whenever `isPresented` is `true`; a `nil` `data` presents the title and one "OK" with no message (**`SV-Y`**, which refutes this line's first draft, "shown only while `data` is non-`nil`");
    - `confirmationDialog(_ title: String, isPresented: Binding<Bool>, @AlertActionsBuilder actions: () -> A)` and with `message:` — the same presentation (`C1` = `A1`).
    `titleVisibility:` is **not offered** (only `.visible` was measured; a call
    site passing it does not compile — "Not offered" row).
@@ -391,9 +396,11 @@ the separating run (spec §6.1 test 1.18's recorded mutation).
      (`A5`); plain buttons only get none (`A2`);
    - **Escape** presses the cancel button (declared or synthesized), else
      nothing (`A1`/`A6`, `A5`, `A2`, `A3`);
-   - **Return** presses the first button that is neither cancel nor
-     destructive, else nothing (`A2` `"A" key="\r"`, Return runs it; `A3`/`A5`
-     `defaultButtonCell`; `A1`/`A7`: none, Return does nothing);
+   - **Return** presses the first plain (role-less) declared button when no
+     declared button is destructive; otherwise, and for the synthesized "OK",
+     nothing (**`SV-X`**: `A2`/`K0`, `K3` get `"\r"`; `A1`/`A7`, `A5`/`K1`,
+     `A3`/`K2` get none and Return runs nothing — the first draft's "first
+     button neither cancel nor destructive" is refuted by `A5`);
    - a destructive button is marked (`hasDestructiveAction`).
 4. **Outcomes** — any button: `isPresented = false` first, then its action,
    under `StateDispatch` to the declaring element (`A8`; a synthesized button
@@ -602,8 +609,10 @@ read `[]` under both instruments (synthesized `mouseMoved` through
 including H1's plain enter/leave — a broken instrument in an inactive app, so
 no rule here rests on SwiftUI. gpui's model is the comparison: a hitbox is
 hovered when it is under the mouse at or above the topmost hitbox that blocks
-the mouse (`HitboxBehavior::BlockMouse`), and `on_hover` fires on change —
-item 3 is that rule over MetalUI's one ranking. Human check U8.
+the mouse (`HitboxBehavior::BlockMouse`), and `on_hover` fires on change.
+Item 3 is **not** that rule: under item 3 a hover region is itself eligible,
+so a sibling's hover region drawn above covers the one beneath, where gpui
+would hover both — `SV-Z` rules it and pins it. Human check U8.
 
 **Cost if wrong.** If SwiftUI fires a covered sibling or a disabled element,
 item 3's eligibility or item 2's gate moves — one predicate each.
@@ -652,7 +661,8 @@ item 3's eligibility or item 2's gate moves — one predicate each.
 2. **Look and layout** (`P1`–`P3`): the title, 8, a pull-down button 24 tall
    (`Menu`'s chrome, `MN-H` item 1, with the `⌄` indicator) whose label is the
    selected option's title and whose width is its **widest** option title's
-   (`P1` 86 vs `P3` 102 — not stretched by a wider frame); a selection
+   (`P1` 86 vs `P3` 102 — not stretched by a wider frame), measured once per
+   change of the option titles, not per frame (`SV-AA`); a selection
    matching no tag shows an empty label (`P5`).
 3. **Options are discovered without layout**: inside a `.menu` picker scope a
    `TaggedElement` records `(tag, title)` and lays out **nothing** through its
@@ -701,7 +711,8 @@ row. Type-select is deferred.
 defaultless requirements (typed read and write), an AppKit `NSPasteboard`
 mapping and SDL3's MIME-typed clipboard, for a use the configurator does not
 have (its clipboard is `TextField`/`TextEditor` text, which works). Owner:
-none.
+the gpui-gap priority list — the Record phase adds a "typed clipboard" row
+there (`SV-AD` item 4).
 
 ---
 
@@ -745,6 +756,10 @@ the drawn menu paints O(visible rows). No wall clock.
 
 ## SV-V — Lanes: three, in order, with append-only shared registries
 
+**Amended by `SV-AC`** (window sizing moves to lane 1, the drawn alert to lane
+3; "source files disjoint" corrected — the lanes are sequential and three
+files are shared, named there).
+
 **Ruling.** Three lanes run one at a time in this worktree (spec §10):
 **lane 1** the seam on every platform (`MetalUIPlatform`, `MetalUIAppKit`,
 `Backends/SDL`, fakes and guard fixtures, the drain), **lane 2** `Window`-side
@@ -765,3 +780,175 @@ concurrently, so an append-only file cannot conflict.
 
 **Ruling.** Spec §11's table is the list; every item is owner none unless it
 names one. None blocks the branch.
+
+---
+
+## SV-X — Return on an alert: the measured key equivalents (amends `SV-I` item 3)
+
+**Ruling.** `AlertButtons.resolve` marks a **default** (the Return button) only
+when the declared actions hold **no destructive button**: the first plain
+(role-less) declared button. With a destructive button anywhere, and for the
+synthesized "OK" of an empty action list, there is **no** default and Return
+does nothing. Escape is unchanged (the cancel button, declared or synthesized).
+AppKit sets exactly these key equivalents (`"\r"` on the default only); the
+drawn alert accents only the default, so the `A1`, `A3` and `A5` shapes draw no
+accented button.
+
+**Evidence.** `swiftui-alert-presenting.swift` `K0`…`K3` (run twice,
+byte-identical): Return runs the first plain button under both instruments when
+it carries `"\r"` (`K0` = `A2`, three plain; `K3`, plain + cancel — a shape the
+design's probe had not measured), and runs nothing for `K1` (= `A5`: Save
+`key=""` although `defaultButtonCell` is Save) and `K2` (= `A3`: OK `key=""`).
+`K0` is the positive control that separates the instrument: Return **is**
+delivered with the sheet not key, so the first draft's reading ("Return reached
+neither because the sheet is not key, unmeasured") was an untested "cannot",
+and its rule ("Return presses the first button neither cancel nor destructive")
+gave `A5`'s Save a Return SwiftUI does not give it.
+
+**Consequences.** Spec test 2.20's table gains a `K3` row and its `A3`/`A5`
+rows expect no default (a mutation "destructive does not suppress the default"
+reddens `A5` only); 1.6 asserts `"\r"` on Save for `K3` and on nothing for
+`A5`; 2.28 adds `A5`: Return nothing, Escape → the synthesized Cancel. Whether
+an **active** app's key sheet routes Return to `defaultButtonCell` anyway is
+human check U4 (added there); if it does, AppKit already behaves so natively
+and only the drawn alert's rule moves — one resolver row.
+
+---
+
+## SV-Y — `alert(presenting:)` with `nil` data still presents (amends `SV-I` item 1)
+
+**Ruling.** The `presenting:` forms present whenever `isPresented` is `true`.
+With `data == nil` the alert shows the title, no message and one "OK" (the
+empty-actions resolution, `SV-I` item 3); the `actions`/`message` closures are
+not called. Data changing while the alert is up re-evaluates nothing (`SV-I`
+item 4 — evaluated at presentation). "OK" writes `isPresented = false` and runs
+nothing.
+
+**Evidence.** `swiftui-alert-presenting.swift` `R0` (data `"k1"`: title,
+message "Item k1.", "Delete k1"/"Cancel"; Delete runs `delete k1`) against `R1`
+(a fresh window, `data` `nil`, `isPresented` `true`: a sheet with title only and
+"OK"), `R2` (data arriving while up: still "OK"), `R3` (data back to `nil`:
+still up), `R4` (OK: `isPresented=false`, nothing runs). The first draft's
+"shown only while `data` is non-`nil`" — Apple's documentation's wording — was
+not probed, and macOS 27 does otherwise.
+
+**Consequences.** Spec test 2.24 becomes
+`alertPresentingWithNilDataShowsTheTitleAndOK` (asserts the `R1` shape and that
+the actions closure is not called; mutation: "ignore `data == nil`" no longer
+applies — use "present nothing for `nil`", which reddens it) plus the data path
+(data reaches the actions and message).
+
+---
+
+## SV-Z — A hover region covers the hover regions beneath it (amends `SV-N` item 3's comparison)
+
+**Ruling.** `SV-N` item 3's predicate stands — `t` is the topmost hitbox that
+is opaque **or carries a hover attachment** — and its consequence is ruled, not
+left implicit: of two overlapping **siblings** that both declare `onHover`, only
+the one ranked above (and its ancestors) is hovered; the one beneath reads
+`false` while the pointer is over the overlap. A hover region never blocks a
+click (click dispatch is still `topmostOpaqueHitbox`). The alternative — gpui's
+"every hover region at or above the topmost blocker" — needs an index
+comparison outside `topmostHitbox`, a second copy of the ranking (`DN-F`'s "do
+not add a fourth copy of this rule"), so it is rejected. SwiftUI is unmeasured
+(`H` is a broken instrument), so the rule is MetalUI's; human check U8 gains
+"two overlapping hover tiles: only the top one highlights over the overlap".
+
+**Consequences.** New spec test 2.57
+`anOverlappingSiblingHoverRegionCoversTheOneBeneath` (`ZStack` of two
+`onHover` boxes: over the overlap `[top true]` only; mutation: eligibility
+`\.opaque` alone — the beneath one then reads `true`).
+
+---
+
+## SV-AA — A menu picker measures its option titles once per change (amends `SV-P` item 2)
+
+**Ruling.** The button's width is the widest option title's measured width
+plus chrome. The measurement goes through `Frame.textSystem` (`TS-A`) and is
+**cached on the picker scope** keyed by the option titles (in order), the
+resolved `FontKey` and `displayScale`; a frame whose key equals the last one
+measures **no** title. The 300-option chooser is the configurator's common
+case, and it has several on one screen — 300 text measurements per picker per
+frame would be the frame's dominant cost while `SV-U` claims the options cost
+one record each.
+
+**Consequences.** New spec test 5.17
+`aWarmMenuPickerFrameMeasuresNoOptionTitle` (counted through a counting
+`TextSystem`: first frame 300 title measurements, the next frame 0, a frame
+after one title changes 300 — literals derived before the run; mutation:
+drop the cache key comparison).
+
+---
+
+## SV-AB — SDL's real dialog in the Linux image: measure the answer first (amends `SV-G` item 4)
+
+**Ruling.** SDL3's Linux dialogs go through the XDG desktop portal (D-Bus) or
+zenity, independent of the video driver, so "under the offscreen driver a
+dialog cannot be shown" is not a reason. Lane 1 first runs the real call in
+`Backends/SDL/linux/Dockerfile`'s image and records what arrives (expected:
+`.failed` — the image has neither a session bus nor zenity; recorded either
+way in the record, with `SDL_GetError()`'s text). Test 1.12 asserts the
+recorded outcome, gated on the offscreen driver **and** on the absence of
+`zenity` on `PATH` and of `DBUS_SESSION_BUS_ADDRESS` (so a developer's Linux
+desktop running the suite with the offscreen driver never waits on a real
+dialog). If the image's answer is no callback at all within the bounded pumps,
+1.12 is rewritten to assert that and the ruling records it.
+
+---
+
+## SV-AC — Lanes rebalanced; shared files named (amends `SV-V`, spec §10)
+
+**Ruling.** The design's lane 2 owned ~70 tests across five features (the
+largest lane this repository has run as one agent); the other two ~24 and
+~33. Rebalanced, still three lanes, still in order, one agent at a time:
+
+- **Lane 1 — seam + window sizing**: everything `SV-V` gave it, plus `SV-L`'s
+  `Window`/`App` side (`Window.minSize`/`maxSize`/`windowResizability`, the
+  limit reconcile, `App.openWindow`'s three parameters, the content-limit
+  measurement in `Frame.swift`, `LayoutTree.measureNativeLayout` → `package`)
+  and tests 2.33–2.42 (`WindowSizingTests.swift`) and divergence 126.
+- **Lane 2 — presentations + hover**: the registry, file dialogs, the alert
+  spellings, resolver and native path, the drawn alert's **model only** (when
+  `presentAlert` answers `false`, `Window` holds the resolved buttons and a
+  `chooseAlertButton(_:)` entry point; nothing is drawn yet), hover; tests
+  2.1–2.25, 2.43–2.57, the guards 2.G5–2.G11. 2.53 covers the menu half only.
+- **Lane 3 — drawn alert + views + demo + docs**: `AlertPanel.swift` (paint,
+  modal input stage, accessibility append) and tests 2.26–2.32 plus 2.53's
+  alert half, then `Divider`, the menu picker, the scrolling panel, the demo,
+  the docs. It owns `MenuPanel`/`MenuSession`, which the drawn alert's ordering
+  rules (dismiss an open menu, paint after it) touch.
+
+**Shared files** (the lanes are sequential, so a later lane edits a file an
+earlier one committed; none is "disjoint"): `Window.swift` (lane 1 sizing,
+lane 2 presentations/hover/`.pointerExited`, lane 3 the drawn alert's input
+stage and paint call), `Frame.swift` (lane 1 content limits, lane 2 hover
+region and stamp, lane 3 the axis stack), `docs/migration.md` and
+`docs/api-overview.md` (each lane appends its own declarations' rows and
+migration stubs in its own commits — a new requirement's migration note lands
+with the requirement, lane 1). The append-only registries of `SV-V` are
+unchanged. Estimated root-test additions: lane 1 ≈ 30 (+ the SDL package's),
+lane 2 ≈ 47, lane 3 ≈ 43.
+
+---
+
+## SV-AD — Spec corrections found by the critic pass
+
+**Ruling.**
+
+1. **The design probe did not compile as committed**: a raw carriage return in
+   `swiftui-platform-services.swift`'s READING block ended a `//` comment.
+   Fixed (the text `"\r"`); re-run twice, both byte-identical to its OUTPUT
+   block — the recorded lines stand. `swiftui-window-sizing.swift` `W0` and
+   `W2` re-run twice each from clean defaults: byte-identical to their
+   recorded lines.
+2. **`FileDialogs` is `@MainActor`** (`public struct FileDialogs` holds a weak
+   `Window`, a main-actor class; its two methods are main-actor `async`), as
+   `Binding` is (divergence 78's footing). The external-module guard 2.G7 calls
+   it from a `Task` in a `Button` action.
+3. **"Not offered" row added** (lane 2, `docs/divergences.md`): an alert or
+   confirmation dialog action whose `Button` label is not a `Text` (SwiftUI
+   accepts any view there); pinned by 2.G6.
+4. **Owners for the two deferrals the port can feel**: typed clipboard (`SV-R`)
+   and `.task` (`SV-H` item 5) are owned by the gpui-gap priority list — the
+   Record phase adds a row for each there. The rest of spec §11 stays owner
+   none (none is a configurator gap).

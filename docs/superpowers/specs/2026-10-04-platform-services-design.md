@@ -2,7 +2,7 @@
 
 **Status: DESIGNED (2026-10-03) — not yet implemented.** User request
 2026-10-02, an item of the gpui-gap priority list (the SMK configurator port's
-gaps 4, 5, 7, 8, 9, 10 and 12); **not a plan task**. Rulings `SV-A`…`SV-W` in
+gaps 4, 5, 7, 8, 9, 10 and 12); **not a plan task**. Rulings `SV-A`…`SV-AD` (the critic pass's corrections `SV-X`…`SV-AD`, applied below) in
 [`../2026-10-04-platform-services-decisions.md`](../2026-10-04-platform-services-decisions.md).
 Record: `docs/record/77-platform-services.md` (Record phase). Probes (new,
 outputs and readings in their headers): `docs/probes/swiftui-platform-services.swift`
@@ -10,7 +10,9 @@ outputs and readings in their headers): `docs/probes/swiftui-platform-services.s
 instrument, `V` Divider, `P` menu picker; run twice, byte-identical),
 `docs/probes/swiftui-window-sizing.swift` (SwiftUI scenes, `W0`–`W5`) and
 `docs/probes/swift-main-queue-drain-nested.swift` (runtime, `J0`–`J3`, macOS
-and `swift:6.4-noble`). Branch `feat/platform-services` from `c2b8f48`.
+and `swift:6.4-noble`), plus the critic pass's
+`docs/probes/swiftui-alert-presenting.swift` (`R` `presenting:`, `K` the
+Return key). Branch `feat/platform-services` from `c2b8f48`.
 
 **Motivation.** The configurator (SwiftCrossUI, ~8,500 lines, one window,
 macOS first) needs: ~10 JSON import/export sites (keymaps, themes, macros), 4
@@ -63,9 +65,10 @@ capture in the design session. OrbStack was running and was left running.
   panel).
 - **Alerts/confirmation dialogs** — `NSAlert` sheets; two buttons side by side
   with Cancel left, three or more stacked in declaration order with Cancel
-  last; Escape → cancel; Return → first plain button; none with only
-  destructive + cancel; synthesized Cancel beside a lone destructive; "OK"
-  for no actions (`A1`–`A9`, `C1`).
+  last; Escape → cancel; Return → the first plain button only when no button
+  is destructive, never the synthesized "OK" (`SV-X`, `K0`–`K3`); synthesized
+  Cancel beside a lone destructive; "OK" for no actions (`A1`–`A9`, `C1`);
+  `presenting: nil` still presents, title and "OK" (`SV-Y`, `R0`–`R4`).
 - **Window sizing** — `.automatic` = `.contentMinSize` on macOS; `.contentSize`
   adds the content's maximum; the minimum follows the content; a default below
   the minimum opens at it; limits include the 32-pt title-bar inset
@@ -95,7 +98,7 @@ extension ElementGroup {
                                               onCompletion: @escaping (Result<URL, Error>) -> Void,
                                               onCancellation: @escaping () -> Void = {}) -> PresentationScope<Self>
 }
-public struct FileDialogs {
+@MainActor public struct FileDialogs {                      // SV-AD item 2
     public func openFiles(allowedContentTypes: [ContentType], allowsMultipleSelection: Bool = false) async throws -> [URL]
     public func saveFile(contentTypes: [ContentType] = [], defaultFilename: String? = nil) async throws -> URL?
 }
@@ -332,7 +335,7 @@ implementation", its pinning guard and the migration stub (`SV-B` item 5).
 
 | # | Lane | SwiftUI | MetalUI | Ruling | Pin |
 |---|---|---|---|---|---|
-| 126 | 2 | `.automatic` resizability is `.contentMinSize` on macOS (`W0` = `W1`); limits include the 32-pt title-bar inset | `.automatic` asks the content nothing; `.contentMinSize`/`.contentSize` are opt-in and exclude any inset | `SV-L` | `automaticResizabilityAsksTheContentNothing` (2.33) |
+| 126 | 1 | `.automatic` resizability is `.contentMinSize` on macOS (`W0` = `W1`); limits include the 32-pt title-bar inset | `.automatic` asks the content nothing; `.contentMinSize`/`.contentSize` are opt-in and exclude any inset | `SV-L` | `automaticResizabilityAsksTheContentNothing` (2.33) |
 | 127 | 3 | `Divider` black/white at α 0.098 (`V12`) | the theme's opaque `.separator` | `SV-O` | `aDividerPaintsTheSeparatorTokenOnePointThick` (4.7) |
 | 128 | 3 | a menu picker's menu draws each option's view | an option whose content is not a `Text` is titled by its tag's description | `SV-P` | `aNonTextMenuOptionIsTitledByItsTag` (5.10) |
 | 129 | 1 | `allowedContentTypes` match by UTType conformance | off Apple (SDL) by filename extension only; a type without one filters nothing | `SV-E` | `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` (1.13) |
@@ -341,7 +344,8 @@ Amended rows: **81** (`.menu` offered; the automatic picker still segmented —
 lane 3), **120** (a legacy decoration after a presentation modifier does not
 compile either — lane 2, pin 2.G8). "Not offered" section rows (lane 2):
 `fileExporter(document:)`/`FileDocument`, `confirmationDialog(titleVisibility:)`,
-alert text fields, `onContinuousHover(coordinateSpace:)`. Record §05's
+alert text fields, an alert action whose `Button` label is not a `Text`
+(`SV-AD` item 3, pin 2.G6), `onContinuousHover(coordinateSpace:)`. Record §05's
 `ButtonRole` row is amended in the Record phase (the role is read by alerts).
 
 ## 6. Tests
@@ -370,13 +374,13 @@ never an unbounded await.
 | 1.3 | `appKitCancelledDialogArrivesAsQueuedInput` | `panel.cancel(nil)` → no `onInput` during the call; after a run-loop turn exactly one `.fileDialogResult(token, .cancelled)` | deliver synchronously inside the completion (count during the call ≠ 0) |
 | 1.4 | `appKitDismissPresentationEndsTheSheetAndAnswersNothing` | sheet gone; no result event | not suppressing the `.abort` answer |
 | 1.5 | `appKitSecondDialogWhileASheetIsUpAnswersFalse` | second `presentFileDialog` → `false` | drop the attached-sheet check |
-| 1.6 | `appKitAlertIsASheetWithSwiftUIsKeysAndOrder` | `_NSAlertPanel` attached; buttons by title in the resolved order; `"\r"` only on `isDefault`, `"\u{1b}"` only on `isCancel`; `hasDestructiveAction` | leave NSAlert's own first-button Return (the A1 shape gains `"\r"` on Delete) |
+| 1.6 | `appKitAlertIsASheetWithSwiftUIsKeysAndOrder` | `_NSAlertPanel` attached; buttons by title in the resolved order; `"\r"` only on `isDefault` (`K3`: Save; `A5`: none — `SV-X`), `"\u{1b}"` only on `isCancel`; `hasDestructiveAction` | leave NSAlert's own first-button Return (the A1 shape gains `"\r"` on Delete) |
 | 1.7 | `appKitAlertButtonReportsItsIndexAfterTheSheetEnds` | `performClick` → one queued `.alertResult(token, index)` | report the response code instead of the index |
 | 1.8 | `appKitContentSizeLimitsReachTheWindowAndClampIt` | `contentMinSize`/`contentMaxSize`; a 300 × 200 window given min 400 × 300 is resized to it and `onResize` fires | skip the resize-into-limits |
 | 1.9 | `appKitMouseExitedDeliversPointerExited` | a `mouseExited` to the host view → `.pointerExited` | drop the override |
 | 1.10 | `sdlDialogResultFromAnotherThreadArrivesAsInput` (SDL, hidden window, `armMainRunLoopExitCheck()`) | `mui_test_complete_dialog` from a new thread; `pumpEvents()` → one `.fileDialogResult(token, .chosen(paths))` with the paths intact | not pushing `MUI_EVENT_DIALOG` (result queued, never dispatched) |
 | 1.11 | `sdlCancelledAndFailedDialogsMapTheirOutcomes` | empty list → `.cancelled`; `NULL` → `.failed(message)` | swap the two branches |
-| 1.12 | `sdlDialogUnderTheOffscreenDriverFails` (`.enabled(if:)` offscreen) | the real `SDL_ShowOpenFileDialog` → `.failed` within a bounded number of pumps | answer `false` from `presentFileDialog` (no event ever arrives) |
+| 1.12 | `sdlDialogInTheLinuxImageAnswersItsRecordedOutcome` (`.enabled(if:)` offscreen **and** no `zenity`, no session bus — `SV-AB`) | the real `SDL_ShowOpenFileDialog` → the outcome lane 1 first measured in the image (expected `.failed`) within a bounded number of pumps | answer `false` from `presentFileDialog` (no event ever arrives) |
 | 1.13 | `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` (pure) | `[.json, .plainText]` → `"json"`, `"txt"`; `[.data]` → no filter (`NULL`) | emit `"*"` for a type without extensions |
 | 1.14 | `sdlPresentAlertDeclines` | `false`, nothing shown | answer `true` |
 | 1.15 | `sdlContentSizeLimitsReachSDLAndClamp` | read back through `mui_window_size_limits`; min rounded up, max down; `nil` → 0 | swap rounding |
@@ -427,15 +431,15 @@ runs `docker build` + the SDL build/test of the task's recipe; 1.12 runs there.
 
 | # | Test | Asserts | Must redden under |
 |---|---|---|---|
-| 2.20 | `alertButtonsResolveSwiftUIsOrderAndKeys` (pure; a table of A1–A5, C1, plus "cancel only" and "two plain") | order, default, cancel, synthesized buttons per row | per row: no synthesized Cancel (A5), destructive eligible for default (A1), cancel kept in place (A4), no OK (A3) — each reddens its row only |
+| 2.20 | `alertButtonsResolveSwiftUIsOrderAndKeys` (pure; a table of A1–A5, C1, K3, plus "cancel only" and "two plain") | order, default, cancel, synthesized buttons per row; `A3`/`A5` no default, `K3` Save default (`SV-X`) | per row: no synthesized Cancel (A5), destructive eligible for default (A1), a destructive button not suppressing the default (A5), cancel kept in place (A4), no OK (A3), the synthesized OK made default (A3) — each reddens its row only |
 | 2.21 | `anAlertPresentsAfterTheFrameWithItsTitleMessageAndButtons` | fake `presentAlert = true`: one `PlatformAlert` with the resolved buttons | evaluate the message every frame and re-present |
 | 2.22 | `anAlertResultWritesIsPresentedFalseThenRunsTheAction` | order, dispatch (an `@State` write lands); a synthesized Cancel runs nothing | swap order |
 | 2.23 | `isPresentedFalseDismissesTheAlert` (`A9`) | `dismissPresentation` | — (2.4's site) |
-| 2.24 | `alertPresentingShowsOnlyWhileDataIsNonNilAndPassesIt` | `nil` presents nothing; data reaches actions and message | ignore `data == nil` |
+| 2.24 | `alertPresentingWithNilDataShowsTheTitleAndOK` (`SV-Y`, `R1`) | `nil`: presented, title only, one "OK", the actions closure not called; non-`nil`: data reaches actions and message | present nothing for `nil`; call the actions closure with a forced unwrap path (crash) |
 | 2.25 | `aConfirmationDialogIsTheSameAlert` | same `PlatformAlert` as the `.alert` spelling | — |
 | 2.26 | `aDeclinedAlertIsDrawnAboveEverythingAndOwnsNoState` | scene's last primitives are the panel; `StateTable` entry count and hitbox list unchanged by the panel | paint before the menu panel |
 | 2.27 | `theDrawnAlertSwallowsPointerAndKeysBeneath` | a click on a button beneath and a keymap key both do nothing | let unhandled events through |
-| 2.28 | `returnPressesTheDefaultAndEscapeTheCancelOnTheDrawnAlert` | A2: Return → "A"; A1: Return nothing, Escape → cancel; A2: Escape nothing | map Return to the first button |
+| 2.28 | `returnPressesTheDefaultAndEscapeTheCancelOnTheDrawnAlert` | A2: Return → "A"; A1: Return nothing, Escape → cancel; A2: Escape nothing; A5: Return nothing, Escape → synthesized Cancel (`SV-X`) | map Return to the first button |
 | 2.29 | `tabAndArrowsMoveTheRingAndSpacePressesIt` | ring moves, Space presses | — (shares 2.28's dispatch; mutate the ring step) |
 | 2.30 | `aClickOnADrawnAlertButtonPressesIt` | action ran, binding `false`, panel gone | hit-test with the wrong panel origin |
 | 2.31 | `theDrawnAlertPublishesAnAlertNodeWithButtonChildren` | `.alert` node, label, value, `.button` children; `press` chooses | omit the panel's append |
@@ -480,6 +484,7 @@ runs `docker build` + the SDL build/test of the task's recipe; 1.12 runs there.
 | 2.54 | `onContinuousHoverReportsLocalPointsAndEnded` | `.active` with local points (an offset element: the offset subtracted); `.ended` on leave | report window points |
 | 2.55 | `aTreeWithoutHoverRegistersNoRegionAndDoesNoHoverWork` | hitbox list identical to `c2b8f48`'s for the same tree; hover visits 0 | register a region for every element |
 | 2.56 | `hoverRecomputeVisitsEachHitboxOnce` (counted, branching tree) | visits = hitbox count per event (literal) | a nested loop over ancestors × hitboxes |
+| 2.57 | `anOverlappingSiblingHoverRegionCoversTheOneBeneath` (`SV-Z`) | `ZStack` of two `onHover` boxes: over the overlap only the top is `true` | eligibility `\.opaque` alone (the beneath one reads `true`) |
 | 2.G11 | `onHoverTypechecksOnBothVocabularies` (guard, plain import) | legacy and typed content, both modifiers | — (positive; mutate one fixture) |
 | — | arms in `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `everyHandlerRegisteringSiteHonoursAllowsHitTesting`; fields in `HandlerShape`, `HandlerFingerprint` | the hover member | dropping the field reddens the matrix |
 
@@ -515,15 +520,16 @@ runs `docker build` + the SDL build/test of the task's recipe; 1.12 runs there.
 | 5.14 | `aPickersMenuOpensWithTheSelectionHighlightedAndVisible` | row 150 selected → highlighted, in band | open at row 0 |
 | 5.15 | `hitTestingFollowsTheScrollOffset` | a click at a scrolled row chooses that row | ignore the offset |
 | 5.16 | `aShortMenuDoesNotScroll` | offsets 0, no indicators, pre-existing panel tests unchanged | always reserve the band |
+| 5.17 | `aWarmMenuPickerFrameMeasuresNoOptionTitle` (`SV-AA`, counting `TextSystem`) | 300 title measurements on the first frame, 0 on the next, 300 after one title changes | drop the cache-key comparison |
 | 6.1 | `everyProductionTreeBuildsOnAOneMegabyteThread` gains the services tree | builds | inline a section into the composer (debug build) |
 | 6.2 | `servicesDemoHoverTileCountsEnters` | two passes → counter text "2" and an 16-pt bar | — |
 | 6.3 | `servicesDemoMenuPickerHasThreeHundredOptions` | presented menu items = 300 | — |
 | 6.4 | `servicesDemoOpensWithItsMinimumSize` | the fake's first limits call = 900 × 600 | — |
 
 **Counts owed** (lane 3 re-takes; a count is stale the moment a test lands):
-lane 1 ≈ +24 (20 + 4 guards; the SDL ones in `Backends/SDL`, not the root
-count), lane 2 ≈ +70 (60 + 10 guards), lane 3 ≈ +33 (31 + 2 guards; one guard
-replaced). Root target expected ≈ 2430 + ~100; the measured number is the
+after `SV-AC`: lane 1 ≈ +30 root (the sizing tests, the AppKit tests, 4
+guards; the SDL ones in `Backends/SDL`, not the root count), lane 2 ≈ +47,
+lane 3 ≈ +43 (one guard replaced). Root target expected ≈ 2430 + ~100; the measured number is the
 record's, never this estimate.
 
 ## 7. Demo (lane 3)
@@ -567,7 +573,11 @@ once per iteration — `App.run()` from top-level code".
   arrives in the window (the main-queue drain: the async button's result
   appears without moving the pointer).
 - **U4** AppKit: the alert is a sheet; Cancel on the left, Delete on the right
-  in red; Escape cancels; Return does nothing (A1's shape).
+  in red; Escape cancels; Return does nothing (A1's shape). With the app
+  **active** and the sheet key, an `A5`-shaped alert (Save, Discard, synthesized
+  Cancel) in a SwiftUI app and in the demo: does Return press Save? (`SV-X`:
+  headless, SwiftUI's did not; if an active one does, the drawn alert's rule
+  moves.)
 - **U5** SDL: the drawn alert — scrim, panel, the default button accented;
   Return/Escape/Tab/Space; clicks beneath do nothing; Orca/Narrator announce an
   alert.
@@ -576,21 +586,27 @@ once per iteration — `App.run()` from top-level code".
 - **U7** SDL: the same menu drawn in the window, clamped to the window and
   scrolling by wheel and arrows, opening on the selection.
 - **U8** Hover tiles highlight under the pointer and un-highlight when it
-  leaves the tile and when it leaves the window (both platforms).
+  leaves the tile and when it leaves the window (both platforms); two
+  overlapping tiles: only the top one highlights over the overlap (`SV-Z`).
 - **U9** Dragging the window edge stops at 900 × 600 (both platforms).
 - **U10** `Divider`s: hairline look in light and dark, vertical in the row
   stacks.
 
-## 10. Lanes (`SV-V`)
+## 10. Lanes (`SV-V`, rebalanced by `SV-AC`)
 
-Three lanes, **in order**, one agent at a time in this worktree; source files
-disjoint; registries append-only per lane.
+Three lanes, **in order**, one agent at a time in this worktree. They are
+sequential, so a later lane may edit a file an earlier one committed; the
+shared files are `Window.swift`, `Frame.swift`, `docs/migration.md` and
+`docs/api-overview.md` (each lane its own parts, `SV-AC`). **Where §4 and §6
+place an item in a lane, this table wins**: window sizing (§4.2's sizing
+bullets, tests 2.33–2.42, divergence 126) is lane 1's; the drawn alert
+(`AlertPanel.swift`, tests 2.26–2.32, 2.53's alert half) is lane 3's.
 
 | Lane | Model | Owns |
 |---|---|---|
-| 1 — seam | Opus | `Sources/MetalUIPlatform/{Presentations.swift (new), Platform.swift, InputEvent.swift, AccessibilityTree.swift}`, `Sources/MetalUIAppKit/{AppKitPresentations.swift (new), AppKitPlatform.swift, AppKitAccessibility.swift}`, `Backends/SDL/**` except `MetalUISDLDemo/main.swift`, `Tests/MetalUITests/{Fakes.swift, PlatformServicesCompileGuards.swift (new), AppKitPresentationTests.swift (new)}` and the seven guard fixtures |
-| 2 — window | Opus | `Sources/MetalUI/{Presentations, FileDialogs, Alert, AlertPanel, Hover}.swift (new)`, `Window.swift`, `Handlers.swift`, `App.swift`, `EnvironmentValues.swift`, `Transferable.swift`, `Frame.swift` (hover region, stamp, content limits), `Sources/MetalUILayout/LayoutTree.swift` (one access level), the §6.2 test files, `ModifierTests.swift`, `OuterModifierMatrixTests.swift`, `DisabledTests.swift`, `HitRegionTests.swift` |
-| 3 — views, demo, docs | Opus for code; Sonnet for docs | `Sources/MetalUI/{DividerView.swift (new), MenuContent.swift, NativeElements.swift, Flex.swift, Grid.swift, Picker.swift, PullDownMenu.swift, MenuPanel.swift, MenuSession.swift}`, `Frame.swift` (the axis stack only — after lane 2 is committed), `Sources/MetalUIDemoContent/ServicesDemo.swift (new)`, `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, the §6.3 test files, `ControlsCompileGuards.swift`, `DemoStackBudgetTests.swift`, the docs of §8 |
+| 1 — seam + window sizing | Opus | `Sources/MetalUIPlatform/{Presentations.swift (new), Platform.swift, InputEvent.swift, AccessibilityTree.swift}`, `Sources/MetalUIAppKit/{AppKitPresentations.swift (new), AppKitPlatform.swift, AppKitAccessibility.swift}`, `Backends/SDL/**` except `MetalUISDLDemo/main.swift`, `Tests/MetalUITests/{Fakes.swift, PlatformServicesCompileGuards.swift (new), AppKitPresentationTests.swift (new), WindowSizingTests.swift (new)}`, the seven guard fixtures; `WindowResizability`, `Window.minSize`/`maxSize`/`windowResizability` and the limit reconcile (`Window.swift`), `App.swift` (`openWindow`'s three parameters), `Frame.swift` (content limits), `Sources/MetalUILayout/LayoutTree.swift` (one access level); the migration stubs of `SV-B` item 5 |
+| 2 — presentations + hover | Opus | `Sources/MetalUI/{Presentations, FileDialogs, Alert, Hover}.swift (new)`, `Window.swift` (presentation dispatch and reconcile, the drawn alert's model and `chooseAlertButton`, `.pointerExited`, hover), `Handlers.swift`, `EnvironmentValues.swift`, `Transferable.swift`, `Frame.swift` (hover region, stamp), tests 2.1–2.25, 2.43–2.57, 2.G5–2.G11, `ModifierTests.swift`, `OuterModifierMatrixTests.swift`, `DisabledTests.swift`, `HitRegionTests.swift` |
+| 3 — drawn alert, views, demo, docs | Opus for code; Sonnet for docs | `Sources/MetalUI/{AlertPanel.swift (new), DividerView.swift (new), MenuContent.swift, NativeElements.swift, Flex.swift, Grid.swift, Picker.swift, PullDownMenu.swift, MenuPanel.swift, MenuSession.swift}`, `Window.swift` (the drawn alert's input stage and paint call), `Frame.swift` (the axis stack), `Sources/MetalUIDemoContent/ServicesDemo.swift (new)`, `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, tests 2.26–2.32, 2.53's alert half and §6.3, `ControlsCompileGuards.swift`, `DemoStackBudgetTests.swift`, the docs of §8 not already written by lanes 1–2 |
 
 Registries each lane appends its own rows to: `docs/divergences.md`,
 `docs/probes/closeout-inventory-map.tsv`, `docs/probes/closeout-public-api.tsv`
@@ -600,8 +616,8 @@ Registries each lane appends its own rows to: `docs/divergences.md`,
 
 | Item | Reason | Owner |
 |---|---|---|
-| Clipboard images / typed data | two more requirements on both platforms for a use the configurator lacks (`SV-R`) | none |
-| `.task(perform:)`, `.task(id:)` | its blocker is removed here (`SV-H`), but it is a lifecycle modifier with `K1`/`K2`'s semantics to build and test | none (a lifecycle follow-up) |
+| Clipboard images / typed data | two more requirements on both platforms for a use the configurator lacks (`SV-R`) | the gpui-gap priority list (Record phase adds the row, `SV-AD` item 4) |
+| `.task(perform:)`, `.task(id:)` | its blocker is removed here (`SV-H`), but it is a lifecycle modifier with `K1`/`K2`'s semantics to build and test | the gpui-gap priority list (a lifecycle follow-up row, `SV-AD` item 4) |
 | `fileExporter(document:)` / `FileDocument`, `fileMover` | `FileWrapper` configurations; the configurator exports `Data` | none |
 | Folder selection (`allowedContentTypes: [.folder]`) | not needed (files only) | none |
 | `fileDialogDefaultDirectory`, `fileDialogMessage`, … | customisation modifiers | none |

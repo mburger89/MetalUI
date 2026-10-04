@@ -25,6 +25,15 @@
 // completing an export or an import headlessly is a broken instrument and the
 // arms only present, cancel and dismiss.)
 //
+// RE-RUN 2026-10-03 by the critic pass (screen locked as above): the committed
+// file did not compile — a raw carriage return inside the READING block ended
+// a `//` comment ("expected expression" at line 223); it is now the text
+// "\r". Compiled form, run twice: both runs byte-identical to the OUTPUT block
+// below (163 lines). The A3/A5 Return reading below was re-probed in
+// swiftui-alert-presenting.swift (K arms): the instrument DOES deliver Return
+// with the sheet not key, so "not key, unmeasured" was the wrong explanation —
+// see ruling SV-X.
+//
 // POSITIVE CONTROLS AND SEPARATING ARMS. D0 (isPresented false: no panel)
 // against D1. A0 (not shown: no sheet) against A1. V3/V4 (no stack) against V1
 // and V2 (a stack on each axis); V5/V6 (nested stacks: the nearest decides).
@@ -219,9 +228,10 @@
 //   order with the cancel button last (A5). A destructive button carries
 //   hasDestructiveAction. Keys: the cancel button carries Escape (A1, A6:
 //   Escape runs it and dismisses); the first plain (neither cancel nor
-//   destructive) button is the default (A2 "A" key , Return runs it;
-//   A3/A5 defaultButtonCell OK/Save — Return reached neither because the sheet
-//   is not key on a locked screen, unmeasured); with only destructive + cancel
+//   destructive) button is the default (A2 "A" key "\r", Return runs it;
+//   A3/A5 defaultButtonCell OK/Save but key "" — Return ran neither; the K
+//   arms of swiftui-alert-presenting.swift show the instrument delivers
+//   Return, so this is SwiftUI's answer, SV-X); with only destructive + cancel
 //   there is no default (A1: no defaultButtonCell, A7: Return does nothing).
 //   No actions shows one "OK" (A3). A destructive button without a cancel
 //   gets a synthesized "Cancel" carrying Escape (A5: Escape dismisses, no
