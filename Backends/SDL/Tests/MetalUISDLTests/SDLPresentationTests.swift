@@ -169,6 +169,38 @@ func sdlDialogInTheLinuxImageAnswersItsRecordedOutcome() throws {
     #expect([minW, minH, maxW, maxH] == [0, 0, 0, 0])
 }
 
+/// **1.15b** (`SV-AG` item 1). The limits reach SDL whatever order they change
+/// in: a minimum raised past the maximum still set (SDL refuses a minimum above
+/// the current maximum) and a maximum lowered under the minimum still set (SDL
+/// refuses that too) both read back; a minimum and maximum rounding past each
+/// other (the same fractional value) read back with the maximum raised to the
+/// minimum.
+///
+/// Mutation **M1.15b**: the original call order — the minimum, then the maximum.
+@MainActor
+@Test func sdlContentSizeLimitsApplyInEitherOrder() throws {
+    let (_, window) = try presentationWindow()
+    func readBack() -> [Int32] {
+        var minW: Int32 = -1, minH: Int32 = -1, maxW: Int32 = -1, maxH: Int32 = -1
+        mui_window_size_limits(window.rawHandle, &minW, &minH, &maxW, &maxH)
+        return [minW, minH, maxW, maxH]
+    }
+    window.setContentSizeLimits(minimum: Size(width: Pixels(100), height: Pixels(100)),
+                                maximum: Size(width: Pixels(500), height: Pixels(400)))
+    #expect(readBack() == [100, 100, 500, 400])
+    window.setContentSizeLimits(minimum: Size(width: Pixels(1440), height: Pixels(100)),
+                                maximum: Size(width: Pixels(1440), height: Pixels(400)))
+    #expect(readBack() == [1440, 100, 1440, 400], "a minimum raised past the old maximum")
+    window.setContentSizeLimits(minimum: Size(width: Pixels(200), height: Pixels(50)),
+                                maximum: Size(width: Pixels(300), height: Pixels(60)))
+    #expect(readBack() == [200, 50, 300, 60], "a maximum lowered under the old minimum")
+    window.setContentSizeLimits(minimum: Size(width: Pixels(600.5), height: Pixels(50)),
+                                maximum: Size(width: Pixels(600.5), height: Pixels(60)))
+    #expect(readBack() == [601, 50, 601, 60], "a maximum rounded under its minimum is raised to it")
+    window.setContentSizeLimits(minimum: nil, maximum: nil)
+    #expect(readBack() == [0, 0, 0, 0])
+}
+
 /// **1.16** (`SV-N` item 7). A raw `SDL_EVENT_WINDOW_MOUSE_LEAVE` through SDL's
 /// own queue — its type from the C-exported constant, never an SDL enum's
 /// `rawValue` (`Int32` on Windows) — becomes `.pointerExited`.

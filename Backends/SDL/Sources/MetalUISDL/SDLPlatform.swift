@@ -525,9 +525,14 @@ public final class SDLWindow: PlatformWindow {
             guard let value, value.isFinite, value > 0 else { return 0 }
             return Int32(exactly: value.rounded(rule)) ?? 0
         }
-        _ = mui_window_set_size_limits(rawHandle,
-                                       points(minimum?.width.value, .up), points(minimum?.height.value, .up),
-                                       points(maximum?.width.value, .down), points(maximum?.height.value, .down))
+        let minW = points(minimum?.width.value, .up), minH = points(minimum?.height.value, .up)
+        // A maximum that rounds below its minimum (the same fractional value
+        // rounds the two apart) is raised to it; 0 stays "no limit" (`SV-AG`
+        // item 1).
+        func atLeast(_ high: Int32, _ low: Int32) -> Int32 { high == 0 ? 0 : max(high, low) }
+        let maxW = atLeast(points(maximum?.width.value, .down), minW)
+        let maxH = atLeast(points(maximum?.height.value, .down), minH)
+        _ = mui_window_set_size_limits(rawHandle, minW, minH, maxW, maxH)
     }
 
     // MARK: Drops in (ruling `DN-M`)

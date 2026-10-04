@@ -1182,9 +1182,15 @@ bool mui_test_complete_dialog(uint32_t window_id, int32_t token, const char *joi
 
 /* ---- Window size limits (ruling SV-M) ------------------------------------ */
 
+// Independent of the order the limits change in (ruling `SV-AG` item 1): SDL
+// refuses a minimum above the maximum still set and a maximum below the
+// minimum still set, so the maximum is lifted first, the minimum set, then the
+// new maximum. The caller sends a maximum no smaller than its minimum.
 bool mui_window_set_size_limits(void *w, int32_t min_w, int32_t min_h, int32_t max_w, int32_t max_h) {
-    bool ok = SDL_SetWindowMinimumSize((SDL_Window *)w, min_w, min_h);
-    return SDL_SetWindowMaximumSize((SDL_Window *)w, max_w, max_h) && ok;
+    SDL_Window *window = (SDL_Window *)w;
+    bool lifted = SDL_SetWindowMaximumSize(window, 0, 0);
+    bool ok = SDL_SetWindowMinimumSize(window, min_w, min_h);
+    return SDL_SetWindowMaximumSize(window, max_w, max_h) && ok && lifted;
 }
 
 void mui_window_size_limits(void *w, int32_t *min_w, int32_t *min_h, int32_t *max_w, int32_t *max_h) {

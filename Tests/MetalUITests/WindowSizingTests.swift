@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Metal
+import Observation
 import MetalUICore
 import MetalUIPlatform
 @testable import MetalUILayout
@@ -277,6 +278,16 @@ private func draw(_ window: Window) {
             window.minSize = Size(width: Pixels(.nan), height: Pixels(10))
         }
     }
+    // The maximum's arm (`SV-AG` item 2; mutation **M2.42b**: its precondition
+    // removed).
+    await #expect(processExitsWith: .failure) {
+        await MainActor.run {
+            guard let device = MTLCreateSystemDefaultDevice(),
+                  let (window, _) = try? makeFakeWindow(device: device, content: { Rectangle() })
+            else { return }
+            window.maxSize = Size(width: Pixels(10), height: Pixels(.nan))
+        }
+    }
     await #expect(processExitsWith: .success) {
         await MainActor.run {
             guard let device = MTLCreateSystemDefaultDevice(),
@@ -285,4 +296,56 @@ private func draw(_ window: Window) {
             window.minSize = Size(width: Pixels(10), height: Pixels(10))
         }
     }
+}
+
+/// The input test 2.43's `onAppear` writes.
+@Observable @MainActor private final class AppearCount { var appeared = 0 }
+
+/// **2.43** (`SV-AG` item 3). A content minimum that resizes the window on a
+/// frame whose `onAppear` writes still owes the next frame: the resize arrives
+/// inside the first build, and the lifecycle's settle build must not clear the
+/// dirt it raised — the presented frame was encoded into a drawable taken
+/// before the resize.
+///
+/// Mutation **M2.43**: the frame's resize no longer re-raises the redraw after
+/// the settle build.
+@MainActor
+@Test func aResizeIntoContentLimitsOnALifecycleFrameOwesTheNextFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let model = AppearCount()
+    let calls = Calls()
+    let (window, fake) = try makeFakeWindow(device: device) {
+        VStack {
+            // Reads the model, so the `onAppear`'s write dirties the window
+            // and the lifecycle's settle build runs.
+            ProposalLayoutContainer(Clamped(minWidth: 400, maxWidth: 900 + Double(model.appeared * 0),
+                                            minHeight: 300, maxHeight: 600, calls: calls)) {}
+                .onAppear { model.appeared += 1 }
+        }
+    }
+    window.windowResizability = .contentMinSize
+    window.drawFrameIfNeeded()
+    try #require(model.appeared == 1, "the onAppear ran")
+    try #require(window.lastDrawBuildCount == 2, "the lifecycle's settle build ran (the separating arm)")
+    #expect(fake.contentSize == size(400, 300), "the platform resized into the limits")
+    let presents = fake.fakeSurface.presentCalls
+    window.drawFrameIfNeeded()
+    #expect(fake.fakeSurface.presentCalls == presents + 1,
+            "the resize's redraw survived the settle build")
+}
+
+/// **2.44** (`SV-AG` item 4). Leaving `.contentSize` drops the content's
+/// maximum at once — the switch reaches the platform without the previous
+/// mode's maximum, not one frame later.
+///
+/// Mutation **M2.44**: keep the content maximum when the mode changes.
+@MainActor
+@Test func leavingContentSizeDropsTheContentMaximumAtOnce() throws {
+    let calls = Calls()
+    let (window, fake) = try clampedWindow(calls: calls)
+    window.windowResizability = .contentSize
+    draw(window)
+    #expect(limits(fake).last == Limits(minimum: size(400, 300), maximum: size(900, 600)), "\(limits(fake))")
+    window.windowResizability = .contentMinSize
+    #expect(limits(fake).last == Limits(minimum: size(400, 300), maximum: nil), "\(limits(fake))")
 }

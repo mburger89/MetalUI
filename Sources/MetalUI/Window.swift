@@ -701,6 +701,9 @@ public final class Window {
         didSet {
             guard windowResizability != oldValue else { return }
             if windowResizability == .automatic { contentLimits = .none }
+            // Only `.contentSize` measures a maximum: leaving it drops the
+            // last frame's at once (`SV-AG` item 4).
+            if windowResizability != .contentSize { contentLimits.maximum = nil }
             reconcileContentSizeLimits()
             setNeedsRedraw()
         }
@@ -721,6 +724,12 @@ public final class Window {
         isApplyingSizing = false
         reconcileContentSizeLimits()
     }
+
+    /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
+    /// so a resize arriving inside its builds (a content limit the platform
+    /// resized into, `SV-AG` item 3) still owes the next frame after a
+    /// settle build cleared `needsRedraw`.
+    private var resizeCount = 0
 
     /// The content's limits the last built frame measured (`.none` under
     /// `.automatic`).
@@ -784,6 +793,7 @@ public final class Window {
         // `displayScale` is the drawable's scale that `beginFrame()` returns.
         // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
         platformWindow.onResize = { [weak self] _, _ in
+            self?.resizeCount &+= 1   // `SV-AG` item 3
             self?.dismissInWindowMenu()   // `MN-F` item 3
             self?.setNeedsRedraw()
         }
@@ -1287,6 +1297,7 @@ public final class Window {
             setNeedsRedraw()
             return
         }
+        let resizesBeforeBuild = resizeCount
 
         // The build-and-adopt half (ruling `CR-Q`): an ordinary frame, every
         // window-owned store updated from it.
@@ -1330,6 +1341,12 @@ public final class Window {
             _ = applyTreeColorSchemePreference(of: frame)
             drainLifecycle()
         }
+
+        // A resize that arrived during the builds above (the platform resizing
+        // into a content limit, `SV-AG` item 3) was encoded into a drawable
+        // taken before it; the settle builds' `needsRedraw = false` may have
+        // cleared its dirt, so it is raised again here.
+        if resizeCount != resizesBeforeBuild { setNeedsRedraw() }
 
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
