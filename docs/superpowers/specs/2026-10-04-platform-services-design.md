@@ -273,7 +273,7 @@ implementation", its pinning guard and the migration stub (`SV-B` item 5).
   nodes appended like `appendMenuPanel`.
 - **`Hover.swift`** (new): `HoverPhase`, `HoverAttachment`, the modifiers, the
   hovered-set function over `lastHitboxes` (`SV-N` item 3) and the reconcile
-  (`SV-N` items 4–6). **`Handlers.swift`**: the sixteenth member.
+  (`SV-N` items 4–6). **`Handlers.swift`**: the seventeenth member (`SV-AH` item 1 corrects "sixteenth").
   **`Frame.swift`**: the hover region in `registerHandlers` (`SV-N` item 2);
   the axis stack is lane 3's (§4.3) — lane 2 does not touch it; the stamp of
   `fileDialogs`; content-limit measurement (`SV-L` item 2) before

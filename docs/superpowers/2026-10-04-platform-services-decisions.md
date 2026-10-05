@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AH`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AI`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -559,8 +559,8 @@ calls and apply the clamp to their `contentSize`.
    (local points — `DragGesture.Value`'s precedent for `Point<Pixels>`; the
    `coordinateSpace:` parameter is not offered, `.local` only). On both
    vocabularies by `MN-Q`'s shape: on a `StyledElement` it returns `Self`
-   through one new `Handlers` member, `hover: HoverAttachment?` (sixteen
-   members — `HandlerShape` and `HandlerFingerprint` each gain a field), no
+   through one new `Handlers` member, `hover: HoverAttachment?` (seventeen
+   members, `SV-AH` item 1 correcting this line's "sixteen" — `HandlerShape` and `HandlerFingerprint` each gain a field), no
    identity level; on the typed path a `HoverModifier<Self>` wrapper
    (`ContextualModifier`'s recipe: no node, one identity level for its caller
    only, the region at its own bounds).
@@ -1114,3 +1114,70 @@ lane's review fixes (`SV-AG`), applied after `9b2c32e`; root baseline then
 **Cost if wrong.** Item 3 raises at most one extra frame per resize that lands
 inside a build; item 1's lift leaves the window momentarily without a maximum
 between two SDL calls on the main thread, where no event can be delivered.
+
+---
+
+## SV-AH — Lane 2's findings: what presentations and hover measured (amends `SV-N` items 1–2, `SV-K` item 3, `SV-AC`, spec §6.2)
+
+**Ruling.** Each item was found while implementing lane 2 at `9b51130`; where it
+refutes a line above, that line stands corrected by this one.
+
+1. **`hover` is `Handlers`' seventeenth member, not its sixteenth** (corrects
+   `SV-N` item 1 and spec §4.2's "the sixteenth member"): `contextual` was the
+   sixteenth (`MN-Q`). `Handlers` grows by one reference, 464 → 472 bytes; the
+   two existing size pins move with a note —
+   `handlersGainsOneReferenceMember` (`ContextMenuTests`, now `== 472`) and
+   `theNewDeclarationsCostHandlersAtMostOnePointer` (its bound gains `+ 8`).
+   `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`'s case count moves
+   55 → 57 (the two hover modifiers' cases). All three reddened when the member
+   landed and are fixes, not regressions.
+2. **The pointer target's and the draggable region's handlers carry no hover
+   attachment** (amends `SV-N` item 2): `Frame.registerHandlers` registers the
+   opaque hitbox with the element's whole `Handlers`, so an element with both
+   `.onClick` and `.onHover` had two hitboxes carrying the attachment and
+   hovered twice (measured: `pointerExitedClearsHoverAndIsHovered` read
+   `["t true", "t true", "t false", "t false"]`). The opaque and draggable
+   inserts now pass the handlers with `hover` cleared; the hover region is the
+   one hitbox carrying it, so "carries a hover attachment" is "is a hover
+   region" — the predicate `SV-N` item 3 and `SV-Z` name. Click dispatch reads
+   `onClick`, never `hover`, and no other reader of the opaque hitbox's
+   handlers moves.
+3. **Where the after-frame steps run** (`SV-K` item 3, `SV-N` item 4):
+   `reconcilePresentations()` then `updateHover(at:reportsMoves: false)`, after
+   the lifecycle's drain and settle build and the resize re-raise, before
+   accessibility and `finishFrame` — presentations first, so a drawn alert
+   presented on this frame empties the hovered set on the same frame. Their
+   callbacks' writes schedule the next frame (no further settle build).
+4. **The registry, the drawn-alert model and the async call share one "in
+   flight" slot** (`SV-D` item 2, `SV-K` item 3): `PresentationRegistry.inFlight`
+   is a scope's dialog or alert, or a `FileDialogs` call; a call while anything
+   is up throws `.busy`, and a scope waits while a call is up. A window that
+   deinitialises with a call awaiting resumes it with `.noWindow`
+   (`isolated deinit`). Answers are handled first in `onInput` after
+   `updatePointerState`; an answer for a token not in flight runs nothing.
+5. **The drawn alert's model** (`SV-AC`): when `presentAlert` answers `false`,
+   `Window.drawnAlert` holds the token, title, message and resolved buttons, and
+   `Window.chooseAlertButton(_:)` (an index, or `nil` to dismiss) answers it as
+   a native `.alertResult` would. Pinned by an added test,
+   **2.25b** `aDeclinedAlertIsHeldByTheWindowAndChoosingRunsIt`. Nothing is
+   painted; lane 3 draws it and calls `chooseAlertButton` from its input stage
+   and accessibility press. `hoverIsSuppressed` already reads `drawnAlert`
+   (2.53's alert half, lane 3's test).
+6. **`PresentationScope` reuses `LifecycleScopeLayout` as its group layout**
+   (no new public type; its doc comment names both scopes). The scope's key is
+   `.named("$presentation<depth>")` under its position with an occurrence
+   count — a registry key, never a `StateTable` id (no `noteNamed`, the seven
+   slots unmoved).
+7. **The non-presenting alert forms evaluate their actions and message while
+   building** (`SV-I` item 4's mechanism, not its rule): SwiftUI's `actions:`
+   and `message:` there are non-escaping, so they are called in the modifier and
+   the resulting content is captured; the alert shows the content of the build
+   it was presented in, and a later build's content is ignored while it is up
+   (2.21). The `presenting:` forms' closures are escaping and called at
+   presentation, never for `nil` data (2.24).
+8. **The hover inventory family is class A on the spelling alone**: its cited
+   arm `H1` is a recorded broken instrument, and the row and test 2.43's doc
+   comment say so — the semantics are MetalUI's (`SV-N`'s evidence paragraph).
+
+**Cost if wrong.** Item 2: a future reader that wants the whole handler set
+from the opaque hitbox must not read `hover` there — the hover region holds it.

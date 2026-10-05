@@ -235,6 +235,9 @@ public-API removals the records list. **Source** changes stop compiling;
 | `.opacity(0.5)` written on a `Color` **view** with a literal argument is the value method: one fill at half alpha and **no opacity layer** (it was an opacity layer, one identity level) | nothing — a `Color` holds no state; pass a `Float` to reach the view modifier | `CR-G` |
 | design spec §7.9's "never literals" is superseded: literal colours are part of the API | — | `CR-B` |
 | a `Shape` conformer that implements **neither** `geometry(in:)` nor `path(in:)` compiles (both are now defaulted, each in terms of the other) and **traps at its first paint naming `GX-D`** — where it failed to compile | implement either; SwiftUI shapes port by writing `path(in:)` (its rect is local, origin (0, 0)) | `GX-D` |
+| **`PaintPass.isHovered` is no longer sticky after the pointer leaves the window**: `.pointerExited` (AppKit's `mouseExited`, SDL's mouse-leave) clears `Window.lastMousePosition`, so the next frame paints nothing hovered (it kept the last in-window position hovered until the next in-window event) | nothing; hover affordances now clear when the pointer leaves | `SV-N` item 7 |
+| **a file dialog's or an alert's answer is claimed by the window** (`.fileDialogResult`, `.alertResult` run first after the pointer state and never reach a later stage or the window's `onInput` fallback); `.pointerExited` is claimed by no stage and reaches `onInput` | read outcomes in the modifiers' callbacks or the awaited `FileDialogs` call | `SV-K` item 3 |
+| `Handlers` gains a seventeenth member (`hover`, internal): 464 → 472 bytes | nothing | `SV-N` item 1, `SV-AH` |
 
 ## See also
 
