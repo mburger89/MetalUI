@@ -420,6 +420,24 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }.cssWidth(px(100)).cssHeight(px(100))
     }
 
+    // Platform services (ruling `SV-N` item 2): a hover region registers
+    // inside the one disabled gate. The press of `click` enters it from input
+    // (`SV-N` item 4), so the control fires once; disabled, no region and no
+    // callback. Both vocabularies: the legacy decoration and the proposal
+    // `HoverModifier`, its own registering site. Mutation: register the
+    // region outside the gate (both arms fire).
+    try arm("hover") { d in
+        Row {
+            Box().cssWidth(px(40)).cssHeight(px(40)).onHover { if $0 { log.names.append("hover") } }.disabled(d)
+        }.cssWidth(px(100)).cssHeight(px(100))
+    }
+    try arm("hover-proposal", at: pt(50, 50)) { d in
+        HStack {
+            Rectangle(width: px(100), height: px(100))
+                .onHover { if $0 { log.names.append("hover-proposal") } }.disabled(d)
+        }
+    }
+
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
     let after = try fired("after", at: pt(10, 50)) {
