@@ -71,8 +71,10 @@ private struct HVCounter: Component {
 
 /// **2.43** (`SV-N` items 1, 4). Out → in → within → out fires `[true,
 /// false]`, from input; a move within fires nothing; an `@State` write in the
-/// callback lands (it runs under the element's dispatch). Mutation: fire on
-/// every move.
+/// callback lands (it runs under the element's dispatch). SwiftUI's arm `H1`
+/// (the same path over one tile) read `[]` — a recorded broken instrument, so
+/// this is MetalUI's rule, not a measured agreement. Mutation: fire on every
+/// move.
 @MainActor
 @Test func onHoverFiresOnEnterAndLeaveFromInput() throws {
     let m = HVModel()
@@ -85,7 +87,7 @@ private struct HVCounter: Component {
     platform.simulateInput(mv(195, 195))
     #expect(m.log == ["t true", "t false"])
 
-    let (counter, counterPlatform) = try hvWindow { HVCounter() }
+    let (counter, counterPlatform) = try hvWindow { Column { HVCounter() } }
     let region = try #require(hoverRegions(counter).first)
     let inside = pt(region.bounds.origin.x.value + 2, region.bounds.origin.y.value + 2)
     counterPlatform.simulateInput(.mouseMoved(MouseEvent(position: inside)))

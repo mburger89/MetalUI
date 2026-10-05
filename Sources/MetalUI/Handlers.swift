@@ -322,6 +322,15 @@ public struct Handlers {
     /// region (`Frame.registerHandlers`), never a pointer target (`MN-V`).
     var contextual: ContextualAttachment?
 
+    // MARK: Hover (platform services, ruling `SV-N`)
+
+    /// The element's `.onHover`/`.onContinuousHover` callbacks, or `nil` — the
+    /// **seventeenth** member (`SV-AH` corrects `SV-N` item 1's "sixteen"), one
+    /// reference (a class box) for `IX-N`'s Windows stack budget. Registers a
+    /// **non-opaque** hover region (`Frame.registerHandlers`), never a pointer
+    /// target, so it blocks no click (`SV-N` item 2).
+    var hover: HoverAttachment?
+
     /// No handlers: the element is not a pointer target, not focusable and has
     /// no key context.
     public init() {}

@@ -569,7 +569,10 @@ private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, 
 /// **U row (menus, ruling `MN-AC` item 2)**: one more reference,
 /// `contextual` (a class box), so 448 + 8 + 8 — test 1.33
 /// `handlersGainsOneReferenceMember` pins the exact 464.
+///
+/// **V row (platform services, ruling `SV-AH`)**: one more reference,
+/// `hover` (a class box), so 448 + 8 + 8 + 8 — 1.33 pins the exact 472.
 @Test func theNewDeclarationsCostHandlersAtMostOnePointer() {
     #expect(MemoryLayout<AXNode>.size <= 113 + 8, "AXNode: \(MemoryLayout<AXNode>.size)")
-    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
 }

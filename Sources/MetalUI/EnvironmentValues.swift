@@ -177,6 +177,14 @@ public struct EnvironmentValues {
     /// becomes an opacity cross-fade on the same animation.
     public internal(set) var accessibilityReduceMotion: Bool = false
 
+    /// The window's open and save dialogs as async calls (ruling `SV-D`) —
+    /// MetalUI-only. A bare value's has no window, so a call throws
+    /// `FileDialogError.noWindow`; a `Window` stamps its own into the root at
+    /// draw (`Window.environment`'s value is never the source). **Get-only
+    /// outside the module** (guard `fileDialogsIsReadOnlyOutsideMetalUI`).
+    /// Read it while building and call it from a `Task` in an action.
+    public internal(set) var fileDialogs = FileDialogs(window: nil)
+
     /// The colour scheme content below is drawn in — SwiftUI's `colorScheme`
     /// (ruling `CR-J` item 2). `.light` in a bare value (probe
     /// `swiftui-colour.swift` E0), so a windowless `Frame` and `renderFrame`

@@ -21,10 +21,19 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     /// Every identifier this type conforms to, transitively; never contains
     /// ``identifier``.
     public let conformance: Set<String>
+    /// The filename extensions naming this type, without a dot, preferred
+    /// first (ruling `SV-E`); empty for a type with none of its own. Never
+    /// inherited: `.utf8PlainText` has none although `.plainText` has `txt`.
+    let filenameExtensions: [String]
 
     /// A type named `identifier` conforming to `parents` and, transitively,
-    /// to everything they conform to.
-    public init(_ identifier: String, conformingTo parents: [ContentType] = [.data]) {
+    /// to everything they conform to, named on disk by `filenameExtensions`
+    /// (without a dot, preferred first; ruling `SV-E`) — UTType's
+    /// `filenameExtension`/`preferredFilenameExtension` reduced to a list. A
+    /// file dialog filters by them where the platform has no type system
+    /// (SDL, divergence 129).
+    public init(_ identifier: String, conformingTo parents: [ContentType] = [.data],
+                filenameExtensions: [String] = []) {
         self.identifier = identifier
         var all = Set<String>()
         for parent in parents {
@@ -33,12 +42,18 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
         }
         all.remove(identifier)
         self.conformance = all
+        self.filenameExtensions = filenameExtensions
     }
 
     private init(root identifier: String) {
         self.identifier = identifier
         self.conformance = []
+        self.filenameExtensions = []
     }
+
+    /// The first of this type's filename extensions, or `nil` when it has none
+    /// — UTType's `preferredFilenameExtension` (ruling `SV-E`).
+    public var preferredFilenameExtension: String? { filenameExtensions.first }
 
     /// Whether this type is `other` or conforms to it.
     public func conforms(to other: ContentType) -> Bool {
@@ -54,19 +69,32 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     public static let data = ContentType("public.data", conformingTo: [.item])
     /// `public.text`. Conforms to ``data``.
     public static let text = ContentType("public.text", conformingTo: [.data])
-    /// `public.plain-text`. Conforms to ``text``.
-    public static let plainText = ContentType("public.plain-text", conformingTo: [.text])
+    /// `public.plain-text`, named `txt`. Conforms to ``text``.
+    public static let plainText = ContentType("public.plain-text", conformingTo: [.text],
+                                              filenameExtensions: ["txt"])
     /// `public.utf8-plain-text`, what a `String` drags as. Conforms to ``plainText``.
     public static let utf8PlainText = ContentType("public.utf8-plain-text", conformingTo: [.plainText])
     /// `public.url`. Conforms to ``data``.
     public static let url = ContentType("public.url", conformingTo: [.data])
     /// `public.file-url`. Conforms to ``url``.
     public static let fileURL = ContentType("public.file-url", conformingTo: [.url])
+    /// `public.json`, named `json` — what the file dialogs of an app saving
+    /// JSON offer (ruling `SV-E`). Conforms to ``text``, as UTType's does. A
+    /// file importing both MetalUI and UniformTypeIdentifiers spells
+    /// `ContentType.json` where `.json` is ambiguous.
+    public static let json = ContentType("public.json", conformingTo: [.text], filenameExtensions: ["json"])
 
     /// The seam's spelling of this type (ruling `DN-B` item 4), its
     /// conformance in a stable order.
     var pasteboardType: PasteboardType {
         PasteboardType(identifier: identifier, conformsTo: conformance.sorted())
+    }
+
+    /// The file-dialog seam's spelling of this type (ruling `SV-E`): its
+    /// conformance in a stable (sorted) order and its extensions as declared.
+    var platformFileType: PlatformFileType {
+        PlatformFileType(identifier: identifier, conformsTo: conformance.sorted(),
+                         filenameExtensions: filenameExtensions)
     }
 }
 

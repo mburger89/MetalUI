@@ -538,8 +538,9 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // + 1 at plan task 15's lane-1 fix round (`flexBasis(percent:)`'s own
     // class-D row, `CX-C`) = **52**. + 2 for drag and drop (`draggable(_:)`,
     // `dropDestination(for:action:isTargeted:)`, `DN-P`) = **54**. + 1 for
-    // menus (`contextMenu(menuItems:)`, `MN-Q`) = **55**.
-    #expect(cases.count == 55)
+    // menus (`contextMenu(menuItems:)`, `MN-Q`) = **55**. + 2 for hover
+    // (`onHover(perform:)`, `onContinuousHover(perform:)`, `SV-N`) = **57**.
+    #expect(cases.count == 57)
 
     for c in cases {
         var expectedStyle = Style()

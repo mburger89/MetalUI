@@ -27,6 +27,7 @@ import MetalUIPlatform
     var second = false
     var log: [String] = []
     var owner: GlobalElementID?
+    var errors: [FileDialogError] = []
 
     var binding: Binding<Bool> {
         Binding(get: { self.shown }, set: { self.shown = $0; self.log.append("isPresented=\($0)") })
@@ -142,7 +143,7 @@ func psTemporaryDirectory() throws -> URL {
     psDeliver(platform, dialog.token, .chosen(["/tmp/a.json", "/tmp/b c.json"]))
     #expect(m.log == ["isPresented=false", "completion"])
     #expect(urls == [URL(fileURLWithPath: "/tmp/a.json"), URL(fileURLWithPath: "/tmp/b c.json")])
-    #expect(urls.allSatisfy(\.isFileURL))
+    #expect(urls.allSatisfy { $0.isFileURL })
     #expect(m.owner == psOwner, "dispatched to the declaring position: \(String(describing: m.owner))")
     withExtendedLifetime(window) {}
 }
@@ -193,6 +194,17 @@ func psTemporaryDirectory() throws -> URL {
     withExtendedLifetime(window) {}
 }
 
+/// 2.5's tree: an importer logging its failures into the model.
+@MainActor func psFailureTree(_ m: PSModel) -> some Element {
+    Column {
+        psLeaf().fileImporter(isPresented: m.binding, allowedContentTypes: [.json],
+                              allowsMultipleSelection: false) { result in
+            m.log.append("completion")
+            if case .failure(let error) = result, let error = error as? FileDialogError { m.errors.append(error) }
+        }
+    }
+}
+
 /// **2.5** (`SV-C` item 3). A platform failure completes with
 /// `FileDialogError.platform(message)`; a platform that cannot show one
 /// (`presentFileDialog` → `false`) completes with `.unavailable` after the
@@ -202,32 +214,22 @@ func psTemporaryDirectory() throws -> URL {
 @Test func aFailedOrUnavailableDialogCompletesWithFailure() throws {
     let m = PSModel()
     m.shown = true
-    var errors: [FileDialogError] = []
-    let tree = {
-        Column {
-            psLeaf().fileImporter(isPresented: m.binding, allowedContentTypes: [.json],
-                                  allowsMultipleSelection: false) { result in
-                m.log.append("completion")
-                if case .failure(let error) = result, let error = error as? FileDialogError { errors.append(error) }
-            }
-        }
-    }
-    let (window, platform) = try psWindow(tree)
+    let (window, platform) = try psWindow { psFailureTree(m) }
     window.drawFrameIfNeeded()
     let dialog = try #require(platform.presentedFileDialogs.first)
     psDeliver(platform, dialog.token, .failed("x"))
     #expect(m.log == ["isPresented=false", "completion"])
-    #expect(errors == [.platform("x")])
+    #expect(m.errors == [.platform("x")])
 
     m.log = []
-    errors = []
+    m.errors = []
     m.shown = true
-    let (other, otherPlatform) = try psWindow(tree)
+    let (other, otherPlatform) = try psWindow { psFailureTree(m) }
     otherPlatform.presentsFileDialogs = false
     other.drawFrameIfNeeded()
     #expect(otherPlatform.presentedFileDialogs.count == 1, "asked once")
     #expect(m.log == ["isPresented=false", "completion"])
-    #expect(errors == [.unavailable])
+    #expect(m.errors == [.unavailable])
     withExtendedLifetime((window, other)) {}
 }
 

@@ -332,6 +332,27 @@ public final class Frame {
     /// stacked at one position keep two entries (ruling `LC-C` item 2).
     private(set) var lifecycleDepth = 0
 
+    /// The hover regions this frame registered (ruling `SV-N` item 2) — read
+    /// by `Window`, which skips every hover recompute for a frame with none
+    /// (`SV-U`).
+    private(set) var hoverRegionCount = 0
+
+    /// The presentation scopes enclosing the one being laid out — the depth in
+    /// its registry key (`SV-K` item 2, `LC-U`'s reason).
+    private(set) var presentationDepth = 0
+
+    /// The presentation records this build noted, in registration order
+    /// (`SV-K` item 2), adopted by `Window` after the build.
+    var presentationRecords: [PresentationRecord] = []
+    /// Records noted per key this build — the occurrence rule (`MV-M` item 5).
+    var presentationOccurrences: [GlobalElementID: Int] = [:]
+
+    func withPresentationScope<R>(_ body: () -> R) -> R {
+        presentationDepth += 1
+        defer { presentationDepth -= 1 }
+        return body()
+    }
+
     /// Runs `body` one lifecycle scope deeper.
     func withLifecycleScope<R>(_ body: () -> R) -> R {
         lifecycleDepth += 1
@@ -1405,12 +1426,17 @@ public final class Frame {
            !isAccessibilitySuppressed(for: id) {
             accessibilityPressOnly[id] = onClick
         }
+        // The pointer target's and the draggable region's handlers carry no
+        // hover attachment: the hover region below is the one hitbox that
+        // does, so the hovered set counts each element once (`SV-N` item 2).
+        var pointerHandlers = handlers
+        pointerHandlers.hover = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
             // else, for the inset's reason above.
             let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
-            _ = insertHitbox(region, id: id, opaque: true, handlers: handlers, origin: bounds.origin,
+            _ = insertHitbox(region, id: id, opaque: true, handlers: pointerHandlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
         // Drag and drop (rulings `DN-E`, `DN-F`, `DN-G`): two NON-opaque
@@ -1427,7 +1453,7 @@ public final class Frame {
         // unchanged (pinned by `aFrameWithoutADragOrDestinationAddsNoHitbox`).
         if enabled, hitTestingDisabledDepth == 0, !handlers.isPointerTarget, handlers.hasDraggable {
             let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
-            _ = insertHitbox(region, id: id, opaque: false, handlers: handlers, origin: bounds.origin,
+            _ = insertHitbox(region, id: id, opaque: false, handlers: pointerHandlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
         if enabled, keyboardHiddenDepth == 0, let destination = handlers.dropDestination {
@@ -1461,6 +1487,21 @@ public final class Frame {
                                                  y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
                                    size: bounds.size))
             }
+        }
+        // Hover (ruling `SV-N` item 2): a NON-opaque region carrying only the
+        // attachment, at the element's hit region (its content shape, as a
+        // draggable region's), registered after the element's own opaque
+        // hitbox so it ranks above it — inside the disabled gate, the
+        // `allowsHitTesting` gate and `hidden()`. A frame with no hover
+        // attachment registers nothing here, so every other tree's hitbox list
+        // is unchanged (spec test 2.55).
+        if let hover = handlers.hover, enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.hover = hover
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            hoverRegionCount += 1
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and

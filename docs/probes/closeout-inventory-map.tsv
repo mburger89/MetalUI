@@ -144,6 +144,12 @@ F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIc
 F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsAnswerAtAZeroProposal	126	SV-L	WindowResizability (.automatic, .contentMinSize, .contentSize): SwiftUI's cases as window state; .contentMinSize's minimum is the root's answer at a zero proposal (W1), .contentSize adds its answer at an infinite proposal (W2); .automatic asks the content nothing, and the limits carry no title-bar inset (126)
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
+F	presentation-scope	D	-	-	-	120	SV-K	PresentationScope: the transparent ElementGroup .fileImporter/.fileExporter/.alert/.confirmationDialog return — no node, no identity level, its record in the window's registry, reconciled after the frame, one presentation in flight per window; a legacy decoration after it does not compile (120)
+F	file-dialogs	D	swiftui-platform-services.swift	D1	anImporterPresentsAfterTheFrameOnceWhileShown	129	SV-C SV-K	fileImporter (both forms)/fileExporter(item:contentTypes:defaultFilename:onCompletion:onCancellation:)/FileExportError: SwiftUI's subset over MetalUI's ContentType and synchronous Transferable; isPresented written false before the callback, a cancelled import calls nothing (D2), a nil item still presents (X5), the exporter writes the conforming representation or the first; off Apple a type filters by extension only (129)
+F	file-dialog-call	M	-	-	-	-	SV-D SV-AD	FileDialogs (openFiles/saveFile)/FileDialogError/Window.fileDialogs/EnvironmentValues.fileDialogs: MetalUI's async open and save calls (SwiftUI has none; gpui's prompt_for_paths is the comparison), main-actor, holding the window weakly; a cancel returns []/nil, one dialog at a time (.busy), a cancelled task dismisses
+F	content-type-extensions	D	-	-	-	129	SV-E	ContentType(_:conformingTo:filenameExtensions:)/preferredFilenameExtension/ContentType.json: UTType's filename extensions reduced to a list and public.json conforming to public.text; a file dialog off Apple matches by extension alone (129)
+F	alerts	A	swiftui-platform-services.swift	A1	alertButtonsResolveSwiftUIsOrderAndKeys	-	SV-I SV-J SV-X SV-Y	alert (four forms, presenting: included)/confirmationDialog (two forms)/AlertActions (closed)/AlertActionsBuilder/AlertActionItems: SwiftUI's buttons — cancel last and on Escape, a synthesized Cancel beside a lone destructive, OK for none, Return on the first plain button only without a destructive one (K0–K3); presenting: nil still presents title and OK (R1); an NSAlert sheet on AppKit, drawn in the window elsewhere
+F	hover	A	swiftui-platform-services.swift	H1	onHoverFiresOnEnterAndLeaveFromInput	-	SV-N SV-Z SV-U	onHover(perform:)/onContinuousHover(perform:)/HoverPhase/HoverModifier on both vocabularies: SwiftUI's spellings; the semantics are MetalUI's (H1–H11 are a recorded broken instrument): a non-opaque region per element, the hovered set through the one ranking (an opaque target or a hover region above covers, nested regions all hover), from input and after the frame, under StateDispatch
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -227,6 +233,7 @@ M	MetalUI	EnvironmentValues.swift	EnvironmentValues	layoutDirection	.*	environme
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	locale	.*	environment-locale
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(font|lineLimit|truncationMode|multilineTextAlignment)	.*	text-modifiers
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	colorScheme	.*	color-scheme
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	fileDialogs	.*	file-dialog-call
 M	MetalUI	EnvironmentValues.swift	.*	.*	.*	environment
 M	MetalUI	Flex.swift	.*	.*	.*	legacy-containers
 M	MetalUI	Stack.swift	.*	.*	.*	legacy-containers
@@ -367,6 +374,7 @@ M	MetalUIPortableText	.*	.*	.*	.*	portable-text
 M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
 M	MetalUIDemoContent	DemoIcon.swift	.*	.*	.*	app-icon
 M	MetalUIDemoContent	.*	.*	.*	.*	demo-content
+M	MetalUI	Transferable.swift	ContentType	(json|preferredFilenameExtension)	.*	content-type-extensions
 M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop
 M	MetalUI	ContextMenu.swift	.*	.*	.*	context-menus
@@ -378,3 +386,8 @@ M	MetalUI	Tooltip.swift	.*	.*	.*	help
 M	MetalUI	GPUSurface.swift	.*	.*	.*	gpu-surface
 M	MetalUI	MetalView.swift	.*	.*	.*	gpu-surface
 M	MetalUI	Lifecycle.swift	.*	.*	.*	lifecycle
+M	MetalUI	Presentations.swift	.*	.*	.*	presentation-scope
+M	MetalUI	FileDialogs.swift	(-|ElementGroup)	(FileExportError|fileImporter|fileExporter)	.*	file-dialogs
+M	MetalUI	FileDialogs.swift	.*	.*	.*	file-dialog-call
+M	MetalUI	Alert.swift	.*	.*	.*	alerts
+M	MetalUI	Hover.swift	.*	.*	.*	hover

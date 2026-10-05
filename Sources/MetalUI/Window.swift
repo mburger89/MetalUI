@@ -418,30 +418,16 @@ public final class Window {
     /// `Frame.mousePosition`'s own doc comment for why this lives here rather
     /// than on `Frame`.
     ///
-    /// **Deliberately STICKY: nothing clears it when the pointer leaves the
-    /// window.** `InputEvent` has no `mouseExited` case — only
-    /// `.mouseDown`/`.mouseUp`/`.mouseMoved` update this — so an element under
-    /// the cursor's last in-window position stays hovered after the cursor
-    /// leaves the window entirely, until the next event arrives from inside it.
-    ///
-    /// **A decision, not an oversight, and the reasoning is the cost of the
-    /// alternative.** Closing it means a new `InputEvent.mouseExited` case,
-    /// which crosses the `MetalUIPlatform` → `MetalUI` module boundary — the
-    /// exact shape that has produced a SIGSEGV or a truncated run with no
-    /// summary line four times on this project (CLAUDE.md's "Adding a case to
-    /// a public enum … crossing module boundaries" section) — for a case whose
-    /// only production reader would be one line clearing this property. Task 6
-    /// (hover/active infrastructure) is not the task that should widen
-    /// `InputEvent`'s surface for a single caller; a future task adding a real
-    /// `mouseExited`-driven feature (a tooltip dismissal, say) can add the case
-    /// and wire this in the same change, with a reason beyond "tidiness" to
-    /// justify the risk.
-    ///
-    /// **What this costs, stated plainly**: `Task-11`'s human verification of
-    /// hover should report on this specifically — move the pointer over an
-    /// interactive element, then off the window entirely, and check whether
-    /// the element still reads as hovered. Expected today: yes, until the next
-    /// in-window mouse event.
+    /// **Cleared when the pointer leaves the window** (ruling `SV-N` item 7,
+    /// amending task 6's "deliberately sticky" decision): `.pointerExited` —
+    /// AppKit's tracking-area `mouseExited`, SDL's `SDL_EVENT_WINDOW_MOUSE_LEAVE`
+    /// — sets it `nil`, so `PaintPass.isHovered` reads `false` on the next
+    /// frame and `onHover` hears `false` at once. Task 6 kept it sticky because
+    /// the case would cross the `MetalUIPlatform` → `MetalUI` boundary for one
+    /// reader; hover is the feature that gave the case a reason. No other
+    /// paint-time query changes, and `topmostOpaqueHitbox` and click dispatch
+    /// are untouched. **Migration**: an app that relied on the last in-window
+    /// position staying hovered after the pointer left sees it un-hovered.
     private(set) var lastMousePosition: Point<Pixels>?
 
     /// The element holding "active" state — the hitbox that received
@@ -852,6 +838,28 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // Platform services (`SV-K`, `SV-C`, `SV-I`): a dialog's or an
+            // alert's answer is first after the pointer state — no later stage
+            // may claim it.
+            switch event {
+            case .fileDialogResult(let result):
+                self.handleFileDialogResult(result)
+                self.setNeedsRedraw()
+                return true
+            case .alertResult(let result):
+                self.handleAlertResult(result)
+                self.setNeedsRedraw()
+                return true
+            // Hover (`SV-N` item 4): every pointer event and the pointer
+            // leaving the window recompute the hovered set from input. Claims
+            // nothing.
+            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: true)
+            case .pointerExited:
+                self.updateHover(at: nil, reportsMoves: true)
+            default:
+                break
+            }
             // The tooltip watches every event and claims none (`MN-P` item 2).
             self.trackTooltip(event)
             // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
@@ -1348,6 +1356,15 @@ public final class Window {
         // cleared its dirt, so it is raised again here.
         if resizeCount != resizesBeforeBuild { setNeedsRedraw() }
 
+        // Platform services, after the frame (`SV-K` item 3, `SV-N` item 4;
+        // `LC-E`'s place — outside every phase): present what turned `true`,
+        // dismiss what turned `false` or left, then recompute hover against
+        // this frame's hitboxes (content moved, appeared or left under a still
+        // pointer; a presented drawn alert empties it). Writes their callbacks
+        // make schedule the next frame.
+        reconcilePresentations()
+        updateHover(at: lastMousePosition, reportsMoves: false)
+
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
         // `List` still waiting for its viewport asks for one more frame, which
@@ -1520,6 +1537,7 @@ public final class Window {
         rootEnvironment.controlActiveState = controlActiveState
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
+        rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
@@ -1548,6 +1566,8 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastHoverRegionCount = frame.hoverRegionCount   // SV-U
+        presentations.records = frame.presentationRecords   // SV-K item 2
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -1889,6 +1909,9 @@ public final class Window {
         case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
             // A secondary press moves the pointer, never `active` (`MN-B` item 4).
             lastMousePosition = mouse.position
+        case .pointerExited:
+            // The pointer left the window (`SV-N` item 7): nothing is under it.
+            lastMousePosition = nil
         default:
             break
         }
@@ -1960,6 +1983,28 @@ public final class Window {
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
     var menuSession: MenuSession?
 
+    // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
+
+    /// The window's presentations: the last build's records and the one
+    /// dialog or alert in flight (`SV-K`). Never a `StateTable` entry.
+    let presentations = PresentationRegistry()
+
+    /// The alert the platform declined to show (`SV-J` item 2) — the window's
+    /// to draw (lane 3's panel) and answer through `chooseAlertButton(_:)`.
+    var drawnAlert: DrawnAlert?
+
+    /// The hovered regions, in the last frame's registration order — outer
+    /// first (`SV-N` item 5).
+    var hoveredRegions: [HoveredRegion] = []
+
+    /// How many hover regions the last adopted frame registered (`SV-U`): with
+    /// none and nothing hovered, a pointer event or frame does no hover work.
+    var lastHoverRegionCount = 0
+
+    /// Hitboxes the hover recomputes visited, ever — test observability for
+    /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
+    var hoverVisits = 0
+
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
     /// command stage. `nil` for a window built without an `App`.
@@ -2029,6 +2074,19 @@ public final class Window {
     /// Asks the platform to show `menu` itself (`MN-C`).
     func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
         platformWindow.presentMenu(menu, at: position)
+    }
+
+    /// The platform's file dialog, alert and dismissal (`SV-B`), for
+    /// `Presentations.swift` and `FileDialogs.swift` — `platformWindow` stays
+    /// private, as `presentMenuOnPlatform` keeps it.
+    func presentFileDialogOnPlatform(_ dialog: PlatformFileDialog) -> Bool {
+        platformWindow.presentFileDialog(dialog)
+    }
+    func presentAlertOnPlatform(_ alert: PlatformAlert) -> Bool {
+        platformWindow.presentAlert(alert)
+    }
+    func dismissPresentationOnPlatform(token: Int) {
+        platformWindow.dismissPresentation(token: token)
     }
 
     /// Clears `active` for a press the open menu consumed, so the press never

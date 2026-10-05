@@ -195,6 +195,18 @@ private let a1Buttons = [PlatformAlertButton(title: "Delete", isDestructive: tru
     withExtendedLifetime(window) {}
 }
 
+@MainActor private func presentingNilTree(_ m: ALModel) -> some Element {
+    Column {
+        psLeaf().alert("Delete?", isPresented: m.binding, presenting: m.data) { item in
+            let _ = m.noteActions()
+            Button("Delete \(item)", role: .destructive) { m.log.append("delete \(item)") }
+        } message: { item in
+            let _ = m.noteMessage()
+            return Text("Item \(item).")
+        }
+    }
+}
+
 /// **2.24** (`SV-Y`, `R0`, `R1`). `presenting: nil` with `isPresented` true
 /// still presents: the title, no message, one "OK" — and the actions and
 /// message closures are not called; "OK" writes `isPresented = false` and runs
@@ -204,18 +216,7 @@ private let a1Buttons = [PlatformAlertButton(title: "Delete", isDestructive: tru
 @Test func alertPresentingWithNilDataShowsTheTitleAndOK() throws {
     let m = ALModel()
     m.shown = true
-    let tree = {
-        Column {
-            psLeaf().alert("Delete?", isPresented: m.binding, presenting: m.data) { item in
-                let _ = m.noteActions()
-                Button("Delete \(item)", role: .destructive) { m.log.append("delete \(item)") }
-            } message: { item in
-                let _ = m.noteMessage()
-                Text("Item \(item).")
-            }
-        }
-    }
-    let (window, platform) = try alWindow(tree)
+    let (window, platform) = try alWindow { presentingNilTree(m) }
     window.drawFrameIfNeeded()
     let alert = try #require(platform.presentedAlerts.first, "a nil presenting still presents (R1)")
     #expect(alert.title == "Delete?")

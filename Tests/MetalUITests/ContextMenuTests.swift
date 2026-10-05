@@ -969,8 +969,11 @@ private struct MenuCounter: Component {
 
 /// **1.33** (`MN-Q`). `Handlers` gains exactly one reference: 464 bytes.
 /// Mutation: store the closure and help string inline.
+///
+/// Platform services (ruling `SV-AH`): hover's attachment is one more
+/// reference, a class box — 472. Its mutation: store the two closures inline.
 @Test func handlersGainsOneReferenceMember() {
-    #expect(MemoryLayout<Handlers>.size == 464, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size == 472, "Handlers: \(MemoryLayout<Handlers>.size)")
 }
 
 /// **1.35** (C13c/C13, `MN-U`). Under `.allowsHitTesting(false)` a right press
