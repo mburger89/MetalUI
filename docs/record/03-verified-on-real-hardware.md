@@ -1973,3 +1973,18 @@ sheet's order and keys (Return with the app active); U5 hover un-highlighting
 on leaving a tile and the window; U6 window limits on both platforms; U7 a
 content-following minimum. SwiftUI's hover was never measured (probe `H` is a
 broken instrument).
+
+## 2026-10-06: platform services, lane 3 (record §77) — looks owed
+
+Lane 3 built the drawn alert, `Divider` as a view, the menu `Picker`, the
+scrolling in-window menu and the services demo
+(`METALUI_SERVICES_DEMO=1 swift run MetalUIDemo`, and `MetalUISDLDemo`). The
+fourteen existing offscreen images are unchanged (0 differing, record §77 §7);
+the real-window capture was **not taken** (lock probe not run by the Record
+phase). **Owed, new here — `docs/verification/human-checks.md` group U, items
+U8–U12, none performed (an agent cannot)**: U8 the SDL drawn alert (scrim,
+panel, ring, Return/Escape, modality, an open menu closing); U9 the AppKit menu
+picker (native menu of 300 items, check on the selection, VoiceOver pop-up
+button); U10 the SDL drawn picker menu scrolling (wheel, ↑/↓, ▴/▾, a click);
+U11 the `Divider` hairline in four stacks, light and dark; U12 the demo's
+dialogs and hover on both platforms.

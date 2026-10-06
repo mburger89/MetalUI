@@ -42,7 +42,7 @@ summary.
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
-  `2026-10-04-platform-services-decisions.md`, next `SV-AJ`), …; the full
+  `2026-10-04-platform-services-decisions.md`, next `SV-AM`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -55,7 +55,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **94 live, next label 130**; retired labels are
+  live SwiftUI difference — **96 live, next label 130**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
   (groups A–U, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -73,14 +73,15 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-05, `feat/platform-services` from `c2b8f48`, lanes 1 and 2
-  only): 2503 tests, 0 goldens, 162 typecheck guards** (2430 + 73 tests,
-  151 + 11 guards; census 2402; `Backends/SDL` 24 + 77 on macOS, 24 + 74 in the Linux
-  container, re-measured at the branch check; record §77 §3, §11). Before it,
+- **Counts (2026-10-06, `feat/platform-services` from `c2b8f48`, all three lanes):
+  2546 tests, 0 goldens, 163 typecheck guards** (2430 + 116 tests,
+  151 + 12 guards; census 2421; `Backends/SDL` 24 + 77 on macOS, 24 + 74 in the Linux
+  container, lane 3 verifier's readings; record §77 §3). Before it, at lanes 1 and 2
+  (2026-10-05): 2503 / 0 / 162 (2430 + 73, 151 + 11; census 2402). Before that,
   `feat/lifecycle` from `047f0ab`: 2430
   tests, 0 goldens, 151 typecheck guards (2376 + 54 tests, 147 + 4 guards;
   `Backends/SDL` 24 + 65; census 2315; Linux container
@@ -565,7 +566,7 @@ A window close runs every `onDisappear` once (`App`'s `onClose` →
 (`SV-H`), but the modifier is not built. A steady frame costs 3K for K scopes and 0
 with none.
 
-**Platform services (`SV-`, record §77 — lanes 1 and 2 only; lane 3 unbuilt).**
+**Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
 transparent `PresentationScope` (no node, no id level; the record lives in the
 window's registry keyed `$presentation<depth>`, never a `StateTable` slot; a
@@ -573,8 +574,9 @@ legacy decoration after it does not compile, divergence 120); they present
 after the frame, one in flight per window (`FileDialogs` async calls share the
 slot, `.busy`), and answers come back as queued `InputEvent`s that the window
 claims first (`SV-B`, `SV-K`, `SV-AH`). AppKit shows sheets (`NSOpenPanel`,
-`NSSavePanel`, `NSAlert`); SDL shows file dialogs but **declines alerts, which
-nothing draws until lane 3** (`Window.drawnAlert`, `chooseAlertButton`). SDL
+`NSSavePanel`, `NSAlert`); SDL shows file dialogs and **declines alerts, which
+the window draws and holds modal** (`AlertPanel.swift`: an input stage ahead of
+the menu, Return the default, Escape the cancel, `SV-AK` item 1). SDL
 drains the main queue each iteration (`SV-H`; macOS cannot see it, only the
 Linux image can). `Window.minSize`/`maxSize`/`windowResizability` reach the
 platform through `setContentSizeLimits` only on change; `.automatic` asks the
@@ -582,8 +584,12 @@ content nothing (divergence 126); SDL's bridge lifts the maximum before
 raising the minimum (`SV-AG`). **Hover is `Handlers`' seventeenth member, a
 non-opaque region through the one ranking** (`SV-N`); the opaque and draggable
 hitboxes carry no hover attachment (`SV-AH` item 2); `.pointerExited` clears
-the sticky pointer. `Divider` is still menu-only and `.pickerStyle(.menu)` is
-not offered.
+the sticky pointer. **`Divider` is a view** whose axis is `Frame`'s stack,
+pushed by every linear container and read only by layout (a new container owes
+a `withStackAxis`, `SV-AK` item 2); `.pickerStyle(.menu)` opens a native menu or
+the **scrolling** drawn one, options recorded without layout, widths cached on
+the window (`SV-AK` items 3–6). A demo section's alert builds in a `Component`
+at layout, never in the tree's own function (`SV-AK` item 7).
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
@@ -697,7 +703,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (94 live, next label 130). A new
+- **Divergences**: `docs/divergences.md` (96 live, next label 130). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

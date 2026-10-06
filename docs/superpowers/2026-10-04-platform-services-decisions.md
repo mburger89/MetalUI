@@ -1382,5 +1382,11 @@ mutation has no one-line site), 5.8's "open regardless of the gate"
 (the gate is `Button`'s, already measured by `MN-AF` item 9's table), and 5.10's
 alternative spellings.
 
+**Not in this table**: the lane-3 verifier's ten extra mutations found seven
+claims unpinned (record §77 §6: V10 the alert's accessibility focus on the
+ringed button, V9 a submenu clamping, V5/V6 `Column`'s and `Grid`'s axis
+pushes, V1/V3 the alert's drop refusal and Space as text input, V7 the width
+cache's sweep). This table lists only mutations that reddened.
+
 **Cost if wrong.** None to the code; a row a later change makes unable to fail
 is caught only by re-running it.

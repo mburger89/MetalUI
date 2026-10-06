@@ -1,37 +1,36 @@
-# 77 — Platform services: dialogs, alerts, window sizing, hover (lanes 1 and 2 landed; lane 3 not built)
+# 77 — Platform services: dialogs, alerts, window sizing, hover, `Divider`, menu `Picker` (all three lanes landed)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
 #46). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — the SMK keyboard configurator port's gaps 4, 5, 7, 8, 9, 10 and
 12. Spec `docs/superpowers/specs/2026-10-04-platform-services-design.md`;
-rulings `SV-A`…`SV-AI` in the new decisions doc
+rulings `SV-A`…`SV-AL` in the new decisions doc
 `docs/superpowers/2026-10-04-platform-services-decisions.md` (next unused
-`SV-AJ`); probes `docs/probes/swiftui-platform-services.swift` (arms `D`
+`SV-AM`); probes `docs/probes/swiftui-platform-services.swift` (arms `D`
 importer, `X` exporter, `A`/`C1` alerts and the confirmation dialog, `H` hover
 — **a recorded broken instrument** —, `V` `Divider`, `P` the menu picker),
 `swiftui-window-sizing.swift` (`W0`–`W5`), `swift-main-queue-drain-nested.swift`
 (`J0`–`J3`) and `swiftui-alert-presenting.swift` (`R0`–`R4`, `K0`–`K3`).
 
-**Numbering.** Master had published no record past §76 at the Record phase
-(`git fetch`: `origin/master` still `c2b8f48`), so §77 stands.
+**Numbering.** Master had published no record past §76 at either Record phase
+(`git fetch`: `origin/master` still `c2b8f48` on 2026-10-06), so §77 stands.
 
-**Status: PARTIAL — lanes 1 and 2 are built; lane 3 was never run.** Read this
-before relying on anything below. What the three lanes were to build is
-`SV-AC`; what exists is the first two:
+**Status: IMPLEMENTED (2026-10-06) — lanes 1, 2 and 3 landed and each was
+verified `ok: true`.** What the three lanes built is `SV-AC`:
 
 | Lane | Owns | State |
 |---|---|---|
-| 1 — seam + window sizing | the four defaultless platform requirements, three `InputEvent` cases, two accessibility roles, AppKit panels/sheets, SDL dialogs, the SDL main-queue drain, `minSize`/`maxSize`/`WindowResizability` | **landed**, verified `ok: true` (re-verified at `3aa9898`) |
-| 2 — presentations + hover | `PresentationScope`, `.fileImporter`/`.fileExporter`, `FileDialogs`, `.alert`/`.confirmationDialog` and their resolver, the drawn alert's **model only**, `onHover`/`onContinuousHover` | **landed**; **no verifier verdict was delivered** (the orchestration's lane-2 verdict is `null`); this record's §3 suite re-run and SV-AI's guard mutations are the only evidence beyond the lane's own red runs |
-| 3 — drawn alert, `Divider` view, menu `Picker`, scrolling menu panel, demo, human-check group, docs | `AlertPanel.swift`, `DividerView.swift`, `Picker.swift`'s `.menu`, `MenuPanel` scrolling, `ServicesDemo.swift`, tests 2.26–2.32 and §6.3 | **not built**: none of those files exists, `Divider` is still menu-only, `.pickerStyle(.menu)` is still not offered, the drawn alert is a model nothing paints, there is no demo flag |
+| 1 — seam + window sizing | the four defaultless platform requirements, three `InputEvent` cases, two accessibility roles, AppKit panels/sheets, SDL dialogs, the SDL main-queue drain, `minSize`/`maxSize`/`WindowResizability` | **landed**, verified `ok: true` (re-verified at `3aa9898`, 2455 tests) |
+| 2 — presentations + hover | `PresentationScope`, `.fileImporter`/`.fileExporter`, `FileDialogs`, `.alert`/`.confirmationDialog` and their resolver, `onHover`/`onContinuousHover` | **landed**, verified `ok: true` at `f36d470` (2506 tests; four mutations, `SV-AJ`) — the first Record phase wrote "no verdict delivered"; the verdict arrived afterwards |
+| 3 — drawn alert, `Divider` view, menu `Picker`, scrolling menu panel, demo, human-check group, docs | `AlertPanel.swift`, `DividerView.swift`, `PickerMenu.swift`, `Picker.swift`'s `.menu`, `MenuSession`/`MenuPanel` scrolling, `ServicesDemo.swift`, tests 2.26–2.32, §4–§6 of the spec | **landed**, verified `ok: true` at `7ca929d` (2546 tests; 31 mutations in `SV-AL`, ten more of the verifier's, seven of which survived — §6) |
 
-So **the feature the user asked for is two-thirds of its items**: file dialogs
-(1), window sizing (3) and hover (4) work end to end on AppKit and SDL; alerts
-(2) are native on AppKit and **invisible on SDL** (the platform declines, the
-window holds the model, nothing draws it — `SV-AH` item 5); `Divider` as a view
-(5) and the menu `Picker` (6) are unbuilt; clipboard beyond text (7) is
-deferred by ruling (`SV-R`). The docs below say so wherever they list a
-spelling. Lane 3 is owed (§10).
+All seven items are built except clipboard beyond text (7), deferred by ruling
+(`SV-R`): file dialogs (1), alerts (2), window sizing (3), hover (4), `Divider`
+as a view (5) and the menu `Picker` (6) work on AppKit and SDL; an alert is a
+native `NSAlert` sheet on AppKit and a drawn, modal panel on SDL. The first
+Record phase (`9f97427`, lanes 1 and 2 only) wrote this record as PARTIAL; this
+phase rewrote it for the finished branch. The looks are unseen: human-checks
+group U (U1–U12) is not run — an agent cannot.
 
 ## §0 Baseline, design session and critic pass
 
@@ -120,8 +119,7 @@ spelling. Lane 3 is owed (§10).
   equivalents are applied *after* `beginSheetModal` because `NSAlert`
   re-derives them when it lays itself out (`SV-AE` item 4). **SDL answers
   `false`** and the window holds the resolved model (`Window.drawnAlert`,
-  `chooseAlertButton(_:)`, test 2.25b) — **no paint, no input stage, no
-  accessibility record: lane 3**.
+  `chooseAlertButton(_:)`, test 2.25b), which lane 3 draws (below).
 - **Window sizing** (`WindowSizing.swift`, `Window.swift`, `App.swift`,
   `SV-L`, `SV-M`): `App.openWindow(title:size:minSize:maxSize:windowResizability:…)`
   and settable `Window.minSize`, `Window.maxSize`, `Window.windowResizability`;
@@ -159,6 +157,54 @@ spelling. Lane 3 is owed (§10).
   and `SDLWindow.setContentSizeLimits` raises a maximum that rounds below its
   minimum); the `maxSize` NaN trap pinned; leaving `.contentSize` drops the
   content maximum at once.
+- **The drawn alert** (`AlertPanel.swift`, `SV-J` items 2–4, `SV-AK` item 1):
+  where the platform answers `false` (SDL) the window paints the held
+  `Window.drawnAlert` above everything but nothing else — a scrim, a 260-wide
+  panel 24 from the top, bold title, message, buttons (cancel left, the rest
+  right); the accent goes on the `SV-X` default only. A **modal input stage**
+  after the dialog and alert answers and ahead of the tooltip, drag session and
+  menu: the ring starts on the default (nothing when there is none), Tab/→/↓
+  forward and Shift-Tab/←/↑ back, wrapping; Space presses the ringed button
+  (also as `.textInput(" ")`), Return only the default, Escape only the cancel
+  button; pointer, wheel, keys and a drop from outside reach nothing beneath;
+  an open in-window menu is dismissed; the hover set is empty. An `.alert`
+  accessibility node with button children (ids from the window-reserved
+  `$alert-panel` root, never a `StateTable` entry), an accessibility press on
+  anything but its buttons refused.
+- **`Divider` as a view** (`DividerView.swift`, `SV-O`, `SV-AK` item 2):
+  `Divider: Element, ProposalElement`, a 1-point line across the nearest
+  `HStack`/`Row` (vertical) or `VStack`/`Column` (horizontal; also outside any
+  stack, in a `ZStack` and in a `Grid`), 10 along on a nil proposal, painted
+  in the opaque `.separator` token (divergence 127: SwiftUI's is translucent
+  black/white), no accessibility node. The axis is a stack on `Frame`
+  (`withStackAxis`), pushed and popped around the children's requests by the
+  `HStack`, `VStack`, `ZStack`, `Row`, `Column` and `Grid` — read only by layout, so no
+  id moves. A menu `Divider` is the unchanged separator; the menu guard's
+  negative became a `Rectangle` (its flip).
+- **The menu `Picker`** (`Picker.swift`, `PickerMenu.swift`, `SV-P`, `SV-AA`,
+  `SV-AK` items 3–5): `.pickerStyle(.menu)` — a pull-down button showing the
+  selected title, as wide as its widest option, opening every option as a
+  checked-or-not item through the menu machinery (native `NSMenu`, else the
+  drawn panel opening on the selection); options are recorded without being
+  laid out (one identity slot whatever the count), a non-`Text` option is titled
+  by its tag (divergence 128), the button publishes `.popUpButton`; the
+  automatic style stays segmented (divergence 81 narrowed; the guard
+  `aMenuPickerStyleIsNotOffered` became `aMenuPickerStyleCompiles`). The width
+  cache is window-owned (`Window.pickerTitleWidths`): 300 options measure 299
+  titles once and none on a warm frame.
+- **The scrolling in-window menu** (`MenuSession.swift`, `MenuPanel.swift`,
+  `SV-Q`, `SV-AK` item 6): a menu taller than the window less its margin is
+  clamped, scrolls by wheel (`ScrollView`'s sign) and ↑/↓ with the highlight
+  scrolled into view, shows ▴/▾ bands only at an edge with rows past it, and
+  finds visible rows by bisection (paint and hit testing O(log n + visible)).
+- **The services demo** (`ServicesDemo.swift`, `SV-T`, `SV-AK` item 7):
+  `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` (and the same flag on
+  `MetalUISDLDemo`), 960 × 640 with a 900 × 600 minimum: Import…, Export… and
+  an async "Open…", a "Delete…" alert, three hover tiles, `Divider`s in four
+  stacks and a 300-option picker. Each section is a `ServicesPart` `Component`
+  built at layout (Windows' 1 MB stack, `SV-AK` item 7).
+- **Test-side finding** (`2.4c`, MC.2's owed test): a scope leaving the tree
+  while presented is dismissed and its late answer runs nothing.
 
 ## §2 Tests and guards, per file
 
@@ -174,9 +220,16 @@ Counts are `@Test` declarations; a parameterised test is one declaration.
 | `Tests/MetalUITests/HoverTests.swift` | 15 | 2.43–2.57: enter/leave, nesting, opaque covers, never blocks a click, gates, transforms, higher layers, `pointerExited`, leaving elements, content under a still pointer, menu/alert suppression, continuous phases, zero cost unused, a visit per hitbox, sibling cover |
 | `Backends/SDL/Tests/MetalUISDLTests/SDLPresentationTests.swift` | 9 | 1.10–1.16 and 1.15b, plus dismiss: dialog thread hop, outcomes, the Linux image's `.failed`, filters, `presentAlert` declines, limits, either order, mouse-leave |
 | `Backends/SDL/Tests/MetalUISDLTests/SDLMainQueueDrainTests.swift` | 3 | 1.18–1.19 and the check executable's presence |
+| `Tests/MetalUITests/AlertPanelTests.swift` | 8 | 2.26–2.32: the drawn alert's paint order and accent, Return/Escape, Tab/arrows/Space, the modal stage, a click, the `.alert` node, an open menu dismissed, the hover set emptied |
+| `Tests/MetalUITests/DividerTests.swift` | 11 | 4.1–4.10 and 4.G12: the axis per stack, 10 on a nil proposal, the `.separator` token one point thick, no leak past a stack, transparency through wrappers, a menu `Divider` unchanged, and `aDividerIsBothAMenuItemAndAnElement` |
+| `Tests/MetalUITests/MenuPickerTests.swift` | 12 | 5.1–5.11 and 5.17: the pull-down label and width, `.popUpButton`, openers, options laid out as nothing, option checks and tags, a non-`Text` option, the automatic style, 299 / 0 / 299 title measurements |
+| `Tests/MetalUITests/MenuPanelScrollTests.swift` | 5 | 5.12–5.16: a tall menu clamps and scrolls, arrows scroll the highlight into view, the selection opens in view, hit testing follows the offset, a short menu does not scroll |
+| `Tests/MetalUITests/ServicesDemoTests.swift` | 3 | 6.1–6.3: the demo's sections, its 300-option picker, its counter text |
+| `Tests/MetalUITests/PresentationTests.swift` | +1 | 2.4c: a scope leaving the tree while presented |
+| `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` | edited | `everyProductionTreeBuildsOnAOneMegabyteThread` builds the services tree and each `ServicesPart` body (`SV-AK` item 7) |
 | Existing files moved | — | `ContextMenuTests` (`handlersGainsOneReferenceMember` 464 → 472), `ModifierTests` (the `Handlers` size bound `+ 8`; the case count 55 → 57), `OuterModifierMatrixTests`, `DisabledTests`, `HitRegionTests`, `AccessibilityModifierTests` and `Fakes.swift` (the four members) — each reddened when the change landed and was a fix, not a regression |
 
-**Typecheck guards** (**11 new**; the guard total moves 151 → 162 (the `canTypecheck`-gated declaration count 150 → 161 by `grep`)):
+**Typecheck guards** (**12 new**: 11 in lanes 1 and 2 and lane 3's one, 4.G12 `aDividerIsBothAMenuItemAndAnElement` (`typecheckFile`, mutated red as MG3.14); lane 3 also **flipped two** — `aMenuPickerStyleIsNotOffered` → `aMenuPickerStyleCompiles` (5.G13, `.inline` the separating arm) and `theMenuSpellingsCompileFromAPlainImport`'s negative from `Divider` to a `Rectangle` menu item (its flip, MG3.12); the guard total moves 151 → 163 (`typecheck`/`typecheckFile` call sites in `Tests` 279 → 280 across lane 3)):
 `PlatformServicesCompileGuards.swift` (4, lane 1: a `PlatformWindow` without
 `presentFileDialog`, without `presentAlert`, without `dismissPresentation`,
 without `setContentSizeLimits` does not compile) and
@@ -192,15 +245,25 @@ offscreen driver (`SV-AB`).
 ## §3 The suite at the Record phase
 
 `swift package clean`, then `swift build --build-system native --build-tests`
-and `swift test --build-system native --no-parallel`, unfiltered (re-taken at
-``1ac200e` plus this phase's docs`): **`Test run with 2503 tests in 3 suites passed after 143.340 seconds` (2430 + 73)**; the `FR-J no-argument frame: succeeded=` line
-present; 0 `error:` in the build and test logs, the only `warning:` SwiftPM's `--build-system native` deprecation notice (the default-build-system `swift build --build-tests` 0-warning check was lane 1's `3aa9898` reading and was not re-run here). `Backends/SDL`: 24 XCTest + 77 Swift Testing on macOS, **24 +
-74** in `swift:6.4-noble` (`SDL_VIDEO_DRIVER=offscreen`), lane 1's last
-measurement at `3aa9898` — **not re-run by this phase** (lane 2 changed no
-`Backends/SDL` file; `git diff 3aa9898 HEAD --stat -- Backends` is empty). The
-Linux container for the root portable targets was not re-run: no portable
-target changed after lane 1's run apart from `MetalUIPlatform`'s seam (built
-there by lane 1).
+and `swift test --build-system native --no-parallel`, unfiltered, at `7ca929d`
+(this phase's second pass, after lane 3 landed): **`Test run with 2546 tests in 3
+suites passed after 144.291 seconds` (2430 + 116)**; the `FR-J no-argument
+frame: succeeded=true` line present; 0 `error:` in the build and test logs, the
+only `warning:` SwiftPM's `--build-system native` deprecation notice;
+`swift build --build-tests` on the default build system: 0 `warning:`. Guards
+**163** (151 + 12). Counts by step: 2430 (`c2b8f48`) → 2455 (lane 1, re-verified
+at `3aa9898`) → 2506 (lane 2, `f36d470`) → 2546 (lane 3, +39 new tests and 2.4c).
+`Backends/SDL`: 24 XCTest + 77 Swift Testing on macOS, **24 + 74** in
+`swift:6.4-noble` (`SDL_VIDEO_DRIVER=offscreen`), as the lane-3 verifier
+measured at `7ca929d` and lane 1 at `3aa9898` — **not re-run by this phase**
+(lane 3 changed only `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, built by
+the verifier; no SDL test moved). The portable census is **2421** declarations
+(`closeout-public-api.sh`, 2402 → 2421; the recorded file is current);
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+The Linux container for the root portable targets was not re-run by this
+phase; the one portable test lane 3 edited is
+`DemoStackBudgetTests`, whose `swift:6.4-noble` overflow lane 3 found and fixed
+(`SV-AK` item 7).
 
 ## §4 Red runs
 
@@ -209,7 +272,11 @@ Each lane committed its tests before its source: `c5cb50f` (lane 1: guards
 requirements did not exist) and `354f752` (lane 2: presentations 2.1–2.11, file
 dialogs 2.12–2.19, alerts 2.20–2.25b, hover 2.43–2.57, guards 2.G5–2.G11, the
 `HandlerShape`/`HandlerFingerprint` hover fields, the D2 and `allowsHitTesting`
-hover arms). Three reds are *fixes*, not regressions (`SV-AH` item 1): the two
+hover arms), and for lane 3 `be806c5` (the drawn alert 2.26–2.32, 2.53's alert
+half, 2.4c) and `6236386` (`Divider` 4.1–4.10 and 4.G12, menu picker 5.1–5.11
+and 5.17, the scrolling menu 5.12–5.16, the flipped guard 5.G13, demo
+6.1–6.4): `AlertPanel.swift` does not exist at `be806c5`, and the `Divider`,
+scrolling-menu, menu-picker and demo APIs do not at `6236386`. Three reds are *fixes*, not regressions (`SV-AH` item 1): the two
 `Handlers` size pins and the modifier case count, which reddened when the member
 landed and moved with a note.
 
@@ -252,12 +319,34 @@ alert token check) reddens `aStaleAlertAnswerNeverReachesTheNextAlert`; each
 survived (V9, P5) before its arm. V1 (`keyboardHiddenDepth == 0` on the hover
 registration) is equivalent.
 
-**Lane 2's behavioural tests (2.1–2.25b, 2.43–2.57) have no mutation table.**
-No verifier ran, and `SV-AI` covers only the seven guards. This is a hole, not a
-pass: the findings of lane 2 (`SV-AH`) came from implementing and from red
-runs, and the production readers of its new state (the registry's one in-flight
-slot, `updateHover`'s ranking, the opaque-hitbox hover strip) were never
-mutated. Owed (§10).
+**Lane 2's behavioural tests** had no mutation table when this record was first
+written (no verifier verdict had arrived). The verifier's verdict, at `f36d470`,
+is `ok: true` with the four mutations above (V9, P5, PA, V1) on the production
+readers, and `SV-AL`'s MC.2 re-run closes the registry's scope-removal path.
+`updateHover`'s full ranking and the opaque-hitbox strip's draggable half are
+measured only by V9 and MC.1 (§11): thin, §10.
+
+**Lane 3** (`SV-AL`, baseline **2546 tests in 3 suites**, `FR-J no-argument
+frame: succeeded=true`; 31 rows: three guard mutations MG3.12–MG3.14, 27
+behaviour mutations M3.1–M3.30, and MC.2). Every row reddened the tests it
+names, no hang. Highlights: M3.1 (the axes swapped) reddens six tests (16
+issues); M3.7 (`.textPrimary` for `.separator`) nineteen issues; M3.14b
+(`popUpButtonHint` → `menuButtonHint`) six tests; **MC.2 is now pinned** by
+test 2.4c (`aScopeLeavingTheTreeWhilePresentedIsDismissedAndItsLateAnswerRunsNothing`,
+four issues). Not run: spec 4.8's "emit a node" (no one-line site), 5.8's "open
+regardless of the gate" (the gate is `Button`'s, `MN-AF`) and 5.10's alternative
+spellings.
+
+**The lane-3 verifier's own ten mutations** (each from the committed tree, the
+whole unfiltered suite, restored with `git status --short` clean): **three
+reddened, seven did not** — the survivors are §6.
+
+| # | Mutation | Reddened |
+|---|---|---|
+| V2 | `pressAlertButton`: an out-of-range press `return false` → `nil` | `theDrawnAlertPublishesAnAlertNodeWithButtonChildren` |
+| V4 | Escape finds `\.platform.isDefault` instead of `isCancel` | `returnPressesTheDefaultAndEscapeTheCancelOnTheDrawnAlert`, `aDrawnAlertEmptiesTheHoverSet` |
+| V8 | the menu wheel's sign flipped | `aTallInWindowMenuIsClampedToTheWindowAndScrolls`, `hitTestingFollowsTheScrollOffset` |
+| V1, V3, V5, V6, V7, V9, V10 | see §6 | **nothing** |
 
 **An unreverted mutation was found and reverted by this phase.** The worktree
 held an uncommitted edit to `Sources/MetalUI/Presentations.swift`'s alert-result
@@ -286,26 +375,57 @@ measured here**.
   Linux image the driver answers `.failed("File dialog driver unsupported …")`,
   which test 1.12 asserts. That pins the failure path, not a chosen file.
 
+- **Seven lane-3 claims are unpinned** (the verifier's survivors, each applied
+  to the committed tree with all 2546 tests passing; `SV-AL` lists only
+  mutations that reddened, so read this list beside it). Owner: the next session
+  on this branch or the gpui-gap list's follow-up, each fix a test plus its
+  mutation re-run:
+  1. **V10** — the drawn alert's accessibility focus on its ringed button
+     (`tree.focused = rootID` in `appendAlertPanel`): the only test checks the
+     no-ring case (focus on the `.alert` node), so `SV-AK` item 1's "the ring
+     starts on the default" is pinned for painting and keys but not for focus.
+  2. **V9** — a submenu level clamping and scrolling (`clampedHeight: nil` in
+     `openSubmenu`): `SV-AK` item 6's "a submenu level clamps the same way" has
+     no test.
+  3. **V5 and V6** — `Column`'s `.vertical` push and `Grid`'s `nil` push: the
+     only `Column` fixture sits at the root, where "no axis" already reads
+     horizontal, and `DividerTests` has no `Grid` case. Needed: a `Column {
+     Divider() }` inside an `HStack`/`Row` (1 tall) and a `Divider` in a `Grid`
+     cell inside an `HStack` (horizontal).
+  4. **V1 and V3** — the drawn alert refuses a drop from outside
+     (`.drop` → `false`) and Space as `.textInput(" ")` presses the ringed
+     button: `AlertPanelTests` has no `.drop` and no `.textInput` event.
+  5. **V7** — `PickerTitleWidths.sweep` (entries no build used are dropped):
+     the picker width cache has no test-visible count, so a picker removed from
+     the tree is never seen to leave an entry. Needed: a count on the cache.
+
 ## §7 Demo comparison and looks
 
 - **Fourteen offscreen images** (`docs/probes/demo-pixels/compare.sh <scratch>
-  c2b8f48 HEAD`): **0 differing pixels and `scene identical` in all fourteen** (`c2b8f48` → `1ac200e`), controls non-zero (light vs dark 1048576, default vs modal 1031003, default vs animation 454895, f0 vs f3 0). No demo file changed on this branch (lane 3 owns
-  the demo); `DemoFrameDeterminismTests`' `Expected.swift` is unedited.
-- **There is no demo for this feature** (`METALUI_SERVICES_DEMO` was lane 3's):
-  nothing exercises a dialog, an alert or hover in a running window except the
-  tests.
-- **The real-window capture was not taken** (not attempted; the lock probe was
-  not run — there is nothing new to capture).
-- **Owed — `docs/verification/human-checks.md` group U, none performed (an agent
-  cannot)**: U1 the open panel is a sheet on the window, filtered, returning on
-  both Cancel and Open; U2 the save panel's name, extension and prompt; U3
-  Linux and Windows desktop dialogs and the main-queue drain; U4 the `NSAlert`
-  sheet's order, Escape and Return (with the app active — `SV-X` measured
-  headless); U5 hover un-highlights on leaving the tile and the window, and the
-  top tile only over an overlap; U6 dragging a window edge stops at the
-  declared minimum; U7 a `.contentMinSize` window follows its content. The
-  drawn alert, `Divider` and the menu picker's looks are not listed because
-  they do not exist.
+  c2b8f48 HEAD`): **0 differing pixels and `scene identical` in all fourteen**,
+  taken at `1ac200e` (lanes 1 and 2), re-taken by the lane-3 verifier at
+  `7ca929d` with every control matching (light vs dark 1048576, default vs
+  modal 1031003, default vs animation 454895, f0 vs f3 0).
+  `DemoFrameDeterminismTests`' `Expected.swift` is unedited since `c2b8f48`
+  (Linux/Windows CI confirm on push). The lane-3 demo content is behind
+  `METALUI_SERVICES_DEMO`, so no existing image changes.
+- **The demo**: `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` and the same
+  flag on `MetalUISDLDemo` (§1). It is the only running-window exercise of a
+  dialog, an alert, hover, `Divider` and the menu picker beside the tests.
+- **The real-window capture was not taken** (the lock probe was not run by
+  this phase; the group-U looks need a person and, for the sheets, an active app).
+- **Owed — `docs/verification/human-checks.md` group U (U1–U12), none
+  performed (an agent cannot)**: U1 the open panel is a sheet on the window,
+  filtered, returning on both Cancel and Open; U2 the save panel's name,
+  extension and prompt; U3 Linux and Windows desktop dialogs and the main-queue
+  drain; U4 the `NSAlert` sheet's order, Escape and Return (with the app
+  active — `SV-X` measured headless); U5 hover un-highlights on leaving the
+  tile and the window, and the top tile only over an overlap; U6 dragging a
+  window edge stops at the declared minimum; U7 a `.contentMinSize` window
+  follows its content; **U8 the SDL drawn alert (scrim, panel, ring, keys,
+  modality); U9 the AppKit menu picker's native menu and VoiceOver pop-up
+  button; U10 the SDL drawn picker menu scrolling; U11 the `Divider` hairline in
+  light and dark; U12 the demo's dialogs and hover on both platforms.**
 
 ## §8 Hazards
 
@@ -318,12 +438,25 @@ measured here**.
   keeps `mui_window_set_size_limits`' lift-then-set order.
 - **`PresentationScope`'s group layout is `LifecycleScopeLayout`**; a change to
   one moves both.
+- **The widths cache is window-owned** (`Window.pickerTitleWidths`), never on
+  the `PickerScope` (re-created every build, `SV-AK` item 5).
 - **Handlers is 472 bytes**; the next member moves three pins (`SV-AH` item 1).
-- **`Window.drawnAlert` is held and never painted on SDL**: an `.alert`
-  presented there is never shown, so nothing can answer it — its `isPresented`
-  binding stays `true` until the app sets it from elsewhere (not
-  run on SDL by this phase; read from `SV-AH` item 5, which says nothing is
-  painted). Do not ship an `.alert` to an SDL user before lane 3.
+- **An `.alert`'s builder closures run off the main thread in a stack-budget
+  test**: the non-presenting forms call them while building (`SV-AH` item 7),
+  and a main-actor closure called off the main thread traps under Swift 6's
+  dynamic isolation check (`.signal(SIGTRAP)` in
+  `everyProductionTreeBuildsOnAOneMegabyteThread`, bisected to
+  `Button.alert(…) { } message: { }` alone). The demo's alert is therefore in a
+  `Component` built at layout (`SV-AK` item 7).
+- **A debug frame reserves a slot per temporary for the whole function**: five
+  section builds written into `buildEveryProductionTree()` overflowed the
+  `swift:6.4-noble` container's stack (`SIGSEGV`) although each passes alone;
+  they are built in their own `@inline(never)` function. A new demo section goes
+  in its own function (`SV-AK` item 7).
+- **`Divider`'s axis is a `Frame` stack read only by layout**: a new linear
+  container owes a `withStackAxis` push (or `nil`) around its children's
+  requests, or a `Divider` inside it inherits the enclosing stack's axis
+  (`V5`/`V6` in §6 show `Column` and `Grid` are unpinned).
 - **Cost of the drain** (`SV-H`): at most one main-queue pass per loop
   iteration; a frame depends on none of it.
 
@@ -337,27 +470,23 @@ measured here**.
   against source here; this phase added the record, the spec's Status, the
   README rows, `CLAUDE.md`/`AGENTS.md`, record §03's looks and
   `human-checks.md` group U.
-- **Divergences: 92 → 94 live; next label 130.** Labels 127 and 128 were
-  reserved for lane 3 (`Divider` in a stack; the menu picker) and are **unused**
-  — a retired label is never reused, a reserved one is not retired; lane 3
-  takes them or releases them in its own change.
+- **Divergences: 92 → 96 live; next label 130.** Lane 3 took the labels the
+  first Record phase reserved: **127** `Divider`'s colour (`SV-O` item 4) and
+  **128** a menu picker's non-`Text` option (`SV-P` item 3); **81** narrowed
+  (`.pickerStyle(.menu)` offered, the automatic style still segmented). The
+  list is `docs/divergences.md`; the section is record §04's
+  "2026-10-06: 127 and 128 added, 81 narrowed".
 
 ## §10 Deferrals, with owners
 
-- **Lane 3, entire — owner: the next session on this branch.** `AlertPanel.swift`
-  (paint, the modal input stage, the accessibility record, calling
-  `chooseAlertButton`), tests 2.26–2.32 and 2.53's alert half; `Divider()` as a
-  view and the stack-axis environment (`SV-O`; the user's 13 `Divider`s);
-  `.pickerStyle(.menu)` (`SV-P`, `SV-AA`; hundreds of options, divergence 81's
-  `aMenuPickerStyleIsNotOffered` → `aMenuPickerStyleCompiles`); the scrolling
-  in-window menu (`SV-Q`); `METALUI_SERVICES_DEMO`, `ServicesDemo.swift`, the
-  `DemoStackBudgetTests` entry and `Backends/SDL`'s demo; the probes' remaining
-  readings; divergences 127/128. **Until it lands, an SDL app has no visible
-  alert.**
-- **Lane 2's mutations** (§5): the behavioural tests were never mutated —
-  the branch check ran two (§11: MC.1 reddens one test, **MC.2 survived**, so a
-  scope leaving the tree while presented is unpinned). Owner: the lane-3
-  session, as its first step, starting with MC.2's missing test.
+- **Lane 3's seven unpinned claims** (§6): V10, V9, V5/V6, V1/V3, V7. Owner:
+  the next session on this branch; each is a test and a re-run of its
+  mutation.
+- **Lane 2's remaining mutations** (§5): `updateHover`'s full ranking and the
+  draggable half of the hover strip. Owner: the same session. (MC.2, the scope
+  leaving the tree, is pinned by 2.4c.)
+- **Native `NSMenu` placement over the picker button** (SwiftUI's pop-up
+  placement; `SV-P` item 4 opens below it, human check U9). Owner: none.
 - **`.task(perform:)` / `.task(id:)`**: its blocker is removed (`SV-H`), the
   modifier is a lifecycle follow-up with `K1`/`K2`'s semantics. Owner: the
   gpui-gap priority list.
@@ -373,9 +502,13 @@ measured here**.
 - **Linux/Windows CI** confirm on push: the C-enum conversions, the
   `Backends/SDL` dialog and limit tests on Vulkan/D3D12, and
   `DemoFrameDeterminismTests`.
-- **The human looks**: group U (§7). An agent cannot perform them.
+- **The human looks**: group U, U1–U12 (§7). An agent cannot perform them.
 
-## §11 Branch check (adversarial, at `9f97427`)
+## §11 Branch check (adversarial, at `9f97427`; lanes 1 and 2 only)
+
+Taken before lane 3 existed. Its counts (2503) and its "unbuilt" citations
+are superseded by §3 and the table in the status block; MC.2's survivor is
+closed by 2.4c (§5).
 
 Run from the committed tree, each mutation restored from a copy with
 `git status --short` clean after it.

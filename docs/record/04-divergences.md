@@ -2268,6 +2268,8 @@ and `onChange(of:perform:)`, `onReceive`, `scenePhase` and menu-content lifecycl
 
 ## 2026-10-05: 126 and 129 added, 120 amended; 94 live, next label 130 (platform services, lanes 1 and 2)
 
+*(Lane 3 followed: the next section.)*
+
 Record §77; rulings `SV-L`, `SV-E`, `SV-K`; the published list is
 `docs/divergences.md`. Not a plan task — user request 2026-10-02. Labels 127
 and 128 are **reserved** for the unbuilt lane 3 (the spec's divergence table: 127 `Divider`'s colour, `SV-O`;
@@ -2297,3 +2299,28 @@ selection and the dialog-customisation modifiers (`SV-C`, `SV-W`),
 non-`Text` label in an alert (`SV-I` item 2, `SV-AD` item 3) and
 `onContinuousHover(coordinateSpace:)` beyond `.local` (`SV-N` item 1). Live
 count **92 → 94**, next label **130**.
+
+## 2026-10-06: 127 and 128 added, 81 narrowed; 96 live, next label 130 (platform services, lane 3)
+
+Record §77; rulings `SV-O`, `SV-P`, `SV-AK`; the published list is
+`docs/divergences.md`. The labels the previous section reserved are taken.
+**Added, kept:**
+
+- **127** — `Divider()`'s colour: SwiftUI's is black (light) or white (dark) at
+  alpha 0.098 over whatever lies beneath (probe `swiftui-platform-services.swift`
+  `V12`, `V13`), 1 point across; MetalUI's is the theme's opaque `.separator`
+  token (`0xC8CDD6` light, `0x3A4260` dark), the menus' separator colour, also 1
+  point. Pin `aDividerPaintsTheSeparatorTokenOnePointThick` (4.7).
+- **128** — a menu `Picker`'s option whose content is not a `Text`: SwiftUI draws
+  the option's own view (`P1`–`P3`); a menu item carries a string only
+  (`PlatformMenuItem.title`) and options are recorded without being laid out, so
+  the option is titled `String(describing: tag)`. Pin
+  `aNonTextMenuOptionIsTitledByItsTag` (5.10).
+
+**Narrowed:** **81** — `.pickerStyle(.menu)` is now offered; only the
+*automatic* style differs (segmented where SwiftUI's is a pop-up menu). Pins
+`theAutomaticPickerStaysSegmented` (5.11) and `aMenuPickerStyleCompiles`
+(5.G13, which replaced `aMenuPickerStyleIsNotOffered`). "Not built" lines 178
+and 179 of `docs/divergences.md` lost `.pickerStyle(.menu)`, `Picker` in a menu,
+`Divider` as a view in a stack and the scrolling menu. Live count **94 → 96**,
+next label **130**.
