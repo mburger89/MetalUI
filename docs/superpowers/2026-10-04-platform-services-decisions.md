@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AI`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AJ`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1181,3 +1181,33 @@ refutes a line above, that line stands corrected by this one.
 
 **Cost if wrong.** Item 2: a future reader that wants the whole handler set
 from the opaque hitbox must not read `hover` there — the hover region holds it.
+
+## SV-AI — Lane 2's guard mutations (measured)
+
+**Ruling.** Each new typecheck guard of lane 2 (2.G5–2.G11) was mutated red
+once on `feat/platform-services` at `8ee6d13`: the mutation applied (the
+spelling below), the whole unfiltered suite run (`swift build --build-system
+native --build-tests && swift test --build-system native --no-parallel`), the
+file restored from a copy and `git status --short` read clean. Baseline
+**2503 tests in 3 suites passed**, the `FR-J no-argument frame: succeeded=`
+line and all seven guards' log lines present (none skipped). Each mutant
+failed the run with exactly one issue, in the guard named:
+
+| # | Mutation (site) | Reddened |
+|---|---|---|
+| MG2.5 | `@_spi(AlertInternals)` dropped from both `_AlertButtons` and the `AlertActions` requirement (`Alert.swift`) — the fabricated conformance compiles | `anOutsideTypeCannotConformToAlertActions` |
+| MG2.6 | `extension Button: AlertActions` with no `where Label == Text` (title read through `as? Text`) — the `Box`-labelled action compiles | `aNonTextButtonIsNotAnAlertAction` |
+| MG2.7 | fixture: the first importer's `allowedContentTypes:` → `contentTypes:` | `thePresentationSpellingsTypecheckFromAnExternalModule` |
+| MG2.8 | fixture: the negative's `.onClick {}` moved before `.alert` | `aLegacyDecorationAfterAPresentationModifierDoesNotCompile` |
+| MG2.9 | `EnvironmentValues.fileDialogs` `public internal(set)` → `public` | `fileDialogsIsReadOnlyOutsideMetalUI` |
+| MG2.10 | an added `confirmationDialog(_:isPresented:titleVisibility:actions:)` overload and a public `Visibility` enum (`Alert.swift`) | `titleVisibilityIsNotOffered` |
+| MG2.11 | fixture: `.onContinuousHover { phase in` → `.onContinousHover` | `onHoverTypechecksOnBothVocabularies` |
+
+Dropping the SPI from `_AlertButtons` alone was not run as a separate arm:
+MG2.5 measures the spelling the guard's doc comment names ("make the
+requirement public"). The negative arm of 2.G10 reads either "extra arguments
+at positions #3, #4" or "generic parameter 'A' could not be inferred" from run
+to run; the guard checks success only, so both are a refusal.
+
+**Cost if wrong.** None to the code; a guard here that a later change makes
+unable to fail is caught only by re-running its row.
