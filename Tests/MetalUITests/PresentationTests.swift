@@ -194,6 +194,41 @@ func psTemporaryDirectory() throws -> URL {
     withExtendedLifetime(window) {}
 }
 
+/// **2.4b** (`SV-G` item 5, review fix). A stale answer never reaches the
+/// request in flight after it: dialog A is dismissed, dialog B is presented,
+/// and A's late answer — SDL cannot close A — leaves B in flight with nothing
+/// run; B's own answer then lands. Mutation `P5`: drop `inFlight.token ==
+/// result.token` from `handleFileDialogResult` (A's answer completes B).
+@MainActor
+@Test func aStaleDialogAnswerNeverReachesTheNextRequest() throws {
+    let m = PSModel()
+    m.shown = true
+    let (window, platform) = try psWindow {
+        Column {
+            psLeaf().fileImporter(isPresented: m.binding, allowedContentTypes: [.json],
+                                  allowsMultipleSelection: false) { _ in m.log.append("completion") }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let a = try #require(platform.presentedFileDialogs.first)
+    m.shown = false
+    window.drawFrameIfNeeded()
+    try #require(platform.dismissedPresentations == [a.token])
+    m.shown = true
+    window.drawFrameIfNeeded()
+    try #require(platform.presentedFileDialogs.count == 2)
+    let b = platform.presentedFileDialogs[1]
+    try #require(b.token != a.token)
+    psDeliver(platform, a.token, .chosen(["/tmp/stale.json"]))
+    #expect(m.log.isEmpty, "A's answer runs nothing: \(m.log)")
+    #expect(m.shown == true)
+    #expect(window.presentations.inFlight?.token == b.token, "B is still in flight")
+    psDeliver(platform, b.token, .chosen(["/tmp/b.json"]))
+    #expect(m.log == ["isPresented=false", "completion"])
+    #expect(window.presentations.inFlight == nil)
+    withExtendedLifetime(window) {}
+}
+
 /// 2.5's tree: an importer logging its failures into the model.
 @MainActor func psFailureTree(_ m: PSModel) -> some Element {
     Column {

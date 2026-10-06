@@ -195,6 +195,33 @@ private let a1Buttons = [PlatformAlertButton(title: "Delete", isDestructive: tru
     withExtendedLifetime(window) {}
 }
 
+/// **2.23b** (`SV-I` item 4, review fix). A stale alert answer never reaches
+/// the alert presented after it: A is dismissed, B is presented, A's late
+/// answer runs nothing and B's own answer lands. Mutation: drop `token ==
+/// result.token` from `handleAlertResult` (A's answer runs B's "Delete").
+@MainActor
+@Test func aStaleAlertAnswerNeverReachesTheNextAlert() throws {
+    let m = ALModel()
+    m.shown = true
+    let (window, platform) = try alWindow { a1Tree(m) }
+    window.drawFrameIfNeeded()
+    let a = try #require(platform.presentedAlerts.first)
+    m.shown = false
+    window.drawFrameIfNeeded()
+    try #require(platform.dismissedPresentations == [a.token])
+    m.shown = true
+    window.drawFrameIfNeeded()
+    try #require(platform.presentedAlerts.count == 2)
+    let b = platform.presentedAlerts[1]
+    try #require(b.token != a.token)
+    platform.simulateInput(.alertResult(AlertResultEvent(token: a.token, button: 0)))
+    #expect(m.log.isEmpty, "A's answer runs nothing: \(m.log)")
+    #expect(m.shown == true)
+    platform.simulateInput(.alertResult(AlertResultEvent(token: b.token, button: 1)))
+    #expect(m.log == ["isPresented=false", "cancel"])
+    withExtendedLifetime(window) {}
+}
+
 @MainActor private func presentingNilTree(_ m: ALModel) -> some Element {
     Column {
         psLeaf().alert("Delete?", isPresented: m.binding, presenting: m.data) { item in

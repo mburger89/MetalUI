@@ -408,3 +408,32 @@ private struct HVCounter: Component {
     #expect(m.log == ["top true", "top false", "beneath true"])
     withExtendedLifetime(window) {}
 }
+
+/// **2.44b** (`SV-N` item 3, review fix). A region's membership needs the
+/// point inside it, not only a cover that descends from it: an opaque child
+/// drawn outside its `.onHover` parent (offset 60 past its 40 × 40 bounds)
+/// covers the pointer at (160, 100), and the parent hears nothing there; over
+/// its own bounds it hovers. Mutation `V9`: drop `region.contains(point)` from
+/// `Window.updateHover` (the parent hears `true` at (160, 100)).
+@MainActor
+@Test func aCoverDrawnOutsideItsHoverAncestorDoesNotHoverTheAncestor() throws {
+    let m = HVModel()
+    let (window, platform) = try hvWindow {
+        Box {
+            Box().frame(width: px(40), height: px(40)).background(.accent)
+                .onClick { m.log.append("click") }
+                .offset(x: px(60))
+        }
+        .frame(width: px(40), height: px(40))
+        .onHover { m.log.append("parent \($0)") }
+    }
+    try #require(hoverRegions(window).count == 1)
+    let child = try #require(window.lastHitboxes.first { $0.opaque && $0.handlers.hover == nil })
+    try #require(child.contains(pt(160, 100)) && !child.contains(pt(100, 100)),
+                 "the child's hitbox follows its offset")
+    platform.simulateInput(mv(160, 100))
+    #expect(m.log.isEmpty, "the cover lies outside the parent's region: \(m.log)")
+    platform.simulateInput(mv(100, 100))
+    #expect(m.log == ["parent true"], "over its own bounds the parent hovers: \(m.log)")
+    withExtendedLifetime(window) {}
+}

@@ -1494,7 +1494,10 @@ public final class Frame {
         // hitbox so it ranks above it — inside the disabled gate, the
         // `allowsHitTesting` gate and `hidden()`. A frame with no hover
         // attachment registers nothing here, so every other tree's hitbox list
-        // is unchanged (spec test 2.55).
+        // is unchanged (spec test 2.55). The `keyboardHiddenDepth` clause is
+        // belt-and-braces: `disablingHitTestingIfHidden` also opens a
+        // hit-testing-disabled scope, so the `hitTestingDisabledDepth` clause
+        // already withdraws a hidden region (mutation `V1`, equivalent).
         if let hover = handlers.hover, enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
             var only = Handlers()
             only.hover = hover
