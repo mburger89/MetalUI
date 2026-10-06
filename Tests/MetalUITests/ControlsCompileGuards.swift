@@ -65,14 +65,16 @@ func theControlsSwiftUISpellingsCompileFromOutsideTheModule() throws {
     #expect(!control.succeeded, "a plain Bool is not a binding:\n\(control.output)")
 }
 
-/// **G1.2 — `.pickerStyle(.menu)` is not offered** (`DD-V` item 4, divergence
-/// 81): the menu style fails to typecheck, where the same picker with
-/// `.segmented` succeeds (control).
+/// **G1.2 → 5.G13 — `.pickerStyle(.menu)` compiles** (`SV-P` item 1,
+/// divergence 81 narrowed). It replaces `aMenuPickerStyleIsNotOffered` (`DD-V`
+/// item 4), which reddened when `.menu` landed — its flip. The menu style
+/// typechecks from a plain `import MetalUI`; `.inline`, still not offered, is
+/// the separating arm that proves the fixture can fail.
 ///
-/// Mutation that must redden it (MG1.2): `public static let menu` added to
-/// `PickerStyle`.
+/// Mutation that must redden it (MG3.13): remove `public static let menu`
+/// from `PickerStyle`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aMenuPickerStyleIsNotOffered() throws {
+func aMenuPickerStyleCompiles() throws {
     func source(_ style: String) -> String {
         """
         @MainActor func picker(_ selection: Binding<Int>) -> some Element {
@@ -84,13 +86,13 @@ func aMenuPickerStyleIsNotOffered() throws {
         """
     }
     let menu = try typecheckFile(source("menu"), importing: "MetalUI")
-    print("CONTROLS GUARD G1.2 menu: succeeded=\(menu.succeeded)\n\(menu.messages)")
-    let control = try typecheckFile(source("segmented"), importing: "MetalUI")
-    print("CONTROLS GUARD G1.2 control: succeeded=\(control.succeeded)\n\(control.messages)")
+    print("CONTROLS GUARD 5.G13 menu: succeeded=\(menu.succeeded)\n\(menu.messages)")
+    let control = try typecheckFile(source("inline"), importing: "MetalUI")
+    print("CONTROLS GUARD 5.G13 control: succeeded=\(control.succeeded)\n\(control.messages)")
 
     try #require(menu.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(menu.output)\n\(control.output)")
-    #expect(!menu.succeeded, "`.menu` must not be offered:\n\(menu.output)")
-    #expect(menu.messages.contains("menu"), "rejected for the missing member:\n\(menu.output)")
-    #expect(control.succeeded, "`.segmented` is offered:\n\(control.output)")
+    #expect(menu.succeeded, "`.menu` is offered:\n\(menu.output)")
+    #expect(!control.succeeded && control.messages.contains("inline"),
+            "`.inline` is not offered:\n\(control.output)")
 }

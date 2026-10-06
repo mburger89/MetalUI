@@ -33,6 +33,7 @@ private func buildEveryProductionTree() {
     _ = dragAndDropDemoContent()
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     _ = menusDemoContent()
+    _ = servicesDemoContent()   // platform services (SV-T, spec test 6.1)
 }
 
 /// Windows' default thread stack size.
