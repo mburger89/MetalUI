@@ -1318,7 +1318,11 @@ corrected by this one.
    the whole tree at run-time size. Each section is now a `ServicesPart`
    `Component` (a closure), its body built by the window at layout; the budget
    test builds the tree and each body (`@testable import`), every one passing on
-   the 1 MB thread (the tree alone at 128 KB).
+   the 1 MB thread (the tree alone at 128 KB). In the `swift:6.4-noble`
+   container those five builds written into `buildEveryProductionTree()`
+   itself overflowed it (`.signal(SIGSEGV)`) although each passes alone on a
+   256 KB thread there: a debug frame reserves a slot per temporary for the
+   whole function, so they are built in their own `@inline(never)` function.
 8. **Test-side facts**: `.textSecondary` named in spec 4.7's mutation does not
    exist; the mutation is `.textPrimary`. No public modifier reaches
    `TaggedElement`'s single-element entry, so 5.9 reaches it through a
