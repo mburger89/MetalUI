@@ -145,6 +145,15 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   `c2b8f48`: root 311 (Linux's minus the compiled-out legacy-symbol test),
   PortableTests 32, `Backends/SDL` 24 + 62 (three are macOS-only), replay 8/8
   on WARP.
+  **x64 (CI's architecture) runs there under emulation**: `--build-system
+  native --triple x86_64-unknown-windows-msvc --scratch-path .build-x64` —
+  **the default build system ignores `--triple` and silently emits ARM64**
+  (check the PE machine reads `8664`). Running needs the x64 Swift runtime,
+  extracted from `Redistributables\6.4.0\rtl.shared.amd64.msm` (`MsiDb.exe -x
+  MergeModule.CABinet` under `Start-Process -Wait`, then `expand`), plus the
+  SDK's `Testing-6.4.0\usr\bin64` and `XCTest-6.4.0\usr\bin64` first on
+  `PATH`, SDL's `lib\x64` and AccessKit's `x86_64` library passed by hand.
+  Same counts and pixel deltas as ARM64 on `c2b8f48`.
 
 ### Targets and import rules (each fails silently on macOS)
 
