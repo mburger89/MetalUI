@@ -555,3 +555,60 @@ up and its answer later runs the departed scope's completion from the stale
 `presented` record. Owed: a test removing the scope while presented, asserting
 one `dismissedPresentations` entry and that a late answer runs nothing — before
 merge, with the lane-2 mutation table (§10).
+
+## §12 Branch check (adversarial, at `1b141a4`; the finished branch)
+
+Run from the committed tree; each mutation restored from a copy, `git status
+--short` showing only this section's doc edits after it.
+
+- **Suite** (`swift package clean`, native build, unfiltered `--no-parallel`):
+  `Test run with 2546 tests in 3 suites passed after 142.556 seconds`;
+  `FR-J no-argument frame: succeeded=true`; 0 `error:`, the only `warning:`
+  SwiftPM's `--build-system native` deprecation. `swift build --build-tests`
+  (default build system): 0 `warning:`. `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  and `theSevenRetentionSlotsAreMutuallyDistinct` green. `cmp CLAUDE.md
+  AGENTS.md` equal; `closeout-inventory-check.sh` and
+  `closeout-undocumented.sh` print nothing. `MetalUILayout` imports only
+  `MetalUICore`, `MetalUIScene` only `MetalUIShaderTypes`.
+- **Guards**: 163 — the 12 new are the 7 of `PresentationCompileGuards`, the 4
+  of `PlatformServicesCompileGuards` and `aDividerIsBothAMenuItemAndAnElement`.
+- **Divergences**: 96 rows under `## Live` in `docs/divergences.md`, no label
+  twice; next label 130 — agrees with `CLAUDE.md`.
+- **Demo pixels** (`compare.sh <scratch> c2b8f48 HEAD`, HEAD `1b141a4`): every
+  control non-zero where it must be, all 14 images `differing=0`, `scene
+  identical`.
+- **`Backends/SDL`**: macOS 24 + 77; the Linux image (`swift:6.4-noble`,
+  offscreen driver, fresh scratch volume) 24 + 74, the two lifecycle
+  presented-frame tests skipped by design. Its three `warning:` lines are the
+  `sdl` pkg-config flag notice and `AccessKitControlsParityTests.swift:83`'s
+  `try` — a file this branch does not touch.
+- **Citations**: every `SV-` id cited in a changed file resolves to a `## SV-`
+  heading (`SV-AM` is only the next-unused mark); the other prefixes' ids that
+  resolve to no heading (`AI-O`, `CR-AC`, `GX-X`, `LC-W`, `MN-AJ`, `MV-S`,
+  `SC-J`) are each cited only as a "next" mark. The long backticked
+  identifiers in added doc lines that name no test or symbol are
+  pre-existing citations, plus `fileDialogDefaultDirectory`, a SwiftUI
+  modifier name, not a test.
+- **Identity, hit testing, accessibility, animation**: the pre-existing test
+  files edited are `AccessibilityModifierTests` and `ContextMenuTests`
+  (`Handlers`' size 464 → 472, `SV-AH`), `ModifierTests`/
+  `OuterModifierMatrixTests` (the `hover` field, `ModifierCase` 55 → 57),
+  `DisabledTests` and `HitRegionTests` (hover arms added), `ControlsCompileGuards`
+  and `MenuCompileGuards` (the two flipped guards), `DemoStackBudgetTests` (the
+  services demo's frame) and four compile-guard files' fixture fakes; no
+  assertion in the identity, focus, `List`, animation or accessibility
+  families changed.
+- **Probe defect fixed**: `swiftui-platform-services.swift`'s `V10` prints
+  "in Group in HStack", but its arm has no `HStack` (a `Group` at the root); its
+  READING now says so. No ruling cites `V10`.
+
+**Two mutations of the checker's design**, full unfiltered suite each:
+
+| # | Mutation | Reddened |
+|---|---|---|
+| MC.3 | `Window.updateHover`: the membership clause `region.layer == top.layer` removed (a hover region on a lower layer whose id is an ancestor of the cover's hovers through a popover) | `aHigherLayerCoversHoverBeneath` only — 2546 tests, 1 issue |
+| MC.4 | `AlertButtons.resolve`: `hasDestructive ? nil :` removed from `defaultIndex` (`SV-X`: a destructive button no longer suppresses the Return default) | `alertButtonsResolveSwiftUIsOrderAndKeys` (`AlertTests.swift:70`) and `returnPressesTheDefaultAndEscapeTheCancelOnTheDrawnAlert` (`AlertPanelTests.swift:228`, `:230`) — 2546 tests, 3 issues. `AppKitPresentationTests`' key-equivalent test stays green: it builds its `PlatformAlertButton`s by hand, so it pins the bridge, not the resolver |
+
+**Verdict**: no code defect found by this check; mergeable once the owed
+items stay as recorded (§6's seven unpinned lane-3 claims with owners, human
+checks U1–U12, no real-window capture taken).

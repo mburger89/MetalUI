@@ -247,6 +247,10 @@
 //   1x10). 1 point is 2 device pixels at 2x (V12). Colour: black at alpha
 //   25/255 (≈ 0.098) in light, white at the same alpha in dark (V12) —
 //   NSColor.separatorColor's alpha (V13). Not in the accessibility tree (V15).
+//   V10's printed label says "in HStack", but its arm (case 10) has no HStack —
+//   a Group at the root — so it is a second no-stack arm (horizontal, 10 long
+//   under fixedSize), not an HStack arm; no ruling cites it (branch check,
+//   record §77).
 // - P: a `.menu` picker is the automatic one on macOS (P0 = P1): an
 //   AXPopUpButton whose value is the selected option's title, labelled by a
 //   sibling static text (the title) or, under labelsHidden, by its own label
