@@ -5,7 +5,7 @@ the menu `Picker` (user request 2026-10-02, an item of the gpui-gap priority
 list — the SMK configurator port's gaps 4, 5, 7, 8, 9, 10 and 12; **not a plan
 task**). Spec:
 [`specs/2026-10-04-platform-services-design.md`](specs/2026-10-04-platform-services-design.md).
-Record: `../record/77-platform-services.md` (Record phase). Evidence (all new,
+Record: `../record/77-platform-services.md`. Evidence (all new,
 outputs and readings in their headers):
 [`../probes/swiftui-platform-services.swift`](../probes/swiftui-platform-services.swift)
 (arm ids `D…` the importer, `X…` the exporter, `A…`/`C1` alerts and the

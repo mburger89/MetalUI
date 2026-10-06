@@ -1958,3 +1958,18 @@ ends, not on the click, and a press during the fade brings the tile back with no
 count; T2 ten presses of the plain tile leave the appear and disappear counters
 equal, the bars equal and the window idle, and the stepper's + three times reads
 3.
+
+## 2026-10-05: platform services (record §77) — looks owed
+
+Lanes 1 and 2 only; lane 3 (the drawn alert, `Divider` as a view, the menu
+picker, the demo) was never built. No demo file changed, so the fourteen
+offscreen images are measured against `c2b8f48` in record §77 §7. The real-window
+capture was **not taken** and the lock probe was not run: there is no demo that
+shows a dialog, alert or hover. **Owed, new here —
+`docs/verification/human-checks.md` group U, none performed (an agent
+cannot)**: U1 the open panel as a sheet; U2 the save panel's name and prompt;
+U3 the Linux/Windows desktop dialogs and the main-queue drain; U4 the `NSAlert`
+sheet's order and keys (Return with the app active); U5 hover un-highlighting
+on leaving a tile and the window; U6 window limits on both platforms; U7 a
+content-following minimum. SwiftUI's hover was never measured (probe `H` is a
+broken instrument).

@@ -1,6 +1,6 @@
 # Platform services — dialogs, alerts, window sizing, hover, Divider, menu Picker — design
 
-**Status: DESIGNED (2026-10-03) — not yet implemented.** User request
+**Status: PARTIALLY IMPLEMENTED (2026-10-05) — lanes 1 and 2 landed, lane 3 (§4's drawn alert, `Divider`, menu picker, scrolling panel; §7 demo; §9's U-checks that need them) was not built.** Record `docs/record/77-platform-services.md`. (Designed 2026-10-03.) User request
 2026-10-02, an item of the gpui-gap priority list (the SMK configurator port's
 gaps 4, 5, 7, 8, 9, 10 and 12); **not a plan task**. Rulings `SV-A`…`SV-AD` (the critic pass's corrections `SV-X`…`SV-AD`, applied below) in
 [`../2026-10-04-platform-services-decisions.md`](../2026-10-04-platform-services-decisions.md).
