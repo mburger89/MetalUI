@@ -132,6 +132,19 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   AccessKit's C bindings, fetched not vendored (`AX-A`): run
   `python3 Backends/SDL/scripts/fetch-accesskit.py` once, then build/test with
   `PKG_CONFIG_PATH=$PWD/.accesskit`. macOS CI does not run its tests.
+- **Windows locally: the UTM VM** (Windows 11 ARM64, where the machine has
+  one; `ssh metalui-win`, PowerShell — `utmctl exec` does not work, ARM64 guest
+  tools ship no `qemu-ga`). It runs the CI Windows jobs' commands with SDL's
+  `lib\arm64` and AccessKit's ARM64 prebuilt. **Clone with `git clone -c
+  core.symlinks=true`** — the shader header is a git symlink and a plain clone
+  fails at its line 1. **SDL window tests, `PortableReplay` and `DemoCapture`
+  fail over SSH** (session 0, DXGI `0x887A0022`): run them in the console
+  session through a temporary `-LogonType Interactive` scheduled task, then
+  unregister it. Scripts copied to it are ASCII-only (PowerShell 5.1). Fixtures
+  come from `swift run Replay --portable --record` on the Mac. Baseline on
+  `c2b8f48`: root 311 (Linux's minus the compiled-out legacy-symbol test),
+  PortableTests 32, `Backends/SDL` 24 + 62 (three are macOS-only), replay 8/8
+  on WARP.
 
 ### Targets and import rules (each fails silently on macOS)
 
