@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AJ`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AK`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1211,3 +1211,38 @@ to run; the guard checks success only, so both are a refusal.
 
 **Cost if wrong.** None to the code; a guard here that a later change makes
 unable to fail is caught only by re-running its row.
+
+## SV-AJ — Lane 2's review fixes: hover's contains clause, stale presentation answers, `V1` equivalent (amends `SV-N` item 3, `SV-G` item 5, `SV-I` item 4)
+
+**Ruling.** Three review findings against lane 2, each answered red-first on
+`feat/platform-services` (tests at `7ba4d63`). Every mutation below was applied
+to the committed tree, the whole unfiltered suite run (`swift build
+--build-system native --build-tests && swift test --build-system native
+--skip-build --no-parallel`), the file restored from a copy and `git status
+--short` read clean. Baseline **2506 tests in 3 suites passed** (2503 + the
+three arms below), `FR-J no-argument frame: succeeded=true`, 0 `error:`.
+
+| # | Mutation (site) | Reddened |
+|---|---|---|
+| V9 | `region.contains(point), ` dropped from `Window.updateHover` (`Hover.swift`) | `aCoverDrawnOutsideItsHoverAncestorDoesNotHoverTheAncestor` only (1 issue). Before the arm: survived, 2503 passed |
+| P5 | `, inFlight.token == result.token` dropped from `handleFileDialogResult`'s guard (`Presentations.swift`) | `aStaleDialogAnswerNeverReachesTheNextRequest` only (3 issues). Before the arm: survived, 2503 passed |
+| PA | `token == result.token` → `true` in `handleAlertResult`'s guard (`Presentations.swift`) | `aStaleAlertAnswerNeverReachesTheNextAlert` only (3 issues; not run before the arm) |
+| V1 | `keyboardHiddenDepth == 0` dropped from the hover registration (`Frame.swift`) | **equivalent** (the reviewer's run: 2503 passed). `Frame.disablingHitTestingIfHidden` opens a hit-testing-disabled scope as well, so `keyboardHiddenDepth > 0` implies `hitTestingDisabledDepth > 0`; the clause is kept as belt-and-braces and says so in its comment — as `SV-AF` recorded M2.41 |
+
+1. **`SV-N` item 3's "contains the point" is pinned** (test 2.44b): an
+   `.onHover` parent whose `.onClick` child is offset 60 past the parent's
+   40 × 40 bounds; at (160, 100) the child's transformed hitbox is the cover
+   and descends from the parent, and the parent hears nothing; at (100, 100)
+   it hears `true`.
+2. **`SV-G` item 5's stale-token rule is pinned for a request in flight**
+   (test 2.4b): dialog A is dismissed by `isPresented = false`, dialog B is
+   presented, A's late answer leaves B in flight with nothing run, and B's own
+   answer then lands. 2.4 covered only a late answer with nothing in flight,
+   which the `inFlight == nil` path already refuses. The awaiting-call variant
+   shares the guard and was not given its own arm.
+3. **`SV-I` item 4's alert path has the same arm** (test 2.23b).
+
+**Cost if wrong.** A stale answer resumes or completes the wrong request (SDL
+cannot dismiss a native dialog, so a late answer is ordinary there); an ancestor
+hovers wherever a descendant is drawn outside it.
+

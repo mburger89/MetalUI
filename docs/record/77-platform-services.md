@@ -244,6 +244,14 @@ from a copy with `git status --short` clean:
 | MG2.10 | an added `confirmationDialog(…titleVisibility:…)` overload and a public `Visibility` | `titleVisibilityIsNotOffered` |
 | MG2.11 | fixture: `.onContinuousHover` → `.onContinousHover` | `onHoverTypechecksOnBothVocabularies` |
 
+**Lane 2's review fixes** (`SV-AJ`, baseline 2506 tests; added after this
+record's Record phase): V9 (hover's `region.contains(point)`) reddens
+`aCoverDrawnOutsideItsHoverAncestorDoesNotHoverTheAncestor`; P5 (the file-dialog
+token check) reddens `aStaleDialogAnswerNeverReachesTheNextRequest`; PA (the
+alert token check) reddens `aStaleAlertAnswerNeverReachesTheNextAlert`; each
+survived (V9, P5) before its arm. V1 (`keyboardHiddenDepth == 0` on the hover
+registration) is equivalent.
+
 **Lane 2's behavioural tests (2.1–2.25b, 2.43–2.57) have no mutation table.**
 No verifier ran, and `SV-AI` covers only the seven guards. This is a hole, not a
 pass: the findings of lane 2 (`SV-AH`) came from implementing and from red
