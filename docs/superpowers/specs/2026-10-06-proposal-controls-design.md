@@ -10,7 +10,7 @@ with reproductions in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-06-proposal-controls-decisions.md`](../2026-10-06-proposal-controls-decisions.md)
-(`PE-A`…`PE-N`). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
+(`PE-A`…`PE-S`; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
 (its header's READING is the authority for every SwiftUI claim here). Record
 (Record phase): `docs/record/78-proposal-controls.md`.
 
@@ -143,7 +143,9 @@ recording `ProposalLayout`, at `e54c3f6`; **bold** where `PE-D` changes it.
 | `Button.disabled(true)` | as `Button` | | | | | |
 
 Every class matches SwiftUI's except the three bold infinite answers
-(`PE-D`). The remaining differences are metrics and below-ideal compression
+(`PE-D`) and `List(selection:)`, which this table omits: SwiftUI's is greedy on
+both axes (`FL14`), MetalUI's answers `rowHeight × count` — divergence 84,
+kept (`PE-Q`; test 1.1 gains the row, measured by the lane). The remaining differences are metrics and below-ideal compression
 (divergences 130, 131) and text widths (divergence 60).
 
 **`FM0`** — MetalUI (today, through the adapter) vs SwiftUI; MetalUI's after
@@ -278,8 +280,8 @@ declaration (`StackMeter` and `ComponentLayout`'s storage are internal).
    ideal. Update each doc comment (Slider's "else 30" is then "30 at nil,
    infinity at an infinite offer (FL6)"). `SliderTests`'
    `aSliderIsGreedyOnTheWidthAndSixteenTall` last arm expects `.infinity`
-   (cite `PE-D`). **Re-take the fourteen images before anything else lands
-   on the lane**; a moved image stops the lane (`PE-D`).
+   (cite `PE-D`). **Moved to lane 2 by `PE-O`** (it runs first and re-takes
+   the fourteen images straight after this change; a moved image stops it).
 4. **`PE-F`**: the seven `ElementGroup` spellings (new file) and
    `Pixels.infinity`.
 5. **Flip the guards** of `PE-H`, each with its new `ProposalFrame` control.
@@ -290,6 +292,12 @@ Nothing in `Sources/MetalUILayout`, `MetalUIScene`, `MetalUIRender`,
 `MetalUIPlatform`, `Backends/SDL` or any shader changes.
 
 ## 4. Implementation — lane 2 (MG-15)
+
+0. **`PE-D` first** (`PE-O`): §3 item 3 exactly, then the fourteen images
+   re-taken before anything else lands; tests 1.9 and 1.23 in
+   `GreedyControlSizingTests.swift` (1.9 measures each control through a test-local copy of
+   `LoweringItemTests`' `LegacyUnderProposal` under a recording layout, and
+   1.23 is a legacy `Row`, so neither waits for lane 1's builder).
 
 1. **`ComponentLayout`** (`PE-J`): `struct Payload { var content: C.Content;
    var contentLayout: C.Content.GroupLayout }`, `final class Storage { var
@@ -310,7 +318,11 @@ Nothing in `Sources/MetalUILayout`, `MetalUIScene`, `MetalUIRender`,
    `withUnsafeMutablePointer(to: &local)`, compared as `UInt` against the
    entry address (the stack grows down on every supported platform; say so in
    the comment). Nested `measuring` calls: the inner returns its own figure
-   and folds into the outer.
+   and folds into the outer. **`PE-P`**: `sample()` asserts no isolation
+   (no `assumeIsolated`, no `dispatchPrecondition`) and counts only on the
+   main thread (`Thread.isMainThread`) inside an open scope —
+   `everyProductionTreeBuildsOnAOneMegabyteThread` runs every builder off
+   the main thread.
 3. **Samples**: every `ElementBuilder` static method; both `Component`
    layout entries (with the type); `Frame.requestNativeLeaf`.
 4. **`Window`**: each frame's build-and-render runs inside
@@ -352,9 +364,9 @@ scratch: measures child 0 at zero, nil×nil, ∞×∞, 200×nil, nil×200, 50×n
 
 | # | test | asserts | red before | mutation that must redden it |
 |---|---|---|---|---|
-| 1.1 | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` | §1.3's table after `PE-D`, row by row (each control inside `ProposalLayoutContainer(Ask())`), values to 0.01; each row's comment cites its FL arm and class | does not compile (legacy content in a proposal container) | M1.1a: `TextField`'s infinite answer reverted → its ∞ arm; M1.1b: `Toggle` label gap +1 → its ideal arm (a non-`PE-D` arm can fail) |
+| 1.1 | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` | §1.3's table after `PE-D`, row by row (each control inside `ProposalLayoutContainer(Ask())`), values to 0.01; each row's comment cites its FL arm and class; plus a `List(rows, rowHeight: 20, selection:)` row pinning MetalUI's measured `rowHeight × count` answers, citing divergence 84 (`PE-Q`) | does not compile (legacy content in a proposal container) | M1.1a: `TextField`'s infinite answer reverted → its ∞ arm; M1.1b: `Toggle` label gap +1 → its ideal arm (a non-`PE-D` arm can fail) |
 | 1.2 | `proposalContentKeepsItsTypeAndLegacyContentIsAdopted` (guard, `typecheckFile`, plain import) | `let _: HStack<Pair<Spacer, Rectangle>> = HStack { Spacer(); Rectangle() }` and `let _: HStack<Pair<LegacyContent<Text>, Spacer>> = HStack { Text("a"); Spacer() }` both typecheck; control: `let _: HStack<LegacyContent<Spacer>> = HStack { Spacer() }` fails | `LegacyContent` does not exist | M1.2: delete the `ProposalElementGroup` `buildExpression` overload → the first line fails |
-| 1.3 | `aSwiftUIVocabularyFormTypechecksWithAPlainImport` (guard) | one file, plain import: an `HStack`/`VStack`/`ZStack`/`Grid`/`GridRow`/`ProposalScrollView`/custom-layout tree holding `Text`, `Button`, `Toggle`, `TextField`, `TextEditor`, `Picker` (three styles), `Slider`, `Stepper`, `Menu`, `List(selection:)`, `Divider`, `Spacer`, an `if`/`else`, a `switch`, a `for`, a `ForEach` and a legacy `Component`; modifiers on controls `.frame(width:)`, `.frame(maxWidth: .infinity)`, `.padding(8)`, `.disabled(true)`, `.help`, `.keyboardShortcut(.defaultAction)`, `.buttonStyle(.plain)`, `.pickerStyle(.segmented)`, `.onHover`, `.layoutPriority(1)`, `.fixedSize()`, `.gridCellColumns(2)`, `.font(.system(size: 11))`; control: the same body inside `ProposalFrame { }` fails naming `ProposalElementGroup` | fails | M1.3: `GridRow` back to `@ElementBuilder` → reddens |
+| 1.3 | `aSwiftUIVocabularyFormTypechecksWithAPlainImport` (guard) | one file, plain import: an `HStack`/`VStack`/`ZStack`/`Grid`/`GridRow`/`ProposalScrollView`/custom-layout tree holding `Text`, `Button`, `Toggle`, `TextField`, `TextEditor`, `Picker` (three styles), `Slider`, `Stepper`, `Menu`, `List(selection:)`, `Divider`, `Spacer`, an `if`/`else`, a `switch`, a `for`, a `ForEach` and a legacy `Component`; modifiers on controls `.frame(width:)`, `.frame(maxWidth: .infinity)`, `.padding(8)`, `.disabled(true)`, `.help`, `.keyboardShortcut(.defaultAction)`, `.buttonStyle(.plain)`, `.pickerStyle(.segmented)`, `.onHover`, `.layoutPriority(1)`, `.fixedSize()`, `.gridCellColumns(2)`, `.font(.system(size: 11))`; control: the same body inside `ProposalFrame { }` fails naming `ProposalElementGroup`; second control (`PE-R`): `Button("x") {}.padding(Edges(all: 8)).buttonStyle(.plain)` fails (a style modifier is written on the control) | fails | M1.3: `GridRow` back to `@ElementBuilder` → reddens |
 | 1.4 | `aLegacyControlTakesTheIDAProposalElementWouldInItsPosition` | in `HStack { Rectangle(); Button("b") {}; Toggle(…) }` the Button's id is `.child(of: hstack, at: 1)` and the Toggle's `at: 2`, exactly the ids two `Rectangle`s take there; a legacy `Component` with `@State` inside a `VStack` keeps its value across three frames and across an `if` toggling a sibling before it | does not compile | M1.4a: `LegacyContent` passes a fresh cursor (`var c = 0`) → ids collide; M1.4b: it enters a group member level → ids shift |
 | 1.5 | `aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt` | `FM0` in SwiftUI's spelling (`VStack(alignment: .leading) { HStack { Text; TextField }; HStack { Toggle; Spacer(); Button }; HStack { Text; Slider }; Picker.pickerStyle(.menu); Divider(); HStack { Stepper; Spacer() } }.padding(Edges(all: 16)).frame(width: 400).fixedSize(horizontal: false, vertical: true)`) at 400×300: §1.3's "after `PE-D`" literals; plus the probe's relations derived from the measured widths (trailing `Button` maxX = 384; `Slider`/`TextField` width = 368 − label width − 8; `Divider` 368); diagnostics report empty (pre-flight `try #require`) | does not compile; at runtime the `Slider` is 180 | M1.5: `Slider`'s `PE-D` reverted → slider 180 |
 | 1.6 | `theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary` | `ST0` as the port would write it (`HStack(spacing: 16) { HStack(spacing: 6) { Circle().frame(width: 7, height: 7); Text("USB Connected") }; Text("Default · 5×14"); Text("4 layers"); Text("fw 1.2.3"); Spacer(); Text("keymap.json — unsaved changes") }.font(.system(size: 11)).padding(Edges(top: 0, right: 16, bottom: 0, left: 16)).frame(maxWidth: .infinity, minHeight: 26, maxHeight: 26)`) at 600×26: §1.3's MetalUI column | does not compile (`Text` in `HStack`, `.infinity`) | M1.6: `LegacyContent`'s typed entry returns `nodes.reversed()` |
@@ -362,10 +374,10 @@ scratch: measures child 0 at zero, nil×nil, ∞×∞, 200×nil, nil×200, 50×n
 | 1.8 | `aPresentationInsideAProposalStackTakesNoSlot` | `HStack { Text("a"); Deferred { Box().position(.absolute).inset(…) }; Text("b") }`: b's minX = a's maxX + 8, and the presentation root is laid out against the window | does not compile | M1.8: drop `droppingPresentations` → b's minX = a's maxX + 16 |
 | 1.9 | `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` | `TextField`/`Slider` at ∞×nil → ∞ wide, ideal at nil; `TextEditor` at ∞×∞ → ∞×∞, at nil → its ideal | red at `e54c3f6` (30, 36.25, 31.95) | M1.9a/b/c: each control's change reverted alone → its own arm |
 | 1.10 | `textInAProposalStackLaysOutAsProposalText` | `HStack { Text(long); Text("b") }` vs the `ProposalText` spelling at 120×100 (wrapping): equal frames element by element; `HStack(alignment: .firstTextBaseline) { Text("A").font(.system(size: 20)); Text("b") }` equal to its `ProposalText` spelling | does not compile | M1.10: `Text.requestLayout` measures with `wrappingAt: nil` → wrapping arm |
-| 1.11 | `aButtonInAProposalStackHasOneHitboxAndActsAsInARow` | in `HStack`, and in `Row` for comparison: one hitbox at the Button's frame; a click runs the action once; Tab focuses it; Space activates; `HStack { … }.disabled(true)` and `Button.disabled(true)` gate the click | does not compile | M1.11: `LegacyContent.prepaintGroup` skips its content → no hitbox (the prepaint half, `OM-AI`) |
+| 1.11 | `aButtonInAProposalStackHasOneHitboxAndActsAsInARow` | in `HStack`, and in `Row` for comparison: one hitbox at the Button's frame; a click runs the action once; Tab focuses it; Space activates; `HStack { … }.disabled(true)` and `Button.disabled(true)` gate the click | does not compile | M1.11 (`PE-S`): `LegacyContent.prepaintGroup` runs its content's prepaint twice (a discarded first call; skipping is unwritable — it must return `Content.GroupPrepaint`) → two hitboxes at the Button's frame (the prepaint half, `OM-AI`) |
 | 1.12 | `aControlInAProposalStackPaints` | the scene holds the Button's chrome rect and its label glyphs at its frame, as in a `Row` | does not compile | M1.12: `LegacyContent.paintGroup` skips its content (the paint half) |
-| 1.13 | `accessibilityRecordsOfControlsAgreeAcrossVocabularies` | with a client active, `HStack { Button("Go"); Toggle("Wi-Fi"); Slider; TextField; Picker }` records the same roles, labels and values as the `Row` spelling (frames differ by spacing only) | does not compile | M1.11 (prepaint half) reddens it too; M1.13: `Toggle`'s AX role → `.button` (the comparison can fail) |
-| 1.14 | `tabVisitsControlsInAProposalStackInTreeOrder` | `VStack { TextField; Button; Toggle; Picker; Slider; Stepper }`: Tab order equals the `Column` spelling's | does not compile | M1.14: `Stepper`'s `isFocusable = false` |
+| 1.13 | `accessibilityRecordsOfControlsAgreeAcrossVocabularies` | with a client active, `HStack { Button("Go"); Toggle("Wi-Fi"); Slider; TextField; Picker }` records the literal expected roles, labels and values (written in the test, `PE-S`) **and** the same as the `Row` spelling (frames differ by spacing only) | does not compile | M1.11 (prepaint half) reddens it too; M1.13: `Toggle`'s AX role → `.button` (the comparison can fail) |
+| 1.14 | `tabVisitsControlsInAProposalStackInTreeOrder` | `VStack { TextField; Button; Toggle; Picker; Slider; Stepper }`: Tab order is the literal id list written in the test (`PE-S`) and equals the `Column` spelling's | does not compile | M1.14: `Stepper`'s `isFocusable = false` |
 | 1.15 | `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack` | `.keyboardShortcut("k")` fires with focus elsewhere; `.help("tip")` is the AX hint; `.onHover` reports enter/exit from injected moves | does not compile | M1.15: `Window`'s shortcut stage skips a `ShortcutTarget` → the shortcut arm |
 | 1.16 | `aLegacyFrameAnimatesInsideAProposalStack` | `Button.frame(width: w)` in an `HStack`, `w` changed under `withAnimation(.linear(duration: 1))`: at `simulateTick(0.5)` the width is midway | does not compile | M1.16: the frame layer's `animated(_:_:for:pass:)` call removed |
 | 1.17 | `aDragFromAControlInAProposalStackCarriesAPreview` | `Text("drag").draggable("x")` in an `HStack`: after press-and-move a drag session exists and its preview capture is non-empty (`DN-X`) | does not compile | M1.17: `Text.paint` bypasses `paintDecoration` |
@@ -389,7 +401,7 @@ in (no build-time generation).
 |---|---|---|---|---|
 | 2.1 | `aShellOverTwelveComponentPanesUsesTheStackOfOnePane` | `StackMeter` high-water(shell 12) − high-water(pane) ≤ 16 KiB (design: 4.5 KB; also print both figures) | lane 2 lands the meter first and runs 2.1 before the box: red (design: 508 KB) | M2.1: `ComponentLayout` stores its payload inline |
 | 2.2 | `theStackMeterSeesTheContentGettersFrame` | high-water(inline 12) − high-water(inline 2) > 200 KiB (design: 583 KB) — the separating arm: the meter sees builder getter frames | new | M2.2: no sampling in `ElementBuilder` (Δ ≈ 0) |
-| 2.3 | `theStackMeterMeasuresOnlyInsideAMeasurement` | a sample outside `measuring` changes nothing; a nested `measuring` returns its own figure and the outer's ≥ it | new | M2.3: `sample()` ignores the missing base |
+| 2.3 | `theStackMeterMeasuresOnlyInsideAMeasurement` | a sample outside `measuring` changes nothing; a nested `measuring` returns its own figure and the outer's ≥ it; a sample from a secondary thread (a `Thread` joined with a semaphore, no sleep) while a scope is open changes nothing (`PE-P`) | new | M2.3: `sample()` ignores the missing base; M2.3b: drop the main-thread check → the secondary-thread arm |
 | 2.4 | `aWindowWarnsOnceWhenAFramePassesTheStackThreshold` | a `Window` over a `FakePlatformWindow` showing the inline-12 shell: the sink receives exactly one line naming 512 KiB and the inline shell's type, still one after three frames; a window showing one pane receives none | new | M2.4a: no once-flag (3 lines); M2.4b: threshold 4 MiB (0 lines) |
 | 2.5 | `everyProductionTreeLaysOutUnderTheStackWarningThreshold` | every tree `buildEveryProductionTree` names, rendered once in a `Frame` at 920×560 inside `measuring`: high-water < 512 KiB; prints each figure (recorded in record §78); **if any production tree is at or above the threshold, the lane stops and `PE-L` is re-taken** | new | M2.5: threshold 64 KiB |
 | 2.6 | `measureComponentBoxAllocations` (figure, `METALUI_COMPONENT_ALLOC_MEASURE=1`, in `CloseoutTests.swift` beside 1.6, reusing `countCloseoutAllocations` — no third `malloc_logger` installer) | allocations per settled frame for rows of 0/40/80 one-leaf `Component`s; the slope (design expectation: +1 per `Component`) recorded in record §78 | figure | — |
@@ -455,14 +467,16 @@ them anyway (`docs/probes/demo-pixels/compare.sh <scratch> e54c3f6 HEAD`).
 
 | lane | model | files (disjoint) | done when |
 |---|---|---|---|
-| **1 — builder, adapter, sizing** | Opus | new `Sources/MetalUI/ProposalContentBuilder.swift`, new `Sources/MetalUI/LegacyProposalModifiers.swift`; `NativeElements.swift`, `Grid.swift`, `ProposalScrollView.swift`, `ProposalLayoutContainer.swift`, `ProposalNodeID.swift` (header only), `TextField.swift`, `TextEditor.swift`, `Slider.swift`, `Sources/MetalUICore/Units.swift`; tests: new `ProposalControlsTests.swift`, `ProposalControlsCompileGuards.swift`; `SliderTests.swift`, `ElementGroupTrapTests.swift`, `ForEachCompileGuards.swift`, `GridCompileGuards.swift`, `EnvironmentCompileGuards.swift`, `ExplicitIdentityCompileGuards.swift`, `ConditionalIdentityCompileGuards.swift`; `docs/probes/closeout-inventory-map.tsv`, `closeout-public-api.tsv` | §6.1 green, every mutation named; images 0 px (taken first, `PE-D`); §12 |
-| **2 — MG-15 and the meter** | Opus | `Component.swift`, `ElementBuilder.swift`, new `StackMeter.swift`, `Frame.swift` (the `requestNativeLeaf` sample only), `Window.swift` (the measuring scope and warning only); tests: new `ComponentStackTests.swift`, `CloseoutTests.swift` (2.6) | §6.2 green, mutations named, figures printed for the record; `swift package clean` run; §12 |
+| **1 — builder, adapter** (second) | Opus | new `Sources/MetalUI/ProposalContentBuilder.swift`, new `Sources/MetalUI/LegacyProposalModifiers.swift`; `NativeElements.swift`, `Grid.swift`, `ProposalScrollView.swift`, `ProposalLayoutContainer.swift`, `ProposalNodeID.swift` (header only), `Sources/MetalUICore/Units.swift`; tests: new `ProposalControlsTests.swift` (all of §6.1 but 1.9 and 1.23), `ProposalControlsCompileGuards.swift`; `ElementGroupTrapTests.swift`, `ForEachCompileGuards.swift`, `GridCompileGuards.swift`, `EnvironmentCompileGuards.swift`, `ExplicitIdentityCompileGuards.swift`, `ConditionalIdentityCompileGuards.swift`; `docs/probes/closeout-inventory-map.tsv`, `closeout-public-api.tsv` | §6.1 green, every mutation named; images 0 px; §12 |
+| **2 — MG-15, the meter, `PE-D` sizing** (first) | Opus | `TextField.swift`, `TextEditor.swift`, `Slider.swift` (`PE-D`, first; images re-taken at once); `Component.swift`, `ProposalNodeID.swift` (the `Component` typed default only, ~line 125), `ElementBuilder.swift`, new `StackMeter.swift`, `Frame.swift` (the `requestNativeLeaf` sample only), `Window.swift` (the measuring scope and warning only); tests: `SliderTests.swift`, new `GreedyControlSizingTests.swift` (1.9, 1.23 — neither needs the builder), new `ComponentStackTests.swift`, `CloseoutTests.swift` (2.6) | 1.9, 1.23 and §6.2 green, mutations named, figures printed for the record; images 0 px after `PE-D`; `swift package clean` run; §12 |
 | **3 — demo, docs** | Sonnet, after 1 and 2 merge | `Sources/MetalUIDemoContent/ControlsDemo.swift`; `docs/migration.md`, `docs/api-overview.md`, `docs/divergences.md`, `docs/verification/human-checks.md`, `docs/getting-started.md` (if needed); test 3.1 in new `Tests/MetalUITests/ControlsDemoSwiftUISectionTests.swift` | §6.3; images 0 px; §12 |
 
-Lanes 1 and 2 run in parallel in separate worktrees (or one after the other
-here); neither edits the other's files. Lane 2's `ElementBuilder` sampling
-covers lane 1's builder because lane 1 forwards to `ElementBuilder`
-(`PE-B`). Merge order 2 then 1 (or either: no shared file). The Record phase
+**Order (`PE-O`): lane 2, then lane 1, then lane 3, one at a time in this
+worktree.** `ProposalNodeID.swift` is the one file both touch (lane 2 the
+`Component` typed default, lane 1 the header) — sequential, never parallel.
+Lane 1's 1.1, 1.5 and 1.22 assert the post-`PE-D` values lane 2 lands.
+Lane 2's `ElementBuilder` sampling covers lane 1's builder because lane 1
+forwards to `ElementBuilder` (`PE-B`). The Record phase
 (record §78, CLAUDE.md/AGENTS.md rules — one or two sentences each for
 `PE-B`/`PE-C`, `PE-D`, `PE-J`/`PE-K`/`PE-L` — README, record README, record
 §04 for 130/131) follows lane 3.

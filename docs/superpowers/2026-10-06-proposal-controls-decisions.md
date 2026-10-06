@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-O`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-T`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -215,7 +215,7 @@ inside a proposal container (spec §1.3) and every other control is already in
 SwiftUI's class — Button, `.plain` Button, Toggle, Stepper, every Picker
 style and Menu hug on both axes; Divider is greedy along its stack's cross
 axis; `Text` wraps per `ProposalText`'s rules (`FX3` 49.50x48 at 50, MetalUI
-49.36x48).
+49.36x48). *(Except `List`, divergence 84 — `PE-Q`.)*
 
 **Why it matters.** A stack orders its children by flexibility measured at an
 infinite proposal (`CN-B`, `LayoutTree.swift`'s probe "at main ∞"). Today a
@@ -230,7 +230,7 @@ whole suite with the change (scratch): **one** issue, `SliderTests`'
 `aSliderIsGreedyOnTheWidthAndSixteenTall` asserting `infinite.width == 30`
 (an unprobed MetalUI choice, "an infinite proposal is not finite", which
 `FL6` refutes) — its arm flips to infinity in this branch; `DemoFrameDeterminismTests`
-(the demo's every frame) unchanged. Lane 1 re-takes the fourteen images
+(the demo's every frame) unchanged. Lane 2 (`PE-O`) re-takes the fourteen images
 (0 px expected: `demoContent()` and the preview hold no `TextField`,
 `TextEditor` or `Slider`); **if any image moves, the lane stops and this
 ruling is re-taken** (the fallback is answering infinity only under
@@ -440,6 +440,8 @@ today's crash, no worse.
 
 ## PE-M — Lanes, demo, human checks
 
+*(Lane contents and order revised by `PE-O`: `PE-D` moves to lane 2, which runs first.)*
+
 **Ruling.** Three lanes on disjoint files (spec §10): lane 1 (Opus) the
 builder, adapter, sizing, modifiers and their tests; lane 2 (Opus) MG-15 and
 the meter; lane 3 (Sonnet, after 1 and 2) docs, inventory, divergences, the
@@ -467,3 +469,107 @@ images, so they stay 0 px. Human checks group **V**.
 The stack spacing at a text edge (`FM0`'s row origins 48.15, 76.89, 101.04 where MetalUI's are 40, 72, 96) is CN-H's existing note,
 and text widths (17.23 vs 17.50) divergence 60 — not new rows.
 
+
+---
+
+## PE-O — Critic pass: the lanes re-cut, sizing first
+
+**Found.** Spec §10 listed lane 1 with 13 source files, 24 tests and the 8
+flipped guards against lane 2's 7 tests, and called the lanes disjoint while
+spec §4 item 1 has lane 2 edit the `Component` typed default in
+`ProposalNodeID.swift` (~line 125), a file §10 gave lane 1 ("header only")
+and lane 2 not at all. Its merge order ("2 then 1, or either") contradicted
+§6.1, whose 1.1, 1.5 and 1.22 assert values only `PE-D` produces.
+
+**Ruling.** `PE-D` (the three measurement closures, `SliderTests`, tests 1.9
+and 1.23 in a new `GreedyControlSizingTests.swift`, and the fourteen-image
+re-take straight after it) moves to **lane 2**, which runs **first**; lane 1
+(builder, adapter, modifiers, guards, the rest of §6.1) second; lane 3 third
+— one at a time in this worktree. `ProposalNodeID.swift` is listed for both,
+sequentially (lane 2 the typed default, lane 1 the header). Neither 1.9 (a
+test-local `LegacyUnderProposal`) nor 1.23 (a legacy `Row`) needs the builder.
+
+**Cost if wrong.** None silent: a lane order slip is a red 1.1/1.5/1.22.
+
+---
+
+## PE-P — The stack meter tolerates a sample from another thread
+
+**Found.** `PE-L` item 2 samples in every `ElementBuilder` method, and
+`everyProductionTreeBuildsOnAOneMegabyteThread` (`DemoStackBudgetTests.swift`
+62–66) runs every production builder on a secondary thread through an
+`unsafeBitCast` of a `@MainActor` function — on Linux and Windows CI too. A
+`sample()` that asserted isolation would trap that test; one that counted the
+secondary thread's stack pointer against the main thread's entry would record
+a nonsense high-water mark if a scope were open.
+
+**Ruling.** `sample()` asserts no isolation (no `assumeIsolated`, no
+`dispatchPrecondition`) and counts only when a scope is open **and**
+`Thread.isMainThread` (Foundation, portable; `Window` and every measuring test
+run on the main thread). Test 2.3 gains a secondary-thread arm (a `Thread`
+joined with a semaphore — no sleep) and mutation M2.3b (drop the check); the
+existing one-megabyte test is the trap guard and must stay green.
+
+**Cost if wrong.** Debug-only: a trap in one CI test, or a false warning line.
+
+---
+
+## PE-Q — `List` in a proposal container keeps divergence 84
+
+**Found.** `PE-D` says "every other control is already in SwiftUI's class",
+but spec §1.3's table omits `List(selection:)`; the probe's `FL14` (re-run by
+the critic pass, all 95 lines byte-identical to the recorded output) reads
+SwiftUI's list greedy on both axes (ideal 0x0, `inf -> infxinf`), while
+MetalUI's answers `rowHeight × count` (divergence 84, `DD-AB` item 3).
+
+**Ruling.** Not changed: the list's height answer is its windowing contract
+(`DD-F`, `TB-AH` — must not move). Test 1.1 gains a `List` row pinning
+MetalUI's measured answers to the six proposals and citing divergence 84; no
+new divergence; `PE-D`'s sentence reads "every other control but `List`
+(divergence 84)".
+
+**Cost if wrong.** None new: divergence 84 already documents it.
+
+---
+
+## PE-R — Style modifiers are written on the control (rejection of the container form)
+
+**Found.** The item lists `.buttonStyle`, `.pickerStyle` and
+`.keyboardShortcut` among modifiers that must work on the proposal path. They
+are value modifiers returning `Self` on the control (`Button.swift` 187, 199,
+205, 212; `Picker.swift` 118): with `PE-B` they work on a control inside any
+stack, but not on a container or after a wrapper
+(`Button("x") {}.padding(8).buttonStyle(.plain)`). The design said nothing.
+
+**Ruling — rejected for this branch.** Making them environment values changes
+every control's chrome resolution, outside MG-1; the configurator's original
+SwiftUI-style source writes none of the three anywhere (critic grep of
+`main`'s `Sources/`), so the port has no need. The probe has no arm for a
+container-level style, so **no SwiftUI behaviour is claimed** here. Test 1.3
+gains a second control arm — the wrapper-then-style spelling fails to
+compile — measured by lane 1 at `e54c3f6` first (if it already compiles, the
+arm and this ruling's premise are void and the lane says so).
+`docs/migration.md` (lane 3) states the rule: write them on the control,
+before any wrapper. Owner: the gpui-gap list.
+
+**Cost if wrong.** A compile error in a port that writes the container form.
+
+---
+
+## PE-S — Tests that compare vocabularies also assert literals; M1.11 rewritten
+
+**Found.** (1) Tests 1.13 and 1.14 asserted only that the `HStack`/`VStack`
+spelling equals the `Row`/`Column` one, yet their named mutations (M1.13
+`Toggle`'s role, M1.14 `Stepper`'s focusability) change a control, which
+changes both spellings alike — the equality stays true, so neither mutation
+could redden (a broken instrument). (2) M1.11 ("`LegacyContent.prepaintGroup`
+skips its content") is unwritable: `prepaintGroup` must return
+`Content.GroupPrepaint`, which only the content's own prepaint produces.
+
+**Ruling.** 1.13 asserts the literal roles, labels and values and 1.14 the
+literal Tab-order id list, each written in the test, **and** the
+cross-vocabulary equality. M1.11 becomes "run the content's prepaint twice (a
+discarded first call)" — two hitboxes at the Button's frame redden 1.11's
+"one hitbox" arm. M1.12 (`paintGroup` returns `Void`) stays.
+
+**Cost if wrong.** A mutation table that cannot redden certifies nothing.
