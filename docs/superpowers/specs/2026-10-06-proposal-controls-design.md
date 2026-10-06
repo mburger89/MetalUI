@@ -10,7 +10,7 @@ with reproductions in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-06-proposal-controls-decisions.md`](../2026-10-06-proposal-controls-decisions.md)
-(`PE-A`…`PE-S`; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
+(`PE-A`…`PE-U`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
 (its header's READING is the authority for every SwiftUI claim here). Record
 (Record phase): `docs/record/78-proposal-controls.md`.
 
@@ -26,7 +26,8 @@ reach legacy content (`PE-F`). For MG-15, `ComponentLayout` moves its payload
 into one heap box (`PE-J`): a shell over twelve panes costs 4.5 KB more stack
 than one pane instead of 508 KB; what a compiler property leaves (an inline
 `switch` in one builder) gets a rule and a debug-only meter that warns once
-at 512 KiB (`PE-K`, `PE-L`).
+at 512 KiB (`PE-K`, `PE-L`) — **the warning is suspended by `PE-T`**: four
+production trees measure above 512 KiB with the meter as landed.
 
 ---
 
@@ -325,7 +326,8 @@ Nothing in `Sources/MetalUILayout`, `MetalUIScene`, `MetalUIRender`,
    the main thread.
 3. **Samples**: every `ElementBuilder` static method; both `Component`
    layout entries (with the type); `Frame.requestNativeLeaf`.
-4. **`Window`**: each frame's build-and-render runs inside
+4. **Suspended by `PE-T`** (four production trees measure above 512 KiB; the
+   threshold is to be re-taken). As designed: **`Window`**: each frame's build-and-render runs inside
    `StackMeter.measuring`; above `Window.stackWarningThreshold` (512 KiB,
    internal static) the internal `stackWarningSink: (String) -> Void`
    (default: one line on standard error via `FileHandle.standardError`) is
@@ -402,8 +404,8 @@ in (no build-time generation).
 | 2.1 | `aShellOverTwelveComponentPanesUsesTheStackOfOnePane` | `StackMeter` high-water(shell 12) − high-water(pane) ≤ 16 KiB (design: 4.5 KB; also print both figures) | lane 2 lands the meter first and runs 2.1 before the box: red (design: 508 KB) | M2.1: `ComponentLayout` stores its payload inline |
 | 2.2 | `theStackMeterSeesTheContentGettersFrame` | high-water(inline 12) − high-water(inline 2) > 200 KiB (design: 583 KB) — the separating arm: the meter sees builder getter frames | new | M2.2: no sampling in `ElementBuilder` (Δ ≈ 0) |
 | 2.3 | `theStackMeterMeasuresOnlyInsideAMeasurement` | a sample outside `measuring` changes nothing; a nested `measuring` returns its own figure and the outer's ≥ it; a sample from a secondary thread (a `Thread` joined with a semaphore, no sleep) while a scope is open changes nothing (`PE-P`) | new | M2.3: `sample()` ignores the missing base; M2.3b: drop the main-thread check → the secondary-thread arm |
-| 2.4 | `aWindowWarnsOnceWhenAFramePassesTheStackThreshold` | a `Window` over a `FakePlatformWindow` showing the inline-12 shell: the sink receives exactly one line naming 512 KiB and the inline shell's type, still one after three frames; a window showing one pane receives none | new | M2.4a: no once-flag (3 lines); M2.4b: threshold 4 MiB (0 lines) |
-| 2.5 | `everyProductionTreeLaysOutUnderTheStackWarningThreshold` | every tree `buildEveryProductionTree` names, rendered once in a `Frame` at 920×560 inside `measuring`: high-water < 512 KiB; prints each figure (recorded in record §78); **if any production tree is at or above the threshold, the lane stops and `PE-L` is re-taken** | new | M2.5: threshold 64 KiB |
+| 2.4 *(suspended, `PE-T`)* | `aWindowWarnsOnceWhenAFramePassesTheStackThreshold` | a `Window` over a `FakePlatformWindow` showing the inline-12 shell: the sink receives exactly one line naming 512 KiB and the inline shell's type, still one after three frames; a window showing one pane receives none | new | M2.4a: no once-flag (3 lines); M2.4b: threshold 4 MiB (0 lines) |
+| 2.5 *(suspended, `PE-T`: four trees above)* | `everyProductionTreeLaysOutUnderTheStackWarningThreshold` | every tree `buildEveryProductionTree` names, rendered once in a `Frame` at 920×560 inside `measuring`: high-water < 512 KiB; prints each figure (recorded in record §78); **if any production tree is at or above the threshold, the lane stops and `PE-L` is re-taken** | new | M2.5: threshold 64 KiB |
 | 2.6 | `measureComponentBoxAllocations` (figure, `METALUI_COMPONENT_ALLOC_MEASURE=1`, in `CloseoutTests.swift` beside 1.6, reusing `countCloseoutAllocations` — no third `malloc_logger` installer) | allocations per settled frame for rows of 0/40/80 one-leaf `Component`s; the slope (design expectation: +1 per `Component`) recorded in record §78 | figure | — |
 | 2.7 | (conditional) `aComponentsLayoutWritesReachItsPaint` | write the `withPayload` mutation first: `withPayload` mutates a copy (`var p = storage.payload; return body(&p)`); **if no existing test reddens**, add this test (a `Component` whose content writes layout state in `prepaint` that `paint` reads) | — | the same mutation |
 

@@ -96,7 +96,7 @@ private func sampleOnASecondaryThread(_: UnsafeMutableRawPointer) -> UnsafeMutab
 ///
 /// Mutation M2.2 (no sampling in `ElementBuilder`) reads the getter alone as
 /// 0. *(The laid-out difference alone could not separate: with leaf samples
-/// only it still reads 595 312 bytes, because the layout functions' frames
+/// only it still reads 594 912 bytes (405 824 → 1 000 736), because the layout functions' frames
 /// grow with the branches' value sizes too — measured under M2.2.)*
 @Test @MainActor func theStackMeterSeesTheContentGettersFrame() throws {
     let (_, getter, _) = StackMeter.measuring { _ = InlineStackShell12(choice: .p0).content }

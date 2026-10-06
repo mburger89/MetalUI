@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-T`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-V`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -429,6 +429,10 @@ SwiftUI has no answer (its debug frames are its own); gpui has none either
 (its element trees are boxed `AnyElement`s on the heap, which is the
 "shrink the values" lever `PE-A` defers).
 
+*(Refuted in part by `PE-T`: with the meter as landed a boxed pane reads
+1 010 368 bytes, not 172 KB — the design's figures were leaf samples only —
+and four production trees are above 512 KiB; item 4 is suspended.)*
+
 **Why 512 KiB.** One pane is 172 KB after `PE-J`; every production tree must
 lay out under the threshold (spec test 2.5 — the counted bound that protects
 Windows), and the inline-12 tree (950 KB) must warn (test 2.4).
@@ -573,3 +577,94 @@ discarded first call)" — two hitboxes at the Button's frame redden 1.11's
 "one hitbox" arm. M1.12 (`paintGroup` returns `Void`) stays.
 
 **Cost if wrong.** A mutation table that cannot redden certifies nothing.
+
+---
+
+## PE-T — Lane 2's measurement refutes `PE-L`'s 512 KiB threshold; the window warning waits
+
+**Found** (lane 2, with `StackMeter` as landed — samples in every
+`ElementBuilder` method, both `Component` layout entries and
+`Frame.requestNativeLeaf`; debug, macOS arm64; each production tree built and
+rendered once into a `Frame` at 920×560 inside `measuring`, spec test 2.5's
+procedure). Bytes of stack below the measurement's entry:
+
+| tree | before `PE-J` (`da3552d`) | after `PE-J` (`6631623`) |
+|---|---|---|
+| `demoContent()` | 837 904 | **837 904** |
+| `nativeLayoutPreviewContent()` | 104 032 | 76 512 |
+| `textInputDemoContent()` | 117 296 | 117 296 |
+| `controlsDemoContent()` | 2 199 024 | **826 336** |
+| `looksDemoContent()` | 3 522 752 | **1 061 408** |
+| `dragAndDropDemoContent()` | 924 528 | 401 248 |
+| `metalViewDemoContent(…)` | 489 728 | 281 520 |
+| `menusDemoContent()` | 668 752 | **668 752** |
+| `servicesDemoContent()` | 2 067 440 | 328 944 |
+
+**Four of the nine production trees are above 512 KiB after the box** (bold),
+and the looks demo above 1 MiB. `PE-L`'s premise — "every production tree must
+lay out under the threshold" — was not measured by the design session (its
+table is synthetic trees only), and spec test 2.5 says that if any production
+tree is at or above the threshold, the lane stops and `PE-L` is re-taken. The
+lane stopped there.
+
+**Why the design's figures were smaller.** The design session sampled at
+native leaves only. Re-measured that way on this branch (builder samples
+removed, before the box): pane 408 704 (design 423 984), shell 12 916 448
+(design 931 936), `demoContent()` 500 912 — the instrument agrees with the
+design's. Builder samples see the `content` getters' own frames, which a
+leaf sample misses (the getter has returned before its children register —
+`PE-L` item 2's own reason): the boxed pane reads 1 010 368, not `PE-L`'s
+"172 KB" (leaf samples only, under mutation M2.2: 207 488); inline 2 → 12
+reads 1 300 704 → 4 300 576 (leaf only: 405 824 → 1 000 736). `PE-J`'s ratios hold
+under the full meter (shell 12 − pane: 507 744 → 4 512 bytes; test 2.1).
+
+**Ruling.** `PE-L` items 1–3 (the meter, its samples, debug-only, and
+`PE-P`'s main-thread rule) stand and are landed, with tests 2.1–2.3. **Item 4
+(the `Window` warning) and spec tests 2.4 and 2.5 are suspended until `PE-L`
+is re-taken against this table** — a warning that fires in four of the
+repository's own demos in every debug run is noise, and a threshold above
+them has to be chosen, not derived. The figures a re-take can use: the
+largest production tree is 1 061 408 bytes; the inline-12 synthetic shell
+(the failure the warning exists for) 4 300 576; macOS's and Linux's main
+threads have 8 MiB and Windows' 1 MiB (record §50). Whether the looks demo's
+1.04 MB on macOS arm64 overflows a 1 MiB Windows thread is **not measured**
+(no Windows debug run of it; `DemoCapture` builds `demoContent()` only).
+Spec §6.2's rows 2.4 and 2.5 stand as written apart from the threshold; lane
+2 wrote and ran both against 512 KiB (2.4 red until item 4 lands; 2.5 red on
+the four trees above) and withdrew them with item 4.
+
+**Cost if wrong.** None silent: the meter is internal and warns nobody; the
+crash it exists to explain is today's behaviour, no worse.
+
+---
+
+## PE-U — Lane 2's mutation table and figures
+
+**Mutations** (each on a committed tree, restored from git, the **full
+unfiltered** native suite per mutation — 2552 tests — and `git status --short`
+clean of sources after each; the line numbers are the branch's at `9596802`):
+
+| id | mutation (file — spelling) | reddened |
+|---|---|---|
+| M1.9a | `TextField.swift` — `proposal.width.flatMap { $0.isFinite ? $0 : nil }` again | `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` (its two `TextField` ∞ arms only) |
+| M1.9b (= M1.5's) | `Slider.swift` — `proposedWidth.flatMap { $0.isFinite ? $0 : nil } ?? idealWidth` | `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` (the slider arm), `aLegacyRowServesItsSliderLast` (all three arms), `aSliderIsGreedyOnTheWidthAndSixteenTall` (its ∞ arm) |
+| M1.9c | `TextEditor.swift` — both axes' `isFinite` filters again | `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` (the editor arm only) |
+| M2.1 | `Component.swift` — `ComponentLayout` stores `var payload: Payload` inline (`mutating withPayload`); `swift package clean` before and after | `aShellOverTwelveComponentPanesUsesTheStackOfOnePane` |
+| M2.2 | `ElementBuilder.swift` — all seven `StackMeter.sample()` calls removed | first spelling of 2.2 (laid-out difference only): **nothing** — re-spelled with the getter-alone arm; then `theStackMeterSeesTheContentGettersFrame` |
+| M2.3 | `StackMeter.swift` — `sample()` drops `scope != nil` and opens a scope at its own address | `theStackMeterMeasuresOnlyInsideAMeasurement` (the outside-sample arm) |
+| M2.3b | `StackMeter.swift` — `sample()` drops `Thread.isMainThread` | first spelling (a Foundation `Thread`): **nothing**, its stack is above the main thread's on macOS arm64 — re-spelled on a stack mapped below it; then `theStackMeterMeasuresOnlyInsideAMeasurement` (the secondary-thread arm); `everyProductionTreeBuildsOnAOneMegabyteThread` green |
+| M2.7 | `Component.swift` — `withPayload` mutates a copy (`var p = storage.payload; return body(&p)`) | `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder` traps (`AnyElement.swift:177`, "AnyElement.paint before prepaint"), truncating the run; the unmutated suite finishes — so spec test 2.7 is **not** added (its condition: only if nothing reddens) |
+
+**Figures** (debug, macOS arm64; for record §78):
+
+- Stack, `StackMeter` as landed (builder samples included), bytes: pane
+  1 211 584 → 1 010 368 with `PE-J`; shell 2 1 414 432 → 1 011 904; shell 12
+  1 719 328 → 1 014 880 (shell 12 − pane 507 744 → 4 512); inline 2
+  1 501 984 → 1 300 704; inline 12 4 501 856 → 4 300 576; the inline-12
+  getter alone 4 245 472. Production trees: `PE-T`'s table.
+- Allocations (spec test 2.6, `METALUI_COMPONENT_ALLOC_MEASURE=1`): one
+  `Component` costs **2.00 allocations / 152 bytes** per settled frame boxed,
+  **1.00 / 56** with the payload inline (under M2.1) — the box adds **+1.00
+  allocation / 96 bytes per `Component` per frame**, `PE-J`'s expectation.
+- `PE-D`: the fourteen offscreen images 0 px, every scene identical,
+  `e54c3f6` → `4da5a7f`; and `e54c3f6` → `9596802` (box and meter) the same.
