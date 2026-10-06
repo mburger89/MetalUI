@@ -277,6 +277,15 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             .onClick { counter.bump() }
         return disabled ? base.allowsHitTesting(false) : base
     }
+    // Platform services (ruling `SV-N` item 2): a hover region is inside the
+    // `allowsHitTesting` gate. The press of `measure`'s click enters it from
+    // input (`SV-N` item 4), which is the arm's one "click"; its one region is
+    // the non-opaque hover region. Mutation: register it outside the gate.
+    try check("hover region") { disabled, counter in
+        let base = Box().cssWidth(px(40)).cssHeight(px(40)).background(.surface).id("subject")
+            .onHover { if $0 { counter.bump() } }
+        return disabled ? base.allowsHitTesting(false) : base
+    }
     try check("ModifiedElement inner layer") { disabled, counter in
         let base = Box().cssWidth(px(30)).cssHeight(px(30)).background(.surface)
             .padding(Edges(all: .pixels(px(5))))

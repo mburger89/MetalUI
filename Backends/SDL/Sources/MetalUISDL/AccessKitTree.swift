@@ -14,6 +14,10 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case heading, link
         /// The menu roles and a popover's dialog (ruling `MN-R`).
         case menu, menuItem, menuItemCheckBox, dialog
+        /// A `.menu` picker's pop-up button and a drawn alert (ruling `SV-S`;
+        /// `accesskit.h` 0.23 has no pop-up-button role, so a combo box with
+        /// a menu popup).
+        case comboBox, alertDialog
     }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
@@ -58,8 +62,8 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A selectable row: `selected` is sent as `false` when not selected,
         /// AccessKit's "selectable, not selected" (`IX-AA` item 2).
         public var isSelectable: Bool = false
-        /// A button that opens a menu — `.menuButton` (ruling `MN-R`): sent as
-        /// AccessKit's `has_popup = MENU`.
+        /// A button that opens a menu — `.menuButton` (ruling `MN-R`) and
+        /// `.popUpButton` (`SV-S`): sent as AccessKit's `has_popup = MENU`.
         public var hasPopupMenu: Bool = false
 
         public static func == (a: Node, b: Node) -> Bool {
@@ -156,7 +160,7 @@ extension AccessKitSnapshot {
                 toggled: toggled(node), numericValue: numericValue(node),
                 rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
-                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton))
+                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -187,6 +191,10 @@ extension AccessKitSnapshot {
         case .menuItemCheckBox: .menuItemCheckBox
         case .menuButton: .button
         case .popover: .dialog
+        // Platform services (ruling `SV-S`): a pop-up button is a `COMBO_BOX`
+        // with a menu popup (`hasPopupMenu`), a drawn alert an `ALERT_DIALOG`.
+        case .popUpButton: .comboBox
+        case .alert: .alertDialog
         }
     }
 

@@ -418,30 +418,16 @@ public final class Window {
     /// `Frame.mousePosition`'s own doc comment for why this lives here rather
     /// than on `Frame`.
     ///
-    /// **Deliberately STICKY: nothing clears it when the pointer leaves the
-    /// window.** `InputEvent` has no `mouseExited` case — only
-    /// `.mouseDown`/`.mouseUp`/`.mouseMoved` update this — so an element under
-    /// the cursor's last in-window position stays hovered after the cursor
-    /// leaves the window entirely, until the next event arrives from inside it.
-    ///
-    /// **A decision, not an oversight, and the reasoning is the cost of the
-    /// alternative.** Closing it means a new `InputEvent.mouseExited` case,
-    /// which crosses the `MetalUIPlatform` → `MetalUI` module boundary — the
-    /// exact shape that has produced a SIGSEGV or a truncated run with no
-    /// summary line four times on this project (CLAUDE.md's "Adding a case to
-    /// a public enum … crossing module boundaries" section) — for a case whose
-    /// only production reader would be one line clearing this property. Task 6
-    /// (hover/active infrastructure) is not the task that should widen
-    /// `InputEvent`'s surface for a single caller; a future task adding a real
-    /// `mouseExited`-driven feature (a tooltip dismissal, say) can add the case
-    /// and wire this in the same change, with a reason beyond "tidiness" to
-    /// justify the risk.
-    ///
-    /// **What this costs, stated plainly**: `Task-11`'s human verification of
-    /// hover should report on this specifically — move the pointer over an
-    /// interactive element, then off the window entirely, and check whether
-    /// the element still reads as hovered. Expected today: yes, until the next
-    /// in-window mouse event.
+    /// **Cleared when the pointer leaves the window** (ruling `SV-N` item 7,
+    /// amending task 6's "deliberately sticky" decision): `.pointerExited` —
+    /// AppKit's tracking-area `mouseExited`, SDL's `SDL_EVENT_WINDOW_MOUSE_LEAVE`
+    /// — sets it `nil`, so `PaintPass.isHovered` reads `false` on the next
+    /// frame and `onHover` hears `false` at once. Task 6 kept it sticky because
+    /// the case would cross the `MetalUIPlatform` → `MetalUI` boundary for one
+    /// reader; hover is the feature that gave the case a reason. No other
+    /// paint-time query changes, and `topmostOpaqueHitbox` and click dispatch
+    /// are untouched. **Migration**: an app that relied on the last in-window
+    /// position staying hovered after the pointer left sees it un-hovered.
     private(set) var lastMousePosition: Point<Pixels>?
 
     /// The element holding "active" state — the hitbox that received
@@ -662,6 +648,96 @@ public final class Window {
     /// (`LC-K`). 0 after a call that drew nothing.
     private(set) var lastDrawBuildCount = 0
 
+    /// Called with each frame `buildAndAdoptFrame` built, after its read-backs
+    /// — test observability (the frame's tree and its recorded work, spec test
+    /// 2.39). `nil` in production; nothing retains the frame.
+    var onFrameAdopted: (@MainActor (Frame) -> Void)?
+
+    // MARK: Window sizing (rulings `SV-L`, `SV-M`)
+
+    /// The smallest content size the user can resize the window to, in window
+    /// points; `nil`, the default, sets none (ruling `SV-L`). Combined per axis
+    /// with the content's own minimum under `.contentMinSize`/`.contentSize`
+    /// (the larger wins). A negative axis counts as 0; NaN traps. Applied at
+    /// once: a window smaller than it is resized to it.
+    public var minSize: Size<Pixels>? {
+        didSet {
+            ContentSizeLimits.requireNotNaN(minSize, "minSize")
+            reconcileContentSizeLimits()
+        }
+    }
+
+    /// The largest content size the user can resize the window to, in window
+    /// points; `nil`, the default, sets none (ruling `SV-L`). An infinite axis
+    /// is no limit on that axis; one below the minimum is raised to it; NaN
+    /// traps. Combined with the content's maximum under `.contentSize` (the
+    /// smaller wins).
+    public var maxSize: Size<Pixels>? {
+        didSet {
+            ContentSizeLimits.requireNotNaN(maxSize, "maxSize")
+            reconcileContentSizeLimits()
+        }
+    }
+
+    /// Whether the root's layout limits the window's size (ruling `SV-L`):
+    /// `.automatic`, the default, measures nothing (divergence 126);
+    /// `.contentMinSize` and `.contentSize` measure the root once per drawn
+    /// frame, before its real layout, so the limits follow the content.
+    public var windowResizability: WindowResizability = .automatic {
+        didSet {
+            guard windowResizability != oldValue else { return }
+            if windowResizability == .automatic { contentLimits = .none }
+            // Only `.contentSize` measures a maximum: leaving it drops the
+            // last frame's at once (`SV-AG` item 4).
+            if windowResizability != .contentSize { contentLimits.maximum = nil }
+            reconcileContentSizeLimits()
+            setNeedsRedraw()
+        }
+    }
+
+    /// Set while `applySizing` assigns several sizing properties, so they
+    /// reach the platform as one call.
+    private var isApplyingSizing = false
+
+    /// Assigns all three sizing properties and reconciles **once** — `App.openWindow`'s
+    /// parameters, so the platform hears one pair before the first frame
+    /// (`SV-L` item 4), not one per property.
+    func applySizing(minSize: Size<Pixels>?, maxSize: Size<Pixels>?, windowResizability: WindowResizability) {
+        isApplyingSizing = true
+        self.minSize = minSize
+        self.maxSize = maxSize
+        self.windowResizability = windowResizability
+        isApplyingSizing = false
+        reconcileContentSizeLimits()
+    }
+
+    /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
+    /// so a resize arriving inside its builds (a content limit the platform
+    /// resized into, `SV-AG` item 3) still owes the next frame after a
+    /// settle build cleared `needsRedraw`.
+    private var resizeCount = 0
+
+    /// The content's limits the last built frame measured (`.none` under
+    /// `.automatic`).
+    private var contentLimits = ContentSizeLimits.none
+    /// The limits last sent to the platform — `.none` before any, which a
+    /// window with no limits never moves from, so it never calls.
+    private var appliedContentSizeLimits = ContentSizeLimits.none
+
+    /// Sends the effective limits to the platform when they differ from the
+    /// last pair sent (ruling `SV-L` item 4): from `minSize`/`maxSize`/
+    /// `windowResizability`'s setters and after every built frame, so limits
+    /// that never change reach the platform once — and none, never.
+    private func reconcileContentSizeLimits() {
+        guard !isApplyingSizing else { return }
+        let effective = ContentSizeLimits.effective(minimum: minSize, maximum: maxSize,
+                                                    contentMinimum: contentLimits.minimum,
+                                                    contentMaximum: contentLimits.maximum)
+        guard effective != appliedContentSizeLimits else { return }
+        appliedContentSizeLimits = effective
+        platformWindow.setContentSizeLimits(minimum: effective.minimum, maximum: effective.maximum)
+    }
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
@@ -703,6 +779,7 @@ public final class Window {
         // `displayScale` is the drawable's scale that `beginFrame()` returns.
         // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
         platformWindow.onResize = { [weak self] _, _ in
+            self?.resizeCount &+= 1   // `SV-AG` item 3
             self?.dismissInWindowMenu()   // `MN-F` item 3
             self?.setNeedsRedraw()
         }
@@ -761,6 +838,36 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // Platform services (`SV-K`, `SV-C`, `SV-I`): a dialog's or an
+            // alert's answer is first after the pointer state — no later stage
+            // may claim it.
+            switch event {
+            case .fileDialogResult(let result):
+                self.handleFileDialogResult(result)
+                self.setNeedsRedraw()
+                return true
+            case .alertResult(let result):
+                self.handleAlertResult(result)
+                self.setNeedsRedraw()
+                return true
+            // Hover (`SV-N` item 4): every pointer event and the pointer
+            // leaving the window recompute the hovered set from input. Claims
+            // nothing.
+            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: true)
+            case .pointerExited:
+                self.updateHover(at: nil, reportsMoves: true)
+            default:
+                break
+            }
+            // The drawn alert is modal (`SV-J` item 3): while it is up it takes
+            // every pointer and key event ahead of the drag session, the menu
+            // and everything after them; a menu's outcome and the pointer
+            // leaving pass.
+            if let answer = self.dispatchDrawnAlert(event) {
+                self.setNeedsRedraw()
+                return answer
+            }
             // The tooltip watches every event and claims none (`MN-P` item 2).
             self.trackTooltip(event)
             // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
@@ -1206,6 +1313,7 @@ public final class Window {
             setNeedsRedraw()
             return
         }
+        let resizesBeforeBuild = resizeCount
 
         // The build-and-adopt half (ruling `CR-Q`): an ordinary frame, every
         // window-owned store updated from it.
@@ -1250,6 +1358,21 @@ public final class Window {
             drainLifecycle()
         }
 
+        // A resize that arrived during the builds above (the platform resizing
+        // into a content limit, `SV-AG` item 3) was encoded into a drawable
+        // taken before it; the settle builds' `needsRedraw = false` may have
+        // cleared its dirt, so it is raised again here.
+        if resizeCount != resizesBeforeBuild { setNeedsRedraw() }
+
+        // Platform services, after the frame (`SV-K` item 3, `SV-N` item 4;
+        // `LC-E`'s place — outside every phase): present what turned `true`,
+        // dismiss what turned `false` or left, then recompute hover against
+        // this frame's hitboxes (content moved, appeared or left under a still
+        // pointer; a presented drawn alert empties it). Writes their callbacks
+        // make schedule the next frame.
+        reconcilePresentations()
+        updateHover(at: lastMousePosition, reportsMoves: false)
+
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
         // `List` still waiting for its viewport asks for one more frame, which
@@ -1265,6 +1388,7 @@ public final class Window {
                 // The in-window menu: a root after the content's, published
                 // even under modal isolation (`MN-F` item 4, `MN-AB`).
                 appendMenuPanel(to: &build)
+                appendAlertPanel(to: &build)   // the drawn alert, last (SV-J item 4)
                 return build
             }(),
             to: platformWindow) {
@@ -1422,9 +1546,11 @@ public final class Window {
         rootEnvironment.controlActiveState = controlActiveState
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
+        rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
+        frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
         frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
         frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
@@ -1436,6 +1562,8 @@ public final class Window {
         if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
             frame.menuPanelLevels = session.levels
         }
+        frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
+        frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1449,6 +1577,10 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastHoverRegionCount = frame.hoverRegionCount   // SV-U
+        lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
+        pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
+        presentations.records = frame.presentationRecords   // SV-K item 2
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -1523,6 +1655,16 @@ public final class Window {
         // answer is the whole answer, and a flag that only ever went true is
         // a window whose display link never pauses again.
         hasActiveAnimations = frame.hasActiveAnimations
+
+        // The content's limits follow the frame just built (ruling `SV-L`
+        // items 2 and 4): sent to the platform only when the effective pair
+        // changed. A resize the platform makes into them arrives through
+        // `onResize` and dirties the window for the next frame.
+        if windowResizability != .automatic {
+            contentLimits = ContentSizeLimits(minimum: frame.contentMinimum, maximum: frame.contentMaximum)
+            reconcileContentSizeLimits()
+        }
+        onFrameAdopted?(frame)
         return (frame, scene)
     }
 
@@ -1780,6 +1922,9 @@ public final class Window {
         case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
             // A secondary press moves the pointer, never `active` (`MN-B` item 4).
             lastMousePosition = mouse.position
+        case .pointerExited:
+            // The pointer left the window (`SV-N` item 7): nothing is under it.
+            lastMousePosition = nil
         default:
             break
         }
@@ -1851,6 +1996,35 @@ public final class Window {
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
     var menuSession: MenuSession?
 
+    // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
+
+    /// The window's presentations: the last build's records and the one
+    /// dialog or alert in flight (`SV-K`). Never a `StateTable` entry.
+    let presentations = PresentationRegistry()
+
+    /// The alert the platform declined to show (`SV-J` item 2) — the window's
+    /// to draw (lane 3's panel) and answer through `chooseAlertButton(_:)`.
+    var drawnAlert: DrawnAlert?
+
+    /// The hovered regions, in the last frame's registration order — outer
+    /// first (`SV-N` item 5).
+    var hoveredRegions: [HoveredRegion] = []
+
+    /// How many hover regions the last adopted frame registered (`SV-U`): with
+    /// none and nothing hovered, a pointer event or frame does no hover work.
+    var lastHoverRegionCount = 0
+
+    /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
+    /// at most the visible band's rows plus one per level.
+    var lastMenuRowsPainted = 0
+
+    /// Each menu picker's widest option title, across builds (`SV-AA`).
+    let pickerTitleWidths = PickerTitleWidths()
+
+    /// Hitboxes the hover recomputes visited, ever — test observability for
+    /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
+    var hoverVisits = 0
+
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
     /// command stage. `nil` for a window built without an `App`.
@@ -1920,6 +2094,19 @@ public final class Window {
     /// Asks the platform to show `menu` itself (`MN-C`).
     func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
         platformWindow.presentMenu(menu, at: position)
+    }
+
+    /// The platform's file dialog, alert and dismissal (`SV-B`), for
+    /// `Presentations.swift` and `FileDialogs.swift` — `platformWindow` stays
+    /// private, as `presentMenuOnPlatform` keeps it.
+    func presentFileDialogOnPlatform(_ dialog: PlatformFileDialog) -> Bool {
+        platformWindow.presentFileDialog(dialog)
+    }
+    func presentAlertOnPlatform(_ alert: PlatformAlert) -> Bool {
+        platformWindow.presentAlert(alert)
+    }
+    func dismissPresentationOnPlatform(token: Int) {
+        platformWindow.dismissPresentation(token: token)
     }
 
     /// Clears `active` for a press the open menu consumed, so the press never

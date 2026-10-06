@@ -78,6 +78,16 @@ public final class SDLPlatform: Platform {
     /// dispatched, and while any window's display link is running each frame
     /// ticks it (the swapchain acquire paces the loop to the display); with
     /// every link paused the loop sleeps in `SDL_WaitEvent`.
+    ///
+    /// **Each pass also drains the main queue** (ruling `SV-H`, the gap-10
+    /// fix): main-actor work — a `Task` started from a button's action, an
+    /// `await` resuming on the main actor — runs in the pass it was enqueued
+    /// from input, and within one 250 ms wait when enqueued from another
+    /// thread while every display link is paused. **Call it from synchronous
+    /// top-level code**, as every MetalUI `main.swift` does: inside a
+    /// main-actor job — an `async` main — the drain cannot run main-actor
+    /// work on either platform (probes `swift-main-actor-task-loop.swift` `B2`
+    /// and `swift-main-queue-drain-nested.swift` `J1`).
     public func run() { run(maxIterations: nil) }
 
     /// ``run()`` for at most `maxIterations` passes — so a test of the loop
@@ -90,12 +100,14 @@ public final class SDLPlatform: Platform {
             if let maxIterations, iterations > maxIterations { break }
             if windows.values.contains(where: { $0.linkRunning }) {
                 pumpEvents()
+                drainMainQueue()   // SV-H: after the events, before the ticks
                 let now = mui_now()
                 for window in windows.values where window.linkRunning { window.tick(now) }
             } else {
                 var event = MUIEvent()
                 if mui_wait_event(&event, 250) { dispatch(event) }
                 pumpEvents()
+                drainMainQueue()   // SV-H
             }
         }
         running = false
@@ -160,6 +172,15 @@ public final class SDLPlatform: Platform {
         publishControlActiveStates()
     }
 
+    /// Waits up to `timeoutMilliseconds` for one event and dispatches it — the
+    /// loop's own bounded wait (`mui_wait_event`), so a test waiting on an
+    /// answer from another thread waits for the event, not for a clock.
+    func waitForEvent(timeoutMilliseconds: Int32) {
+        var event = MUIEvent()
+        if mui_wait_event(&event, timeoutMilliseconds) { dispatch(event) }
+        publishControlActiveStates()
+    }
+
     private func dispatch(_ event: MUIEvent) {
         switch Int(event.kind) {
         case Int(MUI_EVENT_QUIT):
@@ -178,6 +199,15 @@ public final class SDLPlatform: Platform {
             if focusedID == event.window_id { focusedID = nil }
         case Int(MUI_EVENT_ACCESSIBILITY):
             windows[event.window_id]?.deliverAccessibilityRequests()
+        case Int(MUI_EVENT_DIALOG):
+            // A file dialog's answer (ruling `SV-G` item 2), already copied
+            // into the bridge's queue by SDL's callback. A window gone since
+            // the request leaves nobody to tell: the answer is freed.
+            if let window = windows[event.window_id] {
+                window.deliverDialogResult(token: event.start)
+            } else {
+                mui_dialog_result_free(mui_take_dialog_result(event.start))
+            }
         default:
             windows[event.window_id]?.handle(event)
         }
@@ -188,7 +218,10 @@ public final class SDLPlatform: Platform {
 @MainActor
 public final class SDLWindow: PlatformWindow {
     private let handle: OpaquePointer
-    let id: UInt32
+    /// SDL's window id (`SDL_GetWindowID`) — public so an executable driving
+    /// the bridge's test hooks can name the window (`MainQueueDrainCheck`,
+    /// ruling `SV-H` item 3).
+    public let id: UInt32
     /// Optional only so `deinit` can release it — and the window's GPU
     /// claim with it — before the window itself is destroyed.
     private var windowRenderer: SDLWindowRenderer?
@@ -410,6 +443,98 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
+    // MARK: Platform services (rulings `SV-G`, `SV-J`, `SV-M`)
+
+    /// Calls `SDL_ShowOpenFileDialog` (`allow_many` as asked) or
+    /// `SDL_ShowSaveFileDialog` (`default_location` = the default name) with
+    /// this window as parent, filtered by ``dialogFilters(_:)``, and answers
+    /// `true` (ruling `SV-G` item 1): every outcome — chosen, cancelled, or
+    /// failed with `SDL_GetError()`'s text — arrives through SDL's callback,
+    /// on whatever thread SDL calls it from, hopped onto the main thread by
+    /// the bridge as `MUI_EVENT_DIALOG` and delivered as `.fileDialogResult`.
+    /// The seam's `title`/`prompt` are not SDL3 parameters of these calls
+    /// and are not shown. `false` only for a token outside `Int32`.
+    public func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool {
+        guard let token = Int32(exactly: dialog.token) else { return false }
+        let isSave: Bool, allowMany: Bool, location: String?
+        switch dialog.kind {
+        case .open(let allowsMultipleSelection):
+            (isSave, allowMany, location) = (false, allowsMultipleSelection, nil)
+        case .save(let defaultFilename):
+            (isSave, allowMany, location) = (true, false, defaultFilename)
+        }
+        guard let request = mui_dialog_request_new(token, isSave, allowMany, location) else { return false }
+        for filter in Self.dialogFilters(dialog.allowedTypes) {
+            _ = mui_dialog_request_add_filter(request, filter.name, filter.pattern)
+        }
+        return mui_dialog_request_show(request, rawHandle)
+    }
+
+    /// SDL's filters for `types` (ruling `SV-E`, divergence 129): one per type
+    /// that has filename extensions — named by its identifier, its extensions
+    /// joined by `;` — and none for a type without (`public.data`), so a list
+    /// with no extension anywhere filters nothing (SDL is passed `NULL`). Off
+    /// Apple a type is matched by extension only.
+    nonisolated static func dialogFilters(_ types: [PlatformFileType]) -> [(name: String, pattern: String)] {
+        types.compactMap { type in
+            type.filenameExtensions.isEmpty
+                ? nil : (type.identifier, type.filenameExtensions.joined(separator: ";"))
+        }
+    }
+
+    /// Takes the answer the bridge queued for `token` and delivers it as
+    /// `.fileDialogResult` — an empty list a cancel, SDL's `NULL` a failure.
+    func deliverDialogResult(token: Int32) {
+        guard let result = mui_take_dialog_result(token) else { return }
+        defer { mui_dialog_result_free(result) }
+        let outcome: FileDialogResultEvent.Outcome
+        switch mui_dialog_result_status(result) {
+        case 1:
+            outcome = .chosen((0..<mui_dialog_result_count(result)).compactMap { index in
+                mui_dialog_result_path(result, index).map { String(cString: $0) }
+            })
+        case 0:
+            outcome = .cancelled
+        default:
+            outcome = .failed(String(cString: mui_dialog_result_error(result)))
+        }
+        _ = onInput?(.fileDialogResult(FileDialogResultEvent(token: Int(token), outcome: outcome)))
+    }
+
+    /// Always `false` (ruling `SV-J` item 2): SDL's `SDL_ShowMessageBox`
+    /// blocks in a nested loop — no frames, no display link, no AccessKit
+    /// updates while it is up — and fails under the offscreen driver, so
+    /// `Window` draws its in-window alert, as it draws the in-window menu.
+    public func presentAlert(_ alert: PlatformAlert) -> Bool {
+        false
+    }
+
+    /// Does nothing (ruling `SV-G` item 5): SDL3 has no call that closes a
+    /// file dialog it showed, and this platform shows no alert. The answer
+    /// that eventually arrives is delivered as input; `Window` has forgotten
+    /// the token and runs nothing.
+    public func dismissPresentation(token: Int) {}
+
+    /// `SDL_SetWindowMinimumSize`/`SDL_SetWindowMaximumSize` (ruling `SV-M`):
+    /// the minimum rounded up, the maximum down, `nil` — and an axis beyond
+    /// `Int32` (the seam's unbounded `greatestFiniteMagnitude`) — as 0, SDL's
+    /// "no limit". SDL resizes a window outside the new limits itself, and
+    /// its resize reaches `onResize`.
+    public func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {
+        func points(_ value: Float?, _ rule: FloatingPointRoundingRule) -> Int32 {
+            guard let value, value.isFinite, value > 0 else { return 0 }
+            return Int32(exactly: value.rounded(rule)) ?? 0
+        }
+        let minW = points(minimum?.width.value, .up), minH = points(minimum?.height.value, .up)
+        // A maximum that rounds below its minimum (the same fractional value
+        // rounds the two apart) is raised to it; 0 stays "no limit" (`SV-AG`
+        // item 1).
+        func atLeast(_ high: Int32, _ low: Int32) -> Int32 { high == 0 ? 0 : max(high, low) }
+        let maxW = atLeast(points(maximum?.width.value, .down), minW)
+        let maxH = atLeast(points(maximum?.height.value, .down), minH)
+        _ = mui_window_set_size_limits(rawHandle, minW, minH, maxW, maxH)
+    }
+
     // MARK: Drops in (ruling `DN-M`)
 
     /// The drop session SDL's events are building, or `nil` between them.
@@ -553,6 +678,8 @@ public final class SDLWindow: PlatformWindow {
         case Int(MUI_EVENT_MOUSE_DRAG):
             endDropSessionOnMotion()
             _ = onInput?(.mouseDragged(MouseEvent(position: position, modifiers: modifiers)))
+        case Int(MUI_EVENT_MOUSE_LEAVE):   // the pointer left the window (ruling SV-N item 7)
+            _ = onInput?(.pointerExited)
         case Int(MUI_EVENT_DROP_BEGIN), Int(MUI_EVENT_DROP_POSITION), Int(MUI_EVENT_DROP_FILE),
              Int(MUI_EVENT_DROP_TEXT), Int(MUI_EVENT_DROP_COMPLETE):
             handleDrop(event)

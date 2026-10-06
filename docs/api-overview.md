@@ -26,6 +26,17 @@ environment, focus, keymap, input), `Frame`, `renderFrame(_:size:scaleFactor:tex
 for a headless frame. A window redraws on a display link, only when dirty.
 SwiftUI's `App`/`Scene` lifecycle is not offered.
 
+**Window sizing** (`SV-L`, `SV-M`; SwiftUI's `.defaultSize` and
+`.windowResizability` scene modifiers become window state, `App` not being a
+`Scene`): `App.openWindow(title:size:minSize:maxSize:windowResizability:startsDisplayLink:content:)`
+— `size` is the default size — and `Window.minSize`, `Window.maxSize`,
+`Window.windowResizability` (M), settable at any time; `WindowResizability`
+(A) `.automatic`, `.contentMinSize` (the root's answer at a zero proposal is
+the minimum, following the content), `.contentSize` (adds its answer at an
+infinite proposal as the maximum). `.automatic` asks the content nothing
+(divergence 126). The platform receives the effective limits through
+`PlatformWindow.setContentSizeLimits(minimum:maximum:)` only when they change.
+
 ## Elements — M
 
 MetalUI's equivalent of `View` is three protocols with gpui's phases:
@@ -302,7 +313,7 @@ show-menu. A native `NSMenu` on AppKit, MetalUI's drawn menu (keyboard, hover,
 submenus, outside click) where the platform declines — SDL — through the
 defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
 `InputEvent.menuAction`. A secondary press never presses a `Button` (D 110).
-`Picker`, `Section` and image items are not offered.
+`Section` and image items are not offered (a `.menu`-style `Picker` is a view, below).
 
 **Pull-down (A).** `Menu("Title") { }` as a view: a button that opens its items
 below itself, published as a menu button.
@@ -323,6 +334,78 @@ outside press then reaches what it lands on. Published as a non-modal popover.
 **Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
 both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
 a press, wheel, key or leaving.
+
+## Dialogs, alerts and hover — A / D / M
+
+**File dialogs** (`SV-C`, `SV-D`, `SV-E`; probe `swiftui-platform-services.swift`
+`D1`–`D5`, `X1`–`X5`): `.fileImporter(isPresented:allowedContentTypes:allowsMultipleSelection:onCompletion:)`,
+the one-file `.fileImporter(isPresented:allowedContentTypes:onCompletion:)` and
+`.fileExporter(isPresented:item:contentTypes:defaultFilename:onCompletion:onCancellation:)`
+(D: MetalUI's `ContentType` in place of `UTType` and its synchronous
+`Transferable`; off Apple a type filters by filename extension only, 129) on
+every element group, each returning `PresentationScope<Content>` (D:
+transparent, its record in the window's registry; a legacy decoration after it
+does not compile, 120). Presented after the frame in which `isPresented` turned
+`true`, one per window at a time; `isPresented` is written `false` before the
+callback; a cancelled import calls nothing, a cancelled export calls
+`onCancellation`; a `nil` item still presents; the exporter writes the
+representation conforming to the chosen type, else the first.
+`FileExportError.noItem`. **The async call** (M): `FileDialogs.openFiles(allowedContentTypes:allowsMultipleSelection:) async throws -> [URL]`
+and `saveFile(contentTypes:defaultFilename:) async throws -> URL?` (`[]`/`nil` on
+cancel; `FileDialogError` `.noWindow`, `.unavailable`, `.busy`, `.platform`;
+a cancelled task dismisses), `@MainActor`, holding its window weakly — read
+`@Environment(\.fileDialogs)` (get-only outside MetalUI, stamped by the window)
+or `Window.fileDialogs` from a menu command. `ContentType(_:conformingTo:filenameExtensions:)`,
+`preferredFilenameExtension` and `ContentType.json` (D, 129).
+
+**Alerts** (`SV-I`, `SV-X`, `SV-Y`; probes `swiftui-platform-services.swift`
+`A1`–`A9`, `C1` and `swiftui-alert-presenting.swift` `R0`–`R4`, `K0`–`K3`; A):
+`.alert(_:isPresented:actions:)`, `.alert(_:isPresented:actions:message:)`,
+`.alert(_:isPresented:presenting:actions:)` and with `message:`,
+`.confirmationDialog(_:isPresented:actions:)` and with `message:`; actions are
+the closed `AlertActions` — `Button` with a `Text` label, `role: .cancel` or
+`.destructive` — through `@AlertActionsBuilder` (`if`, `if`/`else`, `for`;
+`AlertActionItems`). SwiftUI's buttons: the cancel button last and on Escape,
+a synthesized "Cancel" beside a lone destructive, one "OK" for none, Return on
+the first plain button only when none is destructive; `presenting: nil` still
+presents the title and "OK". Any button writes `isPresented = false`, then runs
+its action. An `NSAlert` sheet on AppKit; drawn in the window where the platform
+declines (SDL). Not offered: `titleVisibility:`, alert text fields, a
+non-`Text` button label.
+
+**Hover** (`SV-N`, `SV-Z`; A — SwiftUI's spellings, MetalUI's semantics, its
+probe arms `H1`–`H11` a broken instrument): `.onHover(perform:)` and
+`.onContinuousHover(perform:)` with `HoverPhase` (`.active(Point<Pixels>)` in
+the element's own space, `.ended`) on both vocabularies — `Self` on a
+`StyledElement`, `HoverModifier<Content>` on typed content. A non-opaque
+region, inside the disabled and `allowsHitTesting` gates; hovered while nothing
+opaque or another hover region covers it on its layer (nested regions all
+hover); callbacks from input and after a frame in which content moved under a
+still pointer, leavings innermost first, then enterings outermost first; empty
+while an in-window menu or a drawn alert is up.
+
+**The drawn alert** (`SV-J` items 2–4, `SV-X`; M look, A rules): where the
+platform declines an alert (SDL), the window draws it above everything — a
+scrim, a 260-wide panel 24 from the top, the title, the message, the buttons
+(two side by side with the resolver's first trailing, three or more stacked),
+only the Return default accented. It is modal: Return, Escape, Tab/arrows and
+Space, a click on a button; every other event is swallowed; an open drawn menu
+closes. Published as one `.alert` node with `.button` children.
+
+**`Divider()` as a view** (`SV-O`; A, D 127): in an element builder a 1-point
+line across the nearest `HStack`/`Row` (vertical) or `VStack`/`Column`
+(horizontal; also outside any stack and in a `ZStack`/`Grid`), its proposal (or
+10) along; the theme's `.separator`; no accessibility node. In a menu builder it
+is still a separator.
+
+**Menu picker** (`SV-P`, `SV-AA`, `SV-Q`; A, D 81, 128):
+`.pickerStyle(.menu)` — the title, 8, a pull-down button showing the selected
+option's title (`""` when no tag matches), as wide as the widest option, opening
+every option as a checked-or-not item (a native `NSMenu`, else the drawn panel,
+which scrolls when taller than the window and opens on the selection); choosing
+writes the tag. Options are recorded without layout (hundreds cost one record
+each); a non-`Text` option is titled by its tag (128). Published as
+`.popUpButton`. `.automatic` stays segmented (81).
 
 ## Accessibility — A / M
 
@@ -380,7 +463,11 @@ offered: a main-actor task never runs inside the SDL loop (`LC-L`;
 `Appearance`, `ControlActiveState` (A), `LayoutDirection` (25)),
 `MetalUILayout` (the layout kernel: `LayoutTree`, `ProposalLayout`,
 `ProposedSize`, rounding — 77), `MetalUIPlatform` (`Platform`,
-`PlatformWindow`, `WindowRenderer`, input events, the accessibility tree),
+`PlatformWindow`, `WindowRenderer`, input events, the accessibility tree; the
+platform-services seam, `SV-B`: `PlatformFileType`, `PlatformFileDialog`,
+`FileDialogResultEvent`, `PlatformAlert`, `PlatformAlertButton`,
+`AlertResultEvent`, `InputEvent.pointerExited`/`.fileDialogResult`/`.alertResult`,
+`AccessibilityRole.popUpButton`/`.alert`),
 `MetalUIScene` (`Scene` — with its per-instance `MUITransform` table,
 `Scene.transforms`/`insert(_:…transform:)`, `GX-F` — the glyph atlas,
 `FontKey`, `ImageTexture`),

@@ -41,11 +41,17 @@ func runDemo() throws {
     // group R): a context menu, a popover, tooltips, a pull-down and — in
     // this mode only — two commands on the menu bar.
     let menusDemo = ProcessInfo.processInfo.environment["METALUI_MENUS_DEMO"] == "1"
+    // Platform services' human looks (`docs/verification/human-checks.md`
+    // group U, ruling SV-T): open and save panels, an alert sheet, hover
+    // tiles, dividers, a 300-option menu picker; a 900 × 600 minimum.
+    let servicesDemo = ProcessInfo.processInfo.environment["METALUI_SERVICES_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if menusDemo {
+    if servicesDemo {
+        window = try openServicesDemoWindow(app, title: "MetalUI — Platform Services")
+    } else if menusDemo {
         app.commands {
             CommandMenu("Demo") {
                 Button("Say Hello") { menusDemoModel.status = "Hello from the menu bar" }

@@ -389,6 +389,15 @@ and an `onAppear` write is in the first frame; a removal's `onDisappear` waits f
 and a window close runs every one (divergences 120–125). `.task` is not offered yet (the SDL
 loop never runs main-actor tasks). The real looks are `docs/verification/human-checks.md`
 group T, unrun. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows the counters.
+**Platform services** (user request 2026-10-02, not a plan task; record §77):
+`.fileImporter`/`.fileExporter` and an async `FileDialogs` call (an
+`NSOpenPanel`/`NSSavePanel` sheet on AppKit, SDL's dialogs elsewhere), `.alert`/
+`.confirmationDialog` (an `NSAlert` sheet on AppKit, a drawn modal panel on SDL),
+`onHover`/`onContinuousHover`, window `minSize`/`maxSize`/`windowResizability`,
+`Divider()` as a view in stacks and `.pickerStyle(.menu)` (a native menu on AppKit, a
+scrolling drawn one on SDL); the SDL loop now drains the main queue. The real looks are
+`docs/verification/human-checks.md` group U, unrun.
+`METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` is its demo.
 **Menus, popovers and tooltips** (user request 2026-10-02, not a plan task; record
 §74): `.contextMenu { }` (a native `NSMenu` on AppKit, MetalUI's drawn menu on SDL),
 `Menu("Title") { }`, `App.commands { CommandMenu / CommandGroup }` with the standard

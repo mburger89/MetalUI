@@ -2265,3 +2265,62 @@ are the source.) **Added, kept:**
 **Nothing retired or amended.** "Not offered" gains `.task`/`.task(id:)` (`LC-L`)
 and `onChange(of:perform:)`, `onReceive`, `scenePhase` and menu-content lifecycle
 (`LC-A`). Live count **86 → 92**, next label **126**.
+
+## 2026-10-05: 126 and 129 added, 120 amended; 94 live, next label 130 (platform services, lanes 1 and 2)
+
+*(Lane 3 followed: the next section.)*
+
+Record §77; rulings `SV-L`, `SV-E`, `SV-K`; the published list is
+`docs/divergences.md`. Not a plan task — user request 2026-10-02. Labels 127
+and 128 are **reserved** for the unbuilt lane 3 (the spec's divergence table: 127 `Divider`'s colour, `SV-O`;
+128 a non-`Text` menu-picker option, `SV-P`); they are not live and not retired. (This section was
+added by the branch check; the lanes wrote the rows only.) **Added, kept:**
+
+- **126** — a window's size and its content: SwiftUI's `.automatic`
+  resizability is `.contentMinSize` on macOS (probe `swiftui-window-sizing.swift`
+  `W0` = `W1`) and its limits include the title bar's inset; MetalUI's
+  `WindowResizability.automatic` asks the content nothing, `.contentMinSize`/
+  `.contentSize` are opt-in and measure the root once per frame, with no inset
+  (`PB-A`: no safe areas). Pin `automaticResizabilityAsksTheContentNothing`
+  (2.33).
+- **129** — a file dialog's `allowedContentTypes` off Apple: AppKit matches by
+  UTType conformance (`D1`); SDL (Linux, Windows) matches by filename extension
+  only, a type with none filtering nothing. Pin
+  `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` (1.13,
+  `Backends/SDL`).
+
+**Amended:** **120** — the constraint now also covers `.fileImporter`,
+`.fileExporter`, `.alert` and `.confirmationDialog` (`PresentationScope` is the
+same transparent `ElementGroup`, `SV-K` item 1). Pin
+`aLegacyDecorationAfterAPresentationModifierDoesNotCompile` (2.G8). "Not
+offered" gains `fileExporter(document:)`/`FileDocument`, `fileMover`, folder
+selection and the dialog-customisation modifiers (`SV-C`, `SV-W`),
+`confirmationDialog(titleVisibility:)` (`SV-I` item 1), a `TextField` or
+non-`Text` label in an alert (`SV-I` item 2, `SV-AD` item 3) and
+`onContinuousHover(coordinateSpace:)` beyond `.local` (`SV-N` item 1). Live
+count **92 → 94**, next label **130**.
+
+## 2026-10-06: 127 and 128 added, 81 narrowed; 96 live, next label 130 (platform services, lane 3)
+
+Record §77; rulings `SV-O`, `SV-P`, `SV-AK`; the published list is
+`docs/divergences.md`. The labels the previous section reserved are taken.
+**Added, kept:**
+
+- **127** — `Divider()`'s colour: SwiftUI's is black (light) or white (dark) at
+  alpha 0.098 over whatever lies beneath (probe `swiftui-platform-services.swift`
+  `V12`, `V13`), 1 point across; MetalUI's is the theme's opaque `.separator`
+  token (`0xC8CDD6` light, `0x3A4260` dark), the menus' separator colour, also 1
+  point. Pin `aDividerPaintsTheSeparatorTokenOnePointThick` (4.7).
+- **128** — a menu `Picker`'s option whose content is not a `Text`: SwiftUI draws
+  the option's own view (`P1`–`P3`); a menu item carries a string only
+  (`PlatformMenuItem.title`) and options are recorded without being laid out, so
+  the option is titled `String(describing: tag)`. Pin
+  `aNonTextMenuOptionIsTitledByItsTag` (5.10).
+
+**Narrowed:** **81** — `.pickerStyle(.menu)` is now offered; only the
+*automatic* style differs (segmented where SwiftUI's is a pop-up menu). Pins
+`theAutomaticPickerStaysSegmented` (5.11) and `aMenuPickerStyleCompiles`
+(5.G13, which replaced `aMenuPickerStyleIsNotOffered`). "Not built" lines 178
+and 179 of `docs/divergences.md` lost `.pickerStyle(.menu)`, `Picker` in a menu,
+`Divider` as a view in a stack and the scrolling menu. Live count **94 → 96**,
+next label **130**.

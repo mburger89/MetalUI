@@ -434,11 +434,23 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .menuItem, .menuItemCheckBox: .menuItem
         case .menuButton: .menuButton
         case .popover: .popover
+        // Platform services (ruling `SV-S`): a `.menu` picker is SwiftUI's
+        // `AXPopUpButton` (`P0`–`P3`); a drawn alert an `AXGroup` with subrole
+        // `AXDialog` — never published here, where the alert is native.
+        case .popUpButton: .popUpButton
+        case .alert: .group
         }
     }
 
-    /// `AXOutlineRow` for a row (`IX-AA` item 3); nothing else has a subrole.
-    private var subrole: NSAccessibility.Subrole? { node.role == .row ? .outlineRow : nil }
+    /// `AXOutlineRow` for a row (`IX-AA` item 3), `AXDialog` for a drawn alert
+    /// (`SV-S`); nothing else has a subrole.
+    private var subrole: NSAccessibility.Subrole? {
+        switch node.role {
+        case .row: .outlineRow
+        case .alert: .dialog
+        default: nil
+        }
+    }
 
     /// One `NSAccessibilityCustomAction` per declared name, in published order,
     /// the i-th sending `.customAction(id, i)` (`IX-AD`); none once detached.

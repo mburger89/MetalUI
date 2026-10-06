@@ -762,6 +762,8 @@ float mui_window_pixel_density(void *window) {
 /* ---- The SDL platform (ruling SP-A) ------------------------------------- */
 
 static Uint32 accessibility_event_type = 0;
+static Uint32 dialog_event_type = 0;
+static SDL_Mutex *dialog_mutex = NULL;
 
 bool mui_platform_init(void) {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
@@ -770,7 +772,11 @@ bool mui_platform_init(void) {
     SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
     SDL_SetEventEnabled(SDL_EVENT_DROP_TEXT, true);
     if (accessibility_event_type == 0) accessibility_event_type = SDL_RegisterEvents(1);
-    return accessibility_event_type != 0;
+    // File dialogs (ruling SV-G): their own wake event and the answer queue's
+    // lock, created once per process.
+    if (dialog_event_type == 0) dialog_event_type = SDL_RegisterEvents(1);
+    if (!dialog_mutex) dialog_mutex = SDL_CreateMutex();
+    return accessibility_event_type != 0 && dialog_event_type != 0 && dialog_mutex != NULL;
 }
 
 bool mui_wake_for_accessibility(uint32_t window_id) {
@@ -797,6 +803,9 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
     if (accessibility_event_type != 0 && e->type == accessibility_event_type) {
         out->kind = MUI_EVENT_ACCESSIBILITY; out->window_id = e->user.windowID; return true;
     }
+    if (dialog_event_type != 0 && e->type == dialog_event_type) {   // SV-G
+        out->kind = MUI_EVENT_DIALOG; out->window_id = e->user.windowID; out->start = e->user.code; return true;
+    }
     switch (e->type) {
     case SDL_EVENT_QUIT: out->kind = MUI_EVENT_QUIT; return true;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -810,6 +819,8 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:   // the pointer left the window (SV-N item 7)
+        out->kind = MUI_EVENT_MOUSE_LEAVE; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
         // The primary button, and the secondary one as its own kinds (ruling
@@ -950,6 +961,8 @@ bool mui_push_raw_window_event(uint32_t sdl_type, uint32_t window_id) {
     return SDL_PushEvent(&e);
 }
 
+const uint32_t mui_sdl_event_window_mouse_leave = SDL_EVENT_WINDOW_MOUSE_LEAVE;
+
 const uint32_t mui_sdl_event_drop_begin = SDL_EVENT_DROP_BEGIN;
 const uint32_t mui_sdl_event_drop_position = SDL_EVENT_DROP_POSITION;
 const uint32_t mui_sdl_event_drop_file = SDL_EVENT_DROP_FILE;
@@ -992,6 +1005,204 @@ bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t but
     }
     e.common.timestamp = SDL_GetTicksNS();
     return SDL_PushEvent(&e);
+}
+
+/* ---- File dialogs (ruling SV-G) ----------------------------------------- */
+
+struct MUIDialogRequest {
+    int32_t token;
+    bool is_save, allow_many;
+    char *default_location;
+    SDL_DialogFileFilter *filters;
+    int nfilters;
+    uint32_t window_id;
+};
+
+struct MUIDialogResult {
+    int32_t token;
+    int32_t status;          // 1 chosen, 0 cancelled, -1 failed
+    char **paths;
+    int32_t count;
+    char *error;
+    struct MUIDialogResult *next;
+};
+
+static struct MUIDialogResult *dialog_head = NULL, *dialog_tail = NULL;
+
+MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow_many,
+                                         const char *default_location) {
+    MUIDialogRequest *r = SDL_calloc(1, sizeof *r);
+    if (!r) return NULL;
+    r->token = token; r->is_save = is_save; r->allow_many = allow_many;
+    r->default_location = default_location ? SDL_strdup(default_location) : NULL;
+    return r;
+}
+
+bool mui_dialog_request_add_filter(MUIDialogRequest *r, const char *name, const char *pattern) {
+    SDL_DialogFileFilter *grown = SDL_realloc(r->filters, sizeof *grown * (size_t)(r->nfilters + 1));
+    if (!grown) return false;
+    r->filters = grown;
+    r->filters[r->nfilters].name = SDL_strdup(name);
+    r->filters[r->nfilters].pattern = SDL_strdup(pattern);
+    r->nfilters += 1;
+    return true;
+}
+
+static void free_request(MUIDialogRequest *r) {
+    for (int i = 0; i < r->nfilters; i++) {
+        SDL_free((void *)r->filters[i].name);
+        SDL_free((void *)r->filters[i].pattern);
+    }
+    SDL_free(r->filters);
+    SDL_free(r->default_location);
+    SDL_free(r);
+}
+
+/* SDL's dialog callback, on whatever thread SDL calls it from: copies the
+   answer into the queue, wakes the main thread with MUI_EVENT_DIALOG and
+   frees the request (its filters were needed until now). */
+static void SDLCALL dialog_callback(void *userdata, const char *const *filelist, int filter) {
+    (void)filter;
+    MUIDialogRequest *request = userdata;
+    struct MUIDialogResult *result = SDL_calloc(1, sizeof *result);
+    if (result) {
+        result->token = request->token;
+        if (!filelist) {
+            result->status = -1;
+            result->error = SDL_strdup(SDL_GetError());
+        } else if (!filelist[0]) {
+            result->status = 0;
+        } else {
+            int32_t count = 0;
+            while (filelist[count]) count++;
+            result->paths = SDL_calloc((size_t)count, sizeof(char *));
+            if (result->paths) {
+                for (int32_t i = 0; i < count; i++) result->paths[i] = SDL_strdup(filelist[i]);
+                result->count = count;
+                result->status = 1;
+            } else {
+                result->status = -1;
+                result->error = SDL_strdup("out of memory copying the chosen paths");
+            }
+        }
+        SDL_LockMutex(dialog_mutex);
+        if (dialog_tail) dialog_tail->next = result; else dialog_head = result;
+        dialog_tail = result;
+        SDL_UnlockMutex(dialog_mutex);
+        SDL_Event e;
+        SDL_zero(e);
+        e.type = dialog_event_type;
+        e.user.windowID = request->window_id;
+        e.user.code = request->token;
+        e.common.timestamp = SDL_GetTicksNS();
+        SDL_PushEvent(&e);
+    }
+    free_request(request);
+}
+
+bool mui_dialog_request_show(MUIDialogRequest *r, void *window) {
+    r->window_id = window ? SDL_GetWindowID((SDL_Window *)window) : 0;
+    const SDL_DialogFileFilter *filters = r->nfilters > 0 ? r->filters : NULL;
+    if (r->is_save)
+        SDL_ShowSaveFileDialog(dialog_callback, r, (SDL_Window *)window, filters, r->nfilters, r->default_location);
+    else
+        SDL_ShowOpenFileDialog(dialog_callback, r, (SDL_Window *)window, filters, r->nfilters, r->default_location,
+                               r->allow_many);
+    return true;
+}
+
+MUIDialogResult *mui_take_dialog_result(int32_t token) {
+    SDL_LockMutex(dialog_mutex);
+    struct MUIDialogResult *previous = NULL, *node = dialog_head;
+    while (node && node->token != token) { previous = node; node = node->next; }
+    if (node) {
+        if (previous) previous->next = node->next; else dialog_head = node->next;
+        if (dialog_tail == node) dialog_tail = previous;
+        node->next = NULL;
+    }
+    SDL_UnlockMutex(dialog_mutex);
+    return node;
+}
+
+int32_t mui_dialog_result_status(const MUIDialogResult *r) { return r->status; }
+int32_t mui_dialog_result_count(const MUIDialogResult *r) { return r->count; }
+const char *mui_dialog_result_path(const MUIDialogResult *r, int32_t index) {
+    return index >= 0 && index < r->count ? r->paths[index] : NULL;
+}
+const char *mui_dialog_result_error(const MUIDialogResult *r) { return r->error ? r->error : ""; }
+
+void mui_dialog_result_free(MUIDialogResult *r) {
+    if (!r) return;
+    for (int32_t i = 0; i < r->count; i++) SDL_free(r->paths[i]);
+    SDL_free(r->paths);
+    SDL_free(r->error);
+    SDL_free(r);
+}
+
+typedef struct {
+    MUIDialogRequest *request;
+    char **paths;        // NULL-terminated; NULL itself for a failure
+} TestDialogAnswer;
+
+static int SDLCALL test_dialog_thread(void *userdata) {
+    TestDialogAnswer *answer = userdata;
+    if (!answer->paths) SDL_SetError("test dialog failure");
+    dialog_callback(answer->request, (const char *const *)answer->paths, -1);
+    if (answer->paths) {
+        for (char **p = answer->paths; *p; p++) SDL_free(*p);
+        SDL_free(answer->paths);
+    }
+    SDL_free(answer);
+    return 0;
+}
+
+bool mui_test_complete_dialog(uint32_t window_id, int32_t token, const char *joined_paths, int32_t count) {
+    MUIDialogRequest *request = mui_dialog_request_new(token, false, false, NULL);
+    TestDialogAnswer *answer = SDL_calloc(1, sizeof *answer);
+    if (!request || !answer) return false;
+    request->window_id = window_id;
+    answer->request = request;
+    if (count >= 0) {
+        answer->paths = SDL_calloc((size_t)count + 1, sizeof(char *));
+        const char *cursor = joined_paths ? joined_paths : "";
+        for (int32_t i = 0; i < count; i++) {
+            const char *end = SDL_strchr(cursor, '\n');
+            size_t length = end ? (size_t)(end - cursor) : SDL_strlen(cursor);
+            answer->paths[i] = SDL_malloc(length + 1);
+            SDL_memcpy(answer->paths[i], cursor, length);
+            answer->paths[i][length] = '\0';
+            cursor = end ? end + 1 : cursor + length;
+        }
+    }
+    SDL_Thread *thread = SDL_CreateThread(test_dialog_thread, "mui test dialog", answer);
+    if (!thread) return false;
+    SDL_DetachThread(thread);
+    return true;
+}
+
+/* ---- Window size limits (ruling SV-M) ------------------------------------ */
+
+// Independent of the order the limits change in (ruling `SV-AG` item 1): SDL
+// refuses a minimum above the maximum still set and a maximum below the
+// minimum still set, so the maximum is lifted first, the minimum set, then the
+// new maximum. The caller sends a maximum no smaller than its minimum.
+bool mui_window_set_size_limits(void *w, int32_t min_w, int32_t min_h, int32_t max_w, int32_t max_h) {
+    SDL_Window *window = (SDL_Window *)w;
+    bool lifted = SDL_SetWindowMaximumSize(window, 0, 0);
+    bool ok = SDL_SetWindowMinimumSize(window, min_w, min_h);
+    return SDL_SetWindowMaximumSize(window, max_w, max_h) && ok && lifted;
+}
+
+void mui_window_size_limits(void *w, int32_t *min_w, int32_t *min_h, int32_t *max_w, int32_t *max_h) {
+    int a = 0, b = 0, c = 0, d = 0;
+    SDL_GetWindowMinimumSize((SDL_Window *)w, &a, &b);
+    SDL_GetWindowMaximumSize((SDL_Window *)w, &c, &d);
+    *min_w = a; *min_h = b; *max_w = c; *max_h = d;
+}
+
+const char *mui_current_video_driver(void) {
+    const char *driver = SDL_GetCurrentVideoDriver();
+    return driver ? driver : "";
 }
 
 bool mui_window_has_input_focus(void *w) {

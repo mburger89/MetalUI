@@ -24,7 +24,8 @@ enum LifecycleWrite {
 }
 
 /// A `LifecycleScope`'s layout: its content's (the scope stores nothing — it
-/// notes itself in layout and forwards prepaint and paint unchanged).
+/// notes itself in layout and forwards prepaint and paint unchanged). A
+/// `PresentationScope` (`SV-K`) uses it too, for the same reason.
 public struct LifecycleScopeLayout<ContentLayout> {
     var content: ContentLayout
 }

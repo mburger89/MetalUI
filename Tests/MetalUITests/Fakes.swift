@@ -310,6 +310,54 @@ final class FakePlatformWindow: PlatformWindow {
         return presentsMenusNatively
     }
 
+    // MARK: Platform services (ruling `SV-B` item 4)
+
+    /// Every `presentFileDialog` request, in order.
+    private(set) var presentedFileDialogs: [PlatformFileDialog] = []
+    /// What `presentFileDialog` answers; `true`, a platform that shows one, by
+    /// default. A test delivers the answer with `simulateInput(.fileDialogResult(…))`.
+    var presentsFileDialogs = true
+    func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool {
+        presentedFileDialogs.append(dialog)
+        return presentsFileDialogs
+    }
+
+    /// Every `presentAlert` request, in order.
+    private(set) var presentedAlerts: [PlatformAlert] = []
+    /// What `presentAlert` answers; `false`, as SDL does, by default — so
+    /// `Window` draws its in-window alert (`presentMenu`'s default).
+    var presentsAlertsNatively = false
+    func presentAlert(_ alert: PlatformAlert) -> Bool {
+        presentedAlerts.append(alert)
+        return presentsAlertsNatively
+    }
+
+    /// Every `dismissPresentation` token, in order.
+    private(set) var dismissedPresentations: [Int] = []
+    func dismissPresentation(token: Int) { dismissedPresentations.append(token) }
+
+    /// One `setContentSizeLimits` call, with how many frames the surface had
+    /// presented when it came (spec test 2.40: limits precede the first frame).
+    struct ContentSizeLimitsCall {
+        var minimum: Size<Pixels>?
+        var maximum: Size<Pixels>?
+        var presentsBefore: Int
+    }
+    /// Every `setContentSizeLimits` call, in order.
+    private(set) var contentSizeLimitCalls: [ContentSizeLimitsCall] = []
+    /// Records the call and, as a platform does (`SV-M`), resizes a content
+    /// size outside the new limits into them, reporting it through `onResize`.
+    func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {
+        contentSizeLimitCalls.append(ContentSizeLimitsCall(minimum: minimum, maximum: maximum,
+                                                           presentsBefore: fakeSurface.presentCalls))
+        let lowW = minimum?.width.value ?? 0, lowH = minimum?.height.value ?? 0
+        let highW = maximum?.width.value ?? .greatestFiniteMagnitude
+        let highH = maximum?.height.value ?? .greatestFiniteMagnitude
+        let clamped = Size(width: Pixels(min(max(contentSize.width.value, lowW), highW)),
+                           height: Pixels(min(max(contentSize.height.value, lowH), highH)))
+        if clamped != contentSize { simulateResize(to: clamped) }
+    }
+
     /// Delivers a drag from outside the window (ruling `DN-C`), as the
     /// platform's drop path would, and answers what the window answered.
     @discardableResult

@@ -6,13 +6,13 @@ import MetalUIPlatform
 /// over a **closed** set (ruling `DD-V` item 4). A struct with static members,
 /// so turning it into SwiftUI's protocol later keeps every call site compiling.
 ///
-/// **`.automatic` is segmented, and `.menu` is not offered** — divergence 81:
+/// **`.automatic` is segmented** — divergence 81, narrowed by `SV-P` item 1:
 /// SwiftUI's automatic picker on macOS is a pop-up menu (PK0 = PK1 `.menu`;
-/// PA0 `AXPopUpButton`), a presentation with its own keyboard and dismiss
-/// rules, plan task 12's (`DD-AB` item 7). `.inline` is not offered either.
-/// Pinned by `aMenuPickerStyleIsNotOffered`.
+/// PA0 `AXPopUpButton`). `.menu` is offered since platform services (`SV-P`);
+/// `.inline` is not. Pinned by `aMenuPickerStyleCompiles` (which replaced
+/// `aMenuPickerStyleIsNotOffered`) and `theAutomaticPickerStaysSegmented`.
 public struct PickerStyle: Sendable, Hashable {
-    enum Kind: Sendable, Hashable { case segmented, radioGroup }
+    enum Kind: Sendable, Hashable { case segmented, radioGroup, menu }
     let kind: Kind
 
     /// Segmented (divergence 81: SwiftUI's is a pop-up menu).
@@ -21,6 +21,14 @@ public struct PickerStyle: Sendable, Hashable {
     public static let segmented = PickerStyle(kind: .segmented)
     /// A leading-aligned column of radio rows, 6 apart (PK1, PK3).
     public static let radioGroup = PickerStyle(kind: .radioGroup)
+    /// A pull-down button showing the selected option's title, as wide as the
+    /// widest option's, that opens a menu of every option with the selected
+    /// one checked; choosing one writes its tag (SwiftUI's `.menu`, `SV-P`;
+    /// `P1`–`P5`). Options are recorded without laying them out, so hundreds
+    /// cost one record each (`SV-P` item 3, `SV-AA`); an option whose content
+    /// is not a `Text` is titled by its tag (divergence 128). Published as a
+    /// `.popUpButton` (`SV-S`).
+    public static let menu = PickerStyle(kind: .menu)
 }
 
 /// SwiftUI's `Picker(_:selection:content:)` (ruling `DD-V`): a title and a set
@@ -62,14 +70,27 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     private var selection: Binding<SelectionValue>
     private var pickerStyle: PickerStyle = .automatic
     private var scope: PickerScope
+    private var title: String
     private var box: Box<Pair<Text, Box<OptionRow<Content>>>>
 
+    /// The menu style's structure (`SV-P` item 2): the title, then the
+    /// pull-down button — built in `requestLayout` from `box`'s content.
+    typealias MenuBox = Box<Pair<Text, PickerMenuButton<Content>>>
+
     public struct Layout {
-        var inner: Box<Pair<Text, Box<OptionRow<Content>>>>.Layout
+        var inner: Inner
+        enum Inner {
+            case options(Box<Pair<Text, Box<OptionRow<Content>>>>.Layout)
+            case menu(MenuBox, MenuBox.Layout)
+        }
     }
 
     public struct PrepaintState {
-        var inner: Pair<Text, Box<OptionRow<Content>>>.Prepaint
+        var inner: Inner
+        enum Inner {
+            case options(Pair<Text, Box<OptionRow<Content>>>.Prepaint)
+            case menu(Pair<Text, PickerMenuButton<Content>>.Prepaint)
+        }
     }
 
     /// A picker titled `title` whose options are `content`'s `.tag(_:)`ed
@@ -85,6 +106,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         self.style = style
         self.decoration = Decoration()
         self.selection = selection
+        self.title = title
         self.scope = PickerScope(
             matches: { tag in (tag.base as? SelectionValue).map { $0 == selection.wrappedValue } ?? false },
             write: { tag in if let value = tag.base as? SelectionValue { selection.wrappedValue = value } })
@@ -100,6 +122,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        if pickerStyle.kind == .menu { return requestMenuLayout(id, pass: &pass) }
         var options = Style()
         options.flexDirection = pickerStyle.kind == .segmented ? .row : .column
         switch pickerStyle.kind {
@@ -109,6 +132,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
             options.gap = Axes(both: .pixels(Pixels(6)))
             options.alignItems = .flexStart
             box.content.second.decoration = Decoration()
+        case .menu:
+            break
         }
         box.content.second.style = options
         box.content.second.content.equalWidth = pickerStyle.kind == .segmented
@@ -123,11 +148,36 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
         let (node, inner) = box.requestLayout(id, pass: &pass)
-        return (node, Layout(inner: inner))
+        return (node, Layout(inner: .options(inner)))
+    }
+
+    /// The menu style (`SV-P` items 2–3): the title, 8, a `PickerMenuButton`
+    /// over the caller's content — its options recorded, not laid out — and
+    /// no focus or arrow keys on the picker itself (the button takes focus).
+    private mutating func requestMenuLayout(_ id: GlobalElementID,
+                                            pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        scope.kind = .menu
+        scope.options.removeAll(keepingCapacity: true)
+        scope.tags.removeAll()
+        var menuBox = MenuBox(style: style, decoration: decoration,
+                              content: Pair(Text(title),
+                                            PickerMenuButton(content: box.content.second.content.content,
+                                                             scope: scope, title: title, pickerID: id)))
+        PickerScope.stack.append(scope)
+        defer { PickerScope.stack.removeLast() }
+        let (node, inner) = menuBox.requestLayout(id, pass: &pass)
+        return (node, Layout(inner: .menu(menuBox, inner)))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) -> PrepaintState {
+        guard case .options(var optionsLayout) = layout.inner else {
+            guard case .menu(var menuBox, var inner) = layout.inner else { preconditionFailure() }
+            menuBox.handlers = handlers
+            let prepaint = menuBox.prepaint(id, bounds: bounds, layout: &inner, pass: &pass)
+            layout.inner = .menu(menuBox, inner)
+            return PrepaintState(inner: .menu(prepaint))
+        }
         let scope = self.scope
         var composed = handlers
         composed.isFocusable = true
@@ -140,14 +190,28 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         }
         if composed.axNode.role == .generic { composed.axNode.role = .radioGroup }
         box.handlers = composed
-        return PrepaintState(inner: box.prepaint(id, bounds: bounds, layout: &layout.inner, pass: &pass))
+        let prepaint = box.prepaint(id, bounds: bounds, layout: &optionsLayout, pass: &pass)
+        layout.inner = .options(optionsLayout)
+        return PrepaintState(inner: .options(prepaint))
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout PrepaintState, pass: inout PaintPass) {
-        // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
-        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
-            box.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
+        switch (layout.inner, prepaint.inner) {
+        case (.options(var inner), .options(var innerPrepaint)):
+            // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
+            pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+                box.paint(id, bounds: bounds, layout: &inner, prepaint: &innerPrepaint, pass: &pass)
+            }
+            layout.inner = .options(inner)
+            prepaint.inner = .options(innerPrepaint)
+        case (.menu(var menuBox, var inner), .menu(var innerPrepaint)):
+            // The button is a `Button`: it paints its own disabled look.
+            menuBox.paint(id, bounds: bounds, layout: &inner, prepaint: &innerPrepaint, pass: &pass)
+            layout.inner = .menu(menuBox, inner)
+            prepaint.inner = .menu(innerPrepaint)
+        default:
+            preconditionFailure("Picker: the phase states disagree about the style")
         }
     }
 }
@@ -177,6 +241,12 @@ final class PickerScope {
     var accent: ColorToken = .accent
     /// This frame's options' tags, in declaration order.
     var tags: [AnyHashable] = []
+    /// A menu picker's options as recorded this frame — tag and title — in
+    /// declaration order (`SV-P` item 3). Empty for the other styles.
+    var options: [(tag: AnyHashable, title: String)] = []
+
+    /// The selected option's title, or `""` when no tag matches (`P5`).
+    var selectedTitle: String { options.first { matches($0.tag) }?.title ?? "" }
 
     init(matches: @escaping @MainActor (AnyHashable) -> Bool,
          write: @escaping @MainActor (AnyHashable) -> Void) {
@@ -322,10 +392,22 @@ public struct TaggedElement<Content: Element>: Element {
     public struct LayoutState { var state: Either<Content.LayoutState, Chrome.Layout> }
     public struct PrepaintState { var state: Either<Content.PrepaintState, Chrome.PrepaintState> }
 
-    /// A bare (outside a picker) or option phase state.
+    /// A bare (outside a picker) or option phase state — or a menu picker's
+    /// recorded option, which laid nothing out and has no phases (`SV-P`
+    /// item 3).
     enum Either<Bare, Option> {
         case bare(Bare)
         case option(Option)
+        case recorded
+    }
+
+    /// Records this option in a menu picker's scope (`SV-P` item 3): its tag
+    /// and its title — the content's `Text` string, else the tag's
+    /// description (divergence 128).
+    private func record(in scope: PickerScope) {
+        let title = (content as? Text)?.string ?? String(describing: tag.base)
+        scope.options.append((tag, title))
+        scope.tags.append(tag)
     }
 
     /// The option chrome for `scope`, or `nil` outside a picker.
@@ -346,6 +428,9 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = Box(style: row,
                          decoration: Decoration(background: selected ? .surface : nil, cornerRadius: Pixels(5)),
                          content: Pair(Box(style: lead), content))
+        case .menu:
+            // Unreachable: a menu option records itself before any chrome.
+            preconditionFailure("TaggedElement: a menu picker's option builds no chrome (SV-P item 3)")
         case .radioGroup:
             row.gap = Axes(both: .pixels(Pixels(7)))
             lead.size = Size(width: .length(.pixels(Pixels(14))), height: .length(.pixels(Pixels(14))))
@@ -376,6 +461,13 @@ public struct TaggedElement<Content: Element>: Element {
             let (nodes, layout) = content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
             return (nodes, GroupLayout(state: .bare(layout)))
         }
+        if scope.kind == .menu {
+            // One identity slot, no node (`SV-P` item 3).
+            chrome = nil
+            record(in: scope)
+            cursor += 1
+            return ([], GroupLayout(state: .recorded))
+        }
         var built = makeChrome(scope)
         let (nodes, layout) = Self.behindBarrier {
             built.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
@@ -396,6 +488,8 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = built
             layout.state = .option(inner)
             return GroupPrepaint(state: .option(prepaint))
+        case .recorded:
+            return GroupPrepaint(state: .recorded)
         }
     }
 
@@ -412,6 +506,8 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = built
             layout.state = .option(inner)
             prepaint.state = .option(innerPrepaint)
+        case (.recorded, .recorded):
+            break
         default:
             preconditionFailure(Self.mismatch)
         }
@@ -422,6 +518,13 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = nil
             let (node, state) = content.requestLayout(id, pass: &pass)
             return (node, LayoutState(state: .bare(state)))
+        }
+        if scope.kind == .menu {
+            // The single entry must answer a node: one zero-size leaf (`SV-P` item 3).
+            chrome = nil
+            record(in: scope)
+            let node = pass.frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+            return (node, LayoutState(state: .recorded))
         }
         var built = makeChrome(scope)
         let (node, state) = Self.behindBarrier { built.requestLayout(id, pass: &pass) }
@@ -442,6 +545,8 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = built
             layout.state = .option(inner)
             return PrepaintState(state: .option(prepaint))
+        case .recorded:
+            return PrepaintState(state: .recorded)
         }
     }
 
@@ -458,6 +563,8 @@ public struct TaggedElement<Content: Element>: Element {
             chrome = built
             layout.state = .option(inner)
             prepaint.state = .option(innerPrepaint)
+        case (.recorded, .recorded):
+            break
         default:
             preconditionFailure(Self.mismatch)
         }

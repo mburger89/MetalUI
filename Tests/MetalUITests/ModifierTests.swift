@@ -130,6 +130,9 @@ private struct HandlerShape: Equatable {
     /// Menus (ruling `MN-Q`): the sixteenth member, the context-menu/help
     /// attachment.
     var contextual = false
+    /// Platform services (ruling `SV-N` item 1, corrected by `SV-AH`): the
+    /// seventeenth member, the hover attachment.
+    var hover = false
 
     /// The projection of one element's `Handlers` — every member, one field
     /// each. The table below and the chain test after it read through this
@@ -151,7 +154,8 @@ private struct HandlerShape: Equatable {
                   focusBinding: h.focusBinding != nil,
                   dropDestination: h.dropDestination != nil,
                   draggableCount: h.gestures.filter(\.isDraggable).count,
-                  contextual: h.contextual != nil)
+                  contextual: h.contextual != nil,
+                  hover: h.hover != nil)
     }
 
     init(click: Bool = false, key: Bool = false, focusable: Bool = false, actionCount: Int = 0,
@@ -159,7 +163,7 @@ private struct HandlerShape: Equatable {
          contentShapeInset: Edges<Pixels>? = nil, textInput: Bool = false, valueTrack: Bool = false,
          gestureCount: Int = 0, keyboardShortcut: Bool = false, contentShape: Bool = false,
          focusBinding: Bool = false, dropDestination: Bool = false, draggableCount: Int = 0,
-         contextual: Bool = false) {
+         contextual: Bool = false, hover: Bool = false) {
         self.click = click; self.key = key; self.focusable = focusable
         self.actionCount = actionCount; self.context = context; self.axNode = axNode
         self.allowsHitTesting = allowsHitTesting; self.contentShapeInset = contentShapeInset
@@ -168,6 +172,7 @@ private struct HandlerShape: Equatable {
         self.focusBinding = focusBinding; self.dropDestination = dropDestination
         self.draggableCount = draggableCount
         self.contextual = contextual
+        self.hover = hover
     }
 }
 
@@ -410,6 +415,17 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      apply: { $0.contextMenu { Button("Copy") {} } },
                      effect: { _, _, _, h in h.contextual = true }),
 
+        // MARK: Hover (ruling `SV-N`)
+        //
+        // `.onHover` and `.onContinuousHover` set the seventeenth member and
+        // nothing else.
+        ModifierCase(name: "onHover(perform:)",
+                     apply: { $0.onHover { _ in } },
+                     effect: { _, _, _, h in h.hover = true }),
+        ModifierCase(name: "onContinuousHover(perform:)",
+                     apply: { $0.onContinuousHover { _ in } },
+                     effect: { _, _, _, h in h.hover = true }),
+
         // MARK: Focus
         ModifierCase(name: "focusable()",
                      apply: { $0.focusable() },
@@ -522,8 +538,9 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // + 1 at plan task 15's lane-1 fix round (`flexBasis(percent:)`'s own
     // class-D row, `CX-C`) = **52**. + 2 for drag and drop (`draggable(_:)`,
     // `dropDestination(for:action:isTargeted:)`, `DN-P`) = **54**. + 1 for
-    // menus (`contextMenu(menuItems:)`, `MN-Q`) = **55**.
-    #expect(cases.count == 55)
+    // menus (`contextMenu(menuItems:)`, `MN-Q`) = **55**. + 2 for hover
+    // (`onHover(perform:)`, `onContinuousHover(perform:)`, `SV-N`) = **57**.
+    #expect(cases.count == 57)
 
     for c in cases {
         var expectedStyle = Style()

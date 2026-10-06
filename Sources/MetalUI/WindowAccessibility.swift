@@ -99,6 +99,7 @@ extension Window {
             return true
         case .press(let node):
             guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID else { return false }
+            if let chosen = pressAlertButton(id) { return chosen }   // the drawn alert is modal (SV-J item 4)
             if let chosen = pressMenuRow(id) { return chosen }   // the in-window menu (MN-F item 4)
             return press(id, redirectsLeft: 4)
         case .increment(let node):

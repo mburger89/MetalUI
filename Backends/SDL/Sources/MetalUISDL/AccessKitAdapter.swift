@@ -251,6 +251,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .menuItem: ACCESSKIT_ROLE_MENU_ITEM.rawValue
         case .menuItemCheckBox: ACCESSKIT_ROLE_MENU_ITEM_CHECK_BOX.rawValue
         case .dialog: ACCESSKIT_ROLE_DIALOG.rawValue
+        case .comboBox: ACCESSKIT_ROLE_COMBO_BOX.rawValue
+        case .alertDialog: ACCESSKIT_ROLE_ALERT_DIALOG.rawValue
         }
         return UInt8(value)
     }

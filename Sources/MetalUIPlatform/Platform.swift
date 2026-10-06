@@ -145,6 +145,67 @@ public protocol PlatformWindow: AnyObject {
     /// conformer outside this repository adds
     /// `func presentMenu(_: PlatformMenu, at: Point<Pixels>) -> Bool { false }`.
     func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool
+
+    /// Shows the open or save dialog `dialog` describes and answers whether it
+    /// did (ruling `SV-B`). `true`: the platform answers later with exactly
+    /// one `InputEvent.fileDialogResult` carrying `dialog.token`, delivered
+    /// after this call returned, never inside it — AppKit attaches an
+    /// `NSOpenPanel`/`NSSavePanel` sheet (`SV-F`), SDL calls
+    /// `SDL_ShowOpenFileDialog`/`SDL_ShowSaveFileDialog` and hops the answer
+    /// onto the main thread as an event (`SV-G`). `false`: it cannot (AppKit
+    /// while another sheet is attached), and `MetalUI` completes the request
+    /// with `FileDialogError.unavailable`.
+    ///
+    /// **No default implementation** (`SV-B` item 1, `EV-AB`'s reason): a
+    /// conformer that forgets it fails to compile rather than silently never
+    /// showing a dialog. Pinned by
+    /// `aPlatformWindowWithoutPresentFileDialogDoesNotCompile`. **Migration**:
+    /// a conformer outside this repository adds
+    /// `func presentFileDialog(_: PlatformFileDialog) -> Bool { false }`.
+    func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool
+
+    /// Shows `alert` natively and answers whether it did (ruling `SV-B`,
+    /// `presentMenu`'s contract). `true`: the platform answers later with
+    /// exactly one `InputEvent.alertResult` carrying `alert.token` — AppKit
+    /// attaches an `NSAlert` sheet whose key equivalents are exactly the
+    /// buttons' roles (`SV-J` item 1, `SV-X`). `false` — SDL, whose message box
+    /// blocks in a nested loop — means "draw it yourself", and `Window` draws
+    /// its in-window alert (`SV-J` item 2).
+    ///
+    /// **No default implementation** (`SV-B` item 1): pinned by
+    /// `aPlatformWindowWithoutPresentAlertDoesNotCompile`. **Migration**: a
+    /// conformer outside this repository adds
+    /// `func presentAlert(_: PlatformAlert) -> Bool { false }`.
+    func presentAlert(_ alert: PlatformAlert) -> Bool
+
+    /// Ends the dialog or alert `token` names without an answer (ruling
+    /// `SV-B`): AppKit ends the sheet and suppresses its completion. A platform
+    /// that cannot close one — SDL3 has no call for its file dialogs (`SV-G`
+    /// item 5) — does nothing, and the answer that eventually arrives is
+    /// delivered as usual; `Window` has forgotten the token and runs nothing.
+    ///
+    /// **No default implementation** (`SV-B` item 1): pinned by
+    /// `aPlatformWindowWithoutDismissPresentationDoesNotCompile`.
+    /// **Migration**: a conformer outside this repository adds
+    /// `func dismissPresentation(token: Int) {}`.
+    func dismissPresentation(token: Int)
+
+    /// Limits the window's content size, in window points (ruling `SV-M`):
+    /// `nil` lifts that limit. A window whose content lies outside the new
+    /// limits is resized into them by the platform, and the resize reaches
+    /// `Window` through `onResize` — AppKit sets `contentMinSize`/
+    /// `contentMaxSize` and resizes, SDL calls `SDL_SetWindowMinimumSize`/
+    /// `SDL_SetWindowMaximumSize` (minimum rounded up, maximum down). `Window`
+    /// calls it only when the effective limits change (`SV-L` item 4); the
+    /// values are finite and non-negative, the maximum never below the
+    /// minimum, an unbounded axis of a maximum `Float.greatestFiniteMagnitude`.
+    ///
+    /// **No default implementation** (`SV-B` item 1): pinned by
+    /// `aPlatformWindowWithoutSetContentSizeLimitsDoesNotCompile`.
+    /// **Migration**: a conformer outside this repository adds
+    /// `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}`.
+    func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?)
+
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

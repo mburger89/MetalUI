@@ -55,8 +55,10 @@ public struct HStack<Content: ProposalElementGroup>: Element {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
+        // The `Divider` axis (`SV-O` item 2): its children are in a horizontal stack.
+        let (children, contentLayout) = pass.frame.withStackAxis(.horizontal) {
+            content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         let node = pass.requestNativeLinearStack(children: children, axis: .horizontal,
                                                  spacing: spacing.map { Double($0.value) },
                                                  alignment: alignment.proposalAlignment,
@@ -114,8 +116,10 @@ public struct VStack<Content: ProposalElementGroup>: Element {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
+        // The `Divider` axis (`SV-O` item 2): its children are in a vertical stack.
+        let (children, contentLayout) = pass.frame.withStackAxis(.vertical) {
+            content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         let node = pass.requestNativeLinearStack(children: children, axis: .vertical,
                                                  spacing: spacing.map { Double($0.value) },
                                                  alignment: alignment.proposalAlignment)
@@ -163,8 +167,10 @@ public struct ZStack<Content: ProposalElementGroup>: Element {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
+        // A `ZStack` is no stack to a `Divider` (`SV-O` item 2, `V4`): it pushes "none".
+        let (children, contentLayout) = pass.frame.withStackAxis(nil) {
+            content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         let node = pass.requestNativeOverlay(children: children, alignment: alignment)
         return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }

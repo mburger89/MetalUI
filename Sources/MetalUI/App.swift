@@ -98,10 +98,20 @@ public final class App {
     /// here would fail to satisfy `Root: Element` with a diagnostic about
     /// `Pair` rather than about the window. A window has exactly one root;
     /// wrapping several children in a `Column` says so at the call site.
+    ///
+    /// **Sizing** (ruling `SV-L`; SwiftUI's `.defaultSize` and
+    /// `.windowResizability` scene modifiers, `App` not being a `Scene`):
+    /// `size` is the default content size (`W3`); `minSize`/`maxSize` limit it
+    /// and `windowResizability` lets the root's layout limit it too — each
+    /// also settable later on the returned `Window`. Limits given here reach
+    /// the platform before the first frame.
     @discardableResult
     public func openWindow<Root: Element>(
         title: String,
         size: Size<Pixels>,
+        minSize: Size<Pixels>? = nil,
+        maxSize: Size<Pixels>? = nil,
+        windowResizability: WindowResizability = .automatic,
         startsDisplayLink: Bool = true,
         content: @escaping @MainActor () -> Root
     ) throws -> Window {
@@ -110,6 +120,9 @@ public final class App {
                             startsDisplayLink: startsDisplayLink,
                             textSystem: makeTextSystem?(),
                             content: content)
+        // Before the first frame (`SV-L` item 4): the platform clamps the
+        // window into explicit limits before anything is drawn at its size.
+        window.applySizing(minSize: minSize, maxSize: maxSize, windowResizability: windowResizability)
         // A command's shortcut reaches this window's command stage (ruling
         // `MN-J`), evaluated afresh at each keystroke that gets that far.
         window.commandShortcuts = { [weak self] in self?.enabledCommandShortcuts() ?? [] }
@@ -215,6 +228,12 @@ public final class App {
 
     /// Runs the platform's event loop, handing every window its input and
     /// display-link ticks until the platform stops.
+    ///
+    /// **Call it from synchronous top-level code** (`main.swift`), not from an
+    /// `async` main: inside a main-actor job neither platform's loop can drain
+    /// the main queue, so a main-actor `Task` — or an awaited `FileDialogs`
+    /// call's continuation — never runs (ruling `SV-H` item 2; probe
+    /// `swift-main-queue-drain-nested.swift` `J1`, `J3`).
     public func run() {
         platform.run()
     }

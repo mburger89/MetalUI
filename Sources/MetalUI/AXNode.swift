@@ -180,6 +180,13 @@ public struct AXNode: Equatable {
     /// slot (`AB-U`). Internal.
     var menuButtonHint = false
 
+    /// **A role hint, not a declaration** (platform services, ruling `SV-S`,
+    /// `SV-P` item 5): set by a menu `Picker`'s pull-down button, published as
+    /// `.popUpButton` (SwiftUI's `AXPopUpButton`, arms `P0`–`P3`) where the
+    /// node would otherwise be a `.button`. Stripped by
+    /// `Frame.registerHandlers` exactly as `menuButtonHint` is. Internal.
+    var popUpButtonHint = false
+
     /// **A role hint, not a declaration** (menus, popovers and tooltips,
     /// ruling `MN-O`): set by a popover's chrome, published as `.popover`
     /// (SwiftUI's `AXPopover`, arm P2). Stripped by `Frame.registerHandlers`

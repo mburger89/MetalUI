@@ -332,6 +332,27 @@ public final class Frame {
     /// stacked at one position keep two entries (ruling `LC-C` item 2).
     private(set) var lifecycleDepth = 0
 
+    /// The hover regions this frame registered (ruling `SV-N` item 2) — read
+    /// by `Window`, which skips every hover recompute for a frame with none
+    /// (`SV-U`).
+    private(set) var hoverRegionCount = 0
+
+    /// The presentation scopes enclosing the one being laid out — the depth in
+    /// its registry key (`SV-K` item 2, `LC-U`'s reason).
+    private(set) var presentationDepth = 0
+
+    /// The presentation records this build noted, in registration order
+    /// (`SV-K` item 2), adopted by `Window` after the build.
+    var presentationRecords: [PresentationRecord] = []
+    /// Records noted per key this build — the occurrence rule (`MV-M` item 5).
+    var presentationOccurrences: [GlobalElementID: Int] = [:]
+
+    func withPresentationScope<R>(_ body: () -> R) -> R {
+        presentationDepth += 1
+        defer { presentationDepth -= 1 }
+        return body()
+    }
+
     /// Runs `body` one lifecycle scope deeper.
     func withLifecycleScope<R>(_ body: () -> R) -> R {
         lifecycleDepth += 1
@@ -511,6 +532,23 @@ public final class Frame {
     /// tree's, else a presentation root's (`CR-T`).
     var collectedColorSchemePreference: ColorScheme? {
         mainColorSchemePreference ?? presentationColorSchemePreference
+    }
+
+    // MARK: Content size limits (ruling `SV-L` item 2)
+
+    /// Which of the root's limits `computeRootLayout` measures — the window's
+    /// `windowResizability`, set by `Window` before the build. `.automatic`,
+    /// the default, measures nothing.
+    var contentSizeLimitsMode: WindowResizability = .automatic
+    /// The root's answer at a zero proposal, under `.contentMinSize` or
+    /// `.contentSize`; `nil` otherwise. Read by `Window` after the build.
+    private(set) var contentMinimum: Size<Pixels>?
+    /// The root's answer at an infinite proposal, under `.contentSize`; `nil`
+    /// otherwise. An axis may be infinite (a greedy root): no maximum there.
+    private(set) var contentMaximum: Size<Pixels>?
+
+    private static func size(of measurement: LayoutMeasurement) -> Size<Pixels> {
+        Size(width: Pixels(Float(measurement.size.width)), height: Pixels(Float(measurement.size.height)))
     }
 
     /// Runs `body` — a `.preferredColorScheme(value)` scope's content — after
@@ -1388,12 +1426,17 @@ public final class Frame {
            !isAccessibilitySuppressed(for: id) {
             accessibilityPressOnly[id] = onClick
         }
+        // The pointer target's and the draggable region's handlers carry no
+        // hover attachment: the hover region below is the one hitbox that
+        // does, so the hovered set counts each element once (`SV-N` item 2).
+        var pointerHandlers = handlers
+        pointerHandlers.hover = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
             // else, for the inset's reason above.
             let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
-            _ = insertHitbox(region, id: id, opaque: true, handlers: handlers, origin: bounds.origin,
+            _ = insertHitbox(region, id: id, opaque: true, handlers: pointerHandlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
         // Drag and drop (rulings `DN-E`, `DN-F`, `DN-G`): two NON-opaque
@@ -1410,7 +1453,7 @@ public final class Frame {
         // unchanged (pinned by `aFrameWithoutADragOrDestinationAddsNoHitbox`).
         if enabled, hitTestingDisabledDepth == 0, !handlers.isPointerTarget, handlers.hasDraggable {
             let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
-            _ = insertHitbox(region, id: id, opaque: false, handlers: handlers, origin: bounds.origin,
+            _ = insertHitbox(region, id: id, opaque: false, handlers: pointerHandlers, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
         }
         if enabled, keyboardHiddenDepth == 0, let destination = handlers.dropDestination {
@@ -1444,6 +1487,24 @@ public final class Frame {
                                                  y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
                                    size: bounds.size))
             }
+        }
+        // Hover (ruling `SV-N` item 2): a NON-opaque region carrying only the
+        // attachment, at the element's hit region (its content shape, as a
+        // draggable region's), registered after the element's own opaque
+        // hitbox so it ranks above it — inside the disabled gate, the
+        // `allowsHitTesting` gate and `hidden()`. A frame with no hover
+        // attachment registers nothing here, so every other tree's hitbox list
+        // is unchanged (spec test 2.55). The `keyboardHiddenDepth` clause is
+        // belt-and-braces: `disablingHitTestingIfHidden` also opens a
+        // hit-testing-disabled scope, so the `hitTestingDisabledDepth` clause
+        // already withdraws a hidden region (mutation `V1`, equivalent).
+        if let hover = handlers.hover, enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.hover = hover
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            hoverRegionCount += 1
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
@@ -1492,6 +1553,7 @@ public final class Frame {
         declaration.logicalIndex = nil
         declaration.selectionHint = false
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
+        declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
@@ -2238,6 +2300,28 @@ public final class Frame {
         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
+    // MARK: - The stack-axis stack (platform services, `SV-O` item 2)
+
+    /// The axes of the linear stacks enclosing the element being laid out,
+    /// innermost last: `HStack`/`Row` push `.horizontal`, `VStack`/`Column`
+    /// `.vertical`, and `ZStack`/`Grid` `nil` ("no stack"). A `Divider` reads
+    /// the top at its layout request. Every other container pushes nothing, so
+    /// it is transparent. Layout-only: the phases after layout never read it.
+    private var stackAxes: [ProposalStackAxis?] = []
+
+    /// The innermost enclosing stack's axis, or `nil` outside any stack or
+    /// inside a `ZStack` or `Grid` (`SV-O` item 2, `V3`, `V4`).
+    var stackAxis: ProposalStackAxis? { stackAxes.last ?? nil }
+
+    /// Runs `body` — a container's request of its children's layout — with
+    /// `axis` on top of the stack-axis stack, popped by `defer` on every exit,
+    /// so the axis never reaches a later sibling (`SV-O` item 2).
+    func withStackAxis<T>(_ axis: ProposalStackAxis?, _ body: () -> T) -> T {
+        stackAxes.append(axis)
+        defer { stackAxes.removeLast() }
+        return body()
+    }
+
     // MARK: - Layout phase
 
     // Stage 9 (`LR-FC`): the legacy registrars `requestNode(style:children:)`
@@ -2332,8 +2416,20 @@ public final class Frame {
     /// **Before** the root, so `LayoutTree.lastNativeLayoutWork` still reads the
     /// root's own run (`SA-M`); separate runs, so a presentation's depth counts
     /// from its own root (`SA-L`) and the root's placement (`CN-J`) is untouched.
+    ///
+    /// **Content size limits first** (ruling `SV-L` item 2): under
+    /// `.contentMinSize` the root is measured at a zero proposal, under
+    /// `.contentSize` also at an infinite one — measure-only runs, before every
+    /// real run, so `lastNativeLayoutWork` still reads the root's own. Under
+    /// `.automatic` nothing is measured.
     func computeRootLayout(root: LayoutNodeID) {
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
+        if contentSizeLimitsMode != .automatic {
+            contentMinimum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .zero))
+            if contentSizeLimitsMode == .contentSize {
+                contentMaximum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .infinity))
+            }
+        }
         for presentation in lowering.presentations {
             tree.computeNativeLayout(root: presentation.root,
                                      proposal: ProposedSize(width: width, height: height),
@@ -2610,6 +2706,19 @@ public final class Frame {
     /// before it renders (menus, `MN-F` item 2); empty with none open, so a
     /// frame without a menu paints nothing more.
     var menuPanelLevels: [MenuSession.Level] = []
+
+    /// How many menu rows this frame painted — O(visible) per level (`SV-Q`),
+    /// read back through `Window.lastMenuRowsPainted`.
+    var menuRowsPainted = 0
+
+    /// Each menu picker's widest option title (`SV-AA`): the window's
+    /// long-lived cache, handed in before the build; a fresh one otherwise.
+    var pickerTitleWidths = PickerTitleWidths()
+
+    /// The drawn alert, handed in by `Window` before it renders (platform
+    /// services, `SV-J` item 2); `nil` with none up, so a frame without one
+    /// paints nothing more.
+    var alertPanel: DrawnAlertPanel?
 
     /// Runs `body` with `layer` as the active paint layer — the in-window
     /// menu's, above every layer the frame used (`MN-F` item 2). Opens no
@@ -2994,6 +3103,7 @@ public final class Frame {
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
         paintTooltip()  // a tooltip, above everything (MN-P item 2)
+        paintAlertPanel()  // the drawn alert, above the menu and the tooltip (SV-J item 2)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

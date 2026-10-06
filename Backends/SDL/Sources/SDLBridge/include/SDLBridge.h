@@ -114,7 +114,13 @@ enum {
     MUI_EVENT_DROP_COMPLETE,
     // The secondary (right) button (ruling MN-B item 3). Appended after
     // DROP_COMPLETE, so no earlier kind renumbers.
-    MUI_EVENT_RIGHT_DOWN, MUI_EVENT_RIGHT_UP
+    MUI_EVENT_RIGHT_DOWN, MUI_EVENT_RIGHT_UP,
+    // Platform services (rulings SV-G, SV-N item 7). Appended after RIGHT_UP,
+    // so no earlier kind renumbers. DIALOG: a file dialog answered — `start`
+    // is the request's token, `window_id` its parent window (0 for none);
+    // take the answer with mui_take_dialog_result. MOUSE_LEAVE: the pointer
+    // left `window_id` (SDL_EVENT_WINDOW_MOUSE_LEAVE).
+    MUI_EVENT_DIALOG, MUI_EVENT_MOUSE_LEAVE
 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
@@ -175,6 +181,57 @@ extern const uint8_t mui_sdl_button_left;
 extern const uint8_t mui_sdl_button_right;
 extern const uint32_t mui_sdl_button_lmask;
 extern const uint32_t mui_sdl_button_rmask;
+// SDL's SDL_EVENT_WINDOW_MOUSE_LEAVE, for tests (ruling SV-N item 7; pushed
+// with mui_push_raw_window_event). Exported from C so Swift never spells an
+// SDL enum's `rawValue` (Int32 on Windows).
+extern const uint32_t mui_sdl_event_window_mouse_leave;
+
+// ---- File dialogs (ruling SV-G) --------------------------------------------
+// One request, built then shown: mui_dialog_request_new, a filter per
+// mui_dialog_request_add_filter (copied), then mui_dialog_request_show, which
+// consumes the request whatever it answers. SDL's callback may run on any
+// thread: it copies the answer into a mutex-guarded queue and pushes
+// MUI_EVENT_DIALOG (SDL_PushEvent is thread-safe), so no Swift code runs off
+// the main thread and the request's filters live until the callback frees
+// them (SDL requires them valid until then).
+typedef struct MUIDialogRequest MUIDialogRequest;
+// `default_location` (copied, may be NULL): a save dialog's suggested name.
+MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow_many,
+                                         const char *default_location);
+// One SDL_DialogFileFilter: `name` and `pattern` (extensions joined by ';'),
+// both copied.
+bool mui_dialog_request_add_filter(MUIDialogRequest *request, const char *name, const char *pattern);
+// Calls SDL_ShowOpenFileDialog or SDL_ShowSaveFileDialog with `window` (an
+// SDL_Window *, may be NULL) as parent; NULL filters when none were added.
+// Answers true: the outcome always arrives through the callback.
+bool mui_dialog_request_show(MUIDialogRequest *request, void *window);
+// The queued answer for `token`, removed from the queue, or NULL when none is
+// queued. Read it with the accessors below, then mui_dialog_result_free.
+typedef struct MUIDialogResult MUIDialogResult;
+MUIDialogResult *mui_take_dialog_result(int32_t token);
+// 1: files chosen; 0: cancelled (an empty list); -1: failed (SDL passed
+// NULL; mui_dialog_result_error holds SDL_GetError()'s text).
+int32_t mui_dialog_result_status(const MUIDialogResult *result);
+int32_t mui_dialog_result_count(const MUIDialogResult *result);
+const char *mui_dialog_result_path(const MUIDialogResult *result, int32_t index);
+const char *mui_dialog_result_error(const MUIDialogResult *result);
+void mui_dialog_result_free(MUIDialogResult *result);
+// Runs the dialog callback — the same function SDL calls — from a new thread
+// (SDL_CreateThread, detached), answering request `token` of `window_id` with
+// `count` paths joined by '\n' in `joined_paths`; `count` 0 is an empty list
+// (a cancel), -1 a NULL list after SDL_SetError("test dialog failure") on
+// that thread (a failure). For tests (SV-G item 3).
+bool mui_test_complete_dialog(uint32_t window_id, int32_t token, const char *joined_paths, int32_t count);
+
+// ---- Window size limits (ruling SV-M) --------------------------------------
+// SDL_SetWindowMinimumSize / SDL_SetWindowMaximumSize, in points; 0 is "no
+// limit" on that axis. SDL resizes a window outside the new limits itself.
+bool mui_window_set_size_limits(void *window, int32_t min_w, int32_t min_h, int32_t max_w, int32_t max_h);
+// SDL_GetWindowMinimumSize / SDL_GetWindowMaximumSize, read back for tests.
+void mui_window_size_limits(void *window, int32_t *min_w, int32_t *min_h, int32_t *max_w, int32_t *max_h);
+// SDL_GetCurrentVideoDriver(), "" before video is initialised.
+const char *mui_current_video_driver(void);
+
 // Whether SDL reports the window as having keyboard focus
 // (SDL_WINDOW_INPUT_FOCUS) — read once, when a window opens (ruling EV-AB).
 bool mui_window_has_input_focus(void *window);

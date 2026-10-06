@@ -85,7 +85,8 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Content>.Layout) {
-        box.requestLayout(id, pass: &pass)
+        // The `Divider` axis (`SV-O` item 2): a `Column`'s children are in a vertical stack.
+        pass.frame.withStackAxis(.vertical) { box.requestLayout(id, pass: &pass) }
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -144,7 +145,8 @@ public struct Row<Content: ElementGroup>: Element, StyledElement {
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Content>.Layout) {
-        box.requestLayout(id, pass: &pass)
+        // The `Divider` axis (`SV-O` item 2): a `Row`'s children are in a horizontal stack.
+        pass.frame.withStackAxis(.horizontal) { box.requestLayout(id, pass: &pass) }
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

@@ -622,6 +622,8 @@ enum AccessibilityTreeBuilder {
         if traits.contains(.isHeader), plain.contains(role) { role = .heading }
         // `Menu`'s pull-down button (`MN-H` item 2, M1): a button with the hint.
         if node.record.declared.menuButtonHint, role == .button { role = .menuButton }
+        // A menu `Picker`'s pull-down (`SV-S`, `P0`–`P3`): a button with the hint.
+        if node.record.declared.popUpButtonHint, role == .button { role = .popUpButton }
         // A popover's chrome (`MN-O`, P2): its group publishes as a popover.
         if node.record.declared.popoverHint, role == .group { role = .popover }
         return role

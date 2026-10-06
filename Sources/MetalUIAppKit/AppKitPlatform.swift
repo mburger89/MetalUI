@@ -89,11 +89,9 @@ final class MetalHostView: NSView {
     /// Options: `.mouseMoved` is what makes `mouseMoved(with:)` below fire at
     /// all (its own doc comment used to say M3 would add exactly this — see
     /// there for the standing NOTE this closes). `.mouseEnteredAndExited` is
-    /// declared for §8.1's future use (a `mouseExited` hook) even though
-    /// nothing consumes `NSTrackingArea`'s entered/exited callbacks yet — this
-    /// view is not their delegate, so declaring the option alone costs
-    /// nothing and having it already in place is one less thing to get wrong
-    /// when something does consume it. `.activeInKeyWindow` is what keeps a
+    /// what makes `mouseExited(with:)` below fire — declared for §8.1's future
+    /// `mouseExited` hook, which `SV-N` item 7 finally consumes (the pointer
+    /// leaving the window, `.pointerExited`). `.activeInKeyWindow` is what keeps a
     /// background window's tracking area from firing hover into a window the
     /// user is not interacting with. `.inVisibleRect` is the mechanism this
     /// whole override exists to pair with.
@@ -192,6 +190,15 @@ final class MetalHostView: NSView {
     override func mouseMoved(with event: NSEvent) {
         _ = onInput?(.mouseMoved(MouseEvent(position: point(event),
                                             modifiers: modifiers(event))))
+    }
+
+    /// The pointer left the view (ruling `SV-N` item 7): the tracking area's
+    /// `.mouseEnteredAndExited` option — declared since M3 for exactly this
+    /// hook — makes AppKit call it. Pinned by
+    /// `appKitMouseExitedDeliversPointerExited` (a real `NSEvent` to this
+    /// override; real pointer tracking is human check U8).
+    override func mouseExited(with event: NSEvent) {
+        _ = onInput?(.pointerExited)
     }
 
     /// Points one line of a non-precise scroll device moves. AppKit's own
@@ -408,7 +415,9 @@ extension MetalHostView: @preconcurrency NSTextInputClient {
 
 @MainActor
 final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
-    private let window: NSWindow
+    /// Internal, not private, so `AppKitPresentations.swift` can attach sheets
+    /// to it (rulings `SV-F`, `SV-J`, `SV-M`).
+    let window: NSWindow
     /// Internal, not private, so platform and end-to-end tests can ask it what
     /// an accessibility client would.
     let hostView: MetalHostView
@@ -761,6 +770,15 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         guard let host = self?.hostView else { return }
         host.beginDraggingSession(with: items, event: event, source: host)
     }
+
+    /// The sheets this window has begun and not yet answered, by token
+    /// (rulings `SV-F`, `SV-J`; `AppKitPresentations.swift`).
+    var presentations: [Int: AppKitPresentation] = [:]
+
+    /// Run at the end of AppKit's sheet completion handler, after the answer
+    /// was queued — a test's view of what was delivered *during* that call
+    /// (spec test 1.3). `nil` in production.
+    var onSheetCompletionForTesting: (() -> Void)?
 
     func setDisplayLinkPaused(_ paused: Bool) {
         displayLink?.isPaused = paused
