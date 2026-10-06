@@ -124,14 +124,18 @@ public struct TextEditor: Element, StyledElement {
         let system = pass.textSystem
         let key = resolvedFont(in: pass.environment, system: system)
         let text = self.text, placeholder = self.placeholder
-        // Greedy on both axes, as SwiftUI's `TextEditor` is.
+        // Greedy on both axes, as SwiftUI's `TextEditor` is: any offered
+        // width or height is taken whole — an infinite one answers infinity
+        // (ruling `PE-D`, probe FL5 `inf -> infxinf`); `nil` asks for the
+        // ideal (the text's natural width, and its height wrapped at the
+        // answered width — unwrapped when that width is infinite).
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .textEditor) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
-                    let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+                    let width = proposal.width
                         ?? TextField.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
-                    let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
-                        ?? Self.contentHeight(text, width: width, font: key, system: system)
+                    let height = proposal.height
+                        ?? Self.contentHeight(text, width: width.isFinite ? width : nil, font: key, system: system)
                     return LayoutMeasurement(size: SizeD(width: width, height: height))
                 }
             }

@@ -137,11 +137,14 @@ public struct TextField: Element, StyledElement {
         let key = resolvedFont(in: pass.environment, system: system)
         let text = self.text, placeholder = self.placeholder
         // Greedy on the width, as SwiftUI's `TextField` is; one line tall.
+        // Any offered width is taken whole — an infinite one answers infinity
+        // (ruling `PE-D`, probe FL3/FL4 `inf -> infx24`), so a stack, which
+        // orders its children by their answer at ∞ (`CN-B`), serves the field
+        // after its hugging siblings; `nil` asks for the ideal.
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
-                    let offered = proposal.width.flatMap { $0.isFinite ? $0 : nil }
-                    let width = offered
+                    let width = proposal.width
                         ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
                     return LayoutMeasurement(size: SizeD(width: width,
                                                          height: Self.lineHeight(font: key, system: system)))

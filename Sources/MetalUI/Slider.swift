@@ -31,8 +31,9 @@ struct ValueTrackTarget {
 /// SwiftUI's `Slider(value:in:step:)` in its macOS look (ruling `DD-W`; spec
 /// `2026-09-26-controls-and-selection-design.md` §3–§6).
 ///
-/// **A leaf**, `TextField`'s shape: greedy on the width — the finite proposed
-/// width, else 30, SL0's ideal — and 16 tall (SL0). It paints a 4-point track
+/// **A leaf**, `TextField`'s shape: greedy on the width — the proposed width
+/// taken whole, infinity at an infinite offer (FL6, ruling `PE-D`), 30 at
+/// `nil` (SL0's ideal) — and 16 tall (SL0). It paints a 4-point track
 /// inset by half the thumb, filled to the thumb's centre, and a 20×16 capsule
 /// thumb at `minX + f·(W − 20)`, `f` the value's fraction **clamped**: an
 /// out-of-range value is drawn at the nearer end and never written back (SA5,
@@ -95,10 +96,12 @@ public struct Slider: Element, StyledElement {
         self.step = step
     }
 
-    /// The leaf's answer to a proposed width (SL0): greedy on a finite width,
-    /// else the ideal 30; always 16 tall.
+    /// The leaf's answer to a proposed width (SL0): greedy — any offered width
+    /// taken whole, so an infinite offer answers infinity (probe FL6 `inf ->
+    /// infx16`, ruling `PE-D`: a stack then serves the slider after its
+    /// hugging siblings, `CN-B`) — and the ideal 30 at `nil`; always 16 tall.
     nonisolated static func size(proposedWidth: Double?) -> SizeD {
-        let width = proposedWidth.flatMap { $0.isFinite ? $0 : nil } ?? idealWidth
+        let width = proposedWidth ?? idealWidth
         return SizeD(width: width, height: height)
     }
 
