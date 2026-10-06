@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AL`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AM`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1332,3 +1332,55 @@ corrected by this one.
 **Cost if wrong.** Item 5: a second window-owned cache to keep in step with the
 build; item 7: a demo section that builds eagerly again can overflow Windows'
 1 MB stack (the budget test is the guard).
+
+## SV-AL — Lane 3's mutation table (measured)
+
+**Ruling.** Each mutation below was applied to the committed tree at `220de49`
+(lane 3 implemented, `SV-AK`), the whole unfiltered suite run (`swift build
+--build-system native --build-tests && swift test --build-system native
+--skip-build --no-parallel`), the file restored from a copy and `git status
+--short` read clean after every one. Baseline **2546 tests in 3 suites
+passed**, `FR-J no-argument frame: succeeded=true`. Every mutation reddened;
+no hang, no truncated run. The names are every test that recorded an issue.
+
+| # | Mutation (site, spelling) | Reddened |
+|---|---|---|
+| MG3.12 | `extension Rectangle: MenuContent` with an SPI `_menuNodes` added (`PickerMenu.swift`) — the flipped negative of `theMenuSpellingsCompileFromAPlainImport` compiles (`SV-AK` item 2) | `theMenuSpellingsCompileFromAPlainImport` (1 issue). A first spelling with an internal witness did not build (`must be declared public`) and was re-run as written here |
+| MG3.13 | fixture: 5.G13's menu arm `.menu` → `.menux` | `aMenuPickerStyleCompiles` (1) |
+| MG3.14 | fixture: 4.G12's `HStack { Divider() }` → `HStack { Dividr() }` | `aDividerIsBothAMenuItemAndAnElement` (1) |
+| M3.1 | `Divider`: `stackAxis == .horizontal` → `== .vertical` (the axes swapped) | `aDividerInARowIsVerticalAndInAColumnHorizontal`, `aDividerInAVStackSpansItsWidthOnePointTall`, `aDividerInAnHStackSpansItsHeightOnePointWide`, `aDividerPaintsTheSeparatorTokenOnePointThick`, `theAxisDoesNotLeakPastItsStack`, `theNearestStackDecidesAndWrappersAreTransparent` (16) |
+| M3.3 | `ZStack`: `withStackAxis(nil)` replaced by a plain call (pushes nothing) | `aDividerOutsideAnyStackOrInAZStackIsHorizontal` (1) |
+| M3.4 | `Frame.withStackAxis`: the `defer` pop removed | `theAxisDoesNotLeakPastItsStack`, `theNearestStackDecidesAndWrappersAreTransparent` (2) |
+| M3.5 | `Row`: no push | `aDividerInARowIsVerticalAndInAColumnHorizontal`, `theAxisDoesNotLeakPastItsStack` (2) |
+| M3.6 | `Divider`: `proposal.width ?? 10` → `?? 0` | `anUnconstrainedDividerIsTenLong` (1) |
+| M3.7 | `Divider` paints `.textPrimary` | every `DividerTests` arm reading the `.separator` rect: `aDividerInARowIsVerticalAndInAColumnHorizontal`, `aDividerInAVStackSpansItsWidthOnePointTall`, `aDividerInAnHStackSpansItsHeightOnePointWide`, `aDividerOutsideAnyStackOrInAZStackIsHorizontal`, `aDividerPaintsTheSeparatorTokenOnePointThick`, `anUnconstrainedDividerIsTenLong`, `theAxisDoesNotLeakPastItsStack`, `theNearestStackDecidesAndWrappersAreTransparent` (19) |
+| M3.9 | `PickerScope.selectedTitle` → the first option's title | `aMenuPickerIsATitleAndAPullDownShowingTheSelection`, `aMenuPickerPublishesAPopUpButtonWithTheSelectedValue`, `aSelectionMatchingNoTagShowsAnEmptyLabel`, `choosingAMenuPickerOptionWritesItsTag` (4) |
+| M3.10 | the label's width from the selected title only | `aMenuPickersButtonIsAsWideAsItsWidestOption`, `aWarmMenuPickerFrameMeasuresNoOptionTitle` (3) |
+| M3.11 | every option item `isOn: false` | `aModifierAfterTagStillYieldsAMenuOption`, `openingAMenuPickerPresentsEveryOptionWithTheSelectionOn` (2) |
+| M3.12b | choosing any option writes the first option's tag | `choosingAMenuPickerOptionWritesItsTag` (2) |
+| M3.13b | a menu option's group entry registers a zero-size leaf (lays itself out) | `menuPickerOptionsLayOutNothing` (2) |
+| M3.14b | `popUpButtonHint` → `menuButtonHint` | `aMenuPickerIsATitleAndAPullDownShowingTheSelection`, `aMenuPickerOpensFromSpaceReturnAndAPressButNotWhenDisabled`, `aMenuPickerPublishesAPopUpButtonWithTheSelectedValue`, `aSelectionMatchingNoTagShowsAnEmptyLabel`, `choosingAMenuPickerOptionWritesItsTag`, `servicesDemoMenuPickerHasThreeHundredOptions` (6) |
+| M3.16 | a non-`Text` option titled `""` | `aNonTextMenuOptionIsTitledByItsTag` (1) |
+| M3.17 | every row painted (`items.indices` for `visibleRows`) | `aTallInWindowMenuIsClampedToTheWindowAndScrolls` (2) |
+| M3.18 | ↑/↓ move the highlight without scrolling it into view | `arrowKeysScrollTheHighlightIntoView` (2) |
+| M3.19 | the initial highlight dropped | `aPickersMenuOpensWithTheSelectionHighlightedAndVisible` (2) |
+| M3.20 | `row(at:)` tests unscrolled row frames | `hitTestingFollowsTheScrollOffset` (1) |
+| M3.21 | the top indicator band always reserved | `aShortMenuDoesNotScroll` (1) |
+| M3.22 | the width cache's key comparison always fails | `aWarmMenuPickerFrameMeasuresNoOptionTitle` (1) |
+| M3.23 | the alert painted before the drag preview | `aDeclinedAlertIsDrawnAboveEverythingAndOwnsNoState` (2) |
+| M3.24 | the modal stage passes unhandled events on (`default: return nil`) | `theDrawnAlertSwallowsPointerAndKeysBeneath` (1) |
+| M3.25 | Return presses the first button | `returnPressesTheDefaultAndEscapeTheCancelOnTheDrawnAlert` (4) |
+| M3.26 | the ring steps backward on Tab and forward on Shift-Tab | `tabAndArrowsMoveTheRingAndSpacePressesIt` (1) |
+| M3.27 | the click hit-tested 60 pt right of the pointer | `aClickOnADrawnAlertButtonPressesIt` (3) |
+| M3.28 | `appendAlertPanel` not called | `aClickOnADrawnAlertButtonPressesIt`, `theDrawnAlertPublishesAnAlertNodeWithButtonChildren` (2) |
+| M3.29 | an open in-window menu kept when the alert is drawn | `anAlertDismissesAnOpenInWindowMenu` (1) |
+| M3.30 | `|| drawnAlert != nil` dropped from `hoverIsSuppressed` | `aDrawnAlertEmptiesTheHoverSet` (3) |
+| MC.2 | `reconcilePresentations`: `isShown != true` → `== false` (record §77 §11's survivor) | `aScopeLeavingTheTreeWhilePresentedIsDismissedAndItsLateAnswerRunsNothing` (4) — MC.2 is now pinned by 2.4c |
+
+Not run: spec 4.8's "emit a node" (a `Divider` registers no handlers, so the
+mutation has no one-line site), 5.8's "open regardless of the gate"
+(the gate is `Button`'s, already measured by `MN-AF` item 9's table), and 5.10's
+alternative spellings.
+
+**Cost if wrong.** None to the code; a row a later change makes unable to fail
+is caught only by re-running it.
