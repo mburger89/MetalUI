@@ -366,10 +366,13 @@ private struct OneLeafComponent: Component, ProposalElementGroup {
     var content: some ProposalElementGroup { Rectangle(width: Pixels(4), height: Pixels(4)) }
 }
 
-/// A proposal row of `n` one-leaf `Component`s.
-@MainActor private func componentRow(_ n: Int) -> some Element {
+/// A proposal row of `n` one-leaf `Component`s, or of the bare rectangles
+/// when `bare` (the control: the difference is what a `Component` costs).
+@MainActor private func componentRow(_ n: Int, bare: Bool = false) -> some Element {
     HStack(spacing: Pixels(0)) {
-        ForEach(0..<n, id: \.self) { _ in OneLeafComponent() }
+        ForEach(0..<n, id: \.self) { _ in
+            if bare { Rectangle(width: Pixels(4), height: Pixels(4)) } else { OneLeafComponent() }
+        }
     }
 }
 
@@ -378,8 +381,9 @@ private struct OneLeafComponent: Component, ProposalElementGroup {
 /// `METALUI_COMPONENT_ALLOC_MEASURE=1` and run only with `--no-parallel`; it
 /// reuses `countCloseoutAllocations` (no third `malloc_logger` installer).
 /// Prints three settled frames' allocations for rows of 0, 40 and 80 one-leaf
-/// `Component`s and the slope per `Component` per frame (design expectation:
-/// the box adds +1), recorded in record §78.
+/// `Component`s, the same rows bare, and the slope difference — what one
+/// `Component` costs per settled frame (design expectation: the box adds +1;
+/// the box alone is the figure with and without `PE-J`), recorded in record §78.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_COMPONENT_ALLOC_MEASURE"] == "1"))
 @MainActor func measureComponentBoxAllocations() throws {
     let zero = try settledFrames { componentRow(0) }
@@ -388,10 +392,16 @@ private struct OneLeafComponent: Component, ProposalElementGroup {
     for (name, r) in [("0", zero), ("40", forty), ("80", eighty)] {
         print("COMPONENT-ALLOC \(name) components: \(r.count) allocations, \(r.bytes) bytes over 3 settled frames")
     }
+    let bare40 = try settledFrames { componentRow(40, bare: true) }
+    let bare80 = try settledFrames { componentRow(80, bare: true) }
+    print("COMPONENT-ALLOC 40 bare: \(bare40.count) allocations, \(bare40.bytes) bytes; 80 bare: \(bare80.count), \(bare80.bytes)")
     let perComponent = Double(eighty.count - forty.count) / 40 / 3
     let bytesPerComponent = Double(eighty.bytes - forty.bytes) / 40 / 3
-    print(String(format: "COMPONENT-ALLOC per Component per settled frame: %.2f allocations / %.1f bytes",
-                 perComponent, bytesPerComponent))
+    let perBare = Double(bare80.count - bare40.count) / 40 / 3
+    let bytesPerBare = Double(bare80.bytes - bare40.bytes) / 40 / 3
+    print(String(format: "COMPONENT-ALLOC per element per settled frame: Component %.2f allocations / %.1f bytes, bare %.2f / %.1f; one Component: %.2f / %.1f",
+                 perComponent, bytesPerComponent, perBare, bytesPerBare,
+                 perComponent - perBare, bytesPerComponent - bytesPerBare))
     #expect(eighty.count > forty.count, "the instrument: more Components allocate more")
 }
 
