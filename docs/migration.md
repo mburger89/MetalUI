@@ -238,6 +238,11 @@ public-API removals the records list. **Source** changes stop compiling;
 | **`PaintPass.isHovered` is no longer sticky after the pointer leaves the window**: `.pointerExited` (AppKit's `mouseExited`, SDL's mouse-leave) clears `Window.lastMousePosition`, so the next frame paints nothing hovered (it kept the last in-window position hovered until the next in-window event) | nothing; hover affordances now clear when the pointer leaves | `SV-N` item 7 |
 | **a file dialog's or an alert's answer is claimed by the window** (`.fileDialogResult`, `.alertResult` run first after the pointer state and never reach a later stage or the window's `onInput` fallback); `.pointerExited` is claimed by no stage and reaches `onInput` | read outcomes in the modifiers' callbacks or the awaited `FileDialogs` call | `SV-K` item 3 |
 | `Handlers` gains a seventeenth member (`hover`, internal): 464 → 472 bytes | nothing | `SV-N` item 1, `SV-AH` |
+| **`Divider` is also an `Element`** (`Divider: Element, ProposalElement`): `Divider()` in an element builder is a 1-point line where it did not compile; in a menu builder it is unchanged | nothing | `SV-O` |
+| **`.pickerStyle(.menu)` compiles** — the guard `aMenuPickerStyleIsNotOffered` is replaced by `aMenuPickerStyleCompiles`; `.automatic` stays segmented | nothing for callers | `SV-P` item 1 |
+| a linear container outside the package that should orient a `Divider` | not possible from outside (the stack-axis stack is internal); a `Divider` in it is horizontal, as outside any stack | `SV-O` item 2 |
+| an in-window (SDL) menu taller than the window less 8 points **scrolls**: clamped to the window, wheel and ↑/↓ scroll it, only visible rows paint and hit-test | nothing | `SV-Q` |
+| an alert the platform declines (SDL) is **drawn in the window and modal**: while it is up, pointer, wheel and key events reach nothing beneath, and an open drawn menu closes | nothing; answer it with its buttons, Return/Escape or an accessibility press | `SV-J` items 2–4 |
 
 ## See also
 

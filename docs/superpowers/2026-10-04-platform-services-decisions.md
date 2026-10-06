@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AK`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AL`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1246,3 +1246,85 @@ three arms below), `FR-J no-argument frame: succeeded=true`, 0 `error:`.
 cannot dismiss a native dialog, so a late answer is ordinary there); an ancestor
 hovers wherever a descendant is drawn outside it.
 
+
+## SV-AK — Lane 3's findings: the drawn alert, `Divider`, the menu picker, the scrolling panel, the demo (amends `SV-J` items 3–4, `SV-O` item 2, `SV-P` items 2–4, `SV-Q`, `SV-AA`, `SV-T`, spec §6.3)
+
+**Ruling.** Each item was found while implementing lane 3 (tests at `be806c5`
+and `6236386`); where it refines or refutes a line above, that line stands
+corrected by this one.
+
+1. **The drawn alert's ring and keys** (`SV-J` item 3): the ring starts on the
+   default (`SV-X`) and on nothing when there is none; Tab, → and ↓ move it
+   forward, Shift-Tab, ← and ↑ back, wrapping; Space presses the ringed button
+   — also when a focused field beneath turns it into `.textInput(" ")`; Return
+   presses only the default, Escape only the cancel button. A drop from outside
+   is refused (`false`); `.menuAction`, the two answers and `.pointerExited`
+   pass. The stage runs after the dialog and alert answers, ahead of the
+   tooltip, the drag session and the menu (`Window.onInput`). An accessibility
+   press on anything but its buttons is refused (the alert is modal); with no
+   ring the focus is the `.alert` node itself. Node ids descend from the
+   window-reserved `$alert-panel` root (never a `StateTable` entry). The panel
+   lays out through `Window.menuTextSystem`, the window's text system.
+2. **`Divider` carries no axis to paint** (refines `SV-O` item 2): its measure
+   closure captures the axis read at the layout request, and its paint fills
+   its own laid-out bounds, which already have the axis's shape. `Row` and
+   `Column` push around `box.requestLayout` (the whole legacy lowering of their
+   children). `V11` (a `Group`) has no MetalUI counterpart; 4.4 pins the
+   transparency through an environment scope instead. The existing guard
+   `theMenuSpellingsCompileFromAPlainImport` asserted that `Divider` as a view
+   does not compile (`MN-H` item 3) and reddened when `SV-O` landed — its flip:
+   the negative arm is now a `Rectangle` in a menu builder.
+3. **The menu picker's structure** (refines `SV-P` item 2): the picker's `Box`
+   row holds the title and a `PickerMenuButton` — `Menu`'s recipe over a
+   `Button` whose label is `Pair(OptionSink(content), PickerMenuLabel)`. The
+   sink takes **one** identity slot whatever the option count (its options
+   number under its own id), so the label's identity does not move when options
+   are added. In the menu style the picker itself is not focusable and has no
+   arrow keys — the button is the one Tab stop. Return opens it only where it
+   presses a `Button` (off Apple, `MN-AF`'s footing), so test 5.8 asserts
+   Return per platform. The button publishes through a new internal role hint,
+   `AXNode.popUpButtonHint` (stripped in `Frame.registerHandlers` exactly as
+   `menuButtonHint` is), with its label the picker's title and its value the
+   selected title declared on the button.
+4. **The options the menu opens with are this frame's** (refines `SV-P` item
+   4): the button's action is composed in the same frame's prepaint, after the
+   layout recorded them, so at input time they are the last drawn frame's.
+5. **The width cache is window-owned, not on the picker scope** (amends
+   `SV-AA`): a `PickerScope` is created by `Picker.init`, i.e. every build, so a
+   cache on it would never be warm. `Window.pickerTitleWidths` (a
+   `PickerTitleWidths`, handed to every frame; a `Frame` outside a window gets a
+   fresh one) is keyed by the picker's id and holds the titles, the `FontKey`
+   and the scale; entries no build used are swept after each build. Test 5.17
+   counts 299, 0, 299 — the label's own `Text` measures the selected title
+   (`"Option 0"`), which the counting text system excludes from its watched set.
+6. **The scrolling panel** (refines `SV-Q`): a level's `layout` keeps its full
+   size (the menus' panel tests are unchanged); `clampedHeight` and
+   `scrollOffset` sit beside it. The indicator band (12 pt) exists only at an
+   edge past which rows lie; scroll-into-view computes the offset against the
+   band that offset will have. The visible rows are found by bisection, so
+   paint and hit testing are O(log n + visible); rows paint inside a clip of
+   the band. A submenu level clamps the same way. The wheel's sign is
+   `ScrollView`'s (a negative `delta.y` scrolls the rows up). `Window.lastMenuRowsPainted`
+   is the counter test 5.12 reads.
+7. **The demo's alert is a `Component`, and its sections are built at layout**
+   (`SV-T`'s Windows stack rule): the non-presenting `.alert` forms call their
+   builder closures while building (`SV-AH` item 7), and a main-actor closure
+   called off the main thread traps under Swift 6's dynamic isolation check —
+   `everyProductionTreeBuildsOnAOneMegabyteThread` read `.signal(SIGTRAP)`
+   (bisected to `Button.alert(…) { } message: { }` alone off the main thread;
+   `presenting:` and the dialog modifiers passed). With the alert deferred,
+   the eagerly built tree was 53 KB and needed between 1 and 2 MB of debug
+   stack (`SIGBUS` at 1 MB, passing at 2 MB): the root's modifier chain copies
+   the whole tree at run-time size. Each section is now a `ServicesPart`
+   `Component` (a closure), its body built by the window at layout; the budget
+   test builds the tree and each body (`@testable import`), every one passing on
+   the 1 MB thread (the tree alone at 128 KB).
+8. **Test-side facts**: `.textSecondary` named in spec 4.7's mutation does not
+   exist; the mutation is `.textPrimary`. No public modifier reaches
+   `TaggedElement`'s single-element entry, so 5.9 reaches it through a
+   test-only wrapper calling `requestLayout` directly, as a modifier layer
+   would. `ServicesDemoTests` reads the counter text as a static text's value.
+
+**Cost if wrong.** Item 5: a second window-owned cache to keep in step with the
+build; item 7: a demo section that builds eagerly again can overflow Windows'
+1 MB stack (the budget test is the guard).

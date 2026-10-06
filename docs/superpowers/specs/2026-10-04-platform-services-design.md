@@ -1,8 +1,8 @@
 # Platform services — dialogs, alerts, window sizing, hover, Divider, menu Picker — design
 
-**Status: PARTIALLY IMPLEMENTED (2026-10-05) — lanes 1 and 2 landed, lane 3 (§4's drawn alert, `Divider`, menu picker, scrolling panel; §7 demo; §9's U-checks that need them) was not built.** Record `docs/record/77-platform-services.md`. (Designed 2026-10-03.) User request
+**Status: IMPLEMENTED (2026-10-06) — lanes 1, 2 and 3 landed (lane 3: the drawn alert, `Divider`, the menu picker, the scrolling panel, the demo and its U-checks; its findings `SV-AK`).** Record `docs/record/77-platform-services.md`. (Designed 2026-10-03.) User request
 2026-10-02, an item of the gpui-gap priority list (the SMK configurator port's
-gaps 4, 5, 7, 8, 9, 10 and 12); **not a plan task**. Rulings `SV-A`…`SV-AD` (the critic pass's corrections `SV-X`…`SV-AD`, applied below) in
+gaps 4, 5, 7, 8, 9, 10 and 12); **not a plan task**. Rulings `SV-A`…`SV-AK` (the critic pass's corrections `SV-X`…`SV-AD`, applied below; the lanes' findings `SV-AE`…`SV-AK`) in
 [`../2026-10-04-platform-services-decisions.md`](../2026-10-04-platform-services-decisions.md).
 Record: `docs/record/77-platform-services.md` (Record phase). Probes (new,
 outputs and readings in their headers): `docs/probes/swiftui-platform-services.swift`
@@ -498,7 +498,7 @@ runs `docker build` + the SDL build/test of the task's recipe; 1.12 runs there.
 | 4.4 | `theNearestStackDecidesAndWrappersAreTransparent` (`V5`, `V6`, `V8`, `V9`, `V11`) | each literal | not popping (`defer` removed) |
 | 4.5 | `aDividerInARowIsVerticalAndInAColumnHorizontal` | legacy rects | `Row` not pushing |
 | 4.6 | `anUnconstrainedDividerIsTenLong` | nil proposal → 10 × 1 | `?? 0` |
-| 4.7 | `aDividerPaintsTheSeparatorTokenOnePointThick` | scene rect colour = theme `.separator` in light and dark; 2 device px at scale 2 | `.textSecondary` |
+| 4.7 | `aDividerPaintsTheSeparatorTokenOnePointThick` | scene rect colour = theme `.separator` in light and dark; 2 device px at scale 2 | `.textPrimary` (`SV-AK` item 8: there is no `.textSecondary`) |
 | 4.8 | `aDividerPublishesNoAccessibilityNode` (`V15`) | none | emit a node |
 | 4.9 | `aDividerInAMenuIsStillASeparator` | the menu's node is `.separator` | — (existing behaviour, pinned) |
 | 4.10 | `theAxisDoesNotLeakPastItsStack` | a root `Divider` after an `HStack` sibling is horizontal; one inside a `Button` label inside an `HStack` is vertical | push without pop |
@@ -510,7 +510,7 @@ runs `docker build` + the SDL build/test of the task's recipe; 1.12 runs there.
 | 5.5 | `aSelectionMatchingNoTagShowsAnEmptyLabel` (`P5`) | label "" | fall back to the first |
 | 5.6 | `menuPickerOptionsLayOutNothing` (counted) | 300 options → no node per option; layout work literal = the 3-option picker's | lay the option out |
 | 5.7 | `aMenuPickerPublishesAPopUpButtonWithTheSelectedValue` | `.popUpButton`, value, label folded | `.menuButton` |
-| 5.8 | `aMenuPickerOpensFromSpaceReturnAndAPressButNotWhenDisabled` | three openers; disabled opens nothing | open regardless |
+| 5.8 | `aMenuPickerOpensFromSpaceReturnAndAPressButNotWhenDisabled` | a click, Space, an accessibility press, and Return off Apple only (`SV-AK` item 3); disabled opens nothing | open regardless |
 | 5.9 | `aModifierAfterTagStillYieldsAMenuOption` | recorded; one zero-size node | trap on the single entry |
 | 5.10 | `aNonTextMenuOptionIsTitledByItsTag` (divergence 128) | title | empty title |
 | 5.11 | `theAutomaticPickerStaysSegmented` | segmented layout | — (pin) |

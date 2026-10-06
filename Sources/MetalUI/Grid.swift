@@ -115,8 +115,10 @@ public struct Grid<Content: ProposalElementGroup>: ProposalElement {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
+        // A `Grid` is no stack to a `Divider` (`SV-O` item 2): it pushes "none".
+        let (children, contentLayout) = pass.frame.withStackAxis(nil) {
+            content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         let node = pass.requestNativeGrid(children: children, alignment: alignment,
                                           horizontalSpacing: horizontalSpacing.map { Double($0.value) },
                                           verticalSpacing: verticalSpacing.map { Double($0.value) })

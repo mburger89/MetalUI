@@ -94,7 +94,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     #expect(v6 == [[1, 30]], "V6: \(v6)")
     let v8 = try dividerSizes { HStack { Divider().frame(height: px(20)) }.frame(height: px(40)) }
     #expect(v8 == [[1, 20]], "V8: \(v8)")
-    let v9 = try dividerSizes { HStack { Divider().padding(px(5)) }.frame(height: px(40)) }
+    let v9 = try dividerSizes { HStack { Divider().padding(Edges(all: px(5))) }.frame(height: px(40)) }
     #expect(v9 == [[1, 30]], "V9: \(v9)")
     let scoped = try dividerSizes {
         HStack { Divider().environment(\.colorScheme, .light) }.frame(height: px(40))
@@ -131,7 +131,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 /// **4.7** (`SV-O` item 4, divergence 127). The line is one rect of the
 /// window theme's `.separator` in light and in dark, and 1 point is 2 device
-/// pixels at scale 2. Mutation: paint `.textSecondary`.
+/// pixels at scale 2. Mutation: paint `.textPrimary`.
 @MainActor
 @Test func aDividerPaintsTheSeparatorTokenOnePointThick() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
@@ -161,9 +161,9 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     func nodes(withDivider: Bool) throws -> Int {
         let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 300) {
             VStack {
-                Text("Above")
+                ProposalText("Above")
                 if withDivider { Divider() }
-                Text("Below")
+                ProposalText("Below")
             }
         }
         platform.simulateAccessibilityRequest(.activate)

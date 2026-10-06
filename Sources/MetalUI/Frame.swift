@@ -1553,6 +1553,7 @@ public final class Frame {
         declaration.logicalIndex = nil
         declaration.selectionHint = false
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
+        declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
@@ -2299,6 +2300,28 @@ public final class Frame {
         return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
+    // MARK: - The stack-axis stack (platform services, `SV-O` item 2)
+
+    /// The axes of the linear stacks enclosing the element being laid out,
+    /// innermost last: `HStack`/`Row` push `.horizontal`, `VStack`/`Column`
+    /// `.vertical`, and `ZStack`/`Grid` `nil` ("no stack"). A `Divider` reads
+    /// the top at its layout request. Every other container pushes nothing, so
+    /// it is transparent. Layout-only: the phases after layout never read it.
+    private var stackAxes: [ProposalStackAxis?] = []
+
+    /// The innermost enclosing stack's axis, or `nil` outside any stack or
+    /// inside a `ZStack` or `Grid` (`SV-O` item 2, `V3`, `V4`).
+    var stackAxis: ProposalStackAxis? { stackAxes.last ?? nil }
+
+    /// Runs `body` — a container's request of its children's layout — with
+    /// `axis` on top of the stack-axis stack, popped by `defer` on every exit,
+    /// so the axis never reaches a later sibling (`SV-O` item 2).
+    func withStackAxis<T>(_ axis: ProposalStackAxis?, _ body: () -> T) -> T {
+        stackAxes.append(axis)
+        defer { stackAxes.removeLast() }
+        return body()
+    }
+
     // MARK: - Layout phase
 
     // Stage 9 (`LR-FC`): the legacy registrars `requestNode(style:children:)`
@@ -2683,6 +2706,14 @@ public final class Frame {
     /// before it renders (menus, `MN-F` item 2); empty with none open, so a
     /// frame without a menu paints nothing more.
     var menuPanelLevels: [MenuSession.Level] = []
+
+    /// How many menu rows this frame painted — O(visible) per level (`SV-Q`),
+    /// read back through `Window.lastMenuRowsPainted`.
+    var menuRowsPainted = 0
+
+    /// Each menu picker's widest option title (`SV-AA`): the window's
+    /// long-lived cache, handed in before the build; a fresh one otherwise.
+    var pickerTitleWidths = PickerTitleWidths()
 
     /// The drawn alert, handed in by `Window` before it renders (platform
     /// services, `SV-J` item 2); `nil` with none up, so a frame without one

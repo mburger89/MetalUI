@@ -99,11 +99,11 @@ public enum MenuContentBuilder {
     public static func buildArray(_ items: [MenuItems]) -> MenuItems { MenuItems(items) }
 }
 
-/// A separator between menu items — SwiftUI's `Divider` inside a menu (C1).
-///
-/// **Menu-only** (ruling `MN-H` item 3): as a view in a stack it would need
-/// the enclosing stack's axis, which MetalUI's environment does not carry, so
-/// it is not an `Element`. Owner none.
+/// A separator between menu items — SwiftUI's `Divider` inside a menu (C1) —
+/// and, in an element builder, a 1-point line across the nearest stack's axis
+/// (`DividerView.swift`, ruling `SV-O`, which amends `MN-H` item 3's
+/// "menu-only": the axis comes from `Frame`'s stack-axis stack, not the
+/// environment).
 public struct Divider: MenuContent {
     /// A separator.
     public init() {}

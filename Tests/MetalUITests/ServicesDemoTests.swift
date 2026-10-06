@@ -46,7 +46,7 @@ import MetalUIDemoContent
     #expect(servicesDemoModel.hoverEnters[0] == 2, "\(servicesDemoModel.hoverEnters)")
     window.drawFrameIfNeeded()
     let tree = try #require(platform.publishedAccessibilityTrees.last)
-    #expect(tree.nodes.values.contains { $0.label == "Enters: 2" }, "the counter text")
+    #expect(tree.nodes.values.contains { $0.value == "Enters: 2" || $0.label == "Enters: 2" }, "the counter text")
     let bar = try #require(servicesBarBounds(window), "the first tile's bar")
     #expect(bar.size.width.value == 16, "8 points per enter: \(bar)")
     withExtendedLifetime(window) {}

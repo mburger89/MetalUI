@@ -683,20 +683,23 @@ count.
   `theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges`.
   **Observed:**
 
-## U. Platform services — file dialogs, alerts, window sizing, hover (user request 2026-10-02, not a plan task)
+## U. Platform services — file dialogs, alerts, window sizing, hover, `Divider`, menu picker (user request 2026-10-02, not a plan task)
 
-*Source: record §77 `77-platform-services.md`, rulings `SV-A`…`SV-AI`
+*Source: record §77 `77-platform-services.md`, rulings `SV-A`…`SV-AK`
 (`docs/superpowers/2026-10-04-platform-services-decisions.md`), spec §9
-(`docs/superpowers/specs/2026-10-04-platform-services-design.md`).* **There is
-no demo for this group**: `METALUI_SERVICES_DEMO` was lane 3's and was never
-built, so each item needs a small app written against the spellings in
-`docs/api-overview.md` ("Dialogs, alerts and hover", "Window sizing"). The
-looks that need lane 3 (the drawn alert on SDL, `Divider` as a view, the menu
-picker) are **not listed because they do not exist**. Every answer here is
-pinned headless (`PresentationTests`, `FileDialogTests`, `AlertTests`,
-`HoverTests`, `WindowSizingTests`, `AppKitPresentationTests`, and
+(`docs/superpowers/specs/2026-10-04-platform-services-design.md`).* **The
+demo**: `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` (AppKit) and the same
+flag on `MetalUISDLDemo` (Linux, Windows, or macOS over SDL) open
+`servicesDemoContent()` at 960 × 640 with a 900 × 600 minimum: Import…,
+Export… and "Open… (async)" buttons with the last outcome as text, a
+"Delete…" alert, three hover tiles (colour, an enter counter and an 8-point
+bar per enter), `Divider`s in a `VStack`, an `HStack`, a `Column` and a `Row`,
+and a 300-option menu picker. Every answer here is pinned headless
+(`PresentationTests`, `FileDialogTests`, `AlertTests`, `AlertPanelTests`,
+`HoverTests`, `WindowSizingTests`, `AppKitPresentationTests`, `DividerTests`,
+`MenuPickerTests`, `MenuPanelScrollTests`, `ServicesDemoTests`, and
 `SDLPresentationTests`/`SDLMainQueueDrainTests` in `Backends/SDL`); nobody has
-looked at a real panel, sheet or pointer.
+looked at a real panel, sheet, menu or pointer.
 
 - [ ] **U1. AppKit open panel is a sheet**: a button that sets `isPresented`
   for `.fileImporter(allowedContentTypes: [.json])`. The open panel drops as a
@@ -732,6 +735,34 @@ looked at a real panel, sheet or pointer.
   with content that grows when a toggle is pressed. The window cannot be dragged
   below the content, and the minimum grows with it; `.contentSize` also stops
   the window growing past the content (`SV-L`; divergence 126). **Observed:**
+- [ ] **U8. SDL drawn alert**: the demo's "Delete…" under `MetalUISDLDemo`.
+  A translucent scrim over the window, a 260-wide panel 24 from the top with
+  the bold title and the message; Cancel on the left, Delete on the right, and
+  **no** button accented (a destructive button suppresses the default, `SV-X`);
+  Return does nothing, Escape cancels; Tab and the arrows move a ring, Space
+  presses the ringed button; clicks and keys beneath do nothing; an open drawn
+  menu closes when the alert appears; Orca or Narrator announce an alert with
+  two buttons (`SV-J` items 2–4). **Observed:**
+- [ ] **U9. AppKit menu picker**: the demo's "Key" picker. The button shows
+  "Key 42 ⌄", is as wide as the widest option, and opens a native menu of 300
+  items with a check on the selection, below the button (`SV-P` item 4;
+  SwiftUI's pop-up placement over the button is deferred); choosing writes
+  "Selected: n"; VoiceOver reads a pop-up button (`SV-S`). **Observed:**
+- [ ] **U10. SDL drawn menu picker scrolls**: the same picker under
+  `MetalUISDLDemo`. The drawn menu is clamped to the window less 4 points
+  above and below, opens with "Key 42" highlighted and in view, scrolls by the
+  wheel and by ↑/↓ (the highlight stays in view), shows ▴/▾ at an edge with
+  more rows, and a click chooses the row under the pointer (`SV-Q`).
+  **Observed:**
+- [ ] **U11. `Divider` look**: the demo's four stacks, in light and dark. A
+  1-point hairline in the separator colour — horizontal in the `VStack` and
+  `Column`, vertical in the `HStack` and `Row`, spanning the stack's cross
+  size (`SV-O`; divergence 127: SwiftUI's is a translucent black or white).
+  **Observed:**
+- [ ] **U12. The demo's dialogs and hover on both platforms**: U1–U3 and U5
+  through the demo's own buttons and tiles — the outcome line names the file;
+  each tile's counter and bar grow by one per entry and the tile un-highlights
+  when the pointer leaves the window. **Observed:**
 
 ## Sign-off
 

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUIDemoContent
+@testable import MetalUIDemoContent   // the services demo's section bodies (internal)
 
 // Windows threads get a 1 MB stack by default — the main thread (the linker's
 // `/STACK` default; `Backends/SDL`'s `DemoCapture.exe` builds the demo there)
@@ -34,6 +34,12 @@ private func buildEveryProductionTree() {
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     _ = menusDemoContent()
     _ = servicesDemoContent()   // platform services (SV-T, spec test 6.1)
+    // Its sections are `Component`s built at layout (`SV-AK`), so the tree
+    // above holds closures: build each body too, as the window will.
+    _ = servicesDialogsSectionBody()
+    _ = servicesHoverSectionBody()
+    _ = servicesDividerSectionBody()
+    _ = servicesPickerSectionBody()
 }
 
 /// Windows' default thread stack size.

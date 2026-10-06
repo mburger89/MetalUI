@@ -35,6 +35,16 @@ enum MenuPanel {
     static let shadowY: Float = 2
     /// A disabled row's opacity.
     static let disabledOpacity: Float = 0.5
+    /// The band at a scrolling level's edge past which more rows lie, showing
+    /// `▴` or `▾` (`SV-Q`).
+    nonisolated static let indicatorHeight: Float = 12
+
+    /// The height a level of `size` is clamped to in `window` — the window
+    /// less a `margin` above and below — or `nil` when it fits (`SV-Q`).
+    static func clampedHeight(_ size: Size<Pixels>, in window: Size<Pixels>) -> Float? {
+        let available = max(window.height.value - 2 * margin, 0)
+        return size.height.value > available ? available : nil
+    }
 
     /// One panel's geometry: row rects relative to the panel's origin, and the
     /// panel's size.
@@ -160,10 +170,37 @@ extension Frame {
                          cornerRadii: Corners(all: Pixels(MenuPanel.cornerRadius)),
                          borderColor: theme[.separator], borderWidths: Edges(all: Pixels(1)))
                 }
-                for index in level.items.indices {
+                // Only the rows meeting the visible band, clipped to it
+                // (`SV-Q`: paint is O(visible)).
+                let band = level.visibleBand
+                pushClip(band, offset: Point(x: Pixels(0), y: Pixels(0)))
+                for index in level.visibleRows {
                     paintMenuRow(level, index, font: font, lineHeight: lineHeight)
+                    menuRowsPainted += 1
                 }
+                popClip()
+                paintScrollIndicators(level, font: font, lineHeight: lineHeight)
             }
+        }
+    }
+
+    /// `▴` centred in the top band while rows lie above, `▾` in the bottom
+    /// band while rows lie below (`SV-Q`).
+    private func paintScrollIndicators(_ level: MenuSession.Level, font: FontKey, lineHeight: Float) {
+        guard level.isScrollable else { return }
+        let panel = level.frame
+        func arrow(_ string: String, bandTop: Float) {
+            let width = Float(textSystem.measure(string, font: font, wrappingAt: nil).widestLine)
+            let origin = (x: Double(panel.origin.x.value + (panel.size.width.value - width) / 2),
+                          y: Double(bandTop + (MenuPanel.indicatorHeight - lineHeight) / 2))
+            for glyph in textSystem.placeGlyphs(string, font: font, wrappingAt: nil, origin: origin,
+                                                scaleFactor: scaleFactor) {
+                draw(glyph, color: theme[.textPrimary])
+            }
+        }
+        if level.scrollOffset > 0 { arrow("▴", bandTop: panel.origin.y.value) }
+        if level.scrollOffset < level.maxScrollOffset {
+            arrow("▾", bandTop: panel.origin.y.value + panel.size.height.value - MenuPanel.indicatorHeight)
         }
     }
 

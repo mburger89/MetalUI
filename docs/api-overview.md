@@ -313,7 +313,7 @@ show-menu. A native `NSMenu` on AppKit, MetalUI's drawn menu (keyboard, hover,
 submenus, outside click) where the platform declines — SDL — through the
 defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
 `InputEvent.menuAction`. A secondary press never presses a `Button` (D 110).
-`Picker`, `Section` and image items are not offered.
+`Section` and image items are not offered (a `.menu`-style `Picker` is a view, below).
 
 **Pull-down (A).** `Menu("Title") { }` as a view: a button that opens its items
 below itself, published as a menu button.
@@ -383,6 +383,29 @@ opaque or another hover region covers it on its layer (nested regions all
 hover); callbacks from input and after a frame in which content moved under a
 still pointer, leavings innermost first, then enterings outermost first; empty
 while an in-window menu or a drawn alert is up.
+
+**The drawn alert** (`SV-J` items 2–4, `SV-X`; M look, A rules): where the
+platform declines an alert (SDL), the window draws it above everything — a
+scrim, a 260-wide panel 24 from the top, the title, the message, the buttons
+(two side by side with the resolver's first trailing, three or more stacked),
+only the Return default accented. It is modal: Return, Escape, Tab/arrows and
+Space, a click on a button; every other event is swallowed; an open drawn menu
+closes. Published as one `.alert` node with `.button` children.
+
+**`Divider()` as a view** (`SV-O`; A, D 127): in an element builder a 1-point
+line across the nearest `HStack`/`Row` (vertical) or `VStack`/`Column`
+(horizontal; also outside any stack and in a `ZStack`/`Grid`), its proposal (or
+10) along; the theme's `.separator`; no accessibility node. In a menu builder it
+is still a separator.
+
+**Menu picker** (`SV-P`, `SV-AA`, `SV-Q`; A, D 81, 128):
+`.pickerStyle(.menu)` — the title, 8, a pull-down button showing the selected
+option's title (`""` when no tag matches), as wide as the widest option, opening
+every option as a checked-or-not item (a native `NSMenu`, else the drawn panel,
+which scrolls when taller than the window and opens on the selection); choosing
+writes the tag. Options are recorded without layout (hundreds cost one record
+each); a non-`Text` option is titled by its tag (128). Published as
+`.popUpButton`. `.automatic` stays segmented (81).
 
 ## Accessibility — A / M
 

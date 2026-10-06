@@ -97,3 +97,15 @@ file, Homebrew's `-rpath`); they are harmless — nothing of SDL is compiled on
 macOS — and the README's macOS section says so (`SC-G`).
 The generated `Packaging/linux/<id>.desktop` and `Packaging/windows/MyApp.rc`
 are `docs/packaging.md`'s Linux and Windows sections.
+
+## Call `app.run()` from top-level code
+
+The generated `main.swift` calls `app.run()` from **synchronous top-level
+code**. Keep it that way: under an `async` main (`@main` with
+`static func main() async`, or a top-level `await` before `run()`), `run()`
+executes inside a main-actor job, and neither platform's loop can then drain
+the main queue — a `Task { @MainActor in … }` started from a button action, or
+the continuation of an awaited `window.fileDialogs.openFiles(…)`, never runs
+(ruling `SV-H` item 2; probe `swift-main-queue-drain-nested.swift` `J1`, `J3`,
+macOS and Linux). From top-level code SDL's loop drains the main queue once per
+iteration, so such work runs on Linux and Windows too (`SV-H` item 1).

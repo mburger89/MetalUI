@@ -46,9 +46,13 @@ func anOutsideTypeCannotConformToMenuContent() throws {
 /// compile under `import MetalUI`: `.contextMenu` on a `Box` and on an
 /// `HStack`, `Menu("…") { … }` as a submenu item, `Divider()`, a `Toggle`, a
 /// `.disabled(true)` and a `.keyboardShortcut` item, `if`/`else` and `for` in
-/// the builder. `Divider()` as a view in a stack does **not** (`MN-H` item 3).
+/// the builder. A view that is not menu content — a `Rectangle` — in a menu
+/// builder does **not**. (Until platform services the negative was `Divider()`
+/// as a view in a stack, `MN-H` item 3; `SV-O` made `Divider` an element, which
+/// reddened this guard — its flip, record §77 lane 3.)
 ///
-/// Mutation **MG1.2**: `Divider` made an `Element` (the negative compiles).
+/// Mutation **MG1.2**, re-spelled with the negative: `Rectangle` made
+/// `MenuContent` (the negative compiles) — measured as MG3.12 (`SV-AK`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
 func theMenuSpellingsCompileFromAPlainImport() throws {
     let spellings = try typecheckFile("""
@@ -80,25 +84,25 @@ func theMenuSpellingsCompileFromAPlainImport() throws {
             Rectangle().contextMenu { Divider() }
         }
         """, importing: "MetalUI")
-    let dividerView = try typecheckFile("""
-        @MainActor func view() -> some ProposalElementGroup {
-            HStack { Rectangle(); Divider() }
+    let nonItem = try typecheckFile("""
+        @MainActor func view() -> some ElementGroup {
+            Box().contextMenu { Button("Copy") {}; Rectangle() }
         }
         """, importing: "MetalUI")
     print("""
         MN-D spellings: succeeded=\(spellings.succeeded) messages=[\(spellings.messages)]; \
-        dividerView succeeded=\(dividerView.succeeded) messages=[\(dividerView.messages)]
+        nonItem succeeded=\(nonItem.succeeded) messages=[\(nonItem.messages)]
         """)
-    try #require(spellings.succeeded && !dividerView.succeeded,
+    try #require(spellings.succeeded && !nonItem.succeeded,
                  """
-                 the spellings must compile and Divider as a view must not, or this \
+                 the spellings must compile and a Rectangle menu item must not, or this \
                  guard cannot fail:
                  spellings:
                  \(spellings.output)
-                 dividerView:
-                 \(dividerView.output)
+                 nonItem:
+                 \(nonItem.output)
                  """)
-    #expect(dividerView.messages.contains("Divider"), "refused FOR Divider:\n\(dividerView.output)")
+    #expect(nonItem.messages.contains("Rectangle"), "refused FOR Rectangle:\n\(nonItem.output)")
 }
 
 /// **G1.3** (`MN-D` item 5). A `Picker` is not a menu item (SwiftUI renders it

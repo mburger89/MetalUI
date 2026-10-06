@@ -1563,6 +1563,7 @@ public final class Window {
             frame.menuPanelLevels = session.levels
         }
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
+        frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1577,6 +1578,8 @@ public final class Window {
         lastScene = scene
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
+        lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
+        pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
@@ -2010,6 +2013,13 @@ public final class Window {
     /// How many hover regions the last adopted frame registered (`SV-U`): with
     /// none and nothing hovered, a pointer event or frame does no hover work.
     var lastHoverRegionCount = 0
+
+    /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
+    /// at most the visible band's rows plus one per level.
+    var lastMenuRowsPainted = 0
+
+    /// Each menu picker's widest option title, across builds (`SV-AA`).
+    let pickerTitleWidths = PickerTitleWidths()
 
     /// Hitboxes the hover recomputes visited, ever — test observability for
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).

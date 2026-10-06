@@ -37,21 +37,109 @@ struct MenuSession {
         var highlighted: Int?
         /// The row whose submenu is the next level, if one is open.
         var openSubmenu: Int?
+        /// The panel's height when the level is taller than the window less
+        /// two margins and so clamped to it and scrolling (`SV-Q`); `nil`
+        /// when it fits.
+        var clampedHeight: Float?
+        /// How far the rows are scrolled up, in points: 0 at the top,
+        /// `maxScrollOffset` at the bottom (`SV-Q`).
+        var scrollOffset: Float = 0
 
-        /// The panel's rect in window points.
-        var frame: Bounds<Pixels> { Bounds(origin: origin, size: layout.size) }
+        init(items: [PlatformMenuItem], layout: MenuPanel.Layout, origin: Point<Pixels>,
+             clampedHeight: Float? = nil) {
+            self.items = items
+            self.layout = layout
+            self.origin = origin
+            self.clampedHeight = clampedHeight
+        }
 
-        /// Row `index`'s rect in window points.
+        /// The panel's rect in window points — its layout's size, or the
+        /// clamped height when it scrolls.
+        var frame: Bounds<Pixels> {
+            Bounds(origin: origin, size: Size(width: layout.size.width,
+                                              height: Pixels(clampedHeight ?? layout.size.height.value)))
+        }
+
+        /// Whether the level scrolls (`SV-Q`).
+        var isScrollable: Bool { clampedHeight != nil }
+
+        /// The largest offset: the rows' whole height less the panel's.
+        var maxScrollOffset: Float {
+            guard let clampedHeight else { return 0 }
+            return max(0, layout.size.height.value - clampedHeight)
+        }
+
+        /// The band rows show through: the panel less a `MenuPanel.indicatorHeight`
+        /// band at each edge past which more rows lie (`SV-Q`). The whole
+        /// panel when it does not scroll.
+        var visibleBand: Bounds<Pixels> { band(at: scrollOffset) }
+
+        private func band(at offset: Float) -> Bounds<Pixels> {
+            let panel = frame
+            let top: Float = offset > 0 ? MenuPanel.indicatorHeight : 0
+            let bottom: Float = isScrollable && offset < maxScrollOffset ? MenuPanel.indicatorHeight : 0
+            return Bounds(origin: Point(x: panel.origin.x, y: Pixels(panel.origin.y.value + top)),
+                          size: Size(width: panel.size.width,
+                                     height: Pixels(panel.size.height.value - top - bottom)))
+        }
+
+        /// Row `index`'s rect in window points, after the scroll offset.
         func rowFrame(_ index: Int) -> Bounds<Pixels> {
             let row = layout.rows[index]
             return Bounds(origin: Point(x: Pixels(origin.x.value + row.origin.x.value),
-                                        y: Pixels(origin.y.value + row.origin.y.value)),
+                                        y: Pixels(origin.y.value + row.origin.y.value - scrollOffset)),
                           size: row.size)
         }
 
-        /// The row under `point`, if any.
+        /// The rows meeting the visible band, found by bisection over the
+        /// rows' ascending tops — O(log n), so paint and hit testing are
+        /// O(visible) on a 300-row level (`SV-Q`, `SV-U`).
+        var visibleRows: Range<Int> {
+            let band = visibleBand
+            let top = band.origin.y.value + scrollOffset - origin.y.value
+            let bottom = top + band.size.height.value
+            let rows = layout.rows
+            var low = 0, high = rows.count
+            while low < high {   // the first row whose bottom passes the band's top
+                let mid = (low + high) / 2
+                if rows[mid].origin.y.value + rows[mid].size.height.value <= top { low = mid + 1 } else { high = mid }
+            }
+            var end = low
+            while end < rows.count, rows[end].origin.y.value < bottom { end += 1 }
+            return low..<end
+        }
+
+        /// The row under `point`, if any — only a row showing in the visible
+        /// band (`SV-Q`: hit testing follows the offset).
         func row(at point: Point<Pixels>) -> Int? {
-            layout.rows.indices.first { rowFrame($0).contains(point) }
+            guard visibleBand.contains(point) else { return nil }
+            return visibleRows.first { rowFrame($0).contains(point) }
+        }
+
+        /// Scrolls by `delta` points (positive scrolls the rows up), clamped
+        /// to `0…maxScrollOffset`.
+        mutating func scroll(by delta: Float) {
+            scrollOffset = min(max(scrollOffset + delta, 0), maxScrollOffset)
+        }
+
+        /// Scrolls the least distance that shows row `index` wholly inside the
+        /// visible band — the band that offset will have (`SV-Q`).
+        mutating func scrollIntoView(_ index: Int) {
+            guard isScrollable, layout.rows.indices.contains(index) else { return }
+            let row = layout.rows[index]
+            let rowTop = row.origin.y.value, rowBottom = rowTop + row.size.height.value
+            let height = frame.size.height.value
+            if rowTop - scrollOffset < band(at: scrollOffset).origin.y.value - origin.y.value {
+                let candidate = rowTop - MenuPanel.indicatorHeight
+                scrollOffset = candidate <= 0 ? 0 : min(candidate, maxScrollOffset)
+            } else {
+                let visible = band(at: scrollOffset)
+                let bandBottom = visible.origin.y.value + visible.size.height.value - origin.y.value
+                if rowBottom - scrollOffset > bandBottom {
+                    let candidate = rowBottom - (height - MenuPanel.indicatorHeight)
+                    scrollOffset = candidate >= maxScrollOffset ? maxScrollOffset : max(candidate, 0)
+                }
+            }
         }
 
         /// Whether row `index` can be highlighted: enabled and not a separator.
@@ -177,7 +265,7 @@ extension Window {
     /// the window (`MN-C`, `MN-F`). A new menu replaces an open one. `false`,
     /// and nothing opened, for an empty menu (C10).
     func openContextMenu(_ attachment: ContextualAttachment, isEnabled: Bool, declaringID: GlobalElementID,
-                         at point: Point<Pixels>, openingPress: Bool) -> Bool {
+                         at point: Point<Pixels>, openingPress: Bool, initialHighlight: Int? = nil) -> Bool {
         guard let content = attachment.menu else { return false }
         let nodes = StateDispatch.dispatching(to: declaringID) { content().menuNodes(isEnabled: isEnabled) }
         guard !nodes.isEmpty else { return false }
@@ -195,9 +283,17 @@ extension Window {
             return true
         }
         let layout = MenuPanel.layout(items: items, textSystem: menuTextSystem, font: menuFont)
-        let origin = MenuPanel.place(size: layout.size, at: point, in: contentSizeForDrag)
-        menuSession = MenuSession(token: menu.token, menu: menu, isNative: false,
-                                  levels: [MenuSession.Level(items: items, layout: layout, origin: origin)],
+        let clamped = MenuPanel.clampedHeight(layout.size, in: contentSizeForDrag)
+        let size = Size(width: layout.size.width, height: Pixels(clamped ?? layout.size.height.value))
+        let origin = MenuPanel.place(size: size, at: point, in: contentSizeForDrag)
+        var level = MenuSession.Level(items: items, layout: layout, origin: origin, clampedHeight: clamped)
+        // A menu picker's open (`SV-Q`, `SV-P` item 4): its selection
+        // highlighted and scrolled into view.
+        if let initialHighlight, level.isSelectable(initialHighlight) {
+            level.highlighted = initialHighlight
+            level.scrollIntoView(initialHighlight)
+        }
+        menuSession = MenuSession(token: menu.token, menu: menu, isNative: false, levels: [level],
                                   actions: actions, toggles: toggles,
                                   openingPress: openingPress ? (point, false) : nil)
         return true
@@ -205,11 +301,11 @@ extension Window {
 
     /// Opens a recorded element's menu at its bottom-leading corner — the
     /// keyboard and accessibility openers (`MN-G`).
-    func openContextMenu(of id: GlobalElementID, _ record: ContextMenuRecord) -> Bool {
+    func openContextMenu(of id: GlobalElementID, _ record: ContextMenuRecord, initialHighlight: Int? = nil) -> Bool {
         let corner = Point(x: record.bounds.origin.x,
                            y: Pixels(record.bounds.origin.y.value + record.bounds.size.height.value))
         return openContextMenu(record.attachment, isEnabled: record.isEnabled, declaringID: id, at: corner,
-                               openingPress: false)
+                               openingPress: false, initialHighlight: initialHighlight)
     }
 
     /// Dismisses an open in-window menu — a resize, the window losing key
@@ -306,7 +402,13 @@ extension Window {
                 activateMenuRow(&session, level: levelIndex, row: row)
             }
             return true
-        case .scrollWheel:
+        case .scrollWheel(let wheel):
+            // A wheel over a scrolling level scrolls it (`SV-Q`); `ScrollView`'s
+            // sign: a negative `delta.y` scrolls the rows up.
+            if let levelIndex = session.level(at: wheel.position), session.levels[levelIndex].isScrollable {
+                session.levels[levelIndex].scroll(by: -wheel.delta.y.value)
+                menuSession = session
+            }
             return true
         case .keyDown(let key):
             menuKey(&session, key)
@@ -347,9 +449,11 @@ extension Window {
         closeMenuLevels(&session, deeperThan: levelIndex)
         let parent = session.levels[levelIndex]
         let layout = MenuPanel.layout(items: children, textSystem: menuTextSystem, font: menuFont)
-        let origin = MenuPanel.placeSubmenu(size: layout.size, row: parent.rowFrame(row), parent: parent.frame,
+        let clamped = MenuPanel.clampedHeight(layout.size, in: contentSizeForDrag)
+        let size = Size(width: layout.size.width, height: Pixels(clamped ?? layout.size.height.value))
+        let origin = MenuPanel.placeSubmenu(size: size, row: parent.rowFrame(row), parent: parent.frame,
                                             in: contentSizeForDrag)
-        var level = MenuSession.Level(items: children, layout: layout, origin: origin)
+        var level = MenuSession.Level(items: children, layout: layout, origin: origin, clampedHeight: clamped)
         if highlightFirst { level.highlighted = children.indices.first { level.isSelectable($0) } }
         session.levels[levelIndex].openSubmenu = row
         session.levels.append(level)
@@ -390,6 +494,8 @@ extension Window {
             } else {
                 session.levels[deepest].highlighted = down ? first : last
             }
+            // The highlight scrolls into view (`SV-Q`).
+            if let row = session.levels[deepest].highlighted { session.levels[deepest].scrollIntoView(row) }
         case "\u{f703}":
             if let row = level.highlighted, case .submenu = level.items[row].kind {
                 openSubmenu(&session, level: deepest, row: row, highlightFirst: true)

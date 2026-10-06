@@ -20,8 +20,11 @@ final class MenuPresenter {
 
     /// Opens `content` as `id`'s pull-down, anchored at the bounds `id`
     /// recorded in the last frame (`Window.lastPresentationAnchors`).
-    func openPullDown(_ id: GlobalElementID, isEnabled: Bool, content: @escaping @MainActor () -> MenuItems) {
-        window?.openPullDownMenu(id, isEnabled: isEnabled, content: content)
+    /// `initialHighlight` is the row an in-window panel opens highlighted
+    /// and scrolled to — a menu picker's selection (`SV-Q`).
+    func openPullDown(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
+                      content: @escaping @MainActor () -> MenuItems) {
+        window?.openPullDownMenu(id, isEnabled: isEnabled, initialHighlight: initialHighlight, content: content)
     }
 }
 
@@ -79,10 +82,11 @@ extension Window {
     /// item 1): natively there when the platform shows menus, else the drawn
     /// panel below it — the context menu's own path (`MN-C`, `MN-F`), its items
     /// evaluated now, under `id`'s dispatch. Nothing without an anchor.
-    func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, content: @escaping @MainActor () -> MenuItems) {
+    func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
+                          content: @escaping @MainActor () -> MenuItems) {
         guard let bounds = lastPresentationAnchors[id] else { return }
         let record = ContextMenuRecord(attachment: ContextualAttachment(menu: content, help: nil),
                                        isEnabled: isEnabled, bounds: bounds)
-        _ = openContextMenu(of: id, record)
+        _ = openContextMenu(of: id, record, initialHighlight: initialHighlight)
     }
 }

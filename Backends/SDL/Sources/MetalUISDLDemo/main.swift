@@ -48,6 +48,9 @@ func runDemo() throws {
     // `ctx.time` through the SDL renderer's draw context; the counter and the
     // drawing are made once, outside the content closure that runs every
     // frame (MV-O item 1).
+    // `METALUI_SERVICES_DEMO=1`: platform services (human checks U3, U5, U7–U10,
+    // ruling SV-T) — SDL's desktop file dialogs, the drawn alert, hover tiles,
+    // dividers and the drawn, scrolling menu picker; a 900 × 600 minimum.
     // `METALUI_LOOKS_DEMO=1`: the looks demo (human check S4 — the colour
     // section's swatches and scheme toggle; the window's decorations stay with
     // the system theme, `CR-M`), with the app's dark palette override.
@@ -62,7 +65,9 @@ func runDemo() throws {
     if environment["METALUI_LOOKS_DEMO"] == "1" {
         app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
     }
-    let window = environment["METALUI_LOOKS_DEMO"] == "1"
+    let window = environment["METALUI_SERVICES_DEMO"] == "1"
+        ? try openServicesDemoWindow(app, title: "MetalUI — SDL3 platform services")
+        : environment["METALUI_LOOKS_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 looks", size: Size(width: Pixels(1180), height: Pixels(880)),
                              content: looksDemoContent)
         : environment["METALUI_METALVIEW_DEMO"] == "1"

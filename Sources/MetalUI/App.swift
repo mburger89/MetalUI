@@ -228,6 +228,12 @@ public final class App {
 
     /// Runs the platform's event loop, handing every window its input and
     /// display-link ticks until the platform stops.
+    ///
+    /// **Call it from synchronous top-level code** (`main.swift`), not from an
+    /// `async` main: inside a main-actor job neither platform's loop can drain
+    /// the main queue, so a main-actor `Task` — or an awaited `FileDialogs`
+    /// call's continuation — never runs (ruling `SV-H` item 2; probe
+    /// `swift-main-queue-drain-nested.swift` `J1`, `J3`).
     public func run() {
         platform.run()
     }

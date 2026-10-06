@@ -150,6 +150,8 @@ F	file-dialog-call	M	-	-	-	-	SV-D SV-AD	FileDialogs (openFiles/saveFile)/FileDia
 F	content-type-extensions	D	-	-	-	129	SV-E	ContentType(_:conformingTo:filenameExtensions:)/preferredFilenameExtension/ContentType.json: UTType's filename extensions reduced to a list and public.json conforming to public.text; a file dialog off Apple matches by extension alone (129)
 F	alerts	A	swiftui-platform-services.swift	A1	alertButtonsResolveSwiftUIsOrderAndKeys	-	SV-I SV-J SV-X SV-Y	alert (four forms, presenting: included)/confirmationDialog (two forms)/AlertActions (closed)/AlertActionsBuilder/AlertActionItems: SwiftUI's buttons — cancel last and on Escape, a synthesized Cancel beside a lone destructive, OK for none, Return on the first plain button only without a destructive one (K0–K3); presenting: nil still presents title and OK (R1); an NSAlert sheet on AppKit, drawn in the window elsewhere
 F	hover	A	swiftui-platform-services.swift	H1	onHoverFiresOnEnterAndLeaveFromInput	-	SV-N SV-Z SV-U	onHover(perform:)/onContinuousHover(perform:)/HoverPhase/HoverModifier on both vocabularies: SwiftUI's spellings; the semantics are MetalUI's (H1–H11 are a recorded broken instrument): a non-opaque region per element, the hovered set through the one ranking (an opaque target or a hover region above covers, nested regions all hover), from input and after the frame, under StateDispatch
+F	divider-view	D	swiftui-platform-services.swift	V1	aDividerInAVStackSpansItsWidthOnePointTall	127	SV-O	Divider as an Element/ProposalElement: a 1-point line across the nearest HStack/Row (vertical) or VStack/Column (horizontal, also outside any stack and in a ZStack/Grid), its proposal or 10 along (V1–V11); no accessibility node (V15); the opaque .separator token where SwiftUI is translucent black/white (127)
+F	menu-picker	D	swiftui-platform-services.swift	P1	choosingAMenuPickerOptionWritesItsTag	81 128	SV-P SV-AA SV-Q SV-S	PickerStyle.menu: a pull-down showing the selected title, as wide as the widest option (P1, P3), opening every option as a checked-or-not item through the menu machinery (native NSMenu, else a scrolling drawn panel opening on the selection); choosing writes the tag (P1); options recorded without layout; a non-Text option titled by its tag (128); a .popUpButton; the automatic style stays segmented (81)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -315,6 +317,7 @@ M	MetalUI	NativeTappable.swift	.*	.*	.*	on-click
 M	MetalUI	Passes.swift	LayoutPass	(requestNative.*)	.*	kernel-registrars
 M	MetalUI	Passes.swift	PaintPass	resolve	.*	color-theme-backed
 M	MetalUI	Passes.swift	.*	.*	.*	passes
+M	MetalUI	Picker.swift	PickerStyle	menu	.*	menu-picker
 M	MetalUI	Picker.swift	.*	.*	.*	picker
 M	MetalUI	ProposalLayoutContainer.swift	.*	.*	.*	proposal-layout
 M	MetalUI	ProposalScrollView.swift	.*	.*	.*	scroll
@@ -379,6 +382,7 @@ M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop
 M	MetalUI	ContextMenu.swift	.*	.*	.*	context-menus
 M	MetalUI	MenuContent.swift	.*	.*	.*	context-menus
+M	MetalUI	DividerView.swift	Divider	(Layout|requestProposalLayout|prepaint|paint)	.*	divider-view
 M	MetalUI	Commands.swift	.*	.*	.*	menu-bar
 M	MetalUI	PullDownMenu.swift	.*	.*	.*	pull-down-menu
 M	MetalUI	Popover.swift	.*	.*	.*	popovers
