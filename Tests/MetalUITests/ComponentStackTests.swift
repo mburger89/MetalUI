@@ -62,8 +62,9 @@ private func sampleAtDepth(_ depth: Int) -> Int {
 /// 1 211 584 bytes, shell 2 1 414 432, shell 12 1 719 328 — the difference
 /// 507 744, the design session's 508 KB (its own figures were leaf samples
 /// only: pane 424 KB; this meter also samples in every builder method, so it
-/// sees the `content` getters' frames). Mutation M2.1 (the payload inline
-/// again) reddens it.
+/// sees the `content` getters' frames). Boxed (`PE-J`): pane 1 010 368,
+/// shell 2 1 011 904, shell 12 1 014 880 — the difference 4 512, the design
+/// session's 4.5 KB. Mutation M2.1 (the payload inline again) reddens it.
 @Test @MainActor func aShellOverTwelveComponentPanesUsesTheStackOfOnePane() throws {
     let pane = stackHighWater { StackPane0() }
     let shell2 = stackHighWater { StackShell2(choice: .p0) }

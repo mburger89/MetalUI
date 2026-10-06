@@ -69,6 +69,17 @@
 ///     var content: some ElementGroup { … }
 /// }
 /// ```
+///
+/// **Large trees in a debug build** (rulings `PE-J`, `PE-K`, MG-15). A
+/// component's layout record is one heap box, so a shell `Component` that
+/// switches between pane `Component`s costs the stack of about one pane, not
+/// the sum of all of them (measured: 4.5 KB more than one pane over twelve
+/// panes, where the inline record cost 508 KB). A `switch` or `if` over large
+/// **inline** subtrees inside one builder still grows a debug build's frame
+/// with every branch — a debug build reserves a slot for every temporary a
+/// `content` getter holds — so **give each branch that holds a large subtree
+/// its own `Component`**. That needs no eraser; `AnyElement(Box { … })` keeps
+/// working but is not needed for stack depth.
 public protocol Component: ElementGroup {
     associatedtype Content: ElementGroup
 
@@ -86,9 +97,48 @@ public protocol Component: ElementGroup {
 /// re-evaluating it in `prepaintGroup` would build fresh element structs and
 /// discard whatever `requestGroupLayout` wrote into them. Design spec §4.2's
 /// "materializes `content` once" is this field.
+///
+/// **One heap box** (ruling `PE-J`, MG-15): the content and its layout live in
+/// a `final class`, so a `ComponentLayout` is one reference wide whatever its
+/// content. Stored inline, they made every enclosing record pane-sized — a
+/// shell `Component` switching over twelve pane `Component`s held each pane's
+/// layout type in every `EitherGroup` level's debug frame and overflowed an
+/// 8 MB main thread (the SMK configurator). Measured by the design session
+/// (debug, macOS arm64, leaf samples): a shell over 12 panes cost 508 KB more
+/// stack than one pane inline and 4.5 KB boxed, and one pane 59 % less. The
+/// cost is one allocation per `Component` per laid-out frame (record §78).
+/// A layout record is made fresh each frame and owned by that frame, so the
+/// box is never shared by two independent copies. **The rule it leaves**
+/// (`PE-K`): a `switch` or `if` over large inline subtrees still grows a debug
+/// build's frames with every branch — give each such branch its own
+/// `Component`.
 public struct ComponentLayout<C: Component> {
-    var content: C.Content
-    var contentLayout: C.Content.GroupLayout
+    /// What the box holds: the materialized content and its layout.
+    struct Payload {
+        var content: C.Content
+        var contentLayout: C.Content.GroupLayout
+    }
+
+    /// The heap box, mutated in place by `withPayload(_:)`.
+    final class Storage {
+        var payload: Payload
+        init(_ payload: Payload) { self.payload = payload }
+    }
+
+    let storage: Storage
+
+    init(content: C.Content, contentLayout: C.Content.GroupLayout) {
+        storage = Storage(Payload(content: content, contentLayout: contentLayout))
+    }
+
+    /// The materialized content, read-only.
+    var content: C.Content { storage.payload.content }
+
+    /// Runs `body` on the boxed payload in place — `prepaintGroup` and
+    /// `paintGroup` write into the content and its layout through it.
+    func withPayload<R>(_ body: (inout Payload) -> R) -> R {
+        body(&storage.payload)
+    }
 }
 
 extension Component {
@@ -250,14 +300,14 @@ extension Component {
     public mutating func prepaintGroup(layout: inout ComponentLayout<Self>,
                                        pass: inout PrepaintPass)
         -> Content.GroupPrepaint {
-        layout.content.prepaintGroup(layout: &layout.contentLayout, pass: &pass)
+        layout.withPayload { $0.content.prepaintGroup(layout: &$0.contentLayout, pass: &pass) }
     }
 
     public mutating func paintGroup(layout: inout ComponentLayout<Self>,
                                     prepaint: inout Content.GroupPrepaint,
                                     pass: inout PaintPass) {
-        layout.content.paintGroup(layout: &layout.contentLayout,
-                                  prepaint: &prepaint, pass: &pass)
+        layout.withPayload { $0.content.paintGroup(layout: &$0.contentLayout,
+                                                   prepaint: &prepaint, pass: &pass) }
     }
 }
 
