@@ -860,6 +860,14 @@ public final class Window {
             default:
                 break
             }
+            // The drawn alert is modal (`SV-J` item 3): while it is up it takes
+            // every pointer and key event ahead of the drag session, the menu
+            // and everything after them; a menu's outcome and the pointer
+            // leaving pass.
+            if let answer = self.dispatchDrawnAlert(event) {
+                self.setNeedsRedraw()
+                return answer
+            }
             // The tooltip watches every event and claims none (`MN-P` item 2).
             self.trackTooltip(event)
             // Drag and drop (rulings `DN-C`, `DN-H`, `DN-I`): a drop from
@@ -1380,6 +1388,7 @@ public final class Window {
                 // The in-window menu: a root after the content's, published
                 // even under modal isolation (`MN-F` item 4, `MN-AB`).
                 appendMenuPanel(to: &build)
+                appendAlertPanel(to: &build)   // the drawn alert, last (SV-J item 4)
                 return build
             }(),
             to: platformWindow) {
@@ -1553,6 +1562,7 @@ public final class Window {
         if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
             frame.menuPanelLevels = session.levels
         }
+        frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three

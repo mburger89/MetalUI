@@ -2684,6 +2684,11 @@ public final class Frame {
     /// frame without a menu paints nothing more.
     var menuPanelLevels: [MenuSession.Level] = []
 
+    /// The drawn alert, handed in by `Window` before it renders (platform
+    /// services, `SV-J` item 2); `nil` with none up, so a frame without one
+    /// paints nothing more.
+    var alertPanel: DrawnAlertPanel?
+
     /// Runs `body` with `layer` as the active paint layer — the in-window
     /// menu's, above every layer the frame used (`MN-F` item 2). Opens no
     /// accessibility portal: the menu publishes through `Window`, not records.
@@ -3067,6 +3072,7 @@ public final class Frame {
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
         paintTooltip()  // a tooltip, above everything (MN-P item 2)
+        paintAlertPanel()  // the drawn alert, above the menu and the tooltip (SV-J item 2)
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

@@ -204,6 +204,9 @@ struct DrawnAlert {
     let title: String
     let message: String?
     let buttons: [AlertButtons.Resolved]
+    /// The button the drawn panel's focus ring is on (`SV-J` item 3): the
+    /// default (`SV-X`) at presentation, else none until Tab or an arrow.
+    var ring: Int?
 }
 
 extension Window {
@@ -249,7 +252,12 @@ extension Window {
                                       buttons: content.buttons.map(\.platform))
             if !presentAlertOnPlatform(alert) {
                 drawnAlert = DrawnAlert(token: token, title: content.title, message: content.message,
-                                        buttons: content.buttons)
+                                        buttons: content.buttons,
+                                        ring: content.buttons.firstIndex { $0.platform.isDefault })
+                // A menu open when an alert is drawn is dismissed, and a
+                // tooltip hidden: the alert is modal (`SV-J` items 2–3).
+                dismissInWindowMenu()
+                hideTooltip()
                 setNeedsRedraw()
             }
         }
