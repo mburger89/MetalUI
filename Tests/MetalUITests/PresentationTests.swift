@@ -229,6 +229,40 @@ func psTemporaryDirectory() throws -> URL {
     withExtendedLifetime(window) {}
 }
 
+/// **2.4c** (`SV-K` item 3; record §77 §11's `MC.2`, owed by lane 3). A scope
+/// that **leaves the tree** while its dialog is up — its `if` turns false,
+/// `isPresented` still `true` — is dismissed after that frame
+/// (`dismissPresentation(token:)`), and its late answer runs nothing. Before
+/// this test every dismissal wrote `isPresented = false` (2.4, 2.23), so the
+/// record-gone half was unpinned. Mutation `MC.2`: `record(for: key)?.isShown
+/// != true` → `== false` in `reconcilePresentations` (a missing record no
+/// longer dismisses).
+@MainActor
+@Test func aScopeLeavingTheTreeWhilePresentedIsDismissedAndItsLateAnswerRunsNothing() throws {
+    let m = PSModel()
+    m.shown = true
+    m.second = true   // here: "the scope is in the tree"
+    let (window, platform) = try psWindow {
+        Column {
+            psLeaf()
+            if m.second {
+                psLeaf().fileImporter(isPresented: m.binding, allowedContentTypes: [.json],
+                                      allowsMultipleSelection: false) { _ in m.log.append("completion") }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let dialog = try #require(platform.presentedFileDialogs.first)
+    m.second = false
+    window.drawFrameIfNeeded()
+    #expect(platform.dismissedPresentations == [dialog.token], "the departed scope's dialog is dismissed")
+    #expect(window.presentations.inFlight == nil)
+    psDeliver(platform, dialog.token, .chosen(["/tmp/late.json"]))
+    #expect(m.log.isEmpty, "a late answer runs nothing: \(m.log)")
+    #expect(m.shown == true, "isPresented is not written: the scope is gone")
+    withExtendedLifetime(window) {}
+}
+
 /// 2.5's tree: an importer logging its failures into the model.
 @MainActor func psFailureTree(_ m: PSModel) -> some Element {
     Column {
