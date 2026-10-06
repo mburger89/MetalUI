@@ -54,6 +54,14 @@ private func sampleAtDepth(_ depth: Int) -> Int {
     return withUnsafeMutablePointer(to: &padding) { $0.pointee.0 } + sampleAtDepth(depth - 1)
 }
 
+/// A secondary thread's entry: `sampleAtDepth(64)`. A nonisolated global
+/// function, not a closure in the `@MainActor` test, which would be inferred
+/// main-actor isolated and trap on the executor check when the thread enters it.
+private func sampleOnASecondaryThread(_: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer? {
+    _ = sampleAtDepth(64)
+    return nil
+}
+
 /// **2.1** (`PE-J`). A shell `Component` switching over twelve pane
 /// `Component`s uses about the stack of one pane: the difference is at most
 /// 16 KiB (the design session measured 4.5 KB; the boxless layout 508 KB).
@@ -77,17 +85,25 @@ private func sampleAtDepth(_ depth: Int) -> Int {
 }
 
 /// **2.2** — the separating arm: the meter sees a `content` getter's own
-/// frame. One `Component` whose `switch` holds twelve inline subtrees uses
-/// more than 200 KiB more stack than the same over two (design, leaf samples
-/// only: 583 KB; this meter at the red commit: 1 501 984 → 4 501 856 bytes) —
-/// what a debug build reserves for every branch's temporaries (`PE-K`).
+/// frame. Calling the inline-12 shell's `content` getter alone — a build, no
+/// layout, so no layout-time sample can run — measures more than 200 KiB:
+/// the frame a debug build reserves for every branch's temporaries (`PE-K`),
+/// seen only by the samples in `ElementBuilder`'s methods, which run inside
+/// that frame. And laid out, one `Component` whose `switch` holds twelve
+/// inline subtrees uses more than 200 KiB more stack than the same over two
+/// (design, leaf samples only: 583 KB; this meter: 1 300 704 → 4 300 576
+/// bytes after `PE-J`) — `PE-K`'s remaining cost, which no box removes.
 ///
-/// Mutation M2.2 (no sampling in `ElementBuilder`) leaves only layout-time
-/// samples, which run after the getter has returned: the difference collapses.
+/// Mutation M2.2 (no sampling in `ElementBuilder`) reads the getter alone as
+/// 0. *(The laid-out difference alone could not separate: with leaf samples
+/// only it still reads 595 312 bytes, because the layout functions' frames
+/// grow with the branches' value sizes too — measured under M2.2.)*
 @Test @MainActor func theStackMeterSeesTheContentGettersFrame() throws {
+    let (_, getter, _) = StackMeter.measuring { _ = InlineStackShell12(choice: .p0).content }
     let inline2 = stackHighWater { InlineStackShell2(choice: .p0) }
     let inline12 = stackHighWater { InlineStackShell12(choice: .p0) }
-    print("STACK-METER inline 2 \(inline2.bytes) (\(kib(inline2.bytes))), inline 12 \(inline12.bytes) (\(kib(inline12.bytes)))")
+    print("STACK-METER inline 12 getter alone \(getter) (\(kib(getter))); inline 2 \(inline2.bytes) (\(kib(inline2.bytes))), inline 12 \(inline12.bytes) (\(kib(inline12.bytes)))")
+    #expect(getter > 200 * 1024, "the getter's own frame: \(kib(getter))")
     #expect(inline12.bytes - inline2.bytes > 200 * 1024,
             "inline 12 − inline 2 = \(kib(inline12.bytes - inline2.bytes))")
 }
@@ -118,14 +134,29 @@ private func sampleAtDepth(_ depth: Int) -> Int {
     #expect(outer >= inner, "the enclosing scope folds in the nested one: outer \(outer), inner \(inner)")
     #expect(!StackMeter.isMeasuring, "every scope closed")
 
-    let done = DispatchSemaphore(value: 0)
-    let (_, crossThread, _) = StackMeter.measuring {
-        let thread = Thread {
-            _ = sampleAtDepth(64)
-            done.signal()
-        }
-        thread.start()
-        done.wait()
+    // The secondary thread runs on a stack this test maps BELOW the main
+    // thread's (checked, not assumed), so a sample from it would read deeper
+    // than anything the main thread reached: without the main-thread check
+    // the figure is nonsense megabytes. (On a thread Foundation places, macOS
+    // arm64 maps the stack above the main thread's, where an uncounted and a
+    // counted sample read alike — measured: M2.3b stayed green on that arm.)
+    var marker: UInt8 = 0
+    let mainAddress = withUnsafeMutablePointer(to: &marker) { UInt(bitPattern: $0) }
+    let stackSize = 1 << 20
+    let hint = UnsafeMutableRawPointer(bitPattern: (mainAddress - (512 << 20)) & ~UInt(0xFFFF))
+    let mapped = try #require(mmap(hint, stackSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0))
+    try #require(mapped != MAP_FAILED, "mmap failed")
+    defer { munmap(mapped, stackSize) }
+    try #require(UInt(bitPattern: mapped) + UInt(stackSize) < mainAddress,
+                 "the mapped stack is below the main thread's")
+    var attributes = pthread_attr_t()
+    pthread_attr_init(&attributes)
+    defer { pthread_attr_destroy(&attributes) }
+    try #require(pthread_attr_setstack(&attributes, mapped, stackSize) == 0)
+    let (_, crossThread, _) = try StackMeter.measuring { () throws -> Void in
+        var thread: pthread_t?
+        try #require(pthread_create(&thread, &attributes, sampleOnASecondaryThread, nil) == 0)
+        pthread_join(try #require(thread), nil)
     }
     #expect(crossThread == 0, "a secondary thread's samples are not counted: \(crossThread)")
 }
