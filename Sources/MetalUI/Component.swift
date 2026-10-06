@@ -98,6 +98,7 @@ extension Component {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ComponentLayout<Self>) {
+        StackMeter.sample(component: Self.self)   // `PE-L` item 2
         // The component's own identity level. `child(of:at:name:)` decides
         // whether that is a `.named` component or a `.positional` one — the
         // name-replaces-position rule lives in the constructor, not here.

@@ -139,6 +139,7 @@ extension Component where Content: ProposalElementGroup {
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], ComponentLayout<Self>) {
+        StackMeter.sample(component: Self.self)   // `PE-L` item 2
         let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
                                                      at: &cursor, pass: &pass)
         var materialized = content

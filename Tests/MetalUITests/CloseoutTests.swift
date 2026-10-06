@@ -359,6 +359,42 @@ private func countCloseoutAllocations(_ body: () -> Void) throws -> (count: Int,
     #expect(framed80.storeEntries > framed40.storeEntries, "the instrument: framed rows hold store entries")
 }
 
+// MARK: - 2.6: the Component layout box's allocation figure (PE-J, spec §6.2)
+
+/// A `Component` over one 4×4 rectangle — one layout box per laid-out frame.
+private struct OneLeafComponent: Component, ProposalElementGroup {
+    var content: some ProposalElementGroup { Rectangle(width: Pixels(4), height: Pixels(4)) }
+}
+
+/// A proposal row of `n` one-leaf `Component`s.
+@MainActor private func componentRow(_ n: Int) -> some Element {
+    HStack(spacing: Pixels(0)) {
+        ForEach(0..<n, id: \.self) { _ in OneLeafComponent() }
+    }
+}
+
+/// **2.6 — a figure, not a gate** (`PE-J`'s cost: `ComponentLayout` keeps its
+/// content and layout in one heap box, made in `requestGroupLayout`). Gated by
+/// `METALUI_COMPONENT_ALLOC_MEASURE=1` and run only with `--no-parallel`; it
+/// reuses `countCloseoutAllocations` (no third `malloc_logger` installer).
+/// Prints three settled frames' allocations for rows of 0, 40 and 80 one-leaf
+/// `Component`s and the slope per `Component` per frame (design expectation:
+/// the box adds +1), recorded in record §78.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_COMPONENT_ALLOC_MEASURE"] == "1"))
+@MainActor func measureComponentBoxAllocations() throws {
+    let zero = try settledFrames { componentRow(0) }
+    let forty = try settledFrames { componentRow(40) }
+    let eighty = try settledFrames { componentRow(80) }
+    for (name, r) in [("0", zero), ("40", forty), ("80", eighty)] {
+        print("COMPONENT-ALLOC \(name) components: \(r.count) allocations, \(r.bytes) bytes over 3 settled frames")
+    }
+    let perComponent = Double(eighty.count - forty.count) / 40 / 3
+    let bytesPerComponent = Double(eighty.bytes - forty.bytes) / 40 / 3
+    print(String(format: "COMPONENT-ALLOC per Component per settled frame: %.2f allocations / %.1f bytes",
+                 perComponent, bytesPerComponent))
+    #expect(eighty.count > forty.count, "the instrument: more Components allocate more")
+}
+
 // MARK: - Lane-1 fix round: the public Box(decoration:) initialisers (CX-D, CX-P item 5)
 
 /// **F1.1.** `Box(decoration:content:)` and its builder form paint exactly what
