@@ -80,7 +80,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 - **Counts (2026-10-05, `feat/platform-services` from `c2b8f48`, lanes 1 and 2
   only): 2503 tests, 0 goldens, 162 typecheck guards** (2430 + 73 tests,
   151 + 11 guards; census 2402; `Backends/SDL` 24 + 77 on macOS, 24 + 74 in the Linux
-  container, lane 1's last run; record §77 §3). Before it,
+  container, re-measured at the branch check; record §77 §3, §11). Before it,
   `feat/lifecycle` from `047f0ab`: 2430
   tests, 0 goldens, 151 typecheck guards (2376 + 54 tests, 147 + 4 guards;
   `Backends/SDL` 24 + 65; census 2315; Linux container
@@ -374,7 +374,7 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **sixteen**
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **seventeen**
 members; `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 

@@ -2265,3 +2265,35 @@ are the source.) **Added, kept:**
 **Nothing retired or amended.** "Not offered" gains `.task`/`.task(id:)` (`LC-L`)
 and `onChange(of:perform:)`, `onReceive`, `scenePhase` and menu-content lifecycle
 (`LC-A`). Live count **86 → 92**, next label **126**.
+
+## 2026-10-05: 126 and 129 added, 120 amended; 94 live, next label 130 (platform services, lanes 1 and 2)
+
+Record §77; rulings `SV-L`, `SV-E`, `SV-K`; the published list is
+`docs/divergences.md`. Not a plan task — user request 2026-10-02. Labels 127
+and 128 are **reserved** for the unbuilt lane 3 (the spec's divergence table: 127 `Divider`'s colour, `SV-O`;
+128 a non-`Text` menu-picker option, `SV-P`); they are not live and not retired. (This section was
+added by the branch check; the lanes wrote the rows only.) **Added, kept:**
+
+- **126** — a window's size and its content: SwiftUI's `.automatic`
+  resizability is `.contentMinSize` on macOS (probe `swiftui-window-sizing.swift`
+  `W0` = `W1`) and its limits include the title bar's inset; MetalUI's
+  `WindowResizability.automatic` asks the content nothing, `.contentMinSize`/
+  `.contentSize` are opt-in and measure the root once per frame, with no inset
+  (`PB-A`: no safe areas). Pin `automaticResizabilityAsksTheContentNothing`
+  (2.33).
+- **129** — a file dialog's `allowedContentTypes` off Apple: AppKit matches by
+  UTType conformance (`D1`); SDL (Linux, Windows) matches by filename extension
+  only, a type with none filtering nothing. Pin
+  `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` (1.13,
+  `Backends/SDL`).
+
+**Amended:** **120** — the constraint now also covers `.fileImporter`,
+`.fileExporter`, `.alert` and `.confirmationDialog` (`PresentationScope` is the
+same transparent `ElementGroup`, `SV-K` item 1). Pin
+`aLegacyDecorationAfterAPresentationModifierDoesNotCompile` (2.G8). "Not
+offered" gains `fileExporter(document:)`/`FileDocument`, `fileMover`, folder
+selection and the dialog-customisation modifiers (`SV-C`, `SV-W`),
+`confirmationDialog(titleVisibility:)` (`SV-I` item 1), a `TextField` or
+non-`Text` label in an alert (`SV-I` item 2, `SV-AD` item 3) and
+`onContinuousHover(coordinateSpace:)` beyond `.local` (`SV-N` item 1). Live
+count **92 → 94**, next label **130**.

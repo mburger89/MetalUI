@@ -346,8 +346,10 @@ measured here**.
   `DemoStackBudgetTests` entry and `Backends/SDL`'s demo; the probes' remaining
   readings; divergences 127/128. **Until it lands, an SDL app has no visible
   alert.**
-- **Lane 2's mutations** (§5): the behavioural tests were never mutated.
-  Owner: the lane-3 session, as its first step.
+- **Lane 2's mutations** (§5): the behavioural tests were never mutated —
+  the branch check ran two (§11: MC.1 reddens one test, **MC.2 survived**, so a
+  scope leaving the tree while presented is unpinned). Owner: the lane-3
+  session, as its first step, starting with MC.2's missing test.
 - **`.task(perform:)` / `.task(id:)`**: its blocker is removed (`SV-H`), the
   modifier is a lifecycle follow-up with `K1`/`K2`'s semantics. Owner: the
   gpui-gap priority list.
@@ -364,3 +366,51 @@ measured here**.
   `Backends/SDL` dialog and limit tests on Vulkan/D3D12, and
   `DemoFrameDeterminismTests`.
 - **The human looks**: group U (§7). An agent cannot perform them.
+
+## §11 Branch check (adversarial, at `9f97427`)
+
+Run from the committed tree, each mutation restored from a copy with
+`git status --short` clean after it.
+
+- **Suite** (`swift package clean`, native build, unfiltered `--no-parallel`):
+  `Test run with 2503 tests in 3 suites passed after 139.028 seconds`;
+  `FR-J no-argument frame: succeeded=true`; 0 `error:`, the only `warning:`
+  SwiftPM's `--build-system native` deprecation. `cmp CLAUDE.md AGENTS.md`
+  equal. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print
+  nothing. `MetalUILayout` imports only `MetalUICore`, `MetalUIScene` only
+  `MetalUIShaderTypes`.
+- **Demo pixels** (`compare.sh <scratch> c2b8f48 HEAD`): every control at its
+  recorded value, all 14 images `differing=0`, `scene identical`.
+- **`Backends/SDL`**: macOS 24 + 77; the Linux image (`swift:6.4-noble`,
+  offscreen driver), from a `git archive` of `9f97427` and a fresh scratch path,
+  24 + 74 — §3's lane-1 Linux figure, re-measured at `9f97427`.
+- **Every `SV-` id cited in a changed doc resolves** to a `## SV-` heading
+  (`SV-AJ` is only the "next unused" mark). The backticked test names cited in
+  added doc lines that resolve to no test are all lane 3's planned tests in the
+  spec's tables (2.26–2.32, 4.x, 5.x, 6.x) — unbuilt, as the spec's Status line
+  says.
+- **Identity, hit testing, accessibility, animation**: no test in those
+  families was edited except to add arms or a field —
+  `theNewDeclarationsCostHandlersAtMostOnePointer` and
+  `handlersGainsOneReferenceMember` (472 bytes), `HandlerShape`/
+  `HandlerFingerprint`'s `hover` field and two `ModifierCase` rows (55 → 57),
+  `DisabledTests`' D2 hover arms and `HitRegionTests`' `allowsHitTesting`
+  hover arm; `theSevenRetentionSlotsAreMutuallyDistinct`, the identity, focus,
+  `List` and animation files are untouched and green. `isHovered` still ranks
+  through `topmostOpaqueHitbox`, which a non-opaque hover region cannot win.
+
+**Two mutations of the checker's design**, full unfiltered suite each:
+
+| # | Mutation | Reddened |
+|---|---|---|
+| MC.1 | `Frame.registerHandlers`: `pointerHandlers.hover = nil` commented out (the opaque and draggable hitboxes keep the hover attachment, `SV-AH` item 2) | `pointerExitedClearsHoverAndIsHovered` only (`m.log` read the doubled `["t true", "t true", "t false", "t false"]` shape `SV-AH` item 2 records) — 2503 tests, 1 issue. The strip is pinned, but only incidentally, by a test named for the pointer leaving; the draggable half is unpinned |
+| MC.2 | `Window.reconcilePresentations`: `record(for: key)?.isShown != true` → `== false` (a scope that **left the tree** while its dialog or alert is up is no longer dismissed) | **nothing — survived**, `2503 tests in 3 suites passed` |
+
+**MC.2 is a finding.** `SV-K` item 3's "a key in flight whose record is **gone**
+→ `dismissPresentation`" has no test: every presentation test dismisses by
+writing `isPresented = false` (2.4, 2.23), never by removing the scope. With
+the mutant, an `if`-removed `.fileImporter`/`.alert` leaves its panel or sheet
+up and its answer later runs the departed scope's completion from the stale
+`presented` record. Owed: a test removing the scope while presented, asserting
+one `dismissedPresentations` entry and that a late answer runs nothing — before
+merge, with the lane-2 mutation table (§10).
