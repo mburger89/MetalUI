@@ -156,6 +156,7 @@ F	hover	A	swiftui-platform-services.swift	H1	onHoverFiresOnEnterAndLeaveFromInpu
 F	divider-view	D	swiftui-platform-services.swift	V1	aDividerInAVStackSpansItsWidthOnePointTall	127	SV-O	Divider as an Element/ProposalElement: a 1-point line across the nearest HStack/Row (vertical) or VStack/Column (horizontal, also outside any stack and in a ZStack/Grid), its proposal or 10 along (V1–V11); no accessibility node (V15); the opaque .separator token where SwiftUI is translucent black/white (127)
 F	menu-picker	D	swiftui-platform-services.swift	P1	choosingAMenuPickerOptionWritesItsTag	81 128	SV-P SV-AA SV-Q SV-S	PickerStyle.menu: a pull-down showing the selected title, as wide as the widest option (P1, P3), opening every option as a checked-or-not item through the menu machinery (native NSMenu, else a scrolling drawn panel opening on the selection); choosing writes the tag (P1); options recorded without layout; a non-Text option titled by its tag (128); a .popUpButton; the automatic style stays segmented (81)
 F	field-style	D	swiftui-field-chrome.swift	ENV1	aContainerTextFieldStyleReachesItsFieldsAndTheInnermostWins	131 132 133	MD-B MD-C MD-D MD-E MD-F	TextFieldStyle (.automatic/.roundedBorder/.squareBorder/.plain, closed)/TextEditorStyle (.automatic/.plain, closed) and textFieldStyle(_:)/textEditorStyle(_:) on the field and on a container: SwiftUI's spellings and innermost-wins (ENV1-ENV3); the bordered default with the probe's insets, radius and disabled dim (SZ, CS, PX, TX); the colours are tokens and the ring the controls' (132), the editor keeps its placement (133), the residual caret +1 (131)
+F	environment-object	D	swiftui-environment-object.swift	N0	anEnvironmentObjectIsReadAtItsPositionAndTheNearestWriterWins	134	MD-H	@Environment(Type.self) (non-optional and optional) and environment(_ object:) for an @Observable class: SwiftUI's spellings, nearest writer (N0-N3), keyed by the static type (K1-K2b), nil clears (W1), observation per read property (R); a missing object traps with MetalUI's modifier and noun in SwiftUI's sentence (134)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -230,11 +231,13 @@ M	MetalUI	ProposalElementGroup.swift	.*	.*	.*	builder
 M	MetalUI	ElementID.swift	(-|ElementID)	ElementID|name|init	.*	explicit-identity
 M	MetalUI	ElementID.swift	.*	.*	.*	global-id
 M	MetalUI	ExplicitIdentity.swift	.*	.*	.*	explicit-identity
+M	MetalUI	EnvironmentProperty.swift	Environment	init	Observable	environment-object
 M	MetalUI	EnvironmentProperty.swift	.*	.*	.*	environment
 M	MetalUI	EnvironmentScope.swift	ElementGroup	theme	.*	theme
 M	MetalUI	EnvironmentScope.swift	ElementGroup	dynamicTypeSize	.*	environment-dynamic-type
 M	MetalUI	EnvironmentScope.swift	ElementGroup	controlSize	.*	environment-control
 M	MetalUI	EnvironmentScope.swift	ElementGroup	preferredColorScheme	.*	preferred-color-scheme
+M	MetalUI	EnvironmentScope.swift	ElementGroup	environment	Observable	environment-object
 M	MetalUI	EnvironmentScope.swift	.*	.*	.*	environment
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|controlSize)	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	-	ControlSize	.*	environment-control

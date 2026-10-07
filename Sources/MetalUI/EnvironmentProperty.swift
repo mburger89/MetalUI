@@ -1,3 +1,5 @@
+import Observation
+
 /// Reads one environment value at the element's position — SwiftUI's
 /// `@Environment` (ruling EV-M).
 ///
@@ -34,6 +36,16 @@
 /// the box keeps one per element id bound in a generation, and resolves
 /// `StateDispatch.owner` (or its nearest ancestor) against them. A read
 /// outside dispatch sees whichever occurrence bound last (divergence 71).
+///
+/// **An `@Observable` object** (port gaps, medium, ruling `MD-H`):
+/// `@Environment(Model.self) var model` reads the object an ancestor provided
+/// with `.environment(model)`, keyed by the static type it was written as; the
+/// nearest writer wins. A property read through it inside a phase is tracked
+/// as every frame read is (`RX-K`). **Missing, it traps**, bound or not:
+/// "No Observable object of type Model found. An .environment(_:) for Model may
+/// be missing as an ancestor of this element." (SwiftUI's sentence with
+/// MetalUI's modifier and noun, divergence 134). `@Environment(Model.self) var
+/// model: Model?` reads `nil` instead.
 @propertyWrapper
 @MainActor
 public struct Environment<Value> {
@@ -60,20 +72,49 @@ public struct Environment<Value> {
         }
     }
 
-    let keyPath: KeyPath<EnvironmentValues, Value>
+    /// What this property reads from the bound values: a key path's value, or
+    /// an object (`MD-H` item 2).
+    let read: (EnvironmentValues) -> Value
     let box = Box()
 
     /// Reads the environment value at `keyPath`, as SwiftUI's
     /// `@Environment(\.keyPath)` does (`EV-`).
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) {
-        self.keyPath = keyPath
+        self.read = { $0[keyPath: keyPath] }
     }
 
     /// The value in effect where the element sits, bound by the frame before
     /// each phase; an unbound property reads the defaults.
     public var wrappedValue: Value {
-        (box.resolvedValues ?? EnvironmentValues())[keyPath: keyPath]
+        read(box.resolvedValues ?? EnvironmentValues())
     }
+}
+
+extension Environment {
+    /// Reads the `@Observable` object an ancestor provided with
+    /// `.environment(_:)` as `objectType` — SwiftUI's `@Environment(Model.self)`
+    /// (ruling `MD-H`; probe `N0`). **Traps when none was provided** (probe `T`;
+    /// divergence 134): use the optional form to read `nil` instead.
+    public init(_ objectType: Value.Type) where Value: AnyObject & Observable {
+        self.read = { values in
+            guard let object = values.object(Value.self) else { missingEnvironmentObject(Value.self) }
+            return object
+        }
+    }
+
+    /// Reads the `@Observable` object provided as `objectType`, or `nil` when
+    /// no ancestor provided one — SwiftUI's optional `@Environment(Model.self)
+    /// var model: Model?` (ruling `MD-H`; probe `O1`, `O2`).
+    public init<T: AnyObject & Observable>(_ objectType: T.Type) where Value == T? {
+        self.read = { $0.object(T.self) }
+    }
+}
+
+/// The trap of a non-optional `@Environment(T.self)` read with no object
+/// provided (ruling `MD-H` item 4; probe `T`, divergence 134).
+func missingEnvironmentObject<T>(_ type: T.Type) -> Never {
+    fatalError("No Observable object of type \(T.self) found. An .environment(_:) for \(T.self) may be "
+               + "missing as an ancestor of this element.")
 }
 
 /// Bridges a `Mirror` child back to `Environment`'s bind without knowing

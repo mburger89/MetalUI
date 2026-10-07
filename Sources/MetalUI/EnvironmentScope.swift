@@ -1,3 +1,4 @@
+import Observation
 import MetalUICore
 import MetalUILayout
 
@@ -148,6 +149,19 @@ extension ElementGroup {
     public func environment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>,
                                _ value: V) -> EnvironmentScope<Self> {
         EnvironmentScope(content: self, write: .transform { $0[keyPath: keyPath] = value })
+    }
+
+    /// Provides `object` to this content and everything below it, read with
+    /// `@Environment(T.self)` — SwiftUI's `environment(_:)` for an `@Observable`
+    /// object (port gaps, medium, ruling `MD-H`; probe
+    /// `swiftui-environment-object.swift`). Keyed by the **static** type `T`:
+    /// `.environment(sub)` is found as `Sub`, `.environment(sub as Base)` as
+    /// `Base` (`K1`–`K2b`). The nearest writer wins (`N1`); `nil` removes an
+    /// object provided above (`W1`). Like every scope it is layout- and
+    /// identity-transparent, and as a window root's restriction (`EV-B`) write
+    /// it inside the root's first container.
+    public func environment<T: AnyObject & Observable>(_ object: T?) -> EnvironmentScope<Self> {
+        EnvironmentScope(content: self, write: .transform { $0.setObject(object, as: T.self) })
     }
 
     /// Transforms one environment value, starting from what this content

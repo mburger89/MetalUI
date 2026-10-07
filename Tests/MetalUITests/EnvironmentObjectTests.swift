@@ -272,15 +272,22 @@ private struct CountLabel: Component {
 @Test @MainActor func anEnvironmentObjectReachesComponentAnyElementDeferredAndPopoverContent() throws {
     let seen = Seen()
     let model = Model("scope")
-    render(Row {
+    // A window, two frames: a popover is presented against its anchor's bounds
+    // from the frame before (`MN-`), so a bare one-frame render shows none.
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let (window, _) = try makeFakeWindow(device: device, size: 200) {
         Row {
-            ComponentReader(seen: seen)
-            AnyElement(OptionalReader(label: "any", seen: seen))
-            Deferred { OptionalReader(label: "deferred", seen: seen).position(.absolute) }
-            Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
-                .popover(isPresented: .constant(true)) { OptionalReader(label: "popover", seen: seen) }
-        }.environment(model)
-    })
+            Row {
+                ComponentReader(seen: seen)
+                AnyElement(OptionalReader(label: "any", seen: seen))
+                Deferred { Box { OptionalReader(label: "deferred", seen: seen) }.position(.absolute).inset(Pixels(0)) }
+                Box().cssWidth(Pixels(10)).cssHeight(Pixels(10))
+                    .popover(isPresented: .constant(true)) { OptionalReader(label: "popover", seen: seen) }
+            }.environment(model)
+        }
+    }
+    window.drawFrameIfNeeded()
+    controlRedraw(window)
     #expect(seen.layout["component"] == "scope", "Component")
     for label in ["any", "deferred", "popover"] {
         #expect(seen.layout[label] == "scope", "\(label): layout reads the declaring scope's object")

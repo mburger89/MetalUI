@@ -77,7 +77,10 @@ the window's top layer — a portal for modals, popovers and tooltips
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
   carried and mirrors nothing (25); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
-  MetalUI's scoped, paint-only colour tokens (M).
+  MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
+  provided with `.environment(model)` and read with `@Environment(Model.self)`
+  (or `… var model: Model?`), keyed by its static type; a missing one traps
+  (134, `MD-H`). `@Bindable` and `ObservableObject` are not offered.
 
 ## Layout, SwiftUI vocabulary — A
 

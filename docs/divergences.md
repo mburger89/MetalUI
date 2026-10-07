@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **100 live divergences**, each measured (a probe
+place it knowingly does not: **101 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–115 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH`; colour and colour scheme added 116–119 and amended 1, rulings `CR-F`, `CR-C`, `CR-U`, `CR-I`; lifecycle modifiers added 120–125, rulings `LC-B`, `LC-E`, `LC-F`, `LC-H`, `LC-Q`, `LC-S`; platform services added 126–129 — lane 1 126 and 129, rulings `SV-L`, `SV-E`; lane 3 127 and 128 and amended 81, rulings `SV-O`, `SV-P`; lane 2 amended 120, ruling `SV-K`; proposal controls added 130 and 131, ruling `PE-N`; port gaps (medium) lane 1 added 132 and 133 and amended 131 and 76, rulings `MD-E`, `MD-F`, `MD-T`, `MD-V` — next label 134). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–115 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH`; colour and colour scheme added 116–119 and amended 1, rulings `CR-F`, `CR-C`, `CR-U`, `CR-I`; lifecycle modifiers added 120–125, rulings `LC-B`, `LC-E`, `LC-F`, `LC-H`, `LC-Q`, `LC-S`; platform services added 126–129 — lane 1 126 and 129, rulings `SV-L`, `SV-E`; lane 3 127 and 128 and amended 81, rulings `SV-O`, `SV-P`; lane 2 amended 120, ruling `SV-K`; proposal controls added 130 and 131, ruling `PE-N`; port gaps (medium) lane 1 added 132–134 and amended 131 and 76, rulings `MD-E`, `MD-F`, `MD-H`, `MD-T`, `MD-V` — next label 135). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -128,6 +128,7 @@ scheduled).
 | 131 | control metrics | `TextField` 24 tall with an ideal of placeholder + chrome (47.50 for "Name"); menu `Picker` ideal 124.50, `Menu` 93, `Toggle` 16.42 tall (`FL3`, `FL8`, `FL13`, `FL2`) | `TextField` (the bordered default since `MD-C`) is 24 tall with an ideal of its text or placeholder + 1 + 12 (48.25 for "Name") — the residual +1 is the caret allowance; menu `Picker` 112.56, `Menu` 80.66, `Toggle` 16 — the classes agree (the field greedy wide, the rest hugging, `PE-D`), the numbers are MetalUI's chrome | `PE-N`, `MD-T` | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (1.1, its `ideal` arms) | none (kept; MG-20 discharged by `MD-C`) |
 | 132 | field chrome look | a bordered `TextField` is AppKit's bezel: a near-white (light) / #171717 (dark) fill at 97.6 %, a faint edge just outside the frame, and AppKit's focus glow (probe `swiftui-field-chrome.swift` `PX`, `NS`; the glow unmeasurable offscreen) | the fill is the theme's `.surface`, the 1-point border `.separator` inside the bounds, radius 6, and the focus ring the controls' 2-point accent ring (`.separator` in a non-key window); the geometry — insets, radius, the disabled text at a third — is the probe's | `MD-E` | `theBorderedChromePaintsTheThemesFillBorderAndRadius`, `aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot` | none |
 | 133 | `TextEditor` text placement | the text view's 5-point line-fragment padding and 12-point font (probe `ED`) | no padding and the 13-point default font, as before `MD-F` — only the opaque `.surface` background is adopted | `MD-F` item 3 | `theTextEditorDrawsAnOpaqueFillAndPlainDrawsNone` (its glyph-origin arm) | none |
+| 134 | a missing environment object | `Fatal error: No Observable object of type Base found. A View.environmentObject(_:) for Base may be missing as an ancestor of this view.` (probe `swiftui-environment-object.swift` `T`) | traps with `No Observable object of type Base found. An .environment(_:) for Base may be missing as an ancestor of this element.` — SwiftUI's sentence with MetalUI's modifier and noun; the optional `@Environment(Base.self) var b: Base?` reads `nil` in both | `MD-H` item 4 | `aMissingObjectTrapsWithItsTypeInTheMessage` | none |
 
 ## Retired
 
@@ -183,6 +184,8 @@ stated.
 | `Picker`, `Section`, `Label`/image items and a non-`Text`-labelled `Button` inside a menu; menu type-select, a submenu-open delay; `.contextMenu(forSelectionType:)`, `.contextMenu(menuItems:preview:)` | not built (a `Picker` is a view, not menu content; a taller-than-window menu scrolls and `Divider` as a view in a stack exist since platform services, `SV-O`, `SV-Q`; the rest a second design) | `MN-D` item 5, `MN-T` |
 | `.popover(attachmentAnchor:)`, `.presentationCompactAdaptation`, a drawn popover arrow; `.help(Text)`, `.help` on a menu item; a native AppKit tooltip | not built (the anchor is always the wrapped element's bounds; the arrow and native tooltip are divergences 112 and 113) | `MN-L` item 3, `MN-P`, `MN-T` |
 | a context menu off Apple | MetalUI draws its own in-window menu where the platform has none (SDL); there is no SwiftUI there to compare | `MN-C`, `MN-F` |
+| `@Bindable` | not built: a property wrapper of its own; `Binding(get:set:)` over an environment object's property works | `MD-H` item 6 (owner: the gpui-gap list) |
+| `ObservableObject`, `@EnvironmentObject`, `.environmentObject(_:)` | not offered: Combine; an `@Observable` object is provided with `.environment(_:)` and read with `@Environment(Type.self)` | `MD-H` item 6 |
 | Windows' open-on-release context-menu convention | MetalUI opens a context menu on the press on every platform | `MN-E` item 3 |
 | `.sequenced`, `@GestureState`, `GestureMask`, a custom gesture `body`, location taps | not built | `IX-B` |
 | gradients, SF Symbols, colour glyphs | renderer constraints (`Path` and `StrokeStyle` are built since paths, shadows and transforms, `GX-B`…`GX-E`) | shapes spec §9 (`specs/2026-09-28-shapes-and-rendering-design.md`) |

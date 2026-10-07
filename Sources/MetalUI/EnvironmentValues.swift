@@ -258,6 +258,23 @@ public struct EnvironmentValues {
     /// none (rulings `MD-B` item 2, `MD-F`; `TextFieldStyle.swift`). Internal.
     var fieldStyles = FieldStyles()
 
+    /// The `@Observable` objects `.environment(_ object:)` provided, keyed by the
+    /// **static** type each was written as (port gaps, medium, ruling `MD-H`
+    /// item 2; probe `swiftui-environment-object.swift` `K1`–`K2b`). Internal:
+    /// read through `@Environment(Type.self)`.
+    private var objects: [ObjectIdentifier: AnyObject] = [:]
+
+    /// The object provided as `type`, or `nil` (`MD-H` item 2).
+    func object<T: AnyObject>(_ type: T.Type) -> T? {
+        // Only `setObject(_:as:)` writes the slot, under the same static type.
+        objects[ObjectIdentifier(type)].map { $0 as! T }
+    }
+
+    /// Provides `object` as `type` below — `nil` removes it (probe `W1`).
+    mutating func setObject<T: AnyObject>(_ object: T?, as type: T.Type) {
+        objects[ObjectIdentifier(type)] = object
+    }
+
     private var custom: [ObjectIdentifier: Any] = [:]
 
     /// A custom key's value, or its `defaultValue` when no writer set it.
