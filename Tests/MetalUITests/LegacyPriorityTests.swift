@@ -140,3 +140,38 @@ private func close(_ a: Float, _ b: Float) -> Bool { abs(a - b) < 0.01 }
     #expect(report.unlowerable.map(\.description) == ["text.flexGrow.unconsumed"],
             "M2.5 — reported once, by its original name: \(report.unlowerable.map(\.description))")
 }
+
+// MARK: - 2.13 a priority on a presentation
+
+/// **2.13** (`MD-W` item 2; `LR-CK`; review V8). `Column(gap: 12) { a 10-tall
+/// box; Deferred { an absolute 10 × 10 box at (5, 5) }.layoutPriority(1); an
+/// 11-wide box }` at 200 × 100: a presentation placeholder's record is **not**
+/// forwarded, so the column drops only the placeholder, never the layer — the
+/// layer stays in flow as a 0 × 0 child taking both gaps, as at `d48b26d`
+/// (third child at y 10 + 12 + 0 + 12 = 34) — and the presentation is still
+/// laid out against the window at (5, 5) 10 × 10, nothing reported.
+///
+/// A pin (`d48b26d` kept the layer, which had no record, in flow). V8 (the
+/// `kind != .presentation` guard removed: the layer, now carrying the
+/// placeholder's record, dropped from flow) moves the third child to 22.
+@Test @MainActor func aPriorityOnADeferredKeepsTheLayerInFlowAndPresents() throws {
+    func dim(_ v: Float) -> MetalUICore.Dimension { .length(.pixels(Pixels(v))) }
+    let report = LayoutDifferential.report(width: 200, height: 100) {
+        Column(gap: Pixels(12)) {
+            Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).background(.surface)
+            Deferred {
+                Box().background(.accent).onClick {}.position(.absolute)
+                    .inset(Edges(top: dim(5), right: .auto, bottom: .auto, left: dim(5)))
+                    .cssWidth(Pixels(10)).cssHeight(Pixels(10))
+            }.layoutPriority(1)
+            Box().cssWidth(Pixels(11)).cssHeight(Pixels(10)).background(.surface)
+        }
+    }
+    try #require(report.unlowerable.isEmpty, "\(report.unlowerable.map(\.description))")
+    let third = try #require(report.bounds[id(0, 0, 2)], "the column's third child")
+    #expect(third.origin.y.value == 34, "M2.13 — the layer stays in flow, taking both gaps: \(third)")
+    let presented = try #require(report.bounds[id(0, 0, 1, 0, 0)], "the presented box")
+    #expect(presented == Bounds(origin: Point(x: Pixels(5), y: Pixels(5)),
+                                size: Size(width: Pixels(10), height: Pixels(10))),
+            "the presentation is laid out against the window: \(presented)")
+}

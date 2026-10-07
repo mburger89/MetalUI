@@ -162,8 +162,11 @@ private func rings(_ scene: Scene, at bounds: Bounds<Pixels>, _ colour: Hsla) ->
 /// key accent, radius 6, at its bounds — and none unfocused; in a non-key
 /// window the ring is `.separator`; a focused `.plain` field draws none.
 ///
+/// A focused field declaring a `focusBorder` draws the caller's ring and no
+/// control ring (`IX-H` item 2).
+///
 /// Red before: does not compile. M1.4 (the ring drawn for `.plain`) reddens
-/// the last arm.
+/// the `.plain` arm; V1 (`callerRing: false`) the `focusBorder` arm.
 @Test @MainActor func aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot() throws {
     let (window, platform) = try fieldWindow { field("Hello") }
     let (bounds, _) = try fieldTarget(window)
@@ -188,6 +191,21 @@ private func rings(_ scene: Scene, at bounds: Bounds<Pixels>, _ colour: Hsla) ->
     try #require(plainWindow.focusedElement == controlID([0, 0]), "a click focuses a plain field")
     #expect(!plainWindow.lastScene.rects.contains { $0.borderWidths.top == 2 },
             "M1.4 — a focused .plain field draws no ring")
+
+    // A caller's `focusBorder` wins (`MD-E` item 2, `IX-H` item 2): the
+    // caller's 3-point red ring at the bounds, no control ring (review V1).
+    let red = Color(red: 1, green: 0, blue: 0)
+    let (callerWindow, callerPlatform) = try fieldWindow { field("Hello").focusBorder(red, width: Pixels(3)) }
+    let (callerBounds, _) = try fieldTarget(callerWindow)
+    controlClick(callerPlatform, at: controlCentre(callerBounds))
+    controlRedraw(callerWindow)
+    try #require(callerWindow.focusedElement == controlID([0, 0]), "a click focuses the field")
+    let callerRings = callerWindow.lastScene.rects.filter {
+        ixBounds($0) == callerBounds && $0.borderWidths.top == 3 && $0.borderWidths.left == 3
+    }
+    #expect(callerRings.count == 1, "the caller's 3-point ring at the bounds (\(callerRings.count))")
+    #expect(rings(callerWindow.lastScene, at: callerBounds, callerWindow.theme[.accent]).isEmpty,
+            "M1.4b — a caller's focusBorder suppresses the control ring")
 }
 
 // MARK: - 1.5 disabled
@@ -195,10 +213,27 @@ private func rings(_ scene: Scene, at bounds: Bounds<Pixels>, _ colour: Hsla) ->
 /// **1.5** (`MD-E` item 3; probe `PX disabled` = `PX default`; `TX`: the text
 /// dims to about a third). Under `.disabled(true)` the chrome rect is the
 /// enabled one, field for field; the glyphs' alpha is the enabled alpha × 0.33,
-/// for the text and for the placeholder (itself × 0.45).
+/// for the text and for the placeholder (itself × 0.45). A disabled `.plain`
+/// field keeps its alpha (`MD-W` item 1).
 ///
-/// Red before: does not compile. M1.5 (the factor → 1) reddens both glyph arms.
+/// Red before: does not compile. M1.5 (the factor → 1) reddens both glyph arms;
+/// V9 (the dim for every style) the `.plain` arm.
 @Test @MainActor func aDisabledFieldKeepsItsChromeAndDimsItsText() throws {
+    // A disabled `.plain` field is the previous field exactly — no dim
+    // (`MD-W` item 1; review V9).
+    for text in ["Hello", ""] {
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let (enabled, _) = try fieldWindow { field(text).textFieldStyle(.plain) }
+        let (gated, _) = try makeFakeWindow(device: device, size: 200) {
+            Box { field(text).textFieldStyle(.plain).disabled(true) }
+        }
+        gated.drawFrameIfNeeded()
+        let on = try #require(enabled.lastScene.glyphs.first, "enabled plain glyphs").color.a
+        let off = gated.lastScene.glyphs
+        try #require(!off.isEmpty, "disabled plain glyphs")
+        #expect(off.allSatisfy { near($0.color.a, on, 1e-5) },
+                "M1.5b — \(text.isEmpty ? "placeholder" : "text"): a disabled .plain field keeps its alpha (\(on) → \(off.map(\.color.a)))")
+    }
     for text in ["Hello", ""] {
         let (enabled, _) = try fieldWindow { field(text) }
         let device = try #require(MTLCreateSystemDefaultDevice())
@@ -344,4 +379,107 @@ private struct AskInfinite: ProposalLayout {
     let origins = { (w: Window) in w.lastScene.glyphs.map { [$0.bounds.origin.x, $0.bounds.origin.y] } }
     try #require(!origins(automatic).isEmpty)
     #expect(origins(automatic) == origins(plain), "the text is placed identically")
+}
+
+// MARK: - 1.11 a container's editor style
+
+/// A window holding `make()` in a 200-wide `Box` (`[0]`), recording bounds.
+@MainActor
+private func editorWindow<C: ElementGroup>(_ make: @escaping @MainActor () -> C) throws -> (Window, FakePlatformWindow) {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let (window, platform) = try makeFakeWindow(device: device, size: 200) { Box { make() } }
+    window.recordsElementBounds = true
+    window.drawFrameIfNeeded()
+    return (window, platform)
+}
+
+@MainActor
+private func editor() -> TextEditor { TextEditor(text: .constant("Hello\nworld")) }
+
+/// The `.surface` fills drawn exactly at `bounds` with no border.
+@MainActor
+private func editorFills(_ window: Window, at bounds: Bounds<Pixels>) -> [MUIRect] {
+    window.lastScene.rects.filter {
+        ixBounds($0) == bounds && $0.borderWidths.top == 0 && ixSame(ixHsla($0.background), window.theme[.surface])
+    }
+}
+
+/// **1.11** (`MD-F` item 1, `MD-B` item 2's container half for the editor;
+/// review V3). `Box { TextEditor }.textEditorStyle(.plain)` paints no fill at
+/// the editor's bounds; an editor's own `.automatic` inside that `.plain`
+/// container paints its fill (innermost wins).
+///
+/// Red before: V3 (`editorStyle ?? .automatic`, the environment ignored)
+/// reddens the container arm.
+@Test @MainActor func aContainerTextEditorStyleReachesItsEditorAndTheInnermostWins() throws {
+    let (plainBox, _) = try editorWindow { Box { editor() }.textEditorStyle(.plain) }
+    let plainBounds = try #require(plainBox.lastHitboxes.first { $0.handlers.textInput != nil }).bounds
+    #expect(editorFills(plainBox, at: plainBounds).isEmpty, "M1.11 — the container's .plain reaches the editor")
+    let (inner, _) = try editorWindow { Box { editor().textEditorStyle(.automatic) }.textEditorStyle(.plain) }
+    let innerBounds = try #require(inner.lastHitboxes.first { $0.handlers.textInput != nil }).bounds
+    #expect(editorFills(inner, at: innerBounds).count == 1, "the editor's own .automatic wins inside .plain")
+    let (bare, _) = try editorWindow { Box { editor() } }
+    let bareBounds = try #require(bare.lastHitboxes.first { $0.handlers.textInput != nil }).bounds
+    #expect(editorFills(bare, at: bareBounds).count == 1, "set up — an unstyled editor paints its fill")
+}
+
+// MARK: - 1.12 the editor's focus ring
+
+/// **1.12** (`MD-F` item 2; `IX-H`; review V2). A focused default `TextEditor`
+/// draws exactly one 2-point ring at its bounds, radius 0 — the accent in a key
+/// window, `.separator` when inactive — none unfocused, and none for `.plain`.
+///
+/// Red before: V2 (`focused: false`) reddens the focused arms.
+@Test @MainActor func aFocusedTextEditorDrawsTheSquareControlRingAndAPlainOneDoesNot() throws {
+    func twoPointRings(_ window: Window, at bounds: Bounds<Pixels>) -> [MUIRect] {
+        window.lastScene.rects.filter { ixBounds($0) == bounds && $0.borderWidths.top == 2 && $0.borderWidths.left == 2 }
+    }
+    let (window, platform) = try editorWindow { editor() }
+    let bounds = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }).bounds
+    #expect(twoPointRings(window, at: bounds).isEmpty, "unfocused: no ring")
+    controlClick(platform, at: controlCentre(bounds))
+    controlRedraw(window)
+    try #require(window.focusedElement == controlID([0, 0]), "a click focuses an editor")
+    let focused = twoPointRings(window, at: bounds)
+    #expect(focused.count == 1, "M1.12 — focused: one ring (\(focused.count))")
+    if let ring = focused.first {
+        #expect(ixSame(ixHsla(ring.borderColor), window.theme[.accent]), "key window: the accent")
+        #expect(ring.cornerRadii.topLeft == 0 && ring.cornerRadii.bottomRight == 0, "radius 0: \(ring.cornerRadii)")
+    }
+    platform.simulateControlActiveStateChange(to: .inactive)
+    controlRedraw(window)
+    let inactive = twoPointRings(window, at: bounds)
+    #expect(inactive.count == 1 && inactive.allSatisfy { ixSame(ixHsla($0.borderColor), window.theme[.separator]) },
+            "inactive window: one .separator ring (\(inactive.count))")
+
+    let (plain, plainPlatform) = try editorWindow { editor().textEditorStyle(.plain) }
+    let plainBounds = try #require(plain.lastHitboxes.first { $0.handlers.textInput != nil }).bounds
+    controlClick(plainPlatform, at: controlCentre(plainBounds))
+    controlRedraw(plain)
+    try #require(plain.focusedElement == controlID([0, 0]), "a click focuses a plain editor")
+    #expect(!plain.lastScene.rects.contains { $0.borderWidths.top == 2 }, "a focused .plain editor draws no ring")
+}
+
+// MARK: - 1.13 the text clip
+
+/// **1.13** (`MD-D` item 3; review V5). A bordered field's glyphs are clipped
+/// to the content rect across (bounds' x + 6, width − 12) and to the whole
+/// field down (bounds' y, full height), so ink above or below the line is not
+/// cut at the 4-point inset; a `.plain` field's clip is its bounds.
+///
+/// Red before: V5 (clip to the content rect) reddens the vertical arm.
+@Test @MainActor func aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight() throws {
+    for (style, h) in [(TextFieldStyle.automatic, Float(6)), (.plain, 0)] {
+        let (window, _) = try fieldWindow { field("Hello").textFieldStyle(style) }
+        let (bounds, _) = try fieldTarget(window)
+        let glyphs = window.lastScene.glyphs
+        try #require(!glyphs.isEmpty, "\(style): glyphs")
+        for glyph in glyphs {
+            let mask = glyph.contentMask
+            #expect(near(mask.origin.x, bounds.origin.x.value + h) && near(mask.size.width, bounds.size.width.value - 2 * h),
+                    "\(style): the content width across: \(mask) in \(bounds)")
+            #expect(near(mask.origin.y, bounds.origin.y.value) && near(mask.size.height, bounds.size.height.value),
+                    "M1.13 — \(style): the whole field down: \(mask) in \(bounds)")
+        }
+    }
 }

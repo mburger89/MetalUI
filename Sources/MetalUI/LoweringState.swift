@@ -124,7 +124,10 @@ struct LoweringState {
     /// unconsumed one reports under its own name (`MD-G` item 5). A nested
     /// layer forwards again: the origin stays the element's, the priority
     /// becomes the outer layer's. No record, a consumed one or a presentation
-    /// placeholder's: nothing moves.
+    /// placeholder's: nothing moves — a placeholder's record moved to the layer
+    /// would make `droppingPresentations` drop the **layer** from its container's
+    /// flow, where `d48b26d` kept it as a 0×0 child that takes a gap (`MD-W`
+    /// item 2, pinned by `aPriorityOnADeferredKeepsTheLayerInFlowAndPresents`).
     mutating func forward(_ content: LayoutNodeID, to layer: LayoutNodeID, priority: Double) {
         guard var item = items[content], !item.consumed, item.kind != .presentation else { return }
         items[content] = nil

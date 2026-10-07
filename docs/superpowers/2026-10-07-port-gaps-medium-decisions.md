@@ -27,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-W`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-X`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -212,7 +212,9 @@ measured**: `cacheDisplay` draws none (`PX focus` reads the unfocused runs).
    window is key, `.separator` otherwise — `IX-H`), at radius 6, drawn while
    `pass.isFocused(id)`. A caller's `focusBorder` still wins (`IX-H` item 2).
 3. Disabled (`isEnabled == false`): chrome unchanged (`PX disabled`); the
-   text, placeholder and caret colour alpha × **0.33** (`TX`: ≈ 0.29/0.87).
+   text, placeholder and caret colour alpha × **0.33** (`TX`: ≈ 0.29/0.87) —
+   for a bordered style only; a disabled `.plain` field is the previous field
+   (`MD-W` item 1).
    Not `paintControl`'s whole-subtree fade (`ControlLook.swift`'s comment
    "`TextField`/`TextEditor` do not take it" stays true and gains the reason).
 4. The look's colours are MetalUI's tokens, not AppKit's bezel (the outside
@@ -746,3 +748,37 @@ test keeps its name and its font arm on a `.plain` field (`MD-C` item 2's
 beside 131.
 
 **Cost if wrong.** A public row contradicting the code (`MD-T`'s argument).
+
+---
+
+## MD-W — Lane 1 review: a disabled `.plain` field takes no dim; a `Deferred`'s priority layer stays in flow
+
+**Found (lane 1 review).** (1) `MD-E` item 3 dimmed every disabled field's
+text, `.plain` included, while `MD-C` item 2 and the migration row say
+`.textFieldStyle(.plain)` restores the previous field **exactly** — and the
+previous `TextField` took no disabled look. The probe's `TX` arm measures the
+default (bordered) field only; nothing measures a disabled `.plain` field. (2)
+`LoweringState.forward` refuses a presentation placeholder's record, and
+nothing pinned why: a forwarded placeholder record would make
+`droppingPresentations` drop the `layoutPriority` **layer** from its legacy
+container's flow, where `d48b26d` (no forwarding) kept the layer, a 0 × 0
+child, in flow.
+
+**Ruling.**
+
+1. The disabled dim applies to the bordered styles only. A disabled `.plain`
+   field draws as before this branch — the migration row and `MD-C` item 2's
+   "exactly" hold. Pinned by test 1.5's `.plain` arm.
+2. A `layoutPriority` written on a `Deferred` keeps `d48b26d`'s answer: the
+   placeholder's record stays at the placeholder, the container drops only the
+   placeholder (`LR-CK`), and the layer stays in flow as a 0 × 0 child taking
+   its gaps; the presentation is laid out against the window as before. Not
+   ruled here whether that layer should leave flow (a `Deferred` change this
+   lane does not make; `MD-Q`). Pinned by test 2.13.
+3. Review pins with no ruling change: the editor's container style (test
+   1.11), the editor's ring (1.12), the caller-`focusBorder` precedence for the
+   bordered field (1.4's new arm) and the text clip's vertical extent (1.13).
+
+**Cost if wrong.** (1) A look difference on a disabled plain field only. (2) A
+zero-size child's gap in a gapped legacy container under a prioritised
+`Deferred` — a spelling with no use.

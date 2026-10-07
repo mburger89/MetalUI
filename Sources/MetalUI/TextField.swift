@@ -305,15 +305,20 @@ public struct TextField: Element, StyledElement {
         let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
         var textColor = pass.resolve(foregroundColor ?? .textPrimary)
-        // Disabled: the chrome stays, the text dims to a third (`MD-E` item 3).
-        if !pass.environment.isEnabled { textColor.a *= FieldChrome.disabledTextFactor }
+        // Disabled: the chrome stays, the text dims to a third (`MD-E` item 3) —
+        // a bordered field only; a `.plain` field is the previous field exactly,
+        // which took no disabled look (`MD-W` item 1).
+        if !pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered {
+            textColor.a *= FieldChrome.disabledTextFactor
+        }
         let x0 = g.contentX - g.scrollX
         func rect(_ from: Double, _ to: Double, y: Double, height: Double) -> Bounds<Pixels> {
             Bounds(origin: Point(x: Pixels(Float(x0 + from)), y: Pixels(Float(y))),
                    size: Size(width: Pixels(Float(max(0, to - from))), height: Pixels(Float(height))))
         }
         // Clipped to the content rect across, the whole field down — so a
-        // glyph's ink above or below its line is not cut at the inset.
+        // glyph's ink above or below its line is not cut at the inset (pinned by
+        // `aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight`).
         let clip = Bounds(origin: Point(x: bounds.origin.x, y: outer.origin.y),
                           size: Size(width: bounds.size.width, height: outer.size.height))
         pass.clipped(to: clip, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
