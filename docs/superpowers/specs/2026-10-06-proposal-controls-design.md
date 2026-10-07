@@ -10,7 +10,7 @@ with reproductions in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-06-proposal-controls-decisions.md`](../2026-10-06-proposal-controls-decisions.md)
-(`PE-A`…`PE-U`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
+(`PE-A`…`PE-W`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-V` (a `ProposalScrollView` publishes its `ScrollContext`) and `PE-W` (a ninth flipped guard, two measured spellings) are lane 1's; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
 (its header's READING is the authority for every SwiftUI claim here). Record
 (Record phase): `docs/record/78-proposal-controls.md`.
 
@@ -285,11 +285,16 @@ declaration (`StackMeter` and `ComponentLayout`'s storage are internal).
    the fourteen images straight after this change; a moved image stops it).
 4. **`PE-F`**: the seven `ElementGroup` spellings (new file) and
    `Pixels.infinity`.
-5. **Flip the guards** of `PE-H`, each with its new `ProposalFrame` control.
+5. **Flip the guards** of `PE-H`, each with its new `ProposalFrame` control —
+   nine with `PE-W`'s `aCustomLayoutContainerAdoptsLegacyContent`
+   (`ProposalLayoutCompileGuards.swift`).
+5a. **`PE-V`**: `ProposalScrollView.requestProposalLayout` publishes its
+   `ScrollContext` exactly as `ScrollView.requestLayout` does, so a `List`
+   inside it windows (`ScrollChrome.swift`'s header corrected).
 6. **Inventory**: map rows, census, `closeout-inventory-check.sh` and
    `closeout-undocumented.sh` print nothing.
 
-Nothing in `Sources/MetalUILayout`, `MetalUIScene`, `MetalUIRender`,
+Nothing else in `Sources/MetalUI` and nothing in `Sources/MetalUILayout`, `MetalUIScene`, `MetalUIRender`,
 `MetalUIPlatform`, `Backends/SDL` or any shader changes.
 
 ## 4. Implementation — lane 2 (MG-15)
@@ -383,13 +388,13 @@ scratch: measures child 0 at zero, nil×nil, ∞×∞, 200×nil, nil×200, 50×n
 | 1.15 | `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack` | `.keyboardShortcut("k")` fires with focus elsewhere; `.help("tip")` is the AX hint; `.onHover` reports enter/exit from injected moves | does not compile | M1.15: `Window`'s shortcut stage skips a `ShortcutTarget` → the shortcut arm |
 | 1.16 | `aLegacyFrameAnimatesInsideAProposalStack` | `Button.frame(width: w)` in an `HStack`, `w` changed under `withAnimation(.linear(duration: 1))`: at `simulateTick(0.5)` the width is midway | does not compile | M1.16: the frame layer's `animated(_:_:for:pass:)` call removed |
 | 1.17 | `aDragFromAControlInAProposalStackCarriesAPreview` | `Text("drag").draggable("x")` in an `HStack`: after press-and-move a drag session exists and its preview capture is non-empty (`DN-X`) | does not compile | M1.17: `Text.paint` bypasses `paintDecoration` |
-| 1.18 | `aSelectableListInAProposalScrollViewWindowsAndSelects` | `ProposalScrollView { VStack { List(rows, rowHeight: 20, selection: $sel) { … } } }` over two frames: bounded window (`try #require`), rows recorded, a click selects and focuses the list | does not compile | M1.18: `List.visibleRange` returns `0..<count` |
+| 1.18 | `aSelectableListInAProposalScrollViewWindowsAndSelects` | `ProposalScrollView { VStack { List(rows, rowHeight: 20, selection: $sel) { … } } }` over two frames: bounded window (`try #require`), rows recorded, a click selects and focuses the list | does not compile; with `PE-B` alone all 40 rows realised (`PE-V`) | M1.18: `List.visibleRange` returns `0..<count`; M1.18b (`PE-V`): the scroller publishes no context |
 | 1.19 | `aPopoverOnAButtonInAProposalStackPresents` | `.popover(isPresented: .constant(true))` on a Button in an `HStack`: a presentation root is laid out and the Button's frame equals the frame without the popover | does not compile | M1.19: the popover's presentation registration skipped |
 | 1.20 | `theProposalOnlyModifiersReachLegacyContent` | `HStack { Text(long).layoutPriority(1); TextField }` at 200: the Text takes its whole width first; `VStack { Text(long).fixedSize() }` at 50 keeps one line; `Grid { GridRow { Text("a").gridCellColumns(2) }; GridRow { Text("b"); Text("c") } }` spans both columns | does not compile | M1.20: the `ElementGroup.layoutPriority` spelling returns `LegacyContent(self)` without the layer |
 | 1.21 | `pixelsInfinityIsSwiftUIsFrameSpelling` (guard) | `.frame(maxWidth: .infinity)` on a legacy and a proposal element typechecks with a plain import; control: `.frame(maxWidth: .greatest)` fails | fails | M1.21: delete `Pixels.infinity` |
 | 1.22 | `aGridFormGivesItsFieldColumnTheRest` | `Grid { GridRow { Text("Name"); TextField(…) }; GridRow { Text("Description"); Slider(…) } }` at 300: column 0 = the wider label, column 1 = 300 − column 0 − 8 (hand-derived from the measured label widths) | does not compile; the Slider's column would read its 30 | M1.22: `Slider`'s `PE-D` reverted |
 | 1.23 | `aLegacyRowServesItsSliderLast` | `PE-D`'s named exception in a legacy container: `Row(gap: 8) { Text("Speed"); Slider(…) }` declared 368 wide: Slider 321 | red at `e54c3f6` (180) | M1.5's mutation |
-| 1.24 | `PE-H`'s flipped guards (8 tests) | each as the table in `PE-H` | — | each new control arm is shown to fail by switching `ProposalFrame.init` to `@ProposalContentBuilder` in a scratch build (legacy content is then adopted, so all eight controls compile and redden) |
+| 1.24 | `PE-H`'s flipped guards (9 tests with `PE-W`) | each as the table in `PE-H` | — | each new control arm is shown to fail by switching `ProposalFrame.init` to `@ProposalContentBuilder` in a scratch build (legacy content is then adopted, so all eight controls compile and redden) |
 
 ### 6.2 Lane 2 — `Tests/MetalUITests/ComponentStackTests.swift` (new), `CloseoutTests.swift`
 
@@ -469,7 +474,7 @@ them anyway (`docs/probes/demo-pixels/compare.sh <scratch> e54c3f6 HEAD`).
 
 | lane | model | files (disjoint) | done when |
 |---|---|---|---|
-| **1 — builder, adapter** (second) | Opus | new `Sources/MetalUI/ProposalContentBuilder.swift`, new `Sources/MetalUI/LegacyProposalModifiers.swift`; `NativeElements.swift`, `Grid.swift`, `ProposalScrollView.swift`, `ProposalLayoutContainer.swift`, `ProposalNodeID.swift` (header only), `Sources/MetalUICore/Units.swift`; tests: new `ProposalControlsTests.swift` (all of §6.1 but 1.9 and 1.23), `ProposalControlsCompileGuards.swift`; `ElementGroupTrapTests.swift`, `ForEachCompileGuards.swift`, `GridCompileGuards.swift`, `EnvironmentCompileGuards.swift`, `ExplicitIdentityCompileGuards.swift`, `ConditionalIdentityCompileGuards.swift`; `docs/probes/closeout-inventory-map.tsv`, `closeout-public-api.tsv` | §6.1 green, every mutation named; images 0 px; §12 |
+| **1 — builder, adapter** (second) | Opus | new `Sources/MetalUI/ProposalContentBuilder.swift`, new `Sources/MetalUI/LegacyProposalModifiers.swift`; `NativeElements.swift`, `Grid.swift`, `ProposalScrollView.swift` (with `PE-V`), `ScrollChrome.swift` (header comment, `PE-V`), `ProposalLayoutContainer.swift`, `ProposalNodeID.swift` (header only), `Sources/MetalUICore/Units.swift`; tests: new `ProposalControlsTests.swift` (all of §6.1 but 1.9 and 1.23), `ProposalControlsCompileGuards.swift`; `ElementGroupTrapTests.swift`, `ForEachCompileGuards.swift`, `GridCompileGuards.swift`, `EnvironmentCompileGuards.swift`, `ExplicitIdentityCompileGuards.swift`, `ConditionalIdentityCompileGuards.swift`, `ProposalLayoutCompileGuards.swift` (`PE-W`); `docs/probes/closeout-inventory-map.tsv`, `closeout-public-api.tsv` | §6.1 green, every mutation named; images 0 px; §12 |
 | **2 — MG-15, the meter, `PE-D` sizing** (first) | Opus | `TextField.swift`, `TextEditor.swift`, `Slider.swift` (`PE-D`, first; images re-taken at once); `Component.swift`, `ProposalNodeID.swift` (the `Component` typed default only, ~line 125), `ElementBuilder.swift`, new `StackMeter.swift`, `Frame.swift` (the `requestNativeLeaf` sample only), `Window.swift` (the measuring scope and warning only); tests: `SliderTests.swift`, new `GreedyControlSizingTests.swift` (1.9, 1.23 — neither needs the builder), new `ComponentStackTests.swift`, `CloseoutTests.swift` (2.6) | 1.9, 1.23 and §6.2 green, mutations named, figures printed for the record; images 0 px after `PE-D`; `swift package clean` run; §12 |
 | **3 — demo, docs** | Sonnet, after 1 and 2 merge | `Sources/MetalUIDemoContent/ControlsDemo.swift`; `docs/migration.md`, `docs/api-overview.md`, `docs/divergences.md`, `docs/verification/human-checks.md`, `docs/getting-started.md` (if needed); test 3.1 in new `Tests/MetalUITests/ControlsDemoSwiftUISectionTests.swift` | §6.3; images 0 px; §12 |
 

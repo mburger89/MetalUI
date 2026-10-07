@@ -192,14 +192,15 @@ private let longLabel = "A much longer label"
     expectRow("Button.disabled(true)", try answers(Button("Go") {}.disabled(true)),
               [(24, 24), (41.23, 24), (41.23, 24), (41.23, 24), (41.23, 24), (41.23, 24)])
     // FL14: SwiftUI's list is greedy on both axes; MetalUI's answers its
-    // windowing contract, `rowHeight × count` (divergence 84, `PE-Q`) — the
-    // width is its widest row's (measured by the lane).
+    // windowing contract, `rowHeight × count` (divergence 84, `PE-Q`); its
+    // width is its rows' (37.26, "Row 0" … "Row 2") at nil and greedy at an
+    // infinite offer — measured by the lane, as `PE-Q` asks.
     let items = (0..<3).map(Item.init)
     expectRow("List(selection:) 3 rows",
               try answers(List(items, selection: .constant(Int?.none), rowHeight: px(20)) { item in
                   Text("Row \(item.id)")
               }),
-              [(0, 60), (37.66, 60), (37.66, 60), (200, 60), (37.66, 60), (50, 60)])
+              [(0, 60), (37.26, 60), (.infinity, 60), (200, 60), (37.26, 60), (50, 60)])
 }
 
 // MARK: - 1.4 identity
@@ -347,11 +348,15 @@ private struct Counter: Component {
 /// the SwiftUI vocabulary at 600×26: spec §1.3's MetalUI column (13 vs 14 tall:
 /// divergence 86).
 ///
+/// A second spelling writes the three middle labels as one
+/// `ForEach(labels, id: \.self) { Text($0) }` — a single adopted expression of
+/// three native nodes, which a port writes for a data-driven bar — and must lay
+/// out identically (the `ForEach` takes one slot, its labels under it).
+///
 /// Red before: does not compile (`Text` in `HStack`, `.infinity`). Mutation
-/// M1.6 (`LegacyContent`'s typed entry returns `nodes.reversed()`) reddens it —
-/// a reversed multi-node group would only show inside one adopted expression,
-/// so the status bar's `Text`s are each single-node and the assertion is the
-/// bar's whole arrangement.
+/// M1.6 (`LegacyContent`'s typed entry returns `nodes.reversed()`) reddens the
+/// `ForEach` spelling — reversing matters only inside one multi-node adopted
+/// expression, so the first spelling (single-node `Text`s) cannot see it.
 @Test @MainActor func theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary() throws {
     let report = LayoutDifferential.report(width: 600, height: 26) {
         HStack(spacing: px(16)) {
@@ -382,6 +387,35 @@ private struct Counter: Component {
     expectFrame(b, at(2), [218, 7, 41, 13], "4 layers")
     expectFrame(b, at(3), [275, 7, 40, 13], "fw 1.2.3")
     expectFrame(b, at(5), [411, 7, 173, 13], "keymap.json — unsaved changes")
+
+    let labels = ["Default · 5×14", "4 layers", "fw 1.2.3"]
+    let data = LayoutDifferential.report(width: 600, height: 26) {
+        HStack(spacing: px(16)) {
+            HStack(spacing: px(6)) {
+                Circle().frame(width: px(7), height: px(7))
+                Text("USB Connected")
+            }
+            ForEach(labels, id: \.self) { Text($0) }
+            Spacer()
+            Text("keymap.json — unsaved changes")
+        }
+        .font(.system(size: 11))
+        .padding(Edges(top: px(0), right: px(16), bottom: px(0), left: px(16)))
+        .frame(maxWidth: .infinity, minHeight: px(26), maxHeight: px(26))
+    }
+    try #require(data.unlowerable.isEmpty, "\(data.unlowerable)")
+    // Each element's scope is named by its id under the loop's one slot
+    // (`DD-B`), and its `Text` is position 0 in that scope.
+    func label(_ index: Int) -> GlobalElementID {
+        GlobalElementID.child(of: GlobalElementID.child(of: at(1), at: index, name: ElementID(labels[index])),
+                              at: 0, name: nil)
+    }
+    let named = data.bounds.keys.filter { $0.parent?.parent == at(1) }
+    try #require(named.count == 3, "the ForEach's three labels under one slot: \(named)")
+    expectFrame(data.bounds, label(0), [128, 7, 74, 13], "ForEach Default · 5×14")
+    expectFrame(data.bounds, label(1), [218, 7, 41, 13], "ForEach 4 layers")
+    expectFrame(data.bounds, label(2), [275, 7, 40, 13], "ForEach fw 1.2.3")
+    expectFrame(data.bounds, at(3), [411, 7, 173, 13], "ForEach keymap.json — unsaved changes")
 }
 
 // MARK: - 1.7, 1.8 records and presentations
@@ -758,8 +792,13 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
 /// (row 0 realised, row 30 not — `try #require`d), and a click on row 1 selects
 /// it and focuses the list.
 ///
-/// Red before: does not compile. Mutation M1.18 (`List.visibleRange` returns
-/// `0..<count`) → row 30 realised.
+/// **The windowing needs `PE-V`**: until this lane a `ProposalScrollView`
+/// published no `ScrollContext` (`LR-BF`), so a `List` in it realised all 40
+/// rows (measured on this branch with `PE-B` alone: rows 0…39 recorded).
+///
+/// Red before: does not compile; with the builder alone, row 30 realised.
+/// Mutations: M1.18 (`List.visibleRange` returns `0..<count`) and M1.18b
+/// (`ProposalScrollView` publishes no context) → row 30 realised.
 @Test @MainActor func aSelectableListInAProposalScrollViewWindowsAndSelects() throws {
     let model = ListModel()
     let items = (0..<40).map(Item.init)

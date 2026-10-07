@@ -19,6 +19,16 @@ import MetalUILayout
 // 4. a native registrar handed a legacy child;
 // 5. a custom-layout container handed its content's untyped nodes.
 //
+// **Two minting sites inside `MetalUI`** (ruling `PE-C` item 2,
+// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`): the native
+// registrars, and `LegacyContent`'s typed entry (`ProposalContentBuilder.swift`),
+// which hands a proposal container the native nodes a legacy element lowered
+// to. It is not a hole: under the proposal authority every node is native
+// (`LR-T`), so what it mints is what a registrar would have returned, and
+// nothing outside `MetalUI` can reach the initializer through it — the five
+// guards above still fail, because an external type still cannot produce a
+// `ProposalNodeID` of its own.
+//
 // **What it does not check — seven holes, each pinned or cited (MC-G).** Four
 // of them (2, 3, 5 and 6) were about a legacy (CSS) node or subtree reaching a
 // native tree, backstopped by ruling SA-G's run-time traps; stage 9 deleted the

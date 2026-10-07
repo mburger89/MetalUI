@@ -27,10 +27,9 @@ import MetalUILayout
 ///
 /// **Two things deliberately did NOT fold.** The two `resolvedOffset` overloads
 /// stay two functions (see their own comment below), four copies becoming two
-/// rather than one; and `ScrollContext` publication stays `ScrollView`'s alone
-/// (ruling `LR-BF`) — nothing can read one from a `ProposalScrollView`, so
-/// publishing one there would be the declared-but-inert shape CLAUDE.md's table
-/// exists to keep out.
+/// rather than one; and `ScrollContext` publication is each scroller's own
+/// `requestLayout` (ruling `LR-BF`; since `PE-V` a `ProposalScrollView`
+/// publishes one too, because `PE-B` lets a `List` be its content).
 struct ScrollChrome {
     var axis: ScrollAxis
     var cornerRadius: Pixels

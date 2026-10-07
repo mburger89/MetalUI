@@ -200,7 +200,8 @@ func aSwiftUIVocabularyFormTypechecksWithAPlainImport() throws {
             "rejected, but not for the missing style modifier:\n\(style.output)")
 }
 
-/// **1.21** (`PE-F` item 2). SwiftUI's `.frame(maxWidth: .infinity)` compiles
+/// **1.21** (`PE-F` item 2; probe FL21, `Toggle("Wi-Fi").frame(maxWidth:
+/// .infinity)`, greedy `inf -> infx16.42`). SwiftUI's `.frame(maxWidth: .infinity)` compiles
 /// on a legacy element and on a proposal element through `Pixels.infinity`.
 /// Separating arm: an unknown member, `.greatest`, fails — so the positive is
 /// not satisfied by some other inference.

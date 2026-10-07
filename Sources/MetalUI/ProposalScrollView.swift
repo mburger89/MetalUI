@@ -21,7 +21,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     /// A scroller over proposal `content` along `axis`; `elementID` names it
     /// for its scroll state.
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.axis = axis
         self.elementID = elementID
         self.content = content()
@@ -49,9 +49,26 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        // Ruling `PE-V` (`docs/superpowers/2026-10-06-proposal-controls-decisions.md`):
+        // the scroller publishes its `ScrollContext` to its subtree exactly as
+        // `ScrollView.requestLayout` does — the raw stored offset and last
+        // frame's viewport, from the one `ScrollState` both scrollers' chrome
+        // writes — so a `List` inside it windows (`DD-F`). Until `PE-B` no
+        // `List` could be its content, and publishing was declared-but-inert
+        // (`LR-BF`); a sibling after the scroller still sees none (the
+        // `withScrollContext` scope).
+        var rawOffset: Double = 0
+        var lastViewportExtent: Double = 0
+        pass.withState(id, initial: ScrollState()) {
+            rawOffset = $0.offset
+            lastViewportExtent = $0.viewportExtent
+        }
         var cursor = 0
-        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
-                                                                           pass: &pass)
+        let (children, contentLayout) = pass.withScrollContext(
+            ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
+        ) {
+            content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         // SwiftUI's `ScrollView` lays several direct children out as a
         // centred, default-spacing `VStack` whatever its scrolling axis (probe
         // SC3: b at (10, 38) under a 50×30 a on `.vertical`, `.horizontal` and

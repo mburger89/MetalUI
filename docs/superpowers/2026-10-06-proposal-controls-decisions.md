@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-V`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-X`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -668,3 +668,64 @@ clean of sources after each; the line numbers are the branch's at `9596802`):
   allocation / 96 bytes per `Component` per frame**, `PE-J`'s expectation.
 - `PE-D`: the fourteen offscreen images 0 px, every scene identical,
   `e54c3f6` → `4da5a7f`; and `e54c3f6` → `9596802` (box and meter) the same.
+
+---
+
+## PE-V — A `ProposalScrollView` publishes its `ScrollContext` (lane 1)
+
+**Found** (lane 1, measured with `PE-B` landed and nothing else changed):
+spec test 1.18 — `ProposalScrollView { VStack { List(40 rows, rowHeight: 20,
+selection:) } }` in a 200×100 frame, two frames drawn — realised **all forty
+rows** (rows 0…39 recorded in `Window.lastElementBounds`). A `List` windows
+against `LayoutPass.scrollContext` (`DD-F`), and `ScrollContext` publication
+was `ScrollView`'s alone: `ScrollChrome.swift`'s header ruled it so (`LR-BF`)
+because "nothing can read one from a `ProposalScrollView`" — true until `PE-B`
+made a `List` legal content there. So a SwiftUI-vocabulary port's selectable
+list would silently lose its windowing (O(count) per warm frame), the
+`TB-AH` contract the item lists as must-not-move.
+
+**Ruling.** `ProposalScrollView.requestProposalLayout` publishes the same
+context `ScrollView.requestLayout` does — the raw stored offset and last
+frame's viewport from the one `ScrollState` both scrollers' `ScrollChrome`
+writes, pushed with `withScrollContext` around its content's typed entry (a
+sibling after the scroller sees none). Nothing else reads `scrollContext` but
+`List` (and `Deferred`, which resets it), so no existing tree moves: the
+proposal scroller's content held no `List` before this branch. `ScrollChrome`'s
+header comment is corrected. Spec test 1.18 stands as written; its new
+mutation M1.18b (the publication removed) must redden it.
+
+**Cost if wrong.** A `List` in a `ProposalScrollView` windows against a stale
+or wrong context: the same exposure a `List` in a `ScrollView` has always had,
+pinned there by `DD-F`'s tests and here by 1.18.
+
+---
+
+## PE-W — A ninth guard flips; two measured spellings (lane 1)
+
+**Found** (lane 1's first full run with the containers switched: 2573 tests,
+one failing): `aCustomLayoutContainerRejectsLegacyContent`
+(`ProposalLayoutCompileGuards.swift`, ruling SA-F) asserts that
+`Diagonal() { Text("legacy") }`, `Diagonal { … }` and
+`ProposalLayoutContainer(Diagonal()) { … }` fail — `PE-E` switches exactly
+those spellings, but `PE-H`'s table (from a prototype that switched only the
+three stacks) omits it.
+
+**Ruling.**
+
+1. It flips with the other eight: renamed
+   `aCustomLayoutContainerAdoptsLegacyContent`, each spelling now typechecks
+   as `ProposalLayoutContainer<Diagonal, LegacyContent<Text>>`, and its
+   separating control is `ProposalFrame { Text("legacy") }` failing on
+   `ProposalElementGroup`. Spec test 1.24 is nine guards.
+2. `PE-R`'s second control arm in test 1.3 is spelled
+   `Button("x") {}.padding(8).buttonStyle(.plain)`: measured before the
+   implementation, the spec's `.padding(Edges(all: 8))` fails twice (`Edges<Int>`
+   is not `Pixels`, then no `buttonStyle` on `ModifiedContent<Button<Text>,
+   ModifierLayer>`) — `PE-R`'s premise holds, and the arm fails for the one
+   reason it is about.
+3. Test 1.1's `List` row (`PE-Q`) pins MetalUI's measured answers: 0×60 at
+   zero, 37.26×60 at nil and at h200, **∞×60** at ∞ (its width greedy), 200×60
+   and 50×60 at the finite widths — height `rowHeight × count` at every
+   proposal (divergence 84).
+
+**Cost if wrong.** None silent: each is a pinned test.

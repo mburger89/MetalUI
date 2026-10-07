@@ -37,6 +37,15 @@ public struct Pixels: ScalarUnit {
     public func scaled(by factor: Float) -> ScaledPixels { ScaledPixels(value * factor) }
 }
 
+extension Pixels {
+    /// An infinite length — SwiftUI's `.infinity`, so `.frame(maxWidth:
+    /// .infinity)` is written as in SwiftUI (ruling `PE-F` item 2,
+    /// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`). The same
+    /// value as `Pixels(.infinity)`; where a length must be finite it traps or
+    /// is refused exactly as that spelling is.
+    public static var infinity: Pixels { Pixels(.infinity) }
+}
+
 /// Logical points multiplied by the display scale factor. What shaders see.
 public struct ScaledPixels: ScalarUnit {
     /// The number of scaled pixels.
