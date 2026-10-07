@@ -21,6 +21,9 @@ enum LifecycleWrite {
     /// `.onChange(of:initial:_:)`: `value` compared with the last build's
     /// (`LC-G`); both closure forms build this case.
     case change(value: Any, isEqual: (Any) -> Bool, action: (Any, Any) -> Void, initial: Bool)
+    /// `.task` and `.task(id:)` (`PX-F`): started as an appearance, cancelled
+    /// as a disappearance, restarted as a change when its id differs.
+    case task(TaskSpec)
 }
 
 /// A `LifecycleScope`'s layout: its content's (the scope stores nothing — it
@@ -169,6 +172,11 @@ final class LifecycleStore {
         var onAppear: (() -> Void)?
         var onDisappear: (() -> Void)?
         var change: Change?
+        /// A `.task` scope's spec (`PX-F`).
+        var task: TaskSpec?
+        /// Its running task's box — carried from the last build's entry when
+        /// the key stays, or from a parked ghost when the key returns (`X17`).
+        var running: RunningTask?
     }
 
     /// One parked disappearance: its key (so a return can cancel it, `LC-H`)
@@ -186,6 +194,9 @@ final class LifecycleStore {
     struct ParkedGhost {
         var keys: Set<Key> = []
         var events: [Parked] = []
+        /// The running tasks of the keys that left, so a key that returns
+        /// keeps its task — neither cancelled nor restarted (`PX-F` item 7).
+        var running: [Key: RunningTask] = [:]
     }
 
     private var current: [Key: Entry] = [:]
@@ -236,6 +247,7 @@ final class LifecycleStore {
             currentHasDisappearActions = true
         case .change(let value, let isEqual, let action, let initial)?:
             entry.change = Change(value: value, isEqual: isEqual, action: action, initial: initial)
+        case .task(let spec)?: entry.task = spec
         case nil: break
         }
         current[Key(scope: scope, occurrence: occurrence)] = entry
@@ -271,7 +283,11 @@ final class LifecycleStore {
         if !parked.isEmpty {
             let live = Set(liveGhosts.map(\.key))
             for (ghost, var held) in parked {
-                for key in held.keys where current[key] != nil { cancelled.insert(key) }
+                for key in held.keys where current[key] != nil {
+                    cancelled.insert(key)
+                    // The returning key keeps its running task (`X17`).
+                    if let box = held.running.removeValue(forKey: key) { current[key]?.running = box }
+                }
                 if !cancelled.isEmpty {
                     held.events.removeAll { cancelled.contains($0.key) }
                     held.keys.subtract(cancelled)
@@ -287,6 +303,10 @@ final class LifecycleStore {
 
         var changes: [(order: Int, event: LifecycleEvent)] = []
         var appearances: [(order: Int, event: LifecycleEvent)] = []
+        // Running-task boxes this build's entries take (`PX-F` item 10),
+        // written back after the walk: carried from the last build's entry,
+        // or new for a task that starts.
+        var boxes: [(key: Key, box: RunningTask)] = []
         for (key, entry) in current {
             workThisFrame += 1
             if let old = previous[key] {
@@ -296,6 +316,27 @@ final class LifecycleStore {
                                                                 action: { action(oldValue, newValue) },
                                                                 departed: nil)))
                 }
+                if let spec = entry.task {
+                    // Carried before anything reads it; an id that differs
+                    // cancels the old task, then starts the new one (`X5`).
+                    let box = old.running ?? RunningTask()
+                    boxes.append((key, box))
+                    if old.running == nil {
+                        appearances.append((entry.order, Self.startEvent(spec, box, owner: entry.owner)))
+                    } else if let isEqual = spec.isEqual, let before = old.task?.id, !isEqual(before) {
+                        changes.append((entry.order, LifecycleEvent(owner: entry.owner, action: {
+                            box.handle?.cancel()
+                            box.handle = TaskStart.start(spec)
+                        }, departed: nil)))
+                    }
+                } else if let box = old.running {
+                    // The scope at this key stopped being a task.
+                    changes.append((entry.order, Self.cancelEvent(box, owner: entry.owner)))
+                }
+            } else if let spec = entry.task, entry.running == nil, !cancelled.contains(key) {
+                let box = RunningTask()
+                boxes.append((key, box))
+                appearances.append((entry.order, Self.startEvent(spec, box, owner: entry.owner)))
             } else if !cancelled.contains(key) {
                 if let action = entry.onAppear {
                     appearances.append((entry.order, LifecycleEvent(owner: entry.owner, action: action,
@@ -310,14 +351,20 @@ final class LifecycleStore {
             }
         }
 
-        var disappearances: [(order: Int, key: Key, owner: GlobalElementID, event: LifecycleEvent?)] = []
+        for (key, box) in boxes { current[key]?.running = box }
+
+        var disappearances: [(order: Int, key: Key, owner: GlobalElementID, event: LifecycleEvent?,
+                              running: RunningTask?)] = []
         for (key, entry) in previous {
             workThisFrame += 1
             guard current[key] == nil else { continue }
+            // A task's disappearance is its cancel (`PX-F` item 4), reading no
+            // departed state.
             let event = entry.onDisappear.map { LifecycleEvent(owner: entry.owner, action: $0, departed: departed) }
+                ?? entry.running.map { Self.cancelEvent($0, owner: entry.owner) }
             // A key with no `onDisappear` is kept only for a ghost's cancellation.
             guard event != nil || !liveGhosts.isEmpty else { continue }
-            disappearances.append((entry.order, key, entry.owner, event))
+            disappearances.append((entry.order, key, entry.owner, event, entry.running))
         }
 
         changes.sort { $0.order > $1.order }
@@ -329,6 +376,7 @@ final class LifecycleStore {
         for item in disappearances {
             if let ghost = liveGhosts.first(where: { item.owner.isOrDescends(from: $0.position) }) {
                 parked[ghost.key, default: ParkedGhost()].keys.insert(item.key)
+                if let box = item.running { parked[ghost.key, default: ParkedGhost()].running[item.key] = box }
                 if let event = item.event {
                     parked[ghost.key, default: ParkedGhost()].events.append(Parked(key: item.key, event: event))
                 }
@@ -345,18 +393,42 @@ final class LifecycleStore {
         workThisFrame = 0
     }
 
+    /// The event that starts `spec` into `box` (`PX-F` item 3).
+    private static func startEvent(_ spec: TaskSpec, _ box: RunningTask, owner: GlobalElementID) -> LifecycleEvent {
+        LifecycleEvent(owner: owner, action: { box.handle = TaskStart.start(spec) }, departed: nil)
+    }
+
+    /// The event that cancels `box`'s task and empties it (`PX-F` item 4);
+    /// it never waits for the task to finish.
+    private static func cancelEvent(_ box: RunningTask, owner: GlobalElementID) -> LifecycleEvent {
+        LifecycleEvent(owner: owner, action: {
+            box.handle?.cancel()
+            box.handle = nil
+        }, departed: nil)
+    }
+
+    /// Running tasks the store holds — present entries' and parked ones'
+    /// boxes with a task not cancelled (test observability, `PX-F`).
+    var runningTaskCount: Int {
+        let present = previous.values.compactMap(\.running)
+        let held = parked.values.flatMap { $0.running.values }
+        return (present + held).filter { $0.handle.map { !$0.isCancelled } ?? false }.count
+    }
+
     /// The events not yet run, emptied.
     func takeEvents() -> [LifecycleEvent] {
         defer { pending.removeAll(keepingCapacity: true) }
         return pending
     }
 
-    /// Window close (`LC-J`): every present element's `onDisappear` in reverse
-    /// registration order, then every parked one; everything is cleared, so a
-    /// second call finds nothing. Unrun events are dropped with the window.
+    /// Window close (`LC-J`): every present element's `onDisappear` — and
+    /// every running task's cancel (`PX-F` item 8) — in reverse registration
+    /// order, then every parked one; everything is cleared, so a second call
+    /// finds nothing. Unrun events are dropped with the window.
     func closeAll() -> [LifecycleEvent] {
         var events = previous.values.sorted { $0.order > $1.order }.compactMap { entry in
             entry.onDisappear.map { LifecycleEvent(owner: entry.owner, action: $0, departed: nil) }
+                ?? entry.running.map { Self.cancelEvent($0, owner: entry.owner) }
         }
         for held in parked.values { events.append(contentsOf: held.events.map(\.event)) }
         current.removeAll()
