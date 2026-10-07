@@ -11,8 +11,9 @@ Evidence (each header carries its recorded output and how to run it):
 - [`../probes/swiftui-task.swift`](../probes/swiftui-task.swift) (**new**; arms
   `X0`…`X17`, run three times, byte-identical) — SwiftUI's `.task`.
 - [`../probes/swiftui-bundle-image.swift`](../probes/swiftui-bundle-image.swift)
-  (**new**; arms `I0`…`I2`, `B0`…`B8`) — SwiftUI's `Image(_:bundle:)` over loose
-  PNG resources.
+  (**new**; arms `I0`…`I2`, `B0`…`B9`; `B9`, an asset-catalog entry in the
+  same bundle, is the positive control `PX-R` added) — SwiftUI's
+  `Image(_:bundle:)` over loose PNG resources.
 - [`../probes/image-decoder-parity/`](../probes/image-decoder-parity/) (**new**;
   `compare.py`'s header) — the portable decoder against ImageIO and against
   what SwiftUI draws, on 22 generated files and the configurator's 66 icons.
@@ -31,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-O`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-S`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -124,8 +125,8 @@ here.
 2. Compiled once, in `Sources/CStbImage/CStbImage.c`, with
    `STB_IMAGE_IMPLEMENTATION`, `STBI_ONLY_PNG`, `STBI_ONLY_JPEG`,
    `STBI_NO_STDIO` (MetalUI reads the bytes), `STBI_NO_LINEAR`,
-   `STBI_NO_HDR`, `STBI_NO_FAILURE_STRINGS` and **`STBI_MAX_DIMENSIONS
-   16384`** (the largest texture side both renderers guarantee; a file
+   `STBI_NO_HDR`, `STBI_NO_FAILURE_STRINGS`, **`STBI_NO_SIMD`** (`PX-O`
+   item 4) and **`STBI_MAX_DIMENSIONS 16384`** (the largest texture side both renderers guarantee; a file
    claiming more is refused before any allocation). Its public header
    `include/CStbImage.h` declares only what MetalUI calls:
    `stbi_load_from_memory`, `stbi_load_16_from_memory`,
@@ -200,6 +201,8 @@ sRGB, which is what every asset pipeline the configurator uses does.
 
 ## PX-D — Corrupt input: `nil`, never a trap
 
+*(Amended by `PX-O`: the pre-checks are internal functions tested directly; the JPEG check walks segments; `STBI_NO_SIMD`; an `Int32.max` bound.)*
+
 **Ruling.** Before stb sees the bytes, MetalUI checks, in Swift
 (`ImageDecoding.swift`):
 
@@ -252,6 +255,9 @@ divergence: SwiftUI has no file initialiser to diverge from.
    subdirectory) all size 0×0, while the instrument control `I0`
    (`Image(nsImage:)` of the same file) sizes 8×6 and AppKit's own
    `bundle.image(forResource:)` finds the file and all three reps (`I1`).
+   The positive control `B9` (an 8×6 image set compiled by `actool` into an
+   `Assets.car` in the same Resources directory) sizes 8×6 — the named lookup
+   works in this harness, so `B0`–`B7` are the lookup refusing loose files.
    SwiftUI's spelling means "an asset catalog entry"; a MetalUI `Image(_:
    bundle:)` reading loose files would be the same words with a different
    meaning. A "Not offered" row names it and points at `ImageBitmap(resource:
@@ -386,7 +392,9 @@ is affected.
    build systems with 0 warnings, and the nested package can depend on the
    root by path and use the product. `SDLWindowRenderer.bundledShaderDirectory`
    (found by `#filePath`) is unchanged: the file did not move, and a URL
-   consumer's checkout holds `Backends/SDL/Shaders/compiled`.
+   consumer's checkout holds `Backends/SDL/Shaders/compiled`. (Amended by
+   `PX-P`: an executable-adjacent `MetalUISDLShaders` is tried first, so a
+   built app can be moved.)
 2. **Two package traits**, neither enabled by default:
    - **`SDL`** — the SDL3 backend: enables `SDLBridge`'s `CSDL` dependency,
      its `METALUI_SDL` C define and its `SDL3` link; `MetalUISDL`'s Swift code
@@ -443,6 +451,8 @@ unification across a graph differs from what lane 1 measures for
 `Experiments/SDLGPU` (spec §5.1 item 3), that package names the trait itself.
 
 ## PX-I — What a consumer installs (and what the CI image now looks like)
+
+*(Amended by `PX-Q`: `swift package resolve` first, cargo on Linux aarch64, `--prefix` staging; the flagless claim is measured by test 1.7.)*
 
 **Ruling.**
 
@@ -610,3 +620,179 @@ desktop (X1), a `.task` counter in a real SDL window on Linux and Windows
 (X2), Orca with and without the `AccessKit` trait (X3), the same app built on
 Windows (X4), and the configurator's icons on Linux (X5). **An agent cannot
 run them.**
+
+## PX-O — Critic pass: the decoder's pre-checks, made pinnable and closed
+
+**Ruling.** The design's `PX-D` pre-checks and `PX-B` build are amended; spec
+§1.1 and §4.2 carry the amended steps and tests.
+
+1. **The PNG pre-check is its own internal function**,
+   `pngStructureIsIntact(_ bytes: UnsafeRawBufferPointer) -> Bool` (signature,
+   every chunk length in bounds, every CRC-32, an `IEND`), tested **directly**
+   as well as through `ImageBitmap`. Measured by the critic pass (stb_image
+   2.30, the 9×7 `rgba8.png` of `gen-fixtures.py`'s probe mode, 319 bytes:
+   IHDR ends at 33, IDAT at 307, IEND at 319): of the 319 truncated prefixes
+   stb **alone** decodes exactly four, lengths 315–318 (the `IEND` type read,
+   its CRC missing — stb checks no CRC), and returns `NULL` for the prefix that
+   ends right after IDAT's CRC (307: it reads a zero chunk type past the end,
+   an unknown critical chunk). So spec test 2.6's mutation "skip the `IEND`
+   requirement" **could not redden** through `ImageBitmap` (307 is refused by
+   stb; 315–318 by the length check). The `IEND` requirement stays
+   (defence in depth against a later stb) and is pinned by the direct arm
+   **2.6b** (`pngStructureIsIntact` of the prefix ending right after IDAT's
+   CRC is `false`; the 4×3 test fixture's offsets differ, the shape does not;
+   measured on the 9×7 file, 2 096 single-bit IDAT flips: stb alone decodes
+   1 186, so 2.7's CRC mutation does redden); 2.6's
+   own PNG mutation becomes "skip the chunk-length bound" (the prefixes that
+   end inside `IEND`'s CRC then decode).
+2. **The JPEG pre-check walks marker segments**, not raw bytes:
+   `jpegScanIsTerminated(_:)` steps from `SOI` by each segment's 16-bit length
+   to the first `SOS`, then requires an `FF D9` after that `SOS`'s header.
+   The design's raw scan ("an `FF D9` after the first `FF DA`") is **defeated
+   by an embedded thumbnail**: measured, `q90.jpg` with an `APP1` payload
+   holding `FF D8 FF DA 00 02 00 FF D9` and its main scan cut in half passes
+   the raw scan and stb decodes it (9×7, zero-padded) — a partial image, the
+   very thing `PX-D` item 2 refuses. New fixture `thumb-truncated.jpg`
+   (written by `gen-fixtures.py --tests`) and test **2.13**; its mutation is
+   the raw scan.
+3. **The dimension cap has two independent guards, each pinned on its own.**
+   `STBI_MAX_DIMENSIONS` and the Swift bound (spec §1.1 step 4) each refuse a
+   16385-wide file, so the design's single mutation (the define to 16385)
+   would leave 2.8 green. 2.8 gains arm **2.8b** — `stbi_load_from_memory` of
+   `wide-16385x1` called directly (the test target depends on `CStbImage`)
+   returns `NULL` — reddened by the define mutation, and arm **2.8c** —
+   `decodedSizeIsAccepted(width: 16385, height: 1)` is `false` and `(16384,
+   1)` is `true` — reddened by moving the Swift bound.
+4. **`STBI_NO_SIMD`**: the parity table and the literal JPEG pixels were
+   measured on Apple silicon, where stb takes its scalar paths (NEON only
+   with an explicit `STBI_NEON`); Linux and Windows CI are x86-64, where stb
+   enables SSE2 IDCT and colour conversion by default. stb's comments claim
+   the SIMD paths are bit-identical to the scalar ones; that is a claim, not a
+   measurement here. Compiling the scalar paths everywhere makes the measured
+   code the shipped code on every platform (`PX-C` item 1); the cost is JPEG
+   decode speed, irrelevant for icon-sized assets.
+5. **A buffer longer than `Int32.max` bytes is `nil`** before stb is called
+   (its lengths are `int`; an unchecked `Int32(count)` would trap — `PX-D`
+   says never). Not tested with a 2 GiB buffer; the bound is one comparison
+   in `decodeImage` with a doc comment naming it.
+6. **Test 2.9's mutation could not redden**: "`data:` skips the pre-check" on
+   valid fixtures and on empty data changes nothing. 2.9 also decodes the
+   prefix of `rgba8.png` that ends inside `IEND`'s CRC through `init?(data:)`
+   and expects `nil` (stb alone decodes it).
+
+**Cost if wrong.** Each item is a test arm or a define; none changes the
+public surface.
+
+## PX-P — SDL shaders: found beside the executable, then by `#filePath`
+
+**Ruling.** `SDLWindowRenderer` loads its compiled shaders from
+`bundledShaderDirectory`, which is `#filePath`-relative
+(`Backends/SDL/Shaders/compiled` in the build machine's checkout) and is the
+only directory `SDLPlatform` can use: `SDLPlatform.init` takes no shader
+directory. A URL consumer's `swift run` works; **the same binary copied
+anywhere else fails** at its first window (`SDL GPU device`). A consumable
+backend owes a way to ship it:
+
+1. `SDLWindowRenderer.shaderDirectoryCandidates(executableDirectory:) ->
+   [String]` returns `<executableDirectory>/MetalUISDLShaders`, then
+   `bundledShaderDirectory`; the first that holds `SOURCE.sha256` is used
+   (`Bundle.main.executableURL`'s directory in production). None → the
+   renderer throws an error **naming every directory tried** (`AI-N`'s
+   precedent for `ShaderLibrary`).
+2. `docs/packaging.md` (Linux and Windows sections) says: copy
+   `.build/checkouts/MetalUI/Backends/SDL/Shaders/compiled` beside the
+   executable as `MetalUISDLShaders` (and, on Windows, `SDL3.dll`).
+3. Test 1.10 (`SDLShaderDirectoryTests`, `Backends/SDL`, portable, runs in the
+   Linux container): the executable-adjacent directory wins when both exist;
+   the `#filePath` one is used when it alone exists; neither → the error's
+   description contains both paths. Mutations: swap the candidate order (arm
+   1 red); drop the paths from the description (arm 3 red).
+
+No public `SDLPlatform` initialiser changes (the candidate list is the
+mechanism); `MetalUISDL` stays outside the census (`PX-K`).
+
+**Cost if wrong.** If a packager wants another layout, an
+`SDLPlatform(shaderDirectory:)` parameter is additive.
+
+## PX-Q — What a consumer installs: three omissions corrected
+
+**Ruling.** `PX-I` item 1 is amended; the generated README (test 1.4's
+literals) and `docs/getting-started.md` say all three:
+
+1. **`swift package resolve` first.** The fetch script lives in
+   `.build/checkouts/MetalUI/…`, which exists only after resolution.
+2. **Linux aarch64 needs a Rust toolchain (`cargo`)** for the `AccessKit`
+   trait: accesskit-c 0.23.0 ships prebuilt static libraries for macOS, Linux
+   x86_64 and Windows x64 only, and `fetch-accesskit.py` builds from source
+   with cargo elsewhere (its docstring and its `cargo build --release
+   --locked`). The alternative is dropping the trait.
+3. **With `--prefix DIR`, the script stages its download and unpacking in a
+   temporary directory** (or `$ACCESSKIT_DIR`) and copies only `accesskit.h`
+   and the static library under `DIR` — it writes nothing into the SwiftPM
+   checkout it was run from.
+
+And one claim made honest: "with SDL3 and AccessKit on the default paths the
+build is plain `swift build`" was **not measured** by the design (`L5` passed
+flags; the probe's image installed SDL3 under `/usr/local`). It is measured by
+lane 1's test 1.7 in the re-laid CI image (`PX-I` item 5); if gold or the
+importer misses a default directory there, lane 1 records it and the docs
+name the flag.
+
+## PX-R — Critic pass: evidence corrections
+
+**Ruling.**
+
+1. **The bundle-image probe had no separating arm**: `B0` (loose `plain.png`)
+   and `B1` (`missing`) both size 0×0, so `B0`–`B7` could have been a harness
+   that sees no named image at all. The critic pass added **`B9`** — an 8×6
+   image set compiled by `xcrun actool` into an `Assets.car` in the same
+   bundle — which sizes **8×6**; three runs byte-identical, `I0`–`B8`
+   unchanged. `PX-E` item 4 now rests on `B9` against `B0`.
+2. **The task probe's recorded `X13` line** read `:232`, the line in a draft
+   without the header; the committed file prints `:493`. Re-run once in full
+   by the critic pass: every other arm byte-identical to the recorded block.
+   Corrected in the block (no line above it moved; the note is appended at the
+   end of the file).
+3. **Divergence 137 overclaimed.** SwiftUI was measured on macOS 27 only,
+   where `View.task` uses `_TaskModifier2` (its inlinable body in the SDK
+   interface branches on `#available(macOS 26.4, *)`); what SwiftUI's older
+   `_TaskModifier` does on macOS 14–26.3 is **unmeasured**. The row's text
+   (spec §8.2) says "SwiftUI on macOS 27 starts it synchronously (X1, X15);
+   SwiftUI on macOS 14–26.3 was not measured".
+4. **Test 3.20 runs in no CI job**: macOS CI does not run `Backends/SDL`
+   tests, and the Linux image's offscreen driver presents no frame
+   (`Window.drawFrameIfNeeded` returns at `renderer.beginFrame()` before
+   building, so no lifecycle event can run there — read in the source by the
+   critic pass). The gate is honest; the lanes run 3.20 on macOS and record
+   its printed line in record §80, and 3.21 is the CI proof of the mechanism
+   (a main-actor immediate task progressing and seeing its cancellation under
+   the SDL loop). Owner of a CI run: the deferred offscreen renderer (spec §9).
+
+**Rejected (recorded so they are not re-raised).**
+
+- *`ImageBitmap(data:)`/`(resource:…bundle:)` put Foundation types in a
+  portable surface.* `Data` and `Bundle` are Foundation, which MetalUI already
+  imports unconditionally on every platform (`Animation.swift`,
+  `Color.swift`) and which swift-corelibs-foundation provides on Linux and
+  Windows; no Apple framework crosses the surface. `ImageBitmap.swift` gains an
+  unconditional `import Foundation` (today it imports it only under
+  `canImport(ImageIO)`).
+- *The `.task` spelling differs from SwiftUI's.* Checked against the macOS 27
+  SDK's `SwiftUI.swiftinterface`: `task(name:priority:file:line:_:)` and
+  `task(id:name:priority:file:line:_:)` with `@_inheritActorContext _ action:
+  sending @escaping @isolated(any) () async -> Void` — the same. The
+  `executorPreference:` overloads are `PX-A`'s deferral.
+- *`Task.immediate(name:…)` needs macOS 26.4 like `Task.name`.* The SDK's
+  `_Concurrency` interface marks `Task.immediate(name:priority:executorPreference:operation:)`
+  `@available(anyAppleOS 26.0, *)`; only reading `Task.name` (test 3.17) needs
+  26.4, and that test runs on macOS 27.
+- *X11 contradicts `PX-F` item 8.* SwiftUI cancels when the hosting view
+  leaves its window, not on `close()` with the host retained; MetalUI's close
+  releases the window's tree (`LC-J`), which is the first case. Not a new
+  divergence.
+- *Lane 1 is too large; split it.* Its files are disjoint from lanes 2 and 3,
+  and everything in it is one manifest's consequences (the SDL targets, the
+  traits, the CI image the traits require, the scaffold that emits the
+  traits). Splitting the scaffold out would put the CI step for test 1.7 and
+  the test itself in different lanes. Kept; `PX-P` adds one small file pair to
+  it.

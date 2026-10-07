@@ -17,14 +17,22 @@
 // Each arm hosts an Image in an NSHostingView, reads its `fittingSize` (points)
 // and the accessibility label of the hosting view's first image element.
 //
-// POSITIVE CONTROL / SEPARATING ARM: B0 (`plain` resolves: 8×6 pt) against B1
-// (`missing`: what a failed lookup sizes to).
+// POSITIVE CONTROL / SEPARATING ARM: B9 (`cat`, an 8×6 image set compiled by
+// `xcrun actool` into an `Assets.car` in the SAME Resources directory: the
+// named lookup itself works, 8×6 pt) against B0 (`plain`, a loose 8×6 PNG
+// beside it) and B1 (`missing`: what a failed lookup sizes to). B0 vs B1
+// alone separate nothing (both 0×0) — B9 was added by the portable-app
+// critic pass (PX-O) for exactly that reason.
 //
 // RECORDED 2026-10-07 by the portable-app design session, macOS 27.0.1
 // (26A434), Apple Swift 6.4, screen LOCKED. Compiled form, run three times
 // (the final file, with the Info.plist): byte-identical, exit 0, stderr
 // empty. An earlier run without the Info.plist read the same for B0–B8.
+// Re-recorded the same day by the critic pass with B9 (actool from
+// Xcode-beta): three runs byte-identical, exit 0, stderr empty; I0–B8
+// unchanged.
 //
+//   actool status=0 Assets.car=true
 //   bundle=true url(plain)=true
 //   screen backingScaleFactor=2.0
 //   === I0 instrument control: Image(nsImage: NSImage(contentsOf: plain.png))
@@ -49,8 +57,13 @@
 //     fittingSize=0.0x0.0 ax=[]
 //   === B8 Image("plain", bundle:).resizable().frame(width: 40, height: 30)
 //     fittingSize=40.0x30.0 ax=[]
+//   === B9 positive control: Image("cat", bundle:) — an 8×6 image set in a compiled Assets.car
+//     fittingSize=8.0x6.0 ax=[]
 //
 // READING NOTES.
+// - B9: the instrument sees a named bundle image: an asset-catalog entry in
+//   the same bundle sizes 8×6 pt. So B0–B7's 0×0 is the lookup refusing loose
+//   files, not the harness failing to see any named image.
 // - I0: the instrument works — `Image(nsImage:)` of the file sizes 8×6 pt.
 // - I1/I2: AppKit's own lookup finds loose files (`bundle.image(forResource:)`
 //   returns all three reps of `scaled`), but not a subdirectory path; the
@@ -120,6 +133,23 @@ MainActor.assumeIsolated {
         + "<key>CFBundleIdentifier</key><string>probe.bundle.image</string>"
         + "<key>CFBundlePackageType</key><string>BNDL</string></dict></plist>"
     try? plist.write(to: root.appendingPathComponent("Contents/Info.plist"), atomically: true, encoding: .utf8)
+    // B9's asset catalog: one 8×6 image set compiled by actool into the same
+    // Resources directory (the positive control for the named lookup itself).
+    let catalog = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Probe-\(getpid()).xcassets")
+    let set = catalog.appendingPathComponent("cat.imageset")
+    writePNG(set.appendingPathComponent("cat.png"), width: 8, height: 6, rgb: (128, 0, 255))
+    try? "{\"info\":{\"author\":\"xcode\",\"version\":1}}".write(
+        to: catalog.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+    try? "{\"images\":[{\"filename\":\"cat.png\",\"idiom\":\"universal\",\"scale\":\"1x\"}],\"info\":{\"author\":\"xcode\",\"version\":1}}".write(
+        to: set.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+    let actool = Process()
+    actool.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+    actool.arguments = ["actool", "--compile", res.path, "--platform", "macosx",
+                        "--minimum-deployment-target", "14.0", catalog.path]
+    actool.standardOutput = FileHandle.nullDevice
+    actool.standardError = FileHandle.nullDevice
+    try? actool.run(); actool.waitUntilExit()
+    print("actool status=\(actool.terminationStatus) Assets.car=\(FileManager.default.fileExists(atPath: res.appendingPathComponent("Assets.car").path))")
     let bundle = Bundle(path: root.path)!
     print("bundle=\(bundle.bundlePath.hasSuffix(".bundle")) url(plain)=\(bundle.url(forResource: "plain", withExtension: "png") != nil)")
     print("screen backingScaleFactor=\(NSScreen.main?.backingScaleFactor ?? -1)")
@@ -139,6 +169,9 @@ MainActor.assumeIsolated {
     measure("B7 Image(decorative: \"plain\", bundle:)", Image(decorative: "plain", bundle: bundle))
     measure("B8 Image(\"plain\", bundle:).resizable().frame(width: 40, height: 30)",
             Image("plain", bundle: bundle).resizable().frame(width: 40, height: 30))
+    measure("B9 positive control: Image(\"cat\", bundle:) — an 8×6 image set in a compiled Assets.car",
+            Image("cat", bundle: bundle))
     try? FileManager.default.removeItem(at: root)
+    try? FileManager.default.removeItem(at: catalog)
     exit(0)
 }

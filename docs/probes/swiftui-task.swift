@@ -175,7 +175,7 @@
 //   === X13 the task's name (macOS 26.4+ API) and Task.isCancelled at start
 //     -- host
 //     -- ordered front
-//     name=View.task @ main/swiftui-task.swift:232
+//     name=View.task @ main/swiftui-task.swift:493
 //     isCancelled at start=false
 //     -- initial settled
 //   === X14 a removal and re-insertion in one update (if/else of the same view type): new task, old cancelled
@@ -567,3 +567,11 @@ do {
 
 exit(0)
 }
+
+// CRITIC PASS NOTE (2026-10-07, after the header above was written; appended
+// here so no line above moves): the whole compiled probe was re-run once and
+// diffed against the recorded block. Every arm matched byte for byte except
+// X13's name line, which the design session recorded as `:232` (the line of
+// X13's `.task {` in a draft without this header); in the committed file that
+// line is 493, which is what a run prints and what the block now says. The
+// reading (SwiftUI's default name is "View.task @ <fileID>:<line>") stands.

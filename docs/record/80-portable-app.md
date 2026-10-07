@@ -4,8 +4,8 @@ Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
 PR #50). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — what the SMK configurator needs to run on Linux and Windows.
 Spec `docs/superpowers/specs/2026-10-07-portable-app-design.md`; rulings
-`PX-A`…`PX-N` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
-(next unused `PX-O`); probes `docs/probes/swiftui-task.swift`,
+`PX-A`…`PX-R` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
+(next unused `PX-S`); probes `docs/probes/swiftui-task.swift`,
 `swiftui-bundle-image.swift`, `swift-task-modifier-isolation.swift`,
 `image-decoder-parity/`, `swiftpm-traits-sdl/`.
 
@@ -65,3 +65,33 @@ SwiftPM's deprecation notice. Divergences 103 live, next label 137.
 `PX-M`: 1 packaging → 2 images → 3 `.task` (lane 3 also writes the shared
 registries). Tests by name, with red-before and the mutation each must
 survive, are spec §4.
+
+### 0.4 Critic pass (same day, before lane 1)
+
+Attacked the committed design; fixed in the spec and rulings `PX-O`…`PX-R`:
+
+- **Mutations that could not redden** (measured with stb_image 2.30 on the
+  probe fixtures): 2.6's "skip `IEND`" (stb alone refuses the prefix that
+  ends after IDAT and decodes only the four ending inside `IEND`'s CRC, which
+  the length bound refuses) → direct arm 2.6b on `pngStructureIsIntact`;
+  2.8's single define mutation (two independent guards) → arms 2.8b/2.8c;
+  2.9's "`data:` skips the pre-check" (only valid and empty inputs) → a
+  pre-check-only prefix through `data:`. 2.7's CRC mutation does redden
+  (stb alone decodes 1 186 of 2 096 single-bit IDAT flips).
+- **A hole**: the raw `FF DA … FF D9` JPEG scan passes a truncated JPEG whose
+  `APP1` thumbnail holds both markers, and stb returns a padded image → a
+  segment walk and test 2.13 (`PX-O` item 2). `STBI_NO_SIMD` so the measured
+  scalar paths ship on x86-64 CI too; an `Int32.max` length bound.
+- **Consumability**: SDL shaders were found only by `#filePath`, so a built
+  SDL app could not be moved → an executable-adjacent candidate and test 1.10
+  (`PX-P`). Consumer text gained `swift package resolve`, cargo on Linux
+  aarch64, and a staging rule for `--prefix`; the flagless default-path build
+  is marked unmeasured until test 1.7 (`PX-Q`).
+- **Evidence**: the bundle-image probe gained its missing positive control
+  `B9` (an `Assets.car` entry sizes 8×6; loose files 0×0); the task probe's
+  `X13` recorded line corrected to the committed file's `:493` after a full
+  re-run (every other arm byte-identical); divergence 137's text limited to
+  what was measured (macOS 27); test 3.20's absence from CI stated (`PX-R`).
+- Rejected with reasons in `PX-R`: Foundation types in the image API, the
+  `.task` spelling (matches the SDK interface), `Task.immediate`'s
+  availability (26.0), X11 against `PX-F` item 8, splitting lane 1.

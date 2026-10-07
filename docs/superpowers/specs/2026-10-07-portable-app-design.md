@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-07-portable-app-decisions.md`](../2026-10-07-portable-app-decisions.md)
-(`PX-A`…`PX-N`). Record: `../../record/80-portable-app.md`. Branch
+(`PX-A`…`PX-R`; the critic pass added `PX-O`…`PX-R`). Record: `../../record/80-portable-app.md`. Branch
 `feat/portable-app` from `359444e`.
 
 **Motivation.** The SMK keyboard configurator runs on MetalUI on macOS
@@ -50,18 +50,26 @@ The decode, in `Sources/MetalUI/ImageDecoding.swift` (internal, one entry
 point `decodeImage(_ bytes: UnsafeRawBufferPointer) -> (width: Int, height:
 Int, straightRGBA: [UInt8])?`):
 
+0. A buffer of more than `Int32.max` bytes → `nil` (stb's lengths are `int`;
+   `PX-O` item 5).
 1. Signature sniff: PNG → step 2; JPEG → step 3; otherwise → ImageIO under
    `#if canImport(ImageIO)` (the `359444e` body of `contentsOfFile`, moved
    verbatim, data-sourced through `CGImageSourceCreateWithData`), `nil`
    elsewhere.
-2. PNG pre-check (`PX-D` item 1): chunk walk, every length in bounds, CRC-32
-   of type+data equal to the stored CRC (a 256-entry table computed once),
-   `IEND` present. Then `stbi_is_16_bit_from_memory` → 16-bit path
+2. PNG pre-check (`PX-D` item 1), the internal function
+   `pngStructureIsIntact(_:) -> Bool` (`PX-O` item 1): chunk walk, every
+   length in bounds, CRC-32 of type+data equal to the stored CRC (a 256-entry
+   table computed once), `IEND` present. Then `stbi_is_16_bit_from_memory` → 16-bit path
    (`stbi_load_16_from_memory(…, 4)`, each sample `(v * 255 + 32767) / 65535`)
    or 8-bit path (`stbi_load_from_memory(…, 4)`).
-3. JPEG pre-check (`PX-D` item 2): an `FF D9` after the first `FF DA`. Then
-   the 8-bit path.
-4. Reject width or height outside `1…16384` or an overflowing byte count;
+3. JPEG pre-check (`PX-D` item 2), the internal function
+   `jpegScanIsTerminated(_:) -> Bool` (`PX-O` item 2): walk marker segments
+   from `SOI` by their 16-bit lengths to the first `SOS` (never a raw byte
+   search — an `APP1` thumbnail holds its own `FF DA … FF D9`), then require an
+   `FF D9` after that `SOS` header. Then the 8-bit path.
+4. Reject width or height outside `1…16384` (the internal
+   `decodedSizeIsAccepted(width:height:)`, `PX-O` item 3) or an overflowing
+   byte count;
    `stbi_image_free` on every path.
 5. `ImageBitmap` builds `ImageTexture(width:height:straightRGBA:)` from the
    straight samples — the one premultiply (`TE-AR`); ImageIO's branch keeps
@@ -73,7 +81,8 @@ URL, then consults `ImageResourceCache` (internal, `NSLock`-guarded
 `[String: ImageBitmap?]` keyed by `url.standardizedFileURL.path`).
 
 `ImageBitmap.swift` no longer imports CoreGraphics or ImageIO at file scope
-outside the Apple fallback; `ImageDecoding.swift` holds `internal import
+outside the Apple fallback, and imports Foundation unconditionally (`Data`,
+`Bundle`; `PX-R`'s rejected item 1); `ImageDecoding.swift` holds `internal import
 CStbImage` and the `#if canImport(ImageIO)` fallback.
 
 ### §1.2 `.task` (lane 3; rulings `PX-F`, `PX-G`)
@@ -158,7 +167,8 @@ traits: [
 // MetalUI's dependencies += "CStbImage"
 ```
 
-`MetalUISDL` sources: every file `#if SDL … #endif`; the two AccessKit files
+`MetalUISDL` sources: every file `#if SDL … #endif`; `SDLWindowRenderer`'s
+shader directory from `shaderDirectoryCandidates(executableDirectory:)` (`PX-P`); the two AccessKit files
 and every AccessKit call site in `SDLPlatform.swift` `#if AccessKit`; under
 `#if !SDL` the unavailable `SDLPlatform` stub (`PX-H` item 4). No `pkgConfig:`
 anywhere (`PX-H` item 3). `Backends/SDL/Package.swift` per `PX-H` item 5.
@@ -186,7 +196,8 @@ LICENSE, VENDORED.md}`; `Sources/MetalUI/ImageDecoding.swift`;
 `Tests/MetalUICrossPlatformTests/ImageDecodingTests.swift` and
 `ImageFixtures/` (the committed PNGs and JPEG of §4.2);
 `Tests/MetalUITests/TaskModifierTests.swift`, `TaskCompileGuards.swift`,
-`SDLTraitCompileGuards.swift`.
+`SDLTraitCompileGuards.swift`;
+`Backends/SDL/Tests/MetalUISDLTests/SDLShaderDirectoryTests.swift` (`PX-P`).
 
 Changed: as each lane lists (§3). Moved: nothing (`PX-H` item 1).
 
@@ -194,7 +205,7 @@ Changed: as each lane lists (§3). Moved: nothing (`PX-H` item 1).
 
 | lane | owns | depends on |
 |---|---|---|
-| 1 packaging | `Package.swift`; `Sources/CStbImage/**`; `Backends/SDL/Package.swift`; `Backends/SDL/Sources/{CSDL,CAccessKit,SDLBridge,MetalUISDL}/**`; `Backends/SDL/scripts/**`; `Backends/SDL/linux/Dockerfile`; `Backends/SDL/README.md`; `Experiments/SDLGPU/Package.swift`; `.github/workflows/**`; `Sources/MetalUIScaffold/**`; `Tests/MetalUIScaffoldTests/**`; `Tests/MetalUITests/SDLTraitCompileGuards.swift`; `docs/getting-started.md`; `docs/packaging.md` | — |
+| 1 packaging | `Package.swift`; `Sources/CStbImage/**`; `Backends/SDL/Package.swift`; `Backends/SDL/Sources/{CSDL,CAccessKit,SDLBridge,MetalUISDL}/**`; `Backends/SDL/scripts/**`; `Backends/SDL/linux/Dockerfile`; `Backends/SDL/README.md`; `Experiments/SDLGPU/Package.swift`; `.github/workflows/**`; `Sources/MetalUIScaffold/**`; `Tests/MetalUIScaffoldTests/**`; `Tests/MetalUITests/SDLTraitCompileGuards.swift`; `Backends/SDL/Tests/MetalUISDLTests/SDLShaderDirectoryTests.swift`; `docs/getting-started.md`; `docs/packaging.md` | — |
 | 2 images | `Sources/MetalUI/ImageBitmap.swift`; `Sources/MetalUI/ImageDecoding.swift`; `Tests/MetalUICrossPlatformTests/ImageDecodingTests.swift`; `Tests/MetalUICrossPlatformTests/ImageFixtures/**`; `Tests/MetalUITests/ImageTests.swift`; `docs/probes/image-decoder-parity/gen-fixtures.py` | lane 1's `CStbImage` target |
 | 3 `.task` | `Sources/MetalUI/Lifecycle.swift`; `Sources/MetalUI/TaskModifier.swift`; `Tests/MetalUITests/TaskModifierTests.swift`; `Tests/MetalUITests/TaskCompileGuards.swift`; `Backends/SDL/Sources/MainQueueDrainCheck/main.swift`; `Backends/SDL/Tests/MetalUISDLTests/SDLMainQueueDrainTests.swift`; `docs/divergences.md`; `docs/api-overview.md`; `docs/migration.md`; `docs/verification/human-checks.md`; `docs/probes/closeout-inventory-map.tsv`; `docs/probes/closeout-public-api.tsv` | lane 1's manifest (`MainQueueDrainCheck` deps); lane 2's declarations for the registry rows |
 
@@ -230,10 +241,12 @@ the mutation is the separating instrument and is run after the test is green.
   `["SDL"]` and the README's "no screen-reader support" line. Mutation: ignore
   the flag (always `["SDL", "AccessKit"]`).
 - **1.4 `theCrossPlatformReadmeSaysWhatAConsumerInstalls`** — the README's
-  Linux section contains `PX-I` item 1's three instructions literally (SDL 3.4+
-  on the default paths or the `-Xcc`/`-Xlinker` flags; `fetch-accesskit.py
-  --prefix /usr` from `.build/checkouts/MetalUI/Backends/SDL/scripts/`; or drop
-  `AccessKit`) and no "couldn't find pc file" text. Mutation: restore the old
+  Linux section contains `PX-I` item 1's instructions as amended by `PX-Q`
+  literally (SDL 3.4+ on the default paths or the `-Xcc`/`-Xlinker` flags;
+  `swift package resolve` first; `fetch-accesskit.py --prefix /usr` from
+  `.build/checkouts/MetalUI/Backends/SDL/scripts/`; on Linux aarch64 a Rust
+  toolchain for that step; or drop `AccessKit`) and its packaging line (the
+  shader directory beside the executable, `PX-P`) and no "couldn't find pc file" text. Mutation: restore the old
   section.
 - **1.5 Refused names** — one arm per name lane 1's measurement refuses
   (`PX-J` item 4), each `#expect(throws:)`, each with the recorded build error
@@ -257,6 +270,14 @@ the mutation is the separating instrument and is run after the test is green.
   `--no-accesskit` package built with `-Xcc -I<dir>` holding a poison
   `accesskit.h` (`#error "AccessKit must not be compiled"`). Mutation: guard
   `AccessKitAdapter.swift` with `#if SDL` instead of `#if AccessKit` → red.
+- **1.10 `SDLShaderDirectoryTests`** (`Backends/SDL`, portable; macOS and the
+  CI image; `PX-P`) — three arms over `shaderDirectoryCandidates` with
+  scratch directories: the executable-adjacent `MetalUISDLShaders` wins when
+  both hold `SOURCE.sha256`; the `#filePath` directory is used when it alone
+  does; neither → the thrown error's description contains both paths.
+  Mutations: swap the candidate order (arm 1 red); drop the paths from the
+  description (arm 3 red). `Backends/SDL`'s macOS/Linux counts move by these
+  arms only.
 - **1.9 Existing `Backends/SDL` suites, unchanged in count** — macOS (with
   `PX-I` item 6's flags) and the CI image, flagless. The move is pinned by
   their staying green and by 1.7. Mutation (once, recorded): drop `traits:`
@@ -279,7 +300,10 @@ come from the generator, not a decoder): 4×3 `gray1`, `gray4`, `gray8`,
 including 0, 255, 386, 32896, 65280, 65535), `rgb8-srgb`, `rgb8-p3` (iCCP);
 9×7 `rgba8-adam7-9x7` and `rgba8-9x7`; `q90.jpg` (4×3, Pillow); the corrupt
 set (`corrupt-idat`, `corrupt-truncated`, `corrupt-ihdr`); `wide-16385x1` and
-`wide-16384x1` (valid CRCs, a solid row). Loaded by `#filePath` (`FT-G`).
+`wide-16384x1` (valid CRCs, a solid row); `thumb-truncated.jpg` (`q90.jpg`
+with an `APP1` holding `FF D8 FF DA 00 02 00 FF D9`, main scan cut in half;
+`PX-O` item 2). Loaded by `#filePath` (`FT-G`). The test target depends on
+`CStbImage` for arm 2.8b.
 
 - **2.1 `everyFixturePNGDecodesToItsLiteralPixels`** (`ImageDecodingTests`,
   runs on Linux and Windows CI) — each 4×3 PNG's 48 premultiplied bytes as a
@@ -301,18 +325,29 @@ set (`corrupt-idat`, `corrupt-truncated`, `corrupt-ihdr`); `wide-16385x1` and
   JPEG decodes to `nil`.
 - **2.6 `everyTruncationIsNilAndNeverTraps`** — every prefix length
   `0..<count` of `rgba8.png` and of `q90.jpg` → `nil`. Mutations: skip the
-  IEND requirement (prefixes that end after IDAT's CRC decode); skip the EOI
-  scan (stb pads the JPEG).
+  chunk-length bound (the prefixes ending inside `IEND`'s CRC then decode —
+  measured, `PX-O` item 1; skipping the `IEND` requirement alone **cannot**
+  redden this test, stb refuses a missing `IEND` itself); skip the EOI check
+  (stb pads the JPEG: 485 of 669 probe-mode prefixes decode).
+- **2.6b `thePNGPreCheckRequiresIEND`** — `pngStructureIsIntact` of the
+  prefix of `rgba8.png` ending right after IDAT's CRC is `false`, and of the
+  whole file `true`. Mutation: skip the `IEND` requirement.
 - **2.7 `aCorruptPNGIsNil`** — the three corrupt files → `nil`, and every
   single-bit flip of each byte of `rgba8.png`'s IDAT data → `nil`. Mutation:
   skip the CRC check.
 - **2.8 `theDimensionCapIsSixteenThousandThreeHundredEightyFour`** —
   `wide-16385x1` → `nil`, `wide-16384x1` → a 16384×1 bitmap (the separating
-  arm). Mutation: `STBI_MAX_DIMENSIONS` 16385 (lane 1's file — run by lane 2
-  as a mutation only, restored).
+  arm); **2.8b** `stbi_load_from_memory` of `wide-16385x1` called directly →
+  `NULL`; **2.8c** `decodedSizeIsAccepted(width: 16385, height: 1) == false`,
+  `(16384, 1) == true`. Mutations (`PX-O` item 3 — either guard alone keeps
+  the first arm green): `STBI_MAX_DIMENSIONS` 16385 (lane 1's file, run by
+  lane 2 as a mutation only, restored) → 2.8b red; the Swift bound 16385 →
+  2.8c red.
 - **2.9 `fileAndDataDecodeIdentically`** — `init?(contentsOfFile:)` and
   `init?(data:)` give the same bytes for every fixture; a missing path, a
-  directory and empty data → `nil`. Mutation: `data:` skips the pre-check.
+  directory and empty data → `nil`; the `rgba8.png` prefix ending inside
+  `IEND`'s CRC through `data:` → `nil` (stb alone decodes it, `PX-O` item 6).
+  Mutation: `data:` skips the pre-check.
 - **2.10 `aBundleResourceDecodesOnceAndSharesItsTexture`** — a scratch flat
   bundle directory (`Bundle(path:)`) holding `icon.png` and `Icons/dark/key.png`:
   two calls return the same `texture` (`===`), the subdirectory resolves, a
@@ -330,6 +365,10 @@ set (`corrupt-idat`, `corrupt-truncated`, `corrupt-ihdr`); `wide-16385x1` and
   `ImageDecodingTests` under `#if !canImport(ImageIO)` (`PC-B`)
   **`aTIFFIsNilOffApple`**. Mutation: drop the fallback → the macOS arm
   reddens.
+- **2.13 `aTruncatedJPEGWithAThumbnailIsNil`** — `thumb-truncated.jpg` →
+  `nil`; the same file untruncated decodes. Mutation: the design's raw byte
+  scan for `FF DA … FF D9` (measured: it passes the truncated file and stb
+  returns a zero-padded image, `PX-O` item 2).
 - **Existing 3.11** (`ImageTests`, ImageIO PNG decode) — kept, now through
   the portable path; its doc comment updated. If its PNG is colour-tagged and
   its literal moves, that is a finding: record the bytes, do not loosen.
@@ -502,8 +541,9 @@ HEAD` reads **0 differing pixels in all fourteen images** after every lane;
   divergence 137".
 - Divergence **137** — "`.task` on macOS 14–25 starts its body on the next
   main-queue turn (no `Task.immediate` before macOS 26): a write before its
-  first `await` is presented one frame late. SwiftUI starts it synchronously
-  (probe swiftui-task X1, X15). Pinned by
+  first `await` is presented one frame late. SwiftUI on macOS 27 starts it
+  synchronously (probe swiftui-task X1, X15); SwiftUI on macOS 14–26.3 (its
+  pre-26.4 `_TaskModifier`) was not measured (`PX-R` item 3). Pinned by
   `theDeferredStartRunsTheBodyOnALaterTurn`. Ruling PX-G."
 - Divergence **138** — "Image decoding ignores colour profiles (iCCP, gAMA,
   cHRM): samples are drawn as sRGB, identically on every platform; SwiftUI
@@ -535,7 +575,7 @@ HEAD` reads **0 differing pixels in all fourteen images** after every lane;
 | Colour management (iCCP/gAMA/cHRM) | needs a vendored ICC engine; divergence 138 | none |
 | `Image(_:bundle:)`, asset catalogs, `@Nx` variants, template tint | SwiftUI's spelling means an asset catalog (`PX-E`); MG-10's second half | none |
 | `.task(…executorPreference:…)` | macOS 26.4 `TaskExecutor` variants; no demand | none |
-| Frames under SDL's offscreen driver | needs an offscreen renderer per window; would ungate 10.2/10.3/3.20 | none |
+| Frames under SDL's offscreen driver | needs an offscreen renderer per window; would ungate 10.2/10.3/3.20 — until then 3.20 runs in **no CI job** (macOS CI skips `Backends/SDL`); lanes record its macOS line in record §80 (`PX-R` item 4) | none |
 | `MetalUISDL` in the public-API census | backend plumbing (`PX-K`) | none |
 | A generated app built on Windows in CI | the backend builds and tests there; human check X4 | none |
 | GIF/WebP/TIFF/HEIC/BMP off Apple | no demand; ImageIO keeps them on macOS | none |
