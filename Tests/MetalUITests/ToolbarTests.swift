@@ -7,7 +7,8 @@ import MetalUIScene
 import MetalUIPlatform
 @testable import MetalUI
 
-// Port gaps (medium), lane 2 — the toolbar, native: tests 3.1–3.5 (rulings
+// Port gaps (medium), lane 2 — the toolbar, native: tests 3.1–3.5 and the
+// review's 3.19/3.20 (numbered past the spec's 3.18; rulings
 // `MD-I`, `MD-J`, `MD-S`, `MD-U` items 1–2; spec
 // `docs/superpowers/specs/2026-10-07-port-gaps-medium-design.md` §4.3).
 // SwiftUI's side: `docs/probes/swiftui-toolbar.swift` (`TB1`, `UP`, `SR`) and
@@ -285,9 +286,9 @@ private struct Panel: Component {
     #expect(proposalPlain == proposalScoped, "proposal: ids and bounds moved")
 }
 
-// MARK: - 3.6
+// MARK: - 3.19
 
-/// **3.6** (`MD-J` item 1). `.disabled(true)` on a toolbar control, and on a
+/// **3.19** (`MD-J` item 1). `.disabled(true)` on a toolbar control, and on a
 /// container holding a `.toolbar`, reaches the platform as `isEnabled == false`;
 /// a queued `.toolbarAction` for a disabled item runs nothing, while its
 /// enabled sibling's runs. Mutations (lane 2 review): **V1** the
@@ -329,9 +330,9 @@ private struct Panel: Component {
     #expect(m.pressed == 10, "the enabled sibling runs: pressed \(m.pressed)")
 }
 
-// MARK: - 3.7
+// MARK: - 3.20
 
-/// **3.7** (`MD-I` items 3 and 6, `MD-X` item 3). The item-mapping rules: a
+/// **3.20** (`MD-I` items 3 and 6, `MD-X` item 3). The item-mapping rules: a
 /// `.pickerStyle(.menu)` picker is a pop-up and every other style (the default
 /// included) is segmented; `.help(_:)` on a toolbar button reaches
 /// `PlatformToolbarItem.help`; a `ToolbarItemGroup` of one control is numbered

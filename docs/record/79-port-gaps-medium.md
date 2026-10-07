@@ -262,6 +262,36 @@ Thirteen tests on the main package (2605 → 2618: six in `ToolbarTests`, four i
 
 SDL test 3.15 was not mutated (it reads one recorded property).
 
+### 2.3a Review fixes (lane 2 review: `.disabled`, picker style, `.help`, three documented rules)
+
+The review found eight mutations along documented toolbar paths that left
+the suite green (2618). Two tests were added to `ToolbarTests.swift`,
+numbered past the spec's 3.18 so they do not collide with lane 3's 3.6–3.10:
+**3.19** `aDisabledToolbarItemReachesThePlatformDisabledAndRunsNothing` (a
+`.disabled(true)` control and a toolbar under a `.disabled(true)` container
+reach the platform as `isEnabled == false`, and a queued `.toolbarAction` for
+either runs nothing while the enabled sibling's runs), and **3.20**
+`theToolbarItemMappingRulesReachThePlatform` (`.menu` → `.menu`, default and
+`.radioGroup` → `.segmented`; `.help` → `PlatformToolbarItem.help`; a group
+of one → `automatic.4.0`; an `EmptyGroup` scope contributes nothing, on the
+untyped entry and on the typed entry inside a `VStack`; `onClick` replaces a
+toolbar button's action). The unmutated suite at `1bfde3b`: **2620 tests in 3
+suites passed**. Every mutation below was applied by script to
+`Sources/MetalUI/Toolbar.swift` at `f5852d2`, restored from a copy, full
+unfiltered native `--no-parallel` suite, `git status --short` empty after each:
+
+| # | Spelling | Reddened (2620 run) |
+|---|---|---|
+| V1 | `Window.handleToolbarAction`: `, target.isEnabled` dropped from the guard | `aDisabledToolbarItemReachesThePlatformDisabledAndRunsNothing` (2 issues) |
+| V2 | `EnvironmentScope`'s conformance: `if case .transform(let transform) = write { transform(&values) }` → `_ = write` | `aDisabledToolbarItemReachesThePlatformDisabledAndRunsNothing` (3) |
+| V3 | `Button`'s conformance: `help: nil` | `theToolbarItemMappingRulesReachThePlatform` (1) |
+| V4 | `Picker`'s conformance: `style: .segmented` unconditionally | `theToolbarItemMappingRulesReachThePlatform` (1) |
+| V5 | `AssembledToolbar`: `let numbered = entry.controls.count > 1` | `theToolbarItemMappingRulesReachThePlatform` (1) |
+| V6 | untyped entry: `if !nodes.isEmpty {` → `if true {` | `theToolbarItemMappingRulesReachThePlatform` (1) |
+| V6b | typed entry: the same | `theToolbarItemMappingRulesReachThePlatform` (1) |
+| V7 | `noteToolbar`: `declaration.entries(isEnabled: true)` | `aDisabledToolbarItemReachesThePlatformDisabledAndRunsNothing` (2) |
+| V8 | `Button`'s conformance: `let run = action` (ignoring `onClick`) | `theToolbarItemMappingRulesReachThePlatform` (1) |
+
 ### 2.4 Must-not-move
 
 - Demo pixels: `docs/probes/demo-pixels/compare.sh <scratch> d48b26d HEAD` at
