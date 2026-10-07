@@ -1,6 +1,7 @@
 # Port gaps, medium — field chrome, `layoutPriority`, environment objects, window toolbar — design
 
-**Status: DESIGNED (2026-10-06), not built.** Three lanes (§8), run in order.
+**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`), not built.**
+Three lanes (§8, re-cut by `MD-R`), run in order.
 
 User request 2026-10-02, an item of the gpui-gap priority list (**not a plan
 task**): the SMK configurator port's four medium gaps — **MG-20** (`TextField`/
@@ -11,11 +12,12 @@ where each bites and the app's workaround, in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-07-port-gaps-medium-decisions.md`](../2026-10-07-port-gaps-medium-decisions.md)
-(`MD-A`…`MD-Q`). Probes (each header holds its output and READING, the
+(`MD-A`…`MD-U`). Probes (each header holds its output and READING, the
 authority for every SwiftUI claim here):
 [`swiftui-field-chrome.swift`](../../probes/swiftui-field-chrome.swift),
 [`swiftui-environment-object.swift`](../../probes/swiftui-environment-object.swift),
-[`swiftui-toolbar.swift`](../../probes/swiftui-toolbar.swift). Record (Record
+[`swiftui-toolbar.swift`](../../probes/swiftui-toolbar.swift),
+[`swiftui-toolbar-nested.swift`](../../probes/swiftui-toolbar-nested.swift) (`MD-S`). Record (Record
 phase): `docs/record/79-port-gaps-medium.md`.
 
 **In one paragraph.** `TextField` gains SwiftUI's bordered field as its
@@ -126,6 +128,9 @@ above the root.
   optional form nil; keyed by static type; `nil` clears; observation per read
   property; a missing object traps with "No Observable object of type T
   found…".
+- **Nested toolbars** (`NT`, `IF`, `PO`, `MD-S`): a `.toolbar` below the root
+  reaches the window; several merge in pre-order, outer first; one inside a
+  presented popover reaches no toolbar.
 - **Toolbar** (`TB`, `UP`, `SR`, `GEO`): a real `NSToolbar` (style automatic,
   icon only, no customization), one item per `ToolbarItem`, placed
   navigation-leading / principal+status centred / the rest trailing after a
@@ -154,7 +159,7 @@ public struct TextEditorStyle: Equatable, Sendable {         // closed (MD-F)
 extension TextEditor { public func textEditorStyle(_ style: TextEditorStyle) -> TextEditor }
 extension ElementGroup { public func textEditorStyle(_ style: TextEditorStyle) -> EnvironmentScope<Self> }
 
-// Lane 2 — MetalUI (layoutPriority: no new API; MD-G is lowering only)
+// Lane 1, parts 2–3 — MetalUI (layoutPriority: no new API; MD-G is lowering only)
 extension Environment {
     public init(_ objectType: Value.Type) where Value: AnyObject & Observable
     public init<T: AnyObject & Observable>(_ objectType: T.Type) where Value == T?
@@ -163,7 +168,7 @@ extension ElementGroup {
     public func environment<T: AnyObject & Observable>(_ object: T?) -> EnvironmentScope<Self>
 }
 
-// Lane 3 — MetalUI
+// Lane 2 — MetalUI (ToolbarScope is not an Element: a window root cannot carry it, MD-S)
 extension ElementGroup {
     public func toolbar<C: ToolbarContent>(@ToolbarContentBuilder content: () -> C) -> ToolbarScope<Self>
     public func searchable(text: Binding<String>, prompt: String = "Search") -> ToolbarScope<Self>
@@ -186,7 +191,7 @@ public protocol ToolbarItemContent { /* SPI, closed */ }
 // conformers: Button where Label == Text, Button where Label == Image,
 // Toggle where Label == Text, Picker (menu/segmented), TextField, Text
 
-// Lane 3 — MetalUIPlatform
+// Lane 2 — MetalUIPlatform (PlatformToolbarControl writes its own ==, images by identity, MD-U 1)
 public struct PlatformToolbar: Equatable { public var items: [PlatformToolbarItem] }
 public struct PlatformToolbarItem: Equatable {
     public var id: String
@@ -237,7 +242,7 @@ lane's, within the rulings.
    lane's record section with which half of the rule it took.
 6. `docs/migration.md` note; divergences 132, 133; inventory rows.
 
-### 3.2 Lane 2 — priority (`MD-G`) and environment objects (`MD-H`)
+### 3.2 Lane 1, parts 2 and 3 — priority (`MD-G`) and environment objects (`MD-H`)
 
 1. `LoweringState.swift`: `forward(_ from: LayoutNodeID, to: LayoutNodeID)`
    moves a record and stores its origin; `consume` returns the origin with it
@@ -254,8 +259,13 @@ lane's, within the rulings.
    the trap (`MD-H` item 4); `EnvironmentScope.swift`: the `environment(_
    object:)` spelling. `swift package clean` before the suite.
 5. divergence 134 and two "Not offered" rows; inventory rows.
+6. Lane 1 also amends divergence 131 (`MD-T`).
 
-### 3.3 Lane 3 — toolbar (`MD-I`…`MD-N`) and the demo (`MD-M`)
+### 3.3 Lanes 2 and 3 — toolbar (`MD-I`…`MD-N`, `MD-S`, `MD-U`) and the demo (`MD-M`)
+
+Lane 2 builds items 1–3, 5, 6 and the window's diff and dispatch half of item
+2; lane 3 builds item 4 (the strip run), `ToolbarStrip.swift`, item 7 and the
+human checks of item 8 (`MD-R`).
 
 1. `MetalUIPlatform`: `Toolbar.swift` (new) with the neutral types and
    `ToolbarActionEvent`; `InputEvent.toolbarAction`; the requirement in
@@ -284,8 +294,9 @@ lane's, within the rulings.
 7. Demo (`MD-M`): `Sources/MetalUIDemoContent/ControlsDemo.swift` gains
    `portGapsDemoSection()` and the root's `.toolbar`; the section's model is
    a `@MainActor` global (as `demoModel`), never a never-written `@State`.
-8. divergences 135, 136; inventory rows; human checks group W; migration notes
-   (the requirement, `.toolbar`).
+8. divergences 135, 136 and the amendment of 120 (`MD-S`); inventory rows;
+   human checks group W; migration notes (the requirement, `.toolbar` written
+   inside the root's first container).
 
 ---
 
@@ -315,7 +326,7 @@ from a copy, run with the full unfiltered suite, and every reddened test named.
 Also lane 1: every existing test reddened by the default flip, handled by
 `MD-C` item 2 and listed by name (with which half of the rule) in the record.
 
-### 4.2 Lane 2 — `LegacyPriorityTests.swift` and `EnvironmentObjectTests.swift` (new)
+### 4.2 Lane 1 (parts 2, 3) — `LegacyPriorityTests.swift` and `EnvironmentObjectTests.swift` (new)
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
@@ -332,7 +343,9 @@ Also lane 1: every existing test reddened by the default flip, handled by
 | 2.11 | `anEnvironmentObjectReachesComponentAnyElementDeferredAndPopoverContent` | readers inside a `Component`, `AnyElement`, a `Deferred` presentation and a presented `.popover` each read the declaring scope's object | does not compile | M2.11 the lane names one spelling that reddens one arm by name (e.g. `Component`'s bind moved before the scope's push) |
 | 2.12 | `onlyAnObservableClassIsAnEnvironmentObject` (guard, `typecheckFile`, plain import) | compiles: `@Observable final class M {}` with `@Environment(M.self) var m`, `@Environment(M.self) var o: M?`, `.environment(M())`; control fails: a non-`Observable` class and a struct | fails | M2.12 the `Observable` constraint dropped (mutate red once) |
 
-### 4.3 Lane 3 — `ToolbarTests.swift`, `AppKitToolbarTests.swift` (new), SDL, guards
+### 4.3 Lanes 2 and 3 — `ToolbarTests.swift`, `AppKitToolbarTests.swift` (new), SDL, guards
+
+Lane 2: 3.1–3.5, 3.11–3.15, 3.17, 3.18. Lane 3: 3.6–3.10, 3.16 (`MD-R`).
 
 | # | test | asserts | red before | mutation |
 |---|---|---|---|---|
@@ -353,6 +366,9 @@ Also lane 1: every existing test reddened by the default flip, handled by
 | 3.15 | `SDLToolbarTests.theSDLWindowAsksTheFrameworkToDrawItsToolbar` (`Backends/SDL`, arms `armMainRunLoopExitCheck()`) | `setToolbar` returns `false` and records the toolbar; `nil` clears the record | does not compile | M3.15 returns `true` |
 | 3.16 | `theControlsDemoShowsThePortGapsSection` | fake window over `controlsDemoContent()`: the field-style row's heights (24, 24, 24, line, 24-disabled), the priority `Row`'s widths, the environment object's text, the toolbar's item count | does not compile | M3.16 the section's `.environment(_:)` removed (traps → pre-flight reports; the lane names the spelling that reddens by name without a trap) |
 
+| 3.17 | `aToolbarOnAWindowRootNeedsAContainer` (guard, `typecheckFile`, plain import; `MD-S`) | fails: `openWindow(…) { Text("x").toolbar { … } }`; compiles: the same inside a `Column` | fails | M3.17 `ToolbarScope` given a conditional `Element` conformance (mutate red once) |
+| 3.18 | `aNativeToolbarFieldTakingFirstResponderLeavesMetalUIFocusAlone` (AppKit, no screen; `MD-U` 3) | a focused MetalUI `TextField`; `makeFirstResponder` on the toolbar search field → the window's focused id unchanged; a typed edit reaches the search binding through `.text` | does not compile | M3.18 the controller clears MetalUI focus on begin-editing |
+
 `everyProductionTreeBuildsOnAOneMegabyteThread` must stay green with the new
 section (`MD-M`).
 
@@ -360,15 +376,15 @@ section (`MD-M`).
 
 ## 5. Verification per lane (each lane, before its commit)
 
-- `swift package clean` (lanes 2 and 3 change public stored properties / an
-  enum case), native build, unfiltered `--no-parallel` run: read the one
+- `swift package clean` (lane 1's environment part and lane 2 change public
+  stored properties / an enum case), native build, unfiltered `--no-parallel` run: read the one
   summary line and the `FR-J` line; 0 `error:`; the only `warning:` SwiftPM's;
   `swift build --build-tests` 0 warnings.
 - `zsh docs/probes/closeout-inventory-check.sh` and
   `zsh docs/probes/closeout-undocumented.sh` print nothing; census re-recorded.
 - Import rules: `MetalUILayout` imports only `MetalUICore`; `MetalUIScene`
   only `MetalUIShaderTypes` (no lane touches either).
-- Lane 3: `Backends/SDL` build and test (`PKG_CONFIG_PATH=$PWD/.accesskit`)
+- Lanes 2 and 3: `Backends/SDL` build and test (`PKG_CONFIG_PATH=$PWD/.accesskit`)
   and the `swift:6.4-noble` Linux image (`MD-N`); new SDL helpers arm
   `armMainRunLoopExitCheck()`; C enum `rawValue`s converted explicitly.
 - Every lane: `docs/probes/demo-pixels/compare.sh <scratch> d48b26d HEAD` reads
@@ -388,7 +404,8 @@ section (`MD-M`).
 `TextEditor`; a 360-wide legacy `Row` of two `Text`s on `.surfaceSecondary`
 whose second carries `.flexGrow(1).layoutPriority(1)`; a `Component` reading
 `@Environment(DemoCounter.self)` (a `@MainActor` global `@Observable`) with a
-button incrementing it. The demo root gains `.toolbar` (navigation
+button incrementing it. `ControlsDemo()`, inside the function's `Column` (a `.toolbar` cannot be the
+window root, `MD-S`), gains `.toolbar` (navigation
 `Button("Back")`, principal segmented `Picker`, a `Toggle("Advanced")`, a
 primary `Button` with an `Image` label) and `.searchable`. Not in any of the
 fourteen images (0 px); `ControlsDemoSwiftUISectionTests`,
@@ -408,7 +425,9 @@ re-checked by lane 3 and any moved literal is re-derived and named.
   Back (leading), the segmented picker (centred), Advanced, the image button
   and a search field (trailing); clicking each acts once; the window opened
   20 points taller with the content unchanged; the overflow chevron appears
-  when narrowed.
+  when narrowed; with a MetalUI field focused, clicking the search field
+  leaves one caret blinking where you type, and clicking back types into the
+  MetalUI field again (`MD-U` 3).
 - **W4** Toolbar, SDL (Linux or Windows): the drawn strip shows the same
   controls above the content, and they work by mouse and keyboard.
 - **W5** VoiceOver (AppKit): the toolbar's native items are announced
@@ -416,43 +435,50 @@ re-checked by lane 3 and any moved literal is re-derived and named.
 
 ---
 
-## 8. Lanes and files
+## 8. Lanes and files (re-cut by `MD-R`)
 
 Lanes run in order; files are owned by one lane. A shared file listed under
 "serialized" is edited by the later lane on top of the earlier lane's commit.
 
-**Lane 1 — field chrome.** `Sources/MetalUI/TextField.swift`,
-`TextEditor.swift`, `ControlLook.swift`, `TextFieldStyle.swift` (new);
-`Tests/MetalUITests/TextFieldChromeTests.swift` (new), the compile guard file
-for 1.10 (new, `TextFieldStyleCompileGuards.swift`), and the existing test
-files whose literals the default moves (named in the record; expected from the
-grep: `TextFieldTests`, `TextEditorTests`, `ProposalControlsTests`,
+**Lane 1 — field chrome, legacy priority, environment objects** (three parts,
+each committed and mutated on its own, in this order).
+Part 1: `Sources/MetalUI/TextField.swift`, `TextEditor.swift`,
+`ControlLook.swift`, `TextFieldStyle.swift` (new);
+`Tests/MetalUITests/TextFieldChromeTests.swift`,
+`TextFieldStyleCompileGuards.swift` (new), and the existing test files whose
+literals the default moves (named in the record; expected from the grep:
+`TextFieldTests`, `TextEditorTests`, `ProposalControlsTests`,
 `GreedyControlSizingTests`, `FocusTraversalTests`, `BindingTests`, `FontTests`,
-`AccessibilityAuditTests`, `ControlsDemoSwiftUISectionTests`, …).
-
-**Lane 2 — priority and environment objects.** `Sources/MetalUI/LoweringState.swift`,
-`LegacyLowering.swift`, `ModifiedContent.swift` (the `.layoutPriority` case
-only), `EnvironmentProperty.swift`, `EnvironmentValues.swift`,
-`EnvironmentScope.swift`; `Tests/MetalUITests/LegacyPriorityTests.swift`,
+`AccessibilityAuditTests`, `ControlsDemoSwiftUISectionTests`, …); divergence
+131 amended (`MD-T`). Part 2: `LoweringState.swift`, `LegacyLowering.swift`,
+`ModifiedContent.swift` (the `.layoutPriority` case only);
+`LegacyPriorityTests.swift` (new). Part 3: `EnvironmentProperty.swift`,
+`EnvironmentValues.swift`, `EnvironmentScope.swift`;
 `EnvironmentObjectTests.swift`, `EnvironmentObjectCompileGuards.swift` (new).
 
-**Lane 3 — toolbar and demo.** `Sources/MetalUIPlatform/Platform.swift`,
-`InputEvent.swift`, `Toolbar.swift` (new); `Sources/MetalUI/Toolbar.swift`,
-`ToolbarStrip.swift` (new), `Window.swift`, `Frame.swift`;
-`Sources/MetalUIAppKit/AppKitToolbar.swift` (new), `AppKitPlatform.swift`;
-`Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift` (+ any `InputEvent`
-switch there), `Backends/SDL/Tests/…/SDLToolbarTests.swift` (new);
-`Sources/MetalUIDemoContent/ControlsDemo.swift`;
-`Tests/MetalUITests/ToolbarTests.swift`, `AppKitToolbarTests.swift`,
-`ToolbarCompileGuards.swift` (new), `Fakes.swift`, the six compile-guard
-files with `PlatformWindow` fixtures, `ExplicitIdentityTests.swift` (one arm).
+**Lane 2 — the toolbar, native.** `Sources/MetalUIPlatform/Platform.swift`,
+`InputEvent.swift`, `Toolbar.swift` (new); `Sources/MetalUI/Toolbar.swift`
+(new), `Window.swift` (diff, send, dispatch); `Sources/MetalUIAppKit/AppKitToolbar.swift`
+(new), `AppKitPlatform.swift`; `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`
+(+ any `InputEvent` switch there), `Backends/SDL/Tests/…/SDLToolbarTests.swift`
+(new); `Tests/MetalUITests/ToolbarTests.swift`, `AppKitToolbarTests.swift`,
+`ToolbarCompileGuards.swift` (new), `Fakes.swift`, the compile-guard files
+with `PlatformWindow` fixtures; divergence 135 and the amendment of 120.
+
+**Lane 3 — the drawn strip and the demo.** `Sources/MetalUI/ToolbarStrip.swift`
+(new), `Frame.swift`, `Window.swift` (the strip's extra build, on lane 2's
+commit); `Sources/MetalUIDemoContent/ControlsDemo.swift`;
+`Tests/MetalUITests/ToolbarStripTests.swift` (new: 3.6–3.10, 3.16),
+`ExplicitIdentityTests.swift` (one arm); divergence 136; human checks group W;
+`Backends/SDL` and the Linux image re-run.
 
 **Serialized (lane order).** `docs/divergences.md` (labels per `MD-P`),
 `docs/migration.md`, `docs/probes/closeout-inventory-map.tsv`,
-`closeout-public-api.tsv`, `docs/api-overview.md`; the demo-tree tests
-(`ControlsDemoSwiftUISectionTests`, `AccessibilityAuditTests`,
-`ListSelectionTests`, `TextFieldTests`' text-input-demo arm): lane 1 for the
-field default, lane 3 for the demo section.
+`closeout-public-api.tsv`, `docs/api-overview.md`, `Window.swift` (lanes 2,
+3); the demo-tree tests (`ControlsDemoSwiftUISectionTests`,
+`AccessibilityAuditTests`, `ListSelectionTests`, `TextFieldTests`'
+text-input-demo arm): lane 1 for the field default, lane 3 for the demo
+section.
 
 Not touched until the Record phase: `CLAUDE.md`, `AGENTS.md`, `README.md`,
 the plan, `docs/record/README.md`, existing record files.
@@ -464,7 +490,7 @@ the plan, `docs/record/README.md`, existing record files.
 | item | reason | owner |
 |---|---|---|
 | toolbar customization, `.toolbarRole`, `.toolbar(removing:)`, `.windowToolbarStyle`, `ToolbarSpacer` | not needed by the port; each its own probe | gpui-gap list |
-| `.searchable` suggestions, scopes, tokens | same | gpui-gap list |
+| `.searchable` suggestions, scopes, tokens, `placement:` (`MD-U` 2) | same | gpui-gap list |
 | a toolbar in a popover or sheet | MetalUI has no sheet; popovers ignored (`MD-I` 5) | none |
 | MetalUI-drawn content inside a native `NSToolbarItem` | a Metal layer per item | none |
 | `@Bindable` | a property wrapper of its own; Binding(get:set:) works | gpui-gap list |
@@ -480,4 +506,5 @@ Suite count = 2579 + the new tests (each lane states its delta); 0 px in all
 fourteen images; `Expected.swift` unedited; 0 warnings on both build systems;
 `Backends/SDL` and the Linux container build and pass; the closeout scripts
 print nothing; every M-row reddened what it names; divergences 132–136 live,
-next label 137; human checks W1–W5 written, not run.
+120 and 131 amended (`MD-S`, `MD-T`), next label 137; human checks W1–W5
+written, not run.

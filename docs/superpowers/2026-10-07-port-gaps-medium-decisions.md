@@ -15,6 +15,8 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
   (arms `N0`–`N3`, `O1`/`O2`, `K1`–`K2b`, `W1`, `R`, `T`).
 - [`../probes/swiftui-toolbar.swift`](../probes/swiftui-toolbar.swift)
   (arms `TB0`, `TB1`, `UP`, `SR`, `GEO`).
+- [`../probes/swiftui-toolbar-nested.swift`](../probes/swiftui-toolbar-nested.swift)
+  (arms `NT0`–`NT2`, `IF0`/`IF1`, `PO`; added by the critic, `MD-S`).
 - The design session's MetalUI measurements at `d48b26d` (a scratch test, not
   committed; outputs quoted in `MD-G`).
 - gpui (where SwiftUI is not the comparison): `crates/gpui/src/platform.rs`
@@ -25,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-R`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-V`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -54,7 +56,8 @@ child that also carries a legacy item field or relies on its parent's
 stretch: the field traps as `text.flexGrow.unconsumed`, and a `Box`'s stretch
 is silently lost (11×16 where the unprioritised child is 11×100).
 
-**Ruling.** Four parts, three lanes, run in order:
+**Ruling.** (Lanes re-cut by `MD-R`; the list below is the design's
+original cut.) Four parts, three lanes, run in order:
 
 1. **Lane 1 — field chrome** (MG-20): `TextFieldStyle`, `TextEditorStyle`,
    the chrome and its default (`MD-B`…`MD-F`).
@@ -162,13 +165,14 @@ font 11, drawing rect inset 3.5 vertically; `CS3` mini 19; `CS2` large 24
    **6 leading and trailing** (the drawing rect's 4 + AppKit's 2-point line
    fragment padding, matching the +12) and **4 top and bottom**, except
    `.small`, 3.5 (`CS1`). Ideal width = MetalUI's own ideal (text or
-   placeholder + 1 for the caret, divergence 131 unchanged) + 12; height =
+   placeholder + 1 for the caret) + 12 — divergence 131 is **amended**, `MD-T`; height =
    one line + 2 × the vertical inset. An offered width is still taken whole
    and an infinite one answers infinity (`PE-D` unchanged): the chrome is
    inside the offered width.
 2. `.plain`: exactly today's field — no inset, today's ideal and height. (The
    probe's plain +4 is AppKit's line fragment padding outside SwiftUI's frame;
-   MetalUI's +1 caret allowance stays, divergence 131.)
+   MetalUI's +1 caret allowance stays — the residue of divergence 131 as
+   amended by `MD-T`.)
 3. Text, caret, selection and marked text are laid out in the **inset**
    rect: `geometry(bounds:…)` receives the content rect, so `TextInputTarget`
    (origin, caret rect) and the clip follow it. **No text-input logic
@@ -383,7 +387,9 @@ AppKit-backed for the segmented picker and the text field). `SR`:
    precedent), reading bindings fresh; contributions are collected
    window-wide in build pre-order and merged in that order. A `.toolbar`
    inside a `Deferred` presentation root or a popover is **ignored** (the
-   `CR-T` mechanism; MetalUI's choice — not probed).
+   `CR-T` mechanism). Probed after the fact by `MD-S` (`NT1` pre-order, outer
+   first; `PO` a popover's toolbar ignored); a window-root `.toolbar` does not
+   compile (`MD-S`).
 6. **Item ids.** `ToolbarItem(id:)` when given; otherwise the placement and
    the item's index among the merged items (`"principal.1"`); a group's
    controls `"<group id>.<n>"`. Stable while the declaration is.
@@ -489,7 +495,8 @@ toolbar changes (spec 3.6 pins the ids).
 
 **Ruling.** Not built, each with an owner: `ToolbarItem` customization and
 `.toolbarRole`, `.toolbar(removing:)`, `.windowToolbarStyle`, `ToolbarSpacer`,
-`.searchable` suggestions/scopes/tokens (owner: the gpui-gap list); a toolbar
+`.searchable` suggestions/scopes/tokens and its `placement:` (`MD-U` item 2)
+(owner: the gpui-gap list); a toolbar
 in a popover or sheet (owner none); MetalUI-drawn content inside a native
 `NSToolbarItem` (owner none — would need a Metal layer per item); `@Bindable`
 and `ObservableObject` (`MD-H` item 6); TextEditor's 5-point padding (`MD-F`).
@@ -558,3 +565,162 @@ its bounds (text-input logic unchanged); `MD-E` adds a focus ring and a
 disabled text dim to fields; `MD-K` adds the strip's elements, hitboxes,
 focus stops and accessibility records **only in a window with a drawn
 toolbar**. Pixels: 0 in all fourteen images; `Expected.swift` unedited.
+
+---
+
+## MD-R — The lanes re-cut: the toolbar was a lane too large; the three small parts share one
+
+**Found (critic, 2026-10-06).** `MD-A`'s lane 3 carried the whole toolbar —
+about a dozen public types and two result builders, the platform seam and an
+`InputEvent` case, the AppKit `NSToolbar` controller, SDL with the Linux image,
+the `Frame.render` strip run under a new named root, the window's diff,
+dispatch and extra build, and the demo: sixteen tests and the two riskiest
+changes of the branch (a new `PlatformWindow` requirement and a second layout
+run in `Frame.render`) in one agent. Lanes 1 and 2 were each small (field
+chrome; priority plus environment objects), and their files are disjoint.
+
+**Ruling.** Three lanes, run in order, files owned by one lane (the
+serialized list of spec §8 unchanged):
+
+1. **Lane 1 — field chrome, legacy priority, environment objects** (`MD-B`…
+   `MD-H`, `MD-T`): the old lanes 1 and 2 together. Three parts in disjoint
+   files (`TextField`/`TextEditor`/`ControlLook`/`TextFieldStyle`;
+   `LoweringState`/`LegacyLowering`/`ModifiedContent`'s `.layoutPriority`
+   case; `EnvironmentProperty`/`EnvironmentValues`/`EnvironmentScope`), each
+   committed on its own with its own mutations, in that order.
+2. **Lane 2 — the toolbar, native** (`MD-I`, `MD-J`, `MD-N`, `MD-S`,
+   `MD-U` items 1–3): the public API, the SPI evaluation and window-wide
+   collection, the neutral `MetalUIPlatform` types, `InputEvent.toolbarAction`,
+   the defaultless `setToolbar(_:) -> Bool` on AppKit (the real `NSToolbar`
+   controller), SDL (records, answers `false`) and every fake and fixture,
+   the window's diff and dispatch, `Backends/SDL` and the Linux image. Tests
+   3.1–3.5, 3.11–3.15, 3.17, 3.18.
+3. **Lane 3 — the drawn strip and the demo** (`MD-K`, `MD-M`): `Frame.render`'s
+   strip run under `$toolbar`, `ToolbarStrip.swift`, the extra build when the
+   strip's presence changes, the `everyNamingSiteStartsAReturningNameFresh`
+   arm, the demo section and human checks group W. Tests 3.6–3.10, 3.16.
+   `Backends/SDL` is re-run (its window now draws the strip) in the Linux
+   image too.
+
+**Interim state, stated.** Between lanes 2 and 3 an SDL window (and a fake
+with `toolbarIsNative = false`) answers `false` and draws nothing: the branch
+is not merged in that state, and lane 2's record says so.
+
+**Cost if wrong.** Lane 1 grows to about twenty-two tests, but over three
+mechanically independent parts; the alternative left one agent holding both
+platform-seam and `Frame.render` risk with no checkpoint between them.
+
+---
+
+## MD-S — `.toolbar` cannot be a window root: write it on a nested element, as SwiftUI merges nested toolbars
+
+**Found.** `MD-I` item 1 makes `ToolbarScope` a transparent `ElementGroup`
+(`LifecycleScope`'s shape), and `App.openWindow` takes an `Element`: so
+`openWindow(…) { Root().toolbar { … } }` does not compile — divergence 120's
+rule — while the spec's demo (§6, "the demo root gains `.toolbar`") and the
+task's "on the window root view, SwiftUI's" assumed it would. Whether a
+`.toolbar` *below* the root reaches the window was not probed (the toolbar
+probe's `TB1` writes it on the root only), so `MD-I` item 5's window-wide
+pre-order merge was a claim without a run.
+
+**Evidence.** [`../probes/swiftui-toolbar-nested.swift`](../probes/swiftui-toolbar-nested.swift),
+three runs byte-identical: `NT0` (control) root toolbar → `["A"]`; `NT1` an
+outer `.toolbar` on a `VStack` and one on each of two children → `["A", "B",
+"C"]` (pre-order, outer first); `NT2` nested only → `["B", "C"]`; `IF0`/`IF1`
+(separating arm) a nested toolbar under `if true` contributes, under
+`if false` there is no toolbar; `PO` a presented popover's `.toolbar` reaches
+neither the main window's toolbar nor the popover's window.
+
+**Ruling.**
+
+1. `ToolbarScope` stays a transparent `ElementGroup` and is **not** an
+   `Element`: a `.toolbar` on a window's root does not compile; write it on
+   any element inside the root's first container
+   (`openWindow(…) { Column { content.toolbar { … } } }`). SwiftUI merges a
+   nested view's toolbar into the window (`NT1`, `NT2`), so the nested
+   spelling has SwiftUI's meaning. **Divergence 120 is amended** (not a new
+   label) to name `ToolbarScope` beside `LifecycleScope`/`PresentationScope`;
+   `.searchable` returns the same scope and is covered by the same words.
+2. `MD-I` item 5 now rests on `NT1` (pre-order merge, outer first) and `PO`
+   (a popover's toolbar ignored — SwiftUI's answer, no longer "MetalUI's
+   choice"). A `Deferred` presentation root's toolbar is ignored too
+   (MetalUI's choice: SwiftUI has no `Deferred`; the nearest shape is `PO`).
+3. A guard, `aToolbarOnAWindowRootNeedsAContainer` (lane 2, test 3.17,
+   `typecheckFile`, plain import): `openWindow(…) { Text("x").toolbar { … } }`
+   fails to compile and `openWindow(…) { Column { Text("x").toolbar { … } } }`
+   compiles. Mutated red once by giving `ToolbarScope` a conditional `Element`
+   conformance.
+4. The demo writes `.toolbar` and `.searchable` on `ControlsDemo()` inside
+   `controlsDemoContent()`'s `Column`, not on the function's result (spec §6
+   corrected).
+
+**Cost if wrong.** A port that writes `.toolbar` on its root gets a compile
+error naming the container rule (divergence 120's row says what to write);
+nothing is silently dropped.
+
+---
+
+## MD-T — Divergence 131 is amended by the field chrome, not left "unchanged"
+
+**Found.** `MD-D` items 1 and 2 say "divergence 131 unchanged", but row 131
+(`PE-N`) reads "`TextField` is one line tall (16) with an ideal of its text or
+placeholder + 1 (36.25)" and names **MG-20** as its owner. After `MD-C`/`MD-D`
+the default field is 24 tall (SwiftUI's `SZ1`) and its ideal is text + 1 + 12
+(48.25 for "Name" against SwiftUI's 47.50): the row would be stale the moment
+lane 1 lands, and its pinning test
+`everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (1.1, `ideal`
+arms) reddens on the flip.
+
+**Ruling.** Lane 1 **amends** row 131: the `TextField` half now reads "24
+tall; ideal text or placeholder + 1 + 12 (48.25 for "Name") — the residual
++1 is the caret allowance"; the menu `Picker`, `Menu` and `Toggle` halves are
+unchanged; the owner column drops MG-20 (discharged) and keeps none for the
+residue. The pinning test takes the new literals under `MD-C` item 2's "a
+size or a layout" half and is named in the record. The divergences header
+line records "port gaps (medium) amended 131 and 120 and added 132–136".
+
+**Cost if wrong.** A divergence row that contradicts the code is exactly what
+the public `docs/divergences.md` must not carry.
+
+---
+
+## MD-U — Smaller corrections
+
+1. **Image equality without a new conformance.** `ImageTexture` is a `final
+   class` in `MetalUIScene` with no `Equatable`. `PlatformToolbarControl`
+   writes its own `==`, comparing an image by identity (`===`); no conformance
+   is added to `ImageTexture` (no public change to `MetalUIScene`, whose import
+   rule stands). The window converts an `Image` label's `ImageBitmap` to one
+   `ImageTexture` per bitmap identity and reuses it, so an unchanged toolbar
+   compares equal and is not re-sent (test 3.2 holds).
+2. **`.searchable`'s spelling.** SwiftUI's is
+   `searchable(text:placement:prompt:)` with `prompt: Text?` (and
+   `LocalizedStringKey` / `StringProtocol` overloads), default `nil` drawing
+   "Search" (`SR`: label "Search"). MetalUI's `prompt: String = "Search"`
+   spells every literal call identically; `placement:` (`SearchFieldPlacement`)
+   is **not offered** and joins `MD-L`'s list (owner: the gpui-gap list).
+3. **A native toolbar field and MetalUI's focus.** On AppKit a toolbar
+   `NSTextField`/`NSSearchField` takes the window's first responder from
+   MetalUI's content view. MetalUI's focus does **not** move (`MD-Q`): the
+   focused element keeps its focus and receives no key until the content view
+   is first responder again (a click in it); the window's shortcut pipeline
+   still runs for ⌘/⌃-keys the native field does not claim (`MN-J`). Test 3.18
+   (lane 2, `AppKitToolbarTests`, no screen):
+   `aNativeToolbarFieldTakingFirstResponderLeavesMetalUIFocusAlone` — a
+   focused MetalUI `TextField`, then `makeFirstResponder` on the toolbar's
+   search field: the window's focused id is unchanged; typed text reaches the
+   search item's binding through `.text`, not the MetalUI field. Mutation: the
+   controller clears MetalUI focus on `controlTextDidBeginEditing` — the
+   focused-id arm reddens. Human check W3 gains "with a MetalUI field focused,
+   click the search field: only one caret blinks where you type; click back
+   and the MetalUI field types again" (the doubled caret is a look an agent
+   cannot judge).
+4. **The lift is not a new legacy registration site.** `MD-G` item 3's outer
+   `layoutPriority` node is registered inside `registerLegacyItems` for a
+   child that its own site already checked, so it owes no arm in
+   `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`; it registers no rect,
+   so no arm in `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`.
+5. **Presentations' environment.** `MD-H` item 3's "Deferred and popover
+   content inherit their declaring scope" rests on `LR-CS` (a presentation
+   root's `requestLayout` runs under its declaring scope's environment) as well
+   as `EV-G` (paint); test 2.11 pins both phases for an object read.
