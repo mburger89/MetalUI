@@ -56,37 +56,49 @@ func anExternalModuleCanWriteForEachOverIdentifiableKeyPathAndRangeData() throws
     #expect(!control.succeeded, "a closed range has no initialiser:\n\(control.output)")
 }
 
-/// **G1.2 — a `ForEach` of legacy content does not compile inside a proposal
-/// stack.** `ForEach` is a `ProposalElementGroup` only when its content is
-/// (`DD-B` item 1), so `HStack { ForEach([1, 2], id: \.self) { _ in Box() } }`
-/// is a compile error, not an `SA-G` trap. The control is the same `ForEach`
-/// over `Rectangle()`. Both arms use the `id:` key-path initialiser, not the
-/// `Range` one, so G1.1's mutation (the `Range` initialiser made `internal`)
-/// leaves this guard green and the two guards discriminate separately.
+/// **G1.2 — a `ForEach` of legacy content compiles inside a proposal stack and
+/// not inside a native wrapper** (flipped by ruling `PE-H`,
+/// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`). `ForEach` is
+/// still a `ProposalElementGroup` only when its content is (`DD-B` item 1), and
+/// its builder stays `ElementBuilder` (`PE-E`): a `ForEach` of legacy rows in an
+/// `HStack` is ONE expression, which `ProposalContentBuilder` adopts whole as
+/// `LegacyContent` (`PE-B`). The negative is the same `ForEach` inside
+/// `ProposalFrame`, a native wrapper that keeps the rejection; the control is
+/// the `ForEach` over `Rectangle()` there. All arms use the `id:` key-path
+/// initialiser, not the `Range` one, so G1.1's mutation (the `Range`
+/// initialiser made `internal`) leaves this guard green and the two guards
+/// discriminate separately.
 ///
+/// Renamed from `aForEachOfLegacyContentDoesNotCompileInsideAProposalStack`.
 /// Mutation that must redden it: the `ProposalElementGroup` conformance made
-/// unconditional (with a trapping body) — measured with the guard file run
-/// alone (the trapping body would truncate a full run): this guard reddens
-/// (both arms compile), G1.1 stays green.
+/// unconditional (with a trapping body) — the negative then compiles.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aForEachOfLegacyContentDoesNotCompileInsideAProposalStack() throws {
+func aForEachOfLegacyContentCompilesInsideAProposalStack() throws {
+    let adopted = try typecheckFile("""
+        @MainActor public func adopted() {
+            _ = HStack { ForEach([1, 2], id: \\.self) { _ in Box() } }
+        }
+        """, importing: "MetalUI")
+    print("FOREACH GUARD G1.2 adopted: succeeded=\(adopted.succeeded)\n\(adopted.messages)")
+
     let legacy = try typecheckFile("""
         @MainActor public func bad() {
-            _ = HStack { ForEach([1, 2], id: \\.self) { _ in Box() } }
+            _ = ProposalFrame { ForEach([1, 2], id: \\.self) { _ in Box() } }
         }
         """, importing: "MetalUI")
     print("FOREACH GUARD G1.2 legacy: succeeded=\(legacy.succeeded)\n\(legacy.messages)")
 
     let control = try typecheckFile("""
         @MainActor public func good() {
-            _ = HStack { ForEach([1, 2], id: \\.self) { _ in Rectangle() } }
+            _ = ProposalFrame { ForEach([1, 2], id: \\.self) { _ in Rectangle() } }
         }
         """, importing: "MetalUI")
     print("FOREACH GUARD G1.2 control: succeeded=\(control.succeeded)\n\(control.messages)")
 
     try #require(legacy.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(legacy.output)\n\(control.output)")
-    #expect(!legacy.succeeded, "legacy content must not enter a proposal stack through a ForEach:\n\(legacy.output)")
+    #expect(adopted.succeeded, "an HStack must adopt a ForEach of legacy content (PE-B):\n\(adopted.output)")
+    #expect(!legacy.succeeded, "legacy content must not enter a native wrapper through a ForEach:\n\(legacy.output)")
     #expect(legacy.messages.contains("ProposalElementGroup"),
             "rejected FOR the conformance:\n\(legacy.output)")
 }

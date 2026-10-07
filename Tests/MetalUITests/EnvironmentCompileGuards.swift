@@ -202,22 +202,44 @@ func aProposalContainerAcceptsAScopeOverProposalContent() throws {
             "a scope over proposal content must be proposal content:\n\(result.output)")
 }
 
-/// **G4− — a proposal container rejects a scope over legacy content**
-/// (ruling EV-B). The conformance is conditional: a scope does not launder a
-/// legacy element across the engine boundary (ruling SA-G).
+/// **G4− — a proposal container accepts a scope over legacy content; a native
+/// wrapper still rejects it** (ruling EV-B, flipped by ruling `PE-H` in
+/// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`). The scope's
+/// conformance is still conditional — a scope does not launder a legacy element
+/// into proposal content (ruling SA-G) — but since `PE-B` an `HStack`'s builder
+/// adopts the whole scope as `LegacyContent`, an identity- and
+/// layout-transparent adapter over the legacy element's native nodes (`PE-C`).
+/// The separating control is `ProposalFrame`, a MetalUI-only native wrapper
+/// that keeps the `ProposalElementGroup` rejection (`PE-E`); the two arms are
+/// `#require`d to disagree.
+///
+/// Renamed from `aProposalContainerRejectsAScopeOverLegacyContent`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aProposalContainerRejectsAScopeOverLegacyContent() throws {
-    let result = try typecheckFile(probeKeySource + """
+func aProposalContainerAcceptsAScopeOverLegacyContent() throws {
+    let positive = try typecheckFile(probeKeySource + """
 
         @MainActor
         func content() -> some Element {
             HStack { Box().environment(\\.probe, 1) }
         }
         """, importing: "MetalUI")
-    #expect(!result.succeeded,
-            "a scope over legacy content must not be proposal content:\n\(result.output)")
-    #expect(result.messages.contains("ProposalElementGroup"),
-            "rejected, but not for the ProposalElementGroup requirement:\n\(result.output)")
+    print("ENVIRONMENT GUARD G4- positive: succeeded=\(positive.succeeded)\n\(positive.messages)")
+    let control = try typecheckFile(probeKeySource + """
+
+        @MainActor
+        func content() -> some Element {
+            ProposalFrame { Box().environment(\\.probe, 1) }
+        }
+        """, importing: "MetalUI")
+    print("ENVIRONMENT GUARD G4- control: succeeded=\(control.succeeded)\n\(control.messages)")
+    try #require(positive.succeeded != control.succeeded,
+                 "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
+    #expect(positive.succeeded,
+            "an HStack must adopt a scope over legacy content (PE-B):\n\(positive.output)")
+    #expect(!control.succeeded,
+            "a scope over legacy content must not be proposal content in a native wrapper:\n\(control.output)")
+    #expect(control.messages.contains("ProposalElementGroup"),
+            "rejected, but not for the ProposalElementGroup requirement:\n\(control.output)")
 }
 
 // MARK: - Lane 2b: the public writers (EV-C)

@@ -15,8 +15,11 @@ private let skipReason: Comment =
 /// `EitherGroup: ProposalElementGroup` when both branches are (`ID-D`), so an
 /// `if`/`else` and a three-case `switch` (nested `EitherGroup`s) are proposal
 /// content inside `HStack`, `VStack`, `ZStack`, `Grid`, `GridRow` and a proposal
-/// `.overlay`'s content. The control — legacy content in the branches,
-/// `HStack { if f { Box() } else { Box() } }` — must still be rejected, and the
+/// `.overlay`'s content. The control — legacy content in the branches of a
+/// native wrapper, `ProposalFrame { if f { Box() } else { Box() } }` — must
+/// still be rejected (ruling `PE-H`: since `PE-B` an `HStack` adopts each
+/// legacy branch as `LegacyContent`, so the control's container is the
+/// MetalUI-only `ProposalFrame`, which keeps the rejection, `PE-E`), and the
 /// two arms are `#require`d to disagree first, so a fixture broken for an
 /// unrelated reason cannot pass.
 ///
@@ -72,7 +75,7 @@ func anIfElseAndASwitchCompileInEveryProposalContainer() throws {
 
     let control = try typecheckFile("""
         @MainActor public func bad(_ f: Bool) {
-            _ = HStack { if f { Box() } else { Box() } }
+            _ = ProposalFrame { if f { Box() } else { Box() } }
         }
         """, importing: "MetalUI")
     print("CONDITIONAL GUARD G2.1 control: succeeded=\(control.succeeded)\n\(control.messages)")
@@ -80,5 +83,5 @@ func anIfElseAndASwitchCompileInEveryProposalContainer() throws {
     try #require(positive.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
     #expect(positive.succeeded, "if/else and switch must compile in every proposal container:\n\(positive.output)")
-    #expect(!control.succeeded, "legacy branches must not enter a proposal container:\n\(control.output)")
+    #expect(!control.succeeded, "legacy branches must not enter a native wrapper:\n\(control.output)")
 }
