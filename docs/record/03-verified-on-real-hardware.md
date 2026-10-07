@@ -2004,3 +2004,16 @@ reading order; V3 VoiceOver announces each as the same control on the left;
 V4 a window narrower than the form gives up width from the greedy controls first;
 V5 **N/A**, suspended with `PE-L` item 4.
 
+## 2026-10-07: port gaps, medium (record §79) — looks owed
+
+The controls demo gained a "Port gaps" section (five fields, a `TextEditor`, a
+`layoutPriority` row, an environment-object counter) and the demo window a
+toolbar (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`). The controls demo is
+not one of the fourteen offscreen images, which are unchanged (0 differing
+against `d48b26d`, record §79 §3.4, §4.2); the real-window capture was **not
+taken**. **Owed, new here — `docs/verification/human-checks.md` group W, none
+performed (an agent cannot)**: W1 the bordered field's look against AppKit's
+(light and dark, focus ring, disabled); W2 the `TextEditor` background; W3 the
+native toolbar in the titlebar (items, centring, search field, in-place
+updates); W4 the SDL drawn strip (same tree, an SDL window); W5 VoiceOver on
+the toolbar items.

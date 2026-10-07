@@ -5,12 +5,13 @@ PR #49). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — the SMK configurator port's four medium gaps MG-20, MG-14, MG-2
 and MG-3. Spec `docs/superpowers/specs/2026-10-07-port-gaps-medium-design.md`;
 rulings `MD-A`…`MD-W` in `docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`
-(next unused `MD-X`); probes `docs/probes/swiftui-field-chrome.swift`,
+(next unused `MD-AA`); probes `docs/probes/swiftui-field-chrome.swift`,
 `swiftui-environment-object.swift`, `swiftui-toolbar.swift`,
 `swiftui-toolbar-nested.swift`.
 
-**Status: lanes 1, 2 and 3 landed (2026-10-07, §1, §2, §3).** The Record
-phase completes this record.
+**Status: complete (2026-10-07).** Lanes 1, 2 and 3 landed (§1, §2, §3); the
+Record phase's close is §4. No renumbering: master was still `d48b26d` at the
+close, and no other record numbered 79 exists.
 
 ## 1. Lane 1 — field chrome, legacy priority, environment objects
 
@@ -405,3 +406,64 @@ is the native one + 39). Each mutation re-run on the review-fix commit,
   3, which touches no SDL file).
 - `Tests/MetalUICrossPlatformTests/Expected.swift`, `MetalUILayout`,
   `MetalUIScene`: untouched.
+
+## 4. Record phase — the close
+
+### 4.1 Suite, guards, census
+
+Tree: `7b31d9f` plus this phase's docs. `swift package clean`, `swift build
+--build-system native --build-tests` (0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice), `swift test --build-system native
+--no-parallel`, unfiltered: **`Test run with 2630 tests in 3 suites passed`**
+(150.7 s; 2579 + 51), the `FR-J no-argument frame: succeeded=true` line present
+once.
+
+| Count | At `d48b26d` | Now | By |
+|---|---|---|---|
+| Tests | 2579 | **2630** | lane 1 +26 (2589, 2594, 2601 at its parts, then the review's 2605), lane 2 +15 (2620), lane 3 +10 (2630) |
+| Typecheck guards | 166 | **171** | +5 `canTypecheck`-gated declarations (`git grep "enabled(if: canTypecheck"`, 165 → 170): 1.10 and 2.12 (lane 1), 3.13, 3.14, 3.17 (lane 2), each mutated red once (§1.4, §2.3) |
+| Goldens | 0 | 0 | |
+| Public census | 2446 | **2532** (+86) | `closeout-public-api.sh`; the recorded TSV re-taken; 136 inventory families (+4: `field-style`, `environment-object`, `toolbar`, `toolbar-seam`) |
+| Live divergences | 98 | **103** | 132–136 added; 131, 76 and 120 amended; next label **137** |
+
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+### 4.2 Not re-taken by this phase
+
+- `Backends/SDL` on macOS: **24 + 78** (lane 2's reading; lane 3 touched no SDL
+  file). The `swift:6.4-noble` container: **24 + 75** (lane 2). Neither was
+  re-run at the close; the Linux image sets `SDL_VIDEO_DRIVER=offscreen`, so
+  nothing there sees a presented window (`MD-X` item 4).
+- Demo pixels: **0 differing, scene identical, in all fourteen offscreen
+  images** against `d48b26d` (lane 3, §3.4, at `9f858ea`); every later commit
+  touches tests and docs only. `DemoFrameDeterminismTests`' `Expected.swift`
+  unedited (Linux/Windows CI confirm on push).
+- Real-window captures and every group W look: not taken (an agent cannot).
+
+### 4.3 Hazards
+
+- **The default `TextField` is now the bordered field** (`MD-C`; divergences
+  131, 76 amended): 24 points tall at 13 pt, 8 taller and 12 wider at its
+  ideal than before. Any app tree that sized a field by its old ideal moves;
+  `docs/migration.md` has the row. The fourteen offscreen images read 0 px
+  (§4.2), so none of them changed.
+- **`.toolbar` is not an `Element`** (`MD-S`, divergence 120): write it on an
+  element inside the root's first container. A window root that is a
+  `.toolbar` scope does not compile (guard 3.17).
+- **A new `PlatformWindow` requirement**, `setToolbar(_:) -> Bool`, is
+  defaultless (guard 3.14); a conformer outside the package owes it and a
+  `.toolbarAction` arm.
+- **A toolbar in the Linux image cannot be seen presented** (`MD-X` item 4):
+  SDL's drawn strip is pinned headless only.
+- A recorded mutation hang or trap: none in any lane (M3.8's literal spelling
+  traps by construction, §3.2).
+
+### 4.4 Deferred, with owners
+
+- `@Bindable`, `ObservableObject`/`@EnvironmentObject`: not offered (`MD-H`
+  item 6; owner the gpui-gap list).
+- Toolbar customization, `.toolbarRole`, `.toolbar(removing:)`,
+  `.windowToolbarStyle`, `ToolbarSpacer`, search suggestions/scopes/tokens
+  (`MD-L`; owner the gpui-gap list).
+- Any view in a `ToolbarItem` (divergence 135, a closed set by design).
+- Human checks W1–W5 (`docs/verification/human-checks.md`), unrun.

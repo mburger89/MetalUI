@@ -44,7 +44,8 @@ summary.
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AM`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
-  next `PE-AB`), …; the full
+  next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
+  window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -57,7 +58,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **98 live, next label 132**; retired labels are
+  live SwiftUI difference — **103 live, next label 137**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
   (groups A–V, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -79,9 +80,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-06, `feat/proposal-controls` from `e54c3f6`, all three lanes):
-  2579 tests, 0 goldens, 166 typecheck guards** (2546 + 33 tests, 163 + 3 guards;
-  census 2446; `Backends/SDL` unmoved, not re-run; record §78 §3). Before it,
+- **Counts (2026-10-07, `feat/port-gaps-medium` from `d48b26d`, all three lanes):
+  2630 tests, 0 goldens, 171 typecheck guards** (2579 + 51 tests, 166 + 5 guards;
+  census 2532; `Backends/SDL` 24 + 78 on macOS, 24 + 75 in the Linux container,
+  lane 2's readings; record §79 §4). Before it,
+  `feat/proposal-controls` from `e54c3f6`: 2579 / 0 / 166 (2546 + 33 tests,
+  163 + 3 guards; census 2446; record §78 §3). Before that,
   `feat/platform-services` from `c2b8f48`: 2546 / 0 / 163 (2430 + 116 tests,
   151 + 12 guards; census 2421; `Backends/SDL` 24 + 77 on macOS, 24 + 74 in the Linux
   container, lane 3 verifier's readings; record §77 §3). Before it, at lanes 1 and 2
@@ -641,6 +645,22 @@ goes in its own `Component`** (`PE-K`). `StackMeter` (debug, internal) is the
 instrument; **its `Window` warning is suspended** (`PE-T`: four production trees
 exceed the 512 KiB threshold, owner a `PE-L` re-take).
 
+**Field chrome, environment objects, toolbar (`MD-`, record §79).** `TextField`
+draws SwiftUI's bordered field by default (24 tall, `.surface` fill,
+`.separator` border, the control focus ring from `controlActiveState`;
+`.textFieldStyle(_:)`/`.textEditorStyle(_:)` on the control or a container,
+innermost wins, `MD-B`, `MD-C`); caret, selection and IME are untouched.
+A legacy container sees through a `layoutPriority` layer (`MD-G`).
+`@Environment(Type.self)` reads an `@Observable` object provided by
+`.environment(_ object:)`, nearest writer wins, a missing one traps
+(divergence 134, `MD-H`). `.toolbar`/`.searchable` are one transparent
+`ToolbarScope` (not an `Element`: write it inside the root's first container,
+`MD-S`) over a **closed item set** (divergence 135); the platform seam is the
+defaultless `PlatformWindow.setToolbar(_:) -> Bool` — a native `NSToolbar` on
+AppKit, **`false` on SDL, where the window draws a 39-point strip under the
+named root `$toolbar` and lays the root out below it** (`MD-K`, `MD-Z`;
+divergence 136); outcomes return as queued `InputEvent.toolbarAction`.
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -753,7 +773,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (98 live, next label 132). A new
+- **Divergences**: `docs/divergences.md` (103 live, next label 137). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
