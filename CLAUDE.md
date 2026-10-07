@@ -60,7 +60,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **103 live, next label 137**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–V, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–W, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -200,7 +200,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,

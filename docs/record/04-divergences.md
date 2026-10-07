@@ -2324,3 +2324,63 @@ Record §77; rulings `SV-O`, `SV-P`, `SV-AK`; the published list is
 and 179 of `docs/divergences.md` lost `.pickerStyle(.menu)`, `Picker` in a menu,
 `Divider` as a view in a stack and the scrolling menu. Live count **94 → 96**,
 next label **130**.
+
+## 2026-10-06: 130 and 131 added, none retired or amended; 98 live, next label 132 (proposal controls)
+
+Record §78; ruling `PE-N`; the published list is `docs/divergences.md`. (This
+section was added by the port-gaps-medium branch check, record §79 §5: the
+proposal-controls branch wrote the rows only.) **Added, kept:**
+
+- **130** — a control offered less than its ideal: SwiftUI's `Button`
+  compresses to 10×8 at a zero offer and a menu `Picker`/`Menu` shrink to a
+  50-point offer (probe `swiftui-controls-in-stacks.swift` `FL0`, `FL8`,
+  `FL13`); MetalUI's `Button` keeps 24×24, the menu `Picker` 67 wide and the
+  `Menu` wraps its label, in a legacy container and in an `HStack`/`VStack`
+  alike. Pin `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (its
+  `zero` and `w50` arms).
+- **131** — control metrics: the classes agree (the field greedy wide, the rest
+  hugging, `PE-D`); the numbers are MetalUI's chrome. Pin
+  `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (its `ideal`
+  arms). Amended by port gaps, medium (the next section).
+
+Live count **96 → 98**, next label **132**.
+
+## 2026-10-07: 132–136 added, 76, 120 and 131 amended; 103 live, next label 137 (port gaps, medium)
+
+Record §79; rulings `MD-E`, `MD-F`, `MD-H`, `MD-I`, `MD-K`, `MD-S`, `MD-T`,
+`MD-V`, `MD-Z`; the published list is `docs/divergences.md`. Not a plan task —
+user request 2026-10-02. (This section was added by the branch check, record
+§79 §5; the lanes wrote the rows only.) **Added, kept:**
+
+- **132** — field chrome look: SwiftUI's bordered `TextField` is AppKit's bezel
+  (probe `swiftui-field-chrome.swift` `PX`, `NS`); MetalUI's fill is `.surface`,
+  a 1-point `.separator` border inside the bounds, radius 6, and the controls'
+  2-point accent focus ring — the geometry is the probe's (`MD-E`). Pins
+  `theBorderedChromePaintsTheThemesFillBorderAndRadius`,
+  `aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot`.
+- **133** — `TextEditor` text placement: SwiftUI's 5-point line-fragment
+  padding and 12-point font (probe `ED`) are not adopted, only the opaque
+  `.surface` background (`MD-F` item 3). Pin
+  `theTextEditorDrawsAnOpaqueFillAndPlainDrawsNone` (its glyph-origin arm).
+- **134** — a missing environment object traps with SwiftUI's sentence in
+  MetalUI's words (`.environment(_:)`, "element"; probe
+  `swiftui-environment-object.swift` `T`; `MD-H` item 4). Pin
+  `aMissingObjectTrapsWithItsTypeInTheMessage`.
+- **135** — a toolbar item is a closed set (`Button`, `Toggle`, `Picker`,
+  `TextField`, `Text`), native `NSToolbarItem` controls on AppKit, where
+  SwiftUI hosts any view (probe `swiftui-toolbar.swift` `TB1`; `MD-I` item 3).
+  Pin `onlyTheClosedSetIsToolbarContent` (3.13).
+- **136** — where `setToolbar` answers `false` (SDL) the window draws a
+  39-point strip across its top and lays the root out below it without
+  resizing, where SwiftUI's window grows by its `NSToolbar` (probe `TB0`,
+  `TB1`; `MD-K` items 1–2, `MD-Z`). Pins
+  `aDrawnToolbarStripSitsAboveTheRootAndKeepsItsIds` (3.6),
+  `aGreedyRootIsOfferedOnlyTheRectBelowTheStrip` (3.6b).
+
+**Amended:** **76** — `controlSize` now also reaches the bordered field's
+vertical inset (3.5 at `.small`, 4 otherwise; `MD-V`). Pin
+`controlSizeReachesTheDefaultFontButNoControlsChrome`. **120** — the
+constraint covers `.toolbar`/`.searchable` (`ToolbarScope`, `MD-S` item 1).
+Pin `aToolbarOnAWindowRootNeedsAContainer` (3.17). **131** — the field is the
+bordered default, 24 tall, ideal text + 1 + 12 (`MD-T`); MG-20 discharged by
+`MD-C`. Live count **98 → 103**, next label **137**.
