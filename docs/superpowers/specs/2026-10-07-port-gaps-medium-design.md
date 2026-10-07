@@ -1,6 +1,6 @@
 # Port gaps, medium — field chrome, `layoutPriority`, environment objects, window toolbar — design
 
-**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`); lane 1 BUILT (2026-10-07, `MD-V`, record §79 §1), lanes 2 and 3 not built.**
+**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`); lane 1 BUILT (2026-10-07, `MD-V`, record §79 §1), lane 2 BUILT (2026-10-07, `MD-X`, record §79 §2), lane 3 not built.**
 Three lanes (§8, re-cut by `MD-R`), run in order.
 
 User request 2026-10-02, an item of the gpui-gap priority list (**not a plan
@@ -188,8 +188,8 @@ public struct ToolbarItemPlacement: Equatable, Sendable {
 @resultBuilder public enum ToolbarContentBuilder { … }       // block, if, if/else, switch, for
 @resultBuilder public enum ToolbarItemContentBuilder { … }
 public protocol ToolbarItemContent { /* SPI, closed */ }
-// conformers: Button where Label == Text, Button where Label == Image,
-// Toggle where Label == Text, Picker (menu/segmented), TextField, Text
+// conformers: Button where Label: ToolbarButtonLabel (Text or Image — one conditional
+// conformance, MD-X item 1), Toggle where Label == Text, Picker (menu/segmented), TextField, Text
 
 // Lane 2 — MetalUIPlatform (PlatformToolbarControl writes its own ==, images by identity, MD-U 1)
 public struct PlatformToolbar: Equatable { public var items: [PlatformToolbarItem] }

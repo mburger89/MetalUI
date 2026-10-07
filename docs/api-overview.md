@@ -404,6 +404,27 @@ its action. An `NSAlert` sheet on AppKit; drawn in the window where the platform
 declines (SDL). Not offered: `titleVisibility:`, alert text fields, a
 non-`Text` button label.
 
+**Window toolbar** (`MD-I`, `MD-J`, `MD-S`, `MD-X`; probes `swiftui-toolbar.swift`
+`TB1`, `UP`, `SR` and `swiftui-toolbar-nested.swift` `NT1`, `PO`; D 135, 120):
+`.toolbar { … }` with `ToolbarItem(id:placement:content:)` and
+`ToolbarItemGroup(placement:content:)` (`ToolbarItemPlacement` `.automatic`,
+`.navigation`, `.principal`, `.primaryAction`, `.status`; `@ToolbarContentBuilder`
+with `if`/`switch`/`for`), and `.searchable(text:prompt:)`, on every element
+group, each returning the transparent `ToolbarScope<Content>` — not an
+`Element`, so write it inside the root's first container (120). Items are a
+closed set (135): `Button` with a `Text` or `Image` label (`ToolbarButtonLabel`),
+`Toggle`, `Picker` (`.menu` a pop-up, else segmented), `TextField`, `Text`, under
+`.disabled`/`.help`. Every `.toolbar` in the main tree merges in pre-order, a
+popover's or `Deferred` presentation's is ignored, the search field last. On
+AppKit a real `NSToolbar` of native controls, updated in place (the window
+grows; content keeps its size); the platform seam (M) is the defaultless
+`PlatformWindow.setToolbar(_:) -> Bool` with `PlatformToolbar`/`PlatformToolbarItem`/
+`PlatformToolbarControl`, outcomes as `InputEvent.toolbarAction(ToolbarActionEvent)`
+run under `StateDispatch`. SDL answers `false` (the window draws the toolbar,
+lane 3 of port gaps (medium)). Not offered: customization, `.toolbarRole`,
+`.toolbar(removing:)`, `.windowToolbarStyle`, `ToolbarSpacer`, search
+suggestions/scopes/tokens/`placement:` (`MD-L`).
+
 **Hover** (`SV-N`, `SV-Z`; A — SwiftUI's spellings, MetalUI's semantics, its
 probe arms `H1`–`H11` a broken instrument): `.onHover(perform:)` and
 `.onContinuousHover(perform:)` with `HoverPhase` (`.active(Point<Pixels>)` in

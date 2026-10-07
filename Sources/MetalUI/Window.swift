@@ -711,6 +711,17 @@ public final class Window {
         reconcileContentSizeLimits()
     }
 
+    /// The last adopted build's toolbar, numbered (`MD-I` item 6): what
+    /// `reconcileToolbar` sends and what a `.toolbarAction` runs.
+    var assembledToolbar = AssembledToolbar.empty
+    /// The toolbar last handed to `setToolbar` — `nil` before any, which a
+    /// window with no `.toolbar` never moves from, so it never calls (`MD-J`
+    /// item 2).
+    var sentToolbar: PlatformToolbar?
+    /// Whether the platform declined the current toolbar (`setToolbar`
+    /// answered `false`), so the window draws it (`MD-K`, lane 3).
+    var toolbarIsDrawn = false
+
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
     /// resized into, `SV-AG` item 3) still owes the next frame after a
@@ -848,6 +859,12 @@ public final class Window {
                 return true
             case .alertResult(let result):
                 self.handleAlertResult(result)
+                self.setNeedsRedraw()
+                return true
+            // A native toolbar control (`MD-J` item 4): first too, under
+            // `StateDispatch` for the scope that declared it.
+            case .toolbarAction(let action):
+                self.handleToolbarAction(action)
                 self.setNeedsRedraw()
                 return true
             // Hover (`SV-N` item 4): every pointer event and the pointer
@@ -1372,6 +1389,8 @@ public final class Window {
         // make schedule the next frame.
         reconcilePresentations()
         updateHover(at: lastMousePosition, reportsMoves: false)
+        // The toolbar (`MD-J` item 2): the last build's, sent when it changed.
+        reconcileToolbar()
 
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
@@ -1581,6 +1600,7 @@ public final class Window {
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
+        assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -2107,6 +2127,11 @@ public final class Window {
     }
     func dismissPresentationOnPlatform(token: Int) {
         platformWindow.dismissPresentation(token: token)
+    }
+
+    /// The platform's toolbar (`MD-J` item 2), for `Toolbar.swift`.
+    func setToolbarOnPlatform(_ toolbar: PlatformToolbar?) -> Bool {
+        platformWindow.setToolbar(toolbar)
     }
 
     /// Clears `active` for a press the open menu consumed, so the press never

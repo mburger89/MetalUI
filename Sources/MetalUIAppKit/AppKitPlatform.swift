@@ -784,6 +784,29 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         displayLink?.isPaused = paused
     }
 
+    /// The window's `NSToolbar` and its native controls (ruling `MD-J` item 3,
+    /// `AppKitToolbar.swift`); outcomes reach `onInput` as `.toolbarAction`.
+    /// Internal so a test can reach the controller.
+    lazy var toolbarController = AppKitToolbarController { [weak self] event in
+        _ = self?.onInput?(event)
+    }
+
+    /// Shows `toolbar` as a real `NSToolbar` of native controls and answers
+    /// `true` (ruling `MD-J` item 3): updated in place while the ids and kinds
+    /// stay (`UP`), rebuilt otherwise; `nil` removes it. The window grows to
+    /// keep its content size (`TB1`). Pinned by
+    /// `theAppKitToolbarBuildsNativeItemsAndUpdatesThemInPlace`.
+    func setToolbar(_ toolbar: PlatformToolbar?) -> Bool {
+        // The content keeps its size and the window grows (or shrinks) by the
+        // toolbar (`TB1`). AppKit alone does not hold it for a window built
+        // here — measured: a 900 × 200 content read 900 × 232 after the
+        // toolbar was set, the frame 52 taller — so it is restored explicitly.
+        let content = window.contentLayoutRect.size
+        toolbarController.apply(toolbar, to: window)
+        if window.contentLayoutRect.size != content { window.setContentSize(content) }
+        return true
+    }
+
     @objc private func displayLinkFired() {
         // `targetTimestamp`, not `timestamp` (design spec §4.4). `timestamp` is
         // when the *previous* frame was displayed; `targetTimestamp` is when

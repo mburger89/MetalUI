@@ -207,6 +207,19 @@ the fade ends; a `List` row leaving its window disappears, and a `List`'s
 first frame appears every row once (divergence 124); closing a window runs
 every present `onDisappear` once (`LC-J`).
 
+### Toolbar — `.toolbar`, `.searchable`
+
+Since port gaps (medium) (rulings `MD-I`, `MD-J`, `MD-S`), `.toolbar { ToolbarItem(placement:) { … } }`
+and `.searchable(text:prompt:)` exist on both vocabularies with SwiftUI's
+spellings. On AppKit they become a real `NSToolbar` of native controls (the
+window grows by the toolbar's height; content keeps its size). Two things port
+differently:
+
+| SwiftUI / SwiftCrossUI | MetalUI | note |
+|---|---|---|
+| `.toolbar { … }` on the scene's root view | write it on any element **inside** the root's first container: `openWindow(…) { Column { content.toolbar { … } } }` — every `.toolbar` in the window's tree is merged in tree order, as SwiftUI merges nested toolbars | divergence 120 (`MD-S`); a root `.toolbar` does not compile |
+| any view in a `ToolbarItem` | `Button` (a `Text` or `Image` label), `Toggle`, `Picker` (`.menu` or segmented), `TextField`, `Text` — anything else does not compile | divergence 135 (`MD-I` item 3) |
+
 ## Part 2 — breaking and behaviour changes since 2026-09-12
 
 Collected from every ruling's migration note
@@ -244,6 +257,8 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package (colour scheme) | implement `func setPreferredColorScheme(_ colorScheme: ColorScheme?)` — an empty body, or recording the value, is honest where the platform has no per-window appearance; no default | `CR-M`, `CR-Y` item 6 |
 | a `PlatformWindow` conformer outside the package (platform services) | implement `func presentFileDialog(_: PlatformFileDialog) -> Bool { false }`, `func presentAlert(_: PlatformAlert) -> Bool { false }`, `func dismissPresentation(token: Int) {}` and `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}` — each honest where the platform has no dialog, draws alerts in the window, or cannot limit a window; no default (answering `false` makes a file dialog complete with `FileDialogError.unavailable` and an alert draw in the window) | `SV-B` items 1, 5 |
 | an exhaustive `switch` over `InputEvent` (platform services) | add `.pointerExited`, `.fileDialogResult(_:)` and `.alertResult(_:)` arms (or `default:`) | `SV-B` item 2 |
+| a `PlatformWindow` conformer outside the package (toolbar) | implement `func setToolbar(_: PlatformToolbar?) -> Bool { false }` — honest where the platform has no native toolbar: `Window` then draws the toolbar in the window; answer `true` only if the platform shows it and delivers each control's outcome as `.toolbarAction`; no default | `MD-J` items 2, 5 |
+| an exhaustive `switch` over `InputEvent` (toolbar) | add a `.toolbarAction(_:)` arm (or `default:`) | `MD-J` item 6 |
 | an exhaustive `switch` over `AccessibilityRole` (platform services) | add `.popUpButton` and `.alert` arms (or `default:`) | `SV-S` |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |

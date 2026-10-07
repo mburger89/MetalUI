@@ -28,12 +28,14 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     var actions: [ToolbarActionEvent] = []
 }
 
-/// A real 400 × 200 AppKit window whose `onInput` records toolbar actions.
+/// A real 900 × 200 AppKit window whose `onInput` records toolbar actions —
+/// wide enough that no item of `sample()` overflows into the chevron menu
+/// (an overflowed field has no field editor).
 @MainActor private func toolbarWindow() throws -> (AppKitPlatform, AppKitWindow, NSWindow, EventLog) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Toolbar \(UUID().uuidString)",
-                                                 size: Size(width: px(400), height: px(200)))
+                                                 size: Size(width: px(900), height: px(200)))
     let appKit = try #require(platformWindow as? AppKitWindow)
     let nsWindow = try #require(appKit.hostView.window)
     let log = EventLog()
@@ -92,7 +94,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
         "mode", "status", NSToolbarItem.Identifier.flexibleSpace.rawValue, "nav", "share", "adv", "sort", "filter",
         NSToolbarItem.Identifier.flexibleSpace.rawValue, "search",
     ], "TB1/SR order: \(toolbar.items.map(\.itemIdentifier.rawValue))")
-    #expect(toolbar.centeredItemIdentifiers == Set(["mode", "status"].map(NSToolbarItem.Identifier.init)))
+    #expect(toolbar.centeredItemIdentifiers == Set(["mode", "status"].map { NSToolbarItem.Identifier($0) }))
     #expect(try item(toolbar, "nav").isNavigational)
     #expect(try !item(toolbar, "share").isNavigational)
 
@@ -111,7 +113,8 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     #expect(!label.isEditable && label.stringValue == "Ready")
     let search = try #require(try item(toolbar, "search") as? NSSearchToolbarItem)
     #expect(search.searchField.placeholderString == "Search")
-    #expect(appKit.contentSize == contentBefore, "the content keeps its size")
+    #expect(appKit.contentSize == contentBefore,
+            "the content keeps its size: \(appKit.contentSize) vs \(contentBefore), frame \(nsWindow.frame)")
 
     // In place (`UP`).
     let objects = toolbar.items.map(ObjectIdentifier.init)
@@ -142,7 +145,8 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     _ = appKit.setToolbar(PlatformToolbar(items: [
         PlatformToolbarItem(id: "img", placement: .primaryAction, control: .button(title: "Pic", image: imageTexture)),
     ]))
-    let button = try #require(try item(try #require(nsWindow.toolbar), "img").view as? NSButton)
+    let toolbar = try #require(nsWindow.toolbar)
+    let button = try #require(try item(toolbar, "img").view as? NSButton)
     let image = try #require(button.image, "no image")
     #expect(image.representations.first?.pixelsWide == 2 && image.representations.first?.pixelsHigh == 2)
     #expect(button.imagePosition == .imageOnly)
@@ -153,7 +157,8 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
 /// **3.12** (`MD-J` item 4). Each native control sends its action as an
 /// `InputEvent.toolbarAction`: the button `.press`, the segmented control
 /// `.select(1)`, the pop-up `.select(0)`, the checkbox `.toggle(true)`, a text
-/// field and the search field `.text` on an edit. A disabled item's control is
+/// field and the search field `.text` on an edit (typed through their field
+/// editors). A disabled item's control is
 /// disabled. Mutation **M3.12**: the checkbox sends `.press`.
 @MainActor
 @Test func anAppKitToolbarControlSendsItsActionAsAnInputEvent() throws {
@@ -162,14 +167,23 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     _ = appKit.setToolbar(sample())
     let toolbar = try #require(nsWindow.toolbar)
 
-    try #require(try item(toolbar, "nav").view as? NSButton).performClick(nil)
+    // Each control fires as a click would — the state a click sets, then the
+    // control's own action — never through `performClick(_:)`, whose
+    // highlight delay spins a nested event loop that runs other tests'
+    // pending run-loop blocks (measured: a `CFRunLoopStop` queued by an
+    // earlier test ran inside it and the async main's loop later returned,
+    // ending the process with exit 0 and no summary line).
+    let back = try #require(try item(toolbar, "nav").view as? NSButton)
+    back.sendAction(back.action, to: back.target)
     let segmented = try #require(try item(toolbar, "mode").view as? NSSegmentedControl)
     segmented.selectedSegment = 1
     segmented.sendAction(segmented.action, to: segmented.target)
     let popUp = try #require(try item(toolbar, "sort").view as? NSPopUpButton)
     popUp.selectItem(at: 0)
     popUp.sendAction(popUp.action, to: popUp.target)
-    try #require(try item(toolbar, "adv").view as? NSButton).performClick(nil)
+    let checkbox = try #require(try item(toolbar, "adv").view as? NSButton)
+    checkbox.state = .on
+    checkbox.sendAction(checkbox.action, to: checkbox.target)
 
     let field = try #require(try item(toolbar, "filter").view as? NSTextField)
     #expect(nsWindow.makeFirstResponder(field))
@@ -191,7 +205,9 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     var disabled = sample()
     disabled.items[0].isEnabled = false
     _ = appKit.setToolbar(disabled)
-    #expect(try #require(try item(try #require(nsWindow.toolbar), "nav").view as? NSButton).isEnabled == false)
+    let disabledToolbar = try #require(nsWindow.toolbar)
+    let disabledButton = try #require(try item(disabledToolbar, "nav").view as? NSButton)
+    #expect(disabledButton.isEnabled == false)
 }
 
 // MARK: - 3.18

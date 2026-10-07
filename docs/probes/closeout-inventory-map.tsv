@@ -157,6 +157,8 @@ F	divider-view	D	swiftui-platform-services.swift	V1	aDividerInAVStackSpansItsWid
 F	menu-picker	D	swiftui-platform-services.swift	P1	choosingAMenuPickerOptionWritesItsTag	81 128	SV-P SV-AA SV-Q SV-S	PickerStyle.menu: a pull-down showing the selected title, as wide as the widest option (P1, P3), opening every option as a checked-or-not item through the menu machinery (native NSMenu, else a scrolling drawn panel opening on the selection); choosing writes the tag (P1); options recorded without layout; a non-Text option titled by its tag (128); a .popUpButton; the automatic style stays segmented (81)
 F	field-style	D	swiftui-field-chrome.swift	ENV1	aContainerTextFieldStyleReachesItsFieldsAndTheInnermostWins	131 132 133	MD-B MD-C MD-D MD-E MD-F	TextFieldStyle (.automatic/.roundedBorder/.squareBorder/.plain, closed)/TextEditorStyle (.automatic/.plain, closed) and textFieldStyle(_:)/textEditorStyle(_:) on the field and on a container: SwiftUI's spellings and innermost-wins (ENV1-ENV3); the bordered default with the probe's insets, radius and disabled dim (SZ, CS, PX, TX); the colours are tokens and the ring the controls' (132), the editor keeps its placement (133), the residual caret +1 (131)
 F	environment-object	D	swiftui-environment-object.swift	N0	anEnvironmentObjectIsReadAtItsPositionAndTheNearestWriterWins	134	MD-H	@Environment(Type.self) (non-optional and optional) and environment(_ object:) for an @Observable class: SwiftUI's spellings, nearest writer (N0-N3), keyed by the static type (K1-K2b), nil clears (W1), observation per read property (R); a missing object traps with MetalUI's modifier and noun in SwiftUI's sentence (134)
+F	toolbar	D	swiftui-toolbar.swift	TB1	aToolbarReachesThePlatformAsOneNeutralDescription	135 120	MD-I MD-S MD-U	.toolbar(content:)/.searchable(text:prompt:) through the transparent ToolbarScope (not an Element, so not a window root: 120), ToolbarContent/ToolbarItem/ToolbarItemGroup/ToolbarItemPlacement/ToolbarContentBuilder/ToolbarItems and ToolbarItemContent/ToolbarItemControls/ToolbarItemContentBuilder/ToolbarButtonLabel (closed: 135): SwiftUI's spellings and placements (TB1), nested toolbars merged in pre-order (NT1), a popover's ignored (PO), the search field last (SR)
+F	toolbar-seam	M	-	-	-	-	MD-J MD-N MD-U	PlatformWindow.setToolbar(_:) -> Bool (defaultless), PlatformToolbar/PlatformToolbarItem/PlatformToolbarPlacement/PlatformToolbarControl (images by identity)/PlatformToolbarPickerStyle/ToolbarActionEvent, InputEvent.toolbarAction: a native NSToolbar updated in place on AppKit, "draw it yourself" on SDL, outcomes as queued input
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -375,6 +377,10 @@ M	MetalUIPlatform	Platform.swift	Platform	setMenuBar	.*	menu-bar
 M	MetalUIPlatform	Menus.swift	(-|PlatformMenuBar)	(PlatformMenuBar|content|perform|init)	.*	menu-bar
 M	MetalUIPlatform	Platform.swift	Platform	setApplicationIcon	.*	app-icon
 M	MetalUIPlatform	Presentations.swift	.*	.*	.*	platform-services-seam
+M	MetalUIPlatform	Platform.swift	PlatformWindow	setToolbar	.*	toolbar-seam
+M	MetalUIPlatform	InputEvent.swift	InputEvent	toolbarAction	.*	toolbar-seam
+M	MetalUIPlatform	Toolbar.swift	.*	.*	.*	toolbar-seam
+M	MetalUI	Toolbar.swift	.*	.*	.*	toolbar
 M	MetalUIPlatform	Platform.swift	PlatformWindow	(presentFileDialog|presentAlert|dismissPresentation|setContentSizeLimits)	.*	platform-services-seam
 M	MetalUIPlatform	InputEvent.swift	InputEvent	(pointerExited|fileDialogResult|alertResult)	.*	platform-services-seam
 M	MetalUIPlatform	AccessibilityTree.swift	AccessibilityRole	(popUpButton|alert)	.*	platform-services-seam

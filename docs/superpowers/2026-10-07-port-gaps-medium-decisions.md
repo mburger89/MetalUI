@@ -27,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-X`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -782,3 +782,61 @@ child, in flow.
 **Cost if wrong.** (1) A look difference on a disabled plain field only. (2) A
 zero-size child's gap in a gapped legacy container under a prioritised
 `Deferred` — a spelling with no use.
+
+---
+
+## MD-X — Lane 2, as built: a closed button-label protocol, the content size held explicitly, generated ids, no `performClick`
+
+**Found (lane 2, implementing `MD-I`/`MD-J`).**
+
+1. Spec §2 lists `Button where Label == Text` and `Button where Label == Image`
+   as two `ToolbarItemContent` conformers. Swift admits **one** conditional
+   conformance of a type to a protocol, so the two cannot both be written.
+2. `MD-J` item 3 says the window grows to keep its content size "(AppKit's own
+   behaviour, `TB1`)". Measured on an `AppKitWindow` (test 3.11's first
+   build): a 900 × 200 content read **900 × 232** after `window.toolbar` was
+   set, the frame 52 points taller (284) — AppKit alone did not hold the
+   content size for a window built by `AppKitWindow.init` (`TB1`'s window was
+   SwiftUI's).
+3. `MD-I` item 6 left "the item's index among the merged items" and an item
+   holding several controls unstated in detail.
+4. `NSButtonCell.performClick(_:)` spins a nested event loop for its highlight
+   delay. Measured: test 3.12 written with `performClick` ran a `CFRunLoopStop`
+   that an earlier test's spin had queued (lldb, breakpoint on
+   `CFRunLoopStop`, frame `-[NSButtonCell performClick:]` ←
+   `anAppKitToolbarControlSendsItsActionAsAnInputEvent`); the async main's run
+   loop later returned and the process **exited 0 with no summary line** —
+   twice, unfiltered, at the same place (after 1091 started tests), and with
+   `--filter 'ObservationTests|AppKitToolbarTests|FileDialogTests'` (and with
+   `AppKitPresentationTests` in place of `ObservationTests`).
+
+**Ruling.**
+
+1. A closed public protocol **`ToolbarButtonLabel: ElementGroup`** (SPI
+   requirement `_toolbarLabel() -> (title: String, image: ImageTexture?)`),
+   conformed by `Text` and `Image` only; `Button: ToolbarItemContent where
+   Label: ToolbarButtonLabel`. The spelling a caller writes is unchanged; an
+   outside label type cannot conform (the same SPI mechanism as `MD-I` item
+   3). Inventory family `toolbar` (class D, 135).
+2. `AppKitWindow.setToolbar` reads `contentLayoutRect.size` before applying
+   and, if it moved, calls `setContentSize` with it — for a set, an update and
+   a removal. `MD-J` item 3's outcome (content unchanged, window grows) holds;
+   its "AppKit's own behaviour" is corrected to "restored explicitly". Pinned
+   by test 3.11's content-size arm.
+3. **Ids.** The non-search entries are numbered in merged order: entry `k`
+   (0-based, across the window, counting `ToolbarItem`s and
+   `ToolbarItemGroup`s alike) is `id` when given, else `"<placement>.<k>"`
+   (`navigation`, `principal`, `primaryAction`, `automatic`, `status`). A
+   group's controls are `"<base>.<n>"`; so are an item's when it holds more
+   than one control (an item of one control keeps the bare base). Search
+   fields come last, `"search"`, then `"search.1"`, …. A picker in any style
+   but `.menu` is segmented. Duplicate caller ids are not diagnosed (owner
+   none).
+4. AppKit tests fire a control as a click does — set the state a click sets,
+   then `sendAction(_:to:)` — and never call `performClick(_:)`. Recorded as a
+   CI hazard for the record (a nested event loop in a test runs other tests'
+   queued run-loop blocks).
+
+**Cost if wrong.** (1) None for callers; one more public name. (2) Without
+it, every native toolbar change would resize MetalUI's content and relayout.
+(4) A suite that ends with no summary line.

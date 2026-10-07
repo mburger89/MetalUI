@@ -347,6 +347,12 @@ public final class Frame {
     /// Records noted per key this build — the occurrence rule (`MV-M` item 5).
     var presentationOccurrences: [GlobalElementID: Int] = [:]
 
+    /// The toolbar scopes this build noted, in build pre-order (ruling `MD-I`
+    /// item 5) — the main tree's only: a presentation root's are dropped when
+    /// it closes (`endPresentationPreferences`). Adopted by `Window` after the
+    /// build.
+    var toolbarRecords: [ToolbarRecord] = []
+
     func withPresentationScope<R>(_ body: () -> R) -> R {
         presentationDepth += 1
         defer { presentationDepth -= 1 }
@@ -565,20 +571,35 @@ public final class Frame {
     }
 
     /// Opens a presentation candidate's content build (`CR-T`): preferences
-    /// recorded inside it are kept apart from the main tree's. Returns the
-    /// main tree's value so far, for `endPresentationPreferences`.
-    func beginPresentationPreferences() -> ColorScheme? {
+    /// recorded inside it are kept apart from the main tree's, and its toolbar
+    /// records can be dropped (`MD-I` item 5). Returns the main tree's value
+    /// so far and the toolbar record count, for `endPresentationPreferences`.
+    func beginPresentationPreferences() -> PresentationCollectionMark {
         let saved = mainColorSchemePreference
         mainColorSchemePreference = nil
-        return saved
+        return PresentationCollectionMark(colorScheme: saved, toolbarCount: toolbarRecords.count)
+    }
+
+    /// What `beginPresentationPreferences` saved: the main tree's colour-scheme
+    /// preference so far (`CR-T`) and how many toolbar records preceded the
+    /// candidate's content (`MD-I` item 5).
+    struct PresentationCollectionMark {
+        let colorScheme: ColorScheme?
+        let toolbarCount: Int
     }
 
     /// Closes what `beginPresentationPreferences` opened. A presentation
     /// root's first preference goes to the presentation slot; content that
     /// turned out not to be one (an in-flow `Deferred`) is the main tree, in
     /// build order.
-    func endPresentationPreferences(saved: ColorScheme?, isPresentation: Bool) {
+    func endPresentationPreferences(saved mark: PresentationCollectionMark, isPresentation: Bool) {
+        let saved = mark.colorScheme
         let inner = mainColorSchemePreference
+        // A presentation root's toolbars are ignored (`MD-I` item 5, probe
+        // `PO`): only the records its content appended are dropped.
+        if isPresentation, toolbarRecords.count > mark.toolbarCount {
+            toolbarRecords.removeSubrange(mark.toolbarCount...)
+        }
         if isPresentation {
             if presentationColorSchemePreference == nil { presentationColorSchemePreference = inner }
             mainColorSchemePreference = saved
