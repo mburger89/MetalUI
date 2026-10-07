@@ -32,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-T`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-U`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -900,3 +900,93 @@ suite):
 **Cost if wrong.** Items 1–2 are the only behaviour a consumer sees; the rest
 are measurements a later SwiftPM could change, each with the run that would
 show it (guard 1.6, tests 1.5/1.7/1.8, the `Replay` record step in CI).
+
+## PX-T — Lane 2 as landed: what the images measured
+
+**Ruling.** Lane 2 (portable images) landed as `PX-B`…`PX-E` and `PX-O` say
+(`Sources/MetalUI/ImageDecoding.swift`, `ImageBitmap.swift`), with these
+findings and amendments, each measured on 2026-10-07 (macOS 27, Apple Swift
+6.4; `swift:6.4-noble` under OrbStack, aarch64 and — through Rosetta —
+x86_64):
+
+1. **The JPEG fixture is a smooth 4:4:4 image (amends spec §4.2, test 2.5).**
+   A quality-90 JPEG of `rgb8.png`'s pixels at Pillow's default 4:2:0
+   decodes up to ~200 away from them (red → (69, 82, 39): chroma is averaged
+   over 2×2 on a 4×3 image of saturated neighbours), so "each within 3 of the
+   generator's source pixel" was unsatisfiable. Measured with stb on a 4×3
+   gradient at 4:4:4, steps 2/3/4/6/8 → max 1/2/3/3/3; `q90.jpg` is the step-6
+   gradient (`gen-fixtures.py --tests` prints its source), max 3.
+2. **The fixture set gains three files** beyond spec §4.2's list:
+   `thumb.jpg` (the untruncated twin of `thumb-truncated.jpg`, 2.13's
+   "the same file untruncated decodes" arm), `rgb8.tiff` (Pillow; the
+   off-Apple arm `aTIFFIsNilOffApple`), and the generator prints every 4×3
+   PNG's expected premultiplied bytes, which the tests carry as literals.
+3. **One sniffing entry above `decodeImage` (amends spec §1.1 step 1).**
+   `decodeImage(_:)` returns straight samples for PNG and JPEG only (`nil`
+   otherwise); `decodeImageTexture(_:)` sniffs, premultiplies a portable
+   decode through `ImageTexture(width:height:straightRGBA:)` and hands any
+   other signature to the ImageIO fallback, which returns its own
+   premultiplied texture (the two cannot share a straight-sample return).
+   `init?(contentsOfFile:)` reads with `FileManager.default.contents(atPath:)`
+   and delegates to `init?(data:)` — so a file and its bytes cannot decode
+   differently by construction, and 2.9's mutation "`data:` skips the
+   pre-check" is spelled as the PNG pre-check removed from `decodeImage`.
+4. **A missing resource never reaches the cache** (amends 2.10's "the second
+   from the cache"): `bundle.url(forResource:…)` answers `nil` before the
+   cache is consulted. The cached-`nil` arm is a resource that exists and
+   does not decode (`broken.png`, four bytes), still `nil` after its file is
+   replaced by a valid PNG; the cached-bitmap arm likewise keeps its pixels
+   after `icon.png` is replaced. `Bundle(path:)` of a flat directory resolves
+   both a root resource and `Icons/dark/key.png` on macOS and Linux (2.10 runs
+   green in the aarch64 and x86_64 containers) — `Contents/Resources` was not
+   needed.
+5. **Parity confirmed before the change.** With the decoding tests set aside,
+   2.11 run on `359444e`'s ImageIO decode was red at its P3 arm only: every
+   untagged and sRGB-tagged fixture (gray 1/4/8, gray + alpha, palette +
+   `tRNS`, RGB, RGBA, Adam7 4×3 and 9×7, 16-bit RGBA) already equal to the
+   portable decode. Existing test 3.11 (a PNG ImageIO writes) passes unchanged
+   on the portable path; its literal did not move.
+6. **The pixels are platform-independent as far as measured**: the thirteen
+   portable tests (2.1–2.10, 2.6b, 2.13, `aTIFFIsNilOffApple`) pass with the
+   same literals on macOS arm64, Linux aarch64 and Linux x86_64 (Rosetta) —
+   the last the first run of `STBI_NO_SIMD`'s scalar JPEG path on x86-64
+   (`PX-O` item 4). Windows is CI's.
+7. **Counts of what the pre-checks stop** (from the mutation runs below): the
+   CRC check alone stops 288 of 424 single-bit IDAT flips of the 4×3
+   `rgba8.png` and 1 186 of 2 096 of the 9×7 one (the critic's number,
+   reproduced); the length bound alone stops the four `rgba8.png` prefixes
+   106–109 (inside `IEND`'s CRC); the EOI check alone stops 19 `q90.jpg`
+   prefixes (623–641) — fewer than the critic's 485 of 669 on the 9×7 probe
+   file, because a 4×3 4:4:4 scan is a few dozen bytes.
+8. **The manifest** (lane 1's file, spec §4.2's "the test target depends on
+   `CStbImage`"): `MetalUICrossPlatformTests` gains `CStbImage` and
+   `exclude: ["ImageFixtures"]` (read by `#filePath`, not bundled; without the
+   exclude SwiftPM warns about unhandled files).
+
+**Mutations** (each applied to the committed tree `25f387f`, restored from a
+copy, `git status --short` clean after each; native build, unfiltered `swift
+test --build-system native --no-parallel`, 2649 tests each run, no hang):
+
+| id | where (spelling) | reddened |
+|---|---|---|
+| M2.1 | 8-bit copy out of stb: R and B swapped | `everyFixturePNGDecodesToItsLiteralPixels`, `straightSamplesArePremultipliedOnce`, `anAdam7FileDecodesLikeItsPlainTwin`, `aJPEGDecodesToThePinnedPixels`, `aTruncatedJPEGWithAThumbnailIsNil`, `theDimensionCapIsSixteenThousandThreeHundredEightyFour`, `aBundleResourceDecodesOnceAndSharesItsTexture`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`, `anImageBitmapDecodesAPNGThroughImageIO` |
+| M2.2 | 16-bit samples `v >> 8` | `sixteenBitSamplesRoundToEightBits`, `everyFixturePNGDecodesToItsLiteralPixels`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` |
+| M2.3a | straight samples stored as premultiplied | `straightSamplesArePremultipliedOnce`, `everyFixturePNGDecodesToItsLiteralPixels`, `anAdam7FileDecodesLikeItsPlainTwin`, `aBundleResourceDecodesOnceAndSharesItsTexture`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`, `anImageBitmapDecodesAPNGThroughImageIO` |
+| M2.3b | premultiplied twice | `straightSamplesArePremultipliedOnce`, `everyFixturePNGDecodesToItsLiteralPixels`, `anAdam7FileDecodesLikeItsPlainTwin`, `aBundleResourceDecodesOnceAndSharesItsTexture`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` |
+| M2.4 | the PNG pre-check refuses IHDR interlace byte 1 | `anAdam7FileDecodesLikeItsPlainTwin` (9×7 arm and, through 2.1, the 4×3), `everyFixturePNGDecodesToItsLiteralPixels`, `fileAndDataDecodeIdentically`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` |
+| M2.5 | `isJPEG` always false (on macOS the JPEG reaches ImageIO) | `aJPEGDecodesToThePinnedPixels`, `everyTruncationIsNilAndNeverTraps` (ImageIO decodes truncated JPEGs), `aTruncatedJPEGWithAThumbnailIsNil` |
+| M2.6a | the chunk-length bound answers "is this `IEND`" instead of `false` | `everyTruncationIsNilAndNeverTraps` (prefixes 106–109), `fileAndDataDecodeIdentically` (the `IEND`-CRC arm) |
+| M2.6b | `jpegScanIsTerminated` answers `true` with no EOI | `everyTruncationIsNilAndNeverTraps` (19 prefixes), `aTruncatedJPEGWithAThumbnailIsNil` |
+| M2.6c | the walk that runs out after a whole chunk passes (no `IEND` needed) | `thePNGPreCheckRequiresIEND` only |
+| M2.7 | the CRC comparison always passes | `aCorruptPNGIsNil` (both flip arms; the three corrupt fixtures stay `nil` — stb refuses them alone) |
+| M2.8b | `STBI_MAX_DIMENSIONS 16385` (lane 1's `CStbImage.c`, restored) | `theDimensionCapIsSixteenThousandThreeHundredEightyFour` — the 2.8b arm only |
+| M2.8c | the Swift bound `1...16385` | `theDimensionCapIsSixteenThousandThreeHundredEightyFour` — the two 2.8c 16385 arms only |
+| M2.9 | the PNG pre-check removed (`data:` is the only path, item 3) | `fileAndDataDecodeIdentically`, `everyTruncationIsNilAndNeverTraps`, `aCorruptPNGIsNil` |
+| M2.10 | the cache bypassed | `aBundleResourceDecodesOnceAndSharesItsTexture` (identity, cached `nil`, cached bitmap) |
+| M2.11 | PNG routed through the ImageIO fallback | `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` (P3 arms), `everyFixturePNGDecodesToItsLiteralPixels` (`rgb8-p3.png`), `everyTruncationIsNilAndNeverTraps`, `aCorruptPNGIsNil`, `fileAndDataDecodeIdentically`, `theDimensionCapIsSixteenThousandThreeHundredEightyFour` (ImageIO accepts the 16385-wide file) |
+| M2.12 | the ImageIO fallback dropped (`#if false`) | `aTIFFStillDecodesThroughImageIOOnApple` only |
+| M2.13 | the design's raw scan (first `FF DA` anywhere, then any `FF D9`) | `aTruncatedJPEGWithAThumbnailIsNil` only |
+
+**Cost if wrong.** Items 1–2 and 8 are test-side; item 3 is internal; item 4
+is the cache's observable rule, stated in the initialiser's doc comment. None
+changes the public surface beyond `PX-E`.

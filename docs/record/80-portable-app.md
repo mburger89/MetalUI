@@ -4,8 +4,8 @@ Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
 PR #50). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — what the SMK configurator needs to run on Linux and Windows.
 Spec `docs/superpowers/specs/2026-10-07-portable-app-design.md`; rulings
-`PX-A`…`PX-R` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
-(next unused `PX-S`); probes `docs/probes/swiftui-task.swift`,
+`PX-A`…`PX-T` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
+(next unused `PX-U`); probes `docs/probes/swiftui-task.swift`,
 `swiftui-bundle-image.swift`, `swift-task-modifier-isolation.swift`,
 `image-decoder-parity/`, `swiftpm-traits-sdl/`.
 
@@ -164,3 +164,69 @@ commit (ruling `PX-S`, docs). Rulings as landed: `PX-H`…`PX-J`, `PX-P`,
 Nothing new beyond spec §9. The consumer-facing remedy inside
 `App(platform:)` reads as a conformance error (`PX-S` item 2) — documented,
 not fixed.
+
+## 2. Lane 2 — portable images (2026-10-07)
+
+Commits: `4aab939` (red), `25f387f` (implementation), and this section's
+commit (ruling `PX-T`, spec amendments). Rulings as landed: `PX-B`…`PX-E`,
+`PX-O`, amended by `PX-T` (findings and the mutation table M2.1–M2.13).
+
+### 2.1 Red
+
+- `MetalUICrossPlatformTests` did not compile: "incorrect argument label in
+  call (have 'data:', expected 'contentsOfFile:')"
+  (`ImageDecodingTests.swift:35`, `:295`), "cannot find
+  'pngStructureIsIntact' in scope" (`:211`, `:212`), "cannot find
+  'decodedSizeIsAccepted' in scope" (`:272`–`:276`), "missing argument for
+  parameter 'contentsOfFile' in call" (the `resource:` calls, `:331`–`:348`),
+  "cannot find 'jpegScanIsTerminated' in scope" (`:370`, `:371`).
+- With that file set aside and 2.12's `data:` arm removed, on `359444e`'s
+  ImageIO decode: `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`
+  red at its P3 arms only ("Expectation failed: portable.texture.pixels !=
+  reference", "… == plain.texture.pixels"); 2.12 and 3.11 green (`PX-T`
+  item 5).
+
+### 2.2 Landed
+
+- `Sources/MetalUI/ImageDecoding.swift` (new): `decodeImageTexture` (the
+  sniff), `decodeImage` (`Int32.max` bound, pre-checks, 16-bit rounding,
+  `stbi_image_free` by `defer`), `pngStructureIsIntact`,
+  `jpegScanIsTerminated`, `decodedSizeIsAccepted`, the ImageIO fallback
+  under `#if canImport(ImageIO)`; `internal import CStbImage`.
+- `ImageBitmap`: `init?(contentsOfFile:)` on every platform (reads the file,
+  delegates to `init?(data:)`), `init?(data:)`,
+  `init?(resource:withExtension:subdirectory:bundle:)` over
+  `ImageResourceCache` (`NSLock`, keyed by the standardized path, `nil`
+  cached); `import Foundation` unconditional; no CoreGraphics/ImageIO import.
+- Fixtures (24 files, 7.4 KB, `gen-fixtures.py --tests`) under
+  `Tests/MetalUICrossPlatformTests/ImageFixtures/`; tests 2.1–2.10, 2.6b,
+  2.8b/c (arms of 2.8), 2.13, `aTIFFIsNilOffApple` (off Apple) in
+  `ImageDecodingTests`; 2.11, 2.12 in `ImageTests`; 3.11 kept, doc comment
+  updated, literal unmoved.
+- The registry rows (map rows for the two new initialisers, divergence 138)
+  are lane 3's (spec §8.2).
+
+### 2.3 Counts and commands
+
+- Root, native build, unfiltered `--no-parallel`: **2649 tests in 3 suites**
+  passed (2635 + 14: twelve in `ImageDecodingTests` on macOS, two in
+  `ImageTests`); `FR-J no-argument frame: succeeded=true`; 0 `error:`; the
+  only `warning:` SwiftPM's deprecation notice. `swift build --build-tests`
+  (default build system): 0 warnings.
+- `swift:6.4-noble` (aarch64), `swift build --build-tests` then `swift test
+  --skip-build` on an archive of `25f387f`: build complete, no warning;
+  6 + 35 + 18 + 199 + 49 + 22 passed (the cross-platform target 36 → 49:
+  thirteen image tests, `aTIFFIsNilOffApple` among them). The same image
+  under `--platform linux/amd64` (Rosetta), filtered to the image tests:
+  13 passed, the same literals (`PX-T` item 6).
+- Demo pixels, `compare.sh <scratch> 359444e HEAD` at `25f387f`: **0
+  differing pixels, scene identical, in all fourteen images**; controls as
+  before (light vs dark 1048576, default vs modal 1031003, …).
+- Mutations M2.1–M2.13 (seventeen runs): each reddened a named test
+  (`PX-T`'s table); no hang; `git status --short` clean after each.
+
+### 2.4 Deferred
+
+Nothing new beyond spec §9. `Backends/SDL` was not touched by this lane and
+not re-run.
+

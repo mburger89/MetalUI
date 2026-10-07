@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-07-portable-app-decisions.md`](../2026-10-07-portable-app-decisions.md)
-(`PX-A`…`PX-S`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`). Record: `../../record/80-portable-app.md`. Branch
+(`PX-A`…`PX-T`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`, lane 2 `PX-T`). Record: `../../record/80-portable-app.md`. Branch
 `feat/portable-app` from `359444e`.
 
 **Motivation.** The SMK keyboard configurator runs on MetalUI on macOS
@@ -52,7 +52,8 @@ Int, straightRGBA: [UInt8])?`):
 
 0. A buffer of more than `Int32.max` bytes → `nil` (stb's lengths are `int`;
    `PX-O` item 5).
-1. Signature sniff: PNG → step 2; JPEG → step 3; otherwise → ImageIO under
+1. Signature sniff (*as landed, `PX-T` item 3*: in `decodeImageTexture(_:)`,
+   above `decodeImage`, which answers PNG and JPEG only): PNG → step 2; JPEG → step 3; otherwise → ImageIO under
    `#if canImport(ImageIO)` (the `359444e` body of `contentsOfFile`, moved
    verbatim, data-sourced through `CGImageSourceCreateWithData`), `nil`
    elsewhere.
@@ -321,7 +322,9 @@ with an `APP1` holding `FF D8 FF DA 00 02 00 FF D9`, main scan cut in half;
 - **2.4 `anAdam7FileDecodesLikeItsPlainTwin`** — 9×7 Adam7 == 9×7 plain,
   byte for byte, and the 4×3 Adam7 (empty passes) == its literal. Mutation:
   the pre-check refuses `interlace == 1` → both arms red.
-- **2.5 `aJPEGDecodesToThePinnedPixels`** — `q90.jpg`'s 48 bytes literal
+- **2.5 `aJPEGDecodesToThePinnedPixels`** (*as landed, `PX-T` item 1*:
+  `q90.jpg` is a smooth 4:4:4 gradient — a JPEG of `rgb8`'s pixels decodes
+  ~200 away) — `q90.jpg`'s 48 bytes literal
   (stb's output, the same on every CI platform) and each within 3 of the
   generator's source pixel. Mutation: the sniff recognises only PNG → the
   JPEG decodes to `nil`.
@@ -353,7 +356,9 @@ with an `APP1` holding `FF D8 FF DA 00 02 00 FF D9`, main scan cut in half;
 - **2.10 `aBundleResourceDecodesOnceAndSharesItsTexture`** — a scratch flat
   bundle directory (`Bundle(path:)`) holding `icon.png` and `Icons/dark/key.png`:
   two calls return the same `texture` (`===`), the subdirectory resolves, a
-  missing name → `nil` (twice, the second from the cache). Mutation: bypass
+  missing name → `nil` (twice; *as landed, `PX-T` item 4*: a missing name
+  never reaches the cache, so the cached-`nil` arm is an undecodable resource
+  replaced by a valid PNG). Mutation: bypass
   the cache → identity differs. (If `Bundle(path:)` of a flat directory does
   not resolve on Linux, record it and use `Contents/Resources`.)
 - **2.11 `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`**
