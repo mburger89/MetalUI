@@ -1,6 +1,6 @@
 # Port gaps, medium — field chrome, `layoutPriority`, environment objects, window toolbar — design
 
-**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`), not built.**
+**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`); lane 1 BUILT (2026-10-07, `MD-V`, record §79 §1), lanes 2 and 3 not built.**
 Three lanes (§8, re-cut by `MD-R`), run in order.
 
 User request 2026-10-02, an item of the gpui-gap priority list (**not a plan
