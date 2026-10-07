@@ -45,33 +45,35 @@ private func textWidth(_ string: String) throws -> Float {
     let other = try #require(report.bounds[id(0, 0, 1)], "the sibling")
     let hiWidth = try textWidth("hi")
     #expect(other.size.height.value == 100, "set up — the unprioritised sibling is stretched: \(other)")
-    #expect(hi.size.height.value == 100 && near(hi.size.width.value, hiWidth),
+    #expect(hi.size.height.value == 100 && close(hi.size.width.value, hiWidth),
             "M2.1 — the prioritised Text is stretched too: \(hi)")
 }
 
-private func near(_ a: Float, _ b: Float) -> Bool { abs(a - b) < 0.01 }
+private func close(_ a: Float, _ b: Float) -> Bool { abs(a - b) < 0.01 }
 
 // MARK: - 2.2 an item field under the layer
 
 /// **2.2** (`MD-G` items 1, 2; spec §1.2 row 3). `Row { Text("a").flexGrow(1)
-/// .layoutPriority(1); Text("b") }` 300 wide: the grower's field is lowered by
-/// the row through the layer — nothing reported — and `a` takes the row less
-/// `b`'s width (`Row`'s gap is 0, divergence 52).
+/// .layoutPriority(1); Box().cssWidth(40) }` 300 wide: the grower's field is
+/// lowered by the row through the layer — nothing reported — and `a` takes the
+/// row less the 40-point sibling (`Row`'s gap is 0, divergence 52). (The
+/// sibling is a fixed box, not the spec's `Text("b")`: a prioritised greedy
+/// grower is served first and leaves a `Text` its zero-offer answer, 0, so a
+/// `Text` sibling would not separate a grown `a` from one that is not.)
 ///
 /// Red before: `text.flexGrow.unconsumed`. M2.1a reddens it.
 @Test @MainActor func aLegacyItemFieldUnderALayoutPriorityIsLoweredNotReported() throws {
     let report = LayoutDifferential.report(width: 300, height: 100) {
         Row {
             Text("a").flexGrow(1).layoutPriority(1)
-            Text("b")
+            Box().cssWidth(Pixels(40)).cssHeight(Pixels(10))
         }.cssWidth(Pixels(300))
     }
     #expect(report.unlowerable.isEmpty, "M2.1a — nothing reported: \(report.unlowerable.map(\.description))")
     let a = try #require(report.bounds[id(0, 0, 0, 0)], "the grower")
     let b = try #require(report.bounds[id(0, 0, 1)], "the sibling")
-    let bWidth = try textWidth("b")
-    #expect(near(b.size.width.value, bWidth), "b hugs its text: \(b)")
-    #expect(near(a.size.width.value, 300 - bWidth), "a takes 300 − b: \(a)")
+    #expect(b.size.width.value == 40, "the sibling keeps its 40: \(b)")
+    #expect(a.size.width.value == 260 && a.origin.x.value == 0, "a grows to 300 − 40: \(a)")
 }
 
 // MARK: - 2.3 the lift
