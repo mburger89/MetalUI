@@ -1,4 +1,4 @@
-# 79 — Port gaps, medium: field chrome, `layoutPriority`, environment objects, window toolbar (lanes 1 and 2 landed)
+# 79 — Port gaps, medium: field chrome, `layoutPriority`, environment objects, window toolbar (lanes 1–3 landed)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls merged,
 PR #49). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
@@ -9,8 +9,8 @@ rulings `MD-A`…`MD-W` in `docs/superpowers/2026-10-07-port-gaps-medium-decisio
 `swiftui-environment-object.swift`, `swiftui-toolbar.swift`,
 `swiftui-toolbar-nested.swift`.
 
-**Status: lanes 1 and 2 landed (2026-10-07, §1, §2); lane 3 (the drawn strip
-and the demo) not started.** The Record phase completes this record.
+**Status: lanes 1, 2 and 3 landed (2026-10-07, §1, §2, §3).** The Record
+phase completes this record.
 
 ## 1. Lane 1 — field chrome, legacy priority, environment objects
 
@@ -322,3 +322,86 @@ summary line**. AppKit tests fire a control by setting its state and calling
 Lane 3's items (`MD-R`): the drawn strip on SDL (tests 3.6–3.10, 3.16), the
 demo section and the human checks for the native toolbar's look.
 
+
+## 3. Lane 3 — the drawn strip and the demo (`MD-K`, `MD-M`, `MD-Z`)
+
+| Step | Commit | Suite after |
+|---|---|---|
+| Red — tests 3.6–3.8, 3.10, 3.16 (`ToolbarStripTests`) and arm 3.9 (`everyNamingSiteStartsAReturningNameFresh`) | `fdc5508` | does not compile (`cannot find 'ToolbarStrip' in scope`; `Frame` has no member `drawsToolbarStrip`; no `portGapsModel`/`PortGapsDemoIDs`) |
+| Green | `9f858ea` | **2625 tests in 3 suites** passed |
+| Review fixes — tests 3.6b–3.6f | this section's commits | **2630 tests in 3 suites** passed (native, unfiltered, `--no-parallel`, `FR-J … succeeded=true`, 0 `error:`) |
+
+### 3.1 What landed
+
+- `Sources/MetalUI/ToolbarStrip.swift`: where `setToolbar` answers `false`
+  (SDL; `FakePlatformWindow.toolbarIsNative = false` in tests), the window
+  draws its toolbar as a 39-point strip (7 + 24 + 7, a 1-point `.separator`
+  at y 38, filled `.surface`) under the named root `$toolbar` at `(nil, 1)`;
+  items keyed by their platform ids; navigation leading, primary/automatic
+  and search trailing, principal and status centred in an overlay. Each item
+  carries its `isEnabled` as `.disabled(!isEnabled)` (`MD-Z` item 3).
+- `Frame.swift`: the strip is requested after the root (the toolbar records
+  are complete then), its run computed **before** the root's (`MD-Z` item 2),
+  prepainted and painted after the root and its removal ghosts, below the
+  drag preview, menu, tooltip and alert (`MD-Z` item 6). The root is offered
+  and centred in the rect below the strip; measured content limits add 39
+  (`MD-Z` item 4).
+- `Window.swift`: one extra build when the strip's presence changes, placed
+  after the lifecycle's settle build (`MD-Z` item 5).
+- The controls demo's port-gaps section (`portGapsDemoSection()`, its own
+  function) and the demo root's toolbar (`MD-M`, `MD-Z` item 7). Divergence
+  136; human checks W1–W5.
+
+### 3.2 Mutations (committed tree, applied by script, restored from a copy, full unfiltered native `--no-parallel` suite, `git status --short` clean of sources after each)
+
+Spec mutations, run at `9f858ea` by the lane 3 review (2625-test suite):
+
+| # | Spelling (file) | Reddened |
+|---|---|---|
+| M3.6 | `static let height: Float = 39` → `0` (`ToolbarStrip.swift`) | `aDrawnToolbarStripSitsAboveTheRootAndKeepsItsIds` (17 issues) |
+| M3.7 | `if lastBuildDrewToolbarStrip != toolbarIsDrawn {` → `if false {` (`Window.swift`) | `aDrawnToolbarIsInTheFirstPresentedFrame`, `aDrawnToolbarControlIsAnOrdinaryControl`, `aDrawnToolbarStripSitsAboveTheRootAndKeepsItsIds` (4) |
+| M3.8 (literal) | the strip's `prepaint` call removed, `paint` kept (`Frame.swift`) | **no summary line**: `AnyElement.swift:177: Fatal error: AnyElement.paint before prepaint` inside `everyNamingSiteStartsAReturningNameFresh`; the unmutated suite finishes, so the spelling is an instrument that cannot redden test 3.8 |
+| M3.8 (as the spec now reads) | the strip's `prepaint` **and** `paint` calls removed | `aDrawnToolbarControlIsAnOrdinaryControl`, `aDrawnToolbarIsInTheFirstPresentedFrame`, `aDrawnToolbarStripSitsAboveTheRootAndKeepsItsIds`, `everyNamingSiteStartsAReturningNameFresh` (6) |
+| M3.9 | the root's `stateTable.noteNamed(ToolbarStrip.rootID, …)` removed | **none** — expected (`MD-Z` item 1: one fixed name at its own position can depart nothing) |
+| M3.9b | `ForEach(trailing, id: \.id)` → `id: \.placement` | `everyNamingSiteStartsAReturningNameFresh`, `aDrawnToolbarControlIsAnOrdinaryControl`, `aDrawnToolbarIsInTheFirstPresentedFrame` (3) |
+| M3.10 | the extra-build condition → `if true {` | `aDrawnToolbarIsInTheFirstPresentedFrame` and every build-counting test (138 tests, 80 issues) |
+| M3.16 | `.environment(portGapsModel)` → `.environment(nil as PortGapsModel?)` (`ControlsDemo.swift`) | `theControlsDemoShowsThePortGapsSection` (1) |
+| X5 | the strip's prepaint moved before the root's | `aDrawnToolbarControlIsAnOrdinaryControl` (1) |
+
+### 3.3 Review fixes
+
+The review's mutations X1, X2, X3, X4, X6, X7 and X8 left the 2625-test
+suite green. Five tests were added to `ToolbarStripTests.swift`: **3.6b**
+`aGreedyRootIsOfferedOnlyTheRectBelowTheStrip` (a root filling a 400 × 400
+drawn-strip window is exactly (0, 39, 400, 361); now a pin of divergence
+136), **3.6c** `aDrawnToolbarStripPaintsAboveTheRoot` (`lastScene` holds the
+`.surface` fill (0, 0, 400, 39) and the `.separator` line (0, 38, 400, 1),
+both after the root's `.accent` fill, glyphs within y 0…39), **3.6d**
+`aDisabledItemInTheDrawnStripRunsNothing` (an item under a `.disabled(true)`
+scope: a click at its strip centre runs nothing; the enabled sibling runs),
+**3.6e** `drawnStripItemsArePlacedByPlacement` (navigation at x 8, principal
+centred at 200, the trailing field ending at 392), **3.6f**
+`theStripsRunIsNotTheRootsAndItsHeightJoinsTheContentMinimum` (the deepest
+level equals the native window's; under `.contentMinSize` the minimum height
+is the native one + 39). Each mutation re-run on the review-fix commit,
+2630-test suite:
+
+| # | Spelling | Reddened |
+|---|---|---|
+| X1 | the strip's `computeNativeLayout` run moved after the root's (`Frame.computeRootLayout`) | `theStripsRunIsNotTheRootsAndItsHeightJoinsTheContentMinimum` (1) |
+| X2 | `plus: top)` → `plus: 0)` (both measurements) | `theStripsRunIsNotTheRootsAndItsHeightJoinsTheContentMinimum` (1) |
+| X3 | `element().disabled(!isEnabled)` → `.disabled(false)` (`ToolbarStripItem.body()`) | `aDisabledItemInTheDrawnStripRunsNothing` (1) |
+| X4 | the strip's `paint` call removed from `Frame.render` | `aDrawnToolbarStripPaintsAboveTheRoot` (3) |
+| X6 | navigation items moved into the trailing group | `drawnStripItemsArePlacedByPlacement` (1) |
+| X7 | the root proposed `height: height` instead of `rootHeight` | `aGreedyRootIsOfferedOnlyTheRectBelowTheStrip`, `aDrawnToolbarStripPaintsAboveTheRoot` (2) |
+| X8 | `.background(.surface)` removed from the strip | `aDrawnToolbarStripPaintsAboveTheRoot` (1) |
+
+### 3.4 Must-not-move
+
+- Demo pixels at `9f858ea` (`compare.sh <scratch> d48b26d HEAD`): **0
+  differing in all fourteen images, scene identical**; the review fixes touch
+  tests and docs only.
+- `Backends/SDL` on macOS at `9f858ea`: **24 + 78** passed (unchanged by lane
+  3, which touches no SDL file).
+- `Tests/MetalUICrossPlatformTests/Expected.swift`, `MetalUILayout`,
+  `MetalUIScene`: untouched.
