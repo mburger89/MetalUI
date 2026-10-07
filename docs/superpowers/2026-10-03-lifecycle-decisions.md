@@ -420,8 +420,11 @@ macOS and silently never starts on Linux/Windows. **Owner: the plan's gap 10**
 (one `RunLoop.main.run(mode: .default, before: .distantPast)` per iteration
 runs the task) for that owner to build and test in `SDLPlatform.run()` itself.
 SwiftUI's answers for the owner: `.task` starts after `onAppear` and is
-cancelled after `onDisappear` (`K1`); `.task(id:)` starts the new task, then
-cancels the old (`K2`).
+cancelled after `onDisappear` (`K1`); `.task(id:)` ~~starts the new task, then
+cancels the old (`K2`)~~ — **corrected by `PX-V` item 5: it cancels the old
+task, then starts the new one** (`K2` read the old task's resumption, not its
+cancel; `swiftui-task.swift` `X5`). `.task` was built by the portable-app
+branch (`PX-F`, record §80), after `SV-H` removed this ruling's blocker.
 
 **Cost if wrong.** None to this branch; the port starts its monitor from
 `onAppear` (a synchronous start of its own async work) until the owner lands.

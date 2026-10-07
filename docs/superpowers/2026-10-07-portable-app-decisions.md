@@ -32,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-V`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-W`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -1107,3 +1107,51 @@ the `Backends/SDL` suite in full):
 **Cost if wrong.** Item 2's bucket choice is MetalUI's own and pinned; a
 later ruling may move the cancel to the disappearance bucket in one line.
 Items 1, 3–6 are internal or test-side.
+
+## PX-V — The Record phase: three verifier findings ruled or recorded
+
+**Ruling.** The three lane verdicts (all `ok: true`) left five minor findings;
+two are corrected in the Record phase's commit, three are ruled here.
+
+1. **A task key that returns from a parked removal ghost with a different
+   `task(id:)` value keeps running under its old id.** `Lifecycle.swift`
+   compares ids only inside `if let old = previous[key]`; a ghost-returned key
+   has no previous entry (the box was taken back by `PX-U` item 1) and is
+   skipped by the start branch, and no later build compares again, because
+   from then on previous and current agree on the new id's entry. Read from
+   the source and the verifier's trace; **not pinned and not probed against
+   SwiftUI** (`X17` returns with the same id). Ruled: left as is. The case
+   needs an id that changes in the same frames as a removal transition
+   reverses, and the cost of being wrong is a task that finishes on a stale
+   id until the next change. Owner: none until an app demands it; the fix, if
+   one is ever wanted, is to compare at return and restart in the change
+   bucket (`PX-U` item 2's bucket), pinned by a test that first reddens.
+2. **Test 1.7's warning filter cannot fail as written.**
+   `aCrossPlatformPackageBuildsItsSDLAppByURL` keeps lines containing
+   `warning:` and `repository.path` (the source repository), but the consumer
+   compiles MetalUI from `<root>/Consumer/.build/checkouts/MetalUI`, a path
+   that never contains it; under mutation V6 the consumer's diagnostics named
+   the consumer's paths only. What the test does prove is the link (status 0,
+   the executable present) and, in the CI image, the build log it prints. The
+   claim "0 warnings in a URL consumer" rests on lane 1's measurement of the
+   printed log (record §80 §1.3), not on that `#expect`; **no document may
+   cite the filter as a pin.** The repair is one substring
+   (`.build/checkouts/MetalUI`) plus a mutation that adds a warning to
+   MetalUI; deferred, owner a follow-up that can run the Linux consumer test
+   (OrbStack).
+3. **`aNameThatIsADependencysPackageIdentityIsRefused` now asserts an
+   acceptance for `SDL`/`sdl`/`Sdl` when cross-platform** (`PX-S` item 3 kept
+   the name so the record's citations resolve). Left; the test's doc comment
+   says so.
+4. **Corrected in this commit:** `Backends/SDL/Sources/CAccessKit/shim.h`'s
+   first comment named pkg-config, which `PX-H` and `PX-I` removed (reworded
+   to the compiler's default paths or `-Xcc -I`); `CLAUDE.md`'s `Backends/SDL`
+   build line named `PKG_CONFIG_PATH` (now `--print-flags`, `PX-I` item 6).
+5. **The `K2` reading is corrected everywhere it was copied** (spec §8.3):
+   `LC-L`, record §76, `swiftui-lifecycle.swift`'s K1/K2 note. `swiftui-task.swift`
+   `X5` (the `onCancel` instrument) shows SwiftUI cancels the old `.task(id:)`
+   body **before** the new one starts; the lifecycle probe's `K2` printed the
+   old task's resumption, which comes after.
+
+**Cost if wrong.** Item 1 is a stale id in a corner. Item 2 is a
+test that would stay green if a warning appeared. Nothing else moves.

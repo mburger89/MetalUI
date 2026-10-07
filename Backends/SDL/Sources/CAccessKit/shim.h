@@ -1,5 +1,6 @@
 // AccessKit's C API (ruling AX-A): fetched by scripts/fetch-accesskit.py,
-// found through pkg-config (Linux, macOS) or -Xcc -I (Windows).
+// found on the compiler's default include paths (an install under /usr or
+// /usr/local) or through -Xcc -I (PX-I).
 #ifdef _WIN32
 // accesskit.h includes <windows.h> and uses `HWND`. Under Clang modules the
 // Windows runner reported "missing '#include <windef.h>'; 'HWND' must be

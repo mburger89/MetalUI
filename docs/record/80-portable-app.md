@@ -1,17 +1,18 @@
-# 80 — A MetalUI app on Linux and Windows: portable images, `.task`, a consumable SDL backend (design)
+# 80 — A MetalUI app on Linux and Windows: portable images, `.task`, a consumable SDL backend (complete)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
 PR #50). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — what the SMK configurator needs to run on Linux and Windows.
 Spec `docs/superpowers/specs/2026-10-07-portable-app-design.md`; rulings
-`PX-A`…`PX-U` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
-(next unused `PX-V`); probes `docs/probes/swiftui-task.swift`,
+`PX-A`…`PX-V` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
+(next unused `PX-W`); probes `docs/probes/swiftui-task.swift`,
 `swiftui-bundle-image.swift`, `swift-task-modifier-isolation.swift`,
 `image-decoder-parity/`, `swiftpm-traits-sdl/`.
 
-**Status: lanes 1–3 landed (2026-10-07).** Lanes 1 (packaging), 2 (images)
-and 3 (`.task`) landed in that order, each appending its section here; the
-Record phase owes spec §8.3.
+**Status: complete (2026-10-07).** Lanes 1 (packaging), 2 (images) and 3
+(`.task`) landed in that order (§1–§3); the Record phase's close is §4. No
+renumbering: `origin/master` was still `359444e` at the close and no other
+record numbered 80 exists. The spec's §8.3 is discharged here (§4.5).
 
 ## 0. Design
 
@@ -319,3 +320,113 @@ Nothing new beyond spec §9. 3.20 still runs in no CI job (`PX-R` item 4; its
 macOS line is above). The Record phase owes spec §8.3 (CLAUDE.md/AGENTS.md,
 the `LC-L`/`K2` correction, the record README row, record §04 sections for
 137 and 138).
+
+## 4. Record phase — the close
+
+### 4.1 Suite, guards, census
+
+Tree: `1bfe0c1` plus this phase's docs. `swift package clean`, `swift build
+--build-system native --build-tests` (0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice), `swift test --build-system native
+--no-parallel`, unfiltered: **`Test run with 2672 tests in 3 suites passed`**
+(157.6 s; 2630 + 42), the `FR-J no-argument frame: succeeded=true` line present.
+
+| Count | At `359444e` | Now | By |
+|---|---|---|---|
+| Tests | 2630 | **2672** | lane 1 +5 (2635), lane 2 +14 (2649), lane 3 +23 (2672) |
+| Typecheck guards | 171 | **175** | +4 `canTypecheck`-gated declarations (`git grep "enabled(if: canTypecheck"`, 170 → 174): 1.6 (lane 1), 3.G1–3.G3 (lane 3), each mutated red once (§1, §3) |
+| Goldens | 0 | 0 | `find Tests/MetalUILayoutTests -name "*.json"` reads 0 |
+| Public census | 2532 | **2536** (+4) | `closeout-public-api.sh`; the recorded TSV re-taken; 138 inventory families (+2: `image-decoding`, `task`) |
+| Live divergences | 103 | **105** | 137 and 138 added; next label **139** |
+| `Backends/SDL` | 24 + 78 (macOS), 24 + 75 (Linux image) | **24 + 83**, **24 + 80** | lane 1 +3 (test 1.10), lane 3 +2 on macOS (3.20, 3.21), +2 in the image (3.21; 3.20 is gated off) |
+| Linux container, root | 199 + 22 + 36 + 31 + 18 + 6 | 6 + 35 + 18 + 199 + 49 + 22 | the cross-platform target 36 → 49 (thirteen image tests); the other targets as measured (`swift:6.4-noble`, record §3.3) |
+
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+`swift build --build-tests` (default build system): 0 `warning:` (lane 3's
+reading; no source changed since).
+
+### 4.2 Not re-taken by this phase
+
+- `Backends/SDL` on macOS and in the Linux image, and the demo pixels
+  (**0 differing, scene identical, in all fourteen images** against `359444e`,
+  taken by each lane's verifier at its own tip): this phase touched docs and
+  one header comment (`CAccessKit/shim.h`), no source. `DemoFrameDeterminismTests`'
+  `Expected.swift` unedited (Linux/Windows CI confirm on push). No shader
+  change.
+- Real-window captures and every group X look: not taken (an agent cannot).
+- Windows: nothing built or run here; the new targets are portable and the
+  CI jobs (`swift.yml`, `sdl-gpu-linux.yml`) were edited for the traits
+  (§1.2), unexercised until a push.
+
+### 4.3 Hazards
+
+- **`ImageBitmap(contentsOfFile:)` on macOS changes** (divergence 138,
+  `docs/migration.md`): colour-tagged PNG/JPEG are no longer converted, a PNG
+  with any bad chunk CRC or no `IEND` and a JPEG with no end marker are `nil`
+  where ImageIO returned something, JPEG bytes move by up to 2. Untagged and
+  sRGB PNGs are byte-identical (22 files measured); the fourteen demo images
+  read 0 px.
+- **`.task` on macOS 14–25 starts one main-queue turn late** (divergence 137).
+  **No CI job runs `.task` itself on Linux or Windows**: the root jobs do not
+  run `MetalUITests`, and SDL test 3.20 is gated off the offscreen driver
+  (`PX-R` item 4); what runs in the Linux image is 3.21, a hand-written
+  `Task.immediate`, not the modifier's lifecycle path. A headless portable pin
+  of the modifier is a follow-up.
+- **`Backends/SDL` on macOS builds with flags**, not `PKG_CONFIG_PATH`
+  (`swift test $(python3 scripts/fetch-accesskit.py --print-flags)`); the old
+  command fails with "'SDL3/SDL.h' file not found". `CLAUDE.md` now says so.
+- **`App(platform: SDLPlatform())` without the `SDL` trait** reads as a
+  conformance error naming the stub's availability message (`PX-S` item 2);
+  documented in `docs/getting-started.md`, not fixed.
+- A consumer enabling the traits must have SDL3 (and AccessKit) installed;
+  `docs/getting-started.md` lists exactly what, per platform.
+- A recorded mutation hang or trap: none in any lane.
+
+### 4.4 The verifiers' mutation tables (summary; the full tables are `PX-S`, `PX-T`, `PX-U`)
+
+Each applied once from a clean tree, restored from a copy, `git status --short`
+clean after each; the names are the tests reddened.
+
+| Lane | Mutation | Reddened |
+|---|---|---|
+| 1 | `"DemoCapture"` added to the refused SDL-backend module names (`Scaffold.swift`) | `aNameOnlyBackendsSDLDeclaresGenerates` (that arm) |
+| 1 | the manifest's `#if os(Linux) \|\| os(Windows)` traits block → `#if os(Windows)` (CI image) | `aCrossPlatformPackageBuildsItsSDLAppByURL`, `aCrossPlatformPackageBuildsWithoutAccessKit`, `crossPlatformNoLongerNeedsALocalCheckout` |
+| 1 | the stub's `@available` message reworded | `anSDLPlatformWithoutTheSDLTraitNamesTheTrait` |
+| 1 | the `SOURCE.sha256` check replaced by a directory-exists check | `theSourceTreesShaderDirectoryIsUsedWhenItAloneExists` |
+| 2 | `pngStructureIsIntact` CRC always passes | `aCorruptPNGIsNil` (288 of 424 flips decode; 1186 of 2096 on the 9×7 file) |
+| 2 | `ImageResourceCache` lookup bypassed | `aBundleResourceDecodesOnceAndSharesItsTexture` |
+| 2 | a chunk walk ending at the buffer end passes without `IEND` | `thePNGPreCheckRequiresIEND` |
+| 2 | `jpegScanIsTerminated` searches from offset 2 | `aTruncatedJPEGWithAThumbnailIsNil` |
+| 2 | 16-bit samples truncated, not rounded | `sixteenBitSamplesRoundToEightBits`, `everyFixturePNGDecodesToItsLiteralPixels`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` |
+| 2 | ImageIO fallback compiled out | `aTIFFStillDecodesThroughImageIOOnApple` |
+| 2 | straight samples handed to the premultiplied initialiser | `straightSamplesArePremultipliedOnce` and five more (`everyFixturePNGDecodesToItsLiteralPixels`, `anAdam7FileDecodesLikeItsPlainTwin`, `aBundleResourceDecodesOnceAndSharesItsTexture`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`, `anImageBitmapDecodesAPNGThroughImageIO`) |
+| 3 | plain `Task` for `Task.immediate` (V1) | seventeen `TaskModifierTests`, among them `aTaskStartsInsideTheFirstFrameAfterAnInnerOnAppear`, `anIDChangeCancelsTheOldTaskThenStartsTheNewOne`, `closingTheWindowCancelsEveryTask` |
+| 3 | `priority:` dropped; `name: nil`; `isEqual` always false; new task started before the old is cancelled; id restart in the appearance bucket | `theTaskPriorityDefaultsToUserInitiatedAndPassesThrough`; `aTaskCarriesSwiftUIsDefaultName`; `theSameIDOrARebuildRestartsNothing`; `anIDChangeCancelsTheOldTaskThenStartsTheNewOne`; `anIDRestartRunsAtItsPlaceAmongOnChangeActions` |
+| 3 | disappearance never yields the running cancel | five `TaskModifierTests` (`removalCancelsAtItsPlaceInTheDisappearanceOrder`, …) and, under SDL on macOS, `aTaskModifierProgressesAndIsCancelledUnderSDLPlatform` |
+| 3 | `closeAll` ignores running boxes; the ghost-return box not taken back; boxes never written back; no cancel when a key stops being a task; `forcesDeferredStart` ignored | `closingTheWindowCancelsEveryTask`; `aTaskReinsertedMidRemovalKeepsRunning`; twelve tests; `aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt`; `theDeferredStartRunsTheBodyOnALaterTurn` |
+| 3 | a public `onClick` forwarding extension on `LifecycleScope` (guard 3.G2) | `aLegacyDecorationAfterATaskModifierDoesNotCompile`, `aLegacyDecorationAfterALifecycleModifierDoesNotCompile` |
+
+### 4.5 Corrections made by this phase
+
+- **The refuted `K2` reading** ("`.task(id:)` starts the new task, then cancels
+  the old") struck in `LC-L` (lifecycle decisions), record §76 and the K1/K2
+  note in `swiftui-lifecycle.swift`; `PX-V` item 5. `LC-L`'s blocker is gone
+  and the modifier is built (`CLAUDE.md`'s Lifecycle paragraph, `docs/migration.md`).
+- `CAccessKit/shim.h` no longer says pkg-config (`PX-V` item 4).
+- `CLAUDE.md`/`AGENTS.md`: the `Backends/SDL` build line, `SC-C`'s "requires
+  `--local`" (now by URL, `PX-J`), the `PX-` prefix, the Lifecycle paragraph,
+  counts.
+- Record §03 (group X owed), record §04 (137, 138), the record README row, the
+  README.
+
+### 4.6 Deferred, with owners
+
+Spec §9 stands unchanged: colour management (none), asset catalogs and
+`Image(_:bundle:)` (none), `.task(…executorPreference:…)` (none), frames under
+SDL's offscreen driver (none; until then 3.20 runs in no CI job), `MetalUISDL`
+in the census (none), a generated app built on Windows in CI (human check X4),
+GIF/WebP/TIFF/HEIC/BMP off Apple (none). Added by `PX-V`: a task key
+returning from a parked ghost with a changed `task(id:)` value keeps its old
+id (unpinned); test 1.7's warning filter cannot fail (repair: match
+`.build/checkouts/MetalUI`); both owned by a follow-up that can run the Linux
+consumer test. Human checks X1–X5, unrun.

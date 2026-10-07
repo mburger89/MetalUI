@@ -386,8 +386,8 @@ looks are `docs/verification/human-checks.md` group Q, unrun.
 `.onAppear`, `.onDisappear` and `.onChange(of:initial:_:)` (both closure forms) on both
 vocabularies, run after the frame so a `@State`, `Binding` or `@Observable` write is legal
 and an `onAppear` write is in the first frame; a removal's `onDisappear` waits for its fade
-and a window close runs every one (divergences 120–125). `.task` is not offered yet (the SDL
-loop never runs main-actor tasks). The real looks are `docs/verification/human-checks.md`
+and a window close runs every one (divergences 120–125). `.task` and `.task(id:)` are built
+(record §80, below). The real looks are `docs/verification/human-checks.md`
 group T, unrun. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows the counters.
 **Platform services** (user request 2026-10-02, not a plan task; record §77):
 `.fileImporter`/`.fileExporter` and an async `FileDialogs` call (an
@@ -428,6 +428,15 @@ is readable while building views and `.preferredColorScheme(_:)` forces a window
 appearance (AppKit `NSWindow.appearance`; SDL follows the system theme). The real
 looks are `docs/verification/human-checks.md` group S, unrun.
 `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows them.
+**A MetalUI app on Linux and Windows** (user request 2026-10-02, not a plan task; record §80):
+`ImageBitmap(contentsOfFile:)`, `init?(data:)` and `init?(resource:…)` decode PNG and JPEG with
+a vendored stb_image on every platform (identical premultiplied-sRGB bytes; colour profiles
+ignored, divergence 138; corrupt or truncated files are `nil`); `.task { }` and
+`.task(id:priority:_:)` run on the lifecycle machinery (cancel, then start on an id change;
+one frame late on macOS 14–25, divergence 137); the SDL backend is a product of the root
+package behind the traits `SDL` and `AccessKit`, so a URL dependent builds it on Linux and
+Windows and `metalui new --cross-platform` works without `--local`
+(`docs/getting-started.md` says exactly what to install). Human checks: group X, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

@@ -45,7 +45,8 @@ summary.
   `2026-10-04-platform-services-decisions.md`, next `SV-AM`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
-  window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), …; the full
+  window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
+  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -58,9 +59,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **103 live, next label 137**; retired labels are
+  live SwiftUI difference — **105 live, next label 139**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–W, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–X, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -80,7 +81,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-07, `feat/port-gaps-medium` from `d48b26d`, all three lanes):
+- **Counts (2026-10-07, `feat/portable-app` from `359444e`, all three lanes):
+  2672 tests, 0 goldens, 175 typecheck guards** (2630 + 42 tests, 171 + 4 guards;
+  census 2536; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image,
+  root in the image 6 + 35 + 18 + 199 + 49 + 22; record §80 §4). Before it,
+  `feat/port-gaps-medium` from `d48b26d`, all three lanes:
   2630 tests, 0 goldens, 171 typecheck guards** (2579 + 51 tests, 166 + 5 guards;
   census 2532; `Backends/SDL` 24 + 78 on macOS, 24 + 75 in the Linux container,
   lane 2's readings; record §79 §4). Before it,
@@ -142,10 +147,13 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   target and run `MetalUILayoutTests`, `MetalUICoreTests`,
   `MetalUICrossPlatformTests`. A Darwin-only test there is gated per
   declaration with `#if canImport(Darwin)` (`PC-B`).
-- **`Backends/SDL`** is a separate package (`MetalUISDL`). It links
-  AccessKit's C bindings, fetched not vendored (`AX-A`): run
-  `python3 Backends/SDL/scripts/fetch-accesskit.py` once, then build/test with
-  `PKG_CONFIG_PATH=$PWD/.accesskit`. macOS CI does not run its tests.
+- **`Backends/SDL`** is a package (`MetalUISDL`) whose library targets the
+  root manifest also declares by `path:` (`PX-H`, below). It links AccessKit's
+  C bindings, fetched not vendored (`AX-A`): run
+  `python3 Backends/SDL/scripts/fetch-accesskit.py` once, then from
+  `Backends/SDL` build/test with `swift test $(python3 scripts/fetch-accesskit.py
+  --print-flags)` (**not** `PKG_CONFIG_PATH`: the pkg-config route is gone,
+  `PX-I`). macOS CI does not run its tests.
 - **Windows locally: the UTM VM** (Windows 11 ARM64, where the machine has
   one; `ssh metalui-win`, PowerShell — `utmctl exec` does not work, ARM64 guest
   tools ship no `qemu-ga`). It runs the CI Windows jobs' commands with SDL's
@@ -388,7 +396,7 @@ trap. A new resource lookup in `MetalUIRender` goes through
 **Scaffolding** (`SC-`, record §72, `docs/getting-started.md`): `metalui new`
 is the `MetalUICLI` executable over `MetalUIScaffold` — Foundation only, every
 declaration `package` (a tool, not API: no inventory row). `--cross-platform`
-requires `--local` (`Backends/SDL` is path-only, `SC-C`). **A change to
+works from any source, `--local` or the URL (the SDL backend is a root-package product behind traits, `PX-J`, which supersedes `SC-C`). **A change to
 `docs/packaging.md`'s recipe, `App`'s initialisers or the starter's API
 changes the generated text too** — re-run
 `METALUI_RUN_SCAFFOLD_BUILD_TEST=1 swift test --filter aGeneratedPackageBuildsAgainstThisCheckout`.
@@ -591,10 +599,30 @@ only while an `onDisappear` exists (`LC-I`). A never-written `@State` default
 is re-seeded every build: assign the instance in `onAppear` (divergence 125).
 A window close runs every `onDisappear` once (`App`'s `onClose` →
 `runDisappearancesForClose`); a headless `renderFrame` runs nothing.
-**`.task` is deferred**: its blocker (a main-actor `Task` never ran in
-`SDLPlatform.run()`, `LC-L`) is removed by the loop's main-queue drain
-(`SV-H`), but the modifier is not built. A steady frame costs 3K for K scopes and 0
+**`.task { }`/`.task(id:priority:_:)` are built** (`PX-F`, record §80):
+one more `LifecycleWrite` — started with `Task.immediate` as an appearance
+(macOS 14–25: `Task`, one frame late, divergence 137), cancelled as a
+disappearance (parked under a removal ghost, the box carried back on
+re-insertion), an id change cancels the old task **then** starts the new one
+in the change bucket; `LC-L`'s blocker went with `SV-H`. A steady frame costs 3K for K scopes and 0
 with none.
+
+**A MetalUI app on Linux and Windows (`PX-`, record §80).** **One decoder
+everywhere**: PNG and JPEG go through the vendored stb_image 2.30
+(`CStbImage`, `PC-A` list, imports nothing; `Sources/MetalUI/ImageDecoding.swift`)
+on every platform, macOS included, 16-bit samples *rounded*, colour profiles
+ignored (divergence 138), premultiplied once by `ImageTexture`; a corrupt or
+truncated file is `nil` (PNG chunk CRCs and `IEND`, JPEG end marker checked
+first — never trap); ImageIO stays only for other formats on macOS.
+`ImageBitmap(contentsOfFile:)`, `init?(data:)`, `init?(resource:…bundle:)`
+(decoded once per path); `Image(_:bundle:)` is not offered (`PX-E`).
+**The SDL backend is a root-package product** behind traits `SDL` and
+`AccessKit`: `MetalUISDL`/`SDLBridge`/`CSDL`/`CAccessKit` are declared by
+`path:` into `Backends/SDL/Sources`, **no `pkgConfig:`** (it makes the default
+build system warn in every consumer); without `SDL` the module declares an
+unavailable `SDLPlatform` naming the trait. A change to those targets is run
+in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
+executable (`PX-P`).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
@@ -773,7 +801,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (103 live, next label 137). A new
+- **Divergences**: `docs/divergences.md` (105 live, next label 139). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

@@ -193,8 +193,9 @@ was and a write is lost (`D1`); a never-written `@State` default keeps its
 first evaluation (`D2`, the separating arm: four `made` lines, `start Mon 1`,
 `stop Mon 1`); order-out and `close()` with the host retained fire nothing, the
 content leaving its host fires `onDisappear` (`W1`–`W3`); `.task` starts after
-`onAppear` and cancels after `onDisappear`, `task(id:)` starts the new task
-then cancels the old (`K1`, `K2`). **Not claimed**: SwiftUI's app-scene quit
+`onAppear` and cancels after `onDisappear`, `task(id:)` ~~starts the new task
+then cancels the old~~ (`K1`, `K2`; **corrected, `PX-V` item 5, record §80: it
+cancels the old task, then starts the new one**). **Not claimed**: SwiftUI's app-scene quit
 (`LC-J` item 3), a transitioned group that painted nothing (`LC-P` item 7).
 `swift-main-actor-task-loop.swift`: `P0` true, `B1` false, `B2` true, on
 macOS and in `swift:6.4-noble`. Windows is not measured (no Windows host).

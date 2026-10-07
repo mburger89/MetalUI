@@ -701,8 +701,10 @@
 //   retained fires nothing; W3: removing the hosting view from the window runs
 //   onDisappear.
 // - K1: `.task` starts after onAppear and is cancelled after onDisappear
-//   (`Task.isCancelled` true). K2: `.task(id:)` starts the new task, then
-//   cancels the old one.
+//   (`Task.isCancelled` true). K2: `.task(id:)` restarts. (CORRECTED 2026-10-07, PX-V
+//   item 5: the printed order "task start k=1" before "task k=0 cancelled" is
+//   the old task's RESUMPTION, not its cancel; swiftui-task.swift X5 shows
+//   the old body is cancelled first, then the new one starts.)
 
 import AppKit
 import SwiftUI

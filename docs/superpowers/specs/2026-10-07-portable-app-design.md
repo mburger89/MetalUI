@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-07-portable-app-decisions.md`](../2026-10-07-portable-app-decisions.md)
-(`PX-A`…`PX-U`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`, lane 2 `PX-T`, lane 3 `PX-U`). Record: `../../record/80-portable-app.md`. Branch
+(`PX-A`…`PX-V`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`, lane 2 `PX-T`, lane 3 `PX-U`, the Record phase `PX-V`). Record: `../../record/80-portable-app.md`. Branch
 `feat/portable-app` from `359444e`.
 
 **Motivation.** The SMK keyboard configurator runs on MetalUI on macOS
@@ -11,6 +11,11 @@ Windows. Three things block it: `ImageBitmap(contentsOfFile:)` is ImageIO-only
 (its rail icons are per-scheme PNGs); `.task` is deferred (`LC-L`); and the SDL
 backend is a path-only package a URL dependent cannot reach (`SC-C`). The SDL
 main-queue drain (`SV-H`) already landed.
+
+**Status: complete (2026-10-07).** Lanes 1–3 landed and the Record phase
+discharged §8.3 (record §80 §4); counts 2672 tests, 175 guards, census 2536.
+The lanes' amendments are the `PX-S`…`PX-V` rulings; where this text and a
+ruling differ, the ruling and the source win.
 
 ---
 
