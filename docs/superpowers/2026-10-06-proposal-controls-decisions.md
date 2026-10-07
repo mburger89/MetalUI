@@ -879,6 +879,14 @@ VoiceOver-script tests open) and `theControlsDemoPublishesEveryControlsRole`
 render their content once through `LayoutDifferential.render` with diagnostics
 and `try #require` an empty report before opening the window — the change
 that introduced the hazard carries the guard. M3.1 is re-run on the hardened
-tree; its reddened list is the record's.
+tree; its reddened list is the record's: **re-run on `b179a93`** (the same
+spelling, the full unfiltered suite, restored from a copy, `git status --short`
+clean after) — `Test run with 2579 tests in 3 suites failed … with 4 issues`,
+a summary line and no trap; reddened
+`theControlsDemosSwiftUISectionLaysOutWithoutReports` (3.1),
+`theControlsDemoPublishesTheTreeTheVoiceOverScriptReads`,
+`theVoiceOverScriptQuotesThePublishedTree` and
+`theControlsDemoPublishesEveryControlsRole` (each its new pre-flight
+`#require`). The unmutated suite on `b179a93`: 2579 tests in 3 suites passed.
 
 **Cost if wrong.** One extra diagnostics render per demo window test.
