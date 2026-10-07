@@ -10,7 +10,7 @@ with reproductions in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-06-proposal-controls-decisions.md`](../2026-10-06-proposal-controls-decisions.md)
-(`PE-A`…`PE-Y`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-V` (a `ProposalScrollView` publishes its `ScrollContext`) and `PE-W` (a ninth flipped guard, two measured spellings) and `PE-X` (lane 1's mutation table) are lane 1's; `PE-Y` is lane 3's (the demo section's placement and state, V5 suspended); `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
+(`PE-A`…`PE-Z`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-V` (a `ProposalScrollView` publishes its `ScrollContext`) and `PE-W` (a ninth flipped guard, two measured spellings) and `PE-X` (lane 1's mutation table) are lane 1's; `PE-Y` and `PE-Z` are lane 3's (the demo section's placement and state, V5 suspended; M3.1 and the demo window tests' pre-flight); `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
 (its header's READING is the authority for every SwiftUI claim here). Record
 (Record phase): `docs/record/78-proposal-controls.md`.
 

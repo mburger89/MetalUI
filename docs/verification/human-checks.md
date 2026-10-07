@@ -766,7 +766,7 @@ looked at a real panel, sheet, menu or pointer.
 
 ## V. Proposal controls — controls in SwiftUI stacks (user request 2026-10-02, not a plan task)
 
-*Source: record §78 `78-proposal-controls.md`, rulings `PE-A`…`PE-Y`
+*Source: record §78 `78-proposal-controls.md`, rulings `PE-A`…`PE-Z`
 (`docs/superpowers/2026-10-06-proposal-controls-decisions.md`), spec §9
 (`docs/superpowers/specs/2026-10-06-proposal-controls-design.md`).* **The
 demo**: `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (920 × 560). The

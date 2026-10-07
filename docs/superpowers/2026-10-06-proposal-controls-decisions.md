@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-Z`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-AA`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -847,3 +847,38 @@ rule (`PE-K`) and the box (`PE-J`) are landed, the warning is not.
 
 **Cost if wrong.** None silent: the placement and the state are a demo's;
 3.1 and the audit tests pin what they read.
+
+---
+
+## PE-Z — Lane 3's mutation, and the controls demo's window tests pre-flight
+
+**Found** (lane 3, M3.1 on the committed tree `e0e547e`, the full unfiltered
+native suite, restored from a copy, `git status --short` clean after):
+`ControlsDemo.swift` — the section's `TextField("Name", text: name)` gains
+`.flexGrow(1)`. The run **trapped** inside
+`theControlsDemoPublishesTheTreeTheVoiceOverScriptReads`
+(`Frame.swift:2289: Fatal error: MetalUI: textField.flexGrow.unconsumed has no
+proposal lowering and is refused by name`) — no summary line, the unmutated
+suite finishing normally (2579 tests). Three window tests open
+`controlsDemoContent()` in a production `Window` without a diagnostics
+pre-flight: that one, `theVoiceOverScriptQuotesThePublishedTree` (through the
+same `controlsTrees()`), and `theControlsDemoPublishesEveryControlsRole`.
+Re-run with those three skipped (2576 tests): **one** test reddened,
+`theControlsDemosSwiftUISectionLaysOutWithoutReports` (3.1, its `try #require`
+on the empty report: `["textField.flexGrow.unconsumed"]`).
+
+**Why it matters.** CLAUDE.md's rule — a window test in a mode that traps
+pre-flights in a mode that reports — was satisfied by the demo before `PE-Y`
+only because the legacy controls report nothing a lowered container would not
+consume. The SwiftUI-vocabulary section is the first place in that demo where
+a legacy item field is reported (`PE-C` item 4), so a regression there would
+truncate the whole run.
+
+**Ruling.** `AccessibilityAuditTests`' `scriptWindow` (every demo window the
+VoiceOver-script tests open) and `theControlsDemoPublishesEveryControlsRole`
+render their content once through `LayoutDifferential.render` with diagnostics
+and `try #require` an empty report before opening the window — the change
+that introduced the hazard carries the guard. M3.1 is re-run on the hardened
+tree; its reddened list is the record's.
+
+**Cost if wrong.** One extra diagnostics render per demo window test.

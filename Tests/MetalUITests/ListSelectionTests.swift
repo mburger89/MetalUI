@@ -656,6 +656,11 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
 /// (at most 40, `DD-AC` item 10). M3q (the demo's list built without
 /// `selection:`) must redden it.
 @Test @MainActor func theControlsDemoPublishesEveryControlsRole() throws {
+    // Pre-flight (`PE-Z`): the window traps on a reported field and would end
+    // the run with no summary line; the diagnostics render fails by name.
+    let preflight = LayoutDifferential.render(width: 900, height: 900) { controlsDemoContent() }
+    try #require(preflight.unlowerableFields.isEmpty,
+                 "the controls demo would trap in a production window: \(preflight.unlowerableFields)")
     let (window, platform) = try controlWindow(size: 900) { controlsDemoContent() }
     let tree = try controlTree(window, platform)
     let roles = Set(tree.nodes.values.map(\.role))
