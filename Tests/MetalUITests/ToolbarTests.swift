@@ -244,7 +244,7 @@ private struct Panel: Component {
 /// vocabularies a tree records the same element ids and bounds with and
 /// without `.toolbar`/`.searchable` on a child that has a following sibling.
 /// Mutation **M3.5**: the scope consumes a cursor index (the sibling's id
-/// shifts).
+/// shifts); **M3.5b** the same on the typed proposal entry.
 @MainActor
 @Test func aToolbarScopeIsTransparentToLayoutAndIdentity() throws {
     func bounds<E: Element>(_ element: E) -> [GlobalElementID: Bounds<Pixels>] {
@@ -264,13 +264,23 @@ private struct Panel: Component {
     #expect(!legacyPlain.isEmpty)
     #expect(legacyPlain == legacyScoped, "legacy: ids and bounds moved")
 
-    let proposalPlain = bounds(Column { VStack { Text("a"); Text("b") } })
-    let proposalScoped = bounds(Column {
-        VStack {
-            Text("a").toolbar { ToolbarItem { Button("x") {} } }.searchable(text: search)
-            Text("b")
+    // The proposal arm's members carry a `.frame` layer each: a proposal leaf
+    // records no element bounds, a layer's inner level does, so the sibling's
+    // id is visible only through one (`MD-Y`; a bare `Text` sibling left M3.5b
+    // green).
+    let proposalPlain = bounds(Column {
+        VStack(spacing: 0) {
+            Rectangle().frame(width: px(10), height: px(10))
+            Rectangle().frame(width: px(11), height: px(10))
         }
     })
-    #expect(!proposalPlain.isEmpty)
+    let proposalScoped = bounds(Column {
+        VStack(spacing: 0) {
+            Rectangle().frame(width: px(10), height: px(10))
+                .toolbar { ToolbarItem { Button("x") {} } }.searchable(text: search)
+            Rectangle().frame(width: px(11), height: px(10))
+        }
+    })
+    #expect(proposalPlain.count >= 3, "the proposal arm must see its members' ids: \(proposalPlain.count)")
     #expect(proposalPlain == proposalScoped, "proposal: ids and bounds moved")
 }
