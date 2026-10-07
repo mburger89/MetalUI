@@ -27,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-Y`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -840,3 +840,24 @@ zero-size child's gap in a gapped legacy container under a prioritised
 **Cost if wrong.** (1) None for callers; one more public name. (2) Without
 it, every native toolbar change would resize MetalUI's content and relayout.
 (4) A suite that ends with no summary line.
+
+## MD-Y — Test 3.5's proposal arm needs framed members: a proposal leaf records no element bounds
+
+**Found (lane 2 verification).** Mutation **M3.5b** — `cursor += 1` after
+`content.requestProposalGroupLayout` in `ToolbarScope`'s typed entry — left the
+full suite green at `963d325` (`Test run with 2618 tests in 3 suites passed`).
+Test 3.5's proposal arm compared `Frame.elementBounds` of `Column { VStack {
+Text("a"); Text("b") } }` with and without a scope on `Text("a")`; bounds are
+recorded only at `Element.prepaintGroup`, `AnyElement`'s group entry, the root
+and `ModifiedContent`'s inner layers, so a proposal `Text` sibling's id never
+reached the table and a shifted cursor was invisible.
+
+**Ruling.** The proposal arm's members are `Rectangle().frame(…)` (one inner
+layer each records under the member's id) in a `VStack(spacing: 0)`, and the
+arm requires at least three recorded ids before comparing. Re-measured
+(`c3475bb`): M3.5b reddens only `aToolbarScopeIsTransparentToLayoutAndIdentity`
+(1 issue). Spec row 3.5's "and `@State`" is not asserted by the test; the id
+equality it does assert is what keeps `@State` (a slot is keyed by id).
+
+**Cost if wrong.** A typed entry that consumes a cursor index would shift
+every following proposal sibling's identity (and reset its state) unnoticed.

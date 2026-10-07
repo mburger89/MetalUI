@@ -1,4 +1,4 @@
-# 79 — Port gaps, medium: field chrome, `layoutPriority`, environment objects, window toolbar (lane 1 landed)
+# 79 — Port gaps, medium: field chrome, `layoutPriority`, environment objects, window toolbar (lanes 1 and 2 landed)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls merged,
 PR #49). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
@@ -9,9 +9,8 @@ rulings `MD-A`…`MD-W` in `docs/superpowers/2026-10-07-port-gaps-medium-decisio
 `swiftui-environment-object.swift`, `swiftui-toolbar.swift`,
 `swiftui-toolbar-nested.swift`.
 
-**Status: lane 1 landed (2026-10-07); lanes 2 (the toolbar, native) and 3 (the
-drawn strip and the demo) not started.** This section is lane 1's; the Record
-phase completes it.
+**Status: lanes 1 and 2 landed (2026-10-07, §1, §2); lane 3 (the drawn strip
+and the demo) not started.** The Record phase completes this record.
 
 ## 1. Lane 1 — field chrome, legacy priority, environment objects
 
@@ -185,3 +184,111 @@ restored with `git checkout`, `git status --short` empty after each.
 | V9 | `TextField.swift`: drop `&& resolvedStyle(in:).isBordered` from the dim | `aDisabledFieldKeepsItsChromeAndDimsItsText` (2) |
 
 §1.4a's claims are reproduced; lane 1's review is resolved.
+
+## 2. Lane 2 — the toolbar, native (`MD-I`, `MD-J`, `MD-N`, `MD-S`, `MD-U` items 1–3, `MD-X`, `MD-Y`)
+
+| Step | Commit | Suite after |
+|---|---|---|
+| Red — tests 3.1–3.5, 3.11, 3.12, 3.18, guards 3.13, 3.14, 3.17, SDL 3.15 | `58fd855` | does not compile |
+| Green | `963d325` | **2618 tests in 3 suites** passed |
+| Test 3.5's proposal arm made able to fail (`MD-Y`) | `c3475bb` | 2618 passed (after `swift package clean`, native, `FR-J … succeeded=true`, 0 `error:`) |
+
+Thirteen tests on the main package (2605 → 2618: six in `ToolbarTests`, four in
+`AppKitToolbarTests`, three guards in `ToolbarCompileGuards`), one in
+`Backends/SDL` (`theSDLWindowAsksTheFrameworkToDrawItsToolbar`).
+
+### 2.1 Red lines
+
+- `ToolbarTests.swift:66: cannot find type 'PlatformToolbar' in scope`
+- `AppKitToolbarTests.swift:28: cannot find type 'ToolbarActionEvent' in scope`
+- `SDLToolbarTests.swift:20: value of type 'SDLWindow' has no member 'toolbar'`
+- The guards' fixtures name `ToolbarItem`/`PlatformToolbar`, absent at `34f68c3`.
+
+### 2.2 What landed
+
+- **Public API** (`Sources/MetalUI/Toolbar.swift`): `.toolbar { }` and
+  `.searchable(text:prompt:)` on every `ElementGroup`, both returning a
+  transparent `ToolbarScope` (no node, no id level, typed and untyped entries).
+  `ToolbarScope` is **not an `Element`**, so a window root cannot carry it
+  (`MD-S`, divergence 120 amended, guard 3.17). `ToolbarItem(placement:id:)`,
+  `ToolbarItemGroup`, `ToolbarItemPlacement` (`navigation`, `principal`,
+  `primaryAction`, `automatic`, `status`), the closed `ToolbarContent`/
+  `ToolbarItemContent` (`Button` with a `ToolbarButtonLabel` — `Text` or
+  `Image` only, `MD-X` item 1 — `Toggle`, `Picker` menu or segmented,
+  `TextField`, `Text`) through SPI requirements (divergence 135, guard 3.13).
+- **Collection** (`Frame.swift`): toolbars merge window-wide in build pre-order;
+  one under a popover or a `Deferred` presentation root is dropped. Ids per
+  `MD-X` item 3.
+- **Neutral types** (`Sources/MetalUIPlatform/Toolbar.swift`): `PlatformToolbar`,
+  its items and controls, `==` written by hand, images compared by texture
+  identity (`MD-U` item 1); `InputEvent.toolbarAction(ToolbarActionEvent)`.
+- **Window** (`Window.swift`): sends `setToolbar` only when the description
+  changes (and never for a window that has had none); a `toolbarAction` runs
+  its item's closure under `StateDispatch`, a disabled item ignored.
+- **Platform**: `PlatformWindow.setToolbar(_:) -> Bool`, **defaultless**
+  (guard 3.14). AppKit (`Sources/MetalUIAppKit/AppKitToolbar.swift`): a real
+  `NSToolbar` of native controls (`NSButton`, a checkbox `NSButton` for a
+  toggle, `NSPopUpButton`/`NSSegmentedControl`, `NSTextField`, a label field,
+  and `.searchable` as an `NSSearchToolbarItem` last),
+  updated in place when only values change, rebuilt when the shape changes;
+  the content size restored explicitly after each change (`MD-X` item 2,
+  measured 900 × 200 → 900 × 232 without it); a toolbar field taking first
+  responder leaves MetalUI's focus alone (test 3.18). SDL records the
+  toolbar on `SDLWindow.toolbar` and answers `false` (lane 3 draws it; interim
+  per `MD-R`: an SDL window shows no toolbar until then). Every test fake and
+  guard fixture implements the requirement; migration note in
+  `docs/migration.md` Part 2.
+- Inventory family `toolbar` (class D, 135); census re-recorded (2532 lines);
+  `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+  Divergences: 102 live, next label 136.
+
+### 2.3 Mutations (committed tree, applied by script, restored from a copy, full unfiltered native `--no-parallel` suite, `git status --short` empty after each)
+
+| # | Spelling | Reddened |
+|---|---|---|
+| M3.1 | `ToolbarItemPlacement.status = …(kind: .automatic)` | `aToolbarReachesThePlatformAsOneNeutralDescription`, `theToolbarIsSentOnlyWhenItChanges`, `aToolbarActionRunsItsItemUnderStateDispatch` (5 issues) |
+| M3.2 | `Window`: drop `guard toolbar != sentToolbar else { return }` | `theToolbarIsSentOnlyWhenItChanges`, `aWindowWithNoToolbarNeverCallsSetToolbar`, `aToolbarActionRunsItsItemUnderStateDispatch` (5) |
+| M3.3 | `Window`: run the item without `StateDispatch.dispatching(to:)` | `aToolbarActionRunsItsItemUnderStateDispatch` (1) |
+| M3.4 | `Frame`: `if isPresentation, …` → `if false, …` (presentation toolbars kept) | `toolbarsMergeInTreeOrderAndIgnorePresentationRoots` (1) |
+| M3.5 | untyped entry: `cursor += 1` after the content | `aToolbarScopeIsTransparentToLayoutAndIdentity` (2) |
+| M3.5b | typed entry: the same, at `963d325` | **none — suite passed**: the proposal arm's `Text` members record no element bounds (`MD-Y`) |
+| M3.5c | M3.5b re-applied at `c3475bb` | `aToolbarScopeIsTransparentToLayoutAndIdentity` (1) |
+| M3.11 | `AppKitWindow`: never update in place (`if false, let toolbar, …`) | `theAppKitToolbarBuildsNativeItemsAndUpdatesThemInPlace` (2) |
+| M3.12 | toggle target sends `.press` | `anAppKitToolbarControlSendsItsActionAsAnInputEvent` (1) |
+| M3.13 | `_ToolbarItemContext`, `_ToolbarControls`, `_ToolbarContext`, `_ToolbarEntries` and their requirements made plain `public` (SPI dropped) | guard `onlyTheClosedSetIsToolbarContent` (2) |
+| M3.14 | `extension PlatformWindow { public func setToolbar(_:) -> Bool { false } }` | guard `setToolbarHasNoDefault` (1) |
+| M3.17 | `extension ToolbarScope: Element where Content: Element` (trapping stubs) | guard `aToolbarOnAWindowRootNeedsAContainer` (1) |
+| M3.18 | the window clears MetalUI focus on a toolbar text action | `aNativeToolbarFieldTakingFirstResponderLeavesMetalUIFocusAlone` (1) |
+
+SDL test 3.15 was not mutated (it reads one recorded property).
+
+### 2.4 Must-not-move
+
+- Demo pixels: `docs/probes/demo-pixels/compare.sh <scratch> d48b26d HEAD` at
+  `963d325`: **0 differing in all fourteen images, scene identical**
+  (`c3475bb` changes a test only).
+- `Tests/MetalUICrossPlatformTests/Expected.swift`, `MetalUILayout`,
+  `MetalUIScene`: untouched. `Backends/SDL`: `SDLPlatform.swift` and the new
+  test only.
+- `Backends/SDL` on macOS: **24 + 78** passed (24 + 77 at `d48b26d`). Linux image
+  (`Backends/SDL/linux/Dockerfile`, offscreen driver): **24 + 75** passed
+  (24 + 74). The one compiler warning there,
+  `AccessKitControlsParityTests.swift:83` (`no calls to throwing functions occur
+  within 'try'`), is in a file this branch does not touch.
+- `swift build --build-tests` (default build system): 0 `warning:`.
+- Identity, hit testing, accessibility, animation, focus, `List`, `Deferred`,
+  text input: unchanged (the scope is transparent, test 3.5; AppKit focus test
+  3.18).
+
+### 2.5 CI hazard (`MD-X` item 4)
+
+`NSButtonCell.performClick(_:)` spins a nested run loop; in a test it ran a
+`CFRunLoopStop` an earlier test had queued and the process **exited 0 with no
+summary line**. AppKit tests fire a control by setting its state and calling
+`sendAction(_:to:)`.
+
+### 2.6 Deferred by lane 2
+
+Lane 3's items (`MD-R`): the drawn strip on SDL (tests 3.6–3.10, 3.16), the
+demo section and the human checks for the native toolbar's look.
+
