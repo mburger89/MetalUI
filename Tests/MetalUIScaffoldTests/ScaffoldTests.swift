@@ -56,16 +56,46 @@ private let cycle = "MetalUI imports a module of that name (directly or through 
     ("CHarfBuzz", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CUnibreak", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CSheenBidi", "MetalUI has a target of that name, and target names must be unique across the package graph"),
-    ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("ReplayFixture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("SDLReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("PortableReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("DemoCapture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
 ])
 func aNameThatClashesWithAModuleTheAppBuildsWithIsRefused(_ name: String, _ reason: String) {
     #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
+}
+
+/// 1.5 (PX-J item 4, SC-H): a package named after each target the root
+/// package gained failed `swift build`, measured 2026-10-07 by generating a
+/// `--cross-platform --local` package and renaming it — on macOS (no traits)
+/// and in the Linux CI image (traits `SDL`, `AccessKit`), the same error on
+/// both, at graph load:
+///
+///     error: multiple packages ('cstbimage', 'portable-app') declare targets
+///     with a conflicting name: 'CStbImage'; target names need to be unique
+///     across the package graph
+///
+/// (`'csdl'`/`'CSDL'`, `'caccesskit'`/`'CAccessKit'`, `'sdlbridge'`/
+/// `'SDLBridge'` alike). `MetalUISDL` is refused by the `MetalUI` prefix.
+/// Mutation per arm: drop the name from the refusal set.
+@Test(arguments: [
+    ("CStbImage", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+])
+func aNameOfARootTargetThatFailedTheBuildIsRefused(_ name: String, _ reason: String) {
+    #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
+    #expect(throws: ScaffoldError.invalidName(name, reason: reason)) {
+        try scaffoldFiles(ScaffoldOptions(name: name, crossPlatform: true))
+    }
+}
+
+/// 1.5's other half (PX-J item 4): `Backends/SDL`'s own targets are no longer
+/// in an app's graph — refused before this branch because `--cross-platform`
+/// added that package — and a package named after each built, measured the
+/// same way on macOS and in the Linux CI image (exit 0), so none is refused.
+@Test(arguments: ["ReplayFixture", "SDLReplay", "PortableReplay", "DemoCapture"])
+func aNameOnlyBackendsSDLDeclaresGenerates(_ name: String) throws {
+    try validateName(name)
+    let files = try scaffoldFiles(ScaffoldOptions(name: name, crossPlatform: true))
+    #expect(try file("Package.swift", in: files).contents.contains(#".executable(name: "\#(name)""#))
 }
 
 /// SC-H: module lookup is case-sensitive even on case-insensitive APFS — each
@@ -79,14 +109,13 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
 
 /// SC-H: SwiftPM identifies a package by its directory, lowercased, so an app
 /// whose name is a dependency's identity in any case collides with it
-/// (measured for `SDL`/`sdl` beside `Backends/SDL`, record §72 §6.3).
+/// (measured for `SDL`/`sdl` beside `Backends/SDL`, record §72 §6.3). Since
+/// PX-J `--cross-platform` adds no `Backends/SDL` package, and a package
+/// named `SDL` built (2026-10-07, macOS and the Linux CI image, traits on in
+/// the image): it is accepted in every mode.
 @Test func aNameThatIsADependencysPackageIdentityIsRefused() throws {
-    let sdl = "a dependency's package identity is 'sdl' (its directory's name), and SwiftPM identifies "
-        + "this package by its directory's name too"
     for name in ["SDL", "sdl", "Sdl"] {
-        #expect(throws: ScaffoldError.invalidName(name, reason: sdl)) {
-            try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: "/src/MetalUI"), crossPlatform: true))
-        }
+        _ = try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: "/src/MetalUI"), crossPlatform: true))
     }
     _ = try scaffoldFiles(ScaffoldOptions(name: "SDL", source: .local(path: "/src/MetalUI")))
     let fork = "a dependency's package identity is 'tools' (its directory's name), and SwiftPM identifies "
@@ -631,6 +660,8 @@ func aCrossPlatformPackageBuildsItsSDLAppByURL() throws {
     #expect(status == 0, "\(output)")
     let warnings = output.split(separator: "\n").filter { $0.contains("warning:") && $0.contains(repository.path) }
     #expect(warnings.isEmpty, "\(warnings)")
+    // The executable was linked (against SDL3 and AccessKit).
+    #expect(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("Consumer/.build/debug/Consumer").path))
 }
 
 /// 1.8 (PX-H item 2, PX-J item 2, PX-L item 3): a `--no-accesskit` package
@@ -652,4 +683,5 @@ func aCrossPlatformPackageBuildsWithoutAccessKit() throws {
     print("1.8 no-AccessKit build: status=\(status)\n\(output.suffix(2000))")
     #expect(status == 0, "\(output)")
     #expect(!output.contains("AccessKit must not be compiled"))
+    #expect(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("Plain/.build/debug/Plain").path))
 }

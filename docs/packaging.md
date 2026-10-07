@@ -197,6 +197,28 @@ desktop session was available, and whether SDL's X11 backend also derives
 `WM_CLASS` from the hint was not checked; human check O3 covers the running
 icon.
 
+### 4. The SDL backend's shaders — lookup verified, a moved app unverified
+
+An app built against the SDL backend (`MetalUISDL`, MetalUI's `SDL` trait,
+`docs/getting-started.md`) loads its compiled shader stages at its first
+window. It looks for them in **`MetalUISDLShaders` beside the executable
+first**, then in the source tree it was built from
+(`Backends/SDL/Shaders/compiled`, found by `#filePath` — valid only on the
+build machine), and fails naming both directories when neither holds
+`SOURCE.sha256` (ruling `PX-P`). So a shipped app carries a copy:
+
+```sh
+BIN=$(swift build -c release --product MyApp --show-bin-path)
+mkdir -p dist
+cp "$BIN/MyApp" dist/
+cp -R .build/checkouts/MetalUI/Backends/SDL/Shaders/compiled dist/MetalUISDLShaders
+```
+
+(From a `--local` checkout, `<checkout>/Backends/SDL/Shaders/compiled`.)
+**Verified**: the lookup order and the error — `SDLShaderDirectoryTests`
+(`Backends/SDL`, macOS and the Linux CI image). **Unverified**: a moved
+application opening its window (human check X1).
+
 ## Windows: an `.ico` embedded as a resource
 
 Explorer, the Start menu and a shortcut show the icon embedded in the `.exe`
@@ -268,3 +290,11 @@ llvm` in `swift:6.4-noble`): it writes `MyApp.res`, and `llvm-readobj
 in a `linkerSettings: [.unsafeFlags([...])]` of the executable target, which
 a package depended on by others cannot use), and the icon Explorer then
 shows. Human check O4 covers the running window's icon only.
+
+### 3. The SDL backend's runtime files — unverified
+
+Beside `MyApp.exe`: `SDL3.dll` (from SDL3's VC package, `lib\x64`) and the
+compiled shaders as `MetalUISDLShaders`, copied from
+`.build\checkouts\MetalUI\Backends\SDL\Shaders\compiled` exactly as on Linux
+(section 4 above, ruling `PX-P`). AccessKit is a static library and ships
+inside the executable. No command here was run on Windows (human check X4).

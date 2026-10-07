@@ -1,3 +1,5 @@
+// Compiled only under the `SDL` trait (ruling PX-H item 2).
+#if SDL
 // Its own file so Foundation's names stay out of SDLPlatform.swift's type
 // lookup — the drain is the one thing this module needs Foundation for.
 import Foundation
@@ -15,3 +17,4 @@ extension SDLPlatform {
         _ = RunLoop.main.run(mode: .default, before: .distantPast)
     }
 }
+#endif

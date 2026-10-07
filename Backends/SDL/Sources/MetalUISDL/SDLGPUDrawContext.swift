@@ -1,3 +1,5 @@
+// Compiled only under the `SDL` trait (ruling PX-H item 2).
+#if SDL
 import MetalUICore
 import MetalUIPlatform
 import SDLBridge
@@ -86,3 +88,4 @@ public struct SDLGPUDrawContext: GPUSurfaceContext {
                              UInt32(pixelSize.width.value), UInt32(pixelSize.height.value))
     }
 }
+#endif

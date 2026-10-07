@@ -1,3 +1,5 @@
+// Compiled only under the `SDL` trait (ruling PX-H item 2).
+#if SDL
 import Foundation
 import MetalUICore
 import MetalUIPlatform
@@ -7,6 +9,20 @@ import SDLBridge
 public struct SDLRendererError: Error, CustomStringConvertible {
     public let description: String
     init(_ what: String) { description = "\(what): \(String(cString: replay_error()))" }
+}
+
+/// No compiled-shader directory where ``SDLWindowRenderer`` looks (ruling
+/// `PX-P`): names every directory tried, as `ShaderLibrary` does for the
+/// Metal renderer's bundle (`AI-N`).
+public struct SDLShaderDirectoryError: Error, CustomStringConvertible {
+    /// The directories tried, in order.
+    public let candidates: [String]
+    public var description: String {
+        "no compiled SDL shaders (a directory holding SOURCE.sha256) in any of: "
+            + candidates.joined(separator: ", ")
+            + " — copy Backends/SDL/Shaders/compiled beside the executable as "
+            + "\(SDLWindowRenderer.executableShaderDirectoryName) (docs/packaging.md)"
+    }
 }
 
 /// The SDL GPU ``WindowRenderer`` (ruling RS-D): MetalUI frames drawn by SDL3's
@@ -23,11 +39,45 @@ public final class SDLWindowRenderer: WindowRenderer {
 
     /// The compiled shader stages in this package's source tree
     /// (`Shaders/compiled`), found from this file's path: the backend is built
-    /// from source, like everything in this repository.
+    /// from source, like everything in this repository. Valid only on the
+    /// machine that built the executable (ruling `PX-P`).
     public nonisolated static var bundledShaderDirectory: String {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Shaders").appendingPathComponent("compiled").path
+    }
+
+    /// The directory beside an executable that a packaged app ships its
+    /// shaders in: a copy of `Backends/SDL/Shaders/compiled` (ruling `PX-P`,
+    /// `docs/packaging.md`).
+    public nonisolated static let executableShaderDirectoryName = "MetalUISDLShaders"
+
+    /// Where the shaders are looked for, in order (ruling `PX-P`):
+    /// `MetalUISDLShaders` beside the executable — so a built app can be moved
+    /// — then ``bundledShaderDirectory``.
+    public nonisolated static func shaderDirectoryCandidates(executableDirectory: String) -> [String] {
+        [URL(fileURLWithPath: executableDirectory).appendingPathComponent(executableShaderDirectoryName).path,
+         bundledShaderDirectory]
+    }
+
+    /// The first of `candidates` holding `SOURCE.sha256` (what
+    /// `scripts/compile-shaders.py` writes beside the stages); none throws an
+    /// ``SDLShaderDirectoryError`` naming every one.
+    public nonisolated static func shaderDirectory(from candidates: [String]) throws -> String {
+        guard let found = candidates.first(where: {
+            FileManager.default.fileExists(atPath: URL(fileURLWithPath: $0).appendingPathComponent("SOURCE.sha256").path)
+        }) else { throw SDLShaderDirectoryError(candidates: candidates) }
+        return found
+    }
+
+    /// The shader directory a renderer created without one uses: the first of
+    /// ``shaderDirectoryCandidates(executableDirectory:)`` for this process's
+    /// executable.
+    public nonisolated static func defaultShaderDirectory() throws -> String {
+        let executable = Bundle.main.executableURL
+            ?? URL(fileURLWithPath: CommandLine.arguments.first ?? ".")
+        return try shaderDirectory(from: shaderDirectoryCandidates(
+            executableDirectory: executable.deletingLastPathComponent().path))
     }
 
     /// The SDL GPU driver this platform's shaders are for.
@@ -42,8 +92,10 @@ public final class SDLWindowRenderer: WindowRenderer {
     }
 
     /// A renderer drawing into `window` (an `SDL_Window *`).
+    /// `shaderDirectory` `nil` is ``defaultShaderDirectory()`` (ruling `PX-P`).
     public init(window: OpaquePointer, driver: String = defaultDriver,
-                shaderDirectory: String = bundledShaderDirectory) throws {
+                shaderDirectory: String? = nil) throws {
+        let shaderDirectory = try shaderDirectory ?? Self.defaultShaderDirectory()
         guard let renderer = mui_renderer_create(shaderDirectory, driver) else {
             throw SDLRendererError("SDL GPU device")
         }
@@ -58,9 +110,11 @@ public final class SDLWindowRenderer: WindowRenderer {
     }
 
     /// A windowless renderer drawing into a `width`×`height` device-pixel
-    /// target, reported at `scaleFactor`.
+    /// target, reported at `scaleFactor`; `shaderDirectory` `nil` is
+    /// ``defaultShaderDirectory()``.
     public init(offscreenWidth width: Int, height: Int, scaleFactor: Float = 1,
-                driver: String = defaultDriver, shaderDirectory: String = bundledShaderDirectory) throws {
+                driver: String = defaultDriver, shaderDirectory: String? = nil) throws {
+        let shaderDirectory = try shaderDirectory ?? Self.defaultShaderDirectory()
         guard let renderer = mui_renderer_create(shaderDirectory, driver) else {
             throw SDLRendererError("SDL GPU device")
         }
@@ -296,3 +350,4 @@ public final class SDLWindowRenderer: WindowRenderer {
         return pixels
     }
 }
+#endif

@@ -1,3 +1,6 @@
+// Compiled only under the `AccessKit` trait (ruling PX-H item 2): without it
+// SDLPlatform has no screen-reader bridge.
+#if AccessKit
 import CAccessKit
 import Foundation
 import MetalUIPlatform
@@ -277,3 +280,4 @@ extension AccessKitSnapshot {
             .first { AccessKitAdapter.code($0) == code }
     }
 }
+#endif

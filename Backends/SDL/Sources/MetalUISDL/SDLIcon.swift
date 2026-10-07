@@ -1,3 +1,5 @@
+// Compiled only under the `SDL` trait (ruling PX-H item 2).
+#if SDL
 import MetalUIScene
 import SDLBridge
 
@@ -53,3 +55,4 @@ enum SDLIcon {
         }
     }
 }
+#endif
