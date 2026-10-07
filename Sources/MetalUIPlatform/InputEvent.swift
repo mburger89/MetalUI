@@ -173,6 +173,16 @@ public enum InputEvent: Sendable {
     /// A natively shown alert's answer (ruling `SV-B` item 2), delivered after
     /// `PlatformWindow.presentAlert(_:)` returned, never inside it.
     case alertResult(AlertResultEvent)
+    /// A native toolbar control's outcome (ruling `MD-J` item 4): the
+    /// `PlatformToolbarItem` it names and what its control did. Delivered by a
+    /// platform whose `PlatformWindow.setToolbar(_:)` answered `true`, from the
+    /// control's own action, never inside `setToolbar`. `Window` runs the item
+    /// under `StateDispatch` against the last evaluated toolbar; an unknown id
+    /// runs nothing.
+    ///
+    /// **Migration** (`MD-J` item 6): an exhaustive `switch` over `InputEvent`
+    /// outside this package adds a `.toolbarAction` case or a `default:`.
+    case toolbarAction(ToolbarActionEvent)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
 }
 

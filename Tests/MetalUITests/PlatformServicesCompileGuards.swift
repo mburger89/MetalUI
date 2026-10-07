@@ -57,6 +57,7 @@ private func conformer(members: [String]) -> String {
         func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
         func presentMenu(_: PlatformMenu, at: Point<Pixels>) -> Bool { false }
+        func setToolbar(_: PlatformToolbar?) -> Bool { false }
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }
     """

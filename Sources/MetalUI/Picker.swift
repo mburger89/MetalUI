@@ -121,6 +121,13 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         return copy
     }
 
+    /// What a toolbar shows for this picker (ruling `MD-I` item 3,
+    /// `Toolbar.swift`): its title, whether it is a menu, the scope that reads
+    /// and writes its selection, and its options' content.
+    var toolbarParts: (title: String, isMenu: Bool, scope: PickerScope, content: Content) {
+        (title, pickerStyle.kind == .menu, scope, box.content.second.content.content)
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         if pickerStyle.kind == .menu { return requestMenuLayout(id, pass: &pass) }
         var options = Style()
@@ -377,6 +384,11 @@ public struct TaggedElement<Content: Element>: Element {
     var tag: AnyHashable
     private var chrome: Chrome?
 
+    /// The option's title — the content's `Text` string, else the tag's
+    /// description (divergence 128): what a menu picker and a toolbar picker
+    /// show for it.
+    var optionTitle: String { (content as? Text)?.string ?? String(describing: tag.base) }
+
     typealias Chrome = Box<Pair<Box<EmptyGroup>, Content>>
 
     init(content: Content, tag: AnyHashable) {
@@ -405,8 +417,7 @@ public struct TaggedElement<Content: Element>: Element {
     /// and its title — the content's `Text` string, else the tag's
     /// description (divergence 128).
     private func record(in scope: PickerScope) {
-        let title = (content as? Text)?.string ?? String(describing: tag.base)
-        scope.options.append((tag, title))
+        scope.options.append((tag, optionTitle))
         scope.tags.append(tag)
     }
 

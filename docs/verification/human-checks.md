@@ -814,6 +814,59 @@ the real pointer and keyboard, and VoiceOver.
   repository's own demos measure above its 512 KiB threshold. This item is
   re-written when `PE-L` is re-taken. Mark it N/A. **Observed:**
 
+## W. Port gaps, medium — field chrome, `layoutPriority`, environment objects, window toolbar (user request 2026-10-02, not a plan task)
+
+*Source: record §79 `79-port-gaps-medium.md`, rulings `MD-A`…`MD-Z`
+(`docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-07-port-gaps-medium-design.md`).* **The
+demo**: `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (AppKit), and the same
+tree in an SDL window for W4. Below the controls, "Port gaps": five fields
+240 wide (default, `.roundedBorder`, `.squareBorder`, `.plain`, disabled), a
+60-tall `TextEditor`, a 360-wide row ("Label" 80 wide, then a prioritised
+grower), and "Environment object: 0" with an Increment button. The window's
+toolbar holds Back (leading), a List/Grid segmented picker (centred), an
+Advanced checkbox, a Share image button and a search field (trailing).
+Pinned headless: the fields' heights, the row's widths, the object's text and
+the toolbar's five items (`theControlsDemoShowsThePortGapsSection` 3.16), the
+chrome (`TextFieldChromeTests`), the native toolbar's items and actions
+(`AppKitToolbarTests`), the drawn strip's geometry, timing and controls
+(`ToolbarStripTests` 3.6–3.10); what nothing headless sees is the look, the
+real pointer and keyboard, the window's titlebar, and VoiceOver.
+
+- [ ] **W1. Field chrome** (light, then dark — System Settings → Appearance):
+  the five fields read as macOS text fields; the default, rounded and square
+  ones identical (rounded 6-point corners, a thin border, the surface fill);
+  `.plain` bare text; the disabled one's text dimmed to a third, its box
+  unchanged; clicking a field draws the accent focus ring, and the ring greys
+  when another app is active (`MD-B`…`MD-E`, divergence 132; AppKit's own
+  glow is not drawn). **Observed:**
+- [ ] **W2. `TextEditor`'s fill** reads as an editor's opaque background in
+  both schemes, square-cornered, its ring square when focused (`MD-F`,
+  divergence 133). **Observed:**
+- [ ] **W3. Toolbar, AppKit**: a unified toolbar under the traffic lights
+  holds Back (leading), the segmented picker (centred), Advanced, the Share
+  image and a search field (trailing); clicking each acts once (Back and
+  Share leave no visible trace; the picker and Advanced keep their state; the
+  search field takes text); the window opened 20 points taller than its
+  content, the content unchanged; the overflow chevron appears when the
+  window is narrowed; with a MetalUI field focused, clicking the search field
+  leaves one caret blinking where you type, and clicking back in the MetalUI
+  field types there again (`MD-J`, `MD-U` item 3, `MD-X` item 2).
+  **Observed:**
+- [ ] **W4. Toolbar, SDL** (Linux or Windows; or macOS with the SDL backend):
+  the same controls drawn as a 39-point strip across the window's top —
+  surface-filled, a separator line under it — Back at the leading edge, the
+  picker centred, Advanced, Share and a 160-wide search field at the trailing
+  edge; the content sits below the strip (the window is not taller,
+  divergence 136); each control works by mouse, Tab reaches the strip's
+  controls after the content's, Space presses the focused button, and typing
+  in the search field updates it (`MD-K`). **Observed:**
+- [ ] **W5. VoiceOver** (AppKit; an agent cannot, `IX-AE`): VO-Shift-↓ into
+  the toolbar announces its native items — "Back, button", the picker's
+  segments, "Advanced, checkbox", "Share, button", the search field — and the
+  Port gaps section's fields announce their placeholders, the disabled one as
+  dimmed. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

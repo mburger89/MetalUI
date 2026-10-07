@@ -54,6 +54,15 @@ struct LoweredItem {
     /// Set by the lowered container (or `noLowering` site) that receives the node
     /// (ruling LR-AQ).
     var consumed = false
+    /// The element node this record was registered for, when a `layoutPriority`
+    /// layer forwarded it to its own node (port gaps, medium, ruling `MD-G` item
+    /// 1); `nil` for a record still at its own node. A container's item frame
+    /// aliases this node (`MD-G` item 4), and the unconsumed report reads it.
+    var origin: LayoutNodeID?
+    /// The priority of the outermost `layoutPriority` layer that forwarded this
+    /// record — lifted outside the item wrappers a container registers, where
+    /// the kernel reads it (`MD-G` item 3).
+    var forwardedPriority: Double?
 }
 
 /// A frame's lowering state.
@@ -105,6 +114,27 @@ struct LoweringState {
         guard items[node] != nil else { return nil }
         items[node]!.consumed = true
         return items[node]
+    }
+
+    /// Moves `content`'s record to `layer`, the `layoutPriority` node wrapped
+    /// around it (port gaps, medium, ruling `MD-G` item 1), remembering `content`
+    /// as the record's origin and `priority` as the value to lift; the record
+    /// keeps its place in the report order, its site and its fields, so a
+    /// container consumes it as it would the unwrapped child's and an
+    /// unconsumed one reports under its own name (`MD-G` item 5). A nested
+    /// layer forwards again: the origin stays the element's, the priority
+    /// becomes the outer layer's. No record, a consumed one or a presentation
+    /// placeholder's: nothing moves — a placeholder's record moved to the layer
+    /// would make `droppingPresentations` drop the **layer** from its container's
+    /// flow, where `d48b26d` kept it as a 0×0 child that takes a gap (`MD-W`
+    /// item 2, pinned by `aPriorityOnADeferredKeepsTheLayerInFlowAndPresents`).
+    mutating func forward(_ content: LayoutNodeID, to layer: LayoutNodeID, priority: Double) {
+        guard var item = items[content], !item.consumed, item.kind != .presentation else { return }
+        items[content] = nil
+        item.origin = item.origin ?? content
+        item.forwardedPriority = priority
+        items[layer] = item
+        if let index = order.firstIndex(of: content) { order[index] = layer }
     }
 
     /// Records that `element`'s rect is `itemFrame`'s (ruling LR-AB item 3): a grown
@@ -171,6 +201,8 @@ extension Frame {
                 continue
             }
             var names: [String] = []
+            // A forwarded record (`MD-G`) is reported as its origin would be.
+            let node = item.origin ?? node
             if node != root {
                 if d.flexGrow != 0 { names.append("flexGrow") }
                 if d.flexShrink != 1 { names.append("flexShrink") }

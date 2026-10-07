@@ -51,6 +51,7 @@ private func conformer(pair: String) -> String {
         func presentFileDialog(_: PlatformFileDialog) -> Bool { false }
         func presentAlert(_: PlatformAlert) -> Bool { false }
         func dismissPresentation(token: Int) {}
+        func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.

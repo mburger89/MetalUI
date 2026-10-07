@@ -336,6 +336,19 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var dismissedPresentations: [Int] = []
     func dismissPresentation(token: Int) { dismissedPresentations.append(token) }
 
+    // MARK: Toolbar (ruling `MD-J` item 5)
+
+    /// Every `setToolbar` argument, in order (`nil` for a removal).
+    private(set) var toolbars: [PlatformToolbar?] = []
+    /// What `setToolbar` answers; `true`, a platform that shows it natively
+    /// (AppKit), by default — so no existing window draws a strip. A test
+    /// delivers a control's outcome with `simulateInput(.toolbarAction(…))`.
+    var toolbarIsNative = true
+    func setToolbar(_ toolbar: PlatformToolbar?) -> Bool {
+        toolbars.append(toolbar)
+        return toolbarIsNative
+    }
+
     /// One `setContentSizeLimits` call, with how many frames the surface had
     /// presented when it came (spec test 2.40: limits precede the first frame).
     struct ContentSizeLimitsCall {

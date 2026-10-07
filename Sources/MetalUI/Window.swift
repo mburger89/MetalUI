@@ -711,6 +711,22 @@ public final class Window {
         reconcileContentSizeLimits()
     }
 
+    /// The last adopted build's toolbar, numbered (`MD-I` item 6): what
+    /// `reconcileToolbar` sends and what a `.toolbarAction` runs.
+    var assembledToolbar = AssembledToolbar.empty
+    /// The toolbar last handed to `setToolbar` — `nil` before any, which a
+    /// window with no `.toolbar` never moves from, so it never calls (`MD-J`
+    /// item 2).
+    var sentToolbar: PlatformToolbar?
+    /// Whether the platform declined the current toolbar (`setToolbar`
+    /// answered `false`), so the window draws it (`MD-K`): the next build
+    /// lays the strip out.
+    var toolbarIsDrawn = false
+    /// Whether the last adopted build laid the strip out — compared with
+    /// `toolbarIsDrawn` after `reconcileToolbar` for the one extra build
+    /// (`MD-K` item 5).
+    private var lastBuildDrewToolbarStrip = false
+
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
     /// resized into, `SV-AG` item 3) still owes the next frame after a
@@ -848,6 +864,12 @@ public final class Window {
                 return true
             case .alertResult(let result):
                 self.handleAlertResult(result)
+                self.setNeedsRedraw()
+                return true
+            // A native toolbar control (`MD-J` item 4): first too, under
+            // `StateDispatch` for the scope that declared it.
+            case .toolbarAction(let action):
+                self.handleToolbarAction(action)
                 self.setNeedsRedraw()
                 return true
             // Hover (`SV-N` item 4): every pointer event and the pointer
@@ -1358,6 +1380,22 @@ public final class Window {
             drainLifecycle()
         }
 
+        // The toolbar (`MD-J` item 2): the last build's, sent when it changed.
+        // When the platform's answer changes whether the window draws a strip
+        // (`MD-K` item 5) — it appeared, or the drawn one left — the root's
+        // rect changes, so the window builds ONCE more inside this
+        // `beginFrame()` (`CR-Q`'s precedent) and presents that build: the
+        // strip is in the first presented frame. A changed strip, or a window
+        // with no toolbar, costs no extra build.
+        reconcileToolbar()
+        if lastBuildDrewToolbarStrip != toolbarIsDrawn {
+            needsRedraw = false
+            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
+            _ = applyTreeColorSchemePreference(of: frame)
+            drainLifecycle()
+            reconcileToolbar()
+        }
+
         // A resize that arrived during the builds above (the platform resizing
         // into a content limit, `SV-AG` item 3) was encoded into a drawable
         // taken before it; the settle builds' `needsRedraw = false` may have
@@ -1564,6 +1602,7 @@ public final class Window {
         }
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
+        frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1581,6 +1620,8 @@ public final class Window {
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
+        assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
+        lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -2107,6 +2148,11 @@ public final class Window {
     }
     func dismissPresentationOnPlatform(token: Int) {
         platformWindow.dismissPresentation(token: token)
+    }
+
+    /// The platform's toolbar (`MD-J` item 2), for `Toolbar.swift`.
+    func setToolbarOnPlatform(_ toolbar: PlatformToolbar?) -> Bool {
+        platformWindow.setToolbar(toolbar)
     }
 
     /// Clears `active` for a press the open menu consumed, so the press never

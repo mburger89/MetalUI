@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2446 of them, in
-fifteen modules) belongs to one of 132 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2532 of them, in
+fifteen modules) belongs to one of 136 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -77,7 +77,10 @@ the window's top layer — a portal for modals, popovers and tooltips
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
   carried and mirrors nothing (25); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
-  MetalUI's scoped, paint-only colour tokens (M).
+  MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
+  provided with `.environment(model)` and read with `@Environment(Model.self)`
+  (or `… var model: Model?`), keyed by its static type; a missing one traps
+  (134, `MD-H`). `@Bindable` and `ObservableObject` are not offered.
 
 ## Layout, SwiftUI vocabulary — A
 
@@ -142,7 +145,11 @@ greedy on both axes (`PE-D`), the rest hugging; the metrics and the
 below-ideal answers are MetalUI's (130, 131), and `List` keeps its
 `rowHeight × count` height (84). Style modifiers (`.buttonStyle`,
 `.pickerStyle`, `.keyboardShortcut`) return the control: write them on it,
-before any wrapper (`PE-R`).
+before any wrapper (`PE-R`). `TextField` draws SwiftUI's bordered field by
+default and takes `.textFieldStyle(_:)` (`TextFieldStyle`: `.automatic`,
+`.roundedBorder`, `.squareBorder`, `.plain`), `TextEditor` an opaque background
+and `.textEditorStyle(_:)` — each on the control or on a container, the
+innermost winning (`MD-B`, `MD-F`; 132, 133).
 
 ## Text — A
 
@@ -396,6 +403,27 @@ presents the title and "OK". Any button writes `isPresented = false`, then runs
 its action. An `NSAlert` sheet on AppKit; drawn in the window where the platform
 declines (SDL). Not offered: `titleVisibility:`, alert text fields, a
 non-`Text` button label.
+
+**Window toolbar** (`MD-I`, `MD-J`, `MD-S`, `MD-X`; probes `swiftui-toolbar.swift`
+`TB1`, `UP`, `SR` and `swiftui-toolbar-nested.swift` `NT1`, `PO`; D 135, 120):
+`.toolbar { … }` with `ToolbarItem(id:placement:content:)` and
+`ToolbarItemGroup(placement:content:)` (`ToolbarItemPlacement` `.automatic`,
+`.navigation`, `.principal`, `.primaryAction`, `.status`; `@ToolbarContentBuilder`
+with `if`/`switch`/`for`), and `.searchable(text:prompt:)`, on every element
+group, each returning the transparent `ToolbarScope<Content>` — not an
+`Element`, so write it inside the root's first container (120). Items are a
+closed set (135): `Button` with a `Text` or `Image` label (`ToolbarButtonLabel`),
+`Toggle`, `Picker` (`.menu` a pop-up, else segmented), `TextField`, `Text`, under
+`.disabled`/`.help`. Every `.toolbar` in the main tree merges in pre-order, a
+popover's or `Deferred` presentation's is ignored, the search field last. On
+AppKit a real `NSToolbar` of native controls, updated in place (the window
+grows; content keeps its size); the platform seam (M) is the defaultless
+`PlatformWindow.setToolbar(_:) -> Bool` with `PlatformToolbar`/`PlatformToolbarItem`/
+`PlatformToolbarControl`, outcomes as `InputEvent.toolbarAction(ToolbarActionEvent)`
+run under `StateDispatch`. SDL answers `false` (the window draws the toolbar,
+lane 3 of port gaps (medium)). Not offered: customization, `.toolbarRole`,
+`.toolbar(removing:)`, `.windowToolbarStyle`, `ToolbarSpacer`, search
+suggestions/scopes/tokens/`placement:` (`MD-L`).
 
 **Hover** (`SV-N`, `SV-Z`; A — SwiftUI's spellings, MetalUI's semantics, its
 probe arms `H1`–`H11` a broken instrument): `.onHover(perform:)` and

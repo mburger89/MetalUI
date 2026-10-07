@@ -638,7 +638,11 @@ extension LayoutModifier: ModifierLayerKind {
         case let .aspectRatio(ratio, contentMode):
             return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
         case let .layoutPriority(priority):
-            return pass.requestNativeLayoutPriority(child: child, priority: priority)
+            let node = pass.requestNativeLayoutPriority(child: child, priority: priority)
+            // A legacy container sees through the layer (port gaps, medium,
+            // `MD-G`): the content's item record moves to the layer's node.
+            pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
+            return node
         case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
              .rotationEffect, .scaleEffect, .offset, .shadow:
             // A paint-only modifier has no independent layout footprint.

@@ -206,6 +206,24 @@ public protocol PlatformWindow: AnyObject {
     /// `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}`.
     func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?)
 
+    /// Shows `toolbar` in the window's own toolbar and answers whether it did
+    /// (ruling `MD-J` item 2). `true`: the platform shows it — AppKit builds a
+    /// real `NSToolbar` of native controls, updated in place while the ids and
+    /// kinds stay (probe `swiftui-toolbar.swift` `UP`), and answers each
+    /// control with a queued `InputEvent.toolbarAction` naming the item's id;
+    /// the window grows to keep its content size (`TB1`), so content layout
+    /// does not move. `false`: it cannot (SDL), and `Window` draws the toolbar
+    /// in the window itself. `nil` removes the toolbar. `Window` calls it only
+    /// when the evaluated toolbar differs from the last one sent — never for a
+    /// window that has had no `.toolbar` — and once with `nil` when the last
+    /// one leaves.
+    ///
+    /// **No default implementation** (`CR-M`'s rule): a conformer that forgets
+    /// it fails to compile rather than silently dropping every toolbar. Pinned
+    /// by `setToolbarHasNoDefault`. **Migration**: a conformer outside this
+    /// repository adds `func setToolbar(_: PlatformToolbar?) -> Bool { false }`.
+    func setToolbar(_ toolbar: PlatformToolbar?) -> Bool
+
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

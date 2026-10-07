@@ -318,7 +318,9 @@ func teSprites(_ frame: Frame) -> [[Float]] {
     let line20 = Float(system.fontMetrics(system.resolveFont(family: nil, size: 20)).lineHeight)
     let line13 = Float(system.fontMetrics(system.resolveFont(family: nil, size: 13)).lineHeight)
     try #require(line20 != line13)
-    let field = TextField("Name", text: "Hello") { _ in }
+    // `.plain` (`MD-C` item 2): this test's subject is the font, not the
+    // bordered chrome's 8 points.
+    let field = TextField("Name", text: "Hello") { _ in }.textFieldStyle(.plain)
     #expect(try teBounds([0, 0, 0]) { Column { field }.font(.system(size: 20)) }.size.height.value == line20)
     #expect(try teBounds { field }.size.height.value == line13, "the default environment: 13 pt")
 

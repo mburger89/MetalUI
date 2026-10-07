@@ -207,6 +207,19 @@ the fade ends; a `List` row leaving its window disappears, and a `List`'s
 first frame appears every row once (divergence 124); closing a window runs
 every present `onDisappear` once (`LC-J`).
 
+### Toolbar — `.toolbar`, `.searchable`
+
+Since port gaps (medium) (rulings `MD-I`, `MD-J`, `MD-S`), `.toolbar { ToolbarItem(placement:) { … } }`
+and `.searchable(text:prompt:)` exist on both vocabularies with SwiftUI's
+spellings. On AppKit they become a real `NSToolbar` of native controls (the
+window grows by the toolbar's height; content keeps its size). Two things port
+differently:
+
+| SwiftUI / SwiftCrossUI | MetalUI | note |
+|---|---|---|
+| `.toolbar { … }` on the scene's root view | write it on any element **inside** the root's first container: `openWindow(…) { Column { content.toolbar { … } } }` — every `.toolbar` in the window's tree is merged in tree order, as SwiftUI merges nested toolbars | divergence 120 (`MD-S`); a root `.toolbar` does not compile |
+| any view in a `ToolbarItem` | `Button` (a `Text` or `Image` label), `Toggle`, `Picker` (`.menu` or segmented), `TextField`, `Text` — anything else does not compile | divergence 135 (`MD-I` item 3) |
+
 ## Part 2 — breaking and behaviour changes since 2026-09-12
 
 Collected from every ruling's migration note
@@ -244,6 +257,8 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package (colour scheme) | implement `func setPreferredColorScheme(_ colorScheme: ColorScheme?)` — an empty body, or recording the value, is honest where the platform has no per-window appearance; no default | `CR-M`, `CR-Y` item 6 |
 | a `PlatformWindow` conformer outside the package (platform services) | implement `func presentFileDialog(_: PlatformFileDialog) -> Bool { false }`, `func presentAlert(_: PlatformAlert) -> Bool { false }`, `func dismissPresentation(token: Int) {}` and `func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}` — each honest where the platform has no dialog, draws alerts in the window, or cannot limit a window; no default (answering `false` makes a file dialog complete with `FileDialogError.unavailable` and an alert draw in the window) | `SV-B` items 1, 5 |
 | an exhaustive `switch` over `InputEvent` (platform services) | add `.pointerExited`, `.fileDialogResult(_:)` and `.alertResult(_:)` arms (or `default:`) | `SV-B` item 2 |
+| a `PlatformWindow` conformer outside the package (toolbar) | implement `func setToolbar(_: PlatformToolbar?) -> Bool { false }` — honest where the platform has no native toolbar: `Window` then draws the toolbar in the window; answer `true` only if the platform shows it and delivers each control's outcome as `.toolbarAction`; no default | `MD-J` items 2, 5 |
+| an exhaustive `switch` over `InputEvent` (toolbar) | add a `.toolbarAction(_:)` arm (or `default:`) | `MD-J` item 6 |
 | an exhaustive `switch` over `AccessibilityRole` (platform services) | add `.popUpButton` and `.alert` arms (or `default:`) | `SV-S` |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
@@ -298,6 +313,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `Component`'s layout record keeps its content and layout in **one heap box** (`ComponentLayout` is 8 bytes): one allocation per `Component` per laid-out frame (+96 bytes), and a shell switching between pane `Component`s no longer costs the sum of the panes' stack | nothing (see [Large trees in a debug build](#large-trees-in-a-debug-build)) | `PE-J` |
 | **`Divider` is also an `Element`** (`Divider: Element, ProposalElement`): `Divider()` in an element builder is a 1-point line where it did not compile; in a menu builder it is unchanged | nothing | `SV-O` |
 | **`.pickerStyle(.menu)` compiles** — the guard `aMenuPickerStyleIsNotOffered` is replaced by `aMenuPickerStyleCompiles`; `.automatic` stays segmented | nothing for callers | `SV-P` item 1 |
+| **`TextField` draws SwiftUI's bordered field and is 24 points tall** (at 13 pt; 8 taller and 12 wider at its ideal than before): a `.surface` fill, a `.separator` border, radius 6, the control focus ring while focused, the text inset 6/4 and dimmed to a third when disabled. **`TextEditor` draws an opaque `.surface` background** (size and text placement unchanged) | `.textFieldStyle(.plain)` (on the field or a container) restores the previous field exactly; `.textEditorStyle(.plain)` the previous editor; drop an app-side field-chrome helper | `MD-C`, `MD-F` |
 | a linear container outside the package that should orient a `Divider` | not possible from outside (the stack-axis stack is internal); a `Divider` in it is horizontal, as outside any stack | `SV-O` item 2 |
 | an in-window (SDL) menu taller than the window less 8 points **scrolls**: clamped to the window, wheel and ↑/↓ scroll it, only visible rows paint and hit-test | nothing | `SV-Q` |
 | an alert the platform declines (SDL) is **drawn in the window and modal**: while it is up, pointer, wheel and key events reach nothing beneath, and an open drawn menu closes | nothing; answer it with its buttons, Return/Escape or an accessibility press | `SV-J` items 2–4 |

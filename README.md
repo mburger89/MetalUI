@@ -398,6 +398,13 @@ group T, unrun. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows the counters.
 scrolling drawn one on SDL); the SDL loop now drains the main queue. The real looks are
 `docs/verification/human-checks.md` group U, unrun.
 `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` is its demo.
+**Field chrome, environment objects and a window toolbar** (user request 2026-10-02, not a
+plan task; record §79): `TextField` draws SwiftUI's bordered field by default and takes
+`.textFieldStyle(_:)`, `TextEditor` `.textEditorStyle(_:)`; `.layoutPriority` reaches the legacy
+stacks; `@Environment(Type.self)` and `.environment(_ object:)` pass an `@Observable` object down
+the tree; `.toolbar { ToolbarItem(placement:) { … } }` and `.searchable` become a real `NSToolbar`
+on AppKit and a drawn strip on SDL. The real looks are `docs/verification/human-checks.md`
+group W, unrun. `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` shows them.
 **Controls in SwiftUI stacks** (user request 2026-10-02, not a plan task; record §78):
 `HStack`, `VStack`, `ZStack`, `Grid` and `ProposalScrollView` take `Button`, `Toggle`,
 `TextField`, `Picker`, `Slider`, `Stepper`, `Text`, a selectable `List` and a `Component`

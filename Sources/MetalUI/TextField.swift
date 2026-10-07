@@ -17,6 +17,12 @@ import MetalUITextSystem
 /// Clicking focuses it (unlike every other element), typing goes through the
 /// platform's text input — keyboard layouts, dead keys, input methods — and
 /// the keys of TI-D's table edit. The caret does not blink.
+///
+/// **Drawn as SwiftUI's bordered field by default** (rulings `MD-C`…`MD-E`):
+/// 6/4 points of inset (3.5 vertically at `.small`), a `.surface` fill, a
+/// `.separator` border, corner radius 6 and the control focus ring — 24 points
+/// tall at 13 pt. `.textFieldStyle(.plain)` draws the bare field, one line
+/// tall. Disabled, the chrome stays and the text dims to a third.
 public struct TextField: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
@@ -36,6 +42,9 @@ public struct TextField: Element, StyledElement {
     /// The field's own font request (ruling TE-F item 2): inherit the
     /// environment's font, the default font, or an explicit one.
     var fontRequest: TextFontRequest = .inherit
+    /// The field's own style (ruling `MD-B` item 2); `nil` reads the
+    /// environment's, `.automatic` by default.
+    var fieldStyle: TextFieldStyle?
 
     /// The explicit font's family; computed over the request (TE-F item 2).
     public var fontFamily: String? {
@@ -95,6 +104,28 @@ public struct TextField: Element, StyledElement {
         foregroundColor(Color(token))
     }
 
+    /// Draws this field in `style` — SwiftUI's `textFieldStyle(_:)` written on
+    /// the field (ruling `MD-B` item 2). It wins over a container's style, and
+    /// returns a `TextField`, so `.background`, `.frame` and `.onSubmit` still
+    /// chain (`PE-R`).
+    public func textFieldStyle(_ style: TextFieldStyle) -> TextField {
+        var copy = self
+        copy.fieldStyle = style
+        return copy
+    }
+
+    /// The style this field draws in: its own, else the environment's
+    /// (`MD-B` item 2).
+    func resolvedStyle(in environment: EnvironmentValues) -> TextFieldStyle {
+        fieldStyle ?? environment.textFieldStyle
+    }
+
+    /// The chrome's content insets in `environment` (`MD-D`): 6 by 4 (3.5 at
+    /// `.small`) for a bordered style, none for `.plain`.
+    func chromeInsets(in environment: EnvironmentValues) -> (horizontal: Double, vertical: Double) {
+        FieldChrome.insets(resolvedStyle(in: environment), environment.controlSize)
+    }
+
     /// Runs on return; without it return is not claimed and keeps bubbling.
     public func onSubmit(_ action: @escaping @MainActor () -> Void) -> TextField {
         var copy = self
@@ -136,18 +167,23 @@ public struct TextField: Element, StyledElement {
         let system = pass.textSystem
         let key = resolvedFont(in: pass.environment, system: system)
         let text = self.text, placeholder = self.placeholder
-        // Greedy on the width, as SwiftUI's `TextField` is; one line tall.
-        // Any offered width is taken whole — an infinite one answers infinity
+        let insets = chromeInsets(in: pass.environment)
+        // Greedy on the width, as SwiftUI's `TextField` is; one line tall plus
+        // the chrome's vertical insets (`MD-D`). Any offered width is taken
+        // whole — the chrome is inside it — and an infinite one answers infinity
         // (ruling `PE-D`, probe FL3/FL4 `inf -> infx24`), so a stack, which
         // orders its children by their answer at ∞ (`CN-B`), serves the field
-        // after its hugging siblings; `nil` asks for the ideal.
+        // after its hugging siblings; `nil` asks for the ideal, the text's
+        // natural width plus the chrome's horizontal insets (`SZ`: text + 12).
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
                     let width = proposal.width
                         ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
+                            + 2 * insets.horizontal
                     return LayoutMeasurement(size: SizeD(width: width,
-                                                         height: Self.lineHeight(font: key, system: system)))
+                                                         height: Self.lineHeight(font: key, system: system)
+                                                            + 2 * insets.vertical))
                 }
             }
         }
@@ -206,7 +242,10 @@ public struct TextField: Element, StyledElement {
         let system = pass.frame.textSystem
         var state = TextEditState()
         pass.withState(id, initial: TextEditState()) { state = $0 }
-        let geometry = geometry(bounds: bounds, state: state, system: system,
+        // Text, caret and scroll are laid out in the chrome's content rect
+        // (`MD-D` item 3); the hitbox, focus and accessibility keep `bounds`.
+        let geometry = geometry(bounds: FieldChrome.contentRect(bounds, chromeInsets(in: pass.environment)),
+                                state: state, system: system,
                                 font: resolvedFont(in: pass.environment, system: system))
         // The scroll follows the caret. Written here, in the phase, as
         // `ScrollChrome` writes its clamped offset back: it is a function of
@@ -243,19 +282,46 @@ public struct TextField: Element, StyledElement {
     }
 
     private func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, pass: inout PaintPass) {
+        let focused = pass.isFocused(id)
+        guard resolvedStyle(in: pass.environment).isBordered else {
+            paintText(id, bounds: bounds, pass: &pass)
+            return
+        }
+        // The bordered chrome (`MD-E`): fill, border, the text inside, the ring.
+        pass.paintFieldChrome(bounds: bounds, bordered: true, radius: FieldChrome.cornerRadius,
+                              focused: focused, callerRing: decoration.focusBorder != nil) {
+            paintText(id, bounds: bounds, pass: &pass)
+        }
+    }
+
+    /// The text, selection, marked-text underline and caret, in the chrome's
+    /// content rect (`MD-D` item 3) — unchanged text-input drawing (`TI-`).
+    private func paintText(_ id: GlobalElementID, bounds outer: Bounds<Pixels>, pass: inout PaintPass) {
         let system = pass.textSystem
         let font = resolvedFont(in: pass.environment, system: system)
         var state = TextEditState()
         pass.withState(id, initial: TextEditState()) { state = $0 }
+        let bounds = FieldChrome.contentRect(outer, chromeInsets(in: pass.environment))
         let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
-        let textColor = pass.resolve(foregroundColor ?? .textPrimary)
+        var textColor = pass.resolve(foregroundColor ?? .textPrimary)
+        // Disabled: the chrome stays, the text dims to a third (`MD-E` item 3) —
+        // a bordered field only; a `.plain` field is the previous field exactly,
+        // which took no disabled look (`MD-W` item 1).
+        if !pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered {
+            textColor.a *= FieldChrome.disabledTextFactor
+        }
         let x0 = g.contentX - g.scrollX
         func rect(_ from: Double, _ to: Double, y: Double, height: Double) -> Bounds<Pixels> {
             Bounds(origin: Point(x: Pixels(Float(x0 + from)), y: Pixels(Float(y))),
                    size: Size(width: Pixels(Float(max(0, to - from))), height: Pixels(Float(height))))
         }
-        pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
+        // Clipped to the content rect across, the whole field down — so a
+        // glyph's ink above or below its line is not cut at the inset (pinned by
+        // `aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight`).
+        let clip = Bounds(origin: Point(x: bounds.origin.x, y: outer.origin.y),
+                          size: Size(width: bounds.size.width, height: outer.size.height))
+        pass.clipped(to: clip, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
             if !g.selection.isEmpty {
                 var selectionColor = pass.theme[.accent]
                 selectionColor.a *= 0.3

@@ -857,6 +857,12 @@ struct LegacyItemPlan {
     /// (lane 4, ruling LR-AH). `nil` when no px/rem margin is declared, and always
     /// `nil` under a stack or frame-layer parent, which ignore margins (`LR-AZ`).
     var marginInsets: Edges<Double>?
+    /// The element node W also aliases when the child is a `layoutPriority` layer
+    /// whose record was forwarded (port gaps, medium, `MD-G` item 4).
+    var origin: LayoutNodeID?
+    /// The forwarded priority, registered outermost when any wrapper is (`MD-G`
+    /// item 3): the kernel reads a priority only on a stack's direct child.
+    var liftedPriority: Double?
 }
 
 extension LayoutPass {
@@ -961,6 +967,8 @@ extension LayoutPass {
                 plans.append(plan)
                 continue
             }
+            plan.origin = item.origin
+            plan.liftedPriority = item.forwardedPriority
             let d = item.declared, a = item.animated
             func stretches(_ value: AlignItems?) -> Bool { value == nil || value == .stretch }
             // Whether the child is stretched, and grown, on each axis.
@@ -1156,6 +1164,9 @@ extension LayoutPass {
                                                 maxHeight: plan.itemFrameHeight?.max,
                                                 alignment: plan.itemFrameAlignment)
                 frame.lowering.alias(child, to: node)
+                // A forwarded record's element (`MD-G` item 4): the stretched or
+                // grown element is W's size, not only the layer around it.
+                if let origin = plan.origin { frame.lowering.alias(origin, to: node) }
             }
             if let alignmentFrame = plan.alignmentFrame {
                 node = alignmentFrame.horizontal
@@ -1173,6 +1184,12 @@ extension LayoutPass {
             // (`SA-K` item 3; spec 4.5 pins the divergence).
             if let insets = plan.marginInsets {
                 node = frame.requestNativePadding(child: node, insets: insets)
+            }
+            // The lift (`MD-G` item 3; not a new registration site, `MD-U` item 4):
+            // a wrapper hides the layer's priority from the kernel, which reads only
+            // a stack's direct child, so it is registered again outermost.
+            if let priority = plan.liftedPriority, node != child {
+                node = frame.requestNativeLayoutPriority(child: node, priority: priority)
             }
             nodes.append(node)
         }

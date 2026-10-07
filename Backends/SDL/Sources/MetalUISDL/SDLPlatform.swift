@@ -515,6 +515,18 @@ public final class SDLWindow: PlatformWindow {
     /// the token and runs nothing.
     public func dismissPresentation(token: Int) {}
 
+    /// The last `setToolbar(_:)` argument (ruling `MD-J` item 5), recorded for
+    /// tests; nothing else reads it.
+    public private(set) var toolbar: PlatformToolbar?
+
+    /// Records `toolbar` and answers `false` (ruling `MD-J` item 5): SDL3 has
+    /// no native toolbar, so `Window` draws the toolbar inside the window
+    /// (`MD-K`). `nil` clears the record.
+    public func setToolbar(_ toolbar: PlatformToolbar?) -> Bool {
+        self.toolbar = toolbar
+        return false
+    }
+
     /// `SDL_SetWindowMinimumSize`/`SDL_SetWindowMaximumSize` (ruling `SV-M`):
     /// the minimum rounded up, the maximum down, `nil` — and an axis beyond
     /// `Int32` (the seam's unbounded `greatestFiniteMagnitude`) — as 0, SDL's
