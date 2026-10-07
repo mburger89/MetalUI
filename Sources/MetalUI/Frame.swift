@@ -353,6 +353,15 @@ public final class Frame {
     /// build.
     var toolbarRecords: [ToolbarRecord] = []
 
+    /// Whether this build draws the window's toolbar as a strip (`MD-K`): the
+    /// window's last `setToolbar` answered `false`. Set by `Window` before
+    /// the build; `false` — today's path — everywhere else.
+    var drawsToolbarStrip = false
+    /// Whether this build laid a strip out (`drawsToolbarStrip` and at least
+    /// one item) — read back by `Window`, whose one extra build runs when the
+    /// strip's presence must change (`MD-K` item 5).
+    private(set) var drewToolbarStrip = false
+
     func withPresentationScope<R>(_ body: () -> R) -> R {
         presentationDepth += 1
         defer { presentationDepth -= 1 }
@@ -553,8 +562,8 @@ public final class Frame {
     /// otherwise. An axis may be infinite (a greedy root): no maximum there.
     private(set) var contentMaximum: Size<Pixels>?
 
-    private static func size(of measurement: LayoutMeasurement) -> Size<Pixels> {
-        Size(width: Pixels(Float(measurement.size.width)), height: Pixels(Float(measurement.size.height)))
+    private static func size(of measurement: LayoutMeasurement, plus top: Double = 0) -> Size<Pixels> {
+        Size(width: Pixels(Float(measurement.size.width)), height: Pixels(Float(measurement.size.height + top)))
     }
 
     /// Runs `body` — a `.preferredColorScheme(value)` scope's content — after
@@ -2444,12 +2453,17 @@ public final class Frame {
     /// `.contentSize` also at an infinite one — measure-only runs, before every
     /// real run, so `lastNativeLayoutWork` still reads the root's own. Under
     /// `.automatic` nothing is measured.
-    func computeRootLayout(root: LayoutNodeID) {
+    func computeRootLayout(root: LayoutNodeID, toolbarStrip strip: LayoutNodeID? = nil) {
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
+        // A drawn toolbar strip takes the window's top (`MD-K` item 2): the
+        // root is offered, and centred in, the rect below it, and the window's
+        // content limits include it. Without one, `top` is 0 — today's values.
+        let top = strip == nil ? 0 : Double(ToolbarStrip.height)
+        let rootHeight = max(0, height - top)
         if contentSizeLimitsMode != .automatic {
-            contentMinimum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .zero))
+            contentMinimum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .zero), plus: top)
             if contentSizeLimitsMode == .contentSize {
-                contentMaximum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .infinity))
+                contentMaximum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .infinity), plus: top)
             }
         }
         for presentation in lowering.presentations {
@@ -2457,9 +2471,17 @@ public final class Frame {
                                      proposal: ProposedSize(width: width, height: height),
                                      in: LayoutRect(x: 0, y: 0, width: width, height: height))
         }
+        // The strip's own run (`MD-K` item 4), before the root's so the
+        // root's run stays the tree's last (`lastNativeLayoutWork`, the
+        // deepest level) — the runs are independent (`MD-Z` item 2).
+        if let strip {
+            _ = tree.computeNativeLayout(root: strip,
+                                         proposal: ProposedSize(width: width, height: top),
+                                         centredIn: LayoutRect(x: 0, y: 0, width: width, height: top))
+        }
         _ = tree.computeNativeLayout(root: root,
-                                     proposal: ProposedSize(width: width, height: height),
-                                     centredIn: LayoutRect(x: 0, y: 0, width: width, height: height))
+                                     proposal: ProposedSize(width: width, height: rootHeight),
+                                     centredIn: LayoutRect(x: 0, y: top, width: width, height: rootHeight))
     }
 
     // MARK: - Post-layout phases
@@ -3064,11 +3086,18 @@ public final class Frame {
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
         var state = layoutState
         reportUnconsumedLoweredItems(root: root)
+        // The drawn toolbar strip (`MD-K`): requested after the root, whose
+        // layout collected the toolbar; `nil` — no node — without one.
+        var strip = requestToolbarStrip(pass: &layoutPass)
+        if let strip { reportUnconsumedLoweredItems(root: strip.node) }
+        drewToolbarStrip = strip != nil
 
-        computeRootLayout(root: root)
+        computeRootLayout(root: root, toolbarStrip: strip?.node)
         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
         let rootBounds = bounds(of: root)
         recordElementBounds(rootID, rootBounds)
+        let stripBounds = strip.map { bounds(of: $0.node) }
+        if let stripBounds { recordElementBounds(ToolbarStrip.rootID, stripBounds) }
 
         var prepaintPass = PrepaintPass(frame: self)
         // The root's `prepaint` is called here, not through `prepaintGroup`, so
@@ -3087,6 +3116,12 @@ public final class Frame {
                     element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
                 }
                 : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+        }
+        // The strip after the root (`MD-K` item 4): its hitboxes rank above
+        // the root's on the base layer (presentation roots are hoisted above
+        // both), its focus stops follow the root's, its records come after.
+        if let stripBounds {
+            strip?.element.prepaint(ToolbarStrip.rootID, bounds: stripBounds, pass: &prepaintPass)
         }
 
         // Hover resolves HERE — after `prepaint` has returned, so every
@@ -3122,6 +3157,9 @@ public final class Frame {
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
         animationStore.transitions.paintGhosts(&paintPass)
+        if let stripBounds {   // above the root's content and its ghosts, below presentations (`MD-K` item 4)
+            strip?.element.paint(ToolbarStrip.rootID, bounds: stripBounds, pass: &paintPass)
+        }
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
         paintTooltip()  // a tooltip, above everything (MN-P item 2)

@@ -27,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-Z`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-AA`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -861,3 +861,77 @@ equality it does assert is what keeps `@State` (a slot is keyed by id).
 
 **Cost if wrong.** A typed entry that consumes a cursor index would shift
 every following proposal sibling's identity (and reset its state) unnoticed.
+
+---
+
+## MD-Z — Lane 3, as built: the strip's run order, its names, its environment, the extra build's place, the demo's label
+
+**Found (lane 3, implementing `MD-K`/`MD-M`).**
+
+1. `MD-K` item 3 names one naming site, the `$toolbar` root, and spec test 3.9
+   an arm for it in `everyNamingSiteStartsAReturningNameFresh` with mutation
+   M3.9 "the `noteNamed` call removed". The root is one fixed name at its own
+   position `(nil, 1)` (beside the window root's `(nil, 0)`, so it never
+   replaces a named root's name); `noteNamed` departs a name only when a
+   **different** name is minted at the same position, so the root's note can
+   never depart anything and no arm can see it. What does start fresh is a
+   strip **item**: the strip keys its items by their platform ids
+   (`ForEach(items, id: \.id)`), so a field item whose id goes a, a, b, a
+   returns with a fresh edit state.
+2. `MD-K` item 4 says the strip is "laid out in its own run after the
+   root's". Its **request** must follow the root's (the toolbar records are
+   complete only when the root's layout returns); its native **run** is
+   independent of the root's, and the tree's per-run read-backs
+   (`lastNativeLayoutWork`, `lastNativeLayoutDeepestLevel`) report the last run.
+3. The strip's items are elements the declaring scope built, but the strip is
+   laid out under the window's root environment.
+4. A window whose content limits are measured (`windowResizability`
+   `.contentSize`/`.contentMinSize`) would let the platform size the window
+   to the root alone and squeeze the root by 39.
+5. The demo's prioritised row: an unframed `Text("Label")` beside
+   `.flexGrow(1).layoutPriority(1)` measures **0 wide** (the prioritised grower
+   is served first and leaves a `Text` its zero-offer answer — record §79
+   §1.3's note on test 2.2), so the row would show only the grower.
+
+**Ruling.**
+
+1. The root's `noteNamed` stays (every site minting a named id notes it,
+   `ID-R`; it also marks `$toolbar` produced). Test 3.9's arm pins the
+   **items'** naming: caret 3 after the first frame reads 0 on a returning id
+   and 3 under the constant control. Its mutation is **M3.9b**, the strip's
+   items keyed by something other than their ids (`ForEach(…, id: \.placement)`: one key per placement); M3.9 as the spec
+   wrote it is run and recorded (expected green: an instrument with nothing
+   to see, not a finding).
+2. The strip's run is computed **before** the root's (with the presentation
+   roots, which `LR-CM` also lays out first), so the root's run stays the
+   tree's last and every per-run read-back is the root's. Requested after the
+   root; prepainted and painted after it; its accessibility records after the
+   root's — `MD-K` item 4's order everywhere it is observable.
+3. A strip item reads the window's root environment; its `isEnabled` (the
+   declaring scope's, and-ed with the item's own `.disabled`, `MD-I` item 3)
+   is carried as `.disabled(!isEnabled)` on the item. Other environment
+   values written around a `.toolbar` (a `textFieldStyle`, a font) do not
+   reach the drawn strip (owner none; the native toolbar reads none either).
+4. With a strip, the content limits measured for the platform add 39 to each
+   height; without one the arithmetic adds 0 (the same `Float`).
+5. **Where the extra build runs.** `reconcileToolbar()` moves from after
+   `updateHover` to just after the lifecycle's settle build, and the extra
+   build runs there when `lastBuildDrewToolbarStrip != toolbarIsDrawn` (the
+   strip appeared, or the drawn one left with the toolbar still drawn) — so
+   presentations, hover and accessibility read the presented build. A strip
+   leaving with its toolbar costs no extra build (the build without records
+   lays no strip out and `setToolbar(nil)` clears `toolbarIsDrawn`).
+6. The strip is painted after the removal ghosts (above the root's content)
+   and before the drag preview, the drawn menu, the tooltip and the drawn
+   alert; presentation roots are on the hoisted layer, above it.
+7. The demo's label is framed 80 wide (`Text("Label").frame(width: 80)`), so
+   the row reads label 80, grower 280 (test 3.16). The demo's
+   environment-object `Component` reads its object **optionally**
+   (`@Environment(PortGapsModel.self) var model: PortGapsModel?`, "no model"
+   when absent), so M3.16 (`.environment(nil as PortGapsModel?)`) reddens by
+   name with no trap.
+
+**Cost if wrong.** (1) A spec mutation that cannot redden. (2) A drawn-toolbar
+window whose layout work counters report the strip's run. (4) A
+content-sized window 39 points too short. (5) An extra build after
+presentations had already read the first build.

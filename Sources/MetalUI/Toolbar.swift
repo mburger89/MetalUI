@@ -60,6 +60,9 @@ struct ToolbarControlNode {
     /// Runs an outcome; answers `false` for an action of the wrong kind (a
     /// `.press` sent to a checkbox), which runs nothing. `nil`: a label.
     var run: (@MainActor (ToolbarActionEvent.Action) -> Bool)?
+    /// The declared control itself, as the drawn strip shows it (`MD-K`
+    /// item 1) — made only when a window draws its toolbar.
+    var element: @MainActor () -> AnyElement
 }
 
 /// What a toolbar item is evaluated in: the scope's `isEnabled`, and-ed with
@@ -164,7 +167,8 @@ extension Button: ToolbarItemContent where Label: ToolbarButtonLabel {
                 guard action == .press else { return false }
                 run()
                 return true
-            })])
+            },
+            element: { AnyElement(self) })])
     }
 }
 
@@ -180,7 +184,8 @@ extension Toggle: ToolbarItemContent where Label == Text {
                 guard case .toggle(let on) = action else { return false }
                 binding.wrappedValue = on
                 return true
-            })])
+            },
+            element: { AnyElement(self) })])
     }
 }
 
@@ -205,7 +210,8 @@ extension Picker: ToolbarItemContent {
                 guard case .select(let index) = action, tags.indices.contains(index) else { return false }
                 scope.write(tags[index])
                 return true
-            })])
+            },
+            element: { AnyElement(self) })])
     }
 }
 
@@ -222,7 +228,8 @@ extension TextField: ToolbarItemContent {
                 guard case .text(let value) = action else { return false }
                 change(value)
                 return true
-            })])
+            },
+            element: { AnyElement(self) })])
     }
 }
 
@@ -231,7 +238,7 @@ extension Text: ToolbarItemContent {
     /// This content's controls. SPI: see `ToolbarItemContent`.
     @_spi(ToolbarInternals) public func _toolbarControls(in context: _ToolbarItemContext) -> _ToolbarControls {
         _ToolbarControls([ToolbarControlNode(control: .label(text: string), isEnabled: context.isEnabled,
-                                             help: nil, run: nil)])
+                                             help: nil, run: nil, element: { AnyElement(self) })])
     }
 }
 
@@ -435,7 +442,10 @@ enum ToolbarDeclaration {
                     guard case .text(let value) = action else { return false }
                     text.wrappedValue = value
                     return true
-                })
+                },
+                // The drawn strip's search field (`MD-K` item 1): a field 160 wide,
+                // the prompt as its placeholder.
+                element: { AnyElement(TextField(prompt, text: text).frame(width: Pixels(ToolbarStrip.searchWidth))) })
             return [ToolbarEntry(id: nil, placement: .search, controls: [node], isGroup: false)]
         }
     }
@@ -568,8 +578,11 @@ struct AssembledToolbar {
     /// `nil` when the build had no toolbar item.
     let toolbar: PlatformToolbar?
     let targets: [String: Target]
+    /// The same items, in the same order and with the same ids, as the drawn
+    /// strip lays them out (`MD-K`).
+    let strip: [ToolbarStripItem]
 
-    static let empty = AssembledToolbar(toolbar: nil, targets: [:])
+    static let empty = AssembledToolbar(toolbar: nil, targets: [:], strip: [])
 
     /// Numbers `records`' entries: the non-search entries in order, each an
     /// item (`id`, else `"<placement>.<k>"` with `k` its index among them) or,
@@ -580,12 +593,17 @@ struct AssembledToolbar {
         var items: [PlatformToolbarItem] = []
         var searches: [PlatformToolbarItem] = []
         var targets: [String: Target] = [:]
+        var stripItems: [ToolbarStripItem] = []
+        var stripSearches: [ToolbarStripItem] = []
         var index = 0
         var searchIndex = 0
         func add(_ node: ToolbarControlNode, id: String, placement: PlatformToolbarPlacement,
-                 owner: GlobalElementID, to list: inout [PlatformToolbarItem]) {
+                 owner: GlobalElementID, to list: inout [PlatformToolbarItem],
+                 strip: inout [ToolbarStripItem]) {
             list.append(PlatformToolbarItem(id: id, placement: placement, control: node.control,
                                             isEnabled: node.isEnabled, help: node.help))
+            strip.append(ToolbarStripItem(id: id, placement: placement, isEnabled: node.isEnabled,
+                                          element: node.element))
             if let run = node.run {
                 targets[id] = Target(owner: owner, isEnabled: node.isEnabled, run: run)
             }
@@ -596,7 +614,8 @@ struct AssembledToolbar {
                     let base = searchIndex == 0 ? "search" : "search.\(searchIndex)"
                     searchIndex += 1
                     for node in entry.controls {
-                        add(node, id: base, placement: .search, owner: record.owner, to: &searches)
+                        add(node, id: base, placement: .search, owner: record.owner, to: &searches,
+                            strip: &stripSearches)
                     }
                     continue
                 }
@@ -605,18 +624,20 @@ struct AssembledToolbar {
                 let numbered = entry.isGroup || entry.controls.count > 1
                 for (n, node) in entry.controls.enumerated() {
                     add(node, id: numbered ? "\(base).\(n)" : base, placement: entry.placement,
-                        owner: record.owner, to: &items)
+                        owner: record.owner, to: &items, strip: &stripItems)
                 }
             }
         }
         let all = items + searches
         self.toolbar = all.isEmpty ? nil : PlatformToolbar(items: all)
         self.targets = targets
+        self.strip = stripItems + stripSearches
     }
 
-    init(toolbar: PlatformToolbar?, targets: [String: Target]) {
+    init(toolbar: PlatformToolbar?, targets: [String: Target], strip: [ToolbarStripItem]) {
         self.toolbar = toolbar
         self.targets = targets
+        self.strip = strip
     }
 }
 
@@ -636,7 +657,7 @@ extension Window {
     /// last one sent (`MD-J` item 2) — after the frame's builds, outside every
     /// phase. A window that never had a `.toolbar` never calls; the last one
     /// leaving sends `nil` once. Records whether the window must draw it
-    /// (`false` from the platform; lane 3's strip).
+    /// (`false` from the platform: the strip, `MD-K`).
     func reconcileToolbar() {
         let toolbar = assembledToolbar.toolbar
         guard toolbar != sentToolbar else { return }

@@ -1,6 +1,6 @@
 # Port gaps, medium — field chrome, `layoutPriority`, environment objects, window toolbar — design
 
-**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`); lane 1 BUILT (2026-10-07, `MD-V`, record §79 §1), lane 2 BUILT (2026-10-07, `MD-X`, record §79 §2), lane 3 not built.**
+**Status: DESIGNED (2026-10-06), critic-revised (`MD-R`…`MD-U`); lane 1 BUILT (2026-10-07, `MD-V`, record §79 §1), lane 2 BUILT (2026-10-07, `MD-X`, record §79 §2), lane 3 BUILT (2026-10-07, `MD-Z`, record §79 §3).**
 Three lanes (§8, re-cut by `MD-R`), run in order.
 
 User request 2026-10-02, an item of the gpui-gap priority list (**not a plan
@@ -361,7 +361,7 @@ Lane 2: 3.1–3.5, 3.11–3.15, 3.17, 3.18. Lane 3: 3.6–3.10, 3.16 (`MD-R`).
 | 3.6 | `aDrawnToolbarStripSitsAboveTheRootAndKeepsItsIds` | fake `toolbarIsNative = false`, window 400: strip elements within y 0…39; root content's bounds start at y ≥ 39, height ≤ 361, centred in that rect; every root-tree id equal to the no-toolbar window's | does not compile | M3.6 strip height 0 |
 | 3.7 | `aDrawnToolbarIsInTheFirstPresentedFrame` | the fake's first presented frame already shows the strip; a later change shows in the same presented frame | does not compile | M3.7 no extra build |
 | 3.8 | `aDrawnToolbarControlIsAnOrdinaryControl` | a click at the strip `Button`'s centre runs it directly; Tab reaches the strip's controls after the root's; typing into the strip `TextField` writes its binding; its edit state survives frames | does not compile | M3.8 the strip not prepainted (no hitboxes) |
-| 3.9 | arm in `everyNamingSiteStartsAReturningNameFresh` | the `$toolbar` naming site starts a returning name fresh | the arm is new | M3.9 the `noteNamed` call removed |
+| 3.9 | arm in `everyNamingSiteStartsAReturningNameFresh` | a strip item (keyed by its platform id under the `$toolbar` root) whose id goes a, a, b, a starts fresh: caret 3 → 0; the constant control keeps 3 (`MD-Z` item 1) | the arm is new | M3.9b the strip's items keyed by placement; M3.9 (the root's `noteNamed` removed) recorded, expected green (`MD-Z` item 1) |
 | 3.10 | `aWindowWithoutAToolbarIsUnchanged` | no `setToolbar` call is made with a toolbar, no extra build (build count), identical scene to `d48b26d`'s for the same tree (a literal rect list) | green before (pin) | M3.10 an unconditional extra build |
 | 3.11 | `theAppKitToolbarBuildsNativeItemsAndUpdatesThemInPlace` (AppKit, no screen needed) | `setToolbar` → `window.toolbar` exists, style `.automatic`, icon-only, no customization; item classes and controls (`NSButton`, `NSSegmentedControl`, `NSSearchToolbarItem`, …); navigation `isNavigational`; principal+status centred; a changed `isOn` keeps the same item objects; a changed id list rebuilds; returns `true` | does not compile | M3.11 rebuild on every call (the same-object arm) |
 | 3.12 | `anAppKitToolbarControlSendsItsActionAsAnInputEvent` | `performClick` on the button → `.toolbarAction(press)`; segmented select → `.select(1)`; a search edit → `.text`; the checkbox → `.toggle(true)` | does not compile | M3.12 the checkbox sends `.press` |

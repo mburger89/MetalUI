@@ -230,8 +230,8 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// **3.16** (`MD-M`). The controls demo, in a fake 920 × 560 window whose
 /// platform shows toolbars natively (the audit's window), holds the port-gaps
 /// section: its five fields are 24, 24, 24, a line (16) and 24 tall; the
-/// priority `Row` is 360 wide and its prioritised second child takes what its
-/// first child's ideal leaves; the environment object's count is the
+/// priority `Row` is 360 wide, its 80-wide label first and its prioritised
+/// second child taking the other 280; the environment object's count is the
 /// `Component`'s text (read from the published accessibility tree); the
 /// window's toolbar has five items (Back, the picker, Advanced, Share and the
 /// search field). Mutation **M3.16**: the section's `.environment(_:)` given
@@ -254,10 +254,15 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     #expect(PortGapsDemoIDs.fields.map { bounds($0)?.size.height.value } == [24, 24, 24, 16, 24],
             "the five fields' heights")
     #expect(bounds(PortGapsDemoIDs.priorityRow)?.size.width.value == 360, "the priority row is 360 wide")
-    let label = try #require(bounds(PortGapsDemoIDs.priorityLabel)?.size.width.value)
-    let grower = try #require(bounds(PortGapsDemoIDs.priorityGrower)?.size.width.value)
-    #expect(abs(label + grower - 360) <= 0.5 && grower > label,
-            "the prioritised child takes the rest: \(label) + \(grower)")
+    // The label is framed 80 wide; the grower's own layers record under its
+    // name (the name's first inner layer, `.child(of: name, at: 0)`).
+    let row = try #require(bounds(PortGapsDemoIDs.priorityRow))
+    let label = try #require(bounds(PortGapsDemoIDs.priorityLabel))
+    let grower = try #require(b.first { $0.key.parent?.component == .named(ElementID(PortGapsDemoIDs.priorityGrower)) }?.value,
+                              "the grower's layer")
+    #expect([label.origin.x.value - row.origin.x.value, label.size.width.value] == [0, 80], "the label: \(label)")
+    #expect([grower.origin.x.value - row.origin.x.value, grower.size.width.value] == [80, 280],
+            "the prioritised grower takes the rest: \(grower)")
 
     let toolbar = try #require(platform.toolbars.last ?? nil, "the demo's toolbar reached the platform")
     #expect(toolbar.items.count == 5, "Back, the picker, Advanced, Share, search: \(toolbar.items.map(\.id))")

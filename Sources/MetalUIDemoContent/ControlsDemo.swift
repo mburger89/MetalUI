@@ -1,4 +1,5 @@
 import MetalUI
+import Observation
 
 /// The controls demo (plan task 10, part 2, lane 3; spec
 /// `2026-09-26-controls-and-selection-design.md` §11), reached with
@@ -16,10 +17,16 @@ import MetalUI
 /// `Expected.swift` do not move. Built on a 1 MB thread by
 /// `everyProductionTreeBuildsOnAOneMegabyteThread`; its deepest native level
 /// is recorded by `theControlsDemoPublishesEveryControlsRole`.
+///
+/// The port-gaps section (`portGapsDemoSection()`, rulings `MD-M`, `MD-Z`)
+/// sits below the controls, and `ControlsDemo()` carries the window's toolbar
+/// — inside the `Column`, since a `.toolbar` cannot be a window's root
+/// (`MD-S`): human checks W1–W5.
 @MainActor
 public func controlsDemoContent() -> some Element {
     Column(gap: Pixels(14)) {
-        ControlsDemo()
+        portGapsToolbar(ControlsDemo())
+        portGapsDemoSection()
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
@@ -196,4 +203,141 @@ func swiftUIVocabularyStatusBar(name: String, enabled: Bool, speed: Double, flav
     .padding(Edges(top: Pixels(0), right: Pixels(16), bottom: Pixels(0), left: Pixels(16)))
     .frame(maxWidth: .infinity, minHeight: Pixels(26), maxHeight: Pixels(26))
     .background(.surfaceSecondary)
+}
+
+// MARK: - Port gaps (medium)
+
+/// The port-gaps section's model (ruling `MD-M`): a `@MainActor` global, as
+/// `demoModel` is — never a never-written `@State` (divergence 125) — provided
+/// to the section's `Component` with `.environment(_:)` and bound by the
+/// toolbar's controls.
+@Observable @MainActor
+final class PortGapsModel {
+    /// The environment-object `Component`'s counter.
+    var count = 0
+    var name = ""
+    var notes = "A TextEditor draws an opaque fill."
+    var mode = 0
+    var advanced = false
+    var search = ""
+    var backPresses = 0
+    var sharePresses = 0
+}
+
+/// The one instance the demo provides and binds.
+@MainActor let portGapsModel = PortGapsModel()
+
+/// The names the section gives its measured elements, so a test finds them
+/// (`theControlsDemoShowsThePortGapsSection`, spec test 3.16).
+enum PortGapsDemoIDs {
+    /// Default, `.roundedBorder`, `.squareBorder`, `.plain`, disabled.
+    static let fields = ["portgaps.field.default", "portgaps.field.rounded", "portgaps.field.square",
+                         "portgaps.field.plain", "portgaps.field.disabled"]
+    static let priorityRow = "portgaps.priority.row"
+    static let priorityLabel = "portgaps.priority.label"
+    static let priorityGrower = "portgaps.priority.grower"
+}
+
+/// An 8 × 8 accent-blue square, the toolbar's image button's label.
+@MainActor private let portGapsShareBitmap: ImageBitmap = {
+    var rgba: [UInt8] = []
+    for _ in 0..<64 { rgba += [40, 110, 230, 255] }
+    return ImageBitmap(width: 8, height: 8, rgba: rgba)
+}()
+
+@MainActor private func portGapsBinding<V>(_ get: @escaping @MainActor () -> V,
+                                           _ set: @escaping @MainActor (V) -> Void) -> Binding<V> {
+    Binding(get: get, set: set)
+}
+
+/// The demo window's toolbar (rulings `MD-I`, `MD-M`): a leading Back
+/// button, a centred segmented picker, Advanced, an image button and
+/// `.searchable` — on AppKit a native `NSToolbar`, on SDL the drawn strip
+/// (`MD-K`). **Its own function** (Windows' 1 MB stack).
+@MainActor
+func portGapsToolbar<Content: ElementGroup>(_ content: Content) -> ToolbarScope<ToolbarScope<Content>> {
+    let model = portGapsModel
+    return content
+        .toolbar {
+            ToolbarItem(placement: .navigation) { Button("Back") { model.backPresses += 1 } }
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: portGapsBinding({ model.mode }, { model.mode = $0 })) {
+                    Text("List").tag(0)
+                    Text("Grid").tag(1)
+                }
+                .pickerStyle(.segmented)
+            }
+            ToolbarItem { Toggle("Advanced", isOn: portGapsBinding({ model.advanced }, { model.advanced = $0 })) }
+            ToolbarItem(id: "share", placement: .primaryAction) {
+                Button(action: { model.sharePresses += 1 }) {
+                    Image(portGapsShareBitmap, scale: 1, label: Text("Share"))
+                }
+            }
+        }
+        .searchable(text: portGapsBinding({ model.search }, { model.search = $0 }))
+}
+
+/// The port-gaps section (ruling `MD-M`; spec §6): the four field styles and
+/// a disabled field (`MD-B`…`MD-E`), a 60-tall `TextEditor` (`MD-F`), a
+/// 360-wide legacy `Row` whose second child carries
+/// `.flexGrow(1).layoutPriority(1)` (`MD-G`), and a `Component` reading the
+/// model through `@Environment(PortGapsModel.self)` (`MD-H`). **Its own
+/// function**, as are its parts (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+@MainActor
+func portGapsDemoSection() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Port gaps").font(size: 22)
+        portGapsFields()
+        portGapsPriorityRow()
+        PortGapsCounter()
+            .environment(portGapsModel)
+    }
+    .alignItems(.flexStart)
+}
+
+/// Five fields, 240 wide, and the editor.
+@MainActor
+func portGapsFields() -> some Element {
+    let model = portGapsModel
+    let name = portGapsBinding({ model.name }, { model.name = $0 })
+    return Column(gap: Pixels(8)) {
+        TextField("Default", text: name).frame(width: Pixels(240)).id(PortGapsDemoIDs.fields[0])
+        TextField("Rounded border", text: name).textFieldStyle(.roundedBorder)
+            .frame(width: Pixels(240)).id(PortGapsDemoIDs.fields[1])
+        TextField("Square border", text: name).textFieldStyle(.squareBorder)
+            .frame(width: Pixels(240)).id(PortGapsDemoIDs.fields[2])
+        TextField("Plain", text: name).textFieldStyle(.plain)
+            .frame(width: Pixels(240)).id(PortGapsDemoIDs.fields[3])
+        TextField("Disabled", text: name).disabled(true)
+            .frame(width: Pixels(240)).id(PortGapsDemoIDs.fields[4])
+        TextEditor(text: portGapsBinding({ model.notes }, { model.notes = $0 }))
+            .frame(width: Pixels(240), height: Pixels(60))
+    }
+    .alignItems(.flexStart)
+}
+
+/// A legacy `Row` 360 wide: a label at its ideal, then a prioritised grower
+/// taking the rest (`MD-G`; the configurator's MG-14).
+@MainActor
+func portGapsPriorityRow() -> some Element {
+    Row {
+        Text("Label").frame(width: Pixels(80)).id(PortGapsDemoIDs.priorityLabel)
+        Text("Grows, with priority 1").flexGrow(1).layoutPriority(1).id(PortGapsDemoIDs.priorityGrower)
+    }
+    .frame(width: Pixels(360))
+    .background(.surfaceSecondary)
+    .id(PortGapsDemoIDs.priorityRow)
+}
+
+/// Reads the provided model (`MD-H`); "no model" when none is provided —
+/// optional, so a missing `.environment(_:)` shows rather than traps.
+struct PortGapsCounter: Component {
+    @Environment(PortGapsModel.self) var model: PortGapsModel?
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(12)) {
+            Text(model.map { "Environment object: \($0.count)" } ?? "no model")
+            Button("Increment") { model?.count += 1 }
+        }
+    }
 }

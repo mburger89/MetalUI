@@ -719,8 +719,13 @@ public final class Window {
     /// item 2).
     var sentToolbar: PlatformToolbar?
     /// Whether the platform declined the current toolbar (`setToolbar`
-    /// answered `false`), so the window draws it (`MD-K`, lane 3).
+    /// answered `false`), so the window draws it (`MD-K`): the next build
+    /// lays the strip out.
     var toolbarIsDrawn = false
+    /// Whether the last adopted build laid the strip out — compared with
+    /// `toolbarIsDrawn` after `reconcileToolbar` for the one extra build
+    /// (`MD-K` item 5).
+    private var lastBuildDrewToolbarStrip = false
 
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
@@ -1375,6 +1380,22 @@ public final class Window {
             drainLifecycle()
         }
 
+        // The toolbar (`MD-J` item 2): the last build's, sent when it changed.
+        // When the platform's answer changes whether the window draws a strip
+        // (`MD-K` item 5) — it appeared, or the drawn one left — the root's
+        // rect changes, so the window builds ONCE more inside this
+        // `beginFrame()` (`CR-Q`'s precedent) and presents that build: the
+        // strip is in the first presented frame. A changed strip, or a window
+        // with no toolbar, costs no extra build.
+        reconcileToolbar()
+        if lastBuildDrewToolbarStrip != toolbarIsDrawn {
+            needsRedraw = false
+            (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
+            _ = applyTreeColorSchemePreference(of: frame)
+            drainLifecycle()
+            reconcileToolbar()
+        }
+
         // A resize that arrived during the builds above (the platform resizing
         // into a content limit, `SV-AG` item 3) was encoded into a drawable
         // taken before it; the settle builds' `needsRedraw = false` may have
@@ -1389,8 +1410,6 @@ public final class Window {
         // make schedule the next frame.
         reconcilePresentations()
         updateHover(at: lastMousePosition, reportsMoves: false)
-        // The toolbar (`MD-J` item 2): the last build's, sent when it changed.
-        reconcileToolbar()
 
         // After the focus read-back, so a published focus is the frame's
         // decision (AB-J). Builds only while a client is active (AB-B). A
@@ -1583,6 +1602,7 @@ public final class Window {
         }
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
+        frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -1601,6 +1621,7 @@ public final class Window {
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
+        lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
