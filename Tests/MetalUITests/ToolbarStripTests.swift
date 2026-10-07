@@ -276,3 +276,158 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let values = tree.nodes.values.compactMap { $0.value }
     #expect(values.contains("Environment object: 3"), "the Component reads the environment object")
 }
+
+// MARK: - 3.6b–3.6f (lane 3 review)
+
+/// A greedy root (it fills whatever it is offered, painted `.accent`) under a
+/// toolbar of one navigation button.
+@MainActor private func fillingTree(_ m: StripModel) -> some Element {
+    Box {}
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.accent)
+        .toolbar {
+            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+        }
+}
+
+/// **3.6b** (`MD-K` item 2, divergence 136). A root that fills the window is
+/// offered only the rect below the strip: in a 400 × 400 drawn-strip window
+/// its bounds are exactly (0, 39, 400, 361). Review mutation **X7**: the root
+/// proposed the window's whole height (it would be 400 tall, overlapping the
+/// strip).
+@MainActor
+@Test func aGreedyRootIsOfferedOnlyTheRectBelowTheStrip() throws {
+    let m = StripModel()
+    let (window, _) = try stripWindow(drawn: true) { fillingTree(m) }
+    window.drawFrameIfNeeded()
+    let root = try #require(window.lastElementBounds[rootID])
+    #expect([root.origin.x.value, root.origin.y.value, root.size.width.value, root.size.height.value]
+                == [0, 39, 400, 361], "the greedy root: \(root)")
+}
+
+/// **3.6c** (`MD-K` items 1 and 4, `MD-Z` item 6). The strip paints: the
+/// scene holds its `.surface` fill across (0, 0, 400, 39) and its 1-point
+/// `.separator` line at y 38, both after the root's `.accent` fill in scene
+/// order (painted above the root content), and its glyphs land within y 0…39.
+/// Review mutations **X4** (the strip's paint call removed from
+/// `Frame.render`) and **X8** (its `.background(.surface)` removed).
+@MainActor
+@Test func aDrawnToolbarStripPaintsAboveTheRoot() throws {
+    let m = StripModel()
+    let (window, platform) = try stripWindow(drawn: true) { fillingTree(m) }
+    window.drawFrameIfNeeded()
+    let rects = window.lastScene.rects
+    func box(_ r: MUIRect) -> [Float] {
+        [r.bounds.origin.x, r.bounds.origin.y, r.bounds.size.width, r.bounds.size.height]
+    }
+    let rootFill = try #require(rects.firstIndex {
+        box($0) == [0, 39, 400, 361] && ixSame(ixHsla($0.background), window.theme[.accent])
+    }, "the root's accent fill: \(rects.map(box))")
+    let fill = rects.firstIndex {
+        box($0) == [0, 0, 400, 39] && ixSame(ixHsla($0.background), window.theme[.surface])
+    }
+    let separator = rects.firstIndex {
+        box($0) == [0, 38, 400, 1] && ixSame(ixHsla($0.background), window.theme[.separator])
+    }
+    #expect(fill != nil, "the strip's surface fill: \(rects.map(box))")
+    #expect(separator != nil, "the strip's separator line: \(rects.map(box))")
+    if let fill { #expect(fill > rootFill, "the fill painted above the root") }
+    if let separator, let fill { #expect(separator > fill, "the separator above the fill") }
+    let glyphs = window.lastScene.glyphs
+    try #require(!glyphs.isEmpty, "the strip's Back label draws glyphs")
+    let scale = platform.scaleFactor
+    for g in glyphs {
+        #expect(g.bounds.origin.y >= 0 && (g.bounds.origin.y + g.bounds.size.height) / scale <= 39,
+                "a strip glyph within y 0…39: \(g.bounds)")
+    }
+}
+
+/// **3.6d** (`MD-J` item 1, `MD-Z` item 3). A toolbar item disabled by its
+/// declaring scope stays disabled in the drawn strip: a click at its centre
+/// runs nothing, while the enabled sibling's click runs. Review mutation
+/// **X3**: `ToolbarStripItem.body()` writes `.disabled(false)`.
+@MainActor
+@Test func aDisabledItemInTheDrawnStripRunsNothing() throws {
+    let m = StripModel()
+    let (window, platform) = try stripWindow(drawn: true) {
+        Column {
+            Text("a").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+                ToolbarItem(placement: .navigation) { Button("On") { m.pressed += 10 } }
+            }
+            Column {
+                Text("b").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+                    ToolbarItem(id: "off") { Button("Off") { m.pressed += 1 } }
+                }
+            }
+            .disabled(true)
+        }
+    }
+    window.drawFrameIfNeeded()
+    let strip = window.lastElementBounds.filter { isUnderStrip($0.key) && $0.key != ToolbarStrip.rootID }
+    // The two buttons' outermost bounds: the leading one (On) and the
+    // trailing one (Off), told apart by x.
+    let boxes = window.lastHitboxes.filter { isUnderStrip($0.id) && $0.handlers.onClick != nil }
+    let on = try #require(boxes.min { $0.bounds.origin.x.value < $1.bounds.origin.x.value }, "the On button")
+    click(platform, at: centre(on.bounds))
+    #expect(m.pressed == 10, "the enabled strip button runs: \(m.pressed)")
+    // The Off button's bounds, from the element records (its hitbox may be gated away).
+    let off = try #require(strip.values.filter { $0.origin.x.value > 200 && $0.size.height.value < 39 }
+                                .max { $0.size.width.value < $1.size.width.value }, "the Off button's bounds")
+    click(platform, at: centre(off))
+    #expect(m.pressed == 10, "the scope-disabled strip button runs nothing: \(m.pressed)")
+}
+
+/// **3.6e** (`MD-K` item 3). Placement in the strip: the navigation item
+/// leads (padded 8), the principal item is centred at x 200, and the trailing
+/// field ends at 400 − 8. Review mutation **X6**: navigation items in the
+/// trailing group.
+@MainActor
+@Test func drawnStripItemsArePlacedByPlacement() throws {
+    let m = StripModel()
+    let (window, _) = try stripWindow(drawn: true) {
+        Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+            ToolbarItem(placement: .principal) { Button("Mid") { m.pressed += 100 } }
+            ToolbarItem { Toggle("Advanced", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
+            ToolbarItem { TextField("Filter", text: binding({ m.filter }, { m.filter = $0 })).frame(width: Pixels(80)) }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let boxes = window.lastHitboxes.filter { isUnderStrip($0.id) }
+    let buttons = boxes.filter { $0.handlers.onClick != nil }.sorted { $0.bounds.origin.x.value < $1.bounds.origin.x.value }
+    try #require(buttons.count >= 2, "Back and Mid hitboxes: \(buttons.count)")
+    let back = buttons[0].bounds, mid = buttons[1].bounds
+    let field = try #require(boxes.first { $0.handlers.textInput != nil }, "the field").bounds
+    #expect(back.origin.x.value == 8, "the navigation item leads: \(back)")
+    #expect(abs(mid.origin.x.value + mid.size.width.value / 2 - 200) <= 0.5, "the principal item centred: \(mid)")
+    #expect(back.origin.x.value + back.size.width.value < field.origin.x.value, "Back before the field")
+    #expect(abs(field.origin.x.value + field.size.width.value - 392) <= 0.5, "the field trails at 392: \(field)")
+}
+
+/// **3.6f** (`MD-Z` items 2 and 4). The strip's run comes before the root's,
+/// so the window's deepest-level read-back is the root's own run (the native
+/// window's figure for the same tree); and under `.contentMinSize` the
+/// content minimum is the root's answer plus the strip's 39. Review mutations
+/// **X1** (the strip's run after the root's) and **X2** (`plus: 0`).
+@MainActor
+@Test func theStripsRunIsNotTheRootsAndItsHeightJoinsTheContentMinimum() throws {
+    let m = StripModel()
+    let tree: @MainActor () -> some Element = {
+        Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+            ToolbarItem { Toggle("Advanced", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
+        }
+    }
+    let (native, nativePlatform) = try stripWindow(drawn: false, content: tree)
+    native.windowResizability = .contentMinSize
+    native.drawFrameIfNeeded()
+    let (drawn, drawnPlatform) = try stripWindow(drawn: true, content: tree)
+    drawn.windowResizability = .contentMinSize
+    drawn.drawFrameIfNeeded()
+    #expect(drawn.lastNativeLayoutDeepestLevel == native.lastNativeLayoutDeepestLevel,
+            "the root's own run: \(drawn.lastNativeLayoutDeepestLevel) vs \(native.lastNativeLayoutDeepestLevel)")
+    let nativeMin = try #require(nativePlatform.contentSizeLimitCalls.last?.minimum, "native limits")
+    let drawnMin = try #require(drawnPlatform.contentSizeLimitCalls.last?.minimum, "drawn limits")
+    #expect(drawnMin.width == nativeMin.width && drawnMin.height.value == nativeMin.height.value + 39,
+            "the minimum includes the strip: \(drawnMin) vs \(nativeMin)")
+}
