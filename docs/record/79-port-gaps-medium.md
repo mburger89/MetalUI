@@ -4,13 +4,13 @@ Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls merged,
 PR #49). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — the SMK configurator port's four medium gaps MG-20, MG-14, MG-2
 and MG-3. Spec `docs/superpowers/specs/2026-10-07-port-gaps-medium-design.md`;
-rulings `MD-A`…`MD-W` in `docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`
+rulings `MD-A`…`MD-Z` in `docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`
 (next unused `MD-AA`); probes `docs/probes/swiftui-field-chrome.swift`,
 `swiftui-environment-object.swift`, `swiftui-toolbar.swift`,
 `swiftui-toolbar-nested.swift`.
 
 **Status: complete (2026-10-07).** Lanes 1, 2 and 3 landed (§1, §2, §3); the
-Record phase's close is §4. No renumbering: master was still `d48b26d` at the
+Record phase's close is §4, the branch check §5. No renumbering: master was still `d48b26d` at the
 close, and no other record numbered 79 exists.
 
 ## 1. Lane 1 — field chrome, legacy priority, environment objects
@@ -467,3 +467,59 @@ once.
   (`MD-L`; owner the gpui-gap list).
 - Any view in a `ToolbarItem` (divergence 135, a closed set by design).
 - Human checks W1–W5 (`docs/verification/human-checks.md`), unrun.
+
+## 5. Branch check (adversarial, at `723bc17`)
+
+Taken in the branch's worktree, one agent, 2026-10-07.
+
+- **Suite**: `swift package clean`, native build (0 `error:`; the only
+  `warning:` SwiftPM's `--build-system native` notice), unfiltered native
+  `--no-parallel`: **`Test run with 2630 tests in 3 suites passed after
+  155.731 seconds`**; `FR-J no-argument frame: succeeded=true` once.
+  `swift build --build-tests` (default build system): 0 `warning:`.
+- **Guards**: 170 `canTypecheck`-gated declarations against 165 at `d48b26d`
+  (+5: 1.10, 2.12, 3.13, 3.14, 3.17), so 171 guards as §4.1 counts them.
+- **Demo pixels** (`docs/probes/demo-pixels/compare.sh <scratch> d48b26d HEAD`,
+  HEAD `f4c8f15`, source-identical to `723bc17`): **0 differing, "scene
+  identical", in all fourteen images**; the controls are non-zero where they
+  must be (two of them, default vs modal 1031003 and default vs animation
+  454895, differ from the header's recorded 1030498 and 210027 — at `d48b26d`
+  itself, so not this branch's).
+- **`Backends/SDL`**: macOS **24 + 78** passed; the Linux image
+  (`Backends/SDL/linux/Dockerfile`, `swift:6.4-noble`) **24 + 75** passed, the
+  readings §4.2 cited from lane 2, now taken again.
+- **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing. `cmp CLAUDE.md AGENTS.md` clean.
+- **Citations**: every `MD-` id cited in a changed doc, source or test resolves
+  to a heading (`MD-A`…`MD-Z`; `MD-AA` only as "next unused"); every test name
+  a changed doc cites in backticks resolves to a `func`, except names that were
+  already there at `d48b26d` (retired tests cited as history, and
+  `theRunCounterIgnoresCallsMadeOffTheMainThread` in record §03, a stale citation
+  this branch did not add).
+- **Must-not-move**, the named tests green and their files unedited except
+  `ExplicitIdentityTests.swift`, which gained one arm (3.9) and moved no
+  literal: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`; no hit-testing,
+  accessibility-bridge, animation, `List` or `Deferred` test file is in the
+  diff. The nine moved tests (§1.3) move only field sizes, under `MD-C` item 2.
+- **Two mutations of the checker's own design** (committed tree, restored from
+  a copy, full unfiltered native suite, `git status --short` clean of sources
+  after each):
+
+| # | Mutation (file) | Reddened |
+|---|---|---|
+| XA | the field's hitbox, focus and accessibility registered at the chrome's content rect instead of `bounds` (`TextField.swift` `prepaint`: `registerAndScope(…, at: FieldChrome.contentRect(bounds, …))`) — `MD-Q`'s "the hitbox keeps `bounds`" | `aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight`, `aFieldLaysOutGreedilyAndEdits`, `aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot`, `clickingAFieldFocusesItAndTypingEditsItsText`, `drawnStripItemsArePlacedByPlacement`, `theBorderedChromePaintsTheThemesFillBorderAndRadius`, `theTextAndCaretSitInsideTheChrome` (21 issues) |
+| XB | `reconcileToolbar`: `toolbarIsDrawn = toolbar != nil && !shown` → `= !shown` (a drawn toolbar leaving keeps the window "drawn", so every later frame builds twice) | `aDrawnToolbarIsInTheFirstPresentedFrame` (1 issue: "the strip leaving costs no extra build") |
+
+- **Doc defects fixed** (commits `f4c8f15` and this one): record §04 had no
+  section for 130–131 (proposal controls) or 132–136 (this branch), which
+  CLAUDE.md's divergence rule requires — both written; CLAUDE.md/AGENTS.md said
+  human checks "A–V" (now A–W) and left `setToolbar(_:) -> Bool` out of the
+  defaultless `PlatformWindow` list; this record's header and the spec's
+  cited the rulings as `MD-A`…`MD-W` and `MD-A`…`MD-U` (now `MD-Z`).
+- **Code defects**: none found. **Verdict: merge.**

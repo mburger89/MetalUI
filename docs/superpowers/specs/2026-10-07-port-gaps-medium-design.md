@@ -12,7 +12,7 @@ where each bites and the app's workaround, in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-07-port-gaps-medium-decisions.md`](../2026-10-07-port-gaps-medium-decisions.md)
-(`MD-A`…`MD-U`). Probes (each header holds its output and READING, the
+(`MD-A`…`MD-Z`). Probes (each header holds its output and READING, the
 authority for every SwiftUI claim here):
 [`swiftui-field-chrome.swift`](../../probes/swiftui-field-chrome.swift),
 [`swiftui-environment-object.swift`](../../probes/swiftui-environment-object.swift),
