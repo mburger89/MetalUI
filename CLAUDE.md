@@ -627,8 +627,9 @@ drops presentations, registers nothing, and **consumes no record — a legacy it
 field (`.flexGrow`, `.margin`) there is reported by name and traps in
 production** (`PE-C`; a window test over a tree that holds one pre-flights in
 diagnostics mode, `PE-Z`). `ProposalFrame`, `Padding`, `Background`,
-`FixedSize`, `nativeOverlay` and `ForEach` do not take legacy content (they are
-the guards' separating controls, `PE-E`, `PE-H`). `TextField`/`Slider` answer an
+`FixedSize` and `nativeOverlay` do not take legacy content (they are the
+guards' separating controls, `PE-E`, `PE-H`); `ForEach` keeps `ElementBuilder`,
+so a `ForEach` of legacy rows in a stack is adopted whole (`PE-E`). `TextField`/`Slider` answer an
 infinite width, `TextEditor` either axis, with infinity (`PE-D`; legacy `Row`s
 too); `List` keeps divergence 84; style modifiers go on the control before any
 wrapper (`PE-R`). A `ProposalScrollView` publishes its `ScrollContext` so a
