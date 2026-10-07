@@ -282,12 +282,14 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// A greedy root (it fills whatever it is offered, painted `.accent`) under a
 /// toolbar of one navigation button.
 @MainActor private func fillingTree(_ m: StripModel) -> some Element {
-    Box {}
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.accent)
-        .toolbar {
-            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
-        }
+    Column {
+        Box {}
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.accent)
+            .toolbar {
+                ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+            }
+    }
 }
 
 /// **3.6b** (`MD-K` item 2, divergence 136). A root that fills the window is
@@ -379,17 +381,19 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 
 /// **3.6e** (`MD-K` item 3). Placement in the strip: the navigation item
 /// leads (padded 8), the principal item is centred at x 200, and the trailing
-/// field ends at 400 − 8. Review mutation **X6**: navigation items in the
+/// field ends at 400 − 8 (the only two clickable items are Back and Mid, told
+/// apart by x). Review mutation **X6**: navigation items in the
 /// trailing group.
 @MainActor
 @Test func drawnStripItemsArePlacedByPlacement() throws {
     let m = StripModel()
     let (window, _) = try stripWindow(drawn: true) {
-        Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
-            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
-            ToolbarItem(placement: .principal) { Button("Mid") { m.pressed += 100 } }
-            ToolbarItem { Toggle("Advanced", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
-            ToolbarItem { TextField("Filter", text: binding({ m.filter }, { m.filter = $0 })).frame(width: Pixels(80)) }
+        Column {
+            Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+                ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+                ToolbarItem(placement: .principal) { Button("Mid") { m.pressed += 100 } }
+                ToolbarItem { TextField("Filter", text: binding({ m.filter }, { m.filter = $0 })) }
+            }
         }
     }
     window.drawFrameIfNeeded()
@@ -404,6 +408,16 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     #expect(abs(field.origin.x.value + field.size.width.value - 392) <= 0.5, "the field trails at 392: \(field)")
 }
 
+/// A shallow root (a framed `Text`) under a two-item toolbar.
+@MainActor private func shallowTree(_ m: StripModel) -> some Element {
+    Column {
+        Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
+            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
+            ToolbarItem { Toggle("Advanced", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
+        }
+    }
+}
+
 /// **3.6f** (`MD-Z` items 2 and 4). The strip's run comes before the root's,
 /// so the window's deepest-level read-back is the root's own run (the native
 /// window's figure for the same tree); and under `.contentMinSize` the
@@ -412,16 +426,10 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 @MainActor
 @Test func theStripsRunIsNotTheRootsAndItsHeightJoinsTheContentMinimum() throws {
     let m = StripModel()
-    let tree: @MainActor () -> some Element = {
-        Text("Body").frame(width: Pixels(100), height: Pixels(50)).toolbar {
-            ToolbarItem(placement: .navigation) { Button("Back") { m.pressed += 1 } }
-            ToolbarItem { Toggle("Advanced", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
-        }
-    }
-    let (native, nativePlatform) = try stripWindow(drawn: false, content: tree)
+    let (native, nativePlatform) = try stripWindow(drawn: false) { shallowTree(m) }
     native.windowResizability = .contentMinSize
     native.drawFrameIfNeeded()
-    let (drawn, drawnPlatform) = try stripWindow(drawn: true, content: tree)
+    let (drawn, drawnPlatform) = try stripWindow(drawn: true) { shallowTree(m) }
     drawn.windowResizability = .contentMinSize
     drawn.drawFrameIfNeeded()
     #expect(drawn.lastNativeLayoutDeepestLevel == native.lastNativeLayoutDeepestLevel,
