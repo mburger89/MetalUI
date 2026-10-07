@@ -4,13 +4,14 @@ Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
 PR #50). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — what the SMK configurator needs to run on Linux and Windows.
 Spec `docs/superpowers/specs/2026-10-07-portable-app-design.md`; rulings
-`PX-A`…`PX-T` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
-(next unused `PX-U`); probes `docs/probes/swiftui-task.swift`,
+`PX-A`…`PX-U` in `docs/superpowers/2026-10-07-portable-app-decisions.md`
+(next unused `PX-V`); probes `docs/probes/swiftui-task.swift`,
 `swiftui-bundle-image.swift`, `swift-task-modifier-isolation.swift`,
 `image-decoder-parity/`, `swiftpm-traits-sdl/`.
 
-**Status: designed (2026-10-07).** Lanes 1 (packaging), 2 (images) and 3
-(`.task`) to land in that order; each appends its section here.
+**Status: lanes 1–3 landed (2026-10-07).** Lanes 1 (packaging), 2 (images)
+and 3 (`.task`) landed in that order, each appending its section here; the
+Record phase owes spec §8.3.
 
 ## 0. Design
 
@@ -230,3 +231,91 @@ commit (ruling `PX-T`, spec amendments). Rulings as landed: `PX-B`…`PX-E`,
 Nothing new beyond spec §9. `Backends/SDL` was not touched by this lane and
 not re-run.
 
+
+## 3. Lane 3 — `.task` and the registries (2026-10-07)
+
+Commits: `0193ff1` (red), `5ccf3e7` (implementation and registries),
+`03d5868` (test 3.22), and this section's commit (ruling `PX-U`, spec
+amendments). Rulings as landed: `PX-F`, `PX-G`, `PX-L`, amended by `PX-U`
+(findings and the mutation table M3.1–M3.22b, MG3.1–MG3.3, M3.20a/b, M3.21).
+
+### 3.1 Red
+
+- `MetalUITests` did not compile: "value of type 'some StyledElement' has no
+  member 'task'" (`TaskModifierTests.swift:129`, `:144`, `:164`, `:219`, …),
+  "value of type 'Column<Content>' has no member 'task'" (`:147`), "value of
+  type 'ForEach<Range<Int>, Int, some StyledElement>' has no member 'task'"
+  (`:334`), "cannot find 'TaskStart' in scope" (`:472`, `:473`).
+- With `TaskModifierTests.swift` set aside, the three guards ran and failed:
+  "PX-F spellings: succeeded=false messages=[value of type 'Text' has no
+  member 'task']" (3.G1, "Expectation failed: result.succeeded"); 3.G2 and
+  3.G3 at their `#require` (the positive control did not compile either).
+- `Backends/SDL` did not compile: `MainQueueDrainCheck/main.swift:107`
+  "value of type 'ModifiedContent<Box<EmptyGroup>, ModifierLayer>' has no
+  member 'task'" (the `task-modifier` mode).
+- Test 3.22 was written after the implementation (`PX-U` item 2); its red is
+  M3.22a and M3.22b.
+
+### 3.2 Landed
+
+- `Sources/MetalUI/TaskModifier.swift` (new): `task(name:priority:file:line:_:)`
+  and `task(id:name:priority:file:line:_:)` with SwiftUI's closure type;
+  `TaskAction`, `TaskSpec`, `RunningTask`, `TaskStart` (`Task.immediate` on
+  macOS 26+ and off Apple, `Task` otherwise; `forcesDeferredStart`).
+- `Lifecycle.swift`: `LifecycleWrite.task`; `Entry.task`/`running`;
+  `ParkedGhost.running`; starts in the appearance bucket, id restarts
+  (cancel, then start) in the change bucket, cancels in the disappearance
+  bucket (parked under a ghost), the ternary case (`PX-U` item 2);
+  `closeAll` cancels; `runningTaskCount`. `Window.swift` unchanged.
+- `MainQueueDrainCheck` modes `task-modifier` and `immediate-task`;
+  `SDLMainQueueDrainTests` 3.20 (gated off the offscreen driver) and 3.21.
+- Registries: divergences **137** and **138** (105 live, next label 139);
+  "Not offered" rows for `Image(_:bundle:)` and the `executorPreference:`
+  overloads, the old `.task` row removed; `api-overview.md` (images,
+  `.task`, platforms, census); `migration.md` (the lifecycle `.task` row and
+  four behaviour rows: decoding on macOS, `.task` exists, `metalui new
+  --cross-platform` by URL, `Backends/SDL`'s flags); human checks group
+  **X** (X1–X5); inventory families `image-decoding` (M) and `task` (A,
+  `swiftui-task.swift` `X5`); the census re-recorded: **2536 declarations in
+  138 families** (2532 + the two decoding initialisers + the two `task`s).
+
+### 3.3 Counts and commands
+
+- Root, after `swift package clean`, native build, unfiltered
+  `--no-parallel`: **2672 tests in 3 suites** passed (2649 + 23: TaskModifierTests 3.1–3.19
+  and 3.22, guards 3.G1–3.G3); `FR-J no-argument frame: succeeded=true`;
+  0 `error:`; the only `warning:` SwiftPM's deprecation notice. `swift build
+  --build-tests` (default build system): 0 warnings. The three guards ran
+  (`PX-F spellings: succeeded=true`, `PX-F decoration order: positive
+  succeeded=true; negative succeeded=false`, `PX-F equatable id: positive
+  succeeded=true; negative succeeded=false`).
+- `Backends/SDL` macOS (`swift test $(python3 scripts/fetch-accesskit.py
+  --print-flags)`): **24 + 83** (81 + 3.20, 3.21). 3.20's line: `task
+  started=true steps=3 cancelled=true iterations=4`; 3.21's: `task
+  started=true steps=3 cancelled=true iterations=4`. In the CI image
+  (`metalui-portable`, flagless, on a `git archive` of `5ccf3e7`): **24 +
+  80** passed, 3.20 skipped ("the offscreen video driver presents no window
+  frame"), 3.21 `task started=true steps=3 cancelled=true iterations=58`.
+  Warnings unchanged (Homebrew's `ld` deployment-target warning; the
+  pre-existing unnecessary-`try` at `AccessKitControlsParityTests.swift:83`,
+  present at `359444e`, not this lane's file).
+- `swift:6.4-noble` (aarch64), root `swift build --build-tests` then `swift
+  test --skip-build` on the same archive: build complete, no warning; 6 + 35
+  + 18 + 199 + 49 + 22 passed (unchanged: `.task`'s tests are macOS-only, in
+  `MetalUITests`).
+- Demo pixels, `compare.sh <scratch> 359444e HEAD` at `5ccf3e7`: **0
+  differing pixels, scene identical, in all fourteen images**; controls as
+  before (light vs dark 1048576, default vs modal 1031003, default vs
+  animation 454895, f0 vs f3 0).
+- `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+- Mutations (`PX-U`'s table): each named test reddened; MG3.1 reddens the
+  test target's build, MG3.1b the guard alone; M3.20b (SDL, macOS) and M3.21
+  on macOS redden nothing, as `PX-U` item 4 records; no hang; `git status
+  --short` clean after each.
+
+### 3.4 Deferred
+
+Nothing new beyond spec §9. 3.20 still runs in no CI job (`PX-R` item 4; its
+macOS line is above). The Record phase owes spec §8.3 (CLAUDE.md/AGENTS.md,
+the `LC-L`/`K2` correction, the record README row, record §04 sections for
+137 and 138).

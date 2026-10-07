@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-07-portable-app-decisions.md`](../2026-10-07-portable-app-decisions.md)
-(`PX-A`…`PX-T`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`, lane 2 `PX-T`). Record: `../../record/80-portable-app.md`. Branch
+(`PX-A`…`PX-U`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`, lane 2 `PX-T`, lane 3 `PX-U`). Record: `../../record/80-portable-app.md`. Branch
 `feat/portable-app` from `359444e`.
 
 **Motivation.** The SMK keyboard configurator runs on MetalUI on macOS
@@ -122,7 +122,11 @@ Implementation (in `Lifecycle.swift` and the new `TaskModifier.swift`):
   - disappearance (key gone): `{ box.handle?.cancel(); box.handle = nil }` —
     parked on a live ghost and cancelled on return exactly like an
     `onDisappear` (`LC-H`), so a re-inserted key keeps its box and runs no
-    second start (`X17`).
+    second start (`X17`). (Amended by `PX-U` item 1: `ParkedGhost` holds the
+    parked keys' boxes, and a returning key takes its box back.)
+  - a key that **becomes** a task (a ternary over two lifecycle modifiers,
+    one type, one key) starts it in the appearance bucket; one that **stops**
+    being a task cancels it in the change bucket (`PX-U` item 2, test 3.22).
   - `closeAll()` appends one cancel event per running box, in the same
     reverse order as the `onDisappear`s.
   `currentHasDisappearActions` stays `onDisappear`-only (a task cancel reads
@@ -474,9 +478,18 @@ Harness: `makeFakeWindow`, `drawFrameIfNeeded()`, `async @MainActor` tests;
   `drainMainQueue()`'s call in `SDLPlatform.run` → the container run prints
   `steps=0` (`SV-H`'s separating run); record the macOS result too.
 
+- **3.22 `aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt`**
+  (`PX-U` item 2; added by lane 3 after its mutation pass) — `flag ?
+  x.task {} : x.onAppear {}`: becoming a task starts it, stopping cancels it.
+  Mutations: no start when a key becomes a task (M3.22a); no cancel when it
+  stops (M3.22b).
+
 New `MainQueueDrainCheck` helpers that create an `SDLPlatform` arm
 `armMainRunLoopExitCheck()` where the test helpers do; every C enum
-`rawValue` converted explicitly.
+`rawValue` converted explicitly. (Amended by `PX-U` item 3: the check
+executable arms nothing — the `atexit` guard is for a test process and would
+fail the executable's intended exit; the launching test creates no
+`SDLPlatform`; the new modes use no C enum.)
 
 ## §5 CI and commands
 

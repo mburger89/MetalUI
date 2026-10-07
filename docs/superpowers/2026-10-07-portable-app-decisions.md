@@ -32,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-U`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-V`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -990,3 +990,120 @@ test --build-system native --no-parallel`, 2649 tests each run, no hang):
 **Cost if wrong.** Items 1–2 and 8 are test-side; item 3 is internal; item 4
 is the cache's observable rule, stated in the initialiser's doc comment. None
 changes the public surface beyond `PX-E`.
+
+## PX-U — Lane 3 as landed: what `.task` measured
+
+**Ruling.** Lane 3 (`.task` and the registries) landed as `PX-F`, `PX-G` and
+`PX-L` say (`Sources/MetalUI/TaskModifier.swift`, `Lifecycle.swift`;
+`Window.swift` unchanged — `drainLifecycle()` and
+`runDisappearancesForClose()` run the new events as they are, as spec §1.2
+expected), with these findings and amendments, each measured on 2026-10-07
+(macOS 27, Apple Swift 6.4; the CI image and `swift:6.4-noble` under
+OrbStack, aarch64):
+
+1. **The running box is carried across a parked ghost too (amends spec
+   §1.2).** `ParkedGhost` gains `running: [Key: RunningTask]`: a task key
+   that leaves under a live removal ghost parks its box beside its cancel, and
+   a key that returns before the ghost ends takes the box back into its new
+   entry, so the next build sees it in both builds with a task already running
+   — no cancel, no second start (`X17`, test 3.13). The mutation "drop the
+   carry" (M3.13) shows as a second start **in the build after** the return,
+   not in the return build (the returning appearance is cancelled with the
+   parked event, `LC-H`; the following build finds the key in both builds
+   with no running task and starts one).
+2. **A key can change between a task and another lifecycle action.** A
+   ternary over two lifecycle modifiers — `flag ? x.task { … } : x.onAppear
+   { … }` — has one type (`LifecycleScope<X>`) and so one store key, and
+   the write switches under it. Ruled: becoming a task starts it in the
+   **appearance** bucket at the scope's place; stopping being one cancels it
+   in the **change** bucket at the scope's place (the key stays present, so
+   the disappearance bucket never sees it; no `onAppear` re-fires). SwiftUI
+   has no counterpart (its two modifiers are two types, so the ternary does
+   not compile), so this is MetalUI-only, not a divergence. Pinned by test
+   **3.22** `aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt`
+   (added by this lane after the mutation pass found the two branches
+   unpinned; M3.22a, M3.22b).
+3. **`MainQueueDrainCheck` arms no `armMainRunLoopExitCheck()` (amends spec
+   §4.3's last paragraph).** That check is an `atexit` guard for a **test**
+   process whose outermost loop must never return (record §61 §9): it turns
+   an exit after the main run loop returned into `_exit(1)`. The check
+   executable is meant to exit when `platform.run()` returns, so arming it
+   there would fail every run; the test process that launches it
+   (`runDrainCheck`) creates no `SDLPlatform`. The new modes use no C enum,
+   so the explicit-`rawValue` rule had nothing to convert. The
+   `task-modifier` mode draws with the portable text system over the
+   repository's Noto Sans (found by `#filePath`), since `App` needs a
+   `TextSystem` off Apple (`XP-B`).
+4. **The SDL lines (record §80 §3).** macOS: 3.20 `task started=true steps=3
+   cancelled=true` (4–7 display-link passes over five runs), 3.21 the same
+   line (4–12 passes); the CI image: 3.21 the same line after 58 passes, 3.20
+   skipped by its gate (`PX-R` item 4). Mutations: removing the cancel from
+   the disappearance event (M3.20a) prints `cancelled=false` after the
+   200 000-pass bound and reddens 3.20 on macOS; `Task` for `Task.immediate`
+   (M3.20b) is **green on macOS** — SDL's Cocoa pump runs the deferred body
+   on a later pass — so 3.20 does not separate the start strategy and 3.1
+   (headless) is its pin; deleting both `drainMainQueue()` calls in
+   `SDLPlatform.run` (M3.21) prints `task started=true steps=0
+   cancelled=false` in the CI image (the immediate prefix ran; nothing after
+   the first `await` did) and reddens 3.21 with `SV-H`'s 1.18 and 1.19, and
+   is green on macOS, as `SV-H`'s M1.18 recorded.
+5. **Guard 3.G1's mutation reddens the build first.** Removing
+   `@_inheritActorContext` from both overloads (MG3.1) makes
+   `TaskModifierTests.swift` itself fail to compile ("main actor-isolated
+   instance method 'add' cannot be called from outside of the actor",
+   "main actor-isolated property 'width' can not be mutated from a
+   nonisolated context") — a lost inheritance cannot ship with this suite.
+   With that file compiled out (MG3.1b, 2652 tests), the guard alone reddens:
+   "main actor-isolated instance method 'start()' cannot be called from
+   outside of the actor".
+6. **Spelling notes.** MG3.2's forwarding `onClick` on `LifecycleScope` also
+   reddens the lifecycle guard 9.3 (one type carries both). MG3.3 drops the
+   `Equatable` constraint with `isEqual: { _ in true }` (an unconstrained
+   `T` has no `==`), so it also reddens the id-restart tests. Test 3.11 has
+   no separate mutation (presence has no visibility branch); it reddened
+   under M3.1 and M3.3. Tests carry arms beyond spec §4.3's text: 3.7 a
+   rebuild after the task finished; 3.13 a later plain removal cancelling the
+   kept task; 3.19 counts 15 for five task scopes and 0 with the toggle off,
+   in one window; 3.17 returns early below macOS 26.4 (`Task.name`).
+
+**Mutations** (each applied to the committed tree — `5ccf3e7` for the
+TaskModifierTests/guard runs, `03d5868` for M3.22a/b — restored from a copy,
+`git status --short` clean after each; native build, unfiltered `swift test
+--build-system native --no-parallel`, 2671 tests each run (2672 for M3.22,
+2652 for MG3.1b), no hang; the SDL mutations on a `git archive` of `5ccf3e7`,
+the `Backends/SDL` suite in full):
+
+| id | where (spelling) | reddened |
+|---|---|---|
+| M3.1 | `TaskStart.start` always `Task(priority:)` | `aTaskStartsInsideTheFirstFrameAfterAnInnerOnAppear`, `aTaskWrittenInsideOnAppearStartsFirst`, `siblingsAndParentsStartInReversePreOrder`, `theTaskPriorityDefaultsToUserInitiatedAndPassesThrough`, `removalCancelsAtItsPlaceInTheDisappearanceOrder`, `anIDChangeCancelsTheOldTaskThenStartsTheNewOne`, `theSameIDOrARebuildRestartsNothing`, `anIDRestartRunsAtItsPlaceAmongOnChangeActions`, `anIfElseSwapStartsTheNewTaskBeforeCancellingTheOld`, `aGroupStartsOneTaskWhileItHasContent`, `hiddenAndTransparentContentStartsItsTask`, `aTaskUnderARemovalTransitionIsCancelledWhenTheGhostEnds`, `aTaskReinsertedMidRemovalKeepsRunning`, `closingTheWindowCancelsEveryTask`, `aTaskCarriesSwiftUIsDefaultName`, `aStateWriteInTheSynchronousPrefixReachesItsOwnOccurrence` |
+| M3.2 | starts in a bucket of their own after all appearances | `aTaskWrittenInsideOnAppearStartsFirst`, `siblingsAndParentsStartInReversePreOrder` |
+| M3.3 | the appearance bucket sorted ascending | `siblingsAndParentsStartInReversePreOrder`, `aTaskWrittenInsideOnAppearStartsFirst`, `aTaskStartsInsideTheFirstFrameAfterAnInnerOnAppear`, `anIfElseSwapStartsTheNewTaskBeforeCancellingTheOld`, `hiddenAndTransparentContentStartsItsTask`, `aTaskCarriesSwiftUIsDefaultName`; `LC-` `insertionRunsChildrenBeforeParentsAndLaterSiblingsFirst`, `initialTrueFiresWithAppearInModifierOrder`, `stackedLifecycleModifiersKeepSeparateEntriesInnerFirst`, `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState` |
+| M3.4 | `Task.immediate(name:)` without `priority:` | `theTaskPriorityDefaultsToUserInitiatedAndPassesThrough` |
+| M3.5a | task cancels appended before the other disappearances | `removalCancelsAtItsPlaceInTheDisappearanceOrder` (the `X4b` arm only), `anIfElseSwapStartsTheNewTaskBeforeCancellingTheOld` |
+| M3.5b | the cancel event never calls `cancel()` | `removalCancelsAtItsPlaceInTheDisappearanceOrder` (both arms and the resumption), `anIfElseSwapStartsTheNewTaskBeforeCancellingTheOld`, `aGroupStartsOneTaskWhileItHasContent`, `aTaskUnderARemovalTransitionIsCancelledWhenTheGhostEnds`, `aTaskReinsertedMidRemovalKeepsRunning`, `closingTheWindowCancelsEveryTask` |
+| M3.6 | the id restart starts, then cancels the old | `anIDChangeCancelsTheOldTaskThenStartsTheNewOne` |
+| M3.7 | `isEqual` always `false` | `theSameIDOrARebuildRestartsNothing` |
+| M3.8 | id restarts in the appearance bucket | `anIDRestartRunsAtItsPlaceAmongOnChangeActions` (the `X12b` arm) |
+| M3.9 | appearances appended after the disappearances | `anIfElseSwapStartsTheNewTaskBeforeCancellingTheOld`; `LC-` `aChangedIdRunsTheNewAppearBeforeTheOldDisappear`, `changesRunBeforeAppearsAndAppearsBeforeDisappears` |
+| M3.10 | the untyped scope notes with no content (`if true`) | `aGroupStartsOneTaskWhileItHasContent`; `LC-` `aGroupModifierFiresOncePerGroupAndOnlyWhileItHasContent` |
+| M3.12 | a task's cancel never parked | `aTaskUnderARemovalTransitionIsCancelledWhenTheGhostEnds`, `aTaskReinsertedMidRemovalKeepsRunning` |
+| M3.13 | the returning key does not take its box back | `aTaskReinsertedMidRemovalKeepsRunning` (item 1) |
+| M3.14 | `closeAll` ignores running boxes | `closingTheWindowCancelsEveryTask` |
+| M3.15 | `renderFrame` runs the store's events after its render | `aHeadlessRenderFrameStartsNoTask`; `LC-` `aHeadlessRenderFrameRunsNoAction` |
+| M3.16 | the `forcesDeferredStart` seam ignored | `theDeferredStartRunsTheBodyOnALaterTurn` |
+| M3.17 | `Task.immediate(name: nil, …)` | `aTaskCarriesSwiftUIsDefaultName` |
+| M3.18 | the start event under `StateDispatch.outsideDispatch` | `aStateWriteInTheSynchronousPrefixReachesItsOwnOccurrence` |
+| M3.19 | one extra work unit per carried box | `taskScopesCostWhatLifecycleScopesCost` |
+| M3.22a | no start when a key becomes a task | `aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt` |
+| M3.22b | no cancel when a key stops being a task | `aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt` |
+| MG3.1 | `@_inheritActorContext` removed from both overloads | the test target does not compile (item 5) |
+| MG3.1b | MG3.1 with `TaskModifierTests.swift` compiled out | `theTaskSpellingsTypecheckFromAnExternalModule` only |
+| MG3.2 | a forwarding `onClick` extension on `LifecycleScope` | `aLegacyDecorationAfterATaskModifierDoesNotCompile`; `LC-` `aLegacyDecorationAfterALifecycleModifierDoesNotCompile` |
+| MG3.3 | `task<T>(id:)` unconstrained, `isEqual: { _ in true }` | `aTaskIDMustBeEquatable`, `anIDChangeCancelsTheOldTaskThenStartsTheNewOne`, `theSameIDOrARebuildRestartsNothing`, `anIDRestartRunsAtItsPlaceAmongOnChangeActions` |
+| M3.20a | (SDL, macOS) the cancel event never calls `cancel()` | `aTaskModifierProgressesAndIsCancelledUnderSDLPlatform` |
+| M3.20b | (SDL, macOS) `Task` for `Task.immediate` | nothing (item 4) |
+| M3.21 | (SDL) both `drainMainQueue()` calls deleted | CI image: `anImmediateMainActorTaskResumesAndSeesItsCancellationUnderTheSDLLoop`, `theSDLLoopRunsAMainActorTaskStartedFromTopLevelCode`, `aDialogAnsweredOnAnotherThreadResumesAnAwaitingTask`; macOS: nothing |
+
+**Cost if wrong.** Item 2's bucket choice is MetalUI's own and pinned; a
+later ruling may move the cancel to the disappearance bucket in one line.
+Items 1, 3–6 are internal or test-side.
