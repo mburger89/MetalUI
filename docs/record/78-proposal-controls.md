@@ -348,3 +348,56 @@ Listed, not fixed, each with an owner (§9):
   (the `PE-V` sentence), spec Status, the decisions doc (`PE-AA`). `docs/api-overview.md`,
   `docs/divergences.md`, human checks group V and the inventory map and census
   were landed by lane 3 and re-verified here.
+
+## §11 Branch check (adversarial, at `182c3a1`)
+
+- `swift package clean`, native build, unfiltered `--no-parallel` run: **`Test run
+  with 2579 tests in 3 suites passed after 150.237 seconds`**, `FR-J no-argument
+  frame: succeeded=true`, 0 `error:`, the only native `warning:` SwiftPM's
+  deprecation notice; `swift build --build-tests` (default build system) 0
+  `warning:`. `cmp CLAUDE.md AGENTS.md` equal. Inventory and undocumented checks
+  print nothing. `MetalUILayout` imports only `MetalUICore`, `MetalUIScene` only
+  `MetalUIShaderTypes`. `DemoFrameDeterminismTests`' `Expected.swift` unedited.
+- Offscreen demo comparison re-taken (`compare.sh <scratch> e54c3f6 HEAD`): all
+  fourteen images **0 differing, scene identical**; the controls read their
+  documented values (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216).
+- `Backends/SDL` on macOS: 24 + 77 (unmoved from record §77). `swift:6.4-noble`
+  container (`metalui-portable`): builds, 24 + 74 (unmoved).
+- Unchanged and green by name: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `reversingKeepsIdentityPaintOrderHitOrderAndAccessibilityOrder`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`; no identity, hit-testing,
+  animation or focus test file was edited (the edited pre-existing tests are the
+  `PE-H` flipped guards, the `PE-Z` pre-flights and `SliderTests`' `PE-D` arm).
+- Two mutations of the checker's own, each on the committed tree, restored from a
+  copy, full unfiltered suite, `git status --short` clean after:
+  - **MA** `ProposalContentBuilder.swift` — `LegacyContent`'s typed entry does
+    `cursor += 1` before the content registers (an identity shift by one slot):
+    2579 tests, 53 issues, reddening `aButtonInAProposalStackHasOneHitboxAndActsAsInARow`,
+    `aDragFromAControlInAProposalStackCarriesAPreview`, `aGridFormGivesItsFieldColumnTheRest`,
+    `aLegacyControlTakesTheIDAProposalElementWouldInItsPosition`,
+    `aLegacyFrameAnimatesInsideAProposalStack`, `aPresentationInsideAProposalStackTakesNoSlot`,
+    `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack`,
+    `aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt`,
+    `fixedSizeOnLegacyContentForwardsEachAxis`, `gridCellAnchorOnLegacyContentPlacesItInItsCell`,
+    `gridCellUnsizedAxesOnALegacyControlTakesItsColumnsWidth`,
+    `gridColumnAlignmentOnLegacyContentAlignsItsColumn`,
+    `tabVisitsControlsInAProposalStackInTreeOrder`,
+    `textInAProposalStackLaysOutAsProposalText`,
+    `theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary`,
+    `theControlsDemosSwiftUISectionLaysOutWithoutReports`,
+    `theProposalOnlyModifiersReachLegacyContent`.
+  - **MB** `LegacyProposalModifiers.swift` — `fixedSize(horizontal:vertical:)`
+    on legacy content forwards its axes swapped: 2 issues, reddening
+    `fixedSizeOnLegacyContentForwardsEachAxis` alone.
+- Doc defect fixed: `CLAUDE.md`/`AGENTS.md` listed `ForEach` among the
+  containers that "do not take legacy content"; `PE-E` says its builder stays
+  `ElementBuilder` and a `ForEach` of legacy rows is adopted whole (the
+  status-bar test's second spelling), so the sentence now says that.
+- Unresolved citations are all planned, suspended or conditional spec tests
+  (2.4, 2.5 under `PE-T`; 2.7 not added per `PE-U` M2.7) or pre-branch lines.
+  Real-window capture not taken; group V stays owed.
