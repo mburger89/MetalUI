@@ -335,11 +335,13 @@ private struct Panel: Component {
 /// `.pickerStyle(.menu)` picker is a pop-up and every other style (the default
 /// included) is segmented; `.help(_:)` on a toolbar button reaches
 /// `PlatformToolbarItem.help`; a `ToolbarItemGroup` of one control is numbered
-/// `<base>.0`; a scope whose content is empty contributes nothing; a caller's
+/// `<base>.0`; a scope whose content is empty contributes nothing, on both
+/// entries (the typed one inside a `VStack`); a caller's
 /// `onClick` replaces a toolbar button's action. Mutations (lane 2 review):
 /// **V4** every picker `.segmented`; **V3** `help: nil` in `Button`'s
-/// conformance; **V5** a group of one not numbered; **V6** an empty scope
-/// noted; **V8** `Button`'s conformance running `action` over `onClick`.
+/// conformance; **V5** a group of one not numbered; **V6**/**V6b** an empty
+/// scope noted on the untyped/typed entry; **V8** `Button`'s conformance
+/// running `action` over `onClick`.
 @MainActor
 @Test func theToolbarItemMappingRulesReachThePlatform() throws {
     let m = TBModel()
@@ -361,6 +363,10 @@ private struct Panel: Component {
                 ToolbarItem(id: "click") { Button("C") { m.pressed += 100 }.onClick { m.pressed += 1000 } }
             }
             EmptyGroup().toolbar { ToolbarItem(id: "empty") { Button("E") {} } }
+            VStack {
+                EmptyGroup().toolbar { ToolbarItem(id: "empty-typed") { Button("E") {} } }
+                Rectangle().frame(width: px(10), height: px(10))
+            }
         }
     }
     window.drawFrameIfNeeded()
