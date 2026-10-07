@@ -406,7 +406,46 @@ private struct NamedCounterComponent: Component {
             Row { Box { ConditionalCounter("p", reads) }.padding(Pixels(2)).id(n).padding(Pixels(4)) }
         }
         #expect(inner.values["p"] == expected, "inner-layer name over \(steps): \(String(describing: inner.values["p"]))")
+
+        // The drawn toolbar strip (`MD-K` item 3, `MD-Z`; port gaps, medium,
+        // lane 3, spec test 3.9): its items live under the named root
+        // `$toolbar`, each named by its toolbar item id. A field item whose id
+        // goes a, a, b, a starts fresh on its return: its caret, set to 3 after
+        // the first frame, reads 0 (fresh) — the constant control keeps 3.
+        // Mutation **M3.9b** (the strip's items keyed by position) reddens
+        // this arm alone.
+        let caret = toolbarStripCaret(steps)
+        #expect(caret == (expected == 1 ? 0 : 3), "a toolbar strip item named over \(steps): caret \(String(describing: caret))")
     }
+}
+
+/// Renders a window-sized frame with a drawn toolbar strip for each step,
+/// the toolbar one field item whose id is the step; after the first frame its
+/// caret is set to 3. Returns the caret the last frame left at the id the
+/// field had in the first frame.
+@MainActor
+private func toolbarStripCaret(_ steps: [String]) -> Int? {
+    let table = StateTable()
+    var fieldID: GlobalElementID?
+    for (index, step) in steps.enumerated() {
+        var tree = Column {
+            Text("x").toolbar {
+                ToolbarItem(id: step) { TextField("f", text: "abcdef", onChange: { _ in }) }
+            }
+        }
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        frame.drawsToolbarStrip = true
+        frame.render(&tree)
+        if index == 0 {
+            fieldID = table.ids.first { table.peek($0, as: TextEditState.self) != nil }
+            guard let fieldID else { return nil }
+            var state = TextEditState()
+            state.anchor = 3
+            state.head = 3
+            table.write(fieldID, state)
+        }
+    }
+    return fieldID.flatMap { table.peek($0, as: TextEditState.self)?.head }
 }
 
 // MARK: - E3.13: the resets' work is one pass over the table
