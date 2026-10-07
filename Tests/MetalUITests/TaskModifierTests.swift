@@ -546,3 +546,35 @@ private struct TKTwice: Component {
     window.drawFrameIfNeeded()
     #expect(window.animationStore.lifecycle.runningTaskCount == 0)
 }
+
+// MARK: - Lane 3's finding (ruling `PX-U` item 2)
+
+/// **3.22** (`PX-U` item 2). A ternary over two lifecycle modifiers has one
+/// type (`LifecycleScope<Content>`) and so one store key: swapping an
+/// `onAppear` for a `.task` at that key starts the task, at its place among
+/// the build's appearances, and swapping back cancels it, at its place among
+/// the changes — a MetalUI-only case (SwiftUI's two modifiers are two types,
+/// so a ternary cannot hold both). Mutations: drop the start of a task whose
+/// key held no running task (M3.22a); drop the cancel of a key that stopped
+/// being a task (M3.22b).
+@MainActor
+@Test func aTernaryThatSwapsATaskForAnotherLifecycleModifierStartsAndCancelsIt() throws {
+    let m = LCModel(), log = LCLog()
+    let (window, _) = try lcWindow {
+        Column {
+            m.flag
+                ? lcLeaf().task { log.add("start"); await untilCancelled { log.add("cancel") } }
+                : lcLeaf().onAppear { log.add("appear") }
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(log.take() == ["appear"])
+    m.flag = true
+    window.drawFrameIfNeeded()
+    #expect(log.take() == ["start"], "the key became a task")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+    m.flag = false
+    window.drawFrameIfNeeded()
+    #expect(log.take() == ["cancel"], "the key stopped being a task (no second appear: the key stayed)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 0)
+}
