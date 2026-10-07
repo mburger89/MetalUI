@@ -10,7 +10,7 @@ with reproductions in
 `~/Developer/worktrees/smk_configurator/metalui-port/docs/superpowers/2026-10-06-metalui-gaps.md`.
 
 Rulings: [`../2026-10-06-proposal-controls-decisions.md`](../2026-10-06-proposal-controls-decisions.md)
-(`PE-A`…`PE-X`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-V` (a `ProposalScrollView` publishes its `ScrollContext`) and `PE-W` (a ninth flipped guard, two measured spellings) and `PE-X` (lane 1's mutation table) are lane 1's; `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
+(`PE-A`…`PE-Y`; `PE-T` is lane 2's measurement suspending `PE-L` item 4, `PE-U` its mutation table; `PE-V` (a `ProposalScrollView` publishes its `ScrollContext`) and `PE-W` (a ninth flipped guard, two measured spellings) and `PE-X` (lane 1's mutation table) are lane 1's; `PE-Y` is lane 3's (the demo section's placement and state, V5 suspended); `PE-O`…`PE-S` are the critic pass's revisions and win where they differ). Probe: [`../../probes/swiftui-controls-in-stacks.swift`](../../probes/swiftui-controls-in-stacks.swift)
 (its header's READING is the authority for every SwiftUI claim here). Record
 (Record phase): `docs/record/78-proposal-controls.md`.
 
@@ -420,18 +420,24 @@ in (no build-time generation).
 |---|---|---|---|---|
 | 3.1 | `theControlsDemosSwiftUISectionLaysOutWithoutReports` | the new section (`swiftUIVocabularySection()`), rendered in diagnostics mode at 920×560: empty report; its `HStack` rows hold the expected controls (ids by path) | new | M3.1: the section's `TextField` gains `.flexGrow(1)` → `textField.flexGrow.unconsumed` |
 
-`everyProductionTreeBuildsOnAOneMegabyteThread` covers the section (it
-builds `controlsDemoContent()`); test 2.5 covers its layout.
+*(Corrected by `PE-Y` item 4: the section is inside `ControlsDemo`'s
+`content`, built at layout, so `everyProductionTreeBuildsOnAOneMegabyteThread`
+— which only builds `controlsDemoContent()` — does not reach it, and test 2.5
+was withdrawn with `PE-L` item 4 (`PE-T`). Test 3.1 renders the section and
+the whole controls demo in diagnostics mode; the form's literals are test
+1.5's, the menu picker 145 over the demo's options.)*
 
 ---
 
 ## 7. Demo (lane 3)
 
 The controls demo (`METALUI_CONTROLS_DEMO=1`) gains a section "SwiftUI
-vocabulary", in **its own function** `swiftUIVocabularySection()` passed to
-the composer (Windows 1 MB rule): `FM0`'s form wired to the demo's existing
-`@State` (name, enabled, speed, flavour, quantity) plus `ST0`'s status bar
-under it. Not one of the fourteen offscreen images (they render
+vocabulary", in **its own function** `swiftUIVocabularySection(…)` (Windows
+1 MB rule), its form and status bar in two more: `FM0`'s form plus `ST0`'s
+status bar under it. *(As built, `PE-Y`: beside the legacy controls, not under
+them — under, the content was ≈ 583 tall in the 560 window; three `@State`s
+appended (`name`, `enabled`, `speed` at 0.75), the picker and stepper sharing
+`flavor` and `quantity`; `.frame(maxWidth: 400)`.)* Not one of the fourteen offscreen images (they render
 `demoContent()` and the preview only), so those stay **0 px**; lane 3 re-takes
 them anyway (`docs/probes/demo-pixels/compare.sh <scratch> e54c3f6 HEAD`).
 `DemoFrameDeterminismTests`' `Expected.swift` is not edited.
@@ -469,6 +475,7 @@ them anyway (`docs/probes/demo-pixels/compare.sh <scratch> e54c3f6 HEAD`).
   minimums).
 - **V5** In a debug build, a scratch app with a 12-way inline `switch` (spec
   §6.2's inline shell) prints the one stack warning to the console once.
+  *(Suspended with `PE-L` item 4 — `PE-T`, `PE-Y`; group V marks it N/A.)*
 
 ## 10. Lanes (`PE-M`)
 

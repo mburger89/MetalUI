@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-Y`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -796,3 +796,54 @@ offset half unpinned (V1–V3 green on `982fa21`, 2573 tests); tests 1.18b and
    mutation.
 3. Spec test 1.6's M1.6 reddens only through a multi-node adopted expression;
    the test gained a second spelling (the middle labels as one `ForEach`).
+
+---
+
+## PE-Y — Lane 3: the demo section beside the controls, its state, V5 suspended
+
+**Found** (lane 3, measured with lanes 1 and 2 landed).
+
+1. *Placement.* Spec §7 put the section "under" the demo's controls. Placed as
+   the last child of the controls (and, in a first try, as a third child of
+   the chores/list row), the demo's content measured ≈ 583 points tall
+   (headless, `LayoutDifferential` at 920×560: the status bar ended at 560
+   before the 24-point padding), so in the 920×560 window the centred root
+   (`CN-J`) would cut its top and bottom. Beside the controls it measures
+   828×456: the legacy controls keep their origin (24, 24) and their order,
+   the section starts at (404, 24).
+2. *State.* Spec §7 wired the form to "the demo's existing `@State` (name,
+   enabled, speed, flavour, quantity)"; the demo had no `name`, `enabled` or
+   `speed`. Three `@State`s are appended after `picked` (so every existing
+   `$state<n>` slot keeps its number); the form's menu picker shares `flavor`
+   and its stepper `quantity` with the legacy controls, so V2 can see one
+   control drive the other. `speed` starts at 0.75, not `FM0`'s 0.5: the
+   accessibility audit (3.9) finds the legacy slider by its value `"0.4"`
+   (`one(_:)` requires one match) and checks `"0.5"` after an increment, which
+   a second slider at 0.5 would satisfy without the increment.
+3. *Frame.* `.frame(maxWidth: 400)`, not `width:` — so V4 (narrower than the
+   form) shows the greedy controls giving up width first (headless at a
+   600-wide window: field 165, slider 161, Apply 59) instead of a clipped,
+   fixed form. At 920 the section is 400 wide, the form `FM0`'s 400×177.
+4. *Composer.* The controls demo has no composer; "its own function" is
+   honoured as `swiftUIVocabularySection(…)` called from `ControlsDemo`'s
+   content, with its form and status bar in two further functions. The
+   section is inside a `Component`'s `content`, built at layout, so
+   `everyProductionTreeBuildsOnAOneMegabyteThread` does not build it; spec
+   §6.3's sentence saying it does is corrected (test 3.1 covers the layout
+   in diagnostics mode, and also renders the whole controls demo).
+5. *Test 3.1's literals.* The form's frames, relative to its own origin, are
+   test 1.5's (`FM0`) except the menu picker: 145 wide over the demo's
+   flavours ("Strawberry" is its widest option) where test 1.5's is 113 over
+   "Alpha"/"Beta" — measured by lane 3, a hugging control (divergence 131's
+   metrics). A `Button` records `.generic` and is a button by its click
+   handler (`AB-H`), so 3.1 checks Apply by `isClickable`.
+
+**Ruling.** As found: the section sits beside the controls, three appended
+`@State`s, `.frame(maxWidth: 400)`; spec §6.3 and §7 corrected. **Human check
+V5 is suspended with `PE-L` item 4** (`PE-T`): the warning it would observe is
+not landed; V5 is re-written when `PE-L` is re-taken, and group V marks it
+N/A. `docs/migration.md`'s "Large trees in a debug build" says the same: the
+rule (`PE-K`) and the box (`PE-J`) are landed, the warning is not.
+
+**Cost if wrong.** None silent: the placement and the state are a demo's;
+3.1 and the audit tests pin what they read.

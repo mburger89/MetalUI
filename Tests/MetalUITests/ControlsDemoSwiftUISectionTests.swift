@@ -45,7 +45,7 @@ private func xywh(_ b: Bounds<Pixels>?) -> [Float]? {
     try #require(report.unlowerable.isEmpty, "\(report.unlowerable.map(\.description))")
     let b = report.bounds
     // `DifferentialRoot` is `[0]`, its content `[0, 0]`: the section's
-    // `.frame(width: 400)` layer, the section's `VStack` `[0, 0, 0]` under it.
+    // `.frame(maxWidth: 400)` layer, the section's `VStack` `[0, 0, 0]` under it.
     let root = path(GlobalElementID.child(of: nil, at: 0, name: nil), [0])
     let stack = path(root, [0])
     let sectionFrame = try #require(b[root], "the section's frame layer")
@@ -70,20 +70,25 @@ private func xywh(_ b: Bounds<Pixels>?) -> [Float]? {
     #expect(rel(1, 2) == [325, 40, 59, 24], "Button(Apply): \(String(describing: rel(1, 2)))")
     #expect(rel(2, 0) == [16, 72, 39, 16], "label Speed: \(String(describing: rel(2, 0)))")
     #expect(rel(2, 1) == [63, 72, 321, 16], "Slider: \(String(describing: rel(2, 1)))")
-    #expect(rel(3) == [16, 96, 113, 24], "Picker.menu: \(String(describing: rel(3)))")
+    // Test 1.5's picker is 113 wide over "Alpha"/"Beta"; this one's options are
+    // the demo's flavours, and a menu picker hugs its label and widest option
+    // ("Strawberry"): 145, measured by lane 3 (divergence 131's metrics).
+    #expect(rel(3) == [16, 96, 145, 24], "Picker.menu: \(String(describing: rel(3)))")
     #expect(rel(4) == [16, 128, 368, 1], "Divider: \(String(describing: rel(4)))")
     #expect(rel(5, 0) == [16, 137, 50, 24], "Stepper(Qty): \(String(describing: rel(5, 0)))")
 
-    // The controls are the ones the rows name (accessibility roles by id).
-    let roles = Dictionary(report.frame.axEmissions.map { ($0.id, $0.declared.role) },
-                           uniquingKeysWith: { first, _ in first })
+    // The controls are the ones the rows name (accessibility records by id; a
+    // `Button` declares `.generic` and is a button by its click handler, `AB-H`).
+    let records = Dictionary(report.frame.axEmissions.map { ($0.id, $0) },
+                             uniquingKeysWith: { first, _ in first })
     let expectedRoles: [([Int], AXRole)] = [
-        ([0, 1], .textField), ([1, 0], .checkBox), ([1, 2], .button),
-        ([2, 1], .slider), ([5, 0], .incrementor),
+        ([0, 1], .textField), ([1, 0], .checkBox), ([2, 1], .slider), ([5, 0], .incrementor),
     ]
     for (tail, role) in expectedRoles {
-        #expect(roles[path(form, tail)] == role, "\(tail) is a \(role): \(String(describing: roles[path(form, tail)]))")
+        let found = records[path(form, tail)]?.declared.role
+        #expect(found == role, "\(tail) is a \(role): \(String(describing: found))")
     }
+    #expect(records[path(form, [1, 2])]?.isClickable == true, "[1, 2] is the Apply button")
 
     // The status bar: `.background` `[…, 2]`, `.frame` `[…, 2, 0]`, `.padding`
     // `[…, 2, 0, 0]`, the font scope transparent, its `HStack` `[…, 2, 0, 0, 0]`.
