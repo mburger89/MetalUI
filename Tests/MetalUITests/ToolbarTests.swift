@@ -284,3 +284,100 @@ private struct Panel: Component {
     #expect(proposalPlain.count >= 3, "the proposal arm must see its members' ids: \(proposalPlain.count)")
     #expect(proposalPlain == proposalScoped, "proposal: ids and bounds moved")
 }
+
+// MARK: - 3.6
+
+/// **3.6** (`MD-J` item 1). `.disabled(true)` on a toolbar control, and on a
+/// container holding a `.toolbar`, reaches the platform as `isEnabled == false`;
+/// a queued `.toolbarAction` for a disabled item runs nothing, while its
+/// enabled sibling's runs. Mutations (lane 2 review): **V1** the
+/// `target.isEnabled` guard in `Window.handleToolbarAction` dropped; **V2**
+/// `EnvironmentScope`'s toolbar conformance ignoring its write; **V7**
+/// `noteToolbar` evaluating with `isEnabled: true`.
+@MainActor
+@Test func aDisabledToolbarItemReachesThePlatformDisabledAndRunsNothing() throws {
+    let m = TBModel()
+    let (window, platform) = try tbWindow {
+        Column {
+            Text("a").toolbar {
+                ToolbarItem(id: "off") { Button("Off") { m.pressed += 1 }.disabled(true) }
+                ToolbarItem(id: "on") { Button("On") { m.pressed += 10 } }
+            }
+            Column {
+                Text("b").toolbar {
+                    ToolbarItem(id: "inner") { Toggle("T", isOn: binding({ m.advanced }, { m.advanced = $0 })) }
+                }
+            }
+            .disabled(true)
+        }
+    }
+    window.drawFrameIfNeeded()
+    let sent = try #require(platform.toolbars.last, "no setToolbar call")
+    #expect(sent == PlatformToolbar(items: [
+        PlatformToolbarItem(id: "off", placement: .automatic, control: .button(title: "Off", image: nil),
+                            isEnabled: false),
+        PlatformToolbarItem(id: "on", placement: .automatic, control: .button(title: "On", image: nil)),
+        PlatformToolbarItem(id: "inner", placement: .automatic, control: .toggle(title: "T", isOn: false),
+                            isEnabled: false),
+    ]), "\(String(describing: sent))")
+
+    _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "off", action: .press)))
+    _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "inner", action: .toggle(true))))
+    #expect(m.pressed == 0 && m.advanced == false,
+            "a disabled item runs nothing: pressed \(m.pressed) advanced \(m.advanced)")
+    _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "on", action: .press)))
+    #expect(m.pressed == 10, "the enabled sibling runs: pressed \(m.pressed)")
+}
+
+// MARK: - 3.7
+
+/// **3.7** (`MD-I` items 3 and 6, `MD-X` item 3). The item-mapping rules: a
+/// `.pickerStyle(.menu)` picker is a pop-up and every other style (the default
+/// included) is segmented; `.help(_:)` on a toolbar button reaches
+/// `PlatformToolbarItem.help`; a `ToolbarItemGroup` of one control is numbered
+/// `<base>.0`; a scope whose content is empty contributes nothing; a caller's
+/// `onClick` replaces a toolbar button's action. Mutations (lane 2 review):
+/// **V4** every picker `.segmented`; **V3** `help: nil` in `Button`'s
+/// conformance; **V5** a group of one not numbered; **V6** an empty scope
+/// noted; **V8** `Button`'s conformance running `action` over `onClick`.
+@MainActor
+@Test func theToolbarItemMappingRulesReachThePlatform() throws {
+    let m = TBModel()
+    let mode = binding({ m.mode }, { m.mode = $0 })
+    let (window, platform) = try tbWindow {
+        Column {
+            Text("a").toolbar {
+                ToolbarItem(id: "menu") {
+                    Picker("M", selection: mode) { Text("x").tag(0); Text("y").tag(1) }.pickerStyle(.menu)
+                }
+                ToolbarItem(id: "auto") {
+                    Picker("A", selection: mode) { Text("x").tag(0); Text("y").tag(1) }
+                }
+                ToolbarItem(id: "radio") {
+                    Picker("R", selection: mode) { Text("x").tag(0); Text("y").tag(1) }.pickerStyle(.radioGroup)
+                }
+                ToolbarItem(id: "help") { Button("H") {}.help("Tip") }
+                ToolbarItemGroup { Button("G") {} }
+                ToolbarItem(id: "click") { Button("C") { m.pressed += 100 }.onClick { m.pressed += 1000 } }
+            }
+            EmptyGroup().toolbar { ToolbarItem(id: "empty") { Button("E") {} } }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let sent = try #require(platform.toolbars.last, "no setToolbar call")
+    #expect(sent == PlatformToolbar(items: [
+        PlatformToolbarItem(id: "menu", placement: .automatic,
+                            control: .picker(title: "M", options: ["x", "y"], selected: 0, style: .menu)),
+        PlatformToolbarItem(id: "auto", placement: .automatic,
+                            control: .picker(title: "A", options: ["x", "y"], selected: 0, style: .segmented)),
+        PlatformToolbarItem(id: "radio", placement: .automatic,
+                            control: .picker(title: "R", options: ["x", "y"], selected: 0, style: .segmented)),
+        PlatformToolbarItem(id: "help", placement: .automatic, control: .button(title: "H", image: nil),
+                            help: "Tip"),
+        PlatformToolbarItem(id: "automatic.4.0", placement: .automatic, control: .button(title: "G", image: nil)),
+        PlatformToolbarItem(id: "click", placement: .automatic, control: .button(title: "C", image: nil)),
+    ]), "\(String(describing: sent))")
+
+    _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "click", action: .press)))
+    #expect(m.pressed == 1000, "onClick replaces the action: pressed \(m.pressed)")
+}
