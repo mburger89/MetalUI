@@ -142,7 +142,11 @@ greedy on both axes (`PE-D`), the rest hugging; the metrics and the
 below-ideal answers are MetalUI's (130, 131), and `List` keeps its
 `rowHeight × count` height (84). Style modifiers (`.buttonStyle`,
 `.pickerStyle`, `.keyboardShortcut`) return the control: write them on it,
-before any wrapper (`PE-R`).
+before any wrapper (`PE-R`). `TextField` draws SwiftUI's bordered field by
+default and takes `.textFieldStyle(_:)` (`TextFieldStyle`: `.automatic`,
+`.roundedBorder`, `.squareBorder`, `.plain`), `TextEditor` an opaque background
+and `.textEditorStyle(_:)` — each on the control or on a container, the
+innermost winning (`MD-B`, `MD-F`; 132, 133).
 
 ## Text — A
 

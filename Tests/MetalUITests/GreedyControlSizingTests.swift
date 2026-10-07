@@ -99,20 +99,24 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.01 }
 /// **1.9** (`PE-D`). `TextField` and `Slider` at ∞ wide answer ∞ wide (FL3,
 /// FL6 `inf -> infx…`), `TextEditor` at ∞×∞ answers ∞×∞ (FL5); at `nil` each
 /// keeps its ideal (MetalUI's own: "Hello" plus the 1-point caret, 31.95 for
-/// both text controls, and the slider's 30 — divergence 131), and a finite offer is still taken whole.
+/// the editor and, with the bordered chrome's 12 since `MD-C`/`MD-D`, 43.95 × 24
+/// for the field; the slider's 30 — divergence 131), and a finite offer is still taken whole.
 ///
 /// Red at `e54c3f6`: the infinite arms read the ideal (31.95, 30, 31.95×16).
 /// Mutations M1.9a/b/c (each control's change reverted alone) redden their
 /// own arm.
 @Test @MainActor func theGreedyControlsAnswerAnInfiniteProposalWithInfinity() throws {
+    // The bordered default since port gaps, medium (`MD-C` item 2, a size): the
+    // ideal + 12 and one line + 8 (`MD-D`); the infinite answer is unchanged.
     let field = try answers(TextField("", text: "Hello", onChange: { _ in }))
     let ideal = try #require(field["ideal"])
-    #expect(near(ideal.width, 31.95) && ideal.height == 16, "TextField ideal (\"Hello\" + the caret): \(ideal)")
-    #expect(field["infWidth"]!.width == .infinity && field["infWidth"]!.height == 16,
+    #expect(near(ideal.width, 43.95) && ideal.height == 24,
+            "TextField ideal (\"Hello\" + the caret + the chrome's 12): \(ideal)")
+    #expect(field["infWidth"]!.width == .infinity && field["infWidth"]!.height == 24,
             "M1.9a — TextField at ∞×nil: \(field["infWidth"]!)")
-    #expect(field["inf"]!.width == .infinity && field["inf"]!.height == 16,
-            "TextField at ∞×∞ (one line tall): \(field["inf"]!)")
-    #expect(field["w200"]! == SizeD(width: 200, height: 16), "TextField w200: \(field["w200"]!)")
+    #expect(field["inf"]!.width == .infinity && field["inf"]!.height == 24,
+            "TextField at ∞×∞ (one line and the chrome tall): \(field["inf"]!)")
+    #expect(field["w200"]! == SizeD(width: 200, height: 24), "TextField w200: \(field["w200"]!)")
 
     let slider = try answers(Slider(value: .constant(0.5)))
     #expect(slider["ideal"]! == SizeD(width: 30, height: 16), "Slider ideal: \(slider["ideal"]!)")

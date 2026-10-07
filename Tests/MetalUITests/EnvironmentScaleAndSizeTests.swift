@@ -326,9 +326,12 @@ private func fieldHeight<C: ElementGroup>(_ content: (TextField) -> C, _ field: 
 /// above (probe F8, Z2, R2) — and through it a `TextField`'s height, which is
 /// its font's line; an explicit font (`font(size: 26)`) and an environment font
 /// (`.font(.title)`, F8h) do not move. **Divergence 76 amended, kept**: no
-/// control's chrome follows it but `Button`'s — a `TextField` gains no padding
-/// at any size (SwiftUI's Z3 heights 19/22/24 are font plus a padding that
-/// also shrinks).
+/// control's chrome follows it but `Button`'s and — since port gaps, medium
+/// (`MD-D` item 4, `MD-V`) — the bordered `TextField`'s, whose vertical inset
+/// is 3.5 at `.small` and 4 otherwise (probe `swiftui-field-chrome.swift`
+/// `CS1`–`CS3`); a `.plain` field gains no padding at any size. (Until `MD-V`
+/// this arm read "a `TextField` gains no padding at any size", SwiftUI's Z3
+/// heights 19/22/24 being font plus a padding that also shrinks.)
 ///
 /// **Renamed** from `controlSizeReachesNoBuiltInMeasurement` (T1.7, record §56),
 /// which pinned the opposite — `Text` and `TextField` measuring nothing
@@ -357,7 +360,9 @@ private func fieldHeight<C: ElementGroup>(_ content: (TextField) -> C, _ field: 
     }
     try #require(bare.ideal != (try textMeasure({ $0.controlSize(.mini) }, text)).ideal, "M3k separates")
 
-    let field = TextField("Name", text: "Hello") { _ in }
+    // The `.plain` field is its font's line at every size (`MD-C` item 2's
+    // "subject unchanged" half: the font, not the chrome, is this arm's subject).
+    let field = TextField("Name", text: "Hello") { _ in }.textFieldStyle(.plain)
     let regular = try fieldHeight({ $0.controlSize(.regular) }, field)
     let big = try fieldHeight({ $0 }, field.font(size: 26))
     try #require(big != regular, "the control field must measure differently: \(big) vs \(regular)")
@@ -366,6 +371,14 @@ private func fieldHeight<C: ElementGroup>(_ content: (TextField) -> C, _ field: 
                 "\(size): the field is its \(points) pt default font's line, no padding")
     }
     #expect(try fieldHeight({ $0.controlSize(.mini) }, field.font(size: 26)) == big, "an explicit font")
+    // The bordered default adds its vertical inset twice, by size (`MD-D` item
+    // 4, `MD-V`): + 7 at `.small`, + 8 otherwise — rounded to whole points.
+    let bordered = TextField("Name", text: "Hello") { _ in }
+    for (size, added) in [(ControlSize.mini, Float(8)), (.small, 7), (.regular, 8), (.large, 8), (.extraLarge, 8)] {
+        let plain = try fieldHeight({ $0.controlSize(size) }, field)
+        let chrome = try fieldHeight({ $0.controlSize(size) }, bordered)
+        #expect(abs(chrome - (plain + added)) <= 0.5, "\(size): bordered \(chrome) = line \(plain) + \(added)")
+    }
 }
 
 // MARK: - T1.8: controlActiveState's value (EV-AB)

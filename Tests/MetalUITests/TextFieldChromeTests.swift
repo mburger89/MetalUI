@@ -18,26 +18,27 @@ private func near(_ a: Float, _ b: Float, _ tolerance: Float = 0.01) -> Bool { a
 private func near(_ a: Double, _ b: Double, _ tolerance: Double = 0.01) -> Bool { abs(a - b) < tolerance }
 
 /// The size of `field` laid out at its ideal inside a `VStack`
-/// (`VStack { field.fixedSize() }`: the stack `[0]`, the fixedSize layer
-/// `[0, 0]`, the field `[0, 0, 0]`), with the report required empty.
+/// (`VStack { field.fixedSize() }` under the harness's `DifferentialRoot`
+/// `[0]`: the stack `[0, 0]`, the fixedSize layer `[0, 0, 0]`, the field
+/// `[0, 0, 0, 0]`), with the report required empty.
 @MainActor
 private func idealSize(_ field: TextField) throws -> Size<Pixels> {
     let report = LayoutDifferential.report(width: 400, height: 300) {
         VStack { field.fixedSize() }
     }
     try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
-    return try #require(report.bounds[controlID([0, 0, 0])], "the field recorded no bounds").size
+    return try #require(report.bounds[controlID([0, 0, 0, 0])], "the field recorded no bounds").size
 }
 
 /// The field's frame inside `VStack { … }.textFieldStyle(container)`: the scope
-/// is transparent (`EV-B`), so the field is `[0, 0, 0]` under its fixedSize.
+/// is transparent (`EV-B`), so the field is still `[0, 0, 0, 0]`.
 @MainActor
 private func idealSize(_ field: TextField, inContainerStyled container: TextFieldStyle) throws -> Size<Pixels> {
     let report = LayoutDifferential.report(width: 400, height: 300) {
         VStack { field.fixedSize() }.textFieldStyle(container)
     }
     try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
-    return try #require(report.bounds[controlID([0, 0, 0])], "the field recorded no bounds").size
+    return try #require(report.bounds[controlID([0, 0, 0, 0])], "the field recorded no bounds").size
 }
 
 @MainActor
@@ -51,17 +52,18 @@ private func field(_ text: String = "") -> TextField {
 /// `.automatic` and `.roundedBorder` answer 47.50×24 for "Name"). A default
 /// field's ideal is MetalUI's plain ideal + 12 wide and one line + 8 tall —
 /// 36.25 + 12 = 48.25 by 16 + 8 = 24 for the placeholder "Name" at 13 pt (the
-/// plain field's 36.25×16 is today's, divergence 131); `.automatic`,
+/// plain field's 36.25×16 is today's, divergence 131) — recorded bounds round to
+/// whole points (divergence 77), so 36 and 48; `.automatic`,
 /// `.roundedBorder` and `.squareBorder` equal it; `.plain` is the old field.
 ///
 /// Red before: does not compile. M1.1 (the inset table → 0) reddens the
 /// bordered arms.
 @Test @MainActor func theDefaultFieldIsTheBorderedOneAndSizesAsSwiftUI() throws {
     let plain = try idealSize(field().textFieldStyle(.plain))
-    #expect(near(plain.width.value, 36.25) && plain.height.value == 16,
+    #expect(plain.width.value == 36 && plain.height.value == 16,
             "the plain field is today's: \"Name\" + the 1-point caret, one line: \(plain)")
     let bordered = try idealSize(field())
-    #expect(near(bordered.width.value, 48.25) && bordered.height.value == 24,
+    #expect(bordered.width.value == 48 && bordered.height.value == 24,
             "M1.1 — the default is the bordered field: plain + 12 by line + 8: \(bordered)")
     #expect(near(bordered.width.value, plain.width.value + 12) && bordered.height.value == plain.height.value + 8)
     for style in [TextFieldStyle.automatic, .roundedBorder, .squareBorder] {
@@ -261,7 +263,7 @@ private func rings(_ scene: Scene, at bounds: Bounds<Pixels>, _ colour: Hsla) ->
                 VStack { field().textFieldStyle(style).fixedSize() }.controlSize(size)
             }
             try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
-            return try #require(report.bounds[controlID([0, 0, 0])]).size.height.value
+            return try #require(report.bounds[controlID([0, 0, 0, 0])]).size.height.value
         }
         let plain = try height(.plain), bordered = try height(.automatic)
         #expect(near(bordered, plain + added, 0.51),
@@ -296,7 +298,7 @@ private struct AskInfinite: ProposalLayout {
         HStack { field() }
     }
     try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
-    let bounds = try #require(report.bounds[controlID([0, 0])], "the field")
+    let bounds = try #require(report.bounds[controlID([0, 0, 0])], "the field")
     #expect(bounds.size.width.value == 200 && bounds.size.height.value == 24,
             "M1.8 — the offered width whole, 24 tall: \(bounds)")
 

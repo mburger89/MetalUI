@@ -27,7 +27,7 @@ Record: `../record/79-port-gaps-medium.md`. Evidence:
 
 Every probe header carries its recorded output and how to run it (`SA-O`).
 
-Prefix **`MD-`**, lettered. **Next unused: `MD-V`.** (This line moves in the
+Prefix **`MD-`**, lettered. **Next unused: `MD-W`.** (This line moves in the
 commit that appends a ruling; read the last `## MD-` heading.)
 
 Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls
@@ -724,3 +724,25 @@ the public `docs/divergences.md` must not carry.
    content inherit their declaring scope" rests on `LR-CS` (a presentation
    root's `requestLayout` runs under its declaring scope's environment) as well
    as `EV-G` (paint); test 2.11 pins both phases for an object read.
+
+---
+
+## MD-V — Divergence 76 is amended too: the bordered field's inset follows `controlSize`
+
+**Found (lane 1, part 1).** `MD-D` item 4 makes the bordered field's vertical
+inset 3.5 at `.small` (probe `CS1`), so the field's chrome now reads
+`controlSize`. Divergence 76 said "`TextField`'s padding … read[s] nothing",
+pinned by `controlSizeReachesTheDefaultFontButNoControlsChrome`, whose field arm
+("the field is its font's line, no padding") reddened at `.small` on the
+default flip (the only arm of the suite's nine reddened tests the spec did not
+foresee).
+
+**Ruling.** Row 76 is amended: `controlSize` reaches every text's default font,
+`Button`'s chrome and the bordered `TextField`'s vertical inset; `Toggle`,
+`Picker`, `Slider`, `Stepper` still read nothing (owner none). The pinning
+test keeps its name and its font arm on a `.plain` field (`MD-C` item 2's
+"subject unchanged" half) and gains a chrome arm: bordered = line + 7 at
+`.small`, + 8 otherwise, at every size. Recorded in the divergences header
+beside 131.
+
+**Cost if wrong.** A public row contradicting the code (`MD-T`'s argument).

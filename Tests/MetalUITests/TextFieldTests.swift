@@ -218,7 +218,9 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
 
 @Test @MainActor func aLongTextScrollsToKeepTheCaretVisible() throws {
     let model = Model(String(repeating: "wide text ", count: 20))
-    let (window, platform) = try fieldWindow(model)
+    // `.plain` (`MD-C` item 2): the subject is the scroll, whose edge is the
+    // bounds' only without the chrome's 6-point inset.
+    let (window, platform) = try fieldWindow(model) { $0.textFieldStyle(.plain) }
     window.drawFrameIfNeeded()
     let bounds = try fieldBounds(window)
     platform.simulateInput(down(bounds.origin.x.value + 10, bounds.origin.y.value + 2))
@@ -259,7 +261,8 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     let bounds = try fieldBounds(window)
     let target = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }?.handlers.textInput)
     let line = target.caretRect.size.height.value
-    #expect(bounds.size.width.value == 200 && bounds.size.height.value == line)
+    // The bordered default (`MD-C`, `MD-D`): one line plus 4 above and below.
+    #expect(bounds.size.width.value == 200 && bounds.size.height.value == line + 8)
     let centred = bounds.origin.y.value + (bounds.size.height.value - line) / 2
     #expect(target.caretRect.origin.y.value == centred, "the line is centred")
     platform.simulateInput(down(try caretX(window, at: 2), bounds.origin.y.value + 2))

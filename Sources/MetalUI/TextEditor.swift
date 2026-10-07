@@ -17,6 +17,11 @@ import MetalUITextSystem
 ///
 /// It draws line by line from `TextSystem.lineRanges` — the lines `Text`
 /// wraps into — so the caret, a press and the glyphs read one line model.
+///
+/// **Draws SwiftUI's opaque text background by default** (ruling `MD-F`): a
+/// square `.surface` fill over its bounds and the control focus ring while
+/// focused; `.textEditorStyle(.plain)` draws neither. Its size and text
+/// placement are unchanged (divergence 133).
 public struct TextEditor: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
@@ -34,6 +39,9 @@ public struct TextEditor: Element, StyledElement {
     /// The field's own font request (ruling TE-F item 2): inherit the
     /// environment's font, the default font, or an explicit one.
     var fontRequest: TextFontRequest = .inherit
+    /// The editor's own style (ruling `MD-F`); `nil` reads the environment's,
+    /// `.automatic` by default.
+    var editorStyle: TextEditorStyle?
 
     /// The explicit font's family; computed over the request (TE-F item 2).
     public var fontFamily: String? {
@@ -91,6 +99,15 @@ public struct TextEditor: Element, StyledElement {
     @_disfavoredOverload
     public func foregroundColor(_ token: ColorToken) -> TextEditor {
         foregroundColor(Color(token))
+    }
+
+    /// Draws this editor in `style` — SwiftUI's `textEditorStyle(_:)` written
+    /// on the editor (ruling `MD-F` item 1). It wins over a container's style
+    /// and returns a `TextEditor`, so its modifiers still chain.
+    public func textEditorStyle(_ style: TextEditorStyle) -> TextEditor {
+        var copy = self
+        copy.editorStyle = style
+        return copy
     }
 
     public struct Layout {
@@ -271,7 +288,16 @@ public struct TextEditor: Element, StyledElement {
                                layout: inout Layout, prepaint: inout Void,
                                pass: inout PaintPass) {
         pass.paintDecoration(decoration, in: bounds, for: id) {
-            paintContent(id, bounds: bounds, pass: &pass)
+            // `.automatic` (`MD-F` item 2): a square `.surface` fill, no border,
+            // the ring at radius 0 while focused; `.plain`: neither.
+            guard (editorStyle ?? pass.environment.textEditorStyle) == .automatic else {
+                paintContent(id, bounds: bounds, pass: &pass)
+                return
+            }
+            pass.paintFieldChrome(bounds: bounds, bordered: false, radius: Pixels(0),
+                                  focused: pass.isFocused(id), callerRing: decoration.focusBorder != nil) {
+                paintContent(id, bounds: bounds, pass: &pass)
+            }
         }
     }
 

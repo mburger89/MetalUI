@@ -155,6 +155,7 @@ F	alerts	A	swiftui-platform-services.swift	A1	alertButtonsResolveSwiftUIsOrderAn
 F	hover	A	swiftui-platform-services.swift	H1	onHoverFiresOnEnterAndLeaveFromInput	-	SV-N SV-Z SV-U	onHover(perform:)/onContinuousHover(perform:)/HoverPhase/HoverModifier on both vocabularies: SwiftUI's spellings; the semantics are MetalUI's (H1–H11 are a recorded broken instrument): a non-opaque region per element, the hovered set through the one ranking (an opaque target or a hover region above covers, nested regions all hover), from input and after the frame, under StateDispatch
 F	divider-view	D	swiftui-platform-services.swift	V1	aDividerInAVStackSpansItsWidthOnePointTall	127	SV-O	Divider as an Element/ProposalElement: a 1-point line across the nearest HStack/Row (vertical) or VStack/Column (horizontal, also outside any stack and in a ZStack/Grid), its proposal or 10 along (V1–V11); no accessibility node (V15); the opaque .separator token where SwiftUI is translucent black/white (127)
 F	menu-picker	D	swiftui-platform-services.swift	P1	choosingAMenuPickerOptionWritesItsTag	81 128	SV-P SV-AA SV-Q SV-S	PickerStyle.menu: a pull-down showing the selected title, as wide as the widest option (P1, P3), opening every option as a checked-or-not item through the menu machinery (native NSMenu, else a scrolling drawn panel opening on the selection); choosing writes the tag (P1); options recorded without layout; a non-Text option titled by its tag (128); a .popUpButton; the automatic style stays segmented (81)
+F	field-style	D	swiftui-field-chrome.swift	ENV1	aContainerTextFieldStyleReachesItsFieldsAndTheInnermostWins	131 132 133	MD-B MD-C MD-D MD-E MD-F	TextFieldStyle (.automatic/.roundedBorder/.squareBorder/.plain, closed)/TextEditorStyle (.automatic/.plain, closed) and textFieldStyle(_:)/textEditorStyle(_:) on the field and on a container: SwiftUI's spellings and innermost-wins (ENV1-ENV3); the bordered default with the probe's insets, radius and disabled dim (SZ, CS, PX, TX); the colours are tokens and the ring the controls' (132), the editor keeps its placement (133), the residual caret +1 (131)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -342,6 +343,9 @@ M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks
 M	MetalUI	State.swift	.*	.*	.*	state
 M	MetalUI	Style.swift	.*	.*	.*	style
 M	MetalUI	Text.swift	.*	.*	.*	text
+M	MetalUI	TextFieldStyle.swift	.*	.*	.*	field-style
+M	MetalUI	TextEditor.swift	TextEditor	textEditorStyle	.*	field-style
+M	MetalUI	TextField.swift	TextField	textFieldStyle	.*	field-style
 M	MetalUI	TextEditor.swift	TextEditor	init	Binding<String>	text-input-binding
 M	MetalUI	TextEditor.swift	.*	.*	.*	text-input
 M	MetalUI	TextField.swift	TextField	init	Binding<String>	text-input-binding

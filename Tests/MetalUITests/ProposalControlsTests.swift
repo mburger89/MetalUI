@@ -151,9 +151,11 @@ private let longLabel = "A much longer label"
     // FL2: hugs, wraps its label at 50 (SwiftUI 43×32).
     expectRow("Toggle(Wi-Fi)", try answers(Toggle("Wi-Fi", isOn: .constant(false))),
               [(21, 16), (53.20, 16), (53.20, 16), (53.20, 16), (53.20, 16), (42.70, 32)])
-    // FL3: greedy width (`PE-D`); one line tall and the placeholder + 1 (divergence 131).
+    // FL3: greedy width (`PE-D`); the bordered default (`MD-C`, `MD-D`) is 24
+    // tall (SwiftUI's FL3 `inf -> infx24`) and its ideal the placeholder + 1 + 12
+    // (divergence 131 as amended by `MD-T`: SwiftUI's 47.50).
     expectRow("TextField(Name) empty", try answers(TextField("Name", text: .constant(""))),
-              [(0, 16), (36.25, 16), (.infinity, 16), (200, 16), (36.25, 16), (50, 16)])
+              [(0, 24), (48.25, 24), (.infinity, 24), (200, 24), (48.25, 24), (50, 24)])
     // FL5: greedy on both axes (`PE-D`).
     expectRow("TextEditor(Hello)", try answers(TextEditor(text: .constant("Hello"))),
               [(0, 0), (31.95, 16), (.infinity, .infinity), (200, 16), (31.95, 200), (50, 16)])
@@ -317,22 +319,25 @@ private struct Counter: Component {
     let b = report.bounds
     // Three proposal layers (fixedSize, frame, padding): `[0, 0]`, `[0, 0, 0]`,
     // `[0, 0, 0, 0]`; the VStack below them (`MC-A`, `MC-C`).
-    expectFrame(b, id(0, 0), [0, 0, 400, 177], "form")
+    // Moved by port gaps, medium (`MD-C` item 2, a layout containing a field):
+    // the bordered default field is 24 tall, so row a is 24 and every row below
+    // it moves down 8 (SwiftUI's FM0 row a is 24 tall too).
+    expectFrame(b, id(0, 0), [0, 0, 400, 185], "form")
     let form = [0, 0, 0, 0, 0]
     func at(_ tail: Int...) -> GlobalElementID { controlID(form + tail) }
-    expectFrame(b, at(0), [16, 16, 368, 16], "row a")
-    expectFrame(b, at(0, 0), [16, 16, 35, 16], "label Name")
-    expectFrame(b, at(0, 1), [59, 16, 325, 16], "TextField")
-    expectFrame(b, at(1), [16, 40, 368, 24], "row b")
-    expectFrame(b, at(1, 0), [16, 44, 70, 16], "Toggle(Enabled)")
-    expectFrame(b, at(1, 2), [325, 40, 59, 24], "Button(Apply)")
-    expectFrame(b, at(2), [16, 72, 368, 16], "row c")
-    expectFrame(b, at(2, 0), [16, 72, 39, 16], "label Speed")
-    expectFrame(b, at(2, 1), [63, 72, 321, 16], "Slider")
-    expectFrame(b, at(3), [16, 96, 113, 24], "Picker.menu")
-    expectFrame(b, at(4), [16, 128, 368, 1], "Divider")
-    expectFrame(b, at(5), [16, 137, 368, 24], "row f")
-    expectFrame(b, at(5, 0), [16, 137, 50, 24], "Stepper(Qty)")
+    expectFrame(b, at(0), [16, 16, 368, 24], "row a")
+    expectFrame(b, at(0, 0), [16, 20, 35, 16], "label Name")
+    expectFrame(b, at(0, 1), [59, 16, 325, 24], "TextField")
+    expectFrame(b, at(1), [16, 48, 368, 24], "row b")
+    expectFrame(b, at(1, 0), [16, 52, 70, 16], "Toggle(Enabled)")
+    expectFrame(b, at(1, 2), [325, 48, 59, 24], "Button(Apply)")
+    expectFrame(b, at(2), [16, 80, 368, 16], "row c")
+    expectFrame(b, at(2, 0), [16, 80, 39, 16], "label Speed")
+    expectFrame(b, at(2, 1), [63, 80, 321, 16], "Slider")
+    expectFrame(b, at(3), [16, 104, 113, 24], "Picker.menu")
+    expectFrame(b, at(4), [16, 136, 368, 1], "Divider")
+    expectFrame(b, at(5), [16, 145, 368, 24], "row f")
+    expectFrame(b, at(5, 0), [16, 145, 50, 24], "Stepper(Qty)")
 
     // The probe's relations, from the measured widths.
     let apply = try #require(b[at(1, 2)])
@@ -1080,8 +1085,9 @@ private func cellGrid<C: ProposalElementGroup>(_ cell: C, tall: Bool) -> LayoutD
         try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
         return xywh(try #require(report.bounds[id(0, 0, 0, 0)], "the field"))
     }
-    #expect(try field(LegacyContent(TextField("", text: .constant("")))) == [0, 0, 300, 16],
+    // 24 tall: the bordered default (`MD-C` item 2, a size).
+    #expect(try field(LegacyContent(TextField("", text: .constant("")))) == [0, 0, 300, 24],
             "control: an unmarked field takes the grid's width")
-    #expect(try field(TextField("", text: .constant("")).gridCellUnsizedAxes(.horizontal)) == [0, 0, 69, 16],
+    #expect(try field(TextField("", text: .constant("")).gridCellUnsizedAxes(.horizontal)) == [0, 0, 69, 24],
             "marked: the field takes Description's column")
 }

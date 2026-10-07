@@ -254,6 +254,10 @@ public struct EnvironmentValues {
     /// `.theme(_:)` (ruling EV-G).
     var theme: Theme = .light
 
+    /// The field styles a `TextField`/`TextEditor` below draws in when it names
+    /// none (rulings `MD-B` item 2, `MD-F`; `TextFieldStyle.swift`). Internal.
+    var fieldStyles = FieldStyles()
+
     private var custom: [ObjectIdentifier: Any] = [:]
 
     /// A custom key's value, or its `defaultValue` when no writer set it.
