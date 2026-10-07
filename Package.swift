@@ -209,8 +209,11 @@ var targets: [Target] = [
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         // The whole framework's frame, pinned byte-for-byte across platforms
         // (ruling XP-C): runs on macOS, Linux and Windows.
+        // CStbImage for test 2.8b (stb alone, called directly; PX-O item 3);
+        // ImageFixtures is read by #filePath, not bundled.
         .testTarget(name: "MetalUICrossPlatformTests",
-                    dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText"]),
+                    dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText", "CStbImage"],
+                    exclude: ["ImageFixtures"]),
 
         // stb_image 2.30, vendored (ruling PX-B; Sources/CStbImage/VENDORED.md):
         // PNG and JPEG decoding on every platform, one translation unit,
