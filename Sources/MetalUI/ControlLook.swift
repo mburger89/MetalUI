@@ -57,8 +57,8 @@ enum FieldChrome {
     static let cornerRadius = Pixels(6)
     /// The leading and trailing inset of a bordered field's content (`MD-D`).
     static let horizontalInset = 6.0
-    /// The alpha factor of a disabled field's text, placeholder and caret
-    /// (`MD-E` item 3).
+    /// The alpha factor of a disabled bordered field's text, placeholder and
+    /// caret (`MD-E` item 3); a `.plain` field takes none (`MD-W` item 1).
     static let disabledTextFactor: Float = 0.33
 
     /// The top and bottom inset of a bordered field's content at `size`: 3.5

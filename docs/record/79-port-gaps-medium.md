@@ -4,8 +4,8 @@ Branch `feat/port-gaps-medium` from `d48b26d` (master: proposal controls merged,
 PR #49). **Not a plan task**: user request 2026-10-02, an item of the gpui-gap
 priority list — the SMK configurator port's four medium gaps MG-20, MG-14, MG-2
 and MG-3. Spec `docs/superpowers/specs/2026-10-07-port-gaps-medium-design.md`;
-rulings `MD-A`…`MD-V` in `docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`
-(next unused `MD-W`); probes `docs/probes/swiftui-field-chrome.swift`,
+rulings `MD-A`…`MD-W` in `docs/superpowers/2026-10-07-port-gaps-medium-decisions.md`
+(next unused `MD-X`); probes `docs/probes/swiftui-field-chrome.swift`,
 `swiftui-environment-object.swift`, `swiftui-toolbar.swift`,
 `swiftui-toolbar-nested.swift`.
 
@@ -44,7 +44,7 @@ and 3 (new stored properties on `TextField`, `TextEditor`, `EnvironmentValues`,
   The bordered default: insets 6 × 4 (3.5 at `.small`), `.surface` fill,
   1-point `.separator` border, radius 6, the control ring while focused (not
   `.plain`; a caller's `focusBorder` wins), text/placeholder/caret alpha × 0.33
-  when disabled — `FieldChrome` and `PaintPass.paintFieldChrome` in
+  when disabled (bordered styles only, `MD-W`) — `FieldChrome` and `PaintPass.paintFieldChrome` in
   `ControlLook.swift`. `TextField.geometry` receives the inset content rect;
   no text-input logic changed. `TextEditor` gains the square `.surface` fill and
   the ring at radius 0; no size or placement change.
@@ -114,6 +114,36 @@ two frames (a popover presents against the previous frame's anchor).
 | M2.12 | the `Observable` constraint dropped from both initialisers and the modifier (guard) | `onlyAnObservableClassIsAnEnvironmentObject` |
 
 Both new guards (1.10, 2.12) mutated red once. No hang.
+
+M2.10 is not a mutation specific to environment objects: this design has no
+"cached at bind" spelling (the reader holds the object, never a property), so
+test 2.10 pins `RX-K` through `@Environment` and has no mutation site of its own
+— the observation no-op reddens it among every observation-dirtied window test.
+
+### 1.4a Review fixes (`MD-W`)
+
+The lane 1 review found six unpinned spellings (V1, V2, V3, V5, V8, V9 — each
+green across the whole suite at `cec9c42`). Fixed in `464a657` (tests, the
+`.plain` dim restriction, comments) and `MD-W`: a disabled `.plain` field
+takes no dim, so `.textFieldStyle(.plain)` restores the previous field exactly
+(the migration row and `MD-C` item 2 now hold); a `layoutPriority` on a
+`Deferred` keeps the layer in flow, as at `d48b26d`. Suite after: **2605 tests
+in 3 suites** passed (native, unfiltered, `--no-parallel`, `FR-J … succeeded=true`;
+0 `error:`; the only `warning:` SwiftPM's deprecation notice; `swift build
+--build-tests` 0 warnings). Each mutation on the committed tree, restored from
+the commit, full unfiltered suite, `git status` clean after each:
+
+| # | Mutation (file) | Reddened |
+|---|---|---|
+| V1 | `callerRing: decoration.focusBorder != nil` → `false` (`TextField.swift`) | `aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot` (its new `focusBorder` arm) |
+| V2 | the editor's `focused: pass.isFocused(id)` → `false` (`TextEditor.swift`) | `aFocusedTextEditorDrawsTheSquareControlRingAndAPlainOneDoesNot` (1.12) |
+| V3 | `editorStyle ?? pass.environment.textEditorStyle` → `?? .automatic` (`TextEditor.swift`) | `aContainerTextEditorStyleReachesItsEditorAndTheInnermostWins` (1.11) |
+| V5 | the text clip → the content rect (`TextField.swift`) | `aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight` (1.13, the vertical arm) |
+| V8 | `forward`'s `item.kind != .presentation` removed (`LoweringState.swift`) | `aPriorityOnADeferredKeepsTheLayerInFlowAndPresents` (2.13: the third child at 22, not 34) |
+| V9 | the dim for every style (`TextField.swift`; the pre-review spelling) | `aDisabledFieldKeepsItsChromeAndDimsItsText` (its new `.plain` arm) |
+
+Demo pixels `compare.sh <scratch> d48b26d 810fa27`: controls as recorded, **0
+differing in all fourteen images, scene identical**.
 
 ### 1.5 Must-not-move
 
