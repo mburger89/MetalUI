@@ -610,9 +610,12 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
 /// roles, labels and values written here, and the same records as the `Row`
 /// spelling.
 ///
-/// Red before: does not compile. Mutations: M1.11 (the prepaint half) and M1.13
-/// (`Toggle`'s role → `.button`; the literal list can fail where the
-/// cross-vocabulary equality cannot).
+/// Red before: does not compile. Mutations: M1.13 (`Toggle`'s role →
+/// `.button`; the literal list can fail where the cross-vocabulary equality
+/// cannot) and M1.4a (a fresh cursor: colliding ids lose records). The spec's
+/// claim that M1.11 (prepaint run twice) reddens this test too was measured
+/// false — the tree builder keys records by id, so a doubled emission collapses
+/// (`PE-X`).
 @Test @MainActor func accessibilityRecordsOfControlsAgreeAcrossVocabularies() throws {
     let proposal = LayoutDifferential.render(width: 600, height: 100) {
         HStack {
@@ -905,8 +908,10 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
 /// wider label's, column 1 takes 300 − column 0 − 8 for both the `TextField`
 /// and the `Slider` (hand-derived from the measured label width).
 ///
-/// Red before: does not compile; the Slider's column would read its 30.
-/// Mutation M1.22 (`Slider`'s `PE-D` reverted) reddens it.
+/// Red before: does not compile. Mutations M1.4a and M1.4b (the adapter's
+/// cursor or level) redden it. The spec's M1.22 (`Slider`'s `PE-D` reverted)
+/// was measured NOT to: the grid offers its greedy column the rest whatever the
+/// slider answers at ∞ (`PE-X` correction 2).
 @Test @MainActor func aGridFormGivesItsFieldColumnTheRest() throws {
     let report = LayoutDifferential.report(width: 300, height: 100) {
         Grid {

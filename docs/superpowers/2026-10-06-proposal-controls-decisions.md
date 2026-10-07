@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-X`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -729,3 +729,54 @@ three stacks) omits it.
    proposal (divergence 84).
 
 **Cost if wrong.** None silent: each is a pinned test.
+
+---
+
+## PE-X — Lane 1's mutation table, and two corrections
+
+**Mutations** (each on the committed tree `ae49352`, restored from git, the
+**full unfiltered** native suite per mutation — 2573 tests, or fewer where a
+file that no longer compiles was set aside, named — and `git status --short`
+clean after each). Every new test and guard reddened under its named mutation.
+
+| id | mutation (file — spelling) | reddened |
+|---|---|---|
+| M1.1a | `TextField.swift` — `let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }` | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer`, `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` |
+| M1.1b | `Toggle.swift` — label gap 7 → 8 | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer`, `aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt`, `aToggleIsAFourteenPointCheckboxSevenPointsBeforeItsLabel` |
+| M1.2 | `ProposalContentBuilder.swift` — the `ProposalElementGroup` `buildExpression` deleted | the test target stops compiling (`LoweringScrollTests.swift`'s `-> ProposalScrollView<Rectangle>` helper: 6 errors, `cannot convert … 'LegacyContent<Rectangle>' to … 'Rectangle'` — a second, compile-time pin); with that file set aside (2561 tests): `proposalContentKeepsItsTypeAndLegacyContentIsAdopted`, `aGridAcceptsLegacyContent`, `aGridRowAlignmentIsAVerticalAlignment`, `theAccessibilityModifiersCompileFromAPlainImport` |
+| M1.3 | `Grid.swift` — `GridRow.init` back to `@ElementBuilder` | (`ProposalControlsTests.swift` set aside: it no longer compiles; 2555 tests) `aSwiftUIVocabularyFormTypechecksWithAPlainImport`, `aGridAcceptsLegacyContent` |
+| M1.4a | `LegacyContent`'s typed entry — a fresh cursor | 10 tests: `aLegacyControlTakesTheIDAProposalElementWouldInItsPosition`, `aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt`, `theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary`, `aPresentationInsideAProposalStackTakesNoSlot`, `textInAProposalStackLaysOutAsProposalText`, `accessibilityRecordsOfControlsAgreeAcrossVocabularies`, `tabVisitsControlsInAProposalStackInTreeOrder`, `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack`, `theProposalOnlyModifiersReachLegacyContent`, `aGridFormGivesItsFieldColumnTheRest` |
+| M1.4b | `LegacyContent`'s typed entry — enters a member level (`positional(cursor)`, cursor + 1) | 12 tests, among them `aLegacyControlTakesTheIDAProposalElementWouldInItsPosition`, `aButtonInAProposalStackHasOneHitboxAndActsAsInARow`, `aLegacyFrameAnimatesInsideAProposalStack`, `aDragFromAControlInAProposalStackCarriesAPreview` |
+| M1.5 (= M1.22) | `Slider.swift` — `proposedWidth.flatMap { $0.isFinite ? $0 : nil } ?? idealWidth` | `aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt`, `everyControlAnswersInSwiftUIsClassInsideAProposalContainer`, `aLegacyRowServesItsSliderLast`, `aSliderIsGreedyOnTheWidthAndSixteenTall`, `theGreedyControlsAnswerAnInfiniteProposalWithInfinity` — **not** `aGridFormGivesItsFieldColumnTheRest` (see correction 2) |
+| M1.6 | typed entry — `nodes.reversed()` before minting | `theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary` (its `ForEach` spelling) |
+| M1.7 | typed entry — consumes each node's record | `aLegacyItemFieldInAProposalStackIsReportedByName` |
+| M1.8 | typed entry — `droppingPresentations` removed | `aPresentationInsideAProposalStackTakesNoSlot` |
+| M1.10 | `Text.swift` — measured at `ProposedSize(width: nil, height: proposal.height)` | 27 tests, `textInAProposalStackLaysOutAsProposalText` among them |
+| M1.11 | `LegacyContent.prepaintGroup` — the content's prepaint run twice | `aButtonInAProposalStackHasOneHitboxAndActsAsInARow`, `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack` |
+| M1.12 | `LegacyContent.paintGroup` — skips its content | `aControlInAProposalStackPaints`, `aDragFromAControlInAProposalStackCarriesAPreview` |
+| M1.13 | `Toggle.swift` — default role `.button` | 10 tests, `accessibilityRecordsOfControlsAgreeAcrossVocabularies` among them |
+| M1.14 | `Stepper.swift` — `composed.isFocusable = false` | 6 tests, `tabVisitsControlsInAProposalStackInTreeOrder` among them |
+| M1.15 | `Window.swift` — `if false && self.dispatchShortcut(event)` | 11 tests, `aShortcutHelpAndHoverWorkOnAButtonInAProposalStack` among them |
+| M1.16 | `ModifiedContent.swift` — the legacy layer's `animated(_:_:for:pass:)` call removed | 15 tests, `aLegacyFrameAnimatesInsideAProposalStack` among them |
+| M1.17 | `Text.swift` — `paintGlyphs` outside `paintDecoration` | 11 tests, `aDragFromAControlInAProposalStackCarriesAPreview` among them |
+| M1.18 | `List.swift` — `context.viewportExtent > .infinity` (always `0..<count`) | 36 tests, `aSelectableListInAProposalScrollViewWindowsAndSelects` among them |
+| M1.18b | `ProposalScrollView.swift` — the published context's viewport 0 (`PE-V` disabled) | `aSelectableListInAProposalScrollViewWindowsAndSelects` |
+| M1.19 | `Popover.swift` — `layOutPopover` never presents | 20 tests, `aPopoverOnAButtonInAProposalStackPresents` among them |
+| M1.20 | `LegacyProposalModifiers.swift` — `LegacyContent(self).layoutPriority(0)` | `theProposalOnlyModifiersReachLegacyContent` |
+| M1.21 | `Units.swift` — `Pixels.infinity` deleted | (`ProposalControlsTests.swift` set aside; 2555 tests) `pixelsInfinityIsSwiftUIsFrameSpelling`, `aSwiftUIVocabularyFormTypechecksWithAPlainImport` |
+| M1.24 | `NativeElements.swift` — both `ProposalFrame` inits `@ProposalContentBuilder` | the nine flipped guards (`proposalLayoutConstructorsRequireProposalContent`, `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`, `aProposalContainerAcceptsAScopeOverLegacyContent`, `anIfElseAndASwitchCompileInEveryProposalContainer`, `anIDOnAProposalGroupEntersAProposalContainer`, `theLegacyBackgroundKeepsTheTokenOverloadAndTheProposalSpelling`, `aForEachOfLegacyContentCompilesInsideAProposalStack`, `aGridAcceptsLegacyContent`, `aCustomLayoutContainerAdoptsLegacyContent`) and `aSwiftUIVocabularyFormTypechecksWithAPlainImport` |
+
+**Corrections.**
+
+1. Spec test 1.13's "M1.11 (prepaint half) reddens it too" is **refuted**:
+   under M1.11 1.13 stays green (the tree builder keys records by id, so a
+   doubled emission collapses). 1.13 is reddened by M1.13 and M1.4a; spec row
+   and the test's doc comment corrected.
+2. Spec test 1.22's mutation M1.22 (`Slider`'s `PE-D` reverted) does **not**
+   redden it: inside a `Grid` the slider's column is sized by the grid's own
+   distribution, which offers the greedy column the rest whatever the
+   slider answers at ∞. The test still separates — M1.4a and M1.4b redden
+   it — so it stands as a grid-form layout pin, without `PE-D` as its
+   mutation.
+3. Spec test 1.6's M1.6 reddens only through a multi-node adopted expression;
+   the test gained a second spelling (the middle labels as one `ForEach`).
