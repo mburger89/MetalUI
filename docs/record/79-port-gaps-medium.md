@@ -166,3 +166,22 @@ differing in all fourteen images, scene identical**.
 None of its items. `@Bindable` and `ObservableObject` are "Not offered" rows
 (`MD-H` item 6). Human checks W1/W2 (the field and editor looks) are lane 3's
 to write.
+
+### §1.4b Lane 1's review mutations re-run to completion (coordinating session, 2026-10-07)
+
+The re-verifier hit its deadline before any mutation finished, so the
+coordinating session re-ran its own script (`mut.sh`) on `963d325`: unmutated
+baseline `Test run with 2618 tests in 3 suites passed`; each mutation applied
+to the committed tree, native build, full unfiltered `--no-parallel` suite,
+restored with `git checkout`, `git status --short` empty after each.
+
+| Mutation | Spelling | Reddened (only) |
+| --- | --- | --- |
+| V1 | `TextField.swift`: `callerRing: decoration.focusBorder != nil` → `false` | `aFocusedBorderedFieldDrawsTheControlRingAndAPlainOneDoesNot` (1 issue) |
+| V2 | `TextEditor.swift`: `focused: pass.isFocused(id)` → `false` | `aFocusedTextEditorDrawsTheSquareControlRingAndAPlainOneDoesNot` (2) |
+| V3 | `TextEditor.swift`: `editorStyle ?? pass.environment.textEditorStyle` → `?? .automatic` | `aContainerTextEditorStyleReachesItsEditorAndTheInnermostWins` (1) |
+| V5 | `TextField.swift`: `pass.clipped(to: clip, …)` → `to: bounds` | `aBorderedFieldClipsItsTextToTheContentWidthAndTheWholeHeight` (5) |
+| V8 | `LoweringState.swift` `forward()`: drop `item.kind != .presentation` | `aPriorityOnADeferredKeepsTheLayerInFlowAndPresents` (1) |
+| V9 | `TextField.swift`: drop `&& resolvedStyle(in:).isBordered` from the dim | `aDisabledFieldKeepsItsChromeAndDimsItsText` (2) |
+
+§1.4a's claims are reproduced; lane 1's review is resolved.
