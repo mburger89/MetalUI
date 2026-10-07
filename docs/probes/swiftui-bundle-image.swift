@@ -20,7 +20,47 @@
 // POSITIVE CONTROL / SEPARATING ARM: B0 (`plain` resolves: 8×6 pt) against B1
 // (`missing`: what a failed lookup sizes to).
 //
-// RECORDED: see the block below (filled in by the run that commits it).
+// RECORDED 2026-10-07 by the portable-app design session, macOS 27.0.1
+// (26A434), Apple Swift 6.4, screen LOCKED. Compiled form, run three times
+// (the final file, with the Info.plist): byte-identical, exit 0, stderr
+// empty. An earlier run without the Info.plist read the same for B0–B8.
+//
+//   bundle=true url(plain)=true
+//   screen backingScaleFactor=2.0
+//   === I0 instrument control: Image(nsImage: NSImage(contentsOf: plain.png))
+//     fittingSize=8.0x6.0 ax=[]
+//   I1 AppKit's own loose-file lookup: bundle.image(forResource: "scaled") size=8.0x6.0 reps=["24x18", "16x12", "8x6"]
+//   I2 bundle.image(forResource: "Icons/dark/key")=nil url(key, subdirectory: Icons/dark)=true
+//   === B0 control: Image("plain", bundle:) — an 8×6 px loose PNG
+//     fittingSize=0.0x0.0 ax=[]
+//   === B1 separating: Image("missing", bundle:)
+//     fittingSize=0.0x0.0 ax=[]
+//   === B2 Image("scaled", bundle:) beside @2x/@3x variants
+//     fittingSize=0.0x0.0 ax=[]
+//   === B3 Image("only", bundle:) with ONLY only@2x.png (16×12 px)
+//     fittingSize=0.0x0.0 ax=[]
+//   === B4 Image("plain.png", bundle:) — the name with its extension
+//     fittingSize=0.0x0.0 ax=[]
+//   === B5 Image("Icons/dark/key", bundle:) — a subdirectory path
+//     fittingSize=0.0x0.0 ax=[]
+//   === B6 Image("key", bundle:) — the subdirectory file by basename
+//     fittingSize=0.0x0.0 ax=[]
+//   === B7 Image(decorative: "plain", bundle:)
+//     fittingSize=0.0x0.0 ax=[]
+//   === B8 Image("plain", bundle:).resizable().frame(width: 40, height: 30)
+//     fittingSize=40.0x30.0 ax=[]
+//
+// READING NOTES.
+// - I0: the instrument works — `Image(nsImage:)` of the file sizes 8×6 pt.
+// - I1/I2: AppKit's own lookup finds loose files (`bundle.image(forResource:)`
+//   returns all three reps of `scaled`), but not a subdirectory path; the
+//   Foundation lookup `url(forResource:withExtension:subdirectory:)` does.
+// - B0–B7: SwiftUI's `Image(_:bundle:)` and `Image(decorative:bundle:)` find
+//   NONE of the loose PNGs — every arm sizes 0×0, exactly like B1 (`missing`).
+//   SwiftUI's named images are asset-catalog entries. B8: a resizable framed
+//   missing image takes its frame (40×30) and draws nothing.
+// - `ax=[]` everywhere: no accessibility client activated the window, so the
+//   AX column is not evidence of anything (a broken instrument, kept visible).
 
 import AppKit
 import SwiftUI
