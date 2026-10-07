@@ -33,6 +33,12 @@
 /// `EitherGroup`, `ArrayGroup`, `EmptyGroup` — so `if`, `if`/`else` and `for`
 /// stay unboxed too. `AnyElement` is reachable only by writing it out (§4.6).
 ///
+/// **Every method samples `StackMeter`** (ruling `PE-L` item 2): a builder
+/// method runs inside the `content` getter or closure that holds a tree's
+/// temporaries, so its sample sees that frame — a layout-time sample cannot,
+/// because the getter has returned before its children register. A sample is
+/// a no-op outside a measurement, off the main thread and in release builds.
+///
 /// `buildPartialBlock` rather than a ladder of `buildBlock` overloads: it gives
 /// unbounded arity from two methods, and the left-nested `Pair<Pair<A, B>, C>`
 /// it produces flattens back to source order because `Pair` always visits
@@ -41,42 +47,50 @@
 @resultBuilder
 public enum ElementBuilder {
     /// `Box { }` — a container with no children.
-    public static func buildBlock() -> EmptyGroup { EmptyGroup() }
+    public static func buildBlock() -> EmptyGroup { StackMeter.sample(); return EmptyGroup() }
 
     /// A block's first statement, unchanged.
-    public static func buildPartialBlock<Group: ElementGroup>(first: Group) -> Group { first }
+    public static func buildPartialBlock<Group: ElementGroup>(first: Group) -> Group {
+        StackMeter.sample()
+        return first
+    }
 
     /// Folds the next statement onto the ones before it as a left-nested
     /// `Pair`, so node order is source order.
     public static func buildPartialBlock<Accumulated: ElementGroup, Next: ElementGroup>(
         accumulated: Accumulated, next: Next
     ) -> Pair<Accumulated, Next> {
-        Pair(accumulated, next)
+        StackMeter.sample()
+        return Pair(accumulated, next)
     }
 
     /// `if` with no `else`.
     public static func buildOptional<Group: ElementGroup>(
         _ group: Group?
     ) -> OptionalGroup<Group> {
-        OptionalGroup(group)
+        StackMeter.sample()
+        return OptionalGroup(group)
     }
 
     /// The `if` branch of an `if`/`else`.
     public static func buildEither<First: ElementGroup, Second: ElementGroup>(
         first: First
     ) -> EitherGroup<First, Second> {
-        .first(first)
+        StackMeter.sample()
+        return .first(first)
     }
 
     /// The `else` branch of an `if`/`else`.
     public static func buildEither<First: ElementGroup, Second: ElementGroup>(
         second: Second
     ) -> EitherGroup<First, Second> {
-        .second(second)
+        StackMeter.sample()
+        return .second(second)
     }
 
     /// `for … in …`.
     public static func buildArray<Group: ElementGroup>(_ groups: [Group]) -> ArrayGroup<Group> {
-        ArrayGroup(groups)
+        StackMeter.sample()
+        return ArrayGroup(groups)
     }
 }

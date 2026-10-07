@@ -73,8 +73,10 @@ func anIDOnAStyledElementStillReturnsItsOwnType() throws {
 /// `IdentifiedGroup: ProposalElementGroup where Content: ProposalElementGroup`
 /// (`ID-G`), so a named `Rectangle`, a named `GridRow` inside a `Grid` and a
 /// named proposal `Component` are proposal content. Control: a legacy chain's
-/// `.id` — `HStack { Box().padding(Pixels(4)).id("x") }` — must still be
-/// rejected (it is a `StyledElement`'s own type, not proposal content); the two
+/// `.id` in a native wrapper — `ProposalFrame { Box().padding(Pixels(4)).id("x") }`
+/// — must still be rejected (it is a `StyledElement`'s own type, not proposal
+/// content; ruling `PE-H`: an `HStack` adopts it as `LegacyContent` since
+/// `PE-B`, so the control's container is `ProposalFrame`, `PE-E`); the two
 /// arms are `#require`d to disagree.
 ///
 /// Red before: the positive does not compile (no `id` on `Rectangle`, `GridRow`
@@ -99,7 +101,7 @@ func anIDOnAProposalGroupEntersAProposalContainer() throws {
 
     let control = try typecheckFile("""
         @MainActor public func bad() {
-            _ = HStack { Box().padding(Pixels(4)).id("x") }
+            _ = ProposalFrame { Box().padding(Pixels(4)).id("x") }
         }
         """, importing: "MetalUI")
     print("EXPLICIT IDENTITY GUARD G3.2 control: succeeded=\(control.succeeded)\n\(control.messages)")
@@ -107,7 +109,7 @@ func anIDOnAProposalGroupEntersAProposalContainer() throws {
     try #require(positive.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
     #expect(positive.succeeded, "a named proposal group must enter a proposal container:\n\(positive.output)")
-    #expect(!control.succeeded, "a named legacy chain must not enter a proposal container:\n\(control.output)")
+    #expect(!control.succeeded, "a named legacy chain must not enter a native wrapper:\n\(control.output)")
 }
 
 /// **G3.3 — the legacy background keeps the token overload and the proposal
@@ -120,8 +122,10 @@ func anIDOnAProposalGroupEntersAProposalContainer() throws {
 /// - a proposal chain still infers `BackgroundModifier<Rectangle, Rectangle>`
 ///   and enters an `HStack`.
 ///
-/// Control: `HStack { Box().background { Box() } }` — legacy on both sides — must
-/// be rejected (the result is proposal content only when both sides are);
+/// Control: `ProposalFrame { Box().background { Box() } }` — legacy on both
+/// sides — must be rejected (the result is proposal content only when both
+/// sides are; ruling `PE-H`: an `HStack` adopts it as `LegacyContent` since
+/// `PE-B`, so the control's container is `ProposalFrame`, `PE-E`);
 /// `#require`d to disagree with the positive.
 ///
 /// Red before: the positive does not compile (the legacy spelling:
@@ -150,7 +154,7 @@ func theLegacyBackgroundKeepsTheTokenOverloadAndTheProposalSpelling() throws {
 
     let control = try typecheckFile("""
         @MainActor public func bad() {
-            _ = HStack { Box().background { Box() } }
+            _ = ProposalFrame { Box().background { Box() } }
         }
         """, importing: "MetalUI")
     print("EXPLICIT IDENTITY GUARD G3.3 control: succeeded=\(control.succeeded)\n\(control.messages)")
@@ -158,5 +162,5 @@ func theLegacyBackgroundKeepsTheTokenOverloadAndTheProposalSpelling() throws {
     try #require(positive.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
     #expect(positive.succeeded, "the legacy, token and proposal spellings must all compile:\n\(positive.output)")
-    #expect(!control.succeeded, "a legacy background must not enter a proposal container:\n\(control.output)")
+    #expect(!control.succeeded, "a legacy background must not enter a native wrapper:\n\(control.output)")
 }

@@ -61,9 +61,19 @@ private func auditSettle(_ window: Window) {
 
 /// A demo window as `MetalUIDemo` opens it — 920 × 560 (`main.swift`) — with
 /// an accessibility client active and the window settled.
+///
+/// **Pre-flighted** (`PE-Z`): a `Window` builds production frames, where a
+/// reported field traps and ends the run with no summary line, so the same
+/// content first renders with diagnostics and must report nothing. The
+/// controls demo holds a SwiftUI-vocabulary section since `PE-Y`, where a
+/// legacy item field is reported (`PE-C` item 4); without this, lane 3's M3.1
+/// trapped inside `theControlsDemoPublishesTheTreeTheVoiceOverScriptReads`.
 @MainActor
 private func scriptWindow<Root: Element>(_ content: @escaping @MainActor () -> Root) throws
     -> (Window, FakePlatformWindow) {
+    let preflight = LayoutDifferential.render(width: 920, height: 560) { content() }
+    try #require(preflight.unlowerableFields.isEmpty,
+                 "this demo would trap in a production window: \(preflight.unlowerableFields)")
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let (window, platform) = try makeFakeWindow(device: device, size: 920, content: content)
     platform.simulateResize(to: Size(width: Pixels(920), height: Pixels(560)))

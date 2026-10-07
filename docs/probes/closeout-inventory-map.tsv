@@ -28,6 +28,9 @@ F	element-protocols	M	-	-	-	-	SA-G MC-B LR-AA	Element/ElementGroup/StyledElement
 F	passes	M	-	-	-	-	SA-H EV-L	LayoutPass/PrepaintPass/PaintPass phase objects; isHovered/isActive/isFocused paint-only (PhaseSeparationTests)
 F	kernel-registrars	M	-	-	-	-	SA-A GR-C	LayoutPass's requestNative*/markNativeGrid* registrars: the kernel's primary API for a custom element
 F	builder	A	swiftui-composition-identity.swift	V2	anElementAfterAnAppearingIfKeepsItsOwnState	-	ID-B ID-C ID-D	@ViewBuilder's shapes: one structural slot per if/for, content an evaluated conditional removes is reset on return, if/else/switch in every container
+F	proposal-content-builder	A	swiftui-controls-in-stacks.swift	FM0	aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt	-	PE-B PE-E PE-D	ProposalContentBuilder: the content builder of HStack/VStack/ZStack/Grid/GridRow/ProposalScrollView/custom layouts, SwiftUI's @ViewBuilder role — proposal content keeps its type, any other element is adopted as LegacyContent, so controls compose in SwiftUI stacks
+F	legacy-content	M	-	-	-	-	PE-C PE-B LR-T LR-AQ LR-CK	LegacyContent: the identity- and layout-transparent adapter ProposalContentBuilder wraps a legacy element in; drops presentations, consumes no record (a legacy item field is reported), registers nothing
+F	pixels-infinity	A	swiftui-controls-in-stacks.swift	FL21	pixelsInfinityIsSwiftUIsFrameSpelling	-	PE-F	Pixels.infinity: SwiftUI's .infinity, so .frame(maxWidth: .infinity) is written as in SwiftUI
 F	any-element	A	swiftui-composition-identity.swift	S2	stateInsideAnAnyElementPersistsAcrossFrames	-	ID-E	AnyView: @State/@Environment bind inside an AnyElement
 F	explicit-identity	A	swiftui-composition-identity.swift	X9	anIDThatReturnsToAnEarlierNameStartsFresh	72	ID-G ID-R	.id(_:) on every element group; a changed name resets, a departed name starts fresh on return; two same-named siblings share one identity (72)
 F	global-id	M	-	-	-	-	MC-C MC-P C-3	GlobalElementID/PathComponent: the structural identity path value (positional/named components, -1 for an overlay)
@@ -211,6 +214,11 @@ M	MetalUI	ProposalNodeID.swift	.*	.*	.*	element-protocols
 M	MetalUI	Deferred.swift	.*	.*	.*	deferred
 M	MetalUI	Element.swift	.*	.*	.*	element-protocols
 M	MetalUI	ElementBuilder.swift	.*	.*	.*	builder
+M	MetalUI	ProposalContentBuilder.swift	(ProposalContentBuilder|-)	(ProposalContentBuilder|buildExpression|buildBlock|buildPartialBlock|buildOptional|buildEither|buildArray)	.*	proposal-content-builder
+M	MetalUI	ProposalContentBuilder.swift	.*	.*	.*	legacy-content
+M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	layoutPriority	.*	stacks
+M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	fixedSize	.*	fixed-size
+M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	grid.*	.*	grid
 M	MetalUI	ElementGroup.swift	-	(ElementGroup|SingleElementLayout)	.*	element-protocols
 M	MetalUI	ElementGroup.swift	Element	.*	.*	element-protocols
 M	MetalUI	ElementGroup.swift	AnyElement	.*	.*	any-element
@@ -350,6 +358,7 @@ M	MetalUICore	Color.swift	.*	.*	.*	core-color
 M	MetalUICore	ControlActiveState.swift	.*	.*	.*	control-active-state
 M	MetalUICore	LayoutDirection.swift	.*	.*	.*	layout-direction-type
 M	MetalUICore	Geometry.swift	.*	.*	.*	core-geometry
+M	MetalUICore	Units.swift	Pixels	infinity	.*	pixels-infinity
 M	MetalUICore	Units.swift	.*	.*	.*	core-geometry
 M	MetalUILayout	LayoutTree.swift	-	Native.*	.*	native-aliases
 M	MetalUILayout	ProposalLayout.swift	.*	.*	.*	proposal-layout

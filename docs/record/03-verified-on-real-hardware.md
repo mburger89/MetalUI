@@ -1988,3 +1988,19 @@ picker (native menu of 300 items, check on the selection, VoiceOver pop-up
 button); U10 the SDL drawn picker menu scrolling (wheel, ↑/↓, ▴/▾, a click);
 U11 the `Divider` hairline in four stacks, light and dark; U12 the demo's
 dialogs and hover on both platforms.
+
+## 2026-10-06: proposal controls (record §78) — looks owed
+
+The controls demo gained a "SwiftUI vocabulary" section beside the legacy
+controls (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`, 920 × 560). The
+controls demo is not one of the fourteen offscreen images, which are unchanged
+(0 differing against `e54c3f6`, record §78 §7); the real-window capture was
+**not taken** (lock probe not run by the Record phase). **Owed, new here —
+`docs/verification/human-checks.md` group V, none performed (an agent
+cannot)**: V1 the form's rows read as the probe's `FM0` (field and slider fill,
+Apply trailing, toggle and stepper hug, the divider spans, the status bar one
+26-point row); V2 the controls behave as the legacy ones, and Tab reaches them in
+reading order; V3 VoiceOver announces each as the same control on the left;
+V4 a window narrower than the form gives up width from the greedy controls first;
+V5 **N/A**, suspended with `PE-L` item 4.
+

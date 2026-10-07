@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2315 of them, in
-fifteen modules) belongs to one of 118 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2446 of them, in
+fifteen modules) belongs to one of 132 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -58,6 +58,15 @@ the window's top layer — a portal for modals, popovers and tooltips
   `switch`, `for`; each `if`/`for` is one structural slot and content an
   evaluated conditional removes resets on return (`ID-B`, `ID-C`).
   `AnyElement` is `AnyView`.
+- **`ProposalContentBuilder`** — the builder of every SwiftUI-vocabulary
+  container's content (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`,
+  `ProposalScrollView`, `ProposalLayoutContainer`, a `ProposalLayout`'s
+  `callAsFunction`): `ElementBuilder` plus one rule — proposal content keeps
+  its type, and any other element, group or `Component` is adopted as
+  **`LegacyContent`** (M; made by the builder, never written), identity- and
+  layout-transparent, so `HStack { Text("Name"); TextField("Name", text: $name) }`
+  composes as SwiftUI's does (`PE-B`, `PE-C`). A legacy item field there
+  (`.flexGrow`, `.margin`, …) is reported by name.
 - **Identity** — structural by position; `.id(_:)` on any element group
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
@@ -74,7 +83,10 @@ the window's top layer — a portal for modals, popovers and tooltips
 
 `HStack`, `VStack`, `ZStack`, `Spacer`, `VerticalAlignment` (with text
 baselines), `HorizontalAlignment`, `.layoutPriority` — SwiftUI's stack
-algorithms (51, 58, 70, 89). `Grid`, `GridRow`, `.gridCellColumns`,
+algorithms (51, 58, 70, 89). The containers take legacy content too — the
+controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
+(`PE-B`); `ProposalFrame`, `Padding`, `Background`, `FixedSize` and
+`nativeOverlay` (MetalUI-only wrappers) still take proposal content only. `Grid`, `GridRow`, `.gridCellColumns`,
 `.gridCellAnchor`, `.gridColumnAlignment`, `.gridCellUnsizedAxes` (61–68, 88).
 `ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)`,
 `UnitPoint`, `.scrollIndicators`. `ProposalLayout` +
@@ -89,7 +101,12 @@ Modifiers on proposal content (each one layer of one flat
 `.clipShape`/`.clipped`/`.cornerRadius`/`.clip` (91, 92), `.allowsHitTesting`
 (41, 44), `.contentShape`, `.onTap`, the gestures, the accessibility
 modifiers, `.font` and the text modifiers, `.transition`, `.animation(_:value:)`,
-`.transaction`, `.id`.
+`.transaction`, `.id`. On legacy content, `.layoutPriority`, `.fixedSize`,
+`.gridCellColumns`, `.gridCellAnchor`, `.gridColumnAlignment` and
+`.gridCellUnsizedAxes` are spelled on `ElementGroup` and wrap it in
+`LegacyContent` first (`PE-F` item 1); `.frame` and `.padding` are the legacy
+layers, which lower onto the same kernel. `Pixels.infinity` is SwiftUI's
+`.infinity`, so `.frame(maxWidth: .infinity)` compiles (`PE-F` item 2).
 
 The `Native…` names and `.native…` modifiers are deprecated aliases (X) —
 except `nativeFrame`, kept undeprecated (`SA-K`).
@@ -118,7 +135,14 @@ vocabulary: [`migration.md`](migration.md).
 76, 80), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
 (81, 82), `List(_:selection:rowHeight:row:)` (M), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
-initialisers, submit, undo and paging M).
+initialisers, submit, undo and paging M). Each composes in both vocabularies
+— a `Row`/`Column` and, since `PE-B`, an `HStack`/`VStack`/`Grid` — with
+SwiftUI's sizing classes: `TextField` and `Slider` greedy wide, `TextEditor`
+greedy on both axes (`PE-D`), the rest hugging; the metrics and the
+below-ideal answers are MetalUI's (130, 131), and `List` keeps its
+`rowHeight × count` height (84). Style modifiers (`.buttonStyle`,
+`.pickerStyle`, `.keyboardShortcut`) return the control: write them on it,
+before any wrapper (`PE-R`).
 
 ## Text — A
 

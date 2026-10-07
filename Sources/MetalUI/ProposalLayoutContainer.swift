@@ -18,7 +18,7 @@ public struct ProposalLayoutContainer<L: ProposalLayout, Content: ProposalElemen
 
     /// A container laid out by `layout`, SwiftUI's `Layout` used as a view
     /// (`SA-A`).
-    public init(_ layout: L, @ElementBuilder content: () -> Content) {
+    public init(_ layout: L, @ProposalContentBuilder content: () -> Content) {
         self.layout = layout
         self.content = content()
     }
@@ -61,7 +61,7 @@ extension ProposalLayout {
     /// content.
     @MainActor
     public func callAsFunction<Content: ProposalElementGroup>(
-        @ElementBuilder _ content: () -> Content) -> ProposalLayoutContainer<Self, Content> {
+        @ProposalContentBuilder _ content: () -> Content) -> ProposalLayoutContainer<Self, Content> {
         ProposalLayoutContainer(self, content: content)
     }
 }

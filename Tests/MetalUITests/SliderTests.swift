@@ -66,8 +66,10 @@ private func mouse(_ point: Point<Pixels>) -> MouseEvent { MouseEvent(position: 
             "300×16 under a 300 proposal: \(slider.size)")
     let ideal = Slider.size(proposedWidth: nil)
     #expect(ideal.width == 30 && ideal.height == 16, "30×16 at a nil width: \(ideal)")
+    // `PE-D`: SwiftUI's slider answers an infinite offer with infinity (probe
+    // FL6 `inf -> infx16`), so a stack serves it last, after its hugging siblings.
     let infinite = Slider.size(proposedWidth: .infinity)
-    #expect(infinite.width == 30, "an infinite proposal is not finite: \(infinite)")
+    #expect(infinite.width == .infinity && infinite.height == 16, "∞×16 at an infinite width: \(infinite)")
 }
 
 /// **2.2.** With no step an adjustment moves 10% of the span (SA1: 5 → 6 on

@@ -398,6 +398,14 @@ group T, unrun. `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` shows the counters.
 scrolling drawn one on SDL); the SDL loop now drains the main queue. The real looks are
 `docs/verification/human-checks.md` group U, unrun.
 `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo` is its demo.
+**Controls in SwiftUI stacks** (user request 2026-10-02, not a plan task; record §78):
+`HStack`, `VStack`, `ZStack`, `Grid` and `ProposalScrollView` take `Button`, `Toggle`,
+`TextField`, `Picker`, `Slider`, `Stepper`, `Text`, a selectable `List` and a `Component`
+as SwiftUI's do, with their own types and modifiers (`TextField` and `Slider` greedy wide,
+the rest hugging); `Pixels.infinity` for `.frame(maxWidth: .infinity)`. A `Component`'s layout
+record lives on the heap, so a shell over many pane `Component`s no longer grows the debug
+stack with their sum. The real looks are `docs/verification/human-checks.md` group V, unrun.
+`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` shows the form.
 **Menus, popovers and tooltips** (user request 2026-10-02, not a plan task; record
 §74): `.contextMenu { }` (a native `NSMenu` on AppKit, MetalUI's drawn menu on SDL),
 `Menu("Title") { }`, `App.commands { CommandMenu / CommandGroup }` with the standard

@@ -2329,7 +2329,8 @@ public final class Frame {
     // (`LR-C`), went with the legacy engine. Every registrar below is native.
 
     func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
-        tree.newNativeLeaf(measure: measure)
+        StackMeter.sample()   // a tree's deepest layout point (`PE-L` item 2)
+        return tree.newNativeLeaf(measure: measure)
     }
 
     func requestNativeOverlay(children: [LayoutNodeID],

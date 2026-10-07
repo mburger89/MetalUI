@@ -198,31 +198,41 @@ func subviewProxiesCannotBeConstructedOutsideTheKernel() throws {
     }
 }
 
-/// **A custom layout rejects legacy content in every call spelling** (ruling
-/// SA-F). The two `callAsFunction` spellings fail on the method's constraint;
-/// the container spelling on the struct's.
+/// **A custom layout adopts legacy content in every call spelling** (ruling
+/// SA-F, flipped by `PE-H` as amended by `PE-W`,
+/// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`). The two
+/// `callAsFunction` spellings and the container spelling take
+/// `@ProposalContentBuilder` (`PE-E`), so `Text("legacy")` is adopted as
+/// `LegacyContent<Text>` — each spelling is typed
+/// `ProposalLayoutContainer<Diagonal, LegacyContent<Text>>` — and `Content` is
+/// still a `ProposalElementGroup`. The separating control: the same content in
+/// `ProposalFrame`, a native wrapper that keeps the rejection, fails naming
+/// `ProposalElementGroup`.
+///
+/// Renamed from `aCustomLayoutContainerRejectsLegacyContent`. Mutation that must
+/// redden it: `callAsFunction` back to `@ElementBuilder` (the first two
+/// spellings fail).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aCustomLayoutContainerRejectsLegacyContent() throws {
-    let cases: [(spelling: String, diagnostic: String)] = [
-        ("Diagonal() { Text(\"legacy\") }",
-         "instance method 'callAsFunction' requires that 'Text' conform to 'ProposalElementGroup'"),
-        ("Diagonal { Text(\"legacy\") }",
-         "instance method 'callAsFunction' requires that 'Text' conform to 'ProposalElementGroup'"),
-        ("ProposalLayoutContainer(Diagonal()) { Text(\"legacy\") }",
-         "generic struct 'ProposalLayoutContainer' requires that 'Text' conform to 'ProposalElementGroup'"),
-    ]
-    for (spelling, diagnostic) in cases {
+func aCustomLayoutContainerAdoptsLegacyContent() throws {
+    for spelling in ["Diagonal() { Text(\"legacy\") }", "Diagonal { Text(\"legacy\") }",
+                     "ProposalLayoutContainer(Diagonal()) { Text(\"legacy\") }"] {
         let result = try typecheckFile(diagonalSource + """
 
 
             @MainActor public func probe() {
-                _ = \(spelling)
+                let _: ProposalLayoutContainer<Diagonal, LegacyContent<Text>> = \(spelling)
             }
             """, importing: "MetalUI")
-        #expect(!result.succeeded, "\(spelling) must not accept legacy content:\n\(result.output)")
-        #expect(result.messages.contains(diagnostic),
-                "\(spelling) was rejected, but not by the proposal-content constraint:\n\(result.output)")
+        #expect(result.succeeded, "\(spelling) must adopt legacy content (PE-B):\n\(result.output)")
     }
+    let control = try typecheckFile("""
+        @MainActor public func probe() {
+            _ = ProposalFrame { Text("legacy") }
+        }
+        """, importing: "MetalUI")
+    #expect(!control.succeeded, "a native wrapper must still reject legacy content:\n\(control.output)")
+    #expect(control.messages.contains("ProposalElementGroup"),
+            "rejected, but not by the proposal-content constraint:\n\(control.output)")
 }
 
 /// A public proposal leaf, for the frame guard's fixtures.

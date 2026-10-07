@@ -21,15 +21,70 @@ ruling that made it (rulings are in [`superpowers/`](superpowers/)).
 
 ## Part 1 — legacy spellings and their SwiftUI-vocabulary replacements
 
-### Migrate inside-out
+### Migrate inside-out — or not at all
 
-A SwiftUI-vocabulary element can sit inside a legacy container
-(`Row { HStack { … } }` works). The reverse does not compile: `HStack`,
-`VStack`, `ZStack`, `Grid`, `ForEach` inside a proposal container and every
-proposal modifier take `ProposalElementGroup` content, so `HStack { Box() }`
-is a compile error (guards `aForEachOfLegacyContentDoesNotCompileInsideAProposalStack`,
-`aGridRejectsLegacyContent`). Convert the innermost subtrees first, then their
-parents.
+**Since proposal controls (`PE-B`, 2026-10-06), the two vocabularies nest
+both ways.** A SwiftUI-vocabulary element sits inside a legacy container
+(`Row { HStack { … } }`), and a legacy element, group or `Component` sits
+inside a SwiftUI-vocabulary container: `HStack`, `VStack`, `ZStack`, `Grid`,
+`GridRow`, `ProposalScrollView`, `ProposalLayoutContainer` and a
+`ProposalLayout`'s `callAsFunction` build their content with
+`ProposalContentBuilder`, which passes proposal content through untouched and
+adopts anything else as `LegacyContent` — identity- and layout-transparent,
+so the legacy element takes the id a proposal element in its position would
+and lays out exactly as it does in a `Row`/`Column` (`PE-C`). So a SwiftUI
+form ports as written:
+
+```swift
+VStack(alignment: .leading) {
+    HStack { Text("Name"); TextField("Name", text: $name) }   // the field fills the row
+    HStack { Toggle("Enabled", isOn: $on); Spacer(); Button("Apply") { apply() } }
+    HStack { Text("Speed"); Slider(value: $speed) }           // the slider fills the row
+    Picker("Mode", selection: $mode) { … }.pickerStyle(.menu)
+    Divider()
+}
+.padding(Edges(all: Pixels(16)))
+```
+
+Every control keeps its one hitbox, focus and Tab order, keyboard table,
+`.disabled` gate, accessibility record, animation and drag preview in either
+vocabulary (`PE-I`). You can still convert subtrees one at a time; nothing
+forces an order.
+
+**What still takes proposal content only** (a compile error on
+`ProposalElementGroup`): the MetalUI-only wrappers `ProposalFrame`,
+`Padding`, `Background`, `FixedSize`, and `nativeOverlay` — write the
+modifiers instead (`.frame`, `.padding`, `.background`, `.fixedSize`,
+`.overlay`; on a legacy element these are its own legacy spellings, or
+`PE-F`'s for `.fixedSize`).
+`ForEach`'s own builder stays `ElementBuilder`: a `ForEach` of legacy rows is
+one adopted expression inside a stack, which works. `aspectRatio`,
+`scaledToFit` and `scaledToFill` are not offered on legacy content.
+
+**A legacy item field on content in a SwiftUI-vocabulary container is
+reported by name** — `<site>.<field>.unconsumed`, which traps in a production
+window (`LR-AQ`, `PE-C` item 4): SwiftUI's stacks have no flex fields, so
+nothing reads them, and a silent drop would be an approximation. Re-spell
+each in SwiftUI's vocabulary:
+
+| reported field | SwiftUI spelling |
+|---|---|
+| `.flexGrow(1)` | `.frame(maxWidth: .infinity)` on it (`Pixels.infinity`, `PE-F` item 2), or a `Spacer()` beside it |
+| `.flexShrink(0)` | `.fixedSize()` (on the axis: `.fixedSize(horizontal: true, vertical: false)`), or `.layoutPriority(1)` |
+| `.flexBasis(…)` | `.frame(width:)`/`.frame(idealWidth:)` |
+| `.alignSelf(…)` | the stack's `alignment:`, or `.frame(maxWidth: .infinity, alignment: …)` on the child |
+| `.minWidth`/`.maxWidth`/… (deprecated; `minSize`, `maxSize`) | `.frame(minWidth:maxWidth:…)` |
+| `.margin(…)` | `.padding(…)` written on the child |
+
+`.layoutPriority`, `.fixedSize` and the four grid-cell modifiers
+(`.gridCellColumns`, `.gridCellAnchor`, `.gridColumnAlignment`,
+`.gridCellUnsizedAxes`) are spelled on legacy content too (`PE-F` item 1).
+
+**Style modifiers go on the control.** `.buttonStyle`, `.pickerStyle` and
+`.keyboardShortcut` return the control itself, not an environment value: write
+them on the control, before any wrapper — `Button("x") {}.buttonStyle(.plain).padding(8)`,
+not `….padding(8).buttonStyle(.plain)` (which does not compile), and not on a
+container (`PE-R`).
 
 ### Containers
 
@@ -45,8 +100,8 @@ parents.
 | `Box { … }` (one child, a background, padding) | the child with `.padding(…)`, `.background(…)`, `.frame(…)` | a `Box` stretches its children on the cross axis (`EP-8`); the replacement is the modifiers, in SwiftUI's order |
 | `Box(decoration: d) { … }` | `.background(token)`, `.border(token, width:)`, `.clipShape(…)` on the content | |
 | `ScrollView(.vertical) { … }` | `ProposalScrollView(.vertical) { … }` | the legacy `ScrollView` takes its **parent's** cross size, `ProposalScrollView` its **content's** (divergence 54, kept). Both share one chrome (indicators, clamping) |
-| `List(data, rowHeight:) { … }` | (no SwiftUI-vocabulary `List`) | `List` stays MetalUI's virtualized, uniform-row list; it needs an enclosing scroll view (divergence 84, kept). For a short list, `ProposalScrollView { VStack { ForEach(data) { … } } }` |
-| `Text("…")` | `ProposalText("…")` | the same text system, fonts and modifiers (`.font`, `.lineLimit`, …). `text.proposalLayout()` converts one, **dropping** its background, handlers, id and hover/focus colours |
+| `List(data, rowHeight:) { … }` | (no SwiftUI-vocabulary `List`) | `List` stays MetalUI's virtualized, uniform-row list; it needs an enclosing scroll view (divergence 84, kept). A `List` (selectable too) now also works inside a `ProposalScrollView`, windowing against its offset (`PE-V`: the proposal scroller publishes its `ScrollContext` as `ScrollView` does). For a short list, `ProposalScrollView { VStack { ForEach(data) { … } } }` |
+| `Text("…")` | `Text("…")` — unchanged | since `PE-G`, `Text` works in a proposal container and lays out exactly as `ProposalText` (the same measurement, with baselines, so `.firstTextBaseline` aligns it). `ProposalText` remains for the proposal modifier spellings (`.background` returning a layer); `text.proposalLayout()` converts one, **dropping** its background, handlers, id and hover/focus colours |
 | `margin(…)` | `.padding(…)` written outside the element | a margin was a padding outside the item frame (`LR-AB`); `.auto` was 0 |
 | `position(.absolute)` + `inset(…)` inside a `Deferred` | (unchanged) | MetalUI-only: a presentation root against the window (`LR-CH`). Outside a `Deferred` it is refused by name (`LR-FO`) |
 
@@ -238,11 +293,40 @@ public-API removals the records list. **Source** changes stop compiling;
 | **`PaintPass.isHovered` is no longer sticky after the pointer leaves the window**: `.pointerExited` (AppKit's `mouseExited`, SDL's mouse-leave) clears `Window.lastMousePosition`, so the next frame paints nothing hovered (it kept the last in-window position hovered until the next in-window event) | nothing; hover affordances now clear when the pointer leaves | `SV-N` item 7 |
 | **a file dialog's or an alert's answer is claimed by the window** (`.fileDialogResult`, `.alertResult` run first after the pointer state and never reach a later stage or the window's `onInput` fallback); `.pointerExited` is claimed by no stage and reaches `onInput` | read outcomes in the modifiers' callbacks or the awaited `FileDialogs` call | `SV-K` item 3 |
 | `Handlers` gains a seventeenth member (`hover`, internal): 464 → 472 bytes | nothing | `SV-N` item 1, `SV-AH` |
+| **`TextField` and `Slider` answer an infinite proposed width with infinity, `TextEditor` an infinite width or height** (they answered their ideal): SwiftUI's greedy classes (probe `FL3`–`FL6`). A stack serves its least flexible child first, so beside a label a field or slider now takes the rest of the row — in an `HStack` and in a legacy `Row` alike (a `Row { Text("Speed"); Slider(…) }`'s slider was served first and took half). A `nil` proposal still answers the ideal | to keep the old half-row width, give the control a `.frame(width:)` | `PE-D` |
+| **SwiftUI-vocabulary containers take legacy content** (`HStack { Button("x") {} }` compiles; it was a compile error): the content builder is `ProposalContentBuilder` | nothing; a container type's `Content` for a legacy child is `LegacyContent<…>` | `PE-B`, `PE-E` |
+| a `Component`'s layout record keeps its content and layout in **one heap box** (`ComponentLayout` is 8 bytes): one allocation per `Component` per laid-out frame (+96 bytes), and a shell switching between pane `Component`s no longer costs the sum of the panes' stack | nothing (see [Large trees in a debug build](#large-trees-in-a-debug-build)) | `PE-J` |
 | **`Divider` is also an `Element`** (`Divider: Element, ProposalElement`): `Divider()` in an element builder is a 1-point line where it did not compile; in a menu builder it is unchanged | nothing | `SV-O` |
 | **`.pickerStyle(.menu)` compiles** — the guard `aMenuPickerStyleIsNotOffered` is replaced by `aMenuPickerStyleCompiles`; `.automatic` stays segmented | nothing for callers | `SV-P` item 1 |
 | a linear container outside the package that should orient a `Divider` | not possible from outside (the stack-axis stack is internal); a `Divider` in it is horizontal, as outside any stack | `SV-O` item 2 |
 | an in-window (SDL) menu taller than the window less 8 points **scrolls**: clamped to the window, wheel and ↑/↓ scroll it, only visible rows paint and hit-test | nothing | `SV-Q` |
 | an alert the platform declines (SDL) is **drawn in the window and modal**: while it is up, pointer, wheel and key events reach nothing beneath, and an open drawn menu closes | nothing; answer it with its buttons, Return/Escape or an accessibility press | `SV-J` items 2–4 |
+
+## Large trees in a debug build
+
+A debug build gives every function a stack frame large enough for **every**
+temporary it holds, in every branch, and a builder's element values are large
+(a `Column` of twelve three-element `Row`s is ~48 KB). Two rules keep a large
+app's tree inside a thread's stack — 8 MB on the macOS and Linux main
+threads, **1 MB on Windows**:
+
+1. **A branch that holds a large subtree goes in its own `Component`** (`PE-K`).
+   Since `PE-J` a `Component`'s layout record is one heap box, so a shell
+   `Component` whose `content` `switch`es over twelve pane `Component`s costs
+   4.5 KB more stack than one pane (it cost 508 KB more, and the SMK
+   configurator's root overflowed an 8 MB main thread). A `switch` over
+   **inline** subtrees in one builder still grows with the sum of its branches
+   (measured 1.3 MB for two to 4.3 MB for twelve branches of a pane-sized
+   subtree) — a compiler property no MetalUI change can remove.
+2. **Build a section in its own function**, not inline in one large builder
+   (the demo's rule: `everyProductionTreeBuildsOnAOneMegabyteThread`).
+
+`AnyElement(Box { … })` at each pane keeps working but is no longer needed for
+stack depth. No `ElementGroup` eraser is offered (MG-22): a `Component` is the
+spelling. MetalUI measures the stack a frame uses internally (`PE-L`, a
+debug-only meter), but **does not warn yet**: four of the repository's own
+demos measure above the 512 KiB threshold the design chose, so the warning
+waits for a threshold chosen against them (`PE-T`).
 
 ## See also
 

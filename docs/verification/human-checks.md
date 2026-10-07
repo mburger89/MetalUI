@@ -764,6 +764,56 @@ looked at a real panel, sheet, menu or pointer.
   each tile's counter and bar grow by one per entry and the tile un-highlights
   when the pointer leaves the window. **Observed:**
 
+## V. Proposal controls — controls in SwiftUI stacks (user request 2026-10-02, not a plan task)
+
+*Source: record §78 `78-proposal-controls.md`, rulings `PE-A`…`PE-Z`
+(`docs/superpowers/2026-10-06-proposal-controls-decisions.md`), spec §9
+(`docs/superpowers/specs/2026-10-06-proposal-controls-design.md`).* **The
+demo**: `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (920 × 560). The
+legacy controls are on the left; on the right, "SwiftUI vocabulary": the
+probe's form `FM0` — Name and a field, an Enabled toggle and Apply, Speed and
+a slider, a menu picker (Mode, bound to the left's Flavor), a divider, a Qty
+stepper (bound to the left's Quantity) — and under it the configurator's
+status bar `ST0` (a dot, Enabled/Disabled, Qty, Speed %, the flavour, and the
+name at the trailing edge). Every frame here is pinned headless
+(`aSwiftUIVocabularyFormLaysOutAsTheProbeArrangesIt` 1.5,
+`theConfiguratorsStatusBarLaysOutInTheSwiftUIVocabulary` 1.6,
+`theControlsDemosSwiftUISectionLaysOutWithoutReports` 3.1) and every
+behaviour in a proposal stack against the same tree in a `Row`/`Column`
+(`ProposalControlsTests` 1.11–1.19); what nothing headless sees is the look,
+the real pointer and keyboard, and VoiceOver.
+
+- [ ] **V1. The form's rows read as `FM0`'s**: the field and the slider fill
+  to the form's trailing edge (16 points in), Apply sits at the trailing
+  edge, the toggle and the stepper hug their labels, the menu picker hugs
+  (as wide as its label and widest option), the divider spans the form; the
+  status bar is one 26-point row, its last label at the trailing edge
+  (`PE-B`, `PE-D`). **Observed:**
+- [ ] **V2. The controls behave as the legacy ones**: click Apply (clears the
+  name), the toggle, the slider (drag and click), the stepper's arrows, the
+  menu picker (a native menu; choosing a flavour moves the left's Flavor
+  selection too); Tab from the left's controls reaches the form's in reading
+  order (a click does not focus a control, divergence 94; it does focus the
+  field); Space presses the focused button or toggle, the arrows move the
+  focused slider and stepper; typing in the field updates the status bar's
+  trailing label each keystroke (`PE-I`). **Observed:**
+- [ ] **V3. VoiceOver** (an agent cannot): VO-→ through the form announces
+  each control as the same control on the left — "Enabled, checkbox", "Apply,
+  button", the slider's value, "Qty, 2, stepper", the field's placeholder and
+  text, the menu picker as a pop-up button (`PE-I`; divergence 82 for the
+  stepper's title). **Observed:**
+- [ ] **V4. Narrower than the form**: drag the window narrower (to about 600
+  points). The form gives up width from its greedy controls first — the field
+  and the slider shrink (headless at a 600-point window: 165 and 161, where
+  they are about 324 and 321 at 920) while Apply keeps its ~59 points and the menu
+  picker its minimum (divergence 130: SwiftUI's would compress); labels wrap
+  to a second line rather than overlap (`PE-D`, `PE-N`). **Observed:**
+- [ ] **V5. The stack warning** — **suspended** (`PE-T`, `PE-Y`): spec §9's V5
+  asked a debug scratch app with a 12-way inline `switch` to print one stack
+  warning; that warning (`PE-L` item 4) is not landed, because four of the
+  repository's own demos measure above its 512 KiB threshold. This item is
+  re-written when `PE-L` is re-taken. Mark it N/A. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

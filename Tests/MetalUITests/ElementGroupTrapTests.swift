@@ -40,9 +40,13 @@ func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
     #expect(positive.succeeded,
             "proposal content must retain the canonical overlay API, and a legacy primary take it:\n\(positive.output)")
 
+    // Ruling `PE-H` (`docs/superpowers/2026-10-06-proposal-controls-decisions.md`):
+    // since `PE-B` an `HStack` adopts a legacy overlay as `LegacyContent`, so
+    // the negative's container is `ProposalFrame`, a MetalUI-only native
+    // wrapper that keeps the `ProposalElementGroup` rejection (`PE-E`).
     let negative = try typecheck("""
         @MainActor func probe() {
-            _ = HStack {
+            _ = ProposalFrame {
                 Text("legacy").overlay {
                     Rectangle()
                 }
@@ -50,7 +54,7 @@ func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
         }
         """, importing: "MetalUI")
     #expect(!negative.succeeded,
-            "a legacy overlay must not enter a proposal container and trap while registering layout:\n\(negative.output)")
+            "a legacy overlay must not enter a native wrapper and trap while registering layout:\n\(negative.output)")
     #expect(negative.messages.contains("ProposalElementGroup"),
             "rejected, but not because the proposal-content constraint was missing:\n\(negative.output)")
 }
@@ -83,6 +87,14 @@ func proposalOnTapAcceptsProposalContentAndRejectsLegacyContent() throws {
 /// nodes. Their generic constraints must therefore reject a legacy subtree at
 /// construction time; checking each constructor independently prevents one
 /// unconstrained builder from reintroducing the runtime mixed-tree trap.
+///
+/// **Ruling `PE-H`** (`2026-10-06-proposal-controls-decisions.md`): the
+/// SwiftUI-named containers — `HStack`, `VStack`, `ZStack`,
+/// `ProposalScrollView` — take `@ProposalContentBuilder`, which adopts a legacy
+/// expression as `LegacyContent` (`PE-B`), so their legacy arms moved to the
+/// positive block. The native wrappers (`ProposalFrame`, `Padding`,
+/// `Background`, `FixedSize`), `ModifiedContent` and `OnTapModifier` keep the
+/// rejection, and are its separating control (`PE-E`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func proposalLayoutConstructorsRequireProposalContent() throws {
     let positive = try typecheck("""
@@ -100,6 +112,13 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
             _ = OverlayModifier(content: Rectangle()) { Color(.accent) }
             _ = HStack { OverlayModifier(content: Rectangle()) { Color(.accent) } }
             _ = OverlayModifier(content: Text("legacy")) { Rectangle() }
+            // `PE-H`: the SwiftUI-named containers adopt legacy content (`PE-B`,
+            // `PE-E`), and a legacy overlay with it.
+            _ = HStack { Text("legacy") }
+            _ = VStack { Text("legacy") }
+            _ = ZStack { Text("legacy") }
+            _ = ProposalScrollView { Text("legacy") }
+            _ = HStack { Text("legacy").overlay { Rectangle() } }
         }
         """, importing: "MetalUI")
     #expect(positive.succeeded,
@@ -113,15 +132,6 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
                 "rejected, but not because the proposal-content constraint was missing:\n\(result.output)")
     }
 
-    try assertRejectsLegacyContent("""
-        @MainActor func probe() { _ = HStack { Text("legacy") } }
-        """)
-    try assertRejectsLegacyContent("""
-        @MainActor func probe() { _ = VStack { Text("legacy") } }
-        """)
-    try assertRejectsLegacyContent("""
-        @MainActor func probe() { _ = ZStack { Text("legacy") } }
-        """)
     try assertRejectsLegacyContent("""
         @MainActor func probe() { _ = ProposalFrame { Text("legacy") } }
         """)
@@ -137,9 +147,6 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
         @MainActor func probe() { _ = FixedSize { Text("legacy") } }
         """)
     try assertRejectsLegacyContent("""
-        @MainActor func probe() { _ = ProposalScrollView { Text("legacy") } }
-        """)
-    try assertRejectsLegacyContent("""
         @MainActor func probe() {
             _ = ModifiedContent(content: Text("legacy"), modifier: .padding(Edges(all: Pixels(1))))
         }
@@ -149,10 +156,11 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
         """)
     // Plan task 7, stage 11 (`LR-FX` item 1): `OverlayModifier` takes any
     // `ElementGroup`, so a legacy primary is a positive above; what is rejected
-    // is that overlay entering a proposal container, since it is a
-    // `ProposalElementGroup` only when both sides are.
+    // is that overlay entering a native wrapper, since it is a
+    // `ProposalElementGroup` only when both sides are. (`PE-H`: an `HStack`
+    // adopts it since `PE-B`, so the container here is `ProposalFrame`.)
     try assertRejectsLegacyContent("""
-        @MainActor func probe() { _ = HStack { Text("legacy").overlay { Rectangle() } } }
+        @MainActor func probe() { _ = ProposalFrame { Text("legacy").overlay { Rectangle() } } }
         """)
 }
 

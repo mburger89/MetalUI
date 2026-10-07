@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **96 live divergences**, each measured (a probe
+place it knowingly does not: **98 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -9,7 +9,7 @@ failing, read the row first — the change may be a fix.
 
 This is the current list (plan task 15, ruling `CX-G`; 2026-10-01; drag and
 drop added 100–102, rulings `DN-G`, `DN-K`, `DN-M`; the app-owned GPU surface
-added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–115 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH`; colour and colour scheme added 116–119 and amended 1, rulings `CR-F`, `CR-C`, `CR-U`, `CR-I`; lifecycle modifiers added 120–125, rulings `LC-B`, `LC-E`, `LC-F`, `LC-H`, `LC-Q`, `LC-S`; platform services added 126–129 — lane 1 126 and 129, rulings `SV-L`, `SV-E`; lane 3 127 and 128 and amended 81, rulings `SV-O`, `SV-P`; lane 2 amended 120, ruling `SV-K` — next label 130). Its dated
+added 103, ruling `MV-G`; paths, shadows and transforms added 104–109 and amended 41, 90, 91 and 97 — lane 2 107–109 and 41, rulings `GX-I`, `GX-H`, `GX-G`, `GX-P`; lane 3 104–106, 90, 91 and 97, rulings `GX-J`, `GX-L`, `GX-C`, `GX-D`, `GX-E`; menus, popovers and tooltips added 110–115 — lane 1 110 and 114, rulings `MN-B`, `MN-V`; lane 3 111–113 and 115, rulings `MN-M`, `MN-P`, `MN-AH`; colour and colour scheme added 116–119 and amended 1, rulings `CR-F`, `CR-C`, `CR-U`, `CR-I`; lifecycle modifiers added 120–125, rulings `LC-B`, `LC-E`, `LC-F`, `LC-H`, `LC-Q`, `LC-S`; platform services added 126–129 — lane 1 126 and 129, rulings `SV-L`, `SV-E`; lane 3 127 and 128 and amended 81, rulings `SV-O`, `SV-P`; lane 2 amended 120, ruling `SV-K`; proposal controls added 130 and 131, ruling `PE-N` — next label 132). Its dated
 history, with every mechanism and measurement, is
 [`record/04-divergences.md`](record/04-divergences.md); the rulings named in
 each row are in [`superpowers/`](superpowers/). Labels are stable ids:
@@ -124,6 +124,8 @@ scheduled).
 | 127 | `Divider()`'s colour | black (light) or white (dark) at alpha 0.098 over whatever is beneath (probe `swiftui-platform-services.swift` `V12`, `V13`) | the theme's opaque `.separator` token (`0xC8CDD6` light, `0x3A4260` dark) — the menus' separator colour; 1 point across, as SwiftUI (`V12`) | `SV-O` item 4 | `aDividerPaintsTheSeparatorTokenOnePointThick` (4.7) | none (a translucent token would move every menu separator and border) |
 | 128 | a menu `Picker`'s option whose content is not a `Text` | the menu draws the option's own view (`P1`–`P3`) | the option is titled `String(describing: tag)` — a menu item carries a string only (`PlatformMenuItem.title`), and options are recorded without being laid out (`SV-P` item 3) | `SV-P` item 3 | `aNonTextMenuOptionIsTitledByItsTag` (5.10) | none |
 | 129 | a file dialog's `allowedContentTypes` off Apple | (no SwiftUI off Apple) on macOS a type matches by UTType conformance (`D1`: `.json` offers JSON files) | on SDL (Linux, Windows) a type matches by **filename extension only**: one filter per type with extensions (`ContentType.preferredFilenameExtension` and the rest), and a type with none — `.data`, `.text`, `.item` — filters nothing; a list with no extension anywhere offers every file. AppKit keeps UTType conformance | `SV-E` | `sdlFiltersCarryExtensionsAndATypeWithoutOneFiltersNothing` (1.13, `Backends/SDL`) | none |
+| 130 | a control offered less than its ideal size | a `Button` compresses to 10×8 at a zero offer; a menu `Picker` and a `Menu` shrink to a 50-point offer (probe `swiftui-controls-in-stacks.swift` `FL0`, `FL8`, `FL13`) | the `Button` keeps 24×24 at zero (its strut and padding); the menu `Picker` keeps 67 wide at a 50 offer, and the `Menu` wraps its label (49.64×64) — the same answer in a legacy container and, since `PE-B`, in an `HStack`/`VStack` | `PE-N` | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (1.1, its `zero` and `w50` arms) | none (kept) |
+| 131 | control metrics | `TextField` 24 tall with an ideal of placeholder + chrome (47.50 for "Name"); menu `Picker` ideal 124.50, `Menu` 93, `Toggle` 16.42 tall (`FL3`, `FL8`, `FL13`, `FL2`) | `TextField` is one line tall (16) with an ideal of its text or placeholder + 1 (36.25); menu `Picker` 112.56, `Menu` 80.66, `Toggle` 16 — the classes agree (the field greedy wide, the rest hugging, `PE-D`), the numbers are MetalUI's chrome | `PE-N` | `everyControlAnswersInSwiftUIsClassInsideAProposalContainer` (1.1, its `ideal` arms) | MG-20 (field chrome, `.textFieldStyle`) |
 
 ## Retired
 

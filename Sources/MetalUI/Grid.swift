@@ -61,9 +61,12 @@ extension LayoutPass {
 /// where a column is as wide as its widest single-column cell and a row as tall
 /// as its tallest (ruling GR-C; probe `docs/probes/swiftui-grid.swift`).
 ///
-/// **Proposal content only.** `Content: ProposalElementGroup`, so `Grid { Box() }`
-/// is a compile error rather than the run-time `SA-G` trap a mixed tree would be
-/// (guard `aGridRejectsLegacyContent`). There is no legacy spelling and none is
+/// **Any content, through ``ProposalContentBuilder``** (ruling `PE-E`,
+/// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`): `Content` is
+/// still a `ProposalElementGroup`, but the builder adopts a legacy cell —
+/// `GridRow { Text("Name"); TextField("Name", text: $name) }` — as
+/// ``LegacyContent``, identity- and layout-transparent (`PE-B`, `PE-C`; guard
+/// `aGridAcceptsLegacyContent`). There is no legacy `Grid` spelling and none is
 /// planned.
 ///
 /// Its content numbers from 0 under its own id, as `HStack`'s does, and a
@@ -100,7 +103,7 @@ public struct Grid<Content: ProposalElementGroup>: ProposalElement {
 
     /// SwiftUI's `Grid(alignment:horizontalSpacing:verticalSpacing:content:)`.
     public init(alignment: ProposalAlignment = .center, horizontalSpacing: Pixels? = nil,
-                verticalSpacing: Pixels? = nil, @ElementBuilder content: () -> Content) {
+                verticalSpacing: Pixels? = nil, @ProposalContentBuilder content: () -> Content) {
         self.content = content()
         self.alignment = alignment
         self.horizontalSpacing = horizontalSpacing
@@ -184,7 +187,7 @@ public struct GridRow<Content: ProposalElementGroup>: ProposalElementGroup {
 
     /// A grid row, SwiftUI's `GridRow(alignment:content:)`; one structural slot
     /// with its cells numbered under it (`GR-`).
-    public init(alignment: VerticalAlignment? = nil, @ElementBuilder content: () -> Content) {
+    public init(alignment: VerticalAlignment? = nil, @ProposalContentBuilder content: () -> Content) {
         self.content = content()
         self.alignment = alignment
     }

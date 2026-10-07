@@ -42,7 +42,9 @@ summary.
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
-  `2026-10-04-platform-services-decisions.md`, next `SV-AM`), …; the full
+  `2026-10-04-platform-services-decisions.md`, next `SV-AM`), `PE-` (controls in
+  SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
+  next `PE-AB`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -55,9 +57,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **96 live, next label 130**; retired labels are
+  live SwiftUI difference — **98 live, next label 132**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–U, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–V, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -77,8 +79,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-06, `feat/platform-services` from `c2b8f48`, all three lanes):
-  2546 tests, 0 goldens, 163 typecheck guards** (2430 + 116 tests,
+- **Counts (2026-10-06, `feat/proposal-controls` from `e54c3f6`, all three lanes):
+  2579 tests, 0 goldens, 166 typecheck guards** (2546 + 33 tests, 163 + 3 guards;
+  census 2446; `Backends/SDL` unmoved, not re-run; record §78 §3). Before it,
+  `feat/platform-services` from `c2b8f48`: 2546 / 0 / 163 (2430 + 116 tests,
   151 + 12 guards; census 2421; `Backends/SDL` 24 + 77 on macOS, 24 + 74 in the Linux
   container, lane 3 verifier's readings; record §77 §3). Before it, at lanes 1 and 2
   (2026-10-05): 2503 / 0 / 162 (2430 + 73, 151 + 11; census 2402). Before that,
@@ -104,7 +108,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77.
+  merge), §72, §73, §74, §75, §76, §77, §78.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -613,6 +617,30 @@ the **scrolling** drawn one, options recorded without layout, widths cached on
 the window (`SV-AK` items 3–6). A demo section's alert builds in a `Component`
 at layout, never in the tree's own function (`SV-AK` item 7).
 
+**Controls in SwiftUI stacks (`PE-`, record §78).** The SwiftUI-named
+containers (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`, `ProposalScrollView`,
+`ProposalLayoutContainer`, a `ProposalLayout`'s `callAsFunction`) build their
+content with `ProposalContentBuilder`: proposal content passes through with its
+type, **any other element, group or `Component` is wrapped in `LegacyContent`**,
+which is identity- and layout-transparent (caller's parent and cursor, no level),
+drops presentations, registers nothing, and **consumes no record — a legacy item
+field (`.flexGrow`, `.margin`) there is reported by name and traps in
+production** (`PE-C`; a window test over a tree that holds one pre-flights in
+diagnostics mode, `PE-Z`). `ProposalFrame`, `Padding`, `Background`,
+`FixedSize` and `nativeOverlay` do not take legacy content (they are the
+guards' separating controls, `PE-E`, `PE-H`); `ForEach` keeps `ElementBuilder`,
+so a `ForEach` of legacy rows in a stack is adopted whole (`PE-E`). `TextField`/`Slider` answer an
+infinite width, `TextEditor` either axis, with infinity (`PE-D`; legacy `Row`s
+too); `List` keeps divergence 84; style modifiers go on the control before any
+wrapper (`PE-R`). A `ProposalScrollView` publishes its `ScrollContext` so a
+`List` windows in it (`PE-V`). **`ComponentLayout` keeps its content and layout
+in one heap box** (`PE-J`; `withPayload` mutates in place — a copy traps): a
+`switch` over `Component` panes does not grow a debug stack with their sum, but an
+inline `switch` in one builder still does, so **a branch holding a large subtree
+goes in its own `Component`** (`PE-K`). `StackMeter` (debug, internal) is the
+instrument; **its `Window` warning is suspended** (`PE-T`: four production trees
+exceed the 512 KiB threshold, owner a `PE-L` re-take).
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -725,7 +753,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (96 live, next label 130). A new
+- **Divergences**: `docs/divergences.md` (98 live, next label 132). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

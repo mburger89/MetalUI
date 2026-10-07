@@ -3,13 +3,19 @@ import MetalUILayout
 
 /// A native proposal-layout horizontal stack.
 ///
-/// Its content must resolve exclusively to native layout nodes such as
-/// ``Rectangle`` and ``Spacer``. The boundary is intentionally structural: a
-/// legacy element does not satisfy `Content: ProposalElementGroup`, and content
-/// can hand the stack only `ProposalNodeID`s, which only native registrars mint
-/// (ruling MC-G). A legacy node that reaches it anyway — through a `@testable`
-/// mint, MC-G's hole 3 — traps when the layout pass registers the stack, instead
-/// of silently handing a CSS child to the native algorithm.
+/// **It takes any element, as SwiftUI's does** (ruling `PE-B`,
+/// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`): its content
+/// closure is a ``ProposalContentBuilder``, which keeps proposal content —
+/// ``Rectangle``, ``Spacer``, another stack — at its own type and adopts every
+/// other element, group or `Component` (`Button`, `Text`, `TextField`, …) as
+/// ``LegacyContent``, an identity- and layout-transparent adapter over that
+/// element's native nodes (`PE-C`; every node is native under the proposal
+/// authority, `LR-T`). So `Content` is still a `ProposalElementGroup`, content
+/// still hands the stack only `ProposalNodeID`s (ruling MC-G), and a legacy
+/// item field (`flexGrow`, `margin`, …) on adopted content is reported by name,
+/// never silently dropped (`LR-AQ`). The MetalUI-only wrappers
+/// (``ProposalFrame``, ``Padding``, ``Background``, ``FixedSize``) keep
+/// `@ElementBuilder` and reject legacy content at compile time (`PE-E`).
 ///
 /// Its width is distributed as SwiftUI's `HStack` distributes it (ruling CN-B,
 /// `LayoutTree.solveLinearStack`): by layout priority, lower groups' minimums
@@ -31,7 +37,7 @@ public struct HStack<Content: ProposalElementGroup>: Element {
 
     /// SwiftUI's `HStack(alignment:spacing:content:)` (ruling CN-I).
     public init(alignment: VerticalAlignment = .center, spacing: Pixels? = nil,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
         self.alignment = alignment
@@ -42,7 +48,7 @@ public struct HStack<Content: ProposalElementGroup>: Element {
     /// spacing is explicit, never the platform default.
     @available(*, deprecated, message: "Use init(alignment:spacing:content:) with a VerticalAlignment, in SwiftUI's argument order.")
     public init(spacing: Pixels, alignment: ProposalAlignment,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.init(alignment: VerticalAlignment(verticalFactorOf: alignment), spacing: spacing,
                   content: content)
     }
@@ -92,7 +98,7 @@ public struct VStack<Content: ProposalElementGroup>: Element {
 
     /// SwiftUI's `VStack(alignment:spacing:content:)` (ruling CN-I).
     public init(alignment: HorizontalAlignment = .center, spacing: Pixels? = nil,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
         self.alignment = alignment
@@ -103,7 +109,7 @@ public struct VStack<Content: ProposalElementGroup>: Element {
     /// spacing is explicit, never the platform default.
     @available(*, deprecated, message: "Use init(alignment:spacing:content:) with a HorizontalAlignment, in SwiftUI's argument order.")
     public init(spacing: Pixels, alignment: ProposalAlignment,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.init(alignment: HorizontalAlignment(horizontalFactorOf: alignment), spacing: spacing,
                   content: content)
     }
@@ -154,7 +160,7 @@ public struct ZStack<Content: ProposalElementGroup>: Element {
 
     /// An overlaying stack, SwiftUI's `ZStack(alignment:content:)`.
     public init(alignment: ProposalAlignment = .center,
-                @ElementBuilder content: () -> Content) {
+                @ProposalContentBuilder content: () -> Content) {
         self.content = content()
         self.alignment = alignment
     }

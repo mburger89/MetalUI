@@ -28,16 +28,19 @@ private func show(_ label: String, _ result: TypecheckResult) {
     print("GRID GUARD \(label): succeeded=\(result.succeeded)\n\(result.messages)")
 }
 
-/// **G1 — a `Grid` rejects legacy content.** `Grid`'s content is a
-/// `ProposalElementGroup`, which no CSS-layout element satisfies, so the
-/// migration boundary is a compile error rather than a run-time `SA-G` trap.
+/// **G1 — a `Grid` accepts legacy content; a native wrapper does not**
+/// (flipped by ruling `PE-H`, `docs/superpowers/2026-10-06-proposal-controls-decisions.md`).
+/// `Grid` and `GridRow` take `@ProposalContentBuilder` (`PE-E`), which adopts a
+/// legacy expression as `LegacyContent` (`PE-B`), so `Grid { Box() }` and a
+/// `GridRow` of legacy cells compile. `Grid`'s content is still a
+/// `ProposalElementGroup`: the negative is the same legacy content in
+/// `ProposalFrame`, a native wrapper that keeps the rejection, beside the
+/// positive control `Grid { Rectangle() }` keeping its type.
 ///
-/// Mutation that must redden it: add an overload
-/// `init<L: ElementGroup>(alignment:horizontalSpacing:verticalSpacing:content:)
-/// where Content == Rectangle` whose body is `fatalError()` — `Grid { Box() }`
-/// then compiles.
+/// Renamed from `aGridRejectsLegacyContent`. Mutation that must redden it:
+/// `GridRow` back to `@ElementBuilder` — the row line fails.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aGridRejectsLegacyContent() throws {
+func aGridAcceptsLegacyContent() throws {
     let control = try typecheckFile("""
         @MainActor public func ok() -> Grid<Rectangle> {
             Grid { Rectangle() }
@@ -47,13 +50,22 @@ func aGridRejectsLegacyContent() throws {
     try #require(control.succeeded,
                  "the positive control must compile, or the negative proves nothing:\n\(control.output)")
 
+    let adopted = try typecheckFile("""
+        @MainActor public func adopted() {
+            _ = Grid { Box() }
+            _ = Grid { GridRow { Text("Name"); Box() } }
+        }
+        """, importing: "MetalUI")
+    show("1 adopted", adopted)
+    #expect(adopted.succeeded, "a Grid and a GridRow must adopt legacy content (PE-B):\n\(adopted.output)")
+
     let legacy = try typecheckFile("""
         @MainActor public func bad() {
-            _ = Grid { Box() }
+            _ = ProposalFrame { Box() }
         }
         """, importing: "MetalUI")
     show("1 legacy", legacy)
-    #expect(!legacy.succeeded, "a Grid over legacy content must not compile:\n\(legacy.output)")
+    #expect(!legacy.succeeded, "a native wrapper over legacy content must not compile:\n\(legacy.output)")
     #expect(legacy.messages.contains("ProposalElementGroup"),
             "rejected, but not by the proposal marker:\n\(legacy.output)")
 }

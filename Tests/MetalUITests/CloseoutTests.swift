@@ -359,6 +359,52 @@ private func countCloseoutAllocations(_ body: () -> Void) throws -> (count: Int,
     #expect(framed80.storeEntries > framed40.storeEntries, "the instrument: framed rows hold store entries")
 }
 
+// MARK: - 2.6: the Component layout box's allocation figure (PE-J, spec §6.2)
+
+/// A `Component` over one 4×4 rectangle — one layout box per laid-out frame.
+private struct OneLeafComponent: Component, ProposalElementGroup {
+    var content: some ProposalElementGroup { Rectangle(width: Pixels(4), height: Pixels(4)) }
+}
+
+/// A proposal row of `n` one-leaf `Component`s, or of the bare rectangles
+/// when `bare` (the control: the difference is what a `Component` costs).
+@MainActor private func componentRow(_ n: Int, bare: Bool = false) -> some Element {
+    HStack(spacing: Pixels(0)) {
+        ForEach(0..<n, id: \.self) { _ in
+            if bare { Rectangle(width: Pixels(4), height: Pixels(4)) } else { OneLeafComponent() }
+        }
+    }
+}
+
+/// **2.6 — a figure, not a gate** (`PE-J`'s cost: `ComponentLayout` keeps its
+/// content and layout in one heap box, made in `requestGroupLayout`). Gated by
+/// `METALUI_COMPONENT_ALLOC_MEASURE=1` and run only with `--no-parallel`; it
+/// reuses `countCloseoutAllocations` (no third `malloc_logger` installer).
+/// Prints three settled frames' allocations for rows of 0, 40 and 80 one-leaf
+/// `Component`s, the same rows bare, and the slope difference — what one
+/// `Component` costs per settled frame (design expectation: the box adds +1;
+/// the box alone is the figure with and without `PE-J`), recorded in record §78.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_COMPONENT_ALLOC_MEASURE"] == "1"))
+@MainActor func measureComponentBoxAllocations() throws {
+    let zero = try settledFrames { componentRow(0) }
+    let forty = try settledFrames { componentRow(40) }
+    let eighty = try settledFrames { componentRow(80) }
+    for (name, r) in [("0", zero), ("40", forty), ("80", eighty)] {
+        print("COMPONENT-ALLOC \(name) components: \(r.count) allocations, \(r.bytes) bytes over 3 settled frames")
+    }
+    let bare40 = try settledFrames { componentRow(40, bare: true) }
+    let bare80 = try settledFrames { componentRow(80, bare: true) }
+    print("COMPONENT-ALLOC 40 bare: \(bare40.count) allocations, \(bare40.bytes) bytes; 80 bare: \(bare80.count), \(bare80.bytes)")
+    let perComponent = Double(eighty.count - forty.count) / 40 / 3
+    let bytesPerComponent = Double(eighty.bytes - forty.bytes) / 40 / 3
+    let perBare = Double(bare80.count - bare40.count) / 40 / 3
+    let bytesPerBare = Double(bare80.bytes - bare40.bytes) / 40 / 3
+    print(String(format: "COMPONENT-ALLOC per element per settled frame: Component %.2f allocations / %.1f bytes, bare %.2f / %.1f; one Component: %.2f / %.1f",
+                 perComponent, bytesPerComponent, perBare, bytesPerBare,
+                 perComponent - perBare, bytesPerComponent - bytesPerBare))
+    #expect(eighty.count > forty.count, "the instrument: more Components allocate more")
+}
+
 // MARK: - Lane-1 fix round: the public Box(decoration:) initialisers (CX-D, CX-P item 5)
 
 /// **F1.1.** `Box(decoration:content:)` and its builder form paint exactly what
