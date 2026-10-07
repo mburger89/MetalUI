@@ -831,6 +831,40 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
     withExtendedLifetime(window) {}
 }
 
+/// **1.18b** (`PE-V`; review of lane 1). The `ScrollContext` a
+/// `ProposalScrollView` publishes carries the stored **offset**, not only the
+/// viewport: the same 40-row `List` (rows 20 tall) in a 100-tall scroller,
+/// wheeled down 400 over the scroller, realises row 20 (y 400 in the content,
+/// the viewport's top) and no longer row 0 — the window follows the offset.
+///
+/// Mutation V3 (`ScrollContext(offset: 0, …)`) keeps the window at the top
+/// rows: row 20 is not realised, and the scrolled viewport is blank.
+@Test @MainActor func aListInAScrolledProposalScrollViewWindowsAtItsOffset() throws {
+    let items = (0..<40).map(Item.init)
+    let (window, platform) = try controlWindow {
+        VStack {
+            ProposalScrollView {
+                VStack {
+                    List(items, rowHeight: px(20)) { item in Text("Row \(item.id)") }
+                }
+            }
+            .frame(width: px(200), height: px(100))
+        }
+    }
+    controlRedraw(window)
+    func realised(_ index: Int) -> Bool {
+        window.lastElementBounds.keys.contains { $0.component == PathComponent.named(ElementID("\(index)")) }
+    }
+    try #require(realised(0) && !realised(20), "control: unscrolled, row 0 is realised and row 20 is not")
+    // The scroller is 200×100, centred in the 400 window: (100, 150)…(300, 250).
+    platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: px(200), y: px(200)),
+                                                    delta: Point(x: px(0), y: px(-400)))))
+    for _ in 0..<4 { controlRedraw(window) }
+    try #require(realised(20), "scrolled 400: row 20, at the viewport's top, is realised")
+    #expect(!realised(0), "scrolled 400: row 0 has left the window")
+    withExtendedLifetime(window) {}
+}
+
 /// **1.19** (`PE-I`, `MN-`). A presented `.popover` on a Button in an `HStack`
 /// lays out a presentation root, and the Button's frame equals its frame
 /// without the popover.
@@ -936,4 +970,118 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
         #expect(cell.size.width.value == 300 - column0 - 8, "\(label) takes the rest: \(cell)")
         #expect(cell.origin.x.value == column0 + 8, "\(label) starts after column 0: \(cell)")
     }
+}
+
+/// **1.20b** (`PE-F` item 1; review of lane 1). `fixedSize(horizontal:vertical:)`
+/// on legacy content forwards each axis: at a 50-wide proposal,
+/// `Text(longLabel).fixedSize(horizontal: true, vertical: false)` keeps its one
+/// 16-tall line, wider than 50, while `(false, true)` wraps inside 50 to three
+/// 16-tall lines (48). The two answers differ, so swapped axes cannot pass.
+///
+/// Mutation V1 (the spelling forwards `horizontal: vertical, vertical:
+/// horizontal`) reddens both arms.
+@Test @MainActor func fixedSizeOnLegacyContentForwardsEachAxis() throws {
+    func fixed(_ horizontal: Bool, _ vertical: Bool) throws -> Bounds<Pixels> {
+        let report = LayoutDifferential.report(width: 50, height: 300) {
+            VStack { Text(longLabel).fixedSize(horizontal: horizontal, vertical: vertical) }
+        }
+        try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
+        // The layer is one id level: the Text under `[0, 0, 0]` (`MC-C`).
+        return try #require(report.bounds[id(0, 0, 0, 0)], "the fixed Text")
+    }
+    let horizontal = try fixed(true, false)
+    #expect(horizontal.size.height.value == 16 && (120...121).contains(horizontal.size.width.value),
+            "horizontal only: one line at its ideal width, wider than 50: \(horizontal)")
+    let vertical = try fixed(false, true)
+    #expect(vertical.size.width.value <= 50 && vertical.size.height.value == 48,
+            "vertical only: wraps inside 50 to three lines: \(vertical)")
+}
+
+/// A two-row grid whose first row holds `cell` (beside a 10×50 legacy `Box`
+/// when `tall`) and whose second row holds `Text("Description")` — a column
+/// wider (and, when `tall`, a row taller) than `Text("a")`, so a cell's
+/// alignment and anchor show. Two spellings, not an `if`: an `if` would take
+/// the `Box`'s slot and move its id a level down (`ID-B`).
+@MainActor
+private func cellGrid<C: ProposalElementGroup>(_ cell: C, tall: Bool) -> LayoutDifferential.Report {
+    if tall {
+        return LayoutDifferential.report(width: 300, height: 200) {
+            Grid {
+                GridRow {
+                    cell
+                    Box().frame(width: px(10), height: px(50))
+                }
+                GridRow { Text("Description") }
+            }
+        }
+    }
+    return LayoutDifferential.report(width: 300, height: 200) {
+        Grid {
+            GridRow { cell }
+            GridRow { Text("Description") }
+        }
+    }
+}
+
+/// **1.20c** (`PE-F` item 1; review of lane 1). `gridColumnAlignment(_:)` on
+/// legacy content reaches the grid: in a column as wide as `Description`, `a`
+/// marked `.leading` sits at x 0 and marked `.trailing` at
+/// `Description`'s width − `a`'s (62 = 69 − 7, measured widths read back).
+///
+/// Mutation V2a (the spelling passes `.trailing` whatever it is given) reddens
+/// the `.leading` arm.
+@Test @MainActor func gridColumnAlignmentOnLegacyContentAlignsItsColumn() throws {
+    func a(_ alignment: HorizontalAlignment) throws -> (Bounds<Pixels>, Bounds<Pixels>) {
+        let report = cellGrid(Text("a").gridColumnAlignment(alignment), tall: false)
+        try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
+        return (try #require(report.bounds[id(0, 0, 0, 0)], "a"),
+                try #require(report.bounds[id(0, 0, 1, 0)], "Description"))
+    }
+    let (leading, description) = try a(.leading)
+    try #require(description.size.width.value > leading.size.width.value, "set up: the column is wider than a")
+    #expect(xywh(leading) == [0, 0, 7, 16], "leading: \(leading)")
+    let (trailing, _) = try a(.trailing)
+    #expect(xywh(trailing) == [description.size.width.value - 7, 0, 7, 16] && xywh(trailing) == [62, 0, 7, 16],
+            "trailing: at the column's trailing edge: \(trailing), column \(description)")
+}
+
+/// **1.20d** (`PE-F` item 1; review of lane 1). `gridCellAnchor(_:)` on legacy
+/// content, through both spellings, in a 69×50 cell (column `Description`'s,
+/// row the `Box`'s): `.topLeading` / `UnitPoint(x: 0, y: 0)` put `a` (7×16) at
+/// (0, 0); `.bottomTrailing` / `UnitPoint(x: 1, y: 1)` at (69 − 7, 50 − 16) =
+/// (62, 34); unmarked it is centred at (31, 17).
+///
+/// Mutation V2b (both spellings pass `.topLeading`) reddens the two
+/// bottom-trailing arms.
+@Test @MainActor func gridCellAnchorOnLegacyContentPlacesItInItsCell() throws {
+    func a<C: ProposalElementGroup>(_ cell: C) throws -> [Float] {
+        let report = cellGrid(cell, tall: true)
+        try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
+        let box = try #require(report.bounds[id(0, 0, 0, 1)], "the Box")
+        try #require(xywh(box) == [77, 0, 10, 50], "set up: column 0 is 69 wide, row 0 50 tall: \(box)")
+        return xywh(try #require(report.bounds[id(0, 0, 0, 0)], "a"))
+    }
+    #expect(try a(LegacyContent(Text("a"))) == [31, 17, 7, 16], "control: unmarked is centred")
+    #expect(try a(Text("a").gridCellAnchor(.topLeading)) == [0, 0, 7, 16], "nine-point topLeading")
+    #expect(try a(Text("a").gridCellAnchor(.bottomTrailing)) == [62, 34, 7, 16], "nine-point bottomTrailing")
+    #expect(try a(Text("a").gridCellAnchor(UnitPoint(x: 0, y: 0))) == [0, 0, 7, 16], "UnitPoint (0, 0)")
+    #expect(try a(Text("a").gridCellAnchor(UnitPoint(x: 1, y: 1))) == [62, 34, 7, 16], "UnitPoint (1, 1)")
+}
+
+/// **1.20e** (`PE-F` item 1, `GR-H`; review of lane 1). `gridCellUnsizedAxes(_:)`
+/// on a greedy legacy control: an unmarked `TextField` (greedy, `PE-D`) makes
+/// its column the grid's whole 300; marked `.horizontal` it is proposed the
+/// column `Description` sizes, 69 wide, and stays there.
+///
+/// Mutation V2c (the spelling passes `[]`) reddens the marked arm.
+@Test @MainActor func gridCellUnsizedAxesOnALegacyControlTakesItsColumnsWidth() throws {
+    func field<C: ProposalElementGroup>(_ cell: C) throws -> [Float] {
+        let report = cellGrid(cell, tall: false)
+        try #require(report.unlowerable.isEmpty, "\(report.unlowerable)")
+        return xywh(try #require(report.bounds[id(0, 0, 0, 0)], "the field"))
+    }
+    #expect(try field(LegacyContent(TextField("", text: .constant("")))) == [0, 0, 300, 16],
+            "control: an unmarked field takes the grid's width")
+    #expect(try field(TextField("", text: .constant("")).gridCellUnsizedAxes(.horizontal)) == [0, 0, 69, 16],
+            "marked: the field takes Description's column")
 }
