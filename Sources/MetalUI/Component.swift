@@ -105,7 +105,9 @@ public protocol Component: ElementGroup {
 /// layout type in every `EitherGroup` level's debug frame and overflowed an
 /// 8 MB main thread (the SMK configurator). Measured by the design session
 /// (debug, macOS arm64, leaf samples): a shell over 12 panes cost 508 KB more
-/// stack than one pane inline and 4.5 KB boxed, and one pane 59 % less. The
+/// stack than one pane inline and 4.5 KB boxed, and one pane 59 % less (with
+/// `StackMeter`'s builder samples a pane is 1 211 584 → 1 010 368 bytes, about
+/// 17 % less, record §78 and `PE-T`). The
 /// cost is one allocation per `Component` per laid-out frame (record §78).
 /// A layout record is made fresh each frame and owned by that frame, so the
 /// box is never shared by two independent copies. **The rule it leaves**

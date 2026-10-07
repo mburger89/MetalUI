@@ -24,7 +24,7 @@ Record: `../record/78-proposal-controls.md`. Evidence:
 Where SwiftUI has no answer (a debug build's stack, a type-erasure spelling)
 the ruling says so; gpui is named only where it is the comparison.
 
-Prefix **`PE-`**, lettered. **Next unused: `PE-AA`.** (This line moves in the
+Prefix **`PE-`**, lettered. **Next unused: `PE-AB`.** (This line moves in the
 commit that appends a ruling; read the last `## PE-` heading.)
 
 Branch `feat/proposal-controls` from `e54c3f6` (master: platform services
@@ -890,3 +890,38 @@ a summary line and no trap; reddened
 `#require`). The unmutated suite on `b179a93`: 2579 tests in 3 suites passed.
 
 **Cost if wrong.** One extra diagnostics render per demo window test.
+
+---
+
+## PE-AA — The Record phase: what stays open, what the verifiers left unpinned
+
+**Found** (Record phase, record §78, over three lanes each verified `ok:
+true`; native suite **2579 tests in 3 suites**, guards 166).
+
+1. **`PE-L` item 4 stays suspended** (`PE-T`). It is the only clause of this
+   item not built: the one-time `Window` warning, spec tests 2.4/2.5 and human
+   check V5. The re-take needs a threshold chosen against `PE-T`'s table (largest
+   production tree 1 061 408 bytes, the inline-12 synthetic shell 4 300 576) and a
+   Windows debug run of the looks demo, which is unmeasured. The meter, the box
+   and the rule (`PE-K`) are landed and are the whole of MG-15's fix; the failure
+   is explained by `docs/migration.md` and the `Component` doc comment, not yet
+   announced at run time.
+2. **Five claims are unpinned** (record §78 §6, each with an owner in §9): the
+   section's presence in the controls demo (M-V1), its wiring to demo state
+   (M-V5), `TextField`'s half-row fix in a stack ordering (M1.9a, M1.1a), the
+   `mmap` placement arm's flake risk, and the leaf-sample "59 %" figure (corrected
+   in `ComponentLayout`'s doc comment: 17 % with the meter as landed).
+3. **`PE-V` and `PE-W` stand**, though lane 1 edited `ProposalScrollView.swift`,
+   `ScrollChrome.swift` and `ProposalLayoutCompileGuards.swift` outside its
+   listed files: the first is pinned by test 1.18/1.18b (V3, M1.18b), the second
+   by M1.24. `docs/migration.md` gains the `List`-in-`ProposalScrollView`
+   sentence.
+4. **Not run by the Record phase**: `Backends/SDL`, the `swift:6.4-noble`
+   container and the real-window capture (no lane touched `Backends/SDL`;
+   Linux/Windows CI confirm on push).
+
+**Ruling.** As found; the spec's Status reads IMPLEMENTED with `PE-L` item 4
+named open.
+
+**Cost if wrong.** None silent: each open item is a named deferral.
+
