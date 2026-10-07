@@ -766,6 +766,22 @@ clean after each). Every new test and guard reddened under its named mutation.
 | M1.21 | `Units.swift` — `Pixels.infinity` deleted | (`ProposalControlsTests.swift` set aside; 2555 tests) `pixelsInfinityIsSwiftUIsFrameSpelling`, `aSwiftUIVocabularyFormTypechecksWithAPlainImport` |
 | M1.24 | `NativeElements.swift` — both `ProposalFrame` inits `@ProposalContentBuilder` | the nine flipped guards (`proposalLayoutConstructorsRequireProposalContent`, `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`, `aProposalContainerAcceptsAScopeOverLegacyContent`, `anIfElseAndASwitchCompileInEveryProposalContainer`, `anIDOnAProposalGroupEntersAProposalContainer`, `theLegacyBackgroundKeepsTheTokenOverloadAndTheProposalSpelling`, `aForEachOfLegacyContentCompilesInsideAProposalStack`, `aGridAcceptsLegacyContent`, `aCustomLayoutContainerAdoptsLegacyContent`) and `aSwiftUIVocabularyFormTypechecksWithAPlainImport` |
 
+**Review of lane 1** (re-verification on `e3d38b3`; each mutation applied to
+the committed tree, restored from a copy, full unfiltered native suite —
+**2578 tests in 3 suites**, the unmutated suite passing after a
+`swift package clean` — and `git status --short` clean after each). The
+review found five `LegacyProposalModifiers.swift` spellings and `PE-V`'s
+offset half unpinned (V1–V3 green on `982fa21`, 2573 tests); tests 1.18b and
+1.20b–e close them, each reddened under its mutation:
+
+| id | mutation (file — spelling) | reddened |
+|---|---|---|
+| V1 | `LegacyProposalModifiers.swift` — `fixedSize` forwards `horizontal: vertical, vertical: horizontal` | `fixedSizeOnLegacyContentForwardsEachAxis` (both arms) |
+| V2a | `LegacyProposalModifiers.swift` — `gridColumnAlignment(.trailing)` whatever it is given | `gridColumnAlignmentOnLegacyContentAlignsItsColumn` (the `.leading` arm) |
+| V2b | `LegacyProposalModifiers.swift` — both `gridCellAnchor` spellings pass `.topLeading` | `gridCellAnchorOnLegacyContentPlacesItInItsCell` (the nine-point and `UnitPoint` bottom-trailing arms) |
+| V2c | `LegacyProposalModifiers.swift` — `gridCellUnsizedAxes([])` | `gridCellUnsizedAxesOnALegacyControlTakesItsColumnsWidth` (the marked arm) |
+| V3 | `ProposalScrollView.swift` — `ScrollContext(offset: 0, viewportExtent: lastViewportExtent, axis: axis)` | `aListInAScrolledProposalScrollViewWindowsAtItsOffset` (row 20 not realised after a 400-pt wheel) |
+
 **Corrections.**
 
 1. Spec test 1.13's "M1.11 (prepaint half) reddens it too" is **refuted**:
