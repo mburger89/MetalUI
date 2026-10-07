@@ -1,0 +1,612 @@
+# A MetalUI app on Linux and Windows — decisions
+
+Rulings for portable image decoding, `.task`, and a consumable SDL backend
+(user request 2026-10-02, an item of the gpui-gap priority list; **not a plan
+task**; motivated by the SMK configurator's next port step, Linux and Windows).
+Spec: [`specs/2026-10-07-portable-app-design.md`](specs/2026-10-07-portable-app-design.md).
+Record: `../record/80-portable-app.md`.
+
+Evidence (each header carries its recorded output and how to run it):
+
+- [`../probes/swiftui-task.swift`](../probes/swiftui-task.swift) (**new**; arms
+  `X0`…`X17`, run three times, byte-identical) — SwiftUI's `.task`.
+- [`../probes/swiftui-bundle-image.swift`](../probes/swiftui-bundle-image.swift)
+  (**new**; arms `I0`…`I2`, `B0`…`B8`) — SwiftUI's `Image(_:bundle:)` over loose
+  PNG resources.
+- [`../probes/image-decoder-parity/`](../probes/image-decoder-parity/) (**new**;
+  `compare.py`'s header) — the portable decoder against ImageIO and against
+  what SwiftUI draws, on 22 generated files and the configurator's 66 icons.
+- [`../probes/swiftpm-traits-sdl/run.sh`](../probes/swiftpm-traits-sdl/run.sh)
+  (**new**; arms `M1p`…`L5`, `N1`) — SwiftPM: a backend behind package traits,
+  with and without `pkgConfig:`, on macOS and in two Linux images.
+- [`../probes/swift-task-modifier-isolation.swift`](../probes/swift-task-modifier-isolation.swift)
+  (**new**) — SwiftUI's closure type stored in a scope and started with
+  `Task.immediate`, at Swift 6 language mode.
+- The lifecycle probe [`../probes/swiftui-lifecycle.swift`](../probes/swiftui-lifecycle.swift)
+  (`K1`, `K2`; `A1`…`A6`, `T1`, `T4`) and the runtime probes behind `LC-L` and
+  `SV-H` ([`../probes/swift-main-actor-task-loop.swift`](../probes/swift-main-actor-task-loop.swift),
+  [`../probes/swift-main-queue-drain-nested.swift`](../probes/swift-main-queue-drain-nested.swift)).
+
+Where SwiftUI has no answer (decoding bit-identity across platforms, how a
+package ships a backend, a C library with no pkg-config) the ruling says so;
+gpui is named as a comparison where it has one, never as evidence.
+
+Prefix **`PX-`**, lettered. **Next unused: `PX-O`.** (This line moves in the
+commit that appends a ruling; read the last `## PX-` heading.)
+
+Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
+PR #50). Baseline at `359444e`, measured by this design session: `swift build
+--build-system native --build-tests` then `swift test --build-system native
+--no-parallel`, unfiltered: **2630 tests in 3 suites**, the `FR-J no-argument
+frame: succeeded=true` line present, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice. `docs/divergences.md`: **103 live,
+next label 137**. Human checks: groups A–W (next X).
+
+**Carried items.** `LC-L` (the deferral this branch ends) and its owner trail:
+`SV-H` (the SDL main-queue drain landed; item 5 left `.task` ownerless).
+`LC-B`…`LC-J` and `LC-V` (the lifecycle machinery `.task` is built on: one
+transparent `LifecycleScope`, presence by membership, events after the build
+under `StateDispatch`, three buckets in reverse pre-order, ghost parking,
+window close, headless frames run nothing). Divergence 120 (a legacy
+decoration after a lifecycle modifier does not compile) — `.task` inherits it.
+`TE-AL`/`TE-AR` (`ImageBitmap` is MetalUI's `CGImage`; the premultiply lives
+once, in `ImageTexture(width:height:straightRGBA:)`), `AI-E` (the alpha rule:
+`ImageTexture` is premultiplied sRGB, never re-premultiplied), `TE-AF` (image
+textures cached per identity). `PC-A`/`PC-B` (the manifest's two lists),
+`XP-A`/`XP-C` (the framework and its frame on every platform), `RS-D`
+(`SDLWindowRenderer`), `AX-A` (AccessKit fetched, not vendored), `SC-C`
+(`--cross-platform` needs `--local` — this branch removes the need), `SC-H`
+(a refused scaffold name is a measured build failure), `SC-I` (the pinned
+default dependency). No decisions doc's "Carried…" section names image
+decoding off Apple; spec §9 of the plan task 11 image work named "no decoder
+is vendored off Apple" as its deferral, with no owner.
+
+---
+
+## PX-A — Scope: what this branch builds, what it defers
+
+**Ruling.** Build, in three lanes (`PX-M`):
+
+1. **Portable image decoding** (`PX-B`…`PX-E`): PNG and JPEG decoded by one
+   vendored C decoder on every platform, bit-identical, premultiplied sRGB;
+   `ImageBitmap(contentsOfFile:)` on every platform, `ImageBitmap(data:)`,
+   and a bundle-resource initialiser (the configurator's `MG-10`, first half).
+2. **`.task(name:priority:file:line:_:)` and
+   `.task(id:name:priority:file:line:_:)`** (`PX-F`, `PX-G`) on every
+   `ElementGroup`, built on the lifecycle machinery, proved under the test
+   harness and under `SDLPlatform`.
+3. **A consumable SDL backend** (`PX-H`…`PX-J`): the backend's library targets
+   declared by the root package behind two package traits, so a package that
+   depends on MetalUI **by URL** builds an SDL app on Linux and Windows;
+   `metalui new --cross-platform` without `--local`; docs that say exactly
+   what a consumer installs.
+
+**Deferred, each named in spec §9 with a reason and an owner:**
+
+- Colour management of tagged images (gAMA, iCCP, cHRM): samples are taken as
+  sRGB (divergence **138**, `PX-C`). Owner: none — needs a portable ICC
+  engine (lcms2 or equivalent) vendored the same way.
+- `Image(_ name:bundle:)` / asset catalogs, `@2x`/`@3x` variant selection,
+  `.renderingMode(.template)` and tinting (the second half of `MG-10`).
+  Owner: none (`PX-E` says why the SwiftUI spelling is not offered).
+- `.task(name:executorPreference:priority:…)` (SwiftUI's macOS 26.4 variants
+  taking a `TaskExecutor`). Owner: none.
+- Frames under SDL's offscreen video driver (an offscreen renderer per window
+  when `SDL_VIDEO_DRIVER=offscreen`), which would ungate the SDL lifecycle
+  tests 10.2/10.3 and this branch's modifier-level SDL `.task` check (`PX-L`).
+  Owner: none.
+- The SDL backend's public declarations in the public-API census (`PX-K`).
+  Owner: none.
+- Building a generated cross-platform app on **Windows** in CI (the backend
+  itself keeps building and testing there). Owner: none; human check X4.
+- GIF, WebP, TIFF, HEIC and BMP off Apple (`PX-C` item 5). Owner: none.
+
+**Reasoning.** The configurator needs exactly: its per-scheme icon PNGs on
+Linux and Windows, one cancellable background loop per pane (a device
+monitor), and a manifest that names MetalUI by URL and still gets an SDL
+window. Everything deferred is additive over what is built.
+
+**Cost if wrong.** Each deferral is additive; none changes a spelling built
+here.
+
+## PX-B — The decoder: stb_image 2.30, vendored as `CStbImage`
+
+**Ruling.**
+
+1. **stb_image v2.30** (`stb_image.h`, sha256
+   `594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3`,
+   fetched 2026-10-07 from `nothings/stb` master) is vendored as a C target
+   **`CStbImage`** in the manifest's **every-platform list** (`PC-A`: it
+   imports nothing; no system dependency; C99). Licence: the file's own dual
+   licence, **MIT or public domain (Unlicense)** — recorded in
+   `Sources/CStbImage/LICENSE` (the text from the end of `stb_image.h`) and
+   `VENDORED.md` (version, URL, hash, the defines below, the date).
+2. Compiled once, in `Sources/CStbImage/CStbImage.c`, with
+   `STB_IMAGE_IMPLEMENTATION`, `STBI_ONLY_PNG`, `STBI_ONLY_JPEG`,
+   `STBI_NO_STDIO` (MetalUI reads the bytes), `STBI_NO_LINEAR`,
+   `STBI_NO_HDR`, `STBI_NO_FAILURE_STRINGS` and **`STBI_MAX_DIMENSIONS
+   16384`** (the largest texture side both renderers guarantee; a file
+   claiming more is refused before any allocation). Its public header
+   `include/CStbImage.h` declares only what MetalUI calls:
+   `stbi_load_from_memory`, `stbi_load_16_from_memory`,
+   `stbi_is_16_bit_from_memory`, `stbi_info_from_memory`,
+   `stbi_image_free`. **No `unsafeFlags`** (SwiftPM refuses them in a URL
+   dependency); a warning the default build system raises is silenced inside
+   `CStbImage.c` with `#pragma clang diagnostic` (`CFreeType`'s precedent),
+   so `swift build --build-tests` stays at 0 warnings on both build systems.
+3. `MetalUI` depends on it and imports it **`internal import CStbImage`** —
+   no C type crosses the public surface.
+
+**Alternatives measured or weighed.** lodepng (zlib licence, C++, PNG only —
+JPEG would be a second library); libspng (BSD-2, needs zlib — a second
+vendored library); Wuffs (Apache-2.0, memory-safe by construction, but a
+multi-megabyte generated file and a heavier API for two formats); a Swift
+decoder (inflate, Adam7, palette and 16-bit are cheap; baseline and
+progressive JPEG are not). stb_image is one header for both formats and the
+parity table (`PX-C`) was measured with it.
+
+**Cost if wrong.** stb_image is **not hardened against malicious input**
+(its README says so; past CVEs are heap overreads on crafted files). `PX-D`'s
+pre-checks (CRC, IEND, EOI, the dimension cap) and its truncation and
+bit-flip tests shrink the surface but do not remove it. If a crafted file
+crashes it, the replacement is Wuffs behind the same Swift function
+(`decodeImage(_:)` in `ImageDecoding.swift`) and the same tests — one target
+and one file.
+
+## PX-C — The rule: one decoder on every platform, bit-identical, sRGB samples
+
+**Ruling.**
+
+1. **PNG and JPEG decode through `CStbImage` on every platform, macOS
+   included.** The bytes an `ImageBitmap` holds for a given file are the same
+   on macOS, Linux and Windows (pinned by literal pixels in
+   `MetalUICrossPlatformTests`, which Linux and Windows CI run).
+2. **16-bit samples are rounded to 8 bits**, `(v × 255 + 32767) / 65535`,
+   after decoding at 16 bits (`stbi_load_16_from_memory`). stb's own 8-bit
+   path truncates (`v >> 8`) and differs from ImageIO by up to 2
+   (rgba16: 29 of 252 bytes); rounding matches ImageIO exactly (rgba16 and a
+   64×64 random 16-bit RGBA: 0 of 16384 bytes differ).
+3. **Straight-alpha samples are premultiplied by `ImageTexture(width:height:
+   straightRGBA:)`** (`TE-AR`: the one premultiply), so the `AI-E` alpha
+   rule holds by construction. Measured: ImageIO's premultiply equals it on
+   every alpha (64×64 random RGBA: 0 of 16384 bytes differ).
+4. **Colour profiles are ignored**: iCCP, gAMA, cHRM and sRGB chunks and JPEG
+   ICC markers do not change a sample; every sample is taken as sRGB.
+   Measured differences from ImageIO — **which is exactly what SwiftUI draws**
+   (`Image(nsImage:)` via `ImageRenderer`: 0 bytes differ from ImageIO on all
+   22 files): a gAMA 1/1.8 PNG, max 19; a Display P3 iCCP PNG, max 87; JPEG
+   (IDCT and chroma upsampling are a decoder's own), max 2. **Divergence
+   138.** Every untagged or sRGB-tagged 8-bit PNG (RGBA, RGB, gray 1/4/8,
+   gray+alpha, palette+tRNS, Adam7) and every 16-bit PNG measured: 0 bytes
+   differ — including all 66 configurator icons (44 untagged, 22 sRGB-tagged).
+5. **Other formats on Apple only**: a file whose signature is neither PNG
+   (`89 50 4E 47 0D 0A 1A 0A`) nor JPEG (`FF D8 FF`) is handed to ImageIO
+   when `canImport(ImageIO)` (the decode `ImageBitmap(contentsOfFile:)` did
+   at `359444e`, colour-managed), and is `nil` elsewhere. This keeps a macOS
+   app that loads a TIFF, GIF or HEIC working; it is documented as
+   platform-dependent in the initialiser's doc comment.
+
+**Reasoning.** MetalUI pins its frame byte-for-byte across platforms
+(`XP-C`); an image whose bytes depend on the platform would be the first
+platform-dependent input to that frame. Keeping ImageIO for PNG/JPEG on macOS
+would buy colour management on macOS only, and make the same app's icons
+differ between its macOS and Linux builds. The measured cost of the portable
+rule is confined to colour-managed files and JPEG's last bit.
+
+**Cost if wrong.** An app with Display P3 or gamma-tagged PNGs sees shifted
+colours on macOS (they were converted at `359444e`). The fix is the deferred
+colour management (`PX-A`), additive; the workaround is to export assets as
+sRGB, which is what every asset pipeline the configurator uses does.
+
+## PX-D — Corrupt input: `nil`, never a trap
+
+**Ruling.** Before stb sees the bytes, MetalUI checks, in Swift
+(`ImageDecoding.swift`):
+
+1. **PNG**: the signature, then every chunk's length fits the buffer and its
+   **CRC-32 matches**, and an `IEND` chunk is present. Any failure → `nil`.
+   (libpng — so ImageIO — tolerates a bad CRC on an ancillary chunk; MetalUI
+   refuses any. Measured: ImageIO returns a **partial image** for a file cut
+   in half and for a flipped bit inside `IDAT`; stb alone already returns
+   `nil` for both; the CRC check makes the second independent of what the
+   flipped bit does to the inflate stream.)
+2. **JPEG**: an EOI marker (`FF D9`) follows the first SOS marker (`FF DA`);
+   bytes after EOI are allowed. A truncated JPEG has no EOI → `nil` (stb
+   alone pads a truncated entropy stream with zeros and returns an image).
+   A JPEG has no checksum: a flipped bit inside its entropy-coded data may
+   decode to wrong pixels — as in every JPEG decoder; documented.
+3. Then stb: a `NULL` result, a width or height of 0 or above 16384, or a
+   size whose `width × height × 4` overflows `Int` → `nil`.
+4. A missing file, a directory, an unreadable file or empty data → `nil`.
+
+`ImageBitmap(width:height:rgba:)` keeps its traps (a wrong byte count is a
+programming error, not input).
+
+**Cost if wrong.** A file ImageIO used to show partially now shows nothing —
+a migration note (`ImageBitmap(contentsOfFile:)` on macOS), not a
+divergence: SwiftUI has no file initialiser to diverge from.
+
+## PX-E — API: three failable initialisers on `ImageBitmap`
+
+**Ruling.**
+
+1. `public init?(contentsOfFile path: String)` — now on **every platform**,
+   PNG and JPEG through `PX-C`, other formats per `PX-C` item 5. Doc comment
+   rewritten (no "macOS only", no "colours converted to sRGB").
+2. `public init?(data: Data)` — the same decode from bytes in memory (a
+   downloaded or embedded image). `Data` because `MetalUI` already traffics
+   in it (`Transferable`).
+3. **`public init?(resource name: String, withExtension ext: String? = "png",
+   subdirectory: String? = nil, bundle: Bundle)`** — resolves
+   `bundle.url(forResource:withExtension:subdirectory:)` and decodes it,
+   **once per resolved path per process**: a lock-protected cache keyed by
+   the resolved file path holds the decoded bitmap (or the `nil`), so every
+   frame that asks gets the **same `ImageTexture` identity** and a renderer
+   uploads it once (`TE-AF`). Bundle resources are immutable while the
+   process runs; the cache is never evicted (a bounded set of resources).
+   MetalUI-only (map class `M`).
+4. **`Image(_ name: String, bundle: Bundle?)` is not offered.** Probe
+   `swiftui-bundle-image.swift`: SwiftUI's `Image(_:bundle:)` does **not**
+   read loose PNG files in a bundle — `B0` (an 8×6 px `plain.png`), `B2`
+   (`@2x`/`@3x` siblings), `B4` (the extension written), `B5`/`B6` (a
+   subdirectory) all size 0×0, while the instrument control `I0`
+   (`Image(nsImage:)` of the same file) sizes 8×6 and AppKit's own
+   `bundle.image(forResource:)` finds the file and all three reps (`I1`).
+   SwiftUI's spelling means "an asset catalog entry"; a MetalUI `Image(_:
+   bundle:)` reading loose files would be the same words with a different
+   meaning. A "Not offered" row names it and points at `ImageBitmap(resource:
+   …)` plus `Image(_:scale:label:)`.
+
+**Reasoning.** The configurator's `IconLoader` is exactly
+`Bundle.module.url(forResource:withExtension:subdirectory:)` plus a
+hand-written decode cache (`MG-10`'s workaround); item 3 is that, in the
+framework, with the texture-identity benefit its hand-written cache also got.
+
+**Cost if wrong.** If an app needs eviction (resources replaced at run time),
+it uses `init?(contentsOfFile:)`, which never caches.
+
+## PX-F — `.task`: SwiftUI's semantics on the lifecycle machinery
+
+**Ruling.**
+
+1. **Spelling** (SwiftUI's current one; the SDK's `View.task` declarations):
+   ```swift
+   extension ElementGroup {
+       public func task(name: String? = nil, priority: TaskPriority = .userInitiated,
+                        file: String = #fileID, line: Int = #line,
+                        @_inheritActorContext _ action: sending @escaping @isolated(any) () async -> Void)
+           -> LifecycleScope<Self>
+       public func task<T: Equatable>(id value: T, name: String? = nil,
+                                      priority: TaskPriority = .userInitiated,
+                                      file: String = #fileID, line: Int = #line,
+                                      @_inheritActorContext _ action: sending @escaping @isolated(any) () async -> Void)
+           -> LifecycleScope<Self>
+   }
+   ```
+   A closure written in an element is **main-actor isolated** (`X2`: on the
+   main thread before and after every suspension) and may call a
+   `@MainActor` model synchronously; a closure formed in a nonisolated
+   context runs where its isolation says (`@isolated(any)`). Measured
+   feasible at Swift 6 language mode: a closure capturing a non-`Sendable`
+   value and calling a `@MainActor` method, stored in a scope through an
+   `@unchecked Sendable` box and started with `Task.immediate(name:priority:)
+   { await box.run() }`, compiles without a diagnostic and runs its prefix
+   synchronously (probe `swift-task-modifier-isolation.swift`).
+2. **The scope is a `LifecycleScope`** (`LC-B`): one more `LifecycleWrite`
+   case, layout- and identity-transparent, no `Element` hook, `Handlers`
+   unchanged, `MC-A`/`MC-C`/`MC-P` untouched; divergence 120 applies to it.
+3. **Start is an appearance event.** In the appearances bucket, at the scope's
+   place in reverse pre-order (`X1`: an inner `onAppear` first; `X1b`: an inner
+   task first; `X9`: children before parents, interleaved with `onAppear` by
+   modifier order), the body **starts synchronously and runs until its first
+   suspension inside the drain** (`X15`: inside `layoutSubtreeIfNeeded`;
+   `X1`: its pre-`await` write is in the **first** draw). A write the prefix
+   makes is presented in the first frame by `LC-E`'s settle build, exactly
+   like an `onAppear` write. The prefix runs under
+   `StateDispatch.dispatching(to: owner)`; everything after the first
+   suspension runs as an ordinary main-actor job (outside dispatch; a
+   `@State` write there resolves as any async write does, divergence 71).
+4. **Cancel is a disappearance event** at the scope's place (`X4`: task inner,
+   cancel before the outer `onDisappear`; `X4b`: task outer, after it), so an
+   if/else swap starts the new branch's task before cancelling the old one
+   (`X14b`). Cancellation never waits for the task to finish.
+5. **An id change is a change event** at the scope's place among `onChange`
+   actions (`X12`/`X12b`): **cancel the old task, then start the new one**,
+   in one step (`X5`, with `withTaskCancellationHandler`'s `onCancel` as the
+   instrument). The id is compared by `==` once per build (`X6`: the same
+   value restarts nothing; `X7`: a rebuild with the id unchanged restarts
+   nothing, and a change after the task finished starts it again).
+6. **Presence is the lifecycle's** (`LC-C`): hidden and transparent content
+   starts its task (`X8`); a modifier on a group starts once while the group
+   has content and is cancelled when it empties (`X10`).
+7. **Under a removal transition the cancel is parked until the ghost ends**
+   (`X16`), and content re-inserted mid-removal **keeps its task** — neither
+   cancelled nor restarted (`X17`) — `LC-H` unchanged.
+8. **Window close cancels every running task**, with the `onDisappear`s, in
+   reverse pre-order (`LC-J` item 1; `X11`: the hosting view leaving its
+   window cancels, `close()` with the host retained does not — MetalUI's close
+   is `X11`'s second case). **App quit cancels nothing** (`LC-J` item 3).
+   **A headless `renderFrame` starts nothing** (`LC-J` item 4).
+9. **Priority** passes through; the default is `.userInitiated` (`X3`: raw
+   25; `.low` 17, `.high` 25, `.background` 9; the id form likewise).
+   **Name**: `name ?? "View.task @ \(file):\(line)"` — SwiftUI's default
+   string (`X13`), passed where the runtime offers named tasks (`PX-G`).
+10. **The store** (`LC-D`): the running task lives in the entry's box, which
+    a build that keeps the key carries forward; it is not a `StateTable`
+    entry or slot (the seven reserved names unmoved). Work stays `LC-M`'s
+    `3K` for K scopes, 0 with none.
+
+**Refuted and corrected.** The lifecycle probe's reading of `K2` ("`.task(id:)`
+starts the new task, then cancels the old one", copied into `LC-L`) rested on
+the **resumption** log line of the old task, which runs later; `X5`'s
+`onCancel` instrument shows the cancel call **precedes** the new start. The
+Record phase corrects `LC-L`, the lifecycle probe's reading note and record
+§76 where they copy it (spec §8.3).
+
+**Reasoning.** Every ordering answer the probe gave is the existing lifecycle
+order applied to one more event kind; building `.task` as a `LifecycleWrite`
+case makes that true by construction instead of by a second ordering.
+gpui's comparison (not evidence): `cx.spawn` tasks are owned by the entity and
+dropped (cancelled) with it — the same "owned by presence" shape.
+
+**Cost if wrong.** If a probe arm was misread, the fix is a bucket move inside
+`LifecycleStore.endFrame` — one place, pinned by tests 3.1–3.13.
+
+## PX-G — Start strategy: `Task.immediate` where the runtime has it
+
+**Ruling.**
+
+1. The start helper uses **`Task.immediate(name:priority:operation:)`**
+   when `#available(macOS 26.0, *)` — always true off Apple — so the prefix
+   runs synchronously (`PX-F` item 3).
+2. **On macOS 14–25** (MetalUI's floor is 14) it falls back to
+   `Task(priority:operation:)`, unnamed: the body starts on the next turn of
+   the main queue, **after** the frame that made the scope present. Its
+   pre-`await` write is presented one frame late. **Divergence 137.**
+3. An internal test seam (`TaskStart.forcesDeferredStart`, `@testable`
+   only) selects the fallback so both branches are pinned on the macOS 27
+   machine this repo is tested on (tests 3.1 and 3.16).
+
+**Cost if wrong.** On macOS 14–25 a task that writes before its first `await`
+shows one frame of the pre-write state. No macOS 26+ or Linux/Windows build
+is affected.
+
+## PX-H — The consumable SDL backend: root targets behind two package traits
+
+**Ruling.**
+
+1. **The backend's four library targets are declared by the root package**,
+   in the every-platform list (`PC-A`: they import no Apple framework except
+   `SDLPlatform+AppKit.swift`'s `#if canImport(AppKit)`), **with their sources
+   left where they are**, by `path:`: `CSDL` (`Backends/SDL/Sources/CSDL`),
+   `CAccessKit` (`…/CAccessKit`), `SDLBridge` (`…/SDLBridge`), `MetalUISDL`
+   (`…/MetalUISDL`). Root products: **`MetalUISDL`** and **`SDLBridge`** (the
+   C API Backends/SDL's replay tools and tests call). Measured (`N1`): a root
+   target whose `path:` lies inside a nested package directory builds on both
+   build systems with 0 warnings, and the nested package can depend on the
+   root by path and use the product. `SDLWindowRenderer.bundledShaderDirectory`
+   (found by `#filePath`) is unchanged: the file did not move, and a URL
+   consumer's checkout holds `Backends/SDL/Shaders/compiled`.
+2. **Two package traits**, neither enabled by default:
+   - **`SDL`** — the SDL3 backend: enables `SDLBridge`'s `CSDL` dependency,
+     its `METALUI_SDL` C define and its `SDL3` link; `MetalUISDL`'s Swift code
+     is `#if SDL`.
+   - **`AccessKit`** (`enabledTraits: ["SDL"]`) — the screen-reader bridge
+     (`AX-A`): enables `MetalUISDL`'s `CAccessKit` dependency and AccessKit's
+     link libraries, encoded in the manifest per platform (macOS: `accesskit`,
+     frameworks AppKit, Foundation, CoreFoundation, `objc`, `c++`; Linux:
+     `accesskit`, `m`; Windows: `accesskit` and the eleven system libraries
+     today's manifest lists). `AccessKitAdapter.swift`/`AccessKitTree.swift`
+     are `#if AccessKit`; under `SDL` alone `SDLPlatform`'s accessibility
+     requirements are honest no-bridge implementations (the tree is accepted
+     and dropped; `onAccessibilityRequest` never fires).
+   Measured (`M5`, `L5`): target-dependency conditions, cSettings defines and
+   linker settings all take `.when(traits:)`, and a trait is a Swift
+   compilation condition in the declaring package.
+3. **No `pkgConfig:` on either system library.** Measured (`M1p`, `M2p`): the
+   default build system asks pkg-config about **every** `.systemLibrary
+   (pkgConfig:)` in the graph whether or not anything uses it, warning in the
+   declaring package **and in every consumer** ("couldn't find pc file for
+   accesskit", Homebrew's "prohibited flag(s): -Wl,-rpath"). Without it: 0
+   warnings on macOS (both build systems), in a consumer, and in a plain
+   `swift:6.4-noble` with no SDL installed (`M1`–`M3`, `L1`). The module maps
+   keep `link "SDL3"` / `link "accesskit"`; headers and libraries come from
+   the compiler's default paths or from `-Xcc -I… -Xlinker -L…` (`PX-I`).
+4. **Without the trait the product is not silent**: `MetalUISDL` declares,
+   under `#if !SDL`, `@available(*, unavailable, message: "enable the trait
+   'SDL' on the MetalUI dependency: .package(url: …, traits: [\"SDL\",
+   \"AccessKit\"]) — docs/getting-started.md") public final class SDLPlatform
+   {}`, so a consumer that forgot the trait reads the remedy in the error
+   (guard 1.6). `SDLBridge.c` is `#ifdef METALUI_SDL` around its body with a
+   one-line stub outside it (an empty translation unit is not relied on).
+5. **`Backends/SDL` becomes the backend's first consumer**: its manifest drops
+   those four targets and depends on `.package(name: "MetalUI", path: "../..",
+   traits: ["SDL", "AccessKit"])`, keeping `ReplayFixture`, `SDLReplay`,
+   `PortableReplay`, `DemoCapture`, `MetalUISDLDemo`, `MainQueueDrainCheck`
+   and both test targets. Its own product list keeps `ReplayFixture`,
+   `SDLReplay` and the executables; `Experiments/SDLGPU` keeps depending on it
+   by path. Linux/Windows test counts are unchanged by the move (the same test
+   files, the same sources).
+
+**Reasoning.** SwiftPM cannot depend on a subdirectory package by URL, and a
+URL-fetched package may not have local path dependencies; the only package a
+URL consumer can reach is the root. Traits are SwiftPM's compile-time switch
+(SE-0450, tools 6.1); they keep the root's own build, every macOS consumer
+and the Linux root CI job free of SDL, and make "I want the backend" one
+word in the consumer's manifest. Leaving the sources in place keeps every
+citation of `Backends/SDL/Sources/…` and the shader path valid.
+
+**Cost if wrong.** If a later SwiftPM stops honouring `.when(traits:)` on a
+setting, the backend compiles in (and fails on a machine without SDL) — the
+root Linux CI job, which has no SDL, is the separating run (`L1`). If trait
+unification across a graph differs from what lane 1 measures for
+`Experiments/SDLGPU` (spec §5.1 item 3), that package names the trait itself.
+
+## PX-I — What a consumer installs (and what the CI image now looks like)
+
+**Ruling.**
+
+1. **Linux**: SDL **3.4 or later** whose headers and `libSDL3` are on the
+   compiler's default paths — a distribution's `libsdl3-dev` where it ships
+   3.4+, or a source build installed with `-DCMAKE_INSTALL_PREFIX=/usr` — or
+   anywhere else plus `-Xcc -I<prefix>/include -Xlinker -L<prefix>/lib`
+   (measured `L4`/`L5`: gold does not search `/usr/local/lib`; the Swift
+   importer ignores `CPATH`, `L3b`). **AccessKit**, once:
+   `python3 .build/checkouts/MetalUI/Backends/SDL/scripts/fetch-accesskit.py
+   --prefix /usr` (as root; copies `accesskit.h` and the static library onto
+   the default paths), or `--print-flags` to keep it elsewhere and pass the
+   flags it prints; or leave the `AccessKit` trait out (no screen-reader
+   support). With both on the default paths the build is plain `swift build`.
+2. **Windows**: no pkg-config, as today — SDL3's VC package and AccessKit's
+   fetched files, passed as `-Xcc -I… -Xlinker -L…` (`fetch-accesskit.py
+   --print-flags` prints AccessKit's half); `SDL3.dll` beside the executable
+   at run time.
+3. **macOS** (only for an app that chooses SDL there; the default is AppKit):
+   `brew install sdl3`, and `-Xcc -I$(brew --prefix)/include -Xlinker
+   -L$(brew --prefix)/lib` plus AccessKit's flags. A Homebrew SDL3 links with
+   one `ld` deployment-target warning (`M5`) — Homebrew's dylib, not
+   MetalUI's manifest.
+4. **The script**: `fetch-accesskit.py` gains `--prefix DIR` and
+   `--print-flags` (and keeps `ACCESSKIT_DIR`); it no longer writes
+   `accesskit.pc`.
+5. **The CI image** (`Backends/SDL/linux/Dockerfile`) installs SDL3 with
+   `-DCMAKE_INSTALL_PREFIX=/usr` and AccessKit with `--prefix /usr` and drops
+   `PKG_CONFIG_PATH`, so the container command in the harness and in
+   `sdl-gpu-linux.yml` stays flagless — and so it is the layout item 1
+   documents as "the default paths".
+6. **This repository's own macOS work on `Backends/SDL`** passes the flags
+   item 3 names (the script prints all of them on macOS) instead of
+   `PKG_CONFIG_PATH=$PWD/.accesskit`; the Record phase changes CLAUDE.md's
+   build line (spec §8.1).
+
+**Cost if wrong.** A distribution that installs SDL3 off the default paths
+needs the flags — the docs say so in the same paragraph.
+
+## PX-J — `metalui new --cross-platform` by URL
+
+**Ruling.**
+
+1. `--cross-platform` **no longer requires `--local`** (`SC-C` amended): the
+   generated manifest depends on MetalUI once (URL+revision per `SC-I`, or
+   `--branch`, or `--local` path) with
+   ```swift
+   #if os(Linux) || os(Windows)
+   let metalUITraits: Set<Package.Dependency.Trait> = ["SDL", "AccessKit"]
+   #else
+   let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
+   #endif
+   ```
+   passed as `traits: metalUITraits`, and names `MetalUISDL`,
+   `MetalUIPortableText` and `MetalUISystemFonts` from the **MetalUI** package
+   conditioned on Linux and Windows. The `Backends/SDL` path dependency is
+   gone from `--local` output too. Tools version **6.1** for a cross-platform
+   manifest (traits); 6.0 otherwise, unchanged.
+2. **`--no-accesskit`** generates `["SDL"]` and a README line saying the app
+   has no screen-reader support on Linux and Windows.
+3. The generated README's Linux/Windows/macOS sections say exactly `PX-I`'s
+   steps; the two "harmless warnings" paragraph is deleted (`M3`: there are
+   none now).
+4. **Refused names** (`SC-H`): lane 1 generates and builds a package named
+   after each new root target (`CStbImage`, `CSDL`, `CAccessKit`,
+   `SDLBridge`, `MetalUISDL`) and refuses exactly those that fail, recording
+   the error text; none is refused unmeasured.
+
+## PX-K — The public-API census stays the framework's
+
+**Ruling.** `MetalUISDL` joins the root's library products but **not**
+`closeout-public-api.sh`'s `TARGETS`: its 97 public declarations
+(`SDLPlatform`, `SDLWindow`, `SDLWindowRenderer`, `AccessKitSnapshot`, test
+hooks) are a backend's plumbing an app touches in one line (`SDLPlatform()`),
+never classified against SwiftUI, and outside the census since `RS-D`. New
+public declarations in `Sources/` owe a doc comment and a map row as always
+(`ImageBitmap.init?(data:)`, `ImageBitmap.init?(resource:withExtension:
+subdirectory:bundle:)`, the two `task` methods); the unavailable stub (`PX-H`
+item 4) carries a doc comment.
+
+**Cost if wrong.** If a reviewer wants the backend censused, it is a
+mechanical pass over one target with every row class `M`.
+
+## PX-L — Headless driving and the SDL proofs
+
+**Ruling.**
+
+1. **Harness tests** drive `.task` through `makeFakeWindow` and
+   `drawFrameIfNeeded()` (`LC-K`), in `async` `@MainActor` tests. A task's
+   progress is awaited by **counting `Task.yield()`s** up to a bound
+   (`pumpMainActor(until:maxYields:)`), never by wall clock; a task meant to
+   be cancelled waits on `withTaskCancellationHandler` + a continuation its
+   `onCancel` resumes — never on a long `Task.sleep` a broken cancel would
+   leave hanging.
+2. **SDL, two checks in `MainQueueDrainCheck`** (a process of its own: a
+   Swift Testing test is a main-actor job, inside which no drain runs, `J1`):
+   - mode `task-modifier` — an `App` over `SDLPlatform(hiddenWindows: true)`
+     whose root's `.task` yields three times, removes its own content, and
+     awaits cancellation; prints `task started=… steps=… cancelled=…`. It
+     needs a built frame, which **SDL's offscreen driver never produces**
+     (`beginFrame()` gets no swapchain texture; the precedent gating 10.2 and
+     10.3), so its test is `.enabled(if: windowsPresentFrames)`: it runs on
+     macOS, not in the Linux container. Honestly gated, not skipped silently.
+   - mode `immediate-task` — top-level code starts
+     `Task.immediate { @MainActor in … }` (what the modifier's start does)
+     before `platform.run()`, yields three times, then awaits cancellation
+     that a later display-link tick issues; prints the same line. **Needs no
+     frame, so it runs in the Linux container**, where the drain is the
+     separating mechanism (`SV-H`'s mutation).
+3. **The URL consumer** is built by an env-gated test in
+   `MetalUIScaffoldTests` (`METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1`, Linux, in
+   the CI image): it copies the checkout's manifest and source directories
+   into a scratch git repository (no reliance on the checkout's own `.git`,
+   which a worktree mounted in a container cannot read), generates a
+   cross-platform package depending on `file://<scratch>` at that commit, and
+   runs `swift build`. Its separating arm builds a `--no-accesskit` package
+   with `-Xcc -I<dir>` naming a **poison `accesskit.h`** (`#error`), so any
+   AccessKit import under `SDL` alone fails the build.
+
+## PX-M — Lanes: three, disjoint files, in order 1 → 2 → 3
+
+**Ruling.** Agents run one at a time, in this order; each owns its files
+(spec §3 lists them):
+
+1. **Lane 1 — packaging** (first, because every manifest edit is its):
+   root `Package.swift` (the four SDL targets, both traits, `CStbImage`, the
+   `MetalUI → CStbImage` edge), `Sources/CStbImage/**` (vendored),
+   `Backends/SDL/Package.swift`, the four moved targets' sources (trait
+   wrapping only), `Backends/SDL/scripts/**`, `Backends/SDL/linux/Dockerfile`,
+   `Backends/SDL/README.md`, `Experiments/SDLGPU/Package.swift`,
+   `.github/workflows/**`, `Sources/MetalUIScaffold/**`,
+   `Tests/MetalUIScaffoldTests/**`, `Tests/MetalUITests/SDLTraitCompileGuards.swift`,
+   `docs/getting-started.md`, `docs/packaging.md`. It also adds, unused until
+   lane 3, `MainQueueDrainCheck`'s dependencies on `MetalUI` and
+   `MetalUIPortableText`.
+2. **Lane 2 — images**: `Sources/MetalUI/ImageBitmap.swift`,
+   `Sources/MetalUI/ImageDecoding.swift` (new),
+   `Tests/MetalUICrossPlatformTests/ImageDecodingTests.swift` (new),
+   `Tests/MetalUICrossPlatformTests/ImageFixtures/**` (new),
+   `Tests/MetalUITests/ImageTests.swift`,
+   `docs/probes/image-decoder-parity/gen-fixtures.py` (its `--tests` mode).
+3. **Lane 3 — `.task`** (last, so it also writes the shared registries):
+   `Sources/MetalUI/Lifecycle.swift`, `Sources/MetalUI/TaskModifier.swift`
+   (new), `Tests/MetalUITests/TaskModifierTests.swift` (new),
+   `Tests/MetalUITests/TaskCompileGuards.swift` (new),
+   `Backends/SDL/Sources/MainQueueDrainCheck/main.swift`,
+   `Backends/SDL/Tests/MetalUISDLTests/SDLMainQueueDrainTests.swift`, and the
+   registries: `docs/divergences.md` (137 and 138), `docs/api-overview.md`,
+   `docs/migration.md`, `docs/verification/human-checks.md` (group X),
+   `docs/probes/closeout-inventory-map.tsv`, `docs/probes/closeout-public-api.tsv`
+   — writing lane 2's rows from spec §8.2's text.
+
+Two lanes with one touching every file a third needs is why packaging goes
+first; `Window.swift` is in no lane (spec §1.2: `drainLifecycle` and
+`runDisappearancesForClose` need no change).
+
+## PX-N — Demo and human checks
+
+**Ruling.** **No demo change**: no new section, no edited section — the
+fourteen offscreen images stay at 0 differing pixels against `359444e` and
+`DemoFrameDeterminismTests`' `Expected.swift` is not edited (`ImageBitmap`'s
+demo uses go through `init(width:height:rgba:)`, untouched). Human checks
+gain **group X** (spec §7): a generated cross-platform app by URL on a Linux
+desktop (X1), a `.task` counter in a real SDL window on Linux and Windows
+(X2), Orca with and without the `AccessKit` trait (X3), the same app built on
+Windows (X4), and the configurator's icons on Linux (X5). **An agent cannot
+run them.**
