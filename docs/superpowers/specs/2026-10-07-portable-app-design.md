@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (an item of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-07-portable-app-decisions.md`](../2026-10-07-portable-app-decisions.md)
-(`PX-A`…`PX-R`; the critic pass added `PX-O`…`PX-R`). Record: `../../record/80-portable-app.md`. Branch
+(`PX-A`…`PX-S`; the critic pass added `PX-O`…`PX-R`, lane 1 `PX-S`). Record: `../../record/80-portable-app.md`. Branch
 `feat/portable-app` from `359444e`.
 
 **Motivation.** The SMK keyboard configurator runs on MetalUI on macOS
@@ -170,7 +170,9 @@ traits: [
 `MetalUISDL` sources: every file `#if SDL … #endif`; `SDLWindowRenderer`'s
 shader directory from `shaderDirectoryCandidates(executableDirectory:)` (`PX-P`); the two AccessKit files
 and every AccessKit call site in `SDLPlatform.swift` `#if AccessKit`; under
-`#if !SDL` the unavailable `SDLPlatform` stub (`PX-H` item 4). No `pkgConfig:`
+`#if !SDL` the unavailable `SDLPlatform` stub (`PX-H` item 4), with a public
+`init(hiddenWindows:) throws` so a call reports the unavailability rather than
+an inaccessible implicit initialiser (`PX-S` item 1). No `pkgConfig:`
 anywhere (`PX-H` item 3). `Backends/SDL/Package.swift` per `PX-H` item 5.
 `fetch-accesskit.py` per `PX-I` item 4. The Dockerfile per `PX-I` item 5.
 `metalui new` per `PX-J`.

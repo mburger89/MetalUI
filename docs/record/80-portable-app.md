@@ -95,3 +95,72 @@ Attacked the committed design; fixed in the spec and rulings `PX-O`…`PX-R`:
 - Rejected with reasons in `PX-R`: Foundation types in the image API, the
   `.task` spelling (matches the SDK interface), `Task.immediate`'s
   availability (26.0), X11 against `PX-F` item 8, splitting lane 1.
+
+## 1. Lane 1 — packaging (2026-10-07)
+
+Commits: `9f436c2` (red), `105c15a` (implementation), and this section's
+commit (ruling `PX-S`, docs). Rulings as landed: `PX-H`…`PX-J`, `PX-P`,
+`PX-Q`, amended by `PX-S` (findings and the mutation table).
+
+### 1.1 Red
+
+- `MetalUIScaffoldTests` did not compile: "value of type 'ScaffoldOptions'
+  has no member 'accessKit'" (`ScaffoldTests.swift:214`, `:223`), "extra
+  argument 'accessKit' in call" (`:651`).
+- Guard 1.6, run with `359444e`'s `ScaffoldTests.swift`: "Expectation failed:
+  canTypecheck(module: "MetalUISDL") — MetalUISDL is not among the root
+  build's modules (PX-H item 1)". After the implementation it was red once
+  more, on the design's stub: "'SDLPlatform' initializer is inaccessible due
+  to 'internal' protection level" → `PX-S` item 1.
+- `Backends/SDL` tests did not compile: "type 'SDLWindowRenderer' has no
+  member 'shaderDirectoryCandidates'" / "… 'shaderDirectory'".
+
+### 1.2 Landed
+
+- Root `Package.swift`: `CStbImage` (stb_image 2.30, sha256 `594c2fe3…`,
+  `MetalUI` depends on it); `CSDL`, `CAccessKit`, `SDLBridge`, `MetalUISDL` by
+  `path:` into `Backends/SDL/Sources`; products `MetalUISDL`, `SDLBridge`;
+  traits `SDL` and `AccessKit` (enables `SDL`); AccessKit's per-platform link
+  libraries under `.when(platforms:traits:)`; no `pkgConfig:`.
+- `MetalUISDL`: `#if SDL` / `#if AccessKit`; the unavailable stub;
+  `SDLBridge.c` `#ifdef METALUI_SDL`; `SDLWindowRenderer`'s shader lookup
+  (`MetalUISDLShaders` beside the executable, then `#filePath`).
+- `Backends/SDL/Package.swift` a path consumer with both traits;
+  `fetch-accesskit.py --prefix/--print-flags`; the Dockerfile installs SDL3
+  and AccessKit to `/usr`; `sdl-gpu-linux.yml` (Homebrew flags for `Replay`,
+  the consumer step, Windows flags from `--print-flags`, path filters);
+  `Experiments/SDLGPU/Package.swift` unchanged (traits unify, `PX-S` item 4).
+- `metalui new --cross-platform` from any source, `--no-accesskit`; the
+  README, `docs/getting-started.md`, `docs/packaging.md`,
+  `Backends/SDL/README.md`.
+
+### 1.3 Counts and commands
+
+- Root, native build, unfiltered `--no-parallel`: **2635 tests in 3 suites**
+  passed (2630 + 5: tests 1.1–1.4 replace four scaffold tests, + 1.5's two,
+  + 1.7, 1.8, + guard 1.6); `FR-J no-argument frame: succeeded=true`; the only
+  `warning:` SwiftPM's deprecation notice. `swift build --build-tests`
+  (default build system): 0 warnings.
+- `Backends/SDL` macOS (`swift test $(python3 scripts/fetch-accesskit.py
+  --print-flags)`): **24 + 81** (78 + test 1.10's three arms); in the CI
+  image, flagless: **24 + 78** (75 + 3). Warnings unchanged from `359444e`
+  (Homebrew's `ld` deployment-target warning, one pre-existing
+  unnecessary-`try` in `AccessKitControlsParityTests.swift:83`); the old
+  "prohibited flag(s): -Wl,-rpath" is gone.
+- Tests 1.7 and 1.8 in the CI image (`METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1
+  swift test --filter aCrossPlatformPackage`): both pass; each consumer's
+  executable is linked.
+- `swift:6.4-noble`, no SDL installed: root `swift build --build-tests`
+  complete, 0 warnings.
+- `Experiments/SDLGPU` `swift run Replay --portable --record` (macOS,
+  Homebrew flags): PASS, frames 0–7 0 differing pixels, the draw-order
+  mutation detected.
+- Demo pixels, `compare.sh <scratch> 359444e HEAD` at `105c15a`: **0
+  differing pixels, scene identical, in all fourteen images**; controls as
+  before.
+
+### 1.4 Deferred
+
+Nothing new beyond spec §9. The consumer-facing remedy inside
+`App(platform:)` reads as a conformance error (`PX-S` item 2) — documented,
+not fixed.

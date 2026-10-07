@@ -110,8 +110,11 @@ let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
 ```
 
 Forgetting `traits:` leaves `MetalUISDL` an empty module whose `SDLPlatform`
-is unavailable with the remedy as its message ("enable the trait 'SDL' on the
-MetalUI dependency…").
+is unavailable with the remedy as its message ("'SDLPlatform' is unavailable:
+enable the trait 'SDL' on the MetalUI dependency…"). Written inside
+`App(platform: try SDLPlatform(), …)`, as the generated `main.swift` does, the
+compiler reports "argument type 'SDLPlatform' does not conform to expected type
+'Platform'" first — the same cause (`PX-S` item 2).
 
 ### What a Linux machine needs (`PX-I`, `PX-Q`)
 

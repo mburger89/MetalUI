@@ -32,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-S`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-T`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -796,3 +796,107 @@ name the flag.
   traits). Splitting the scaffold out would put the CI step for test 1.7 and
   the test itself in different lanes. Kept; `PX-P` adds one small file pair to
   it.
+
+## PX-S — Lane 1 as landed: what the packaging measured
+
+**Ruling.** Lane 1 (packaging) landed as `PX-H`…`PX-J`, `PX-P` and `PX-Q`
+say, with these findings, each measured on 2026-10-07 (macOS 27, Apple Swift
+6.4; OrbStack, `metalui-portable` rebuilt from this branch's Dockerfile,
+aarch64; `swift:6.4-noble`):
+
+1. **The stub needs a public initialiser (amends `PX-H` item 4).** Guard 1.6
+   reddened against the design's `public final class SDLPlatform {}`: the
+   diagnostic was "'SDLPlatform' initializer is inaccessible due to 'internal'
+   protection level" — the implicit `init()` is internal, and Swift reports
+   that before the class's unavailability. The stub declares
+   `public init(hiddenWindows: Bool = false) throws {}` (the real spelling);
+   the diagnostic is then "'SDLPlatform' is unavailable: enable the trait
+   'SDL' on the MetalUI dependency: … — docs/getting-started.md".
+2. **Inside `App(platform:)` the remedy is not what a consumer reads.**
+   Mutation M1.7 (the generated manifest without `traits:`) failed the
+   consumer build, as 1.7 requires, but with "argument type 'SDLPlatform' does
+   not conform to expected type 'Platform'" at `App(platform: try
+   SDLPlatform(), …)` — the conformance is diagnosed before the
+   unavailability. Making the stub conform to `Platform` would mean mirroring
+   every defaultless requirement in an unavailable class; not done.
+   `docs/getting-started.md` quotes both messages. Cost if wrong: a consumer
+   searches the conformance error; the docs name it.
+3. **Refused names, measured (`PX-J` item 4, `SC-H`).** A `--cross-platform
+   --local` package renamed to each name, built on macOS (no traits) and in the
+   CI image (both traits): `CStbImage`, `CSDL`, `CAccessKit`, `SDLBridge` fail
+   identically on both at graph load — "multiple packages ('cstbimage',
+   'portable-app') declare targets with a conflicting name: 'CStbImage';
+   target names need to be unique across the package graph" (a trait-disabled
+   target still counts). Refused (test 1.5). `ReplayFixture`, `SDLReplay`,
+   `PortableReplay`, `DemoCapture` (refused since `SC-H` because
+   `--cross-platform` added `Backends/SDL`) and `SDL` (refused as that
+   package's identity) **built** on both, exit 0, so they are accepted now
+   (`aNameOnlyBackendsSDLDeclaresGenerates`,
+   `aNameThatIsADependencysPackageIdentityIsRefused`, whose name no longer
+   describes it — kept so the record's citations resolve). The control
+   package `Smoke` built on both: the full generated app, traits on, linked
+   flagless in the image.
+4. **Trait requests unify across the graph** (spec §4.1's open question).
+   `Experiments/SDLGPU` depends on MetalUI by path **without** traits and on
+   `Backends/SDL`, which asks for `SDL` and `AccessKit`; it builds and `swift
+   run Replay --portable --record` passes on macOS (frames 0–7 at 0 differing
+   pixels, the draw-order mutation detected) — `SDLBridge` was compiled with
+   `METALUI_SDL`, or its `replay_*` symbols would not link. So
+   `Experiments/SDLGPU/Package.swift` is unchanged.
+5. **A test target may import a trait-gated C module it does not name.**
+   `Backends/SDL`'s five AccessKit test files `import CAccessKit`, which is no
+   product of the root; it resolves through `MetalUISDL`'s dependency (both
+   build systems' module search paths carry transitive C modules). No
+   `CAccessKit` product was added.
+6. **The flagless claim holds in the re-laid image (`PX-Q`'s last
+   paragraph).** cmake with `-DCMAKE_INSTALL_PREFIX=/usr` puts `libSDL3.so` in
+   `/usr/lib/aarch64-linux-gnu` and `fetch-accesskit.py --prefix /usr` puts
+   `libaccesskit.a` in `/usr/lib`; gold searches both. `Backends/SDL` builds
+   and tests flagless (24 + 78 in the image), and tests 1.7 and 1.8 build their
+   generated packages with plain `swift build` (1.8 adding only the poison
+   `-Xcc -I`). Each consumer test asserts the linked executable exists, not
+   only the exit status.
+7. **The poison header is not what reddens 1.8.** Mutation M1.8
+   (`AccessKitAdapter.swift` under `#if SDL`) fails the build with "no such
+   module 'CAccessKit'": the module's `.when(traits:)` dependency is the gate,
+   and the poison `accesskit.h` would fire only if the module were reachable
+   without the trait. Both stay; 1.7 stays green under M1.8 (the separating
+   arm).
+8. **`fetch-accesskit.py --print-flags` prints one flag per line** (so a path
+   with a space survives PowerShell's line splitting), progress on standard
+   error, and on macOS Homebrew's `-Xcc -I…/include -Xlinker -L…/lib` first
+   (`PX-I` item 6: `swift test $(python3 scripts/fetch-accesskit.py
+   --print-flags)`); no argument means `--print-flags`. The Windows CI job
+   writes them to a file and appends them to SDL3's flags.
+9. **`--no-accesskit` without `--cross-platform` is a usage error** (it would
+   mean nothing).
+10. **`SDLWindowRenderer`'s initialisers take `shaderDirectory: String? =
+    nil`** (`nil` = `defaultShaderDirectory()`, the first of
+    `shaderDirectoryCandidates(executableDirectory:)` for
+    `Bundle.main.executableURL`) — source-compatible for every caller passing a
+    `String`. `SDLShaderDirectoryError` is public, in `MetalUISDL` (outside the
+    census, `PX-K`).
+
+**Mutations** (each applied to the committed tree `105c15a`, restored from a
+copy, `git status --short` clean after each; macOS: native build, unfiltered
+`swift test --build-system native --no-parallel`; image: unfiltered
+`METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1 swift test`; `Backends/SDL`: its whole
+suite):
+
+| id | where (spelling) | reddened |
+|---|---|---|
+| M1.1 | `scaffoldFiles`: `if options.crossPlatform, case .remote = options.source { throw … }` restored | `crossPlatformNoLongerNeedsALocalCheckout`, `noAccessKitDropsOnlyTheAccessKitTrait`, `theCrossPlatformReadmeSaysWhatAConsumerInstalls`, `aNameOnlyBackendsSDLDeclaresGenerates` (macOS, 2635 run, 7 issues) |
+| M1.2 | `manifest`: `.package(path: "<checkout>/Backends/SDL")` re-added under `--local --cross-platform` | `theLocalCrossPlatformManifestNamesNoBackendsSDLPackage` |
+| M1.3 | `manifest`: `enabled` always `["SDL", "AccessKit"]` | `noAccessKitDropsOnlyTheAccessKitTrait` |
+| M1.4 | the README's Linux section restored to `359444e`'s (pkg-config, `PKG_CONFIG_PATH`) | `theCrossPlatformReadmeSaysWhatAConsumerInstalls`, `noAccessKitDropsOnlyTheAccessKitTrait` |
+| M1.5 ×4 | `clashingModuleNames` without `CStbImage` / `CSDL` / `SDLBridge` / `CAccessKit`, one run each | `aNameOfARootTargetThatFailedTheBuildIsRefused`, only the arm of the dropped name each time |
+| M1.6 | the `#if !SDL` stub deleted | guard `anSDLPlatformWithoutTheSDLTraitNamesTheTrait` ("cannot find 'SDLPlatform' in scope"); before item 1's fix the guard was red too, on the inaccessible implicit initialiser |
+| M1.7 | `manifest`: `traits` always `""` (image, unfiltered) | `aCrossPlatformPackageBuildsItsSDLAppByURL`, `aCrossPlatformPackageBuildsWithoutAccessKit` (both: "argument type 'SDLPlatform' does not conform to expected type 'Platform'"), `crossPlatformNoLongerNeedsALocalCheckout`, `theLocalCrossPlatformManifestNamesNoBackendsSDLPackage` |
+| M1.8 | `AccessKitAdapter.swift` under `#if SDL` (image, unfiltered) | `aCrossPlatformPackageBuildsWithoutAccessKit` only ("no such module 'CAccessKit'") |
+| M1.9 | `Backends/SDL/Package.swift`: the MetalUI dependency without `traits:` | the build: `MetalUISDLTests` "unable to resolve module dependency: 'CAccessKit'", `PortableReplay` fails to link (`SDLBridge` without `METALUI_SDL`) |
+| M1.10a | `shaderDirectoryCandidates`: order swapped (`Backends/SDL`, macOS) | `theShaderDirectoryBesideTheExecutableWins` |
+| M1.10b | `SDLShaderDirectoryError.description`: the count instead of the paths | `noShaderDirectoryIsAnErrorNamingEveryDirectoryTried` |
+
+**Cost if wrong.** Items 1–2 are the only behaviour a consumer sees; the rest
+are measurements a later SwiftPM could change, each with the run that would
+show it (guard 1.6, tests 1.5/1.7/1.8, the `Replay` record step in CI).
