@@ -935,6 +935,39 @@ headless sees: the look on a real display, VoiceOver, the cursor.
 - [ ] **RT6. Clicking a link** does nothing and the cursor does not change
   (divergence 150). **Observed:**
 
+## VL. Variable-height `List` (user request 2026-10-02, not a plan task)
+
+*Source: record §82 `82-variable-height-list.md`, rulings `VL-A`…
+(`docs/superpowers/2026-10-08-variable-height-list-decisions.md`), spec §8
+(`docs/superpowers/specs/2026-10-08-variable-height-list-design.md`). The
+group's letter is provisional — the merge settles it beside the parallel
+branches' groups.* Run `METALUI_LIST_DEMO=1 swift run MetalUIDemo` (AppKit) and,
+from `Backends/SDL`, `METALUI_LIST_DEMO=1 swift run $(python3 scripts/fetch-accesskit.py
+--print-flags) MetalUISDLDemo` (`PX-I`); do each check in both. Pinned
+headless: row sizing at the list's width, windowing by prefix offsets, the row
+on top held across measurements, width changes and insertions, `scrollTo` onto
+an unmeasured row, selection and focus (`VariableHeightListTests` 2.1–2.18),
+the index (`RowExtentIndexTests`), the demo windowed and settling
+(`theVariableListDemoSettlesHeadless`). What nothing headless sees: real text
+wrapping in a real window, the wheel, the scroll thumb, a live resize.
+
+- [ ] **VL1. Scrolling.** Scroll the list top to bottom and back with the wheel
+  and with the thumb: rows of three heights (one line, two lines, a
+  paragraph), no gap at the viewport's edges, no row drawn over another
+  (`VL-B`, `VL-F`). **Observed:**
+- [ ] **VL2. No jump while rows above re-measure.** Resize the window narrower,
+  scroll to the bottom, then scroll up quickly: the row at the top of the
+  viewport stays put while rows above it are measured anew; the thumb may move
+  (`VL-G`). **Observed:**
+- [ ] **VL3. The jump.** Press "Jump to row 250": row 250 lands at the top of
+  the viewport and stays there over the next frames (`VL-H`). **Observed:**
+- [ ] **VL4. Selection.** Click, ⌘-click (ctrl-click on SDL off macOS),
+  ⇧-click and ⇧↓ select as in the controls demo's list ("Selected: n"
+  follows); ↓ past the viewport's bottom reveals the lead row fully (`VL-J`,
+  `DD-Z`). **Observed:**
+- [ ] **VL5. Live resize.** Drag the window's width continuously: the text rows
+  re-wrap and the top row keeps its place (`VL-E`, `VL-G`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

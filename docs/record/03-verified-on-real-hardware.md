@@ -2029,3 +2029,26 @@ README's install list, then the shipped copy with `MetalUISDLShaders`); X2 a cou
 Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
 and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
 light and dark icons on Linux against macOS.
+
+## 2026-10-08: variable-height `List` (record §82) — looks owed
+
+`METALUI_LIST_DEMO=1` opens a new demo (300 content-sized rows of wrapping
+text, selectable, a "Jump to row 250") in `MetalUIDemo` and `MetalUISDLDemo`.
+It is not one of the fourteen offscreen images, which read 0 differing pixels
+against `70ed000` at lanes 2 and 3 (`docs/probes/demo-pixels/compare.sh`,
+record §82 §4, §6); the demo settles headless in the derived frame counts
+(`theVariableListDemoSettlesHeadless`). The demo was not launched and no
+real-window capture was taken. **Owed, new here —
+`docs/verification/human-checks.md` group VL (provisional letter), none
+performed (an agent cannot)**: VL1 wheel and thumb scrolling over rows of three
+heights with no gap or overlap; VL2 the row on top holding still while rows
+above it re-measure after a narrowing resize; VL3 the jump landing on row 250
+and staying; VL4 click, ⌘-click, ⇧-click and ⇧↓ selection and the lead row's
+reveal; VL5 rows re-wrapping under a live resize with the top row in place —
+each on AppKit and on SDL.
+
+`.task` follow-ups (record §84, 2026-10-08): the fourteen offscreen demo images
+read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
+probe was not re-run at the Record phase and no real-window capture was taken.
+No new look is owed (group X's X2 already covers a counting `.task` in a real
+window).

@@ -35,6 +35,7 @@ private func buildEveryProductionTree() {
     _ = menusDemoContent()
     buildTheServicesDemo()   // platform services (SV-T, spec test 6.1)
     buildTheRichTextDemo()   // rich text (RT-O item 10)
+    buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
 }
 
 /// The rich-text demo's tree, in its own frame as the services demo's is (a
@@ -42,6 +43,16 @@ private func buildEveryProductionTree() {
 @MainActor @inline(never)
 private func buildTheRichTextDemo() {
     _ = richTextDemoContent()
+}
+
+/// The variable-height list demo's tree and, since its root is a `Component`
+/// whose body is built at layout, the body's two parts as the window builds
+/// them. Its own frame, as `buildTheServicesDemo()`'s note says.
+@MainActor @inline(never)
+private func buildTheVariableListDemo() {
+    _ = variableListDemoContent()
+    _ = variableListDemoHeader(selected: 0) {}
+    _ = variableListDemoList(selection: .constant([]))
 }
 
 /// The services demo's tree and, since its sections are `Component`s built at

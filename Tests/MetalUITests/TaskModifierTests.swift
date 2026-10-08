@@ -578,3 +578,177 @@ private struct TKTwice: Component {
     #expect(log.take() == ["cancel"], "the key stopped being a task (no second appear: the key stayed)")
     #expect(window.animationStore.lifecycle.runningTaskCount == 0)
 }
+
+// MARK: - Ghost return with a changed id (TF-A)
+
+// Ruling `TF-A` (`docs/superpowers/2026-10-08-task-followups-decisions.md`,
+// spec `specs/2026-10-08-task-followups-design.md` §5.1). SwiftUI's side is
+// `docs/probes/swiftui-task-ghost-id.swift`, arms `Y0`…`Y4`. Each test removes
+// the content under a 0.6 s animation at 101 and re-inserts it at 101.15 (3.13's
+// shape); a ghost-return compares against the entry the key left with.
+
+/// **TF1.0** (`Y0`, the control). Re-inserted from a ghost with its id
+/// unchanged: no restart, no `onChange`, one task running, nothing parked.
+/// Green before. Mutation MT1.0: a departed entry's id never compares equal.
+@MainActor
+@Test func aTaskIDReinsertedUnchangedFromAGhostRestartsNothing() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try taskTransitionWindow {
+        let k = m.key
+        if m.shown {
+            lcLeaf(50, 30).task(id: k) { log.add("start \(k)"); await untilCancelled { log.add("cancel \(k)") } }
+                .onChange(of: k) { old, new in log.add("change \(old)->\(new)") }
+                .transition(.opacity)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 0"])
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.transitions.ghostCount == 1, "set up: a ghost")
+    withAnimation(.linear(duration: 0.6)) { m.shown = true }
+    platform.simulateTick(timestamp: 101.15)
+    for t in [101.4, 101.8, 102.5, 103.0] { platform.simulateTick(timestamp: t) }
+    #expect(log.entries == [], "an unchanged id restarts nothing (Y0): \(log.entries)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+    #expect(window.animationStore.lifecycle.parkedCount == 0)
+}
+
+/// **TF1.1** (`Y1`). Re-inserted from a ghost in a transaction that also
+/// changes its id: the old task is cancelled and the new one started, in the
+/// re-insertion's build, once; a later plain removal cancels the new one.
+/// Red before at `70ed000`: `[]` (the old task kept running). Mutation MT1.1:
+/// drop the `returned` fallback.
+@MainActor
+@Test func aTaskReinsertedFromAGhostWithAChangedIDRestarts() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try taskTransitionWindow {
+        let k = m.key
+        if m.shown {
+            lcLeaf(50, 30).task(id: k) { log.add("start \(k)"); await untilCancelled { log.add("cancel \(k)") } }
+                .transition(.opacity)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 0"])
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.transitions.ghostCount == 1, "set up: a ghost")
+    withAnimation(.linear(duration: 0.6)) { m.shown = true; m.key = 1 }
+    platform.simulateTick(timestamp: 101.15)
+    #expect(log.take() == ["cancel 0", "start 1"], "the return restarts the task (Y1)")
+    for t in [101.4, 101.8, 102.5, 103.0] { platform.simulateTick(timestamp: t) }
+    #expect(log.entries == [], "nothing more: \(log.entries)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+    m.shown = false
+    platform.simulateTick(timestamp: 104)
+    #expect(log.entries == ["cancel 1"], "the new task is the one a later removal cancels: \(log.entries)")
+}
+
+/// **TF1.2** (`Y2`). The id written while the content is a ghost — nothing
+/// runs then — restarts the task on the return. Red before: `[]`.
+/// Mutation MT1.1.
+@MainActor
+@Test func anIDWrittenWhileAGhostRestartsTheTaskOnReturn() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try taskTransitionWindow {
+        let k = m.key
+        if m.shown {
+            lcLeaf(50, 30).task(id: k) { log.add("start \(k)"); await untilCancelled { log.add("cancel \(k)") } }
+                .transition(.opacity)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 0"])
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    m.key = 1
+    platform.simulateTick(timestamp: 101.05)
+    platform.simulateTick(timestamp: 101.1)
+    try #require(window.animationStore.transitions.ghostCount == 1, "set up: still a ghost")
+    #expect(log.entries == [], "a write while a ghost runs nothing: \(log.entries)")
+    withAnimation(.linear(duration: 0.6)) { m.shown = true }
+    platform.simulateTick(timestamp: 101.15)
+    #expect(log.take() == ["cancel 0", "start 1"], "the return restarts the task (Y2)")
+    for t in [101.4, 101.8, 102.5, 103.0] { platform.simulateTick(timestamp: t) }
+    #expect(log.entries == [], "nothing more: \(log.entries)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+}
+
+/// **TF1.3** (`Y1`, order). The probe's subject — `.task(id:)` inner,
+/// `.onChange(of:)` outer — and a second leaf with only `.onChange(of:)`,
+/// under one ghost, re-inserted with the id changed. The change bucket runs
+/// in reverse registration order: the second leaf (registered last) first,
+/// then the subject's task restart, then its `onChange`. Red before: `[]`.
+/// Mutations MT1.1; MT1.3 (park only entries holding a running box) drops
+/// both `onChange` lines.
+@MainActor
+@Test func anOnChangeReinsertedFromAGhostWithAChangedValueFiresAfterTheRestart() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try taskTransitionWindow {
+        let k = m.key
+        if m.shown {
+            Column {
+                lcLeaf(50, 30).task(id: k) { log.add("start \(k)"); await untilCancelled { log.add("cancel \(k)") } }
+                    .onChange(of: k) { old, new in log.add("change \(old)->\(new)") }
+                lcLeaf(50, 30).onChange(of: k) { old, new in log.add("change2 \(old)->\(new)") }
+            }
+            .transition(.opacity)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 0"])
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.transitions.ghostCount == 1, "set up: a ghost")
+    withAnimation(.linear(duration: 0.6)) { m.shown = true; m.key = 1 }
+    platform.simulateTick(timestamp: 101.15)
+    #expect(log.take() == ["change2 0->1", "cancel 0", "start 1", "change 0->1"])
+    for t in [101.4, 101.8, 102.5, 103.0] { platform.simulateTick(timestamp: t) }
+    #expect(log.entries == [], "nothing more: \(log.entries)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+}
+
+/// The content of TF1.4: a `task(id:)` read from its own `@State`, which
+/// its `onAppear` writes to 1 (under `StateDispatch`, as input does).
+private struct TKStateKeyed: Component {
+    let log: LCLog
+    @State var n = 0
+    var content: some ElementGroup {
+        let k = n
+        lcLeaf(50, 30).onAppear { n = 1 }
+            .task(id: k) { log.add("start \(k)"); await untilCancelled { log.add("cancel \(k)") } }
+    }
+}
+
+/// **TF1.4** (`TF-D`, divergence 123 as amended). A `task(id:)` whose id is
+/// read from the content's own `@State`: the state is fresh on the return
+/// from a ghost (`ID-C`) and the departed entry holds the written value, so
+/// the task restarts for the id the content now shows. SwiftUI keeps the
+/// state and restarts nothing (`T4`, `Y0`'s reading). Red before at
+/// `70ed000`: `[]` (the task for id 1 kept running). Mutation MT1.1.
+@MainActor
+@Test func aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost() throws {
+    let m = LCModel(), log = LCLog()
+    m.shown = true
+    let (window, platform) = try taskTransitionWindow {
+        if m.shown {
+            TKStateKeyed(log: log).transition(.opacity)
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    platform.simulateTick(timestamp: 100.1)
+    try #require(log.take() == ["start 0", "cancel 0", "start 1"], "set up: the state written before the removal")
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.transitions.ghostCount == 1, "set up: a ghost")
+    withAnimation(.linear(duration: 0.6)) { m.shown = true }
+    platform.simulateTick(timestamp: 101.15)
+    for t in [101.4, 101.8, 102.5, 103.0] { platform.simulateTick(timestamp: t) }
+    #expect(log.entries == ["cancel 1", "start 0"], "fresh state, departed id: \(log.entries)")
+    #expect(window.animationStore.lifecycle.runningTaskCount == 1)
+}

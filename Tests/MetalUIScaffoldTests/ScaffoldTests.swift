@@ -645,9 +645,18 @@ private func buildConsumer(_ options: ScaffoldOptions, in root: URL,
 /// 1.7 (PX-H, PX-J, PX-L item 3, PX-Q's last paragraph): a package generated
 /// by `metalui new --cross-platform`, depending on MetalUI by (file://) URL at
 /// one commit, builds its SDL app with plain `swift build` — SDL3 and
-/// AccessKit on the image's default paths, no flags — and no warning names a
-/// MetalUI path. Mutation: generate without `traits:` → `MetalUISDL` is the
-/// unavailable stub → `SDLPlatform()` fails to compile.
+/// AccessKit on the image's default paths, no flags — and prints no
+/// `warning:` line at all (ruling `TF-B`). SwiftPM suppresses a URL
+/// dependency's source warnings (`docs/probes/swiftpm-remote-dependency-warnings.sh`),
+/// so this cannot see a warning in MetalUI's own sources — those stay pinned by
+/// the root package's builds — but it sees what every consumer would: SwiftPM's
+/// diagnostics about MetalUI's package graph (a `pkgConfig:` system library,
+/// `PX-H` item 3) and warnings in the generated starter, which is MetalUI's
+/// text. Mutations: generate without `traits:` → `MetalUISDL` is the
+/// unavailable stub → `SDLPlatform()` fails to compile; **MT2.1**
+/// `pkgConfig: "accesskit"` on the root manifest's `CAccessKit` and **MT2.2**
+/// an unused `let` in the starter's `main.swift` each redden the filter
+/// (record §84).
 @Test(.enabled(if: runsSDLConsumerBuild))
 func aCrossPlatformPackageBuildsItsSDLAppByURL() throws {
     let root = try scratchDirectory()
@@ -658,7 +667,7 @@ func aCrossPlatformPackageBuildsItsSDLAppByURL() throws {
         crossPlatform: true), in: root)
     print("1.7 consumer build: status=\(status)\n\(output.suffix(2000))")
     #expect(status == 0, "\(output)")
-    let warnings = output.split(separator: "\n").filter { $0.contains("warning:") && $0.contains(repository.path) }
+    let warnings = output.split(separator: "\n").filter { $0.contains("warning:") }
     #expect(warnings.isEmpty, "\(warnings)")
     // The executable was linked (against SDL3 and AccessKit).
     #expect(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("Consumer/.build/debug/Consumer").path))

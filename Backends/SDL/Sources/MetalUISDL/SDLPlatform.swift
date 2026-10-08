@@ -18,6 +18,9 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
     private let hidden: Bool
+    /// Each window renders into an offscreen target instead of claiming its
+    /// swapchain (ruling `TF-C`, `TF-E`; for checks only).
+    private let offscreenRenderers: Bool
     private var running = false
     /// The window of this platform with keyboard focus, if any (ruling EV-AB,
     /// amended by EV-AF). Tracked from SDL's focus events rather than read
@@ -27,9 +30,22 @@ public final class SDLPlatform: Platform {
 
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
-    public init(hiddenWindows: Bool = false) throws {
+    public convenience init(hiddenWindows: Bool = false) throws {
+        try self.init(hiddenWindows: hiddenWindows, offscreenRenderers: false)
+    }
+
+    /// ``init(hiddenWindows:)``, and with `offscreenRenderers` each window's
+    /// renderer draws into an offscreen target its pixel size instead of
+    /// claiming the window (ruling `TF-C`) — so under SDL's offscreen video
+    /// driver, where a swapchain never yields a drawable, `Window` still
+    /// builds frames and runs its lifecycle drain. Everything else is the
+    /// production path. A check's option, not API: SPI `Checks` (ruling
+    /// `TF-E` — `package` cannot reach `Backends/SDL`'s executables, which
+    /// are another package).
+    @_spi(Checks) public init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
         guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
         hidden = hiddenWindows
+        self.offscreenRenderers = offscreenRenderers
         #if canImport(AppKit)
         Self.installAppKitEventSignal()
         #endif
@@ -47,7 +63,7 @@ public final class SDLPlatform: Platform {
         }
         let window: SDLWindow
         do {
-            window = try SDLWindow(handle: OpaquePointer(handle))
+            window = try SDLWindow(handle: OpaquePointer(handle), offscreen: offscreenRenderers)
         } catch {
             mui_window_destroy(handle)
             throw error
@@ -241,10 +257,21 @@ public final class SDLWindow: PlatformWindow {
     /// as the AppKit bridge parks `.activate` (AB-B).
     private var parkedAccessibilityRequests: [AccessibilityRequest] = []
 
-    init(handle: OpaquePointer) throws {
+    /// `offscreen`: render into a target the window's pixel size instead of
+    /// claiming the window (ruling `TF-C`).
+    init(handle: OpaquePointer, offscreen: Bool = false) throws {
         self.handle = handle
         id = mui_window_id(UnsafeMutableRawPointer(handle))
-        windowRenderer = try SDLWindowRenderer(window: handle)
+        if offscreen {
+            var width: Int32 = 0, height: Int32 = 0
+            mui_window_size(UnsafeMutableRawPointer(handle), &width, &height)
+            let density = mui_window_pixel_density(UnsafeMutableRawPointer(handle))
+            windowRenderer = try SDLWindowRenderer(
+                offscreenWidth: max(1, Int((Float(width) * density).rounded())),
+                height: max(1, Int((Float(height) * density).rounded())), scaleFactor: density)
+        } else {
+            windowRenderer = try SDLWindowRenderer(window: handle)
+        }
         #if AccessKit
         let raw = UnsafeMutableRawPointer(handle)
         accessKit = AccessKitAdapter(windowID: id, title: String(cString: mui_window_title(raw)),
