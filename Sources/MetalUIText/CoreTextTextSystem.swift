@@ -69,24 +69,39 @@ public final class CoreTextTextSystem: TextSystem {
             }
     }
 
-    // MARK: Styled text (ruling RT-F) — lane 1 red stub
+    // MARK: Styled text (ruling RT-F)
 
-    /// Measures a styled text (stub).
+    /// Measures `text` through one `CTTypesetter` over its attributed string
+    /// (rulings RT-F, RT-G, RT-H, RT-I), cached by the whole value.
     public func measure(_ text: StyledText, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> StyledTextMeasurement {
-        StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: [])
+        cache.styled(text, fonts: text.runs.map { registered($0.style.font) }, wrappingAt: width,
+                     options: options).measurement
     }
 
-    /// Lays out a styled text (stub).
+    /// Lays `text` out as ``measure(_:wrappingAt:options:)`` does and places
+    /// every glyph, with its run, and every run segment.
     public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
                        origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
-        StyledTextLayout(measurement: StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: []),
-                         glyphs: [], segments: [])
+        let fonts = text.runs.map { registered($0.style.font) }
+        let shaped = cache.styled(text, fonts: fonts, wrappingAt: width, options: options)
+        let placed = StyledShaper.placed(shaped, text: text, fonts: fonts, origin: origin, scaleFactor: scaleFactor)
+        let glyphs = placed.glyphs.map { glyph, run in
+            if placedFonts[glyph.font.key] == nil { placedFonts[glyph.font.key] = glyph.font }
+            return StyledGlyph(glyph: TextGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY),
+                               run: run)
+        }
+        return StyledTextLayout(measurement: shaped.measurement, glyphs: glyphs, segments: placed.segments)
     }
 
-    /// A face's decoration metrics (stub).
+    /// `font`'s underline position and thickness, and half its x-height
+    /// (ruling RT-J item 2): `CTFontGetUnderlinePosition`,
+    /// `CTFontGetUnderlineThickness`, `CTFontGetXHeight`.
     public func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics {
-        TextDecorationMetrics(underlinePosition: 0, underlineThickness: 0, strikethroughPosition: 0)
+        let ctFont = registered(font).ctFont
+        return TextDecorationMetrics(underlinePosition: Double(CTFontGetUnderlinePosition(ctFont)),
+                                     underlineThickness: Double(CTFontGetUnderlineThickness(ctFont)),
+                                     strikethroughPosition: Double(CTFontGetXHeight(ctFont)) / 2)
     }
 
     /// Rasterizes the glyph `key` names into a coverage image.

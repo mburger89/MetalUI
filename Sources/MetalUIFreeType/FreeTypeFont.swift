@@ -99,15 +99,34 @@ public final class FreeTypeFont {
 
     /// The `post` table's underline position, in design units, negative below
     /// the baseline — the number `CTFontGetUnderlinePosition` scales (ruling
-    /// RT-J item 2; lane 1 red stub).
-    package var underlinePosition: Int { 0 }
+    /// RT-J item 2). Read from the table, not `FT_Face.underline_position`,
+    /// which FreeType moves by half the thickness; 0 without a `post` table.
+    package var underlinePosition: Int {
+        guard let table = FT_Get_Sfnt_Table(face, FT_SFNT_POST) else { return 0 }
+        return Int(table.assumingMemoryBound(to: TT_Postscript.self).pointee.underlinePosition)
+    }
 
-    /// The `post` table's underline thickness, in design units (RT-J item 2;
-    /// stub).
-    package var underlineThickness: Int { 0 }
+    /// The `post` table's underline thickness, in design units (RT-J item 2);
+    /// 0 without a `post` table.
+    package var underlineThickness: Int {
+        guard let table = FT_Get_Sfnt_Table(face, FT_SFNT_POST) else { return 0 }
+        return Int(table.assumingMemoryBound(to: TT_Postscript.self).pointee.underlineThickness)
+    }
 
-    /// The face's x-height, in design units (RT-J item 2; stub).
-    package var xHeight: Int { 0 }
+    /// The face's x-height, in design units (RT-J item 2): OS/2 `sxHeight`
+    /// (table version 2 and later), else the top of the `x` glyph's outline —
+    /// `CTFontGetXHeight`'s sources (measured equal on the three test faces).
+    package var xHeight: Int {
+        if let table = FT_Get_Sfnt_Table(face, FT_SFNT_OS2) {
+            let os2 = table.assumingMemoryBound(to: TT_OS2.self).pointee
+            if os2.version >= 2, os2.sxHeight > 0 { return Int(os2.sxHeight) }
+        }
+        let glyph = FT_Get_Char_Index(face, FT_ULong(UInt8(ascii: "x")))
+        guard glyph != 0, FT_Load_Glyph(face, glyph, FT_Int32(FT_LOAD_NO_SCALE)) == 0 else { return 0 }
+        var box = FT_BBox()
+        FT_Outline_Get_CBox(&face.pointee.glyph.pointee.outline, &box)
+        return Int(box.yMax)
+    }
 
     /// The face's family name (`FT_Face.family_name`, from the name table's
     /// family entry), e.g. `"Noto Sans"`.

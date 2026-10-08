@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-P`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-Q`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -700,3 +700,80 @@ compares the two systems, so one lane must own both; lane 1 keeps them and
 lane 2 sheds the demo instead. (c) Re-running the SwiftUI probe interpreted:
 the compiled runs reproduce every verdict; the interpreted form adds only the
 known `P0a` wobble.
+
+---
+
+## RT-P — Lane 1: what the two text systems measured, and the amendments
+
+Lane 1 (the seam and both text systems) built `RT-F`…`RT-J` and measured the
+places where the design described CoreText from outside. Evidence:
+[`../probes/coretext-styled-spacing.swift`](../probes/coretext-styled-spacing.swift)
+(**new**; `P0`, `S1`–`S5`, compiled twice byte-identical), the CoreText oracle
+(spec test 1.10, its corpus gaining a case for items 3 and 4) and new spec
+test **1.20** `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns`.
+
+**Ruling.**
+
+1. **The ellipsis's run is found in two attempts** (`RT-I`). Which characters
+   a truncation removes depends on the token's width, which depends on the
+   run whose face it is drawn in — the very run being decided. Both systems
+   first build the truncated line with the token in the run of the
+   paragraph's first unit; when the first removed unit belongs to another run,
+   they build it again with the token in that run and keep the second answer.
+   There is no third attempt: if the second token's width moves the cut into
+   yet another run, the token keeps the second run's style (unmeasured
+   against SwiftUI; every arm of test 1.9 and every truncated case of the
+   oracle corpus settles on the second). CoreText marks the token's glyphs with a private
+   attribute so their run is the token's, never a character's;
+   `Truncation.swift` does the same steps on the portable system.
+2. **A tracked line's last glyph's tracking is trailing whitespace** (`S4`:
+   `CTLineGetTrailingWhitespaceWidth` of "ab" tracked 2 is 2; kerned 2 it is
+   0). So `TextLineBox.visibleMaxX` leaves the last visible glyph's tracking
+   out and keeps its kerning, and the portable line breaker subtracts it from
+   the line's visible width (alignment's `TE-J` input) — 0 on the plain path.
+3. **A style boundary that keeps the face does not split a shaping run**
+   (`S3`: `A` | `V` tracked 1 is "AV"'s 15.587 + 1 = 16.587, never "A" + "V"'s
+   16.107 + 1; likewise a kerning or offset change). `RT-H` item 2's "splits a
+   shaping run at a style change" is amended: the portable system splits at a
+   **face**, bidi level or script change as before, and turns the optional
+   ligatures off for tracked units by **feature ranges** inside the one
+   HarfBuzz call (`ShapingFeature` gains a UTF-16 `range`; `[]` is still
+   exactly `SH-E`'s call). Measured equal to CoreText on "of" | "fice"
+   tracked, "offi" tracked | "ce" and "o" | "ffi" tracked | "ce".
+4. **Kerning and tracking are added once per grapheme, on its last glyph**
+   (`S1`: "e" + U+0301 + U+0302 + "x", three glyphs in two graphemes, widens
+   by 2 × the value, on the mark and the x; `S2`: Arabic "ب", two glyphs, by
+   1×). `RT-H` item 3's "after every glyph, a ligature counting once" is
+   amended to this: the two agree wherever a grapheme is one glyph or a
+   ligature, and differ on combining marks and on Arabic letters drawn in more
+   than one glyph. The portable system adds the value to the last glyph of
+   each grapheme in HarfBuzz's (visual) order, the grapheme's first unit's run
+   deciding the value. Test 1.20's mark and Arabic arms; test 1.7's
+   `plain + 4 × glyph count` is unchanged (its strings are one glyph per
+   grapheme or ligature).
+5. **CoreText fills kerned or tracked joined Arabic with kashidas; the
+   portable system does not** (`S2b`: kern 1 on "بالعالم" inserts four
+   tatweel glyphs, 111, carrying the space between joined letters; the width
+   is plain + 7 either way). Every other glyph lands on the same pixel on both
+   systems and the widths, line boxes and segments agree (test 1.20 pins both
+   halves: CoreText draws tatweels, the portable system none, and the rest is
+   equal). Inserting kashidas is justification machinery HarfBuzz does not
+   provide; the portable system leaves the space as a gap between joined
+   letters. This is a SwiftUI difference on Linux and Windows only (SwiftUI
+   draws through CoreText; its kashidas were not probed separately): **lane 3
+   writes it as divergence 157** from this branch's range, with test 1.20 as
+   its pin.
+6. **Test 1.13's fixture was changed after its red commit.** `RT-F` item 2's
+   "one segment per visual piece" is a maximal visually contiguous span of one
+   run on one line, so a single Arabic run whose digits UAX #9 reorders inside
+   it is still **one** piece (its letters and digits are adjacent on screen) —
+   the red fixture's `count > 3` could never be met by a correct
+   implementation. The fixture now splits the Arabic text into two runs at the
+   digits (`"مرحبا 12"` | `"3 بالعالم"`), so each run draws in two visual
+   pieces: runs `[0, 2, 1, 2, 1, 3]` in visual order on both systems, where a
+   logical-order emission gives `[0, 1, 2, 3]`.
+
+**Cost if wrong.** Item 4: a combining-mark or Arabic string kerned on one
+system wider than on the other by the value per extra glyph — the oracle and
+test 1.20 would show it. Item 5: Arabic kerning looks different on Linux and
+Windows (gaps instead of stretched joins), named, never silent.

@@ -44,6 +44,9 @@ private let styledCorpus: [[Piece]] = [
     [n("abc "), ar("مرحبا بالعالم"), n(" def")],
     [n("The quick ", 11), src("brown fox", 26), n(" jumps over the lazy dog.", 11, k: 0.5)],
     [n("Ready\n"), src("Set", 17), n("\nGo", o: 2)],
+    // RT-P items 3 and 4: pair kerning across a tracking boundary, spacing
+    // once per grapheme over combining marks.
+    [n("A"), n("V", t: 1), n(" e\u{301}\u{302}x ", k: 2), n("of"), n("fice", t: 1)],
 ]
 private let styledWidths: [Double?] = [nil, 60, 120]
 private let styledOptions = [

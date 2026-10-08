@@ -39,21 +39,50 @@ extension PortableText {
     /// suffix's first.
     static func truncatedLine(_ text: String, units: [UInt16], from start: Int, wraps: Bool,
                               font: PortableFont, width: Double, mode: TextTruncation) throws -> LaidOutLine {
+        try truncatedLine(text, units: units, from: start, wraps: wraps, runs: .single(font), width: width,
+                          mode: mode)
+    }
+
+    /// ``truncatedLine(_:units:from:wraps:font:width:mode:)`` over styled runs
+    /// (ruling RT-I): the token is shaped in the run of the first character
+    /// the truncation removes. It is first shaped in the run of the
+    /// paragraph's first unit; when the truncation removes from another run,
+    /// the line is built again with the token in that run (ruling RT-P item
+    /// 1) — the CoreText path's two attempts, step for step.
+    static func truncatedLine(_ text: String, units: [UInt16], from start: Int, wraps: Bool,
+                              runs: PortableRuns, width: Double, mode: TextTruncation) throws -> LaidOutLine {
+        let guess = runs.run(at: start)
+        let first = try truncatedLine(text, units: units, from: start, wraps: wraps, runs: runs, tokenRun: guess,
+                                      width: width, mode: mode)
+        guard let removed = first.firstRemoved else { return first.line }
+        let removedRun = runs.run(at: removed)
+        if removedRun == guess { return first.line }
+        return try truncatedLine(text, units: units, from: start, wraps: wraps, runs: runs, tokenRun: removedRun,
+                                 width: width, mode: mode).line
+    }
+
+    /// One attempt, the token in run `tokenRun`; also the first unit it
+    /// removed (`nil` when it draws no token).
+    private static func truncatedLine(_ text: String, units: [UInt16], from start: Int, wraps: Bool,
+                                      runs: PortableRuns, tokenRun: Int, width: Double,
+                                      mode: TextTruncation) throws -> (line: LaidOutLine, firstRemoved: Int?) {
         var end = start
         while end < units.count, !isHardBreak(units[end]) { end += 1 }
         let paragraph = Array(units[start..<end])
         let count = paragraph.count
         let range = start..<units.count
 
-        let token = try shapeCascading("\u{2026}", font: font)
+        let token = try shapeCascading("\u{2026}", runs: runs.fixed(tokenRun), base: 0)
         let tokenAdvance = token.reduce(0) { $0 + $1.glyph.xAdvance }
 
         guard count > 0 else {
-            return LaidOutLine(line: PortableLine(range: range, advance: 0), glyphs: [], trailingWhitespace: 0)
+            return (LaidOutLine(line: PortableLine(range: range, advance: 0), glyphs: [], trailingWhitespace: 0,
+                                kept: [start..<start]), nil)
         }
         let string = String(decoding: paragraph, as: UTF16.self)
         let bidi = BidiParagraph(paragraph)
-        let shaped = try shapeCascading(string, font: font, levels: bidi.levels[...], scripts: bidi.scripts[...])
+        let shaped = try shapeCascading(string, runs: runs, base: start, levels: bidi.levels[...],
+                                        scripts: bidi.scripts[...])
         var unitAdvance = [Double](repeating: 0, count: count)
         var clusterStart = [Bool](repeating: false, count: count + 1)
         clusterStart[count] = true
@@ -98,12 +127,12 @@ extension PortableText {
             var end = graphemes[0]
             for candidate in graphemes {
                 let advance = clusterStart[candidate] ? cumulative[candidate]
-                    : try shapedAdvance(paragraph, 0..<candidate, font: font)
+                    : try shapedAdvance(paragraph, 0..<candidate, runs: runs, base: start)
                 guard advance <= width else { break }
                 end = candidate
             }
             if !clusterStart[end] {
-                return try reshapedLine(Array(paragraph[0..<end]), font: font, range: range)
+                return (try reshapedLine(Array(paragraph[0..<end]), runs: runs, base: start, range: range), nil)
             }
             prefixEnd = end
             suffixStart = count
@@ -169,40 +198,53 @@ extension PortableText {
         if bidi.isRightToLeftParagraph(at: 0) { pen = -keptTrailing }
         let startPen = pen
         var placed: [LinePlacedGlyph] = []
-        func place(_ run: RunGlyph, unit: UInt16, ignorable: Bool) {
+        func place(_ run: RunGlyph, unit: UInt16, ignorable: Bool, source: Int?) {
+            let next = advancing(pen, over: unit, by: run.glyph.xAdvance)
             if let id = drawnGlyph(run.glyph.id, at: unit, ignorable: ignorable, space: run.font.spaceGlyph) {
-                placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen))
+                placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen, unit: source,
+                                              style: run.style, walked: next - pen))
             }
-            pen = advancing(pen, over: unit, by: run.glyph.xAdvance)
+            pen = next
         }
-        func placeToken() { for run in token { place(run, unit: 0x2026, ignorable: false) } }
+        func placeToken() { for run in token { place(run, unit: 0x2026, ignorable: false, source: nil) } }
         for (index, entry) in kept.enumerated() {
             if drawsToken, index == tokenIndex { placeToken() }
-            place(entry.run, unit: paragraph[entry.payload], ignorable: ignorable[entry.payload])
+            place(entry.run, unit: paragraph[entry.payload], ignorable: ignorable[entry.payload],
+                  source: start + entry.payload)
         }
         if drawsToken, tokenIndex == kept.count { placeToken() }
-        return LaidOutLine(line: PortableLine(range: range, advance: pen - startPen), glyphs: placed,
-                           trailingWhitespace: keptTrailing)
+        let keptRanges = suffixStart < count ? [start..<(start + prefixEnd), (start + suffixStart)..<end]
+                                             : [start..<(start + prefixEnd)]
+        let firstRemoved: Int? = drawsToken ? (prefixEnd < suffixStart && prefixEnd < count ? start + prefixEnd : end)
+                                            : nil
+        return (LaidOutLine(line: PortableLine(range: range, advance: pen - startPen), glyphs: placed,
+                            trailingWhitespace: keptTrailing, kept: keptRanges,
+                            tokenRun: drawsToken ? tokenRun : nil), firstRemoved)
     }
 
     /// `units` — a prefix of a paragraph that ends inside a cluster — shaped
     /// and laid out alone, as `CTTypesetterCreateLine` builds a line that
     /// splits a cluster.
-    private static func reshapedLine(_ units: [UInt16], font: PortableFont, range: Range<Int>) throws -> LaidOutLine {
+    private static func reshapedLine(_ units: [UInt16], runs: PortableRuns, base: Int,
+                                     range: Range<Int>) throws -> LaidOutLine {
         let string = String(decoding: units, as: UTF16.self)
         let bidi = BidiParagraph(units)
-        let shaped = try shapeCascading(string, font: font, levels: bidi.levels[...], scripts: bidi.scripts[...])
+        let shaped = try shapeCascading(string, runs: runs, base: base, levels: bidi.levels[...],
+                                        scripts: bidi.scripts[...])
         let ignorable = ignorableUnits(of: string, count: units.count)
         var pen = 0.0
         var placed: [LinePlacedGlyph] = []
         for (run, unit) in visualOrder(shaped.map { (run: $0, payload: $0.cluster) }, line: 0..<units.count,
                                        bidi: bidi, unitOf: { $0 }) {
+            let next = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
             if let id = drawnGlyph(run.glyph.id, at: units[unit], ignorable: ignorable[unit], space: run.font.spaceGlyph) {
-                placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen))
+                placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen, unit: base + unit,
+                                              style: run.style, walked: next - pen))
             }
-            pen = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
+            pen = next
         }
-        return LaidOutLine(line: PortableLine(range: range, advance: pen), glyphs: placed, trailingWhitespace: 0)
+        return LaidOutLine(line: PortableLine(range: range, advance: pen), glyphs: placed, trailingWhitespace: 0,
+                           kept: [base..<(base + units.count)])
     }
 
     /// The first unit of the cluster holding `unit`.

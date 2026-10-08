@@ -32,18 +32,29 @@ public struct ShapedGlyph: Equatable, Sendable {
 }
 
 /// An OpenType feature setting for one shaping call (ruling RT-H item 3): a
-/// four-letter tag and its value — 0 turns the feature off.
+/// four-letter tag and its value — 0 turns the feature off — over the whole
+/// run or a range of its UTF-16 units (ruling RT-P item 3).
 package struct ShapingFeature: Hashable, Sendable {
     /// The feature's tag, e.g. `"liga"`.
     package let tag: String
     /// The feature's value; 0 is off, 1 on.
     package let value: UInt32
+    /// The UTF-16 units of the shaped text it applies to (cluster values,
+    /// SH-C); `nil` is the whole run.
+    package let range: Range<Int>?
 
-    /// A feature setting over the whole run.
-    package init(_ tag: String, _ value: UInt32) {
+    /// A feature setting over `range` of the run's UTF-16 units, or the whole
+    /// run.
+    package init(_ tag: String, _ value: UInt32, range: Range<Int>? = nil) {
         precondition(tag.utf8.count == 4, "an OpenType feature tag is four ASCII letters")
         self.tag = tag
         self.value = value
+        self.range = range
+    }
+
+    /// The optional ligatures off over `range` of the run's UTF-16 units.
+    package static func ligaturesOff(over range: Range<Int>) -> [ShapingFeature] {
+        ["liga", "clig", "dlig", "hlig"].map { ShapingFeature($0, 0, range: range) }
     }
 
     /// The optional ligatures — `liga`, `clig`, `dlig`, `hlig` — off: what
@@ -84,8 +95,9 @@ public enum HarfBuzzShaper {
         try shape(text, font: font, direction: direction, features: [])
     }
 
-    /// ``shape(_:font:direction:)`` with `features` applied to the whole run
-    /// (ruling RT-H item 3); `[]` is exactly ``shape(_:font:direction:)``.
+    /// ``shape(_:font:direction:)`` with `features` applied, each over its
+    /// range or the whole run (rulings RT-H item 3, RT-P item 3); `[]` is
+    /// exactly ``shape(_:font:direction:)``.
     package static func shape(_ text: String, font: HarfBuzzFont, direction: ShapingDirection,
                               features: [ShapingFeature]) throws -> ShapedRun {
         guard let buffer = hb_buffer_create(), hb_buffer_allocation_successful(buffer) != 0 else {
@@ -114,8 +126,21 @@ public enum HarfBuzzShaper {
             hb_buffer_guess_segment_properties(buffer)  // script and language only; direction is set
         }
         // SH-E: no feature list — each script's required and default features,
-        // which is what CoreText applies to an OpenType font.
-        hb_shape(font.font, buffer, nil, 0)
+        // which is what CoreText applies to an OpenType font. A feature list
+        // (RT-H item 3: tracking turns the optional ligatures off) applies
+        // each setting over its range; an empty one is exactly the call SH-E
+        // makes.
+        if features.isEmpty {
+            hb_shape(font.font, buffer, nil, 0)
+        } else {
+            let settings = features.map { feature in
+                hb_feature_t(tag: feature.tag.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) },
+                             value: feature.value,
+                             start: feature.range.map { UInt32($0.lowerBound) } ?? 0,
+                             end: feature.range.map { UInt32($0.upperBound) } ?? UInt32.max)
+            }
+            settings.withUnsafeBufferPointer { hb_shape(font.font, buffer, $0.baseAddress, UInt32($0.count)) }
+        }
 
         let count = Int(hb_buffer_get_length(buffer))
         let infos = hb_buffer_get_glyph_infos(buffer, nil)

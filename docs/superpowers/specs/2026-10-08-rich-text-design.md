@@ -2,13 +2,18 @@
 
 Styled runs inside one `Text`, on both text systems. Item 6 of the gpui-gap
 priority list (user request 2026-10-02; **not a plan task**). Rulings `RT-A`…
-`RT-O` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
+`RT-P` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
 record `docs/record/83-rich-text.md` (Record phase). Probes:
 `docs/probes/swiftui-rich-text.swift`, `docs/probes/foundation-markdown-inline.swift`,
 `docs/probes/swift-attribute-scope-ambiguity/run.sh`, and the critic pass's
 `docs/probes/swiftui-text-interpolation.swift` (`I0`–`I4`) and
 `docs/probes/swiftui-kerning-zero.swift` (`K1`, `K2`) (arm ids below are theirs).
 **The critic pass's corrections are ruling `RT-O`; this spec carries them.**
+**Lane 1's measured amendments are ruling `RT-P`** (the ellipsis in two
+attempts, trailing tracking, no shaping-run split at a style change that
+keeps the face, spacing once per grapheme, CoreText's kashidas — divergence
+157 for lane 3 — and test 1.13's fixture); where this spec says "after every
+glyph" or "splits a shaping run at a style change", `RT-P` items 3–4 govern.
 
 Branch `feat/rich-text` from `70ed000`. Parallel: `feat/input-apis` (§81),
 `feat/variable-height-list` (§82) — stay off their files (`List*.swift`,
@@ -347,12 +352,13 @@ the spelling it edits; the lane records which tests it reddened (by name).
 | 1.10 | `everyStyledCorpusCasePlacesTheSameGlyphsAsTheApplePath` (`StyledTextOracleTests`) | the CoreText oracle (`RT-H` 5): a corpus over the three test faces (mixed sizes and faces, kerning, tracking, offsets, wraps, Arabic + Latin bidi, limits) at scales 1 and 2 — same glyph keys, positions, line boxes and segments | stub | portable `shapeCascading`: choose the covering face from the base font for every unit (`coveringFace(c, font: runFonts[0])`) |
 | 1.11 | `theDecorationMetricsAgreeOnBothSystems` | `decorationMetrics` for the three faces × five sizes: position and thickness to 1e-4 (TrueType exact, `PT-B`'s fraction rule), strikethrough == xHeight / 2 | stub zeros | FreeType: take the strikethrough from OS/2 `yStrikeoutPosition` |
 | 1.12 | `segmentsSpanTheirAdvanceAndLinesKnowTheirVisibleExtent` (`C9k`, `C9w`, `F4`) | `"x   "` / `"   x"` / `"x"`+`"   "`+`"x"` with kerning: segment extents include kerning; `visibleMinX/MaxX` exclude a line's leading/trailing whitespace and include interior whitespace, both systems | stub | include trailing whitespace in `visibleMaxX` |
-| 1.13 | `bidiRunsSplitIntoOneSegmentPerVisualPiece` | Latin–Arabic–Latin with a run spanning the switch: segment count, order and extents equal on both systems | stub one segment per run | emit segments in logical order |
+| 1.13 | `bidiRunsSplitIntoOneSegmentPerVisualPiece` | Latin–Arabic–Latin, the Arabic split into two runs at its digits (`RT-P` item 6: a visual piece is a maximal visually contiguous span of one run, so one Arabic run is one piece): runs `[0, 2, 1, 2, 1, 3]` in visual order, extents equal on both systems | stub one segment per run | emit segments in logical order |
 | 1.14 | `aWarmStyledFrameShapesNothing` | two frames over the same `StyledText`: `ShapingCache.misses` unmoved on the second; the portable measurement cache answers the second from its entry (counted) | stub uncached | key the styled cache entry by `string` only (two styled texts with one string share an entry — the arm with two run splits reddens) |
 | 1.15 | `aStyledTextWhoseLengthsDoNotSumTraps` (exit test) | `StyledText("abc", runs: [length 2])` exits with a signal | — (new trap) | delete the precondition |
 | 1.16 | `zeroLengthRunsAreDroppedAndEqualNeighboursMerge` (`StyledTextPortableTests`, runs on Linux) | normalization; an empty string keeps its first run's style (`C17`) | stub | skip the merge |
 | 1.17 | `thePortableSystemLaysOutAStyledTextOnEveryPlatform` (`StyledTextPortableTests`) | Noto Sans 10/30 mixed line and a +5 offset: heights and baselines from `PortableFontMetrics`, on Linux too | stub | as 1.5 |
 | 1.18 | `disablingLigaturesShapesTheLigatureAsSeparateGlyphs` (`ShapingFeatureTests`) | HarfBuzz with `liga`/`clig` off: one glyph per letter of the ligated string | stub | ignore `features` |
+| 1.20 | `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns` (`StyledTextSeamTests`; added by lane 1, `RT-P` items 3–5) | kerning/tracking once per grapheme (`"e\u{301}\u{302}x"` +2×), pair kerning kept across a kerning/tracking boundary (`"A"`+tracked `"V"` = plain `"AV"` + 1), both systems' glyphs equal except CoreText's tatweels in kerned/tracked joined Arabic (present on CoreText, absent on portable) | written after the implementation; red on the predecessor's per-glyph spacing (mutation) | add the spacing to every glyph — mark and Arabic arms; split a shaping run where tracking starts — the `"AV"` arm |
 | 1.19 | `theDemoDoesTheSameTextWorkAsBefore` (`Tests/MetalUITests/StyledTextSeamTests.swift`; `RT-M` 1, moved from lane 2 by `RT-O` 11) | the main demo's first and warm frames: `ShapingCache` misses and lookups equal literals **recorded on `70ed000`'s code before lane 1's first source change** (stated in the test with the commit) | green on arrival by design (a must-not-move pin) | (lane 1) key the plain cache by `(string, font, width)` without the options — the warm-frame literal moves; (lane 2, re-run) route every `Text` through the styled path (predicate `true`) |
 
 ### §4.2 Lane 2 — the `Text` element
@@ -500,7 +506,7 @@ few seconds.
   the `.monospaced` design (`PortableFontResolver.register(design:family:)`),
   else the default face (`TE-B`).
 
-### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–156)
+### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–157; 157 added by `RT-P` 5)
 
 | # | what differs | SwiftUI | MetalUI | ruling | pin |
 |---|---|---|---|---|---|
@@ -511,6 +517,7 @@ few seconds.
 | 154 | Markdown in control titles | `Button("**b**")`, `Toggle("**b**", …)` draw bold labels (`M30`, `M31`) | controls' `String` titles are verbatim | `RT-A` | `aControlTitleIsVerbatim` (3.15) |
 | 155 | concatenating a decorated `Text` | does not compile (`.padding()` etc. return `some View`) | compiles (they return `Self`) and traps at the `+` (or the interpolation), naming the field | `RT-E` 4 | `concatenatingADecoratedTextTraps` (2.19) |
 | 156 | interpolating a value of a type with no dedicated overload | `String(describing:)`, through a **deprecated** overload (`I1`, `I2`: two warnings, "Localized string interpolation produces an unlocalized, debug description…") | the same text, no warning | `RT-O` 6 | `theInitialisersReachSwiftUIsOverloads` (3.10) |
+| 157 | kerning or tracking on joined Arabic, on Linux and Windows | CoreText (macOS) inserts tatweel (kashida) glyphs carrying the space between joined letters (`S2b`, `coretext-styled-spacing.swift`; SwiftUI draws through CoreText, not probed separately) | the portable system adds the same space as a gap; widths and every other glyph agree | `RT-P` 5 | `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns` (1.20) |
 
 **Not offered rows** (documented absences): `Text.LineStyle` patterns other
 than `.solid`; view-level `bold`/`underline`/`strikethrough`/`kerning`/

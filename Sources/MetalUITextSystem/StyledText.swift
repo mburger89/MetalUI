@@ -294,4 +294,61 @@ package enum StyledTextLines {
         }
         return seen.isEmpty ? [fallback] : seen
     }
+
+    /// One glyph of a laid-out line, for the visible extent and the segments:
+    /// its pen x and advance in points from the line's start (kerning and
+    /// tracking included), its run, and whether its unit is line whitespace.
+    package struct Pen {
+        package let x: Double
+        package let advance: Double
+        package let run: Int
+        package let isWhitespace: Bool
+
+        package init(x: Double, advance: Double, run: Int, isWhitespace: Bool) {
+            self.x = x
+            self.advance = advance
+            self.run = run
+            self.isWhitespace = isWhitespace
+        }
+    }
+
+    /// A line's visible extent (ruling RT-J item 3): from the first glyph
+    /// that is not whitespace to the end of the last, its tracking left out
+    /// (`CTLineGetTrailingWhitespaceWidth` counts a last glyph's tracking as
+    /// trailing whitespace, measured); `(0, 0)` with no such glyph.
+    package static func visibleExtent(_ pens: [Pen], tracking: [Double]) -> (min: Double, max: Double) {
+        var low = Double.infinity, high = -Double.infinity
+        for pen in pens where !pen.isWhitespace {
+            low = min(low, pen.x)
+            high = max(high, pen.x + pen.advance - tracking[pen.run])
+        }
+        return low.isFinite ? (low, high) : (0, 0)
+    }
+
+    /// One line's run segments (ruling RT-F item 2): its glyphs in visual
+    /// order (by pen x, ties in emission order), consecutive glyphs of one run
+    /// joined into one piece spanning their pens and advances; `originX` is
+    /// the line's aligned start in window points and `baseline` a run's
+    /// baseline in window points.
+    package static func segments(_ pens: [Pen], line: Int, originX: Double,
+                                 baseline: (Int) -> Double) -> [TextRunSegment] {
+        let ordered = pens.enumerated().sorted { ($0.element.x, $0.offset) < ($1.element.x, $1.offset) }
+        var result: [TextRunSegment] = []
+        var current: (run: Int, low: Double, high: Double)?
+        func flush() {
+            guard let piece = current else { return }
+            result.append(TextRunSegment(run: piece.run, line: line, minX: originX + piece.low,
+                                         maxX: originX + piece.high, baseline: baseline(piece.run)))
+        }
+        for (_, pen) in ordered {
+            if let piece = current, piece.run == pen.run {
+                current = (piece.run, min(piece.low, pen.x), max(piece.high, pen.x + pen.advance))
+            } else {
+                flush()
+                current = (pen.run, pen.x, pen.x + pen.advance)
+            }
+        }
+        flush()
+        return result
+    }
 }

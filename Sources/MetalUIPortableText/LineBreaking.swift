@@ -33,6 +33,14 @@ struct LinePlacedGlyph {
     /// The face it is drawn in — the requested one or a fallback (FB-A).
     let font: PortableFont
     let penX: Double
+    /// The UTF-16 unit of the styled string its cluster starts at; `nil` for
+    /// an ellipsis token's glyph.
+    var unit: Int? = nil
+    /// Its styled run (ruling RT-F) — 0 for a plain string.
+    var style: Int = 0
+    /// How far it moves the pen as a line walks it (a tab to its stop, a hard
+    /// break zero wide; kerning and tracking included).
+    var walked: Double = 0
 }
 
 /// A display line and the glyphs that draw it.
@@ -43,6 +51,20 @@ struct LaidOutLine {
     /// `CTLineGetTrailingWhitespaceWidth`'s answer, which alignment leaves out
     /// of the line's width (ruling TE-J).
     let trailingWhitespace: Double
+    /// The source ranges whose units the line draws (ruling RT-G): the line's
+    /// range, or a truncated line's kept prefix and suffix.
+    let kept: [Range<Int>]
+    /// A truncated line's ellipsis run (ruling RT-I); `nil` without a token.
+    let tokenRun: Int?
+
+    init(line: PortableLine, glyphs: [LinePlacedGlyph], trailingWhitespace: Double,
+         kept: [Range<Int>]? = nil, tokenRun: Int? = nil) {
+        self.line = line
+        self.glyphs = glyphs
+        self.trailingWhitespace = trailingWhitespace
+        self.kept = kept ?? [line.range]
+        self.tokenRun = tokenRun
+    }
 }
 
 /// `init_linebreak` fills libunibreak's lookup state once. A `static let` is
@@ -104,7 +126,15 @@ extension PortableText {
     /// `TruncationOracleTests`. Alignment is placement's (``placements``).
     static func layOut(_ text: String, font: PortableFont, wrappingAt width: Double?,
                        options: TextLayoutOptions) throws -> [LaidOutLine] {
-        let lines = try layOut(text, font: font, wrappingAt: width)
+        try layOut(text, runs: .single(font), wrappingAt: width, options: options)
+    }
+
+    /// ``layOut(_:font:wrappingAt:options:)`` over styled runs (rulings RT-F,
+    /// RT-I): the truncated line's ellipsis takes the run of the first
+    /// character it removes.
+    static func layOut(_ text: String, runs: PortableRuns, wrappingAt width: Double?,
+                       options: TextLayoutOptions) throws -> [LaidOutLine] {
+        let lines = try layOut(text, runs: runs, wrappingAt: width)
         guard let maxLines = options.maxLines.map({ max(1, $0) }), lines.count > maxLines else { return lines }
         guard let width else { return Array(lines.prefix(maxLines)) }
         let units = Array(text.utf16)
@@ -112,12 +142,20 @@ extension PortableText {
         let endsParagraph = last.upperBound >= units.count || isHardBreak(units[last.upperBound - 1])
         return Array(lines.prefix(maxLines - 1))
             + [try truncatedLine(text, units: units, from: last.lowerBound, wraps: !endsParagraph,
-                                 font: font, width: width, mode: options.truncation)]
+                                 runs: runs, width: width, mode: options.truncation)]
     }
 
     /// `lines`, with each line's glyphs kept: the glyphs `emitLines` draws
     /// (ruling LB-H) are the ones this measured, so the two cannot drift.
     static func layOut(_ text: String, font: PortableFont,
+                       wrappingAt width: Double?) throws -> [LaidOutLine] {
+        try layOut(text, runs: .single(font), wrappingAt: width)
+    }
+
+    /// ``layOut(_:font:wrappingAt:)`` over styled runs (ruling RT-H): breaking
+    /// once over the whole string (a run boundary is never an opportunity),
+    /// shaping through ``shapeCascading(_:runs:base:levels:scripts:)``.
+    static func layOut(_ text: String, runs: PortableRuns,
                        wrappingAt width: Double?) throws -> [LaidOutLine] {
         if let width {
             precondition(width > 0, "PortableText.lines was offered a wrapping width of \(width); "
@@ -147,7 +185,7 @@ extension PortableText {
         func shape(from: Int) throws {
             let rest = String(decoding: units[from...], as: UTF16.self)
             for unit in from..<units.count { unitAdvance[unit] = 0; clusterStart[unit] = false }
-            shaped = try shapeCascading(rest, font: font, levels: bidi.levels[from...],
+            shaped = try shapeCascading(rest, runs: runs, base: from, levels: bidi.levels[from...],
                                         scripts: bidi.scripts[from...])
             shapedFrom = from
             for run in shaped {
@@ -203,7 +241,7 @@ extension PortableText {
                         // a base and its marks (measured, TE-U).
                         end = cluster
                     } else {
-                        end = try graphemeBreak(units: units, from: start, limit: limit, font: font,
+                        end = try graphemeBreak(units: units, from: start, limit: limit, runs: runs,
                                                 graphemeStart: graphemeStart, clusterStart: clusterStart)
                     }
                     break
@@ -238,9 +276,9 @@ extension PortableText {
                 lineGlyphs = shaped.lazy.map { ($0, shapedFrom + $0.cluster) }
                     .filter { (start..<end).contains($0.1) }
             } else {
-                advance = try shapedAdvance(units, start..<end, font: font)
+                advance = try shapedAdvance(units, start..<end, runs: runs, base: 0)
                 let alone = String(decoding: units[start..<end], as: UTF16.self)
-                lineGlyphs = try shapeCascading(alone, font: font, levels: bidi.levels[start..<end],
+                lineGlyphs = try shapeCascading(alone, runs: runs, base: start, levels: bidi.levels[start..<end],
                                                 scripts: bidi.scripts[start..<end])
                     .map { ($0, start + $0.cluster) }
             }
@@ -262,15 +300,20 @@ extension PortableText {
             let visual = visualOrder(lineGlyphs.map { (run: $0.run, payload: $0.unit) },
                                      line: start..<end, bidi: bidi, unitOf: { $0 })
             for (run, unit) in visual {
+                let next = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
                 if let id = drawnGlyph(run.glyph.id, at: units[unit], ignorable: ignorable[unit],
                                        space: run.font.spaceGlyph) {
-                    placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen))
+                    placed.append(LinePlacedGlyph(id: id, glyph: run.glyph, font: run.font, penX: pen,
+                                                  unit: unit, style: run.style, walked: next - pen))
                 }
-                pen = advancing(pen, over: units[unit], by: run.glyph.xAdvance)
+                pen = next
             }
             var trimmed = end
             while trimmed > start, isBreakingWhitespace(units[trimmed - 1]) { trimmed -= 1 }
-            let visible = (start..<trimmed).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
+            var visible = (start..<trimmed).reduce(0) { advancing($0, over: units[$1], by: unitAdvance[$1]) }
+            // CoreText counts a tracked line's last visible glyph's tracking as
+            // trailing whitespace (measured, RT-P item 2); 0 on the plain path.
+            if trimmed > start { visible -= runs.tracking[runs.run(at: trimmed - 1)] }
             result.append(LaidOutLine(line: PortableLine(range: start..<end, advance: advance),
                                       glyphs: placed, trailingWhitespace: advance - visible))
             start = end
@@ -281,7 +324,7 @@ extension PortableText {
     /// Where a line ends whose first cluster alone is wider than `limit`:
     /// after the longest run of whole graphemes inside that cluster whose
     /// re-shaped advance fits, and never before the first grapheme.
-    static func graphemeBreak(units: [UInt16], from start: Int, limit: Double, font: PortableFont,
+    static func graphemeBreak(units: [UInt16], from start: Int, limit: Double, runs: PortableRuns,
                               graphemeStart: [Bool], clusterStart: [Bool]) throws -> Int {
         var clusterEnd = start + 1
         while !(clusterStart[clusterEnd] && graphemeStart[clusterEnd]) { clusterEnd += 1 }
@@ -290,7 +333,7 @@ extension PortableText {
         var candidate = best + 1
         while candidate < clusterEnd {
             if graphemeStart[candidate] {
-                guard try shapedAdvance(units, start..<candidate, font: font) <= limit else { break }
+                guard try shapedAdvance(units, start..<candidate, runs: runs, base: 0) <= limit else { break }
                 best = candidate
             }
             candidate += 1
@@ -301,9 +344,16 @@ extension PortableText {
     /// `units[range]` shaped on its own, walked as a line (tabs to their
     /// stops, hard breaks zero wide).
     static func shapedAdvance(_ units: [UInt16], _ range: Range<Int>, font: PortableFont) throws -> Double {
+        try shapedAdvance(units, range, runs: .single(font), base: 0)
+    }
+
+    /// ``shapedAdvance(_:_:font:)`` over styled runs; `units[0]` is unit
+    /// `base` of the styled string.
+    static func shapedAdvance(_ units: [UInt16], _ range: Range<Int>, runs: PortableRuns,
+                              base: Int) throws -> Double {
         let line = String(decoding: units[range], as: UTF16.self)
         var perUnit = [Double](repeating: 0, count: range.count)
-        for run in try shapeCascading(line, font: font) {
+        for run in try shapeCascading(line, runs: runs, base: base + range.lowerBound) {
             perUnit[run.cluster] += run.glyph.xAdvance
         }
         return zip(units[range], perUnit).reduce(0) { advancing($0, over: $1.0, by: $1.1) }

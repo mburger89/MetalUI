@@ -475,29 +475,99 @@ private func ellipsis(in layout: StyledTextLayout, system: any TextSystem, fonts
     }
 }
 
-/// **1.13**. Latin–Arabic–Latin with a run spanning the direction switch (the
-/// Noto Sans Arabic run holds Arabic letters and European digits, which UAX #9
-/// gives their own level): one segment per visual piece, in visual order, the
-/// same count, order and extents (1e-3) on both systems. Mutation: emit
-/// segments in logical order.
+/// **1.13**. Latin–Arabic–Latin with a run spanning a direction switch:
+/// `"abc "` (Noto Sans), `"مرحبا 12"` and `"3 بالعالم"` (Noto Sans Arabic, the
+/// second kerned 1), `" def"`. UAX #9 runs the Arabic right to left and its
+/// digits left to right inside it, so the second run — Arabic letters, then
+/// digits — draws in two visual pieces, as does the third: six segments,
+/// visual order runs 0, 2, 1, 2, 1, 3, the same count, order and extents
+/// (1e-3) on both systems. Mutation: emit segments in logical order.
 @MainActor
 @Test func bidiRunsSplitIntoOneSegmentPerVisualPiece() throws {
     var answers: [String: [TextRunSegment]] = [:]
     try withBothSystems { rt in
         let system = rt.system
         let latin = TextRunStyle(font: noto(system))
-        let arabic = TextRunStyle(font: system.resolveFont(FontDescriptor(family: "Noto Sans Arabic", size: 13)))
-        let text = styled([("abc ", latin), ("مرحبا 123 بالعالم", arabic), (" def", latin)])
+        let arabicFont = system.resolveFont(FontDescriptor(family: "Noto Sans Arabic", size: 13))
+        let text = styled([("abc ", latin), ("مرحبا 12", TextRunStyle(font: arabicFont)),
+                           ("3 بالعالم", TextRunStyle(font: arabicFont, kerning: 1)), (" def", latin)])
         let layout = system.layOut(text, wrappingAt: nil, options: TextLayoutOptions(), origin: (0, 0), scaleFactor: 1)
         answers[rt.name] = layout.segments
     }
     let apple = try #require(answers["CoreText"]), portable = try #require(answers["portable"])
-    try #require(apple.count > 3, rtNote("the Arabic run splits into visual pieces: \(apple)"))
-    #expect(apple.map(\.run) == portable.map(\.run), rtNote("\(apple) vs \(portable)"))
+    #expect(apple.map(\.run) == [0, 2, 1, 2, 1, 3], rtNote("CoreText: \(apple)"))
+    #expect(portable.map(\.run) == apple.map(\.run), rtNote("\(apple) vs \(portable)"))
     #expect(zip(apple, portable).allSatisfy { abs($0.minX - $1.minX) < 1e-3 && abs($0.maxX - $1.maxX) < 1e-3 },
             rtNote("\(apple) vs \(portable)"))
     #expect(zip(apple.dropLast(), apple.dropFirst()).allSatisfy { $0.maxX <= $1.minX + 1e-9 },
             rtNote("visual order, left to right: \(apple)"))
+}
+
+/// **1.20** (ruling `RT-P` items 3–5; added by lane 1). Kerning and tracking
+/// are added once per grapheme, on its last glyph — `"e\u{301}\u{302}x"`
+/// widens by 2 × the value, not 3 × — and a style boundary that keeps the
+/// face keeps the pair kerning across it (`"A"` + a tracked `"V"`: plain
+/// `"AV"` + 1). Both systems place the same glyphs at the same pixels, except
+/// that CoreText fills kerned or tracked joined Arabic with tatweel (kashida)
+/// glyphs the portable system does not draw — the widths and every other
+/// glyph agree (`RT-P` item 5). Mutations: add the spacing to every glyph —
+/// the mark and Arabic arms redden; split a shaping run where tracking starts
+/// — the `"AV"` arm reddens.
+@MainActor
+@Test func spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns() throws {
+    struct Arm { let label: String; let pieces: [(String, Double, Double)]; let arabic: Bool }
+    let arms = [
+        Arm(label: "marks kerned", pieces: [("e\u{301}\u{302}x", 2, 0)], arabic: false),
+        Arm(label: "marks tracked", pieces: [("e\u{301}\u{302}x", 0, 2)], arabic: false),
+        Arm(label: "AV tracked V", pieces: [("A", 0, 0), ("V", 0, 1)], arabic: false),
+        Arm(label: "AV kerned A", pieces: [("A", 1, 0), ("V", 0, 0)], arabic: false),
+        Arm(label: "of|fice tracked", pieces: [("of", 0, 0), ("fice", 0, 1)], arabic: false),
+        Arm(label: "Arabic kerned", pieces: [("بالعالم", 1, 0)], arabic: true),
+        Arm(label: "Arabic tracked", pieces: [("بالعالم", 0, 1)], arabic: true),
+        Arm(label: "Arabic half tracked", pieces: [("بال", 0, 0), ("عالم", 0, 1)], arabic: true),
+    ]
+    var answers: [String: [(width: Double, glyphs: [TextGlyph], plain: Double)]] = [:]
+    var tatweel: UInt16?
+    try withBothSystems { rt in
+        let system = rt.system
+        let latin = noto(system)
+        let arabic = system.resolveFont(FontDescriptor(family: "Noto Sans Arabic", size: 13))
+        if rt.name == "CoreText" {
+            tatweel = system.placeGlyphs("\u{0640}", font: arabic, wrappingAt: nil, origin: (0, 0), scaleFactor: 1)
+                .first?.key.glyph
+        }
+        answers[rt.name] = arms.map { arm in
+            let font = arm.arabic ? arabic : latin
+            let string = arm.pieces.map(\.0).joined()
+            let text = StyledText(string, runs: arm.pieces.map {
+                StyledTextRun(length: $0.0.utf16.count, style: TextRunStyle(font: font, kerning: $0.1, tracking: $0.2))
+            })
+            let layout = system.layOut(text, wrappingAt: nil, options: TextLayoutOptions(), origin: (0.3, 0),
+                                       scaleFactor: 2)
+            return (layout.measurement.widestLine, layout.glyphs.map(\.glyph),
+                    system.measure(string, font: font, wrappingAt: nil).widestLine)
+        }
+    }
+    let apple = try #require(answers["CoreText"]), portable = try #require(answers["portable"])
+    let kashida = try #require(tatweel, "set up: Noto Sans Arabic has a tatweel glyph")
+    for (index, arm) in arms.enumerated() {
+        let a = apple[index], p = portable[index]
+        let label = arm.label
+        #expect(abs(a.width - p.width) < 1e-3, rtNote("\(label): CoreText \(a.width) vs portable \(p.width)"))
+        let appleWithoutKashidas = a.glyphs.filter { !(arm.arabic && $0.key.glyph == kashida) }
+        #expect(appleWithoutKashidas.map { [Int($0.key.glyph), $0.pixelX, $0.baselineY] }
+                == p.glyphs.map { [Int($0.key.glyph), $0.pixelX, $0.baselineY] },
+                rtNote("\(label): \(a.glyphs) vs \(p.glyphs)"))
+        if arm.arabic {
+            #expect(a.glyphs.contains { $0.key.glyph == kashida }, rtNote("\(label): CoreText draws kashidas"))
+            #expect(!p.glyphs.contains { $0.key.glyph == kashida }, rtNote("\(label): portable draws none"))
+        }
+    }
+    // Two graphemes, each spaced once.
+    for system in [apple, portable] {
+        #expect(abs(system[0].width - (system[0].plain + 4)) < 1e-9, rtNote("marks kerned: once per grapheme"))
+        #expect(abs(system[2].width - (system[2].plain + 1)) < 1e-9, rtNote("AV: the pair kerning stays"))
+    }
 }
 
 /// **1.14** (`RT-F` item 5). A warm styled frame shapes nothing: the second
