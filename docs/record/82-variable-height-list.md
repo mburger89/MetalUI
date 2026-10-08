@@ -385,3 +385,16 @@ amended by `VL-V`.
 - **Not taken**: the real-window capture and launching the demo (no lock
   probe run; nothing here needs a presented frame); the env-gated 100k pair
   (lane 3 changes no `List` code; lane 2's readings stand).
+
+## §7 Record phase (2026-10-08)
+
+`CLAUDE.md` (byte-identical `AGENTS.md`): the `VL-` prefix and its document
+(next `VL-W`), one rule under **`List`** (content-sized rows, the index, the
+anchor, the untouched fast path), `METALUI_LIST_DEMO=1` in the build block,
+human-check groups "A–X and VL", and the counts sentence **2718 / 0 / 176**
+(census 2540, `Backends/SDL` 24 + 83 / Linux image 24 + 80, record §6).
+`docs/record/README.md` row 82; record §03 "2026-10-08: variable-height `List`
+— looks owed" (VL1–VL5); record §04 "145–147 added, 84 amended; 108 live on the
+branch". The published divergences header (105 live, next label 139) and
+`CLAUDE.md`'s copy of it are left for the merge with `feat/input-apis` and
+`feat/rich-text`.
