@@ -1000,8 +1000,11 @@ private struct MenuCounter: Component {
 ///
 /// Platform services (ruling `SV-AH`): hover's attachment is one more
 /// reference, a class box — 472. Its mutation: store the two closures inline.
+///
+/// Input APIs (ruling `CI-Q`): the wheel handler and the pointer style ride one
+/// more class box, `pointer` — 480. Its mutation: store the wheel closure inline.
 @Test func handlersGainsOneReferenceMember() {
-    #expect(MemoryLayout<Handlers>.size == 472, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size == 480, "Handlers: \(MemoryLayout<Handlers>.size)")
 }
 
 /// **1.35** (C13c/C13, `MN-U`). Under `.allowsHitTesting(false)` a right press

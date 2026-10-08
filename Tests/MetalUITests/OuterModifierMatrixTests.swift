@@ -138,6 +138,8 @@ private struct HandlerFingerprint: Equatable {
     var contextual = false
     /// Platform services (`SV-N`): the hover attachment.
     var hover = false
+    /// Input APIs (`CI-Q`): the wheel handler and pointer style's box.
+    var pointer = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -158,6 +160,7 @@ private struct HandlerFingerprint: Equatable {
         draggableCount = h.gestures.filter(\.isDraggable).count
         contextual = h.contextual != nil
         hover = h.hover != nil
+        pointer = h.pointer != nil
     }
 }
 
