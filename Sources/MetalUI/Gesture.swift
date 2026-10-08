@@ -840,6 +840,16 @@ struct GestureArena {
         return resolve()
     }
 
+    /// Whether `event` — a `.magnify` or `.rotate` — is of a pinch kind this
+    /// arena holds begun and not yet ended (`CI-AB` item 2).
+    func holdsActivePinch(of event: InputEvent) -> Bool {
+        switch event {
+        case .magnify: return activePinchKinds.contains(.magnify)
+        case .rotate: return activePinchKinds.contains(.rotate)
+        default: return false
+        }
+    }
+
     /// A trackpad magnify step (pinch mode, `CI-C`, `CI-D`).
     mutating func magnify(_ event: MagnifyEvent) -> [GestureCallback] {
         pinch(.magnify, delta: event.magnification, phase: event.phase, at: event.position)

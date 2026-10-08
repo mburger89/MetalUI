@@ -2356,6 +2356,10 @@ public final class Window {
         case .rotate(let pinch): (position, phase) = (pinch.position, pinch.phase)
         default: return false
         }
+        // A `.began` of a kind the arena already holds active means that
+        // kind's end was lost: the stale arena is dropped silently and the
+        // event forms a new one at its own position (ruling `CI-AB` item 2).
+        if phase == .began, let arena = pinchArena, arena.holdsActivePinch(of: event) { pinchArena = nil }
         if pinchArena == nil {
             guard phase != .ended, phase != .cancelled,
                   let arena = makeArena(at: position, mode: .pinch) else { return false }
@@ -2376,7 +2380,8 @@ public final class Window {
     /// Feeds a secondary or other button's press, drag and release to its
     /// arena (`CI-F` item 3): only drags declared with that button run; with
     /// none on the chain there is no arena and the event passes on. A second
-    /// button pressed while one's arena is alive is ignored. The secondary
+    /// button pressed while one's arena is alive is ignored; a press of the
+    /// arena's own button replaces it (`CI-AB`). The secondary
     /// release opens a context menu the press deferred, unless a drag reached
     /// its minimum (`CI-F` item 4).
     private func dispatchButtonArena(_ event: InputEvent) -> Bool {
@@ -2392,6 +2397,11 @@ public final class Window {
     }
 
     private func buttonPress(_ mouse: MouseEvent, button: Int) -> Bool {
+        // A press of the live arena's own button means its release was lost:
+        // the stale arena is dropped silently, as a primary press's
+        // re-formation drops one (ruling `CI-AB` item 1). Another button's
+        // press while an arena is alive is ignored (`CI-AA` item 4).
+        if buttonArena != nil, buttonArenaButton == button { buttonArena = nil }
         guard buttonArena == nil, var arena = makeArena(at: mouse.position, mode: .button(button)) else {
             return false
         }
