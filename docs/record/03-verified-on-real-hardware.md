@@ -2052,3 +2052,8 @@ read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
 probe was not re-run at the Record phase and no real-window capture was taken.
 No new look is owed (group X's X2 already covers a counting `.task` in a real
 window).
+
+AccessKit before the first show (record §86, 2026-10-08): the fourteen offscreen
+demo images read 0 differing pixels against `cd84b0c`. The Windows VM had no
+console user, so the interactive launch was not run; group WS (WS1–WS4) in
+`docs/verification/human-checks.md` is owed.
