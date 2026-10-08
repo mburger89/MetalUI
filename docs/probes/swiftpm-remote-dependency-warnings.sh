@@ -14,7 +14,7 @@
 #   print.
 # - URL (separating): `.package(url: "file://…", revision:)` at one commit —
 #   the same sources.
-# - URL-MANIFEST: the URL arm with the consumer's OWN source holding an unused
+# - URL-OWN: the URL arm with the consumer's OWN source holding an unused
 #   `let` — the consumer's warnings still print.
 #
 # RECORDED 2026-10-07 by the task-followups design session, macOS 27.0.1,

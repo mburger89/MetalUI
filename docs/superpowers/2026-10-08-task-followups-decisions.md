@@ -10,7 +10,7 @@ Record: `../record/84-task-followups.md`. The rulings these follow up are in
 [`2026-10-03-lifecycle-decisions.md`](2026-10-03-lifecycle-decisions.md)
 (`LC-H`, `LC-P`).
 
-**Next unused id: `TF-D`.**
+**Next unused id: `TF-E`.**
 
 Evidence (each header carries its recorded output and how to run it):
 
@@ -65,8 +65,9 @@ Evidence (each header carries its recorded output and how to run it):
    old→new in the change bucket; a scope that stopped being a task is
    cancelled. The appearance branch is never reached for a returning key, so
    `T4`'s rule (no `onAppear`, no `initial: true` firing) holds by
-   construction, as before. `closeAll` and `runningTaskCount` read
-   `departed.values.compactMap(\.running)` where they read `running.values`.
+   construction, as before. `runningTaskCount` reads
+   `departed.values.compactMap(\.running)` where it read `running.values`;
+   `closeAll` is unchanged (corrected at critique, `TF-D` item 3).
    `@State` is untouched: it is still reset at the removal (`ID-C`), which is
    the rest of divergence 123.
 4. **Divergence 123 is amended, not retired**: its MetalUI column drops the
@@ -174,3 +175,54 @@ in pacing (no acquire wait, so the loop spins); the check is bounded by
 `iterationLimit` and counts passes, never time. If the offscreen renderer ever
 failed in the image, 3.20b fails loudly (renderer creation throws), never
 skips.
+
+## TF-D — Critique of the design: the departed baseline meets the reset `@State`; two corrections
+
+**Ruling.** Amends `TF-A` (adversarial review of `9e82b81`, before any code).
+Both probes were re-run first: `swiftui-task-ghost-id.swift` compiled and run
+twice, 65 lines each, byte-identical to its header (screen unlocked,
+`displayAsleep main: 0`); `swiftpm-remote-dependency-warnings.sh` re-run,
+`LOCAL 6 / URL 0 / URL-OWN 2` as recorded. The SwiftUI claims stand.
+
+1. **The consequence `TF-A` did not name.** MetalUI resets the departed
+   content's `@State` at the removal (`ID-C`, divergence 123; pin 6.4 sees the
+   fresh tile). `TF-A` restores the departed *lifecycle* entry, so a
+   `task(id:)` or `onChange(of:)` whose value is read from that content's own
+   `@State`, written before the removal, compares the fresh default against
+   the departed value on return: a restart (or a firing) SwiftUI never makes,
+   since SwiftUI keeps the state and the id is unchanged (`T4`, `Y0`'s reading).
+   Before `TF-A` the same content kept the stale task running under an id the
+   content no longer shows. **Taken anyway**: (a) with an id from outside the
+   content — the common shape, a selection or a model key — `TF-A` is
+   SwiftUI's answer and the old behaviour ran a task for the wrong id; (b) with
+   an id from the reset state, the restarted task runs for the id the content
+   now displays, which is coherent with what the reset already shows; (c) the
+   only way to match SwiftUI in both is to keep `@State` across the ghost,
+   which is divergence 123's root (`ID-C`) and out of this item. Divergence 123
+   is amended to say exactly this (spec §3.1) and gains a second pin, spec test
+   **TF1.4** (`aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost`,
+   red before at `70ed000`, reddened by MT1.1). No new divergence label.
+2. **`MT1.3`'s reading was wrong.** Each lifecycle modifier is its own key
+   (scope id plus occurrence, `MV-M` item 5), so parking only boxed entries
+   drops *both* `onChange` lines in TF1.3, not only the second leaf's. The
+   mutation still reddens TF1.3 alone; the spec's text is corrected.
+3. **`closeAll` does not change.** It never read the parked boxes: a parked
+   task's cancel is its parked event (`onDisappear ?? cancelEvent(running)`),
+   which `closeAll` already runs (3.14, `M3.14`). Reading the departed boxes as
+   well would issue a second cancel. `TF-A` item 3 and the spec are corrected.
+4. **Checked and kept.** `TF-B`: the old filter's blindness is real (the
+   probe's `URL` arm), and "every `warning:` line" is the narrowest filter a URL
+   consumer can fail; MT2.1/MT2.2 are the separating arms, run in the image.
+   `TF-C`: the display link ticks under the offscreen driver (`linkRunning`
+   reads only the tick and pause state, `SDLPlatform.swift`), so the only
+   missing piece is a target for `beginFrame()` — exactly what the `package`
+   option supplies; the swapchain-path arm (`offscreenRenderers: false`
+   printing `started=false`) is the separating arm, taken red first in the
+   image. No public declaration, no platform requirement, no shader, no pixel.
+   The deferral of `SDLLifecycleTests` 10.2/10.3 stays: it is not item 3's
+   question (`.task` under SDL), and it is named with an owner.
+
+**Cost if wrong.** If an app reads a `.task(id:)` from content-local `@State`
+inside a transition it reverses, its task restarts once on the return; the
+divergence row says so, and TF1.4 reddens the day `@State` survives the ghost
+(then TF1.4's expected log becomes `[]` and divergence 123 can retire).

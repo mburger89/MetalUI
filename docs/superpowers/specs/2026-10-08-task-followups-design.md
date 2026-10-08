@@ -5,13 +5,13 @@ task**): the three minor findings `PX-V` logged after `.task` landed
 (`docs/superpowers/2026-10-07-portable-app-decisions.md`, record §80).
 Branch `fix/task-followups` from `70ed000`. Rulings:
 [`../2026-10-08-task-followups-decisions.md`](../2026-10-08-task-followups-decisions.md)
-(`TF-A`…`TF-C`). Record: `docs/record/84-task-followups.md` (Record phase).
+(`TF-A`…`TF-D`). Record: `docs/record/84-task-followups.md` (Record phase).
 
 ## 1. Scope
 
 | # | Finding (`PX-V`) | Answer | Ruling |
 |---|---|---|---|
-| 1 | A `.task(id:)` re-inserted from a removal ghost with a changed id keeps its old task | **Fixed** to SwiftUI's probed answer; the same fix gives `onChange(of:)` its baseline back across the ghost (divergence 123 amended) | `TF-A` |
+| 1 | A `.task(id:)` re-inserted from a removal ghost with a changed id keeps its old task | **Fixed** to SwiftUI's probed answer; the same fix gives `onChange(of:)` its baseline back across the ghost; a value read from the content's own (reset) `@State` now compares as changed on return (divergence 123 amended) | `TF-A`, `TF-D` |
 | 2 | Test 1.7's warning filter cannot fail | **Fixed**: every `warning:` line refused; two mutations redden it in the Linux image | `TF-B` |
 | 3 | No CI job runs `.task` under SDL | **Fixed**: an offscreen-rendered `SDLPlatform` window (`package` option) runs the real loop in the image; new ungated test 3.20b | `TF-C` |
 
@@ -51,12 +51,20 @@ warnings are suppressed; a local one's and the root's print).
   differs → change-bucket event old→new; scope no longer a task → cancel.
   `T4` (no `onAppear`, no `initial: true` firing on a return) holds because a
   returning key never reaches the appearance branch.
-- `runningTaskCount` and `closeAll` read `departed.values.compactMap(\.running)`.
+- `runningTaskCount` reads `departed.values.compactMap(\.running)` where it
+  read `running.values`. `closeAll` is **unchanged**: it never read the
+  parked boxes — a parked task's cancel is already its parked event
+  (`entry.onDisappear ?? cancelEvent(running)`), which `closeAll` runs; adding
+  the boxes would cancel twice (corrected at critique, `TF-D` item 3).
 - Doc comments: `ParkedGhost`, `Entry.running` ("from a parked ghost when the
   key returns") and `endFrame`'s summary name `TF-A`.
-- `docs/divergences.md` row 123: the MetalUI column drops "and its next
+- `docs/divergences.md` row 123: the MetalUI column replaces "and its next
   `onChange` compares against nothing (the entry was dropped at the removal
-  build)"; the rulings column adds `TF-A`. (Record §04's dated line: Record
+  build)" with "so a `task(id:)` or `onChange(of:)` value read from that
+  `@State` compares the fresh value against the one it left with (a restart
+  or a firing SwiftUI does not make); a value from outside the content
+  compares as SwiftUI's does (`TF-A`)"; the rulings column adds `TF-A`,
+  `TF-D`; the pin column adds TF1.4. (Record §04's dated line: Record
   phase.)
 
 ### 3.2 Item 2 (`TF-B`) — `Tests/MetalUIScaffoldTests/ScaffoldTests.swift` only
@@ -143,8 +151,22 @@ to 103). No sleeps.
   `"change2 0->1"` must appear (first: it is registered later, so it runs
   earlier in reverse order — the exact expected list is derived from the
   registration order before the run and written as a literal). Mutation
-  **MT1.3**: park only departed entries that hold a running box → the
-  `onChange`-only leaf's line is missing; reddens TF1.3 only.
+  **MT1.3**: park only departed entries that hold a running box → **both**
+  `onChange` lines are missing (each modifier is its own key — scope id plus
+  occurrence — so the subject leaf's `onChange` holds no box either; the
+  second leaf is the case with no task anywhere in its content, not the only
+  one MT1.3 reaches); reddens TF1.3 only.
+- **TF1.4 `aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost`**
+  (`TF-D`, divergence 123 as amended): a `Component` holding `@State var n:
+  Float = 0` whose body is `lcLeaf(50, 30).task(id: n) { log "start <n>"; await
+  untilCancelled { log "cancel <n>" } }`, `n` written to 1 from input before
+  the removal (log `["start 0", "cancel 0", "start 1"]` taken as set-up), then
+  removed under the 0.6 s animation and re-inserted at 101.15 with **no**
+  write: `@State` is fresh (`ID-C`), so the log is exactly `["cancel 1",
+  "start 0"]` and `runningTaskCount == 1`. SwiftUI would log nothing (`T4`
+  keeps the state, so the id is unchanged — `Y0`'s reading). **Red before** at
+  `70ed000`: `[]` (the stale task for id 1 keeps running while the content
+  shows `n == 0`). Mutation: MT1.1 reddens it.
 
 Must stay green unedited: 3.12, 3.13, 3.22, 6.4
 (`reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState`, the
@@ -189,7 +211,7 @@ branch-named scratch volume — never another workflow's.
   `armMainRunLoopExitCheck()` — 3.20b creates none in the test process (the
   check executable does, and must not arm it, per its header).
 
-Expected counts: root 2672 + 4 = **2676 tests**, 175 guards (unchanged), census
+Expected counts: root 2672 + 5 = **2677 tests**, 175 guards (unchanged), census
 2536 (unchanged: no public declaration). `Backends/SDL` macOS 24 + 84, Linux
 image 24 + 81 (3.20b runs; 3.20 still skipped there). Re-measured, never
 assumed.
@@ -197,7 +219,7 @@ assumed.
 ## 6. Verification
 
 - Root: `swift build --build-system native --build-tests`; `swift test
-  --build-system native --no-parallel` unfiltered: one summary line, 2676 in 3
+  --build-system native --no-parallel` unfiltered: one summary line, 2677 in 3
   suites; `FR-J no-argument frame: succeeded=`; 0 `error:`, the only
   `warning:` SwiftPM's deprecation notice; `swift build --build-tests` 0
   warnings.
