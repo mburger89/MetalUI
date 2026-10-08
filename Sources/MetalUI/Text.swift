@@ -40,20 +40,40 @@ let smallestWrapWidth = 0.5
 /// this milestone built: the shaper, the rasterizer and the packer on one side,
 /// `MUIGlyph` and the glyph pipeline on the other.
 ///
-/// **One font at one size per `Text`** (spec §2): rich text, per-run attributes
-/// and per-line metrics are out of M2, which is what lets height be
-/// `lines × lineHeight` with a single line height.
+/// **Styled runs since rich text** (rulings RT-E…RT-L): a `Text` holds one
+/// plain string or segments (concatenated with `+`, deprecated as in SwiftUI),
+/// each with its own font, weight, colour, underline, strikethrough, kerning,
+/// tracking and baseline offset; the `Text`'s own fields reach only the
+/// segments that left them unset (RT-E item 2). **A plain `Text` takes exactly
+/// the calls it took before** (the fast path, `RT-F` item 3): one font, one
+/// line height, `lines × lineHeight`; anything styled measures and draws
+/// through the text system's styled requirements, its lines each as tall as
+/// their tallest run (RT-G).
 public struct Text: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
 
-    /// The string to lay out. `let`-like in practice — the measure closure
-    /// captures a copy at `requestLayout`, so mutating this afterwards affects
-    /// the *next* frame's element value, which is the same rebuild-per-frame
-    /// model every other element follows.
-    public var string: String
+    /// What this text shows (spec §1.3): one plain string, or segments as
+    /// written.
+    var content: TextContent
+
+    /// The rich `Text`-level fields — underline, strikethrough, kerning,
+    /// tracking, baseline offset, monospaced (ruling RT-E item 3): the outer
+    /// layer, reaching only the segments that left them unset.
+    var rich = TextRichFields()
+
+    /// The rendered string — every segment's, concatenated (`RT-L` item 1).
+    /// **Writing it replaces the content with one plain string**, dropping
+    /// the segments' own styles (this text's own fields stay). `let`-like in
+    /// practice — the measure closure captures a copy at `requestLayout`, so
+    /// mutating this afterwards affects the *next* frame's element value,
+    /// which is the same rebuild-per-frame model every other element follows.
+    public var string: String {
+        get { content.string }
+        set { content = .plain(newValue) }
+    }
 
     /// This text's own font request (ruling TE-B item 2): inherit the
     /// environment's font (the default), the default font whatever the
@@ -92,13 +112,47 @@ public struct Text: Element, StyledElement {
     /// A `Color` since the colour work (`CR-E` item 3).
     public var foregroundColor: Color?
 
-    /// A text leaf showing `string`, measured and drawn through the frame's
-    /// text system (`TS-A`).
-    public init(_ string: String) {
+    /// A text leaf showing `content` verbatim, measured and drawn through the
+    /// frame's text system (`TS-A`) — SwiftUI's `Text(_:)` over a
+    /// `StringProtocol` value, which never parses Markdown (`M2`).
+    /// Disfavoured, so a string literal reaches the `LocalizedStringKey`
+    /// overload where one is declared (ruling RT-C).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ content: S) {
+        self.init(content: .plain(String(content)))
+    }
+
+    /// A text leaf showing `content` exactly as written — never parsed
+    /// (ruling RT-C; SwiftUI's `Text(verbatim:)`).
+    public init(verbatim content: String) {
+        self.init(content: .plain(content))
+    }
+
+    /// A text leaf over `content`.
+    init(content: TextContent) {
         self.style = Style()
         self.decoration = Decoration()
-        self.string = string
+        self.content = content
     }
+
+    /// Concatenates two texts (ruling RT-E): each side's own fields are pushed
+    /// into its segments that left them unset, and the result's own fields
+    /// start empty — the outer layer for a modifier written after it.
+    /// **Deprecated, as in SwiftUI** (macOS 26.0, with SwiftUI's message).
+    /// **An operand that carries anything but text traps** — a style, a
+    /// decoration, an id or a handler (`.margin`, `.background`, `.id`,
+    /// `.onClick` …), naming the field (divergence 155): SwiftUI's
+    /// `some View` modifiers cannot be concatenated, MetalUI's return `Self`.
+    @available(*, deprecated, message: "Use string interpolation on `Text` instead: `Text(\"Hello \\(name)\")`")
+    public static func + (lhs: Text, rhs: Text) -> Text {
+        requireTextOperand(lhs, "left")
+        requireTextOperand(rhs, "right")
+        return Text(content: .runs(TextContent.joined(lhs.pushedRuns + rhs.pushedRuns)))
+    }
+
+    /// This text's segments with its own fields pushed into the unset ones
+    /// (ruling RT-E item 2).
+    var pushedRuns: [TextRunRequest] { MetalUI.pushedRuns(content, own: styleRequest, rich: rich) }
 
     /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
     /// `nil` family (ruling TE-B item 5, kept) — it wins over the environment's
@@ -137,14 +191,29 @@ public struct Text: Element, StyledElement {
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+            // The styled path (RT-F item 3): every run resolved once here, the
+            // `StyledText` and the paint records captured by value; `paint`
+            // resolves again through the same function (RT-E item 2).
+            let resolved = resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
+                                           system: system)
+            let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
+                pass.frame.requestNativeLeaf { proposal in
+                    MainActor.assumeIsolated {
+                        richTextMeasurement(resolved, system: system, proposal: proposal)
+                    }
+                }
+            }
+            return (node, Layout(node: node))
+        }
         // Resolved and registered by the text system under its `Sendable`
         // key; the closures below capture the key, the resolved style and the
         // system, never a font or the request (`FontKey`'s rule). `paint`
         // resolves again through the same function in the same environment
         // (spec §3) and gets the same key back.
-        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
+        let textStyle = resolveTextStyle(plain.request, in: pass.environment)
         let key = system.resolveFont(textStyle.descriptor)
-        let string = self.string
+        let string = plain.string
 
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
             pass.frame.requestNativeLeaf { proposal in
@@ -272,8 +341,7 @@ public struct Text: Element, StyledElement {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let system = pass.textSystem
-        let textStyle = resolveTextStyle(styleRequest, in: pass.environment)
-        let font = system.resolveFont(textStyle.descriptor)
+        let plain = plainTextForm(content, own: styleRequest, rich: rich)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.
@@ -325,6 +393,17 @@ public struct Text: Element, StyledElement {
         // measured; a reserved or framed box is taller or is the proposal, and
         // caps nothing layout did not.
         let height = Double(pass.bounds(of: glyphNode ?? layout.node).size.height.value)
+        guard let plain else {
+            // The styled path (RT-J): backgrounds, glyphs and lines inside one
+            // leaf group, resolved again through the function layout used.
+            pass.drawStyledText(resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
+                                                system: system),
+                                origin: origin, width: width, height: height)
+            return
+        }
+        let string = plain.string
+        let textStyle = resolveTextStyle(plain.request, in: pass.environment)
+        let font = system.resolveFont(textStyle.descriptor)
         let laid = textLines(string, font: font, system: system, wrappingAt: width, height: height,
                              style: textStyle)
         let color = pass.resolve(textStyle.foreground)

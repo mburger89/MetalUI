@@ -82,6 +82,18 @@ public struct StyledText: Hashable, Sendable {
         self.runs = normalized
     }
 
+    /// `string` in `runs`, zero-length runs dropped but **equal neighbours
+    /// kept** (ruling RT-R item 1): `Text` applies its paint attributes —
+    /// colours, decorations, backgrounds — by run index, so two neighbours
+    /// whose layout attributes agree and whose colours differ must stay two
+    /// runs at the seam. Both systems lay such a text out exactly as the
+    /// merged one (a style boundary that keeps the face splits no shaping
+    /// run, `RT-P` item 3); only the segments and the glyphs' run indices
+    /// differ. The same preconditions as ``init(_:runs:)``.
+    package init(keepingNeighbours string: String, runs: [StyledTextRun]) {
+        self.init(string, runs: runs)   // RED STUB (lane 2): neighbours merge
+    }
+
     /// `string` as one run in `style`.
     public init(_ string: String, style: TextRunStyle) {
         self.init(string, runs: [StyledTextRun(length: string.utf16.count, style: style)])

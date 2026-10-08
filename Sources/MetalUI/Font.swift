@@ -19,8 +19,8 @@ import MetalUITextSystem
 /// and `custom(_:size:relativeTo:)` measure as `custom(_:size:)` (F5b, F5c).
 ///
 /// **Not offered** (TE-B item 6): `Font.leading(_:)`, `Font(_ ctFont:)`,
-/// `.monospacedDigit()`, widths. `Text.bold()` is not offered either (item 4);
-/// `Font.bold()` and `.fontWeight(.bold)` are the spellings.
+/// `.monospacedDigit()`, widths. `Text.bold()` is offered since rich text
+/// (ruling RT-E item 3), beside `Font.bold()` and `.fontWeight(.bold)`.
 public struct Font: Hashable, Sendable {
     enum Base: Hashable, Sendable {
         case system(size: Double)
@@ -100,6 +100,17 @@ public struct Font: Hashable, Sendable {
     /// `weight(.bold)` — SwiftUI's `Font.bold()` exactly (probe X1c).
     public func bold() -> Font { weight(.bold) }
 
+    /// The system face's `.monospaced` design (ruling RT-E item 3; `TE-B`):
+    /// `.body.monospaced()` is `.system(.body, design: .monospaced)`. A custom
+    /// font ignores it, as it ignores every design. On the portable system the
+    /// design resolves to the family registered for it, else the default face
+    /// (`TE-B`, `RT-O` item 12).
+    public func monospaced() -> Font {
+        var copy = self
+        copy.design = .monospaced
+        return copy
+    }
+
     /// This font's italic face; a family with none keeps its upright face,
     /// nothing is synthesised (F4, F4b).
     public func italic() -> Font {
@@ -167,8 +178,13 @@ public struct Font: Hashable, Sendable {
     /// The seam request, with `weight` and `italic` from `.fontWeight(_:)`/
     /// `.italic(_:)` applied over this font's own (TE-B item 3): an override
     /// weight wins over the font's, and italic is either's.
-    func descriptor(weight override: Weight? = nil, italic: Bool = false) -> FontDescriptor {
+    /// `monospaced` is `Text.monospaced()`'s (ruling RT-E item 3): the system
+    /// face's `.monospaced` design over this font's own; a custom font ignores
+    /// it.
+    func descriptor(weight override: Weight? = nil, italic: Bool = false,
+                    monospaced: Bool = false) -> FontDescriptor {
         let slanted = isItalic || italic
+        let design: Design? = monospaced ? .monospaced : self.design
         switch base {
         case .system(let size):
             return FontDescriptor(size: size, weight: (override ?? weightOverride)?.value,

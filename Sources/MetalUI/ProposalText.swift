@@ -12,8 +12,17 @@ import MetalUITextSystem
 /// shaping-cache, and glyph-paint behavior while registering a native leaf, so
 /// it can participate in an otherwise proposal-only subtree today.
 public struct ProposalText: ProposalElement {
-    /// The text drawn.
-    public var string: String
+    /// What this text shows: one plain string, or segments (spec §1.3).
+    var content: TextContent
+    /// The rich `Text`-level fields (ruling RT-E item 3), as `Text`'s.
+    var rich = TextRichFields()
+
+    /// The text drawn — every segment's, concatenated (`RT-L` item 1).
+    /// Writing it replaces the content with one plain string.
+    public var string: String {
+        get { content.string }
+        set { content = .plain(newValue) }
+    }
     /// The text's own colour; `nil` inherits the foreground style.
     public var foregroundColor: Color?
     /// This text's own font request, weight and slope (ruling TE-B), as
@@ -33,10 +42,22 @@ public struct ProposalText: ProposalElement {
         set { fontRequest = .legacy(family: fontFamily, size: newValue) }
     }
 
-    /// A proposal-layout text leaf showing `string`, measured and drawn through
-    /// the frame's text system (`TS-A`).
-    public init(_ string: String) {
-        self.string = string
+    /// A proposal-layout text leaf showing `content` verbatim, measured and
+    /// drawn through the frame's text system (`TS-A`) — `Text`'s
+    /// disfavoured `StringProtocol` initialiser (ruling RT-C).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ content: S) {
+        self.init(content: .plain(String(content)))
+    }
+
+    /// A proposal-layout text leaf showing `content` exactly as written.
+    public init(verbatim content: String) {
+        self.init(content: .plain(content))
+    }
+
+    /// A proposal-layout text leaf over `content`.
+    init(content: TextContent) {
+        self.content = content
         foregroundColor = nil
     }
 
@@ -72,12 +93,23 @@ public struct ProposalText: ProposalElement {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let system = pass.textSystem
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+            // The styled path, as `Text`'s (RT-F item 3).
+            let resolved = resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
+                                           system: system)
+            let node = pass.requestNativeLeaf { proposal in
+                MainActor.assumeIsolated {
+                    richTextMeasurement(resolved, system: system, proposal: proposal)
+                }
+            }
+            return (node, Layout(node: node.layoutNodeID))
+        }
         // One resolution for layout and paint (spec §3): same environment,
         // same answer. The closure captures the key and the resolved style —
         // values — never the request.
-        let style = resolveTextStyle(styleRequest, in: pass.environment)
+        let style = resolveTextStyle(plain.request, in: pass.environment)
         let key = system.resolveFont(style.descriptor)
-        let string = string
+        let string = plain.string
         let node = pass.requestNativeLeaf { proposal in
             MainActor.assumeIsolated {
                 proposalTextMeasurement(string, font: key, system: system, proposal: proposal, style: style)
@@ -100,9 +132,16 @@ public struct ProposalText: ProposalElement {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
         let system = pass.textSystem
-        let style = resolveTextStyle(styleRequest, in: pass.environment)
-        let font = system.resolveFont(style.descriptor)
         let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+            pass.drawStyledText(resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
+                                                system: system),
+                                origin: bounds.origin, width: width, height: Double(bounds.size.height.value))
+            return
+        }
+        let string = plain.string
+        let style = resolveTextStyle(plain.request, in: pass.environment)
+        let font = system.resolveFont(style.descriptor)
         // The line cap from the box the leaf was placed in (TE-H item 2): its
         // own answer, so the lines layout measured.
         let laid = textLines(string, font: font, system: system, wrappingAt: width,
@@ -137,10 +176,11 @@ func proposalTextMeasurement(_ string: String, font: FontKey,
 }
 
 extension Text {
-    /// Converts this run to the proposal-layout bridge without changing its
-    /// font or foreground-token configuration.
+    /// Converts this text to the proposal-layout bridge without changing its
+    /// content, font, colour or rich fields (its segments included, RT-E).
     public func proposalLayout() -> ProposalText {
-        var result = ProposalText(string)
+        var result = ProposalText(content: content)
+        result.rich = rich
         result.fontRequest = fontRequest
         result.fontWeight = fontWeight
         result.isItalic = isItalic
