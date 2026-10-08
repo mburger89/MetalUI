@@ -38,7 +38,9 @@
 // interpreted run printed every line identically except P0a's self-compare,
 // "self: 12" (an interpreter-run rendering wobble of the same view; no
 // identify verdict changed). Device pixels are scale 2; rows are top-down
-// device rows of a 300x90-point canvas.
+// device rows of a 300x90-point canvas. Across the session's runs only
+// nearest-miss counts of non-matching candidates wobbled (M31's verbatim
+// candidate read 582 and 590); no verdict changed.
 //
 //     P0a bold vs regular: 709 px; self: 0
 //     P0b red vs blue ink: 362 px
@@ -159,8 +161,9 @@
 //     C18 reservesSpace 3 on 10pt+30pt one line size=24.5x36 first=29 last=29 | 30pt B reservesSpace 3 size=19x105 first=29 last=29 | 10pt a reservesSpace 3 size=6x36 first=10 last=10 | 30pt B + 10pt a size=24.5x105 first=29 last=29
 //     C19 lineLimit(1) on 10pt line + 30pt second line, wrap 40: size=38x35 first=29 last=29
 //     C8e Helvetica office: kerning(4) size=51.5x13 first=10 last=10 tracking(4) size=55x13 first=10 last=10 plain size=31.5x13 first=10 last=10; kerning vs tracking 635 px | ct glyphs plain 5 kern 5 tracking 6 | ct w=51.072 ascent=10.01 descent=2.99 leading=0 ceil(sum)=13 / w=54.843 ascent=10.01 descent=2.99 leading=0 ceil(sum)=13
+//     M35 Text("&alpha;&hearts;") ≡ α♥  [α♥:0 verbatim:1999]
 //     M30 Button("**b**") {} ≡ Text(bold) label  [Text(bold) label:0 verbatim label:2808]
-//     M31 Toggle("**b**") ≡ bold label  [bold label:0 verbatim label:582]
+//     M31 Toggle("**b**") ≡ bold label  [bold label:0 verbatim label:590]
 
 import AppKit
 import CoreText
@@ -604,6 +607,7 @@ func followUp() {
         func glyphs(_ a: [NSAttributedString.Key: Any]) -> Int { CTLineGetGlyphCount(ctLine([("office", a)])) }
         out("C8e", "Helvetica office: kerning(4) " + measure(Text("office").font(h).kerning(4)) + " tracking(4) " + measure(Text("office").font(h).tracking(4)) + " plain " + measure(Text("office").font(h)) + "; kerning vs tracking \(differing(bitmap(canvas(Text("office").font(h).kerning(4))), bitmap(canvas(Text("office").font(h).tracking(4))))) px | ct glyphs plain \(glyphs([.font: ct])) kern \(glyphs([.font: ct, .kern: 4])) tracking \(glyphs([.font: ct, .tracking: 4])) | ct " + ctBounds(ctLine([("office", [.font: ct, .kern: 4])])) + " / " + ctBounds(ctLine([("office", [.font: ct, .tracking: 4])])))
     }
+    out("M35", "Text(\"&alpha;&hearts;\") " + identify(Text("&alpha;&hearts;"), [("α♥", AnyView(Text(verbatim: "\u{3B1}\u{2665}"))), ("verbatim", AnyView(Text(verbatim: "&alpha;&hearts;")))]))
     out("M30", "Button(\"**b**\") {} " + identify(Button("**b**") {}, [("Text(bold) label", AnyView(Button {} label: { Text("b").bold() })), ("verbatim label", AnyView(Button {} label: { Text(verbatim: "**b**") }))]))
     out("M31", "Toggle(\"**b**\") " + identify(Toggle("**b**", isOn: .constant(false)), [("bold label", AnyView(Toggle(isOn: .constant(false)) { Text("b").bold() })), ("verbatim label", AnyView(Toggle(isOn: .constant(false)) { Text(verbatim: "**b**") }))]))
 }

@@ -35,7 +35,7 @@
 // 3 both, 4 code, 32 strikethrough, 128 lineBreak). Every row agrees with the
 // SwiftUI render of the same arm in `swiftui-rich-text.swift`, M22 included
 // (the link text's strong emphasis is dropped by the parser itself; the N rows were not rendered, except N1, N3
-// and N13 as SwiftUI arms M32–M34, which agree):
+// and N13 as SwiftUI arms M32–M34, and N21 as M35 — which agree):
 //
 //     M1 "**b**" → ["b" intent=2]
 //     M3a "*i*" → ["i" intent=1]
@@ -89,6 +89,7 @@
 //     N18 "`` a ``" → ["a" intent=4]
 //     N19 "*a*b*" → ["a" intent=1] ["b*"]
 //     N20 "x_y_ z" → ["x_y_ z"]
+//     N21 "&alpha;&hearts;&ThickSpace;" → ["α♥  "]
 
 #if LINUX_PROBE
 import Foundation
@@ -129,6 +130,7 @@ let corpus: [(String, String)] = [
     ("N6", "``a`b``"), ("N7", "*a **b** c*"), ("N8", "**a*"), ("N9", "_a_b"), ("N10", "(www.x.org)"),
     ("N11", "https://x.org."), ("N12", "&bogus;"), ("N13", "&nbsp;x"), ("N14", "\\`"), ("N15", "~~~a~~~"),
     ("N16", "[a]"), ("N17", "a\tb"), ("N18", "`` a ``"), ("N19", "*a*b*"), ("N20", "x_y_ z"),
+    ("N21", "&alpha;&hearts;&ThickSpace;"),
 ]
 
 let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
