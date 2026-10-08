@@ -284,7 +284,8 @@ func aVariableListAnswersMeasuredPlusEstimatedExtent() throws {
     settle(window)
     drawOne(window, log)
     #expect(Set(log.built) == Set(0...7), "the window: \(log.built.sorted())")
-    #expect(try listHeight(window, log) == 3000)
+    let height = try listHeight(window, log)
+    #expect(height == 3000, "\(height)")
 }
 
 /// **2.4 (`VL-F`).** 300 patterned rows (all measured), offset 3030: row 61
@@ -330,7 +331,8 @@ func aRowAboveTheTopMeasuredAnewDoesNotMoveTheRowOnTopOnTheNextFrame() throws {
     let (window, _, model, log) = try rowFiftyOnTop()
     model.heights[48] = 220
     drawOne(window, log)
-    #expect(try storedOffset(window) == 2660)
+    let offset = try storedOffset(window)
+    #expect(offset == 2660, "\(offset)")
     #expect(window.needsRedraw, "the adjustment asks for the next frame")
     log.reset()
     window.drawFrameIfNeeded()
@@ -373,12 +375,14 @@ func aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement() throws {
     drawOne(window, log)
     try #require(log.bounds[50]?.size.height == px(120), "control: row 50 is 120 at width 100")
     #expect(log.screenY[50] == -10, "frame A")
-    #expect(try storedOffset(window) == 2530)
+    let offset = try storedOffset(window)
+    #expect(offset == 2530, "\(offset)")
     log.reset()
     window.drawFrameIfNeeded()
     #expect(log.screenY[50] == -10, "frame B")
     #expect(!window.needsRedraw)
-    #expect(try listHeight(window, log) == 15390)
+    let height = try listHeight(window, log)
+    #expect(height == 15390, "\(height)")
 }
 
 /// **2.7 (`VL-G` item 3, divergence 146).** Row 50 on top; a 150-tall row
@@ -400,7 +404,8 @@ func anInsertionAboveTheViewportKeepsTheRowOnTop() throws {
     log.reset()
     drawOne(window, log)
     #expect(log.screenY[50] == 0, "settled")
-    #expect(try storedOffset(window) == 2510)
+    let offset = try storedOffset(window)
+    #expect(offset == 2510, "\(offset)")
 }
 
 /// **2.7b (`VL-O` item 1).** Declared estimate 50. Arm 1: row 50 (on top)
@@ -431,7 +436,8 @@ func removingTheRowOnTopPutsTheNextRowInItsPlace() throws {
         settle(window)
         drawOne(window, log)
         #expect(log.screenY[51] == 0, "arm 2, settled")
-        #expect(try storedOffset(window) == 2510, "arm 2: D = the new row's estimate, 50")
+        let offset = try storedOffset(window)
+        #expect(offset == 2510, "arm 2: D = the new row's estimate, 50: \(offset)")
     }
 }
 
@@ -479,12 +485,13 @@ func aSameCountDataChangeIsDetectedFromARealizedRow() throws {
     settle(window)
     drawOne(window, log)
     #expect(log.screenY[50] == 0, "settled")
-    #expect(try storedOffset(window) == 2510)
+    let offset = try storedOffset(window)
+    #expect(offset == 2510, "\(offset)")
 }
 
 // MARK: - 2.9–2.11: scrollTo and settling
 
-/// 10 patterned rows (sum 440) settled, then 300 (a count change: rows 0…9
+/// 10 patterned rows (sum 460) settled, then 300 (a count change: rows 0…9
 /// keep their heights, the rest are unmeasured at the declared 30), settled.
 @MainActor
 private func expandedList(estimate: Pixels? = px(30)) throws -> (Window, VModel, VLog, ProxyBox) {
@@ -498,13 +505,14 @@ private func expandedList(estimate: Pixels? = px(30)) throws -> (Window, VModel,
 }
 
 /// **2.9 (`VL-H`, `T-bottom`).** `scrollTo(150, anchor: .bottom)` onto an
-/// unmeasured row (real 60, estimate 30). Frame A resolves at the estimate:
-/// `offset(of: 150) = 440 + 140 · 30 = 4640`, so 4640 − (200 − 30) = 4470, and
-/// carries a refinement. Frame B (anchor 144 at 4460, window 142…153) records
-/// the window: `offset(of: 144) = 4540`, `D = 80`; the refinement resolves
-/// `offset(of: 150) = 4800` exactly: (4800 − 80) − 140 = 4580, + D = 4660.
-/// Frame C draws row 150 at 4800 − 4660 = **140**: its bottom on the
-/// viewport's. Three frames. Red-before: the stub lands its 24-tall slot, the
+/// unmeasured row (real 60, estimate 30; rows 0…9 sum 460). Frame A resolves
+/// at the estimate: `offset(of: 150) = 460 + 140 · 30 = 4660`, so 4660 − (200 −
+/// 30) = 4490, and carries a refinement. Frame B (anchor 144 at 4480, window
+/// 142…153) records the window: `offset(of: 144) = 4560`, `D = 80`; the
+/// refinement resolves `offset(of: 150) = 4820` exactly: (4820 − 80) − 140 =
+/// 4600, + D = 4680. Frame C draws row 150 at 4820 − 4680 = **140**: its bottom
+/// on the viewport's. Three frames. (The clamp does not bind: 9160 of content,
+/// `VL-P` item 3.) Red-before: the stub lands its 24-tall slot, the
 /// leaf at 176. Mutation: no refinement carried (row 150 at 250).
 @Test @MainActor
 func scrollToAnUnmeasuredRowLandsExactlyOnceMeasured() throws {
@@ -521,8 +529,8 @@ func scrollToAnUnmeasuredRowLandsExactlyOnceMeasured() throws {
 /// row 150 at its estimate and carries one refinement (one pending request
 /// after it). The offset is then put back to 0 (a user scrolling away), so in
 /// frame B the target is still unmeasured: the refinement resolves once more
-/// and carries **nothing** (zero pending). Frame C lands at 4470 and records
-/// rows 142…153 (`D = 80`, stored 4550); frame D (anchor 144, window 142…150)
+/// and carries **nothing** (zero pending). Frame C lands at 4490 and records
+/// rows 142…153 (`D = 80`, stored 4570); frame D (anchor 144, window 142…150)
 /// asks for nothing: **two** frames after B. Red-before: the stub carries
 /// nothing (zero pending after A). Mutation: drop the `refined` guard (one
 /// pending after B).
@@ -538,20 +546,23 @@ func aRefinedRevealNeverRefinesAgain() throws {
     #expect(window.scrollRequests.pending.count == 0, "frame B carries nothing")
     let frames = settle(window)
     #expect(frames == 2, "frames after B: \(frames)")
-    #expect(try storedOffset(window) == 4550)
+    let offset = try storedOffset(window)
+    #expect(offset == 4570, "\(offset)")
 }
 
-/// **2.11 (`VL-F`, `VL-G`).** A jump to 5040 settles without input: frame A
-/// (anchor 163 at the estimate 5030, window 161…172) records its rows — rows
-/// 161 and 162 are 40 + 60, not 2 · 30 — so `D = 40` and it asks for one
-/// frame; frame B (anchor 163 at 5070, stored 5080, window 161…169) asks for
-/// nothing. Exactly **one** frame asks. Row 163 is at −10 in both. Red-before:
+/// **2.11 (`VL-F`, `VL-G`).** A jump to 5070 settles without input. Rows 10…
+/// start at `460 + 30 · (i − 10)` while unmeasured, so frame A's anchor is row
+/// 163 at 5050 (on screen −20) and its window 161…172 (5270 lies in row 170);
+/// it records its rows — rows 161 and 162 are 40 + 60, not 2 · 30 — so `D =
+/// 40` (stored 5110) and it asks for one frame; frame B (anchor 163 at 5090,
+/// on screen −20, window 161…169) asks for nothing. Exactly **one** frame
+/// asks. Red-before:
 /// the stub never realises row 163 there. Mutation: request a frame whenever
 /// `D` is computed (every frame asks).
 @Test @MainActor
 func aVariableListSettlesWithoutInput() throws {
     let (window, _, log, _) = try expandedList()
-    try setOffset(window, 5040)
+    try setOffset(window, 5070)
     var asking = 0
     var frames = 0
     window.setNeedsRedraw()
@@ -559,7 +570,7 @@ func aVariableListSettlesWithoutInput() throws {
         log.reset()
         window.drawFrameIfNeeded()
         frames += 1
-        #expect(log.screenY[163] == -10, "frame \(frames)")
+        #expect(log.screenY[163] == -20, "frame \(frames)")
         if window.needsRedraw { asking += 1 }
     } while window.needsRedraw && frames < 10
     #expect(asking == 1, "frames asking for another: \(asking)")
@@ -576,10 +587,10 @@ private final class Selection {
     }
 }
 
-/// **2.12 (`DD-Z`).** A selectable variable list (rows alternate 20/30) inside
-/// a 100pt scroller: click 1 → [1]; ⌘-click 3 → [1, 3]; ⇧-click 4 → [3, 4]
-/// (from the anchor 3); ⇧↓ → [3, 4, 5] — the uniform list's sets. Row 3's
-/// click target is 30 tall. Red-before: the stub's rows are 24. Mutation: the
+/// **2.12 (`DD-Z`).** A selectable variable list (rows alternate 20/30, so
+/// rows 0…3 fill the 100pt viewport at 0, 20, 50, 70) inside a scroller: click
+/// 0 → [0]; ⌘-click 2 → [0, 2]; ⇧-click 3 → [2, 3] (from the anchor 2); ⇧↓ →
+/// [2, 3, 4] — the uniform list's sets. Row 3's click target is 30 tall. Red-before: the stub's rows are 24. Mutation: the
 /// variable branch skips `rowClick` (no click target).
 @Test @MainActor
 func selectionAndShiftRangesAreUnchangedInAVariableList() throws {
@@ -611,14 +622,14 @@ func selectionAndShiftRangesAreUnchangedInAVariableList() throws {
     let target = try #require(window.lastHitboxes.first { $0.id == row(3) && $0.handlers.onClick != nil },
                               "row 3 registered no click target")
     #expect(target.bounds.size.height == px(30), "a content-sized row")
-    try click(1)
-    try click(3, ControlKeys.selectionToggleModifier())
-    try click(4, .shift)
+    try click(0)
+    try click(2, ControlKeys.selectionToggleModifier())
+    try click(3, .shift)
     window.focus(list)
     controlRedraw(window)
     platform.simulateInput(controlKey(TextEditing.downArrow, .shift))
     controlRedraw(window)
-    #expect(model.writes == [[1], [1, 3], [3, 4], [3, 4, 5]], "\(model.writes)")
+    #expect(model.writes == [[0], [0, 2], [2, 3], [2, 3, 4]], "\(model.writes)")
 }
 
 private struct ExcursionItem: Identifiable { let id: String }
@@ -833,10 +844,10 @@ func aVariableListInAHorizontalScrollerMeasuresEveryRowAtItsWidestWidth() throws
 }
 
 /// **2.18 (spec §3.1, `VL-R` item 2).** `estimatedRowHeight: 0` and `-5` are
-/// clamped to "not declared": after 10 patterned rows (sum 440, mean 44) grow
-/// to 100, the extent is 440 + 90 · 44 = **4400** for nil, 0 and −5 alike.
+/// clamped to "not declared": after 10 patterned rows (sum 460, mean 46) grow
+/// to 100, the extent is 460 + 90 · 46 = **4600** for nil, 0 and −5 alike.
 /// Red-before: the stub answers 100 × 24 = 2400. Mutation: drop the clamp (a
-/// declared 0 makes every unmeasured row 0: 440).
+/// declared 0 makes every unmeasured row 0: 460).
 @Test @MainActor
 func aNonPositiveEstimateIsTreatedAsUndeclared() throws {
     for estimate in [nil, px(0), px(-5)] as [Pixels?] {
@@ -846,6 +857,7 @@ func aNonPositiveEstimateIsTreatedAsUndeclared() throws {
         model.items = (0..<100).map(VItem.init)
         settle(window)
         drawOne(window, log)
-        #expect(try listHeight(window, log) == 4400, "estimate \(String(describing: estimate))")
+        let height = try listHeight(window, log)
+        #expect(height == 4600, "estimate \(String(describing: estimate)): \(height)")
     }
 }

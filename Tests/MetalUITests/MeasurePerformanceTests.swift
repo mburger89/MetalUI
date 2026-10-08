@@ -566,11 +566,23 @@ struct MeasurePerformanceTests {
 
     /// The native layout work one warm `variableLikeRows(_:)` frame does.
     ///
-    /// **Derived from the cold column before the warm frames were read**
+    /// **Derived from the cold column before the warm frames were asserted**
     /// (record §82 §4), as `demoLikeRowsWarmWork` was: a cold frame realises
     /// and measures every row (`MP-I`), so its work at several counts gives
-    /// the per-row function, evaluated at the warm window's r = 16 (below).
-    static let variableLikeRowsWarmWork = NativeLayoutWork(measureCalls: 0, cacheHits: 0, cacheMisses: 0)
+    /// the per-row function. Measured (a throwaway probe, deleted) at
+    /// n = 40 / 160 / 500 / 2000:
+    ///
+    /// | n | `measureCalls` | `cacheHits` | `cacheMisses` |
+    /// |---|---|---|---|
+    /// | 40 | 81 | 206 | 207 |
+    /// | 160 | 321 | 806 | 807 |
+    /// | 500 | 1001 | 2506 | 2507 |
+    /// | 2000 | 4001 | 10006 | 10007 |
+    ///
+    /// — exactly `2r + 1`, `5r + 6` and `5r + 7`. Evaluated at the warm window's
+    /// r = 16 (`variableLikeRows`' doc) the model predicts **33 / 86 / 87**, the
+    /// same at every logical count: `O(window)`.
+    static let variableLikeRowsWarmWork = NativeLayoutWork(measureCalls: 33, cacheHits: 86, cacheMisses: 87)
 
     /// The `RowExtentIndex` nodes one warm `variableLikeRows(n)` frame visits,
     /// derived from `List`'s variable branch at offset 0 over a 370pt viewport
