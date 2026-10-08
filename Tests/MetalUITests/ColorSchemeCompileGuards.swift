@@ -54,6 +54,7 @@ private func conformer(member: String) -> String {
         func dismissPresentation(token: Int) {}
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
+        func setPointerStyle(_ style: PlatformPointerStyle) {}
     \(member)
     }
     """

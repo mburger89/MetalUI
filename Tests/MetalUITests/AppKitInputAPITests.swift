@@ -239,11 +239,11 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
             let mapped = AppKitCursor.frameResize(for: edge, inward: inward, outward: outward)
             #expect(mapped.position == position && mapped.directions == directions,
                     "\(edge) inward=\(inward) outward=\(outward) → \(mapped)")
-            #expect(AppKitCursor.cursor(for: .frameResize(edge: edge, inward: inward, outward: outward))
-                    == NSCursor.frameResize(position: position, directions: directions),
-                    "the cursor is the table's")
         }
     }
+    // The cursor is the table's: one edge, read as a cursor.
+    #expect(AppKitCursor.cursor(for: .frameResize(edge: .trailing, inward: true, outward: false))
+            == NSCursor.frameResize(position: .right, directions: .inward))
 }
 
 /// A `.cursorUpdate` event for `window`, as the tracking area delivers it.

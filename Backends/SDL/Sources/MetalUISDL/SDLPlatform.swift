@@ -14,6 +14,15 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 /// MetalUI's `Platform` over SDL3 (ruling SP-A): windows, input, frame ticks,
 /// appearance and close on Linux, Windows and macOS, each window drawing
 /// through an ``SDLWindowRenderer``.
+///
+/// **Input constraints of SDL 3.4** (rulings `CI-I` item 6, `CI-K`): a wheel
+/// event has no gesture phase, momentum phase or precise flag (`.none`,
+/// `.none`, `false`); a trackpad pinch arrives as `.magnify` (no position:
+/// the window's last pointer position) where the video driver sends one — not
+/// on Windows, whose precision touchpads send control+wheel; there is **no
+/// rotate** event; the pointer styles map to system cursors, with both grab
+/// hands as the move cursor and both zooms as the default one (SDL has no hand
+/// or zoom cursor).
 @MainActor
 public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
@@ -25,11 +34,17 @@ public final class SDLPlatform: Platform {
     /// flags seed it once, when a window opens.
     private var focusedID: UInt32?
 
+    /// Whether this platform's video driver sends a pinch's cumulative scale
+    /// (ruling `CI-K` item 1): read once, at init, from
+    /// `SDL_GetCurrentVideoDriver`. Settable for a test on a ratio driver.
+    var pinchIsCumulative = true
+
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
     public init(hiddenWindows: Bool = false) throws {
         guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
         hidden = hiddenWindows
+        pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
         #if canImport(AppKit)
         Self.installAppKitEventSignal()
         #endif
@@ -202,6 +217,12 @@ public final class SDLPlatform: Platform {
             if focusedID == event.window_id { focusedID = nil }
         case Int(MUI_EVENT_ACCESSIBILITY):
             windows[event.window_id]?.deliverAccessibilityRequests()
+        case Int(MUI_EVENT_PINCH):
+            // A pinch names no window on cocoa (ruling `CI-K` item 2): the
+            // mouse-focus window, else the keyboard-focused one, else dropped.
+            guard let id = SDLPinch.route(windowID: event.window_id, mouseFocus: mui_mouse_focus_window_id(),
+                                          keyboardFocus: focusedID ?? 0) else { return }
+            windows[id]?.handlePinch(event, cumulative: pinchIsCumulative)
         case Int(MUI_EVENT_DIALOG):
             // A file dialog's answer (ruling `SV-G` item 2), already copied
             // into the bridge's queue by SDL's callback. A window gone since
@@ -301,6 +322,25 @@ public final class SDLWindow: PlatformWindow {
     /// platform constraint, not a SwiftUI divergence.
     public func setPreferredColorScheme(_ colorScheme: ColorScheme?) {
         preferredColorScheme = colorScheme
+    }
+
+    // MARK: Pointer style (ruling `CI-H` item 8)
+
+    /// Every `setPointerStyle(_:)` argument, in order — recorded so a test
+    /// under the offscreen driver, where a cursor may not be creatable, still
+    /// sees the request.
+    private(set) var pointerStyles: [PlatformPointerStyle] = []
+
+    /// Sets the system cursor `SDLCursorTable` maps `style` to — created once
+    /// per kind and cached by the bridge, then `SDL_SetCursor` — and records
+    /// the request. **SDL's cursor is process-global**, not per window (hence
+    /// `CI-S`'s re-send on re-entry). Both grab hands show SDL's move cursor
+    /// and both zooms the default one: SDL has no hand or zoom cursor, a
+    /// documented platform constraint (human check Y6). A cursor SDL cannot
+    /// create (the offscreen driver) leaves the current one.
+    public func setPointerStyle(_ style: PlatformPointerStyle) {
+        pointerStyles.append(style)
+        _ = mui_set_system_cursor(SDLCursorTable.systemCursor(for: style).bridgeValue)
     }
 
     public var onInput: ((InputEvent) -> Bool)?
@@ -686,9 +726,48 @@ public final class SDLWindow: PlatformWindow {
         onClose?()
     }
 
+    /// The last pointer position a motion, button or wheel event delivered —
+    /// where a pinch, which has none in SDL, is placed (ruling `CI-K` item 2).
+    private var lastPointerPosition = Point(x: Pixels(0), y: Pixels(0))
+    /// The previous scale of the pinch under way (1 at its start), for a
+    /// cumulative driver's delta.
+    private var pinchPreviousScale: Double = 1
+
+    /// A pinch step as `.magnify` (ruling `CI-K` item 1): BEGIN and END carry
+    /// no delta; an UPDATE's is `SDLPinch.delta` against the previous scale.
+    func handlePinch(_ event: MUIEvent, cumulative: Bool) {
+        let phase: InputPhase
+        var magnification = 0.0
+        switch Int(event.phase) {
+        case Int(MUI_PINCH_BEGIN):
+            phase = .began
+            pinchPreviousScale = 1
+        case Int(MUI_PINCH_UPDATE):
+            phase = .changed
+            let scale = Double(event.scale)
+            magnification = SDLPinch.delta(scale: scale, previous: pinchPreviousScale, cumulative: cumulative)
+            pinchPreviousScale = scale
+        default:
+            phase = .ended
+            pinchPreviousScale = 1
+        }
+        _ = onInput?(.magnify(MagnifyEvent(position: lastPointerPosition, magnification: magnification,
+                                           phase: phase, modifiers: SDLKeys.modifiers(event.modifiers),
+                                           timestamp: event.timestamp)))
+    }
+
     func handle(_ event: MUIEvent) {
         let position = Point(x: Pixels(event.x), y: Pixels(event.y))
         let modifiers = SDLKeys.modifiers(event.modifiers)
+        switch Int(event.kind) {
+        case Int(MUI_EVENT_MOUSE_DOWN), Int(MUI_EVENT_MOUSE_UP), Int(MUI_EVENT_RIGHT_DOWN),
+             Int(MUI_EVENT_RIGHT_UP), Int(MUI_EVENT_OTHER_DOWN), Int(MUI_EVENT_OTHER_UP),
+             Int(MUI_EVENT_MOUSE_MOVE), Int(MUI_EVENT_MOUSE_DRAG), Int(MUI_EVENT_RIGHT_DRAG),
+             Int(MUI_EVENT_OTHER_DRAG), Int(MUI_EVENT_WHEEL):
+            lastPointerPosition = position
+        default:
+            break
+        }
         switch Int(event.kind) {
         case Int(MUI_EVENT_RESIZE), Int(MUI_EVENT_EXPOSED):
             updateAccessibilityWindowBounds()
@@ -701,10 +780,25 @@ public final class SDLWindow: PlatformWindow {
                                              clickCount: Int(event.clicks))))
         case Int(MUI_EVENT_RIGHT_DOWN):   // the secondary button (ruling MN-B item 3)
             _ = onInput?(.rightMouseDown(MouseEvent(position: position, modifiers: modifiers,
-                                                    clickCount: Int(event.clicks))))
+                                                    clickCount: Int(event.clicks), buttonNumber: 1)))
         case Int(MUI_EVENT_RIGHT_UP):
             _ = onInput?(.rightMouseUp(MouseEvent(position: position, modifiers: modifiers,
-                                                  clickCount: Int(event.clicks))))
+                                                  clickCount: Int(event.clicks), buttonNumber: 1)))
+        case Int(MUI_EVENT_OTHER_DOWN):   // middle, X1, X2… in AppKit's numbering (ruling CI-E item 4)
+            _ = onInput?(.otherMouseDown(MouseEvent(position: position, modifiers: modifiers,
+                                                    clickCount: Int(event.clicks),
+                                                    buttonNumber: SDLButtons.appKitNumber(sdlButton: event.button))))
+        case Int(MUI_EVENT_OTHER_UP):
+            _ = onInput?(.otherMouseUp(MouseEvent(position: position, modifiers: modifiers,
+                                                  clickCount: Int(event.clicks),
+                                                  buttonNumber: SDLButtons.appKitNumber(sdlButton: event.button))))
+        case Int(MUI_EVENT_RIGHT_DRAG):
+            endDropSessionOnMotion()
+            _ = onInput?(.rightMouseDragged(MouseEvent(position: position, modifiers: modifiers, buttonNumber: 1)))
+        case Int(MUI_EVENT_OTHER_DRAG):
+            endDropSessionOnMotion()
+            _ = onInput?(.otherMouseDragged(MouseEvent(position: position, modifiers: modifiers,
+                                                       buttonNumber: SDLButtons.appKitNumber(sdlButton: event.button))))
         case Int(MUI_EVENT_MOUSE_MOVE):
             endDropSessionOnMotion()
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
@@ -724,9 +818,12 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.textComposition(SDLKeys.composition(String(cString: text),
                                                              start: Int(event.start), length: Int(event.length))))
         case Int(MUI_EVENT_WHEEL):
+            // SDL 3.4 has no scroll phase, momentum or precise flag (ruling
+            // `CI-I` item 6): its delta is lines, scaled to points.
             _ = onInput?(.scrollWheel(ScrollEvent(position: position,
                                                   delta: SDLKeys.scrollDelta(x: event.dx, y: event.dy),
-                                                  modifiers: modifiers, timestamp: event.timestamp)))
+                                                  modifiers: modifiers, phase: .none, momentumPhase: .none,
+                                                  isPrecise: false, timestamp: event.timestamp)))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
             if textInputCaret != nil, Self.producesText(keycode: event.keycode, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)

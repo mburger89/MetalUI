@@ -122,6 +122,7 @@ private func conformer(_ extra: String) -> String {
         func presentAlert(_: PlatformAlert) -> Bool { false }
         func dismissPresentation(token: Int) {}
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
+        func setPointerStyle(_ style: PlatformPointerStyle) {}
     \(extra)
     }
     """

@@ -827,20 +827,29 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_MOUSE_LEAVE; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_SYSTEM_THEME_CHANGED: out->kind = MUI_EVENT_THEME; return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
-        // The primary button, and the secondary one as its own kinds (ruling
-        // MN-B item 3); every other button is dropped. A ctrl-click stays a
+        // The primary button, the secondary one as its own kinds (ruling MN-B
+        // item 3), every other button as OTHER_* with its SDL number (CI-E
+        // item 4; Swift numbers it as AppKit does). A ctrl-click stays a
         // primary press (MN-AC item 1: off Apple it is List's toggle).
         if (e->button.button == SDL_BUTTON_LEFT)
             out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_MOUSE_DOWN : MUI_EVENT_MOUSE_UP;
         else if (e->button.button == SDL_BUTTON_RIGHT)
             out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_RIGHT_DOWN : MUI_EVENT_RIGHT_UP;
         else
-            return false;
+            out->kind = e->type == SDL_EVENT_MOUSE_BUTTON_DOWN ? MUI_EVENT_OTHER_DOWN : MUI_EVENT_OTHER_UP;
         out->window_id = e->button.windowID; out->x = e->button.x; out->y = e->button.y;
         out->clicks = e->button.clicks; out->modifiers = mods(SDL_GetModState());
+        out->button = e->button.button;
         return true;
     case SDL_EVENT_MOUSE_MOTION:
-        out->kind = (e->motion.state & SDL_BUTTON_LMASK) ? MUI_EVENT_MOUSE_DRAG : MUI_EVENT_MOUSE_MOVE;
+        // The left button wins (a primary drag), then the right, then the
+        // lowest held other button (CI-E item 4).
+        if (e->motion.state & SDL_BUTTON_LMASK) out->kind = MUI_EVENT_MOUSE_DRAG;
+        else if (e->motion.state & SDL_BUTTON_RMASK) out->kind = MUI_EVENT_RIGHT_DRAG;
+        else if (e->motion.state & SDL_BUTTON_MMASK) { out->kind = MUI_EVENT_OTHER_DRAG; out->button = SDL_BUTTON_MIDDLE; }
+        else if (e->motion.state & SDL_BUTTON_X1MASK) { out->kind = MUI_EVENT_OTHER_DRAG; out->button = SDL_BUTTON_X1; }
+        else if (e->motion.state & SDL_BUTTON_X2MASK) { out->kind = MUI_EVENT_OTHER_DRAG; out->button = SDL_BUTTON_X2; }
+        else out->kind = MUI_EVENT_MOUSE_MOVE;
         out->window_id = e->motion.windowID;
         out->x = e->motion.x; out->y = e->motion.y; out->modifiers = mods(SDL_GetModState());
         return true;
@@ -861,6 +870,15 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->modifiers = mods(SDL_GetModState());
         return true;
     }
+    case SDL_EVENT_PINCH_BEGIN: case SDL_EVENT_PINCH_UPDATE: case SDL_EVENT_PINCH_END:
+        // A trackpad pinch (ruling CI-K item 1): no position (Swift uses the
+        // window's last pointer position), and window 0 from cocoa (Swift
+        // routes it, CI-K item 2).
+        out->kind = MUI_EVENT_PINCH; out->window_id = e->pinch.windowID; out->scale = e->pinch.scale;
+        out->phase = e->type == SDL_EVENT_PINCH_BEGIN ? MUI_PINCH_BEGIN
+                   : e->type == SDL_EVENT_PINCH_UPDATE ? MUI_PINCH_UPDATE : MUI_PINCH_END;
+        out->modifiers = mods(SDL_GetModState());
+        return true;
     case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
         out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
         out->window_id = e->key.windowID; out->keycode = e->key.key;
@@ -993,6 +1011,47 @@ const uint8_t mui_sdl_button_left = SDL_BUTTON_LEFT;
 const uint8_t mui_sdl_button_right = SDL_BUTTON_RIGHT;
 const uint32_t mui_sdl_button_lmask = SDL_BUTTON_LMASK;
 const uint32_t mui_sdl_button_rmask = SDL_BUTTON_RMASK;
+const uint8_t mui_sdl_button_middle = SDL_BUTTON_MIDDLE;
+const uint8_t mui_sdl_button_x1 = SDL_BUTTON_X1;
+const uint8_t mui_sdl_button_x2 = SDL_BUTTON_X2;
+const uint32_t mui_sdl_button_mmask = SDL_BUTTON_MMASK;
+const uint32_t mui_sdl_button_x1mask = SDL_BUTTON_X1MASK;
+const uint32_t mui_sdl_button_x2mask = SDL_BUTTON_X2MASK;
+
+const uint32_t mui_sdl_event_pinch_begin = SDL_EVENT_PINCH_BEGIN;
+const uint32_t mui_sdl_event_pinch_update = SDL_EVENT_PINCH_UPDATE;
+const uint32_t mui_sdl_event_pinch_end = SDL_EVENT_PINCH_END;
+
+bool mui_push_raw_pinch_event(uint32_t sdl_type, uint32_t window_id, float scale) {
+    if (sdl_type != SDL_EVENT_PINCH_BEGIN && sdl_type != SDL_EVENT_PINCH_UPDATE && sdl_type != SDL_EVENT_PINCH_END)
+        return SDL_SetError("not a pinch event");
+    SDL_Event e;
+    SDL_zero(e);
+    e.type = sdl_type; e.pinch.windowID = window_id; e.pinch.scale = scale;
+    e.common.timestamp = SDL_GetTicksNS();
+    return SDL_PushEvent(&e);
+}
+
+uint32_t mui_mouse_focus_window_id(void) {
+    SDL_Window *w = SDL_GetMouseFocus();
+    return w ? SDL_GetWindowID(w) : 0;
+}
+
+static SDL_Cursor *system_cursors[MUI_CURSOR_COUNT];
+
+bool mui_set_system_cursor(int32_t cursor) {
+    static const SDL_SystemCursor kinds[MUI_CURSOR_COUNT] = {
+        SDL_SYSTEM_CURSOR_DEFAULT, SDL_SYSTEM_CURSOR_TEXT, SDL_SYSTEM_CURSOR_CROSSHAIR, SDL_SYSTEM_CURSOR_MOVE,
+        SDL_SYSTEM_CURSOR_POINTER, SDL_SYSTEM_CURSOR_EW_RESIZE, SDL_SYSTEM_CURSOR_NS_RESIZE,
+        SDL_SYSTEM_CURSOR_N_RESIZE, SDL_SYSTEM_CURSOR_S_RESIZE, SDL_SYSTEM_CURSOR_E_RESIZE,
+        SDL_SYSTEM_CURSOR_W_RESIZE, SDL_SYSTEM_CURSOR_NE_RESIZE, SDL_SYSTEM_CURSOR_NW_RESIZE,
+        SDL_SYSTEM_CURSOR_SE_RESIZE, SDL_SYSTEM_CURSOR_SW_RESIZE,
+    };
+    if (cursor < 0 || cursor >= MUI_CURSOR_COUNT) return SDL_SetError("unknown cursor");
+    if (!system_cursors[cursor]) system_cursors[cursor] = SDL_CreateSystemCursor(kinds[cursor]);
+    if (!system_cursors[cursor]) return false;
+    return SDL_SetCursor(system_cursors[cursor]);
+}
 
 bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t button, uint32_t state,
                               float x, float y) {

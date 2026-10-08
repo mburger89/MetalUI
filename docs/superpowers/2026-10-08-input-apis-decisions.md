@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-X`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -793,3 +793,53 @@ agent at a time in one worktree:
 menu stages, lane 3 the wheel stage and the hover/style recompute, on top of
 lane 2's commit. Sequential lanes make the overlap safe; no lane runs beside
 another.
+
+## CI-X — Lane 1's implementation choices (the seam and both platforms)
+
+**Ruling.**
+
+1. **The SDL right-drag changes an existing SDL test on purpose.** `CI-E` item
+   4 makes motion with only the right button held `.rightMouseDragged`; the
+   existing `aRightButtonEventBecomesARightMouseDownAndUp`
+   (`Backends/SDL/Tests/MetalUISDLTests/SDLMenuInputTests.swift`, S3.1, `MN-B`
+   item 3) pinned it as `.mouseMoved`. Lane 1 edits it (`rdrag(35,45)`, its doc
+   names this item) — `CI-T`'s shape for SDL; the file joins lane 1's list.
+   **Owed to lane 2** (`CI-E` item 2): `Window`'s switches send the six new
+   cases to `default:`, so until lane 2 a right- or other-button drag does not
+   recompute hover (on SDL a right-held move did before this branch). No test
+   pins hover during a right drag; lane 2's button arena adds the hover
+   recompute for the new drag cases.
+2. **macOS 14 fallbacks.** The package's minimum is macOS 14; `NSCursor`'s
+   `columnResize`, `rowResize`, `zoomIn`, `zoomOut` and
+   `frameResize(position:directions:)` are macOS 15. On 14 `AppKitCursor`
+   answers `resizeLeftRight`/`resizeUpDown` for the column and row resizes and
+   for the four edges (a one-way `resizeLeft`…`resizeDown` when one direction
+   is asked), and the arrow for the zooms and the four corners.
+   `AppKitCursor.frameResize(for:inward:outward:)` (`CI-P` item 3's value
+   table) is `@available(macOS 15, *)`; test 1.8 runs on 15 and later (the
+   development machine is macOS 27; a 14 runner returns from it).
+3. **A frame resize with neither direction** (`inward: false, outward:
+   false`) is both, `.all` — SwiftUI's empty `FrameResizeDirection.Set` has no
+   cursor of its own and lane 3 never sends one.
+4. **The SDL cursor cache lives in the bridge**: `mui_set_system_cursor(int32_t)`
+   takes a bridge-defined `MUI_CURSOR_*` (MetalUI's names, mapped to
+   `SDL_SystemCursor` in C), creates each kind once and keeps it for the
+   process; `SDLSystemCursor.bridgeValue` converts each constant with
+   `Int32(…)` explicitly, so Swift never spells an SDL enum's `rawValue`.
+   `SDLPinch`, `SDLSystemCursor` and `SDLCursorTable` are **internal** (no
+   public surface beyond `SDLWindow.setPointerStyle`).
+5. **Test 1.13's driver.** On macOS the SDL tests run under `cocoa`, a ratio
+   driver, so the test first requires the platform read the real driver as
+   `SDLPinch.isCumulative(driver:)` says, then sets the platform's reading
+   (`SDLPlatform.pinchIsCumulative`, internal) to the offscreen driver's; in
+   CI's Linux image the driver is `offscreen` and the override is a no-op. A
+   pinch's BEGIN and END carry magnification 0 (AppKit's began/ended events
+   do, probe `M0`), and the window's last pointer position is updated by every
+   motion, button and wheel event it receives.
+6. **The pinch's keyboard-focus fallback** (`CI-K` item 2) is the platform's
+   tracked focus (`EV-AF`), not `SDL_GetKeyboardFocus`, which a pushed focus
+   event does not update.
+
+**Cost if wrong.** Item 1: a hover that lags a right drag on SDL until lane 2
+lands (no released build carries the gap). Item 2: a macOS 14 user sees an
+arrow where a zoom or corner cursor was asked.
