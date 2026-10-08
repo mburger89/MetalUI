@@ -2,14 +2,17 @@
 
 Styled runs inside one `Text`, on both text systems. Item 6 of the gpui-gap
 priority list (user request 2026-10-02; **not a plan task**). Rulings `RT-A`…
-`RT-N` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
+`RT-O` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
 record `docs/record/83-rich-text.md` (Record phase). Probes:
 `docs/probes/swiftui-rich-text.swift`, `docs/probes/foundation-markdown-inline.swift`,
-`docs/probes/swift-attribute-scope-ambiguity/run.sh` (arm ids below are theirs).
+`docs/probes/swift-attribute-scope-ambiguity/run.sh`, and the critic pass's
+`docs/probes/swiftui-text-interpolation.swift` (`I0`–`I4`) and
+`docs/probes/swiftui-kerning-zero.swift` (`K1`, `K2`) (arm ids below are theirs).
+**The critic pass's corrections are ruling `RT-O`; this spec carries them.**
 
 Branch `feat/rich-text` from `70ed000`. Parallel: `feat/input-apis` (§81),
 `feat/variable-height-list` (§82) — stay off their files (`List*.swift`,
-the input-API files they name). Divergence labels: **150–155** taken here
+the input-API files they name — `Handlers.swift` among them, `RT-O` item 1). Divergence labels: **150–156** taken here
 from the reserved range 150–159 (the header's next-label line is left for the
 merge).
 
@@ -32,7 +35,7 @@ merge).
 - SwiftUI facts this design rests on are the probes' recorded rows; the ones
   that shaped the API: Markdown parses in a literal and not in a value
   (`M1`, `M2`); `Text + Text` is deprecated in macOS 26.0 in favour of
-  interpolation (the probe's 138 warnings) and interpolation renders as the
+  interpolation (the probe's 146 warnings) and interpolation renders as the
   concatenation (`C14`); `AttributedString(markdown:)` does not exist on
   Linux (`L2`).
 
@@ -56,6 +59,7 @@ Text("a").foregroundColor(.red) + Text("b")
 
 // Per-segment Text modifiers (RT-E; lane 2) — each returns Text
 Text("x").bold().underline(color: .red).kerning(1).baselineOffset(3)
+Text("x").underline(true, pattern: .solid, color: .red)   // SwiftUI's full spelling (RT-O 8)
 
 // AttributedString over MetalUI's scope (RT-D; lane 3)
 var s = AttributedString("Warning")
@@ -153,8 +157,8 @@ extension Text {
     public static func + (lhs: Text, rhs: Text) -> Text  // traps on a decorated operand (RT-E 4)
     public func bold() -> Text
     public func bold(_ isActive: Bool) -> Text
-    public func underline(_ isActive: Bool = true, color: Color? = nil) -> Text
-    public func strikethrough(_ isActive: Bool = true, color: Color? = nil) -> Text
+    public func underline(_ isActive: Bool = true, pattern: LineStyle.Pattern = .solid, color: Color? = nil) -> Text   // RT-O 8
+    public func strikethrough(_ isActive: Bool = true, pattern: LineStyle.Pattern = .solid, color: Color? = nil) -> Text
     public func kerning(_ kerning: Double) -> Text
     public func tracking(_ tracking: Double) -> Text
     public func baselineOffset(_ baselineOffset: Double) -> Text
@@ -183,8 +187,10 @@ public struct LocalizedStringKey: ExpressibleByStringInterpolation, Equatable, S
     public struct StringInterpolation: StringInterpolationProtocol, Sendable {
         public init(literalCapacity: Int, interpolationCount: Int)
         public mutating func appendLiteral(_ literal: String)
-        public mutating func appendInterpolation<T>(_ value: T)   // String(describing:) (RT-C 3)
+        public mutating func appendInterpolation<T>(_ value: T)   // String(describing:), not deprecated (RT-C 3, RT-O 6; divergence 156)
         public mutating func appendInterpolation(_ text: Text)    // keeps runs (RT-C 4); stores runs, not the Text
+        public mutating func appendInterpolation(_ attributedString: AttributedString)   // keeps runs (RT-O 4, I3)
+        @available(*, unavailable, message: "…") public mutating func appendInterpolation(_ image: Image)   // RT-O 5, I4
     }
 }
 extension Text { public init(_ key: LocalizedStringKey) }
@@ -246,7 +252,10 @@ Otherwise the styled path: `requestLayout` builds the `StyledText` (keys from
 `system.resolveFont`) and paint attributes once, captured by value in the
 measurement closure; `paint` rebuilds them through the same functions and
 calls `layOut` at the measured width (the existing `measuredWidth` rule,
-divergence 8's fix).
+divergence 8's fix). **A kerning or tracking of 0 is "no extra space"**: the
+CoreText styled path omits `kCTKernAttributeName`/`kCTTrackingAttributeName`
+for such a run, because a kern of 0 switches the font's pair kerning off (`K2`;
+SwiftUI's `kerning(0)` ≡ plain, `K1`; `RT-O` item 7).
 
 **Styled measurement** (`RT-G`): the `textLines` analogue `styledTextLines`
 applies the line limit, then the cumulative height cap (`C16`), then
@@ -266,14 +275,14 @@ through `pass.fill`. Colours resolve through `pass.resolve` (snap, `RT-L` 2).
 | lane | sources | tests |
 |---|---|---|
 | 1 | new `Sources/MetalUITextSystem/StyledText.swift`; `TextSystem.swift` (3 requirements); `Sources/MetalUIText/CoreTextTextSystem.swift`, `ShapingCache.swift`, `ShapedText.swift`, `PlacedGlyph.swift`, new `StyledShaping.swift`, `FontResolver.swift` (decoration metrics); `Sources/MetalUIPortableText/FontFallback.swift`, `LineBreaking.swift`, `LineEmission.swift`, `Truncation.swift`, `PortableTextSystem.swift`, `PortableText.swift` (decoration metrics), new `StyledLayout.swift`; `Sources/MetalUIHarfBuzz/*` (features); `Sources/MetalUIFreeType/FreeTypeFont.swift` | new `Tests/MetalUITests/StyledTextSeamTests.swift`; new `Tests/MetalUIPortableTextTests/StyledTextOracleTests.swift`; new `Tests/MetalUICrossPlatformTests/StyledTextPortableTests.swift`; `Tests/MetalUIHarfBuzzTests/` (one test, new file `ShapingFeatureTests.swift`); `Tests/MetalUITests/MenuPickerTests.swift` (`CountingTextSystem` gains the three requirements — its only change) |
-| 2 | `Sources/MetalUI/Text.swift`, `ProposalText.swift`, `TextModifiers.swift`, `TextStyleResolution.swift`, `Font.swift` (`monospaced()`), `Handlers.swift` (internal `isDefault`), new `TextRuns.swift`, new `RichTextPaint.swift`; `Sources/MetalUIDemoContent/RichTextDemo.swift` (new); `Sources/MetalUIDemo/main.swift` (the env switch) | new `Tests/MetalUITests/RichTextTests.swift`, `RichTextPaintTests.swift`, `RichTextCompileGuards.swift`; new `Tests/MetalUICrossPlatformTests/RichTextPortableWindowTests.swift`; `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (the new tree, own `@inline(never)` function); the `Text` arm of `everyDecorationScopingSiteContainsItsOwnContent` (its file, one arm added) |
-| 3 | new `Sources/MetalUI/LocalizedStringKey.swift`, `MarkdownInline.swift`, `TextAttributes.swift` | new `Tests/MetalUICrossPlatformTests/MarkdownInlineTests.swift`, `LocalizedStringKeyTests.swift`, `AttributedTextTests.swift`; new `Tests/MetalUITests/MarkdownOracleTests.swift` (Darwin, Foundation's parser), `TextLiteralCompileGuards.swift` |
+| 2 | `Sources/MetalUI/Text.swift`, `ProposalText.swift`, `TextModifiers.swift`, `TextStyleResolution.swift`, `Font.swift` (`monospaced()`), new `TextRuns.swift` (the run model and the `Mirror` operand check, `RT-O` 1 — **not** `Handlers.swift`, which `feat/input-apis` edits), new `RichTextPaint.swift` | new `Tests/MetalUITests/RichTextTests.swift`, `RichTextPaintTests.swift`, `RichTextCompileGuards.swift`; new `Tests/MetalUICrossPlatformTests/RichTextPortableWindowTests.swift`; the `Text` arm of `everyDecorationScopingSiteContainsItsOwnContent` (its file, one arm added); `Tests/MetalUITests/AnimationTests.swift` (doc comment of `everyBackgroundPaintingSiteAnimatesItsColour` only, `RT-O` 13) |
+| 3 | new `Sources/MetalUI/LocalizedStringKey.swift`, `MarkdownInline.swift`, `TextAttributes.swift`; the demo (`RT-O` 10): `Sources/MetalUIDemoContent/RichTextDemo.swift` (new), `Sources/MetalUIDemo/main.swift` and `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (the env switches) | new `Tests/MetalUICrossPlatformTests/MarkdownInlineTests.swift`, `LocalizedStringKeyTests.swift`, `AttributedTextTests.swift`; new `Tests/MetalUITests/MarkdownOracleTests.swift` (Darwin, Foundation's parser), `TextLiteralCompileGuards.swift`; `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (the new tree, own `@inline(never)` function) |
 
 **Shared registries** (append-only, each lane its own rows, in its own
 commits): `docs/probes/closeout-inventory-map.tsv` (+ the census re-recorded
 with `closeout-public-api.sh` at each lane's end). Lane 3 alone writes
-`docs/divergences.md` rows 150–155, `docs/verification/human-checks.md` group
-Y, `docs/migration.md`, `docs/api-overview.md`, and the decisions doc's
+`docs/divergences.md` rows 150–156, `docs/verification/human-checks.md` group
+"RT" (provisional letter, settled at the merge, `RT-O` 2), `docs/migration.md`, `docs/api-overview.md`, and the decisions doc's
 amendment rulings for anything a lane measured differently.
 
 ## §3 Lanes (ruling `RT-N`; order 1 → 2 → 3; one agent at a time)
@@ -289,18 +298,23 @@ amendment rulings for anything a lane measured differently.
   line boxes, truncation, segments, bidi visual pieces), decoration metrics on
   both, the oracle corpus. Runs the Linux image (§5) — the portable path is
   what Linux and Windows draw. Measures `RT-H` item 3's tracking rule on Noto
-  Sans before relying on it; a disagreement is an amendment ruling.
+  Sans before relying on it; a disagreement is an amendment ruling. Records
+  test 1.19's literals on `70ed000`'s code **before its first source change**,
+  and runs the demo-pixel compare (it changes the plain path's internals,
+  `RT-O` 11).
 - **Lane 2 — the `Text` element.** Run model, initialisers
   `init<S: StringProtocol>`/`init(verbatim:)`, `Text`-level modifiers, `+`
   with its trap, styled layout and paint, decorations, links (styled, inert),
-  accessibility string, `ProposalText` parity, `Handlers.isDefault`, the demo
-  section. Its tests build styled text with modifiers and `+` (in deprecated
-  helpers) — no Markdown, which is lane 3's.
+  accessibility string, `ProposalText` parity, the `Mirror` operand check.
+  Its tests build styled text with modifiers and `+` (through a deprecated
+  protocol witness called generically, `LR-CV`'s pattern, `RT-O` 9) — no
+  Markdown, which is lane 3's. No demo (it moved to lane 3).
 - **Lane 3 — the front ends and registries.** `LocalizedStringKey` (literals
   start parsing here), the Markdown parser, interpolation, the attribute scope
-  and `Text(AttributedString)`, the Foundation oracle, and the shared
-  registries (§2). Runs the full demo-pixel compare and the Linux image again
-  (the parser is portable code).
+  and `Text(AttributedString)`, the Foundation oracle, the demo (§6, macOS
+  and SDL switches) and the shared registries (§2). Runs the full demo-pixel
+  compare and the Linux image again (the parser is portable code, and the SDL
+  demo switch is a `Backends/SDL` change).
 
 Each lane ends green on its own: full unfiltered native suite (one summary
 line, the `FR-J` line), `swift build --build-tests` 0 warnings, inventory
@@ -321,7 +335,7 @@ the spelling it edits; the lane records which tests it reddened (by name).
 
 | # | test (file) | asserts | red before | mutation that must redden it |
 |---|---|---|---|---|
-| 1.1 | `aOneRunStyledTextMeasuresAsThePlainCallsOnBothSystems` (`StyledTextSeamTests`) | for a corpus (Latin, Arabic, a hard break, an emoji that falls back) × widths nil/40/0.5 × options (limit 2 tail/head/middle, centre), a one-run `measure(StyledText)` equals the plain `measure` (widest, total) and its lines' heights are all `fontMetrics.lineHeight` | stub returns zeros | CoreText: take the line height from `CTLineGetTypographicBounds` (fallback faces included) — the emoji arm reddens |
+| 1.1 | `aOneRunStyledTextMeasuresAsThePlainCallsOnBothSystems` (`StyledTextSeamTests`) | for a corpus (Latin, a pair-kerned Latin string — `try #require` its plain width is below the sum of its glyph advances, `RT-O` 7 — Arabic, a hard break, an emoji that falls back) × widths nil/40/0.5 × options (limit 2 tail/head/middle, centre), a one-run `measure(StyledText)` equals the plain `measure` (widest, total) and its lines' heights are all `fontMetrics.lineHeight` | stub returns zeros | (a) CoreText: take the line height from `CTLineGetTypographicBounds` (fallback faces included) — the emoji arm reddens; (b) CoreText: always set `kCTKernAttributeName` (0 included) — the kern-pair arm reddens (`K2`) |
 | 1.2 | `aOneRunStyledTextPlacesThePlainGlyphsOnBothSystems` | `layOut(...).glyphs.map(\.glyph)` == `placeGlyphs(...)` for the same corpus at scale 1 and 2; every run index 0 | stub returns `[]` | portable `StyledLayout`: round the baseline before scaling (`(baseline).rounded() * scale`) |
 | 1.3 | `aRunBoundaryIsNotABreakOpportunity` (`C4`, `C4c`) | `"foo"` + `"bar"` (two runs, regular/bold) at `width("foobar") − 3` keeps one line (lines == the plain `"foobar"`'s) on both systems | stub breaks per run | portable: mark `.allowed` at each run boundary in the break table |
 | 1.4 | `breaksBetweenRunsFallWhereCoreTextPutsThem` (`C4d`) | `"word "`+bold `"next"`+`" more"` at 40 → ranges `0..<5`, `5..<10`, `10..<14` on both | stub | portable: reshape from each line start with run 0's font (`font: runs[0]`) |
@@ -339,37 +353,40 @@ the spelling it edits; the lane records which tests it reddened (by name).
 | 1.16 | `zeroLengthRunsAreDroppedAndEqualNeighboursMerge` (`StyledTextPortableTests`, runs on Linux) | normalization; an empty string keeps its first run's style (`C17`) | stub | skip the merge |
 | 1.17 | `thePortableSystemLaysOutAStyledTextOnEveryPlatform` (`StyledTextPortableTests`) | Noto Sans 10/30 mixed line and a +5 offset: heights and baselines from `PortableFontMetrics`, on Linux too | stub | as 1.5 |
 | 1.18 | `disablingLigaturesShapesTheLigatureAsSeparateGlyphs` (`ShapingFeatureTests`) | HarfBuzz with `liga`/`clig` off: one glyph per letter of the ligated string | stub | ignore `features` |
+| 1.19 | `theDemoDoesTheSameTextWorkAsBefore` (`Tests/MetalUITests/StyledTextSeamTests.swift`; `RT-M` 1, moved from lane 2 by `RT-O` 11) | the main demo's first and warm frames: `ShapingCache` misses and lookups equal literals **recorded on `70ed000`'s code before lane 1's first source change** (stated in the test with the commit) | green on arrival by design (a must-not-move pin) | (lane 1) key the plain cache by `(string, font, width)` without the options — the warm-frame literal moves; (lane 2, re-run) route every `Text` through the styled path (predicate `true`) |
 
 ### §4.2 Lane 2 — the `Text` element
 
-Tests that use `+` live in `@available(*, deprecated)` helpers.
+Tests that use `+` call it through a `@available(*, deprecated)` protocol
+witness reached through a generic constraint (`LR-CV`, `swift-deprecated-witness-silence.sh`;
+a bare deprecated helper called from a `@Test` warns — `RT-O` 9).
 
 | # | test (file) | asserts | red before | mutation |
 |---|---|---|---|---|
 | 2.1 | `concatenationPushesEachSidesTextFieldsIntoItsUnsetRuns` (`RichTextTests`; `C2`, `C2b`, `C3`, `C3b`, `C12b`) | per-run resolved descriptors and colours: an inner colour/weight/font wins, the outer reaches only unset runs | compile (no `+`) | `resolve`: `text.field ?? run.field` (outer wins) |
 | 2.2 | `aStyledTextMeasuresAsCoreTextsAttributedLine` (`C1`) | `Text("Ab").bold() + Text("cd")` answers CoreText's attributed line width (derived in the test with `CTLineGetTypographicBounds`) | stub plain | measure the concatenated plain string |
-| 2.3 | `aPlainTextTakesThePlainCalls` (`RT-F` 3) | a spy `TextSystem` records calls: `Text("a")`, `Text("a").bold().foregroundColor(.red).italic()`, `Text("a").font(.title)` reach only the plain requirements; `Text("a").underline()`, `.kerning(0)`, a two-run text reach only the styled ones | stub | invert the fast-path predicate's `kerning` clause |
+| 2.3 | `aPlainTextTakesThePlainCalls` (`RT-F` 3) | a spy `TextSystem` (forwarding every requirement to the real system, `RT-O` 15) records calls: `Text("a")`, `Text("a").bold().foregroundColor(.red).italic()`, `Text("a").font(.title)` reach only the plain requirements; `Text("a").underline()`, `.kerning(0)`, a two-run text reach only the styled ones | stub | invert the fast-path predicate's `kerning` clause |
 | 2.4 | `aStyledTextPaintsEachRunsColour` | scene sprites: run 1's glyphs red, run 2's blue | stub single colour | colour every glyph with run 0's colour |
 | 2.5 | `anUnderlineIsARectAtTheFacesPosition` (`RT-J` 2–3, `C9w`) | the rect's centre `baseline − underlinePosition`, height `underlineThickness`, x extent the segment clipped to the visible extent (`"x   "` arm) | stub none | drop the visible-extent clip |
 | 2.6 | `aStrikethroughSitsOnHalfTheXHeight` (`C9s`, `C9ms`) | centre `baseline − xHeight/2` for 13 pt and 30 pt runs on one line | stub | use the line's tallest run's metrics for every strike |
 | 2.7 | `sameColouredUnderlinesMergeAndOthersDoNot` (`C9m`, `C9b`, `F3`, `F2`) | 10 pt + 30 pt both underlined, one colour: one rect at the 30 pt geometry across both; different colours: two rects, own geometry; strikethroughs: two rects | stub | (a) never merge — the `C9m` arm; (b) merge regardless of colour — the `F3` arm |
 | 2.8 | `aBackgroundFillsTheRunByTheLineBox` (`C11bg`, `C11bg2`, `F4e`) | rect: segment extent (trailing spaces included) × the line box; a 10 pt run beside a 30 pt one fills the 30 pt line | stub | use the run's own font line height |
 | 2.9 | `aWarmFrameOfAStyledTextShapesNothing` | a window, two frames: `ShapingCache.misses` unmoved on the second (layout and paint ask the same question) | stub | paint lays out at `bounds` width instead of `measuredWidth` |
-| 2.10 | `theDemoDoesTheSameTextWorkAsBefore` (`RT-M` 1) | the main demo's first and warm frames: `ShapingCache` misses and lookups equal literals recorded at `70ed000` by the lane before its change (stated in the test with the commit) | green on arrival by design (a must-not-move pin) | route every `Text` through the styled path (predicate `true`) |
+| 2.10 | (moved to lane 1 as 1.19, `RT-O` 11; lane 2 re-runs its styled-path mutation) | — | — | — |
 | 2.11 | `aStyledTextIsOneShadowLeaf` (`GX-J`) | under `.shadow`, one shadow raster whose leaf holds the background rect, glyphs and underline | stub | emit the underline after `endLeafGroup` |
 | 2.12 | the styled `Text` arm of `everyDecorationScopingSiteContainsItsOwnContent` (`OM-AI`, `OM-V`) | a faded, clipped, bordered styled `Text`: rects and glyphs at alpha 0.5, inside the clip, before the border | stub | call `drawStyledText` outside `paintDecoration`'s closure |
 | 2.13 | `aStyledTextPublishesItsConcatenatedString` (`RT-L` 1) | the AX record's text is the whole string; an all-empty concatenation publishes none | stub | publish the first run's string |
-| 2.14 | `aMixedTextCapsLinesByTheirSummedHeights` (`C16`) | lines `[lh10, lh30, …]` with proposal height `lh10 + lh30 − 1`: one line (`⌊h / lh10⌋` would keep more) | stub | cap by `⌊h / firstLineHeight⌋` |
+| 2.14 | `aMixedTextCapsLinesByTheirSummedHeights` (`C16`, `C16b`) | a 10-pt line then a 30-pt line: proposal height `lh10 + lh30 − 1` keeps one line, `lh10 + lh30` keeps two (`C16b`: 47 → 13 tall, 48 → 48) | stub | (a) cap by `⌊h / firstLineHeight⌋` — the first arm; (b) cap by `⌊h / tallestLineHeight⌋` — the second |
 | 2.15 | `reservedSpaceUsesTheFirstRunsLineHeight` (`C18`) | `lineLimit(3, reservesSpace: true)`: `B30 + a10` → 3 × lh30; `a10 + B30` → max(3 × lh10, lh30) | stub | use the tallest line |
 | 2.16 | `aMixedTextReportsBaselinesFromItsLines` (`RT-G` 2) | first `round(ascent₁)`, last `top(last) + round(ascentₙ)` for the `C6` shape | stub | plain formula `first + (n−1) × lineHeight₀` |
 | 2.17 | `aLinkDrawsInTheAccentUnlessItsRunIsColoured` (`RT-K`; `M6`, `C11lnc`, `C11lne`) | link run colour `.accent`; red run red; under `.foregroundStyle(.green)` still accent | stub | let the environment's `foregroundStyle` reach a link run |
 | 2.18 | `aLinkRegistersNothingAPlainTextDoesNot` (`RT-K`, divergence 150) | hitboxes, focus entries and AX records equal those of the same text without the link | stub | register a pointer hitbox per link segment |
 | 2.19 | `concatenatingADecoratedTextTraps` (exit tests: `.padding`, `.onClick`, `.id`) (`RT-E` 4, divergence 155) | each exits with a signal | — | delete the precondition |
-| 2.20 | `handlersIsDefaultSeesEveryMember` | 17 arms: setting any one `Handlers` member makes `isDefault` false | stub `true` | drop one member from `isDefault` (each arm is its own mutation; the lane runs three, chosen across public and internal members) |
-| 2.21 | `aOneRunStyledTextDrawsThePlainSprites` | a window: `Text("Hello").kerning(0)` (styled path) and `Text("Hello")` (plain) draw identical glyph primitives | stub | offset the styled paint origin by the line's `offsetX` twice |
+| 2.20 | `theOperandCheckSeesEveryHandlersMember` (`RT-O` 1) | `try #require` every `Mirror` child of `Handlers()` is a recognised kind (optional, collection/dictionary, `Equatable`) and the child count is 17; 17 arms: setting any one member fails the check | stub `true` | (a) drop the optional rule — the optional members' arms; (b) drop the `Equatable` rule — `isFocusable`, `allowsHitTesting`, `axNode`; (c) drop the collection rule — `actions`, `gestures` |
+| 2.21 | `aOneRunStyledTextDrawsThePlainSprites` | a window: `Text(s).kerning(0)` (styled path) and `Text(s)` (plain), `s` lane 1's pair-kerned string, draw identical glyph primitives | stub | (a) offset the styled paint origin by the line's `offsetX` twice; (b) lane 1's always-set-kern mutation |
 | 2.22 | `proposalTextDrawsTheSameStyledSpritesAsText` | `ProposalText` and `Text` of one styled content: equal scene glyphs and rects | stub | `proposalLayout()` drops `content` |
 | 2.23 | `aRunsColourSnapsUnderAnAnimation` (`RT-L` 2) | `withAnimation` changing a run's colour: the next frame draws the new colour | green on arrival (pin) | route run colour through `animatedColor` |
-| 2.24 | `theTextModifiersComposeAsSwiftUIs` (`RichTextCompileGuards`, `typecheckFile`, plain import) | compiles: `Text("a").bold().underline(color: .red).kerning(1) + Text("b")` (in a deprecated function), `Font.body.monospaced()`; does **not** compile: `Text("a").lineLimit(1) + Text("b")`, `.underline(pattern: .dash)`, `Text.LineStyle.Pattern.dash` | compile | each arm mutated red once (e.g. add a `dash` static) |
+| 2.24 | `theTextModifiersComposeAsSwiftUIs` (`RichTextCompileGuards`, `typecheckFile`, plain import) | compiles: `Text("a").bold().underline(color: .red).kerning(1) + Text("b")` (in a deprecated function), `Font.body.monospaced()`, `.underline(true, pattern: .solid, color: .red)` (`RT-O` 8); does **not** compile: `Text("a").lineLimit(1) + Text("b")`, `.underline(pattern: .dash)`, `Text.LineStyle.Pattern.dash` | compile | each arm mutated red once (e.g. add a `dash` static) |
 | 2.25 | `theConcatenationOperatorIsDeprecated` (guard) | compiling `Text("a") + Text("b")` in a non-deprecated context emits the deprecation warning with SwiftUI's message | compile | remove the `@available(*, deprecated…)` |
 | 2.26 | `aStyledTextDrawsThroughThePortableSystem` (`RichTextPortableWindowTests`, Linux too) | a headless frame over `PortableTextSystem`: two glyph colours and an underline rect at the Noto Sans geometry | stub | as 2.4 |
 
@@ -384,13 +401,15 @@ Tests that use `+` live in `@available(*, deprecated)` helpers.
 | 3.5 | `anInterpolatedValueIsVerbatimButTakesTheFormatsStyle` (`M10`, `M10b`) | `"a \(v)"` keeps `**x**`; `"**\(n)**"` bold `n` | stub | substitute before parsing |
 | 3.6 | `anInterpolatedValueIsItsDescription` (`M11`, `M11b`, `M29`; divergence 151) | `3.5` → `"3.5"`, `7` → `"7"` | stub | format `Double` with `%lf` |
 | 3.7 | `anInterpolatedTextKeepsItsRuns` (`C14`) | `Text("a \(Text("b").bold())")` runs == `Text("a ") + Text("b").bold()`'s | stub | interpolate the text's `.string` |
+| 3.7b | `anInterpolatedAttributedStringKeepsItsRuns` (`I3`, `RT-O` 4) | `Text("v \(bold)")` with a bold `AttributedString` runs == `Text("v ") + Text("BOLD").bold()`'s, never its description | stub | delete the `AttributedString` overload (the generic one takes it) |
 | 3.8 | `interpolatingADecoratedTextTraps` (exit test) | `Text("a \(Text("b").onClick {})")` exits | — | delete the check |
 | 3.9 | `anAttributedStringBuildsTheConcatenationsRuns` (`C11`, `C12`, `C12b`) | every key's run equals the modifier spelling's | stub | ignore `kern` |
-| 3.10 | `theInitialisersReachSwiftUIsOverloads` (`TextLiteralCompileGuards`, plain import) | compiles `Text("lit")`, `Text(substring)`, `Text(verbatim:)`, `Text("n \(1.5) \(Text("b"))")`; `let k: LocalizedStringKey = "x"` | compile | remove `@_disfavoredOverload` from `init<S>` (the literal arm turns ambiguous) |
+| 3.10 | `theInitialisersReachSwiftUIsOverloads` (`TextLiteralCompileGuards`, plain import) | compiles `Text("lit")`, `Text(substring)`, `Text(verbatim:)`, `Text("n \(1.5) \(Text("b"))")`; `let k: LocalizedStringKey = "x"`; `Text("v \(Plain())")` with **no** `warning:` (divergence 156, `I1`/`I2`); does **not** compile `Text("v \(Image(…))")` (`RT-O` 5) | compile | (a) remove `@_disfavoredOverload` from `init<S>` (the literal arm turns ambiguous); (b) deprecate the generic overload — the no-warning arm; (c) delete the unavailable `Image` overload — the `Image` arm |
 | 3.11 | `inlinePresentationIntentIsHonouredOnDarwin` (`C12c`; `#if canImport(Darwin)`) | `Text(try AttributedString(markdown: "**b** _i_ ~~s~~ `c`"))` runs == `Text("**b** _i_ ~~s~~ `c`")`'s | stub | ignore the intent |
 | 3.12 | `everyAttributeKeyIsWritableWithAPlainImport` (guard, `typecheckFile`, `SA-P`) | `s.font = .body`, `s.foregroundColor = .red`, `s.backgroundColor = .yellow`, `s.underlineStyle = .single`, `s.strikethroughStyle = .single`, `s.kern = 1`, `s.tracking = 1`, `s.baselineOffset = 1`, `s.link = …` with `import MetalUI` only, and again with `import AppKit` | compile | delete the per-key `foregroundColor` subscript — ambiguous (probe `generic UsePlain`) |
-| 3.13 | `theCodeSpanIsMonospaced` (`M5`) | the code run's descriptor has design `.monospaced` (system face) | stub | map code to italic |
+| 3.13 | `theCodeSpanIsMonospaced` (`M5`; `RT-O` 12) | the code run's descriptor has design `.monospaced` (system face) — on the portable system the face is whatever `TE-B` resolves for that design (registered family, else default) | stub | map code to italic |
 | 3.14 | `aMarkdownLinkAndAnAttributedLinkBuildOneRunKind` | both store the destination on `link`; `M20`'s is `http://www.x.org`, `M21`'s `mailto:a@b.org` | stub | drop the `http://` prefix for `www.` |
+| 3.16 | `aLiteralWithNoMarkupRunsNoParser` (`RT-O` 14) | building the main demo tree: an internal parse counter stays 0 (every literal there has no trigger character); `Text("**b**")` moves it by 1 | stub counter always 0 → the `**b**` arm | always run the parser — the demo arm |
 | 3.15 | `aControlTitleIsVerbatim` (divergence 154) | `Button("**b**") {}` and `Toggle("**b**", isOn:)` publish and draw the title `**b**` (the label text's string and its AX text) | green on arrival (pins the divergence) | route the `String` title through `LocalizedStringKey` |
 
 ## §5 CI and commands
@@ -403,55 +422,59 @@ Tests that use `+` live in `@available(*, deprecated)` helpers.
   print nothing; `swift package clean` after changing stored properties of
   `Text`/`ProposalText` (public types crossing into `MetalUIDemoContent`).
 - **Linux image**, lanes 1 and 3 (portable text and the parser are what
-  Linux and Windows run; lane 2's portable window test too): the root
+  Linux and Windows run; lane 2's portable window test too; lane 3's SDL demo
+  switch): the root
   package's portable test targets in `swift:6.4-noble` (`MetalUILayoutTests`,
   `MetalUICoreTests`, `MetalUICrossPlatformTests`, as CI), and
   `Backends/SDL`: `docker build -t metalui-portable -f
   Backends/SDL/linux/Dockerfile Backends/SDL`, then `docker run --rm -v
   "$PWD":/work -v metalui-sdl-build-rich-text:/tmp/build -w /work/Backends/SDL
   metalui-portable bash -c 'swift build --build-tests --scratch-path
-  /tmp/build && swift test --skip-build --scratch-path /tmp/build'`. No file
-  under `Backends/SDL` changes on this branch; it must still build (its
+  /tmp/build && swift test --skip-build --scratch-path /tmp/build'`. The only file
+  under `Backends/SDL` that changes is lane 3's demo switch
+  (`MetalUISDLDemo/main.swift`, `RT-O` 10); the package must still build (its
   `PortableTextSystem` use compiles against the new requirements).
-- **Pixels**, lanes 2 and 3: `docs/probes/demo-pixels/compare.sh <scratch>
+- **Pixels**, lanes 1, 2 and 3 (`RT-O` 11): `docs/probes/demo-pixels/compare.sh <scratch>
   70ed000 HEAD` — fourteen images, 0 px.
 - Windows: CI's `root-windows` on push (FoundationEssentials'
   `AttributedString` there is the same swift-foundation code `L1` ran on
   Linux; not run locally by the design session). The UTM VM may be used by
   lane 3 if CI disagrees.
 
-## §6 Demo expectation (lane 2)
+## §6 Demo expectation (lane 3, `RT-O` 10)
 
 `METALUI_RICH_TEXT_DEMO=1 swift run MetalUIDemo` opens a window of sections,
 each its own function (1 MB Windows stack): **Markdown** (one literal with
-bold, italic, bold-italic, strikethrough, code, a link and a bare URL — lane 3
-switches its literal from interpolation-built `Text` to the Markdown literal
-when `LocalizedStringKey` lands); **concatenation** (coloured and weighted
-segments, `C2`'s shape); **mixed sizes** (a 10/20/30-point paragraph wrapping
+bold, italic, bold-italic, strikethrough, code, a link and a bare URL);
+**interpolation** (coloured and weighted `Text` segments interpolated into a
+literal, `C2`'s shape — **never `+`**, which warns, `RT-O` 9); **mixed sizes** (a 10/20/30-point paragraph wrapping
 across lines); **decorations** (underline, coloured underline, strikethrough,
 background, kerning, tracking, baseline offset as superscript); **truncation**
 (a two-colour line under `lineLimit(1)` in tail and head modes);
 **attributed** (`Text(AttributedString)` with every key). Not one of the
-fourteen images; added to `buildEveryProductionTree`. Launched only when the
-lock probe allows, killed after a few seconds.
+fourteen images; added to `buildEveryProductionTree`. The SDL demo gets the same switch
+(human check RT4). Launched only when the lock probe allows, killed after a
+few seconds.
 
-## §7 Human checks — group Y (lane 3 writes it; an agent cannot run it)
+## §7 Human checks — group "RT" (provisional letter; lane 3 writes it; an agent cannot run it)
 
-(If a parallel branch merges a group Y first, the later merge renames this
-one and says so.)
+`feat/input-apis` also writes a group Y; the letter is settled at the merge
+(`RT-O` 2, `feat/variable-height-list`'s precedent).
 
-- **Y1** The rich-text demo on macOS: every Markdown form reads as styled
+- **RT1** The rich-text demo on macOS: every Markdown form reads as styled
   (bold, italic, struck, monospaced, accent-coloured links and URL), in light
   and dark.
-- **Y2** Underlines and strikethroughs at 1× and 2× displays: crisp enough
+- **RT2** Underlines and strikethroughs at 1× and 2× displays: crisp enough
   beside a SwiftUI `Text(…).underline()` (divergence 152's unsnapped band).
-- **Y3** The mixed-size paragraph: line spacing looks even and no glyph is
+- **RT3** The mixed-size paragraph: line spacing looks even and no glyph is
   clipped by its line; the superscript sits above the line without touching
   the line above.
-- **Y4** The same demo on Linux and Windows (SDL): matches macOS by eye.
-- **Y5** VoiceOver on a styled `Text` reads the whole sentence once, without
+- **RT4** The same demo on Linux and Windows (SDL, `METALUI_RICH_TEXT_DEMO=1`):
+  matches macOS by eye, except code spans, which draw the default face unless
+  the app registered a monospaced family (`TE-B`, `RT-O` 12).
+- **RT5** VoiceOver on a styled `Text` reads the whole sentence once, without
   Markdown markers; a link is read as plain text (divergence 150).
-- **Y6** Clicking a link does nothing and the cursor does not change
+- **RT6** Clicking a link does nothing and the cursor does not change
   (divergence 150).
 
 ## §8 Migration notes and records owed
@@ -470,9 +493,14 @@ one and says so.)
   external conformer implements `measure(_: StyledText, …)`,
   `layOut(_:…)` and `decorationMetrics(_:)`.
 - An interpolated floating-point value prints its Swift description
-  (divergence 151).
+  (divergence 151); any other interpolated value prints its description with
+  no warning (divergence 156); an `AttributedString` keeps its runs; an
+  `Image` does not compile (`Text(Image)` is not offered).
+- On Linux and Windows a code span (`` `x` ``) draws the family registered for
+  the `.monospaced` design (`PortableFontResolver.register(design:family:)`),
+  else the default face (`TE-B`).
 
-### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–155)
+### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–156)
 
 | # | what differs | SwiftUI | MetalUI | ruling | pin |
 |---|---|---|---|---|---|
@@ -482,6 +510,7 @@ one and says so.)
 | 153 | named character references in a literal | HTML5's named entities decode (`M35`: `&alpha;&hearts;` → `α♥`; Foundation's parser `N21`); a name that is no entity stays literal (`N12`) | numeric references and a fixed subset of 34 names decode; any other name stays literal | `RT-B` 4 | `onlyTheEntitySubsetDecodes` (3.3) |
 | 154 | Markdown in control titles | `Button("**b**")`, `Toggle("**b**", …)` draw bold labels (`M30`, `M31`) | controls' `String` titles are verbatim | `RT-A` | `aControlTitleIsVerbatim` (3.15) |
 | 155 | concatenating a decorated `Text` | does not compile (`.padding()` etc. return `some View`) | compiles (they return `Self`) and traps at the `+` (or the interpolation), naming the field | `RT-E` 4 | `concatenatingADecoratedTextTraps` (2.19) |
+| 156 | interpolating a value of a type with no dedicated overload | `String(describing:)`, through a **deprecated** overload (`I1`, `I2`: two warnings, "Localized string interpolation produces an unlocalized, debug description…") | the same text, no warning | `RT-O` 6 | `theInitialisersReachSwiftUIsOverloads` (3.10) |
 
 **Not offered rows** (documented absences): `Text.LineStyle` patterns other
 than `.solid`; view-level `bold`/`underline`/`strikethrough`/`kerning`/
@@ -495,7 +524,7 @@ than `.solid`; view-level `bold`/`underline`/`strikethrough`/`kerning`/
 
 `docs/record/83-rich-text.md` (the lanes' measurements, every mutation and the
 tests it reddened, the conversions `RT-M` 3 lists, the census); record §04
-sections for divergences 150–155; record §03/§05 rows; `docs/record/README.md`
+sections for divergences 150–156; record §03/§05 rows; `docs/record/README.md`
 row; CLAUDE.md/AGENTS.md: the `RT-` prefix line, one rule paragraph (the run
 model at the seam, the fast path, decorations as rects inside the text leaf,
 Markdown via MetalUI's own parser), the three new defaultless `TextSystem`
@@ -519,7 +548,8 @@ Identity and state retention (`theSevenRetentionSlotsAreMutuallyDistinct`,
 `MC-A`/`MC-C`/`MC-P` numbering, `.id()` outermost), hit testing,
 accessibility (no new node field or bridge row), animation (no new animated
 field), focus, `List` windowing and `TB-AH`, `Deferred`, text input (caret
-offsets and line ranges are plain-text APIs). Fourteen offscreen images 0 px
+offsets and line ranges are plain-text APIs); `Handlers.swift` untouched
+(`RT-O` 1). Fourteen offscreen images 0 px
 against `70ed000`; `DemoFrameDeterminismTests`' `Expected.swift` unedited;
 0 `warning:` on both build systems; `MetalUILayout` imports only
 `MetalUICore`; `MetalUIScene` only `MetalUIShaderTypes`; `MetalUITextSystem`

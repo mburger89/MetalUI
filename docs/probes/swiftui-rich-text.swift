@@ -29,7 +29,7 @@
 // lists its nearest miss.
 //
 // NOTE: SwiftUI deprecates `Text + Text` in macOS 26.0 — compiling this probe
-// prints 138 warnings "'+' was deprecated in macOS 26.0: Use string
+// prints 146 warnings (138 when first recorded; arms added since) "'+' was deprecated in macOS 26.0: Use string
 // interpolation on `Text` instead: `Text("Hello \(name)")`" (evidence for
 // RT-E); arm C14 shows the interpolation renders as the concatenation.
 //
@@ -41,6 +41,13 @@
 // device rows of a 300x90-point canvas. Across the session's runs only
 // nearest-miss counts of non-matching candidates wobbled (M31's verbatim
 // candidate read 582 and 590); no verdict changed.
+//
+// RE-RUN 2026-10-08 by the critic pass (compiled, twice, outputs byte-identical
+// to each other): every recorded row reproduced byte for byte except P0a's
+// self-compare, which read "self: 12" in both compiled runs (the wobble the
+// interpreted run showed; no verdict changed). Added arm C16b, the separating
+// arm RT-G item 3 lacked (C16 alone cannot tell cumulative capping from
+// floor(h / first line height): both keep two 13-point lines in 30).
 //
 //     P0a bold vs regular: 709 px; self: 0
 //     P0b red vs blue ink: 362 px
@@ -131,6 +138,7 @@
 //     C14 Text("a \(Text("b").bold())") ≡ concat  [concat:0]
 //     C15 centre 2 lines mixed size=30x105 first=29 last=99
 //     C16 height cap 30 on 10pt+30pt two lines size=8.5x26 first=10 last=23
+//     C16b 10pt line then 30pt line, cap 47 size=14x13 first=10 last=10 | cap 48 size=47.5x48 first=10 last=42 | uncapped size=47.5x48 first=10 last=42
 //     C17 Text("")+Text("a") size=7.5x16 first=13 last=13 | Text("a") size=7.5x16 first=13 last=13 | Text("")+Text("") size=0x14 first=11 last=11 | Text("") size=0x14 first=11 last=11
 //     C17b Text("").font(30)+Text("a") size=7.5x16 first=13 last=13
 //     F1 ct ffi plain w=12.391 ascent=12.568 descent=2.742 leading=0 ceil(sum)=16 | ct ffi kern 4 w=24.391 ascent=12.568 descent=2.742 leading=0 ceil(sum)=16 | glyphs plain 3 kern 3 tracking 3
@@ -554,6 +562,12 @@ func run() {
     out("C15", "centre 2 lines mixed " + measure((Text("aa aa").font(.system(size: 10)) + Text(" BB").font(.system(size: 30))).multilineTextAlignment(.center), ProposedViewSize(width: 30, height: nil)))
     // C16 — a line limit by height with mixed lines.
     out("C16", "height cap 30 on 10pt+30pt two lines " + measure(Text("x x x").font(.system(size: 10)) + Text(" BIG").font(.system(size: 30)), ProposedViewSize(width: 12, height: 30)))
+    // C16b — the separating arms for C16 (critic pass, RT-O item 3): a 10-pt line
+    // then a 30-pt line (13 + 35 tall) under heights 47 and 48. Cumulative keeps
+    // 1 line at 47 and 2 at 48; floor(h / first line) keeps 2 at both; floor(h /
+    // tallest line) keeps 1 at both.
+    let c16b = Text("x\n").font(.system(size: 10)) + Text("BIG").font(.system(size: 30))
+    out("C16b", "10pt line then 30pt line, cap 47 " + measure(c16b, ProposedViewSize(width: 300, height: 47)) + " | cap 48 " + measure(c16b, ProposedViewSize(width: 300, height: 48)) + " | uncapped " + measure(c16b, ProposedViewSize(width: 300, height: nil)))
     // C17 — empty segments.
     out("C17", "Text(\"\")+Text(\"a\") " + measure(Text("") + Text("a")) + " | Text(\"a\") " + measure(Text("a")) + " | Text(\"\")+Text(\"\") " + measure(Text("") + Text("")) + " | Text(\"\") " + measure(Text("")))
     out("C17b", "Text(\"\").font(30)+Text(\"a\") " + measure(Text("").font(.system(size: 30)) + Text("a")))

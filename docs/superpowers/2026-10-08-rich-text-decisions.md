@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-O`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-P`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -198,7 +198,10 @@ literals contain none in their format parts (census in spec §0).
    (`M11b`, `M29`); **floating point does not** (`M11`: SwiftUI's `%lf`
    prints `3.500000`, MetalUI prints `3.5`). **Divergence 151.** Matching
    `%lf` would change every existing `Text("… \(double)")` in every MetalUI
-   app for a format SwiftUI users routinely work around.
+   app for a format SwiftUI users routinely work around. (SwiftUI deprecates
+   the generic overload; MetalUI does not — divergence 156, `RT-O` item 6;
+   an `AttributedString` keeps its runs and an `Image` is unavailable, items
+   4–5.)
 4. **A `Text` interpolated into a literal keeps its runs** (`C14`:
    `Text("a \(Text("b").bold())")` ≡ `Text("a ") + Text("b").bold()`), the
    spelling SwiftUI now recommends over `+` (`RT-E`). It obeys `+`'s
@@ -277,8 +280,8 @@ always works.
 
 1. **`static func + (Text, Text) -> Text` is offered and deprecated**, with
    SwiftUI's own message: SwiftUI deprecates it in macOS 26.0 — "Use string
-   interpolation on `Text` instead: `Text("Hello \(name)")`" (138 warnings
-   compiling the probe). MetalUI's attribute is `@available(*, deprecated,
+   interpolation on `Text` instead: `Text("Hello \(name)")`" (146 warnings
+   compiling the probe; 138 when first recorded, `RT-O`). MetalUI's attribute is `@available(*, deprecated,
    message: …)`; the inventory map classifies it `X`. Tests that exercise it
    live in `@available(*, deprecated)` helpers so the suite stays at 0
    warnings (the house pattern, `swift-deprecated-witness-silence.sh`).
@@ -290,8 +293,9 @@ always works.
    fields into its runs' unset fields; the result's own `Text`-level fields
    start empty and act as the outer layer.
 3. **New `Text` modifiers (each returns `Text`)**: `bold()`, `bold(_:)`,
-   `underline(_ isActive: Bool = true, color: Color? = nil)`,
-   `strikethrough(_ isActive: Bool = true, color: Color? = nil)`,
+   `underline(_ isActive: Bool = true, pattern: .solid, color: Color? = nil)`,
+   `strikethrough(_ isActive: Bool = true, pattern: .solid, color: Color? = nil)`
+   (the `pattern:` parameter added by `RT-O` item 8),
    `kerning(_:)`, `tracking(_:)`, `baselineOffset(_:)`, `monospaced(_:)`, and
    on `Font`, `monospaced()`. `Text.LineStyle` is offered with
    `init(pattern: .solid, color: Color? = nil)` and `static let single`;
@@ -397,7 +401,8 @@ unit on it (an empty run contributes nothing — `C17`, `C17b`), using each run'
    baselines agree: 29; 10 and 42; 18).
 3. **A finite height caps lines cumulatively**: as many leading lines as fit
    their summed heights, at least one (`C16`: two 13-point lines in 30, not
-   ⌊30 / 35⌋). The line limit still caps first. `reservesSpace` pads with the
+   ⌊30 / 35⌋; `C16b`, the separating arm added by `RT-O` item 3: a 10-point
+   then a 30-point line keep one line in 47 and two in 48). The line limit still caps first. `reservesSpace` pads with the
    **first run's** line height (`C18`: `B(30 pt) + a(10 pt)` reserves 3 × 35,
    `a + B` reserves 3 × 12).
 4. Every line's alignment offset is computed from its own width, as today.
@@ -427,7 +432,8 @@ existing divergence 86, unchanged in kind.
 3. **Kerning** adds its value after every glyph of the run, including the
    last, a ligature counting once (`C8`, `C8ct`: +12 for three glyphs; `F1`;
    CoreText `kCTKernAttributeName`, measured on Helvetica "office": 5 glyphs,
-   +20). **Tracking** adds after every glyph **and disables ligatures**
+   +20; a kerning of 0 is no extra space and keeps the font's pair kerning —
+   CoreText's kern attribute is omitted at 0, `RT-O` item 7). **Tracking** adds after every glyph **and disables ligatures**
    (CoreText: 6 glyphs; `C8e`: SwiftUI ≡ CoreText for both). Portable:
    kerning is added to the run's glyph advances after HarfBuzz; tracking also
    shapes the run with the `liga`, `clig`, `dlig` and `hlig` features off
@@ -564,12 +570,133 @@ so a later branch can add the hit region without changing the model.
 **Ruling.** Three lanes, run one at a time in order 1 → 2 → 3, on disjoint
 source files (spec §3): **lane 1** the seam and both text systems; **lane 2**
 the `Text` element (run model, modifiers, `+`, styled layout and paint,
-decorations, links, accessibility string, the demo section); **lane 3** the
+decorations, links, accessibility string; the demo section moved to lane 3,
+`RT-O` item 10); **lane 3** the
 front ends (`LocalizedStringKey`, the Markdown parser, the attribute scope)
-and the shared registries (divergences 150–155, human checks group Y,
+and the shared registries (divergences 150–156, human checks group "RT" —
+provisional, `RT-O` item 2 —
 migration, API overview). The shared inventory map takes each lane's own rows
 in its own commits (append-only). The demo is a new env-gated tree,
 `METALUI_RICH_TEXT_DEMO=1` (`RichTextDemo.swift`), built in its own
 `@inline(never)` function in `everyProductionTreeBuildsOnAOneMegabyteThread`;
-it is not one of the fourteen images. Human checks: group **Y** (spec §7) —
+it is not one of the fourteen images. Human checks: group **"RT"** (spec §7,
+letter settled at the merge, `RT-O` item 2) —
 an agent cannot run them.
+
+---
+
+## RT-O — Critic pass: sixteen corrections to the design
+
+The critic pass attacked the committed design (`c89c94b`): every claim against
+a probe run, every file against the parallel branches, every test against its
+mutation. Evidence it added: `swiftui-rich-text.swift` re-run (every row byte
+for byte except `P0a`'s self-compare wobble) plus arm `C16b`;
+[`../probes/swiftui-text-interpolation.swift`](../probes/swiftui-text-interpolation.swift)
+(new, `I0`–`I4`); [`../probes/swiftui-kerning-zero.swift`](../probes/swiftui-kerning-zero.swift)
+(new, `K1`, `K2`); `foundation-markdown-inline.swift` re-run on macOS (every
+`M`/`N` row identical). Each item amends the spec in the same commit.
+
+**Ruling.**
+
+1. **`Handlers.swift` is not this branch's file.** `feat/input-apis` (record
+   §81, its lane 3) edits it and adds an eighteenth member (`pointer`, `CI-Q`).
+   A hand-written `Handlers.isDefault` there would conflict and, after the
+   merge, miss the new member silently (a `.pointerStyle` operand would
+   concatenate). Instead the `+`/interpolation operand check is an internal
+   function in `TextRuns.swift` that compares a `Handlers` against `Handlers()`
+   **child by child through `Mirror`**: an optional by nil-ness, a collection
+   or dictionary by emptiness, an `Equatable` value by `==` (opened
+   existential); any other child kind is unrecognised. Test 2.20 becomes:
+   `try #require` that every child of `Handlers()` is recognised and that the
+   child count is **17** (the merge with §81 moves it to 18 and adds an arm),
+   plus one arm per member as before. The `MC-B`/`HandlerShape`/
+   `HandlerFingerprint` places do not change.
+2. **Human checks take a provisional group letter, "RT"**, settled at the
+   merge: `feat/input-apis` also writes a group Y (its `Y12`), and
+   `feat/variable-height-list` already took this route ("provisionally VL").
+3. **`RT-G` item 3 had no separating arm.** `C16` (two 13-point lines kept in
+   30) is answered equally by cumulative capping and by `⌊h / first line
+   height⌋`. Arm `C16b` separates them: a 10-point line then a 30-point line
+   keep **one** line under 47 (13 tall) and **two** under 48 (48 tall);
+   `⌊h / 13⌋` would keep two under 47, `⌊h / 35⌋` one under 48. Cumulative
+   capping stands, now measured; test 2.14 asserts `C16b`'s two arms.
+4. **Interpolating an `AttributedString` keeps its runs** (`I3`: ≡ the
+   concatenation, 607 px from plain): `LocalizedStringKey.StringInterpolation`
+   gains `appendInterpolation(_ attributedString: AttributedString)`, which
+   stores the converted runs (`RT-D` item 4's conversion). Without it the
+   generic overload would print the attributed string's debug description —
+   a silent wrong. Test 3.7b.
+5. **Interpolating an `Image` is unavailable**, not described: SwiftUI draws
+   the image inline (`I4`); MetalUI defers `Text(Image)` (`RT-A`), so
+   `appendInterpolation(_ image: Image)` is `@available(*, unavailable,
+   message:)` naming the absence — a compile error, never the struct's
+   description. Guard arm in 3.10.
+6. **Interpolating any other value is its description, without a warning.**
+   SwiftUI renders `String(describing:)` too (`I1`, `I2`) but **deprecates**
+   that overload (two warnings: "Localized string interpolation produces an
+   unlocalized, debug description for this type of value…"). MetalUI's
+   generic `appendInterpolation<T>` is not deprecated: today's
+   `Text("… \(x)")` compiles for every `x` with no warning (the demo
+   interpolates enums and models), and the 0-warning gate would force edits
+   for a message about localization MetalUI does not have. **Divergence 156**,
+   pinned by a guard arm in 3.10 (`Text("v \(Plain())")` compiles with no
+   `warning:`).
+7. **`kerning(0)` is no extra space, not "kerning off"** (`K1`: SwiftUI's
+   `kerning(0)` and `tracking(0)` ≡ plain; `K2`: CoreText's
+   `kCTKernAttributeName` of **0 turns the font's pair kerning off**, 11.06
+   points wider on Helvetica "AVAVAV", while 4 keeps it, plain + 24 on both).
+   Lane 1's CoreText styled path **omits the attribute when a run's kerning
+   is 0** (and tracking likewise). Test 1.1's corpus gains a pair-kerned
+   string in Noto Sans (`try #require` that its plain width is less than the
+   sum of its glyph advances) and 2.21 draws one; mutation: always set the
+   attribute.
+8. **`underline`/`strikethrough` take SwiftUI's `pattern:` parameter**:
+   `underline(_ isActive: Bool = true, pattern: Text.LineStyle.Pattern =
+   .solid, color: Color? = nil)` (the probe compiles `underline(pattern:
+   .dash)`, `C10d`). With only `.solid` declared, SwiftUI's full spelling
+   compiles and `pattern: .dash` still does not. Guard 2.24 gains the
+   compiling arm.
+9. **`+` in tests goes through a deprecated protocol witness**, not a bare
+   deprecated helper: calling a deprecated helper from a `@Test` warns
+   (`swift-deprecated-witness-silence.sh`'s `direct` arm); the house pattern
+   is a deprecated witness called through a generic constraint (`LR-CV`).
+   Non-test code never uses `+`.
+10. **The demo moves to lane 3.** It needs Markdown and interpolation (lane 3),
+    and a `+` in the demo would warn (item 9). Lane 3 also adds the switch to
+    `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (human check RT4 needs
+    it), so lane 3's Linux-image run covers a `Backends/SDL` change.
+11. **Lane 1 runs the demo-pixel compare** (fourteen images, 0 px): it changes
+    the plain path's internals (`shapeCascading`'s signature, HarfBuzz's,
+    `ShapingCache`). Test 2.10 moves to lane 1 as **1.19**, its literals
+    recorded at `70ed000`'s code before lane 1's first source change, so a
+    lane-1 regression in plain work cannot be baked into the pin.
+12. **Code spans on the portable system** resolve the system face's
+    `.monospaced` design through `TE-B`'s existing rule: the family an app
+    registered with `PortableFontResolver.register(design:family:)`, else the
+    default face. No new divergence (it is `TE-B`'s); test 3.13 asserts the
+    descriptor's design, the migration note and human check RT4 say so.
+13. **The run background and decoration fills are named** in
+    `everyBackgroundPaintingSiteAnimatesItsColour`'s doc comment among the
+    deliberately unanimated fills (`RT-L` item 2), so the guard's "one case
+    per site that fills a background" stays true (lane 2, doc comment only).
+14. **A literal with no Markdown trigger never runs the parser**: the format's
+    segments are scanned for `*`, `_`, `~`, a backtick, `[`, `<`, `&`, `\`,
+    `@`, `http` and `www.` (the census's list, spec §0); none →
+    `.plain`, no run built. Counted (performance tests count work): test
+    3.16 `aLiteralWithNoMarkupRunsNoParser` over the main demo tree's build
+    (an internal parse counter stays 0); mutation: always parse.
+15. **Test 2.3's spy `TextSystem` forwards every requirement to a real
+    system** (an honest fake: it records, it does not answer).
+16. **`AttributedTextTests` (Linux too) write every key by its dynamic-member
+    spelling**, so the Linux image compiles the per-key subscripts (guard
+    3.12 is macOS-only, `MetalUITests`).
+
+Also corrected: `RT-E` item 1's warning count (146 with the arms added since;
+138 when first recorded).
+
+**Rejected.** (a) Deprecating the generic interpolation to match SwiftUI
+(item 6's cost). (b) Splitting lane 1 by text system: the oracle (1.10)
+compares the two systems, so one lane must own both; lane 1 keeps them and
+lane 2 sheds the demo instead. (c) Re-running the SwiftUI probe interpreted:
+the compiled runs reproduce every verdict; the interpreted form adds only the
+known `P0a` wobble.
