@@ -979,7 +979,7 @@ behaviours had no pin. Fixed in lane 1, red first:
    both arguments (right: never returned; other: the press did not hide it).
    The five pins of item 4 are green on arrival by design (they pin shipped
    behaviour) and were proved by mutation. Each mutation was applied to
-   `834fc6f`'s spelling, one full unfiltered suite each (root: native
+   `7157e67`'s spelling, one full unfiltered suite each (root: native
    `--no-parallel`, every run 2687 tests; SDL: `swift test $(…
    --print-flags)`, 24 + 93), the source restored from a copy, `git status
    --short` clean after each:
@@ -997,9 +997,9 @@ behaviours had no pin. Fixed in lane 1, red first:
    | S1b | the BEGIN arm's `pinchPreviousScale = 1` deleted | `sdlPinchPreviousScaleResetsAtEveryGestureEdge` |
    | S2 | the dispatcher passes `mouseFocus: 0` | `aPinchNamingNoWindowReachesTheMouseFocusWindowThroughTheDispatcher` |
 
-   (S1a, S1b and S2 ran on the uncommitted tree that became `834fc6f`, before
+   (S1a, S1b and S2 ran on the uncommitted tree that became `7157e67`, before
    the menu/tooltip fix, which `Backends/SDL`'s tests do not reach.)
-7. **Counts** at `834fc6f` (unmutated): root native unfiltered
+7. **Counts** at `7157e67` (unmutated): root native unfiltered
    `--no-parallel` **2687 tests in 3 suites passed** (2683 + 4), `FR-J
    no-argument frame: succeeded=true`, 0 `error:`, the only `warning:`
    SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings;
