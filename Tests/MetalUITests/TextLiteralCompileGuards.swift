@@ -24,10 +24,12 @@ private let skipReason: Comment =
 /// written silently — the red stub's spelling, which compiled with no message
 /// (ruling RT-T item 1). Red before: the Image arm (unavailable stub).
 /// Mutations **MG3.10a** remove `@_disfavoredOverload`
-/// from `init<S>` (the literal arm turns ambiguous), **MG3.10b** deprecate the
+/// from `init<S>` (literals reach it unparsed: 13 tests redden, this one among
+/// them), **MG3.10b** deprecate the
 /// generic interpolation (the no-warning arm), **MG3.10c** delete the
 /// deprecated `Image` overload (the `Image` arm), **MG3.10d** remove
-/// `@_disfavoredOverload` from `Text(_: AttributedString)` (the escape arm).
+/// `@_disfavoredOverload` from `Text(_: AttributedString)` — reddens the build
+/// first (MetalUI's own literals turn ambiguous; ruling RT-T item 9).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theInitialisersReachSwiftUIsOverloads() throws {
     let compiles = try typecheckFile("""
@@ -91,7 +93,9 @@ private func attributedFixture(_ imports: String) -> String {
 /// AppKit's types (probe `swift-attribute-scope-ambiguity`). Green on arrival:
 /// the red commit already declared the scope with its per-key subscripts (a
 /// guard, proven by its mutation). Mutation **MG3.12**: delete the per-key
-/// `foregroundColor` subscript.
+/// `foregroundColor` subscript — it reddens the build first (the demo's own
+/// `.orange` turns ambiguous); with the in-module spellings written `Color.…`
+/// (MG3.12b) it reddens this guard alone (ruling RT-T item 9).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func everyAttributeKeyIsWritableWithAPlainImport() throws {
     for (arm, imports) in [("Foundation", "import Foundation"), ("AppKit", "import Foundation\nimport AppKit")] {

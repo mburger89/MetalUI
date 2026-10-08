@@ -1052,6 +1052,47 @@ stack-budget harness.
    a plain content as one bare segment, so `Text("f").font(.title)` compared
    as fontless and 3.9's expectations could not have held.
 
+9. **Mutations, recorded** (each on the committed tree `5d043d2`, restored
+   from a copy, the full unfiltered native suite — 2738 tests — and
+   `git status --short` clean after each; reddened tests by name):
+   M3.1a (intraword `_` opens) — `theInlineGrammarMatchesTheProbedRuns`,
+   `theParserAgreesWithFoundationOnTheCorpus`; M3.1b (no extended autolinks:
+   URL, `www.` and e-mail) — those two and
+   `aMarkdownLinkAndAnAttributedLinkBuildOneRunKind`; M3.1c (emphasis kept
+   inside a link) and M3.1d (a leading `# ` made bold) — the first two;
+   M3.2 (rule of 3 dropped) and M-RT-T2 (no skip characters) —
+   `theParserAgreesWithFoundationOnTheCorpus` alone; M3.3 (unknown name →
+   U+FFFD) — `onlyTheEntitySubsetDecodes` and the first two; M3.4
+   (`init<S>` parses) — `aLiteralParsesAndAValueDoesNot`,
+   `aControlTitleIsVerbatim`; M3.5 (values substituted before parsing) —
+   `anInterpolatedValueIsVerbatimButTakesTheFormatsStyle`; M3.6 (`%lf`) —
+   `anInterpolatedValueIsItsDescription`; M3.7 (a `Text`'s string
+   interpolated) — `anInterpolatedTextKeepsItsRuns`,
+   `theRichTextDemoDrawsThroughThePortableSystem`; M3.7b —
+   `anInterpolatedAttributedStringKeepsItsRuns`; M3.8 —
+   `interpolatingADecoratedTextTraps`; M3.9 —
+   `anAttributedStringBuildsTheConcatenationsRuns`; MG3.10a (`init<S>` not
+   disfavoured: literals reach it unparsed) — 13 tests, among them
+   `theInitialisersReachSwiftUIsOverloads` and every literal test of 3.4–3.16;
+   MG3.10b — `theInitialisersReachSwiftUIsOverloads`; MG3.10c — it and
+   `interpolatingAnImageTraps`; **MG3.10d** (`Text(AttributedString)` not
+   disfavoured) **reddens the build first**: `ambiguous use of 'init(_:)'`
+   at MetalUI's own literals (`PickerMenu.swift`, `PullDownMenu.swift`) —
+   `AttributedString` is `ExpressibleByStringLiteral`; M3.10b —
+   `interpolatingAnImageTraps`; M3.11 —
+   `inlinePresentationIntentIsHonouredOnDarwin`; **MG3.12** (the per-key
+   `foregroundColor` subscript deleted) reddens the build first — the demo's
+   own `$0.foregroundColor = .orange` turns ambiguous, the hazard itself;
+   its compiling spelling MG3.12b (the in-module `.orange`/`.red` written
+   `Color.orange`/`Color.red`) reddens `everyAttributeKeyIsWritableWithAPlainImport`
+   alone; M3.13 (code → italic) — `theCodeSpanIsMonospaced`,
+   `inlinePresentationIntentIsHonouredOnDarwin`; M3.14 (`www.` without
+   `http://`) — `aMarkdownLinkAndAnAttributedLinkBuildOneRunKind` and the
+   first two; M3.15 (a `Button` title through `LocalizedStringKey`) —
+   `aControlTitleIsVerbatim`; M3.16 (always parse) —
+   `aLiteralWithNoMarkupRunsNoParser`; M3.17 (the demo's orange key dropped) —
+   `theRichTextDemoDrawsThroughThePortableSystem`. No run hung.
+
 **Cost if wrong.** Item 2: a later cmark-gfm that drops the skip characters
 moves the generated corpus — 3.2 reddens on the macOS that ships it. Item 3:
 a format that SwiftUI parses differently around a value would draw a style
