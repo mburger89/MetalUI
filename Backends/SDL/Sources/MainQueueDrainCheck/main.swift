@@ -91,7 +91,7 @@ let mode = CommandLine.arguments.dropFirst().first ?? "task"
 // working drain as a broken one. A loop that never drains still ends here.
 let iterationLimit = 200_000
 
-let platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: false)
+let platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: mode == "task-modifier-offscreen")
 let window = try platform.openSDLWindow(title: "MainQueueDrainCheck",
                                         size: Size(width: Pixels(64), height: Pixels(64)))
 var iterations = 0
