@@ -162,6 +162,8 @@ F	environment-object	D	swiftui-environment-object.swift	N0	anEnvironmentObjectIs
 F	toolbar	D	swiftui-toolbar.swift	TB1	aToolbarReachesThePlatformAsOneNeutralDescription	135 120	MD-I MD-S MD-U	.toolbar(content:)/.searchable(text:prompt:) through the transparent ToolbarScope (not an Element, so not a window root: 120), ToolbarContent/ToolbarItem/ToolbarItemGroup/ToolbarItemPlacement/ToolbarContentBuilder/ToolbarItems and ToolbarItemContent/ToolbarItemControls/ToolbarItemContentBuilder/ToolbarButtonLabel (closed: 135): SwiftUI's spellings and placements (TB1), nested toolbars merged in pre-order (NT1), a popover's ignored (PO), the search field last (SR)
 F	toolbar-seam	M	-	-	-	-	MD-J MD-N MD-U	PlatformWindow.setToolbar(_:) -> Bool (defaultless), PlatformToolbar/PlatformToolbarItem/PlatformToolbarPlacement/PlatformToolbarControl (images by identity)/PlatformToolbarPickerStyle/ToolbarActionEvent, InputEvent.toolbarAction: a native NSToolbar updated in place on AppKit, "draw it yourself" on SDL, outcomes as queued input
 F	color-picker	D	swiftui-controls-looks.swift	C0	aColorPickerIsItsLabelEightPointsAndAFortyEightByTwentyFourWell	165	LK-C LK-D LK-P	ColorPicker(_:selection:supportsOpacity:) and ColorPicker(selection:supportsOpacity:label:) over Color: the label, 8 points and a 48×24 well (C0), one StyledElement node; the well opens a drawn HSB/opacity/hex panel in a popover on every platform, where SwiftUI on macOS opens NSColorPanel (165); every write a gamma-sRGB literal, opacity 1 without supportsOpacity (C8); the well a .colorWell valued rgb R G B A (C1)
+F	progress-view	A	swiftui-controls-looks.swift	V0	theSpinnerIsThirtyTwoSixteenAndTenByControlSize	-	LK-E LK-F LK-P LK-V	ProgressView(), ProgressView(value:total:), ProgressView(_:), ProgressView(_:value:total:), ProgressView(value:total:label:currentValueLabel:) and ProgressViewStyle .automatic/.linear/.circular (innermost wins): the spinner 32/16/10 (V0), a greedy 20-tall bar, 12 at .small (V3), the ring (V5); a title above a bar with no gap, below a spinner 4 apart (V1, V4); a negative value, a zero total or a non-finite one is indeterminate (V8); the spinner steps 24 per 0.8 s (V13) while visibly painted, Reduce Motion keeps it (V10); .progressIndicator valued with the fraction, .busyIndicator (V7)
+F	keyframes	D	swiftui-controls-looks.swift	K1	linearKeyframesMatchK1	168 169 171	LK-H LK-I LK-T LK-V	KeyframeTimeline/KeyframeTrack/LinearKeyframe/CubicKeyframe/SpringKeyframe/MoveKeyframe/UnitCurve/Spring/KeyframesBuilder/KeyframeTrackContentBuilder/VectorArithmetic and keyframeAnimator(initialValue:trigger:)/(initialValue:repeating:)/KeyframeAnimator: SwiftUI's timeline values K1–K9 and animator rules K10–K14, a transparent scope keyed in the animation store; SpringKeyframe requires duration (168); track values are VectorArithmetic and the content closure receives the element (169); a zero-duration keyframe reads its target (171)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -349,6 +351,11 @@ M	MetalUI	Slider.swift	.*	.*	.*	controls
 M	MetalUI	Stepper.swift	.*	.*	.*	controls
 M	MetalUI	Toggle.swift	.*	.*	.*	controls
 M	MetalUI	ColorPicker.swift	.*	.*	.*	color-picker
+M	MetalUI	ProgressView.swift	.*	.*	.*	progress-view
+M	MetalUI	ProgressViewStyle.swift	.*	.*	.*	progress-view
+M	MetalUI	Keyframes.swift	.*	.*	.*	keyframes
+M	MetalUI	KeyframeAnimator.swift	.*	.*	.*	keyframes
+M	MetalUI	VectorArithmetic.swift	.*	.*	.*	keyframes
 M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks
 M	MetalUI	State.swift	.*	.*	.*	state
 M	MetalUI	Style.swift	.*	.*	.*	style

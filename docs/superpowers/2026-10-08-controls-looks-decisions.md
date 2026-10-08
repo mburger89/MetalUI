@@ -29,7 +29,7 @@ Where SwiftUI has no answer (a hex field, how a drawn panel takes keys, what a
 GPU surface under a blur shows) the ruling says so; gpui is named as a
 comparison where it has one, never as evidence.
 
-Prefix **`LK-`**, lettered. **Next unused: `LK-V`.** (This line moves in the
+Prefix **`LK-`**, lettered. **Next unused: `LK-W`.** (This line moves in the
 commit that appends a ruling; read the last `## LK-` heading.)
 
 Branch `feat/controls-looks` from `cd84b0c` (master: variable-height `List`,
@@ -881,3 +881,95 @@ and §4.1).**
 8. **The demo's slider starts at 0.65** so it never publishes a value the
    controls slider's VoiceOver steps read (`theVoiceOverScriptQuotesThePublishedTree`
    matched two `0.5` sliders on the first green suite).
+
+## LK-V — Lane 2: what landing the progress view and keyframes changed in the design
+
+**Final spellings (lane 2, landed)** — MetalCreator swaps its stopgaps to
+exactly these:
+
+- **M5-j** (`StatusBadge.text(for:)`'s `◌`): `ProgressView()` (the spinner),
+  `ProgressView().controlSize(.small)` (16 points), `ProgressView(value: x,
+  total: 1)` (the bar), `ProgressView("Exporting", value: x)`,
+  `ProgressView("Loading")`, `ProgressView(value: x) { Text("Export") }
+  currentValueLabel: { Text("30%") }`, `.progressViewStyle(.linear /
+  .circular / .automatic)` on the view or a container; it takes `.padding`/
+  `.background` like any control (guard `progressViewSpellingsTypecheckFromAnExternalModule`).
+- **M5-i** (the refused-wire spring-back): `.keyframeAnimator(initialValue:
+  0.0, trigger: refusals) { content, x in content.offset(x: Pixels(Float(x)))
+  } keyframes: { _ in KeyframeTrack { LinearKeyframe(6, duration: 0.05);
+  LinearKeyframe(-6, duration: 0.1); LinearKeyframe(0, duration: 0.05) } }`;
+  also `.keyframeAnimator(initialValue:repeating:content:keyframes:)`,
+  `KeyframeAnimator(initialValue:trigger:content:keyframes:)` (content takes the
+  value only) and `KeyframeTimeline(initialValue:content:)` with
+  `value(time:)`/`value(progress:)`/`duration` (guard
+  `keyframeAnimatorTypechecksWithSwiftUIsCallShape`).
+
+**Ruling (amends `LK-E` items 1–2, `LK-I` items 1, 9, `LK-T` item 2, spec §1,
+§2's file table, §3.2 and §6).**
+
+1. **A value initialiser always draws a bar.** `.automatic` draws the spinner
+   for `ProgressView()` and `ProgressView(_:)` only; every value initialiser
+   draws a bar, an **indeterminate** one when the value is `nil`, negative,
+   non-finite or the total is not positive (probe `V6`: `ProgressView(value:
+   nil)` is `own 300x20 fitting 0x20`, a bar — `LK-E` item 2 read "with no
+   value is the spinner"). Its node is the busy indicator either way (`V8`).
+2. **The carriers have no public initialiser** (`MC-G`'s shape, as `LK-I`
+   item 8's "internal requirements" cannot be spelled: a public protocol's
+   requirement is public). `KeyframeTrackContent`'s one requirement returns a
+   `KeyframeTrackContentGroup<Value>`, `Keyframes`' a `KeyframesGroup<Value>`;
+   both are public structs with internal initialisers and storage, and are what
+   the two result builders build. A conformance that **forwards** to MetalUI's
+   keyframes compiles (it is composition, the guard's positive control); one
+   that builds its own does not. The guard's mutation is the initialisers'
+   access, not "make `_segments` public".
+3. **`KeyframeTrack<Root, TrackValue, Content>`**: its second generic parameter
+   is `TrackValue`, not SwiftUI's `Value`. `Keyframes`' associated type is named
+   `Value` (the root, so `KeyframesBuilder<Value>` relates tracks to the
+   timeline) and a generic parameter of the same name would bind it to the
+   track's value. No call site spells the parameter; recorded, not a
+   divergence.
+4. **The negative arm of the call-shape guard is `.onClick {}`** after the
+   animator — divergence 120's own guards' spelling — not `.padding(4)`
+   (`LK-T` item 2): `.padding` is spelled on `ElementGroup` too and is not the
+   rule's separating decoration. The animator returns the concrete public type
+   `KeyframeAnimator<Value, Content, K>` (the view type), conditionally a
+   `ProposalElementGroup`, so proposal content stays proposal content with one
+   overload pair instead of the spec's `some ElementGroup` plus a proposal twin.
+5. **The keyframe depth counter lives in `AnimationStore`** (`keyframeDepth`,
+   `withKeyframeScope`), not `Frame` (lane 3's file): the records are that
+   store's, keyed `$keyframes<depth>` under `.child(of: parent, at: cursor)`.
+6. **The progress roles reach the element side by a hint**, `LK-U` item 4's
+   means: `AXNode.progressHint` (`.determinate` / `.busy`, internal), stripped
+   in `Frame.registerHandlers` as `popoverHint` is and, like it, enough for a
+   record; `AccessibilityTreeBuilder.publishedRole` maps a `.group` with the
+   hint. The indicator leaf carries the view's one node: the fraction as its
+   value (`ValueStepping.accessibilityText`: `5/10` → `0.5`), the **string
+   title as its label** with the title `Text` itself `accessibilityHidden` — a
+   label *view* (`init(value:total:label:currentValueLabel:)`) publishes as its
+   own content (SwiftUI's fold of a label view is unprobed).
+7. **Unmeasured choices, each a look or a literal no probe contradicts**: a
+   `.small`/`.mini` bar's track is 6 points (8 at 20 tall); the spinner's spokes
+   are 2 points at 32 (side / 16), `.textPrimary` at 0.7 × an opacity falling 1
+   → 0.25 behind the head, drawn as twelve stroked `Path`s per step through
+   `pass.drawPath`; the ring is a `side / 8` stroke, the arc a 64-segment
+   polyline; a cubic keyframe before a spring with no start velocity arrives at
+   velocity 0 (the spring then starts at 0 — the cycle the rule otherwise has).
+8. **Files beyond the spec's table**, each a one- or few-line edit:
+   `AXNode.swift`, `Frame.swift` (two lines in `registerHandlers`),
+   `AccessibilityTreeBuilder.swift` (item 6), `LayoutAuthority.swift`
+   (`LoweringSite.progressView`, the indicator leaf's site — its style is never
+   a caller's, so no diagnostics arm can reach it, as `colorPicker`'s cannot),
+   and `LooksDemo.swift`'s `looksDemoContent()` call line (item 9).
+9. **Demos.** `progressSection()` is appended to `ControlsDemo.swift` and
+   called from `controlsDemoContent()`; `keyframesSection()` is appended to
+   `LooksDemo.swift` and reached through a new `looksColourAndKeyframes()`
+   composer above the colour section. Passed to `looksRoot` as three
+   temporaries (the two sections and a stacking helper) the looks tree
+   overflowed the 1 MB thread (`everyProductionTreeBuildsOnAOneMegabyteThread`,
+   `.signal(SIGBUS)`, measured; with the composer in its own frame it passes).
+   The shake is triggered by an `.onTapGesture` on a text, not a `Button`:
+   `theLooksDemoDrawsEverySurfaceItsHumanChecksName` pins the demo's click
+   targets at fourteen and `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours`
+   presses the bottom-most as the scheme toggle (a `Button` reddened both,
+   measured), and the row sits above the colour section for the same reason.
+

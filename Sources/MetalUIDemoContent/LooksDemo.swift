@@ -25,7 +25,7 @@ public func looksDemoContent() -> some Element {
               gestures: looksGesturesSection(),
               transitions: looksTransitionsSection(),
               pathsShadowsTransforms: looksPathsShadowsTransformsSection(),
-              colour: looksColourSection())
+              colour: looksColourAndKeyframes())
 }
 
 /// H1's narrow column and, beside it where the left column has room, the
@@ -541,5 +541,66 @@ struct LooksLifecycleCounter: Component {
             Text("\(label) \(count)").font(size: 12).frame(width: Pixels(84))
             colour.frame(width: Pixels(Float(8 * count)), height: Pixels(6))
         }
+    }
+}
+
+/// The keyframes row, then the colour section (C10 lane 2): composed in **its
+/// own frame**, so `looksDemoContent()`'s frame holds one temporary for both —
+/// passed in as three it overflowed the 1 MB thread
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`, `.signal(SIGBUS)`, `LK-V`).
+@MainActor
+private func looksColourAndKeyframes() -> some Element {
+    Column(gap: Pixels(18)) {
+        keyframesSection()
+        looksColourSection()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The keyframes row (C10 lane 2, rulings `LK-H`, `LK-I`, `LK-M`; spec §6): a
+/// "Shake" tap target shaking a box with MetalCreator's refused-wire keyframes
+/// (M5-i), and a box bobbing on a repeating cubic track. **Its own function**,
+/// its state in its own `Component`. Human check: the shake at 60 and 120 Hz
+/// (spec §7 item 9).
+@MainActor
+func keyframesSection() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Keyframes").font(size: 20)
+        KeyframesDemo()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The keyframes row's state: how many times the box was refused.
+struct KeyframesDemo: Component {
+    @State var refusals = 0
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(24)) {
+            // A tap gesture, not a `Button`: the looks demo's tests count its
+            // click targets and press the bottom-most as the scheme toggle.
+            Text("Shake").padding(Pixels(6)).background(.surfaceSecondary).cornerRadius(Pixels(5))
+                .onTapGesture { refusals += 1 }
+            Box().frame(width: Pixels(60), height: Pixels(24)).background(.accent).cornerRadius(Pixels(4))
+                .keyframeAnimator(initialValue: 0.0, trigger: refusals) { content, x in
+                    content.offset(x: Pixels(Float(x)))
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        LinearKeyframe(6, duration: 0.05)
+                        LinearKeyframe(-6, duration: 0.1)
+                        LinearKeyframe(0, duration: 0.05)
+                    }
+                }
+            Box().frame(width: Pixels(24), height: Pixels(24)).background(.separator).cornerRadius(Pixels(12))
+                .keyframeAnimator(initialValue: 0.0, repeating: true) { content, y in
+                    content.offset(y: Pixels(Float(y)))
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        CubicKeyframe(-8, duration: 0.4)
+                        CubicKeyframe(0, duration: 0.4)
+                    }
+                }
+        }
+        .alignItems(.center)
     }
 }

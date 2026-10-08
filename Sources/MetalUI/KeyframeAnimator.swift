@@ -118,11 +118,57 @@ public struct KeyframeAnimator<Value, Content: ElementGroup, K: Keyframes>: Elem
     static func resolve(_ record: KeyframeRecord<Value>?, mode: KeyframeAnimatorMode, initialValue: Value,
                         keyframes: (Value) -> K, now: Double)
         -> (value: Value, record: KeyframeRecord<Value>, active: Bool) {
-        let trigger: Any?
-        if case .trigger(let value, _) = mode { trigger = value } else { trigger = nil }
-        return (initialValue,
-                KeyframeRecord(trigger: trigger, timeline: nil, start: now, resting: initialValue, running: false),
-                false)
+        switch mode {
+        case .repeating(let repeats):
+            // `false` shows the timeline's start, the initial value; `true`
+            // loops one timeline, `keyframes` called once (`K14`).
+            guard repeats else {
+                return (initialValue, KeyframeRecord(trigger: nil, timeline: nil, start: now,
+                                                     resting: initialValue, running: false), false)
+            }
+            var next = record ?? KeyframeRecord(trigger: nil, timeline: nil, start: now,
+                                                resting: initialValue, running: true)
+            if next.timeline == nil || !next.running {
+                next.timeline = KeyframeTimeline(initialValue: initialValue) { keyframes(initialValue) }
+                next.start = now
+                next.running = true
+            }
+            let timeline = next.timeline!
+            guard timeline.duration > 0 else {
+                return (timeline.value(time: 0), next, false)
+            }
+            let elapsed = max(0, now - next.start)
+            return (timeline.value(time: elapsed.truncatingRemainder(dividingBy: timeline.duration)), next, true)
+        case .trigger(let trigger, let matches):
+            guard var next = record else {
+                // Appear: the initial value, no keyframes (`K10`).
+                return (initialValue, KeyframeRecord(trigger: trigger, timeline: nil, start: now,
+                                                     resting: initialValue, running: false), false)
+            }
+            if let previous = next.trigger, !matches(previous) {
+                // From rest: from the initial value (`K11`, `K12`); mid-run:
+                // from the current value (`K13`).
+                let start: Value
+                if next.running, let timeline = next.timeline {
+                    start = timeline.value(time: max(0, now - next.start))
+                } else {
+                    start = initialValue
+                }
+                next.timeline = KeyframeTimeline(initialValue: start) { keyframes(start) }
+                next.start = now
+                next.running = true
+            }
+            next.trigger = trigger
+            guard next.running, let timeline = next.timeline else { return (next.resting, next, false) }
+            let elapsed = max(0, now - next.start)
+            if elapsed >= timeline.duration {
+                // At the end the content holds the end value.
+                next.resting = timeline.value(time: timeline.duration)
+                next.running = false
+                return (next.resting, next, false)
+            }
+            return (timeline.value(time: elapsed), next, true)
+        }
     }
 
     public mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,

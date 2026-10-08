@@ -445,11 +445,116 @@ struct KeyframeSegments<Value: VectorArithmetic> {
 
     init(specs: [KeyframeSpec<Value>], from initial: Value) {
         self.initial = initial
-        self.segments = []
+        var segments: [Segment] = []
+        var current = initial
+        var velocity = Value.zero     // the previous segment's end velocity
+        var time = 0.0
+        for (index, spec) in specs.enumerated() {
+            let from = current, to = spec.target, duration = spec.duration
+            var segment = Segment(kind: .move, start: time, duration: duration, from: from, to: to,
+                                  startVelocity: .zero, endVelocity: .zero, end: to)
+            switch spec {
+            case .move:
+                segment.duration = 0
+                velocity = .zero
+            case .linear(_, _, let curve):
+                segment.kind = .linear(curve)
+                velocity = duration > 0 ? (to - from).scaled(by: curve.slope(at: 1) / duration) : .zero
+            case .spring(_, _, let spring, let start):
+                segment.kind = .spring(spring)
+                // The incoming velocity (`K4e`) unless one is given.
+                let v0 = start ?? velocity
+                segment.startVelocity = v0
+                if duration > 0 {
+                    let (end, endVelocity) = Self.spring(spring, from: from, to: to, v0: v0, at: duration)
+                    segment.end = end
+                    velocity = endVelocity
+                } else {
+                    velocity = .zero
+                }
+            case .cubic(_, _, let start, let end):
+                segment.kind = .cubic
+                // At the track's start 0; otherwise the previous segment's end
+                // velocity — a cubic's finite difference, a linear's or spring's
+                // own velocity, a move's 0 (`LK-I` item 4).
+                segment.startVelocity = start ?? (index == 0 ? .zero : velocity)
+                segment.endVelocity = end ?? Self.cubicEndVelocity(after: specs, at: index, from: from, to: to)
+                velocity = duration > 0 ? segment.endVelocity : .zero
+            }
+            segments.append(segment)
+            current = segment.end
+            time += segment.duration
+        }
+        self.segments = segments
     }
 
-    /// The value at `time`.
+    /// A cubic keyframe's arrival velocity with none given: toward the next
+    /// cubic the finite difference `(next − from) / (d + d_next)`, toward a
+    /// linear that linear's start velocity, toward a spring its given start
+    /// velocity or 0, toward a move or at the track's end 0 (`LK-I` item 4).
+    private static func cubicEndVelocity(after specs: [KeyframeSpec<Value>], at index: Int,
+                                         from: Value, to: Value) -> Value {
+        guard index + 1 < specs.count else { return .zero }
+        let duration = specs[index].duration
+        switch specs[index + 1] {
+        case .cubic(let next, let nextDuration, _, _):
+            let span = duration + nextDuration
+            return span > 0 ? (next - from).scaled(by: 1 / span) : .zero
+        case .linear(let next, let nextDuration, let curve):
+            return nextDuration > 0 ? (next - to).scaled(by: curve.slope(at: 0) / nextDuration) : .zero
+        case .spring(_, _, _, let start):
+            return start ?? .zero
+        case .move:
+            return .zero
+        }
+    }
+
+    /// A spring's value and velocity at `t`: linear in the displacement and the
+    /// initial velocity, so a vector moves by two scalar coefficients each.
+    private static func spring(_ spring: Spring, from: Value, to: Value, v0: Value, at t: Double)
+        -> (value: Value, velocity: Value) {
+        let x = spring.motion(t: t, x0: 1, v0: 0), v = spring.motion(t: t, x0: 0, v0: 1)
+        let x0 = from - to
+        let value = to + x0.scaled(by: x.displacement) + v0.scaled(by: v.displacement)
+        let velocity = x0.scaled(by: x.velocity) + v0.scaled(by: v.velocity)
+        return (value, velocity)
+    }
+
+    /// The value at `time`: the initial value before 0; otherwise the first
+    /// segment whose end is at or after `time` (so at a boundary the earlier
+    /// segment's end — `K5` reads 10, not the move's −5, at 0.2 s), and past the
+    /// last segment its end.
     func value(at time: Double) -> Value {
-        initial
+        guard time >= 0, let last = segments.last else { return initial }
+        if time > last.endTime { return last.end }
+        // Binary search: the first segment with endTime >= time.
+        var lo = 0, hi = segments.count - 1
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if segments[mid].endTime >= time { hi = mid } else { lo = mid + 1 }
+        }
+        return Self.evaluate(segments[lo], at: time - segments[lo].start)
+    }
+
+    private static func evaluate(_ segment: Segment, at local: Double) -> Value {
+        let d = segment.duration
+        // A zero-duration segment reads its target (divergence 171).
+        guard d > 0 else { return segment.end }
+        let u = min(max(local / d, 0), 1)
+        switch segment.kind {
+        case .move:
+            return segment.to
+        case .linear(let curve):
+            return segment.from + (segment.to - segment.from).scaled(by: curve.progress(at: u))
+        case .cubic:
+            let u2 = u * u, u3 = u2 * u
+            let h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u
+            let h01 = -2 * u3 + 3 * u2, h11 = u3 - u2
+            return segment.from.scaled(by: h00) + segment.startVelocity.scaled(by: h10 * d)
+                + segment.to.scaled(by: h01) + segment.endVelocity.scaled(by: h11 * d)
+        case .spring(let spring):
+            return Self.spring(spring, from: segment.from, to: segment.to, v0: segment.startVelocity,
+                               at: min(max(local, 0), d)).value
+        }
     }
 }

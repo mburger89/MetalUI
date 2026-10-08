@@ -1627,6 +1627,7 @@ public final class Frame {
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
         declaration.colorWellHint = false    // LK-G, the same
+        declaration.progressHint = nil       // LK-G, LK-V item 6, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1652,6 +1653,7 @@ public final class Frame {
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || handlers.axNode.progressHint != nil
                 || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility

@@ -28,6 +28,7 @@ public func controlsDemoContent() -> some Element {
         portGapsToolbar(ControlsDemo())
         portGapsDemoSection()
         controlsLooksSection()
+        progressSection()
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
@@ -387,6 +388,49 @@ struct ControlsLooksDemo: Component {
                 ColorPicker("Opaque", selection: $opaque, supportsOpacity: false)
                 Box().frame(width: Pixels(48), height: Pixels(24)).background(accent).cornerRadius(Pixels(4))
                 Box().frame(width: Pixels(48), height: Pixels(24)).background(opaque).cornerRadius(Pixels(4))
+            }
+        }
+        .alignItems(.flexStart)
+    }
+}
+
+/// The progress row (C10 lane 2, rulings `LK-E`, `LK-F`, `LK-M`; spec
+/// `2026-10-08-controls-looks-design.md` §6): the spinner at three control
+/// sizes, a bar driven by a slider, a titled bar with a current-value label, an
+/// indeterminate bar and a ring — MetalCreator's `StatusBadge` spinner (M5-j).
+/// **Its own function**, its state in its own `Component` (Windows' 1 MB stack,
+/// `everyProductionTreeBuildsOnAOneMegabyteThread`). Human checks: the spinner
+/// against `NSProgressIndicator`, the bar's colours (spec §7 items 3–4).
+@MainActor
+func progressSection() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Progress").font(size: 22)
+        ProgressDemo()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The progress row's state: the bar's fraction, set by its slider.
+struct ProgressDemo: Component {
+    @State var done = 0.35
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(10)) {
+            Row(gap: Pixels(16)) {
+                ProgressView()
+                ProgressView().controlSize(.small)
+                ProgressView().controlSize(.mini)
+                ProgressView("Loading")
+                ProgressView(value: done).progressViewStyle(.circular)
+            }
+            Row(gap: Pixels(16)) {
+                Slider(value: $done, in: 0...1).frame(width: Pixels(160))
+                ProgressView(value: done).frame(width: Pixels(160))
+                ProgressView(value: done) { Text("Exporting") } currentValueLabel: {
+                    Text("\(Int((done * 100).rounded()))%")
+                }
+                .frame(width: Pixels(160))
+                ProgressView().progressViewStyle(.linear).frame(width: Pixels(160))
             }
         }
         .alignItems(.flexStart)

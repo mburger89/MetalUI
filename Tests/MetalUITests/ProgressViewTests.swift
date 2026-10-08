@@ -62,7 +62,8 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.01 }
 @MainActor
 private func captionSize(_ string: String) throws -> Size<Pixels> {
     let frame = try controlRender(controlRoot { Text(string).font(.caption) })
-    return try #require(frame.elementBounds.values.first { $0.size.width.value > 0 }, "no caption bounds").size
+    // The text's own id: `.font` is a transparent scope (`controlTextSize`'s read).
+    return try #require(frame.elementBounds[controlID([0, 0])], "no caption bounds").size
 }
 
 /// A ticking window over `content` (a `Row` root), bounds recorded, one frame
@@ -155,7 +156,9 @@ private func spinnerStep(_ window: Window) throws -> Int {
 @Test @MainActor func aTitledBarStacksTheTitleAboveWithNoGap() throws {
     let text = try controlTextSize("Loading")
     let measured = try answers(ProgressView("Loading", value: 0.3))
-    #expect(measured["ideal"] == SizeD(width: Double(text.width.value), height: Double(text.height.value) + 20),
+    // The answer is unrounded; the recorded text bounds are rounded (within 1).
+    #expect(abs(measured["ideal"]!.width - Double(text.width.value)) < 1
+                && measured["ideal"]!.height == Double(text.height.value) + 20,
             "ideal \(measured["ideal"]!) (text \(text))")
     #expect(measured["w300"] == SizeD(width: 300, height: Double(text.height.value) + 20), "w300 \(measured["w300"]!)")
     let frame = try controlRender(controlRoot { ProgressView("Loading", value: 0.3).frame(width: Pixels(300)) })
@@ -182,7 +185,8 @@ private func spinnerStep(_ window: Window) throws -> Int {
 @Test @MainActor func aTitledSpinnerStacksTheTitleBelowFourPointsApart() throws {
     let text = try controlTextSize("Loading")
     let measured = try answers(ProgressView("Loading"))
-    #expect(measured["ideal"] == SizeD(width: Double(max(32, text.width.value)), height: 36 + Double(text.height.value)),
+    #expect(abs(measured["ideal"]!.width - Double(max(32, text.width.value))) < 1
+                && measured["ideal"]!.height == 36 + Double(text.height.value),
             "ideal \(measured["ideal"]!) (text \(text))")
     let frame = try controlRender(controlRoot { ProgressView("Loading") })
     let spinner = try #require(frame.elementBounds.values.first { $0.size.width.value == 32 && $0.size.height.value == 32 })
