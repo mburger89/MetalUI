@@ -10,7 +10,7 @@ Record: `../record/84-task-followups.md`. The rulings these follow up are in
 [`2026-10-03-lifecycle-decisions.md`](2026-10-03-lifecycle-decisions.md)
 (`LC-H`, `LC-P`).
 
-**Next unused id: `TF-E`.**
+**Next unused id: `TF-F`.**
 
 Evidence (each header carries its recorded output and how to run it):
 
@@ -226,3 +226,39 @@ twice, 65 lines each, byte-identical to its header (screen unlocked,
 inside a transition it reverses, its task restarts once on the return; the
 divergence row says so, and TF1.4 reddens the day `@State` survives the ghost
 (then TF1.4's expected log becomes `[]` and divergence 123 can retire).
+
+## TF-E — The offscreen-renderer option is SPI `Checks`, not `package`: `package` cannot cross from `Backends/SDL` into the root package
+
+**Ruling.** Amends `TF-C` item 3 and spec §3.3 (implementation, item 3).
+
+1. **Measured.** `TF-C`'s `package init(hiddenWindows:offscreenRenderers:)`
+   does not compile at its one caller: `MainQueueDrainCheck` is an executable
+   of the `Backends/SDL` package (`Backends/SDL/Package.swift`, `name:
+   "MetalUISDL"`), while `MetalUISDL` is a target of the **root** package
+   (`PX-H`: declared by `path:`, consumed as `.product(name: "MetalUISDL",
+   package: "MetalUI")`). `package` access stops at the package boundary —
+   both macOS and the Linux image printed `main.swift:94:73: error: extra
+   argument 'offscreenRenderers' in call`. A second, independent error: a
+   designated initialiser of a class cannot delegate, so the public
+   `init(hiddenWindows:)` that forwards must be `convenience`.
+2. **Taken**: `@_spi(Checks) public init(hiddenWindows: Bool = false,
+   offscreenRenderers: Bool) throws` (designated), the public
+   `public convenience init(hiddenWindows: Bool = false)` forwarding
+   `offscreenRenderers: false`, and `@_spi(Checks) import MetalUISDL` in the
+   check. A plain `import MetalUISDL` cannot see the SPI initialiser, so the
+   public surface a consumer can spell is unchanged; MetalUI already uses SPI
+   for a non-API seam (`@_spi(ToolbarInternals)`, `Toolbar.swift`).
+   `Backends/SDL/Sources` is outside the public-API census
+   (`closeout-public-api.sh` walks root `Sources/` only), so neither the census
+   nor the inventory map moves. `convenience` changes no call site: a
+   `final class`'s convenience initialiser is spelled and called the same way.
+3. **Not taken**: a C test hook in `SDLBridge` (global state read by every
+   `openSDLWindow`, beside `mui_test_complete_dialog` — a process-wide switch
+   where the SPI parameter is per platform); an environment variable read by
+   `SDLPlatform` (a production code path switched by the environment); moving
+   the check into the root package (it needs the SDL package's traits and
+   shaders, `PX-P`).
+
+**Cost if wrong.** If SPI were later judged API, the initialiser can drop to
+`internal` the day the check moves into the root package; nothing outside
+`MainQueueDrainCheck` calls it.

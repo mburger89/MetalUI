@@ -13,7 +13,7 @@ Branch `fix/task-followups` from `70ed000`. Rulings:
 |---|---|---|---|
 | 1 | A `.task(id:)` re-inserted from a removal ghost with a changed id keeps its old task | **Fixed** to SwiftUI's probed answer; the same fix gives `onChange(of:)` its baseline back across the ghost; a value read from the content's own (reset) `@State` now compares as changed on return (divergence 123 amended) | `TF-A`, `TF-D` |
 | 2 | Test 1.7's warning filter cannot fail | **Fixed**: every `warning:` line refused; two mutations redden it in the Linux image | `TF-B` |
-| 3 | No CI job runs `.task` under SDL | **Fixed**: an offscreen-rendered `SDLPlatform` window (`package` option) runs the real loop in the image; new ungated test 3.20b | `TF-C` |
+| 3 | No CI job runs `.task` under SDL | **Fixed**: an offscreen-rendered `SDLPlatform` window (an SPI `Checks` option, `TF-E`) runs the real loop in the image; new ungated test 3.20b | `TF-C` |
 
 No public API is added or changed. No new divergence (the reserved labels
 160–164 stay unused). No `PlatformWindow`/`Platform`/`WindowRenderer`
@@ -76,14 +76,17 @@ empty; its doc comment states what a URL consumer can and cannot show
 
 ### 3.3 Item 3 (`TF-C`) — `Backends/SDL` only
 
-- `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`: `package init(hiddenWindows:
+- `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`: `@_spi(Checks) public init(hiddenWindows:
   Bool = false, offscreenRenderers: Bool) throws`; the public
   `init(hiddenWindows:)` forwards `offscreenRenderers: false`. A stored
   `offscreenRenderers` is passed by `openSDLWindow` to `SDLWindow.init(handle:
   offscreenSize:)` (`nil` = today's swapchain claim). With a size, the window's
   renderer is `SDLWindowRenderer(offscreenWidth:height:)` at the window's pixel
   size (scale 1, as `offscreenScaleFactor` already reports). The `#if !SDL`
-  stub is untouched (no consumer can reach a `package` init).
+  stub is untouched. (Amended by `TF-E`: the design's `package init` cannot be
+  reached from `MainQueueDrainCheck`, which is in the `Backends/SDL` package, not
+  the root package that declares `MetalUISDL`; the public initialiser becomes a
+  `convenience` forwarder, and the check imports `@_spi(Checks) import MetalUISDL`.)
 - `Backends/SDL/Sources/MainQueueDrainCheck/main.swift`: the platform is
   created with `offscreenRenderers: mode == "task-modifier-offscreen"`; the
   `task-modifier` case also matches `task-modifier-offscreen`; the header
