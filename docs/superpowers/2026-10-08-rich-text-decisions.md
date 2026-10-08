@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-R`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-S`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -818,3 +818,99 @@ text.
    first spelling (options dropped from `==` only) broke `Hashable` and
    trapped the run — the recorded spelling drops them from `==` and `hash`.
    The reddened tests are listed in record §83.
+
+---
+
+## RT-R — Lane 2: the `Text` element — what it measured, and the amendments
+
+Lane 2 (the run model, the `Text`/`ProposalText` initialisers and modifiers,
+`+`, styled layout and paint, links, accessibility) built `RT-E`, `RT-F` item
+3, `RT-G` items 2–3, `RT-J`, `RT-K` and `RT-L` on lane 1's seam, red first
+(`81032fc`, stubs), then the implementation (`54c5453`). Evidence: spec tests
+2.1–2.9, 2.11–2.26 and this ruling's own arm, and every §4.2 mutation run on a
+committed tree (listed in record §83 by name).
+
+**Ruling.**
+
+1. **`Text` builds its `StyledText` with a package initialiser that keeps
+   equal neighbours** (`StyledText(keepingNeighbours:runs:)`, beside lane 1's
+   public one, which still merges, test 1.16 unchanged). Paint attributes are
+   applied by run index (`RT-F` item 1), and the public initialiser merges any
+   two neighbours whose *layout* styles agree — so `Text("ab").foregroundColor(.red)
+   + Text("cd").foregroundColor(.blue)` in one face would reach the seam as one
+   run and draw in one colour (test 2.4 under mutation M2.R1). The spec's
+   "resolved runs whose `TextRunStyle` and paint attributes are equal merge
+   before the seam" stands — `resolveRichText` joins exactly those — and
+   neighbours that differ only in paint stay two runs. Both systems lay such a
+   text out exactly as the merged one (a style boundary that keeps the face
+   splits no shaping run, `RT-P` item 3): pinned by
+   `neighboursThatDifferOnlyInPaintLayOutAsOneRun` (CoreText and portable,
+   scales 1 and 2, a ligature `of|fice` and a pair `A|V` split across
+   boundaries — same glyphs, same lines, one segment per run).
+2. **Test 2.19's style arm is `.margin`, not `.padding`.** A legacy element's
+   `.padding` returns a `ModifiedElement`, so `Text("a").padding(2) + Text("b")`
+   does not compile — SwiftUI's own answer for every view modifier. The trap
+   arms are `.margin` (style), `.background` (decoration), `.onClick`
+   (handlers) and `.id` (element id), plus a plain control that exits
+   normally; each names its field and divergence 155.
+3. **Test 2.9's second arm: paint lays out at the width layout answered.**
+   "`ShapingCache.misses` unmoved on the warm frame" alone cannot see paint
+   laying out at the rounded box width (spec mutation M2.9): the rounded width
+   is asked again on the warm frame and hits. The arm compares every styled
+   `layOut` width of the first frame with the text's own answer (its widest
+   line, `try #require`d fractional so rounding moves it). Its first spelling
+   (`layOut` widths ⊆ `measure` widths, `54c5453`) was a broken instrument —
+   paint's own `styledTextLines` measures at the width it then lays out at —
+   found by M2.9, whose first run left 2.9 green; re-spelled in `e6d1b28`,
+   M2.9 reddens it. M2.9's first spelling (the box width unclamped) also
+   trapped the run at `StyledShaper.shape`'s positive-width precondition on
+   an empty text; the recorded spelling clamps to `smallestWrapWidth` as the
+   real path does.
+4. **The rich `Text`-level fields are boxed** (`TextRichBox`, one reference,
+   `nil` while unset). Stored inline they grew `Text` by about 120 bytes, and
+   `everyProductionTreeBuildsOnAOneMegabyteThread` overflowed (SIGBUS) — every
+   container holds its content by value. Boxed, a plain `Text` grows by one
+   word (the content enum and the box) and the 1 MB build passes.
+5. **Requests join at `+`** (`TextContent.joined`): neighbouring segments whose
+   fields all agree are one segment, so `Text("a") + Text("b")` is the one run
+   `"ab"` and takes the plain calls (`RT-F` item 3; 2.3's fourth plain arm).
+   Lane 3's interpolation appends through the same function.
+6. **`Text.bold()` is `fontWeight(.bold)` — a SwiftUI difference to write as
+   divergence 158.** RT-E item 3 offered it without meeting `TE-B` item 4,
+   which had withheld it on a probe: SwiftUI's `Text.bold()` draws **semibold**
+   on the default font (`swiftui-text-semantics.swift` X1), heavy on
+   `.headline` (F2e) and nothing on `.light` (X1b) — no one rule. MetalUI's is
+   the bold weight over whichever font resolves (`Font.bold()`'s, X1c), the
+   spelling SwiftUI users write, and `(light + plain).bold()` keeps the light
+   run light (`C2b`). Guard G3.2 (`textBoldIsNotOffered`) is re-spelled
+   `textBoldIsOfferedSinceRichText`; pin: 2.1's `C2b` arm (the bold run is
+   `.bold`). Lane 3 writes divergence 158 from this branch's range.
+7. **Route mutations and their instruments.** Spec 1.19's lane-2 re-run
+   (every `Text` through the styled path, M2.10) does **not** redden 1.19: the
+   demo's one-run styled texts ask the styled cache one question each where
+   the plain path asked the plain cache one, so misses and lookups are equal.
+   It reddens `aPlainTextTakesThePlainCalls` (2.3),
+   `aFrameWithoutATextSystemUsesCoreTextOverItsOwnCache` and
+   `aPortableFrameNeverShapesThroughCoreText` — the route is pinned there, and
+   1.19 stays the pin of plain *work*. 2.21's fixture is two centred lines,
+   the first shorter, so the doubled alignment offset (M2.21a) has an offset
+   to double. 2.12's reader takes the glyphs and the underline rect.
+8. **Not run: M2.23** (route a run colour through `animatedColor`). The helper
+   takes an element id and an `inout PaintPass`; the styled paint resolves run
+   colours inside `drawStyledText`, which has neither, so the mutation needs a
+   new code path rather than an edit. 2.23 stays a pin of the snap (`RT-L`
+   item 2), green on arrival.
+9. **2.14–2.16 measure through `richTextMeasurement(resolveRichText(…))`**,
+   the two functions `Text.requestLayout` calls, at a chosen proposal; a laid-
+   out frame does not expose a leaf's answer to a height proposal.
+
+10. **Mutations, recorded** (each on a committed tree, restored from a copy,
+    the full unfiltered native suite, `git status --short` clean after; the
+    reddened tests by name are in record §83): M2.1–M2.8, M2.9 (re-spelled),
+    M2.10–M2.19, M2.20a–c, M2.21a–b, M2.22, M2.R1 and guard mutations
+    MG2.24a–c and MG2.25 each redden their test; MG3b (delete `Text.bold()`)
+    reddens the build first — the lane's own tests call `bold()`.
+
+**Cost if wrong.** Item 1: a third system that splits a shaping run at every
+run boundary would shape `of|fice` as two runs — the arm reddens on it. Item
+6: a port that relied on SwiftUI's semibold `bold()` draws one weight heavier.

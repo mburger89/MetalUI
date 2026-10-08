@@ -2,7 +2,7 @@
 
 Styled runs inside one `Text`, on both text systems. Item 6 of the gpui-gap
 priority list (user request 2026-10-02; **not a plan task**). Rulings `RT-A`…
-`RT-Q` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
+`RT-R` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
 record `docs/record/83-rich-text.md` (Record phase). Probes:
 `docs/probes/swiftui-rich-text.swift`, `docs/probes/foundation-markdown-inline.swift`,
 `docs/probes/swift-attribute-scope-ambiguity/run.sh`, and the critic pass's
@@ -14,6 +14,10 @@ attempts, trailing tracking, no shaping-run split at a style change that
 keeps the face, spacing once per grapheme, CoreText's kashidas — divergence
 157 for lane 3 — and test 1.13's fixture); where this spec says "after every
 glyph" or "splits a shaping run at a style change", `RT-P` items 3–4 govern.
+**Lane 2's amendments are ruling `RT-R`** (a `Text`'s styled text keeps
+neighbours that differ only in paint, the rich fields boxed for the 1 MB
+stack, `+` joining equal segments, `Text.bold()` as divergence 158, and the
+instruments of tests 2.9, 2.19 and 2.21).
 
 Branch `feat/rich-text` from `70ed000`. Parallel: `feat/input-apis` (§81),
 `feat/variable-height-list` (§82) — stay off their files (`List*.swift`,
@@ -377,7 +381,7 @@ a bare deprecated helper called from a `@Test` warns — `RT-O` 9).
 | 2.6 | `aStrikethroughSitsOnHalfTheXHeight` (`C9s`, `C9ms`) | centre `baseline − xHeight/2` for 13 pt and 30 pt runs on one line | stub | use the line's tallest run's metrics for every strike |
 | 2.7 | `sameColouredUnderlinesMergeAndOthersDoNot` (`C9m`, `C9b`, `F3`, `F2`) | 10 pt + 30 pt both underlined, one colour: one rect at the 30 pt geometry across both; different colours: two rects, own geometry; strikethroughs: two rects | stub | (a) never merge — the `C9m` arm; (b) merge regardless of colour — the `F3` arm |
 | 2.8 | `aBackgroundFillsTheRunByTheLineBox` (`C11bg`, `C11bg2`, `F4e`) | rect: segment extent (trailing spaces included) × the line box; a 10 pt run beside a 30 pt one fills the 30 pt line | stub | use the run's own font line height |
-| 2.9 | `aWarmFrameOfAStyledTextShapesNothing` | a window, two frames: `ShapingCache.misses` unmoved on the second (layout and paint ask the same question) | stub | paint lays out at `bounds` width instead of `measuredWidth` |
+| 2.9 | `aWarmFrameOfAStyledTextShapesNothing` | a window, two frames: `ShapingCache.misses` unmoved on the second (layout and paint ask the same question); every first-frame `layOut` width equals the text's own (fractional) answer (`RT-R` item 3) | stub | paint lays out at `bounds` width instead of `measuredWidth` |
 | 2.10 | (moved to lane 1 as 1.19, `RT-O` 11; lane 2 re-runs its styled-path mutation) | — | — | — |
 | 2.11 | `aStyledTextIsOneShadowLeaf` (`GX-J`) | under `.shadow`, one shadow raster whose leaf holds the background rect, glyphs and underline | stub | emit the underline after `endLeafGroup` |
 | 2.12 | the styled `Text` arm of `everyDecorationScopingSiteContainsItsOwnContent` (`OM-AI`, `OM-V`) | a faded, clipped, bordered styled `Text`: rects and glyphs at alpha 0.5, inside the clip, before the border | stub | call `drawStyledText` outside `paintDecoration`'s closure |
@@ -387,9 +391,9 @@ a bare deprecated helper called from a `@Test` warns — `RT-O` 9).
 | 2.16 | `aMixedTextReportsBaselinesFromItsLines` (`RT-G` 2) | first `round(ascent₁)`, last `top(last) + round(ascentₙ)` for the `C6` shape | stub | plain formula `first + (n−1) × lineHeight₀` |
 | 2.17 | `aLinkDrawsInTheAccentUnlessItsRunIsColoured` (`RT-K`; `M6`, `C11lnc`, `C11lne`) | link run colour `.accent`; red run red; under `.foregroundStyle(.green)` still accent | stub | let the environment's `foregroundStyle` reach a link run |
 | 2.18 | `aLinkRegistersNothingAPlainTextDoesNot` (`RT-K`, divergence 150) | hitboxes, focus entries and AX records equal those of the same text without the link | stub | register a pointer hitbox per link segment |
-| 2.19 | `concatenatingADecoratedTextTraps` (exit tests: `.padding`, `.onClick`, `.id`) (`RT-E` 4, divergence 155) | each exits with a signal | — | delete the precondition |
+| 2.19 | `concatenatingADecoratedTextTraps` (exit tests: `.margin` — `.padding` cannot be an operand, `RT-R` item 2 — `.background`, `.onClick`, `.id`, and a plain control) (`RT-E` 4, divergence 155) | each exits with a signal | — | delete the precondition |
 | 2.20 | `theOperandCheckSeesEveryHandlersMember` (`RT-O` 1) | `try #require` every `Mirror` child of `Handlers()` is a recognised kind (optional, collection/dictionary, `Equatable`) and the child count is 17; 17 arms: setting any one member fails the check | stub `true` | (a) drop the optional rule — the optional members' arms; (b) drop the `Equatable` rule — `isFocusable`, `allowsHitTesting`, `axNode`; (c) drop the collection rule — `actions`, `gestures` |
-| 2.21 | `aOneRunStyledTextDrawsThePlainSprites` | a window: `Text(s).kerning(0)` (styled path) and `Text(s)` (plain), `s` lane 1's pair-kerned string, draw identical glyph primitives | stub | (a) offset the styled paint origin by the line's `offsetX` twice; (b) lane 1's always-set-kern mutation |
+| 2.21 | `aOneRunStyledTextDrawsThePlainSprites` | a window: `Text(s).kerning(0)` (styled path) and `Text(s)` (plain), `s` a pair-kerned string on two centred lines, the first shorter (`RT-R` item 7), draw identical glyph primitives | stub | (a) offset the styled paint origin by the line's `offsetX` twice; (b) lane 1's always-set-kern mutation |
 | 2.22 | `proposalTextDrawsTheSameStyledSpritesAsText` | `ProposalText` and `Text` of one styled content: equal scene glyphs and rects | stub | `proposalLayout()` drops `content` |
 | 2.23 | `aRunsColourSnapsUnderAnAnimation` (`RT-L` 2) | `withAnimation` changing a run's colour: the next frame draws the new colour | green on arrival (pin) | route run colour through `animatedColor` |
 | 2.24 | `theTextModifiersComposeAsSwiftUIs` (`RichTextCompileGuards`, `typecheckFile`, plain import) | compiles: `Text("a").bold().underline(color: .red).kerning(1) + Text("b")` (in a deprecated function), `Font.body.monospaced()`, `.underline(true, pattern: .solid, color: .red)` (`RT-O` 8); does **not** compile: `Text("a").lineLimit(1) + Text("b")`, `.underline(pattern: .dash)`, `Text.LineStyle.Pattern.dash` | compile | each arm mutated red once (e.g. add a `dash` static) |
@@ -506,7 +510,7 @@ few seconds.
   the `.monospaced` design (`PortableFontResolver.register(design:family:)`),
   else the default face (`TE-B`).
 
-### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–157; 157 added by `RT-P` 5)
+### §8.2 Divergences lane 3 writes (`docs/divergences.md`, labels 150–158; 157 added by `RT-P` 5, 158 by `RT-R` 6)
 
 | # | what differs | SwiftUI | MetalUI | ruling | pin |
 |---|---|---|---|---|---|
@@ -517,6 +521,7 @@ few seconds.
 | 154 | Markdown in control titles | `Button("**b**")`, `Toggle("**b**", …)` draw bold labels (`M30`, `M31`) | controls' `String` titles are verbatim | `RT-A` | `aControlTitleIsVerbatim` (3.15) |
 | 155 | concatenating a decorated `Text` | does not compile (`.padding()` etc. return `some View`) | compiles (they return `Self`) and traps at the `+` (or the interpolation), naming the field | `RT-E` 4 | `concatenatingADecoratedTextTraps` (2.19) |
 | 156 | interpolating a value of a type with no dedicated overload | `String(describing:)`, through a **deprecated** overload (`I1`, `I2`: two warnings, "Localized string interpolation produces an unlocalized, debug description…") | the same text, no warning | `RT-O` 6 | `theInitialisersReachSwiftUIsOverloads` (3.10) |
+| 158 | `Text.bold()` | semibold on the default font, heavy on `.headline`, nothing on `.light` (`swiftui-text-semantics.swift` X1, F2e, X1b) | the bold weight over whichever font resolves (`Font.bold()`'s, X1c) | `RT-R` 6 | `concatenationPushesEachSidesTextFieldsIntoItsUnsetRuns` (2.1, `C2b` arm) |
 | 157 | kerning or tracking on joined Arabic, on Linux and Windows | CoreText (macOS) inserts tatweel (kashida) glyphs carrying the space between joined letters (`S2b`, `coretext-styled-spacing.swift`; SwiftUI draws through CoreText, not probed separately) | the portable system adds the same space as a gap; widths and every other glyph agree | `RT-P` 5 | `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns` (1.20) |
 
 **Not offered rows** (documented absences): `Text.LineStyle` patterns other
