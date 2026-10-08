@@ -172,3 +172,40 @@ Human check WS1.
 
 CLAUDE.md/AGENTS.md: one sentence in the `PX-` paragraph (`WS-B`).
 `docs/record/README.md`: row 86.
+
+## 8. Branch check (adversarial checker, on `3f8c82e`)
+
+- Root after `swift package clean`, native build, unfiltered `--no-parallel`:
+  **`Test run with 2723 tests in 3 suites passed`**; `FR-J no-argument frame:
+  succeeded=true`; 0 `error:`; the only `warning:` the native deprecation
+  notice; `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` passed. No file
+  under `Sources/`, `Tests/` or `Package.swift` differs from `cd84b0c`, so
+  identity, hit testing, accessibility, animation, focus, `List` and text input
+  are untouched by construction (the root suite is the same 2723 tests, green).
+- `Backends/SDL` on macOS: **24 + 88** passed. CI's Linux image (rebuilt,
+  cached): **24 + 85** passed, T2 enabled.
+- Root default `swift build --build-tests`: 0 `warning:`. Pixels re-taken
+  (`compare.sh <scratch> cd84b0c HEAD`): controls as recorded, all fourteen
+  images `differing=0`, scene identical.
+- Inventory and undocumented checks print nothing; `MetalUILayout` imports
+  only `MetalUICore`, `MetalUIScene` only `MetalUIShaderTypes`; `cmp CLAUDE.md
+  AGENTS.md` clean; every ruling id and test name cited in the branch's docs
+  resolves.
+- Doc fix: `WS-E` item 1 counted 17 `hiddenWindows: true` sites at `cd84b0c`;
+  `git grep` reads 16 (15 in `Tests/MetalUISDLTests`, one in
+  `MainQueueDrainCheck`; the 17th match is a comment) — corrected.
+- Checker mutations, `SDLPlatform.swift`, whole `Backends/SDL` suite on macOS
+  with `METALUI_RUN_VISIBLE_SDL_WINDOW_TEST=1`, restored from a copy,
+  `git status --short` empty after each:
+
+| # | Mutation (spelling) | Reddened |
+|---|---|---|
+| X1 | `openSDLWindow` passes `show: nil` always (a non-hidden window is never shown) | T1 (`:58`, `:60`), T2 (`:74`, `:76`), T4 (`:114`) |
+| X2 | `accessKit = AccessKitAdapter(…)` moved after the `if let show` block, its `openingSteps` append left before it | **nothing** (24 + 88 passed) |
+
+  **X2 survives**: the `.accessKitAdapter` step is appended on its own line,
+  so the C11 order itself — the adapter made on a shown window — can return
+  with the recorded order intact. Only Windows sees it: T2 aborting on GitHub's
+  interactive runner and the `WS-E` launch step. Tightening (not done here, a
+  code change): append the step inside the one function that makes the
+  adapter, so moving the construction moves the record with it.
