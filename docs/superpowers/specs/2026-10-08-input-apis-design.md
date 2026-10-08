@@ -361,6 +361,8 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 2.25 | `contextMenuResolvesByClosureArity` (guard, plain `import MetalUI`): `.contextMenu { Button("a") {} }` and `.contextMenu { p in Button("a") { _ = p?.x } }` compile on a `Box` and a proposal `Text`; negative `{ a, b in … }` fails | positive fails | remove the located overload → positive fails |
 | 2.26 | `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena` (`CI-AB` item 1; lane A) | absent (the stale arena is fed; red at `3b14cf3`: the press answers `false`, A reports 105, `CI-AF` item 2) | restore `guard buttonArena == nil` → red |
 | 2.27 | `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent` (`CI-AB` item 2; lane A) | absent (the old leaves re-begin; red at `3b14cf3`: A reports 1.2 at B's point, `CI-AF` item 2) | re-begin the old arena's leaves on `.began` → red |
+| 2.28 | `aPressOfAnotherButtonWhileAnArenaIsAliveIsIgnored` (`CI-AB` item 1's second half, `CI-AA` item 4; `CI-AG`) | present (pins existing behaviour) | M3: drop `buttonArenaButton == button` from `buttonPress`'s replacement check → red (`CI-AG` item 1) |
+| 2.29 | `aBeganOfAPinchKindTheArenaDoesNotHoldFeedsTheArena` (`CI-AB` item 2's kind half, `CI-AA` item 2; `CI-AG`) | present (pins existing behaviour) | M4: `holdsActivePinch(of:)` answers for any active kind → red (`CI-AG` item 2) |
 | — | Every existing arena test (`GestureArena…`, `IX-C`/`IX-D`/`DN-D` pins) stays green **unedited** — the forwarding overloads keep their spellings | — | — |
 
 ### §4.3 Lane 3 — integration, wheel, pointer style, demo
@@ -418,7 +420,9 @@ lane that adds it.
 3.26–3.34, 3.31b, 2.26, 2.27 and guards 2.1, 2.2, 2.25 reddened the named test
 against the full unfiltered suite at `c33e7de` — the spellings applied and
 every test reddened are `CI-AF` items 3–4 (a guard's "remove the overload" was
-spelled as making it internal, so the `@testable` tests still compile).
+spelled as making it internal, so the `@testable` tests still compile). 2.28 and
+2.29 were added after that verification. M3 and M4, run at `f23c922`, redden
+them (`CI-AG`).
 
 ## §5 CI and commands
 

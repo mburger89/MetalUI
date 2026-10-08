@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AG`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AH`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1138,6 +1138,10 @@ The primary arena has no such hole: a non-continuing `.mouseDown` sets
      each with `MagnifyGesture`; `.began`/`.changed` over A, **no end**;
      `.began`/`.changed` over B → B reports, A reports nothing more.
      Mutation: re-begin the old arena's leaves on `.began` → red.
+   - **2.28** `aPressOfAnotherButtonWhileAnArenaIsAliveIsIgnored` and **2.29**
+     `aBeganOfAPinchKindTheArenaDoesNotHoldFeedsTheArena` pin the other
+     halves of items 1 and 2 (a different button is ignored; a kind not held
+     active feeds the arena) — added by `CI-AG`.
    - The `pendingContextMenu` of 2.26's secondary analogue rides item 1: a
      right press that replaces a stale secondary arena parks its own menu,
      judged by its own arena — covered by 3.28 staying green.
@@ -1287,8 +1291,9 @@ provisional name (**MetalCreator: every name in the header stands**).
      targeted — every sheet test passing (`appKitOpenDialogIsASheet…` in
      1.2 s). The screen locked again at 08:41, so the unmutated re-take below
      is a locked run.
-   Recorded as environmental. **Owed by whichever later lane next has an
-   unlocked screen**: one unmutated unfiltered run reading 0 issues. Not
+   Recorded as environmental. **The owed unlocked run is taken** (`CI-AG`
+   item 3): at `6b09c13`, screen unlocked, the unmutated unfiltered suite
+   passed, 2725 tests, **0 issues**. Not
    fixed here (lane 1's and `AppKitPresentationTests`' files are outside lane
    A); if it recurs unlocked, the window teardown of the AppKit test helpers
    is the place to look.
@@ -1370,6 +1375,57 @@ provisional name (**MetalCreator: every name in the header stands**).
    identical, every control at its recorded value. No `Backends/SDL` change,
    so no SDL or Linux-image run is owed by this lane.
 
-**Cost if wrong.** Item 1: if the count threshold is not the whole story, an
-unlocked run shows the five issues again — the owed unlocked re-take catches
-it, and the hunt then starts at the AppKit test helpers' window teardown.
+**Cost if wrong.** Item 1: closed by `CI-AG` item 3 (the unlocked re-take read
+0 issues). If the five issues ever appear in an unlocked run, the hunt starts
+at the AppKit test helpers' window teardown.
+
+## CI-AG — `CI-AB`'s other halves pinned; the unlocked re-take closes `CI-AF` item 1
+
+**Finding (lane A's verifier).** `CI-AB` pinned only the replacing half of
+each item. Two mutations went green against the full suite: **M3**, dropping
+`buttonArenaButton == button` from `buttonPress`'s replacement check, so any
+press ends a live arena; and **M4**, `holdsActivePinch(of:)` answering for any
+active kind, so a rotate `.began` during a magnify drops the live arena.
+`aSimultaneousMagnifyAndRotateCompositionReportsBoth` and
+`aMagnifyAndARotateOnNestedElementsDoNotBlockEachOther` are arena-level tests
+that never pass through `Window.dispatchPinch`, so neither can see M4.
+
+**Ruling.** No behaviour changes. `CI-AB` items 1 and 2 stand as written.
+
+1. **2.28** `aPressOfAnotherButtonWhileAnArenaIsAliveIsIgnored`
+   (`InputAPIGestureWindowTests.swift`): a middle drag on A is live. A right
+   press on B, which declares a `.secondary` drag, is **not claimed**. B
+   reports nothing through its drag and release. A's next middle drag and
+   release report from A's own press (`A 20 @50,50`, then a single `A end`).
+   **M3 reddens it** (4 expectations: the press answered `true`, and the log
+   read `["A 0 @50,50", "A 10 @50,50", "B changed", "B changed", "B end"]`).
+2. **2.29** `aBeganOfAPinchKindTheArenaDoesNotHoldFeedsTheArena`: one element
+   carries `MagnifyGesture().simultaneously(with: RotateGesture())`. The test
+   sends magnify `.began`/`.changed 0.1`, rotate `.began`/`.changed 10`,
+   magnify `.changed 0.1`, rotate `.ended`, magnify `.ended`. The magnify
+   reads 1.1 and then 1.2, its `onEnded` runs once at 1.2, and the rotate
+   reports 10. **M4 reddens it** (2 expectations: the log read
+   `["m 110", "r 10", "m 110", "r end", "m end 110"]`, so the magnify
+   restarted from 1).
+3. **The unlocked re-take `CI-AF` item 1 owed** (the verifier's reading): at
+   `6b09c13`, screen unlocked (lock probe at 10:01: no
+   `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`), native build,
+   full unfiltered `--no-parallel`: **2725 tests in 3 suites passed, 0
+   issues** (163.9 s), FR-J line present. The verifier's M7 and M8 runs were
+   also unlocked and each read exactly 1 issue, its target. All five sheet
+   tests passed in both. This fits the window-count explanation: the five
+   issues appear only under a locked screen. Item 1's deferral is closed.
+4. **Procedure.** Tests committed at `f23c922`. Each mutation was applied once
+   to that commit and restored from a copy. Each run used a native build and
+   the full unfiltered `--no-parallel` suite with the screen **locked**: M3
+   read 2727 tests with 9 issues (2.28's 4 plus the 5 locked-screen sheet
+   issues), and M4 read 2727 tests with 7 issues (2.29's 2 plus the 5).
+   `git status --short` was clean after each. No hang (each run about 480 s).
+   No other test reddened. **Unmutated at `f23c922`** (native build,
+   unfiltered, screen locked): 2727 tests in 3 suites, FR-J line present, 0
+   `error:`, the only `warning:` SwiftPM's deprecation notice, **5 issues, all
+   of them the locked-screen sheet issues**. `swift build --build-tests`: 0
+   warnings. No public declaration and no `Backends/SDL` change.
+
+**Cost if wrong.** These are pins only. If a platform did need a different
+button's press to replace an arena, 2.28 is the test to re-rule.
