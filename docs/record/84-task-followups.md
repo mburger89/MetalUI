@@ -181,3 +181,56 @@ map (no public declaration in root `Sources/`; the SPI initialiser is in
 `Backends/SDL`, outside the census), `docs/migration.md` (nothing breaking: a
 public `init(hiddenWindows:)` is unchanged, `convenience`), human checks (no new
 look; X2 already covers a counting `.task` in a real window).
+
+## 8. Branch check (adversarial, at `47d91ea`)
+
+- **Suite**, after `swift package clean` and a native build (0 `error:`, the
+  only `warning:` SwiftPM's deprecation notice), unfiltered `--no-parallel`:
+  `Test run with 2677 tests in 3 suites passed after 170.609 seconds.`;
+  `FR-J no-argument frame: succeeded=true`. `swift build --build-tests`
+  (default build system): 0 `warning:`. Passed by name in that run:
+  `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `reinsertingDuringTheGhostRunsNeitherCallbackAndStartsWithFreshState`,
+  `aTaskReinsertedMidRemovalKeepsRunning`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`; no test failed. The
+  branch touches no identity, hit-testing, accessibility, animation or focus
+  source (the root `Sources/` diff is `LifecycleStore` alone).
+- **Two mutations of the checker's own**, each on `Sources/MetalUI/Lifecycle.swift`
+  at `47d91ea`, full unfiltered suite, restored from a copy, `git status --short`
+  clean after each:
+  - **MC1** — the `onChange` half only: `let before = old.change` →
+    `let before = previous[key]?.change` (a returning key's task half still
+    reads `returned`). 2677 run, 1 issue: red
+    `anOnChangeReinsertedFromAGhostWithAChangedValueFiresAfterTheRestart` (TF1.3)
+    alone.
+  - **MC2** — the task-id half only: the restart condition gains
+    `, previous[key] != nil` (a returning key never restarts; its `onChange`
+    still fires). 2677 run, 5 issues: red
+    `aTaskReinsertedFromAGhostWithAChangedIDRestarts` (TF1.1),
+    `anIDWrittenWhileAGhostRestartsTheTaskOnReturn` (TF1.2),
+    `anOnChangeReinsertedFromAGhostWithAChangedValueFiresAfterTheRestart` (TF1.3),
+    `aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost` (TF1.4);
+    `aTaskIDReinsertedUnchangedFromAGhostRestartsNothing` (TF1.0, the control)
+    green, as it must be.
+  Each half of `TF-A`'s one comparison point is pinned independently.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 70ed000 47d91ea` —
+  controls as recorded, all fourteen images `differing=0`, scene identical.
+- **`Backends/SDL`**: macOS 24 + 84 passed (3.20 and 3.20b both pass there);
+  CI's Linux image (`metalui-portable` rebuilt, cached) 24 + 81 passed, 3.20b
+  passed, 3.20 skipped on the offscreen driver. The SDL package's three
+  `warning:` lines are pre-existing (`AccessKitControlsParityTests.swift:83`,
+  untouched by the branch, and the Homebrew SDL3 `ld` deployment-target note).
+- `cmp CLAUDE.md AGENTS.md` clean; `closeout-inventory-check.sh` and
+  `closeout-undocumented.sh` print nothing; `MetalUILayout` imports only
+  `MetalUICore`, `MetalUIScene` only `MetalUIShaderTypes`. Every ruling id and
+  test name cited in the branch's changed docs resolves (`PX-W`, `TF-F` appear
+  only as "next unused").
+- **Doc defect fixed** (`47d91ea`): `TF-C` item 3 still described the option as
+  `package` with no pointer to its amendment; it now names `TF-E` items 1–2.
+- **Not re-run**: the SwiftUI probe (its claims rest on the design and critique
+  runs recorded in its header and `TF-D`), the 1.7 consumer build (Linux-only,
+  env-gated; mutations MT2.1/MT2.2 in §3), and a real-window capture. No new
+  human look is owed; none is claimed.
