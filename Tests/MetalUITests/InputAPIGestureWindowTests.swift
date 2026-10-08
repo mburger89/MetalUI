@@ -645,3 +645,80 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     #expect(log.entries == ["A 110 @50,50", "B 120 @70,70", "B end"], "\(log.entries)")
     withExtendedLifetime(window) {}
 }
+
+// MARK: - 2.28, 2.29: what does NOT replace an arena (`CI-AB`'s other halves)
+
+/// **2.28** (`CI-AB` item 1's second half, `CI-AA` item 4). A middle drag on A
+/// is live; a right press on B — which declares a `.secondary` drag — is a
+/// DIFFERENT button, so it is ignored: unclaimed, B reports nothing, and A's
+/// next middle drag and release still report from A's own press, ending with
+/// `A end`. Mutation `M3`: drop `buttonArenaButton == button` from the
+/// replacement check in `buttonPress` → the right press ends A's arena
+/// silently and forms B's.
+@MainActor
+@Test func aPressOfAnotherButtonWhileAnArenaIsAliveIsIgnored() throws {
+    let log = WLog()
+    let (window, platform) = try inputWindow {
+        twoBoxes(Box().frame(width: px(100), height: px(200))
+                    .gesture(DragGesture(minimumDistance: 0, button: .middle)
+                        .onChanged { value in
+                            log.entries.append("A \(Int(value.translation.width.value))"
+                                               + " @\(Int(value.startLocation.x.value)),\(Int(value.startLocation.y.value))")
+                        }
+                        .onEnded { _ in log.entries.append("A end") }),
+                 Box().frame(width: px(100), height: px(200))
+                    .gesture(DragGesture(minimumDistance: 0, button: .secondary)
+                        .onChanged { _ in log.entries.append("B changed") }
+                        .onEnded { _ in log.entries.append("B end") }))
+    }
+    try #require(window.lastHitboxes.filter { !$0.handlers.gestures.isEmpty }.count == 2,
+                 "two gesture targets: \(window.lastHitboxes.map(\.bounds))")
+    try #require(window.secondaryDragIsDeclared(at: pt(200, 100)), "set up: B declares a secondary drag")
+    platform.simulateInput(odown(100, 100))
+    platform.simulateInput(odrag(110, 100))
+    try #require(log.entries.last == "A 10 @50,50", "set up: A drags: \(log.entries)")
+    #expect(!platform.simulateInput(rdown(200, 100)), "another button's press is not claimed")
+    platform.simulateInput(rdrag(210, 100))
+    platform.simulateInput(rup(210, 100))
+    #expect(!log.entries.contains { $0.hasPrefix("B") }, "B reports nothing: \(log.entries)")
+    platform.simulateInput(odrag(120, 100))
+    platform.simulateInput(oup(120, 100))
+    #expect(log.entries.suffix(2) == ["A 20 @50,50", "A end"], "\(log.entries)")
+    #expect(log.entries.filter { $0 == "A end" }.count == 1, "\(log.entries)")
+    withExtendedLifetime(window) {}
+}
+
+/// **2.29** (`CI-AB` item 2's kind half, `CI-AA` item 2). A rotate `.began`
+/// arriving while a magnify is active (AppKit sends both during one pinch) is
+/// a kind the arena does NOT hold active, so it feeds the existing arena: the
+/// magnify keeps accumulating from its first event, its `onEnded` runs once,
+/// and the rotate reports. Mutation `M4`: `holdsActivePinch(of:)` answers for
+/// any active kind → the rotate `.began` drops the live arena, the magnify
+/// restarts from 1 and never ends.
+@MainActor
+@Test func aBeganOfAPinchKindTheArenaDoesNotHoldFeedsTheArena() throws {
+    let log = WLog()
+    let (window, platform) = try inputWindow {
+        Box().frame(width: px(200), height: px(200))
+            .gesture(MagnifyGesture()
+                .onChanged { value in log.entries.append("m \(Int((value.magnification * 100).rounded()))") }
+                .onEnded { value in log.entries.append("m end \(Int((value.magnification * 100).rounded()))") }
+                .simultaneously(with: RotateGesture()
+                    .onChanged { value in log.entries.append("r \(Int(value.rotation.degrees.rounded()))") }
+                    .onEnded { _ in log.entries.append("r end") }))
+    }
+    try #require(window.lastHitboxes.contains { !$0.handlers.gestures.isEmpty }, "a gesture target")
+    platform.simulateInput(magnify(0, .began))
+    platform.simulateInput(magnify(0.1, .changed))
+    try #require(log.entries == ["m 110"], "set up: the magnify runs: \(log.entries)")
+    #expect(platform.simulateInput(rotate(0, .began)), "the rotate joins the live arena")
+    platform.simulateInput(rotate(10, .changed))
+    platform.simulateInput(magnify(0.1, .changed))
+    platform.simulateInput(rotate(0, .ended))
+    platform.simulateInput(magnify(0, .ended))
+    #expect(log.entries.contains("r 10"), "the rotate reports: \(log.entries)")
+    let magnifies = log.entries.filter { $0.hasPrefix("m ") && !$0.hasPrefix("m end") }
+    #expect(magnifies == ["m 110", "m 120"], "the magnify accumulates from its first event: \(log.entries)")
+    #expect(log.entries.filter { $0.hasPrefix("m end") } == ["m end 120"], "one onEnded: \(log.entries)")
+    withExtendedLifetime(window) {}
+}
