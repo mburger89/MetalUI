@@ -1206,6 +1206,18 @@ canvas mid-glide; the next flick restarts it.
    on 2026-10-08 (same machine and toolchain, screen locked): all 61 lines
    byte-identical to the recorded output, exit 0, stderr empty both times.
    No SwiftUI claim of this branch rests on an unrun arm.
+   **The suite at `164d241`** (native build, unfiltered `--no-parallel`, screen
+   locked): **2723 tests in 3 suites** (2687 after lane 1's review + lane 2's
+   36: 18 arena tests, 3 guards, 15 window tests), the `FR-J` line present,
+   **5 issues, all in `AppKitPresentationTests`** (`appKitOpenDialogIsASheet…`,
+   `appKitSaveDialogCarries…`, `appKitCancelledDialogArrives…`,
+   `appKitDismissPresentationEnds…`, `appKitSecondDialogWhileASheet…`: each
+   `turn { nsWindow.attachedSheet != nil }` timed out at 61 s). That file is
+   untouched by the branch, but `AppKitPlatform.swift` is not (lane 1's
+   tracking-area and cursor changes), so **lane A owes the answer before its
+   mutations**: re-take those five with the screen unlocked (lock probe), and
+   if they still fail, bisect lane 1's `AppKitPlatform.swift` hunks; a
+   locked-screen-only failure is recorded as environmental with both runs.
 2. **State at the critic's start.** Lanes 1 (with its review, `CI-Y`/`CI-Z`)
    and 2's implementation (`164d241`) are committed; **lane 2 has no
    verification commit** — none of spec §4.2's mutations nor the lane-2
