@@ -15,7 +15,12 @@ public struct ProposalText: ProposalElement {
     /// What this text shows: one plain string, or segments (spec §1.3).
     var content: TextContent
     /// The rich `Text`-level fields (ruling RT-E item 3), as `Text`'s.
-    var rich = TextRichFields()
+    var rich: TextRichFields {
+        get { richBox?.fields ?? TextRichFields() }
+        set { richBox = TextRichBox.boxing(newValue) }
+    }
+    /// ``rich``'s storage: one reference, `nil` while none is set (`RT-R` item 4).
+    var richBox: TextRichBox?
 
     /// The text drawn — every segment's, concatenated (`RT-L` item 1).
     /// Writing it replaces the content with one plain string.

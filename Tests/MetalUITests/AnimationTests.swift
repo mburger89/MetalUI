@@ -2627,6 +2627,13 @@ final class AnimationDriveModel {
 /// - `Text.swift`'s glyph fill (`foregroundColor ?? .textPrimary`) is not in
 ///   spec §4's animatable list at all — animating text colour is spec §8's
 ///   named hole and stays one.
+/// - `RichTextPaint.swift`'s fills for a styled `Text` (rich text, rulings
+///   `RT-J`, `RT-L` item 2; `RT-O` item 13): a run's background, its
+///   underline and its strikethrough, and its glyphs' colour. They are the
+///   text's own run colours, not the element's background chain, and they
+///   **snap** like the glyph fill above (pinned by
+///   `aRunsColourSnapsUnderAnAnimation`); the element's own background stays
+///   `Text.paint`'s arm here.
 ///
 /// Each arm drives a REAL `paint` through `Frame.render` and reads the colour
 /// back out of the emitted `MUIRect`, for

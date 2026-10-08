@@ -93,6 +93,7 @@ F	button	A	swiftui-interaction.swift	B2	aButtonRunsItsActionOncePerClickAndNotOn
 F	controls	A	swiftui-controls-and-selection.swift	SA1	anUnsteppedAdjustmentMovesTenPercentOfTheSpan	80 82	DD-S DD-W DD-X	Toggle/Slider/Stepper on Binding: values, steps, clamping, keys once focused (80); the partial accessibility fold (82)
 F	picker	A	swiftui-controls-and-selection.swift	PA1	pressingAnOptionWritesItsTag	80 81 82	DD-V DD-AA	Picker/PickerStyle/.tag/TaggedElement: options found through tags; automatic is segmented, not a menu (81)
 F	text	A	swiftui-text-semantics.swift	F6a	theEnvironmentFontReachesATextAndTheTextsOwnWins	60 86 87	TE-A TE-F TE-H TE-AA	Text (legacy-vocabulary leaf): measured and drawn through the text seam; fonts, line limits, truncation; width not ceiled to the pixel grid (60); line advance (86); middle truncation (87)
+F	text-concatenation	X	-	-	-	-	RT-E	Text + Text: deprecated as in SwiftUI (macOS 26.0, its message); use string interpolation; an operand carrying a style, decoration, id or handler traps (155)
 F	text-proposal-bridge	M	-	-	-	-	LR-S CN-A	Text.proposalLayout(): converts a legacy Text to a ProposalText, dropping background, handlers, id and hover/focus colours
 F	font	A	swiftui-text-semantics.swift	F1	aTextStyleResolvesToMacOSsFace	-	TE-B TE-C TE-D TE-E	Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families
 F	text-modifiers	A	swiftui-text-semantics.swift	L1	aLineLimitCapsLinesAndAnswersTheWidestKeptLine	-	TE-H TE-I TE-J TE-AA	.font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode
@@ -350,6 +351,7 @@ M	MetalUI	Toggle.swift	.*	.*	.*	controls
 M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks
 M	MetalUI	State.swift	.*	.*	.*	state
 M	MetalUI	Style.swift	.*	.*	.*	style
+M	MetalUI	Text.swift	Text	\+	.*	text-concatenation
 M	MetalUI	Text.swift	.*	.*	.*	text
 M	MetalUI	TextFieldStyle.swift	.*	.*	.*	field-style
 M	MetalUI	TextEditor.swift	TextEditor	textEditorStyle	.*	field-style

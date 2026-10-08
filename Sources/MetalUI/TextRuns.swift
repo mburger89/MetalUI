@@ -114,6 +114,19 @@ struct TextRichFields: Sendable, Hashable {
     }
 }
 
+/// The rich fields behind one reference (`RT-R` item 4): a `Text` is held by
+/// value inside every container's generic content, so its size is stack on a
+/// 1 MB Windows thread (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+/// Immutable and replaced on every write — value semantics — and `nil` while
+/// no rich field is set, so a plain `Text` grows by one word.
+final class TextRichBox: Sendable {
+    let fields: TextRichFields
+    init(_ fields: TextRichFields) { self.fields = fields }
+
+    /// `fields` boxed, or `nil` when none is set.
+    static func boxing(_ fields: TextRichFields) -> TextRichBox? { fields.isEmpty ? nil : TextRichBox(fields) }
+}
+
 // MARK: - Concatenation (RT-E items 2, 4)
 
 /// The segments of a text with its own `Text`-level fields pushed into every
@@ -185,7 +198,6 @@ private func equalsAsItsOwnType<T: Equatable>(_ value: T, _ other: Any) -> Bool 
 /// as set (a refusal, never a silent pass).
 @MainActor
 func firstSetHandlersMember(_ handlers: Handlers) -> String? {
-    if true { return nil }   // RED STUB (lane 2): every member reads as the default
     let reference = Array(Mirror(reflecting: Handlers()).children)
     for (index, child) in Mirror(reflecting: handlers).children.enumerated() {
         let label = child.label ?? "#\(index)"
@@ -200,7 +212,6 @@ func firstSetHandlersMember(_ handlers: Handlers) -> String? {
 /// handler member that is set, by name; `nil` when it carries only text.
 @MainActor
 func textOperandRefusal(_ text: Text) -> String? {
-    if true { return nil }   // RED STUB (lane 2): no operand is refused
     if text.style != Style() { return "style (a layout modifier such as .margin or .flexGrow)" }
     if text.decoration != Decoration() { return "decoration (.background, .border, .opacity, .cornerRadius …)" }
     if let id = text.elementID { return "elementID (.id(\"\(id)\"))" }
@@ -226,7 +237,6 @@ func requireTextOperand(_ text: Text, _ side: String) {
 /// `Text`-level field is set (`RT-F` item 3); `nil`: the styled path.
 func plainTextForm(_ content: TextContent, own: TextStyleRequest,
                    rich: TextRichFields) -> (string: String, request: TextStyleRequest)? {
-    if true { return (content.string, own) }   // RED STUB (lane 2): every text takes the plain calls
     guard rich.isEmpty else { return nil }
     switch content {
     case .plain(let string):
@@ -279,8 +289,7 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
     var styledRuns: [StyledTextRun] = []
     var paints: [TextRunPaint] = []
     var string = ""
-    for var run in requests {
-        run = TextRunRequest(string: run.string)   // RED STUB (lane 2): a run's own fields are ignored
+    for run in requests {
         let length = run.string.utf16.count
         if length == 0, !styledRuns.isEmpty { continue }
         let request = TextStyleRequest(

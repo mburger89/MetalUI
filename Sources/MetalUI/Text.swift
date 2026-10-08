@@ -62,7 +62,12 @@ public struct Text: Element, StyledElement {
     /// The rich `Text`-level fields — underline, strikethrough, kerning,
     /// tracking, baseline offset, monospaced (ruling RT-E item 3): the outer
     /// layer, reaching only the segments that left them unset.
-    var rich = TextRichFields()
+    var rich: TextRichFields {
+        get { richBox?.fields ?? TextRichFields() }
+        set { richBox = TextRichBox.boxing(newValue) }
+    }
+    /// ``rich``'s storage: one reference, `nil` while none is set (`RT-R` item 4).
+    var richBox: TextRichBox?
 
     /// The rendered string — every segment's, concatenated (`RT-L` item 1).
     /// **Writing it replaces the content with one plain string**, dropping

@@ -91,7 +91,20 @@ public struct StyledText: Hashable, Sendable {
     /// run, `RT-P` item 3); only the segments and the glyphs' run indices
     /// differ. The same preconditions as ``init(_:runs:)``.
     package init(keepingNeighbours string: String, runs: [StyledTextRun]) {
-        self.init(string, runs: runs)   // RED STUB (lane 2): neighbours merge
+        precondition(!runs.isEmpty, "StyledText needs at least one run, even for an empty string")
+        precondition(runs.allSatisfy { $0.length >= 0 }, "StyledText: a run's length cannot be negative")
+        let total = runs.reduce(0) { $0 + $1.length }
+        let count = string.utf16.count
+        precondition(total == count, """
+            StyledText: the runs' lengths sum to \(total) UTF-16 units, but the string has \(count). \
+            Every unit belongs to exactly one run (ruling RT-F item 1).
+            """)
+        self.string = string
+        guard count > 0 else {
+            self.runs = [StyledTextRun(length: 0, style: runs[0].style)]
+            return
+        }
+        self.runs = runs.filter { $0.length > 0 }
     }
 
     /// `string` as one run in `style`.
