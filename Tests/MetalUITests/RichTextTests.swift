@@ -248,27 +248,29 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
 
 // MARK: - 2.9
 
-/// **2.9** (ruling RT-F item 5). A window, two frames of a styled text: the
-/// second shapes nothing (`ShapingCache.misses` unmoved), because layout and
-/// paint ask the same question — every `layOut` width of the first frame is a
-/// width `measure` was asked at. Red before: the stub drew plain (no styled
-/// call). Mutation **M2.9**: paint lays out at the rounded box width instead
-/// of the measured one (the second arm reddens; the first cannot see it, the
-/// box width being asked again on the warm frame — `RT-R` item 3).
+/// **2.9** (ruling RT-F item 5; `RT-R` item 3). A window, two frames of a
+/// styled text: the second shapes nothing (`ShapingCache.misses` unmoved),
+/// and paint lays out at the width layout answered — the text's widest line,
+/// fractional here — not at its rounded box. Red before: the stub drew plain
+/// (no styled call). Mutation **M2.9**: paint lays out at the rounded box
+/// width (the second arm; the warm-frame arm cannot see it, the rounded width
+/// being asked again on the warm frame and hitting).
 @MainActor
 @Test func aWarmFrameOfAStyledTextShapesNothing() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let system = RichTextSpySystem()
+    let text = rtJoin(Text("Count 7 ").bold(), Text("items here")).font(size: 22)
+    let answer = system.base.measure(rtResolved(text, system.base).text, wrappingAt: 300,
+                                     options: TextLayoutOptions()).widestLine
+    try #require(answer != answer.rounded(), "set up: the answer is fractional, so rounding moves it: \(answer)")
     let platformWindow = try FakePlatformWindow(device: device, size: 300)
     let window = Window(platformWindow: platformWindow, startsDisplayLink: false, textSystem: system) {
-        rtTopLeft(rtJoin(Text("Count 7 ").bold(), Text("items here")).font(size: 22))
+        rtTopLeft(text)
     }
     window.drawFrameIfNeeded()
-    let measured = Set(system.styledMeasureWidths.compactMap { $0 })
     let laidOut = system.styledLayOutWidths.compactMap { $0 }
     try #require(!laidOut.isEmpty, "the styled path drew")
-    #expect(laidOut.allSatisfy { measured.contains($0) },
-            "paint lays out at a width layout measured: layOut \(laidOut), measure \(measured.sorted())")
+    #expect(laidOut.allSatisfy { $0 == answer }, "paint lays out at the width layout answered: \(laidOut) vs \(answer)")
     let misses = system.base.cache.misses
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
