@@ -320,19 +320,22 @@ test below fails against that stub, which is how it is seen to fail):
 | 2.5b | `aRowAboveTheTopMeasuredAnewDoesNotMoveTheRowOnTopOnTheNextFrame` | same, on the frame after: y identical, stored offset +200 | skip `noteScrollAnchorAdjustment` |
 | 2.6 | `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement` | window narrowed: top row id and on-screen y unchanged; extent = derived literal at the new width | (a) skip `forgetMeasurements` (extent reddens); (b) skip the anchor (y reddens) |
 | 2.7 | `anInsertionAboveTheViewportKeepsTheRowOnTop` | insert a 150-tall row at 0 while row 50 is on top: row 50 stays (div 146) | anchor by index across the rebuild |
-| 2.7b | `removingTheRowOnTopPutsTheNextRowInItsPlace` | arm 1: row 50 on top removed → row 51's id on top at row 50's old y; arm 2: remove row 50 and insert at 0 in one change → old row 51 on top (`VL-O`) | (a) prefer the id before (arm 1 reddens); (b) fall back to `oldAnchorIndex` (arm 2 reddens) |
+| 2.7b | `removingTheRowOnTopPutsTheNextRowInItsPlace` | arm 1: row 50 on top removed → row 51's id on top at row 50's old y; arm 2: remove row 50 and insert at 0 in one change → old row 51 on top (`VL-O`) | (a) prefer the id before (arm 1 reddens); (b) fall back to `oldAnchorIndex` (arm 2 reddens); V8 no backward search (arm 3: the anchor and every id after it removed, new ids appended → the last surviving id before it, id 49, on top) |
 | 2.7c | `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick` | 2.7 inside `withAnimation`, `simulateTick`-driven: the row on top's on-screen y unchanged at every tick until no frame is asked for (`VL-R` item 8) | skip `noteScrollAnchorAdjustment` |
+| 2.7d | `aMultiRowInsertionAboveTheViewportBuildsTheRowsOnScreenInThatFrame` | 20 rows inserted at 0 (estimate 50, a 1000pt shift beyond the overscan): in the frame of the change id 50 on screen at 0 and ids 50…53 built; settled offset 3460 (`VL-U` item 4(a)) | V2 the `shift` dropped from the window's end |
 | 2.8 | `aSameCountDataChangeIsDetectedFromARealizedRow` | a same-count shift (id inserted at 0, last dropped): the realised rows' ids differ from the recorded ones, the anchor follows its id (`VL-U` item 3) | skip the realised-id check |
 | 2.9 | `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured` | `scrollTo(row 150, anchor: .bottom)`, real height ≠ estimate: after the settle frames, bottom = viewport bottom exactly (cf. T-bottom) | no refinement carried |
 | 2.10 | `aRefinedRevealNeverRefinesAgain` | a target that stays unmeasured: at most two resolutions, then no frame requested | drop the `refined` guard |
 | 2.11 | `aVariableListSettlesWithoutInput` | after a jump to 5070: exactly one frame asks for another (`D = 40`), then none (`VL-U` item 1) | request a frame whenever `D` is computed |
+| 2.11b | `aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame` | `D = 0`; arm 1: a 400pt header above the list inside the content removed at offset 2860 → one frame asks, the next builds 58…61 with row 58 on top; arm 2: a 40pt header added at 2460 → the fresh window's leading overscan (47) unbuilt, one frame asks, the next builds 47…55 (`DD-F` item 3) | V11 the staleness request dropped (both arms); V9 the prepaint window's leading overscan dropped (arm 2) |
+| 2.11c | `aGrownViewportIsFilledByAVariableListOnTheNextFrameWithoutInput` | 200 → 560 viewport at 2460: the frame after the resize builds 48…56 and asks; the next builds 48…63 and asks for nothing (`DD-F` items 3–4) | V11 |
 | 2.12 | `selectionAndShiftRangesAreUnchangedInAVariableList` | click 0, ⌘-click 2, ⇧-click 3, ⇧↓ give the uniform list's sets; row 3's target is 30 tall (`VL-U` items 1–2) | variable branch skips `rowClick` |
 | 2.13 | `aVariableListRowsStateSurvivesABoundedExcursionButNotALongerOne` | TB-AH, both halves | drop the row's `.id(datum.id)` in the variable branch (`VL-R` item 1) |
 | 2.14 | `aFocusedVariableRowKeepsFocusOutOfWindow` | `IX-I` | variable branch drops `isFocusable` composition |
 | 2.15 | `aVariableListPublishesItsLogicalCountAndRealizedRowIndices` | AB-L/AB-X | drop `logicalIndex` in the variable branch |
 | 2.16 | `aVariableListOutsideAScrollerMintsNoStateEntry` | `peek` nil after frames | `withState` in `requestLayout` |
 | 2.17 | `aVariableListInAHorizontalScrollerMeasuresEveryRowAtItsWidestWidth` | nil-width path: width = widest at `(nil,nil)`, heights at it | measure heights at `(nil, nil)` |
-| 2.18 | `aNonPositiveEstimateIsTreatedAsUndeclared` | `estimatedRowHeight: 0` and `-5` behave as nil | drop the clamp (a declared 0 makes every unmeasured row 0; `VL-R` item 2) |
+| 2.18 | `aNonPositiveEstimateIsTreatedAsUndeclared` | `estimatedRowHeight: 0`, `-5` and `.infinity` behave as nil | drop the clamp (a declared 0 makes every unmeasured row 0; `VL-R` item 2); V13 drop `isFinite` (the ∞ arm traps on a NaN measurement) |
 
 `Tests/MetalUITests/VariableHeightListCompileGuards.swift`:
 

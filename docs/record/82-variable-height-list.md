@@ -255,3 +255,49 @@ commit after.
 - **Ruling** `VL-U` (next unused `VL-V`). **Deferred to lane 3** as planned:
   the demo, divergences 145–147 and 84's amendment, migration note, inventory
   row text and census, `Backends/SDL` and the Linux image.
+
+## §5 Lane 2 review fixes (2026-10-08)
+
+Commit `5f342c5` (tests only; `List.swift` unchanged — every finding was an
+unpinned clause, not a defect). The reviewer's mutations V2, V8, V9, V11 and
+V13 each read a green 2714 suite; four tests now pin them:
+
+- **2.7d** `aMultiRowInsertionAboveTheViewportBuildsTheRowsOnScreenInThatFrame`
+  (`VL-U` item 4(a), the window after a rebuild): 20 rows inserted above row 50
+  on top at the estimate 50 — id 50 on screen at 0 and ids 50…53 built in the
+  frame of the change, settled offset 3460.
+- **2.11b** `aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame` and
+  **2.11c** `aGrownViewportIsFilledByAVariableListOnTheNextFrameWithoutInput`:
+  the variable twins of `aListWhoseOriginChangesIsReWindowedOnTheNextFrame` and
+  `aGrownViewportIsFilledOnTheNextFrameWithoutInput` (`DD-F` item 3), every row
+  measured so `D = 0` and only the staleness request can ask for the frame.
+  2.11b arm 1: a 400pt in-content header removed at offset 2860 (next frame
+  58…61, row 58 on top); arm 2: a 40pt header added at 2460 — only the fresh
+  window's leading overscan row 47 is outside the built 48…56. 2.11c: 200 →
+  560 viewport at 2460, the next frame builds 48…63.
+- **2.7b arm 3**: the anchor and every id after it removed, ids 2000…2009
+  appended — the last surviving id before it, id 49, on screen at 0 (`VL-O`
+  item 1's backward search).
+- **2.18's ∞ arm**: `estimatedRowHeight: .infinity` reads 4600 like nil.
+
+Filtered native run of the 24 before the mutations: all passed (the tests
+assert behaviour the code already had; their red is the mutations). Mutations
+on `5f342c5`, `List.swift` restored from a copy after each, full unfiltered
+native `--no-parallel` suite, `git status --short` clean after each (spellings
+in `VL-U` item 7):
+
+| # | Mutation | Reddened |
+|---|---|---|
+| V2 | `shift` dropped from the window's end | `aMultiRowInsertionAboveTheViewportBuildsTheRowsOnScreenInThatFrame` (`screenY[50] == 0`, `built ⊇ 50…53`; "2717 tests … failed … with 2 issues") |
+| V11 | the variable staleness request dropped | `aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame` (both arms), `aGrownViewportIsFilledByAVariableListOnTheNextFrameWithoutInput` (9 issues) |
+| V9 | the prepaint window's leading overscan dropped | `aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame` (arm 2 only; 3 issues) |
+| V8 | no backward search (`var position = -1`) | `removingTheRowOnTopPutsTheNextRowInItsPlace` (arm 3, both frames; 2 issues) |
+| V13 | `isFinite` dropped from `clampedEstimate` | `aNonPositiveEstimateIsTreatedAsUndeclared` — the ∞ arm **traps** (`LayoutTree.swift:856` "native layout produced a NaN measurement", `SA-J`), truncating the run with no summary line; counted as reddened because the unmutated suite finishes |
+
+**Suite** on `5f342c5` after the last restore, native, unfiltered,
+`--no-parallel`: **"Test run with 2717 tests in 3 suites passed after 159.708
+seconds"** (2714 + 2.7d, 2.11b, 2.11c), `FR-J no-argument frame:
+succeeded=true deprecations=2`, 0 `error:`, the only `warning:` SwiftPM's
+deprecation notice; `swift build --build-tests` (default build system) 0
+warnings. Guards unmoved (176). No source, image or `Backends/SDL` change, so
+pixels and the Linux image are not re-taken.

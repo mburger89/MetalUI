@@ -554,7 +554,11 @@ amendments, folded into the spec:
    (a) After a rebuild the window starts at the carried anchor − 2 (by
    construction the row `index(containing: top + shift)` names) and ends at
    `index(containing: top + shift + viewport) + 3`, `shift = offset(of: anchor)
-   − anchorY` in the rebuilt index.
+   − anchorY` in the rebuilt index. Pinned by 2.7d
+   (`aMultiRowInsertionAboveTheViewportBuildsTheRowsOnScreenInThatFrame`, added
+   after review: 2.7's single row hid a 50pt shift inside the 2-row overscan;
+   20 rows at the estimate 50 shift 1000pt, and V2 — the `shift` dropped —
+   builds no row of the viewport in that frame).
    (b) An unbounded frame with a stored index whose count differs rebuilds it
    by id (no anchor), and `prepaint` rebuilds defensively when counts still
    differ, so records always land at the right indices.
@@ -596,7 +600,12 @@ amendments, folded into the spec:
    rebuild every bounded frame; M2.20b lane 1's linear `offset(of:)`, run with
    `METALUI_RUN_100K_LIST_TEST=1` so 2.21 runs too; **MU** the uniform
    initialiser routed through the variable path (`rowSizing = .variable(estimate:
-   rowHeight)`, no declared height).
+   rowHeight)`, no declared height). **After review** (on `5f342c5`, the
+   same procedure; record §82 §5): V2 `index(containing: top + shift +
+   viewport)` → `top + viewport` in `variableWindow`; V8 `var position = -1`
+   in `rebuildKeepingAnchor`; V9 the prepaint staleness window's `−
+   Self.overscan` dropped; V11 `if !contained { … }` → `_ = contained` in
+   `prepaintVariableRows`; V13 `isFinite` dropped from `clampedEstimate`.
 
 **Nothing on the MUST-NOT-MOVE list moved outside `VL-F`/`VL-G`/`VL-H`**: the
 uniform path keeps its code (MU is the separating arm: it reddens the three
