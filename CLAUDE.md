@@ -645,7 +645,10 @@ first — never trap); ImageIO stays only for other formats on macOS.
 build system warn in every consumer); without `SDL` the module declares an
 unavailable `SDLPlatform` naming the trait. A change to those targets is run
 in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
-executable (`PX-P`).
+executable (`PX-P`). **An SDL window is created hidden**: everything that must
+precede its first show (the AccessKit adapter — Windows' panics on a visible
+window) runs before `SDL_ShowWindow`, then the renderer, on every platform;
+`hiddenWindows` windows are never shown (`WS-B`, record §86).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one

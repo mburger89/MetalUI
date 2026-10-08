@@ -7,7 +7,7 @@ launch on Windows. Branch `fix/accesskit-window-show` from `cd84b0c`. Rulings:
 (`WS-A`…`WS-H`). Record: `docs/record/86-accesskit-window-show.md`. Probe:
 [`docs/probes/accesskit-window-show/`](../../probes/accesskit-window-show/README.md).
 
-**Status: designed (2026-10-08).**
+**Status: implemented and recorded (2026-10-08)** — red `a407cfb`, fix `91b145d`, record §86.
 
 ## 1. Scope
 
