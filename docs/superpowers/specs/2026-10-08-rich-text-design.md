@@ -2,7 +2,7 @@
 
 Styled runs inside one `Text`, on both text systems. Item 6 of the gpui-gap
 priority list (user request 2026-10-02; **not a plan task**). Rulings `RT-A`…
-`RT-R` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
+`RT-T` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);
 record `docs/record/83-rich-text.md` (Record phase). Probes:
 `docs/probes/swiftui-rich-text.swift`, `docs/probes/foundation-markdown-inline.swift`,
 `docs/probes/swift-attribute-scope-ambiguity/run.sh`, and the critic pass's
@@ -17,7 +17,11 @@ glyph" or "splits a shaping run at a style change", `RT-P` items 3–4 govern.
 **Lane 2's amendments are ruling `RT-R`** (a `Text`'s styled text keeps
 neighbours that differ only in paint, the rich fields boxed for the 1 MB
 stack, `+` joining equal segments, `Text.bold()` as divergence 158, and the
-instruments of tests 2.9, 2.19 and 2.21).
+instruments of tests 2.9, 2.19 and 2.21). **Lane 3's amendments are ruling
+`RT-T`** (an interpolated `Image` is deprecated and traps — an unavailable
+overload loses to the generic one; `~` as a skip character; placeholders; the
+trigger list's `://`; the key's content built off the main actor; Foundation's
+link conversion; test 3.10b and the demo's render test).
 
 Branch `feat/rich-text` from `70ed000`. Parallel: `feat/input-apis` (§81),
 `feat/variable-height-list` (§82) — stay off their files (`List*.swift`,
@@ -199,7 +203,7 @@ public struct LocalizedStringKey: ExpressibleByStringInterpolation, Equatable, S
         public mutating func appendInterpolation<T>(_ value: T)   // String(describing:), not deprecated (RT-C 3, RT-O 6; divergence 156)
         public mutating func appendInterpolation(_ text: Text)    // keeps runs (RT-C 4); stores runs, not the Text
         public mutating func appendInterpolation(_ attributedString: AttributedString)   // keeps runs (RT-O 4, I3)
-        @available(*, unavailable, message: "…") public mutating func appendInterpolation(_ image: Image)   // RT-O 5, I4
+        @available(*, deprecated, message: "…") public mutating func appendInterpolation(_ image: Image)   // traps; RT-T 1 (amends RT-O 5), I4
     }
 }
 extension Text { public init(_ key: LocalizedStringKey) }
@@ -414,12 +418,14 @@ a bare deprecated helper called from a `@Test` warns — `RT-O` 9).
 | 3.7b | `anInterpolatedAttributedStringKeepsItsRuns` (`I3`, `RT-O` 4) | `Text("v \(bold)")` with a bold `AttributedString` runs == `Text("v ") + Text("BOLD").bold()`'s, never its description | stub | delete the `AttributedString` overload (the generic one takes it) |
 | 3.8 | `interpolatingADecoratedTextTraps` (exit test) | `Text("a \(Text("b").onClick {})")` exits | — | delete the check |
 | 3.9 | `anAttributedStringBuildsTheConcatenationsRuns` (`C11`, `C12`, `C12b`) | every key's run equals the modifier spelling's | stub | ignore `kern` |
-| 3.10 | `theInitialisersReachSwiftUIsOverloads` (`TextLiteralCompileGuards`, plain import) | compiles `Text("lit")`, `Text(substring)`, `Text(verbatim:)`, `Text("n \(1.5) \(Text("b"))")`; `let k: LocalizedStringKey = "x"`; `Text("v \(Plain())")` with **no** `warning:` (divergence 156, `I1`/`I2`); does **not** compile `Text("v \(Image(…))")` (`RT-O` 5) | compile | (a) remove `@_disfavoredOverload` from `init<S>` (the literal arm turns ambiguous); (b) deprecate the generic overload — the no-warning arm; (c) delete the unavailable `Image` overload — the `Image` arm |
+| 3.10 | `theInitialisersReachSwiftUIsOverloads` (`TextLiteralCompileGuards`, plain import) | compiles `Text("lit")`, `Text(substring)`, `Text(verbatim:)`, `Text("n \(1.5) \(Text("b"))")`; `let k: LocalizedStringKey = "x"`; `Text("v \(Plain())")` with **no** message (divergence 156, `I1`/`I2`); `Text("v \(Image(…))")` compiles **with the deprecation message** naming the absence (`RT-T` item 1, amending `RT-O` 5) | compile; the Image arm red on the unavailable stub | (a) remove `@_disfavoredOverload` from `init<S>` (the literal arm turns ambiguous); (b) deprecate the generic overload — the no-message arm; (c) delete the deprecated `Image` overload — the `Image` arm |
+| 3.10b | `interpolatingAnImageTraps` (`LocalizedStringKeyTests`, exit test; `RT-T` item 1) | interpolating an `Image` (through a deprecated witness) exits naming the absence | the unavailable stub wrote the description | make the overload append the description |
 | 3.11 | `inlinePresentationIntentIsHonouredOnDarwin` (`C12c`; `#if canImport(Darwin)`) | `Text(try AttributedString(markdown: "**b** _i_ ~~s~~ `c`"))` runs == `Text("**b** _i_ ~~s~~ `c`")`'s | stub | ignore the intent |
 | 3.12 | `everyAttributeKeyIsWritableWithAPlainImport` (guard, `typecheckFile`, `SA-P`) | `s.font = .body`, `s.foregroundColor = .red`, `s.backgroundColor = .yellow`, `s.underlineStyle = .single`, `s.strikethroughStyle = .single`, `s.kern = 1`, `s.tracking = 1`, `s.baselineOffset = 1`, `s.link = …` with `import MetalUI` only, and again with `import AppKit` | compile | delete the per-key `foregroundColor` subscript — ambiguous (probe `generic UsePlain`) |
 | 3.13 | `theCodeSpanIsMonospaced` (`M5`; `RT-O` 12) | the code run's descriptor has design `.monospaced` (system face) — on the portable system the face is whatever `TE-B` resolves for that design (registered family, else default) | stub | map code to italic |
 | 3.14 | `aMarkdownLinkAndAnAttributedLinkBuildOneRunKind` | both store the destination on `link`; `M20`'s is `http://www.x.org`, `M21`'s `mailto:a@b.org` | stub | drop the `http://` prefix for `www.` |
 | 3.16 | `aLiteralWithNoMarkupRunsNoParser` (`RT-O` 14) | building the main demo tree: an internal parse counter stays 0 (every literal there has no trigger character); `Text("**b**")` moves it by 1 | stub counter always 0 → the `**b**` arm | always run the parser — the demo arm |
+| 3.17 | `theRichTextDemoDrawsThroughThePortableSystem` (`LocalizedStringKeyTests`; `RT-T`) | the demo renders headlessly over `PortableTextSystem` without a trap: > 300 glyphs in ≥ 5 colours, red/blue/orange glyphs and the yellow background drawn, the parser run | written with the demo (not red-first: a must-not-trap pin) | drop a section's styling (e.g. the attributed string's keys) — the colour arms |
 | 3.15 | `aControlTitleIsVerbatim` (divergence 154) | `Button("**b**") {}` and `Toggle("**b**", isOn:)` publish and draw the title `**b**` (the label text's string and its AX text) | green on arrival (pins the divergence) | route the `String` title through `LocalizedStringKey` |
 
 ## §5 CI and commands

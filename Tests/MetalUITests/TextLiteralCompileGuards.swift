@@ -51,15 +51,15 @@ func theInitialisersReachSwiftUIsOverloads() throws {
         }
         """, importing: "MetalUI")
     print("RT GUARD 3.10 compiles: succeeded=\(compiles.succeeded) messages=[\(compiles.messages)]")
-    #expect(compiles.succeeded && !compiles.messages.contains("warning"),
+    // `messages` drops the severity markers, so "no warning" is "no message".
+    #expect(compiles.succeeded && compiles.messages.isEmpty,
             "SwiftUI's spellings must compile with no warning:\n\(compiles.output)")
 
     let image = try typecheckFile("""
         @MainActor public func probe(_ image: Image) -> Text { Text("v \\(image)") }
         """, importing: "MetalUI")
     print("RT GUARD 3.10 warns on an interpolated Image: succeeded=\(image.succeeded) messages=[\(image.messages)]")
-    #expect(image.succeeded && image.messages.contains("warning")
-                && image.messages.contains("interpolating an Image into Text is not offered"),
+    #expect(image.succeeded && image.messages.contains("is deprecated: interpolating an Image into Text is not offered"),
             "an interpolated Image must warn, naming the absence (RT-T item 1):\n\(image.output)")
 }
 
@@ -97,7 +97,7 @@ func everyAttributeKeyIsWritableWithAPlainImport() throws {
     for (arm, imports) in [("Foundation", "import Foundation"), ("AppKit", "import Foundation\nimport AppKit")] {
         let result = try typecheckFile(attributedFixture(imports), importing: "MetalUI")
         print("RT GUARD 3.12 \(arm): succeeded=\(result.succeeded) messages=[\(result.messages)]")
-        #expect(result.succeeded && !result.messages.contains("warning"),
+        #expect(result.succeeded && result.messages.isEmpty,
                 "every key is writable beside \(arm):\n\(result.output)")
     }
 }

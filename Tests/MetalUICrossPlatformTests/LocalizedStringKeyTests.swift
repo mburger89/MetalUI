@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MetalUIPortableText
 import MetalUITextSystem
+import MetalUIDemoContent
 @testable import MetalUI
 
 // Rich text, lane 3 — string literals, values and interpolation (rulings RT-B,
@@ -227,4 +228,29 @@ private func portableFrame<E: Element>(_ element: E) throws -> Frame {
     let start = markdownParserRuns
     _ = Text("**b**")
     #expect(markdownParserRuns == start + 1, "one parse for one marked-up literal: \(markdownParserRuns - start)")
+}
+
+/// The rich-text demo (spec §6, `RT-O` item 10) renders headlessly through
+/// the portable text system — the path its SDL switch draws (human check RT4)
+/// — without a trap: every section's text is drawn, in more than the plain
+/// colours (red, blue, orange and the accent links among them), with
+/// decoration rects (underlines, the strikethroughs, the yellow background),
+/// and its literals reach the parser. Not one of the fourteen images.
+@MainActor
+@Test func theRichTextDemoDrawsThroughThePortableSystem() throws {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(defaultFont: [UInt8](Data(contentsOf: fontURL))))
+    let frame = Frame(contentSize: Size(width: Pixels(920), height: Pixels(640)), scaleFactor: 1, textSystem: system)
+    let before = markdownParserRuns
+    var root = richTextDemoContent()
+    frame.render(&root)
+    #expect(markdownParserRuns > before, "the demo's Markdown literals ran the parser")
+    let glyphColours = Set(frame.scene.glyphs.map { "\($0.color.h) \($0.color.s) \($0.color.l) \($0.color.a)" })
+    #expect(frame.scene.glyphs.count > 300 && glyphColours.count >= 5,
+            "\(frame.scene.glyphs.count) glyphs in \(glyphColours.count) colours")
+    for colour in [Color.red, .blue, .orange, .yellow] {
+        let resolved = frame.resolve(colour)
+        let drawn = frame.scene.glyphs.contains { $0.color.h == resolved.h && $0.color.l == resolved.l }
+            || frame.scene.rects.contains { $0.background.h == resolved.h && $0.background.l == resolved.l }
+        #expect(drawn, "\(colour) is drawn")
+    }
 }

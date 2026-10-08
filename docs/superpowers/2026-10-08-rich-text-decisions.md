@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-T`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-U`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -965,3 +965,95 @@ each):
 **Cost if wrong.** A rich modifier resolving to its default would draw plain
 text where the caller asked for spacing, a raised run or a monospaced face,
 with every other test green.
+
+---
+
+## RT-T — Lane 3: the front ends — what Foundation and the compiler measured, and the amendments
+
+Lane 3 (`LocalizedStringKey`, the inline Markdown parser, the attribute scope
+and `Text(AttributedString)`, the demo and the shared registries) built
+`RT-B`, `RT-C`, `RT-D` and `RT-O` items 4–6, 10, 12, 14 and 16, red first on
+stubs, then the implementation. Evidence: the Foundation oracle (spec test
+3.2: 2498 sources — the probe's 53, the extras, 7⁴ generated — 0
+disagreements), [`../probes/foundation-markdown-inline.swift`](../probes/foundation-markdown-inline.swift)
+re-run (every `M`/`N1`–`N21` row byte for byte) with arms `N22`–`N28`, wider
+generated corpora run against Foundation while building (about 650 000 sources over
+delimiters, brackets, autolinks, entities, raw HTML and Unicode punctuation,
+0 disagreements; not in the suite), a `swiftc` overload probe, and the
+stack-budget harness.
+
+**Ruling.**
+
+1. **An interpolated `Image` warns and traps; it cannot be refused at compile
+   time** (amends `RT-O` item 5). An `@available(*, unavailable)` overload
+   **loses to the generic `appendInterpolation<T>`**: Swift ranks a solution
+   using an unavailable declaration below any other, so `Text("v \(image)")`
+   compiled silently and wrote the image's description (the red stub;
+   measured with a standalone `swiftc -typecheck` of the same overload set,
+   exit 0, no diagnostic). The overload is instead
+   `@available(*, deprecated, message: "interpolating an Image into Text is
+   not offered … it traps")` and its body traps: the concrete overload
+   outranks the generic one, so the call site warns with the message and the
+   image's description is never drawn. Guard 3.10's Image arm asserts the
+   warning; exit test **3.10b** `interpolatingAnImageTraps` pins the trap.
+   **The guard's message checks were a broken instrument**: `messages` strips
+   the `warning: ` marker, so the red file's `!messages.contains("warning")`
+   could never see a warning — "no warning" is now `messages.isEmpty` (3.10's
+   compiling arm, both 3.12 arms).
+2. **`~` is a skip character for `*` and `_` runs.** cmark-gfm registers the
+   strikethrough extension's `~` as an emphasis character: when a `*`/`_` run
+   reads its neighbours for flanking, it walks back over every `~` before it
+   and forward over every `~` after it, and the start or end reached that way
+   reads as a newline. Measured: `*_**~` emphasises `_` where `*_**!` does
+   not (`N22`, `N23`), `**~~** ` is bold `~~` (`N24`), `a~~*_**` stays literal
+   (`N25`). The first spelling (no skip) disagreed with Foundation on 10 of
+   the 2498; reading a neighbouring `~` as a newline without walking, on 68;
+   walking both ways, on 0. The `~` runs' own flanking does not skip.
+3. **An interpolated value is a placeholder unit** (`RT-C` item 3): never
+   markup; for the delimiter rules neither whitespace nor punctuation (a
+   letter), so `"**\(n)**"` and `"_a\(v)b_"` take the format's style; it ends
+   a link destination, title, autolink, extended autolink, entity or raw HTML
+   tag unmatched (a value is never part of a URL). **Unmeasured against
+   SwiftUI** (whose formats carry `%@` there); no divergence is claimed, and
+   spec tests 3.5 and 3.7 hold the arms they name.
+4. **The trigger scan's list is amended** (`RT-O` item 14): `*`, `_`, `~`, a
+   backtick, `[`, `<`, `&`, `\`, `@`, **`://`** and `www.` — `://` in place of
+   `http`, because Foundation also links `ftp://x.org` and `HTTP://x.org`
+   (any case; the oracle's extras), every extended URL autolink needs `://`,
+   and `www.` is case-sensitive. A `!` needs a `[` and a `:` needs `//`, so
+   neither triggers alone. A format with no trigger parses to itself, so
+   skipping the parser changes no answer.
+5. **A `Text` literal builds off the main actor.** The key's content is
+   computed in a nonisolated getter and the parse counter (spec test 3.16) is
+   behind a lock: a `@MainActor` getter trapped (`SIGTRAP`, no message) when
+   `everyProductionTreeBuildsOnAOneMegabyteThread` built any tree holding a
+   literal on its secondary thread — measured by bisection, `Text("plain")`
+   alone. **A finding outside this lane's files, deferred**: `Text.font(_:
+   Font?)` and `ProposalText.font(_:)` trap the same way at `70ed000` (the
+   `font.map { .explicit($0) }` closure in a main-actor method), so the demo
+   writes `font(size:)`; only the 1 MB harness builds off the main thread.
+   Owner: none (a one-line `if let` in `TextModifiers.swift` when it matters).
+6. **Foundation's conversion of a link is copied, not reasoned**: a link's
+   (or an image's) content is flattened to plain text carrying only the
+   attributes outside it (`M22`, `N26`), an image inside a link is its alt
+   text with the link (`N27`), an empty destination sets no link (`N28`).
+   The destination is spelled as `URL(string:)`'s `absoluteString` by a
+   Foundation-free function: percent-encoding UTF-8 for what a URL cannot
+   hold, a `%` starting no escape, a second `#`, brackets outside an
+   authority and every authority `@` but the last; a non-digit port drops
+   the link (`URL(string:)` fails). Any other destination `URL(string:)`
+   rejects still links here — a known gap no corpus row reaches; owner none.
+7. **MetalUI does not re-export Foundation**: an app writing
+   `AttributedString` or `URL` imports Foundation (guard 3.12's fixtures do),
+   as it already does for `URL` in the file dialogs. Re-exporting Foundation
+   from `MetalUI` would change name lookup in every app for one type.
+8. **`AttributedTextTests`' helper reads a text's pushed runs** (`Text`'s own
+   fields pushed into each segment, what `+` concatenates): the red file read
+   a plain content as one bare segment, so `Text("f").font(.title)` compared
+   as fontless and 3.9's expectations could not have held.
+
+**Cost if wrong.** Item 2: a later cmark-gfm that drops the skip characters
+moves the generated corpus — 3.2 reddens on the macOS that ships it. Item 3:
+a format that SwiftUI parses differently around a value would draw a style
+SwiftUI does not; additive to fix. Item 5's finding: a tree built off the main
+thread with `Text.font(_:)` traps in a test harness, never in an app.

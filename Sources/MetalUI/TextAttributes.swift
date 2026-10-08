@@ -173,9 +173,33 @@ extension AttributeDynamicLookup {
     }
 }
 
-/// `attributed`'s runs as `Text` segments (ruling RT-D item 4).
+/// `attributed`'s runs as `Text` segments (ruling RT-D item 4): MetalUI's
+/// keys and Foundation's `link` from each run, and on Apple platforms
+/// `inlinePresentationIntent` (item 5) where a key left the field unset;
+/// every other attribute ignored (item 6).
 func textRunRequests(_ attributed: AttributedString) -> [TextRunRequest] {
-    [TextRunRequest(string: String(attributed.characters))]
+    typealias Keys = AttributeScopes.MetalUIAttributes
+    return attributed.runs.map { run in
+        var request = TextRunRequest(string: String(attributed[run.range].characters))
+        request.font = run[Keys.FontAttribute.self].map { .explicit($0) }
+        request.foreground = run[Keys.ForegroundColorAttribute.self]
+        request.background = run[Keys.BackgroundColorAttribute.self]
+        request.underline = run[Keys.UnderlineStyleAttribute.self]
+        request.strikethrough = run[Keys.StrikethroughStyleAttribute.self]
+        request.kerning = run[Keys.KerningAttribute.self]
+        request.tracking = run[Keys.TrackingAttribute.self]
+        request.baselineOffset = run[Keys.BaselineOffsetAttribute.self]
+        request.link = run.link?.absoluteString
+        #if canImport(Darwin)
+        if let intent = run.inlinePresentationIntent {
+            request = markdownFilled(request, MarkdownRun(text: "", bold: intent.contains(.stronglyEmphasized),
+                                                          italic: intent.contains(.emphasized),
+                                                          strikethrough: intent.contains(.strikethrough),
+                                                          code: intent.contains(.code)))
+        }
+        #endif
+        return request
+    }
 }
 
 extension Text {
@@ -191,7 +215,7 @@ extension Text {
     /// `LocalizedStringKey` initialiser; a literal is a key (ruling RT-B).
     @_disfavoredOverload
     public init(_ attributedContent: AttributedString) {
-        self.init(content: .runs(TextContent.joined(textRunRequests(attributedContent))))
+        self.init(content: collapsedTextContent(textRunRequests(attributedContent)))
     }
 }
 
@@ -200,6 +224,6 @@ extension ProposalText {
     /// `Text(_:)` reads it (ruling RT-D). Disfavoured, as `Text`'s.
     @_disfavoredOverload
     public init(_ attributedContent: AttributedString) {
-        self.init(content: .runs(TextContent.joined(textRunRequests(attributedContent))))
+        self.init(content: collapsedTextContent(textRunRequests(attributedContent)))
     }
 }

@@ -90,6 +90,20 @@
 //     N19 "*a*b*" → ["a" intent=1] ["b*"]
 //     N20 "x_y_ z" → ["x_y_ z"]
 //     N21 "&alpha;&hearts;&ThickSpace;" → ["α♥  "]
+//
+// Lane 3's arms (rich-text lane 3, 2026-10-08, macOS 27.0, compiled; the
+// re-run reproduced every M and N1–N21 row above byte for byte): N22–N25
+// are ruling RT-T item 2's skip characters (N23 is N22's separating arm), and
+// N26–N28 Foundation's conversion of a link's content (spec test 3.2's corpus
+// holds them too):
+//
+//     N22 "*_**~" → ["_" intent=1] ["*~"]
+//     N23 "*_**!" → ["*_**!"]
+//     N24 "**~~** " → ["~~" intent=2] [" "]
+//     N25 "a~~*_**" → ["a~~*_**"]
+//     N26 "[`c` *i* ~~s~~](u)" → ["c i s" link=u]
+//     N27 "[![i](s)](u)" → ["i" link=u]
+//     N28 "[a]()" → ["a"]
 
 #if LINUX_PROBE
 import Foundation
@@ -131,6 +145,12 @@ let corpus: [(String, String)] = [
     ("N11", "https://x.org."), ("N12", "&bogus;"), ("N13", "&nbsp;x"), ("N14", "\\`"), ("N15", "~~~a~~~"),
     ("N16", "[a]"), ("N17", "a\tb"), ("N18", "`` a ``"), ("N19", "*a*b*"), ("N20", "x_y_ z"),
     ("N21", "&alpha;&hearts;&ThickSpace;"),
+    // Lane 3 (ruling RT-T item 2): `~` is a skip character for `*`/`_` runs —
+    // N22 emphasises where its separating arm N23 does not; N24 reads past `~~`.
+    ("N22", "*_**~"), ("N23", "*_**!"), ("N24", "**~~** "), ("N25", "a~~*_**"),
+    // Lane 3: links flatten their content (N26, M22's rule), an image in a link
+    // is its alt text with the link (N27), an empty destination sets no link (N28).
+    ("N26", "[`c` *i* ~~s~~](u)"), ("N27", "[![i](s)](u)"), ("N28", "[a]()"),
 ]
 
 let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)

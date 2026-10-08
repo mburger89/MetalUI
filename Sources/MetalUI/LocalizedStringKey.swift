@@ -79,41 +79,125 @@ public struct LocalizedStringKey: ExpressibleByStringInterpolation, Equatable, S
         /// divergence 155).
         @MainActor
         public mutating func appendInterpolation(_ text: Text) {
-            segments.append(.value(text.string))
+            requireTextOperand(text, "interpolated")
+            segments.append(.runs(text.pushedRuns))
         }
 
         /// An `AttributedString`'s runs (`RT-O` item 4, `I3`), read as
         /// `Text(_:)` reads them — never its description.
         public mutating func appendInterpolation(_ attributedString: AttributedString) {
-            segments.append(.value(String(attributedString.characters)))
+            segments.append(.runs(textRunRequests(attributedString)))
         }
 
-        /// **Not offered**: SwiftUI draws an interpolated image inline (`I4`);
-        /// MetalUI has no `Text(Image)` (ruling RT-A, `RT-O` item 5).
-        @available(*, unavailable,
-                   message: "interpolating an Image into Text is not offered (Text(Image) is deferred, ruling RT-A)")
-        public mutating func appendInterpolation(_ image: Image) {}
+        /// **Not offered — traps**: SwiftUI draws an interpolated image inline
+        /// (`I4`); MetalUI has no `Text(Image)` (ruling RT-A). Deprecated, so
+        /// the call site warns with this message, and trapping, so the image's
+        /// description is never drawn: an `@available(*, unavailable)`
+        /// overload cannot refuse it at compile time, because the generic
+        /// overload outranks an unavailable one (ruling RT-T item 1, amending
+        /// `RT-O` item 5).
+        @available(*, deprecated, message: "interpolating an Image into Text is not offered (Text(Image) is deferred, ruling RT-A); it traps")
+        public mutating func appendInterpolation(_ image: Image) {
+            preconditionFailure("interpolating an Image into Text is not offered (Text(Image) is deferred, ruling RT-A)")
+        }
     }
 }
 
 /// How many times a key's format went through the Markdown parser — a work
 /// counter (`RT-O` item 14, spec test 3.16): a format with no trigger
-/// character never does.
-@MainActor var markdownParserRuns = 0
+/// character never does. Behind a lock, not the main actor: a `Text` is built
+/// wherever its tree is (a 1 MB thread in
+/// `everyProductionTreeBuildsOnAOneMegabyteThread`), and a main-actor counter
+/// read from the parse would put a runtime isolation check in every literal's
+/// initialiser (ruling RT-T item 5).
+var markdownParserRuns: Int { markdownParserCounter.value }
+
+/// The counter behind `markdownParserRuns`.
+private final class MarkdownParserCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
+private let markdownParserCounter = MarkdownParserCounter()
 
 extension LocalizedStringKey {
     /// The content a `Text` made from this key shows (ruling RT-B): the format
     /// parsed as inline Markdown with each value inserted verbatim in the
     /// format's style at its position.
-    @MainActor
     var textContent: TextContent {
-        .plain(segments.map { segment in
-            switch segment {
-            case .format(let string), .value(let string): string
-            case .runs(let runs): runs.map(\.string).joined()
+        var runs: [TextRunRequest] = []
+        let parses = segments.contains { segment in
+            if case .format(let format) = segment { return markdownMayApply(format) }
+            return false
+        }
+        if !parses {
+            // No trigger character in the format (`RT-O` item 14): no parser.
+            for segment in segments {
+                switch segment {
+                case .format(let string), .value(let string): runs.append(TextRunRequest(string: string))
+                case .runs(let segmentRuns): runs += segmentRuns
+                }
             }
-        }.joined())
+            return collapsedTextContent(runs)
+        }
+        markdownParserCounter.increment()
+        var units: [MarkdownUnit] = []
+        var values: [Segment] = []
+        for segment in segments {
+            if case .format(let format) = segment {
+                units += format.unicodeScalars.map { .scalar($0) }
+            } else {
+                units.append(.placeholder(values.count))
+                values.append(segment)
+            }
+        }
+        for piece in parseInlineMarkdown(units: units) {
+            switch piece.content {
+            case .text(let string):
+                runs.append(markdownRunRequest(string, piece.attributes))
+            case .placeholder(let index):
+                switch values[index] {
+                case .value(let string), .format(let string):
+                    runs.append(markdownRunRequest(string, piece.attributes))
+                case .runs(let valueRuns):
+                    // The value's own fields win; the format's reach the unset
+                    // ones (`M10b`, ruling RT-E item 2).
+                    runs += valueRuns.map { markdownFilled($0, piece.attributes) }
+                }
+            }
+        }
+        return collapsedTextContent(runs)
     }
+}
+
+/// A run of `string` with the attributes Markdown gave it (ruling RT-B item
+/// 5): strong → bold, emphasis → italic, strikethrough, code → monospaced,
+/// link → `link`.
+func markdownRunRequest(_ string: String, _ attributes: MarkdownRun) -> TextRunRequest {
+    markdownFilled(TextRunRequest(string: string), attributes)
+}
+
+/// `run` with the Markdown attributes filling the fields it left unset.
+func markdownFilled(_ run: TextRunRequest, _ attributes: MarkdownRun) -> TextRunRequest {
+    var run = run
+    if attributes.bold, run.weight == nil { run.weight = .bold }
+    if attributes.italic, run.italic == nil { run.italic = true }
+    if attributes.strikethrough, run.strikethrough == nil { run.strikethrough = .single }
+    if attributes.code, run.monospaced == nil { run.monospaced = true }
+    if let link = attributes.link, run.link == nil { run.link = link }
+    return run
+}
+
+/// `runs` as a `Text`'s content: empty runs dropped, neighbours that agree
+/// joined (`TextContent.joined`), and a single run that sets no field the
+/// plain content it is.
+func collapsedTextContent(_ runs: [TextRunRequest]) -> TextContent {
+    let joined = TextContent.joined(runs.filter { !$0.string.isEmpty })
+    if joined.isEmpty { return .plain("") }
+    if joined.count == 1, joined[0] == TextRunRequest(string: joined[0].string) { return .plain(joined[0].string) }
+    return .runs(joined)
 }
 
 extension Text {

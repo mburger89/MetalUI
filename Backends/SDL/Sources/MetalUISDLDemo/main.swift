@@ -54,6 +54,9 @@ func runDemo() throws {
     // `METALUI_LOOKS_DEMO=1`: the looks demo (human check S4 — the colour
     // section's swatches and scheme toggle; the window's decorations stay with
     // the system theme, `CR-M`), with the app's dark palette override.
+    // `METALUI_RICH_TEXT_DEMO=1`: rich text (human check RT4, ruling RT-O item
+    // 10) — through the portable text system; a code span draws the default
+    // face unless a monospaced family is registered (`TE-B`, `RT-O` item 12).
     let environment = ProcessInfo.processInfo.environment
     let size = Size(width: Pixels(920), height: Pixels(560))
     let metalViewDraws = MetalViewDemoDraws()
@@ -65,7 +68,10 @@ func runDemo() throws {
     if environment["METALUI_LOOKS_DEMO"] == "1" {
         app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
     }
-    let window = environment["METALUI_SERVICES_DEMO"] == "1"
+    let window = environment["METALUI_RICH_TEXT_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 rich text", size: Size(width: Pixels(920), height: Pixels(640)),
+                             content: richTextDemoContent)
+        : environment["METALUI_SERVICES_DEMO"] == "1"
         ? try openServicesDemoWindow(app, title: "MetalUI — SDL3 platform services")
         : environment["METALUI_LOOKS_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 looks", size: Size(width: Pixels(1180), height: Pixels(880)),

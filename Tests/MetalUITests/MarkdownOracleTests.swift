@@ -24,16 +24,19 @@ private func foundationRuns(_ source: String) throws -> [MarkdownRun] {
     })
 }
 
-/// Sources beyond the probe's rows that settled a parser rule against
-/// Foundation (each recorded in `foundation-markdown-inline.swift`'s header,
-/// arms `N22`…).
+/// Sources beyond the probe's `M`/`N1`–`N21` rows that settled a parser rule
+/// against Foundation while lane 3 built it — compared live here; the ones a
+/// ruling rests on are also recorded as the probe's arms `N22`–`N28` (ruling
+/// RT-T item 2's skip characters, a link's flattened content, an empty
+/// destination).
 let markdownOracleExtraSources = [
     "[`c` *i* ~~s~~](u)", "**[a](u)**", "*a [b](u) c*", "[a *b](u) c*", "x http://a.b/*c*", "*http://x.org*",
     "see www.x.org/a_(b) end", "a.http://x.org", "xhttp://x.org", "HTTP://x.org", "ftp://x.org", "http://x",
     "www.x", "www.x_y.z", "a_b@c.org", "*a@b.org*", "x@y", "a@b.c-", "a@b.org.", "[a](u v)", "[a](u%20v)",
     "[a](é)", "[a](<u>)", "[a](\\*u)", "[a](&amp;u)", "<a@b.org>", "<foo:bar>", "<x>", "\\a", "a\\", "`a",
     "&#0;", "&#x110000;", "&#12345678;", "![a *b*](s)", "[![i](s)](u)", "[a](u) [b]", "***a** b*",
-    "*a **b***", "~a~~", "~~a~", "_a_", "a~~b~~c", "a~b~c",
+    "*a **b***", "~a~~", "~~a~", "_a_", "a~~b~~c", "a~b~c", "*_**~", "*_**!", "**~~** ", "a~~*_**", "[a]()",
+    "[www.x.org](u)", "[ www.x.org", "aw@b.org", "<a href=\"*x*\">", "` \n`",
 ]
 
 /// **3.2** (ruling RT-B items 2–3). On the probe's corpus, the sources above,

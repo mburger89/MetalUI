@@ -902,6 +902,39 @@ the configurator's icons.
 - [ ] **X5. The configurator's icons** (light and dark) on Linux look as on
   macOS (`PX-C`; divergence 138 — its icons are untagged). **Observed:**
 
+## RT. Rich text — Markdown, interpolation, attributed strings, decorations (user request 2026-10-02, not a plan task; provisional letter, settled at the merge)
+
+*Source: record §83 `83-rich-text.md`, rulings `RT-A`…
+(`docs/superpowers/2026-10-08-rich-text-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-rich-text-design.md`).* Pinned headless:
+the parser against Foundation's on 2498 sources (`theParserAgreesWithFoundationOnTheCorpus`),
+the runs every spelling builds (`LocalizedStringKeyTests`, `AttributedTextTests`),
+styled measurement and paint on both text systems (`StyledTextSeamTests`,
+`StyledTextOracleTests`, `RichTextTests`, `RichTextPaintTests`,
+`RichTextPortableWindowTests`) and the demo drawn headlessly through the
+portable system (`theRichTextDemoDrawsThroughThePortableSystem`). What nothing
+headless sees: the look on a real display, VoiceOver, the cursor.
+
+- [ ] **RT1. The rich-text demo on macOS**, `METALUI_RICH_TEXT_DEMO=1 swift run
+  MetalUIDemo`: every Markdown form reads as styled — bold, italic, bold
+  italic, struck, monospaced code, an accent-coloured link and bare URL — in
+  light and dark (`RT-B`, `RT-K`). **Observed:**
+- [ ] **RT2. Underlines and strikethroughs** at 1× and 2× displays look crisp
+  enough beside a SwiftUI `Text(…).underline()` (divergence 152's unsnapped
+  band, `RT-J`). **Observed:**
+- [ ] **RT3. The mixed-size paragraph**: line spacing looks even and no glyph
+  is clipped by its line; the superscript sits above the line without
+  touching the line above (`RT-G`). **Observed:**
+- [ ] **RT4. The same demo on Linux and Windows** (SDL,
+  `METALUI_RICH_TEXT_DEMO=1`, `Backends/SDL`'s demo): matches macOS by eye,
+  except code spans, which draw the default face unless the app registered a
+  monospaced family (`TE-B`, `RT-O` item 12). **Observed:**
+- [ ] **RT5. VoiceOver** on a styled `Text` reads the whole sentence once,
+  without Markdown markers; a link is read as plain text (`RT-L` item 1,
+  divergence 150). **Observed:**
+- [ ] **RT6. Clicking a link** does nothing and the cursor does not change
+  (divergence 150). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
