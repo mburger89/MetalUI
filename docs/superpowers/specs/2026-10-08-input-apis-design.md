@@ -359,8 +359,8 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 2.23 | `aKeyboardOrAccessibilityOpenPassesNoLocation` (Shift-F10, `MN-G`; show-menu, C11 → `nil`) | absent | pass the region's origin → red |
 | 2.24 | `aLocatedMenuThroughARotationReportsWhereOnItselfItWasPressed` | absent | skip `localPoint` → red |
 | 2.25 | `contextMenuResolvesByClosureArity` (guard, plain `import MetalUI`): `.contextMenu { Button("a") {} }` and `.contextMenu { p in Button("a") { _ = p?.x } }` compile on a `Box` and a proposal `Text`; negative `{ a, b in … }` fails | positive fails | remove the located overload → positive fails |
-| 2.26 | `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena` (`CI-AB` item 1; lane A) | absent (the stale arena is fed) | restore `guard buttonArena == nil` → red |
-| 2.27 | `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent` (`CI-AB` item 2; lane A) | absent (the old leaves re-begin) | re-begin the old arena's leaves on `.began` → red |
+| 2.26 | `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena` (`CI-AB` item 1; lane A) | absent (the stale arena is fed; red at `3b14cf3`: the press answers `false`, A reports 105, `CI-AF` item 2) | restore `guard buttonArena == nil` → red |
+| 2.27 | `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent` (`CI-AB` item 2; lane A) | absent (the old leaves re-begin; red at `3b14cf3`: A reports 1.2 at B's point, `CI-AF` item 2) | re-begin the old arena's leaves on `.began` → red |
 | — | Every existing arena test (`GestureArena…`, `IX-C`/`IX-D`/`DN-D` pins) stays green **unedited** — the forwarding overloads keep their spellings | — | — |
 
 ### §4.3 Lane 3 — integration, wheel, pointer style, demo
@@ -413,6 +413,12 @@ kept); every other 3.x in lane 3.
 
 Guards added: **5** (1.1, 1.2, 2.1, 2.2, 2.25), each mutated red once by the
 lane that adds it.
+
+**Lane 2's rows were run by lane A** (`CI-AE`): every §4.2 mutation, 3.1,
+3.26–3.34, 3.31b, 2.26, 2.27 and guards 2.1, 2.2, 2.25 reddened the named test
+against the full unfiltered suite at `c33e7de` — the spellings applied and
+every test reddened are `CI-AF` items 3–4 (a guard's "remove the overload" was
+spelled as making it internal, so the `@testable` tests still compile).
 
 ## §5 CI and commands
 

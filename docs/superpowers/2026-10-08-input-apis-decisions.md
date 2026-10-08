@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AF`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AG`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1247,3 +1247,129 @@ canvas mid-glide; the next flick restarts it.
 4. Lane B and lane C both touch `docs/migration.md` and the inventory map;
    C edits on top of B's commit (sequential, as `CI-W`).
 
+
+## CI-AF — Lane A: the sheet issues are environmental; `CI-AB` built; every lane-2 mutation reddens its named test
+
+**Ruling.** Lane A (commits `3b14cf3` red, `c33e7de` fix) answers `CI-AE`
+item 1, builds `CI-AB` and verifies lane 2. Nothing in it renames a
+provisional name (**MetalCreator: every name in the header stands**).
+
+1. **The five `AppKitPresentationTests` sheet issues are environmental — a
+   locked screen plus the number of AppKit windows opened before them — not
+   lane 1's `AppKitPlatform.swift`.** Measured, screen locked throughout
+   unless said otherwise:
+   - At `70ed000` the unfiltered native suite passes, **2672 tests in 3
+     suites** (165 s); at `7157e67` (lane 1 after its review, recorded green
+     as 2687 in `CI-Z` item 7) it fails with **the same 5 issues** (2687
+     tests, 458 s) — so lane 2 did not cause them, and `CI-Z`'s green run was
+     taken unlocked.
+   - Filtered alone (`--filter AppKitPresentationTests`) all nine pass on the
+     branch, as at `70ed000`.
+   - The 728 tests that run before `appKitOpenDialogIsASheetWithTheDeclaredTypes`
+     in the unfiltered order, plus it, reproduce the failure under a filter.
+     Halving does not (neither half alone fails). The 717 of them that exist
+     at `70ed000` plus it pass; with lane 1's eleven new tests added, it
+     fails; a one-at-a-time removal leaves five of them needed together
+     (`appKitOtherButtonsAndRightDragReachOnInput`,
+     `appKitBackAndForwardButtonsCarryTheirButtonNumbers`,
+     `aControlDragOnAppKitIsASecondaryDrag`,
+     `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`,
+     `theHostViewsTrackingAreaRequestsCursorUpdates` — each opens and closes
+     one AppKit window, no shared behaviour), and with those five kept,
+     removing **any five** of the old window-opening tests instead (two
+     disjoint sets tried: five drag-and-drop tests, five menu tests) makes it
+     pass again. A count, not a hunk: there is no `AppKitPlatform.swift` hunk
+     to bisect to.
+   - **Unlocked, the five pass in the unfiltered suite**: the full run under
+     mutation G2.25 (a guard-only access change, below) started 08:34 with
+     the screen unlocked (lock probe at 08:39: no `CGSSessionScreenIsLocked`,
+     `displayAsleep main: 0`) and finished with **1 issue** — the guard it
+     targeted — every sheet test passing (`appKitOpenDialogIsASheet…` in
+     1.2 s). The screen locked again at 08:41, so the unmutated re-take below
+     is a locked run.
+   Recorded as environmental. **Owed by whichever later lane next has an
+   unlocked screen**: one unmutated unfiltered run reading 0 issues. Not
+   fixed here (lane 1's and `AppKitPresentationTests`' files are outside lane
+   A); if it recurs unlocked, the window teardown of the AppKit test helpers
+   is the place to look.
+2. **`CI-AB` built as ruled.** `Window.buttonPress` drops a live arena of the
+   same button number before forming (`if buttonArena != nil,
+   buttonArenaButton == button { buttonArena = nil }`, silently, no
+   `onEnded`); `Window.dispatchPinch` drops the pinch arena when a `.began`
+   names a kind it holds active (`GestureArena.holdsActivePinch(of:)`,
+   internal) and forms the new one at the event's position. A different
+   button's press while an arena is alive is still ignored.
+   - **Red at `3b14cf3`**: 2.26 — `platform.simulateInput(odown(200, 100)) →
+     false` and the second drag fed A: `["A 105,0 @50,50", "A end"]`; 2.27 —
+     `["A 110 @50,50", "A 120 @170,70", "A end"]` (A re-begun at B's point).
+     Suite 2725 tests, 9 issues (these 4 expectations + the 5 sheet issues).
+   - **Green at `c33e7de`**: both pass.
+3. **Mutations** — each applied once to `c33e7de`, restored from a copy,
+   native build, full unfiltered `--no-parallel` suite (every run 2725 tests;
+   the 5 locked-screen sheet issues are in each run's count but are not
+   listed), `git status --short` clean after each, no hang (the longest run
+   532 s; the hang threshold was 14 min because the locked-screen sheet
+   timeouts add five minutes to a normal run). Every one reddens the test
+   spec §4 names for it. Spellings, where §4's words leave a choice:
+
+   | # | Spelling (file) | Reddened |
+   | --- | --- | --- |
+   | 2.3 | spatial tap records `leaf.pressPoint` (`Gesture.swift` release) | `aSpatialTapReportsItsReleasePointInLocalSpace`, `aSpatialTapInGlobalSpaceReportsTheWindowPoint`, `aSpatialDoubleTapReportsTheSecondRelease` |
+   | 2.4 | spatial tap point taken `in: .local` | `aSpatialTapInGlobalSpaceReportsTheWindowPoint` |
+   | 2.5 | the first release of a multi-tap records the location, later ones keep it | `aSpatialDoubleTapReportsTheSecondRelease` |
+   | 2.6 | `ArenaLeaf.local` skips `region.localPoint` | `aSpatialTapThroughARotationReportsWhereOnItselfItWasTapped`, `pointConsumersReadTheDeclarersLocalPoint` |
+   | 2.7 | move's and release's `Value` carry `modifiers: []` (the press's in the test) | `aDragValueCarriesTheModifiersOfItsEvent` |
+   | 2.8 | move's `Value` taken `in: .local` | `aGlobalDragReportsWindowPoints` |
+   | 2.9 | `isLive`: `.magnify, .rotate` answer `true` | `aPressArenaFailsPinchLeavesAndNonPrimaryDrags` |
+   | 2.10 | the click is live, and appended, in every mode but `.pinch` | `aButtonArenaHasOnlyItsButtonsDragLeaves`, `aMiddleDragReachesOnlyAMiddleButtonDragGesture` |
+   | 2.11 | `distance > minimum` | `aSecondaryDragActivatesAtItsMinimumDistance`, `aDragChangesFromExactlyItsMinimumDistanceInLocalYDownSpace`, `aDragOnAContentShapeInsetElementReadsTheElementsOwnSpace`, `aProposalGestureModifierRecognizesAsTheLegacyOneDoes` |
+   | 2.12 | `pinchAmount = (1 + Σ)(1 + δ) − 1` | `magnificationIsCumulativeAndAdditiveFromOne`, `aMagnifyActivatesOnlyAtItsMinimumScaleDelta`, `aMagnifyAndARotateOnNestedElementsDoNotBlockEachOther`, `rotationIsCumulativeFromTheSeamsClockwiseDeltas` |
+   | 2.13 | a pinch leaf starts on its first event | `aMagnifyActivatesOnlyAtItsMinimumScaleDelta` and ten more (`aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent`, `aMagnifyAndARotateOnNestedElementsDoNotBlockEachOther`, `aMagnifyThatNeverActivatedEndsWithNoCallback`, `aPinchArenaRunsNoTapDragOrClick`, `aPinchIsWithdrawnByDisabledAndAllowsHitTesting`, `aSimultaneousMagnifyAndRotateCompositionReportsBoth`, `magnificationIsCumulativeAndAdditiveFromOne`, `rotationIsCumulativeFromTheSeamsClockwiseDeltas`, `startLocationAndAnchorAreTheFirstEventsLocalPoint`, `theInnermostMagnifyWinsUnlessAnOuterOneIsHighPriority`) |
+   | 2.14 | an unstarted pinch leaf becomes ready at the end and is marked activated (both halves: `pinch` and the resolve guard) | `aMagnifyThatNeverActivatedEndsWithNoCallback` |
+   | 2.15 | `rotate` passes `-event.rotation` | `rotationIsCumulativeFromTheSeamsClockwiseDeltas`, `aMagnifyAndARotateOnNestedElementsDoNotBlockEachOther` |
+   | 2.16 | start point and anchor recomputed after every delta | `startLocationAndAnchorAreTheFirstEventsLocalPoint` |
+   | 2.17 | a pinch leaf is held off by any unfailed leaf ahead | `aMagnifyAndARotateOnNestedElementsDoNotBlockEachOther`, `startLocationAndAnchorAreTheFirstEventsLocalPoint` |
+   | 2.18 | normal members sorted outermost first | `theInnermostMagnifyWinsUnlessAnOuterOneIsHighPriority`, `anInnerGestureBeatsAnOuterNormalOneOnAChildOrOneElement`, `aFailedHigherGestureHandsThePressToTheNextOne`, `aDraggableBeatsATapAClickAndALongPressOnItsElementAndItsChildren`, `aDragGestureThatOutranksADraggableWinsAndAnOuterOneLoses` |
+   | 2.19 | `visit`'s `.simultaneous` passes earlier siblings as `ahead` in pinch mode | `aSimultaneousMagnifyAndRotateCompositionReportsBoth` |
+   | 2.20 | the click is live, and appended, in every mode | `aPinchArenaRunsNoTapDragOrClick`, `aButtonArenaHasOnlyItsButtonsDragLeaves`, `aMiddleDragReachesOnlyAMiddleButtonDragGesture` |
+   | 2.21 | `dispatchContextMenu`'s `location = mouse.position` (`MenuSession.swift`) | `aLocatedContextMenuReceivesThePressPointInLocalSpace`, `aDeferredLocatedMenuReceivesThePressPointNotTheRelease`, `aLocatedMenuThroughARotationReportsWhereOnItselfItWasPressed` |
+   | 2.22 | `buttonRelease` opens the pending menu with its location moved by release − press | `aDeferredLocatedMenuReceivesThePressPointNotTheRelease` |
+   | 2.23 | `openContextMenu(of:)` passes `location: (0, 0)` (the region's origin) | `aKeyboardOrAccessibilityOpenPassesNoLocation` |
+   | 2.24 | `inRegion = mouse.position` (no `localPoint`) | `aLocatedMenuThroughARotationReportsWhereOnItselfItWasPressed` |
+   | 2.26 | the `CI-AB` line in `buttonPress` deleted (the `guard buttonArena == nil` alone) | `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena` |
+   | 2.27 | the `CI-AB` line in `dispatchPinch` deleted (the old leaves re-begin) | `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent` |
+   | 3.1 | the proposal `onTapGesture` overload passes `.global` (`GestureModifiers.swift`) | `onTapGestureWithALocationRunsOnBothVocabulariesInLocalSpace` |
+   | 3.26 | `buttonPress` forms `.press` for every button but 1 | `aMiddleDragReachesOnlyAMiddleButtonDragGesture`, `aMiddleDragDuringAPendingPrimaryTapSequenceDisturbsNeither`, `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena`, `anOtherPressDismissesAPopoverAndAnOpenInWindowMenuTakesItAndPinches` |
+   | 3.27 | `if false && secondaryDragIsDeclared(…)` | `aSecondaryDragOpensNoContextMenu`, `aSecondaryClickWithASecondaryDragDeclaredOpensTheMenuOnRelease`, `aDeferredLocatedMenuReceivesThePressPointNotTheRelease` |
+   | 3.28 | `buttonRelease` never opens the pending menu | `aSecondaryClickWithASecondaryDragDeclaredOpensTheMenuOnRelease`, `aDeferredLocatedMenuReceivesThePressPointNotTheRelease` |
+   | 3.29 | `if true \|\| secondaryDragIsDeclared(…)` | `withoutASecondaryDragTheMenuStillOpensOnThePress` and 38 more context-menu, drawn-menu and presentation tests (every right-press-opens test: `theInnermostContextMenuOpens`, `aRightPressOverAContextMenuPresentsItsItemsToThePlatform`, `aPresentationOnAHigherLayerBlocksAContextMenuBeneath`, …) |
+   | 3.30 | `.button(n)` also admits `.primary` drags | `secondaryAndOtherPressesStillNeverPressTapOrDragPrimaryGestures`, `aButtonArenaHasOnlyItsButtonsDragLeaves`, `aMiddleDragReachesOnlyAMiddleButtonDragGesture`, `withoutASecondaryDragTheMenuStillOpensOnThePress` |
+   | 3.31 | `dispatchMenuSession` answers `false` for `.otherMouseDown`, `.otherMouseUp`, `.magnify`, `.rotate` | `anOtherPressDismissesAPopoverAndAnOpenInWindowMenuTakesItAndPinches` |
+   | 3.31b | `.magnify, .rotate` dropped from `trackTooltip`'s hide arm (`Tooltip.swift`) | `aMagnifyOrARotateHidesTheTooltip` |
+   | 3.32 | a button press also clears `gestureArena` (one slot's effect) | `aMiddleDragDuringAPendingPrimaryTapSequenceDisturbsNeither` |
+   | 3.33 | the pinch arena forms at `lastMousePosition ?? position` | `aMagnifyEventReachesTheMagnifyGestureUnderThePointer` |
+   | 3.34 | `Frame.registerHandlers`' pointer hitbox registered without `enabled` | `aPinchIsWithdrawnByDisabledAndAllowsHitTesting` and 25 more disabled-gate pins (`everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`, `theGateReadsTheEnvironmentValueNotTheModifier`, …) |
+
+4. **The three guards, mutated red once** (same procedure): **G2.1**
+   `MouseButton.other` internal → `anOutsideModuleCanSpellTheInputAPIGestures`;
+   **G2.2** `StyledElement.onTapGesture(count:coordinateSpace:perform:)`
+   internal (the plain-import spelling of "remove the overload": the
+   `@testable` tests still compile) → `onTapGestureResolvesByClosureArity`;
+   **G2.25** `StyledElement.contextMenu`'s located overload internal →
+   `contextMenuResolvesByClosureArity`. Each reddened only its guard.
+5. **Counts** at `c33e7de` after `swift package clean`, native build, unfiltered
+   `--no-parallel` (screen locked): **2725 tests in 3 suites** (2723 + 2.26,
+   2.27), `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only
+   `warning:` SwiftPM's deprecation notice, **5 issues — the locked-screen
+   sheet issues of item 1, nothing else**. `swift build --build-tests`
+   (default build system): 0 warnings. `closeout-inventory-check.sh` and
+   `closeout-undocumented.sh` print nothing; the live census reads 2602 rows
+   (the recorded `closeout-public-api.tsv` is still `70ed000`'s — lane C
+   re-records it, `CI-AE`). **Demo pixels** (`compare.sh`, offscreen,
+   `70ed000` → `c33e7de`): all fourteen images **0 differing**, scene dumps
+   identical, every control at its recorded value. No `Backends/SDL` change,
+   so no SDL or Linux-image run is owed by this lane.
+
+**Cost if wrong.** Item 1: if the count threshold is not the whole story, an
+unlocked run shows the five issues again — the owed unlocked re-take catches
+it, and the hunt then starts at the AppKit test helpers' window teardown.
