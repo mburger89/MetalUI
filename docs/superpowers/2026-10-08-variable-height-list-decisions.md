@@ -8,7 +8,7 @@ Record: `../record/82-variable-height-list.md`. Branch
 branch's reserved range **145–149** (parallel branches hold the others; the
 header's next-label line is the merge's to settle).
 
-**Next unused id: `VL-V`.** (Moves in the commit that appends a ruling; to
+**Next unused id: `VL-W`.** (Moves in the commit that appends a ruling; to
 find it, read this file's last `## VL-` heading.)
 
 Evidence (each header carries its recorded output and how to run it):
@@ -611,3 +611,58 @@ amendments, folded into the spec:
 uniform path keeps its code (MU is the separating arm: it reddens the three
 named pins and 36 other existing tests), the fourteen offscreen images read 0
 px against `70ed000`, and the full unfiltered suite is green (record §82 §4).
+
+## VL-V — Lane 3 as landed: the demo's shape, how 3.2 counts built rows, the record section
+
+**Ruling.** Lane 3 (record §82 §6) landed spec §5's lane 3 and `VL-K` with
+these amendments, folded into the spec:
+
+1. **The demo's root is a `Column` around a `Component`.** A `Component` is
+   not an `Element`, so `variableListDemoContent()` returns `Column(gap: 12) {
+   VariableListDemo() }` (padding 24, greedy frame, `.surface`); the
+   `Component` holds the selection `@State` (a `Set<Int>`, `DD-AG` item 3's
+   reason for not an optional) and a layout-transparent `ScrollViewReader`
+   over two parts, each its own function: `variableListDemoHeader(selected:jump:)`
+   (title, "Jump to row 250", "Selected: n") and
+   `variableListDemoList(selection:)` (a `ScrollView` holding
+   `List(_:selection:rowContent:)` over 300 rows, each `Text(…).padding(6)`,
+   the scroller `.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0,
+   maxHeight: .infinity)` — greedy, answering below its content, `LR-ET`).
+   No `estimatedRowHeight:` (the running mean, divergence 147). The jump is
+   `proxy.scrollTo(250, anchor: .top)`.
+2. **3.1's arm builds the `Component`'s parts too**
+   (`buildTheVariableListDemo()`, its own `@inline(never)` frame as
+   `buildTheServicesDemo()`): the root alone holds the `Component`'s value,
+   whose body the window builds at layout, so building only the root would
+   not exercise the body's frame.
+3. **3.2 counts built rows from element bounds, not the published tree.** The
+   accessibility tree publishes **no** rows from an unbounded window (AB-X:
+   `indexesRows = windowIsBounded && …`, and the prepaint suppression), so
+   under 3.2's mutation (the `ScrollView` removed, every row built) an
+   AX-based count reads 0 and the `< data.count` assertion cannot redden. Each
+   row is the named element `child(of: list, at: 0, name: "<id>")` (`VL-J`),
+   so the test counts `Window.lastElementBounds` keys whose component is
+   `.named` with a row id. The published tree is still checked in the
+   bounded, scrolled frame: the table's `rowCount` is 300 and its row indices
+   equal the built rows. The built-row assertions run **at rest after
+   opening, before** the scroller is required, so the mutation reddens them
+   rather than only the `try #require` on the scroller.
+4. **3.2's frame counts, derived before the run and read as derived**:
+   opening **2** (the cold frame builds and measures all 300 rows, `MP-I`,
+   and asks once for its stale window; the second frame is windowed against a
+   fully measured index, `D = 0`); after the 4000pt scroll **1** (exact prefix
+   offsets, `D = 0`, not stale), the stored offset exactly 4000 (no
+   adjustment, no clamp). Both are independent of the text system's line
+   heights, which is why the demo's text could be real `Text` (TX-B forbids a
+   text *fixture* whose metrics a literal depends on; no literal here does).
+5. **The record section is §6**, not §5 as the lane brief said: §5 is lane 2's
+   review fixes (`5f342c5`).
+6. **The divergences header is left for the merge** (this branch adds 145–147
+   and amends 84: 108 live on this branch); the human-checks group is headed
+   `VL` provisionally (spec §8).
+7. **Mutation spellings** (each on the lane's implementation commit, one file
+   restored from a copy, full unfiltered native suite; record §82 §6 names what
+   each reddened): M3.1 `everyProductionTreeBuildsOnAOneMegabyteThread`'s
+   `windowsDefaultStackSize` → `64 * 1024`; M3.2 `ScrollView { … }` → `Box {
+   … }` in `variableListDemoList(selection:)` (the red-before stub's
+   spelling).

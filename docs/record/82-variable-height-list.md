@@ -301,3 +301,87 @@ succeeded=true deprecations=2`, 0 `error:`, the only `warning:` SwiftPM's
 deprecation notice; `swift build --build-tests` (default build system) 0
 warnings. Guards unmoved (176). No source, image or `Backends/SDL` change, so
 pixels and the Linux image are not re-taken.
+
+## §6 Lane 3 — demo, documents, platforms (2026-10-08)
+
+Commits `2e2656a` (red: 3.2 and the 3.1 arm, the demo stubbed without its
+`ScrollView`) and `50b271a` (the demo and both entry points); this section,
+`VL-V` and the documents in the docs commit after. Spec §5 lane 3 and `VL-K`,
+amended by `VL-V`.
+
+- **Landed.** `Sources/MetalUIDemoContent/VariableListDemo.swift`:
+  `variableListDemoContent()` (public, doc comment, census row), a `Column`
+  around the `VariableListDemo` `Component` (selection `@State` as a
+  `Set<Int>`), a layout-transparent `ScrollViewReader` over
+  `variableListDemoHeader(selected:jump:)` ("Jump to row 250" →
+  `proxy.scrollTo(250, anchor: .top)`, "Selected: n") and
+  `variableListDemoList(selection:)` — a greedy `ScrollView` holding
+  `List(_:selection:rowContent:)` over 300 rows, `Text("Row i — …")` in three
+  lengths with `.padding(6)`, no declared estimate. `METALUI_LIST_DEMO=1`
+  opens it in `MetalUIDemo` (920 × 560) and in `MetalUISDLDemo`.
+- **Red-before** (stub at `2e2656a`, filtered native run of 3.2: "Test run with
+  1 test in 0 suites failed after 0.506 seconds with 3 issues"):
+  `VariableListDemoTests.swift:52` `opening == 2` (1: an unbounded list settles
+  in one frame); `:55` `atRest.count < variableListDemoItems.count` (300 of
+  300 built); `:57` `try #require(window.lastScrollRegions.first)` (no
+  scroller). The 3.1 arm passed against the stub (it builds whatever the demo
+  is; its instrument is M3.1). The first spelling counted rows from the
+  published tree and read 0 under the stub — AB-X publishes no rows from an
+  unbounded window — so the count moved to element bounds before the red
+  commit (`VL-V` item 3).
+- **3.2's literals as derived and as read**: opening 2, after the 4000pt scroll
+  1, stored offset exactly `before + 4000` (`VL-V` item 4).
+- **Mutations** on `50b271a`, the file restored from a copy after each, full
+  unfiltered native `--no-parallel` suite, `git status --short` clean of
+  `Sources`/`Tests` after each:
+
+| # | Mutation | Reddened |
+|---|---|---|
+| M3.2 | `ScrollView { … }` → `Box { … }` in `variableListDemoList(selection:)` | `theVariableListDemoSettlesHeadless` (`:52` `opening == 2`, `:55` the built-row count 300, `:57` no scroller; "2718 tests in 3 suites failed after 163.381 seconds with 3 issues") |
+| M3.1 | `everyProductionTreeBuildsOnAOneMegabyteThread` at `64 * 1024` | `everyProductionTreeBuildsOnAOneMegabyteThread` (`.signal(SIGBUS)`; "2718 tests … failed after 162.755 seconds with 1 issue") |
+
+  M3.1 is the spelling `VL-R` item 3 asked for, but the whole harness already
+  fails at 256 KiB (the separating control), so it says nothing about the arm.
+  **A separating measurement of the arm alone** (filtered, not a mutation
+  claim): `buildEveryProductionTree()`'s body replaced by
+  `buildTheVariableListDemo()` alone — `.signal(SIGBUS)` at 16 and 64 KiB,
+  passes at 128, 256 and 512 KiB; replaced by `_ = 0` — passes at 16 and 64
+  KiB. So the arm's own frames need between 64 and 128 KiB on macOS arm64
+  debug, and the harness at 64 KiB sees them. (A first attempt that put
+  `return` ahead of the existing body SIGBUSed at 256 KiB even "empty": a
+  debug build reserves the frame for every temporary in the function at
+  entry, whatever returns early — `buildTheServicesDemo()`'s note.)
+- **Suite** at `50b271a` after the last restore, native, unfiltered,
+  `--no-parallel`: **"Test run with 2718 tests in 3 suites passed after
+  161.106 seconds"** (2717 + 3.2; the 3.1 arm is inside an existing test), `FR-J
+  no-argument frame: succeeded=true deprecations=2`, 0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice; `swift build --build-tests`
+  (default build system) 0 warnings. No guard added (176, §4).
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 70ed000 HEAD` at
+  `50b271a` — controls as recorded (light vs dark 1048576, default vs modal
+  1031003, f0 vs f3 0, chrome legacy vs proposal 0, indicator rects 0), and
+  **all fourteen images `differing=0`, scene identical**.
+  `Tests/MetalUICrossPlatformTests/Expected.swift` unedited against `70ed000`
+  (and the three `PortableTests` ones).
+- **`Backends/SDL`** (`swift test $(python3 scripts/fetch-accesskit.py
+  --print-flags)` from `Backends/SDL`, macOS): **24 + 83** passed (as at
+  `70ed000`, record §80 §5). **Linux image** (`docker build -t
+  metalui-portable …`, then the `docker run … swift build --build-tests &&
+  swift test --skip-build` of spec §7, volume
+  `metalui-sdl-build-variable-height-list`): **24 + 80** passed (as record §80
+  §5).
+- **Imports**: `MetalUILayout` imports only `MetalUICore`, `MetalUIScene`
+  only `MetalUIShaderTypes`; no diff under either against `70ed000`.
+- **Documents**: `docs/divergences.md` rows 145, 146, 147 and 84 amended (the
+  header's count and next label left for the merge: 108 live on this branch);
+  `docs/migration.md` (the `List` row in Part 1, and the behaviour-change row
+  for `VL-A`/`VL-I`: a content-sized list's `style.size.height` is `.auto`);
+  `docs/api-overview.md` (`List` in the legacy layout and controls
+  paragraphs); `docs/verification/human-checks.md` group VL (VL1–VL5,
+  provisional letter); `closeout-inventory-map.tsv`'s `F list` row (145–147,
+  `VL-A`, `VL-I`, content-sized rows); the census re-recorded **2536 → 2540**
+  (the three `rowContent:` initialisers and `variableListDemoContent`); both
+  inventory scripts print nothing.
+- **Not taken**: the real-window capture and launching the demo (no lock
+  probe run; nothing here needs a presented frame); the env-gated 100k pair
+  (lane 3 changes no `List` code; lane 2's readings stand).

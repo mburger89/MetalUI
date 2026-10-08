@@ -2,8 +2,8 @@
 
 User request 2026-10-02 (item 7 of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-08-variable-height-list-decisions.md`](../2026-10-08-variable-height-list-decisions.md)
-(`VL-A`…`VL-U`; `VL-N`…`VL-S` are the critic's corrections, `VL-T` lane 1's and
-`VL-U` lane 2's amendments, folded in below). Record: `../../record/82-variable-height-list.md`. Branch
+(`VL-A`…`VL-V`; `VL-N`…`VL-S` are the critic's corrections, `VL-T` lane 1's,
+`VL-U` lane 2's and `VL-V` lane 3's amendments, folded in below). Record: `../../record/82-variable-height-list.md`. Branch
 `feat/variable-height-list` from `70ed000`. Divergence labels: this branch's
 reserved range **145–149** (145, 146, 147 used; 148, 149 spare).
 
@@ -13,8 +13,8 @@ systems). This branch stays off their files; the one shared file it touches is
 `Frame.swift` (two small additions, §3.2) — the merge's to reconcile.
 
 **Status: designed (2026-10-08), critic pass applied (`VL-N`…`VL-S`); lane 1
-landed (`VL-T`, record §82 §3); lane 2 landed (`VL-U`, record §82 §4).** Lane 3
-not started.
+landed (`VL-T`, record §82 §3); lane 2 landed (`VL-U`, record §82 §4; review
+fixes §5); lane 3 landed (`VL-V`, record §82 §6).**
 
 ---
 
@@ -361,8 +361,8 @@ through the variable path must redden at least `aListSizesItselfToCountTimesRowH
 
 | # | Test | Asserts | Mutation |
 |---|---|---|---|
-| 3.1 | arm in `everyProductionTreeBuildsOnAOneMegabyteThread` (`Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`) | `variableListDemoContent()` builds on a 1 MB thread | the arm run once at a 64 KiB thread must fail, recorded; the separating control is `aThreadTooSmallForTheDemoFailsTheSameHarness` (`VL-R` item 3) |
-| 3.2 | `theVariableListDemoSettlesHeadless` (`Tests/MetalUITests/VariableHeightListTests.swift`'s neighbour, a new `VariableListDemoTests.swift`) | the demo tree renders in a fake window, scrolls by 4000, settles in exactly the derived number of frames, and builds fewer rows than `data.count` (`VL-R` items 4–5) | remove the demo's `ScrollView` (the built-row assertion reddens) |
+| 3.1 | arm in `everyProductionTreeBuildsOnAOneMegabyteThread` (`Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`) | `variableListDemoContent()` and its `Component`'s two parts build on a 1 MB thread (`VL-V` item 2) | the arm run once at a 64 KiB thread must fail, recorded; the separating control is `aThreadTooSmallForTheDemoFailsTheSameHarness` (`VL-R` item 3) |
+| 3.2 | `theVariableListDemoSettlesHeadless` (`Tests/MetalUITests/VariableHeightListTests.swift`'s neighbour, a new `VariableListDemoTests.swift`) | the demo tree renders in a fake window, scrolls by 4000, settles in exactly the derived number of frames (2 on opening, 1 after the scroll, `VL-V` item 4), and builds fewer rows than `data.count` — counted from element bounds, since an unbounded list publishes no AX rows (`VL-R` items 4–5, `VL-V` item 3) | remove the demo's `ScrollView` (the built-row assertion reddens) |
 
 Plus, not tests: the fourteen offscreen images at **0 px** against `70ed000`
 (`docs/probes/demo-pixels/compare.sh <scratch> 70ed000 HEAD`);
@@ -378,7 +378,7 @@ Linux image run (§7).
 | 2 | `Sources/MetalUI/List.swift`, `Tests/MetalUITests/VariableHeightListTests.swift` (new), `Tests/MetalUITests/VariableHeightListCompileGuards.swift` (new), `Tests/MetalUITests/MeasurePerformanceTests.swift` (additions only) |
 | 3 | `Sources/MetalUIDemoContent/VariableListDemo.swift` (new), `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `Tests/MetalUITests/VariableListDemoTests.swift` (new), `docs/divergences.md` (rows 145–147, 84 amended), `docs/migration.md`, `docs/api-overview.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-inventory-map.tsv` (the `F list` row text), `docs/probes/closeout-public-api.tsv` (re-recorded census) |
 
-Each lane appends its amendments as `VL-` rulings (next unused `VL-V`), and its
+Each lane appends its amendments as `VL-` rulings (next unused `VL-W`), and its
 record section to `docs/record/82-variable-height-list.md`. The Record phase
 (after lane 3) edits `CLAUDE.md`/`AGENTS.md` (the `VL-` prefix, one rule
 sentence under `List`, counts), `docs/record/README.md`, record §03/§04 rows.
