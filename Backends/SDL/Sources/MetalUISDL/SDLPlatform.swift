@@ -38,6 +38,11 @@ public final class SDLPlatform: Platform {
     /// (ruling `CI-K` item 1): read once, at init, from
     /// `SDL_GetCurrentVideoDriver`. Settable for a test on a ratio driver.
     var pinchIsCumulative = true
+    /// The window SDL gives mouse focus (0 for none), read when a pinch names
+    /// no window (ruling `CI-K` item 2). `SDL_GetMouseFocus` by default; a
+    /// test substitutes it, since a pushed event cannot move SDL's focus
+    /// (ruling `CI-Z` item 3).
+    var mouseFocusWindowID: () -> UInt32 = { mui_mouse_focus_window_id() }
 
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
@@ -220,7 +225,7 @@ public final class SDLPlatform: Platform {
         case Int(MUI_EVENT_PINCH):
             // A pinch names no window on cocoa (ruling `CI-K` item 2): the
             // mouse-focus window, else the keyboard-focused one, else dropped.
-            guard let id = SDLPinch.route(windowID: event.window_id, mouseFocus: mui_mouse_focus_window_id(),
+            guard let id = SDLPinch.route(windowID: event.window_id, mouseFocus: mouseFocusWindowID(),
                                           keyboardFocus: focusedID ?? 0) else { return }
             windows[id]?.handlePinch(event, cumulative: pinchIsCumulative)
         case Int(MUI_EVENT_DIALOG):

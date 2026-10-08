@@ -135,6 +135,32 @@ func aPressAWheelAKeyOrLeavingHidesTheTooltip(_ cause: String) throws {
     withExtendedLifetime(window) {}
 }
 
+/// **CI-Z 2** (`MN-P` item 2 under `CI-E` items 1 and 4; ruling `CI-Z` item
+/// 2). A right- or other-button drag is tracked as a primary drag is: after
+/// the press hid the tooltip, dragging out of the region and moving back in
+/// brings it back after the delay. On SDL a right-held move was
+/// `.mouseMoved` before `CI-E`; now it is `.rightMouseDragged`. Mutation: drop
+/// the two drag cases from `trackTooltip`'s move arm (the leave is unseen, the
+/// region stays spent, the tooltip never returns); drop `.otherMouseDown`
+/// from its hide arm (the other press does not hide it).
+@MainActor
+@Test(arguments: ["right", "other"])
+func aRightOrOtherDragOutOfTheRegionLetsTheTooltipReturn(_ button: String) throws {
+    let (window, platform) = try tooltipWindow { helpRoot() }
+    try show(window, platform)
+    let right = button == "right"
+    func m(_ x: Float, _ y: Float) -> MouseEvent { MouseEvent(position: pt(x, y), buttonNumber: right ? 1 : 2) }
+    platform.simulateInput(right ? .rightMouseDown(m(100, 100)) : .otherMouseDown(m(100, 100)))
+    #expect(window.visibleTooltip == nil, "the \(button) press hid it")
+    platform.simulateInput(right ? .rightMouseDragged(m(100, 300)) : .otherMouseDragged(m(100, 300)))
+    platform.simulateInput(right ? .rightMouseUp(m(100, 300)) : .otherMouseUp(m(100, 300)))
+    platform.simulateInput(moved(100, 100))
+    platform.simulateTick(timestamp: 14)
+    platform.simulateTick(timestamp: 15)
+    #expect(window.visibleTooltip?.text == "Explains", "dragged out with \(button), re-entered, waited: shown")
+    withExtendedLifetime(window) {}
+}
+
 // MARK: - 3.21: placement
 
 /// **3.21** (`MN-P` item 2). The tooltip's top-left corner sits 18 pt below the

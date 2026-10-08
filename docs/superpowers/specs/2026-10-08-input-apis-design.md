@@ -5,7 +5,7 @@ task**), motivated by MetalCreator (`/Users/maxburger/Developer/MetalCreator`,
 `docs/metalui-gaps.md` "Reported 2026-10-07 (C7)" and "C7 status and
 provisional API names"; never edited from here). Rulings: prefix **`CI-`** in
 [`../2026-10-08-input-apis-decisions.md`](../2026-10-08-input-apis-decisions.md)
-(`CI-A`…`CI-Y`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X` and `CI-Y` are lane 1's). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
+(`CI-A`…`CI-Z`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X`, `CI-Y` and `CI-Z` are lane 1's). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
 Record: `docs/record/81-input-apis.md` (the Record phase writes it).
 
 Branch `feat/input-apis` from `70ed000`, worktree
@@ -226,10 +226,14 @@ The `Window.onInput` order, new stages in **bold**:
    **and the pointer style** recompute on every pointer event, the new four
    button cases, `.magnify`, `.rotate` included;
 2. the drawn alert (modal: the new cases are taken); the tooltip (hides on
-   `.otherMouseDown`, `.magnify`, `.rotate`); external drop; drag session;
+   `.otherMouseDown`, `.magnify`, `.rotate`; **tracks `.rightMouseDragged`/
+   `.otherMouseDragged` as moves — that and the `.otherMouseDown` hide landed in
+   lane 1, `CI-Z` item 2**); external drop; drag session;
 3. the in-window menu (**takes `.otherMouseDown` — an outside one dismisses —
    `.otherMouseDragged`, `.otherMouseUp`, `.rightMouseDragged`, `.magnify`,
-   `.rotate`**); popovers (**an `.otherMouseDown` outside dismisses and passes
+   `.rotate`**; **the two drags are moves — highlight, and mark the opening
+   press moved so press-drag-release chooses — landed in lane 1, `CI-Z`
+   item 1**); popovers (**an `.otherMouseDown` outside dismisses and passes
    on, `MN-Y`**); the context-menu stage (**defers on a secondary press whose
    button arena has a live leaf, `CI-F` item 4; opens on that press's release
    if `activatedAnyDrag` is false**);
@@ -463,6 +467,10 @@ the modifiers of the current drag. No existing demo tree changes.
 - **Y10** Windows precision touchpad: a pinch arrives as control+wheel and the
   demo zooms (no `MagnifyGesture`).
 - **Y11** A notched wheel mouse: `isPrecise` false, steps of 10 points.
+- **Y12** (`CI-Z` item 5) On AppKit, with the pointer resting over the demo
+  canvas, a style change made without moving the pointer (a key that toggles
+  the canvas's style) shows the new cursor at once — `setPointerStyle`'s
+  immediate set, which no agent can drive.
 
 ## §8 Migration notes and registry rows
 

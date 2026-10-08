@@ -375,7 +375,12 @@ extension Window {
         }
         guard var session = menuSession, !session.isNative else { return false }
         switch event {
-        case .mouseMoved(let mouse), .mouseDragged(let mouse):
+        // A right- or other-button drag is a move here (ruling `CI-Z` item 1):
+        // on SDL the motion of the right press that opened the menu arrives
+        // as `.rightMouseDragged` (`CI-E` item 4), and press-drag-release
+        // must still choose.
+        case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDragged(let mouse):
             session.openingPress?.moved = true
             hoverMenu(&session, at: mouse.position)
             menuSession = session

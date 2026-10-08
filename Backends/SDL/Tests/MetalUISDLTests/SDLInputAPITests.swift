@@ -166,6 +166,67 @@ private func describe(_ event: InputEvent) -> String {
     #expect(SDLPinch.route(windowID: 0, mouseFocus: 0, keyboardFocus: 0) == nil)
 }
 
+/// **CI-Z 5** (`CI-K` item 1). The previous scale resets between gestures,
+/// on both edges: an UPDATE after an END is measured from 1 (the END reset),
+/// and a BEGIN while a gesture is under way starts again from 1 (the BEGIN
+/// reset), on a cumulative driver. Mutations: drop the reset in the END arm
+/// (the stray update reads 0.2 − 0.5 = −0.3); drop the reset in the BEGIN arm
+/// (the second gesture's update reads 1.5 − 1.2 = 0.3, then 1.2 − 1.5).
+@MainActor
+@Test func sdlPinchPreviousScaleResetsAtEveryGestureEdge() throws {
+    let (platform, window) = try inputWindow()
+    platform.pinchIsCumulative = true
+    var deltas: [Double] = []
+    window.onInput = { event in
+        if case .magnify(let m) = event, m.phase == .changed { deltas.append(m.magnification) }
+        return true
+    }
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_begin, window.id, 1))
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_update, window.id, 1.5))
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_end, window.id, 1.5))
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_update, window.id, 1.2))   // after END: from 1
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_begin, window.id, 1))
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_update, window.id, 1.5))
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_begin, window.id, 1))      // no END between
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_update, window.id, 1.2))
+    platform.pumpEvents()
+    try #require(deltas.count == 4, "\(deltas)")
+    for (delta, expected) in zip(deltas, [0.5, 0.2, 0.5, 0.2]) {
+        #expect(abs(delta - expected) < 1e-5, "deltas \(deltas)")
+    }
+}
+
+/// **CI-Z 6** (`CI-K` item 2). The dispatcher, not only the pure
+/// `SDLPinch.route`: a pinch with window id 0 goes to the window SDL gives
+/// mouse focus — each of two open windows in turn — and to no other. The
+/// mouse focus is substituted (`mouseFocusWindowID`), since a pushed event
+/// cannot move SDL's own. Mutation: pass `mouseFocus: 0` in the dispatcher
+/// (neither window receives it, with no keyboard focus on a hidden window).
+@MainActor
+@Test func aPinchNamingNoWindowReachesTheMouseFocusWindowThroughTheDispatcher() throws {
+    let (platform, first) = try inputWindow()
+    let second = try platform.openSDLWindow(title: "MetalUI input API test 2",
+                                            size: Size(width: Pixels(320), height: Pixels(200)))
+    platform.pumpEvents()
+    var received: [String] = []
+    first.onInput = { event in
+        if case .magnify = event { received.append("first") }
+        return true
+    }
+    second.onInput = { event in
+        if case .magnify = event { received.append("second") }
+        return true
+    }
+    platform.mouseFocusWindowID = { second.id }
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_begin, 0, 1))
+    platform.pumpEvents()
+    platform.mouseFocusWindowID = { first.id }
+    #expect(mui_push_raw_pinch_event(mui_sdl_event_pinch_end, 0, 1))
+    platform.pumpEvents()
+    #expect(received == ["second", "first"])
+    second.close()
+}
+
 // MARK: - 1.16: the wheel
 
 /// **1.16** (`CI-I` item 6). SDL 3.4 has no scroll phase, momentum or precise

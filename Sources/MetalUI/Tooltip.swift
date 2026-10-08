@@ -150,7 +150,11 @@ extension Window {
     /// is open every event hides it.
     func trackTooltip(_ event: InputEvent) {
         switch event {
-        case .mouseMoved(let mouse), .mouseDragged(let mouse):
+        // A right- or other-button drag is tracked as a primary drag is, and
+        // an other-button press hides as the other presses do (ruling `CI-Z`
+        // item 2).
+        case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDragged(let mouse):
             guard menuSession == nil else {
                 tooltipTracker.hide()
                 return
@@ -167,7 +171,7 @@ extension Window {
             } else {
                 tooltipTracker.phase = .idle
             }
-        case .mouseDown, .rightMouseDown, .scrollWheel, .keyDown:
+        case .mouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown:
             tooltipTracker.hide()
         default:
             break

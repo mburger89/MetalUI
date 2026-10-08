@@ -170,6 +170,41 @@ private func gesture(hid: Int64, field: UInt32, value: Double, phase: Int64) thr
     #expect(log.events.map(describe).suffix(3) == ["rdown(50,60)1", "rdrag(55,65)1", "rup(55,65)1"])
 }
 
+/// **CI-Z 3** (`CI-E` item 1). The back and forward buttons — CG-made
+/// `otherMouseDown/Up` events whose button number is 3 and 4, required on the
+/// converted `NSEvent`s first — reach `onInput` as `.otherMouseDown`/
+/// `.otherMouseUp` carrying AppKit's `buttonNumber` as it is, not the centre
+/// button's 2. Mutation: `button: 2` in `otherMouseDown(with:)` (the
+/// downs redden).
+@MainActor
+@Test func appKitBackAndForwardButtonsCarryTheirButtonNumbers() throws {
+    let (_, appKit, nsWindow, log) = try hostWindow()
+    defer { nsWindow.close() }
+    let view = appKit.hostView
+    func other(_ type: CGEventType, button: Int64) throws -> NSEvent {
+        let cgButton = try #require(CGMouseButton(rawValue: UInt32(button)))
+        let cg = try #require(CGEvent(mouseEventSource: nil, mouseType: type,
+                                      mouseCursorPosition: CGPoint(x: 30, y: 40), mouseButton: cgButton))
+        cg.setIntegerValueField(.mouseEventButtonNumber, value: button)
+        return try #require(NSEvent(cgEvent: cg))
+    }
+    let events = try [Int64(3), 4].flatMap { [try other(.otherMouseDown, button: $0), try other(.otherMouseUp, button: $0)] }
+    try #require(events.map(\.buttonNumber) == [3, 3, 4, 4], "premise: \(events.map(\.buttonNumber))")
+    try #require(events.map(\.type) == [.otherMouseDown, .otherMouseUp, .otherMouseDown, .otherMouseUp])
+    for event in events {
+        if event.type == .otherMouseDown { view.otherMouseDown(with: event) } else { view.otherMouseUp(with: event) }
+    }
+    #expect(log.events.map(describe).map { String($0.prefix { $0.isLetter }) } == ["odown", "oup", "odown", "oup"],
+            "\(log.events.map(describe))")
+    let numbers = log.events.compactMap { event -> Int? in
+        switch event {
+        case .otherMouseDown(let m), .otherMouseUp(let m): m.buttonNumber
+        default: nil
+        }
+    }
+    #expect(numbers == [3, 3, 4, 4])
+}
+
 /// **1.7** (`CI-E` item 3, the migration of `MN-AC` item 1; `CI-T`). A
 /// control-press is a secondary press on AppKit, and its drag now goes out as
 /// a **secondary drag** (`.rightMouseDragged`, `buttonNumber` 1, the control

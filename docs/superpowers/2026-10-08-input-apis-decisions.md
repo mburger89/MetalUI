@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-Z`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AA`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -913,3 +913,68 @@ verified as follows; nothing in the design changed.
 **Cost if wrong.** None in shipped behaviour: this ruling records evidence.
 A Record phase that copies these counts re-takes them after lanes 2 and 3.
 
+
+## CI-Z — The drawn menu and the tooltip take the new drags now; five pins (amends `CI-X` item 1)
+
+**Ruling.** Lane 1's review found that `CI-E` item 4 (SDL motion with only the
+right button held is `.rightMouseDragged`, no longer `.mouseMoved`) broke a
+shipped path `CI-X` item 1 did not name, and that five documented seam
+behaviours had no pin. Fixed in lane 1, red first:
+
+1. **The drawn menu's press-drag-release (`MN-F` item 3) on SDL.**
+   `Window.dispatchMenuSession` handled only `.mouseMoved`/`.mouseDragged` as a
+   move, so on SDL the right press that opened the menu, dragged to a row and
+   released there highlighted nothing, never set `openingPress.moved`, and the
+   release counted as "the opening release with no move": nothing chosen, the
+   menu left open (measured by the reviewer at `c90e59f`; the existing pin
+   `aClickOrAPressDragReleaseOnAnItemChoosesIt` feeds `.mouseMoved`, which SDL
+   no longer sends during a right drag). The menu stage's move arm now takes
+   `.rightMouseDragged` and `.otherMouseDragged` too (it already took every
+   pointer event while open, `MN-F` item 3). Pin:
+   `aPressRightDragReleaseOnAnItemChoosesItAndAnOtherDragHighlights`
+   (`ContextMenuTests`). `CI-X` item 1's "owed to lane 2" is amended: the
+   hover recompute for the new drags is still lane 2's; **the menu's move arm
+   is no longer owed**. Lane 3 still owes the rest of spec §1.4 item 3
+   (`.otherMouseDown` outside dismissing, `.otherMouseUp`, `.magnify`,
+   `.rotate` taken; test 3.31).
+2. **The tooltip** (`MN-P` item 2) tracked only `.mouseMoved`/`.mouseDragged`:
+   a right drag out of a `.help` region went unseen (on SDL it was seen before
+   `CI-E`), so the region stayed spent and the tooltip never returned.
+   `trackTooltip` now tracks `.rightMouseDragged`/`.otherMouseDragged` as
+   moves and hides on `.otherMouseDown` (spec §1.4 item 2's first clause,
+   landed here because the same test covers it). Pin:
+   `aRightOrOtherDragOutOfTheRegionLetsTheTooltipReturn` (both buttons).
+   Hiding on `.magnify`/`.rotate` stays lane 3's.
+3. **SDL's mouse focus is substitutable.** A pushed SDL event cannot move SDL's
+   own mouse focus, so the pinch dispatcher's routing (`CI-K` item 2) was
+   pinned only through the pure `SDLPinch.route`. `SDLPlatform` gains an
+   internal `mouseFocusWindowID: () -> UInt32` (default
+   `mui_mouse_focus_window_id()`), read where a pinch names no window. No
+   public surface, no requirement.
+4. **The five pins.** Each was a mutation that left the full suite green in
+   review (R2a, R2b, R3, S1, S2); each now reddens a named test (item 5):
+   - R3: `appKitBackAndForwardButtonsCarryTheirButtonNumbers` — CG-made back
+     and forward `otherMouseDown/Up` (button numbers 3, 4, required on the
+     `NSEvent`s) carry 3 and 4.
+   - R2a/R2b: `appKitScrollPhasesCancelledStationaryAndMayBeginMap`
+     (`PlatformTests`) — real scroll `CGEvent`s with `CGScrollPhase` 8 and 128
+     arrive `.cancelled` and `.mayBegin`; `.stationary`, which CG cannot set
+     on a scroll event, is pinned through the pure
+     `MetalHostView.inputPhase` table (a `.changed` step).
+   - S1: `sdlPinchPreviousScaleResetsAtEveryGestureEdge` — an update after
+     an END and a BEGIN with no END between are each measured from 1.
+   - S2: `aPinchNamingNoWindowReachesTheMouseFocusWindowThroughTheDispatcher`
+     — two windows; a window-0 pinch reaches whichever has mouse focus.
+5. **R1 is unpinned, by name.** `AppKitWindow.setPointerStyle` setting the
+   cursor at once while the pointer is inside the view needs a real pointer
+   inside a real window — no agent can drive it. It joins the human checks
+   as **Y12** (spec §7): with the pointer resting over the demo canvas, a
+   keyboard-driven style change (no pointer motion) shows the new cursor at
+   once. The Record phase copies Y12 into `docs/verification/human-checks.md`
+   with Y1–Y11.
+
+Mutations for items 1–4: see the table below (filled when run).
+
+**Cost if wrong.** Item 1: a drawn menu on SDL that cannot be chosen from by
+press-drag-release — the regression this closes. Item 3: none in shipped
+behaviour (the default is the old call).

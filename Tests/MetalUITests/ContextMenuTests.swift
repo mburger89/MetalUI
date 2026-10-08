@@ -700,6 +700,34 @@ private struct MenuCounter: Component {
     withExtendedLifetime(window) {}
 }
 
+/// **CI-Z 1** (`MN-F` item 3 under `CI-E` item 4; ruling `CI-Z` item 1). On
+/// SDL the motion of a right press that opened a drawn menu now arrives as
+/// `.rightMouseDragged` (no longer `.mouseMoved`): press, right-drag, release
+/// over an item still chooses it, and an `.otherMouseDragged` over a row
+/// highlights it as a move does. Mutation: drop the two drag cases from the
+/// menu stage's move arm (the release chooses nothing, the menu stays open,
+/// nothing is highlighted).
+@MainActor
+@Test func aPressRightDragReleaseOnAnItemChoosesItAndAnOtherDragHighlights() throws {
+    let log = MLog()
+    let (window, platform) = try menuWindow(native: false) { card(log) }
+    platform.simulateInput(rdown(10, 10))
+    let rows = try panel(window).levels[0]
+    platform.simulateInput(.rightMouseDragged(MouseEvent(position: centre(rows.rowFrame(1)), buttonNumber: 1)))
+    platform.simulateInput(ru(centre(rows.rowFrame(1))))
+    #expect(log.entries == ["delete"], "press, right-drag, release chose Delete: \(log.entries)")
+    #expect(window.menuSession == nil)
+
+    platform.simulateInput(rdown(10, 10))
+    platform.simulateInput(rup(10, 10))
+    let again = try panel(window).levels[0]
+    #expect(platform.simulateInput(.otherMouseDragged(MouseEvent(position: centre(again.rowFrame(1)),
+                                                                 buttonNumber: 2))),
+            "the menu takes the other-button drag")
+    #expect(try panel(window).levels[0].highlighted == 1, "an other-button drag over a row highlights it")
+    withExtendedLifetime(window) {}
+}
+
 /// **1.25** (`MN-F` item 2). The open menu paints above everything — above a
 /// drag preview: its panel is the highest-layer primitive. Mutation: emit
 /// before `paintDragPreview()`.

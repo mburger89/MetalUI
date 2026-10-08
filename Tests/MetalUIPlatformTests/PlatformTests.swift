@@ -406,3 +406,47 @@ import MetalUIRender
     #expect(events[2].isPrecise)
     for event in events { #expect(event.location == event.position, "location is the seam's position") }
 }
+
+/// **CI-Z 4** (`CI-I` item 6). The rest of `NSEvent.Phase`'s mapping: real
+/// scroll `CGEvent`s through `MetalHostView.scrollWheel(with:)` with
+/// `CGScrollPhase` cancelled (8) and may-begin (128) — their `NSEvent.phase`
+/// required first — arrive as `.cancelled` and `.mayBegin`; and the pure table
+/// for the phase CG cannot set on a scroll event, `.stationary`, which is a
+/// `.changed` step (a finger resting mid-gesture), beside each other phase.
+///
+/// Mutations: drop the `.cancelled` line (cancelled reads `.none`); drop
+/// `|| phase.contains(.stationary)` (stationary reads `.none`); `.mayBegin` →
+/// `.none` (may-begin reads `.none`).
+@MainActor
+@Test func appKitScrollPhasesCancelledStationaryAndMayBeginMap() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let view = MetalHostView(surface: MetalLayerSurface(device: device))
+    var events: [ScrollEvent] = []
+    view.onInput = { event in
+        if case .scrollWheel(let scroll) = event { events.append(scroll) }
+        return true
+    }
+    func wheel(scrollPhase: Int64) throws -> NSEvent {
+        let cg = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
+                                      wheelCount: 1, wheel1: -2, wheel2: 0, wheel3: 0))
+        cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: scrollPhase)
+        return try #require(NSEvent(cgEvent: cg))
+    }
+    let cancelled = try wheel(scrollPhase: 8)
+    let mayBegin = try wheel(scrollPhase: 128)
+    try #require(cancelled.phase == .cancelled, "premise: \(cancelled.phase)")
+    try #require(mayBegin.phase == .mayBegin, "premise: \(mayBegin.phase)")
+    view.scrollWheel(with: cancelled)
+    view.scrollWheel(with: mayBegin)
+    try #require(events.count == 2)
+    #expect(events[0].phase == .cancelled)
+    #expect(events[1].phase == .mayBegin)
+
+    let table: [(NSEvent.Phase, InputPhase)] = [
+        ([], .none), (.began, .began), (.stationary, .changed), (.changed, .changed),
+        (.ended, .ended), (.cancelled, .cancelled), (.mayBegin, .mayBegin),
+    ]
+    for (phase, expected) in table {
+        #expect(MetalHostView.inputPhase(phase) == expected, "\(phase)")
+    }
+}
