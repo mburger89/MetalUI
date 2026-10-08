@@ -7,7 +7,7 @@ Rulings for item C11 of the gpui-gap priority list (user request 2026-10-02;
 Spec: [`specs/2026-10-08-accesskit-window-show-design.md`](specs/2026-10-08-accesskit-window-show-design.md).
 Record: `../record/86-accesskit-window-show.md`.
 
-**Next unused id: `WS-G`.** (Read the last `## WS-` heading, not this line.)
+**Next unused id: `WS-I`.** (Read the last `## WS-` heading, not this line.)
 
 Evidence:
 
@@ -110,6 +110,9 @@ moved call no less strict than an explicit one should be, and costs nothing.
 **Cost if wrong.** A driver answering `false` for a window it did show would
 refuse to open — SDL 3.4.16 has no such path.
 
+*Amended by `WS-G`*: "destroys the window" is `SDLWindow`'s `deinit`, once —
+`openSDLWindow`'s `catch` no longer destroys it a second time.
+
 ## WS-D — The test seam: an opening log read from SDL's flag, and an injectable show
 
 **Ruling.** Two internal (not public, no inventory row) seams in
@@ -199,3 +202,58 @@ renderer, pixel or demo-content change.
 4. *The configurator's pin bump.* After merge, smk_configurator bumps its
    MetalUI pin and re-runs its "Launch the packaged app" step (its owner; not
    edited here).
+
+## WS-G — A failed opening destroys its window once, in `SDLWindow`'s `deinit` (critic)
+
+**Ruling.** `openSDLWindow`'s `catch` drops its `mui_window_destroy(handle)`:
+the window an `SDLWindow.init` throw abandons is destroyed by that instance's
+`deinit`, and only there. T4 pins the destruction, not just the throw.
+
+**Why.** `SDLWindow.init` assigns `handle` and `id` first and every other
+stored property has a default, so every throw inside it (the renderer at
+`cd84b0c`, the show under `WS-C`) comes after the instance is fully
+initialised — and Swift then runs `deinit`, which calls `mui_window_destroy`,
+**before** the caller's `catch` destroys the same handle again. Measured:
+[`docs/probes/swift-class-init-throw-deinit.swift`](../probes/swift-class-init-throw-deinit.swift)
+(arm A, the positive control and `SDLWindow`'s shape: `deinit` runs, then the
+`catch`; arm B, a defaultless property unset at the throw: no `deinit`; both
+`-Onone` and `-O`, output in its header). The second call is harmless today
+only because SDL 3.4.16 validates a window through its object table
+(`SDL_ObjectValid`, no dereference) and answers "Invalid window" — it
+overwrites SDL's error string and is one pointer reuse away from destroying
+another window. `WS-C` makes this path a tested one (T4), so the double
+ownership is fixed here rather than exercised every run.
+
+**The check.** A new bridge function `bool mui_window_id_is_open(uint32_t id)`
+(`SDL_GetWindowFromID(id) != NULL`) beside `mui_window_is_shown`. T4's
+`showWindow` stub captures `mui_window_id(raw)` before answering `false`; after
+the throw T4 asserts `!mui_window_id_is_open(captured)` and
+`openWindowCount == 0`, then opens a second window (count 1). Mutation **M6**:
+remove `mui_window_destroy` from `deinit` → T4 red (the window outlives its
+failed opening). If a later change makes a stored property defaultless and
+assigns it after a throw point, `deinit` stops running for that throw and T4
+reddens the same way.
+
+**Cost if wrong.** If `deinit` did not run on some toolchain, the abandoned
+window would leak (visible on screen when not hidden) — T4 on every CI
+platform's `swift test` sees it.
+
+## WS-H — Critic's amendments to the test plan
+
+**Ruling.**
+
+1. **Mutations M1, M2, M4 run with `METALUI_RUN_VISIBLE_SDL_WINDOW_TEST=1`** on
+   macOS (T2 is skipped there otherwise, so "T1, T2 reddened" could not be
+   observed); T2's reddening is also read from the Linux image, where it runs
+   unconditionally. Name the platform each reddening was read on.
+2. T4's window count is the existing internal `SDLPlatform.openWindowCount`
+   (no new counter).
+3. The lane may edit `SDLWindow`'s `deinit` only to read it (no change);
+   `WS-G` changes `openSDLWindow`'s `catch`, which is already in the lane's
+   region.
+
+Rejected on review (no change): a Linux CI launch step (Linux's adapter takes
+no window, `WS-A`); a native-visibility (`IsWindowVisible`) assertion in the
+tests (blind in session 0, `WS-D`); a Windows-only branch of the order
+(`WS-B`). The `WS-E` CI step's `Start-Sleep` is in a workflow, not a test.
+

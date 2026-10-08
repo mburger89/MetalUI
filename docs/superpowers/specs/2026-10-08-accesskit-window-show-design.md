@@ -4,7 +4,7 @@ Item C11 of the gpui-gap priority list (user request 2026-10-02; **urgent bug,
 not a plan task**): every MetalUI SDL app with the `AccessKit` trait panics at
 launch on Windows. Branch `fix/accesskit-window-show` from `cd84b0c`. Rulings:
 [`../2026-10-08-accesskit-window-show-decisions.md`](../2026-10-08-accesskit-window-show-decisions.md)
-(`WS-A`…`WS-F`). Record: `docs/record/86-accesskit-window-show.md`. Probe:
+(`WS-A`…`WS-H`). Record: `docs/record/86-accesskit-window-show.md`. Probe:
 [`docs/probes/accesskit-window-show/`](../../probes/accesskit-window-show/README.md).
 
 **Status: designed (2026-10-08).**
@@ -14,7 +14,7 @@ launch on Windows. Branch `fix/accesskit-window-show` from `cd84b0c`. Rulings:
 | # | What | Answer | Ruling |
 |---|---|---|---|
 | 1 | AccessKit's Windows adapter is created on an already-visible HWND and panics | **Fixed**: every SDL window is created hidden; the adapter, then `SDL_ShowWindow` (unless `hiddenWindows`), then the renderer — one order on every platform | `WS-A`, `WS-B` |
-| 2 | A failed `SDL_ShowWindow` | throws and destroys the window | `WS-C` |
+| 2 | A failed `SDL_ShowWindow` | throws; the window is destroyed once, by `SDLWindow`'s `deinit` (the `catch`'s second destroy goes) | `WS-C`, `WS-G` |
 | 3 | No test sees the order | an internal opening log (SDL's flag) and an injectable show; four tests | `WS-D` |
 | 4 | Windows CI never launches an AccessKit window | a non-hidden-window test that aborts pre-fix on the runner, and a demo launch step in the `windows` job | `WS-E` |
 
@@ -49,7 +49,7 @@ window and clears the flag on every driver, offscreen included.
 
 ### 3.1 `Backends/SDL/Sources/SDLBridge/` (`SDLBridge.c`, `include/SDLBridge.h`)
 
-One new function, declared next to `mui_window_show` (header line ~244; the
+Two new functions, declared next to `mui_window_show` (header line ~244; the
 parallel `feat/input-apis` adds lines at 120–230 and 827–1050 of these files —
 stay away from them):
 
@@ -57,6 +57,9 @@ stay away from them):
 // Whether SDL considers the window shown: !(SDL_GetWindowFlags & SDL_WINDOW_HIDDEN)
 // (ruling WS-D) — the order seam's reading, valid on every driver.
 bool mui_window_is_shown(void *window);
+// SDL_GetWindowFromID(id) != NULL (ruling WS-G) — T4's reading that a failed
+// opening destroyed its window.
+bool mui_window_id_is_open(uint32_t id);
 ```
 
 `mui_window_create` is **unchanged** (its `hidden` parameter stays; Swift
@@ -81,7 +84,9 @@ enum SDLWindowOpeningStep: Equatable {
   — internal, the test seam (`WS-D`).
 - `openSDLWindow`: `mui_window_create(title, w, h, true)` always; then
   `SDLWindow(handle:offscreen:show:)` with `show: hidden ? nil : { [showWindow] in showWindow(raw) }`;
-  on a throw, `mui_window_destroy` as today. Registration, `applyIcon`, the
+  on a throw, **no** `mui_window_destroy` (ruling `WS-G`: `SDLWindow.init`
+  throws only after full initialisation, so its `deinit` has already destroyed
+  the window — probe `swift-class-init-throw-deinit.swift`); rethrow. Registration, `applyIcon`, the
   `mui_window_has_input_focus` seed and control-active publishing stay after it,
   in their current order.
 
@@ -105,7 +110,7 @@ updateAccessibilityWindowBounds()
 
 `private(set) var openingSteps: [SDLWindowOpeningStep]` (internal). The
 adapter moves from after the renderer to before it; a renderer throw after the
-show leaves a shown window that `openSDLWindow` destroys — the same flash a
+show leaves a shown window that `SDLWindow`'s `deinit` destroys — the same flash a
 renderer failure had at `cd84b0c`, when the window was visible from creation.
 `SDLWindow.show()` is unchanged (still "shows a window opened hidden"; it now
 always meets an adapter already made). Doc comments: `init(hiddenWindows:)`
@@ -151,8 +156,9 @@ the Record phase CLAUDE.md/AGENTS.md (one sentence, `WS-B`) and
 `docs/record/README.md`. **Off limits** (parallel branches): `MetalUISDLDemo/
 main.swift`, `AccessKitAdapter.swift`, `AccessKitTree.swift`,
 `MainQueueDrainCheck`, `SDLMainQueueDrainTests.swift`, `SDLMenuInputTests.swift`,
-and `SDLPlatform.swift` outside `openSDLWindow`, `SDLWindow.init` and the new
-enum. `feat/input-apis` also edits `SDLWindow.init` (its hunk at `cd84b0c`
+and `SDLPlatform.swift` outside `openSDLWindow` (including its `catch`,
+`WS-G`), `SDLWindow.init` and the new enum (`deinit` is read and mutated for
+M6, never changed). `feat/input-apis` also edits `SDLWindow.init` (its hunk at `cd84b0c`
 lines 257–277): a textual conflict at merge is expected and is the merger's to
 resolve keeping `WS-B`'s order.
 
@@ -175,7 +181,7 @@ flashes on screen during that one run); commit B applies `WS-B`/`WS-C`.
 | T1 | `aWindowIsCreatedHiddenAndItsAdapterPrecedesTheShow` | `showWindow` stubbed (records its call, returns `true`, shows nothing); `openingSteps == [.created(shown: false), .accessKitAdapter(windowShown: false), .shown, .renderer(windowShown: false)]`; stub called once; `isAccessibilityConnected` | **red**: `.created(shown: true)`, adapter after renderer, no `.shown` | M1 (pass `hidden` to `mui_window_create`), M2 (adapter after the show), M4 (renderer before the show) |
 | T2 | `aShownWindowBecomesVisibleOnlyAfterItsAccessKitAdapter` | real show; `openingSteps == [.created(shown: false), .accessKitAdapter(windowShown: false), .shown, .renderer(windowShown: true)]`; `mui_window_is_shown` true after open; `isAccessibilityConnected`. `.enabled(if: !macOS \|\| env METALUI_RUN_VISIBLE_SDL_WINDOW_TEST == "1")` | **red** on Linux image and macOS-with-env (order); on the Windows runner the process **aborts** (the C11 panic) | M1, M2 |
 | T3 | `aHiddenWindowsPlatformNeverShowsItsWindow` | `hiddenWindows: true`; `showWindow` stub `Issue.record`s if called; `openingSteps == [.created(shown: false), .accessKitAdapter(windowShown: false), .renderer(windowShown: false)]`; `mui_window_is_shown` false | **red** only on ordering (adapter after renderer) — the hidden contract itself was already kept | M3 (show regardless of `hiddenWindows`) |
-| T4 | `aWindowWhoseShowFailsIsDestroyedAndNotOpened` | stub returns `false`; `openSDLWindow` throws an `SDLPlatformError` whose description starts `SDL_ShowWindow`; a second `openSDLWindow` on the same platform succeeds and the platform's run loop sees one window (internal `windowCount`, add if absent) | **red**: commit A never calls the stub, so nothing throws | M5 (ignore `show()`'s answer) |
+| T4 | `aWindowWhoseShowFailsIsDestroyedAndNotOpened` | stub captures `mui_window_id(raw)` then returns `false`; `openSDLWindow` throws an `SDLPlatformError` whose description starts `SDL_ShowWindow`; `!mui_window_id_is_open(captured)` and `openWindowCount == 0`; with the stub replaced by one answering `true`, a second `openSDLWindow` succeeds and `openWindowCount == 1` | **red**: commit A never calls the stub, so nothing throws | M5 (ignore `show()`'s answer), M6 (`deinit` without `mui_window_destroy`) |
 
 Mutations (each on commit B, from a copy, full `Backends/SDL` suite, then
 `git status --short`; name every test reddened):
@@ -186,6 +192,11 @@ Mutations (each on commit B, from a copy, full `Backends/SDL` suite, then
 - **M3** `show:` passed regardless of `hidden` → T3 (T1/T2 unaffected).
 - **M4** renderer before the show → T1, T2.
 - **M5** `_ = show()` without the guard → T4.
+- **M6** `SDLWindow`'s `deinit` without `mui_window_destroy` → T4 (`WS-G`).
+
+M1, M2 and M4 run with `METALUI_RUN_VISIBLE_SDL_WINDOW_TEST=1` on macOS so T2
+can redden there, and T2's reddening is also read from the Linux image; each
+named reddening says which platform it was read on (`WS-H` item 1).
 
 Also run on commit B: the whole `Backends/SDL` suite on macOS (expect **24 + 88**
 from 24 + 84; T2 counts while skipped) and in the Linux image (**24 + 85** from
