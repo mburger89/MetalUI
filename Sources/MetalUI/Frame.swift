@@ -142,6 +142,13 @@ public final class Frame {
         }
     }
 
+    /// RED-BEFORE STUB (`VL-P`): the requests with their scope and anchor.
+    func unresolvedScrollRequestsWithScope(enclosing id: GlobalElementID)
+        -> [(index: Int, key: AnyHashable, scope: GlobalElementID, anchor: UnitPoint?)] { [] }
+
+    /// RED-BEFORE STUB (`VL-G` item 2): records nothing.
+    func noteScrollAnchorAdjustment(scroller: GlobalElementID, delta: Double) {}
+
     /// Whether request `index` has already found its target (first match wins).
     func isScrollRequestResolved(_ index: Int) -> Bool { scrollRequestResolved[index] }
 

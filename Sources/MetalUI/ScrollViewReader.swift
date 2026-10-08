@@ -143,6 +143,9 @@ final class ScrollRequestQueue {
         onEnqueue?()
     }
 
+    /// RED-BEFORE STUB (`VL-H`): drops the request.
+    func carry(_ request: ScrollRequest) {}
+
     /// Hands every pending request to the frame that resolves them.
     func take() -> [ScrollRequest] {
         defer { pending = [] }

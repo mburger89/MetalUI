@@ -60,6 +60,12 @@ struct ListRows<Row: Element>: ElementGroup {
     /// the animated one; nothing on a `List`'s own style is animatable today).
     var listStyle: Style
 
+    /// Which `ProposalLayout` arranges the rows (ruling `VL-Q`): the uniform
+    /// `WindowedRowsLayout` (the default, and every caller's until a
+    /// variable-height `List` passes `.variable`) or `VariableRowsLayout`.
+    /// Defaulted so the memberwise initialiser `List` calls is unchanged.
+    var arrangement: ListRowArrangement = .uniform
+
     /// Each row's own `SingleElementLayout`, threaded to
     /// `prepaintGroup`/`paintGroup` the way every other group threads its
     /// members'.
@@ -150,10 +156,19 @@ struct ListRows<Row: Element>: ElementGroup {
                                          parentSite: .list, fields: &fields)
         let node: LayoutNodeID
         if fields.isEmpty {
-            node = pass.frame.requestNativeLayout(
-                WindowedRowsLayout(rowHeight: rowHeight, logicalCount: logicalCount,
-                                   firstIndex: firstIndex),
-                children: pass.registerLegacyItems(rowNodes, plans))
+            let children = pass.registerLegacyItems(rowNodes, plans)
+            switch arrangement {
+            case .uniform:
+                node = pass.frame.requestNativeLayout(
+                    WindowedRowsLayout(rowHeight: rowHeight, logicalCount: logicalCount,
+                                       firstIndex: firstIndex),
+                    children: children)
+            case .variable(let anchorSlot, let anchorY, let trailingExtent):
+                node = pass.frame.requestNativeLayout(
+                    VariableRowsLayout(anchorSlot: anchorSlot, anchorY: anchorY,
+                                       trailingExtent: trailingExtent),
+                    children: children)
+            }
         } else {
             // `report`'s shape (`LegacyLowering.swift`), which is `private`
             // there: note every entry and stand a 0×0 native leaf in for the
@@ -293,6 +308,35 @@ struct WindowedRowsLayout: ProposalLayout {
             subviews[index].place(
                 at: Point(x: bounds.x, y: bounds.y + Double(firstIndex + index) * rowHeight),
                 anchor: .topLeading, proposal: rowProposal)
+        }
+    }
+}
+
+/// Which layout `ListRows` registers over its realised rows (ruling `VL-Q`).
+enum ListRowArrangement: Equatable {
+    /// `WindowedRowsLayout`: every row `rowHeight` tall — the uniform fast path
+    /// (`VL-I`).
+    case uniform
+    /// `VariableRowsLayout`: rows sized by their content, the anchor row
+    /// (`anchorSlot`, an index into the realised rows) at `anchorY`.
+    case variable(anchorSlot: Int, anchorY: Double, trailingExtent: Double)
+}
+
+/// RED-BEFORE STUB (`VL-Q`): every row at y 0, height 0.
+struct VariableRowsLayout: ProposalLayout {
+    var anchorSlot: Int
+    var anchorY: Double
+    var trailingExtent: Double
+
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: 0))
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize,
+                       subviews: PlacementSubviews) {
+        for index in subviews.indices {
+            subviews[index].place(at: Point(x: bounds.x, y: 0), anchor: .topLeading,
+                                  proposal: ProposedSize(width: bounds.width, height: 0))
         }
     }
 }
