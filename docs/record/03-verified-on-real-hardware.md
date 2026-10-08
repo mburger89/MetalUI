@@ -2046,3 +2046,9 @@ above it re-measure after a narrowing resize; VL3 the jump landing on row 250
 and staying; VL4 click, ⌘-click, ⇧-click and ⇧↓ selection and the lead row's
 reveal; VL5 rows re-wrapping under a live resize with the top row in place —
 each on AppKit and on SDL.
+
+`.task` follow-ups (record §84, 2026-10-08): the fourteen offscreen demo images
+read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
+probe was not re-run at the Record phase and no real-window capture was taken.
+No new look is owed (group X's X2 already covers a counting `.task` in a real
+window).

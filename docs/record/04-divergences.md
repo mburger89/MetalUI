@@ -2452,3 +2452,13 @@ for both spellings; pins `aListSizesItselfToCountTimesRowHeight` and
 
 Live count **105 → 108** on the branch. Lane 3 wrote the rows; this section was
 written by the Record phase.
+
+2026-10-08: 123 amended; no new label (`.task` follow-ups)
+
+Record §84; rulings `TF-A`, `TF-D`. A `task(id:)` returning from a removal ghost
+now compares its id, and an `onChange(of:)` its value, against the entry it left
+with (SwiftUI's answer, probe `swiftui-task-ghost-id.swift`); a value read from
+the content's own reset `@State` compares fresh against the departed one, a
+restart or firing SwiftUI does not make. Pin
+`aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost` (TF1.4). Live
+count unchanged at 105; the branch's reserved labels 160–164 are unused.

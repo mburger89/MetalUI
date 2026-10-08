@@ -46,7 +46,8 @@ summary.
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
-  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `VL-`
+  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `TF-` (`.task`
+  follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -82,11 +83,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/variable-height-list` from `70ed000`, all three lanes):
+- **Counts (2026-10-08, `feat/variable-height-list` from `70ed000`, merged with `099cf80`; the pre-merge reading):
   2718 tests, 0 goldens, 176 typecheck guards** (2672 + 46 tests, 175 + 1 guard;
   census 2540; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image;
   divergences 145–147 added, 108 live on the branch, the header's count and
   next label the merge's; record §82 §6). Before it,
+  `fix/task-followups` from `70ed000`: 2677 / 0 / 175 (2672 + 5 tests, no guard;
+  census 2536; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image; record §84 §4). Before that,
   `feat/portable-app` from `359444e`, all three lanes:
   2672 tests, 0 goldens, 175 typecheck guards** (2630 + 42 tests, 171 + 4 guards;
   census 2536; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image,
@@ -123,7 +126,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78.
+  merge), §72, §73, §74, §75, §76, §77, §78, §84.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -618,7 +621,14 @@ one more `LifecycleWrite` — started with `Task.immediate` as an appearance
 disappearance (parked under a removal ghost, the box carried back on
 re-insertion), an id change cancels the old task **then** starts the new one
 in the change bucket; `LC-L`'s blocker went with `SV-H`. A steady frame costs 3K for K scopes and 0
-with none.
+with none. **A key returning from a removal ghost compares its `task(id:)` id and
+`onChange` value against the entry it left with** (`TF-A`, record §84; the
+departed entry is parked, not dropped; a value read from the content's own reset
+`@State` still compares fresh, divergence 123). `.task` under SDL in CI's Linux
+image is tested through `@_spi(Checks)` `SDLPlatform(offscreenRenderers:)`, which
+renders each window offscreen so frames and the lifecycle drain run with no
+presented frame (`TF-C`, `TF-E`; test 3.20b). Consumer test 1.7 refuses every
+`warning:` line (`TF-B`).
 
 **A MetalUI app on Linux and Windows (`PX-`, record §80).** **One decoder
 everywhere**: PNG and JPEG go through the vendored stb_image 2.30
