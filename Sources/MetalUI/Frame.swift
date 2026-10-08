@@ -132,22 +132,46 @@ public final class Frame {
         notesScrollKeys = !scrollRequests.isEmpty
     }
 
-    /// The unresolved requests whose reader encloses `id`, as (index, key).
+    /// The unresolved requests whose reader encloses `id`, as (index, key) —
+    /// `unresolvedScrollRequestsWithScope(enclosing:)`, narrowed (`VL-T`).
     func unresolvedScrollRequests(enclosing id: GlobalElementID) -> [(index: Int, key: AnyHashable)] {
+        unresolvedScrollRequestsWithScope(enclosing: id).map { ($0.index, $0.key) }
+    }
+
+    /// The unresolved requests whose reader encloses `id`, each with its
+    /// reader's scope and its anchor (ruling `VL-P`): what a variable-height
+    /// `List` needs to carry a refinement of a request onto the next frame
+    /// with the request's own scope and anchor. The two-member
+    /// `unresolvedScrollRequests(enclosing:)` above is this, narrowed (`VL-T`).
+    func unresolvedScrollRequestsWithScope(enclosing id: GlobalElementID)
+        -> [(index: Int, key: AnyHashable, scope: GlobalElementID, anchor: UnitPoint?)] {
         guard hasUnresolvedScrollRequests else { return [] }
         return scrollRequests.indices.compactMap { index in
+            let request = scrollRequests[index]
             guard !scrollRequestResolved[index],
-                  Self.isStrictDescendant(id, of: scrollRequests[index].scope) else { return nil }
-            return (index, scrollRequests[index].key)
+                  Self.isStrictDescendant(id, of: request.scope) else { return nil }
+            return (index, request.key, request.scope, request.anchor)
         }
     }
 
-    /// RED-BEFORE STUB (`VL-P`): the requests with their scope and anchor.
-    func unresolvedScrollRequestsWithScope(enclosing id: GlobalElementID)
-        -> [(index: Int, key: AnyHashable, scope: GlobalElementID, anchor: UnitPoint?)] { [] }
+    /// Each anchor adjustment noted this frame, by scroller (ruling `VL-G`
+    /// item 2) — applied after paint, after the absolute resolutions.
+    private var scrollAnchorAdjustments: [(scroller: GlobalElementID, delta: Double)] = []
 
-    /// RED-BEFORE STUB (`VL-G` item 2): records nothing.
-    func noteScrollAnchorAdjustment(scroller: GlobalElementID, delta: Double) {}
+    /// Notes that `scroller`'s stored offset must move by `delta` after this
+    /// frame so that what is on screen stays put (ruling `VL-G` item 2): a
+    /// variable-height `List` calls it from `prepaint` when re-measured rows
+    /// above its anchor row moved that row by `delta` in content coordinates.
+    ///
+    /// Adjustments for one scroller are summed, and **added after** that
+    /// scroller's `scrollTo` resolution in `applyScrollResolutions` (or to the
+    /// stored offset when there is none) — so a resolution computed in this
+    /// frame's coordinates lands in the next frame's. A zero or non-finite
+    /// delta is never recorded, so a steady list asks for no frame.
+    func noteScrollAnchorAdjustment(scroller: GlobalElementID, delta: Double) {
+        guard delta != 0, delta.isFinite else { return }
+        scrollAnchorAdjustments.append((scroller, delta))
+    }
 
     /// Whether request `index` has already found its target (first match wins).
     func isScrollRequestResolved(_ index: Int) -> Bool { scrollRequestResolved[index] }
@@ -228,7 +252,8 @@ public final class Frame {
         return ScrollChrome.clamp(offset: offset, content: scroller.contentExtent, viewport: viewport)
     }
 
-    /// Writes each resolved scroller's offset — after paint, so the frame that
+    /// Writes each resolved scroller's offset, then adds each anchor
+    /// adjustment (`VL-G` item 2) — after paint, so the frame that
     /// resolved a request paints the old offset consistently with its
     /// hitboxes, and the next frame shows the new one — through `withState`
     /// (as `ScrollChrome.resolvedOffset`'s write-back does: no `onWrite`), and
@@ -239,8 +264,17 @@ public final class Frame {
                 $0.offset = resolution.offset
             }
         }
-        if !scrollResolutions.isEmpty { requestAnotherFrame() }
+        // `VL-G` item 2: after the absolute writes, so a resolution and an
+        // adjustment for one scroller compose additively; several adjustments
+        // for one scroller sum.
+        for adjustment in scrollAnchorAdjustments {
+            stateTable.withState(adjustment.scroller, initial: ScrollState()) {
+                $0.offset += adjustment.delta
+            }
+        }
+        if !scrollResolutions.isEmpty || !scrollAnchorAdjustments.isEmpty { requestAnotherFrame() }
         scrollResolutions = []
+        scrollAnchorAdjustments = []
         scrollRequests = []
         scrollRequestResolved = []
         unresolvedScrollRequestCount = 0

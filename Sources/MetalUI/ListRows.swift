@@ -322,21 +322,76 @@ enum ListRowArrangement: Equatable {
     case variable(anchorSlot: Int, anchorY: Double, trailingExtent: Double)
 }
 
-/// RED-BEFORE STUB (`VL-Q`): every row at y 0, height 0.
+/// A variable-height `List`'s realised rows as a `ProposalLayout` (rulings
+/// `VL-B`, `VL-G` item 1, `VL-Q`): each row sized by its content, measured at
+/// the list's width, the **anchor** row placed at its offset and the others
+/// around it.
+///
+/// - **Width** is the proposal's when there is one, else the widest realised
+///   row's answer at `(nil, nil)` — `WindowedRowsLayout`'s nil-width rule
+///   (a vertical list in a horizontal scroller), with no row height to offer.
+/// - **Each row is proposed `(width, nil)`** and takes its answer's height
+///   (`VL-B`: no inset, no floor — divergence 145).
+/// - **Height** is `anchorY + Σ h[anchorSlot...] + trailingExtent`: the
+///   estimated-or-measured extent above the anchor (the list computes
+///   `anchorY` from its `RowExtentIndex`), the realised rows from the anchor
+///   down, and the extent after the window.
+/// - **Placement**: the anchor row at `bounds.y + anchorY`, each later row
+///   directly below the one before it, each earlier row directly **above** the
+///   one after it. So re-measuring a row above the anchor moves only rows above
+///   the anchor — the region above the viewport's top — and the row on top stays
+///   where it was in this frame (`VL-G` item 1); the list's `prepaint` then
+///   corrects the scroll offset for the next frame (item 2).
+///
+/// **Cost.** On the concrete-width path `sizeThatFits` measures each realised
+/// row once at `(width, nil)` and placement re-measures it at the same key (a
+/// cache hit) — `O(window)`. On the nil-width path each row is measured at
+/// `(nil, nil)` and at `(widest, nil)`, two keys.
+///
+/// **It rejects nothing** (`SA-J`): `anchorSlot` is clamped into
+/// `0...subviews.count`; a negative `anchorY` or `trailingExtent` gives what
+/// arithmetic gives, as `WindowedRowsLayout`'s negative row height does.
 struct VariableRowsLayout: ProposalLayout {
+    /// The index, among the realised rows (subviews), of the anchor row.
     var anchorSlot: Int
+    /// Where the anchor row's top sits, from the layout's top.
     var anchorY: Double
+    /// The extent after the last realised row (the rows not built).
     var trailingExtent: Double
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
-        LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: 0))
+        let width = proposal.width ?? Self.widest(subviews)
+        let slot = Swift.min(Swift.max(anchorSlot, 0), subviews.count)
+        var below = 0.0
+        for index in slot..<subviews.count {
+            below += subviews[index].sizeThatFits(ProposedSize(width: width, height: nil)).size.height
+        }
+        return LayoutMeasurement(size: SizeD(width: width, height: anchorY + below + trailingExtent))
     }
 
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize,
                        subviews: PlacementSubviews) {
-        for index in subviews.indices {
-            subviews[index].place(at: Point(x: bounds.x, y: 0), anchor: .topLeading,
-                                  proposal: ProposedSize(width: bounds.width, height: 0))
+        let rowProposal = ProposedSize(width: bounds.width, height: nil)
+        let heights = subviews.indices.map { subviews[$0].sizeThatFits(rowProposal).size.height }
+        let slot = Swift.min(Swift.max(anchorSlot, 0), subviews.count)
+        var y = bounds.y + anchorY
+        for index in slot..<subviews.count {
+            subviews[index].place(at: Point(x: bounds.x, y: y), anchor: .topLeading, proposal: rowProposal)
+            y += heights[index]
         }
+        y = bounds.y + anchorY
+        for index in stride(from: slot - 1, through: 0, by: -1) {
+            y -= heights[index]
+            subviews[index].place(at: Point(x: bounds.x, y: y), anchor: .topLeading, proposal: rowProposal)
+        }
+    }
+
+    /// The widest row's answer at `(nil, nil)`.
+    private static func widest(_ subviews: MeasurementSubviews) -> Double {
+        var widest = 0.0
+        for index in subviews.indices {
+            widest = Swift.max(widest, subviews[index].sizeThatFits(.unspecified).size.width)
+        }
+        return widest
     }
 }
