@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-Q`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-R`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -777,3 +777,44 @@ test **1.20** `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns`.
 system wider than on the other by the value per extra glyph — the oracle and
 test 1.20 would show it. Item 5: Arabic kerning looks different on Linux and
 Windows (gaps instead of stretched joins), named, never silent.
+
+---
+
+## RT-Q — Lane 1: the instruments its mutations corrected, and a plain-path finding
+
+Lane 1 ran every §4.1 mutation (each on a committed tree, restored from a
+copy, the full unfiltered native suite, `git status --short` clean after). Two
+§4.1 mutations reddened nothing on the first run; each was a broken
+instrument, fixed here, and one fixture exposed a difference outside rich
+text.
+
+**Ruling.**
+
+1. **Test 1.6 gains a single-run arm** (`C7d`: a line holding only the
+   shifted run is `lineHeight + 5`). The mixed line `"a"` + `"b"` raised 5
+   keeps run 0's unshifted descent, so `descent − offset` (CoreText's
+   shrinking rule, the mutation) left its height `lineHeight + 5` and
+   reddened nothing; with the single-run arm it reddens 1.6.
+2. **Spec 1.4's mutation is reached from 1.10, not 1.4.** The portable line
+   breaker shapes the paragraph once and re-shapes only from a line start
+   inside a cluster or one splitting lam-alef (`LB-E`, `BD-C`); test 1.4's
+   lines start at clusters, so "re-shape from a line start in run 0's face"
+   never runs there. The oracle (1.10) gains a narrow arm — `"a "` (Noto
+   Sans) + `"office"` (Source Sans 3, 26 pt) at width 8, so a line starts
+   inside the second run's ligature — and the mutation reddens 1.10. Test
+   1.4 keeps its assertion (CoreText's break positions between runs).
+3. **A plain-path difference, deferred** (not rich text; the plain path must
+   not move on this branch, `RT-M`): the portable system centres (or
+   trails) a line that starts inside a cluster by the whole cluster's
+   paragraph-shaped advance instead of the line's re-shaped one —
+   `placeGlyphs("office")`, Source Sans 3 26, width 8, `.center`: the second
+   line's glyph at pixel −4 where CoreText draws it at 0. The narrow arm uses
+   leading alignment and a tail limit only, and says why. Owner: a portable
+   text follow-up (the `trailingWhitespace` of a re-shaped line in
+   `LineBreaking.swift`), with this case as its red test.
+4. **Mutation spellings, recorded**: M1.9 (the ellipsis from the last kept
+   character) and M1.6b (the glyph sign) were applied to the portable
+   spellings, M1.14 (the styled key by string) to `ShapingCache`'s; M1.19's
+   first spelling (options dropped from `==` only) broke `Hashable` and
+   trapped the run — the recorded spelling drops them from `==` and `hash`.
+   The reddened tests are listed in record §83.
