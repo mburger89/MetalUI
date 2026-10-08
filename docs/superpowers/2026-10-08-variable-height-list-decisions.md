@@ -8,7 +8,7 @@ Record: `../record/82-variable-height-list.md`. Branch
 branch's reserved range **145–149** (parallel branches hold the others; the
 header's next-label line is the merge's to settle).
 
-**Next unused id: `VL-T`.** (Moves in the commit that appends a ruling; to
+**Next unused id: `VL-U`.** (Moves in the commit that appends a ruling; to
 find it, read this file's last `## VL-` heading.)
 
 Evidence (each header carries its recorded output and how to run it):
@@ -481,3 +481,38 @@ last; the parallelism is across branches (`feat/input-apis`,
    initialisers carry the MetalUI-only `estimatedRowHeight:`; the wholesale
    row's text is refreshed (lane 3).
 3. **A `SumTree`/splice API now**: rejected as in `VL-D`/`VL-L` (no caller).
+
+## VL-T — Lane 1 as landed: the accessor beside, not widened; the descent count; mutation spellings
+
+**Ruling.** Lane 1 (record §82 §3) landed spec §3.2 items 1–3 and 6 with three
+amendments, folded into the spec:
+
+1. **`VL-P` item 1 is met by a second accessor, not by widening the first.**
+   `Frame.unresolvedScrollRequestsWithScope(enclosing:)` (internal) returns
+   `(index, key, scope, anchor)`; the two-member
+   `unresolvedScrollRequests(enclosing:)` stays and is defined as it, narrowed.
+   Reason: its one caller, `List.requestLayout`/`prepaint`, is in
+   `Sources/MetalUI/List.swift`, lane 2's file — widening the tuple in lane 1
+   would have edited a file lane 1 does not own, or broken its build. Lane 2
+   calls the wide accessor on the variable branch; the uniform branch keeps
+   the narrow one, unchanged (`VL-I`). Test 1.15 reads the wide one.
+2. **1.10's count is `⌊log₂ count⌋ + 1`, not `⌈log₂ count⌉`.** The descent
+   in `index(containing:)` takes one step per power of two at or below
+   `count`; the two expressions agree at 100 000 (17) and 500 (9), the
+   pinned counts, and differ at an exact power of two (1024: 11, not 10). The
+   test's comment derives the floor form; the spec's table now says so.
+3. **Mutation spellings** where spec §5 named an idea, not a line (each run
+   on `a806444`, full unfiltered native suite, file restored from a copy):
+   M1.3 "mean → last recorded height" is spelled *the highest-index measured
+   height* (`heights.last(where:)`), which is the last recorded in 1.3's
+   order; M1.12 "absolute overrides the delta" is spelled *skip an
+   adjustment whose scroller has a resolution this frame*; M1.17 "propose
+   rows `(nil, nil)`" is applied to `placeSubviews`' row proposal only (the
+   placed frame is what the tests read); M1.10 "linear prefix scan" is in
+   `offset(of:)` (one visit per row below `i`). M1.7 is run as two mutants
+   (a: sums cleared, counts kept; b: `ids` cleared too), M1.11 as two (a: the
+   delta not added; b: no `requestAnotherFrame` for an adjustment alone).
+
+**No behaviour moves in lane 1**: `ListRows.arrangement` defaults to
+`.uniform` and nothing passes `.variable` until lane 2; the fourteen offscreen
+images read 0 px against `70ed000` (record §82 §3).

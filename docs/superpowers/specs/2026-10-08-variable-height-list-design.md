@@ -134,9 +134,10 @@ reverse is not).
    stored offset when there is none), through `withState`; a nonzero
    adjustment asks for one more frame; a zero one is never recorded.
 3. **`ScrollRequestQueue.carry(_:)`** (`VL-H`): appends without `onEnqueue`.
-   **`Frame.unresolvedScrollRequests(enclosing:)`** returns `(index, key,
-   scope, anchor)` so a list can carry a refinement with its request's scope
-   and anchor (`VL-P`; lane 1).
+   **`Frame.unresolvedScrollRequestsWithScope(enclosing:)`** (new, beside the
+   unchanged two-member `unresolvedScrollRequests(enclosing:)`, which is it
+   narrowed — `VL-T` item 1) returns `(index, key, scope, anchor)` so a list
+   can carry a refinement with its request's scope and anchor (`VL-P`; lane 1).
 4. **`ListOrigin`** gains one field, `extents: AnyObject?` (the index). The
    anchor is **not** stored: it is recomputed each frame from the index (`VL-G`
    item 1) and, across a rebuild, from `ids[oldAnchorIndex]` read before the
@@ -266,7 +267,7 @@ nothing, each test fails on its first `#expect`):
 | 1.7 | `forgettingMeasurementsReturnsEveryRowToTheEstimate` | after `forgetMeasurements(width:)`, mean back to 24, width stored, and `id(at:)` still answers (`VL-O`) | (a) clear sums but not counts; (b) clear `ids` too |
 | 1.8 | `aRebuildKeepsHeightsByIDAcrossAReorderAndAnInsertion` | [a,b,c] measured 10/20/30 → [x,c,a,b]: offsets 0,24,54,64 | rebuild keyed by index |
 | 1.9 | `aRebuildDropsHeightsOfIDsNoLongerPresent` | removed id's height leaves the mean | keep `byID` entries for absent ids |
-| 1.10 | `aLookupAtAHundredThousandRowsVisitsLogarithmicallyManyNodes` | `index(containing:)` visits exactly `⌈log₂ 100 000⌉` = 17 nodes, `offset(of:)` ≤ 17; at 500: 9 / ≤ 9 | linear prefix scan |
+| 1.10 | `aLookupAtAHundredThousandRowsVisitsLogarithmicallyManyNodes` | `index(containing:)` visits exactly `⌊log₂ 100 000⌋ + 1` = 17 nodes (`VL-T` item 2), `offset(of:)` ≤ 17; at 500: 9 / ≤ 9 | linear prefix scan |
 
 `Tests/MetalUITests/ScrollAnchorAdjustmentTests.swift` (a `Window` over the
 fakes; a probe element inside a `ScrollView` calls the hook in `prepaint`;
@@ -363,7 +364,7 @@ Linux image run (§7).
 | 2 | `Sources/MetalUI/List.swift`, `Tests/MetalUITests/VariableHeightListTests.swift` (new), `Tests/MetalUITests/VariableHeightListCompileGuards.swift` (new), `Tests/MetalUITests/MeasurePerformanceTests.swift` (additions only) |
 | 3 | `Sources/MetalUIDemoContent/VariableListDemo.swift` (new), `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `Tests/MetalUITests/VariableListDemoTests.swift` (new), `docs/divergences.md` (rows 145–147, 84 amended), `docs/migration.md`, `docs/api-overview.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-inventory-map.tsv` (the `F list` row text), `docs/probes/closeout-public-api.tsv` (re-recorded census) |
 
-Each lane appends its amendments as `VL-` rulings (next unused `VL-T`), and its
+Each lane appends its amendments as `VL-` rulings (next unused `VL-U`), and its
 record section to `docs/record/82-variable-height-list.md`. The Record phase
 (after lane 3) edits `CLAUDE.md`/`AGENTS.md` (the `VL-` prefix, one rule
 sentence under `List`, counts), `docs/record/README.md`, record §03/§04 rows.
