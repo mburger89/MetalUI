@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-S`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-T`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -929,3 +929,39 @@ committed tree (listed in record §83 by name).
 **Cost if wrong.** Item 1: a third system that splits a shaping run at every
 run boundary would shape `of|fice` as two runs — the arm reddens on it. Item
 6: a port that relied on SwiftUI's semibold `bold()` draws one weight heavier.
+
+## RT-S — Lane 2's review: the rich fields' values, the left operand, ProposalText's rich fields
+
+The lane 2 verifier's mutations V1, V3–V8 and V10 each left the full suite
+green: no test read the **values** the `Text`-level rich modifiers carry to
+the seam, the left operand's check, or `ProposalText`'s rich fields. Each now
+has an instrument, added red-first on `439ae58` and reddened by its mutation
+(full unfiltered native suite, 2719 tests, `git status --short` clean after
+each):
+
+1. **2.1b `theRichFieldsReachTheSeamWithTheirValues`.** `.kerning(2)`,
+   `.tracking(3)`, `.baselineOffset(4)` resolve to those literal
+   `TextRunStyle`s at the text's own level and pushed through `+` (an inner
+   value wins over the outer); `.monospaced()` resolves the system face's
+   monospaced design (`try #require`d a different face from the plain one).
+   V5 (kerning `0`), V6 (tracking `0`), V7 (baseline offset `0`) and V8
+   (monospaced `false`) in `resolveRichText` each redden it, alone.
+2. **2.1c `underlineFalseIsANoneTheOuterUnderlineDoesNotReach`.**
+   `(Text("a").underline(false) + Text("b")).underline()` resolves no
+   underline on "a" and draws one underline rect, starting at "a"'s measured
+   width. V4 (`underline(false)` stores `nil`) reddens it, alone.
+3. **2.19's left arm.** `Text("a").background(.accent) + Text("b").bold()`
+   traps naming "the left operand carries decoration". V1 (the left check
+   deleted) reddens `concatenatingADecoratedTextTraps`, alone.
+4. **2.22's two arms.** `(Text("ab") + Text("cd").bold()).underline()`
+   through `proposalLayout()` draws the legacy primitives, and
+   `ProposalText("a").underline()` draws `Text("a").underline()`'s. V3
+   (`proposalLayout()` drops `rich`) and V10 (`ProposalText.underline` a
+   no-op) each redden `proposalTextDrawsTheSameStyledSpritesAsText`, alone.
+5. **Recorded stand-ins** (amended into `RT-R` items 8 and 10): V9 for M2.23
+   and V11 for MG3b's compiling spelling; the M2.9 line corrected to the
+   re-spelled run's.
+
+**Cost if wrong.** A rich modifier resolving to its default would draw plain
+text where the caller asked for spacing, a raised run or a monospaced face,
+with every other test green.
