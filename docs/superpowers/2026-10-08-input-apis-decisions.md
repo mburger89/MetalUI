@@ -973,7 +973,39 @@ behaviours had no pin. Fixed in lane 1, red first:
    once. The Record phase copies Y12 into `docs/verification/human-checks.md`
    with Y1–Y11.
 
-Mutations for items 1–4: see the table below (filled when run).
+6. **Red and mutations.** Red at the test commit's working tree (before the
+   fix): the menu pin failed four expectations (nothing chosen, the menu open,
+   the other drag not taken, nothing highlighted); the tooltip pin failed on
+   both arguments (right: never returned; other: the press did not hide it).
+   The five pins of item 4 are green on arrival by design (they pin shipped
+   behaviour) and were proved by mutation. Each mutation was applied to
+   `834fc6f`'s spelling, one full unfiltered suite each (root: native
+   `--no-parallel`, every run 2687 tests; SDL: `swift test $(…
+   --print-flags)`, 24 + 93), the source restored from a copy, `git status
+   --short` clean after each:
+
+   | # | Mutation (spelling) | Reddened |
+   | --- | --- | --- |
+   | MZ1 | the menu stage's move arm back to `.mouseMoved`/`.mouseDragged` only | `aPressRightDragReleaseOnAnItemChoosesItAndAnOtherDragHighlights` |
+   | MZ2a | `trackTooltip`'s move arm without the two drags | `aRightOrOtherDragOutOfTheRegionLetsTheTooltipReturn` |
+   | MZ2b | `.otherMouseDown` dropped from `trackTooltip`'s hide arm | `aRightOrOtherDragOutOfTheRegionLetsTheTooltipReturn` |
+   | R3 | `otherMouseDown(with:)` passes `button: 2` | `appKitBackAndForwardButtonsCarryTheirButtonNumbers` |
+   | R2a | the `.cancelled` line deleted from `inputPhase` | `appKitScrollPhasesCancelledStationaryAndMayBeginMap` |
+   | R2b | `\|\| phase.contains(.stationary)` deleted | `appKitScrollPhasesCancelledStationaryAndMayBeginMap` |
+   | R2c | `.mayBegin` answers `.none` | `appKitScrollPhasesCancelledStationaryAndMayBeginMap` |
+   | S1a | the END arm's `pinchPreviousScale = 1` deleted | `sdlPinchPreviousScaleResetsAtEveryGestureEdge` |
+   | S1b | the BEGIN arm's `pinchPreviousScale = 1` deleted | `sdlPinchPreviousScaleResetsAtEveryGestureEdge` |
+   | S2 | the dispatcher passes `mouseFocus: 0` | `aPinchNamingNoWindowReachesTheMouseFocusWindowThroughTheDispatcher` |
+
+   (S1a, S1b and S2 ran on the uncommitted tree that became `834fc6f`, before
+   the menu/tooltip fix, which `Backends/SDL`'s tests do not reach.)
+7. **Counts** at `834fc6f` (unmutated): root native unfiltered
+   `--no-parallel` **2687 tests in 3 suites passed** (2683 + 4), `FR-J
+   no-argument frame: succeeded=true`, 0 `error:`, the only `warning:`
+   SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings;
+   `Backends/SDL` on macOS **24 + 93** (91 + 2); CI's Linux image
+   (`offscreen`) **24 + 90** (88 + 2), both new SDL tests running there,
+   warnings unchanged (the pre-existing `AccessKitControlsParityTests.swift:83`).
 
 **Cost if wrong.** Item 1: a drawn menu on SDL that cannot be chosen from by
 press-drag-release — the regression this closes. Item 3: none in shipped
