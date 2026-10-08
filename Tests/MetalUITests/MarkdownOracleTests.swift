@@ -37,6 +37,7 @@ let markdownOracleExtraSources = [
     "&#0;", "&#x110000;", "&#12345678;", "![a *b*](s)", "[![i](s)](u)", "[a](u) [b]", "***a** b*",
     "*a **b***", "~a~~", "~~a~", "_a_", "a~~b~~c", "a~b~c", "*_**~", "*_**!", "**~~** ", "a~~*_**", "[a]()",
     "[www.x.org](u)", "[ www.x.org", "aw@b.org", "<a href=\"*x*\">", "` \n`",
+    "[a](http://x.org:ab/c)", "http://x.org:ab", "[a](http://u@x.org:ab)",
 ]
 
 /// **3.2** (ruling RT-B items 2–3). On the probe's corpus, the sources above,
@@ -60,6 +61,28 @@ let markdownOracleExtraSources = [
         }
     }
     #expect(disagreements.isEmpty, "\(disagreements.count) disagreements:\n\(disagreements.prefix(40).joined(separator: "\n"))")
+}
+
+/// **3.2b** (ruling RT-T items 4 and 9). The trigger scan is sound against
+/// the parser: on the whole corpus of 3.2 (the probe's sources, the extras
+/// and the generated strings), every source `markdownMayApply` skips parses
+/// to itself as one unstyled run, so skipping the parser changes no answer.
+/// Mutation **MT.trig**: the pre-amendment `http` trigger in place of `://`
+/// (`ftp://x.org`, `HTTP://x.org` are autolinks the scan would skip).
+@Test func aFormatTheTriggerScanSkipsParsesToItself() throws {
+    let tokens = ["*", "**", "_", "~~", "`", "a", " "]
+    var generated: [String] = []
+    for a in tokens { for b in tokens { for c in tokens { for d in tokens { generated.append(a + b + c + d) } } } }
+    let corpus = probedMarkdownSources + markdownOracleExtraSources + generated
+    let skipped = corpus.filter { !markdownMayApply($0) }
+    // 23 today: seven probe sources (`# H`, `- a`, `1. a`, `> q` and three
+    // whitespace rows) and the 16 generated strings over `a` and a space.
+    try #require(skipped.count >= 23, "the corpus holds markup-free sources: \(skipped.count)")
+    var wrong: [String] = []
+    for source in skipped where parseInlineMarkdown(source) != [MarkdownRun(text: source)] {
+        wrong.append("\(source.debugDescription): \(parseInlineMarkdown(source))")
+    }
+    #expect(wrong.isEmpty, "skipped by the trigger scan yet parsed to something else:\n\(wrong.joined(separator: "\n"))")
 }
 
 /// The probe's 53 sources (`foundation-markdown-inline.swift`), `N21` included.

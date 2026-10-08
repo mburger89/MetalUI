@@ -78,4 +78,8 @@ import MetalUITextSystem
             "\(Text(attributed).content) vs \(Text("[site](https://x.org)").content)")
     #expect(segments(Text("www.x.org")) == [TextRunRequest(string: "www.x.org", link: "http://www.x.org")])
     #expect(segments(Text("a@b.org")) == [TextRunRequest(string: "a@b.org", link: "mailto:a@b.org")])
+    // Ruling RT-T item 4: every scheme and case of `://` triggers the parser
+    // (mutation MT.trig, the pre-amendment `http` trigger, reddens these two).
+    #expect(segments(Text("ftp://x.org")) == [TextRunRequest(string: "ftp://x.org", link: "ftp://x.org")])
+    #expect(segments(Text("HTTP://x.org")) == [TextRunRequest(string: "HTTP://x.org", link: "HTTP://x.org")])
 }
