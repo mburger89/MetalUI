@@ -134,7 +134,26 @@ creates a visible window too, so every generated cross-platform app had the bug.
 **The VM** (`ssh metalui-win`, ARM64): `query user` → "No User exists for *"
 (re-checked at the branch end), so the console route (interactive scheduled
 task) was not available and neither the demo nor T2's native outcome was run
-interactively. Over SSH: the `Backends/SDL` suite at `a407cfb` and `91b145d` (ARM64, a detached S4U scheduled task after an SSH session dropped mid-build) — see §5a.
+interactively. Over SSH: the `Backends/SDL` suite at `a407cfb` and `91b145d`
+(ARM64, a detached S4U scheduled task after an SSH session dropped
+mid-build) — §5a.
+
+### 5a. The VM over SSH (session 0, ARM64; scheduled task `ws-check`, unregistered after)
+
+| Commit | Summary lines | T1–T4 |
+|---|---|---|
+| `a407cfb` | `Test run with 24 tests … passed`; `Test run with 85 tests in 0 suites failed … with 48 issues` | all four red at the macOS lines: T1 `:58` (`openingSteps`) and `:60` (`calls.windowIDs`), T2 `:74`, T3 `:91`, T4 `:114:21` `thrown as? SDLPlatformError` |
+| `91b145d` | `Test run with 24 tests … passed`; `Test run with 85 tests in 0 suites failed … with 43 issues` | all four passed |
+
+The 43 issues common to both runs are the session-0 swapchain failures
+CLAUDE.md names (`claiming the window: Could not create swapchain! …
+(0x887A0022)` in every test that claims a window renderer, some as
+top-level fatal errors in a test's child process); `48 − 43 = 5` is exactly
+T1's two issues plus T2, T3 and T4. T2 runs unconditionally off macOS and is
+read from SDL's flag (`WS-D`), so it saw the order but not native visibility
+— session 0 cannot make a window visible, which is also why the panic cannot
+fire there. The VM went unreachable for several minutes mid-run (vmnet, no
+route to host) and the `91b145d` build took 1,398 s; both runs completed.
 
 **Owed**: the CI step and T2 on GitHub's interactive runner are the checks
 that see the panic; they run on the branch's first push (the orchestrator's).
