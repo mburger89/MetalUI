@@ -177,6 +177,64 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
     #expect(italic.text.runs[1].style.font == key(.system(size: 13), italic: true))
 }
 
+// MARK: - 2.1b (lane 2 review: the rich fields' values)
+
+/// **2.1b** (ruling RT-E items 2–3; lane 2's review). The `Text`-level rich
+/// fields reach the seam with their **values**, at the text's own level and
+/// pushed through `+`: `.kerning(2)`, `.tracking(3)` and `.baselineOffset(4)`
+/// resolve to those literal `TextRunStyle`s (an inner value wins over the
+/// outer one), and `.monospaced()` resolves the system face's monospaced
+/// design. Mutations **V5**–**V8** resolve kerning, tracking, baseline offset
+/// or monospaced as `0`/`false` in `resolveRichText`.
+@MainActor
+@Test func theRichFieldsReachTheSeamWithTheirValues() throws {
+    let system = CoreTextTextSystem()
+    let plain = rtKey(system)
+    func styles(_ text: Text) -> [TextRunStyle] { rtResolved(text, system).text.runs.map(\.style) }
+
+    #expect(styles(Text("ab").kerning(2)) == [TextRunStyle(font: plain, kerning: 2)])
+    #expect(styles(Text("ab").tracking(3)) == [TextRunStyle(font: plain, tracking: 3)])
+    #expect(styles(Text("ab").baselineOffset(4)) == [TextRunStyle(font: plain, baselineOffset: 4)])
+
+    #expect(styles(rtJoin(Text("ab"), Text("cd").kerning(2)))
+            == [TextRunStyle(font: plain), TextRunStyle(font: plain, kerning: 2)], "kerning pushed into its run")
+    #expect(styles(rtJoin(Text("ab").tracking(1), Text("cd")).tracking(3))
+            == [TextRunStyle(font: plain, tracking: 1), TextRunStyle(font: plain, tracking: 3)],
+            "the inner tracking wins, the outer reaches cd")
+    #expect(styles(rtJoin(Text("ab").baselineOffset(4), Text("cd")))
+            == [TextRunStyle(font: plain, baselineOffset: 4), TextRunStyle(font: plain)],
+            "baseline offset pushed into its run")
+
+    let monospaced = system.resolveFont(resolveTextStyle(
+        TextStyleRequest(font: .explicit(.system(size: 13).monospaced())), in: EnvironmentValues()).descriptor)
+    try #require(monospaced != plain, "set up: the monospaced design is its own face")
+    #expect(styles(Text("ab").monospaced()) == [TextRunStyle(font: monospaced)])
+    #expect(styles(rtJoin(Text("ab").monospaced(), Text("cd")))
+            == [TextRunStyle(font: monospaced), TextRunStyle(font: plain)], "monospaced pushed into its run")
+}
+
+/// **2.1c** (ruling RT-E item 2; lane 2's review). `underline(false)` is an
+/// explicit "none" an outer underline does not reach:
+/// `(Text("a").underline(false) + Text("b")).underline()` resolves no
+/// underline on "a" and draws **one** underline rect, starting where "b"
+/// starts. Mutation **V4**: `underline(false)` stores `nil` (unset).
+@MainActor
+@Test func underlineFalseIsANoneTheOuterUnderlineDoesNotReach() throws {
+    let system = CoreTextTextSystem()
+    let text = rtJoin(Text("a").underline(false), Text("b")).underline()
+    let resolved = rtResolved(text, system)
+    try #require(resolved.paints.count == 2, "two runs: \(resolved.paints)")
+    #expect(resolved.paints[0].underline == nil, "a: the explicit none")
+    #expect(resolved.paints[1].underline != nil, "b: the outer underline")
+
+    let frame = rtFrame(rtTopLeft(text), system: system)
+    let rects = frame.scene.rects
+    try #require(frame.scene.glyphs.count == 2, "set up: two glyphs")
+    try #require(rects.count == 1, "one underline: \(rects.map(\.bounds))")
+    let a = system.measure("a", font: rtKey(system), wrappingAt: nil, options: TextLayoutOptions()).widestLine
+    #expect(abs(Double(rects[0].bounds.origin.x) - a) < 1, "the underline starts at b (\(a)): \(rects[0].bounds)")
+}
+
 // MARK: - 2.2
 
 /// **2.2** (`C1`). `Text("Abcdefghij").bold() + Text("klm")` answers CoreText's
@@ -398,16 +456,23 @@ private func concatenateDecorated(_ index: Int) -> Text {
     return rtJoin(Text("b").bold(), decorated)
 }
 
+/// The decorated operand on the **left** (lane 2's review): `.background`.
+@MainActor
+private func concatenateDecoratedOnTheLeft() -> Text {
+    rtJoin(Text("a").background(.accent), Text("b").bold())
+}
+
 /// **2.19** (exit tests; ruling RT-E item 4, divergence 155). Concatenating a
 /// text that carries a style (`.margin` — `.padding` returns a
 /// `ModifiedElement`, so it cannot be an operand at all, `RT-R` item 2), a
 /// decoration (`.background`), a handler (`.onClick`) or an id traps, naming
-/// the field; the control — plain operands — exits normally. Mutation
-/// **M2.19**: delete the precondition.
+/// the field; the control — plain operands — exits normally. The left
+/// operand is checked too (one arm, `.background` on the left). Mutations
+/// **M2.19**: delete the precondition; **V1**: delete the left operand's check.
 @Test func concatenatingADecoratedTextTraps() async {
-    func check(_ result: ExitTest.Result?, _ field: String) {
+    func check(_ result: ExitTest.Result?, _ field: String, side: String = "right") {
         let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-        #expect(stderr.contains("the right operand carries \(field)") && stderr.contains("divergence 155"),
+        #expect(stderr.contains("the \(side) operand carries \(field)") && stderr.contains("divergence 155"),
                 note("arm \(field): aborted, but not at the operand check:\n\(stderr)"))
     }
     check(await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
@@ -422,6 +487,9 @@ private func concatenateDecorated(_ index: Int) -> Text {
     check(await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run { _ = concatenateDecorated(3) }
     }, "elementID")
+    check(await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run { _ = concatenateDecoratedOnTheLeft() }
+    }, "decoration", side: "left")
     await #expect(processExitsWith: .success) {
         await MainActor.run { _ = concatenateDecorated(99) }
     }
@@ -516,8 +584,11 @@ private let kernedLines = "To\nAVAVAV To Ty"
 // MARK: - 2.22
 
 /// **2.22**. `ProposalText` and `Text` of one styled content draw equal glyphs
-/// and rects. Red before: the stub dropped the segments' styles. Mutation
-/// **M2.22**: `proposalLayout()` drops `content`.
+/// and rects; so do an outer rich field through `proposalLayout()` and
+/// `ProposalText("a").underline()` against `Text("a").underline()` (lane 2's
+/// review). Red before: the stub dropped the segments' styles. Mutations
+/// **M2.22**: `proposalLayout()` drops `content`; **V3**: it drops `rich`;
+/// **V10**: `ProposalText.underline` is a no-op.
 @MainActor
 @Test func proposalTextDrawsTheSameStyledSpritesAsText() throws {
     let text = rtJoin(Text("ab").foregroundColor(.red), Text("cd").underline(), Text("ef").strikethrough())
@@ -529,6 +600,20 @@ private let kernedLines = "To\nAVAVAV To Ty"
     let proposal = primitives(rtFrame(HStack(spacing: 0) { text.proposalLayout() }))
     try #require(legacy.contains { $0.hasPrefix("r ") }, "set up: the decorations drew: \(legacy)")
     #expect(proposal == legacy, "proposal \(proposal)\nlegacy \(legacy)")
+
+    // A Text-level rich field outside the concatenation (lane 2's review):
+    // `proposalLayout()` carries `rich` (mutation V3).
+    let outer = rtJoin(Text("ab"), Text("cd").bold()).underline()
+    let outerLegacy = primitives(rtFrame(HStack(spacing: 0) { outer }))
+    try #require(outerLegacy.filter { $0.hasPrefix("r ") }.count == 1, "set up: one underline: \(outerLegacy)")
+    #expect(primitives(rtFrame(HStack(spacing: 0) { outer.proposalLayout() })) == outerLegacy,
+            "proposalLayout() keeps the outer underline")
+
+    // ProposalText's own rich modifier (mutation V10: a no-op underline).
+    let direct = primitives(rtFrame(HStack(spacing: 0) { Text("a").underline() }))
+    try #require(direct.contains { $0.hasPrefix("r ") }, "set up: Text(\"a\").underline() drew a rect")
+    #expect(primitives(rtFrame(HStack(spacing: 0) { ProposalText("a").underline() })) == direct,
+            "ProposalText(\"a\").underline() draws Text's underline")
 }
 
 // MARK: - 2.23

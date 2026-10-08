@@ -899,7 +899,10 @@ committed tree (listed in record §83 by name).
    takes an element id and an `inout PaintPass`; the styled paint resolves run
    colours inside `drawStyledText`, which has neither, so the mutation needs a
    new code path rather than an edit. 2.23 stays a pin of the snap (`RT-L`
-   item 2), green on arrival.
+   item 2), green on arrival. **Its stand-in (lane 2's review, V9):** paint
+   keeps a styled text's first-resolved run colours in a module-level table
+   keyed by its `StyledText` (stale, never snapped) — the full suite reddens
+   `aRunsColourSnapsUnderAnAnimation` alone, so 2.23 can fail.
 9. **2.14–2.16 measure through `richTextMeasurement(resolveRichText(…))`**,
    the two functions `Text.requestLayout` calls, at a chosen proposal; a laid-
    out frame does not expose a leaf's answer to a height proposal.
@@ -909,7 +912,19 @@ committed tree (listed in record §83 by name).
     reddened tests by name are in record §83): M2.1–M2.8, M2.9 (re-spelled),
     M2.10–M2.19, M2.20a–c, M2.21a–b, M2.22, M2.R1 and guard mutations
     MG2.24a–c and MG2.25 each redden their test; MG3b (delete `Text.bold()`)
-    reddens the build first — the lane's own tests call `bold()`.
+    reddens the build first — the lane's own tests call `bold()`. MG3b's
+    spelling that compiles (lane 2's review, V11: `bold()` made internal)
+    reddens `textBoldIsOfferedSinceRichText` and
+    `theTextModifiersComposeAsSwiftUIs`. The M2.9 line is the re-spelled
+    run's: "2717 tests in 3 suites failed … with 9 issues", reddening
+    `aWarmFrameOfAStyledTextShapesNothing`,
+    `aLinkDrawsInTheAccentUnlessItsRunIsColoured`,
+    `anUnderlineIsARectAtTheFacesPosition`,
+    `aOneRunStyledTextDrawsThePlainSprites`, `aStyledTextIsOneShadowLeaf`,
+    `aStyledTextPaintsEachRunsColour`,
+    `proposalTextDrawsTheSameStyledSpritesAsText` and
+    `sameColouredUnderlinesMergeAndOthersDoNot` (an earlier log line came
+    from the first, trapping spelling, with no summary).
 
 **Cost if wrong.** Item 1: a third system that splits a shaping run at every
 run boundary would shape `of|fice` as two runs — the arm reddens on it. Item
