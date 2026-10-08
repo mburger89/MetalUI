@@ -1092,6 +1092,19 @@ stack-budget harness.
    `aControlTitleIsVerbatim`; M3.16 (always parse) —
    `aLiteralWithNoMarkupRunsNoParser`; M3.17 (the demo's orange key dropped) —
    `theRichTextDemoDrawsThroughThePortableSystem`. No run hung.
+   **The two instruments a review found missing** (on the committed tree
+   `4133b72`, same procedure, 2739 tests): before them, both mutations below
+   left the suite green on `a261c27` (2738). **MT.trig** (item 4's `://`
+   trigger replaced by the pre-amendment `http`, `markdownMayApply`) reddens
+   `aFormatTheTriggerScanSkipsParsesToItself` (3.2b: every corpus source the
+   scan skips parses to itself as one unstyled run) and
+   `aMarkdownLinkAndAnAttributedLinkBuildOneRunKind` (its `ftp://x.org` and
+   `HTTP://x.org` arms). **MT.port** (item 6's non-digit-port `return nil`
+   removed, `foundationURLString`) reddens
+   `theParserAgreesWithFoundationOnTheCorpus` alone, through the oracle
+   extras `[a](http://x.org:ab/c)`, `http://x.org:ab` and
+   `[a](http://u@x.org:ab)` — Foundation sets no link on any of the three,
+   read live on this Mac (macOS 27), while `http://x.org:12` keeps its link.
 
 **Cost if wrong.** Item 2: a later cmark-gfm that drops the skip characters
 moves the generated corpus — 3.2 reddens on the macOS that ships it. Item 3:
