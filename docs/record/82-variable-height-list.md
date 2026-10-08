@@ -398,3 +398,7 @@ human-check groups "A–X and VL", and the counts sentence **2718 / 0 / 176**
 branch". The published divergences header (105 live, next label 139) and
 `CLAUDE.md`'s copy of it are left for the merge with `feat/input-apis` and
 `feat/rich-text`.
+
+## 8. Merge with master `099cf80` (task-followups, record §84)
+
+Merged after the Record phase; no record renumbering (82 was free; §83 is rich-text, §84 task-followups). Conflicts were documentation only (CLAUDE.md prefix list and counts, README, §03, §04), all resolved by keeping both sides. Native unfiltered suite after a `swift package clean`: **2723 tests in 3 suites passed after 165.713 seconds** (2677 + 46), `FR-J no-argument frame: succeeded=true`, 0 `error:`. Guards 176 (175 + 1; task-followups added none).

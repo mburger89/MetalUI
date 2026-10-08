@@ -83,11 +83,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/variable-height-list` from `70ed000`, merged with `099cf80`; the pre-merge reading):
-  2718 tests, 0 goldens, 176 typecheck guards** (2672 + 46 tests, 175 + 1 guard;
-  census 2540; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image;
-  divergences 145–147 added, 108 live on the branch, the header's count and
-  next label the merge's; record §82 §6). Before it,
+- **Counts (2026-10-08, `feat/variable-height-list` merged with `099cf80`):
+  2723 tests, 0 goldens, 176 typecheck guards** (2677 + 46 tests, 175 + 1 guard;
+  native unfiltered run, 165.7 s; `Backends/SDL` 24 + 83 / 24 + 80 before the merge, task-followups'
+  84 / 81 after it unre-taken; divergences 145–147 added, the header's count and
+  next label the merge's; record §82 §6, §7). Before the merge, on `70ed000`: 2718 / 0 / 176. Before it,
   `fix/task-followups` from `70ed000`: 2677 / 0 / 175 (2672 + 5 tests, no guard;
   census 2536; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image; record §84 §4). Before that,
   `feat/portable-app` from `359444e`, all three lanes:
