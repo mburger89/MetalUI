@@ -48,7 +48,8 @@ summary.
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
-  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `RT-`
+  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
+  `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -84,13 +85,17 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/rich-text` from `70ed000`, merged with master `cd84b0c`):
+- **Counts (2026-10-08, `feat/rich-text` from `70ed000`, merged with master `5d6893a`):
   2790 tests, 0 goldens, 180 typecheck guards** (2723 + 67 tests, 176 + 4 guards: five
   new, `textBoldIsNotOffered` re-spelled; census 2685; the lanes' own sums 2672 + 20
-  + 27 + 20 = 2739 before the merge; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image,
+  + 27 + 20 = 2739 before the merge; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image
+  before master's §86 fix (24 + 88 / 24 + 85 after it, record §86 §4),
   root in the image 6 + 35 + 18 + 199 + 67 + 22; divergences 150–158 added, the header's count and next label the
-  merge's; record §83 §8). Before it, `feat/variable-height-list` merged with `099cf80`:
-  2723 tests, 0 goldens, 176 typecheck guards** (2677 + 46 tests, 175 + 1 guard;
+  merge's; record §83 §8). Before it, `fix/accesskit-window-show` from `cd84b0c`:
+  2723 tests, 0 goldens, 176 typecheck guards, unmoved (the fix is in
+  `Backends/SDL`: 24 + 88 on macOS, 24 + 85 in the Linux image; census 2540
+  unmoved; record §86 §4). Before it, `feat/variable-height-list` merged with `099cf80`:
+  2723 tests, 0 goldens, 176 typecheck guards (2677 + 46 tests, 175 + 1 guard;
   census 2540; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image, re-taken
   after the merge; divergences 145–147 added, the header's count and
   next label the merge's; record §82 §8, §9). Before the merge, on `70ed000`: 2718 / 0 / 176. Before it,
@@ -676,7 +681,10 @@ first — never trap); ImageIO stays only for other formats on macOS.
 build system warn in every consumer); without `SDL` the module declares an
 unavailable `SDLPlatform` naming the trait. A change to those targets is run
 in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
-executable (`PX-P`).
+executable (`PX-P`). **An SDL window is created hidden**: everything that must
+precede its first show (the AccessKit adapter — Windows' panics on a visible
+window) runs before `SDL_ShowWindow`, then the renderer, on every platform;
+`hiddenWindows` windows are never shown (`WS-B`, record §86).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one

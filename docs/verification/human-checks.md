@@ -968,6 +968,31 @@ wrapping in a real window, the wheel, the scroll thumb, a live resize.
 - [ ] **VL5. Live resize.** Drag the window's width continuously: the text rows
   re-wrap and the top row keeps its place (`VL-E`, `VL-G`). **Observed:**
 
+## WS. AccessKit before the first show (item C11, user request 2026-10-02, not a plan task)
+
+Every SDL window is now created hidden; its AccessKit adapter is made, then the
+window is shown (unless `hiddenWindows`), then its renderer claims it (rulings
+`WS-A`…`WS-H`, record §86). Run the SDL demo from `Backends/SDL`: `swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`; on
+Windows the CI `windows` job's flags). Pinned headless: the order on SDL's own
+flag (`SDLWindowShowOrderTests` T1–T4, every platform), and on Windows CI a
+launch of the demo that must survive 8 s (`WS-E`). What nothing headless sees:
+the native window's appearance, focus and a screen reader.
+
+- [ ] **WS1. Windows, interactive desktop.** `MetalUISDLDemo.exe` (AccessKit
+  on) opens without a panic; the window appears at 920 × 560, focused, its
+  title in the taskbar; Narrator announces the window and reads a button
+  (`WS-A`, `WS-B`). **Observed:**
+- [ ] **WS2. Linux, X11 and Wayland desktop.** The demo window appears focused
+  at its size and draws its first frame; Orca reads the window title (`WS-B`,
+  `WS-F` item 3). **Observed:**
+- [ ] **WS3. macOS, the SDL demo.** The window appears key and draws its first
+  frame; VoiceOver (⌘F5) reads the window through AccessKit's macOS adapter,
+  now made before the show (`WS-B`). **Observed:**
+- [ ] **WS4. smk_configurator, after its MetalUI pin bump.** The packaged
+  Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
