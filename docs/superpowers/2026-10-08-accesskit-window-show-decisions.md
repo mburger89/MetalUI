@@ -143,8 +143,8 @@ CI launch step and the unstubbed visible-window test on the Windows runner
 
 **Ruling — why it was not caught:**
 
-1. Every SDL test opens `SDLPlatform(hiddenWindows: true)` (17 sites at
-   `cd84b0c`: 16 in `Tests/MetalUISDLTests`, one in `MainQueueDrainCheck`), so
+1. Every SDL test opens `SDLPlatform(hiddenWindows: true)` (16 sites at
+   `cd84b0c`: 15 in `Tests/MetalUISDLTests`, one in `MainQueueDrainCheck`), so
    the adapter always met a hidden window. The visible `SDLPlatform()` is
    written only in `MetalUISDLDemo`, the `metalui new --cross-platform`
    starter (`Scaffold.swift:298`) and docs — so every generated cross-platform
