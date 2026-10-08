@@ -50,7 +50,12 @@
 // = 1, displayAsleep main: 1 — the click, AX and animation instruments work
 // locked, as the input-APIs and transactions probes found; P0 is the click
 // control). Compiled form run twice: stdout byte-identical (160 lines), exit 0,
-// stderr empty. INSTRUMENT HISTORY (discarded runs, not answers): run 1
+// stderr empty. RE-RUN 2026-10-08 by the C10 critic (`LK-O`), same screen
+// state, compiled form, twice: run 2 byte-identical to the lines below; run 1
+// differed on `M1 ... light regular` only, by one level in two samples
+// (blue stripe (222, 136, 170), edge (224, 136, 166)) — M1 is not byte-stable.
+// M4 (cacheDisplay) keeps the stripes apart: it does not composite the
+// material and is a discarded instrument, not an answer. INSTRUMENT HISTORY (discarded runs, not answers): run 1
 // queued the drags and the release with `NSApp.postEvent`, which nothing
 // dequeues without `NSApp.run` — P0 read "-" and S1 lost its release; runs
 // 1-3 read empty AX trees until `AXEnhancedUserInterface` was set on NSApp

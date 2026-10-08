@@ -2,7 +2,7 @@
 
 User request 2026-10-02 (item C10 of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-08-controls-looks-decisions.md`](../2026-10-08-controls-looks-decisions.md)
-(`LK-A`…`LK-N`). Record: `../../record/85-controls-looks.md`. Branch
+(`LK-A`…`LK-T`; `LK-O`…`LK-T` are the critic's amendments, and win where they differ from an earlier ruling). Record: `../../record/85-controls-looks.md`. Branch
 `feat/controls-looks` from `cd84b0c`.
 
 **Motivation.** MetalCreator ships stopgaps for six missing pieces —
@@ -47,8 +47,10 @@ init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V> = 0...
 init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V>, step: V.Stride,
                              onEditingChanged: @escaping (Bool) -> Void = { _ in })
 
-// ColorPicker (LK-C, LK-D) — D (divergence 165: drawn panel on macOS)
-public struct ColorPicker: Element { init(_ titleKey: String, selection: Binding<Color>, supportsOpacity: Bool = true) }
+// ColorPicker (LK-C, LK-D, LK-P) — D (divergence 165: drawn panel on macOS); Toggle's shape: one Box, label + well
+public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
+  init(selection: Binding<Color>, supportsOpacity: Bool = true, @ElementBuilder label: () -> Label) }
+extension ColorPicker where Label == Text { init(_ titleKey: String, selection: Binding<Color>, supportsOpacity: Bool = true) }
 
 // AccessibilityRole (LK-G) — M (MetalUI's own neutral tree)
 case progressIndicator, busyIndicator, colorWell
@@ -57,13 +59,14 @@ case progressIndicator, busyIndicator, colorWell
 **Lane 2**
 
 ```swift
-// ProgressView (LK-E, LK-F)
-public struct ProgressView: Element
-init()                                   init(_ title: String)
-init<V: BinaryFloatingPoint>(value: V?, total: V = 1.0)
-init<V: BinaryFloatingPoint>(_ title: String, value: V?, total: V = 1.0)
-init<V: BinaryFloatingPoint, L: ElementGroup, C: ElementGroup>(value: V?, total: V = 1.0,
-     @ElementBuilder label: () -> L, @ElementBuilder currentValueLabel: () -> C)
+// ProgressView (LK-E, LK-F, LK-P) — Toggle's shape: one Box over the label(s) and an internal indicator leaf
+public struct ProgressView<Label: ElementGroup, CurrentValueLabel: ElementGroup>: Element, StyledElement
+  init<V: BinaryFloatingPoint>(value: V?, total: V = 1.0, @ElementBuilder label: () -> Label,
+                               @ElementBuilder currentValueLabel: () -> CurrentValueLabel)
+extension ProgressView where Label == EmptyGroup, CurrentValueLabel == EmptyGroup {
+  init();  init<V: BinaryFloatingPoint>(value: V?, total: V = 1.0) }
+extension ProgressView where Label == Text, CurrentValueLabel == EmptyGroup {
+  init(_ title: String);  init<V: BinaryFloatingPoint>(_ title: String, value: V?, total: V = 1.0) }
 public struct ProgressViewStyle: Hashable, Sendable { static let automatic, linear, circular }
 func progressViewStyle(_ style: ProgressViewStyle)   // on ProgressView and on ElementGroup (MD-B pattern)
 
@@ -87,7 +90,9 @@ extension ElementGroup {   // proposal content stays proposal (a ProposalElement
        @ElementBuilder content: @escaping (Self, Value) -> Content, @KeyframesBuilder<Value> keyframes: @escaping (Value) -> K) -> some ElementGroup
   func keyframeAnimator<…>(initialValue: Value, repeating: Bool = true, content:…, keyframes:…) -> some ElementGroup
 }
-public struct KeyframeAnimator<Value, Content: ElementGroup, K>: ElementGroup { init(initialValue:trigger:content:keyframes:) }
+public struct KeyframeAnimator<Value, Content: ElementGroup, K>: ElementGroup {   // LK-T item 4
+  init(initialValue:trigger:content: @escaping (Value) -> Content, keyframes:)
+  init(initialValue:repeating: Bool = true, content: @escaping (Value) -> Content, keyframes:) }
 // D (divergence 169): Value constraint VectorArithmetic, content receives Self
 ```
 
@@ -100,15 +105,21 @@ public struct LinearGradient  { init(gradient: Gradient, startPoint: UnitPoint, 
                                 init(colors: [Color], startPoint:endPoint:); init(stops: [Gradient.Stop], startPoint:endPoint:) }
 public struct RadialGradient  { init(gradient: Gradient, center: UnitPoint, startRadius: Pixels, endRadius: Pixels)  + colors:/stops: }
 // both: greedy leaves (ideal 10×10) in both vocabularies
+// LK-R: where each overload lives and what it returns
 extension Shape { func fill(_: LinearGradient) / fill(_: RadialGradient) / fill(_: Material)
+                  func fill(_:style: FillStyle) for each of the three (beside fill(_ color:, style:))
                   func stroke(_: LinearGradient, lineWidth: Pixels = 1) / stroke(_:style:) (and RadialGradient) }
-extension ProposalElementGroup { func background(_: LinearGradient) / (_: RadialGradient) / (_: Material)
-                                 func background<S: Shape>(_: LinearGradient, in: S) / … / (_: Material, in: S)
+// ShapeView's own chained fill(_:) / fill(_:style:) gain the same three
+extension ElementGroup { func background<S: Shape>(_: LinearGradient | RadialGradient | Material, in: S)
+                             -> BackgroundModifier<Self, ShapeView<S>> }        // beside the Color pair, both vocabularies
+extension ProposalElementGroup { func background(_: LinearGradient) -> BackgroundModifier<Self, LinearGradient>   // the view as attachment
+                                 func background(_: RadialGradient) -> BackgroundModifier<Self, RadialGradient>
+                                 func background(_: Material) -> ModifiedContent<ProposalBase, LayoutModifier>    // existing .background(Color) case
                                  func blur(radius: Pixels) -> ModifiedContent<ProposalBase, LayoutModifier> }
 extension StyledElement { func background(_: LinearGradient) -> Self / (_: RadialGradient) / (_: Material); func blur(radius: Pixels) -> Self }
 public struct Material: Hashable, Sendable { static let ultraThinMaterial, thinMaterial, regularMaterial, thickMaterial, ultraThickMaterial, bar }
 // static members also on the overload sites' parameter types so `.background(.ultraThinMaterial)` resolves (typecheck guard 3.T1)
-case blur(radius: Pixels)    // new LayoutModifier case — M
+case blur(radius: Pixels)    // the ONE new LayoutModifier case — M; migration note (LK-R item 3)
 ```
 
 ## §2 Files and lanes
@@ -117,12 +128,13 @@ At most three lanes, sequential, disjoint (`LK-A`, `LK-N`).
 
 | Lane | Owns (new **bold**) |
 |---|---|
-| 1 controls | `Slider.swift`, `Window.swift` (`dispatchValueTrack` and the close path only), **`ColorPicker.swift`**, **`ColorPickerPanel.swift`**, **`ColorMath.swift`** (HSB, hex), `AccessibilityTree.swift` (3 roles), `AppKitAccessibility.swift`, `Backends/SDL/Sources/MetalUISDL/AccessKitTree.swift`, `ControlsDemo.swift` (`controlsLooksSection()`); tests **`SliderEditingTests.swift`**, **`ColorPickerTests.swift`**, **`ColorPickerPanelTests.swift`**, **`ColorMathTests.swift`**, **`ColorPickerCompileGuards.swift`**, **`ControlsLooksAccessibilityTests.swift`**, and an arm in `Backends/SDL/Tests/MetalUISDLTests` (the AccessKit role file it already has) |
+| 1 controls | `Slider.swift`, `Window.swift` (after `updatePointerState(event)` in the input hook, `dispatchValueTrack`, the close path — `LK-Q`), **`ColorPicker.swift`**, **`ColorPickerPanel.swift`**, **`ColorMath.swift`** (HSB, hex), `AccessibilityTree.swift` (3 roles), `AppKitAccessibility.swift`, `Backends/SDL/Sources/MetalUISDL/AccessKitTree.swift`, `ControlsDemo.swift` (`controlsLooksSection()`); tests **`SliderEditingTests.swift`**, **`ColorPickerTests.swift`**, **`ColorPickerPanelTests.swift`**, **`ColorMathTests.swift`**, **`ColorPickerCompileGuards.swift`** (no `PlatformWindow` conformer, `LK-T`), **`ControlsLooksAccessibilityTests.swift`**, and an arm in `Backends/SDL/Tests/MetalUISDLTests` (the AccessKit role file it already has) |
 | 2 progress, keyframes | **`ProgressView.swift`**, **`ProgressViewStyle.swift`**, **`Keyframes.swift`** (types, builders, timeline), **`KeyframeAnimator.swift`** (scope, modifier, view), **`VectorArithmetic.swift`**, `AnimationStore.swift` (the keyframe records), `Animation.swift` (`springValue` and the curve solver made internal — no behaviour change), `ControlsDemo.swift` (`progressSection()`), `LooksDemo.swift` (`keyframesSection()`); tests **`ProgressViewTests.swift`**, **`ProgressViewCompileGuards.swift`**, **`KeyframeTimelineTests.swift`**, **`KeyframeAnimatorTests.swift`**, **`KeyframeCompileGuards.swift`** |
-| 3 looks | **`Gradient.swift`** (types, Oklab table), **`GradientRaster.swift`**, **`Blur.swift`**, **`Material.swift`**, `RasterCache.swift`, `Shadow.swift` (the shared per-leaf capture, refactored not changed), `Frame.swift` (a `CapturedPrimitive` kind and the blur scope), `RenderEffects.swift`, `ShapeView.swift`, `Box.swift` (`Decoration`'s fill), `NativeModifiedContent.swift` (`LayoutModifier.blur`), `NativeBackgroundModifier.swift`, `ClipShape.swift` (`background(_:in:)`), `LooksDemo.swift` (`gradientsBlurMaterialsSection()`); tests **`GradientTests.swift`**, **`GradientRasterTests.swift`**, **`BlurTests.swift`**, **`MaterialTests.swift`**, **`LooksCompileGuards.swift`**, plus a replay-parity arm (`Backends/SDL` `PortableReplay` fixtures recorded from the Mac) |
+| 3 looks | **`Gradient.swift`** (types, Oklab table), **`GradientRaster.swift`**, **`Blur.swift`**, **`Material.swift`**, `RasterCache.swift`, `Shadow.swift` (the shared per-leaf capture, refactored not changed), `Frame.swift` (a `CapturedPrimitive` kind and the blur scope), `RenderEffects.swift`, `ShapeView.swift`, `Box.swift` (`Decoration`'s fill), `NativeModifiedContent.swift` (`LayoutModifier.blur`), `NativeBackgroundModifier.swift`, `ClipShape.swift` (`background(_:in:)`), `LooksDemo.swift` (`gradientsBlurMaterialsSection()`); tests **`GradientTests.swift`**, **`GradientRasterTests.swift`**, **`BlurTests.swift`**, **`MaterialTests.swift`**, **`LooksCompileGuards.swift`**, plus replay frame 9 (`LK-S`): `Experiments/SDLGPU/Sources/Replay/main.swift` (the recorder) and `.github/workflows/sdl-gpu-linux.yml` (`--expect 8` → `9`, both jobs) |
 
-Lanes 2 and 3 both add a section to `LooksDemo.swift`, in separate functions
-appended at the end; lane 3 rebases on lane 2's commit (sequential lanes). New
+Lanes 1 and 2 both append a function to `ControlsDemo.swift`, lanes 2 and 3
+to `LooksDemo.swift` — appended at the end, never editing another lane's
+function (`LK-T` item 3); lanes are sequential. New
 public cases on public types (`AccessibilityRole`, `LayoutModifier`) and the
 new stored property on `Decoration`: **`swift package clean` before the next
 measured run** in that lane.
@@ -131,27 +143,30 @@ measured run** in that lane.
 
 ### §3.1 Lane 1
 
-**Slider** (`LK-B`). `ValueTrackTarget` gains `onEditingChanged: (@MainActor
-(Bool) -> Void)?`. `dispatchValueTrack(_:pressedBefore:)`: on `.mouseDown` over
-a track, call `onEditingChanged(true)` then `track(toWindowX:)`, and store
-`(id, end: onEditingChanged)` in a new `private var editingTrack`; on
-`.mouseDragged` unchanged; on `.mouseUp` with `editingTrack` set, call its
-`end(false)` under `StateDispatch` to its id and clear it — **whether or not**
-a region with that id is still in `lastHitboxes`; the event is claimed only if
-the release would have been (no change to click dispatch for other targets).
-The window's close path (`runDisappearancesForClose`'s caller) ends an open
-`editingTrack` the same way. The keyboard and accessibility adjust closures in
+**Slider** (`LK-B`, `LK-Q`). `ValueTrackTarget` gains `onEditingChanged: (@MainActor
+(Bool) -> Void)?`. `dispatchValueTrack(_:)` (signature unchanged): on `.mouseDown` over
+a track, end any still-open `editingTrack` first, then call `onEditingChanged(true)`,
+then `track(toWindowX:)`, and store `(id, end: onEditingChanged)` in a new
+`private var editingTrack`; `.mouseDragged` unchanged. **The release end runs
+right after `self.updatePointerState(event)` at the top of the `onInput` hook**
+— before the services switch, the drawn alert, the drag and menu sessions and
+the popovers' stage, any of which may claim the release — calling `end(false)`
+under `StateDispatch` to the stored id and clearing it, **whether or not** a
+region with that id is still in `lastHitboxes`, and **claiming nothing** (the
+release continues exactly as at `cd84b0c`). The window's close path
+(`runDisappearancesForClose`'s caller) ends an open `editingTrack` the same way. The keyboard and accessibility adjust closures in
 `Slider.prepaint` wrap their write in `true`/`false`.
 
-**ColorPicker** (`LK-C`). A `Component` (layout-transparent, identity-opaque,
-`@State var isPresented`) whose body is the label `Text`, 8 points, and the
-well — a `StyledElement` leaf (48×24, `registerAndScope` in `prepaint`,
+**ColorPicker** (`LK-C`, `LK-P`). An `Element, StyledElement` on `Toggle`'s
+shape (`@State var isPresented`): **one `Box`** (row, gap 8, cross-centred) over
+the label and the well — so it is one node in any container — the well a `StyledElement` leaf (48×24, `registerAndScope` in `prepaint`,
 `paintDecoration` in `paint`, `.colorWell` AX node with the `"rgb …"` value,
 press and Space/Return → `isPresented = true`) carrying `.popover(isPresented:)`
 over `ColorPickerPanel`. Empty title: the well alone.
 
-**ColorPickerPanel** (`LK-D`). A `Component` with `@State` HSBA and
-`lastWritten: Color?`. The square, hue bar and opacity bar are `Image`s of
+**ColorPickerPanel** (`LK-D`). An internal `Component` with `@State` HSBA and
+`lastWritten: Color?`, whose body is **one** column (a popover's content is
+one presentation root, `LK-P` item 3). The square, hue bar and opacity bar are `Image`s of
 `ImageBitmap`s generated by `ColorMath` (square 100×75 device-independent
 samples scaled with the linear filter; the hue strip 360×1; the opacity strip
 64×1 over a checkerboard), each under a `DragGesture(minimumDistance: 0)`
@@ -171,10 +186,11 @@ with the value string). Convert every C enum `rawValue` explicitly.
 
 ### §3.2 Lane 2
 
-**ProgressView** (`LK-E`, `LK-F`): a leaf `StyledElement` (`lowerLegacyLeaf`,
-`requestNativeLeaf` with `LK-E` item 3's sizes) for the spinner, the bar and
-the ring; titles and current-value labels make it a `Component` composing
-`Text` with the leaf (label above/below per `LK-E` item 3). Paint: spinner = 12
+**ProgressView** (`LK-E`, `LK-F`, `LK-P`): an internal leaf `StyledElement`
+(`lowerLegacyLeaf`, `requestNativeLeaf` with `LK-E` item 3's sizes) for the
+spinner, the bar and the ring, inside the public `ProgressView`'s **one `Box`**
+(column) with its title and current-value label (above/below per `LK-E` item
+3) — `Toggle`'s shape, never a `Component`. Paint: spinner = 12
 spokes (2-point-wide capsules from 0.5r to r, opacity 1 → 0.25 around, rotated
 by the step `floor((t mod 0.8)/0.8·24)·15°`), drawn as `Path`s through
 `pass.drawPath` (a CPU raster of at most 32×32 points per step change — the
@@ -232,10 +248,13 @@ site's code path with that colour (a proposal `.background(material)` is a
 `.background(color)` layer resolved at paint by scheme, a legacy one sets
 `Decoration.background` to a `Color(light:dark:)` pair). No new primitive.
 
-**Replay parity**: the gradient and blur images are `MUIImage`s; one
-`PortableReplay` fixture (a diagonal gradient rounded rect, a radial circle, a
-blurred text leaf) is recorded on the Mac and replayed on SDL in the Linux image
-and (CI) Windows, at the harness's existing tolerance.
+**Replay parity** (`LK-S`): the gradient and blur images are `MUIImage`s made
+on the CPU, so both renderers receive the same texels and `TE-AD` holds by
+construction. The recorder gains **frame 9** through `renderFrame` (vertical and
+horizontal strip-path rounded rects at quarter-pixel bounds, a diagonal full
+raster, a radial circle, a blurred text leaf); CI's `--expect 8` becomes `9`.
+It is replayed locally on macOS (`PortableReplay --driver metal`) and in CI on
+llvmpipe and D3D12 — the offscreen Linux image does not replay.
 
 ## §4 Tests (by name; red-before; the mutation that must redden it)
 
@@ -259,10 +278,15 @@ each. Numbers come from the probe unless marked *(MetalUI rule)*.
 | `aReleaseAfterTheSliderLeftTheTreeStillEndsTheEdit` *(rule)* | absent | look the callback up in `lastHitboxes` at release |
 | `aReleaseAfterTheSliderWasDisabledStillEndsTheEdit` *(rule)* | absent | same |
 | `closingTheWindowMidDragEndsTheEdit` *(rule)* | absent | drop the close-path call |
+| `aReleaseClaimedByTheDrawnAlertStillEndsTheEdit` (`LK-Q`) | absent | end the edit in `dispatchValueTrack`'s `.mouseUp` case (the first design's spelling) |
+| `aSecondPressWithoutAReleaseEndsTheFirstEdit` (`LK-Q`) | absent | overwrite `editingTrack` without ending it |
+| `theReleaseIsNotClaimedByTheSlider` (`LK-Q`: an ancestor's tap arena sees the release as at `cd84b0c`) | absent | return `true` from the end |
 | `theEditingCallbacksRunUnderTheSlidersDispatch` (`ID-F`: one slider value placed twice) | absent | run the calls outside `StateDispatch` |
 | `theSliderInitialisersKeepTheirSwiftUISpellings` (guard: `Slider(value:in:onEditingChanged:)`, `step:`, trailing closure; plain import) | absent | rename the parameter |
 | `aColorPickerIsItsLabelEightPointsAndAFortyEightByTwentyFourWell` (C0, V12: own width = MetalUI's `Text("Tint")` width + 56, height 24) | absent | spacing 6 |
 | `aColorPickerWithAnEmptyTitleIsTheWellAlone` (48×24) | absent | keep the spacing with no label |
+| `aColorPickerInAVStackKeepsItsLabelBesideTheWell` / `aColorPickerInAnHStackKeepsItsOwnEightPointGap` (`LK-P`) | absent | make the body a `Component` of two top-level nodes |
+| `aColorPickerTakesABackgroundAndPadding` (guard, plain import; also `ColorPicker(selection:label:)`) | absent | drop the `StyledElement` conformance |
 | `pressingTheWellOpensThePanelAndDoesNotFocus` | absent | focus on press |
 | `spaceOnAFocusedWellOpensThePanel` | absent | drop the key |
 | `aDragOnTheSquareWritesSaturationAndBrightness` (exact `Color(.sRGB …)` for a hue-0 square at (¼, ¼)) | absent | swap the axes |
@@ -291,7 +315,8 @@ each. Numbers come from the probe unless marked *(MetalUI rule)*.
 | `aSmallBarIsTwelveTall` (V3) | absent | 20 |
 | `aTitledBarStacksTheTitleAboveWithNoGap` (V4: 16 + 20 in MetalUI's own text height) | absent | gap 4 |
 | `aCurrentValueLabelSitsBelowInTheCaptionFont` (V4) | absent | body font |
-| `aTitledSpinnerStacksTheTitleBelowFourPointsApart` (V1) | absent | above |
+| `aTitledSpinnerStacksTheTitleBelowFourPointsApart` (V1, own 48×52) | absent | above |
+| `aTitledProgressViewInAnHStackStacksItsTitleAbove` (`LK-P`) | absent | make it a `Component` of two top-level nodes |
 | `aNegativeValueOrAZeroTotalIsIndeterminate` (V8) | absent | clamp to 0 instead |
 | `aValueAboveTheTotalDrawsFull` (V8) | absent | no clamp (fill overflows the track: a pixel test) |
 | `aNonFiniteValueIsIndeterminateAndNothingNonFiniteIsStored` *(rule)* | absent | pass NaN through |
@@ -316,7 +341,7 @@ each. Numbers come from the probe unless marked *(MetalUI rule)*.
 | `repeatingLoopsAndCallsKeyframesOnceK14` | absent | call per cycle |
 | `theAnimatorNotesAnimationOnlyWhileRunning` | absent | always note |
 | `theKeyframeScopeTakesNoIdentityLevel` (a `@State` under it survives adding the scope; `theSevenRetentionSlotsAreMutuallyDistinct` unchanged) | absent | wrap content in an `IdentifiedGroup` |
-| `keyframeAnimatorTypechecksWithSwiftUIsCallShape` (guard: the shake snippet from the decisions doc, plain import) | absent | rename `trigger:` |
+| `keyframeAnimatorTypechecksWithSwiftUIsCallShape` (guard: the shake snippet from the decisions doc, plain import; negative arm `LK-T` item 2: a legacy decoration after it does not compile) | absent | rename `trigger:`; return `Self` |
 | `userConformancesToKeyframesDoNotCompile` (guard, plain import, `typecheckFile`) | absent | make `_segments` public |
 | `springKeyframeWithoutDurationDoesNotCompile` (guard; divergence 168) | absent | default `duration` to nil |
 
@@ -350,9 +375,9 @@ each. Numbers come from the probe unless marked *(MetalUI rule)*.
 | `theLegacyBlurJoinsRenderEffectsInWrittenOrder` (a blur then a shadow vs a shadow then a blur) | absent | append at front |
 | `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5` (12 × 2 composites within ±1) | absent | swap thin/thick |
 | `aMaterialFollowsTheColourScheme` | absent | light table in dark |
-| `materialSpellingsResolveWithoutAmbiguity` (guard 3.T1: `.background(.ultraThinMaterial)`, `.background(.surface)`, `.fill(.red)`, `.fill(LinearGradient(…))` in one file, plain import) | absent | add `static let surface` to `Material` |
+| `materialSpellingsResolveWithoutAmbiguity` (guard 3.T1: `.background(.ultraThinMaterial)`, `.background(.surface)`, `.fill(.red)`, `.fill(LinearGradient(…))`, `.fill(LinearGradient(…), style: FillStyle(eoFill: true))`, legacy `Text("x").background(.thinMaterial, in: Capsule())` in one file, plain import) | absent | add `static let surface` to `Material`; declare `background(_:in:)` on `ProposalElementGroup` only (`LK-R`) |
 | `theLayoutModifierBlurCaseIsOneIdentityLevel` | absent | wrap in two layers |
-| replay parity: the new fixture replays on SDL (Linux image, CI Windows) | absent | change the gradient table on one side only |
+| replay parity: frame 9 replays on SDL (`PortableReplay --driver metal` locally; llvmpipe and D3D12 in CI) with `--expect 9` (`LK-S`) | absent (8 frames) | `SDLBridge.c` image sampler `address_mode_v` = `REPEAT`, isolated copy — frame 9 must fail (the first design's "change the table on one side" cannot: the texels are shared) |
 
 Pixel tests read the scene through the existing `FakePlatformWindow`/scene
 dumps (`PaintPrimitiveTests` style) and the CPU textures directly — no GPU
@@ -366,8 +391,9 @@ readback, no golden file (stage 7a).
   pipeline; the colour panel is the same drawn panel; AccessKit rows for the
   three roles. Lane 1 runs `Backends/SDL` on macOS and the Linux image
   (`docker build -t metalui-portable …`, the volume
-  `metalui-sdl-build-controls-looks`); lane 3 records and replays the parity
-  fixture (Linux image; CI Windows on push).
+  `metalui-sdl-build-controls-looks`); lane 3 records frame 9 and replays it on
+  macOS (`--driver metal`); CI replays on llvmpipe and D3D12 on push (`LK-S`
+  item 4: the offscreen Linux image does not replay).
 - No new `PlatformWindow`/`Platform`/`WindowRenderer` requirement in this
   branch (the colour-panel seam is designed in `LK-C` item 6 and deferred).
 
@@ -402,7 +428,9 @@ end of each lane. A real-window look only when the lock probe allows.
 6. Gradient banding at 8 bits on a P3 display (divergence 1 applies).
 7. A blurred text and image look like SwiftUI's at the same radius.
 8. Materials over a striped backdrop: the flat tint versus SwiftUI's blur
-   (divergence 166 is visible by design) — in both schemes.
+   (divergence 166 is visible by design) — in both schemes; **and over a
+   uniform backdrop in a real key window**, whether SwiftUI's tint matches the
+   ImageRenderer fit (`LK-O` item 2: `cacheDisplay`, `M4`, cannot tell).
 9. The keyframe shake reads as a shake at 60 Hz and on a 120 Hz display.
 10. VoiceOver: the well announces its colour; the panel's sliders adjust; a
     progress view announces its fraction; a spinner announces busy. (**An
@@ -413,7 +441,7 @@ end of each lane. A real-window look only when the lock probe allows.
 | Label | Lane | Subject |
 |---|---|---|
 | 165 | 1 | `ColorPicker` on macOS opens a drawn popover, not `NSColorPanel` (`LK-C` item 6) |
-| 166 | 3 | materials draw a fitted flat tint with no backdrop blur (`LK-L`) |
+| 166 | 3 | materials draw a flat tint fitted from ImageRenderer, with no backdrop blur (`LK-L`, `LK-O` item 2) |
 | 167 | 3 | a GPU surface leaf under `.blur` is drawn unblurred (`LK-K` item 5) |
 | 168 | 2 | `SpringKeyframe` requires `duration:` (`LK-I` item 5) |
 | 169 | 2 | keyframe track values constrain `VectorArithmetic` (not `Animatable`); the content closure receives the element itself (`LK-I` item 8) |
@@ -434,3 +462,6 @@ section and a pin (the tests above named for them).
   not divergences.
 - SwiftUI's default `SpringKeyframe` length (`K4b`, `K4d` recorded; unfitted).
 - Real-window captures (the screen was locked for the whole session).
+- A material's tint in a real window (`M4`'s `cacheDisplay` does not
+  composite it; `LK-O` item 2). `M1` is not byte-stable (±1 between runs,
+  `LK-O` item 1).

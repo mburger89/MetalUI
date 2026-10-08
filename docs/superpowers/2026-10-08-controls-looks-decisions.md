@@ -29,7 +29,7 @@ Where SwiftUI has no answer (a hex field, how a drawn panel takes keys, what a
 GPU surface under a blur shows) the ruling says so; gpui is named as a
 comparison where it has one, never as evidence.
 
-Prefix **`LK-`**, lettered. **Next unused: `LK-O`.** (This line moves in the
+Prefix **`LK-`**, lettered. **Next unused: `LK-U`.** (This line moves in the
 commit that appends a ruling; read the last `## LK-` heading.)
 
 Branch `feat/controls-looks` from `cd84b0c` (master: variable-height `List`,
@@ -44,7 +44,7 @@ record names any change:
 | Gap | Spelling |
 |---|---|
 | M5-a | `Slider(value: $v, in: 0...1, onEditingChanged: { editing in … })` (and `step:`) |
-| M6-f, MG-7 | `ColorPicker("Tint", selection: $color, supportsOpacity: true)` over MetalUI's `Color` |
+| M6-f, MG-7 | `ColorPicker("Tint", selection: $color, supportsOpacity: true)` over MetalUI's `Color` (also `ColorPicker(selection:supportsOpacity:label:)`, `LK-P`) |
 | M5-j | `ProgressView()`, `ProgressView(value: x, total: 1)`, `ProgressView("Label", value: x)`, `.controlSize(.small)`, `.progressViewStyle(.linear / .circular)` |
 | M5-i | `.keyframeAnimator(initialValue: 0.0, trigger: refusals) { content, x in content.offset(x: Pixels(Float(x))) } keyframes: { _ in KeyframeTrack { LinearKeyframe(6, duration: 0.05); LinearKeyframe(-6, duration: 0.1); LinearKeyframe(0, duration: 0.05) } }` |
 | M5-d | `LinearGradient(colors: [a, b], startPoint: .top, endPoint: .bottom)` as `.background(_:)` (both vocabularies) and `Shape.fill(_:)`; `RadialGradient(colors:center:startRadius:endRadius:)` |
@@ -77,7 +77,7 @@ Deferred, each by name, with its owner:
 | `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)` on text, gradient animation | `LK-J` items 7–8 | none |
 | `.blur(radius:opaque:)`'s `opaque: true` | `LK-K` item 6 | none |
 | `ProgressView(timerInterval:)`, `ProgressView(_: Progress)`, a custom `ProgressViewStyle` | no requester; `Progress` is Foundation-only | none |
-| `ColorPicker` label views (`ColorPicker(selection:label:)`), `CGColor` bindings | MetalUI's `Color` is the one colour type (`CR-`) | none |
+| `CGColor` bindings (label views are built: `LK-P` item 2) | MetalUI's `Color` is the one colour type (`CR-`) | none |
 
 **Reasoning.** Six features in one branch is only honest if each lands whole
 or is deferred by name. The split follows the files: lane 1 owns `Slider.swift`,
@@ -116,7 +116,8 @@ a lettered ruling; the table above grows, the spellings table shrinks.
    wherever the release lands, **even if the slider left the tree, was
    disabled or the window closed mid-drag** (a close counts as the release).
    Both calls run under `StateDispatch` to the pressed slider's id (`ID-F`).
-6. **Where**: `ValueTrackTarget` gains `onEditingChanged`; `dispatchValueTrack`
+6. **Where** (**amended by `LK-Q`**: the release end moved to the top of the
+   input hook; no `pressedBefore:`): `ValueTrackTarget` gains `onEditingChanged`; `dispatchValueTrack`
    (`Window.swift`) gains the release case and a `pressedBefore:` argument.
    `Handlers` keeps seventeen members (the callback rides `valueTrack`). The
    hunk is inside `dispatchValueTrack` and the window's close path (the
@@ -136,7 +137,8 @@ invariant is pinned on its three edges (spec §3.1).
 
 **Ruling.**
 
-1. **Spelling**: `ColorPicker(_ titleKey: String, selection: Binding<Color>,
+1. **Spelling** (**amended by `LK-P`**: `ColorPicker<Label>`, `Element,
+   StyledElement`, one `Box`, plus the label-view initialiser): `ColorPicker(_ titleKey: String, selection: Binding<Color>,
    supportsOpacity: Bool = true)`. One public type, an `Element`, usable in both
    vocabularies (in a SwiftUI stack through `LegacyContent`, `PE-C`).
 2. **Geometry** (probe `C0`, `V12`): the label `Text`, **8 points**, then a
@@ -238,7 +240,8 @@ re-draw, no API change.
 
 **Ruling.**
 
-1. **Spellings**: `ProgressView()`; `ProgressView(_ title: String)`;
+1. **Spellings** (**amended by `LK-P`**: `ProgressView<Label,
+   CurrentValueLabel>`, `Element, StyledElement`, one `Box`): `ProgressView()`; `ProgressView(_ title: String)`;
    `ProgressView<V: BinaryFloatingPoint>(value: V?, total: V = 1.0)`;
    `ProgressView(_ title: String, value: V?, total: V = 1.0)`;
    `ProgressView(value:total:label:currentValueLabel:)` with element-builder
@@ -523,7 +526,8 @@ not reach, the shader primitive is the follow-up; the API does not move.
    colour, with green the stripes lack — a blur and a vibrancy lift), and over
    a **uniform** backdrop a flat tint per material and scheme.
 3. **What MetalUI draws**: the flat tint only — a colour at an alpha, per
-   material and scheme, **fitted from `M5`** so that over uniform white and
+   material and scheme, **fitted from `M5`** (an ImageRenderer fit; a real
+   window is unmeasured, `LK-O` item 2) so that over uniform white and
    black it reproduces SwiftUI's material within ±1 (alpha = 1 − (W − K)/255,
    grey = K / (alpha × 255)):
 
@@ -579,9 +583,233 @@ phase.
 `ProposalText.swift`, `Font.swift`, every `MetalUIText`/`MetalUIPortableText`/
 `MetalUITextSystem`/`MetalUIHarfBuzz`/`MetalUIFreeType` file,
 `AnimationTests.swift`, `DecorationPaintTests.swift`, `MenuPickerTests.swift`,
-`TextCompileGuards.swift`. **One exception, named**: `Window.swift`, one hunk
-inside `dispatchValueTrack` and the close path (`LK-B` item 6), away from every
-input-apis hunk. Both branches append to `closeout-inventory-map.tsv` and
+`TextCompileGuards.swift`. **One exception, named**: `Window.swift`, lines right after
+`updatePointerState(event)` in the input hook, inside `dispatchValueTrack`, and
+the close path (`LK-Q` item 3), away from every input-apis hunk. Merge hazards
+in this branch's own test files: `LK-T`. Both branches append to `closeout-inventory-map.tsv` and
 re-record `closeout-public-api.tsv`: the later merge re-records the census.
 Divergence labels come from this branch's range **165–174**; the header's
 next-label line is left to the merge.
+
+## LK-O — Critic: the probe re-run, and what the material fit rests on
+
+**Ruling.** The critic re-ran `swiftui-controls-looks.swift` (compiled form,
+same screen state: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`)
+twice. **Run 2 is byte-identical to the recorded 160 lines** (after the
+header's two-space indent); **run 1 differs on one line**, `M1 ImageRenderer
+light regular`, by one level in two samples (blue stripe `(222, 136, 170)`
+for the recorded `(223, …)`, edge `(224, …)` for `(225, …)`). Every other arm,
+including `S`, `V`, `C`, `K`, `G` and `B`, reproduced both times;
+`gradient-raster-cost.swift` reproduced its check line `(140, 83, 162)` and its
+timings within 0.12 ms. Consequences:
+
+1. **`M1` is not byte-stable** (SwiftUI's material blur over ImageRenderer
+   varies by ±1); the header's "byte-identical" claim holds for the `M5` arms
+   the fit uses, not for every line. Nothing pins `M1`; `M5`'s ±1 tolerance
+   (`everyMaterialMatchesSwiftUIOverWhiteAndBlackM5`) already covers the
+   instrument's spread.
+2. **`M4` is a discarded instrument, not an answer.** `cacheDisplay` of a
+   hosted window read the regular light material over the stripes as `(128,
+   37, 34)` / `(28, 28, 127)` — the stripes stay apart (no blur) and the tint
+   is dark — so `cacheDisplay` does not composite the material's backdrop (as
+   `V14` read an inactive dark window). **The `LK-L` table is an
+   ImageRenderer fit; whether SwiftUI in a real, key window draws the same
+   tint over a uniform backdrop is unmeasured** — the Record phase adds it to
+   human check 8, and a window capture (`docs/probes/window-capture/`) when
+   the lock probe allows may replace the table. `LK-L` and divergence 166 say
+   "fitted from ImageRenderer", not "SwiftUI's material".
+3. `V1`'s fitting height reads 53 against an own 52: unexplained one point of
+   SwiftUI's fitting answer; MetalUI pins the **own** size (48×52), as the spec
+   does.
+
+**Reasoning.** A ruling that cites a probe must survive a re-run; the one line
+that did not is named rather than smoothed over, and the window arm the design
+did not cite contradicts the instrument the fit came from — that is recorded,
+not hidden.
+
+## LK-P — Critic: `ColorPicker` and `ProgressView` take `Toggle`'s shape, one node each
+
+**Ruling (amends `LK-C` item 1, `LK-E` item 1, `LK-A`'s deferral table, spec
+§1 and §3.1–§3.2).**
+
+1. **The defect.** The spec declared `public struct ColorPicker: Element` and
+   `public struct ProgressView: Element` but built both as a `Component` whose
+   body is a label and a control side by side. A `Component` is
+   layout-transparent (`OM-D`): two top-level nodes become **two children of
+   the caller's container**, so `VStack { ColorPicker("Tint", …) }` would stack
+   the label above the well and `HStack(spacing: 20)` would space them 20, not
+   8 — and a `Component` takes no `StyledElement` modifier (`.background`,
+   `.padding` per member). A struct also cannot be a leaf in one initialiser
+   and a `Component` in another.
+2. **Final shapes** (the `Toggle<Label>` precedent, `Toggle.swift`: one
+   `Element, StyledElement` over one `Box` holding the label and the control;
+   SwiftUI's own types are generic over their labels):
+   - `public struct ColorPicker<Label: ElementGroup>: Element, StyledElement` —
+     `init(selection: Binding<Color>, supportsOpacity: Bool = true,
+     @ElementBuilder label: () -> Label)` and, `where Label == Text`,
+     `init(_ titleKey: String, selection: Binding<Color>, supportsOpacity:
+     Bool = true)`. One `Box` (row, gap 8, cross-axis centred) over the label
+     and the internal well leaf; an empty title drops the label **and** the gap.
+     The label-view initialiser is **no longer deferred** (it was deferred for
+     a reason that applies only to `CGColor` bindings, which stay deferred).
+   - `public struct ProgressView<Label: ElementGroup, CurrentValueLabel:
+     ElementGroup>: Element, StyledElement` — `init()` and `init(value:total:)`
+     `where Label == EmptyGroup, CurrentValueLabel == EmptyGroup`;
+     `init(_ title: String)` and `init(_ title: String, value:total:)` `where
+     Label == Text, CurrentValueLabel == EmptyGroup`;
+     `init(value:total:label:currentValueLabel:)` generic. One `Box` (column:
+     title above with gap 0 and the caption current-value label below for the
+     bar; the title below with gap 4 for the spinner) over an internal
+     indicator leaf. No label: the leaf's box alone.
+3. **The colour panel** stays an internal `Component`, but its body is **one**
+   container (a `Column`/`VStack`), because a popover's content is a
+   presentation root that takes exactly one node (`Deferred`'s one child).
+4. **New tests** (lane 1 / lane 2): `aColorPickerInAVStackKeepsItsLabelBesideTheWell`
+   and `aColorPickerInAnHStackKeepsItsOwnEightPointGap` (mutation: make the
+   body a `Component` of two top-level nodes); `aTitledProgressViewInAnHStackStacksItsTitleAbove`
+   (same mutation); `aColorPickerTakesABackgroundAndPadding` (a compile guard,
+   plain import: `ColorPicker("A", selection: $c).padding(4).background(.surface)`;
+   mutation: drop the `StyledElement` conformance).
+
+**Reasoning.** Every existing control (`Toggle`, `Picker`, `Stepper`,
+`TextField`, `Slider`) is one `Element, StyledElement`; a composite control
+that dissolves into its parent is a layout bug, not a style.
+
+## LK-Q — Critic: a slider's edit ends at the top of the input hook, never in its own stage
+
+**Ruling (amends `LK-B` items 5–6 and spec §3.1).**
+
+1. **The defect.** The spec ended the edit in a new `.mouseUp` case of
+   `dispatchValueTrack`. That stage runs after the drawn alert
+   (`dispatchDrawnAlert`, modal: it takes every pointer event while up), the
+   drag session, the menu session and the popovers' stage — each can claim
+   the release first. An `.alert` presented by a value change mid-drag (an
+   SDL window draws it, `SV-AK`) would swallow the release and **leave the
+   edit open forever**, breaking `LK-B` item 5's invariant.
+2. **Where it ends**: `Window` keeps `editingTrack: (id, end)` (set by
+   `dispatchValueTrack`'s `.mouseDown` after `onEditingChanged(true)` and
+   before the write). The `.mouseUp` end runs **immediately after
+   `updatePointerState(event)` at the top of the `onInput` hook**, before the
+   services switch and every claiming stage, under `StateDispatch` to the
+   stored id, and **claims nothing** (the release continues to the stages
+   exactly as today: click dispatch and the gesture arena are unchanged). A
+   `.mouseDown` that finds an `editingTrack` still open (a lost release) ends
+   it first. The close path ends it as before. **No `pressedBefore:`
+   argument**; `dispatchValueTrack`'s signature and call site do not change.
+3. **Merge footing.** The new lines sit right after `self.updatePointerState(event)`
+   (`Window.swift` line 856 at `cd84b0c`) and inside `dispatchValueTrack`
+   (line 2500); `feat/input-apis`' nearest hunks start at old line 875 (the
+   hover case list) and 926 (its pinch/button stage). The edit does **not**
+   touch `updatePointerState` (input-apis' hunk at 1960 is adjacent to its
+   `.mouseUp` case) nor the stage list.
+4. **New tests** (lane 1): `aReleaseClaimedByTheDrawnAlertStillEndsTheEdit`
+   (a fake window answering `presentAlert` `false`, an `.alert` raised by the
+   first write; mutation: move the end into `dispatchValueTrack`'s
+   `.mouseUp` case — **the spec's own spelling**, which this test must redden);
+   `aSecondPressWithoutAReleaseEndsTheFirstEdit` (two `.mouseDown`s; mutation:
+   overwrite `editingTrack` without ending it); `theReleaseIsNotClaimedByTheSlider`
+   (an `onTapGesture` ancestor's arena still sees the release exactly as at
+   `cd84b0c`; mutation: return `true` from the end).
+
+## LK-R — Critic: where the gradient and material overloads live, and what they return
+
+**Ruling (amends `LK-J` item 1, `LK-L` item 1, spec §1 lane 3).**
+
+1. **The defect.** The spec declared `ProposalElementGroup.background(_:
+   LinearGradient)` returning `ModifiedContent<ProposalBase, LayoutModifier>`
+   while listing only one new `LayoutModifier` case (`blur`) — there is no
+   case for it to wrap; and it put `background(_:in:)` on the proposal
+   vocabulary only, where the existing colour spelling is on **`ElementGroup`**
+   (`ClipShape.swift`, both vocabularies, `BackgroundModifier<Self,
+   ShapeView<S>>`, probe O2). It also omitted `fill(_:style:)`, which
+   `ShapeView.swift` offers for every colour (`fill(_ color:, style:
+   FillStyle)`), so `Circle().fill(gradient, style: FillStyle(eoFill: true))`
+   would not compile.
+2. **Final spellings and types**:
+   - `ElementGroup.background<S: Shape>(_: LinearGradient | RadialGradient |
+     Material, in: S) -> BackgroundModifier<Self, ShapeView<S>>` — the same
+     as `background { shape.fill(style) }`, beside the colour pair.
+   - `ProposalElementGroup.background(_: LinearGradient | RadialGradient) ->
+     BackgroundModifier<Self, LinearGradient | RadialGradient>` — the gradient
+     **view** as the background attachment (`MC-P`'s `.child(of:at: -1)`), a
+     greedy view proposed the primary's size, so it fills the bounds (`G9`).
+     **No `LayoutModifier` case for gradients.**
+   - `ProposalElementGroup.background(_: Material) -> ModifiedContent<ProposalBase,
+     LayoutModifier>` — the existing `.background(Color)` case with the
+     material's `Color(light:dark:)` (`LK-L` item 3's table).
+   - `StyledElement.background(_: LinearGradient | RadialGradient | Material) -> Self`
+     as specified.
+   - `Shape.fill(_:style:)` and `ShapeView.fill(_:)`/`fill(_:style:)` for both
+     gradients and `Material`, beside the colour overloads; `stroke` as
+     specified.
+3. **`LayoutModifier.blur(radius:)`** is the one new public case; **migration
+   note** (Record phase, `docs/migration.md`): an exhaustive `switch` over
+   `LayoutModifier` outside the package gains a case, as `LK-G`'s roles do.
+4. **Guard 3.T1 grows two lines**: `Circle().fill(LinearGradient(…), style:
+   FillStyle(eoFill: true))` and `Text("x").background(.thinMaterial, in:
+   Capsule())` in the legacy vocabulary (mutation: declare the `in:` overload
+   on `ProposalElementGroup` only).
+
+## LK-S — Critic: replay parity for CPU-made images, and a mutation that can redden
+
+**Ruling (amends spec §3.3 "Replay parity", §4.3's last row, §5).**
+
+1. **The defect.** The spec's parity mutation — "change the gradient table on
+   one side only" — cannot redden: the table, the raster and the blur run once,
+   on the CPU, in `MetalUI`, before the scene exists, so the recorded Metal
+   reference and the SDL replay receive **the same texels**. `TE-AD` holds by
+   construction (no shader line moves), and the parity arm proves only what the
+   image path does with those texels.
+2. **What the new fixture is for**: the **strip** (`LK-J` item 5) — a 1-texel
+   texture stretched over a rect at **quarter-pixel device bounds** (as frame
+   6's images are), with mask radii — is the one new way this branch uses the
+   image pipeline. The recorder (`Experiments/SDLGPU/Sources/Replay/main.swift`,
+   `--portable --record`) gains **frame 9** through `renderFrame`: a vertical
+   strip-path rounded rect at fractional bounds, a horizontal one, a diagonal
+   (full raster) rect, a radial circle and a blurred text leaf.
+   `.github/workflows/sdl-gpu-linux.yml`'s two `--expect 8` become `--expect
+   9` (the `PT-G` rule: a frame that stops being recorded fails). Both files
+   join lane 3.
+3. **Separating mutation**: `SDLBridge.c`'s image sampler `address_mode_v`
+   set to `SDL_GPU_SAMPLERADDRESSMODE_REPEAT` — the strip's end rows sample
+   across the wrap — must fail `PortableReplay` on frame 9 (and frames 0–8
+   must not be what fails, or the fixture adds nothing). The lane records the
+   failing frame and Δ; if the mutant passes, the instrument is broken — the
+   lane moves the strip's bounds until it reddens or rules the frame
+   redundant by name. (`SDLBridge.c` is `feat/input-apis`' file: the
+   mutation is applied in an isolated copy and never committed.)
+4. **Where it runs**: `PortableReplay` needs a GPU. Locally on macOS
+   (`--driver metal`, SDL GPU over Metal, record §28's method); CI replays on
+   Mesa llvmpipe and Windows D3D12 on push. **The Linux image of the brief
+   (`SDL_VIDEO_DRIVER=offscreen`) builds and tests `Backends/SDL`; it does not
+   replay** — the spec's "replayed on SDL in the Linux image" is corrected.
+
+## LK-T — Critic: merge hazards and a modifier-order limit the design left unsaid
+
+**Ruling (amends `LK-N`, `LK-I` item 9).**
+
+1. **No new `PlatformWindow` conformer in this branch's test files.**
+   `feat/input-apis` adds a defaultless `setPointerStyle(_:)` to
+   `PlatformWindow` and edits every compile-guard file that declares a
+   conformer (`ToolbarCompileGuards.swift` and six others, one line each). A
+   new guard file here (`ColorPickerCompileGuards`, `ProgressViewCompileGuards`,
+   `KeyframeCompileGuards`, `LooksCompileGuards`) uses the shared fakes or
+   none; if one must declare a conformer, the record names it so the merge adds
+   the line.
+2. **`.keyframeAnimator` returns a transparent scope**, so — like
+   `LifecycleScope` and `PresentationScope` — a legacy decoration written
+   after it does not compile (divergence 120's rule, extended by name in the
+   Record phase; no new label). MetalCreator's shake writes its `.offset`
+   inside the content closure, which is SwiftUI's spelling anyway; the guard
+   `keyframeAnimatorTypechecksWithSwiftUIsCallShape` adds a negative arm
+   (`.keyframeAnimator(…).padding(4)` on a legacy `Box` does not compile;
+   mutation: return `Self`).
+3. **`ControlsDemo.swift` and `LooksDemo.swift` are shared by append**: lanes 1
+   and 2 each append a function to the first, lanes 2 and 3 to the second; no
+   lane edits another lane's function. Sequential lanes make this safe; it is
+   named because the spec's table called the lanes disjoint.
+4. **`KeyframeAnimator`'s initialisers are SwiftUI's**: `init(initialValue:
+   trigger:content: @escaping (Value) -> Content, keyframes:)` and
+   `init(initialValue:repeating:content:keyframes:)` (`repeating: Bool =
+   true`) — the view form's content takes the value only; the modifier form's
+   takes `(Self, Value)` (divergence 169).
