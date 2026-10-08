@@ -1015,7 +1015,14 @@ stack-budget harness.
    a link destination, title, autolink, extended autolink, entity or raw HTML
    tag unmatched (a value is never part of a URL). **Unmeasured against
    SwiftUI** (whose formats carry `%@` there); no divergence is claimed, and
-   spec tests 3.5 and 3.7 hold the arms they name.
+   spec tests 3.5 and 3.7 hold the arms they name. **Only the delimiter arm is
+   pinned** (3.5: a value is never a delimiter and takes the format's bold
+   and italic). The termination clause (a placeholder ending a link
+   destination, title, angle autolink, extended autolink, entity or raw HTML
+   tag) is **unpinned**: the branch checker's mutation C1, which lets an
+   extended autolink run through a placeholder by dropping `extendedLinkEnd`'s
+   `scalar != nil` test, leaves the whole suite green (record §83 §5).
+   Owner: none (a test per arm in `LocalizedStringKeyTests` when it matters).
 4. **The trigger scan's list is amended** (`RT-O` item 14): `*`, `_`, `~`, a
    backtick, `[`, `<`, `&`, `\`, `@`, **`://`** and `www.` — `://` in place of
    `http`, because Foundation also links `ftp://x.org` and `HTTP://x.org`

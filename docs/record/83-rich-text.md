@@ -283,6 +283,54 @@ operand check, no parse counter), `5d043d2` (implementation, ruling `RT-T`),
 Per-lane checks are in §2–§4; the Record phase's whole-branch checks after the
 merge with master are §8.
 
+**Adversarial branch check of `70ed000..b78e08d`** (2026-10-08, re-taken, not
+copied from §8):
+
+- **Suite**: `swift package clean`, native build (0 `error:`, the one
+  `warning:` SwiftPM's `--build-system native` notice), unfiltered
+  `--no-parallel`: "Test run with 2790 tests in 3 suites passed after 268.154
+  seconds."; `FR-J no-argument frame: succeeded=true`. `swift build
+  --build-tests` (default build system): 0 warnings, 0 errors.
+- **Pixels**: `compare.sh <scratch> 70ed000 HEAD`: controls 1048576 / 1031003 /
+  454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 / 529 / 0 (as §8), all
+  fourteen images `differing=0`, scene identical. `Expected.swift` unchanged
+  since `70ed000`.
+- **`Backends/SDL`**: macOS 24 + 84 passed; Linux image (rebuilt, volume
+  `metalui-sdl-build-rich-text`) 24 + 81 passed.
+- **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing. `cmp CLAUDE.md AGENTS.md`: identical. Imports as §8. Guard
+  annotations (`enabled(if: canTypecheck`) 175 at `cd84b0c`, 179 at HEAD: +4,
+  agreeing with §8's delta.
+- **Unchanged areas**: no file under identity, hit testing, accessibility,
+  focus, `Deferred`, `List` or text input changed on the rich-text side of the
+  merge; `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` and
+  `everyProductionTreeBuildsOnAOneMegabyteThread` passed unedited. Pre-existing
+  test files edited: `AnimationTests` (a header bullet),
+  `DecorationPaintTests` (a styled-`Text` arm added), `MenuPickerTests` (the
+  fake's three new requirements), `TextCompileGuards` (G3.2 renamed
+  `textBoldIsOfferedSinceRichText`, `RT-R` item 6).
+- **Mutation C1** (`MarkdownInline.swift` `extendedLinkEnd`: the
+  `data[linkEnd].scalar != nil` test removed, so an extended autolink runs
+  through a placeholder): **reddens nothing** (2790 passed). Not an
+  equivalent mutant: a temporary probe test (deleted) printed
+  `Text("see www.a.com\(v) b")` with `v = "Q"` as runs `www.a.comQ` (link) /
+  ` b` under the mutant and `www.a.com` (link) / `Q b` restored. This is the
+  lane 3 verifier's mutation I, confirmed: `RT-T` item 3's termination clause
+  is unpinned, and the ruling now says so (only the delimiter arm, 3.5, is
+  pinned).
+- **Mutation C2** (`StyledShaping.swift` `attributedString`: every run set in
+  `fonts[0]`, the CoreText path's per-run font): reddens
+  `aMixedLineTakesTheLargestAscentAndDescent`,
+  `aStyledTextMeasuresAsCoreTextsAttributedLine`,
+  `bidiRunsSplitIntoOneSegmentPerVisualPiece` and
+  `everyStyledCorpusCasePlacesTheSameGlyphsAsTheApplePath` (5 issues).
+- `git status --short` after each restore: only this check's doc edits.
+
 ## §6 Deferred, each with its owner
 
 - **Interactive links** (`openURL`, click, keyboard, an accessibility link
@@ -309,6 +357,9 @@ merge with master are §8.
   harness builds off the main thread. Owner: none (a one-line `if let`).
 - A URL `URL(string:)` rejects that still links here (`RT-T` 6): no corpus row
   reaches it. Owner: none.
+- **A placeholder ending a link destination, title, autolink, extended
+  autolink, entity or raw HTML tag** (`RT-T` 3) is unpinned: mutation C1 (§5)
+  reddens nothing. Owner: none (a test per arm).
 - CI confirmation of `DemoFrameDeterminismTests`' `Expected.swift` (unedited) on
   Linux and Windows after the push: owner the push.
 
