@@ -55,6 +55,12 @@ public final class SDLPlatform: Platform {
         try openSDLWindow(title: title, size: size)
     }
 
+    /// Shows a window this platform opened (ruling `WS-B`'s step 3) —
+    /// `SDL_ShowWindow` through the bridge, replaceable so a test can see the
+    /// show's place in the opening order without putting a window on screen
+    /// (ruling `WS-D`).
+    var showWindow: @MainActor (UnsafeMutableRawPointer) -> Bool = { mui_window_show($0) }
+
     /// ``openWindow(title:size:)``, typed.
     public func openSDLWindow(title: String, size: Size<Pixels>) throws -> SDLWindow {
         guard let handle = mui_window_create(title, Int32(size.width.value.rounded()),
@@ -233,6 +239,17 @@ public final class SDLPlatform: Platform {
     }
 }
 
+/// One step of opening an SDL window, in the order it ran (ruling `WS-B`),
+/// recorded for tests (ruling `WS-D`). Each `shown` is SDL's flag
+/// (`mui_window_is_shown`), read when the step ran.
+enum SDLWindowOpeningStep: Equatable {
+    case created(shown: Bool)
+    /// Read immediately before the AccessKit adapter is made.
+    case accessKitAdapter(windowShown: Bool)
+    case shown
+    case renderer(windowShown: Bool)
+}
+
 /// One SDL window as a MetalUI `PlatformWindow` (ruling SP-A).
 @MainActor
 public final class SDLWindow: PlatformWindow {
@@ -256,12 +273,15 @@ public final class SDLWindow: PlatformWindow {
     /// Requests that arrived before `Window` installed its handler — parked,
     /// as the AppKit bridge parks `.activate` (AB-B).
     private var parkedAccessibilityRequests: [AccessibilityRequest] = []
+    /// The steps of this window's opening, in order (ruling `WS-D`).
+    private(set) var openingSteps: [SDLWindowOpeningStep] = []
 
     /// `offscreen`: render into a target the window's pixel size instead of
     /// claiming the window (ruling `TF-C`).
     init(handle: OpaquePointer, offscreen: Bool = false) throws {
         self.handle = handle
         id = mui_window_id(UnsafeMutableRawPointer(handle))
+        openingSteps = [.created(shown: mui_window_is_shown(UnsafeMutableRawPointer(handle)))]
         if offscreen {
             var width: Int32 = 0, height: Int32 = 0
             mui_window_size(UnsafeMutableRawPointer(handle), &width, &height)
@@ -272,8 +292,10 @@ public final class SDLWindow: PlatformWindow {
         } else {
             windowRenderer = try SDLWindowRenderer(window: handle)
         }
+        openingSteps.append(.renderer(windowShown: mui_window_is_shown(UnsafeMutableRawPointer(handle))))
         #if AccessKit
         let raw = UnsafeMutableRawPointer(handle)
+        openingSteps.append(.accessKitAdapter(windowShown: mui_window_is_shown(raw)))
         accessKit = AccessKitAdapter(windowID: id, title: String(cString: mui_window_title(raw)),
                                      nativeWindow: mui_window_native_handle(raw))
         #endif
