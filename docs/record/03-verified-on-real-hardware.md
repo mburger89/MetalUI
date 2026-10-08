@@ -2052,3 +2052,19 @@ read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
 probe was not re-run at the Record phase and no real-window capture was taken.
 No new look is owed (group X's X2 already covers a counting `.task` in a real
 window).
+
+## 2026-10-08: rich text (record §83) — looks owed
+
+`METALUI_RICH_TEXT_DEMO=1` opens a new demo (Markdown forms, interpolated
+segments, mixed sizes, decorations, truncation and an attributed string) in
+`MetalUIDemo` and `MetalUISDLDemo`. It is not one of the fourteen offscreen
+images, which read 0 differing pixels against `70ed000` at lane 1 and at the
+Record phase (`docs/probes/demo-pixels/compare.sh`, record §83 §2, §8); the demo
+draws headless through the portable system (`theRichTextDemoDrawsThroughThePortableSystem`).
+The demo was not launched and no real-window capture was taken. **Owed, new
+here — `docs/verification/human-checks.md` group RT (provisional letter), none
+performed (an agent cannot)**: RT1 the demo on macOS in light and dark; RT2
+underline and strikethrough crispness at 1x and 2x against SwiftUI's snapped
+bands (divergence 152); RT3 the mixed-size paragraph's line spacing and the
+superscript; RT4 the same demo on Linux and Windows; RT5 VoiceOver reading a
+styled `Text` once without markers; RT6 a link that does nothing on click.

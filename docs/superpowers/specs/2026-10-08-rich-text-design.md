@@ -1,5 +1,7 @@
 # Rich text — design
 
+**Status: LANDED** (2026-10-08, record `docs/record/83-rich-text.md`): all three lanes built red first and verified `ok: true`; the looks are owed to a human (group RT). Suite 2672 -> 2790 after the merge with master.
+
 Styled runs inside one `Text`, on both text systems. Item 6 of the gpui-gap
 priority list (user request 2026-10-02; **not a plan task**). Rulings `RT-A`…
 `RT-T` in [`../2026-10-08-rich-text-decisions.md`](../2026-10-08-rich-text-decisions.md);

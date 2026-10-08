@@ -838,3 +838,13 @@ all read: `PlatformMenuItem.shortcut` and `.isOn` by the AppKit builder and the
 drawn menu, `.popover`'s `arrowEdge` by `MN-M`'s placement. `.popover(attachmentAnchor:)`
 is **not declared** (a test pins its absence, `aPopoverHasNoAttachmentAnchorParameter`),
 so it is not an inert property. Nothing declared is unread.
+
+## 2026-10-08: one inert attribute added (rich text)
+
+Record §83. The `link` of a run (`TextRunStyle`'s URL, set by Markdown
+`[a](u)`, a bare URL or `AttributedString.link`) is **stored and styled but
+inert**: no click, no keyboard activation, no accessibility link element
+(divergence 150, `RT-K`; pin 2.18). Every other new run field (font fields,
+colours, decorations, kerning, tracking, baseline offset) is read by both text
+systems or by paint. `Text.LineStyle` patterns other than `.solid` are **not
+declared** (a documented absence), so they are not inert.
