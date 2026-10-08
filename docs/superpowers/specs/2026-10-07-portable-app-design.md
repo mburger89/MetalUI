@@ -528,7 +528,10 @@ HEAD` reads **0 differing pixels in all fourteen images** after every lane;
 - **X1** On a Linux desktop (Ubuntu 25.10 or a distribution with SDL 3.4+):
   `metalui new Hello --cross-platform` (URL default), install per the README,
   `swift run Hello` — a window opens and draws; text is legible; resizing
-  works.
+  works. Then the release binary and `MetalUISDLShaders` copied into a new
+  directory (`docs/packaging.md` Linux §4), the checkout's `.build` moved
+  away, still opens its window (`PX-P`; added by the branch check — packaging
+  cited X1 for this step, which X1 did not hold).
 - **X2** In that app, a `Text("\(n)")` with `.task { while !Task.isCancelled
   { n += 1; try? await Task.sleep(for: .seconds(1)) } }` counts once a second
   in a real SDL window on Linux and on Windows, and stops when a toggle

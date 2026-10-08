@@ -2025,7 +2025,7 @@ SwiftUI probes (`swiftui-task.swift` ran three times, byte-identical), and no
 real-window capture was taken. **Owed, new here —
 `docs/verification/human-checks.md` group X, none performed (an agent
 cannot)**: X1 a generated `--cross-platform` app on Linux (URL default, the
-README's install list); X2 a counting `.task` in a real SDL window on Linux and
+README's install list, then the shipped copy with `MetalUISDLShaders`); X2 a counting `.task` in a real SDL window on Linux and
 Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
 and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
 light and dark icons on Linux against macOS.

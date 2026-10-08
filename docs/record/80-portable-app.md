@@ -430,3 +430,64 @@ returning from a parked ghost with a changed `task(id:)` value keeps its old
 id (unpinned); test 1.7's warning filter cannot fail (repair: match
 `.build/checkouts/MetalUI`); both owned by a follow-up that can run the Linux
 consumer test. Human checks X1–X5, unrun.
+
+## 5. Adversarial branch check (2026-10-07, `359444e..3e196bd`)
+
+- **Suite:** `swift package clean`, native build, unfiltered `--no-parallel`:
+  `Test run with 2672 tests in 3 suites passed after 154.441 seconds.`
+  `FR-J no-argument frame: succeeded=true`; 0 `error:`; the only `warning:`
+  SwiftPM's `--build-system native` notice. `swift build --build-tests`
+  (default build system): 0 warnings. 174 `canTypecheck`-gated declarations
+  (170 at `359444e`). `cmp CLAUDE.md AGENTS.md` clean. Inventory and
+  undocumented checks print nothing.
+- **Demo pixels** (`compare.sh <scratch> 359444e HEAD`): all fourteen images
+  `differing=0`, every scene identical; controls non-zero where required.
+  `DemoFrameDeterminismTests`' `Expected.swift` unedited.
+- **`Backends/SDL`, macOS** (flags from `fetch-accesskit.py --print-flags`):
+  24 + 83, including 3.20 `aTaskModifierProgressesAndIsCancelledUnderSDLPlatform`,
+  3.21 and 1.10. **Linux image** (rebuilt): `Backends/SDL` 24 + 80, 0
+  warnings; root package 6 + 35 + 18 + 199 + 49 + 22, 0 warnings;
+  `METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1 --filter aCrossPlatformPackage`: 2
+  tests passed (1.7 by URL, 1.8 without AccessKit). Hazard: in a *worktree*
+  mounted at `/work`, CI's `git config --global` line fails ("not a git
+  repository", the worktree's `.git` file names a host path) — run it from
+  `/`; CI's real checkout is unaffected.
+- **Two mutations of this check's own design** (each on `3e196bd`, restored
+  from a copy, full unfiltered suite, `git status --short` clean after):
+  - **A** — `Lifecycle.swift`, the carried box: `let box = old.running ??
+    RunningTask()` → `let box = RunningTask()` and `if old.running == nil` →
+    `if box.handle == nil` (every rebuild starts a new task and never cancels
+    the old): 11 issues in `aGroupStartsOneTaskWhileItHasContent`,
+    `anIDChangeCancelsTheOldTaskThenStartsTheNewOne`,
+    `anIDRestartRunsAtItsPlaceAmongOnChangeActions`,
+    `aTaskReinsertedMidRemovalKeepsRunning`,
+    `aTaskStartsInsideTheFirstFrameAfterAnInnerOnAppear`,
+    `theSameIDOrARebuildRestartsNothing`.
+  - **B** — `ImageDecoding.swift` `pngStructureIsIntact`, the chunk bound
+    `offset + 12 + length <= bytes.count` → `<` (a PNG ending exactly at
+    `IEND` refused): 11 issues in `aBundleResourceDecodesOnceAndSharesItsTexture`,
+    `anAdam7FileDecodesLikeItsPlainTwin`, `anImageBitmapDecodesAPNGThroughImageIO`,
+    `everyFixturePNGDecodesToItsLiteralPixels`, `everyTruncationIsNilAndNeverTraps`,
+    `fileAndDataDecodeIdentically`, `sixteenBitSamplesRoundToEightBits`,
+    `straightSamplesArePremultipliedOnce`,
+    `theDimensionCapIsSixteenThousandThreeHundredEightyFour`,
+    `thePNGPreCheckRequiresIEND`, `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles`.
+- **Unmoved** (no source under identity, hit testing, accessibility,
+  animation, focus, `List`, `Deferred` or text input changed; the suite above
+  is green): `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`.
+- **Citations:** every ruling id cited in a changed file resolves to a heading
+  (the unresolved ones are "next unused" lines or pre-existing non-heading
+  definitions); every backticked test name added to a doc exists.
+- **Doc defect fixed:** `docs/packaging.md` Linux §4 cites human check X1 for
+  "a moved application opening its window", which X1 did not hold; X1
+  (`human-checks.md`, spec §7, record §03) now ships the copy with
+  `MetalUISDLShaders` and runs it with the checkout's `.build` moved away.
+- **Open (unchanged, `PX-V`):** the ghost-return id case, test 1.7's warning
+  filter, no CI job running `.task` itself. Windows builds (`CStbImage`, the
+  `SDLBridge` stub) are confirmed only by CI on push.

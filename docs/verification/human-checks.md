@@ -884,7 +884,11 @@ the configurator's icons.
 - [ ] **X1. A generated app on Linux** (Ubuntu 25.10, or a distribution with
   SDL 3.4+): `metalui new Hello --cross-platform` (the URL default), install
   what its README says, `swift run Hello` — a window opens and draws; text is
-  legible; resizing works (`PX-H`, `PX-I`, `PX-J`). **Observed:**
+  legible; resizing works (`PX-H`, `PX-I`, `PX-J`). Then ship it as
+  `docs/packaging.md`'s Linux section 4 says — the release binary and
+  `MetalUISDLShaders` copied into a new directory — rename or move the
+  checkout's `.build`, and run the copy: the window still opens (`PX-P`).
+  **Observed:**
 - [ ] **X2. A counting `.task`** in that app: a `Text("\(n)")` with `.task {
   while !Task.isCancelled { n += 1; try? await Task.sleep(for: .seconds(1)) }
   }` counts once a second in a real SDL window on Linux and on Windows, stops
