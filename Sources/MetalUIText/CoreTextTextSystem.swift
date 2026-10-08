@@ -69,6 +69,26 @@ public final class CoreTextTextSystem: TextSystem {
             }
     }
 
+    // MARK: Styled text (ruling RT-F) — lane 1 red stub
+
+    /// Measures a styled text (stub).
+    public func measure(_ text: StyledText, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> StyledTextMeasurement {
+        StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: [])
+    }
+
+    /// Lays out a styled text (stub).
+    public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
+                       origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
+        StyledTextLayout(measurement: StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: []),
+                         glyphs: [], segments: [])
+    }
+
+    /// A face's decoration metrics (stub).
+    public func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics {
+        TextDecorationMetrics(underlinePosition: 0, underlineThickness: 0, strikethroughPosition: 0)
+    }
+
     /// Rasterizes the glyph `key` names into a coverage image.
     public func rasterize(_ key: GlyphKey) -> GlyphImage {
         guard let font = placedFonts[key.font] ?? cache.font(for: key.font) else {

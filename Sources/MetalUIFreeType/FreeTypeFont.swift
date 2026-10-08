@@ -97,6 +97,18 @@ public final class FreeTypeFont {
                 Int(face.height) - Int(face.ascender) + Int(face.descender))
     }
 
+    /// The `post` table's underline position, in design units, negative below
+    /// the baseline — the number `CTFontGetUnderlinePosition` scales (ruling
+    /// RT-J item 2; lane 1 red stub).
+    package var underlinePosition: Int { 0 }
+
+    /// The `post` table's underline thickness, in design units (RT-J item 2;
+    /// stub).
+    package var underlineThickness: Int { 0 }
+
+    /// The face's x-height, in design units (RT-J item 2; stub).
+    package var xHeight: Int { 0 }
+
     /// The face's family name (`FT_Face.family_name`, from the name table's
     /// family entry), e.g. `"Noto Sans"`.
     public var familyName: String {

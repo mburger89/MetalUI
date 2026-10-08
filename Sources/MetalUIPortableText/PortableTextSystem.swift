@@ -30,6 +30,10 @@ public final class PortableTextSystem: TextSystem {
         var generation: Int
     }
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
+    /// Styled measurements answered from an entry, and computed (ruling
+    /// RT-F item 5) — what a warm styled frame is counted by.
+    private(set) var styledHits = 0
+    private(set) var styledMisses = 0
     private var generation = 0
 
     /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
@@ -102,6 +106,26 @@ public final class PortableTextSystem: TextSystem {
                                            subpixelVariant: split.variant, scaleFactor: scaleFactor),
                              pixelX: split.pixelX, baselineY: placement.baselineY)
         }
+    }
+
+    // MARK: Styled text (ruling RT-F) — lane 1 red stub
+
+    /// Measures a styled text (stub).
+    public func measure(_ text: StyledText, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> StyledTextMeasurement {
+        StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: [])
+    }
+
+    /// Lays out a styled text (stub).
+    public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
+                       origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
+        StyledTextLayout(measurement: StyledTextMeasurement(widestLine: 0, totalHeight: 0, lines: []),
+                         glyphs: [], segments: [])
+    }
+
+    /// A face's decoration metrics (stub).
+    public func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics {
+        TextDecorationMetrics(underlinePosition: 0, underlineThickness: 0, strikethroughPosition: 0)
     }
 
     /// Rasterizes the glyph `key` names with FreeType; an empty image if it

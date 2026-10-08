@@ -60,6 +60,29 @@ public protocol TextSystem: AnyObject, Sendable {
     func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
                     options: TextLayoutOptions) -> [Range<Int>]
 
+    /// `text` wrapped at `width` points (`nil`: one line per hard break) under
+    /// `options` (ruling RT-F item 2): breaking once over the whole string (a
+    /// run boundary is no break opportunity, RT-H item 1), each kept line's
+    /// box by RT-G, and a truncated last line's ellipsis in the style of the
+    /// first character it removes (RT-I). A one-run `text` measures exactly
+    /// what ``measure(_:font:wrappingAt:options:)`` measures (RT-F item 3).
+    /// No default: a conformer that forgets it does not compile.
+    func measure(_ text: StyledText, wrappingAt width: Double?,
+                 options: TextLayoutOptions) -> StyledTextMeasurement
+
+    /// Every glyph of `text`, with its run, laid out as ``measure(_:wrappingAt:options:)``
+    /// lays it out in a text box whose top-left is `origin` (points), placed at
+    /// `scaleFactor`, and every run segment (ruling RT-F item 2). A run's
+    /// glyphs sit its baseline offset above the line's baseline. A one-run
+    /// `text` places exactly the glyphs ``placeGlyphs(_:font:wrappingAt:options:origin:scaleFactor:)``
+    /// places, each with run 0. No default.
+    func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
+                origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout
+
+    /// `font`'s underline position and thickness and its strikethrough
+    /// position, in points (ruling RT-J item 2). No default.
+    func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics
+
     /// The coverage for `key` — a key this system placed.
     func rasterize(_ key: GlyphKey) -> GlyphImage
 
