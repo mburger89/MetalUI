@@ -267,6 +267,13 @@ lane on top of the earlier lane's commit (`CI-W`).
 
 ## §3 Lanes (`CI-W`, amending `CI-O`; order 1 → 2 → 3)
 
+> **Re-cut by `CI-AE` (the second critic).** Lanes 1 and 2's implementation are
+> committed; what remains runs as **lane A** (lane 2's verification and
+> `CI-AB`), **lane B** (wheel and pointer style: old lane 3's §1.3/§1.4 stages,
+> 3.2–3.25, 3.37, its own inventory rows) and **lane C** (the demo, 3.35/3.36,
+> divergences, census, human checks Y1–Y13, the Record phase). Where the list
+> below says "lane 3", read B for the wheel and style, C for the rest.
+
 - **Lane 1 — seam and platforms.** §1.1; AppKit overrides (`otherMouse*`,
   `rightMouseDragged`, the control-drag and its existing test, `CI-T`;
   `magnify`/`rotate` with the rotation negated once, scroll phases),
@@ -352,6 +359,8 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 2.23 | `aKeyboardOrAccessibilityOpenPassesNoLocation` (Shift-F10, `MN-G`; show-menu, C11 → `nil`) | absent | pass the region's origin → red |
 | 2.24 | `aLocatedMenuThroughARotationReportsWhereOnItselfItWasPressed` | absent | skip `localPoint` → red |
 | 2.25 | `contextMenuResolvesByClosureArity` (guard, plain `import MetalUI`): `.contextMenu { Button("a") {} }` and `.contextMenu { p in Button("a") { _ = p?.x } }` compile on a `Box` and a proposal `Text`; negative `{ a, b in … }` fails | positive fails | remove the located overload → positive fails |
+| 2.26 | `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena` (`CI-AB` item 1; lane A) | absent (the stale arena is fed) | restore `guard buttonArena == nil` → red |
+| 2.27 | `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent` (`CI-AB` item 2; lane A) | absent (the old leaves re-begin) | re-begin the old arena's leaves on `.began` → red |
 | — | Every existing arena test (`GestureArena…`, `IX-C`/`IX-D`/`DN-D` pins) stays green **unedited** — the forwarding overloads keep their spellings | — | — |
 
 ### §4.3 Lane 3 — integration, wheel, pointer style, demo
@@ -473,6 +482,10 @@ the modifiers of the current drag. No existing demo tree changes.
   canvas, a style change made without moving the pointer (a key that toggles
   the canvas's style) shows the new cursor at once — `setPointerStyle`'s
   immediate set, which no agent can drive.
+- **Y13** (`CI-AD`) Flick the demo canvas so it glides, move the pointer onto
+  the style strip mid-glide: note whether the glide stops (MetalUI dispatches
+  each wheel event by the pointer — no latching) and what a native AppKit
+  scroll view does in the same motion.
 
 ## §8 Migration notes and registry rows
 
@@ -524,7 +537,12 @@ owner none) · `PointerStyle.image`/`.shape`/`columnResize(directions:)`/
 I-beam over text fields and a hand over links by default (text input must not
 move; owner none) · `RotateGesture` on SDL, magnify on Windows, wheel
 phase/momentum/precision on SDL (SDL has none; owner none) · `inputKinds:`
-(owner none) · scroll chaining (owner none).
+(owner none) · scroll chaining (owner none) · wheel latching — a scroll
+gesture's events are dispatched by the pointer at each event, not latched to
+the `.began` target; AppKit's behaviour unprobed (`CI-AD`; owner none, human
+check Y13). **Not additive** (`CI-AC`): `CoordinateSpace.named` and an image
+cursor each add an enum case (`CoordinateSpace`, `PlatformPointerStyle`) — an
+outside exhaustive switch owes a case then.
 
 ## §10 Must not move (checked by every lane)
 

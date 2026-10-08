@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AB`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AF`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -134,7 +134,8 @@ offers all five.
   still `applyScroll`'s recorded non-goal. Owner: none.
 
 **Reasoning.** MetalCreator's five gaps are exactly items 1–6; each deferral
-is additive over a spelling built here.
+is additive over a spelling built here, except `CoordinateSpace.named(_:)` and
+an image cursor, each of which adds an enum case (`CI-AC`).
 
 **Cost if wrong.** A deferral turns out needed: each is an addition, none
 renames anything.
@@ -1089,4 +1090,148 @@ name in the header stands**):
 **Cost if wrong.** Item 2: if SwiftUI lets an ended magnify cancel an outer
 rotate, MetalUI's outer rotate keeps reporting after the inner magnify ends
 (Y4 looks). Item 4: a two-button chord drags with the first button only.
+
+
+## CI-AB — A stale button or pinch arena is replaced, not fed (amends `CI-AA` items 2 and 4)
+
+**Finding (the second critic, reading lane 2's `Window.buttonPress` and
+`GestureArena.pinch`).** Both arenas live until their own end event. When that
+event is lost — the release of a middle drag while a modal panel or a native
+menu takes the pointer, or the app deactivates mid-drag; a pinch's `.ended`
+when the window resigns key mid-gesture — the arena never dies:
+
+- `buttonPress` is guarded by `buttonArena == nil`, so the **next press of the
+  same button is ignored**; its drags feed the stale arena (same button
+  number) with the old start location, so MetalCreator's next middle-drag pan
+  jumps by the distance between the two presses, and its release ends the
+  stale drag. A deferred context menu parked by that press
+  (`pendingContextMenu`) is then opened or dropped by the stale arena's
+  `activatedAnyDrag`, not its own.
+- `pinch(_:delta:phase:at:)` treats a `.began` of a kind already active as a
+  re-begin of **the old arena's** leaves, so the next pinch, made over another
+  element, zooms the element the lost pinch began on.
+
+The primary arena has no such hole: a non-continuing `.mouseDown` sets
+`gestureArena = nil` and forms anew.
+
+**Ruling.**
+
+1. **A press of the button arena's own button while that arena is alive means
+   its release was lost**: the stale arena is dropped **silently** (no
+   `onEnded`, as the primary press's re-formation drops one) and the press
+   forms a new arena from the one ranking. A press of a **different** button
+   while an arena is alive is still ignored (`CI-AA` item 4 unchanged).
+2. **A `.began` of a pinch kind the pinch arena already holds active means its
+   end was lost**: the stale arena is dropped silently and the event forms a
+   new pinch arena at **its own** position (`CI-D`). A `.began` of a kind not
+   active in the arena (a rotate beginning beside a live magnify) keeps
+   `CI-AA` item 2's behaviour. A `.changed` with no arena still forms one, as
+   now (`CI-V` item 4).
+3. **Pins (lane A, red first):**
+   - **2.26** `aSecondPressOfTheArenasOwnButtonReplacesAStaleArena`: two
+     sibling elements each with `DragGesture(minimumDistance: 0, button:
+     .middle)`; middle press and drag on A, **no release**; middle press and
+     drag on B → B's `onChanged` reports B-local translation from B's press,
+     A reports nothing more and no `onEnded`. Mutation: restore the `guard
+     buttonArena == nil` → red.
+   - **2.27** `aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent`: A and B
+     each with `MagnifyGesture`; `.began`/`.changed` over A, **no end**;
+     `.began`/`.changed` over B → B reports, A reports nothing more.
+     Mutation: re-begin the old arena's leaves on `.began` → red.
+   - The `pendingContextMenu` of 2.26's secondary analogue rides item 1: a
+     right press that replaces a stale secondary arena parks its own menu,
+     judged by its own arena — covered by 3.28 staying green.
+
+**Cost if wrong.** A platform that sends a second `.began` within one live
+gesture of the same kind (none known: AppKit's phases and SDL's
+`PINCH_BEGIN` are once per gesture) restarts that gesture's Σ at its own
+position — the value resets, nothing else moves.
+
+## CI-AC — Two deferrals are not additive; `CI-A`'s reasoning narrowed
+
+**Finding.** `CI-A` says "each deferral is additive over a spelling built
+here". Two are not, because MetalUI is built without library evolution, so an
+outside exhaustive `switch` over a public enum compiles without `default:`
+and breaks when a case is added:
+
+1. **`CoordinateSpace.named(_:)`** — `CoordinateSpace` is a public `enum`
+   with `.local` and `.global` (SwiftUI's shape: SwiftUI's is an enum too,
+   but resilient, so SwiftUI's clients already write `@unknown default`).
+2. **`PointerStyle.image(_:hotSpot:)`/`.shape(...)`** — `PointerStyle` is a
+   struct (additive), but the seam's `PlatformPointerStyle` is an enum an
+   outside `PlatformWindow` conformer switches over in `setPointerStyle`.
+
+**Ruling.** Keep both enums (SwiftUI's shape for `CoordinateSpace`; the
+seam's closed cursor list for `PlatformPointerStyle`). `CI-A`'s reasoning
+line reads **"each deferral is additive over a spelling built here, except
+`CoordinateSpace.named(_:)` and an image cursor, each of which adds an enum
+case: an outside exhaustive switch then owes a case or `default:` (a
+migration note in the change that adds it)"**. Lane C writes that sentence
+into `CoordinateSpace`'s and `PlatformPointerStyle`'s doc comments and spec
+§9.
+
+**Rejected:** turning `CoordinateSpace` into a struct with `static let local`,
+`global` — it would keep every call-site spelling but lose pattern matching
+SwiftUI code writes, and lane 2's committed type and guards would move for a
+case no one has asked for.
+
+**Cost if wrong.** None now; the cost is stated where it falls.
+
+## CI-AD — No wheel latching (stated, not built)
+
+**Finding.** `CI-I` item 4 dispatches every wheel event by the pointer's
+position at that event. A trackpad scroll's events, momentum included, can
+therefore change target mid-gesture when content moves under a still pointer
+or the pointer drifts off a canvas while it glides. Whether AppKit latches a
+scroll gesture's events to the view under its `.began` is **not probed** —
+no claim is made here either way.
+
+**Ruling.** Not built on this branch: the wheel chain keeps `applyScroll`'s
+existing per-event lookup (no state on `Window`, `DD-Y` unchanged). Spec §9
+gains the row (owner none: a probe arm with phased `CGEvent` scrolls across
+two views, then a latch keyed by `phase == .began` on AppKit; SDL has no
+phase, so it cannot latch). Human check **Y13** (lane C writes it): flick the
+demo canvas so it glides, move the pointer onto the style strip mid-glide,
+and note whether the glide stops (MetalUI today) — the answer is the probe's
+input.
+
+**Cost if wrong.** A gliding canvas pan stops when the pointer leaves the
+canvas mid-glide; the next flick restarts it.
+
+## CI-AE — Remaining lanes re-cut (amends `CI-W`); the probe re-run
+
+**Ruling.**
+
+1. **The probe re-run.** `swiftui-input-apis.swift` compiled and run twice
+   on 2026-10-08 (same machine and toolchain, screen locked): all 61 lines
+   byte-identical to the recorded output, exit 0, stderr empty both times.
+   No SwiftUI claim of this branch rests on an unrun arm.
+2. **State at the critic's start.** Lanes 1 (with its review, `CI-Y`/`CI-Z`)
+   and 2's implementation (`164d241`) are committed; **lane 2 has no
+   verification commit** — none of spec §4.2's mutations nor the lane-2
+   rows of §4.3 has been run, and guards 2.1/2.2/2.25 have not been mutated
+   red. Lane 3 is untouched.
+3. **Three lanes remain, sequential (A → B → C), one agent at a time:**
+   - **Lane A — lane 2's verification and `CI-AB`.** Lane 2's files only
+     (`Gesture.swift`, `SpatialGestures.swift`, `Window.swift`'s press, pinch,
+     button and menu stages, the three `InputAPIGesture*` test files). Pins
+     2.26/2.27 red first, the fix, then every lane-2 mutation of spec §4.2
+     and the lane-2 rows of §4.3 (3.1, 3.26–3.34, 3.31b, 2.26, 2.27), the
+     three guards mutated red once, counts, 14 images 0 px; ruling and spec
+     amendments.
+   - **Lane B — wheel and pointer style.** Old lane 3 minus the demo,
+     divergences, census, human checks and record: spec §1.3, §1.4's wheel
+     and style stages, `CI-Q`, `CI-S`, tests 3.2–3.25 and 3.37, the inventory
+     rows (class A/M) and doc comments for its own declarations (the check
+     scripts print nothing at its end), `docs/migration.md` API notes, every
+     mutation of its rows. No `Backends/SDL` change (lane 1 built the SDL
+     cursor side).
+   - **Lane C — demo, registries, Record.** The canvas demo (§6, tests 3.35,
+     3.36), the SDL demo's env switch (so the `Backends/SDL` build and the
+     Linux image run), divergences 139–141 and the Not-offered rows, the
+     class-D family moves (`CI-AA` item 9), `CI-AC`'s doc sentences, the
+     census re-recorded, `docs/api-overview.md`, human checks group Y (Y1–Y13),
+     the demo-pixel compare, then the Record phase (§8.3, record 81).
+4. Lane B and lane C both touch `docs/migration.md` and the inventory map;
+   C edits on top of B's commit (sequential, as `CI-W`).
 

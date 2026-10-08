@@ -51,6 +51,10 @@
 // stderr empty; lines 1–46 and the C arms unchanged. P15–P19 read through
 // `cursorNameWide`, so no earlier line could move.
 //
+// RE-RUN 2026-10-08 by the second CI critic (ruling CI-AE item 1), same
+// machine and toolchain, screen LOCKED: compiled form run twice, all 61
+// recorded lines byte-identical both times, exit 0, stderr empty.
+//
 // INSTRUMENT HISTORY (discarded runs, not answers). Run 1: every CGEvent-made
 // event carried a screen location, so R0 (the control) and M0/Q0 read "-" —
 // discarded; the CG location is now the window point. Runs 1–4: the P control
