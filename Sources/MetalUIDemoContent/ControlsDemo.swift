@@ -27,6 +27,7 @@ public func controlsDemoContent() -> some Element {
     Column(gap: Pixels(14)) {
         portGapsToolbar(ControlsDemo())
         portGapsDemoSection()
+        controlsLooksSection()
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
@@ -339,5 +340,55 @@ struct PortGapsCounter: Component {
             Text(model.map { "Environment object: \($0.count)" } ?? "no model")
             Button("Increment") { model?.count += 1 }
         }
+    }
+}
+
+/// The "Controls and looks" section (C10 lane 1, ruling `LK-M`; spec
+/// `2026-10-08-controls-looks-design.md` §6): a slider whose editing state and
+/// coalesced-edit count are shown beside it — one count per drag, the
+/// MetalCreator undo-coalescing case (M5-a) — and two `ColorPicker`s, with and
+/// without opacity, driving a swatch (M6-f, MG-7). **Its own function**, its
+/// state in its own `Component` (Windows' 1 MB stack,
+/// `everyProductionTreeBuildsOnAOneMegabyteThread`). Human checks: the well's
+/// look, the panel's drag and keys, and one undo step per drag.
+@MainActor
+func controlsLooksSection() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Controls and looks").font(size: 22)
+        ControlsLooksDemo()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The section's state: the slider's level, whether it is being edited, the
+/// edits it has coalesced, and the two pickers' colours. The level starts at
+/// 0.65 so its slider never publishes a value the controls slider's VoiceOver
+/// script steps read (0.3–0.5, `theVoiceOverScriptQuotesThePublishedTree`).
+struct ControlsLooksDemo: Component {
+    @State var level = 0.65
+    @State var editing = false
+    @State var edits = 0
+    @State var accent = Color(.sRGB, red: 0.2, green: 0.5, blue: 0.9, opacity: 0.8)
+    @State var opaque = Color(.sRGB, red: 0.9, green: 0.4, blue: 0.1)
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(10)) {
+            Row(gap: Pixels(12)) {
+                Slider(value: $level, in: 0...1, onEditingChanged: { began in
+                    editing = began
+                    if !began { edits += 1 }
+                })
+                .frame(width: Pixels(220))
+                Text(editing ? "editing" : "idle")
+                Text("\(edits) coalesced edits, level \(Int((level * 100).rounded()))%")
+            }
+            Row(gap: Pixels(16)) {
+                ColorPicker("Accent", selection: $accent)
+                ColorPicker("Opaque", selection: $opaque, supportsOpacity: false)
+                Box().frame(width: Pixels(48), height: Pixels(24)).background(accent).cornerRadius(Pixels(4))
+                Box().frame(width: Pixels(48), height: Pixels(24)).background(opaque).cornerRadius(Pixels(4))
+            }
+        }
+        .alignItems(.flexStart)
     }
 }

@@ -1626,6 +1626,7 @@ public final class Frame {
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
+        declaration.colorWellHint = false    // LK-G, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }

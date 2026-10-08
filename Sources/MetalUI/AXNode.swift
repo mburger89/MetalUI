@@ -195,6 +195,13 @@ public struct AXNode: Equatable {
     /// chrome's record, as a selection hint does. Internal.
     var popoverHint = false
 
+    /// **A role hint, not a declaration** (C10, ruling `LK-G`, `LK-C` item 7):
+    /// set by a `ColorPicker`'s well, published as `.colorWell` (SwiftUI's
+    /// `AXColorWell`, probe `C1`) where the node would otherwise be a
+    /// `.button`. Stripped by `Frame.registerHandlers` exactly as
+    /// `popUpButtonHint` is. Internal.
+    var colorWellHint = false
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own

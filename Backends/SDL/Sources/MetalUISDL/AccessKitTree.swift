@@ -169,7 +169,8 @@ extension AccessKitSnapshot {
                 toggled: toggled(node), numericValue: numericValue(node),
                 rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
-                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton))
+                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
+                numericRange: node.role == .progressIndicator))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -204,7 +205,11 @@ extension AccessKitSnapshot {
         // with a menu popup (`hasPopupMenu`), a drawn alert an `ALERT_DIALOG`.
         case .popUpButton: .comboBox
         case .alert: .alertDialog
-        case .progressIndicator, .busyIndicator, .colorWell: .genericContainer
+        // C10 (ruling `LK-G`): a determinate and a busy progress view are both
+        // `PROGRESS_INDICATOR` (`accesskit.h` 0.23 has no busy role); only the
+        // determinate one carries a numeric value and its 0…1 range.
+        case .progressIndicator, .busyIndicator: .progressIndicator
+        case .colorWell: .colorWell
         }
     }
 
@@ -220,10 +225,11 @@ extension AccessKitSnapshot {
         }
     }
 
-    /// A slider's or stepper's value as a number when it parses (`DD-U` item
-    /// 1); `nil` for any other role.
+    /// A slider's, stepper's or determinate progress indicator's value as a
+    /// number when it parses (`DD-U` item 1, `LK-G`); `nil` for any other role
+    /// — a busy indicator's included.
     static func numericValue(_ node: AccessibilityNode) -> Double? {
-        guard node.role == .slider || node.role == .incrementor else { return nil }
+        guard node.role == .slider || node.role == .incrementor || node.role == .progressIndicator else { return nil }
         return node.value.flatMap(Double.init)
     }
 

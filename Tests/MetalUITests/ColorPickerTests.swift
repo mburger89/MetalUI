@@ -34,11 +34,13 @@ func pickerBounds(_ window: Window, width: Float, height: Float)
         .sorted { $0.bounds.origin.y.value < $1.bounds.origin.y.value }
 }
 
-/// The one 48×24 well.
+/// The one 48×24 well — the innermost 48×24 id: the popover wrapper around it
+/// records the same bounds one level up (`MN-L`'s identity level).
 @MainActor
 func pickerWell(_ window: Window) throws -> (id: GlobalElementID, bounds: Bounds<Pixels>) {
-    let wells = pickerBounds(window, width: 48, height: 24)
-    try #require(wells.count == 1, "one 48×24 well, found \(wells.count)")
+    let boxes = pickerBounds(window, width: 48, height: 24)
+    let wells = boxes.filter { candidate in !boxes.contains { $0.id.parent == candidate.id } }
+    try #require(wells.count == 1, "one 48×24 well, found \(wells.count) of \(boxes.map(\.id))")
     return wells[0]
 }
 
@@ -185,4 +187,26 @@ private func labelAndWell<E: Element>(_ root: E) throws -> (label: Bounds<Pixels
     #expect(platform.simulateAccessibilityRequest(.press(well.key)))
     for _ in 0..<3 where pickerSquare(window) == nil { controlRedraw(window) }
     #expect(pickerSquare(window) != nil, "the press opened the panel")
+}
+
+/// **1.23b** (the D2 rule for a new handler-registering site: the well
+/// registers through `Frame.registerHandlers`' one gate). A disabled picker's
+/// well opens nothing on a press, Space or an accessibility press, takes no
+/// focus, and publishes disabled; the enabled control opens. Mutation: insert
+/// the well's hitbox with `pass.frame.insertHitbox` outside the gate.
+@Test @MainActor func aDisabledColorPickerOpensNothing() throws {
+    let model = PickerModel(.red)
+    let (window, platform) = try pickerWindow { ColorPicker("Tint", selection: model.binding).disabled(true) }
+    let well = try pickerWell(window)
+    controlClick(platform, at: controlCentre(well.bounds))
+    window.focus(well.id)
+    window.drawFrameIfNeeded()
+    platform.simulateInput(controlKey(" "))
+    let tree = try controlTree(window, platform)
+    let node = try #require(tree.nodes.first { $0.value.role == .colorWell }, "no colour well")
+    platform.simulateAccessibilityRequest(.press(node.key))
+    for _ in 0..<3 { controlRedraw(window) }
+    #expect(pickerSquare(window) == nil, "a disabled well opened the panel")
+    #expect(window.focusedElement == nil, "a disabled well takes no focus")
+    #expect(node.value.isEnabled == false, "published disabled")
 }

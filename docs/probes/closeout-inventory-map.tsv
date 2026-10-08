@@ -161,6 +161,7 @@ F	field-style	D	swiftui-field-chrome.swift	ENV1	aContainerTextFieldStyleReachesI
 F	environment-object	D	swiftui-environment-object.swift	N0	anEnvironmentObjectIsReadAtItsPositionAndTheNearestWriterWins	134	MD-H	@Environment(Type.self) (non-optional and optional) and environment(_ object:) for an @Observable class: SwiftUI's spellings, nearest writer (N0-N3), keyed by the static type (K1-K2b), nil clears (W1), observation per read property (R); a missing object traps with MetalUI's modifier and noun in SwiftUI's sentence (134)
 F	toolbar	D	swiftui-toolbar.swift	TB1	aToolbarReachesThePlatformAsOneNeutralDescription	135 120	MD-I MD-S MD-U	.toolbar(content:)/.searchable(text:prompt:) through the transparent ToolbarScope (not an Element, so not a window root: 120), ToolbarContent/ToolbarItem/ToolbarItemGroup/ToolbarItemPlacement/ToolbarContentBuilder/ToolbarItems and ToolbarItemContent/ToolbarItemControls/ToolbarItemContentBuilder/ToolbarButtonLabel (closed: 135): SwiftUI's spellings and placements (TB1), nested toolbars merged in pre-order (NT1), a popover's ignored (PO), the search field last (SR)
 F	toolbar-seam	M	-	-	-	-	MD-J MD-N MD-U	PlatformWindow.setToolbar(_:) -> Bool (defaultless), PlatformToolbar/PlatformToolbarItem/PlatformToolbarPlacement/PlatformToolbarControl (images by identity)/PlatformToolbarPickerStyle/ToolbarActionEvent, InputEvent.toolbarAction: a native NSToolbar updated in place on AppKit, "draw it yourself" on SDL, outcomes as queued input
+F	color-picker	D	swiftui-controls-looks.swift	C0	aColorPickerIsItsLabelEightPointsAndAFortyEightByTwentyFourWell	165	LK-C LK-D LK-P	ColorPicker(_:selection:supportsOpacity:) and ColorPicker(selection:supportsOpacity:label:) over Color: the label, 8 points and a 48×24 well (C0), one StyledElement node; the well opens a drawn HSB/opacity/hex panel in a popover on every platform, where SwiftUI on macOS opens NSColorPanel (165); every write a gamma-sRGB literal, opacity 1 without supportsOpacity (C8); the well a .colorWell valued rgb R G B A (C1)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -347,6 +348,7 @@ M	MetalUI	ShapeView.swift	.*	.*	.*	shapes
 M	MetalUI	Slider.swift	.*	.*	.*	controls
 M	MetalUI	Stepper.swift	.*	.*	.*	controls
 M	MetalUI	Toggle.swift	.*	.*	.*	controls
+M	MetalUI	ColorPicker.swift	.*	.*	.*	color-picker
 M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks
 M	MetalUI	State.swift	.*	.*	.*	state
 M	MetalUI	Style.swift	.*	.*	.*	style

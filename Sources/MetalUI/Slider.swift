@@ -18,13 +18,28 @@ struct ValueTrackTarget {
     var thumb: Double
     var bounds: ClosedRange<Double>
     var step: Double?
-    var write: @MainActor (Double) -> Void
+    /// What the window drives, in one closure so `Handlers` keeps its size
+    /// (`theNewDeclarationsCostHandlersAtMostOnePointer`, `handlersGainsOneReferenceMember`):
+    /// a write, and the slider's `onEditingChanged` (ruling `LK-B`) — `.begin`
+    /// before a press's write, `.end` at the release, wherever it lands
+    /// (`LK-Q`).
+    var edit: @MainActor (Event) -> Void
+
+    /// One thing the window asks of the slider.
+    enum Event {
+        /// `onEditingChanged(true)`.
+        case begin
+        /// Write this value.
+        case write(Double)
+        /// `onEditingChanged(false)`.
+        case end
+    }
 
     /// Writes the value under window `x` (`ValueStepping.sliderValue`).
     @MainActor
     func track(toWindowX x: Double) {
-        write(ValueStepping.sliderValue(atX: x, minX: minX, width: width, thumb: thumb,
-                                        in: bounds, step: step))
+        edit(.write(ValueStepping.sliderValue(atX: x, minX: minX, width: width, thumb: thumb,
+                                              in: bounds, step: step)))
     }
 }
 
@@ -47,6 +62,18 @@ struct ValueTrackTarget {
 /// it lands on, changed or not** (SA2). **A press** writes the value under the
 /// pointer and a drag writes again (MetalUI's rule; the probe's click control
 /// failed), through the internal `Handlers.valueTrack`; it does not focus.
+///
+/// **Editing** (`onEditingChanged`, rulings `LK-B`, `LK-Q`; probe `S1`): a
+/// press calls `true` before its write, each drag writes, and the release
+/// calls `false` after the last write — one pair per gesture, for undo
+/// coalescing. The window keeps the pressed slider's callback and ends the edit
+/// at the release wherever it lands, claiming nothing, even if the slider left
+/// the tree or was disabled mid-drag; a press that finds an edit still open (a
+/// lost release) and the window's close end it too. An accessibility
+/// increment/decrement (`S4`) and an arrow key are each a whole edit — `true`,
+/// the write, `false`. A binding write from outside (`S5`) and a disabled
+/// slider's press (`S7`) call nothing. Every call runs under `StateDispatch`
+/// to the slider (`ID-F`).
 ///
 /// **Accessibility**: `.slider`, its value printed without a trailing `.0`
 /// (SA0 `5`), no label, `.increment`/`.decrement` from its
@@ -72,7 +99,9 @@ public struct Slider: Element, StyledElement {
     /// SL0's width when no width is offered.
     nonisolated static let idealWidth = 30.0
 
-    /// A slider over `bounds`, unstepped (SwiftUI's `Slider(value:in:)`).
+    /// A slider over `bounds`, unstepped (SwiftUI's
+    /// `Slider(value:in:onEditingChanged:)`). `onEditingChanged` is called
+    /// `true` when an edit begins and `false` when it ends (`LK-B`).
     public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V> = 0...1,
                                         onEditingChanged: @escaping @MainActor (Bool) -> Void = { _ in })
         where V.Stride: BinaryFloatingPoint {
@@ -81,7 +110,8 @@ public struct Slider: Element, StyledElement {
     }
 
     /// A slider over `bounds` that moves by `step` (SwiftUI's
-    /// `Slider(value:in:step:)`).
+    /// `Slider(value:in:step:onEditingChanged:)`). `onEditingChanged` is
+    /// called `true` when an edit begins and `false` when it ends (`LK-B`).
     public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V>, step: V.Stride,
                                         onEditingChanged: @escaping @MainActor (Bool) -> Void = { _ in })
         where V.Stride: BinaryFloatingPoint {
@@ -126,14 +156,25 @@ public struct Slider: Element, StyledElement {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
         let read = self.read, write = self.write, range = self.bounds, step = self.step
+        let editing = onEditingChanged
+        // A keyboard or accessibility adjust is a whole edit (`LK-B` item 3, S4).
         let adjust: @MainActor (ControlKeys.Direction) -> Void = { direction in
+            editing(true)
             write(ValueStepping.sliderAdjusted(read(), in: range, step: step, direction))
+            editing(false)
         }
         let offset = pass.frame.activeOffset
         var composed = handlers
         composed.valueTrack = ValueTrackTarget(minX: Double(bounds.origin.x.value + offset.x.value),
                                                width: Double(bounds.size.width.value),
-                                               thumb: Self.thumbWidth, bounds: range, step: step, write: write)
+                                               thumb: Self.thumbWidth, bounds: range, step: step,
+                                               edit: { event in
+                                                   switch event {
+                                                   case .begin: editing(true)
+                                                   case .write(let value): write(value)
+                                                   case .end: editing(false)
+                                                   }
+                                               })
         composed.isFocusable = true
         let callerKey = handlers.onKey
         composed.onKey = { event in

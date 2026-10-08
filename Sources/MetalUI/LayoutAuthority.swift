@@ -25,6 +25,9 @@ enum LoweringSite: String, Sendable {
     /// `Slider` (plan task 10 part 2, ruling `DD-W`): a leaf, lowered as
     /// `textField` is.
     case slider
+    /// A `ColorPicker`'s well and its panel's square and bars (C10, `LK-C`,
+    /// `LK-D`): fixed-size leaves, lowered as `slider` is.
+    case colorPicker
     case modifierLayer
     case scrollView
     case list

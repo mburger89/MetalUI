@@ -217,6 +217,10 @@ final class AccessKitAdapter: @unchecked Sendable {
                 toggled ? ACCESSKIT_TOGGLED_TRUE.rawValue : ACCESSKIT_TOGGLED_FALSE.rawValue))
         }
         if let number = node.numericValue { accesskit_node_set_numeric_value(out, number) }
+        if node.numericRange {   // LK-G: a determinate progress indicator's 0…1
+            accesskit_node_set_min_numeric_value(out, 0)
+            accesskit_node_set_max_numeric_value(out, 1)
+        }
         if let rowCount = node.rowCount { accesskit_node_set_row_count(out, rowCount) }
         if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
         if let hint = node.hint { accesskit_node_set_description(out, hint) }

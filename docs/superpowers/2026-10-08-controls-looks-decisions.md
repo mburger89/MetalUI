@@ -29,7 +29,7 @@ Where SwiftUI has no answer (a hex field, how a drawn panel takes keys, what a
 GPU surface under a blur shows) the ruling says so; gpui is named as a
 comparison where it has one, never as evidence.
 
-Prefix **`LK-`**, lettered. **Next unused: `LK-U`.** (This line moves in the
+Prefix **`LK-`**, lettered. **Next unused: `LK-V`.** (This line moves in the
 commit that appends a ruling; read the last `## LK-` heading.)
 
 Branch `feat/controls-looks` from `cd84b0c` (master: variable-height `List`,
@@ -813,3 +813,71 @@ that dissolves into its parent is a layout bug, not a style.
    `init(initialValue:repeating:content:keyframes:)` (`repeating: Bool =
    true`) — the view form's content takes the value only; the modifier form's
    takes `(Self, Value)` (divergence 169).
+
+## LK-U — Lane 1: what landing the controls changed in the design
+
+**Final spellings (lane 1, landed)** — MetalCreator and the configurator swap
+their stopgaps to exactly these:
+
+- **M5-a**: `Slider(value: $v, in: 0...1, onEditingChanged: { editing in … })`
+  and `Slider(value: $v, in: 0...10, step: 1, onEditingChanged: { … })`; the
+  trailing closure `Slider(value: $v) { editing in … }` compiles too (guard
+  `theSliderInitialisersKeepTheirSwiftUISpellings`).
+- **M6-f, MG-7**: `ColorPicker("Tint", selection: $color, supportsOpacity: true)`
+  and `ColorPicker(selection: $color, supportsOpacity: false) { Text("Tint") }`,
+  over MetalUI's `Color`; it takes `.padding`/`.background` like any control
+  (guard `aColorPickerTakesABackgroundAndPadding`).
+
+**Ruling (amends `LK-Q` item 2, `LK-D` item 7, `LK-G`, spec §2's file table
+and §4.1).**
+
+1. **The edit ends at the top of the input hook on a press too.** The end
+   (`Window.endSliderEdit()`, right after `updatePointerState(event)`) runs for
+   `.mouseUp` **and** `.mouseDown`, so a lost release is ended by the next
+   press whatever stage claims that press — not only a press that reaches
+   `dispatchValueTrack`. The close path calls the same method first thing in
+   `runDisappearancesForClose()` (the caller `App.onClose` is unchanged).
+   `dispatchValueTrack`'s signature and call site are unchanged.
+2. **One closure, so `Handlers` keeps its size.** `ValueTrackTarget`'s `write`
+   became `edit: (Event) -> Void` with `.begin`, `.write(Double)` and `.end`;
+   a second stored closure grew `MemoryLayout<Handlers>` by 16 bytes and
+   reddened `theNewDeclarationsCostHandlersAtMostOnePointer` and
+   `handlersGainsOneReferenceMember` (measured on the first green suite).
+   `Handlers` keeps seventeen members and its size.
+3. **The release observer.** `LK-Q` item 4's `theReleaseIsNotClaimedByTheSlider`
+   named an `onTapGesture` ancestor as the observer; it cannot see the release
+   on either side — the slider's own stage claims the press, so no arena forms
+   at `cd84b0c` either. The test observes the window's own `onInput` (which an
+   unclaimed release reaches) and the hook's answer (`false`).
+4. **The well's role is a hint** (`AXNode.colorWellHint`, internal, stripped
+   in `Frame.registerHandlers` as `popUpButtonHint` is, mapped in
+   `AccessibilityTreeBuilder.publishedRole` from `.button`), the `SV-S`
+   precedent — no public `AXRole` case. The progress view's two roles reach
+   the element side in lane 2 by the same means.
+5. **The square's two accessibility children** (`LK-D` item 7) are
+   registrations under positional child ids of the square
+   (`GlobalElementID.child(of: square, at: 0/1)`), its top and bottom halves,
+   through `registerAndScope` inside the square's own scope: each an
+   adjustable `.slider` with no hitbox and no focus stop, so Tab stops once at
+   the square and a client adjusts each. No named id is minted (no
+   `noteNamed`).
+6. **Files beyond the spec's table**, each a one- or few-line edit:
+   `AXNode.swift`, `Frame.swift`, `AccessibilityTreeBuilder.swift` (item 4),
+   `LayoutAuthority.swift` (a `LoweringSite.colorPicker` for the well and the
+   panel's planes, lowered as `slider` is), and
+   `Backends/SDL/Sources/MetalUISDL/AccessKitAdapter.swift` (the two
+   snapshot roles' C codes, explicit `UInt8` conversion; `Node.numericRange`
+   sending `min_numeric_value` 0 and `max_numeric_value` 1). None is on
+   `LK-N`'s off-limits list.
+7. **Tests the spec named differently**: `escapeClosesThePanel`'s mutation
+   ("swallow Escape in the panel") cannot redden — the popovers' stage
+   precedes every key handler — so its separating mutation is the well's
+   popover binding ignoring `false`. The D2 rule ("a new handler-registering
+   site gains an arm") is met by `aDisabledColorPickerOpensNothing`: the D2
+   guard's helper counts logged click handlers, and the well's open logs
+   nothing a fixture can count. `aTokenSelectionOpensAtItsResolvedValueAndTheFirstEditWritesALiteral`
+   holds two arms, a dynamic colour in a dark window (the scheme's separating
+   arm) and `.accent` in a dark window.
+8. **The demo's slider starts at 0.65** so it never publishes a value the
+   controls slider's VoiceOver steps read (`theVoiceOverScriptQuotesThePublishedTree`
+   matched two `0.5` sliders on the first green suite).
