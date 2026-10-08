@@ -1,3 +1,6 @@
+// Compiled only under the `SDL` trait (ruling PX-H item 2); without it this
+// file declares only the unavailable `SDLPlatform` at its end.
+#if SDL
 import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
@@ -230,8 +233,10 @@ public final class SDLWindow: PlatformWindow {
     private var closed = false
     /// Optional for the same reason as `windowRenderer`: released before the
     /// window it subclasses is destroyed.
+    #if AccessKit
     private var accessKit: AccessKitAdapter?
     private let accessKitIDs = AccessKitIDs()
+    #endif
     /// Requests that arrived before `Window` installed its handler — parked,
     /// as the AppKit bridge parks `.activate` (AB-B).
     private var parkedAccessibilityRequests: [AccessibilityRequest] = []
@@ -240,9 +245,11 @@ public final class SDLWindow: PlatformWindow {
         self.handle = handle
         id = mui_window_id(UnsafeMutableRawPointer(handle))
         windowRenderer = try SDLWindowRenderer(window: handle)
+        #if AccessKit
         let raw = UnsafeMutableRawPointer(handle)
         accessKit = AccessKitAdapter(windowID: id, title: String(cString: mui_window_title(raw)),
                                      nativeWindow: mui_window_native_handle(raw))
+        #endif
         updateAccessibilityWindowBounds()
     }
 
@@ -346,6 +353,7 @@ public final class SDLWindow: PlatformWindow {
         didSet { deliverAccessibilityRequests() }
     }
 
+    #if AccessKit
     /// Hands the tree to AccessKit — AT-SPI on Linux, UI Automation on
     /// Windows, NSAccessibility on macOS (ruling AX-B).
     public func publishAccessibilityTree(_ tree: AccessibilityTree) {
@@ -362,8 +370,18 @@ public final class SDLWindow: PlatformWindow {
     /// Queues requests as AccessKit's callbacks would — for tests, which have
     /// no screen reader.
     func simulateAccessKitRequest(_ queued: AccessKitAdapter.Queued) { accessKit?.enqueueForTesting(queued) }
+    #else
+    /// Accepts the tree and drops it: built without the `AccessKit` trait,
+    /// this window has no screen-reader bridge (ruling PX-H item 2).
+    public func publishAccessibilityTree(_ tree: AccessibilityTree) {}
+
+    /// Always `false` without the `AccessKit` trait — no adapter exists, so
+    /// ``onAccessibilityRequest`` never fires.
+    public var isAccessibilityConnected: Bool { false }
+    #endif
 
     func deliverAccessibilityRequests() {
+        #if AccessKit
         if let accessKit {
             for queued in accessKit.drain() {
                 if let request = AccessKitSnapshot.request(for: queued, ids: accessKitIDs) {
@@ -371,6 +389,7 @@ public final class SDLWindow: PlatformWindow {
                 }
             }
         }
+        #endif
         guard let onAccessibilityRequest, !parkedAccessibilityRequests.isEmpty else { return }
         let requests = parkedAccessibilityRequests
         parkedAccessibilityRequests = []
@@ -379,12 +398,14 @@ public final class SDLWindow: PlatformWindow {
 
     /// AT-SPI asks no window handle, so Linux is told where the window is.
     private func updateAccessibilityWindowBounds() {
+        #if AccessKit
         var x: Int32 = 0, y: Int32 = 0
         mui_window_position(UnsafeMutableRawPointer(handle), &x, &y)
         let scale = Double(scaleFactor), size = contentSize
         accessKit?.setWindowBounds(x: Double(x) * scale, y: Double(y) * scale,
                                    width: Double(size.width.value) * scale,
                                    height: Double(size.height.value) * scale)
+        #endif
     }
 
     // MARK: Text input (ruling TI-A)
@@ -722,7 +743,9 @@ public final class SDLWindow: PlatformWindow {
     nonisolated deinit {
         MainActor.assumeIsolated {
             windowRenderer = nil
+            #if AccessKit
             accessKit = nil
+            #endif
             mui_window_destroy(UnsafeMutableRawPointer(handle))
         }
     }
@@ -815,3 +838,17 @@ public enum SDLKeys {
         Point(x: Pixels(x * pointsPerScrollLine), y: Pixels(y * pointsPerScrollLine))
     }
 }
+#else
+/// Not built: the `SDL` trait is off (ruling PX-H item 4). `MetalUISDL` is
+/// compiled with SDL3 only when a dependent enables the trait on its MetalUI
+/// dependency — `.package(url: …, traits: ["SDL", "AccessKit"])`, or
+/// `["SDL"]` without the screen-reader bridge — so a package that forgot it
+/// reads the remedy in the error instead of "cannot find 'SDLPlatform'".
+@available(*, unavailable, message: "enable the trait 'SDL' on the MetalUI dependency: .package(url: …, traits: [\"SDL\", \"AccessKit\"]) — docs/getting-started.md")
+public final class SDLPlatform {
+    /// The real initialiser's spelling, public so a call reports the class's
+    /// unavailability — an implicit internal `init()` would report only
+    /// "inaccessible due to 'internal' protection level" (guard 1.6).
+    public init(hiddenWindows: Bool = false) throws {}
+}
+#endif

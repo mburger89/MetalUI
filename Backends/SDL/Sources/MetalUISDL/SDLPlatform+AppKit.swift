@@ -1,4 +1,4 @@
-#if canImport(AppKit)
+#if SDL && canImport(AppKit)
 // Its own file so AppKit's names (its `AccessibilityRequest` among them) stay
 // out of SDLPlatform.swift's type lookup.
 import AppKit

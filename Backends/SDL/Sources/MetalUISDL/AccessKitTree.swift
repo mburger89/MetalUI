@@ -1,3 +1,6 @@
+// Compiled only under the `AccessKit` trait (ruling PX-H item 2): without it
+// SDLPlatform has no screen-reader bridge.
+#if AccessKit
 import MetalUICore
 import MetalUIPlatform
 
@@ -241,3 +244,4 @@ extension AccessKitSnapshot {
         }
     }
 }
+#endif

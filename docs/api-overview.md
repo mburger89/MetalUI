@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2532 of them, in
-fifteen modules) belongs to one of 136 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2536 of them, in
+fifteen modules) belongs to one of 138 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -16,7 +16,9 @@ design: no SwiftUI counterpart. **X** — deprecated, with its replacement.
 [`divergences.md`](divergences.md#not-offered).
 
 Platforms: macOS (AppKit + Metal, the default), Linux and Windows (the
-separate `Backends/SDL` package). iOS and the other Apple platforms are out of
+`MetalUISDL` product of the root package, behind its `SDL` and `AccessKit`
+package traits, `PX-H`; [`getting-started.md`](getting-started.md) says what
+to install). iOS and the other Apple platforms are out of
 scope (`PB-A`).
 
 ## App and window — M
@@ -172,7 +174,15 @@ traps naming `GX-D`), `ShapeGeometry` (`.roundedRectangle`, `.ellipse`,
 `.strokeBorder`, each also with a `FillStyle`/`StrokeStyle`),
 `.background(_:in:)`; `Image` (`.resizable`, `.interpolation` — 93),
 `Image.Interpolation`, `ContentMode`; `ImageBitmap` (M, the portable image
-type).
+type). **Decoding** (`PX-B`…`PX-E`): `ImageBitmap(contentsOfFile:)`,
+`ImageBitmap(data:)` and `ImageBitmap(resource:withExtension:subdirectory:bundle:)`
+(M) decode PNG and JPEG with MetalUI's own decoder (stb_image, vendored as
+`CStbImage`) on every platform — the same premultiplied sRGB bytes on macOS,
+Linux and Windows, colour profiles ignored (138); other formats go through
+ImageIO on macOS and are `nil` elsewhere; a corrupt or truncated file is
+`nil`, never a trap. The `resource:` form decodes each resolved path once per
+process, so every frame gets the same texture identity. SwiftUI's
+`Image(_:bundle:)` (asset catalogs) is not offered.
 
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
@@ -496,9 +506,21 @@ once; a headless `renderFrame` runs no action (`LC-J`). Divergences 120–125: a
 legacy decoration after the scope does not compile, and a scope cannot be a
 window's root (120); the settle bound (121); one fixed order (122); re-inserted
 mid-fade content is fresh (123); a `List`'s first frame appears every row
-(124); a never-written `@State` default is re-seeded (125). `.task` is not
-offered: a main-actor task never runs inside the SDL loop (`LC-L`;
-[`migration.md`](migration.md#lifecycle--onappear-ondisappear-onchange)).
+(124); a never-written `@State` default is re-seeded (125).
+
+`.task(name:priority:file:line:_:)` and `.task(id:name:priority:file:line:_:)`
+(A; `PX-F`, `PX-G`; probe `swiftui-task.swift`) — SwiftUI's spelling and
+closure type (`@_inheritActorContext sending @escaping @isolated(any) () async
+-> Void`, main-actor in an element), on the same `LifecycleScope`: the start
+is an appearance (the body runs synchronously until its first `await`, under
+the element's `StateDispatch`, so a write there is in the first frame), the
+cancel a disappearance (parked under a removal transition; a re-inserted
+element keeps its task), an id change a change event that cancels, then
+starts. Closing a window cancels every task; a headless `renderFrame` starts
+none. Priority defaults to `.userInitiated`, the name to `"View.task @
+<file>:<line>"`. On macOS 14–25 the body starts on the next main-queue turn
+(137). Under `SDLPlatform` a task progresses through the loop's main-queue
+drain (`SV-H`).
 
 ## Animation and transitions — A
 

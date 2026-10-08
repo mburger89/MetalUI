@@ -1,4 +1,8 @@
 #include "SDLBridge.h"
+/* Compiled only under the root package's `SDL` trait, which defines
+   METALUI_SDL (ruling PX-H item 4); without it this file is the one
+   declaration after the #endif, not an empty translation unit. */
+#ifdef METALUI_SDL
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1307,3 +1311,8 @@ void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h
     if (index >= 0 && index < count) { *w = images[index]->w; *h = images[index]->h; }
     SDL_free(images);
 }
+
+#else
+/* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
+int mui_bridge_built_without_sdl = 1;
+#endif

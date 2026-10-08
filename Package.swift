@@ -30,16 +30,37 @@ var products: [Product] = [
         .library(name: "MetalUIDemoContent", targets: ["MetalUIDemoContent"]),
         // `metalui new <Name>`: a new application package (ruling SC-A).
         .executable(name: "metalui", targets: ["MetalUICLI"]),
+        // The SDL3 backend for Linux and Windows (rulings RS-D, PX-H): compiled
+        // in only when a dependent enables the `SDL` trait; without it the
+        // module declares an unavailable `SDLPlatform` naming the trait.
+        .library(name: "MetalUISDL", targets: ["MetalUISDL"]),
+        // The backend's C API, which Backends/SDL's replay tools and tests call.
+        .library(name: "SDLBridge", targets: ["SDLBridge"]),
 
 ]
 
 var metalUIDependencies: [Target.Dependency] = [
     "MetalUICore", "MetalUILayout", "MetalUITextSystem", "MetalUIPlatform", "MetalUIPrimitives",
-    "MetalUIPath",
+    "MetalUIPath", "CStbImage",
 ]
 #if os(macOS)
 metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
 #endif
+
+/// AccessKit's static library and what it links against on each platform,
+/// each only under the `AccessKit` trait (ruling PX-H item 2).
+var accessKitLinkerSettings: [LinkerSetting] {
+    let accessKit = "AccessKit"
+    var settings: [LinkerSetting] = [.linkedLibrary("accesskit", .when(traits: [accessKit]))]
+    settings += ["AppKit", "Foundation", "CoreFoundation"]
+        .map { .linkedFramework($0, .when(platforms: [.macOS], traits: [accessKit])) }
+    settings += ["objc", "c++"].map { .linkedLibrary($0, .when(platforms: [.macOS], traits: [accessKit])) }
+    settings.append(.linkedLibrary("m", .when(platforms: [.linux], traits: [accessKit])))
+    settings += ["bcrypt", "ntdll", "propsys", "runtimeobject", "uiautomationcore",
+                 "userenv", "ws2_32", "ole32", "oleaut32", "user32", "advapi32"]
+        .map { .linkedLibrary($0, .when(platforms: [.windows], traits: [accessKit])) }
+    return settings
+}
 
 var targets: [Target] = [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
@@ -188,8 +209,45 @@ var targets: [Target] = [
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
         // The whole framework's frame, pinned byte-for-byte across platforms
         // (ruling XP-C): runs on macOS, Linux and Windows.
+        // CStbImage for test 2.8b (stb alone, called directly; PX-O item 3);
+        // ImageFixtures is read by #filePath, not bundled.
         .testTarget(name: "MetalUICrossPlatformTests",
-                    dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText"]),
+                    dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUIPortableText", "CStbImage"],
+                    exclude: ["ImageFixtures"]),
+
+        // stb_image 2.30, vendored (ruling PX-B; Sources/CStbImage/VENDORED.md):
+        // PNG and JPEG decoding on every platform, one translation unit,
+        // CStbImage.c, compiled with the defines PX-B names. Imports nothing.
+        .target(name: "CStbImage", exclude: ["LICENSE", "VENDORED.md"]),
+
+        // The SDL3 backend (rulings RS-D, PX-H). Declared here, by path, so a
+        // package depending on MetalUI by URL reaches it — SwiftPM cannot
+        // depend on Backends/SDL, a package in a subdirectory, by URL. The
+        // sources stay in Backends/SDL. Everything SDL is behind the `SDL`
+        // trait and everything AccessKit behind `AccessKit`; neither is on by
+        // default, so this package's own build, every macOS consumer and the
+        // Linux and Windows root CI jobs need no SDL. No `pkgConfig:` on either
+        // system library: SwiftPM's default build system asks pkg-config about
+        // every one in the graph, used or not, and warns in every consumer
+        // (PX-H item 3). Headers and libraries come from the compiler's default
+        // paths or from `-Xcc -I… -Xlinker -L…` (PX-I).
+        .systemLibrary(name: "CSDL", path: "Backends/SDL/Sources/CSDL"),
+        // AccessKit's C API (ruling AX-A): `Backends/SDL/scripts/fetch-accesskit.py`.
+        .systemLibrary(name: "CAccessKit", path: "Backends/SDL/Sources/CAccessKit"),
+        // The SDL3 link is declared here, not only in CSDL's module map: that
+        // `link` applies only where Swift imports CSDL, and nothing does.
+        .target(name: "SDLBridge",
+                dependencies: [.target(name: "CSDL", condition: .when(traits: ["SDL"]))],
+                path: "Backends/SDL/Sources/SDLBridge",
+                cSettings: [.define("METALUI_SDL", .when(traits: ["SDL"]))],
+                linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
+        .target(name: "MetalUISDL",
+                dependencies: ["SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIScene",
+                               .target(name: "CAccessKit", condition: .when(traits: ["AccessKit"]))],
+                path: "Backends/SDL/Sources/MetalUISDL",
+                // What AccessKit's Rust static library needs, per platform
+                // (PX-H item 2; what accesskit.pc said before PX-I item 4).
+                linkerSettings: accessKitLinkerSettings),
 
         // The scaffolder (ruling SC-A): Foundation only, `package` access — a
         // tool, not framework API. `MetalUICLI` is the `metalui` executable.
@@ -267,6 +325,14 @@ let package = Package(
     name: "MetalUI",
     platforms: [.macOS(.v14)],
     products: products,
+    // The SDL backend's two switches (ruling PX-H item 2); neither is on by
+    // default. A dependent asks for them: `.package(url: …, traits: ["SDL",
+    // "AccessKit"])` (docs/getting-started.md).
+    traits: [
+        .trait(name: "SDL", description: "The SDL3 backend (MetalUISDL) for Linux and Windows."),
+        .trait(name: "AccessKit", description: "The SDL backend's screen-reader bridge (AccessKit).",
+               enabledTraits: ["SDL"]),
+    ],
     targets: targets,
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17

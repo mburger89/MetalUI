@@ -2017,3 +2017,15 @@ performed (an agent cannot)**: W1 the bordered field's look against AppKit's
 native toolbar in the titlebar (items, centring, search field, in-place
 updates); W4 the SDL drawn strip (same tree, an SDL window); W5 VoiceOver on
 the toolbar items.
+
+A MetalUI app on Linux and Windows (record §80, 2026-10-07): the fourteen
+offscreen demo images read 0 differing pixels against `359444e` at every lane
+(`docs/probes/demo-pixels/compare.sh`); the macOS screen was locked for the
+SwiftUI probes (`swiftui-task.swift` ran three times, byte-identical), and no
+real-window capture was taken. **Owed, new here —
+`docs/verification/human-checks.md` group X, none performed (an agent
+cannot)**: X1 a generated `--cross-platform` app on Linux (URL default, the
+README's install list, then the shipped copy with `MetalUISDLShaders`); X2 a counting `.task` in a real SDL window on Linux and
+Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
+and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
+light and dark icons on Linux against macOS.

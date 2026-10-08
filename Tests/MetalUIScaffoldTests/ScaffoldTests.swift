@@ -56,16 +56,46 @@ private let cycle = "MetalUI imports a module of that name (directly or through 
     ("CHarfBuzz", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CUnibreak", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CSheenBidi", "MetalUI has a target of that name, and target names must be unique across the package graph"),
-    ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("ReplayFixture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("SDLReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("PortableReplay", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("DemoCapture", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
 ])
 func aNameThatClashesWithAModuleTheAppBuildsWithIsRefused(_ name: String, _ reason: String) {
     #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
+}
+
+/// 1.5 (PX-J item 4, SC-H): a package named after each target the root
+/// package gained failed `swift build`, measured 2026-10-07 by generating a
+/// `--cross-platform --local` package and renaming it — on macOS (no traits)
+/// and in the Linux CI image (traits `SDL`, `AccessKit`), the same error on
+/// both, at graph load:
+///
+///     error: multiple packages ('cstbimage', 'portable-app') declare targets
+///     with a conflicting name: 'CStbImage'; target names need to be unique
+///     across the package graph
+///
+/// (`'csdl'`/`'CSDL'`, `'caccesskit'`/`'CAccessKit'`, `'sdlbridge'`/
+/// `'SDLBridge'` alike). `MetalUISDL` is refused by the `MetalUI` prefix.
+/// Mutation per arm: drop the name from the refusal set.
+@Test(arguments: [
+    ("CStbImage", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+])
+func aNameOfARootTargetThatFailedTheBuildIsRefused(_ name: String, _ reason: String) {
+    #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
+    #expect(throws: ScaffoldError.invalidName(name, reason: reason)) {
+        try scaffoldFiles(ScaffoldOptions(name: name, crossPlatform: true))
+    }
+}
+
+/// 1.5's other half (PX-J item 4): `Backends/SDL`'s own targets are no longer
+/// in an app's graph — refused before this branch because `--cross-platform`
+/// added that package — and a package named after each built, measured the
+/// same way on macOS and in the Linux CI image (exit 0), so none is refused.
+@Test(arguments: ["ReplayFixture", "SDLReplay", "PortableReplay", "DemoCapture"])
+func aNameOnlyBackendsSDLDeclaresGenerates(_ name: String) throws {
+    try validateName(name)
+    let files = try scaffoldFiles(ScaffoldOptions(name: name, crossPlatform: true))
+    #expect(try file("Package.swift", in: files).contents.contains(#".executable(name: "\#(name)""#))
 }
 
 /// SC-H: module lookup is case-sensitive even on case-insensitive APFS — each
@@ -79,14 +109,13 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
 
 /// SC-H: SwiftPM identifies a package by its directory, lowercased, so an app
 /// whose name is a dependency's identity in any case collides with it
-/// (measured for `SDL`/`sdl` beside `Backends/SDL`, record §72 §6.3).
+/// (measured for `SDL`/`sdl` beside `Backends/SDL`, record §72 §6.3). Since
+/// PX-J `--cross-platform` adds no `Backends/SDL` package, and a package
+/// named `SDL` built (2026-10-07, macOS and the Linux CI image, traits on in
+/// the image): it is accepted in every mode.
 @Test func aNameThatIsADependencysPackageIdentityIsRefused() throws {
-    let sdl = "a dependency's package identity is 'sdl' (its directory's name), and SwiftPM identifies "
-        + "this package by its directory's name too"
     for name in ["SDL", "sdl", "Sdl"] {
-        #expect(throws: ScaffoldError.invalidName(name, reason: sdl)) {
-            try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: "/src/MetalUI"), crossPlatform: true))
-        }
+        _ = try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: "/src/MetalUI"), crossPlatform: true))
     }
     _ = try scaffoldFiles(ScaffoldOptions(name: "SDL", source: .local(path: "/src/MetalUI")))
     let fork = "a dependency's package identity is 'tools' (its directory's name), and SwiftPM identifies "
@@ -141,19 +170,55 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     #expect(!manifest.contains(".package(url:"))
 }
 
-@Test func crossPlatformWithoutALocalCheckoutIsRefused() {
-    #expect(throws: ScaffoldError.crossPlatformNeedsLocalCheckout) {
-        try scaffoldFiles(ScaffoldOptions(name: "MyApp", crossPlatform: true))
-    }
+/// The block a cross-platform manifest turns MetalUI's SDL traits on with,
+/// on Linux and Windows only (ruling PX-J item 1).
+private let traitsBlock = """
+    #if os(Linux) || os(Windows)
+    let metalUITraits: Set<Package.Dependency.Trait> = ["SDL", "AccessKit"]
+    #else
+    let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
+    #endif
+    """
+
+/// 1.1 (PX-J item 1; replaces `crossPlatformWithoutALocalCheckoutIsRefused`,
+/// SC-C amended): the SDL backend is the root package's `MetalUISDL` behind
+/// the `SDL` trait, so a package depending on MetalUI by URL reaches it.
+/// Mutation: restore the `crossPlatformNeedsLocalCheckout` throw in
+/// `scaffoldFiles`.
+@Test func crossPlatformNoLongerNeedsALocalCheckout() throws {
+    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", crossPlatform: true))
+    let manifest = try file("Package.swift", in: files).contents
+    #expect(manifest.hasPrefix("// swift-tools-version: 6.1\n"))
+    #expect(manifest.contains(traitsBlock))
+    #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", branch: "master", traits: metalUITraits),"#))
+    let portable = "condition: .when(platforms: [.linux, .windows])"
+    #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable + ")"))
+    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable + ")"))
+    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable + ")"))
+    #expect(manifest.components(separatedBy: ".package(").count == 2, "one dependency:\n\(manifest)")
+    // A pinned revision carries the traits too.
+    let pinnedManifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
+        name: "MyApp", source: .remote(url: "https://github.com/mburger89/MetalUI.git", reference: .revision(pinned)),
+        crossPlatform: true))).contents
+    #expect(pinnedManifest.contains(#"revision: ""# + pinned + #"", traits: metalUITraits),"#))
+    // Without --cross-platform: tools 6.0 and no traits, unchanged.
+    let plain = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(name: "MyApp"))).contents
+    #expect(plain.hasPrefix("// swift-tools-version: 6.0\n"))
+    #expect(!plain.contains("traits"))
 }
 
-@Test func crossPlatformAddsTheSDLBackendOnLinuxAndWindowsOnly() throws {
+/// 1.2 (PX-J item 1): `--local` names the checkout once; the `Backends/SDL`
+/// package is no longer a dependency. Mutation: re-add the `sdlDependency`
+/// string.
+@Test func theLocalCrossPlatformManifestNamesNoBackendsSDLPackage() throws {
     let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .local(path: "/src/MetalUI"),
                                                   crossPlatform: true))
     let manifest = try file("Package.swift", in: files).contents
-    #expect(manifest.contains(#".package(path: "/src/MetalUI/Backends/SDL"),"#))
+    #expect(manifest.components(separatedBy: ".package(path:").count == 2, "one path dependency:\n\(manifest)")
+    #expect(manifest.contains(#".package(path: "/src/MetalUI", traits: metalUITraits),"#))
+    #expect(!manifest.contains("Backends/SDL"))
     let portable = "condition: .when(platforms: [.linux, .windows])"
-    #expect(manifest.contains(#".product(name: "MetalUISDL", package: "SDL", "# + portable))
+    #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable))
     #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable))
     #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable))
     let main = try file("Sources/MyApp/main.swift", in: files).contents
@@ -164,6 +229,33 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     #expect(try file("Packaging/windows/MyApp.rc", in: files).contents == "1 ICON \"MyApp.ico\"\n")
 }
 
+/// 1.3 (PX-J item 2): `--no-accesskit` asks for `SDL` alone and says the app
+/// has no screen reader support. Mutation: ignore the flag (always
+/// `["SDL", "AccessKit"]`).
+@Test func noAccessKitDropsOnlyTheAccessKitTrait() throws {
+    let command = try parseScaffoldCommand(["new", "MyApp", "--cross-platform", "--no-accesskit"],
+                                           workingDirectory: "/w", pinLookup: { _ in .revision(pinned) })
+    guard case let .new(options, _, _) = command else {
+        Issue.record("not a new command: \(command)")
+        return
+    }
+    #expect(options.crossPlatform)
+    #expect(!options.accessKit)
+    let files = try scaffoldFiles(options)
+    let manifest = try file("Package.swift", in: files).contents
+    #expect(manifest.contains(#"let metalUITraits: Set<Package.Dependency.Trait> = ["SDL"]"# + "\n"))
+    #expect(!manifest.contains(#""AccessKit""#))
+    let readme = try file("README.md", in: files).contents
+    #expect(readme.contains("This app has no screen-reader support on Linux and Windows"))
+    #expect(!readme.contains("fetch-accesskit.py"))
+    // The default keeps both.
+    #expect(ScaffoldOptions(name: "MyApp", crossPlatform: true).accessKit)
+    // Without --cross-platform the flag means nothing: refused.
+    #expect(throws: ScaffoldError.self) {
+        try parseScaffoldCommand(["new", "MyApp", "--no-accesskit"], workingDirectory: "/w", pinLookup: noLookup)
+    }
+}
+
 /// The README's text from `heading` to the next `## ` heading.
 private func section(_ heading: String, of readme: String) throws -> String {
     let start = try #require(readme.range(of: "\n## \(heading)\n"), "no section \(heading)")
@@ -171,40 +263,47 @@ private func section(_ heading: String, of readme: String) throws -> String {
     return String(rest[..<(rest.range(of: "\n## ")?.lowerBound ?? rest.endIndex)])
 }
 
-/// SC-F: Linux finds AccessKit through pkg-config; Windows has no pkg-config
-/// and passes SDL3's and AccessKit's paths as SwiftPM flags, as Windows CI
-/// does (`.github/workflows/sdl-gpu-linux.yml`), and says it is unrun.
-@Test func theCrossPlatformReadmeGivesLinuxAndWindowsTheirOwnBuildSteps() throws {
-    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .local(path: "/src/MetalUI"),
-                                                  crossPlatform: true))
+/// 1.4 (PX-I item 1 as amended by PX-Q; PX-P): what a consumer installs on
+/// Linux — SDL 3.4+ on the default paths or the flags, `swift package
+/// resolve` first, the fetch script from the resolved checkout with
+/// `--prefix /usr`, cargo on aarch64, or no `AccessKit` — and how the
+/// shaders ship. No pkg-config anywhere. Mutation: restore the old section.
+@Test func theCrossPlatformReadmeSaysWhatAConsumerInstalls() throws {
+    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", crossPlatform: true))
     let readme = try file("README.md", in: files).contents
     let linux = try section("Linux", of: readme)
-    #expect(linux.contains("python3 /src/MetalUI/Backends/SDL/scripts/fetch-accesskit.py"))
-    #expect(linux.contains("PKG_CONFIG_PATH=/src/MetalUI/Backends/SDL/.accesskit swift run MyApp"))
-    #expect(linux.contains("SDL3"))
+    #expect(linux.contains("SDL 3.4 or later"))
+    #expect(linux.contains("-DCMAKE_INSTALL_PREFIX=/usr"))
+    #expect(linux.contains("`-Xcc -I<prefix>/include -Xlinker -L<prefix>/lib`"))
+    #expect(linux.contains("swift package resolve\nsudo python3 .build/checkouts/MetalUI/Backends/SDL/scripts/fetch-accesskit.py --prefix /usr\n"))
+    #expect(linux.contains("aarch64"))
+    #expect(linux.contains("(`cargo`)"))
+    #expect(linux.contains("`--print-flags`"))
+    #expect(linux.contains(#"remove `"AccessKit"` from `metalUITraits`"#))
+    #expect(linux.contains("swift run MyApp"))
+    #expect(linux.contains("copy `.build/checkouts/MetalUI/Backends/SDL/Shaders/compiled` beside the executable as `MetalUISDLShaders`"))
     let windows = try section("Windows", of: readme)
-    #expect(!windows.contains("PKG_CONFIG_PATH"))
-    #expect(windows.contains("python /src/MetalUI/Backends/SDL/scripts/fetch-accesskit.py"))
-    #expect(windows.contains(#""-Xcc", "-I/src/MetalUI/Backends/SDL/.accesskit/accesskit-c-0.23.0/include""#))
-    #expect(windows.contains(#""-Xswiftc", "-L/src/MetalUI/Backends/SDL/.accesskit/lib""#))
+    #expect(windows.contains("python .build/checkouts/MetalUI/Backends/SDL/scripts/fetch-accesskit.py --print-flags"))
     #expect(windows.contains(#""-Xcc", "-IC:\SDL3\include", "-Xswiftc", "-LC:\SDL3\lib\x64""#))
     #expect(windows.contains("swift run @flags MyApp"))
     #expect(windows.contains("SDL3.dll"))
+    #expect(windows.contains("`MetalUISDLShaders`"))
     #expect(windows.contains("not yet been built on Windows"))
-}
-
-/// SC-G: the two warnings a cross-platform build prints on macOS, quoted as
-/// measured, and why they are harmless.
-@Test func theCrossPlatformReadmeExplainsTheMacOSWarnings() throws {
-    let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", source: .local(path: "/src/MetalUI"),
-                                                  crossPlatform: true))
-    let macOS = try section("macOS", of: try file("README.md", in: files).contents)
-    #expect(macOS.contains("warning: 'sdl': couldn't find pc file for accesskit"))
-    #expect(macOS.contains("warning: 'sdl': prohibited flag(s): -Wl,-rpath,/opt/homebrew/lib"))
-    #expect(macOS.contains("harmless"))
+    let macOS = try section("macOS", of: readme)
     #expect(macOS.contains("nothing of SDL is compiled or linked on macOS"))
-    let plain = try file("README.md", in: try scaffoldFiles(ScaffoldOptions(name: "MyApp"))).contents
-    #expect(!plain.contains("couldn't find pc file"))
+    for text in ["couldn't find pc file", "PKG_CONFIG_PATH", "pkg-config", "harmless"] {
+        #expect(!readme.contains(text), "\(text)")
+    }
+    // A checkout on disk names its own scripts and shaders.
+    let local = try section("Linux", of: try file("README.md", in: try scaffoldFiles(ScaffoldOptions(
+        name: "MyApp", source: .local(path: "/src/MetalUI"), crossPlatform: true))).contents)
+    #expect(local.contains("sudo python3 /src/MetalUI/Backends/SDL/scripts/fetch-accesskit.py --prefix /usr\n"))
+    #expect(local.contains("copy `/src/MetalUI/Backends/SDL/Shaders/compiled` beside"))
+    // A fork's checkout directory is its repository's name.
+    let fork = try section("Linux", of: try file("README.md", in: try scaffoldFiles(ScaffoldOptions(
+        name: "MyApp", source: .remote(url: "https://example.com/me/ui-fork.git", reference: .branch("dev")),
+        crossPlatform: true))).contents)
+    #expect(fork.contains("python3 .build/checkouts/ui-fork/Backends/SDL/scripts/fetch-accesskit.py"))
 }
 
 @Test func theInfoPlistNamesTheExecutableIdentifierAndIcon() throws {
@@ -475,4 +574,114 @@ func aGeneratedPackageBuildsAgainstThisCheckout() throws {
     process.waitUntilExit()
     #expect(process.terminationStatus == 0)
     #endif
+}
+
+// MARK: - A URL consumer of the SDL backend (env-gated, Linux: PX-L item 3)
+
+/// Tests 1.7 and 1.8 run only on Linux with `METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1`
+/// — in CI's image (`Backends/SDL/linux/Dockerfile`: SDL3 and AccessKit on the
+/// default paths, PX-I item 5). Each is a full build of MetalUI. Count while
+/// skipped.
+private let runsSDLConsumerBuild: Bool = {
+    #if os(Linux)
+    ProcessInfo.processInfo.environment["METALUI_RUN_SDL_CONSUMER_BUILD_TEST"] == "1"
+    #else
+    false
+    #endif
+}()
+
+/// Runs `executable` with `arguments` in `directory`; its exit status and its
+/// standard output and error, interleaved.
+private func run(_ executable: String, _ arguments: [String], in directory: URL) throws -> (Int32, String) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = [executable] + arguments
+    process.currentDirectoryURL = directory
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = pipe
+    try process.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+}
+
+/// A git repository named `MetalUI` under `root` holding this checkout's
+/// manifest, `Sources/`, `Tests/` and the SDL backend's sources and shaders —
+/// not the checkout's own `.git`, which a worktree mounted in a container
+/// cannot read (PX-L item 3). Returns its URL and commit.
+private func metalUIRepository(in root: URL) throws -> (url: URL, commit: String) {
+    let repository = root.appendingPathComponent("MetalUI")
+    let fileManager = FileManager.default
+    for path in ["Package.swift", "Sources", "Tests", "Backends/SDL/Sources", "Backends/SDL/Shaders"] {
+        let destination = repository.appendingPathComponent(path)
+        try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.copyItem(at: checkout.appendingPathComponent(path), to: destination)
+    }
+    // Never a build directory (a stale one would be read as sources).
+    if let walker = fileManager.enumerator(at: repository, includingPropertiesForKeys: nil) {
+        let builds = walker.compactMap { $0 as? URL }.filter { $0.lastPathComponent == ".build" }
+        for build in builds { try? fileManager.removeItem(at: build) }
+    }
+    let identity = ["-c", "user.email=consumer@metalui.test", "-c", "user.name=consumer"]
+    for arguments in [["init", "-q"], ["add", "-A"], identity + ["commit", "-qm", "MetalUI"]] {
+        let (status, output) = try run("git", arguments, in: repository)
+        try #require(status == 0, "git \(arguments): \(output)")
+    }
+    let (status, commit) = try run("git", ["rev-parse", "HEAD"], in: repository)
+    try #require(status == 0)
+    return (repository, commit.trimmingCharacters(in: .whitespacesAndNewlines))
+}
+
+/// Generates `options` under `root` and runs `swift build` there with
+/// `extraArguments`; the exit status and output.
+private func buildConsumer(_ options: ScaffoldOptions, in root: URL,
+                           extraArguments: [String] = []) throws -> (Int32, String) {
+    let destination = root.appendingPathComponent(options.name)
+    try writeScaffold(try scaffoldFiles(options), to: destination)
+    return try run("swift", ["build"] + extraArguments, in: destination)
+}
+
+/// 1.7 (PX-H, PX-J, PX-L item 3, PX-Q's last paragraph): a package generated
+/// by `metalui new --cross-platform`, depending on MetalUI by (file://) URL at
+/// one commit, builds its SDL app with plain `swift build` — SDL3 and
+/// AccessKit on the image's default paths, no flags — and no warning names a
+/// MetalUI path. Mutation: generate without `traits:` → `MetalUISDL` is the
+/// unavailable stub → `SDLPlatform()` fails to compile.
+@Test(.enabled(if: runsSDLConsumerBuild))
+func aCrossPlatformPackageBuildsItsSDLAppByURL() throws {
+    let root = try scratchDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (repository, commit) = try metalUIRepository(in: root)
+    let (status, output) = try buildConsumer(ScaffoldOptions(
+        name: "Consumer", source: .remote(url: repository.absoluteString, reference: .revision(commit)),
+        crossPlatform: true), in: root)
+    print("1.7 consumer build: status=\(status)\n\(output.suffix(2000))")
+    #expect(status == 0, "\(output)")
+    let warnings = output.split(separator: "\n").filter { $0.contains("warning:") && $0.contains(repository.path) }
+    #expect(warnings.isEmpty, "\(warnings)")
+    // The executable was linked (against SDL3 and AccessKit).
+    #expect(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("Consumer/.build/debug/Consumer").path))
+}
+
+/// 1.8 (PX-H item 2, PX-J item 2, PX-L item 3): a `--no-accesskit` package
+/// never compiles AccessKit — built with `-Xcc -I` naming a directory whose
+/// `accesskit.h` is an `#error`, so any `CAccessKit` import under `SDL` alone
+/// fails the build. Mutation: guard `AccessKitAdapter.swift` with `#if SDL`
+/// instead of `#if AccessKit`.
+@Test(.enabled(if: runsSDLConsumerBuild))
+func aCrossPlatformPackageBuildsWithoutAccessKit() throws {
+    let root = try scratchDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (repository, commit) = try metalUIRepository(in: root)
+    let poison = root.appendingPathComponent("poison")
+    try FileManager.default.createDirectory(at: poison, withIntermediateDirectories: true)
+    try Data("#error \"AccessKit must not be compiled\"\n".utf8).write(to: poison.appendingPathComponent("accesskit.h"))
+    let (status, output) = try buildConsumer(ScaffoldOptions(
+        name: "Plain", source: .remote(url: repository.absoluteString, reference: .revision(commit)),
+        crossPlatform: true, accessKit: false), in: root, extraArguments: ["-Xcc", "-I\(poison.path)"])
+    print("1.8 no-AccessKit build: status=\(status)\n\(output.suffix(2000))")
+    #expect(status == 0, "\(output)")
+    #expect(!output.contains("AccessKit must not be compiled"))
+    #expect(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("Plain/.build/debug/Plain").path))
 }

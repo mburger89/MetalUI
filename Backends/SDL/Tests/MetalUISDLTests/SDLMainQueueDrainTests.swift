@@ -87,3 +87,39 @@ private func runDrainCheck(_ mode: String) throws -> String {
 @Test func theDrainCheckExecutableIsFound() {
     #expect(drainCheckExecutable() != nil, "MainQueueDrainCheck not found — run `swift build` first")
 }
+
+// MARK: - `.task` under the SDL loop (ruling `PX-L` item 2; spec tests 3.20, 3.21)
+
+/// Whether an `SDLPlatform` window presents a frame here — not under SDL's
+/// `offscreen` video driver, which CI's Linux image sets (the same gate as
+/// `SDLLifecycleTests`' tests 10.2 and 10.3).
+private let windowsPresentFrames = ProcessInfo.processInfo.environment["SDL_VIDEO_DRIVER"] != "offscreen"
+
+/// **3.20** (`PX-F`, `PX-L` item 2). A `.task` on an `App` window's root,
+/// under `SDLPlatform`, starts with the first frame, progresses through three
+/// yields while the loop runs, removes its own content and is cancelled by
+/// the next frame's lifecycle drain. Gated off the offscreen driver: it needs
+/// a presented frame (`PX-R` item 4 — no CI job runs it; its macOS line is in
+/// record §80).
+///
+/// Mutation **M3.20**: delete the disappearance cancel (`cancelled=false`, a
+/// loop that ends by its bound); `Task` for `Task.immediate` — recorded in
+/// `PX-U`.
+@Test(.enabled(if: windowsPresentFrames, "the offscreen video driver presents no window frame"))
+func aTaskModifierProgressesAndIsCancelledUnderSDLPlatform() throws {
+    let output = try runDrainCheck("task-modifier")
+    #expect(output.contains("task started=true steps=3 cancelled=true"), "\(output)")
+}
+
+/// **3.21** (`PX-G`, `SV-H`, `PX-L` item 2). A main-actor `Task.immediate`
+/// started from top-level code before the loop — what `.task`'s start does —
+/// resumes three times and sees the cancellation a later display-link tick
+/// issues. Needs no frame: ungated, it runs in the Linux container.
+///
+/// Mutation **M3.21**: delete `drainMainQueue()`'s calls in `SDLPlatform.run`
+/// — the container prints `steps=0` (`SV-H`'s separating run); the macOS
+/// result is recorded in `PX-U`.
+@Test func anImmediateMainActorTaskResumesAndSeesItsCancellationUnderTheSDLLoop() throws {
+    let output = try runDrainCheck("immediate-task")
+    #expect(output.contains("task started=true steps=3 cancelled=true"), "\(output)")
+}

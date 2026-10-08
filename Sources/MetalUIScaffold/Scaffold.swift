@@ -19,8 +19,7 @@ package enum MetalUISource: Equatable, Sendable {
     /// A git URL and the commit or branch to use — what an application outside
     /// this repository normally uses.
     case remote(url: String, reference: GitReference)
-    /// A checkout on disk, as an absolute path — for framework development,
-    /// and required by `crossPlatform` (SC-C).
+    /// A checkout on disk, as an absolute path — for framework development.
     case local(path: String)
 
     /// The repository's own URL.
@@ -40,15 +39,21 @@ package struct ScaffoldOptions: Equatable, Sendable {
     /// Reverse-DNS; `com.example.<name>` unless given.
     package var bundleIdentifier: String
     package var source: MetalUISource
-    /// Adds `Backends/SDL` on Linux and Windows (SC-C).
+    /// Runs on Linux and Windows through MetalUI's SDL backend, which the
+    /// manifest turns on with the `SDL` trait there (PX-J; SC-C amended: any
+    /// source, not only `--local`).
     package var crossPlatform: Bool
+    /// With `crossPlatform`, also the `AccessKit` trait — the SDL backend's
+    /// screen-reader bridge; `false` is `--no-accesskit` (PX-J item 2).
+    package var accessKit: Bool
 
     package init(name: String, bundleIdentifier: String? = nil,
-                 source: MetalUISource = .defaultRemote, crossPlatform: Bool = false) {
+                 source: MetalUISource = .defaultRemote, crossPlatform: Bool = false, accessKit: Bool = true) {
         self.name = name
         self.bundleIdentifier = bundleIdentifier ?? "com.example.\(name)"
         self.source = source
         self.crossPlatform = crossPlatform
+        self.accessKit = accessKit
     }
 }
 
@@ -69,7 +74,6 @@ package struct ScaffoldFile: Equatable, Sendable {
 package enum ScaffoldError: Error, Equatable, CustomStringConvertible {
     case invalidName(String, reason: String)
     case invalidBundleIdentifier(String)
-    case crossPlatformNeedsLocalCheckout
     case notAMetalUICheckout(String)
     case destinationNotEmpty(String)
     case usage(String)
@@ -79,9 +83,6 @@ package enum ScaffoldError: Error, Equatable, CustomStringConvertible {
         case let .invalidName(name, reason): "invalid application name '\(name)': \(reason)"
         case let .invalidBundleIdentifier(id):
             "invalid bundle identifier '\(id)': use letters, digits, '-' and '.', e.g. com.example.MyApp"
-        case .crossPlatformNeedsLocalCheckout:
-            "--cross-platform needs --local <MetalUI checkout>: the SDL backend is the package at "
-                + "Backends/SDL inside the MetalUI repository, which SwiftPM cannot fetch by URL"
         case let .notAMetalUICheckout(path): "not a MetalUI checkout (no MetalUI Package.swift): \(path)"
         case let .destinationNotEmpty(path): "destination exists and is not empty: \(path)"
         case let .usage(message): message
@@ -134,12 +135,16 @@ let clashingModuleNames: [String: String] = {
                    "Glibc", "FoundationEssentials", "WinSDK"] {
         names[system] = cycle
     }
-    for target in ["CFreeType", "CHarfBuzz", "CUnibreak", "CSheenBidi"] {
+    for target in ["CFreeType", "CHarfBuzz", "CUnibreak", "CSheenBidi", "CStbImage"] {
         names[target] = "MetalUI has a target of that name, and \(unique)"
     }
-    // Refused in every mode: they clash once `--cross-platform` adds
-    // Backends/SDL, and a name is not worth changing later.
-    for target in ["CSDL", "SDLBridge", "CAccessKit", "ReplayFixture", "SDLReplay", "PortableReplay", "DemoCapture"] {
+    // The SDL backend's library targets, declared by MetalUI's root package
+    // (PX-H): each failed `swift build` of a generated package, with and
+    // without `--cross-platform`, on macOS and in the Linux CI image — SwiftPM
+    // checks target names across the whole graph, traits or not (PX-J item
+    // 4). Backends/SDL's own targets (`ReplayFixture`, `SDLReplay`, …) are no
+    // longer in an app's graph and built.
+    for target in ["CSDL", "SDLBridge", "CAccessKit"] {
         names[target] = "MetalUI's SDL backend has a target of that name, and \(unique)"
     }
     return names
@@ -147,14 +152,12 @@ let clashingModuleNames: [String: String] = {
 
 /// SwiftPM identifies every package, the root included, by its directory's
 /// name, lowercased; an app named after a dependency's identity, in any case,
-/// collides with it (SC-H; measured for `SDL` beside `Backends/SDL`).
+/// collides with it (SC-H; measured for `SDL` beside `Backends/SDL`, which is
+/// no longer a dependency, PX-J).
 func validateIdentity(_ options: ScaffoldOptions) throws {
     var identities: [String] = []
     if case let .local(path) = options.source {
         identities.append(packageIdentity(ofPath: path))
-        if options.crossPlatform {
-            identities.append(packageIdentity(ofPath: URL(fileURLWithPath: path).appendingPathComponent("Backends/SDL").path))
-        }
     }
     for identity in identities where identity.lowercased() == options.name.lowercased() {
         throw ScaffoldError.invalidName(options.name, reason: "a dependency's package identity is '\(identity.lowercased())' "
@@ -177,9 +180,6 @@ package func validateBundleIdentifier(_ identifier: String) throws {
 package func scaffoldFiles(_ options: ScaffoldOptions) throws -> [ScaffoldFile] {
     try validateName(options.name)
     try validateBundleIdentifier(options.bundleIdentifier)
-    if options.crossPlatform, case .remote = options.source {
-        throw ScaffoldError.crossPlatformNeedsLocalCheckout
-    }
     try validateIdentity(options)
     let name = options.name
     var files = [
@@ -212,38 +212,51 @@ private func swiftString(_ value: String) -> String {
 
 func manifest(_ options: ScaffoldOptions) -> String {
     let name = options.name
+    // Cross-platform: MetalUI's SDL traits, on Linux and Windows only (PX-J
+    // item 1). Traits need tools 6.1.
+    let traits = options.crossPlatform ? ", traits: metalUITraits" : ""
     let dependencies: String
     let metalUIPackage: String
     switch options.source {
     case let .remote(url, .branch(branch)):
-        dependencies = "        .package(url: \(swiftString(url)), branch: \(swiftString(branch))),\n"
+        dependencies = "        .package(url: \(swiftString(url)), branch: \(swiftString(branch))\(traits)),\n"
         metalUIPackage = "MetalUI"
     case let .remote(url, .revision(revision)):
         dependencies = "        // One commit of MetalUI, until you move it: README.md, \"Updating MetalUI\".\n"
-            + "        .package(url: \(swiftString(url)), revision: \(swiftString(revision))),\n"
+            + "        .package(url: \(swiftString(url)), revision: \(swiftString(revision))\(traits)),\n"
         metalUIPackage = "MetalUI"
     case let .local(path):
-        dependencies = "        .package(path: \(swiftString(path))),\n"
+        dependencies = "        .package(path: \(swiftString(path))\(traits)),\n"
         metalUIPackage = packageIdentity(ofPath: path)
     }
     var products = "                .product(name: \"MetalUI\", package: \(swiftString(metalUIPackage))),\n"
-    var sdlDependency = ""
-    if options.crossPlatform, case let .local(path) = options.source {
-        let sdlPath = URL(fileURLWithPath: path).appendingPathComponent("Backends/SDL").path
-        sdlDependency = "        // The SDL backend, which MetalUI's portable text draws through on Linux and\n"
-            + "        // Windows. It depends on MetalUI by relative path, so it is only reachable\n"
-            + "        // from a checkout (`metalui new --cross-platform` needs `--local`).\n"
-            + "        .package(path: \(swiftString(sdlPath))),\n"
-        let sdlPackage = swiftString(packageIdentity(ofPath: sdlPath))
+    var toolsVersion = "6.0"
+    var traitsBlock = ""
+    if options.crossPlatform {
+        toolsVersion = "6.1"
+        let enabled = options.accessKit ? #"["SDL", "AccessKit"]"# : #"["SDL"]"#
+        traitsBlock = """
+
+            // MetalUI's SDL backend (`MetalUISDL`) is compiled only when its `SDL` trait
+            // is on — here, on Linux and Windows; `AccessKit` is its screen-reader
+            // bridge. macOS uses AppKit and needs neither.
+            #if os(Linux) || os(Windows)
+            let metalUITraits: Set<Package.Dependency.Trait> = \(enabled)
+            #else
+            let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
+            #endif
+
+            """
         let portable = ".when(platforms: [.linux, .windows])"
-        products += "                .product(name: \"MetalUISDL\", package: \(sdlPackage), condition: \(portable)),\n"
-            + "                .product(name: \"MetalUIPortableText\", package: \(swiftString(metalUIPackage)), condition: \(portable)),\n"
-            + "                .product(name: \"MetalUISystemFonts\", package: \(swiftString(metalUIPackage)), condition: \(portable)),\n"
+        let package = swiftString(metalUIPackage)
+        products += "                .product(name: \"MetalUISDL\", package: \(package), condition: \(portable)),\n"
+            + "                .product(name: \"MetalUIPortableText\", package: \(package), condition: \(portable)),\n"
+            + "                .product(name: \"MetalUISystemFonts\", package: \(package), condition: \(portable)),\n"
     }
     return """
-        // swift-tools-version: 6.0
+        // swift-tools-version: \(toolsVersion)
         import PackageDescription
-
+        \(traitsBlock)
         let package = Package(
             name: \(swiftString(name)),
             platforms: [.macOS(.v14)],
@@ -251,7 +264,7 @@ func manifest(_ options: ScaffoldOptions) -> String {
                 .executable(name: \(swiftString(name)), targets: [\(swiftString(name))]),
             ],
             dependencies: [
-        \(dependencies)\(sdlDependency)    ],
+        \(dependencies)    ],
             targets: [
                 .executableTarget(
                     name: \(swiftString(name)),
@@ -376,8 +389,8 @@ func readme(_ options: ScaffoldOptions) -> String {
 
         """
     text += updatingSection(options.source)
-    if options.crossPlatform, case let .local(checkout) = options.source {
-        text += crossPlatformSections(name: name, bundleIdentifier: options.bundleIdentifier, checkout: checkout)
+    if options.crossPlatform {
+        text += crossPlatformSections(options)
     }
     return text
 }
@@ -428,47 +441,94 @@ private func updatingSection(_ source: MetalUISource) -> String {
     }
 }
 
-/// macOS, Linux and Windows, each with what that platform needs (SC-F, SC-G).
-private func crossPlatformSections(name: String, bundleIdentifier: String, checkout: String) -> String {
-    let sdl = checkout + "/Backends/SDL"
-    return """
+/// Where SwiftPM puts MetalUI's sources for this package: the checkout on
+/// disk, or `.build/checkouts/<repository>` — SwiftPM names a git
+/// dependency's checkout after the last component of its URL, without `.git`.
+func metalUISourceDirectory(_ source: MetalUISource) -> String {
+    switch source {
+    case let .local(path):
+        return path
+    case let .remote(url, _):
+        var repository = url
+        while repository.hasSuffix("/") { repository.removeLast() }
+        repository = String(repository.split(whereSeparator: { $0 == "/" || $0 == ":" }).last ?? "MetalUI")
+        if repository.hasSuffix(".git") { repository.removeLast(4) }
+        return ".build/checkouts/\(repository)"
+    }
+}
+
+/// macOS, Linux and Windows, each with exactly what that platform needs
+/// (SC-F; PX-I as amended by PX-Q; PX-P for the shaders).
+private func crossPlatformSections(_ options: ScaffoldOptions) -> String {
+    let name = options.name
+    let metalUI = metalUISourceDirectory(options.source)
+    let fetch = "\(metalUI)/Backends/SDL/scripts/fetch-accesskit.py"
+    let shaders = "\(metalUI)/Backends/SDL/Shaders/compiled"
+    let resolveNote = if case .local = options.source { "" } else {
+        " (`swift package resolve` fetches MetalUI into `\(metalUI)` first)"
+    }
+    var text = """
 
         ## macOS
 
-        The same AppKit and Metal app as without `--cross-platform`. `swift build`
-        prints two warnings here (the second only with SDL3 installed by Homebrew):
-
-        ```
-        warning: 'sdl': couldn't find pc file for accesskit
-        warning: 'sdl': prohibited flag(s): -Wl,-rpath,/opt/homebrew/lib
-        ```
-
-        They are harmless on macOS. SwiftPM loads every dependency on every
-        platform, so it asks pkg-config about the SDL backend's two system libraries,
-        AccessKit and SDL3, and refuses the `-rpath` flag Homebrew's `sdl3.pc` carries;
-        but every SDL product this app uses is conditioned on Linux and Windows, so
+        The same AppKit and Metal app as without `--cross-platform`. `Package.swift`
+        turns MetalUI's `SDL` traits on only on Linux and Windows, and every SDL
+        product the app names is conditioned on them, so
         nothing of SDL is compiled or linked on macOS.
 
         ## Linux
 
-        Needs SDL3 (3.4) with pkg-config — Ubuntu 24.04 ships only SDL2, so MetalUI's
-        CI builds SDL3 from source (`Backends/SDL/linux/Dockerfile`) — and AccessKit's
-        C bindings. Once:
+        Needs SDL 3.4 or later, its headers and `libSDL3` on the compiler's default
+        paths: a distribution's `libsdl3-dev` where it ships 3.4 or later, or SDL
+        built from source and installed with `-DCMAKE_INSTALL_PREFIX=/usr` (as
+        MetalUI's CI image does, `Backends/SDL/linux/Dockerfile`). Installed anywhere
+        else, pass its paths to every `swift build` and `swift run`:
+        `-Xcc -I<prefix>/include -Xlinker -L<prefix>/lib`.
+
+
+        """
+    if options.accessKit {
+        text += """
+            AccessKit's C bindings (the screen-reader bridge), once\(resolveNote):
+
+            ```sh
+            swift package resolve
+            sudo python3 \(fetch) --prefix /usr
+            ```
+
+            It downloads AccessKit's release, checks it, and copies `accesskit.h` and
+            `libaccesskit.a` under `/usr`, writing nothing into the checkout. On Linux
+            aarch64 the release has no prebuilt library and the script builds one with a
+            Rust toolchain (`cargo`) — install it first. With `--print-flags` instead of
+            `--prefix /usr` it keeps the files in `$ACCESSKIT_DIR` (default: `.accesskit`
+            beside the script) and prints the `-Xcc`/`-Xlinker` flags to pass, one per
+            line. Or build without screen-reader support:
+            remove `"AccessKit"` from `metalUITraits` in `Package.swift`.
+
+
+            """
+    } else {
+        text += """
+            This app has no screen-reader support on Linux and Windows (`metalui new
+            --no-accesskit`: `metalUITraits` names `"SDL"` alone). Add `"AccessKit"` to it,
+            and install AccessKit as MetalUI's `docs/getting-started.md` says, to have it.
+
+
+            """
+    }
+    text += """
+        Then:
 
         ```sh
-        python3 \(sdl)/scripts/fetch-accesskit.py
+        swift run \(name)
         ```
 
-        (it downloads AccessKit's release; on aarch64 it builds the library with
-        cargo), then build and run with its `.accesskit` on the pkg-config path:
-
-        ```sh
-        PKG_CONFIG_PATH=\(sdl)/.accesskit swift run \(name)
-        ```
-
-        `Packaging/linux/\(bundleIdentifier).desktop` is the desktop entry (install it
-        with `desktop-file-install`; run the app with `SDL_APP_ID=\(bundleIdentifier)`
-        so the shell matches the window to it).
+        To ship the app: copy `\(shaders)` beside the executable as `MetalUISDLShaders`
+        (the SDL backend looks there first, then in the source tree it was built from;
+        MetalUI's `docs/packaging.md`).
+        `Packaging/linux/\(options.bundleIdentifier).desktop` is the desktop entry
+        (install it with `desktop-file-install`; run the app with
+        `SDL_APP_ID=\(options.bundleIdentifier)` so the shell matches the window to it).
 
         ## Windows
 
@@ -476,24 +536,38 @@ private func crossPlatformSections(name: String, bundleIdentifier: String, check
         (`.github/workflows/sdl-gpu-linux.yml`); an app generated by `metalui new` has
         not yet been built on Windows.*
 
-        There is no pkg-config: SwiftPM is handed SDL3's and AccessKit's include and
-        library paths. Unpack SDL3's prebuilt Visual C++ package
-        (`SDL3-devel-3.4.16-VC.zip`, from SDL's GitHub releases) — say to `C:\\SDL3` —
-        then, in PowerShell:
+        SwiftPM is handed SDL3's\(options.accessKit ? " and AccessKit's" : "") include and library paths. Unpack
+        SDL3's prebuilt Visual C++ package (`SDL3-devel-3.4.16-VC.zip`, from SDL's
+        GitHub releases) — say to `C:\\SDL3` — then, in PowerShell:
 
         ```powershell
-        python \(sdl)/scripts/fetch-accesskit.py   # prints the AccessKit flags used below
-        $flags = @("-Xcc", "-IC:\\SDL3\\include", "-Xswiftc", "-LC:\\SDL3\\lib\\x64",
-                   "-Xcc", "-I\(sdl)/.accesskit/accesskit-c-0.23.0/include",
-                   "-Xswiftc", "-L\(sdl)/.accesskit/lib")
+
+        """
+    if options.accessKit {
+        text += """
+            swift package resolve
+            $flags = @("-Xcc", "-IC:\\SDL3\\include", "-Xswiftc", "-LC:\\SDL3\\lib\\x64")
+            $flags += python \(fetch) --print-flags   # AccessKit's, one per line
+
+            """
+    } else {
+        text += """
+            $flags = @("-Xcc", "-IC:\\SDL3\\include", "-Xswiftc", "-LC:\\SDL3\\lib\\x64")
+
+            """
+    }
+    text += """
         $env:Path += ";C:\\SDL3\\lib\\x64"   # SDL3.dll, at run time
         swift run @flags \(name)
         ```
 
-        `Packaging/windows/\(name).rc` embeds `\(name).ico` as the executable's icon.
-        Both packaging files are described in MetalUI's `docs/packaging.md`.
+        To ship it: `SDL3.dll` and a copy of `\(shaders)` named `MetalUISDLShaders`
+        beside the executable. `Packaging/windows/\(name).rc` embeds `\(name).ico` as
+        the executable's icon. Both packaging files are described in MetalUI's
+        `docs/packaging.md`.
 
         """
+    return text
 }
 
 func infoPlist(_ options: ScaffoldOptions) -> String {
@@ -622,8 +696,10 @@ package let scaffoldUsage = """
                             of origin/\(MetalUISource.defaultBranch) that the checkout this metalui was
                             built from contains; no such commit: follow \(MetalUISource.defaultBranch))
       --branch <branch>     follow a branch instead of pinning a commit
-      --cross-platform      also run on Linux and Windows through the SDL backend
-                            (needs --local)
+      --cross-platform      also run on Linux and Windows through MetalUI's SDL
+                            backend (its SDL and AccessKit traits)
+      --no-accesskit        with --cross-platform: no screen-reader bridge on
+                            Linux and Windows (the SDL trait alone)
       -h, --help            show this help
     """
 
@@ -731,6 +807,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
     var branch: String?
     var revision: String?
     var crossPlatform = false
+    var accessKit = true
 
     func value(for option: String) throws -> String {
         guard let next = remaining.popFirst(), !next.hasPrefix("-") else {
@@ -748,6 +825,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
         case "--branch": branch = try value(for: argument)
         case "--revision": revision = try value(for: argument)
         case "--cross-platform": crossPlatform = true
+        case "--no-accesskit": accessKit = false
         default:
             guard !argument.hasPrefix("-"), name == nil else {
                 throw ScaffoldError.usage("unexpected argument '\(argument)'\n\n" + scaffoldUsage)
@@ -761,6 +839,9 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
     }
     if branch != nil, revision != nil {
         throw ScaffoldError.usage("--branch and --revision cannot be combined")
+    }
+    if !accessKit, !crossPlatform {
+        throw ScaffoldError.usage("--no-accesskit needs --cross-platform")
     }
     let source: MetalUISource
     var note: String?
@@ -785,7 +866,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
         }
     }
     return .new(ScaffoldOptions(name: name, bundleIdentifier: bundleIdentifier, source: source,
-                                crossPlatform: crossPlatform),
+                                crossPlatform: crossPlatform, accessKit: accessKit),
                 parentDirectory: parent, note: note)
 }
 

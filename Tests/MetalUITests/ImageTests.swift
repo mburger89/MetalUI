@@ -250,9 +250,10 @@ private func floats(_ b: MUIBounds) -> [Float] {
 }
 
 #if canImport(ImageIO)
-/// **3.11 (macOS) — `ImageBitmap(contentsOfFile:)` decodes a PNG through
-/// ImageIO** (`TE-AL`): a 2×2 PNG written by ImageIO here from straight RGBA
-/// decodes to the same bytes, premultiplied. **Two rows, not the spec's 2×1**
+/// **3.11 (macOS) — `ImageBitmap(contentsOfFile:)` decodes a PNG that ImageIO
+/// wrote** (`TE-AL`; since `PX-C` the decode is the portable one, stb_image,
+/// on macOS too — ImageIO only writes the file here): a 2×2 PNG written by
+/// ImageIO from straight RGBA decodes to the same bytes, premultiplied. **Two rows, not the spec's 2×1**
 /// (`TE-AU`): a one-row image cannot tell top-down from bottom-up, so M3k
 /// could not redden. Opaque texels and one transparent one, so the
 /// premultiply is exact on every path (a translucent texel's rounding is
@@ -284,5 +285,88 @@ private func floats(_ b: MUIBounds) -> [Float] {
                                        0, 0, 255, 255, 0, 0, 0, 0],
             "decoded \(decoded.texture.pixels)")
     #expect(ImageBitmap(contentsOfFile: url.path + ".missing") == nil, "a missing file is nil")
+}
+#endif
+
+// MARK: - 2.11–2.12 the portable decoder against ImageIO (portable-app lane 2)
+
+#if canImport(ImageIO)
+/// The PNG fixtures of `MetalUICrossPlatformTests` (`gen-fixtures.py --tests`).
+private let imageFixtureDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    .deletingLastPathComponent().appendingPathComponent("MetalUICrossPlatformTests/ImageFixtures")
+
+/// `ImageBitmap(contentsOfFile:)`'s body at `359444e`: ImageIO's decode drawn
+/// into a premultiplied sRGB RGBA8 context (colour-managed) — what SwiftUI
+/// draws (probe `image-decoder-parity`, 0 bytes differ on 22 files).
+private func imageIOReference(_ url: URL) throws -> [UInt8] {
+    let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+    let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    let space = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+    var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    try pixels.withUnsafeMutableBytes { buffer in
+        let context = try #require(CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                                             bitsPerComponent: 8, bytesPerRow: image.width * 4, space: space,
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                                                 | CGBitmapInfo.byteOrder32Big.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    }
+    return pixels
+}
+
+/// **2.11 (macOS) — the portable decoder matches ImageIO on untagged and sRGB
+/// files** (`PX-C` items 1–4): every PNG fixture but `rgb8-p3.png` decodes to
+/// exactly ImageIO's colour-managed bytes — gray 1/4/8, gray + alpha,
+/// palette + `tRNS`, RGB, RGBA, Adam7 (4×3 and 9×7), 16-bit RGBA, `sRGB`-tagged.
+/// `rgb8-p3.png` (a Display P3 `iCCP`) **differs**: ImageIO converts it, the
+/// portable decoder ignores the profile (the separating arm; divergence 138's
+/// pin).
+///
+/// Mutation: PNG routed through the ImageIO fallback → the P3 arm reddens.
+@Test func thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles() throws {
+    let untagged = ["gray1.png", "gray4.png", "gray8.png", "graya8.png", "palette2-trns.png", "rgb8.png",
+                    "rgba8.png", "rgba8-adam7.png", "rgba16.png", "rgb8-srgb.png", "rgba8-9x7.png",
+                    "rgba8-adam7-9x7.png"]
+    for name in untagged {
+        let url = imageFixtureDirectory.appendingPathComponent(name)
+        let portable = try #require(ImageBitmap(contentsOfFile: url.path), "\(name) decodes")
+        #expect(portable.texture.pixels == (try imageIOReference(url)), "\(name)")
+    }
+    let p3 = imageFixtureDirectory.appendingPathComponent("rgb8-p3.png")
+    let portable = try #require(ImageBitmap(contentsOfFile: p3.path))
+    let reference = try imageIOReference(p3)
+    #expect(portable.texture.pixels != reference, "the P3 file is converted by ImageIO only")
+    let plain = try #require(ImageBitmap(contentsOfFile: imageFixtureDirectory
+        .appendingPathComponent("rgb8.png").path))
+    #expect(portable.texture.pixels == plain.texture.pixels, "the profile is ignored")
+}
+
+/// **2.12 (macOS) — a TIFF still decodes through ImageIO on Apple** (`PX-C`
+/// item 5): a 2×2 opaque TIFF written by `CGImageDestination` decodes to its
+/// bytes. Off Apple the same format is `nil` (`aTIFFIsNilOffApple`).
+///
+/// Mutation: the ImageIO fallback dropped → this test reddens.
+@Test func aTIFFStillDecodesThroughImageIOOnApple() throws {
+    let straight: [UInt8] = [255, 0, 0, 255, 0, 255, 0, 255,
+                             0, 0, 255, 255, 10, 20, 30, 255]
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("metalui-image-\(UUID().uuidString).tiff")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let space = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+    let provider = try #require(CGDataProvider(data: Data(straight) as CFData))
+    let cgImage = try #require(CGImage(width: 2, height: 2, bitsPerComponent: 8, bitsPerPixel: 32,
+                                       bytesPerRow: 8, space: space,
+                                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                                       provider: provider, decode: nil, shouldInterpolate: false,
+                                       intent: .defaultIntent))
+    let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.tiff" as CFString,
+                                                                   1, nil))
+    CGImageDestinationAddImage(destination, cgImage, nil)
+    try #require(CGImageDestinationFinalize(destination), "the TIFF was written")
+
+    let decoded = try #require(ImageBitmap(contentsOfFile: url.path), "the TIFF decodes")
+    #expect(decoded.width == 2 && decoded.height == 2)
+    #expect(decoded.texture.pixels == straight, "decoded \(decoded.texture.pixels)")
+    let fromData = try #require(ImageBitmap(data: try Data(contentsOf: url)), "and from data")
+    #expect(fromData.texture.pixels == straight)
 }
 #endif

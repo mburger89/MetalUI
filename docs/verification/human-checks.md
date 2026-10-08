@@ -867,6 +867,41 @@ real pointer and keyboard, the window's titlebar, and VoiceOver.
   Port gaps section's fields announce their placeholders, the disabled one as
   dimmed. **Observed:**
 
+## X. A MetalUI app on Linux and Windows — portable images, `.task`, a consumable SDL backend (user request 2026-10-02, not a plan task)
+
+*Source: record §80 `80-portable-app.md`, rulings `PX-A`…
+(`docs/superpowers/2026-10-07-portable-app-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-07-portable-app-design.md`).* Pinned
+headless: the generated cross-platform package building against a URL
+checkout in the CI image (`aCrossPlatformPackageBuildsItsSDLAppByURL`, `aCrossPlatformPackageBuildsWithoutAccessKit`, `METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1`),
+the decoder's bytes on every platform (`ImageDecodingTests`), `.task`'s order,
+cancellation and id restarts (`TaskModifierTests` 3.1–3.19), and a main-actor
+task progressing and cancelled under the SDL loop (`SDLMainQueueDrainTests`
+3.20 on macOS, 3.21 in the Linux container). What nothing headless sees: a
+real Linux or Windows desktop, a counting task in a visible window, Orca, and
+the configurator's icons.
+
+- [ ] **X1. A generated app on Linux** (Ubuntu 25.10, or a distribution with
+  SDL 3.4+): `metalui new Hello --cross-platform` (the URL default), install
+  what its README says, `swift run Hello` — a window opens and draws; text is
+  legible; resizing works (`PX-H`, `PX-I`, `PX-J`). Then ship it as
+  `docs/packaging.md`'s Linux section 4 says — the release binary and
+  `MetalUISDLShaders` copied into a new directory — rename or move the
+  checkout's `.build`, and run the copy: the window still opens (`PX-P`).
+  **Observed:**
+- [ ] **X2. A counting `.task`** in that app: a `Text("\(n)")` with `.task {
+  while !Task.isCancelled { n += 1; try? await Task.sleep(for: .seconds(1)) }
+  }` counts once a second in a real SDL window on Linux and on Windows, stops
+  when a toggle removes it, and restarts from 0 when it returns (`PX-F`,
+  `SV-H`). **Observed:**
+- [ ] **X3. Orca** reads the window's controls with the `AccessKit` trait; with
+  `--no-accesskit` the app runs and Orca sees an unlabelled window (`PX-H`
+  item 2). **Observed:**
+- [ ] **X4. The same generated app on Windows**, built per its README
+  (`PX-I`). **Observed:**
+- [ ] **X5. The configurator's icons** (light and dark) on Linux look as on
+  macOS (`PX-C`; divergence 138 — its icons are untagged). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

@@ -1,9 +1,5 @@
-import MetalUIScene
-#if canImport(ImageIO)
 import Foundation
-import CoreGraphics
-import ImageIO
-#endif
+import MetalUIScene
 
 /// The pixels an ``Image`` draws — MetalUI's stand-in for SwiftUI's `CGImage`
 /// argument (plan task 11, part 2, ruling `TE-AL`), so no Apple type crosses
@@ -36,34 +32,81 @@ public struct ImageBitmap: Sendable {
         texture = ImageTexture(width: width, height: height, straightRGBA: rgba)
     }
 
-    #if canImport(ImageIO)
-    /// Decodes the image file at `path` through ImageIO — macOS only (`TE-AL`;
-    /// off Apple no decoder is vendored, spec §9). `nil` when the file does not
-    /// exist or does not decode. The first frame of a multi-frame file.
-    ///
-    /// The decoded image is drawn into a premultiplied sRGB RGBA8 context, so
-    /// its colours are converted to sRGB and its rows read top-down, as the
-    /// file stores them.
-    public init?(contentsOfFile path: String) {
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard let source = CGImageSourceCreateWithURL(url, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-              image.width > 0, image.height > 0,
-              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        let width = image.width
-        let height = image.height
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
-                                          bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                                              | CGBitmapInfo.byteOrder32Big.rawValue)
-            else { return false }
-            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return true
-        }
-        guard drawn else { return nil }
-        texture = ImageTexture(width: width, height: height, premultipliedRGBA: pixels)
+    init(texture: ImageTexture) {
+        self.texture = texture
     }
-    #endif
+
+    /// Decodes the image file at `path`, on every platform (ruling `PX-E`).
+    ///
+    /// **PNG and JPEG** decode through MetalUI's own decoder (stb_image,
+    /// vendored), so a file gives the same bytes on macOS, Linux and Windows
+    /// (`PX-C`): every PNG colour type and bit depth, Adam7, baseline and
+    /// progressive JPEG; 16-bit samples rounded to 8; **colour profiles
+    /// ignored** — every sample is taken as sRGB (a Display P3 or
+    /// gamma-tagged file draws shifted from what SwiftUI shows, divergence
+    /// 138). **Other formats** (TIFF, GIF, HEIC, …) decode through ImageIO on
+    /// Apple platforms only — colour-managed, the first frame — and are `nil`
+    /// elsewhere.
+    ///
+    /// `nil` when the file is missing, a directory or unreadable, or when it
+    /// is corrupt or truncated (a PNG with a bad CRC or no `IEND`, a JPEG with
+    /// no end marker — never a partial image), or wider or taller than 16384
+    /// pixels (`PX-D`). Never cached: a file read twice is decoded twice; for
+    /// a resource that should decode once, use
+    /// ``init(resource:withExtension:subdirectory:bundle:)``.
+    public init?(contentsOfFile path: String) {
+        guard let data = FileManager.default.contents(atPath: path) else { return nil }
+        self.init(data: data)
+    }
+
+    /// Decodes an image held in memory — a downloaded or embedded file —
+    /// exactly as ``init(contentsOfFile:)`` decodes the same bytes (ruling
+    /// `PX-E` item 2); empty data is `nil`.
+    public init?(data: Data) {
+        guard let texture = data.withUnsafeBytes({ decodeImageTexture($0) }) else { return nil }
+        self.texture = texture
+    }
+
+    /// Decodes the resource `name`.`ext` in `bundle` (in `subdirectory` when
+    /// given; `ext` `nil` when `name` carries its extension) — e.g. an SwiftPM
+    /// target's `Bundle.module` — as ``init(data:)`` does (ruling `PX-E`
+    /// item 3). `nil` when the resource does not exist or does not decode.
+    ///
+    /// **Decoded once per resolved path per process**: every later call for
+    /// the same file returns the same bitmap — the same texture identity, so
+    /// a renderer uploads it once (`TE-AF`) — including a cached `nil`.
+    /// Bundle resources are taken as immutable while the process runs; the
+    /// cache is never evicted. A file that changes at run time belongs to
+    /// ``init(contentsOfFile:)``, which never caches.
+    ///
+    /// MetalUI-only: SwiftUI's `Image(_:bundle:)` reads an asset catalog, not
+    /// loose files (probe `swiftui-bundle-image`), so MetalUI does not offer
+    /// that spelling; draw this bitmap with `Image(_:scale:label:)`.
+    public init?(resource name: String, withExtension ext: String? = "png",
+                 subdirectory: String? = nil, bundle: Bundle) {
+        guard let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory),
+              let bitmap = ImageResourceCache.shared.bitmap(at: url.standardizedFileURL.path)
+        else { return nil }
+        self = bitmap
+    }
+}
+
+/// `ImageBitmap(resource:…)`'s decodes, one per resolved file path, for the
+/// life of the process (ruling `PX-E` item 3). Lock-guarded: a resource may be
+/// loaded from any thread; the decode runs under the lock so a path is never
+/// decoded twice.
+final class ImageResourceCache: @unchecked Sendable {
+    static let shared = ImageResourceCache()
+
+    private let lock = NSLock()
+    private var bitmaps: [String: ImageBitmap?] = [:]
+
+    func bitmap(at path: String) -> ImageBitmap? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = bitmaps[path] { return cached }
+        let decoded = ImageBitmap(contentsOfFile: path)
+        bitmaps[path] = .some(decoded)
+        return decoded
+    }
 }

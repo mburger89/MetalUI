@@ -2384,3 +2384,33 @@ constraint covers `.toolbar`/`.searchable` (`ToolbarScope`, `MD-S` item 1).
 Pin `aToolbarOnAWindowRootNeedsAContainer` (3.17). **131** — the field is the
 bordered default, 24 tall, ideal text + 1 + 12 (`MD-T`); MG-20 discharged by
 `MD-C`. Live count **98 → 103**, next label **137**.
+
+## 2026-10-07: 137 and 138 added; 105 live, next label 139 (a MetalUI app on Linux and Windows)
+
+Record §80; rulings `PX-C`, `PX-G`; the published list is
+`docs/divergences.md`. Not a plan task — user request 2026-10-02. **Added,
+kept:**
+
+- **137** — when a `.task` body starts on macOS 14–25. SwiftUI on macOS 27
+  starts the body synchronously, inside the frame that makes the view present
+  (probe `swiftui-task.swift` `X1`, `X15`): a write before its first `await` is
+  in the first draw. MetalUI starts it with `Task.immediate` on macOS 26 and
+  later and off Apple (the same behaviour, test 3.1); `Task.immediate` does not
+  exist before macOS 26, so on macOS 14–25 the body starts on the next
+  main-queue turn and that write is presented one frame late. What SwiftUI's
+  pre-26.4 `_TaskModifier` does on macOS 14–26.3 was **not measured** (`PX-R`
+  item 3). Pin `theDeferredStartRunsTheBodyOnALaterTurn` (3.16), through the
+  `TaskStart.forcesDeferredStart` seam, so it runs on every macOS the suite
+  runs on.
+- **138** — colour-tagged images. SwiftUI draws what ImageIO decodes,
+  colour-managed: an `iCCP` (Display P3), `gAMA` or `cHRM` chunk converts the
+  samples (probe `image-decoder-parity`: P3 max 87, `gAMA` max 19 per channel;
+  JPEG max 2). MetalUI decodes PNG and JPEG itself on every platform, macOS
+  included, and draws the samples as sRGB — identical bytes everywhere; other
+  formats still go through ImageIO on macOS. Untagged and sRGB-tagged PNGs are
+  byte-identical to ImageIO (22 files, all colour types, 8 and 16 bit, Adam7,
+  and the configurator's 66 icons). Pin
+  `thePortableDecoderMatchesImageIOOnUntaggedAndSRGBFiles` (its P3 arm).
+
+Live count **103 → 105**, next label **139**. Lane 3 wrote the rows; this
+section was written by the Record phase.
