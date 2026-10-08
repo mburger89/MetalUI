@@ -148,7 +148,9 @@ off SDL's offscreen driver, so no CI job runs `.task` under SDL).
    `SDLWindowRenderer(offscreenWidth:height:)` already renders into a GPU
    target without a window, and runs ungated in the image
    (`SDLWindowRendererTests`, `SDLSurfaceTests`). `SDLPlatform` gains a
-   **`package`** initialiser parameter, `init(hiddenWindows: Bool = false,
+   **`package`** initialiser parameter (amended by `TF-E` items 1–2: `package`
+   cannot reach `Backends/SDL`'s executables, so it is `@_spi(Checks) public`
+   and the public initialiser a `convenience` forwarder), `init(hiddenWindows: Bool = false,
    offscreenRenderers: Bool)` (the public `init(hiddenWindows:)` unchanged and
    forwarding `false`), under which `openSDLWindow` gives each `SDLWindow` an
    offscreen renderer the window's size in pixels (its point size times `mui_window_pixel_density`, which is also the renderer's scale factor; `TF-E` item 4) instead of
