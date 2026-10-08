@@ -8,7 +8,7 @@ Record: `../record/82-variable-height-list.md`. Branch
 branch's reserved range **145–149** (parallel branches hold the others; the
 header's next-label line is the merge's to settle).
 
-**Next unused id: `VL-U`.** (Moves in the commit that appends a ruling; to
+**Next unused id: `VL-V`.** (Moves in the commit that appends a ruling; to
 find it, read this file's last `## VL-` heading.)
 
 Evidence (each header carries its recorded output and how to run it):
@@ -516,3 +516,89 @@ amendments, folded into the spec:
 **No behaviour moves in lane 1**: `ListRows.arrangement` defaults to
 `.uniform` and nothing passes `.variable` until lane 2; the fourteen offscreen
 images read 0 px against `70ed000` (record §82 §3).
+
+## VL-U — Lane 2 as landed: corrected derivations, three red-before clauses, the paths spec §3.3 left open, mutation spellings
+
+**Ruling.** Lane 2 (record §82 §4) landed spec §3.1 and §3.3 with these
+amendments, folded into the spec:
+
+1. **Four literals were re-derived after the first green run, and one fixture
+   moved — arithmetic and fixture errors, not behaviour.** The scrolled
+   fixtures' rows 0…9 sum to **460** (2 · 200 + 20 + 40), not 440 as the
+   red-before comments said: 2.9's chain (resolved 4490, `offset(of: 144)`
+   4560, refined 4680; row 150 still lands at 140), 2.10's settled offset
+   (**4570**, not 4550) and 2.18's extent (**4600** = 460 + 90 · 46, not 4400)
+   move with it. 2.11's jump to 5040 gave `D = 0` once the sum was right (rows
+   160 + 161 = 60 = 2 · 30, so nothing adjusted and nothing asked for a frame)
+   — the jump is now **5070** (anchor 163, rows 161 + 162 = 100 against 60,
+   `D = 40`, exactly one frame asks, row 163 at −20 in both frames). 2.12's
+   ⇧-click target, row 4, sat at y 100 — outside the 100pt viewport, so the
+   click never landed and the ⇧↓ wrote the set the click should have; the
+   sequence is now rows 0, ⌘2, ⇧3, ⇧↓ → [0], [0, 2], [2, 3], [2, 3, 4]. Every
+   one of these tests failed against the stub before and after the correction
+   (record §82 §4 lists the lines).
+2. **Three tests carry a geometry clause so the stub reddens them.** 2.12
+   (selection), 2.14 (focus) and 2.16 (no entry outside a scroller) pin
+   behaviour the uniform stub already has; each also asserts a content-sized
+   row (row 3's click target 30 tall; the focused row's `Box` 20 tall; row 1
+   at y 20), which the stub's 24pt rows fail. Their instruments are their
+   mutations (M2.12, M2.14, M2.16).
+3. **2.8 is spelled as a same-count shift.** "Ids in the window replaced,
+   count equal" is realised as id 1000 inserted at 0 and the last row dropped:
+   the count is unchanged, every realised row's index now holds its
+   predecessor's id, and the anchor (id 50) moves to index 51 — so skipping the
+   realised-id check places id 49 at the anchor's offset (id 50 at 40). A
+   replacement that keeps the anchor's id and index was not tried as the
+   fixture.
+4. **The paths spec §3.3 left open.**
+   (a) After a rebuild the window starts at the carried anchor − 2 (by
+   construction the row `index(containing: top + shift)` names) and ends at
+   `index(containing: top + shift + viewport) + 3`, `shift = offset(of: anchor)
+   − anchorY` in the rebuilt index.
+   (b) An unbounded frame with a stored index whose count differs rebuilds it
+   by id (no anchor), and `prepaint` rebuilds defensively when counts still
+   differ, so records always land at the right indices.
+   (c) Without an index (no vertical scroller: outside every scroller, in a
+   horizontal one, in a `Deferred`) a `scrollTo` onto a row targets the
+   realised row's placed bounds (every row is realised there); a row outside
+   the built window targets a zero-height rect at the list's origin.
+   (d) `rowHeight` remains a computed accessor that answers 0 for a variable
+   list and is read only on the uniform path; `builtIDs` is filled only on the
+   variable path, so the uniform frame does no extra work (`VL-I`).
+   (e) The fresh index a bounded frame builds when none is stored is threaded
+   to `prepaint` and stored there — one object, not two.
+5. **2.20's work literal comes from the cold column** (`demoLikeRowsWarmWork`'s
+   method): cold frames at n = 40 / 160 / 500 / 2000 read `2n + 1` measure
+   calls, `5n + 6` hits, `5n + 7` misses; at the warm window's r = 16 that is
+   **33 / 86 / 87**, which the warm frames then read at 40, 160, 500 and
+   100 000. Its red-before was the missing index (the stub stores none). The
+   per-frame index visits are derived from the code before the run:
+   `2 · popcount(n) + 2 · (⌊log₂ n⌋ + 1) + 1` — 17 / 21 / 31 / 47.
+6. **Guard 2.19 passes against the stub by construction** (the stub already
+   had the three spellings); its instrument is MG2.19, which reddens it.
+7. **Mutation spellings** (each on `14ac821`, one file restored from a copy,
+   full unfiltered native suite; record §82 §4 names what each reddened):
+   M2.1 a variable row pinned to `estimate ?? 24`; M2.2 and M2.17 are lane 1's
+   M1.17/M1.18 spellings in `VariableRowsLayout` (placement proposal `(nil,
+   nil)`; both height measurements at `(nil, nil)`); M2.3 `trailingExtent` 0;
+   M2.4 the window by `List.window(count:rowExtent:…)` at `index.estimate`;
+   M2.5a/M2.6b the arrangement from `offset(of: first)` at slot 0 (M2.6b also
+   drops the anchor, so no `D`); M2.5b the `noteScrollAnchorAdjustment` call
+   removed (it is also 2.7c's mutation); M2.6a `forgetMeasurements` skipped;
+   M2.7 the anchor by index across a rebuild; M2.7b(a) the before-scan ahead
+   of the after-scan; M2.7b(b) `min(oldAnchor, count − 1)` as soon as the id is
+   gone; M2.8 the realised-id check skipped; M2.9 no carry; M2.10 the
+   `refined` guard dropped; M2.11 `requestAnotherFrame()` beside every
+   adjustment; M2.12/M2.13/M2.14/M2.15 the click handler, the row's `.id`, the
+   list's `isFocusable` and `logicalIndex` dropped on the variable branch;
+   M2.16 a `withState` at the list's id in `requestLayout`; M2.18 the clamp
+   dropped; MG2.19 the `rowContent:` label renamed `content:`; M2.20a a
+   rebuild every bounded frame; M2.20b lane 1's linear `offset(of:)`, run with
+   `METALUI_RUN_100K_LIST_TEST=1` so 2.21 runs too; **MU** the uniform
+   initialiser routed through the variable path (`rowSizing = .variable(estimate:
+   rowHeight)`, no declared height).
+
+**Nothing on the MUST-NOT-MOVE list moved outside `VL-F`/`VL-G`/`VL-H`**: the
+uniform path keeps its code (MU is the separating arm: it reddens the three
+named pins and 36 other existing tests), the fourteen offscreen images read 0
+px against `70ed000`, and the full unfiltered suite is green (record §82 §4).

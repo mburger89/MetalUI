@@ -2,7 +2,8 @@
 
 User request 2026-10-02 (item 7 of the gpui-gap priority list; **not a plan
 task**). Rulings: [`../2026-10-08-variable-height-list-decisions.md`](../2026-10-08-variable-height-list-decisions.md)
-(`VL-A`…`VL-S`; `VL-N`…`VL-S` are the critic's corrections, folded in below). Record: `../../record/82-variable-height-list.md`. Branch
+(`VL-A`…`VL-U`; `VL-N`…`VL-S` are the critic's corrections, `VL-T` lane 1's and
+`VL-U` lane 2's amendments, folded in below). Record: `../../record/82-variable-height-list.md`. Branch
 `feat/variable-height-list` from `70ed000`. Divergence labels: this branch's
 reserved range **145–149** (145, 146, 147 used; 148, 149 spare).
 
@@ -11,7 +12,9 @@ gestures, bridges) and `feat/rich-text` (record §83: `Text`, the text
 systems). This branch stays off their files; the one shared file it touches is
 `Frame.swift` (two small additions, §3.2) — the merge's to reconcile.
 
-**Status: designed (2026-10-08), critic pass applied (`VL-N`…`VL-S`).** Lanes not started.
+**Status: designed (2026-10-08), critic pass applied (`VL-N`…`VL-S`); lane 1
+landed (`VL-T`, record §82 §3); lane 2 landed (`VL-U`, record §82 §4).** Lane 3
+not started.
 
 ---
 
@@ -181,6 +184,12 @@ Pixels?)`) replaces `rowHeight` (**`swift package clean`**). Also threaded
 6. Everything else — ids, scroll keys, selection, `logicalIndex`, handlers,
    AX — is the uniform code, shared.
 
+As landed (`VL-U` item 4): after a rebuild the window runs from the carried
+anchor − 2 to `index(containing: top + shift + viewport) + 3`, `shift =
+offset(of: anchor) − anchorY` in the rebuilt index; an unbounded frame with a
+stored index of another count rebuilds it by id (no anchor); the fresh index of
+a bounded frame with none stored is threaded to `prepaint` and stored there.
+
 `VariableRowsLayout` (`ListRows.swift`): width = proposal's, else the widest
 realised row at `(nil, nil)`; each realised row measured at `(width, nil)`;
 height = `anchorY + Σ h[anchorSlot...] + trailingExtent`; placement: anchor at
@@ -207,6 +216,8 @@ nothing.
 
 Outside every scroller a variable list has no index, no entry and no anchor —
 it is a column of measured rows (`aVariableListOutsideAScrollerMintsNoStateEntry`).
+Without an index a `scrollTo` onto a row targets the realised row's placed
+bounds (`VL-U` item 4c).
 
 ### §3.4 Platforms
 
@@ -311,11 +322,11 @@ test below fails against that stub, which is how it is seen to fail):
 | 2.7 | `anInsertionAboveTheViewportKeepsTheRowOnTop` | insert a 150-tall row at 0 while row 50 is on top: row 50 stays (div 146) | anchor by index across the rebuild |
 | 2.7b | `removingTheRowOnTopPutsTheNextRowInItsPlace` | arm 1: row 50 on top removed → row 51's id on top at row 50's old y; arm 2: remove row 50 and insert at 0 in one change → old row 51 on top (`VL-O`) | (a) prefer the id before (arm 1 reddens); (b) fall back to `oldAnchorIndex` (arm 2 reddens) |
 | 2.7c | `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick` | 2.7 inside `withAnimation`, `simulateTick`-driven: the row on top's on-screen y unchanged at every tick until no frame is asked for (`VL-R` item 8) | skip `noteScrollAnchorAdjustment` |
-| 2.8 | `aSameCountDataChangeIsDetectedFromARealizedRow` | ids in the window replaced, count equal: positions follow the new rows' heights | skip the realised-id check |
+| 2.8 | `aSameCountDataChangeIsDetectedFromARealizedRow` | a same-count shift (id inserted at 0, last dropped): the realised rows' ids differ from the recorded ones, the anchor follows its id (`VL-U` item 3) | skip the realised-id check |
 | 2.9 | `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured` | `scrollTo(row 150, anchor: .bottom)`, real height ≠ estimate: after the settle frames, bottom = viewport bottom exactly (cf. T-bottom) | no refinement carried |
 | 2.10 | `aRefinedRevealNeverRefinesAgain` | a target that stays unmeasured: at most two resolutions, then no frame requested | drop the `refined` guard |
-| 2.11 | `aVariableListSettlesWithoutInput` | after a jump of 5000: frames asking for another frame ≤ 3, then none | request a frame whenever `D` is computed |
-| 2.12 | `selectionAndShiftRangesAreUnchangedInAVariableList` | click, ⌘-click, ⇧-click, ⇧↓ give the uniform list's sets | variable branch skips `rowClick` |
+| 2.11 | `aVariableListSettlesWithoutInput` | after a jump to 5070: exactly one frame asks for another (`D = 40`), then none (`VL-U` item 1) | request a frame whenever `D` is computed |
+| 2.12 | `selectionAndShiftRangesAreUnchangedInAVariableList` | click 0, ⌘-click 2, ⇧-click 3, ⇧↓ give the uniform list's sets; row 3's target is 30 tall (`VL-U` items 1–2) | variable branch skips `rowClick` |
 | 2.13 | `aVariableListRowsStateSurvivesABoundedExcursionButNotALongerOne` | TB-AH, both halves | drop the row's `.id(datum.id)` in the variable branch (`VL-R` item 1) |
 | 2.14 | `aFocusedVariableRowKeepsFocusOutOfWindow` | `IX-I` | variable branch drops `isFocusable` composition |
 | 2.15 | `aVariableListPublishesItsLogicalCountAndRealizedRowIndices` | AB-L/AB-X | drop `logicalIndex` in the variable branch |
@@ -364,7 +375,7 @@ Linux image run (§7).
 | 2 | `Sources/MetalUI/List.swift`, `Tests/MetalUITests/VariableHeightListTests.swift` (new), `Tests/MetalUITests/VariableHeightListCompileGuards.swift` (new), `Tests/MetalUITests/MeasurePerformanceTests.swift` (additions only) |
 | 3 | `Sources/MetalUIDemoContent/VariableListDemo.swift` (new), `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `Tests/MetalUITests/VariableListDemoTests.swift` (new), `docs/divergences.md` (rows 145–147, 84 amended), `docs/migration.md`, `docs/api-overview.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-inventory-map.tsv` (the `F list` row text), `docs/probes/closeout-public-api.tsv` (re-recorded census) |
 
-Each lane appends its amendments as `VL-` rulings (next unused `VL-U`), and its
+Each lane appends its amendments as `VL-` rulings (next unused `VL-V`), and its
 record section to `docs/record/82-variable-height-list.md`. The Record phase
 (after lane 3) edits `CLAUDE.md`/`AGENTS.md` (the `VL-` prefix, one rule
 sentence under `List`, counts), `docs/record/README.md`, record §03/§04 rows.

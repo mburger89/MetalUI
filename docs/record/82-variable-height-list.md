@@ -132,3 +132,126 @@ Commits `126bfb1` (red: tests 1.1–1.18, the `AreaLeaf` fixture, stubs) and
 - **Ruling** `VL-T` (next unused `VL-U`). **Deferred to lane 2** as planned:
   `List` calling the index, the hook, the wide accessor and `.variable`; the
   env-gated 100k runs and the `nodeVisits` per-frame pins (`VL-R` items 7, 9).
+
+## §4 Lane 2 — `List`'s variable branch (2026-10-08)
+
+Commits `3bf8277` (red: tests 2.1–2.18 with 2.7b/2.7c, guard 2.19, 2.20/2.21,
+stubs) and `14ac821` (implementation); this section and `VL-U` in the docs
+commit after.
+
+- **Landed** (`Sources/MetalUI/List.swift` only, spec §3.1/§3.3): the three
+  `rowContent:` initialisers with doc comments, `estimatedRowHeight` clamped to
+  "not declared" when non-positive or non-finite; `ListRowSizing`
+  (`.uniform(Pixels)` / `.variable(estimate:)`) replaces the stored
+  `rowHeight` (`swift package clean` before the first build); in
+  `requestLayout` the index is `peek`ed from `ListOrigin.extents`, rebuilt by
+  id on a count change or on a realised row whose recorded id differs, the
+  anchor carried by id and placed at its old offset (`VL-G` item 3), `VL-O`'s
+  removed-anchor fallback, `VL-F`'s window, `VariableRowsLayout` registered
+  through `ListRows.arrangement`; in `prepaint` the index stored (only inside a
+  vertical scroller), forgotten on a width change, each realised row's placed
+  height recorded under its id, `D` noted through
+  `Frame.noteScrollAnchorAdjustment`, `DD-F` staleness from the updated index
+  and `offset + D`, and `VL-H`'s resolution with a refinement carried with its
+  request's scope and anchor (`unresolvedScrollRequestsWithScope`). Ids,
+  selection, keys, focus and AX run through the uniform construction; the
+  uniform path's code is unchanged behind the `rowSizing` switch (`VL-I`).
+  Paths spec §3.3 left open: `VL-U` item 4.
+- **Red-before** (stubs at `3bf8277`, filtered native run of the 23: "Test run
+  with 23 tests in 1 suite failed after 0.573 seconds with 39 issues"; 22 fail,
+  the guard passes by construction, `VL-U` item 6), each test's first failing
+  line:
+  2.1 `VariableHeightListTests.swift:236` `log.bounds[1]?.origin.y == px(20)`;
+  2.2 `:256` `log.bounds[0]?.size.height.value == expected`;
+  2.3 `:281` `cold == 9440`;
+  2.4 `:301` `log.built == Array(59...67)`;
+  2.5a, 2.5b, 2.7, 2.7b, 2.7c, 2.8 `:214` `log.screenY[50] == 0` (the
+  `rowFiftyOnTop` control: the stub never realises row 50 at 2460);
+  2.6 `:370` `log.screenY[50] == -10`;
+  2.9 `:516` `log.screenY[150] == 140`;
+  2.10 `:535` `window.scrollRequests.pending.count == 1`;
+  2.11 `:562` `log.screenY[163] == -10`;
+  2.12 `:613` `target.bounds.size.height == px(30)`;
+  2.13 `:690` `table.peek(longSlot, as: Int.self) == 3`;
+  2.14 `:736` `lastFrame?.elementBounds[boxID]?.size.height == px(20)`;
+  2.15 `:786` `rows == Array(0...6)`;
+  2.16 `:806` `log.bounds[1]?.origin.y == px(20)`;
+  2.17 `:830` `log.bounds[0]?.size.height == px(10)`;
+  2.18 `:849` `listHeight == 4400`;
+  2.20 `MeasurePerformanceTests.swift:612` `variableIndex(states)` (no index).
+- **Corrected after the first green run** (`VL-U` item 1): rows 0…9 of the
+  scrolled fixtures sum to 460, not 440 — 2.9's chain, 2.10's offset (4570)
+  and 2.18's extent (4600) re-derived; 2.11's jump moved 5040 → 5070 (at 5040
+  `D` was 0 and no frame was asked for, so the test saw no adjustment); 2.12's
+  ⇧-click target (row 4 at y 100) lay outside the viewport — the sequence moved
+  to rows 0/2/3. First implementation run of the 23 had read 9 issues in
+  exactly those tests and in 2.20's then-unset work literal; nothing in
+  `List.swift` changed for them.
+- **2.20's work literal** from the cold column (a throwaway probe, deleted):
+  `2n + 1` / `5n + 6` / `5n + 7` at n = 40, 160, 500, 2000 → **33 / 86 / 87**
+  at r = 16, then read on the warm frames. Index visits derived from the code:
+  17 / 21 (2.20), 31 / 47 (2.21); rebuilds 0.
+- **Suite** at `14ac821`, native, unfiltered, `--no-parallel`, rebuilt after
+  the last mutation: **"Test run with 2714 tests in 3 suites passed after
+  181.602 seconds"** (the first green run, on the same code before a doc-only
+  edit to `List`'s type comment, read the same count in 165.071 s) (2690 + 24: 21 in
+  `VariableHeightListTests`, the guard, 2.20, and 2.21 counted while skipped),
+  `FR-J no-argument frame: succeeded=true deprecations=2`, 0 `error:`, the only
+  `warning:` SwiftPM's deprecation notice; `swift build --build-tests` (default
+  build system) 0 warnings. Guards 175 → 176 (2.19). Both inventory scripts
+  print nothing (the census re-record is lane 3's).
+- **The env-gated 100k pair** (`METALUI_RUN_100K_LIST_TEST=1`, filtered to
+  both): "Test run with 2 tests in 1 suite passed after 55.104 seconds" — the
+  uniform `aListsWorkIsTheSameFor100kRowsAsFor500` (cold 100k frame 47.4 s,
+  printed, not asserted) and `aVariableListsWorkIsTheSameFor100kRowsAsFor500`
+  (7.2 s for both counts' cold and warm frames): warm work 33 / 86 / 87 at 500
+  and 100 000, 31 / 47 visits, no rebuild.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 70ed000 14ac821` —
+  controls as recorded (1048576 / 1031003 / 454895 / 0 / 1048576 / 0, distinct
+  544 / 216, prod modal 491221, distinct 529, indicator rects 0); **all
+  fourteen images differing=0, scene identical**.
+- **Mutations** (each on `14ac821`, one file restored from a copy, full
+  unfiltered native suite of 2714, `git status --short` clean of sources after
+  each; spellings in `VL-U` item 7; no hang) — every one reddens its named test:
+
+  | # | Mutation | Reddened |
+  |---|---|---|
+  | MU | uniform spelling routed through the variable path | **`aListSizesItselfToCountTimesRowHeight`, `aListsWorkIsTheSameFor160RowsAsFor40`, `aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent`** and 36 more: `aConditionalInAWindowedListRowIsNotResetByAnExcursion`, `aDisabledListShowsItsSelectionAndChangesNothing`, `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`, `aFractionalOffsetRoundsFirstDownAndLastUp`, `aFramedListBuildsTheRowsTheUnframedListBuildsUnderTheProposalAuthority`, `aGrownViewportIsFilledOnTheNextFrameWithoutInput`, `aListBelowAHeaderWindowsTheRowsOnScreen`, `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, `aListInAScrolledProposalScrollViewWindowsAtItsOffset`, `aListInAScrollerBelowTheWindowOriginWindowsTheRowsOnScreen`, `aListInTheDifferentialHarnessReachesABoundedWindow`, `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `aListWhoseOriginChangesIsReWindowedOnTheNextFrame`, `aListsFirstFrameAppearsEveryRowAndTheNextBuildDisappearsTheRowsOutsideItsWindow`, `aListsSceneAndHitboxesAreUnchangedByTheGroup`, `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`, `aLoweredListLaysOutEveryWindowedShape`, `aRowKeepsItsIdentityWhenItsPositionChanges`, `aScrolledListsSpacerDoesNotShrinkUnderPadding`, `aSelectedRowPaintsTheAccentBackground`, `aSurvivingForEachElementsListKeepsItsWindowedRowsState`, `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`, `aWindowedListStillReportsItsFullContentHeight`, `aWindowedRowIsPlacedAtItsAbsoluteIndexTimesRowHeight`, `anArrowPastTheWindowScrollsTheNewLeadIntoView`, `anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `distinctRowsGetDistinctIdentities`, `everyControlAnswersInSwiftUIsClassInsideAProposalContainer`, `everyProductionRootsDeepestNativeLevelIsMeasured`, `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`, `scrollToComparesKeysByValue`, `scrollToReachesAnUnrealisedListRow`, `theListsSpacerIsANodeNotAnElement`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `theVoiceOverScriptQuotesThePublishedTree` (406.5 s, 86 issues) |
+  | M2.1 | rows pinned to the estimate | `aVariableListSizesEachRowToItsContent` and 20 more: every lane-2 test but 2.13 and the guard, 2.20 included |
+  | M2.2 | `VariableRowsLayout` places rows at `(nil, nil)` | `aVariableRowIsMeasuredAtTheListsWidth` (rows read 40), `aVariableListInAHorizontalScrollerMeasuresEveryRowAtItsWidestWidth`, `aVariableListsWorkIsTheSameFor160RowsAsFor40`, `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `variableRowsAreMeasuredAtTheProposedWidth`, `variableRowsAtANilWidthTakeTheWidestRow`, `variableRowsPlaceTheAnchorAtItsOffsetAndTheRestAroundIt` |
+  | M2.3 | `trailingExtent` 0 | `aVariableListAnswersMeasuredPlusEstimatedExtent`, `aNonPositiveEstimateIsTreatedAsUndeclared`, `aRefinedRevealNeverRefinesAgain`, `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured` |
+  | M2.4 | window by division at the estimate | `aVariableListWindowsByPrefixOffsets` and 12 more (2.5a, 2.5b, 2.6, 2.7, 2.7b, 2.7c, 2.8, 2.9, 2.10, 2.11, 2.15, 2.20) |
+  | M2.5a | placed from `offset(of: first)` | `aRowAboveTheTopMeasuredAnewDoesNotMoveTheRowOnTopInThatFrame`, `aSameCountDataChangeIsDetectedFromARealizedRow`, `aVariableListSettlesWithoutInput`, `aVariableListsWorkIsTheSameFor160RowsAsFor40`, `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `anInsertionAboveTheViewportKeepsTheRowOnTop`, `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick`, `removingTheRowOnTopPutsTheNextRowInItsPlace` |
+  | M2.5b (= 2.7c's) | `noteScrollAnchorAdjustment` not called | `aRowAboveTheTopMeasuredAnewDoesNotMoveTheRowOnTopOnTheNextFrame`, `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick`, `aRefinedRevealNeverRefinesAgain`, `aSameCountDataChangeIsDetectedFromARealizedRow`, `aVariableListSettlesWithoutInput`, `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `anInsertionAboveTheViewportKeepsTheRowOnTop`, `removingTheRowOnTopPutsTheNextRowInItsPlace`, `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured` |
+  | M2.6a | `forgetMeasurements` skipped | `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `aVariableListAnswersMeasuredPlusEstimatedExtent` |
+  | M2.6b | no anchor (placed from the first row, no `D`) | `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement` and 9 more (2.5a, 2.5b, 2.7, 2.7b, 2.7c, 2.8, 2.10, 2.11, 2.20) |
+  | M2.7 | anchor by index across a rebuild | `anInsertionAboveTheViewportKeepsTheRowOnTop`, `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick`, `aSameCountDataChangeIsDetectedFromARealizedRow`, `removingTheRowOnTopPutsTheNextRowInItsPlace` |
+  | M2.7b(a) | the id before preferred | `removingTheRowOnTopPutsTheNextRowInItsPlace` (arm 1 and arm 2) |
+  | M2.7b(b) | `oldAnchorIndex` once the id is gone | `removingTheRowOnTopPutsTheNextRowInItsPlace` (**arm 2 only**, as `VL-O` predicted) |
+  | M2.8 | realised-id check skipped | `aSameCountDataChangeIsDetectedFromARealizedRow`, `removingTheRowOnTopPutsTheNextRowInItsPlace` |
+  | M2.9 | no refinement carried | `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured`, `aRefinedRevealNeverRefinesAgain` |
+  | M2.10 | `refined` guard dropped | `aRefinedRevealNeverRefinesAgain` |
+  | M2.11 | a frame requested beside every adjustment | `aVariableListSettlesWithoutInput` and 10 more (2.4, 2.5a, 2.5b, 2.6, 2.7, 2.7b, 2.7c, 2.8, 2.9, 2.10) |
+  | M2.12 | variable branch skips `rowClick` | `selectionAndShiftRangesAreUnchangedInAVariableList` |
+  | M2.13 | variable branch drops the row's `.id` | `aVariableListRowsStateSurvivesABoundedExcursionButNotALongerOne` (both slots read nil), `aFocusedVariableRowKeepsFocusOutOfWindow`, `selectionAndShiftRangesAreUnchangedInAVariableList` |
+  | M2.14 | variable branch drops the list's `isFocusable` | `aFocusedVariableRowKeepsFocusOutOfWindow`, `selectionAndShiftRangesAreUnchangedInAVariableList` |
+  | M2.15 | variable branch drops `logicalIndex` | `aVariableListPublishesItsLogicalCountAndRealizedRowIndices` |
+  | M2.16 | `withState` in `requestLayout` | `aVariableListOutsideAScrollerMintsNoStateEntry` |
+  | M2.17 | `VariableRowsLayout` heights at `(nil, nil)` | `aVariableListInAHorizontalScrollerMeasuresEveryRowAtItsWidestWidth`, `aVariableRowIsMeasuredAtTheListsWidth`, `aVariableListsWorkIsTheSameFor160RowsAsFor40`, `variableRowsAreMeasuredAtTheProposedWidth`, `variableRowsAtANilWidthTakeTheWidestRow` |
+  | M2.18 | clamp dropped | `aNonPositiveEstimateIsTreatedAsUndeclared` (the 0 and −5 arms) |
+  | MG2.19 | `rowContent:` renamed `content:` | `theVariableListSpellingsCompileFromAPlainImport` |
+  | M2.20a | a rebuild every bounded frame | `aVariableListsWorkIsTheSameFor160RowsAsFor40` (rebuilds, then visits 17 / 21) |
+  | M2.20b | linear `offset(of:)`, with `METALUI_RUN_100K_LIST_TEST=1` | `aVariableListsWorkIsTheSameFor160RowsAsFor40`, `aVariableListsWorkIsTheSameFor100kRowsAsFor500`, `aLookupAtAHundredThousandRowsVisitsLogarithmicallyManyNodes` |
+
+  M2.10's log held a byte sequence the driver could not decode as UTF-8; it was
+  re-read with replacement (summary "2714 tests … failed … with 2 issues") and
+  the driver resumed from M2.11.
+- **Session note**: the session scratchpad is shared with the parallel
+  branches' agents (its `mut/` held their logs); the first mutation run was
+  stopped during MU, `List.swift` restored from `HEAD` (byte-identical to the
+  driver's copy), and every run was retaken from a branch-private directory.
+  A `mutate.py` already in the scratchpad root (lane 1's, by its `M1.*` logs)
+  was overwritten by this lane's driver before the move.
+- **Ruling** `VL-U` (next unused `VL-V`). **Deferred to lane 3** as planned:
+  the demo, divergences 145–147 and 84's amendment, migration note, inventory
+  row text and census, `Backends/SDL` and the Linux image.
