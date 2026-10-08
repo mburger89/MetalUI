@@ -49,6 +49,17 @@ private let styledCorpus: [[Piece]] = [
     [n("A"), n("V", t: 1), n(" e\u{301}\u{302}x ", k: 2), n("of"), n("fice", t: 1)],
 ]
 private let styledWidths: [Double?] = [nil, 60, 120]
+/// Cases also laid out at a width narrower than one cluster, so a line starts
+/// inside a ligature of a run that is not the first and the portable system
+/// re-shapes from there (`LB-E`) — in that run's face, not run 0's.
+/// Leading alignment only: a centred line that starts inside a cluster is
+/// placed differently by the portable system on the plain path too
+/// (`placeGlyphs("office")`, Source Sans 3 26 at 8: the second line's glyph at
+/// pixel −4 vs CoreText's 0 — it centres with the whole cluster's advance),
+/// a pre-existing plain-path difference outside rich text (`RT-Q` item 3).
+private let narrowCases: [[Piece]] = [[n("a "), src("office", 26)]]
+private let narrowWidths: [Double?] = [8]
+private let narrowOptions = [TextLayoutOptions(), TextLayoutOptions(maxLines: 2, truncation: .tail)]
 private let styledOptions = [
     TextLayoutOptions(),
     TextLayoutOptions(maxLines: 2, truncation: .tail),
@@ -97,8 +108,10 @@ private func differences(_ apple: StyledTextLayout, _ portable: StyledTextLayout
 
 /// **1.10** (`RT-H` item 5). Every styled corpus case places the same glyphs,
 /// line boxes and segments through the portable system as through the
-/// CoreText one, at scales 1 and 2. Mutation: portable `shapeCascading`
-/// chooses the covering face from run 0's font for every unit.
+/// CoreText one, at scales 1 and 2. Mutations: portable `shapeCascading`
+/// chooses the covering face from run 0's font for every unit; the portable
+/// line breaker re-shapes a line that starts inside a cluster in run 0's face
+/// (the narrow arm — spec 1.4's mutation, which 1.4 cannot reach, `RT-Q`).
 @MainActor
 @Test func everyStyledCorpusCasePlacesTheSameGlyphsAsTheApplePath() throws {
     let urls = styledFaceFiles.map { styledFontsDirectory.appendingPathComponent($0) }
@@ -114,11 +127,13 @@ private func differences(_ apple: StyledTextLayout, _ portable: StyledTextLayout
         try #require(a == p, "set up: \(family) resolves to one face on both systems (\(a) vs \(p))")
     }
     var cases = 0, failures: [String] = []
-    for pieces in styledCorpus {
+    let arms = styledCorpus.map { ($0, styledWidths, styledOptions) }
+        + narrowCases.map { ($0, narrowWidths, narrowOptions) }
+    for (pieces, widths, optionsList) in arms {
         let appleText = build(pieces, apple), portableText = build(pieces, portable)
         try #require(appleText == portableText)
-        for width in styledWidths {
-            for options in styledOptions {
+        for width in widths {
+            for options in optionsList {
                 for scale: Float in [1, 2] {
                     cases += 1
                     let origin = (x: 3.3, y: 7.6)
@@ -134,7 +149,8 @@ private func differences(_ apple: StyledTextLayout, _ portable: StyledTextLayout
             }
         }
     }
-    try #require(cases == styledCorpus.count * styledWidths.count * styledOptions.count * 2)
+    try #require(cases == (styledCorpus.count * styledWidths.count * styledOptions.count
+                           + narrowCases.count * narrowWidths.count * narrowOptions.count) * 2)
     #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) of \(cases) cases differ:\n"
                                       + failures.prefix(12).joined(separator: "\n")))
 }

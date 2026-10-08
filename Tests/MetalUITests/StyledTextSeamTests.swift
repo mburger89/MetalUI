@@ -253,8 +253,11 @@ private let seamOptions = [
 /// **1.6** (`RT-G` item 1, `RT-H` item 4; `C7`, `C7d`). A run raised 5 points
 /// and one lowered 5 both make the 16-point line `lineHeight + 5`; the raised
 /// run's glyphs sit `5 × scale` device rows above the line's baseline, the
-/// lowered run's below. Mutations: shrink the descent for a positive offset
-/// (`descent − offset`) — the +5 arm; flip the glyph sign — the glyph arm.
+/// lowered run's below; a line holding only the shifted run is `lineHeight +
+/// 5` too (`C7d`). Mutations: shrink the descent for a positive offset
+/// (`descent − offset`) — the +5 single-run arm (the mixed line keeps the
+/// unshifted run's descent, so only that arm can see it, `RT-Q`); flip the
+/// glyph sign — the glyph arm.
 @MainActor
 @Test func aBaselineOffsetGrowsTheLineAndMovesItsGlyphs() throws {
     try withBothSystems { rt in
@@ -262,6 +265,11 @@ private let seamOptions = [
         let font = noto(system, 16)
         let lineHeight = system.fontMetrics(font).lineHeight
         for offset in [5.0, -5.0] {
+            // A line holding only the shifted run (`C7d`): its own descent
+            // is what a shrinking rule would cut.
+            let alone = system.measure(StyledText("b", style: TextRunStyle(font: font, baselineOffset: offset)),
+                                       wrappingAt: nil, options: TextLayoutOptions())
+            #expect(alone.lines.map(\.height) == [lineHeight + 5], rtNote("\(rt.name) offset \(offset) alone"))
             let text = styled([("a", TextRunStyle(font: font)), ("b", TextRunStyle(font: font, baselineOffset: offset))])
             for scale: Float in [1, 2] {
                 let layout = system.layOut(text, wrappingAt: nil, options: TextLayoutOptions(), origin: (x: 2, y: 3.4),
