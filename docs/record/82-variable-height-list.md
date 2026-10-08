@@ -402,3 +402,58 @@ branch". The published divergences header (105 live, next label 139) and
 ## §8 Merge with master `099cf80` (task-followups, record §84)
 
 Merged after the Record phase; no record renumbering (82 was free; §83 is rich-text, §84 task-followups). Conflicts were documentation only (CLAUDE.md prefix list and counts, README, §03, §04), all resolved by keeping both sides. Native unfiltered suite after a `swift package clean`: **2723 tests in 3 suites passed after 165.713 seconds** (2677 + 46), `FR-J no-argument frame: succeeded=true`, 0 `error:`. Guards 176 (175 + 1; task-followups added none).
+
+## §9 Branch check (2026-10-08, adversarial checker, `70ed000..8dc670d`)
+
+- **Suite**: `swift package clean`, native build, unfiltered `--no-parallel`:
+  **"Test run with 2723 tests in 3 suites passed after 163.251 seconds"**;
+  `FR-J no-argument frame: succeeded=true deprecations=2`; 0 `error:`; the
+  only `warning:` SwiftPM's deprecation notice. `swift build --build-tests`
+  (default build system) 0 warnings. Guards **176**: `git grep "enabled(if:
+  canTypecheck"` reads 175 (174 on `099cf80`, record §80's method), the new
+  one `theVariableListSpellingsCompileFromAPlainImport` ran and passed.
+  `cmp CLAUDE.md AGENTS.md` identical.
+- **Pins that must not move**, green in that run and no existing test file
+  edited (the branch's test diff against `099cf80` is additions only):
+  `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`, and every uniform
+  `List`, hit-testing and accessibility test as before. `DemoFrameDeterminismTests`'
+  `Expected.swift` unedited; no diff under `Sources/MetalUILayout` or
+  `Sources/MetalUIScene`.
+- **Env-gated 100k pair** (`METALUI_RUN_100K_LIST_TEST=1`, filtered):
+  `aListsWorkIsTheSameFor100kRowsAsFor500` and
+  `aVariableListsWorkIsTheSameFor100kRowsAsFor500` passed.
+- **Mutations** (the checker's own, on `8dc670d`, `List.swift` restored from a
+  copy, full unfiltered native suite, `git status --short` clean of sources
+  after each, no hang):
+
+  | # | Mutation | Reddened |
+  |---|---|---|
+  | C1 | `resolveVariableScrollRequests`: the target's `− adjustment` dropped (`VL-H`/`VL-G` item 2's this-frame coordinates) | `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured` (`:565` `log.screenY[150] == 140`; "2723 tests … failed after 212.956 seconds with 1 issue") |
+  | C2 | `prepaintVariableRows`: `record(height, at: builtWindow.lowerBound + slot, …)` → `at: slot` (`VL-E` item 1) | `aVariableListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame`, `aVariableListWindowsByPrefixOffsets`, `aWidthChangeKeepsTheRowOnTopAndForgetsEveryMeasurement`, `removingTheRowOnTopPutsTheNextRowInItsPlace`, `scrollToAnUnmeasuredRowLandsExactlyOnceMeasured`, `theVariableListDemoSettlesHeadless` ("2723 tests … failed after 172.920 seconds with 11 issues") |
+
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> 70ed000 HEAD`
+  (HEAD `8dc670d`) — controls as recorded (1048576 / 1031003 / 454895 / 0 /
+  1048576 / 0, distinct 544 / 216, prod modal 491221, distinct 529, indicator
+  rects 0); **all fourteen images differing=0, scene identical**.
+- **`Backends/SDL`** after the merge: macOS **24 + 84**; Linux image
+  (`metalui-portable`, volume `metalui-sdl-build-variable-height-list`)
+  **24 + 81** — task-followups' figures, the branch adding none.
+- **Inventory**: both scripts print nothing; the census re-run read 2540 with
+  only `Lifecycle.swift` line numbers moved by the merge — re-recorded
+  (`8dc670d`).
+- **Doc defects fixed**: the census line numbers; `CLAUDE.md`'s counts bullet
+  (post-merge `Backends/SDL` figures and census, this section cited; the
+  portable-app line restored to master's `2672 / 0 / 175` after the merge
+  resolution had re-opened a stray bold marker); §8's heading style.
+- **Citations**: every `VL-` id cited in the branch's changed docs and sources
+  has a `## VL-` heading (`VL-W` only as "next unused"); every backticked
+  identifier the branch added to docs or sources resolves in `Sources/`,
+  `Tests/`, `Backends/SDL` or `docs/probes`.
+- **SwiftUI claims**: divergences 145–147 rest on
+  `swiftui-variable-height-list.swift` arms with controls (`V0`/`V2c`/`V3b`,
+  `R2`, `A3` against `A1`/`A4`). The human looks VL1–VL5 are in
+  `docs/verification/human-checks.md`, unclaimed; no real-window capture taken.
