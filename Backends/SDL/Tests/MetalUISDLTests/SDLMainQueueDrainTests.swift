@@ -111,6 +111,24 @@ func aTaskModifierProgressesAndIsCancelledUnderSDLPlatform() throws {
     #expect(output.contains("task started=true steps=3 cancelled=true"), "\(output)")
 }
 
+/// **3.20b** (ruling `TF-C`). 3.20's tree and line with every window
+/// rendering into an offscreen target (`SDLPlatform`'s `package`
+/// `offscreenRenderers`), so frames build and the lifecycle drain runs with no
+/// presented frame: ungated, it runs `.task`'s start, progress and cancel
+/// under the SDL loop in CI's Linux image. Red before, in the image: the mode
+/// over the swapchain path prints `task started=false steps=0
+/// cancelled=false` (the separating arm). The test process creates no
+/// `SDLPlatform` (the check executable does, unarmed by its header).
+///
+/// Mutations **MT3.1** (delete the disappearance cancel: `cancelled=false`),
+/// **MT3.2** (`SDLPlatform` ignores `offscreenRenderers`: `started=false` in
+/// the image), **MT3.3** (delete `drainMainQueue()`'s calls in
+/// `SDLPlatform.run`: `steps=0` in the image) — recorded in `TF-` and record §84.
+@Test func aTaskModifierProgressesAndIsCancelledUnderSDLWithoutAPresentedFrame() throws {
+    let output = try runDrainCheck("task-modifier-offscreen")
+    #expect(output.contains("task started=true steps=3 cancelled=true"), "\(output)")
+}
+
 /// **3.21** (`PX-G`, `SV-H`, `PX-L` item 2). A main-actor `Task.immediate`
 /// started from top-level code before the loop — what `.task`'s start does —
 /// resumes three times and sees the cancellation a later display-link tick
