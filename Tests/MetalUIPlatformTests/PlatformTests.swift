@@ -308,3 +308,101 @@ import MetalUIRender
     window.setPreferredColorScheme(.light)
     #expect(nsWindow.appearance?.name == .aqua)
 }
+
+// MARK: - Input APIs, lane 1: the scroll event's phases (spec
+// `docs/superpowers/specs/2026-10-08-input-apis-design.md` §4.1, tests 1.3 and
+// 1.4; rulings `CI-I` items 1 and 6, `CI-V` item 1)
+
+/// **1.3** (`CI-I` item 1, `CI-V` item 1). The old initialiser keeps its
+/// spelling and meaning: `isMomentum: true` is a momentum phase of `.changed`
+/// with no gesture phase, a precise delta, and `location` equal to `position`
+/// (the seam's answer, before any element makes it local). `isMomentum` keeps
+/// a setter: `true` marks a `.none` momentum phase `.changed` and leaves a
+/// phase already under way alone; `false` clears it.
+///
+/// Mutations: the old init leaves `momentumPhase` `.none` (the first block
+/// reddens); the setter ignores `false` (the setter arm reddens).
+@Test func theOldScrollEventInitialiserKeepsItsMeaning() {
+    let position = Point(x: Pixels(12), y: Pixels(34))
+    let delta = Point(x: Pixels(3), y: Pixels(-5))
+    let momentum = ScrollEvent(position: position, delta: delta, isMomentum: true)
+    #expect(momentum.momentumPhase == .changed)
+    #expect(momentum.isMomentum)
+    #expect(momentum.phase == .none)
+    #expect(momentum.isPrecise)
+    #expect(momentum.location == position)
+
+    let plain = ScrollEvent(position: position, delta: delta)
+    #expect(plain.momentumPhase == .none)
+    #expect(!plain.isMomentum)
+    #expect(plain.location == position)
+
+    var assigned = plain
+    assigned.isMomentum = true
+    #expect(assigned.momentumPhase == .changed, "setting isMomentum marks the momentum phase")
+    assigned.isMomentum = false
+    #expect(assigned.momentumPhase == .none, "clearing isMomentum clears the momentum phase")
+
+    var underWay = ScrollEvent(position: position, delta: delta, phase: .none, momentumPhase: .began,
+                               isPrecise: true, timestamp: 0)
+    underWay.isMomentum = true
+    #expect(underWay.momentumPhase == .began, "a momentum phase already under way is kept")
+    #expect(underWay.location == position)
+}
+
+/// **1.4** (`CI-I` item 6). Real scroll `CGEvent`s through
+/// `MetalHostView.scrollWheel(with:)`: the gesture phase comes from
+/// `NSEvent.phase`, the momentum phase from `NSEvent.momentumPhase` (each set
+/// through its own CG field, `scrollWheelEventScrollPhase` and
+/// `scrollWheelEventMomentumPhase`), and `isPrecise` from
+/// `hasPreciseScrollingDeltas` (a `.pixel` event is precise, a `.line` one is
+/// not). The three events carry **different** phases on the two axes, so a
+/// seam that reads one field for both reddens. Every premise on the converted
+/// `NSEvent` is required, not assumed.
+///
+/// Mutation: map `momentumPhase` from `phase` (the second and third events
+/// redden).
+@MainActor
+@Test func appKitScrollWheelCarriesPhaseMomentumAndPrecision() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let view = MetalHostView(surface: MetalLayerSurface(device: device))
+    var events: [ScrollEvent] = []
+    view.onInput = { event in
+        if case .scrollWheel(let scroll) = event { events.append(scroll) }
+        return true
+    }
+    func wheel(_ units: CGScrollEventUnit, scrollPhase: Int64, momentumPhase: Int64) throws -> NSEvent {
+        let cg = try #require(CGEvent(scrollWheelEvent2Source: nil, units: units,
+                                      wheelCount: 1, wheel1: -2, wheel2: 0, wheel3: 0))
+        cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: scrollPhase)
+        cg.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase)
+        return try #require(NSEvent(cgEvent: cg))
+    }
+    // CGScrollPhase: began 1, changed 2; CGMomentumScrollPhase: begin 1, continue 2.
+    let began = try wheel(.pixel, scrollPhase: 1, momentumPhase: 0)
+    let coasting = try wheel(.line, scrollPhase: 0, momentumPhase: 2)
+    let startCoast = try wheel(.pixel, scrollPhase: 0, momentumPhase: 1)
+    try #require(began.phase == .began && began.momentumPhase == [] && began.hasPreciseScrollingDeltas,
+                 "premise: \(began.phase) \(began.momentumPhase) \(began.hasPreciseScrollingDeltas)")
+    try #require(coasting.phase == [] && coasting.momentumPhase == .changed && !coasting.hasPreciseScrollingDeltas,
+                 "premise: \(coasting.phase) \(coasting.momentumPhase) \(coasting.hasPreciseScrollingDeltas)")
+    try #require(startCoast.phase == [] && startCoast.momentumPhase == .began,
+                 "premise: \(startCoast.phase) \(startCoast.momentumPhase)")
+
+    view.scrollWheel(with: began)
+    view.scrollWheel(with: coasting)
+    view.scrollWheel(with: startCoast)
+    try #require(events.count == 3)
+    #expect(events[0].phase == .began)
+    #expect(events[0].momentumPhase == .none)
+    #expect(events[0].isPrecise)
+    #expect(!events[0].isMomentum)
+    #expect(events[1].phase == .none)
+    #expect(events[1].momentumPhase == .changed)
+    #expect(!events[1].isPrecise)
+    #expect(events[1].isMomentum)
+    #expect(events[2].phase == .none)
+    #expect(events[2].momentumPhase == .began)
+    #expect(events[2].isPrecise)
+    for event in events { #expect(event.location == event.position, "location is the seam's position") }
+}

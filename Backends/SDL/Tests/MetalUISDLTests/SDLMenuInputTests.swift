@@ -34,6 +34,7 @@ private func describe(_ event: InputEvent) -> String {
     case .mouseDragged(let m): return "drag\(at(m))"
     case .rightMouseDown(let m): return "rdown\(at(m))"
     case .rightMouseUp(let m): return "rup\(at(m))"
+    case .rightMouseDragged(let m): return "rdrag\(at(m))"
     case .keyDown(let k): return "key[\(k.charactersIgnoringModifiers.unicodeScalars.map { String($0.value, radix: 16) }.joined())]"
     default: return "other"
     }
@@ -41,7 +42,8 @@ private func describe(_ event: InputEvent) -> String {
 
 /// **S3.1** (`MN-B` item 3, `MN-AD`). The right button arrives as
 /// `.rightMouseDown`/`.rightMouseUp` at its position; motion with only the
-/// right button held is a `.mouseMoved` (not a primary drag); the left button
+/// right button held is a `.rightMouseDragged` (not a primary drag — it was a
+/// `.mouseMoved` until `CI-E` item 4, amended here by `CI-X`); the left button
 /// is unchanged. Mutation: keep dropping every button but the left.
 @MainActor
 @Test func aRightButtonEventBecomesARightMouseDownAndUp() throws {
@@ -54,7 +56,7 @@ private func describe(_ event: InputEvent) -> String {
     #expect(mui_push_raw_mouse_event(mui_sdl_event_mouse_button_down, window.id, mui_sdl_button_left, 0, 50, 60))
     #expect(mui_push_raw_mouse_event(mui_sdl_event_mouse_button_up, window.id, mui_sdl_button_left, 0, 50, 60))
     platform.pumpEvents()
-    #expect(received == ["rdown(30,40)", "move(35,45)", "rup(35,45)", "down(50,60)", "up(50,60)"])
+    #expect(received == ["rdown(30,40)", "rdrag(35,45)", "rup(35,45)", "down(50,60)", "up(50,60)"])
 }
 
 /// **S3.2** (`MN-G` item 1). `SDLK_APPLICATION` (`0x40000065`) is AppKit's
