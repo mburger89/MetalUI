@@ -168,7 +168,8 @@ private struct WheelingRectangle: Component, ProposalElementGroup {
                                   "the wheel region")
         let component = try #require(region.id.parent)
         #expect(platform.simulateInput(.scrollWheel(event)), "claimed")
-        let total = window.stateTable.peek(GlobalElementID.child(of: component, at: 0, name: ElementID("$state0")),
+        // `total` is the second stored property (after `log`): slot 1.
+        let total = window.stateTable.peek(GlobalElementID.child(of: component, at: 1, name: ElementID("$state1")),
                                            as: Double.self)
         #expect(total == -7, "the @State write landed: \(String(describing: total))")
     }

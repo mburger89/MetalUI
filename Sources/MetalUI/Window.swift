@@ -877,9 +877,13 @@ public final class Window {
             // nothing.
             // The other buttons and a right drag too (`CI-X` item 1, `CI-Z`
             // item 1: owed by lane 2).
-            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp,
-                 .rightMouseDragged, .otherMouseDown, .otherMouseDragged, .otherMouseUp:
+            // The pointer style is recomputed here too (`CI-H` item 7); a
+            // release ends a press's hold on it (`CI-H` item 6).
+            case .mouseMoved, .mouseDragged, .mouseDown, .rightMouseDown,
+                 .rightMouseDragged, .otherMouseDown, .otherMouseDragged:
                 self.updateHover(at: self.lastMousePosition, reportsMoves: true)
+            case .mouseUp, .rightMouseUp, .otherMouseUp:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: true, releasing: true)
             case .pointerExited:
                 self.updateHover(at: nil, reportsMoves: true)
             default:
@@ -921,10 +925,12 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
-            // Scroll routing runs before the window's general `onInput`, and
-            // claims the event outright when it hits a region — there is no
-            // scroll chaining (see `applyScroll`'s doc comment), so a claimed
-            // wheel event does not also reach whoever opened the window.
+            // Scroll routing runs before the window's general `onInput`: the
+            // wheel chain (`CI-I` item 4) offers the event to the elements'
+            // wheel handlers and scrollers under the pointer, innermost first —
+            // there is no scroll chaining (see `applyScroll`'s doc comment), so
+            // a claimed wheel event does not also reach whoever opened the
+            // window.
             if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
                 self.setNeedsRedraw()
                 return true
@@ -1629,6 +1635,7 @@ public final class Window {
         lastScene = scene
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
+        lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -1743,7 +1750,7 @@ public final class Window {
     /// scroller** (ruling `DD-Y`, plan task 10 part 2 — **divergence 16
     /// retired**): the nearest ancestor of its id that registered a scroll
     /// region containing the point **on the same layer**
-    /// (`enclosingScroller(of:at:)`). Until then a click target inside a
+    /// (the wheel chain, `CI-I` item 4). Until then a click target inside a
     /// `ScrollView` swallowed that scroller's wheel over its own rect, where a
     /// browser scrolls (a wheel event bubbles up the DOM to the first
     /// scrollable ancestor) — pinned as today's behaviour by
@@ -1845,62 +1852,72 @@ public final class Window {
     /// wheel-only device should be able to drive a horizontal list at all is a
     /// UX decision with real trade-offs, and it is deliberately left to
     /// whoever owns that decision rather than made here by default.
-    private func applyScroll(_ event: ScrollEvent) -> Bool {
-        guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: event.position) else {
-            return false
-        }
-        let region = lastHitboxes[index]
-        // A multi-line text field scrolls its own content (ruling TI-H): the
-        // wheel moves its `scrollY` within its content and leaves the caret
-        // where it is, so the next frame does not scroll it back.
-        if let target = region.handlers.textInput, target.lines != nil {
-            stateTable.withState(region.id, initial: TextEditState()) {
-                $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
-                $0.revealsCaret = false
-            }
-            return true
-        }
-        // Opaque, and not a scroller (ruling `DD-Y`, divergence 16 retired):
-        // the wheel goes to the nearest ancestor scroller under the point on
-        // the same layer; with none it stops here, claimed, rather than falling
-        // through to whatever the hitbox covers.
-        guard region.scroll != nil else {
-            if let scroller = enclosingScroller(of: region, at: event.position) {
-                scroll(lastHitboxes[scroller], by: event)
-            }
-            return true
-        }
-        scroll(region, by: event)
-        return true
-    }
-
-    /// The index in `lastHitboxes` of the scroll region a wheel over the
-    /// non-scrolling hitbox `hit` passes to (ruling `DD-Y`): the **nearest
-    /// ancestor** of `hit.id` (by `GlobalElementID.parent`) that registered a
-    /// scroll region containing `point` **on `hit`'s layer**.
+    ///
+    /// **The wheel chain** (input APIs, ruling `CI-I` item 4, in place of the
+    /// lookup that stood here; `DD-Y` preserved). The cover is the one
+    /// ranking's topmost hitbox under the pointer that is opaque or carries an
+    /// `.onScrollWheel` handler. The chain is the cover's id and its ancestors
+    /// (by `GlobalElementID.parent`); at each id, among the regions **on the
+    /// cover's layer** containing the point with that id: its wheel handlers,
+    /// innermost (registered last) first, each under `StateDispatch` with
+    /// `location` made local to its region — claimed when one returns `true`;
+    /// at the cover only, a multi-line text editor (`TI-H`, claimed); then that
+    /// id's scroll region (scrolls, claimed). Unclaimed after the chain: claimed
+    /// when the cover is opaque (a click target with no scroller above it
+    /// stops the wheel, `DD-Y`), else not (the window's `onInput` sees it).
     ///
     /// **Ancestry** keeps a click target merely *overlaid* on a scroller (a
     /// `Stack` sibling) stopping its wheel; **the layer** keeps a `Deferred`
     /// scrim — hoisted to layer 1 while the scroller that declared it paints on
-    /// 0 — stopping it too. Pinned by
-    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`
-    /// and `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`; the
-    /// rule itself by `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`
-    /// and, for a single-line `TextField` (a pointer target through
-    /// `Handlers.textInput`, `DD-AC` item 3), by
-    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`.
-    private func enclosingScroller(of hit: Hitbox, at point: Point<Pixels>) -> Int? {
+    /// 0 — and a popover over a canvas stopping it too. Pinned by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`,
+    /// `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
+    /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`,
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` and
+    /// the input-API tests 3.3–3.13 (`InputAPIWindowTests`). No two elements
+    /// share an id, so a scroller's own id never carries a handler (`CI-AH`
+    /// item 1): a handler around a scroller sees nothing over it. Each event is
+    /// dispatched at its own position — no latching (`CI-AD`).
+    private func applyScroll(_ event: ScrollEvent) -> Bool {
+        let point = event.position
+        guard let coverIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
+            $0.opaque || $0.handlers.pointer?.scrollWheel != nil
+        }) else { return false }
+        let cover = lastHitboxes[coverIndex]
         let candidates = lastHitboxes.indices.filter {
             let region = lastHitboxes[$0]
-            return region.scroll != nil && region.layer == hit.layer && region.contains(point)
+            return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
+                && region.layer == cover.layer && region.contains(point)
         }
-        guard !candidates.isEmpty else { return nil }
-        var ancestor = hit.id.parent
-        while let id = ancestor {
-            if let match = candidates.last(where: { lastHitboxes[$0].id == id }) { return match }
-            ancestor = id.parent
+        var cursor: GlobalElementID? = cover.id
+        while let id = cursor {
+            let here = candidates.filter { lastHitboxes[$0].id == id }
+            for index in here.reversed() {
+                let region = lastHitboxes[index]
+                guard let handler = region.handlers.pointer?.scrollWheel else { continue }
+                var local = event
+                let p = region.localPoint(point)
+                local.location = Point(x: Pixels(p.x.value - region.origin.x.value),
+                                       y: Pixels(p.y.value - region.origin.y.value))
+                if StateDispatch.dispatching(to: region.id, { handler(local) }) { return true }
+            }
+            // A multi-line text field scrolls its own content (ruling TI-H): the
+            // wheel moves its `scrollY` within its content and leaves the caret
+            // where it is, so the next frame does not scroll it back.
+            if id == cover.id, let target = cover.handlers.textInput, target.lines != nil {
+                stateTable.withState(cover.id, initial: TextEditState()) {
+                    $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
+                    $0.revealsCaret = false
+                }
+                return true
+            }
+            if let scroller = here.last(where: { lastHitboxes[$0].scroll != nil }) {
+                scroll(lastHitboxes[scroller], by: event)
+                return true
+            }
+            cursor = id.parent
         }
-        return nil
+        return cover.opaque
     }
 
     /// Moves `region`'s stored offset by the wheel's component on its axis.
@@ -2079,6 +2096,19 @@ public final class Window {
     /// Hitboxes the hover recomputes visited, ever — test observability for
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
     var hoverVisits = 0
+
+    /// The pointer style last sent to the platform, or `nil` when unknown —
+    /// before the first pointer event, and after the pointer left the window
+    /// (`CI-S`), so the next pointer event sends unconditionally (`CI-H` item 7).
+    var resolvedPointerStyle: PointerStyle?
+
+    /// How many pointer-style regions the last adopted frame registered: with
+    /// none, a recompute visits no hitbox (`CI-H` item 7, `SV-U`'s shape).
+    var lastPointerStyleRegionCount = 0
+
+    /// Hitboxes the pointer-style recomputes visited, ever — test observability
+    /// for the counted work (test 3.25).
+    var pointerStyleVisits = 0
 
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
@@ -2330,6 +2360,29 @@ public final class Window {
     /// tap sequence disturbs neither.
     private var buttonArena: GestureArena?
     private var buttonArenaButton = 0
+
+    /// Hands `style` to the platform window (`CI-H` item 8) — the one call
+    /// site, `updatePointerStyle(at:releasing:)`, sends only on a change.
+    func sendPointerStyle(_ style: PlatformPointerStyle) {
+        platformWindow.setPointerStyle(style)
+    }
+
+    /// The pressed target the pointer style holds to (`CI-H` item 6): a live
+    /// secondary or other button's arena, else the primary arena while it is
+    /// pressing — its owner and the layer of its opaque hitbox in the last
+    /// frame. `nil` with no press, or when the target left the frame.
+    var pointerStylePressTarget: (id: GlobalElementID, layer: Int)? {
+        let id: GlobalElementID
+        if let arena = buttonArena {
+            id = arena.targetID
+        } else if let arena = gestureArena, arena.isPressing {
+            id = arena.targetID
+        } else {
+            return nil
+        }
+        guard let hit = lastHitboxes.last(where: { $0.opaque && $0.id == id }) else { return nil }
+        return (id, hit.layer)
+    }
 
     /// The arena of `mode` for an event at `point`, from the one ranking:
     /// `topmostOpaqueHitbox`'s target and its gesture-carrying ancestors in

@@ -337,6 +337,11 @@ public final class Frame {
     /// (`SV-U`).
     private(set) var hoverRegionCount = 0
 
+    /// The pointer-style regions this frame registered (ruling `CI-H` item 7)
+    /// — read by `Window`, which does no per-hitbox style work for a frame
+    /// with none (`SV-U`'s shape).
+    private(set) var pointerStyleRegionCount = 0
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0
@@ -1461,6 +1466,9 @@ public final class Frame {
         // does, so the hovered set counts each element once (`SV-N` item 2).
         var pointerHandlers = handlers
         pointerHandlers.hover = nil
+        // Nor the wheel handler and pointer style (`CI-I` item 3, `CI-H` item
+        // 3): the pointer region below carries them, once per element.
+        pointerHandlers.pointer = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -1535,6 +1543,20 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
             hoverRegionCount += 1
+        }
+        // The wheel handler and the pointer style (rulings `CI-I` item 3,
+        // `CI-H` item 3): ONE non-opaque region carrying only the attachment,
+        // at the element's hit region, inside the disabled, `allowsHitTesting`
+        // and `hidden()` gates exactly as the hover region — unlike a scroll
+        // region, which stays outside them. A frame with neither registers
+        // nothing here (test 3.14).
+        if let pointer = handlers.pointer, enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.pointer = pointer
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            if pointer.style != nil { pointerStyleRegionCount += 1 }
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
