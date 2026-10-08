@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-Y`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -843,3 +843,73 @@ another.
 **Cost if wrong.** Item 1: a hover that lags a right drag on SDL until lane 2
 lands (no released build carries the gap). Item 2: a macOS 14 user sees an
 arrow where a zoom or corner cursor was asked.
+
+## CI-Y — Lane 1's verification: every mutation of spec §4.1 reddens its named test
+
+**Ruling.** Lane 1 (commits `77a7b90` red, `04e6be1` implementation) is
+verified as follows; nothing in the design changed.
+
+1. **Red** (`77a7b90`): the root test targets did not compile — `ScrollEvent`
+   had no `momentumPhase`/`phase`/`isPrecise`/`location`, `MouseEvent` no
+   `buttonNumber`, no `rightMouseDragged`/`otherMouseDown`/`magnify`/`rotate`
+   cases, no `AppKitCursor`, `PlatformPointerStyle`, `PlatformResizeEdge`,
+   `setPointerStyle`; `Backends/SDL`'s `SDLMenuInputTests`: "type
+   'InputEvent' has no member 'rightMouseDragged'".
+2. **Counts** after `swift package clean`, native build, unfiltered
+   `--no-parallel`: **2683 tests in 3 suites passed** (2672 + 11: tests
+   1.3–1.10, 1.19, guards 1.1, 1.2), `FR-J no-argument frame:
+   succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation
+   notice; both guards ran (their `CI-E six cases:`/`CI-J member required:`
+   lines printed). `swift build --build-tests` (default build system): 0
+   warnings. `Backends/SDL` on macOS (`--print-flags`): **24 + 91** (83 + 8);
+   in CI's Linux image (`offscreen`): **24 + 88** (80 + 8), every lane 1 SDL
+   test running; warnings unchanged (Homebrew's `ld` deployment target, the
+   pre-existing unnecessary `try` at `AccessKitControlsParityTests.swift:83`).
+   `swift:6.4-noble` root `swift build --build-tests`: complete, 0 warnings;
+   its portable tests 199 + 22 + 35 + 49 + 18 + 6 passed.
+3. **Demo pixels** (`compare.sh <scratch> 70ed000 HEAD` at `04e6be1`): **0
+   differing pixels, scene identical, in all fourteen images**; controls as
+   recorded (default vs modal 1031003, default vs animation 454895, as at
+   `70ed000`'s own run). `MetalUIScene`, `MetalUILayout`, both shaders and
+   `Expected.swift` untouched.
+4. **Mutations**, each on `04e6be1`'s spelling, one full unfiltered suite
+   each (root: native `--no-parallel`; SDL: `swift test $(… --print-flags)`),
+   `git status --short` clean after each:
+
+   | # | Mutation (spelling) | Reddened |
+   | --- | --- | --- |
+   | G1.1 | delete `case otherMouseDragged(MouseEvent)` from `InputEvent` | `anExhaustiveInputEventSwitchWithoutTheInputAPICasesDoesNotCompile` ("with" arm: "type 'InputEvent' has no member 'otherMouseDragged'") |
+   | G1.2 | `extension PlatformWindow { public func setPointerStyle(_ style: PlatformPointerStyle) {} }` above the protocol | `aPlatformWindowWithoutSetPointerStyleDoesNotCompile` |
+   | 1.3a | the old init passes `momentumPhase: .none` | `theOldScrollEventInitialiserKeepsItsMeaning` |
+   | 1.3b | the `isMomentum` setter ignores `false` | `theOldScrollEventInitialiserKeepsItsMeaning` |
+   | 1.4 | `momentumPhase: Self.inputPhase(event.phase)` | `appKitScrollWheelCarriesPhaseMomentumAndPrecision` |
+   | 1.5 | `rotation: Double(event.rotation)` (no negation) | `appKitMagnifyAndRotateReachOnInputWithDeltasAndPhases` |
+   | 1.6 | `otherMouseDragged(with:)` calls `super` | `appKitOtherButtonsAndRightDragReachOnInput` |
+   | 1.7 | the control-drag branch only `return`s | `aControlDragOnAppKitIsASecondaryDrag`, `aRightMouseDownAndAControlClickReachOnInputAsRightMouseDown` (2.4) |
+   | 1.8a | `openHand`/`closedHand` swapped | `appKitPointerStylesMapAsTheProbeMeasured`, `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt` |
+   | 1.8b | `.top`/`.bottom` swapped in `frameResize(for:)` | `appKitPointerStylesMapAsTheProbeMeasured` |
+   | 1.9 | `cursorUpdate(with:)` sets `NSCursor.arrow` | `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt` |
+   | 1.10 | `.cursorUpdate` dropped from the tracking options | `theHostViewsTrackingAreaRequestsCursorUpdates` |
+   | 1.19 | the fake's `scroll.location = scroll.position` deleted | `theFakeWindowRecordsPointerStylesAndStampsScrollLocation` |
+   | 1.11 | X1 → 4 in `SDLButtons.appKitNumber` | `sdlMiddleAndExtraButtonsBecomeOtherMouseEventsWithAppKitNumbers`, `sdlMotionWithRightOrMiddleHeldIsARightOrOtherDrag` |
+   | 1.12 | `SDL_BUTTON_RMASK` tested before `LMASK` (`SDLBridge.c`) | `sdlMotionWithRightOrMiddleHeldIsARightOrOtherDrag` |
+   | 1.13 | `SDLPinch.delta` always `scale - 1` | `sdlPinchBecomesMagnifyAtTheLastPointerPosition`, `sdlPinchDeltaIsARatioOnCocoaAndCumulativeElsewhere` |
+   | 1.14 | the two branches of `SDLPinch.delta` swapped | the same two |
+   | 1.15 | `SDLPinch.route` prefers the keyboard focus | `aPinchWithNoWindowGoesToTheMouseFocusThenTheKeyboardFocus` |
+   | 1.16 | the SDL wheel `isPrecise: true` | `sdlWheelHasNoPhaseMomentumOrPrecision` |
+   | 1.17 | `openHand` → `.default` | `sdlPointerStylesMapToSystemCursorsAndAreRecorded` |
+   | 1.18 | `MUI_EVENT_PINCH` moved before `MUI_EVENT_DIALOG` | `theNewBridgeKindsAreAppendedAfterMouseLeave` |
+
+5. **The guard 1.1 instrument.** Deleting the case breaks the package's own
+   producers (`AppKitPlatform`, the tests), so G1.1 rebuilt only the
+   `MetalUIPlatform` target (`swift build --build-system native --target
+   MetalUIPlatform`) and ran the full suite with `--skip-build`: the guard
+   typechecks against the freshly built module, every other test against the
+   unmutated binary. The first G1.2 spelling, inserted between `@MainActor`
+   and `public protocol PlatformWindow`, stripped the protocol's isolation and
+   failed to build ("conformance … crosses into main actor-isolated code") —
+   an instrument error, re-run with the extension above the attribute.
+
+**Cost if wrong.** None in shipped behaviour: this ruling records evidence.
+A Record phase that copies these counts re-takes them after lanes 2 and 3.
+
