@@ -64,15 +64,18 @@ private func near(_ color: Color?, _ expected: (Double, Double, Double, Double))
 
 // MARK: - Pointer (LK-D item 3)
 
-/// **1.24.** A press on the square at (¼, ¼) of a hue-0 colour writes
-/// saturation 0.25 and brightness 0.75: chroma 0.1875, so `Color(.sRGB, red:
-/// 0.75, green: 0.5625, blue: 0.5625)` exactly. Mutation: swap the axes.
+/// **1.24.** A press on the square at (¼, ½) of a hue-0 colour writes
+/// saturation 0.25 and brightness 0.5: chroma 0.125, so `Color(.sRGB, red:
+/// 0.5, green: 0.375, blue: 0.375)` exactly — the axes swapped would write
+/// s 0.5, b 0.75, `(0.75, 0.375, 0.375)`. (The first spelling pressed at
+/// (¼, ¼), where swapping the axes writes the same colour: the mutation
+/// stayed green on it.) Mutation: swap the axes.
 @Test @MainActor func aDragOnTheSquareWritesSaturationAndBrightness() throws {
     let model = PickerModel(Color(.sRGB, red: 1, green: 0, blue: 0))
     let (window, platform) = try pickerWindow { ColorPicker("Tint", selection: model.binding) }
     let square = try pickerOpen(window, platform)
-    click(window, platform, square, 50, 37.5)
-    #expect(model.writes.first == Color(.sRGB, red: 0.75, green: 0.5625, blue: 0.5625, opacity: 1),
+    click(window, platform, square, 50, 75)
+    #expect(model.writes.first == Color(.sRGB, red: 0.5, green: 0.375, blue: 0.375, opacity: 1),
             "\(model.writes)")
 }
 
@@ -137,6 +140,21 @@ private func near(_ color: Color?, _ expected: (Double, Double, Double, Double))
     #expect(model.writes[model.writes.count - 2] == Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1),
             "the move past the corner writes white: \(model.writes)")
     #expect(model.writes.last == Color(.sRGB, red: 0.5, green: 0.5, blue: 1, opacity: 1), "\(model.writes)")
+    // The drag above runs on the callbacks its press captured, whose seed is
+    // still blue — so it alone cannot tell a re-seed from white. The key runs
+    // on the latest frame's handler: back at white (a press and a drag past
+    // the corner), → writes s 0.01 at hue ⅔, `(0.99, 0.99, 1)`; re-seeded
+    // from white it would write hue 0, `(1, 0.99, 0.99)`.
+    platform.simulateInput(.mouseDown(point(100, 75)))
+    platform.simulateInput(.mouseDragged(point(-50, -10)))
+    platform.simulateInput(.mouseUp(point(-50, -10)))
+    controlRedraw(window)
+    controlRedraw(window)
+    try #require(model.writes.last == Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1), "back at white")
+    window.focus(try #require(pickerSquare(window)).id)
+    window.drawFrameIfNeeded()
+    platform.simulateInput(controlKey(TextEditing.rightArrow))
+    #expect(near(model.writes.last, (0.99, 0.99, 1, 1)), "the hue survived white: \(model.writes.last.map { "\($0)" } ?? "nil")")
 }
 
 /// **1.29** (`LK-D` item 4). A binding write from outside while the panel is
