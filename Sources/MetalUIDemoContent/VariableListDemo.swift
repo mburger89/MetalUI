@@ -80,7 +80,7 @@ func variableListDemoHeader(selected: Int, jump: @escaping @MainActor () -> Void
 /// The scrolled, content-sized, selectable list.
 @MainActor
 func variableListDemoList(selection: Binding<Set<Int>>) -> some Element {
-    Box {
+    ScrollView {
         List(variableListDemoItems, selection: selection) { item in
             Text(item.text)
                 .padding(Pixels(6))
