@@ -809,10 +809,10 @@ MetalUI	Sources/MetalUI/Lifecycle.swift:62	LifecycleScope	func	requestGroupLayou
 MetalUI	Sources/MetalUI/Lifecycle.swift:81	LifecycleScope	func	prepaintGroup
 MetalUI	Sources/MetalUI/Lifecycle.swift:86	LifecycleScope	func	paintGroup
 MetalUI	Sources/MetalUI/Lifecycle.swift:96	LifecycleScope	func	requestProposalGroupLayout
-MetalUI	Sources/MetalUI/Lifecycle.swift:469	ElementGroup	func	onAppear
-MetalUI	Sources/MetalUI/Lifecycle.swift:481	ElementGroup	func	onDisappear
-MetalUI	Sources/MetalUI/Lifecycle.swift:494	ElementGroup	func	onChange
-MetalUI	Sources/MetalUI/Lifecycle.swift:509	ElementGroup	func	onChange
+MetalUI	Sources/MetalUI/Lifecycle.swift:479	ElementGroup	func	onAppear
+MetalUI	Sources/MetalUI/Lifecycle.swift:491	ElementGroup	func	onDisappear
+MetalUI	Sources/MetalUI/Lifecycle.swift:504	ElementGroup	func	onChange
+MetalUI	Sources/MetalUI/Lifecycle.swift:519	ElementGroup	func	onChange
 MetalUI	Sources/MetalUI/List.swift:228	-	struct	List
 MetalUI	Sources/MetalUI/List.swift:230	List	var	style
 MetalUI	Sources/MetalUI/List.swift:231	List	var	decoration
