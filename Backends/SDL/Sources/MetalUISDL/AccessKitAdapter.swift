@@ -256,6 +256,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .dialog: ACCESSKIT_ROLE_DIALOG.rawValue
         case .comboBox: ACCESSKIT_ROLE_COMBO_BOX.rawValue
         case .alertDialog: ACCESSKIT_ROLE_ALERT_DIALOG.rawValue
+        case .progressIndicator: ACCESSKIT_ROLE_PROGRESS_INDICATOR.rawValue
+        case .colorWell: ACCESSKIT_ROLE_COLOR_WELL.rawValue
         }
         return UInt8(value)
     }

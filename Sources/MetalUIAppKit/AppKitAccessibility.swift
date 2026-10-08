@@ -439,6 +439,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // `AXDialog` — never published here, where the alert is native.
         case .popUpButton: .popUpButton
         case .alert: .group
+        case .progressIndicator, .busyIndicator, .colorWell: .group
         }
     }
 

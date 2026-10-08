@@ -65,6 +65,7 @@ public struct Slider: Element, StyledElement {
     private let write: @MainActor (Double) -> Void
     private let bounds: ClosedRange<Double>
     private let step: Double?
+    private let onEditingChanged: @MainActor (Bool) -> Void
 
     nonisolated static let thumbWidth = 20.0
     nonisolated static let height = 16.0
@@ -72,19 +73,24 @@ public struct Slider: Element, StyledElement {
     nonisolated static let idealWidth = 30.0
 
     /// A slider over `bounds`, unstepped (SwiftUI's `Slider(value:in:)`).
-    public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V> = 0...1)
+    public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V> = 0...1,
+                                        onEditingChanged: @escaping @MainActor (Bool) -> Void = { _ in })
         where V.Stride: BinaryFloatingPoint {
-        self.init(value, Double(bounds.lowerBound)...Double(bounds.upperBound), step: nil)
+        self.init(value, Double(bounds.lowerBound)...Double(bounds.upperBound), step: nil,
+                  onEditingChanged: onEditingChanged)
     }
 
     /// A slider over `bounds` that moves by `step` (SwiftUI's
     /// `Slider(value:in:step:)`).
-    public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V>, step: V.Stride)
+    public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V>, step: V.Stride,
+                                        onEditingChanged: @escaping @MainActor (Bool) -> Void = { _ in })
         where V.Stride: BinaryFloatingPoint {
-        self.init(value, Double(bounds.lowerBound)...Double(bounds.upperBound), step: Double(step))
+        self.init(value, Double(bounds.lowerBound)...Double(bounds.upperBound), step: Double(step),
+                  onEditingChanged: onEditingChanged)
     }
 
-    private init<V: BinaryFloatingPoint>(_ value: Binding<V>, _ bounds: ClosedRange<Double>, step: Double?) {
+    private init<V: BinaryFloatingPoint>(_ value: Binding<V>, _ bounds: ClosedRange<Double>, step: Double?,
+                                         onEditingChanged: @escaping @MainActor (Bool) -> Void) {
         precondition(bounds.lowerBound.isFinite && bounds.upperBound.isFinite,
                      "MetalUI: a Slider's bounds must be finite (\(bounds))")
         if let step {
@@ -94,6 +100,7 @@ public struct Slider: Element, StyledElement {
         self.write = { value.wrappedValue = V($0) }
         self.bounds = bounds
         self.step = step
+        self.onEditingChanged = onEditingChanged
     }
 
     /// The leaf's answer to a proposed width (SL0): greedy — any offered width

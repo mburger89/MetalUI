@@ -21,6 +21,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// `accesskit.h` 0.23 has no pop-up-button role, so a combo box with
         /// a menu popup).
         case comboBox, alertDialog
+        /// A progress view — determinate or busy — and a colour well (ruling
+        /// `LK-G`).
+        case progressIndicator, colorWell
     }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
@@ -68,6 +71,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A button that opens a menu — `.menuButton` (ruling `MN-R`) and
         /// `.popUpButton` (`SV-S`): sent as AccessKit's `has_popup = MENU`.
         public var hasPopupMenu: Bool = false
+        /// A determinate progress indicator's range, AccessKit's
+        /// `min_numeric_value` 0 and `max_numeric_value` 1 (ruling `LK-G`).
+        public var numericRange: Bool = false
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -78,7 +84,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.rowCount == b.rowCount && a.rowIndex == b.rowIndex
                 && a.hint == b.hint && a.authorID == b.authorID
                 && a.customActions == b.customActions && a.isSelectable == b.isSelectable
-                && a.hasPopupMenu == b.hasPopupMenu
+                && a.hasPopupMenu == b.hasPopupMenu && a.numericRange == b.numericRange
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -198,6 +204,7 @@ extension AccessKitSnapshot {
         // with a menu popup (`hasPopupMenu`), a drawn alert an `ALERT_DIALOG`.
         case .popUpButton: .comboBox
         case .alert: .alertDialog
+        case .progressIndicator, .busyIndicator, .colorWell: .genericContainer
         }
     }
 
