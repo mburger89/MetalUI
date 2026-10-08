@@ -118,7 +118,9 @@ except `nativeFrame`, kept undeprecated (`SA-K`).
 
 ## Layout, legacy vocabulary — M
 
-`Box`, `Row`, `Column`, `Stack`, `ScrollView` (54), `List` (13, 32, 84),
+`Box`, `Row`, `Column`, `Stack`, `ScrollView` (54), `List` (13, 32, 84;
+uniform `rowHeight:` rows, or content-sized rows through `List(_:rowContent:)`
+and `estimatedRowHeight:`, 145–147),
 `Text`, `Style` (opaque outside the package), `Decoration`/`BorderStyle`, and
 the `StyledElement` modifiers: `.padding` and `.frame` (A — SwiftUI's
 answers), `.background`/`.hoverBackground`/`.cornerRadius`/`.border`/
@@ -138,14 +140,16 @@ vocabulary: [`migration.md`](migration.md).
 
 `Button` (`ButtonRole`, `ButtonStyle`, `.buttonStyle`, `.keyboardShortcut`;
 76, 80), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
-(81, 82), `List(_:selection:rowHeight:row:)` (M), `TextField` and
+(81, 82), `List(_:selection:rowHeight:row:)` and the content-sized
+`List(_:selection:estimatedRowHeight:rowContent:)` (M; `VL-A`), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
 initialisers, submit, undo and paging M). Each composes in both vocabularies
 — a `Row`/`Column` and, since `PE-B`, an `HStack`/`VStack`/`Grid` — with
 SwiftUI's sizing classes: `TextField` and `Slider` greedy wide, `TextEditor`
 greedy on both axes (`PE-D`), the rest hugging; the metrics and the
 below-ideal answers are MetalUI's (130, 131), and `List` keeps its
-`rowHeight × count` height (84). Style modifiers (`.buttonStyle`,
+`rowHeight × count` height (84) — a content-sized list answers its measured
+rows plus estimates for the rest (147), each row exactly its content's height (145). Style modifiers (`.buttonStyle`,
 `.pickerStyle`, `.keyboardShortcut`) return the control: write them on it,
 before any wrapper (`PE-R`). `TextField` draws SwiftUI's bordered field by
 default and takes `.textFieldStyle(_:)` (`TextFieldStyle`: `.automatic`,

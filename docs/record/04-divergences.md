@@ -2415,6 +2415,44 @@ kept:**
 Live count **103 → 105**, next label **139**. Lane 3 wrote the rows; this
 section was written by the Record phase.
 
+## 2026-10-08: 145–147 added, 84 amended; 108 live on the branch (variable-height `List`)
+
+Record §82; rulings `VL-B`, `VL-C`, `VL-G`, `VL-O`, `VL-I`; the published list
+is `docs/divergences.md`. Not a plan task — user request 2026-10-02. Labels
+from this branch's reserved range 145–149 (148, 149 unused); the published
+header's count and next label are left for the merge, which settles them beside
+`feat/input-apis` and `feat/rich-text`. **Added, kept:**
+
+- **145** — a content-sized `List` row's height. SwiftUI's row is its content +
+  8 (4-point insets: 30 → 38; 20, 60, 40, 100 → 28, 68, 48, 108), floored at
+  `defaultMinListRowHeight` 24 (probe `swiftui-variable-height-list.swift`
+  `V0`–`V3b`). MetalUI's row is exactly its content's height measured at the
+  list's width — no inset, no floor. Pin `aVariableListSizesEachRowToItsContent`
+  (2.1).
+- **146** — an insertion or removal above the viewport. SwiftUI moves the row
+  on top (`A3`: a row inserted at 0 moves row 100 on screen 0 → 24). MetalUI
+  keeps it in place: the list carries the anchor across the data change by id
+  and the scroller's offset is adjusted after paint (`VL-G` item 3); a removed
+  top row gives its place to the next surviving id, else the last before it
+  (`VL-O`). Pin `anInsertionAboveTheViewportKeepsTheRowOnTop` (2.7). What
+  SwiftUI does when a *realised* row above the viewport changes height was not
+  probed (`VL-N`), so no divergence is claimed for `VL-G` items 1–2.
+- **147** — an unrealised row's estimate. SwiftUI uses the constant 24 (`R2`:
+  a document of 25721 against 60000 real). MetalUI uses the declared
+  `estimatedRowHeight:`, else the running mean of the measured rows, else 24; a
+  non-positive or non-finite estimate counts as undeclared. Pins
+  `theRunningMeanEstimatesUnmeasuredRows` (1.3) and
+  `aVariableListAnswersMeasuredPlusEstimatedExtent` (2.3).
+
+**Amended:** **84** (`List` shape) — "one row height" becomes "one uniform
+`rowHeight:` (`rowHeight × count`, the fast path) or content-sized rows (the
+extent measured rows plus estimates)"; the enclosing-`ScrollView` clause stays
+for both spellings; pins `aListSizesItselfToCountTimesRowHeight` and
+`aVariableListAnswersMeasuredPlusEstimatedExtent`.
+
+Live count **105 → 108** on the branch. Lane 3 wrote the rows; this section was
+written by the Record phase.
+
 2026-10-08: 123 amended; no new label (`.task` follow-ups)
 
 Record §84; rulings `TF-A`, `TF-D`. A `task(id:)` returning from a removal ghost

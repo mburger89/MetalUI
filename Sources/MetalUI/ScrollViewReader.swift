@@ -143,6 +143,15 @@ final class ScrollRequestQueue {
         onEnqueue?()
     }
 
+    /// Appends `request` **without** `onEnqueue` (ruling `VL-H`): a phase —
+    /// a variable-height `List` refining a `scrollTo` onto a row it had not
+    /// measured — must not dirty the window. The frame that carries it has
+    /// already asked for the next frame (its own resolution did, in
+    /// `applyScrollResolutions`), which takes it.
+    func carry(_ request: ScrollRequest) {
+        pending.append(request)
+    }
+
     /// Hands every pending request to the frame that resolves them.
     func take() -> [ScrollRequest] {
         defer { pending = [] }

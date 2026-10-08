@@ -54,6 +54,8 @@ func runDemo() throws {
     // `METALUI_LOOKS_DEMO=1`: the looks demo (human check S4 — the colour
     // section's swatches and scheme toggle; the window's decorations stay with
     // the system theme, `CR-M`), with the app's dark palette override.
+    // `METALUI_LIST_DEMO=1`: the variable-height list (human checks VL1–VL5,
+    // ruling VL-K) — content-sized rows of wrapping text, selectable, a jump.
     let environment = ProcessInfo.processInfo.environment
     let size = Size(width: Pixels(920), height: Pixels(560))
     let metalViewDraws = MetalViewDemoDraws()
@@ -65,7 +67,10 @@ func runDemo() throws {
     if environment["METALUI_LOOKS_DEMO"] == "1" {
         app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
     }
-    let window = environment["METALUI_SERVICES_DEMO"] == "1"
+    let window = environment["METALUI_LIST_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 variable-height List", size: size,
+                             content: variableListDemoContent)
+        : environment["METALUI_SERVICES_DEMO"] == "1"
         ? try openServicesDemoWindow(app, title: "MetalUI — SDL3 platform services")
         : environment["METALUI_LOOKS_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 looks", size: Size(width: Pixels(1180), height: Pixels(880)),

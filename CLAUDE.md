@@ -47,7 +47,8 @@ summary.
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `TF-` (`.task`
-  follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), …; the full
+  follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
+  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -62,7 +63,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **105 live, next label 139**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–X, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–X and VL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -78,14 +79,17 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `fix/task-followups` from `70ed000`):
-  2677 tests, 0 goldens, 175 typecheck guards** (2672 + 5 tests, no guard;
-  census 2536; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image,
-  root in the image unmoved; record §84 §4). Before it,
+- **Counts (2026-10-08, `feat/variable-height-list` merged with `099cf80`):
+  2723 tests, 0 goldens, 176 typecheck guards** (2677 + 46 tests, 175 + 1 guard;
+  census 2540; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image, re-taken
+  after the merge; divergences 145–147 added, the header's count and
+  next label the merge's; record §82 §8, §9). Before the merge, on `70ed000`: 2718 / 0 / 176. Before it,
+  `fix/task-followups` from `70ed000`: 2677 / 0 / 175 (2672 + 5 tests, no guard;
+  census 2536; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image; record §84 §4). Before that,
   `feat/portable-app` from `359444e`, all three lanes:
   2672 / 0 / 175 (2630 + 42 tests, 171 + 4 guards;
   census 2536; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image,
@@ -307,7 +311,14 @@ answer is `rowHeight × count`, not SwiftUI's greedy one. Rows out of window
 durable values in data. `List(selection:)` (`DD-Z`): reads the binding fresh
 every frame, never prunes; click selects and focuses the list; ⌘/ctrl
 toggles, ⇧ ranges; selection logic runs in input handlers so a warm frame
-stays O(window).
+stays O(window). **`List(_:rowContent:)` sizes rows from content** (`VL-`,
+record §82): each row exactly its content's height at the list's width (divergence 145),
+the extent measured rows plus an estimate (divergence 147) through a per-list
+`RowExtentIndex` (Fenwick prefix offsets, heights by id) in `ListOrigin`, the
+row on top anchored across measurements and data changes by
+`Frame.noteScrollAnchorAdjustment` after paint (`VL-G`, divergence 146); the
+`rowHeight:` spelling is the untouched fast path (`VL-I`) — a change to one
+branch must leave the other's pins and work literals unmoved.
 
 **Controls** (`Button`, `Toggle`, `Slider`, `Stepper`, `Picker`, selectable
 `List`) sit on `Binding` and the existing handler machinery: one hitbox each,
