@@ -175,7 +175,8 @@ final class LifecycleStore {
         /// A `.task` scope's spec (`PX-F`).
         var task: TaskSpec?
         /// Its running task's box — carried from the last build's entry when
-        /// the key stays, or from a parked ghost when the key returns (`X17`).
+        /// the key stays, or from a parked ghost's departed entry when the key
+        /// returns (`X17`, `TF-A`).
         var running: RunningTask?
     }
 
@@ -194,9 +195,12 @@ final class LifecycleStore {
     struct ParkedGhost {
         var keys: Set<Key> = []
         var events: [Parked] = []
-        /// The running tasks of the keys that left, so a key that returns
-        /// keeps its task — neither cancelled nor restarted (`PX-F` item 7).
-        var running: [Key: RunningTask] = [:]
+        /// The last-build entry of each key that left (ruling `TF-A`), so a key
+        /// that returns compares against it as against a previous entry: an
+        /// equal (or no) task id keeps its task — neither cancelled nor
+        /// restarted (`PX-F` item 7) — a changed one restarts it, and a changed
+        /// `onChange` value fires (`Y1`, `Y2`).
+        var departed: [Key: Entry] = [:]
     }
 
     private var current: [Key: Entry] = [:]
@@ -264,7 +268,9 @@ final class LifecycleStore {
     /// the last build's). A disappearance whose owner is, or descends from, a
     /// live ghost's position is parked on it and runs in the first build after
     /// the ghost ends — unless its key returns first, which cancels both it and
-    /// the returning appearance (`T4`).
+    /// the returning appearance (`T4`); a returning key compares against the
+    /// entry it left with, as a present key does against last build's
+    /// (`TF-A`).
     func endFrame(liveGhosts: [(key: GlobalElementID, position: GlobalElementID)], departed: DepartedState?) {
         defer {
             occurrences.removeAll(keepingCapacity: true)
@@ -279,14 +285,18 @@ final class LifecycleStore {
         // Parked disappearances whose key returned are cancelled with its
         // appearance; those whose ghost ended run now.
         var cancelled: Set<Key> = []
+        // The departed entries of keys returning from a live ghost (`TF-A`):
+        // the walk compares against them as against `previous`.
+        var returned: [Key: Entry] = [:]
         var released: [LifecycleEvent] = []
         if !parked.isEmpty {
             let live = Set(liveGhosts.map(\.key))
             for (ghost, var held) in parked {
                 for key in held.keys where current[key] != nil {
                     cancelled.insert(key)
-                    // The returning key keeps its running task (`X17`).
-                    if let box = held.running.removeValue(forKey: key) { current[key]?.running = box }
+                    // The returning key compares against what it left with
+                    // (`TF-A`); its running task is carried through it (`X17`).
+                    if let entry = held.departed.removeValue(forKey: key) { returned[key] = entry }
                 }
                 if !cancelled.isEmpty {
                     held.events.removeAll { cancelled.contains($0.key) }
@@ -309,7 +319,7 @@ final class LifecycleStore {
         var boxes: [(key: Key, box: RunningTask)] = []
         for (key, entry) in current {
             workThisFrame += 1
-            if let old = previous[key] {
+            if let old = previous[key] ?? returned[key] {
                 if let change = entry.change, let before = old.change, !change.isEqual(before.value) {
                     let (oldValue, newValue, action) = (before.value, change.value, change.action)
                     changes.append((entry.order, LifecycleEvent(owner: entry.owner,
@@ -354,7 +364,7 @@ final class LifecycleStore {
         for (key, box) in boxes { current[key]?.running = box }
 
         var disappearances: [(order: Int, key: Key, owner: GlobalElementID, event: LifecycleEvent?,
-                              running: RunningTask?)] = []
+                              entry: Entry)] = []
         for (key, entry) in previous {
             workThisFrame += 1
             guard current[key] == nil else { continue }
@@ -364,7 +374,7 @@ final class LifecycleStore {
                 ?? entry.running.map { Self.cancelEvent($0, owner: entry.owner) }
             // A key with no `onDisappear` is kept only for a ghost's cancellation.
             guard event != nil || !liveGhosts.isEmpty else { continue }
-            disappearances.append((entry.order, key, entry.owner, event, entry.running))
+            disappearances.append((entry.order, key, entry.owner, event, entry))
         }
 
         changes.sort { $0.order > $1.order }
@@ -376,7 +386,7 @@ final class LifecycleStore {
         for item in disappearances {
             if let ghost = liveGhosts.first(where: { item.owner.isOrDescends(from: $0.position) }) {
                 parked[ghost.key, default: ParkedGhost()].keys.insert(item.key)
-                if let box = item.running { parked[ghost.key, default: ParkedGhost()].running[item.key] = box }
+                parked[ghost.key, default: ParkedGhost()].departed[item.key] = item.entry
                 if let event = item.event {
                     parked[ghost.key, default: ParkedGhost()].events.append(Parked(key: item.key, event: event))
                 }
@@ -411,7 +421,7 @@ final class LifecycleStore {
     /// boxes with a task not cancelled (test observability, `PX-F`).
     var runningTaskCount: Int {
         let present = previous.values.compactMap(\.running)
-        let held = parked.values.flatMap { $0.running.values }
+        let held = parked.values.flatMap { $0.departed.values.compactMap(\.running) }
         return (present + held).filter { $0.handle.map { !$0.isCancelled } ?? false }.count
     }
 
