@@ -5,7 +5,7 @@ task**), motivated by MetalCreator (`/Users/maxburger/Developer/MetalCreator`,
 `docs/metalui-gaps.md` "Reported 2026-10-07 (C7)" and "C7 status and
 provisional API names"; never edited from here). Rulings: prefix **`CI-`** in
 [`../2026-10-08-input-apis-decisions.md`](../2026-10-08-input-apis-decisions.md)
-(`CI-A`…`CI-O`). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
+(`CI-A`…`CI-W`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
 Record: `docs/record/81-input-apis.md` (the Record phase writes it).
 
 Branch `feat/input-apis` from `70ed000`, worktree
@@ -38,7 +38,7 @@ public struct ScrollEvent: Sendable {          // existing; gains:
     public var momentumPhase: InputPhase
     public var isPrecise: Bool                 // false: delta is lines × 10 (a wheel mouse; SDL always)
     public var location: Point<Pixels>         // local to the receiving element; == position at the seam
-    public var isMomentum: Bool { get }        // now computed: momentumPhase != .none
+    public var isMomentum: Bool { get set }    // now computed: momentumPhase != .none; set true → .changed, false → .none (CI-V)
     public init(position:delta:modifiers: = [], isMomentum: Bool = false, timestamp: = 0)   // unchanged spelling
     public init(position:delta:modifiers: = [], phase: InputPhase, momentumPhase: InputPhase,
                 isPrecise: Bool, timestamp: Double)
@@ -196,11 +196,26 @@ public struct PointerStyleModifier<Content: ProposalElementGroup>: Element, Prop
 public struct ScrollWheelModifier<Content: ProposalElementGroup>: Element, ProposalElement
 ```
 
-`Handlers` gains **two** members, `scrollWheel` and `pointerStyle` (sixteen →
-**eighteen**): `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
-(`OuterModifierMatrixTests`) each gain both fields, and every hook added to
+`Handlers` gains **one** member, `pointer: PointerAttachment?` — a class box
+holding the wheel handler and the style (`CI-Q`: `Handlers` already has
+**seventeen** members, and `MemoryLayout<Handlers>.size` is pinned at 472 by
+`handlersGainsOneReferenceMember` and `theNewDeclarationsCostHandlersAtMostOnePointer`;
+seventeen → **eighteen**, 472 → **480**, both pins edited by lane 3).
+`HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
+(`OuterModifierMatrixTests`) each gain one field, and every hook added to
 `Element`'s group defaults is mirrored per layer (`MC-B`) — none is needed:
-both members ride `Handlers` through the existing registration.
+the member rides `Handlers` through the existing registration.
+
+**Located context menu** (`CI-R`; lane 2):
+
+```swift
+extension StyledElement {      // and ProposalElementGroup → ContextualModifier<Self>
+    public func contextMenu<M: MenuContent>(
+        @MenuContentBuilder menuItems: @escaping @MainActor (Point<Pixels>?) -> M) -> Self
+    // the secondary press's point, local to the contextual region; nil for a keyboard
+    // (MN-G) or accessibility open. Selected by closure arity beside the existing overload.
+}
+```
 
 ### §1.4 Dispatch (lane 3; `CI-D`, `CI-F`, `CI-H`, `CI-I`)
 
@@ -232,22 +247,25 @@ The pointer style: `Window.resolvedPointerStyle` (last sent), recomputed in
 `pointerStyleVisits` counting the per-hitbox visits (`SV-U`'s shape: a frame
 with no style region and the default style already sent does no work).
 
-## §2 Files
+## §2 Files (re-cut by `CI-W`)
 
 | Lane | Files (only these; new files **bold**) |
 | --- | --- |
-| 1 | `Sources/MetalUIPlatform/InputEvent.swift`, `Sources/MetalUIPlatform/Platform.swift`, **`Sources/MetalUIPlatform/PointerStyle.swift`** (`PlatformPointerStyle`, `PlatformResizeEdge`), `Sources/MetalUIAppKit/AppKitPlatform.swift`, **`Sources/MetalUIAppKit/AppKitCursor.swift`**, `Backends/SDL/Sources/SDLBridge/SDLBridge.c`, `Backends/SDL/Sources/SDLBridge/include/SDLBridge.h`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, **`Backends/SDL/Sources/MetalUISDL/SDLInputMapping.swift`** (`SDLPinch`, the cursor table, button numbering), `Tests/MetalUITests/Fakes.swift`, every `Tests/MetalUITests/*CompileGuards.swift` conformer template (the new member), **`Tests/MetalUITests/InputAPISeamCompileGuards.swift`**, **`Tests/MetalUITests/AppKitInputAPITests.swift`**, `Tests/MetalUIPlatformTests/PlatformTests.swift` (scroll phase arms), **`Backends/SDL/Tests/MetalUISDLTests/SDLInputAPITests.swift`**, `docs/migration.md` (seam notes) |
-| 2 | `Sources/MetalUI/Gesture.swift`, `Sources/MetalUI/GestureModifiers.swift`, **`Sources/MetalUI/SpatialGestures.swift`** (`CoordinateSpace`, `MouseButton`, `SpatialTapGesture`, `MagnifyGesture`, `RotateGesture`), **`Tests/MetalUITests/InputAPIGestureArenaTests.swift`**, **`Tests/MetalUITests/InputAPIGestureCompileGuards.swift`** |
-| 3 | `Sources/MetalUI/Window.swift`, `Sources/MetalUI/Frame.swift`, `Sources/MetalUI/Handlers.swift`, `Sources/MetalUI/Hover.swift`, `Sources/MetalUI/MenuSession.swift`, `Sources/MetalUI/Popover.swift`, `Sources/MetalUI/Tooltip.swift`, **`Sources/MetalUI/PointerStyle.swift`**, **`Sources/MetalUI/ScrollWheel.swift`**, **`Sources/MetalUIDemoContent/CanvasDemo.swift`**, `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (the env switch), `Tests/MetalUITests/ModifierTests.swift` (`HandlerShape`), `Tests/MetalUITests/OuterModifierMatrixTests.swift` (`HandlerFingerprint`), the test holding `everyProductionTreeBuildsOnAOneMegabyteThread` (one arm), **`Tests/MetalUITests/InputAPIWindowTests.swift`**, **`Tests/MetalUITests/CanvasDemoTests.swift`**, `docs/divergences.md` (139–141), `docs/probes/closeout-inventory-map.tsv` + `closeout-public-api.tsv` (census re-recorded, every lane's declarations), `docs/api-overview.md`, `docs/migration.md` (API notes), `docs/verification/human-checks.md` (group Y), `docs/record/81-input-apis.md` (the Record phase), the decisions doc and this spec (amendments) |
+| 1 | `Sources/MetalUIPlatform/InputEvent.swift`, `Sources/MetalUIPlatform/Platform.swift`, **`Sources/MetalUIPlatform/PointerStyle.swift`** (`PlatformPointerStyle`, `PlatformResizeEdge`), `Sources/MetalUIAppKit/AppKitPlatform.swift`, **`Sources/MetalUIAppKit/AppKitCursor.swift`** (incl. the pure `frameResize(for:)` value table, `CI-P`), `Backends/SDL/Sources/SDLBridge/SDLBridge.c`, `Backends/SDL/Sources/SDLBridge/include/SDLBridge.h`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, **`Backends/SDL/Sources/MetalUISDL/SDLInputMapping.swift`** (`SDLPinch`, the cursor table, button numbering), `Tests/MetalUITests/Fakes.swift`, every `Tests/MetalUITests/*CompileGuards.swift` conformer template (the new member), `Tests/MetalUITests/AppKitMenuTests.swift` (`CI-T`: test 2.4's control-drag), **`Tests/MetalUITests/InputAPISeamCompileGuards.swift`**, **`Tests/MetalUITests/AppKitInputAPITests.swift`**, `Tests/MetalUIPlatformTests/PlatformTests.swift` (scroll phase arms), **`Backends/SDL/Tests/MetalUISDLTests/SDLInputAPITests.swift`**, `docs/migration.md` (seam notes) |
+| 2 | `Sources/MetalUI/Gesture.swift`, `Sources/MetalUI/GestureModifiers.swift`, **`Sources/MetalUI/SpatialGestures.swift`** (`CoordinateSpace`, `MouseButton`, `SpatialTapGesture`, `MagnifyGesture`, `RotateGesture`), `Sources/MetalUI/ContextMenu.swift` (`CI-R`), `Sources/MetalUI/MenuSession.swift`, `Sources/MetalUI/Popover.swift`, `Sources/MetalUI/Tooltip.swift`, `Sources/MetalUI/Window.swift` (**the press, pinch, button-arena and context-menu stages only**), **`Tests/MetalUITests/InputAPIGestureArenaTests.swift`**, **`Tests/MetalUITests/InputAPIGestureCompileGuards.swift`**, **`Tests/MetalUITests/InputAPIGestureWindowTests.swift`** (3.1, 3.26–3.34, 2.21–2.24), `docs/migration.md` (gesture notes) |
+| 3 | `Sources/MetalUI/Window.swift` (**the wheel stage and the hover/style recompute**, on lane 2's commit), `Sources/MetalUI/Frame.swift`, `Sources/MetalUI/Handlers.swift`, `Sources/MetalUI/Hover.swift`, **`Sources/MetalUI/PointerStyle.swift`**, **`Sources/MetalUI/ScrollWheel.swift`**, **`Sources/MetalUIDemoContent/CanvasDemo.swift`**, `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (the env switch), `Tests/MetalUITests/ModifierTests.swift` (`HandlerShape`), `Tests/MetalUITests/OuterModifierMatrixTests.swift` (`HandlerFingerprint`), `Tests/MetalUITests/ContextMenuTests.swift` + `Tests/MetalUITests/AccessibilityModifierTests.swift` (the two `Handlers` size pins, `CI-Q`), `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (one arm), **`Tests/MetalUITests/InputAPIWindowTests.swift`**, **`Tests/MetalUITests/CanvasDemoTests.swift`**, `docs/divergences.md` (139–141 and the Not-offered rows, `CI-U` item 2), `docs/probes/closeout-inventory-map.tsv` + `closeout-public-api.tsv` (census re-recorded, every lane's declarations), `docs/api-overview.md`, `docs/migration.md` (API notes), `docs/verification/human-checks.md` (group Y), `docs/record/81-input-apis.md` (the Record phase) |
 
-Lanes 1 and 2 append rulings and spec amendments too (the decisions doc and
-this spec are shared, appended in order; only one agent runs at a time).
+Every lane appends rulings and spec amendments (the decisions doc and this
+spec are shared, appended in order; only one agent runs at a time). A file
+named in two lanes (`Window.swift`, `docs/migration.md`) is edited by the later
+lane on top of the earlier lane's commit (`CI-W`).
 
-## §3 Lanes (`CI-O`; order 1 → 2 → 3)
+## §3 Lanes (`CI-W`, amending `CI-O`; order 1 → 2 → 3)
 
 - **Lane 1 — seam and platforms.** §1.1; AppKit overrides (`otherMouse*`,
-  `rightMouseDragged`, the control-drag, `magnify`/`rotate` with the rotation
-  negated once, scroll phases), `AppKitCursor` (the probe's table, the
+  `rightMouseDragged`, the control-drag and its existing test, `CI-T`;
+  `magnify`/`rotate` with the rotation negated once, scroll phases),
+  `AppKitCursor` (the probe's table as values for frame resize, `CI-P`; the
   `.cursorUpdate` tracking option, `cursorUpdate(with:)`); SDL bridge kinds
   appended, `SDLPinch`, the cursor cache and table, `pointerStyles` record;
   `FakePlatformWindow.setPointerStyle` recording `pointerStyles`, its
@@ -255,12 +273,15 @@ this spec are shared, appended in order; only one agent runs at a time).
   clean` after the stored properties land. **`Window` needs no change to build**
   (its switches have `default:`); lane 1 confirms the suite count is the
   baseline plus its own tests. Runs the Linux image (§5).
-- **Lane 2 — gestures and the arena.** §1.2; tests pure against `GestureArena`
-  with hand-made `Hitbox`es (the existing arena tests' helpers), plus two
-  guards.
-- **Lane 3 — integration.** §1.3, §1.4, the demo, the registry rows, human
-  checks group Y, the census. Runs the demo-pixel compare and the Linux image
-  (the `Backends/SDL` demo main changes).
+- **Lane 2 — gestures end to end.** §1.2 and the located context menu; the
+  arena tested pure (2.1–2.20), then its `Window` integration: tap location on
+  both vocabularies, the pinch arena, the button arena, the context menu's
+  deferral and location, the menu/popover/tooltip handling of the new events
+  (3.1, 3.26–3.34, 2.21–2.25). Three guards (2.1, 2.2, 2.25).
+- **Lane 3 — wheel, pointer style, demo, registries.** §1.3 (without the
+  menu), §1.4's wheel and style stages, `CI-Q`, `CI-S`, the demo, the registry
+  rows, human checks group Y, the census. Runs the demo-pixel compare and the
+  Linux image (the `Backends/SDL` demo main changes).
 
 ## §4 Tests — by name, red before, and the mutation that must redden each
 
@@ -276,12 +297,12 @@ reddens nothing is a finding.
 | --- | --- | --- | --- |
 | 1.1 | `anExhaustiveInputEventSwitchWithoutTheInputAPICasesDoesNotCompile` (guard, `typecheckFile`, plain `import MetalUIPlatform`): a switch naming every case but the six fails; with them it compiles | "with" arm fails (no cases) | delete `case otherMouseDragged` from `InputEvent` → the "with" arm fails |
 | 1.2 | `aPlatformWindowWithoutSetPointerStyleDoesNotCompile` (guard; `CR-M`'s shape; positive control = the migration note's spelling) | positive arm fails | a protocol-extension default `func setPointerStyle(_:) {}` → the negative compiles |
-| 1.3 | `theOldScrollEventInitialiserKeepsItsMeaning`: `ScrollEvent(position:delta:isMomentum: true)` → `momentumPhase == .changed`, `isMomentum`, `phase == .none`, `isPrecise`, `location == position` | no fields | the old init leaves `momentumPhase` `.none` → red |
+| 1.3 | `theOldScrollEventInitialiserKeepsItsMeaning`: `ScrollEvent(position:delta:isMomentum: true)` → `momentumPhase == .changed`, `isMomentum`, `phase == .none`, `isPrecise`, `location == position` | no fields | the old init leaves `momentumPhase` `.none` → red; (`CI-V` item 1) a setter arm: `e.isMomentum = true` → `.changed`, `= false` → `.none`; mutation: the setter ignores `false` → red |
 | 1.4 | `appKitScrollWheelCarriesPhaseMomentumAndPrecision`: real scroll `CGEvent`s (`.scrollWheelEventScrollPhase`, `.scrollWheelEventMomentumPhase` set; a line event and a pixel event) through `MetalHostView.scrollWheel(with:)` → `phase`, `momentumPhase`, `isPrecise` | no fields | map `momentumPhase` from `phase` → red |
 | 1.5 | `appKitMagnifyAndRotateReachOnInputWithDeltasAndPhases`: the probe's CG gesture recipe (type 29, field 110 = 8/5, 113/114, 132) → `.magnify(0.1, .changed)` and `.rotate(−10, .changed)` for AppKit +10; began/ended phases | no cases | drop the negation in `rotate(with:)` → red |
 | 1.6 | `appKitOtherButtonsAndRightDragReachOnInput`: CG-made `otherMouseDown/Dragged/Up` (button 2) and `NSEvent` `rightMouseDragged` → the four cases, `buttonNumber` 2/1 | no cases | remove the `otherMouseDragged(with:)` override → red |
 | 1.7 | `aControlDragOnAppKitIsASecondaryDrag` (migration of `MN-AC` item 1) | control-drag dropped | restore the `if controlClickInFlight { return }` → red |
-| 1.8 | `appKitPointerStylesMapAsTheProbeMeasured`: every `PlatformPointerStyle` → the `NSCursor` the probe read (`P1`–`P10`), eight frame-resize edges | no table | swap `openHand`/`closedHand` → red |
+| 1.8 | `appKitPointerStylesMapAsTheProbeMeasured`: every non-frame `PlatformPointerStyle` → the `NSCursor` the probe read (`P1`–`P10`, `P15`, `P16`); the eight frame-resize edges × three direction sets compared **as values** from `AppKitCursor.frameResize(for:)` (`P9`, `P17`–`P19`; `NSCursor ==` cannot separate opposite edges, `CI-P`) | no table | swap `openHand`/`closedHand` → red; swap `top`/`bottom` in the frame table → red |
 | 1.9 | `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`: `setPointerStyle(.crosshair)`, then the host view's `cursorUpdate(with:)` → `NSCursor.current == .crosshair` | no requirement | `cursorUpdate(with:)` sets `arrow` → red |
 | 1.10 | `theHostViewsTrackingAreaRequestsCursorUpdates` | option absent | drop `.cursorUpdate` from the options → red |
 | 1.11 | `sdlMiddleAndExtraButtonsBecomeOtherMouseEventsWithAppKitNumbers`: raw `SDL_BUTTON_MIDDLE/X1/X2` down/up pushed → `buttonNumber` 2/3/4; left/right unchanged | dropped | map X1 → 4 → red |
@@ -321,6 +342,11 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 2.18 | `theInnermostMagnifyWinsUnlessAnOuterOneIsHighPriority` | absent | outermost-first for normal members → red |
 | 2.19 | `aSimultaneousMagnifyAndRotateCompositionReportsBoth` | absent | treat `.simultaneous` as exclusive in pinch mode → red |
 | 2.20 | `aPinchArenaRunsNoTapDragOrClick` | absent | keep the click member in pinch mode → red |
+| 2.21 | `aLocatedContextMenuReceivesThePressPointInLocalSpace` (region at (40,30), secondary press (50,60) → (10,30); both vocabularies) | absent | pass the window point → red |
+| 2.22 | `aDeferredLocatedMenuReceivesThePressPointNotTheRelease` (a secondary `DragGesture` declared; press (50,60), release (53,61) under its minimum → menu at release with (10,30)) | absent | pass the release point → red |
+| 2.23 | `aKeyboardOrAccessibilityOpenPassesNoLocation` (Shift-F10, `MN-G`; show-menu, C11 → `nil`) | absent | pass the region's origin → red |
+| 2.24 | `aLocatedMenuThroughARotationReportsWhereOnItselfItWasPressed` | absent | skip `localPoint` → red |
+| 2.25 | `contextMenuResolvesByClosureArity` (guard, plain `import MetalUI`): `.contextMenu { Button("a") {} }` and `.contextMenu { p in Button("a") { _ = p?.x } }` compile on a `Box` and a proposal `Text`; negative `{ a, b in … }` fails | positive fails | remove the located overload → positive fails |
 | — | Every existing arena test (`GestureArena…`, `IX-C`/`IX-D`/`DN-D` pins) stays green **unedited** — the forwarding overloads keep their spellings | — | — |
 
 ### §4.3 Lane 3 — integration, wheel, pointer style, demo
@@ -331,7 +357,7 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 3.2 | `onScrollWheelReceivesTheEventInLocalSpaceUnderStateDispatch` (a `@State` write lands; `delta`, `phase`, `momentumPhase`, `modifiers` passed through; `location` local) | absent | pass `position` as `location` → red |
 | 3.3 | `aWheelHandlerThatClaimsStopsAnEnclosingScrollView` | absent | consult each id's scroll region before its descendants' handlers (outermost first) → red |
 | 3.4 | `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView` | absent | treat `false` as claimed → red |
-| 3.5 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed` | absent | call every handler on the chain → red |
+| 3.5 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed` (+ arm: a **proposal** `.onScrollWheel` on a `ScrollView` sees nothing, `CI-V` item 2) | absent | call every handler on the chain → red; consult a wrapper's handler before its child's scroll region → the proposal arm red |
 | 3.6 | `aLegacyWheelHandlerOnAScrollViewRunsBeforeItsScrollingAndCanVetoIt` | absent | scroll region before the same-id handler → red |
 | 3.7 | `aWheelOverAClickTargetInsideACanvasReachesTheCanvasHandler` | absent | stop at the opaque cover → red |
 | 3.8 | `anOverlaidSiblingClickTargetStopsTheCanvasWheel` | absent | drop the ancestry test (any containing region) → red |
@@ -349,7 +375,7 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 3.20 | `aPressHoldsThePressedTargetsStyleWhileThePointerLeaves` (a `@State` switch to `.grabActive` at the drag's start; the pointer leaves; release recomputes `.default`) | absent | resolve under the pointer during a press → red |
 | 3.21 | `contentMovingUnderAStillPointerChangesTheStyleAfterTheFrame` | absent | recompute only on pointer events → red |
 | 3.22 | `anInWindowMenuOrDrawnAlertResetsTheStyleToDefault` | absent | ignore `hoverIsSuppressed` → red |
-| 3.23 | `aPointerExitResetsTheStyle` | absent | keep the last style → red |
+| 3.23 | `aPointerReEntryResendsTheStyleEvenWhenItIsDefault` (`CI-S`: crosshair region, exit, re-enter over a default region → the fake records `.arrow` again) | absent | on exit set the last-sent style to `.default` → red |
 | 3.24 | `aPointerStyleThroughARotationFollowsTheDrawing` | absent | test containment with the untransformed rect → red |
 | 3.25 | `aFrameWithNoStyleRegionDoesNoPointerStyleWork` (`pointerStyleVisits == 0` across ten moves) | absent | remove the early return → red |
 | 3.26 | `aMiddleDragReachesOnlyAMiddleButtonDragGesture` (also a primary `DragGesture`, a tap, an `onClick` on the chain; `active` and focus unchanged) | absent | form the press arena for `.otherMouseDown` → red |
@@ -365,8 +391,13 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 3.36 | `everyProductionTreeBuildsOnAOneMegabyteThread` gains the canvas demo's arm | arm absent | inline the demo's body into the composer (stack depth) — recorded, may be green (a green mutant is the measurement) |
 | — | Unchanged and green: the `DD-Y` pins (`aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`, `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`, `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`, `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`), every `MN-B`/`MN-E`/`SV-N` pin, `theSevenRetentionSlotsAreMutuallyDistinct`, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` | — | — |
 
-Guards added: **4** (1.1, 1.2, 2.1, 2.2), each mutated red once by the lane
-that adds it.
+| 3.37 | `handlersGainsOneReferenceMember` (== 480) and `theNewDeclarationsCostHandlersAtMostOnePointer` (<= 440 + 8 × 5), edited (`CI-Q`) | red at 472 after the box lands | store the wheel closure inline in `Handlers` → red |
+
+**Lane assignment (`CI-W`)**: 3.1 and 3.26–3.34 run in **lane 2** (ids
+kept); every other 3.x in lane 3.
+
+Guards added: **5** (1.1, 1.2, 2.1, 2.2, 2.25), each mutated red once by the
+lane that adds it.
 
 ## §5 CI and commands
 
@@ -393,12 +424,13 @@ fourteen images**; `Expected.swift` unedited.
 variable): one function `canvasDemo()` in `CanvasDemo.swift`, passed to the
 composer (Windows 1 MB stack). A 640×420 node-graph canvas: a dot grid and six
 rounded-rect "nodes" placed in canvas coordinates under a `pan`/`zoom` state.
-**Middle-drag or right-drag pans** (`.grabActive` while dragging, `.grabIdle`
-while ⌥ is held), **two-finger scroll pans** with momentum, **⌘-scroll and pinch
+**Middle-drag or right-drag pans** (`.grabActive` while dragging; `.grabIdle`
+over a pan strip along the canvas's top — `CI-V` item 3), **two-finger scroll pans** with momentum, **⌘-scroll and pinch
 zoom about the pointer** (the canvas point under the pointer stays put;
 `startLocation` for a pinch), **a click picks** the node under the
 `SpatialTapGesture` location (a selection outline), a **right-click on a node
-opens a context menu** (on release — a right-drag pans instead), the pointer is
+opens a located context menu** naming the node under the press point (`CI-R`;
+on release — a right-drag pans instead), the pointer is
 **`.rectSelection` (crosshair)** over empty canvas and `.link` over a node; one
 node carries a `RotateGesture` (it turns with a two-finger twist, inside the
 canvas's `MagnifyGesture` — human check Y4's corner); a **style strip** below
@@ -444,8 +476,9 @@ the modifiers of the current drag. No existing demo tree changes.
 3. On AppKit a control-drag is now a secondary drag (`.rightMouseDragged`), not
    dropped (`CI-E` item 3).
 4. `DragGesture.Value`'s equality compares `modifiers` (`CI-G`).
-5. `ScrollEvent.isMomentum` is computed; code that assigned it sets
-   `momentumPhase` (`CI-I` item 1).
+5. ~~`ScrollEvent.isMomentum` is computed; code that assigned it sets
+   `momentumPhase`~~ — struck by `CI-V` item 1: it keeps a setter.
+6. `MemoryLayout<Handlers>.size` 472 → 480 (`CI-Q`; internal).
 
 ### §8.2 Registry rows
 
@@ -462,12 +495,14 @@ content space (`CI-B` item 4, pin 2.4); 140 `DragGesture.Value.modifiers`
 and its new init; D 140: `DragGesture.Value.modifiers`);
 **`input-apis-pointer-and-wheel`** (A: `PointerStyle`, `FrameResizePosition`,
 `FrameResizeDirection`, `pointerStyle(_:)` (D 141); M: `onScrollWheel`,
-`ScrollWheelModifier`, `PointerStyleModifier`).
+`ScrollWheelModifier`, `PointerStyleModifier`, the located
+`contextMenu(menuItems:)` overload on both vocabularies, `CI-R`). **Not offered**
+rows in `docs/divergences.md` for `CI-U` item 2's list.
 
 ### §8.3 Owed to the Record phase
 
 CLAUDE.md/AGENTS.md (the `CI-` prefix and next id, a rule paragraph, Handlers
-sixteen → eighteen, the new `PlatformWindow` requirement in the defaultless
+"sixteen" (stale since `SV-AH`) → **eighteen**, the new `PlatformWindow` requirement in the defaultless
 list, counts), README, `docs/record/README.md`, record §03/§04 rows, record 81.
 
 ## §9 Deferred (each with reason and owner; `CI-A`)

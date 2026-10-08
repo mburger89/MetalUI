@@ -43,6 +43,14 @@
 // form, run twice after the instrument settled: stdout byte-identical (50
 // lines), exit 0, stderr empty both times.
 //
+// RE-RUN 2026-10-07 by the CI critic, same machine and toolchain, screen
+// UNLOCKED (lock probe: no CGSSessionScreenIsLocked line, `displayAsleep
+// main: 0`): the 50 recorded lines re-read byte for byte, twice. Arms
+// P15–P19 were then appended (the mappings CI-H item 8 named but P1–P10 never
+// measured) and the whole probe run twice: 61 lines, byte-identical, exit 0,
+// stderr empty; lines 1–46 and the C arms unchanged. P15–P19 read through
+// `cursorNameWide`, so no earlier line could move.
+//
 // INSTRUMENT HISTORY (discarded runs, not answers). Run 1: every CGEvent-made
 // event carried a screen location, so R0 (the control) and M0/Q0 read "-" —
 // discarded; the CG location is now the window point. Runs 1–4: the P control
@@ -90,6 +98,14 @@
 //      whether it has a gesture (P13 arrow; P13c, off it, crosshair) or only
 //      paints (P14 arrow) — SwiftUI's hit region is the drawn view; MetalUI
 //      has no hitbox for a view that only paints (divergence, ruling CI-H).
+//   P15–P19 (critic): verticalText → iBeamCursorForVerticalLayout; zoomOut →
+//      zoomOut; frameResize(position:) maps leading→left, trailing→right,
+//      topLeading→topLeft and so on (each read equals the natural AppKit
+//      position). BUT `NSCursor ==` compares images: with `.all` a position
+//      equals its opposite (top == bottom, topLeft == bottomRight), and
+//      (trailing, inward) == (leading, outward). A test comparing cursors
+//      therefore cannot separate a mirrored table — pin the position/direction
+//      mapping as values, not as cursors (spec §4.1 1.8).
 //   C  A context menu opens on the right PRESS, both AppKit's `NSView.menu`
 //      (C0) and SwiftUI's `.contextMenu` (C2): tracking began during
 //      `rightMouseDown`, before any drag. (C0's view then saw the drag and
@@ -116,6 +132,11 @@
 //   rectSelection, grabIdle, grabActive, link, zoomIn, zoomOut, columnResize
 //   (+ directions:), rowResize (+ directions:), frameResize(position:
 //   directions:), image(_:hotSpot:), shape(_:eoFill:size:).
+//   Added by the critic (same SDK, `grep -o "func contextMenu[^{]*"`): seven
+//   `contextMenu` signatures — `menuItems:`, `menuItems:preview:` (×2),
+//   `forSelectionType:menu:primaryAction:`, `_ contextMenu: ContextMenu?`, the
+//   `TabContent` and table-row forms — and none passes a location (ruling
+//   CI-R).
 //
 // OUTPUT:
 //   --- T: tap location (view 100x100 at (40,30) in a 200x200 window)
@@ -164,6 +185,17 @@
 //     P13 .rectSelection on the back view, an opaque 40x40 .onTapGesture sibling over the pointer: current=arrow (events to owners: 2, host tracking areas: ["222"] owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<ModifiedContent<Color, _FrameLayout>, TapGestureModifier>}>>>> | owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<ModifiedContent<Color, _FrameLayout>, TapGestureModifier>}>>>>)
 //     P13c same, pointer off the sibling (control): current=crosshair (events to owners: 2, host tracking areas: ["222"] owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<ModifiedContent<Color, _FrameLayout>, TapGestureModifier>}>>>> | owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<ModifiedContent<Color, _FrameLayout>, TapGestureModifier>}>>>>)
 //     P14 back view .rectSelection, a 40x40 Color sibling with NO gesture over the pointer: current=arrow (events to owners: 2, host tracking areas: ["222"] owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<Color, _FrameLayout>}>>>> | owner=PointerBridge<Offset<ZStack<TupleContent<Pack{ModifiedContent<Color, PointerStyleModifier>, ModifiedContent<Color, _FrameLayout>}>>>>)
+//     P15 .verticalText: current=IBeamVertical
+//     P16 .zoomOut: current=zoomOut
+//     P17 .frameResize(position: .top): current=frameResize(.top, .all)=frameResize(.bottom, .all)
+//     P17 .frameResize(position: .leading): current=frameResize(.left, .all)=frameResize(.right, .all)
+//     P17 .frameResize(position: .bottom): current=frameResize(.top, .all)=frameResize(.bottom, .all)
+//     P17 .frameResize(position: .topLeading): current=frameResize(.topLeft, .all)=frameResize(.bottomRight, .all)
+//     P17 .frameResize(position: .topTrailing): current=frameResize(.topRight, .all)=frameResize(.bottomLeft, .all)
+//     P17 .frameResize(position: .bottomLeading): current=frameResize(.topRight, .all)=frameResize(.bottomLeft, .all)
+//     P17 .frameResize(position: .bottomTrailing): current=frameResize(.topLeft, .all)=frameResize(.bottomRight, .all)
+//     P18 .frameResize(position: .trailing, directions: .inward): current=frameResize(.left, .outward)=frameResize(.right, .inward)
+//     P19 .frameResize(position: .top, directions: .outward): current=frameResize(.top, .outward)=frameResize(.bottom, .inward)
 //   --- C: context menu: right press at (60,60), right drag to (90,60), release
 //     C0 AppKit NSView.menu: menu began tracking during rightMouseDown | view rightMouseDragged | view rightMouseUp
 //     C1 AppKit NSView, no menu (control: drag/up reach the view): view rightMouseDragged | view rightMouseUp
@@ -548,6 +580,53 @@ final class CrosshairView: NSView {
                ZStack { Color.gray.pointerStyle(.rectSelection); Color.blue.frame(width: 40, height: 40).onTapGesture {} })
     pointerArm("P14 back view .rectSelection, a 40x40 Color sibling with NO gesture over the pointer",
                ZStack { Color.gray.pointerStyle(.rectSelection); Color.blue.frame(width: 40, height: 40) }, at: center)
+    // Added by the CI critic (2026-10-07): the mappings CI-H item 8 names
+    // that P1–P10 did not measure. Read with `cursorNameWide`, so the earlier
+    // arms' lines (read with `cursorName`) cannot change.
+    pointerArmWide("P15 .verticalText", Color.gray.pointerStyle(.verticalText))
+    pointerArmWide("P16 .zoomOut", Color.gray.pointerStyle(.zoomOut))
+    for (label, pos) in [("top", FrameResizePosition.top), ("leading", .leading), ("bottom", .bottom),
+                         ("topLeading", .topLeading), ("topTrailing", .topTrailing),
+                         ("bottomLeading", .bottomLeading), ("bottomTrailing", .bottomTrailing)] {
+        pointerArmWide("P17 .frameResize(position: .\(label))", Color.gray.pointerStyle(.frameResize(position: pos)))
+    }
+    pointerArmWide("P18 .frameResize(position: .trailing, directions: .inward)",
+                   Color.gray.pointerStyle(.frameResize(position: .trailing, directions: .inward)))
+    pointerArmWide("P19 .frameResize(position: .top, directions: .outward)",
+                   Color.gray.pointerStyle(.frameResize(position: .top, directions: .outward)))
+}
+
+/// `cursorName` widened to every `NSCursor.frameResize(position:directions:)`
+/// (eight positions × inward/outward/all) and the vertical I-beam; used only
+/// by P15–P19.
+@MainActor func cursorNameWide(_ c: NSCursor) -> String {
+    var known: [(String, NSCursor)] = [
+        ("arrow", .arrow), ("crosshair", .crosshair), ("openHand", .openHand), ("closedHand", .closedHand),
+        ("pointingHand", .pointingHand), ("IBeam", .iBeam), ("IBeamVertical", .iBeamCursorForVerticalLayout),
+        ("resizeLeftRight", .resizeLeftRight), ("resizeUpDown", .resizeUpDown),
+        ("columnResize", .columnResize), ("rowResize", .rowResize), ("zoomIn", .zoomIn), ("zoomOut", .zoomOut),
+    ]
+    let positions: [(String, NSCursor.FrameResizePosition)] = [
+        ("top", .top), ("left", .left), ("bottom", .bottom), ("right", .right),
+        ("topLeft", .topLeft), ("topRight", .topRight), ("bottomLeft", .bottomLeft), ("bottomRight", .bottomRight),
+    ]
+    let directions: [(String, NSCursor.FrameResizeDirection.Set)] = [("inward", .inward), ("outward", .outward), ("all", .all)]
+    for (pn, pos) in positions { for (dn, dir) in directions {
+        known.append(("frameResize(.\(pn), .\(dn))", .frameResize(position: pos, directions: dir)))
+    } }
+    let names = known.filter { $0.1 == c }.map(\.0)
+    return names.isEmpty ? "other(size=\(c.image.size) hot=\(c.hotSpot))" : names.joined(separator: "=")
+}
+
+@MainActor func pointerArmWide<V: View>(_ label: String, _ view: V, at c: CGPoint = CGPoint(x: 60, y: 60)) {
+    NSCursor.arrow.set()
+    let w = makeWindow(Offset(content: view))
+    mouse(w, .mouseMoved, wp(c.x, c.y)); spin(0.1)
+    _ = driveCursorUpdate(w, at: wp(c.x, c.y)); spin(0.5)
+    _ = driveCursorUpdate(w, at: wp(c.x + 2, c.y + 1)); spin(0.5)
+    _ = Log.take()
+    print("  \(label): current=\(cursorNameWide(NSCursor.current))")
+    w.orderOut(nil)
 }
 
 // MARK: - C: context menu timing

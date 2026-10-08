@@ -22,7 +22,11 @@ Record: `../record/81-input-apis.md`.
 > passes it on (`CI-I` item 2); (2) the pointer location on `ScrollEvent` is
 > **`location`** (local), beside the existing window-space `position` (`CI-I`
 > item 1); (3) `RotateGesture.Value.rotation` is **positive clockwise** — the
-> negative of AppKit's `NSEvent.rotation` (probe `Q1`).
+> negative of AppKit's `NSEvent.rotation` (probe `Q1`). **One addition (the
+> critic, `CI-R`):** the right-click face menu's click point — `.contextMenu {
+> (location: Point<Pixels>?) in … }`, the menu builder handed the press point in
+> the element's local space (`nil` for a keyboard or accessibility open);
+> SwiftUI has no located context menu, so this is MetalUI-only.
 
 Evidence (each header carries its recorded output and how to run it):
 
@@ -48,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-P`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-X`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -117,7 +121,8 @@ offers all five.
   the drag case MetalCreator asked for. Owner: none.
 - `CoordinateSpace.named(_:)` and `.coordinateSpace(_:)`. Owner: none.
 - The I-beam over `TextField`/`TextEditor` and the pointing hand over `Link`
-  (SwiftUI shows them; MetalUI's own controls declare no style yet) — text
+  (MetalUI's own controls declare no style yet; what SwiftUI shows there is
+  unprobed — `CI-U` item 2) — text
   input must not move on this branch. Owner: none (one `pointerStyle` line per
   control later).
 - `RotateGesture` on SDL (no SDL rotate event; `CI-K`), magnify on Windows
@@ -161,9 +166,9 @@ renames anything.
    carries). `DragGesture(minimumDistance:coordinateSpace:button:)` takes it
    too; its values in `.global` are window points.
 4. **Divergence 139**: SwiftUI's `.global` in a titled window reads (60, 72)
-   where the content-space point is (60, 40) (probe `T2`): its global space
-   includes the window's title bar; MetalUI's `.global` is the content view's
-   space (MetalUI has no title-bar-inclusive space; a window's content is its
+   where the content-space point is (60, 40) (probe `T2`): a 32-point offset
+   (title bar or hosting inset — not separated; narrowed by `CI-U` item 1);
+   MetalUI's `.global` is the content view's space (a window's content is its
    whole world).
 5. `Gesture.swift`'s "Not offered" list loses `SpatialTapGesture`, "a tap with
    a location" and `coordinateSpace:`; it gains `CoordinateSpace.named`.
@@ -407,14 +412,13 @@ compares it; every existing construction defaults it to `[]`).
    style region on the target's layer whose id the target is or descends from
    — whether or not the pointer is still over it, so a `.grabActive` switched
    on by `@State` at the drag's start stays while a fast pan leaves the
-   element. This follows AppKit's behaviour of not running cursor updates
-   during a mouse drag (no `.enabledDuringMouseDrag`).
+   element. MetalUI's rule (`CI-U` item 3), not a measured AppKit behaviour.
 7. **When**: recomputed where hover is (`Window.updateHover`'s call sites —
    every pointer event and after every adopted frame), and the platform is
    called **only on a change**. While an in-window menu or a drawn alert is up
-   the style is `.default` (`SV-N` item 6's rule). `.pointerExited` sets
-   `.default` without a platform call being owed afterwards (the platform owns
-   the cursor outside the window; the next entry recomputes).
+   the style is `.default` (`SV-N` item 6's rule). `.pointerExited` forgets
+   the last-sent style, so the first pointer event after it re-sends (`CI-S`
+   supersedes this item's earlier "no call owed").
 8. **Platform**: **`PlatformWindow.setPointerStyle(_ style:
    PlatformPointerStyle)`, defaultless** (`EV-AB`'s reason) with
    `PlatformPointerStyle` in `MetalUIPlatform` (the cursor kinds below; no
@@ -456,7 +460,7 @@ looks at every style on AppKit.
    Point<Pixels>`. `InputPhase` (new, `MetalUIPlatform`): `.none`, `.mayBegin`,
    `.began`, `.changed`, `.ended`, `.cancelled` (AppKit's `NSEvent.Phase`;
    gpui's `TouchPhase` is the comparison). `isMomentum` becomes a computed
-   `momentumPhase != .none`; the existing initialiser keeps its spelling
+   `momentumPhase != .none` (with a setter, `CI-V` item 1); the existing initialiser keeps its spelling
    (`isMomentum: true` sets `momentumPhase = .changed`), and a full initialiser
    `init(position:delta:modifiers:phase:momentumPhase:isPrecise:timestamp:)`
    is added. **`delta` stays points** (a non-precise device's lines × 10, as
@@ -604,7 +608,7 @@ the host view; SDL's translation by pushing raw SDL events through the bridge
 with no style or wheel region registers no extra hitbox and the pointer-style
 recompute does no work (`pointerStyleVisits` 0), counted, never timed.
 
-## CI-O — Lanes (three, disjoint files, order 1 → 2 → 3)
+## CI-O — Lanes (three, disjoint files, order 1 → 2 → 3) — re-cut by `CI-W`
 
 **Ruling.** Lane 1 — the seam and both platforms (`MetalUIPlatform`,
 `MetalUIAppKit`, `Backends/SDL`, the test fakes and guard conformer
@@ -615,3 +619,177 @@ templates). Lane 2 — the gesture surface and the arena (`Gesture.swift`,
 `MenuSession.swift`, `Popover.swift`, `Tooltip.swift`, new `PointerStyle.swift`
 and `ScrollWheel.swift`, the canvas demo), plus the docs registry rows and
 human checks group Y. Files per lane: spec §2–§3.
+
+---
+
+The rulings below are the **critic's** (2026-10-07, after `f39e14d`). Each
+corrects or extends one above; where they disagree, the later ruling wins and
+the spec carries the amendment.
+
+## CI-P — The probe re-run, and the cursor mappings it had not measured
+
+**Ruling.**
+
+1. **Re-run**: the probe's 50 recorded lines re-read **byte for byte**, twice,
+   on the same machine and toolchain with the screen **unlocked** (recorded
+   locked) — every `T`, `R`, `M`, `Q`, `P`, `C` answer above stands.
+2. `CI-H` item 8 named AppKit mappings P1–P10 never measured. New arms
+   **P15–P19** (appended; read through a separate `cursorNameWide` so no earlier
+   line can move; 61 lines, twice byte-identical): `verticalText` →
+   `iBeamCursorForVerticalLayout`, `zoomOut` → `zoomOut`, and every
+   `frameResize(position:)` reads the natural AppKit position (`leading` →
+   `.left`, `topLeading` → `.topLeft`, …). **But `NSCursor ==` compares images**:
+   with `.all` a position equals its opposite (`top` == `bottom`, `topLeft` ==
+   `bottomRight`), and `(trailing, .inward)` == `(leading, .outward)`.
+3. Therefore **test 1.8 pins the frame-resize table as values**, not cursors:
+   the AppKit side exposes a pure `AppKitCursor.frameResize(for:) ->
+   (NSCursor.FrameResizePosition, NSCursor.FrameResizeDirection.Set)` that
+   `setPointerStyle` uses, and 1.8 compares those values for all eight edges
+   and the three direction sets; the other kinds are still compared as cursors
+   (each distinct). Mutation (added): swap `top`/`bottom` in the table → 1.8
+   red (a cursor comparison would stay green — that is the defect this item
+   fixes).
+
+**Evidence.** Probe header "RE-RUN 2026-10-07" and arms P15–P19.
+
+## CI-Q — `Handlers` has seventeen members and a size pin; one box, not two members
+
+**Ruling.** Spec §1.3's "sixteen → eighteen, two members" is wrong twice:
+`Handlers` already has **seventeen** members (`hover`, `SV-AH` corrected
+`SV-N`'s "sixteen"; CLAUDE.md's "sixteen" is stale and the Record phase fixes
+it), and `MemoryLayout<Handlers>.size` is pinned at **472** by
+`handlersGainsOneReferenceMember` (`ContextMenuTests`, exact) and
+`theNewDeclarationsCostHandlersAtMostOnePointer` (`AccessibilityModifierTests`,
+`<= 440 + 8 + 8 + 8 + 8`) for `IX-N`'s Windows stack budget — an inline closure
+(16 bytes) plus an optional `PointerStyle` would break both.
+
+So the wheel handler and the style ride **one class box**,
+`PointerAttachment` (`final class`, `let scrollWheel: (@MainActor
+(ScrollEvent) -> Bool)?`, `let style: PointerStyle?`; a later `.onScrollWheel`
+or `.pointerStyle` replaces its own field and keeps the other, as
+`ContextualAttachment` does), the **eighteenth** member `pointer:
+PointerAttachment?`. Size **472 → 480**: lane 3 edits both pins (`== 480` and
+`<= 440 + 8 × 5`) with a doc line naming this ruling, and their mutation becomes
+"store the closure inline". `HandlerShape` and `HandlerFingerprint` each gain
+**one** field.
+
+**Cost if wrong.** None to callers (internal storage).
+
+## CI-R — A located context menu (MetalCreator's face menu)
+
+**Ruling.**
+
+1. MetalCreator's C7 item 4 needs "the click point in local coordinates" for
+   **the right-click face menu**. The design had no way to read it: a
+   `DragGesture(minimumDistance: 0, button: .secondary)` activates on the press
+   and so cancels the pending menu (`CI-F` item 4), and `.contextMenu`'s builder
+   takes no argument.
+2. **`.contextMenu(menuItems: @escaping @MainActor (Point<Pixels>?) -> M)`**
+   (`@MenuContentBuilder`), on both vocabularies beside the existing overload,
+   selected by the closure's arity (guard 2.25). **MetalUI-only**: SwiftUI's
+   macOS interface has seven `contextMenu` signatures and none passes a
+   location (census re-taken by the critic, recorded in the probe header).
+3. The point is the **secondary press's** position in the contextual region's
+   local space (`Hitbox.localPoint`, so render effects are undone), whether the
+   menu opens on the press or, deferred, on the release (`CI-F` item 4 — the
+   press point, not the release). **`nil`** when the menu opens from the
+   keyboard (`MN-G`) or an accessibility show-menu (C11): there is no pointer.
+4. Storage: `ContextualAttachment.menu` becomes `(@MainActor (Point<Pixels>?)
+   -> MenuItems)?`; the location-less overload ignores its argument. No new
+   `Handlers` member, no size change.
+5. Lane 2 owns it (`ContextMenu.swift`, `MenuSession.swift`; `CI-W`). Tests
+   2.21–2.25 (spec §4.2).
+
+**Cost if wrong.** If SwiftUI grows a located menu, MetalUI adds its spelling
+beside this one.
+
+## CI-S — A pointer exit forgets the style it sent
+
+**Ruling.** `CI-H` item 7 reset the resolved style to `.default` on
+`.pointerExited` "without a platform call owed afterwards". On SDL the cursor
+is **process-global** (`SDL_SetCursor`): it survives leaving the window and
+comes back on re-entry, so after an exit over a `.rectSelection` region and a
+re-entry over a default region the window would compute `.default` == the
+recorded `.default` and send nothing — the crosshair would stick (and with two
+SDL windows, one window's style would show over the other). **So an exit sets
+the last-sent style to unknown (`nil`), and the first pointer event after it
+sends the resolved style unconditionally** — one platform call per entry, on
+every platform. Test 3.23 becomes
+`aPointerReEntryResendsTheStyleEvenWhenItIsDefault`: crosshair region, exit,
+re-enter over a default region → the fake records `.arrow` again. Mutation: on
+exit set the last-sent style to `.default` → red.
+
+## CI-T — The AppKit control-drag test changes on purpose
+
+**Ruling.** `CI-E` item 3 turns a control-press's drag into
+`.rightMouseDragged`. The existing `aRightMouseDownAndAControlClickReachOnInputAsRightMouseDown`
+(`AppKitMenuTests` 2.4, `MN-AC` item 1) pins that drag **dropped**; lane 1
+edits it (its log gains the control-drag as a secondary drag, its doc names
+this ruling), and `Tests/MetalUITests/AppKitMenuTests.swift` joins lane 1's
+files. A reddening there under lane 1's change is the migration, not a
+regression — the lane records it.
+
+## CI-U — Claims the probe did not make, struck or narrowed
+
+**Ruling.**
+
+1. **Divergence 139** (`CI-B` item 4) says SwiftUI's `.global` "includes the
+   title bar". The probe measured only that `.global` read **32 points lower**
+   than the content-view point (T2 (60, 72) vs (60, 40)); whether the offset is
+   the title bar or the hosting view's top inset was not separated. The row
+   states the measured offset and nothing more.
+2. `CI-A`'s deferral says SwiftUI **shows an I-beam over `TextField`** and **a
+   pointing hand over `Link`**. Unprobed: struck. The deferral stands as
+   MetalUI's (its controls declare no style on this branch), and lane 3 adds a
+   **"Not offered — documented absences"** row in `docs/divergences.md` for it
+   and for the other `CI-A` deferrals that are SwiftUI API
+   (`PointerStyle.image`/`.shape`/`columnResize(directions:)`/`rowResize(directions:)`,
+   `onModifierKeysChanged`, `CoordinateSpace.named`/`.coordinateSpace(_:)`,
+   gesture `time`/`velocity`/`predictedEnd*`, `inputKinds:`).
+3. `CI-H` item 6 justifies holding the pressed target's style by "AppKit's
+   behaviour of not running cursor updates during a mouse drag". Unmeasured:
+   it is **MetalUI's rule**, kept for MetalCreator's fast pan; human check Y5
+   looks.
+
+## CI-V — Smaller spec corrections
+
+**Ruling.**
+
+1. **`ScrollEvent.isMomentum` keeps a setter** (computed `get` = `momentumPhase
+   != .none`; `set` true → `.changed` unless already non-`.none`, false →
+   `.none`), so assigning it still compiles; migration note §8.1 item 5 is
+   struck. Test 1.3 gains the setter arm.
+2. **A proposal `.onScrollWheel` on a `ScrollView`** wraps it in its own
+   identity level, the scroller's **parent**, so in `CI-I` item 4's chain it
+   runs **after** the scroller, which always claims: it sees nothing. Only the
+   legacy (same-id) spelling can veto scrolling (test 3.6). The modifier's doc
+   says so and test 3.5 gains that arm (mutation: consult a wrapper's handler
+   before its child's scroll region → the arm reddens).
+3. **The demo drops "`.grabIdle` while ⌥ is held"**: with no modifier-change
+   hook (`onModifierKeysChanged` deferred), a ⌥ press without a pointer move
+   cannot change a style. `.grabIdle` shows over the canvas's pan strip instead.
+4. **A pinch event of phase `.ended`/`.cancelled` with no live pinch arena is
+   dropped** (`CI-D` item 1 formed an arena on "any phase").
+
+## CI-W — Lanes re-cut (amends `CI-O`)
+
+**Ruling.** `CI-O`'s lane 3 held 36 tests, both arenas' window integration,
+the wheel, the pointer style, the menus, the demo and every registry — too
+large for one agent, while lane 2 was pure. Re-cut, still **1 → 2 → 3**, one
+agent at a time in one worktree:
+
+- **Lane 1 — seam and platforms**: unchanged, plus `AppKitMenuTests.swift`
+  (`CI-T`) and the frame-resize value table (`CI-P`).
+- **Lane 2 — gestures end to end**: the surface and the arena (old 2.x), **and
+  their `Window` integration** — tap location on both vocabularies, the pinch
+  arena, the button arena, the context menu's deferral and the located menu
+  (`CI-R`), the menu/popover/tooltip handling of the new events: old tests 3.1,
+  3.26–3.34 move here (ids kept) with 2.21–2.25.
+- **Lane 3 — wheel, pointer style, demo, registries**: `CI-I`, `CI-H`, `CI-Q`,
+  `CI-S`, the canvas demo, divergences 139–141 and the Not-offered rows, the
+  inventory and census, human checks Y.
+
+`Window.swift` is named in lanes 2 and 3: lane 2 edits the press, pinch and
+menu stages, lane 3 the wheel stage and the hover/style recompute, on top of
+lane 2's commit. Sequential lanes make the overlap safe; no lane runs beside
+another.
