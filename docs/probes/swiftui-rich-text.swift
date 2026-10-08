@@ -155,6 +155,9 @@
 //     M32 Text("<b>x</b>") ≡ verbatim  [verbatim:0 bold x:961]
 //     M33 Text("a  \nb") ≡ verbatim  [verbatim:0]
 //     M34 Text("&nbsp;x") ≡ nbsp x  [nbsp x:0 space x:0]
+//     C7d Text("b").baselineOffset(5) alone size=8x21 first=18 last=18 | -5 size=8x21 first=13 last=13 | plain b size=8x16 first=13 last=13
+//     C18 reservesSpace 3 on 10pt+30pt one line size=24.5x36 first=29 last=29 | 30pt B reservesSpace 3 size=19x105 first=29 last=29 | 10pt a reservesSpace 3 size=6x36 first=10 last=10 | 30pt B + 10pt a size=24.5x105 first=29 last=29
+//     C19 lineLimit(1) on 10pt line + 30pt second line, wrap 40: size=38x35 first=29 last=29
 //     M30 Button("**b**") {} ≡ Text(bold) label  [Text(bold) label:0 verbatim label:2808]
 //     M31 Toggle("**b**") ≡ bold label  [bold label:0 verbatim label:582]
 
@@ -591,6 +594,9 @@ func followUp() {
     out("M32", "Text(\"<b>x</b>\") " + identify(Text("<b>x</b>"), [("verbatim", AnyView(Text(verbatim: "<b>x</b>"))), ("bold x", AnyView(Text(verbatim: "x").bold()))]))
     out("M33", "Text(\"a  \\nb\") " + identify(Text("a  \nb"), [("verbatim", AnyView(Text(verbatim: "a  \nb")))]))
     out("M34", "Text(\"&nbsp;x\") " + identify(Text("&nbsp;x"), [("nbsp x", AnyView(Text(verbatim: "\u{A0}x"))), ("space x", AnyView(Text(verbatim: " x")))]))
+    out("C7d", "Text(\"b\").baselineOffset(5) alone " + measure(Text("b").baselineOffset(5)) + " | -5 " + measure(Text("b").baselineOffset(-5)) + " | plain b " + measure(Text("b")))
+    out("C18", "reservesSpace 3 on 10pt+30pt one line " + measure((Text("a").font(.system(size: 10)) + Text("B").font(.system(size: 30))).lineLimit(3, reservesSpace: true)) + " | 30pt B reservesSpace 3 " + measure(Text("B").font(.system(size: 30)).lineLimit(3, reservesSpace: true)) + " | 10pt a reservesSpace 3 " + measure(Text("a").font(.system(size: 10)).lineLimit(3, reservesSpace: true)) + " | 30pt B + 10pt a " + measure((Text("B").font(.system(size: 30)) + Text("a").font(.system(size: 10))).lineLimit(3, reservesSpace: true)))
+    out("C19", "lineLimit(1) on 10pt line + 30pt second line, wrap 40: " + measure((Text("aa aa").font(.system(size: 10)) + Text(" BB").font(.system(size: 30))).lineLimit(1), ProposedViewSize(width: 40, height: nil)))
     out("M30", "Button(\"**b**\") {} " + identify(Button("**b**") {}, [("Text(bold) label", AnyView(Button {} label: { Text("b").bold() })), ("verbatim label", AnyView(Button {} label: { Text(verbatim: "**b**") }))]))
     out("M31", "Toggle(\"**b**\") " + identify(Toggle("**b**", isOn: .constant(false)), [("bold label", AnyView(Toggle(isOn: .constant(false)) { Text("b").bold() })), ("verbatim label", AnyView(Toggle(isOn: .constant(false)) { Text(verbatim: "**b**") }))]))
 }
