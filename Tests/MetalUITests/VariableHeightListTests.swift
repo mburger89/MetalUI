@@ -97,6 +97,9 @@ private final class VModel {
     var items: [VItem]
     var heights: [Int: Double] = [:]
     var width: Float = 200
+    /// The header above the list **inside** the scroller's content
+    /// (`headeredWindow` only).
+    var innerHeader: Float = 0
 
     init(count: Int) { items = (0..<count).map(VItem.init) }
 
@@ -408,14 +411,39 @@ func anInsertionAboveTheViewportKeepsTheRowOnTop() throws {
     #expect(offset == 2510, "\(offset)")
 }
 
+/// **2.7d (`VL-U` item 4(a), the window after a rebuild).** Declared
+/// estimate 50; 20 rows (ids 1000…1019) inserted at index 0 above row 50 on
+/// top. The anchor follows id 50 to index 70 at its old offset 2460, while the
+/// rebuilt index puts it at 2460 + 20 · 50 = 3460: the window must be found
+/// that `shift` (1000, far beyond the 2-row overscan) further on. In the frame
+/// of the change id 50 is on screen at **0** and ids 50…53 (60 + 80 + 20 + 40
+/// = the 200pt viewport) are built. Settled, the offset is **3460**.
+/// Mutation V2 (`index(containing: top + viewport)`, the shift dropped): no
+/// row of the viewport is built in that frame.
+@Test @MainActor
+func aMultiRowInsertionAboveTheViewportBuildsTheRowsOnScreenInThatFrame() throws {
+    let (window, _, model, log) = try rowFiftyOnTop(estimate: px(50))
+    model.items.insert(contentsOf: (1000..<1020).map(VItem.init), at: 0)
+    drawOne(window, log)
+    #expect(log.screenY[50] == 0, "the frame of the insertion: \(String(describing: log.screenY[50]))")
+    #expect(Set(log.built).isSuperset(of: 50...53), "the rows on screen are built: \(log.built)")
+    settle(window)
+    drawOne(window, log)
+    #expect(log.screenY[50] == 0, "settled")
+    let offset = try storedOffset(window)
+    #expect(offset == 3460, "\(offset)")
+}
+
 /// **2.7b (`VL-O` item 1).** Declared estimate 50. Arm 1: row 50 (on top)
 /// removed — the first recorded id after it still present, id 51, takes its
 /// place at 2460 (on screen **0**). Arm 2: row 50 removed **and** id 1000
 /// inserted at 0 in one change — id 51 is at index 51 and is still the anchor
-/// (on screen **0**), where index 50 holds id 49. Red-before: the stub never
-/// realises id 51 there. Mutations: (a) prefer the id before (id 49 on top,
-/// id 51 at 40 — arm 1); (b) fall back to `oldAnchorIndex` (index 50 = id 49 —
-/// arm 2).
+/// (on screen **0**), where index 50 holds id 49. Arm 3: the anchor and every
+/// id after it removed, new ids appended — the last surviving id before it,
+/// id 49, is on screen **0**. Red-before: the stub never realises id 51 there.
+/// Mutations: (a) prefer the id before (id 49 on top, id 51 at 40 — arm 1);
+/// (b) fall back to `oldAnchorIndex` (index 50 = id 49 — arm 2); V8 (no
+/// backward search, `min(oldAnchor, count − 1)` — arm 3).
 @Test @MainActor
 func removingTheRowOnTopPutsTheNextRowInItsPlace() throws {
     do {
@@ -438,6 +466,19 @@ func removingTheRowOnTopPutsTheNextRowInItsPlace() throws {
         #expect(log.screenY[51] == 0, "arm 2, settled")
         let offset = try storedOffset(window)
         #expect(offset == 2510, "arm 2: D = the new row's estimate, 50: \(offset)")
+    }
+    do {
+        // Arm 3: the anchor and every id after it removed, ids 2000…2009
+        // appended — no recorded id after the anchor survives, so the last one
+        // before it, id 49, takes its place (on screen **0**).
+        let (window, _, model, log) = try rowFiftyOnTop(estimate: px(50))
+        model.items.removeAll { $0.id >= 50 }
+        model.items.append(contentsOf: (2000..<2010).map(VItem.init))
+        drawOne(window, log)
+        #expect(log.screenY[49] == 0, "arm 3, the frame of the change: \(String(describing: log.screenY[49]))")
+        settle(window)
+        drawOne(window, log)
+        #expect(log.screenY[49] == 0, "arm 3, settled")
     }
 }
 
@@ -574,6 +615,124 @@ func aVariableListSettlesWithoutInput() throws {
         if window.needsRedraw { asking += 1 }
     } while window.needsRedraw && frames < 10
     #expect(asking == 1, "frames asking for another: \(asking)")
+}
+
+/// 300 patterned rows below `model.innerHeader` **inside** the scroller's
+/// content (a 200pt viewport), drawn until it asks for nothing.
+@MainActor
+private func headeredWindow(_ model: VModel, log: VLog) throws -> Window {
+    let (window, _) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        Box(style: column(width: 200, height: 200)) {
+            ScrollView {
+                Box(style: column(width: 200)) {
+                    Box(style: column(width: 200, height: model.innerHeader))
+                    List(model.items) { item in
+                        VLeaf(key: item.id, height: model.height(item.id), log: log)
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+    _ = settle(window)
+    return window
+}
+
+/// **2.11b (`DD-F` item 3 on the variable branch, `VL-F`; the twin of
+/// `aListWhoseOriginChangesIsReWindowedOnTheNextFrame`).** Every row measured,
+/// so `D` is 0 throughout. Arm 1: a 400pt header above, offset 2860 (row 50
+/// on top), the header set to 0 — the frame of the change windows against
+/// last frame's origin and, seeing the fresh window (row 58 on top, 2860 =
+/// 2460 + rows 50…57's 400) not contained, asks for one more frame; the next
+/// builds rows 58…61 (the viewport) with row 58 at **0** and asks for nothing.
+/// Arm 2: no header, row 50 on top at 2460 (built 48…56), the header grown to
+/// 40 — the top is 2420, row 49 (2420…2460), so the fresh window starts at the
+/// overscan row **47**, outside the built one by its leading overscan alone:
+/// one more frame, which builds 47…55. Mutations: V11 (`_ = contained`, the
+/// request dropped — both arms); V9 (the prepaint window's leading overscan
+/// dropped — arm 2).
+@Test @MainActor
+func aVariableListWhoseOriginChangesIsReWindowedOnTheNextFrame() throws {
+    do {
+        let model = VModel(count: 300)
+        model.innerHeader = 400
+        let log = VLog()
+        let window = try headeredWindow(model, log: log)
+        try setOffset(window, 2860)
+        drawOne(window, log)
+        try #require(log.screenY[50] == 0, "control: row 50 on top, got \(String(describing: log.screenY[50]))")
+        try #require(!window.needsRedraw, "control: a measured list at rest asks for nothing")
+        model.innerHeader = 0
+        log.reset()
+        window.drawFrameIfNeeded()
+        #expect(window.needsRedraw, "arm 1: the list moved 400pt up its content; its window went stale")
+        log.reset()
+        window.drawFrameIfNeeded()
+        #expect(Set(log.built).isSuperset(of: 58...61), "arm 1, the next frame: \(log.built)")
+        #expect(log.screenY[58] == 0, "arm 1: row 58 on top")
+        #expect(!window.needsRedraw, "arm 1: and asks for nothing more")
+        let offset = try storedOffset(window)
+        #expect(offset == 2860, "arm 1: no anchor adjustment (D = 0): \(offset)")
+    }
+    do {
+        let model = VModel(count: 300)
+        let log = VLog()
+        let window = try headeredWindow(model, log: log)
+        try setOffset(window, 2460)
+        drawOne(window, log)
+        try #require(log.built == Array(48...56), "control: built \(log.built)")
+        try #require(!window.needsRedraw)
+        model.innerHeader = 40
+        log.reset()
+        window.drawFrameIfNeeded()
+        #expect(window.needsRedraw, "arm 2: the fresh window's leading overscan row 47 was not built")
+        log.reset()
+        window.drawFrameIfNeeded()
+        #expect(log.built == Array(47...55), "arm 2, the next frame: \(log.built)")
+        #expect(log.screenY[49] == 0, "arm 2: row 49 on top")
+        #expect(!window.needsRedraw, "arm 2: and asks for nothing more")
+    }
+}
+
+/// **2.11c (`DD-F` items 3–4 on the variable branch; the twin of
+/// `aGrownViewportIsFilledOnTheNextFrameWithoutInput`).** 300 patterned rows
+/// in a root 200pt scroller, row 50 on top at 2460 (built 48…56), the window
+/// resized to 560: the first frame after the resize windows against last
+/// frame's viewport and asks for a frame; the next fills the grown viewport
+/// (2460…3020 = rows 50…60) with no input, building 48…63 (row 61 at 3020
+/// holds the bottom: 61 + 1 + 2), and asks for nothing. Every row measured,
+/// so `D` is 0. Mutation V11 (the request dropped).
+@Test @MainActor
+func aGrownViewportIsFilledByAVariableListOnTheNextFrameWithoutInput() throws {
+    let model = VModel(count: 300)
+    let log = VLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+        ScrollView {
+            Box(style: column(width: 200)) {
+                List(model.items) { item in
+                    VLeaf(key: item.id, height: model.height(item.id), log: log)
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+    _ = settle(window)
+    try setOffset(window, 2460)
+    drawOne(window, log)
+    try #require(log.built == Array(48...56), "control: built \(log.built)")
+    try #require(!window.needsRedraw)
+
+    platform.simulateResize(to: Size(width: px(560), height: px(560)))
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(log.built == Array(48...56), "the first frame after the resize windows against last frame's viewport")
+    #expect(window.needsRedraw, "and, seeing a 560pt viewport it did not fill, asks for one more frame")
+
+    log.reset()
+    window.drawFrameIfNeeded()
+    #expect(log.built == Array(48...63), "the next frame fills the grown viewport: \(log.built)")
+    #expect(log.screenY[50] == 0)
+    #expect(!window.needsRedraw, "and asks for nothing more")
 }
 
 // MARK: - 2.12–2.15: what does not move (`VL-J`)
@@ -843,14 +1002,15 @@ func aVariableListInAHorizontalScrollerMeasuresEveryRowAtItsWidestWidth() throws
     #expect(log.bounds[1]?.origin.y == (log.bounds[0].map { $0.origin.y + px(10) }))
 }
 
-/// **2.18 (spec §3.1, `VL-R` item 2).** `estimatedRowHeight: 0` and `-5` are
-/// clamped to "not declared": after 10 patterned rows (sum 460, mean 46) grow
-/// to 100, the extent is 460 + 90 · 46 = **4600** for nil, 0 and −5 alike.
+/// **2.18 (spec §3.1, `VL-R` item 2).** `estimatedRowHeight: 0`, `-5` and
+/// `.infinity` are clamped to "not declared": after 10 patterned rows (sum
+/// 460, mean 46) grow to 100, the extent is 460 + 90 · 46 = **4600** for nil,
+/// 0, −5 and ∞ alike (V13, `isFinite` dropped, reddens the ∞ arm).
 /// Red-before: the stub answers 100 × 24 = 2400. Mutation: drop the clamp (a
 /// declared 0 makes every unmeasured row 0: 460).
 @Test @MainActor
 func aNonPositiveEstimateIsTreatedAsUndeclared() throws {
-    for estimate in [nil, px(0), px(-5)] as [Pixels?] {
+    for estimate in [nil, px(0), px(-5), px(.infinity)] as [Pixels?] {
         let model = VModel(count: 10)
         let log = VLog()
         let (window, _) = try scrolledWindow(model, log: log, estimate: estimate)
