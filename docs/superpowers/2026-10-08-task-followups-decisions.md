@@ -151,7 +151,7 @@ off SDL's offscreen driver, so no CI job runs `.task` under SDL).
    **`package`** initialiser parameter, `init(hiddenWindows: Bool = false,
    offscreenRenderers: Bool)` (the public `init(hiddenWindows:)` unchanged and
    forwarding `false`), under which `openSDLWindow` gives each `SDLWindow` an
-   offscreen renderer the window's size (in pixels, scale 1) instead of
+   offscreen renderer the window's size in pixels (its point size times `mui_window_pixel_density`, which is also the renderer's scale factor; `TF-E` item 4) instead of
    claiming the window. Everything else is the production path: SDL events,
    `SDLPlatform.run`'s pump, main-queue drain and display-link ticks,
    `App.openWindow`, `Window.drawFrameIfNeeded`'s builds and lifecycle drain,
@@ -258,6 +258,11 @@ divergence row says so, and TF1.4 reddens the day `@State` survives the ghost
    `SDLPlatform` (a production code path switched by the environment); moving
    the check into the root package (it needs the SDL package's traits and
    shaders, `PX-P`).
+4. **Corrected reading (Record phase).** `TF-C` item 3 and spec §3.3 said the
+   offscreen target is the window's size in pixels at scale 1. The code
+   (`SDLWindow.init(handle:offscreen:)`) sizes it as the point size times
+   `mui_window_pixel_density` and passes that density as the scale factor, as
+   the swapchain path does; the text is amended to match.
 
 **Cost if wrong.** If SPI were later judged API, the initialiser can drop to
 `internal` the day the check moves into the root package; nothing outside

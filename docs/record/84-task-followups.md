@@ -10,8 +10,8 @@ rulings `TF-A`…`TF-E` in `docs/superpowers/2026-10-08-task-followups-decisions
 (`LOCAL`/`URL`/`URL-OWN`). Parallel branches at the time: `feat/input-apis`
 (§81), `feat/variable-height-list` (§82), `feat/rich-text` (§83).
 
-**Status: implementation lane complete (2026-10-08)**; the Record phase (CLAUDE.md
-rule, record §04 dated line for divergence 123, README row) follows.
+**Status: complete and recorded (2026-10-08)** — implementation lane verified
+`ok`, Record phase done (§7).
 
 ## 0. Baseline
 
@@ -135,8 +135,49 @@ compares the starter's text byte-for-byte (they use `contains`).
 warnings; `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green there and
 in the macOS suite.
 
-## 6. Deferred
+## 6. Verifier readings and one unpinned line
+
+The verifier (fresh `swift package clean`, native, unfiltered): **2677 tests in
+3 suites** passed, run unmutated twice (the second after every mutation was
+reverted); `FR-J … succeeded=true`; 0 `error:`; `Backends/SDL` macOS 24 + 84,
+image 24 + 81 with 3.20b ungated; tests 1.7 and 1.8 unmutated pass in the image;
+fourteen images 0 px. It also ran, red as expected, the fix reverted to
+`70ed000`'s `Lifecycle.swift` (TF1.1–TF1.4 red) and an extra `onChange`-half
+mutation (`previous[key] != nil` required — TF1.3 red).
+
+**Unpinned, inherited from `70ed000`: MV1.** `runningTaskCount`'s parked half
+(`departed.values.compactMap(\.running)`, the observability line `TF-A` item 4
+rewrote) was replaced by `let held: [RunningTask] = []` and **no test reddened**
+(2677 green): nothing reads `runningTaskCount` while a ghost is live. The line
+was equally unpinned before this branch; recorded, not fixed (owner: the next
+lifecycle lane).
+
+**SwiftUI probe not re-run at the Record phase**: the lock probe read
+`CGSSessionScreenIsLocked = 1` (and the verifier's `displayAsleep main: 1`). The
+`TF-A` claims rest on `swiftui-task-ghost-id.swift` run twice more at critique
+(`TF-D`), byte-identical to the first.
+
+## 6a. Amended text
+
+`TF-C` item 3 / spec §3.3 said "scale 1"; the offscreen target is
+density-scaled — `TF-E` item 4. Test 3.20b's doc comment named a `package`
+option; it now says `@_spi(Checks)`, `TF-E`.
+
+## 6b. Deferred
 
 As spec §8: un-gating `SDLLifecycleTests` 10.2/10.3 through the same option
 (owner: the SDL test lane); a ghost that ends before the key returns (`Y4`,
 already MetalUI's); `@State` across a ghost (divergence 123's root, `ID-C`).
+
+## 7. Record phase
+
+Merge base `70ed000` still `origin/master`'s tip at the Record phase (no merge,
+no renumbering: §84 stood). Documents changed: this file, the decisions doc and
+spec (above), `CLAUDE.md`/`AGENTS.md` (the `TF-` prefix, one `.task` paragraph
+line, counts), `docs/divergences.md` (row 123, no new label; header untouched),
+`docs/record/README.md` (row), `04-divergences.md` and `03-verified-on-real-hardware.md`
+(dated lines). Unchanged, with reason: `docs/api-overview.md` and the inventory
+map (no public declaration in root `Sources/`; the SPI initialiser is in
+`Backends/SDL`, outside the census), `docs/migration.md` (nothing breaking: a
+public `init(hiddenWindows:)` is unchanged, `convenience`), human checks (no new
+look; X2 already covers a counting `.task` in a real window).

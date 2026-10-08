@@ -2029,3 +2029,9 @@ README's install list, then the shipped copy with `MetalUISDLShaders`); X2 a cou
 Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
 and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
 light and dark icons on Linux against macOS.
+
+`.task` follow-ups (record §84, 2026-10-08): the fourteen offscreen demo images
+read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
+probe was not re-run at the Record phase and no real-window capture was taken.
+No new look is owed (group X's X2 already covers a counting `.task` in a real
+window).

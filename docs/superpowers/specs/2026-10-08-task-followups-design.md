@@ -5,7 +5,9 @@ task**): the three minor findings `PX-V` logged after `.task` landed
 (`docs/superpowers/2026-10-07-portable-app-decisions.md`, record §80).
 Branch `fix/task-followups` from `70ed000`. Rulings:
 [`../2026-10-08-task-followups-decisions.md`](../2026-10-08-task-followups-decisions.md)
-(`TF-A`…`TF-D`). Record: `docs/record/84-task-followups.md` (Record phase).
+(`TF-A`…`TF-E`). Record: `docs/record/84-task-followups.md`.
+
+**Status: implemented and recorded (2026-10-08).** Three amendments by measurement: `TF-D` (the departed baseline meets the reset `@State`), `TF-E` (the offscreen option is SPI `Checks`, density-scaled).
 
 ## 1. Scope
 
@@ -82,7 +84,7 @@ empty; its doc comment states what a URL consumer can and cannot show
   `offscreenRenderers` is passed by `openSDLWindow` to `SDLWindow.init(handle:
   offscreenSize:)` (`nil` = today's swapchain claim). With a size, the window's
   renderer is `SDLWindowRenderer(offscreenWidth:height:)` at the window's pixel
-  size (scale 1, as `offscreenScaleFactor` already reports). The `#if !SDL`
+  size (density-scaled, with the density as the scale factor; amended by `TF-E` item 4). The `#if !SDL`
   stub is untouched. (Amended by `TF-E`: the design's `package init` cannot be
   reached from `MainQueueDrainCheck`, which is in the `Backends/SDL` package, not
   the root package that declares `MetalUISDL`; the public initialiser becomes a

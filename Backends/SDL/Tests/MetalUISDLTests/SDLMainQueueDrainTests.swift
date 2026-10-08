@@ -112,8 +112,8 @@ func aTaskModifierProgressesAndIsCancelledUnderSDLPlatform() throws {
 }
 
 /// **3.20b** (ruling `TF-C`). 3.20's tree and line with every window
-/// rendering into an offscreen target (`SDLPlatform`'s `package`
-/// `offscreenRenderers`), so frames build and the lifecycle drain runs with no
+/// rendering into an offscreen target (`SDLPlatform`'s `@_spi(Checks)`
+/// `offscreenRenderers`, ruling `TF-E`), so frames build and the lifecycle drain runs with no
 /// presented frame: ungated, it runs `.task`'s start, progress and cancel
 /// under the SDL loop in CI's Linux image. Red before, in the image: the mode
 /// over the swapchain path prints `task started=false steps=0
