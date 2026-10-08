@@ -21,6 +21,18 @@ extension StyledElement {
         gesture(TapGesture(count: count).onEnded(action))
     }
 
+    /// Runs `action` with the tap's location when this element is tapped
+    /// `count` times — SwiftUI's `onTapGesture(count:coordinateSpace:perform:)`
+    /// (ruling `CI-B` item 2, probe `T3`): a `SpatialTapGesture`, its point the
+    /// release that ends the tap, in this element's local space by default or
+    /// the window's content space for `.global` (divergence 139). The
+    /// closure's arity picks between this and the location-less overload, as
+    /// in SwiftUI.
+    public func onTapGesture(count: Int = 1, coordinateSpace: CoordinateSpace = .local,
+                             perform action: @escaping @MainActor (Point<Pixels>) -> Void) -> Self {
+        gesture(SpatialTapGesture(count: count, coordinateSpace: coordinateSpace).onEnded { action($0.location) })
+    }
+
     /// Runs `action` once the element has been pressed for `minimumDuration`
     /// without moving `maximumDistance` — SwiftUI's
     /// `onLongPressGesture(minimumDuration:maximumDistance:perform:onPressingChanged:)`.
@@ -122,6 +134,14 @@ extension ProposalElementGroup {
     public func onTapGesture(count: Int = 1,
                              perform action: @escaping @MainActor () -> Void) -> GestureModifier<Self> {
         gesture(TapGesture(count: count).onEnded(action))
+    }
+
+    /// `StyledElement.onTapGesture(count:coordinateSpace:perform:)` on the
+    /// proposal path: the location is local to this wrapper's bounds.
+    public func onTapGesture(count: Int = 1, coordinateSpace: CoordinateSpace = .local,
+                             perform action: @escaping @MainActor (Point<Pixels>) -> Void)
+        -> GestureModifier<Self> {
+        gesture(SpatialTapGesture(count: count, coordinateSpace: coordinateSpace).onEnded { action($0.location) })
     }
 
     /// `StyledElement.onLongPressGesture(…)` on the proposal path.

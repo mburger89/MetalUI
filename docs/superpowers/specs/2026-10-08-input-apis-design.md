@@ -5,7 +5,7 @@ task**), motivated by MetalCreator (`/Users/maxburger/Developer/MetalCreator`,
 `docs/metalui-gaps.md` "Reported 2026-10-07 (C7)" and "C7 status and
 provisional API names"; never edited from here). Rulings: prefix **`CI-`** in
 [`../2026-10-08-input-apis-decisions.md`](../2026-10-08-input-apis-decisions.md)
-(`CI-A`…`CI-Z`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X`, `CI-Y` and `CI-Z` are lane 1's). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
+(`CI-A`…`CI-AA`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X`, `CI-Y` and `CI-Z` are lane 1's, `CI-AA` lane 2's). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
 Record: `docs/record/81-input-apis.md` (the Record phase writes it).
 
 Branch `feat/input-apis` from `70ed000`, worktree
@@ -226,7 +226,8 @@ The `Window.onInput` order, new stages in **bold**:
    **and the pointer style** recompute on every pointer event, the new four
    button cases, `.magnify`, `.rotate` included;
 2. the drawn alert (modal: the new cases are taken); the tooltip (hides on
-   `.otherMouseDown`, `.magnify`, `.rotate`; **tracks `.rightMouseDragged`/
+   `.otherMouseDown`, `.magnify`, `.rotate` — the pinch hide landed in lane 2,
+   `CI-AA` item 5, pin 3.31b; **tracks `.rightMouseDragged`/
    `.otherMouseDragged` as moves — that and the `.otherMouseDown` hide landed in
    lane 1, `CI-Z` item 2**); external drop; drag session;
 3. the in-window menu (**takes `.otherMouseDown` — an outside one dismisses —
@@ -390,6 +391,7 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 3.31 | `anOtherPressDismissesAPopoverAndAnOpenInWindowMenuTakesItAndPinches` | absent | `dispatchMenuSession` `default: false` for the new cases → red |
 | 3.32 | `aMiddleDragDuringAPendingPrimaryTapSequenceDisturbsNeither` | absent | one shared arena → red |
 | 3.33 | `aMagnifyEventReachesTheMagnifyGestureUnderThePointer` (both vocabularies, `@State` write) | absent | form the pinch arena at the last mouse position instead of the event's → red |
+| 3.31b | `aMagnifyOrARotateHidesTheTooltip` (`CI-AA` item 5; lane 2) | absent | drop `.magnify, .rotate` from `trackTooltip`'s hide arm → red |
 | 3.34 | `aPinchIsWithdrawnByDisabledAndAllowsHitTesting` | absent | — (rides the pointer hitbox; reddens with a gate mutation in `Frame.registerHandlers`, recorded) |
 | 3.35 | `theCanvasDemoPansZoomsAboutThePointerPicksAndShowsACrosshair` (`CanvasDemoTests`, headless: a middle drag moves the pan by its translation; ⌘-wheel and a pinch keep the canvas point under the pointer fixed — literal derived before the run; a spatial tap selects the node under it; the fake records `.crosshair`) | absent | zoom about the canvas origin → red |
 | 3.36 | `everyProductionTreeBuildsOnAOneMegabyteThread` gains the canvas demo's arm | arm absent | inline the demo's body into the composer (stack depth) — recorded, may be green (a green mutant is the measurement) |

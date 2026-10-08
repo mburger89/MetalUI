@@ -444,7 +444,11 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
             Button("A") {}
         }
     }
-    try requireRootTarget(legacy)
+    let want = "\(Bounds(origin: pt(50, 50), size: Size(width: px(200), height: px(200))))"
+    for window in [legacy, proposal] {
+        try #require(window.lastHitboxes.contains { !$0.opaque && $0.handlers.contextual != nil && "\($0.bounds)" == want },
+                     "the contextual region at (50, 50): \(window.lastHitboxes.map(\.bounds))")
+    }
     legacyPlatform.simulateInput(rdown(60, 80))
     proposalPlatform.simulateInput(rdown(60, 80))
     #expect(legacyPlatform.presentedMenus.count == 1 && proposalPlatform.presentedMenus.count == 1)
@@ -534,5 +538,31 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     try #require(platform.presentedMenus.count == 1, "the rotated bar is pressed where it is drawn")
     try #require(log.locations.count == 1)
     #expect(close(log.locations[0], pt(10, 5)), "\(log.locations)")
+    withExtendedLifetime(window) {}
+}
+
+// MARK: - The tooltip (spec §1.4 item 2)
+
+/// **3.31b** (`MN-P` item 2, spec §1.4 item 2; lane 2's addition, ruling
+/// `CI-AA`). A magnify or a rotate hides a shown tooltip, as a press does.
+/// Mutation: drop `.magnify, .rotate` from `trackTooltip`'s hide arm.
+@MainActor
+@Test func aMagnifyOrARotateHidesTheTooltip() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let (window, platform) = try makeFakeWindow(device: device, size: 300, startsDisplayLink: true) {
+        square().help("Tip")
+    }
+    window.drawFrameIfNeeded()
+    var time = 10.0
+    for event in [magnify(0, .began), rotate(0, .began)] {
+        platform.simulateInput(moved(10, 10))
+        platform.simulateInput(moved(150, 150))
+        platform.simulateTick(timestamp: time)
+        platform.simulateTick(timestamp: time + 1)
+        time += 10
+        try #require(window.visibleTooltip != nil, "set up: the tooltip shows")
+        platform.simulateInput(event)
+        #expect(window.visibleTooltip == nil, "hidden by \(event)")
+    }
     withExtendedLifetime(window) {}
 }

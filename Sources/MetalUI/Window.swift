@@ -875,7 +875,10 @@ public final class Window {
             // Hover (`SV-N` item 4): every pointer event and the pointer
             // leaving the window recompute the hovered set from input. Claims
             // nothing.
-            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp:
+            // The other buttons and a right drag too (`CI-X` item 1, `CI-Z`
+            // item 1: owed by lane 2).
+            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp,
+                 .rightMouseDragged, .otherMouseDown, .otherMouseDragged, .otherMouseUp:
                 self.updateHover(at: self.lastMousePosition, reportsMoves: true)
             case .pointerExited:
                 self.updateHover(at: nil, reportsMoves: true)
@@ -923,6 +926,15 @@ public final class Window {
             // scroll chaining (see `applyScroll`'s doc comment), so a claimed
             // wheel event does not also reach whoever opened the window.
             if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // A trackpad pinch's arena (`CI-D`) and a secondary or other
+            // button's arena (`CI-F`): each formed from the one ranking, each
+            // apart from the primary press's arena, each claiming the event
+            // when it holds a live arena. The primary-only stages below never
+            // see these events (`MN-B`, `CI-E` item 2).
+            if self.dispatchPinch(event) || self.dispatchButtonArena(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1960,8 +1972,10 @@ public final class Window {
             active = nil
         case .mouseMoved(let mouse), .mouseDragged(let mouse):
             lastMousePosition = mouse.position
-        case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
-            // A secondary press moves the pointer, never `active` (`MN-B` item 4).
+        case .rightMouseDown(let mouse), .rightMouseUp(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDown(let mouse), .otherMouseDragged(let mouse), .otherMouseUp(let mouse):
+            // A secondary or other press, and its drag, move the pointer,
+            // never `active` (`MN-B` item 4, `CI-E` item 2).
             lastMousePosition = mouse.position
         case .pointerExited:
             // The pointer left the window (`SV-N` item 7): nothing is under it.
@@ -2132,6 +2146,14 @@ public final class Window {
     /// native menu). `true` for the secondary button, `false` for the primary.
     var menuClaimsRelease: Bool?
 
+    /// An other button's press the open in-window menu took owes its release
+    /// a claim (spec §1.4 item 3).
+    var menuClaimsOtherRelease = false
+
+    /// A context menu deferred to its secondary press's release (`CI-F` item
+    /// 4), or `nil`.
+    var pendingContextMenu: PendingContextMenu?
+
     /// Asks the platform to show `menu` itself (`MN-C`).
     func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
         platformWindow.presentMenu(menu, at: position)
@@ -2211,7 +2233,8 @@ public final class Window {
                 // The no-target arena keys on its draggable region (`DN-U`
                 // item 5), so a continuing press compares against the same.
                 if let key, lastHitboxes[key.target].id == arena.targetID {
-                    callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true)
+                    callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true,
+                                            modifiers: mouse.modifiers)
                     gestureArena = arena
                     runGestureCallbacks(callbacks)
                     return false
@@ -2220,14 +2243,15 @@ public final class Window {
             }
             gestureArena = nil
             if let key, var arena = makeGestureArena(key, at: mouse.position) {
-                callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false)
+                callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false,
+                                         modifiers: mouse.modifiers)
                 gestureArena = arena
             }
             runGestureCallbacks(callbacks)
             return false
         case .mouseDragged(let mouse):
             guard var arena = gestureArena else { return false }
-            let callbacks = arena.move(to: mouse.position)
+            let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers)
             gestureArena = arena
             runGestureCallbacks(callbacks)
             return false
@@ -2236,6 +2260,7 @@ public final class Window {
                 return dispatchClick(event, pressedBefore: pressed)
             }
             let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
+                                          modifiers: mouse.modifiers,
                                           click: completedClick(mouse, pressedBefore: pressed))
             gestureArena = arena.isAlive ? arena : nil
             runGestureCallbacks(callbacks)
@@ -2275,7 +2300,7 @@ public final class Window {
     /// modal's click, nor its simultaneous one run beside it. Pinned by
     /// `aDeferredPresentationsPressDoesNotJoinItsDeclarersArena`.
     private func makeGestureArena(_ key: (target: Int, draggableAbove: Int?),
-                                  at point: Point<Pixels>) -> GestureArena? {
+                                  at point: Point<Pixels>, mode: ArenaMode = .press) -> GestureArena? {
         let hit = lastHitboxes[key.target]
         var ancestors: [(hitbox: Hitbox, depth: Int)] = []
         var depth = 1
@@ -2290,7 +2315,114 @@ public final class Window {
             cursor = id.parent
         }
         return GestureArena(target: hit, ancestors: ancestors,
-                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] })
+                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] }, mode: mode)
+    }
+
+    // MARK: The pinch and button arenas (input APIs, `CI-D`, `CI-F`)
+
+    /// The trackpad pinch's arena (`CI-D`), or `nil`: formed at a pinch's
+    /// first event, alive while a begun magnify or rotate has not ended.
+    private var pinchArena: GestureArena?
+
+    /// The secondary or other button's arena (`CI-F` item 3) and its button
+    /// number, or `nil`: formed at that button's press, ended by its release.
+    /// Apart from `gestureArena`, so a middle drag during a pending primary
+    /// tap sequence disturbs neither.
+    private var buttonArena: GestureArena?
+    private var buttonArenaButton = 0
+
+    /// The arena of `mode` for an event at `point`, from the one ranking:
+    /// `topmostOpaqueHitbox`'s target and its gesture-carrying ancestors in
+    /// its hit layer (`makeGestureArena`), no draggable region.
+    private func makeArena(at point: Point<Pixels>, mode: ArenaMode) -> GestureArena? {
+        guard let target = topmostOpaqueHitbox(in: lastHitboxes, at: point) else { return nil }
+        return makeGestureArena((target, nil), at: point, mode: mode)
+    }
+
+    /// Whether a secondary press at `point` would form a button arena with a
+    /// live leaf — the context-menu stage's reason to defer (`CI-F` item 4).
+    func secondaryDragIsDeclared(at point: Point<Pixels>) -> Bool {
+        makeArena(at: point, mode: .button(MouseButton.secondary.buttonNumber)) != nil
+    }
+
+    /// Feeds a `.magnify` or `.rotate` to the pinch arena (`CI-D`): the first
+    /// event of a pinch forms it at the EVENT's position — an end or cancel
+    /// with no arena is dropped (`CI-V` item 4) — and the callbacks run under
+    /// their owners. Claims the event while an arena holds it.
+    private func dispatchPinch(_ event: InputEvent) -> Bool {
+        let position: Point<Pixels>, phase: InputPhase
+        switch event {
+        case .magnify(let pinch): (position, phase) = (pinch.position, pinch.phase)
+        case .rotate(let pinch): (position, phase) = (pinch.position, pinch.phase)
+        default: return false
+        }
+        if pinchArena == nil {
+            guard phase != .ended, phase != .cancelled,
+                  let arena = makeArena(at: position, mode: .pinch) else { return false }
+            pinchArena = arena
+        }
+        guard var arena = pinchArena else { return false }
+        let callbacks: [GestureCallback]
+        switch event {
+        case .magnify(let pinch): callbacks = arena.magnify(pinch)
+        case .rotate(let pinch): callbacks = arena.rotate(pinch)
+        default: callbacks = []
+        }
+        pinchArena = arena.isAlive ? arena : nil
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    /// Feeds a secondary or other button's press, drag and release to its
+    /// arena (`CI-F` item 3): only drags declared with that button run; with
+    /// none on the chain there is no arena and the event passes on. A second
+    /// button pressed while one's arena is alive is ignored. The secondary
+    /// release opens a context menu the press deferred, unless a drag reached
+    /// its minimum (`CI-F` item 4).
+    private func dispatchButtonArena(_ event: InputEvent) -> Bool {
+        switch event {
+        case .rightMouseDown(let mouse): return buttonPress(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseDown(let mouse): return buttonPress(mouse, button: mouse.buttonNumber)
+        case .rightMouseDragged(let mouse): return buttonMove(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseDragged(let mouse): return buttonMove(mouse, button: mouse.buttonNumber)
+        case .rightMouseUp(let mouse): return buttonRelease(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseUp(let mouse): return buttonRelease(mouse, button: mouse.buttonNumber)
+        default: return false
+        }
+    }
+
+    private func buttonPress(_ mouse: MouseEvent, button: Int) -> Bool {
+        guard buttonArena == nil, var arena = makeArena(at: mouse.position, mode: .button(button)) else {
+            return false
+        }
+        let callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false,
+                                    modifiers: mouse.modifiers)
+        buttonArena = arena
+        buttonArenaButton = button
+        if arena.activatedAnyDrag { pendingContextMenu = nil }
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    private func buttonMove(_ mouse: MouseEvent, button: Int) -> Bool {
+        guard var arena = buttonArena, buttonArenaButton == button else { return false }
+        let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers)
+        buttonArena = arena
+        if arena.activatedAnyDrag { pendingContextMenu = nil }
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    private func buttonRelease(_ mouse: MouseEvent, button: Int) -> Bool {
+        let pending = button == MouseButton.secondary.buttonNumber ? pendingContextMenu : nil
+        if pending != nil { pendingContextMenu = nil }
+        guard var arena = buttonArena, buttonArenaButton == button else { return false }
+        let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
+                                      modifiers: mouse.modifiers, click: nil)
+        buttonArena = nil
+        runGestureCallbacks(callbacks)
+        if let pending, !arena.activatedAnyDrag { openPendingContextMenu(pending) }
+        return true
     }
 
     /// Who forms the arena for a press at `point` (drag and drop, ruling

@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AA`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AB`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1010,3 +1010,83 @@ behaviours had no pin. Fixed in lane 1, red first:
 **Cost if wrong.** Item 1: a drawn menu on SDL that cannot be chosen from by
 press-drag-release — the regression this closes. Item 3: none in shipped
 behaviour (the default is the old call).
+
+## CI-AA — Lane 2's implementation choices (gestures end to end)
+
+**Ruling.** Lane 2 (commits `179c65a` red, and the implementation after it)
+built spec §1.2, the located menu (`CI-R`) and the press, pinch,
+button-arena and context-menu stages of §1.4 as designed, with these
+choices, none of which renames a provisional name (**MetalCreator: every
+name in the header stands**):
+
+1. **A press arena with no live gesture leaf is no arena.** `GestureArena.init?`
+   answers `nil` when, after the mode's formation failures, no gesture leaf is
+   live — for `.press` too, so a press on an element carrying only a
+   `MagnifyGesture` (and perhaps an `onClick`) is `dispatchClick`'s exactly.
+   For every tree that existed before this branch the condition is the old
+   one ("no member"), since no leaf was failed at formation.
+2. **The pinch arena's order is per kind.** A pinch leaf is held off only by a
+   leaf **of its own kind** ahead of it that has not failed, and an exclusive
+   member that ended cancels only leaves of the kinds that ended in it — so an
+   inner magnify that ends cancels no outer rotate (test 2.17's second arm).
+   A `.began` re-begins its kind's still-possible leaves (start point, anchor
+   and Σ reset); an `.ended`/`.cancelled` of a kind that is not active is
+   ignored; the arena dies when every begun kind has ended. A leaf that
+   ended stays ended: a second magnify begun in the same arena while a rotate
+   is still alive reaches only magnify leaves that never ended (corner, no
+   pin; human check Y4 looks at nested pinches).
+3. **`startAnchor` divides by the registered hit region's size** — the
+   hitbox's bounds, clipped and content-shape-inset, as every hit region is —
+   and is 0 on an empty axis.
+4. **The button arena** is one at a time: a second button pressed while one
+   button's arena is alive is ignored (not claimed, it passes on), and only
+   the arena's own button's drags and release reach it. `activatedAnyDrag` is
+   "some drag leaf reached its minimum" (`started`), whether or not it has
+   reported yet — a secondary drag held off by an exclusive member ahead still
+   cancels the pending menu. The context-menu stage's deferral check forms the
+   button arena once more (`secondaryDragIsDeclared(at:)`, one extra formation
+   per right press over a menu); the deferred menu opens through
+   `openPendingContextMenu` with `openingPress: false` (its release has
+   happened, so press-drag-release does not apply). A `minimumDistance: 0`
+   secondary drag activates at the press, so the menu never opens (`CI-R`
+   item 1).
+5. **Owed items taken here.** The hover recompute for `.rightMouseDragged` and
+   the three other-button events (`CI-X` item 1, `CI-Z` item 1) and their
+   `lastMousePosition` update (`updatePointerState`; `active` never moves) land
+   in lane 2; `.magnify`/`.rotate` move neither and their hover/style recompute
+   stays lane 3's (the style stage). **The tooltip's hide on `.magnify` and
+   `.rotate`** (`CI-Z` item 2 left it to lane 3) lands here, `Tooltip.swift`
+   being lane 2's file, with a pin of its own: test **3.31b**
+   `aMagnifyOrARotateHidesTheTooltip` (one more test than spec §4's list).
+6. **The in-window menu's other button.** An `.otherMouseDown` the open drawn
+   menu takes sets `Window.menuClaimsOtherRelease`, so its release is claimed
+   too, also after an outside press dismissed the menu; `.magnify`/`.rotate`
+   are taken while it is open. A popover's outside other press dismisses and
+   **always passes on** — an other press clicks nothing, so an anchor has no
+   release to consume (`MN-Y` item 2 is the primary and secondary buttons').
+7. **Placement.** The pinch and button stages run directly after
+   `applyScroll` (lane 3 replaces that call with the wheel chain; the two
+   stages stay after it) and before text input — so the primary-only stages
+   below never see the new events.
+8. **Storage.** `ContextualAttachment`'s designated initialiser is
+   `init(locatedMenu:help:)`; a convenience `init(menu:help:)` wraps a
+   location-less builder, so `PullDownMenu.swift` needs no edit (a nil
+   argument would make two same-labelled initialisers ambiguous, hence the
+   label).
+9. **Inventory.** Two families until lane 3: `input-apis-gestures` (class A,
+   probe arm `T1`, test 2.3: the three gestures, `CoordinateSpace`, the located
+   `onTapGesture`) and `input-apis-gestures-metalui` (class M: `MouseButton`,
+   `DragGesture`'s `button`/`coordinateSpace`/new initialiser,
+   `DragGesture.Value.modifiers` and its initialiser, the located
+   `contextMenu`). **Lane 3 moves `CoordinateSpace.global` and
+   `Value.modifiers` to class-D families when it writes divergences 139 and
+   140** — a D family naming a label `docs/divergences.md` does not list yet
+   fails the check's `LIVE` rule, so lane 2 cannot.
+10. **A fixture note.** A context-menu-only element has no opaque hitbox (its
+    region is non-opaque, `MN-Q`), so 2.21 requires the contextual region's
+    bounds rather than an opaque target's.
+
+**Cost if wrong.** Item 2: if SwiftUI lets an ended magnify cancel an outer
+rotate, MetalUI's outer rotate keeps reporting after the inner magnify ends
+(Y4 looks). Item 4: a two-button chord drags with the first button only.
+

@@ -30,7 +30,7 @@ extension StyledElement {
     public func help(_ text: String) -> Self {
         handling { handlers in
             handlers.axNode.declarations.hint = text
-            handlers.contextual = ContextualAttachment(menu: handlers.contextual?.menu, help: text)
+            handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text)
         }
     }
 }
@@ -40,7 +40,7 @@ extension ProposalElementGroup {
     /// `ContextualModifier` — one identity level, for its caller only
     /// (`MN-Q`), at the same position `accessibilityHint(_:)`'s wrapper takes.
     public func help(_ text: String) -> ContextualModifier<Self> {
-        ContextualModifier(content: self, attachment: ContextualAttachment(menu: nil, help: text))
+        ContextualModifier(content: self, attachment: ContextualAttachment(locatedMenu: nil, help: text))
     }
 }
 
@@ -171,7 +171,8 @@ extension Window {
             } else {
                 tooltipTracker.phase = .idle
             }
-        case .mouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown:
+        // A pinch hides as a press does (spec §1.4 item 2).
+        case .mouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown, .magnify, .rotate:
             tooltipTracker.hide()
         default:
             break

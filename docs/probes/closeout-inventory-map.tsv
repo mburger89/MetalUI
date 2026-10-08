@@ -150,6 +150,8 @@ F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsA
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 F	input-apis-seam	M	-	-	-	-	CI-E CI-I CI-J CI-V	InputPhase, MouseEvent.buttonNumber, ScrollEvent.phase/momentumPhase/isPrecise/location and its full initialiser, MagnifyEvent/RotateEvent, InputEvent.rightMouseDragged/.otherMouseDown/.otherMouseDragged/.otherMouseUp/.magnify/.rotate, PlatformPointerStyle/PlatformResizeEdge, PlatformWindow.setPointerStyle (defaultless): the platform seam for other buttons, trackpad gestures, scroll phases and the pointer style
+F	input-apis-gestures	A	swiftui-input-apis.swift	T1	aSpatialTapReportsItsReleasePointInLocalSpace	-	CI-B CI-C CI-D	SpatialTapGesture (.location), MagnifyGesture (.magnification/.startLocation/.startAnchor), RotateGesture (.rotation clockwise-positive/.startLocation/.startAnchor), CoordinateSpace (.local/.global), onTapGesture(count:coordinateSpace:perform:) on both vocabularies: a spatial tap is a tap leaf reporting its release point; magnify and rotate recognize in their own pinch arena from the one ranking (lane 3 moves CoordinateSpace.global to a class-D family when divergence 139 lands)
+F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.modifiers and init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them; lane 3 moves Value.modifiers to a class-D family when divergence 140 lands)
 F	presentation-scope	D	-	-	-	120	SV-K	PresentationScope: the transparent ElementGroup .fileImporter/.fileExporter/.alert/.confirmationDialog return — no node, no identity level, its record in the window's registry, reconciled after the frame, one presentation in flight per window; a legacy decoration after it does not compile (120)
 F	file-dialogs	D	swiftui-platform-services.swift	D1	anImporterPresentsAfterTheFrameOnceWhileShown	129	SV-C SV-K	fileImporter (both forms)/fileExporter(item:contentTypes:defaultFilename:onCompletion:onCancellation:)/FileExportError: SwiftUI's subset over MetalUI's ContentType and synchronous Transferable; isPresented written false before the callback, a cancelled import calls nothing (D2), a nil item still presents (X5), the exporter writes the conforming representation or the first; off Apple a type filters by extension only (129)
 F	file-dialog-call	M	-	-	-	-	SV-D SV-AD	FileDialogs (openFiles/saveFile)/FileDialogError/Window.fileDialogs/EnvironmentValues.fileDialogs: MetalUI's async open and save calls (SwiftUI has none; gpui's prompt_for_paths is the comparison), main-actor, holding the window weakly; a cancel returns []/nil, one dialog at a time (.busy), a cancelled task dismisses
@@ -269,6 +271,12 @@ M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
 M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	SpatialGestures.swift	(-|MouseButton)	(MouseButton|buttonNumber|primary|secondary|middle|other)	.*	input-apis-gestures-metalui
+M	MetalUI	SpatialGestures.swift	.*	.*	.*	input-apis-gestures
+M	MetalUI	Gesture.swift	DragGesture	(coordinateSpace|button)	.*	input-apis-gestures-metalui
+M	MetalUI	Gesture.swift	DragGesture	init	.*coordinateSpace.*	input-apis-gestures-metalui
+M	MetalUI	Gesture.swift	DragGesture.Value	(modifiers|init)	.*modifiers.*	input-apis-gestures-metalui
+M	MetalUI	GestureModifiers.swift	(StyledElement|ProposalElementGroup)	onTapGesture	.*coordinateSpace.*	input-apis-gestures
 M	MetalUI	Gesture.swift	.*	.*	.*	gestures
 M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
 M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
@@ -413,6 +421,7 @@ M	MetalUIDemoContent	.*	.*	.*	.*	demo-content
 M	MetalUI	Transferable.swift	ContentType	(json|preferredFilenameExtension)	.*	content-type-extensions
 M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop
+M	MetalUI	ContextMenu.swift	(StyledElement|ProposalElementGroup)	contextMenu	.*Point<Pixels>[?].*	input-apis-gestures-metalui
 M	MetalUI	ContextMenu.swift	.*	.*	.*	context-menus
 M	MetalUI	MenuContent.swift	.*	.*	.*	context-menus
 M	MetalUI	DividerView.swift	Divider	(Layout|requestProposalLayout|prepaint|paint)	.*	divider-view
