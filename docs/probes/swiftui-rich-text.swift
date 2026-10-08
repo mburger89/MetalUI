@@ -158,6 +158,7 @@
 //     C7d Text("b").baselineOffset(5) alone size=8x21 first=18 last=18 | -5 size=8x21 first=13 last=13 | plain b size=8x16 first=13 last=13
 //     C18 reservesSpace 3 on 10pt+30pt one line size=24.5x36 first=29 last=29 | 30pt B reservesSpace 3 size=19x105 first=29 last=29 | 10pt a reservesSpace 3 size=6x36 first=10 last=10 | 30pt B + 10pt a size=24.5x105 first=29 last=29
 //     C19 lineLimit(1) on 10pt line + 30pt second line, wrap 40: size=38x35 first=29 last=29
+//     C8e Helvetica office: kerning(4) size=51.5x13 first=10 last=10 tracking(4) size=55x13 first=10 last=10 plain size=31.5x13 first=10 last=10; kerning vs tracking 635 px | ct glyphs plain 5 kern 5 tracking 6 | ct w=51.072 ascent=10.01 descent=2.99 leading=0 ceil(sum)=13 / w=54.843 ascent=10.01 descent=2.99 leading=0 ceil(sum)=13
 //     M30 Button("**b**") {} ≡ Text(bold) label  [Text(bold) label:0 verbatim label:2808]
 //     M31 Toggle("**b**") ≡ bold label  [bold label:0 verbatim label:582]
 
@@ -597,6 +598,12 @@ func followUp() {
     out("C7d", "Text(\"b\").baselineOffset(5) alone " + measure(Text("b").baselineOffset(5)) + " | -5 " + measure(Text("b").baselineOffset(-5)) + " | plain b " + measure(Text("b")))
     out("C18", "reservesSpace 3 on 10pt+30pt one line " + measure((Text("a").font(.system(size: 10)) + Text("B").font(.system(size: 30))).lineLimit(3, reservesSpace: true)) + " | 30pt B reservesSpace 3 " + measure(Text("B").font(.system(size: 30)).lineLimit(3, reservesSpace: true)) + " | 10pt a reservesSpace 3 " + measure(Text("a").font(.system(size: 10)).lineLimit(3, reservesSpace: true)) + " | 30pt B + 10pt a " + measure((Text("B").font(.system(size: 30)) + Text("a").font(.system(size: 10))).lineLimit(3, reservesSpace: true)))
     out("C19", "lineLimit(1) on 10pt line + 30pt second line, wrap 40: " + measure((Text("aa aa").font(.system(size: 10)) + Text(" BB").font(.system(size: 30))).lineLimit(1), ProposedViewSize(width: 40, height: nil)))
+    do {
+        let h = Font.custom("Helvetica", size: 13)
+        let ct = CTFontCreateWithName("Helvetica" as CFString, 13, nil)
+        func glyphs(_ a: [NSAttributedString.Key: Any]) -> Int { CTLineGetGlyphCount(ctLine([("office", a)])) }
+        out("C8e", "Helvetica office: kerning(4) " + measure(Text("office").font(h).kerning(4)) + " tracking(4) " + measure(Text("office").font(h).tracking(4)) + " plain " + measure(Text("office").font(h)) + "; kerning vs tracking \(differing(bitmap(canvas(Text("office").font(h).kerning(4))), bitmap(canvas(Text("office").font(h).tracking(4))))) px | ct glyphs plain \(glyphs([.font: ct])) kern \(glyphs([.font: ct, .kern: 4])) tracking \(glyphs([.font: ct, .tracking: 4])) | ct " + ctBounds(ctLine([("office", [.font: ct, .kern: 4])])) + " / " + ctBounds(ctLine([("office", [.font: ct, .tracking: 4])])))
+    }
     out("M30", "Button(\"**b**\") {} " + identify(Button("**b**") {}, [("Text(bold) label", AnyView(Button {} label: { Text("b").bold() })), ("verbatim label", AnyView(Button {} label: { Text(verbatim: "**b**") }))]))
     out("M31", "Toggle(\"**b**\") " + identify(Toggle("**b**", isOn: .constant(false)), [("bold label", AnyView(Toggle(isOn: .constant(false)) { Text("b").bold() })), ("verbatim label", AnyView(Toggle(isOn: .constant(false)) { Text(verbatim: "**b**") }))]))
 }
