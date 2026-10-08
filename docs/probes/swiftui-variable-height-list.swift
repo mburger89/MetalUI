@@ -25,8 +25,10 @@
 // V1 separates from. V2c (`.lineLimit(1)`) is the arm that separates "measured
 // at the list's width" (V2) from "a fixed answer". V3b
 // (`defaultMinListRowHeight` 4) separates V3's floor from the content. A6s (a
-// non-lazy `VStack` in a `ScrollView`, the same height change) is the control
-// that the instrument sees a row on screen MOVE when nothing anchors it.
+// non-lazy `VStack` in a `ScrollView`, the same height change) was meant as
+// the control that the instrument sees a row on screen MOVE when nothing
+// anchors it — but it reads only the clip (see CORRECTIONS below); A3 is the
+// arm that reads a row moving on screen.
 //
 // RECORDED 2026-10-07 by the variable-height-list design session, macOS 27.0 (26A434),
 // Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen UNLOCKED (lock probe: no
@@ -84,6 +86,18 @@
 //   A6s   (separating) a non-lazy ScrollView does not anchor either: the clip
 //         stays at 6000 while 200 points grow above it, so what is on screen
 //         moves. The instrument sees a non-anchoring scroller.
+//   CORRECTIONS (critic, 2026-10-08, ruling VL-N; the output above re-taken
+//   in both forms that day, byte-identical to it, 23 lines, exit 0, screen
+//   unlocked). Two labels claim more than their readings show:
+//   - A2's label says row 98 is "realised overscan". Its own reading (98:24)
+//     refutes that: row 98's content is 80 tall (the 20..100 pattern), so a
+//     measured row 98 would read 88. Row 98 was NOT realised; A2 is a second
+//     instance of A1. NO arm measures a REALISED row above the viewport
+//     changing height, so SwiftUI's answer there is unprobed.
+//   - A6s prints `n/a` for the row on screen: it shows the clip unchanged
+//     while content above grew, from which movement is inferred, not read.
+//     The arm whose instrument READS a row moving on screen is A3 (0 -> 24);
+//     A3 is the separating control for A1/A4's "nothing moved".
 //   S1    the spelling: `List(_:rowContent:)` and both
 //         `List(_:selection:rowContent:)` overloads (`Binding<ID?>`,
 //         `Binding<Set<ID>>`) compile over `Identifiable` data.

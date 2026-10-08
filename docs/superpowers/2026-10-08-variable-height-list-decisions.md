@@ -8,7 +8,7 @@ Record: `../record/82-variable-height-list.md`. Branch
 branch's reserved range **145–149** (parallel branches hold the others; the
 header's next-label line is the merge's to settle).
 
-**Next unused id: `VL-N`.** (Moves in the commit that appends a ruling; to
+**Next unused id: `VL-T`.** (Moves in the commit that appends a ruling; to
 find it, read this file's last `## VL-` heading.)
 
 Evidence (each header carries its recorded output and how to run it):
@@ -324,3 +324,160 @@ unedited.
 in this worktree): lane 1 the index and the `Frame` hook; lane 2 `List` and
 `ListRows`; lane 3 the demo and the public documents. Spec §6 lists every file
 and every test.
+
+---
+
+Rulings `VL-N`…`VL-S`: the critic's pass over the committed design
+(2026-10-08). Each fixes a defect in the spec or records a rejection.
+
+## VL-N — The probe re-taken; two labels corrected; one question left unprobed
+
+**Ruling.** The probe was re-run in both `SA-O` forms (screen unlocked: no
+`CGSSessionScreenIsLocked` line, `displayAsleep main: 0`): stdout
+byte-identical between the forms and to the recorded 23 lines, exit 0. Two
+labels claim more than their readings show, corrected in the probe header
+(its output unchanged):
+
+1. **`A2` did not see a realised row.** Its label says row 98 is "realised
+   overscan"; its reading `98:24` refutes it (row 98's content is 80, so a
+   measured row reads 88). `A2` is a second instance of `A1`. `VL-E` item 4
+   rests on `A1` and `A4` (`A4` is the measured case: 28 stays 28).
+2. **`A6s` reads only the clip** (`n/a` on screen). The arm whose instrument
+   reads a row moving on screen is `A3` (0 → 24); `A3` is the separating
+   control for "nothing moved" in `A1`/`A4`. `VL-G`'s evidence keeps `A6s` as
+   "the clip stayed while content above grew", an inference.
+
+**Consequence.** What SwiftUI does when a **realised** row above the viewport
+changes height is **unprobed**. `VL-G` items 1–2 (tests 2.5a/2.5b) are
+MetalUI's own rule, taken from gpui; **no divergence row is claimed for
+them** and none may be added without a probe arm that realises the row
+(e.g. scroll it into view, scroll back by less than its height, then grow
+it). Divergence 146 stays scoped to insertions and removals (`A3`).
+
+## VL-O — The anchor row removed; a width change keeps ids
+
+**Ruling.** Two gaps in `VL-G` item 3 and `VL-E` item 2:
+
+1. **The row on top removed.** When the anchor's id is absent after a
+   rebuild, the anchor is the first id **after** the old anchor index, among
+   the ids the old index recorded (the realised window's rows below it, in
+   old order), that is still present; failing that, the last present id
+   before it; failing that (every recorded id gone), row
+   `min(oldAnchorIndex, count − 1)`. Whichever row is chosen is placed at the
+   **old `anchorY`**: the row that slides under the top takes the removed
+   row's place. New test **2.7b**
+   `removingTheRowOnTopPutsTheNextRowInItsPlace` (row 50 on top removed: row
+   51's id is on top at row 50's old on-screen y). Mutation: prefer the
+   last present id **before** the old anchor (row 49's id lands on top, the
+   assertion on the id reddens). A second arm removes row 50 **and** inserts
+   a row at 0 in one change: the new index 50 then holds old row 49, the rule
+   picks old row 51 — so the mutation "fall back to `oldAnchorIndex`
+   unconditionally" (old row 49 on top) reddens this arm, where it would not
+   redden the first (after a lone removal index 50 holds row 51 either way).
+2. **`forgetMeasurements(width:)` clears heights (`heights`, both Fenwick
+   arrays, `byID`'s heights) and keeps `ids`** — an id is not
+   width-dependent, and a rebuild the same frame as a width change still
+   finds the row on top by id. Test 1.7 gains the clause "and `id(at:)`
+   still answers"; mutation: clear `ids` too (reddens 1.7).
+
+## VL-P — The carried refinement keeps its request's scope and anchor; the `Frame` accessor is lane 1's
+
+**Ruling.** `VL-H` as written carried "a `ListLeadReveal` gaining `anchor:`",
+but the queue holds `ScrollRequest { scope, key, anchor }`, and
+`Frame.unresolvedScrollRequests(enclosing:)` hands a list only `(index, key)`
+— the list cannot learn a request's scope or anchor. Corrected:
+
+1. `Frame.unresolvedScrollRequests(enclosing:)` returns
+   `(index, key, scope, anchor)` (internal; its one existing caller, `List`,
+   ignores the new members on the uniform path). **Lane 1 lands it** (it owns
+   `Frame.swift`); test **1.15**
+   `anUnresolvedRequestCarriesItsScopeAndAnchorToTheList`.
+2. The refinement is
+   `ScrollRequest(scope: request.scope, key: ListLeadReveal(list: id, row: row, refined: true), anchor: request.anchor)`
+   through `carry(_:)`. **`ListLeadReveal` gains only `refined: Bool`**
+   (default false); the anchor lives where it already lives, on the
+   `ScrollRequest`. A keyboard reveal enqueues `refined: false` as today.
+3. Named cost (`VL-G` "known costs" (d)): `scrollOffset(bringing:into:anchor:)`
+   clamps in **this** frame's coordinates, before `D` is added; when the clamp
+   binds (a target near the content's end), the landing is corrected by the
+   next frame's `ScrollChrome` clamp, not exact. Test 2.9 targets row 150 of
+   300, where the clamp does not bind; its comment says so.
+
+## VL-Q — Lanes rebalanced: `ListRows.swift` to lane 1
+
+**Ruling.** Lane 2 held `List.swift`, `ListRows.swift`, 19 tests, a guard and
+the performance pins; lane 1 a pure index and one hook. `VariableRowsLayout`
+is a `ProposalLayout` that can be driven without `List`, so
+**`Sources/MetalUI/ListRows.swift` moves to lane 1** —
+`VariableRowsLayout(anchorSlot:anchorY:trailingExtent:)` and `ListRows`'
+choice of layout (an internal enum the group stores; lane 1 lands it with the
+uniform case only reachable, so no behaviour moves) — together with the
+width-dependent fixture `Tests/MetalUITests/AreaLeaf.swift` (new) and three
+tests in a new `Tests/MetalUITests/VariableRowsLayoutTests.swift`, each under
+a `ProposalLayoutContainer` with derived literals:
+
+| # | Test | Asserts | Mutation |
+|---|---|---|---|
+| 1.16 | `variableRowsPlaceTheAnchorAtItsOffsetAndTheRestAroundIt` | rows 10/20/30/40, `anchorSlot` 2, `anchorY` 100, `trailingExtent` 50: y 70/80/100/130, height 100 + 30 + 40 + 50 = 220 | place every row downward from slot 0 |
+| 1.17 | `variableRowsAreMeasuredAtTheProposedWidth` | `AreaLeaf(4000)` rows at width 200: 20 each; at 400: 10 | propose rows `(nil, nil)` |
+| 1.18 | `variableRowsAtANilWidthTakeTheWidestRow` | nil width: width = widest `(nil, nil)` answer, heights measured at it | measure heights at `(nil, nil)` |
+
+Lane 2 is then `List.swift`, its tests, the guard and the performance pins.
+Lanes still run in order, one agent at a time in this worktree: lane 2 needs
+lane 1's index, hook, accessor and layout; lane 3 needs lane 2's spelling.
+**Rejected: running lanes in parallel** (the request's "parallel what we
+can") — this worktree admits one agent at a time and each lane consumes the
+last; the parallelism is across branches (`feat/input-apis`,
+`feat/rich-text`), already running.
+
+## VL-R — Instruments that could not redden, and two missing pins
+
+**Ruling.** Corrections to spec §5:
+
+1. **2.13** (TB-AH): "extra id level around the variable row" changes every
+   row's id the same way on every frame and reddens neither half. Mutation
+   instead: drop the row's `.id(String(describing: datum.id))` in the variable
+   branch (state follows the slot, not the datum: the "survives" half
+   reddens).
+2. **2.18**: "trap instead of clamp" would kill the process with no summary
+   line. Mutation instead: drop the clamp (a declared 0 is used: every
+   unmeasured row 0, the extent assertion reddens).
+3. **3.1**: a mutation "or record that it does not" is no instrument. The
+   arm is a budget check whose separating control already exists
+   (`aThreadTooSmallForTheDemoFailsTheSameHarness`); its own mutation is the
+   arm run once at a 64 KiB thread, which must fail, recorded.
+4. **3.2** asserts what its mutation reddens: besides settling, **the built
+   row count is below `data.count`** (windowed) — removing the demo's
+   `ScrollView` then reddens it.
+5. **Exact counts, not bounds**: 2.10, 2.11 and 3.2 assert the frame counts
+   derived in their comments before the run (`==`), not `≤`.
+6. **Divergence 147's pin is also at the `List` level**: 2.3 (the extent
+   reads measured + mean × rest), beside 1.3 (the index alone).
+7. **2.20 also pins `nodeVisits`** per warm frame at 40 and 160 against
+   derived literals, so the non-gated run sees index work, not only layout
+   work.
+8. **Animation was claimed unmoved (`VL-J`) with no pin.** New test **2.7c**
+   `anInsertionAboveTheViewportUnderWithAnimationKeepsTheRowOnTopEveryTick`:
+   the insertion of 2.7 inside `withAnimation`, driven by `simulateTick`; the
+   row on top's on-screen y equals its pre-change value at every tick until
+   the window stops asking for frames. (Legacy animation interpolates `Style`
+   fields, not a parent layout's placement, so rows snap with the offset;
+   this pins it.) Mutation: skip `noteScrollAnchorAdjustment` (reddens on the
+   tick after the change).
+9. **Lane 2 also runs** the fourteen offscreen images against `70ed000`
+   (`docs/probes/demo-pixels/compare.sh`) — it changes the stored property
+   behind every captured list — and both env-gated 100k tests with
+   `METALUI_RUN_100K_LIST_TEST=1`, recording their readings.
+
+## VL-S — Rejections
+
+1. **Invalidating an off-screen row's height when its datum changes** (the
+   brief's "data change for that id"): rejected for rows out of window —
+   `VL-E` item 4's reason (no `O(1)` signal; SwiftUI does the same, `A1`,
+   `A4`). A realised row is re-measured every frame, which is that
+   invalidation for every row the user can see.
+2. **An `A` inventory row for `List(_:rowContent:)`**: rejected —
+   `List.swift` is mapped wholesale (`M … List.swift .* → list`) and the new
+   initialisers carry the MetalUI-only `estimatedRowHeight:`; the wholesale
+   row's text is refreshed (lane 3).
+3. **A `SumTree`/splice API now**: rejected as in `VL-D`/`VL-L` (no caller).
