@@ -227,8 +227,21 @@ where Data.Element: Identifiable {
     /// builds the row array, reading `data` fresh every frame so the window it
     /// builds always reflects the current scroll position.
     private var data: Data
-    private var rowHeight: Pixels
+    /// How rows are sized (ruling `VL-I`): one uniform `rowHeight` (the fast
+    /// path) or each row's own content (`VL-B`). Replaces the stored
+    /// `rowHeight` — a stored-property change on a public generic type, so a
+    /// `swift package clean` follows it.
+    private var rowSizing: ListRowSizing
     private var row: (Data.Element) -> Row
+
+    /// RED-BEFORE STUB (`VL-A`): a variable list is routed to the uniform path
+    /// at 24.
+    private var rowHeight: Pixels {
+        switch rowSizing {
+        case .uniform(let height): return height
+        case .variable: return Pixels(24)
+        }
+    }
 
     /// Rows built beyond the exact window on each side, so a partially
     /// scrolled edge — the window's boundary landing mid-row rather than on a
@@ -294,7 +307,7 @@ where Data.Element: Identifiable {
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
         self.data = data
-        self.rowHeight = rowHeight
+        self.rowSizing = .uniform(rowHeight)
         self.row = row
         self.decoration = Decoration()
         self.elementID = nil
@@ -646,6 +659,27 @@ where Data.Element: Identifiable {
 }
 
 extension List {
+    /// RED-BEFORE STUB (`VL-A`): routed to the uniform path at 24.
+    public init(_ data: Data, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.init(data, rowHeight: Pixels(24), row: rowContent)
+        self.rowSizing = .variable(estimate: estimatedRowHeight)
+    }
+
+    /// RED-BEFORE STUB (`VL-A`).
+    public init(_ data: Data, selection: Binding<Data.Element.ID?>, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.init(data, estimatedRowHeight: estimatedRowHeight, rowContent: rowContent)
+        self.selection = .single(selection)
+    }
+
+    /// RED-BEFORE STUB (`VL-A`).
+    public init(_ data: Data, selection: Binding<Set<Data.Element.ID>>, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.init(data, estimatedRowHeight: estimatedRowHeight, rowContent: rowContent)
+        self.selection = .multi(selection)
+    }
+
     /// A list whose rows select into `selection`, one row at a time
     /// (SwiftUI's `List(_:selection:rowContent:)`; ruling `DD-Z`).
     public init(_ data: Data, selection: Binding<Data.Element.ID?>, rowHeight: Pixels,
@@ -660,6 +694,16 @@ extension List {
         self.init(data, rowHeight: rowHeight, row: row)
         self.selection = .multi(selection)
     }
+}
+
+/// How a `List` sizes its rows (ruling `VL-I`).
+enum ListRowSizing {
+    /// Every row `rowHeight` tall: `List(_:rowHeight:row:)`, the fast path.
+    case uniform(Pixels)
+    /// Each row its content's height (`VL-B`); unmeasured rows count as the
+    /// declared estimate (already clamped), else the running mean, else 24
+    /// (`VL-C`).
+    case variable(estimate: Pixels?)
 }
 
 /// A `List`'s selection model (`DD-Z` item 1).
@@ -683,6 +727,9 @@ struct ListOrigin: @unchecked Sendable {
     var lead: AnyHashable?
     /// The row a ⇧-move or ⇧-click extends from (a datum id), or nil.
     var anchor: AnyHashable?
+    /// A variable-height list's `RowExtentIndex` (ruling `VL-D`), held as
+    /// `AnyObject` because this type is not generic; nil for a uniform list.
+    var extents: AnyObject?
 }
 
 /// The key a selectable list's keyboard move enqueues on the `DD-G` queue to
@@ -691,6 +738,10 @@ struct ListOrigin: @unchecked Sendable {
 struct ListLeadReveal: Hashable {
     let list: GlobalElementID
     let row: AnyHashable
+    /// A variable-height list's carried refinement (ruling `VL-P`): a reveal
+    /// that has already been resolved once against an estimate, and never
+    /// refines again.
+    var refined: Bool = false
 }
 
 extension ListSelection {
