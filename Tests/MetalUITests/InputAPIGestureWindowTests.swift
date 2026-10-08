@@ -566,3 +566,82 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     }
     withExtendedLifetime(window) {}
 }
+
+// MARK: - 2.26, 2.27: a stale arena is replaced (`CI-AB`)
+
+/// Two 100 × 200 legacy boxes side by side in a legacy `Row` (no gap): the
+/// root is 200 × 200 at (50, 50), so A spans x 50–150 and B x 150–250.
+@MainActor private func twoBoxes<A: Element, B: Element>(_ a: A, _ b: B) -> some StyledElement {
+    Row { a; b }
+}
+
+/// **2.26** (`CI-AB` item 1). A middle press on A whose release is lost (a
+/// modal panel took it) leaves A's arena alive; the next middle press, on B,
+/// drops it silently — A reports nothing more and no `onEnded` — and forms a
+/// new arena on B, whose drag reports B-local points from B's own press.
+/// Mutation: restore `guard buttonArena == nil` in `buttonPress` → the second
+/// press is ignored and its drag feeds A (translation 105).
+@MainActor
+@Test func aSecondPressOfTheArenasOwnButtonReplacesAStaleArena() throws {
+    let log = WLog()
+    func drag(_ name: String) -> some Gesture {
+        DragGesture(minimumDistance: 0, button: .middle)
+            .onChanged { value in
+                log.entries.append("\(name) \(Int(value.translation.width.value)),\(Int(value.translation.height.value))"
+                                   + " @\(Int(value.startLocation.x.value)),\(Int(value.startLocation.y.value))")
+            }
+            .onEnded { _ in log.entries.append("\(name) end") }
+    }
+    let (window, platform) = try inputWindow {
+        twoBoxes(Box().frame(width: px(100), height: px(200)).gesture(drag("A")),
+                 Box().frame(width: px(100), height: px(200)).gesture(drag("B")))
+    }
+    try #require(window.lastHitboxes.filter { !$0.handlers.gestures.isEmpty }.count == 2,
+                 "two gesture targets: \(window.lastHitboxes.map(\.bounds))")
+    platform.simulateInput(odown(100, 100))
+    platform.simulateInput(odrag(110, 100))
+    try #require(log.entries.last == "A 10,0 @50,50", "set up: A drags: \(log.entries)")
+    let before = log.entries.count
+    // The release of A's drag is lost.
+    #expect(platform.simulateInput(odown(200, 100)), "the press forms B's arena and is claimed")
+    platform.simulateInput(odrag(205, 100))
+    platform.simulateInput(oup(205, 100))
+    let after = Array(log.entries.dropFirst(before))
+    #expect(!after.contains { $0.hasPrefix("A") }, "A reports nothing more, no onEnded: \(after)")
+    #expect(after.suffix(2) == ["B 5,0 @50,50", "B end"], "\(after)")
+    withExtendedLifetime(window) {}
+}
+
+/// **2.27** (`CI-AB` item 2). A magnify over A whose `.ended` is lost (the
+/// window resigned key) leaves A's pinch arena alive; the next magnify
+/// `.began`, over B, drops it silently and forms a new arena under the event:
+/// B reports its own magnification from 1, A nothing more. Mutation: let a
+/// `.began` re-begin the old arena's leaves (drop the re-formation in
+/// `dispatchPinch`) → A reports 1.2 and B nothing.
+@MainActor
+@Test func aBeganOfAnActivePinchKindReformsTheArenaUnderTheEvent() throws {
+    let log = WLog()
+    func zoom(_ name: String) -> some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                log.entries.append("\(name) \(Int((value.magnification * 100).rounded()))"
+                                   + " @\(Int(value.startLocation.x.value)),\(Int(value.startLocation.y.value))")
+            }
+            .onEnded { _ in log.entries.append("\(name) end") }
+    }
+    let (window, platform) = try inputWindow {
+        twoBoxes(Box().frame(width: px(100), height: px(200)).gesture(zoom("A")),
+                 Box().frame(width: px(100), height: px(200)).gesture(zoom("B")))
+    }
+    try #require(window.lastHitboxes.filter { !$0.handlers.gestures.isEmpty }.count == 2,
+                 "two gesture targets: \(window.lastHitboxes.map(\.bounds))")
+    platform.simulateInput(magnify(0, .began, at: pt(100, 100)))
+    platform.simulateInput(magnify(0.1, .changed, at: pt(100, 100)))
+    try #require(log.entries == ["A 110 @50,50"], "set up: A magnifies: \(log.entries)")
+    // A's `.ended` is lost.
+    #expect(platform.simulateInput(magnify(0, .began, at: pt(220, 120))), "the new arena claims the event")
+    platform.simulateInput(magnify(0.2, .changed, at: pt(220, 120)))
+    platform.simulateInput(magnify(0, .ended, at: pt(220, 120)))
+    #expect(log.entries == ["A 110 @50,50", "B 120 @70,70", "B end"], "\(log.entries)")
+    withExtendedLifetime(window) {}
+}
