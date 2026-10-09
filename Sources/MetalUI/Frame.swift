@@ -750,6 +750,18 @@ public final class Frame {
     /// stays in force inside an effect. Restored by whoever moved it.
     var clipBase = 0
 
+    /// The clip depth at the entry of the innermost open **flattening** paint
+    /// effect (ruling `GX-X`, the LF-a fix): 0 outside every one. The first
+    /// clip pushed inside such a scope (`clipStack.count` equal to it, above
+    /// `clipBase`) does **not** intersect the clip in force at the scope's
+    /// entry — that clip is in the space the effect maps INTO, the pushed one
+    /// in the content's — so clips pushed inside intersect among themselves in
+    /// local space, are mapped by the scope, and only then are cut by the entry
+    /// clip (`insertThroughScopes`). Unlike `clipBase` it leaves `activeClip`
+    /// alone: a primitive with no clip pushed inside still reads the entry
+    /// clip, as before. Restored by whoever moved it.
+    var flatteningClipBase = 0
+
     /// The clip a render effect's content sees before any clip is pushed inside
     /// it: unbounded, in local points (`GX-G`).
     static let unboundedLocalClip = Bounds(origin: Point(x: Pixels(-1_000_000), y: Pixels(-1_000_000)),
@@ -854,8 +866,12 @@ public final class Frame {
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
-                                               translated, radii: radii)
+        // The first push inside a flattening effect intersects nothing outside
+        // it (`GX-X`): `activeClip` there is the entry clip, in another space.
+        let firstInsideFlattening = flatteningClipBase > clipBase && clipStack.count == flatteningClipBase
+        let (clip, clipRadii) = firstInsideFlattening
+            ? (translated, radii)
+            : Self.intersect(activeClip, radii: activeClipRadii, translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
         clipStack.append((clip, composed, clipRadii))
@@ -2999,6 +3015,9 @@ public final class Frame {
                     }
                     if group.isEmpty { continue }
                 }
+                if scope.kind == .effect, scope.flattens, let entry = scope.outer {
+                    for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
+                }
                 next.append(group)
             }
             leaves = next
@@ -3006,6 +3025,58 @@ public final class Frame {
         for group in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
+    }
+
+    /// `primitive` after a flattening effect mapped it (`GX-X`, the LF-a fix):
+    /// a mask pushed inside the scope — its own (`innerMask`), or its
+    /// transform's outer mask (`outerMaskInner`) — cut by `entry`, the clip in
+    /// force at the scope's entry, in the space the scope maps into. Any other
+    /// mask was read at or outside the entry and already is that clip.
+    private static func cutToEntryClip(_ primitive: CapturedPrimitive, _ entry: OuterMask) -> CapturedPrimitive {
+        func cut(_ mask: MUIBounds, _ radii: MUICorners) -> (MUIBounds, MUICorners) {
+            func bounds(_ b: MUIBounds) -> Bounds<Pixels> {
+                Bounds(origin: Point(x: Pixels(b.origin.x), y: Pixels(b.origin.y)),
+                       size: Size(width: Pixels(b.size.width), height: Pixels(b.size.height)))
+            }
+            func corners(_ c: MUICorners) -> Corners<Pixels> {
+                Corners(topLeft: Pixels(c.topLeft), topRight: Pixels(c.topRight),
+                        bottomRight: Pixels(c.bottomRight), bottomLeft: Pixels(c.bottomLeft))
+            }
+            let (b, r) = intersect(bounds(entry.bounds), radii: corners(entry.radii), bounds(mask), radii: corners(radii))
+            return (MUIBounds(origin: MUIPoint(x: b.origin.x.value, y: b.origin.y.value),
+                              size: MUISize(width: b.size.width.value, height: b.size.height.value)),
+                    MUICorners(topLeft: r.topLeft.value, topRight: r.topRight.value,
+                               bottomRight: r.bottomRight.value, bottomLeft: r.bottomLeft.value))
+        }
+        var p = primitive
+        if var t = p.transform {
+            guard p.outerMaskInner else { return p }
+            (t.outerMask, t.outerMaskRadii) = cut(t.outerMask, t.outerMaskRadii)
+            p.transform = t
+            return p
+        }
+        guard p.innerMask else { return p }
+        switch p.kind {
+        case .rect(var r):
+            (r.contentMask, r.maskCornerRadii) = cut(r.contentMask, r.maskCornerRadii)
+            p.kind = .rect(r)
+        case .glyph(var g):
+            (g.contentMask, g.maskCornerRadii) = cut(g.contentMask, g.maskCornerRadii)
+            p.kind = .glyph(g)
+        case .image(var i, let texture):
+            (i.contentMask, i.maskCornerRadii) = cut(i.contentMask, i.maskCornerRadii)
+            p.kind = .image(i, texture: texture)
+        case .surface(var q, let target):
+            (q.contentMask, q.maskCornerRadii) = cut(q.contentMask, q.maskCornerRadii)
+            p.kind = .surface(q, target: target)
+        case .path(var path):
+            (path.contentMask, path.maskCornerRadii) = cut(path.contentMask, path.maskCornerRadii)
+            p.kind = .path(path)
+        case .shadow(var shadow):
+            (shadow.contentMask, shadow.maskCornerRadii) = cut(shadow.contentMask, shadow.maskCornerRadii)
+            p.kind = .shadow(shadow)
+        }
+        return p
     }
 
     /// The shadow of `leaf` under a shadow scope (`GX-J`), in the space the
