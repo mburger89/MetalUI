@@ -411,6 +411,14 @@ public struct Decoration: Sendable, Hashable {
     /// 108. Empty for every element written before effects existed.
     var renderEffects: [RenderEffectSpec] = []
 
+    /// A legacy gradient background (`LK-J` item 8): painted where
+    /// `background` is, under the corner radius and border, through
+    /// `paintDecoration` (`DN-X`). `background(_:)` with a colour clears it and
+    /// a gradient clears the colour, so the last written wins. Not animated
+    /// (`animatedBackground` keeps the colour path only). Internal, like
+    /// `clipShape`; empty for every element written before gradients existed.
+    var backgroundGradient: GradientFill?
+
     /// The rect and radii this decoration clips its children to, or `nil`
     /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
     /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.
@@ -882,7 +890,7 @@ extension StyledElement {
     /// token. A `Color(light:dark:)` or palette colour is the spelling that
     /// follows the scheme.
     public func background(_ color: Color) -> Self {
-        decorating { $0.background = color; $0.noteWrite(.plainFill) }
+        decorating { $0.background = color; $0.backgroundGradient = nil; $0.noteWrite(.plainFill) }
     }
 
     /// ``background(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
@@ -890,6 +898,25 @@ extension StyledElement {
     @_disfavoredOverload
     public func background(_ token: ColorToken) -> Self {
         background(Color(token))
+    }
+
+    /// Fills this element's border box with `gradient`, under its corner
+    /// radius and border (`LK-J` item 8). It replaces a colour background
+    /// written before it; a colour written after it replaces it. Not animated:
+    /// a change snaps (`LK-J` item 7).
+    public func background(_ gradient: LinearGradient) -> Self {
+        decorating { $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+    }
+
+    /// Fills this element's border box with `gradient` (`LK-J` item 8).
+    public func background(_ gradient: RadialGradient) -> Self {
+        decorating { $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+    }
+
+    /// Fills this element's border box with `material`'s flat tint — exactly
+    /// ``background(_:)`` with the material's colour (`LK-L`, divergence 166).
+    public func background(_ material: Material) -> Self {
+        background(material.color)
     }
 
     /// Fills with `token` instead of `background(_:)` while the pointer is over

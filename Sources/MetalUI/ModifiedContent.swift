@@ -644,7 +644,7 @@ extension LayoutModifier: ModifierLayerKind {
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
         case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset, .shadow:
+             .rotationEffect, .scaleEffect, .offset, .shadow, .blur:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.
