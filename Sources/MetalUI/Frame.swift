@@ -383,6 +383,13 @@ public final class Frame {
     /// with none (`SV-U`'s shape).
     private(set) var pointerStyleRegionCount = 0
 
+    /// How many key regions (`hoverKeyRegion`) and click-focusable press
+    /// regions (`focusable(_:interactions:)` with `.edit`) this frame
+    /// registered (rulings `KF-E` item 4, `KF-F` item 3): with neither, a key
+    /// event and a press do no lookup.
+    private(set) var keyRegionCount = 0
+    private(set) var focusOnPressCount = 0
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0
@@ -1510,6 +1517,8 @@ public final class Frame {
         // Nor the wheel handler and pointer style (`CI-I` item 3, `CI-H` item
         // 3): the pointer region below carries them, once per element.
         pointerHandlers.pointer = nil
+        // Nor the keyboard box (`KF-I`): the key/press region below carries it.
+        pointerHandlers.keyboard = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -1598,6 +1607,24 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
             if pointer.style != nil { pointerStyleRegionCount += 1 }
+        }
+        // A key region and a click-focusable press region (rulings `KF-E` item
+        // 2, `KF-F` item 3): ONE non-opaque region carrying only the keyboard
+        // box (and focusability, which `focusesOnPress` reads), at the
+        // element's hit region, inside the disabled, `allowsHitTesting` and
+        // `hidden()` gates exactly as the hover region. No other stage reads
+        // these fields, so every existing ranking is unchanged (spec test
+        // A32). A frame with neither registers nothing here.
+        if let keyboard = handlers.keyboard, keyboard.isKeyRegion || handlers.focusesOnPress,
+           enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.keyboard = keyboard
+            only.isFocusable = handlers.isFocusable
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            if keyboard.isKeyRegion { keyRegionCount += 1 }
+            if handlers.focusesOnPress { focusOnPressCount += 1 }
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and

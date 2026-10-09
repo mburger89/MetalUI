@@ -730,12 +730,18 @@ extension StyledElement {
     /// keyboard shortcut still fires (arm X1). Until that ruling a hidden
     /// focusable box took focus and swallowed keystrokes nobody could see.
     ///
-    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2): SwiftUI's
-    /// click focuses a `.focusable()` view (F3); making this element a pointer
-    /// target would make every focusable container opaque to the pointer. A
-    /// `@FocusState` written from an `onTapGesture` is the remedy.
+    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2, narrowed
+    /// by `KF-F`): SwiftUI's click focuses a `.focusable()` view (F3);
+    /// `focusable(_:interactions:)` with `.edit` is the opt-in (SwiftUI's FC3).
+    ///
+    /// `isFocusable` (SwiftUI's `focusable(_:)`): `false` makes the element not
+    /// focusable. A later `focusable` replaces an earlier one, interactions
+    /// included (this spelling's are `.automatic`).
     public func focusable(_ isFocusable: Bool = true) -> Self {
-        handling { $0.isFocusable = isFocusable }
+        handling {
+            $0.isFocusable = isFocusable
+            $0.keyboard = KeyboardAttachment.interactions(nil, over: $0.keyboard)
+        }
     }
 
     /// Runs `handler` when a key event reaches this element — because it holds

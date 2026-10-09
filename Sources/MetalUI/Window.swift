@@ -552,10 +552,13 @@ public final class Window {
     /// could never stick at all. See the read-back for the mechanism, and
     /// `focusingFromInsideAFrameSurvivesThatFrame` for the pin.
     ///
-    /// **Nothing here focuses anything on its own.** Focus-by-click is a policy
-    /// decision this framework has not made: a `mouseDown` on an element with
-    /// an `onClick` moves `active` and does *not* move focus. A caller who
-    /// wants that behaviour writes it in a handler.
+    /// **Nothing here focuses anything on its own.** A `mouseDown` on an
+    /// element with an `onClick` moves `active` and does *not* move focus. The
+    /// press-time focus changes are opt-ins with stages of their own: a
+    /// `TextField`/`TextEditor` and a selectable `List` focus themselves, a
+    /// `focusable(_:interactions:)` `.edit` element takes focus and a press in
+    /// a `hoverKeyRegion()` clears it (`focusOnPress`, rulings `KF-F`, `KF-E`
+    /// item 5).
     ///
     /// Marks the window dirty, because focus is visible.
     public func focus(_ id: GlobalElementID?) {
@@ -950,6 +953,23 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Focus on a primary press (rulings `KF-F`, `KF-E` item 5): a
+            // click-focusable element takes focus, a press in a key region
+            // clears it. Claims nothing — the press goes on to the text stage,
+            // the arena and click dispatch (FC6) — and runs before the text
+            // stage, so a field inside either takes focus last (inner wins).
+            // Pinned by `aPressFocusesAnEditInteractionFocusable` and
+            // `aPressFocusesAndStillTaps`.
+            self.focusOnPress(event)
+            // A typed character on a focused field is offered to `onKeyPress`
+            // first (ruling `KF-Q`, divergence 187): the input context hands
+            // it over as `.textInput`, never `.keyDown`, so this is its only
+            // offer. `.handled` drops it. Pinned by
+            // `aHandledKeyPressSwallowsATypedCharacterInAFocusedField`.
+            if self.dispatchTypedKeyPress(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Text fields (ruling TI-B): a press on one focuses it and places
             // the caret, a drag from it selects, and committed or marked text
             // goes to the focused one. Ahead of click dispatch — a field has
@@ -990,7 +1010,29 @@ public final class Window {
             // keymap. Swapping these two lines makes every raw handler shadow
             // every binding on the same keystroke; pinned by
             // `aBoundActionRunsBeforeARawOnKeyHandler`.
-            if self.dispatchAction(event) {
+            //
+            // The key chain (ruling `KF-D`, `KF-U`): the focus chain, or with
+            // nothing focused the hovered key region's — found once per key
+            // event, for the keymap's contexts, its action dispatch and
+            // `onKeyPress`; the raw `onKey` bubble keeps the focus chain.
+            let keyChain: [GlobalElementID]
+            switch event {
+            case .keyDown, .keyUp: keyChain = self.keyChain
+            default: keyChain = []
+            }
+            if self.dispatchAction(event, along: keyChain) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // SwiftUI's `onKeyPress` (rulings `KF-B`, `KF-C`): after the
+            // keymap — MetalUI's window-level command layer — and before a
+            // focused field's editing keys, so a handled ↑ never moves the
+            // caret and a handled Return never submits (K4c, K4g); before a
+            // `Button`'s shortcut (K10) and the app's commands (`KF-R` item 3:
+            // KX1/KX2 unrun, the designed order). Outermost first. Pinned by
+            // `onKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField` and
+            // `aBoundKeymapActionRunsBeforeOnKeyPress`.
+            if self.dispatchKeyPress(event, along: keyChain) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1642,6 +1684,8 @@ public final class Window {
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
+        lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
+        lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -2122,6 +2166,12 @@ public final class Window {
     /// How many hover regions the last adopted frame registered (`SV-U`): with
     /// none and nothing hovered, a pointer event or frame does no hover work.
     var lastHoverRegionCount = 0
+
+    /// How many key regions and click-focusable press regions the last
+    /// adopted frame registered (`KF-E` item 4, `KF-F` item 3): with neither,
+    /// a key event and a press do no lookup.
+    var lastKeyRegionCount = 0
+    var lastFocusOnPressCount = 0
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
@@ -2663,9 +2713,12 @@ public final class Window {
     /// **Against `lastFocusRegistry`**, exactly as `dispatchKey` and
     /// `dispatchClick` resolve against the last frame's records: there is no
     /// frame in flight when an input event arrives.
-    private func dispatchAction(_ event: InputEvent) -> Bool {
+    ///
+    /// **Along the key chain** (ruling `KF-D`): the focus chain, or with
+    /// nothing focused the hovered key region's, so a region's key context
+    /// scopes bindings while the pointer rests on it.
+    private func dispatchAction(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
         guard case .keyDown(let key) = event else { return false }
-        let chain = focusChain
         let contexts = chain.map { lastFocusRegistry.context(for: $0) }
         switch matchKeymap(key, in: keymap, contextsByLevel: contexts,
                            pending: &pendingStroke) {
@@ -2830,6 +2883,40 @@ public final class Window {
             setEditState(next, state)
         }
         return true
+    }
+
+    /// SwiftUI's `onKeyPress` for a key event (rulings `KF-B`, `KF-C`): a
+    /// `keyDown` is `.repeat` when `isRepeat`, else `.down`; a `keyUp` is
+    /// `.up`. The key is the first character of `charactersIgnoringModifiers`
+    /// (an event with none is not offered). Walks `chain` outermost first.
+    private func dispatchKeyPress(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
+        let key: KeyEvent
+        let phase: KeyPress.Phases
+        switch event {
+        case .keyDown(let down): key = down; phase = down.isRepeat ? .repeat : .down
+        case .keyUp(let up): key = up; phase = .up
+        default: return false
+        }
+        guard let first = key.charactersIgnoringModifiers.first else { return false }
+        let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
+                             modifiers: key.modifiers)
+        return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry)
+    }
+
+    /// A typed character on a focused field, offered to `onKeyPress` before
+    /// the field types it (ruling `KF-Q`): only while a text field holds focus
+    /// with no composition in progress, and only a one-grapheme commit — an
+    /// input method's compositions and multi-grapheme commits are its own.
+    /// `KeyPress(phase: .down, key: the character, characters: text,
+    /// modifiers: [])` (divergence 187). With no handler anywhere, the event
+    /// reaches `dispatchTextInput` byte for byte as before.
+    private func dispatchTypedKeyPress(_ event: InputEvent) -> Bool {
+        guard case .textInput(let text) = event, lastFocusRegistry.keyPressCount > 0,
+              let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil,
+              text.count == 1, let character = text.first,
+              editState(id).composition.text.isEmpty else { return false }
+        let press = KeyPress(phase: .down, key: KeyEquivalent(character), characters: text, modifiers: [])
+        return MetalUI.dispatchKeyPress(press, along: focusChain, in: lastFocusRegistry)
     }
 
     /// The focused field's editing keys (TI-D's table).

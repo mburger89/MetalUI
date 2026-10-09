@@ -238,6 +238,15 @@ let twoStrokeTimeout: Double = 1
 /// nothing is focused, which is a supported case rather than a degenerate one:
 /// a context-free binding still fires.
 ///
+/// **Where the chain comes from** (rulings `KF-D` item 3, `KF-U`):
+/// `Window.dispatchAction` passes the **key chain** — the focus chain while
+/// an element holds focus, otherwise the chain of the hovered key region
+/// (`hoverKeyRegion(_:)`). So a region's `keyContext("Graph")` sits at its
+/// depth and a `"Graph"` binding beats a context-free or `"!Panel"` one over
+/// it, and a region nested in a `Panel` contributor makes `"!Panel"` false
+/// while hovered. This function, `contextDepth` and the predicate language
+/// are unchanged by it.
+///
 /// **Four steps, in this order, and each ordering choice is load-bearing.**
 ///
 /// 1. **A prefix older than `twoStrokeTimeout` is dropped** (§8.3: dropped, not

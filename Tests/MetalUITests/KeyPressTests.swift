@@ -205,8 +205,9 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor
 @Test func aHandledReturnDoesNotSubmitTheField() throws {
     let m = KPLog("abc")
-    let (_, platform) = try fieldWindow(m) { $0.onKeyPress(.return) { m.log.append("return"); return .handled } }
+    let (window, platform) = try fieldWindow(m) { $0.onKeyPress(.return) { m.log.append("return"); return .handled } }
     #expect(platform.simulateInput(kd("\r")))
+    _ = window
     #expect(m.log == ["return"] && m.submits == 0, "claimed before the field: \(m.log), submits \(m.submits)")
 }
 

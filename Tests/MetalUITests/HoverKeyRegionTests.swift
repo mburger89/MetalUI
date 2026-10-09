@@ -93,7 +93,8 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let m = HKLog()
     let (window, platform) = try hkWindow { canvasAndPanel(m) }
     let canvas = try keyRegions(window, count: 1)[0]
-    window.focus(try #require(window.lastFocusRegistry.tabOrder.first))
+    let first = try #require(window.lastFocusRegistry.tabOrder.first)
+    window.focus(first)
     window.drawFrameIfNeeded()
     platform.simulateInput(mv(centre(canvas.bounds)))
     platform.simulateInput(kd("x"))
@@ -190,7 +191,8 @@ private struct FrameAll: Action {}
     #expect(m.log.isEmpty, "over the viewport inside Panel both !Panel bindings are vetoed: \(m.log)")
 
     m.log = []
-    window.focus(try #require(window.lastFocusRegistry.tabOrder.first))
+    let first = try #require(window.lastFocusRegistry.tabOrder.first)
+    window.focus(first)
     window.drawFrameIfNeeded()
     platform.simulateInput(mv(centre(regions[0].bounds)))
     platform.simulateInput(kd("+"))
@@ -207,7 +209,8 @@ private struct FrameAll: Action {}
     let m = HKLog()
     let (window, platform) = try hkWindow { canvasAndPanel(m) }
     let canvas = try keyRegions(window, count: 1)[0]
-    window.focus(try #require(window.lastFocusRegistry.tabOrder.first))
+    let first = try #require(window.lastFocusRegistry.tabOrder.first)
+    window.focus(first)
     window.drawFrameIfNeeded()
     platform.simulateInput(down(centre(canvas.bounds)))
     platform.simulateInput(up(centre(canvas.bounds)))
@@ -223,7 +226,7 @@ private struct HKFieldInRegion: Component {
     var content: some ElementGroup {
         let _ = m.flags.append(focused)
         Box {
-            TextField("t", text: m.text) { m.text = $0 }.frame(width: px(100), height: px(24)).focused($focused)
+            TextField("t", text: m.text) { m.text = $0 }.focused($focused).frame(width: px(100), height: px(24))
         }
         .frame(width: px(200), height: px(200))
         .hoverKeyRegion()

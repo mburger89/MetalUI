@@ -383,6 +383,18 @@ public struct Handlers {
     /// elements that use it.
     var isKeyTarget: Bool {
         onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil || textInput != nil
-            || keyboardShortcut != nil
+            || keyboardShortcut != nil || keyboard?.keyPresses.isEmpty == false
     }
+
+    /// Whether a primary press focuses this element (ruling `KF-F` item 2):
+    /// focusable, with interactions containing `.edit`. Registers a
+    /// **non-opaque** press region (`Frame.registerHandlers`), never a pointer
+    /// target.
+    var focusesOnPress: Bool {
+        isFocusable && keyboard?.focusInteractions?.contains(.edit) == true
+    }
+
+    /// Whether `.hoverKeyRegion()` made this element a key region (ruling
+    /// `KF-E`): a **non-opaque** region, never a pointer target.
+    var isKeyRegion: Bool { keyboard?.isKeyRegion == true }
 }

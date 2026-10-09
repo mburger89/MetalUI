@@ -30,7 +30,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         Box { square().focusable().onKeyPress("x") { m.log.append("x"); return .handled } }
     }
     window.drawFrameIfNeeded()
-    window.focus(try #require(window.lastFocusRegistry.tabOrder.first))
+    let first = try #require(window.lastFocusRegistry.tabOrder.first)
+    window.focus(first)
     window.drawFrameIfNeeded()
     #expect(platform.simulateInput(kd("x")))
     #expect(m.log == ["x"], "\(m.log)")
@@ -48,7 +49,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         .onKeyPress { _ in m.log.append("root"); return .ignored }
     }
     window.drawFrameIfNeeded()
-    window.focus(try #require(window.lastFocusRegistry.tabOrder.first))
+    let first = try #require(window.lastFocusRegistry.tabOrder.first)
+    window.focus(first)
     window.drawFrameIfNeeded()
     platform.simulateInput(kd("q"))
     #expect(m.log == ["root", "mid", "inner"], "\(m.log)")

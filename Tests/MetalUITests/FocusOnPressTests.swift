@@ -194,7 +194,7 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     click(platform, centreOf(field.bounds))
     window.drawFrameIfNeeded()
     try #require(window.focusedElement == field.id, "set up: the field is focused")
-    let surface = try #require(window.lastFocusRegistry.tabOrder.first { $0 != field.id })
+    let surface = try #require(window.lastFocusRegistry.tabOrder.last, "the extra surface is last in Tab order")
     let rowY = field.bounds.origin.y.value + 24 + 20
     click(platform, pt(180, rowY))
     #expect(window.focusedElement == surface, "the click-focusable surface took focus (RS4)")
