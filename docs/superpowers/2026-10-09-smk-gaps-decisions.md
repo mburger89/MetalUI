@@ -9,7 +9,7 @@ Record: `../record/89-smk-gaps.md` (written in the Record phase). Branch
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
 
-**Next unused id: `SG-H`.**
+**Next unused id: `SG-I`.**
 
 ## The final spellings (what the configurator swaps its workarounds for)
 
@@ -86,20 +86,28 @@ owner none".
    `.newItem` group, then the additions at `.appVisibility` and
    `.appTermination` (their standard items dropped); **Edit** = Undo, Redo, —,
    Cut, Copy, Paste, Delete, Select All (the `.undoRedo` and `.pasteboard`
-   groups, standard items kept, shortcuts `.primary`, `SG-B`); then every
+   groups, standard items kept unless a `CommandGroup(replacing:)` replaces
+   them, exactly as the AppKit style replaces them — amended by `SG-H` item
+   3; shortcuts `.primary`, `SG-B`); then every
    `CommandMenu` in declaration order; **Window** only when something is
    placed at `.windowSize`/`.windowArrangement` (standard items dropped — no
    `PlatformWindow` minimise/zoom exists); **Help** = the `.help` group, then
    the additions at `.appInfo` (About lives in Help on Windows and GNOME). A
    menu left empty is not shown (File is empty unless the app adds to it —
    Close/Quit are item 11's deferral).
-4. **A standard Edit item is delivered as its own key** to the window that
+4. *(Amended by `SG-H` items 1–2: the Edit items are enabled only while a
+   text field is focused, as AppKit's `validateMenuItem` enables them
+   (`MN-K`); Delete is `\u{7f}` with no modifiers, AppKit's `delete(_:)`
+   key — not `\u{f728}`.)* **A standard Edit item is delivered as its own key** to the window that
    drew the bar — `.primary`+Z, `.primary`+⇧Z, `.primary`+X/C/V/A, and Delete
-   as the forward-delete key `\u{f728}` — through the window's ordinary key
+   as `\u{7f}` with no modifiers — through the window's ordinary key
    pipeline, from input. AppKit already does exactly this
-   (`AppKitMenus.deliverEditKey`), so a focused `TextField` handles both bars'
-   Edit items through one path; with nothing focused the key goes where any
-   key goes.
+   (`AppKitMenus.deliverEditKey`, the same seven keys), so a focused
+   `TextField` handles both bars' Edit items through one path. The items are
+   **disabled unless a text field holds focus** (AppKit's
+   `MetalHostView.validateMenuItem`, `MN-K`), evaluated at each open, so a
+   drawn Select All never reaches a `Button` shortcut or an app command bound
+   to the same key.
 5. **Geometry and look.** A strip across the window's top, **25 points**:
    a 24-point bar (the regular control height `MD-K` item 1 uses) and a
    1-point `.separator` line, filled `.surface` like the toolbar strip. Titles
@@ -124,7 +132,8 @@ owner none".
    (divergence 94's rule): the bar is reached by pointer and F10, not Tab.
    Cost if wrong: VoiceOver/Narrator read the titles as buttons, not menu-bar
    items — a role row on both bridges would fix it later, owner none.
-8. **Input.** A press on a title opens its menu through the window's existing
+8. **Input.** *(Amended by `SG-H` item 4: a title's `onClick` opens on the
+   click, i.e. the release, not the press.)* A click on a title opens its menu through the window's existing
    menu machinery (`MenuSession`, `presentMenuOnPlatform` first — SDL answers
    `false`, so the in-window panel), anchored at the title's bottom-leading
    corner, the session remembering which bar menu it is. While a bar menu is
@@ -344,7 +353,7 @@ compilers never fire, so **no CI job except Windows can see it**.
    shape compiles. Without: the workaround shape compiles **and** the trigger
    shape still fails with the assertion — a tripwire that reddens when a
    toolchain fixes it, so the workaround note can go. It counts while skipped
-   (fourteen env-gated tests).
+   (fifteen env-gated tests with spec test 1.9 — amended by `SG-H` item 7).
 5. The upstream bug text (title, the reduced file, the exact assertion and
    frames, toolchain versions) goes in the record.
 
@@ -382,7 +391,7 @@ a window 39 (or 64) points taller at minimum — visible, never clipped.
 
 ## SG-G — Scope, lanes and the parallel branches
 
-1. **Three lanes, run one after another** in this worktree (spec §4): lane 1
+1. *(Superseded by `SG-H` item 5: lane 1 takes `SG-B` item 5 and `SG-F`'s strip term; lane 3 may run concurrently in a sibling worktree.)* **Three lanes, run one after another** in this worktree (spec §4): lane 1
    `SG-B`'s modifier and defaults, `SG-C`, `SG-D`; lane 2 `SG-A`, `SG-F` and
    `SG-B`'s menu adoption and labels; lane 3 `SG-E`. Source files are
    disjoint; the generated census (`closeout-public-api.tsv`) and the
@@ -401,3 +410,72 @@ a window 39 (or 64) points taller at minimum — visible, never clipped.
    name), hit testing's one ranking, accessibility bridges, animation, focus,
    `List`, `Deferred`, text input. The fourteen offscreen images read 0 px
    (no window there has an `App`, so no bar; no default shortcut is drawn).
+
+## SG-H — Critic review of the design (2026-10-09): six corrections, one rejection, the parallel plan
+
+**Ruling.** A review of `a7b38fc` against the source at `0b400b4` and master
+`9ad2254`. The probe was re-run (default build and the `PRIMARY`/`PLATFORM`
+arms): stdout and both refusals byte-identical to its header. Corrections,
+each made in place in `SG-A`/`SG-E`/`SG-G` and the spec:
+
+1. **The drawn Edit items are enabled only while a text field is focused.**
+   `SG-A` item 4 cited `AppKitMenus.deliverEditKey` as "exactly this" but let
+   the drawn items run "with nothing focused … where any key goes". AppKit's
+   `MetalHostView.validateMenuItem` disables the seven Edit selectors unless a
+   caret is set (`MN-K`). Without the same rule a drawn Select All with
+   nothing focused would be delivered as `.primary`+A and run a `Button`
+   shortcut or an app command bound to that key — a menu row running an
+   unrelated action, which AppKit never does. Pinned by spec 2.11's new arm.
+2. **Delete is `\u{7f}`**, not `\u{f728}`: `MetalHostView.delete(_:)`
+   delivers `"\u{7f}"` with no modifiers; one path means one key.
+3. **A `CommandGroup(replacing: .undoRedo/.pasteboard)` replaces the drawn
+   Edit items** as it replaces AppKit's — `SG-A` item 3 said "standard items
+   kept" unconditionally. Spec 2.6 gains the arm.
+4. **A title opens on the click, not the press.** The title is an `onClick`
+   (`SG-A` item 7, chosen so no new handler site is owed), which fires on
+   release; `SG-A` item 8 said "press". Native Windows/GTK bars open on the
+   press and allow press-drag-release onto a row; the drawn bar does not.
+   Recorded in divergence 195's text by lane 2 (no new label). Cost if wrong:
+   a press-drag-release user gets nothing until release, then the menu.
+5. **Lanes rebalanced; lane 3 parallel.** Lane 2 held ~20 tests and every
+   menu-bar file while lane 1 was small. `SG-B` item 5 (labels,
+   `MenuPanel.shortcutText`, test 2.2) and `SG-F` over the **toolbar strip**
+   (which exists at the base, so 2.19's strip arms, 2.20 and guard 2.21b
+   separate without the bar) move to lane 1; lane 2 adds the bar's 25 and its
+   arms. Lane 3 (`SG-E`) shares no file with lanes 1–2 and needs nothing they
+   add, so it **may run concurrently** in a sibling worktree
+   (`smk-gaps-asserts`, branch `fix/smk-port-gaps-asserts` from this HEAD),
+   merged after lane 2 and verified on the merge. Lanes 1 → 2 stay
+   sequential: lane 2 spells `.primary`, the labels and `drawnChromeHeight`.
+   Splitting lane 2 itself was considered and **rejected**: its files
+   (`Window`, `Frame`, `MenuSession`, `Commands`) are one feature's, and a
+   split would put two agents on `Window.swift`'s key dispatch. Generated
+   files are re-generated after a merge, never hand-merged.
+6. **Baseline moved.** Master moved to `9ad2254` (GX-Y, `Frame.swift`/
+   `RenderEffects.swift` only, no file of this design); merged at `57e02a4`.
+   Counts are re-taken there by lane 1 before its first commit and the pixel
+   comparison's base is `57e02a4`.
+7. **Two counting/gate omissions.** Env-gated tests are fifteen after 1.9 and
+   3.2, not fourteen (`SG-E` item 4). `SG-E` item 2's box changes
+   `Component`'s public `GroupPrepaint` witness type: a fifth gate — doc
+   comment, inventory row, re-recorded census — if it lands.
+
+**Rejected: spelling `SG-F` as a safe-area inset.** SwiftUI's macOS toolbar
+is outside the content view (the content is laid out below it, not under it
+with an inset), MetalUI lays the root out below the drawn chrome the same way
+(`MD-K`), and safe areas are outside the product boundary (`PB-A`). A
+read-only height is the honest spelling; `drawnChromeHeight` stands.
+
+**Checked and standing** (no change): every `Platform` conformer is in the
+spec's list (`AppKitPlatform`, `SDLPlatform`, the `SDLLifecycleTests`
+wrapper, `Fakes`, `AppIconCompileGuards`, `CommandsCompileGuards`; the
+trait-off `SDLPlatform` is an unavailable stub, not a conformer); the nine
+`CommandGroupPlacement`s are all placed by `SG-A` item 3, so no command
+becomes unreachable in the drawn style; the fourteen images are rendered over
+`FakePlatformWindow` with no `App` and none shows the menus demo; the SDL
+bridge's modifier constants are already converted with `UInt32(...)`;
+`mui_push_event` round-trips through `SDL_KMOD_*`, so 1.4's bridge mutation
+reaches; key-focus (C9) changes `dispatchAction`/adds `dispatchKeyPress` in
+`Window.swift` but not the unclaimed-key stage F10 joins, and its `KF-X`
+reads `commandShortcuts`, which `SG-A` leaves unchanged.
+

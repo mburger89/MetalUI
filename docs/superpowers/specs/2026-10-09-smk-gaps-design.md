@@ -1,7 +1,8 @@
 # SMK configurator port gaps MG-23…MG-28 — design
 
 C12 of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**). Branch `fix/smk-port-gaps` from `0b400b4`, worktree
+task**). Branch `fix/smk-port-gaps` from `0b400b4`, master `9ad2254` (GX-Y) merged at
+`57e02a4` — **the baseline for counts and pixels is `57e02a4`** (`SG-H` item 6), worktree
 `~/Developer/worktrees/MetalUI/smk-gaps`. Rulings `SG-A`…`SG-G` in
 [`../2026-10-09-smk-gaps-decisions.md`](../2026-10-09-smk-gaps-decisions.md)
 (read them first: this spec is the build plan, the rulings are the reasons).
@@ -14,11 +15,11 @@ configurator's `docs/superpowers/2026-10-06-metalui-gaps.md`, `## MG-23`…
 | gap | what lands | ruling | lane |
 | --- | --- | --- | --- |
 | MG-23 SDL draws no menu bar | the drawn menu bar; `Platform.setMenuBar(_:) -> Bool` | `SG-A` | 2 |
-| MG-24 `.command` is Super off Apple | `EventModifiers.primary`, the default; honest labels | `SG-B` | 1 (modifier, defaults), 2 (menus, labels) |
+| MG-24 `.command` is Super off Apple | `EventModifiers.primary`, the default; honest labels | `SG-B` | 1 (modifier, defaults, drawn-menu labels), 2 (the drawn bar's standard items) |
 | MG-25 no monospaced/serif family | `SystemFonts.designFamilies`, registered lazily | `SG-C` | 1 |
 | MG-26 conditional products break macOS test builds | unconditional portable-text products in the scaffold and getting-started; a build-test arm | `SG-D` | 1 |
 | MG-27 asserts compiler on `Component` + `switch` | reduction; a measured `Component` change or the documented workaround; an env-gated guard; upstream text | `SG-E` | 3 |
-| MG-28 strip height not public | `Window.drawnChromeHeight`; explicit limits below drawn chrome | `SG-F` | 2 |
+| MG-28 strip height not public | `Window.drawnChromeHeight`; explicit limits below drawn chrome | `SG-F` | 1 (the strip), 2 (adds the bar) |
 
 Deferred (named, with reason and owner) in §8.
 
@@ -157,12 +158,17 @@ standard Edit delivery, `drawnChromeHeight`), `Sources/MetalUI/MenuSession.swift
    level is the root (Left) and `barIndex != nil` → adjacent index, wrapping,
    first enabled row highlighted.
 7. **Edit delivery.** `Window.deliverStandardEditKey(_ action:)` builds the
-   `KeyEvent` (`.primary` + z / ⇧z / x / c / v / a; Delete = `\u{f728}` with
+   `KeyEvent` (`.primary` + z / ⇧z / x / c / v / a; Delete = `\u{7f}` (AppKit's key, `SG-H` item 2) with
    no modifiers) and runs it through the window's ordinary key dispatch from
-   input — the path `AppKitMenus.deliverEditKey` reaches on AppKit.
+   input — the path `AppKitMenus.deliverEditKey` reaches on AppKit. The
+   seven items are built **disabled unless `focusedElement` has a text target**
+   in `lastFocusRegistry` at the open (`MetalHostView.validateMenuItem`'s
+   rule, `MN-K`; `SG-H` item 1).
 8. **F10.** In the window's key dispatch, at the unclaimed-key stage beside
    Tab traversal (after keymap, focused field, `onKey` bubble, `Button`
-   shortcuts, command stage): F10 (`\u{f70d}`, no modifiers) in a window
+   shortcuts, command stage — and, once C9 merges, after `onKeyPress`, which
+   sits ahead of all of these; an F10 an `onKeyPress` handles opens nothing):
+   F10 (`\u{f70d}`, no modifiers) in a window
    drawing a bar opens index 0, first enabled row highlighted. **Keep this
    edit minimal** — `feat/key-focus` is changing `Window`'s key dispatch
    (`git -C ~/Developer/worktrees/MetalUI/key-focus diff 0b400b4...HEAD --
@@ -186,7 +192,13 @@ standard Edit delivery, `drawnChromeHeight`), `Sources/MetalUI/MenuSession.swift
     under `METALUI_SYSTEM_FONTS=1`). None of the fourteen images shows the
     menus demo; they read 0 px.
 
-### 3.5 Drawn chrome height and limits (lane 2, `SG-F`)
+### 3.5 Drawn chrome height and limits (lane 1 for the toolbar strip, lane 2 adds the bar; `SG-F`, `SG-H` item 5)
+
+Lane 1 lands `drawnChromeHeight` and the limit adjustment over the **toolbar
+strip alone** (`drewToolbarStrip ? 39 : 0`; the strip already exists at the
+base, so every arm separates in lane 1); lane 2 adds `drewMenuBar ? 25 : 0`
+and its arms of 2.19 (bar only, both) and 2.14's minimum.
+
 
 - `Window.drawnChromeHeight: Pixels` — set from the adopted frame
   (`drewToolbarStrip ? 39 : 0` + `drewMenuBar ? 25 : 0`), `public private(set)`
@@ -196,7 +208,8 @@ standard Edit delivery, `drawnChromeHeight`), `Sources/MetalUI/MenuSession.swift
   explicit limits with `drawnChromeHeight` added to the height (finite only)
   before combining with the content's (which already include it).
 - `ToolbarStrip.height`'s doc comment points at `drawnChromeHeight`.
-- Inventory: one **M** row; the `setMenuBar` census line changes.
+- Inventory: one **M** row (lane 1); the `setMenuBar` census line changes
+  (lane 2).
 
 ### 3.6 The asserts compiler (lane 3, `SG-E`)
 
@@ -213,7 +226,10 @@ standard Edit delivery, `drawnChromeHeight`), `Sources/MetalUI/MenuSession.swift
 3. Try `SG-E` item 2's candidate (box `Component`'s `GroupPrepaint`:
    `Sources/MetalUI/Component.swift`, beside `ComponentLayout`; `StyledComponent`
    too if it has its own) and any candidate the reduction suggests, under the
-   four gates. Adopt or withdraw; amend `SG-E` with the result.
+   four gates. Adopt or withdraw; amend `SG-E` with the result. A box changes
+   `Component`'s public `GroupPrepaint` witness type (and `StyledComponent`'s,
+   `Component.swift` ~502): a new public type then owes a doc comment, an
+   inventory row and a re-recorded census (`SG-H` item 7) — the fifth gate.
 4. Guard: `Tests/MetalUIScaffoldTests/AssertsCompilerTests.swift` (the scaffold
    test target already shells out to `swift`; it imports no MetalUI module),
    env-gated as in `SG-E` item 4.
@@ -223,16 +239,29 @@ standard Edit delivery, `drawnChromeHeight`), `Sources/MetalUI/MenuSession.swift
 
 ## 4. Lanes
 
-Run **one after another** (agents run one at a time in this worktree), in
-this order. Each commits test-first (red), then the fix, then docs; full
+**Rebalanced and parallelised by `SG-H` item 5** (supersedes `SG-G` item 1).
+Lane 1 now also takes `SG-B` item 5 (labels: `MenuPanel.swift`, test 2.2) and
+`SG-F` over the toolbar strip (tests 2.19's strip arms, 2.20, guard 2.21b) —
+those tests keep their numbers. **Lane 3 shares no source, test or doc file
+with lanes 1 and 2** and depends on nothing they add, so it may run
+**concurrently** with them in a sibling worktree
+(`~/Developer/worktrees/MetalUI/smk-gaps-asserts`, branch
+`fix/smk-port-gaps-asserts` from this design's HEAD), merged into
+`fix/smk-port-gaps` after lane 2 and verified there (full suite, images).
+**Lane 2 depends on lane 1** (`EventModifiers.primary`, the labels,
+`drawnChromeHeight`), so lanes 1 → 2 stay one after another in this
+worktree. Generated files (`closeout-public-api.tsv`) are **re-generated
+after a merge, never hand-merged**; the inventory map and the decisions doc
+merge additively (each lane edits only its own rulings' sections). Each lane
+commits test-first (red), then the fix, then docs; full
 unfiltered native suite at each lane's end; census and inventory checks print
 nothing.
 
 | lane | rulings | files (exclusive) |
 | --- | --- | --- |
-| 1 | `SG-B` items 1–4, `SG-C`, `SG-D` | `Sources/MetalUIPlatform/InputEvent.swift`, `Sources/MetalUI/KeyboardShortcut.swift`, `Sources/MetalUI/Button.swift`, `Sources/MetalUISystemFonts/**`, `Sources/MetalUIScaffold/Scaffold.swift`, `docs/getting-started.md`, `Tests/MetalUICrossPlatformTests/PrimaryModifierTests.swift` (new), `Tests/MetalUITests/KeyboardShortcutTests.swift`, `Tests/MetalUISystemFontsTests/**`, `Tests/MetalUIScaffoldTests/ScaffoldTests.swift`, `Backends/SDL/Tests/MetalUISDLTests/SDLPrimaryShortcutTests.swift` (new) |
-| 2 | `SG-A`, `SG-F`, `SG-B` item 5 and the standard items | `Sources/MetalUIPlatform/Platform.swift`, `Sources/MetalUIAppKit/AppKitPlatform.swift`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Sources/MetalUI/{Commands,App,Window,Frame,MenuSession,MenuPanel,ToolbarStrip,MenuBarStrip}.swift`, `Sources/MetalUIDemoContent/**` (menus demo), `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, `Tests/MetalUITests/{Fakes,CommandsTests,CommandsCompileGuards,AppIconCompileGuards,MenuBarStripTests,MenuBarCompileGuards,ExplicitIdentityTests,WindowSizingTests,ToolbarStripTests}.swift` and every other compile-guard file holding a full `Platform` conformer, `Tests/MetalUICrossPlatformTests/DrawnMenuBarModelTests.swift` (new), `Backends/SDL/Tests/MetalUISDLTests/{SDLMenuBarTests,SDLLifecycleTests}.swift`, `docs/migration.md`, `docs/divergences.md`, `docs/verification/human-checks.md` |
-| 3 | `SG-E` | `Sources/MetalUI/Component.swift` (only if adopted), `Tests/MetalUIScaffoldTests/AssertsCompilerTests.swift` (new), `docs/packaging.md` |
+| 1 | `SG-B` items 1–6, `SG-C`, `SG-D`, `SG-F` (strip) | `Sources/MetalUIPlatform/InputEvent.swift`, `Sources/MetalUI/MenuPanel.swift` (labels only), `Sources/MetalUI/Window.swift` + `Sources/MetalUI/Frame.swift` + `Sources/MetalUI/ToolbarStrip.swift` (`SG-F` only), `Tests/MetalUITests/{WindowSizingTests,MenuPanelLabelTests (new),ChromeHeightCompileGuards (new)}.swift`, `docs/migration.md` (`SG-B`, `SG-F` rows), `Sources/MetalUI/KeyboardShortcut.swift`, `Sources/MetalUI/Button.swift`, `Sources/MetalUISystemFonts/**`, `Sources/MetalUIScaffold/Scaffold.swift`, `docs/getting-started.md`, `Tests/MetalUICrossPlatformTests/PrimaryModifierTests.swift` (new), `Tests/MetalUITests/KeyboardShortcutTests.swift`, `Tests/MetalUISystemFontsTests/**`, `Tests/MetalUIScaffoldTests/ScaffoldTests.swift`, `Backends/SDL/Tests/MetalUISDLTests/SDLPrimaryShortcutTests.swift` (new) |
+| 2 | `SG-A`, `SG-F`'s bar term, `SG-B`'s drawn standard items | `Sources/MetalUIPlatform/Platform.swift`, `Sources/MetalUIAppKit/AppKitPlatform.swift`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Sources/MetalUI/{Commands,App,Window,Frame,MenuSession,MenuBarStrip}.swift`, `Sources/MetalUIDemoContent/**` (menus demo), `Sources/MetalUIDemo/main.swift`, `Backends/SDL/Sources/MetalUISDLDemo/main.swift`, `Tests/MetalUITests/{Fakes,CommandsTests,CommandsCompileGuards,AppIconCompileGuards,MenuBarStripTests,MenuBarCompileGuards,ExplicitIdentityTests,WindowSizingTests,ToolbarStripTests}.swift` and every other compile-guard file holding a full `Platform` conformer, `Tests/MetalUICrossPlatformTests/DrawnMenuBarModelTests.swift` (new), `Backends/SDL/Tests/MetalUISDLTests/{SDLMenuBarTests,SDLLifecycleTests}.swift`, `docs/migration.md` (`SG-A` row), `docs/divergences.md`, `docs/verification/human-checks.md` |
+| 3 (may run concurrently) | `SG-E` | `Sources/MetalUI/Component.swift` (only if adopted), `Tests/MetalUIScaffoldTests/AssertsCompilerTests.swift` (new), `docs/packaging.md`, the inventory map / census only if a box type becomes public (`SG-H` item 7) |
 
 Shared, appended in lane order: `docs/probes/closeout-public-api.tsv`
 (re-recorded), `docs/probes/closeout-inventory-map.tsv`, the decisions doc
@@ -321,7 +350,7 @@ run, every reddened test named, `git status --short` clean after restore.
   model's Edit items' shortcut modifiers are `.primary` (`[.primary, .shift]`
   for Redo), i.e. `.control` off Darwin. Red: does not compile (`style:`).
   Mutation: standard default back to `.command` → reddens in `swift:6.4-noble`.
-- **2.2** `aDrawnMenusShortcutTextNamesEachKey` (`MenuBarStripTests.swift`):
+- **2.2** (lane 1, `SG-H` item 5) `aDrawnMenusShortcutTextNamesEachKey` (`MenuPanelLabelTests.swift`):
   `MenuPanel.shortcutText` with `platform: .other`: `.control`+k "Ctrl+K",
   `.command`+k "Super+K" (the Linux spelling; the Windows "Win" behind the
   same `superKeyName` parameter, asserted by passing it), `[.control,
@@ -343,7 +372,10 @@ run, every reddened test named, `git status --short` clean after restore.
   additions; Edit with the standard items; `CommandMenu`s; Window only with
   additions; Help = help group then appInfo additions; empty menus dropped.
   And the AppKit style's existing strings (`defaultApp`…`defaultWindow`)
-  unchanged. Mutation: keep the application menu in the drawn style → reddens.
+  unchanged. A `CommandGroup(replacing: .pasteboard)` replaces the drawn
+  Edit's Cut/Copy/Paste/Delete/Select All as it replaces AppKit's (`SG-H`
+  item 3). Mutations: keep the application menu in the drawn style; keep the
+  standard items under a replacement → each reddens.
 - **2.7** `clickingATitleOpensItsMenuBelowItAndAChoiceRunsTheCommand`: click
   "Tools" → an in-window session whose root level's origin is (Tools.minX,
   25); click "Go" → its action ran once, the session closed. Mutations:
@@ -361,8 +393,11 @@ run, every reddened test named, `git status --short` clean after restore.
   arm reddens.
 - **2.11** `aDrawnEditItemReachesTheFocusedField`: a focused `TextField` holding
   "abc", Edit ▸ Select All then Edit ▸ Copy → fake clipboard "abc"; Edit ▸
-  Paste with "Z" on the clipboard replaces the selection. Mutations: deliver
-  nothing; deliver Copy as "x" → each reddens.
+  Paste with "Z" on the clipboard replaces the selection. With nothing
+  focused, the seven Edit rows are disabled and a `Button("A"){…}
+  .keyboardShortcut("a")` in the window has not run after a press on Select
+  All's row (`SG-H` item 1). Mutations: deliver nothing; deliver Copy as "x";
+  enable the Edit rows always → each reddens.
 - **2.12** `aCommandShortcutStillRunsOnceWithADrawnBar`: a command bound to
   `.primary`+G runs once on that key in a window drawing the bar (`MN-J`).
   Mutation: also perform from the bar on a matching key → reddens (twice).
@@ -388,10 +423,10 @@ run, every reddened test named, `git status --short` clean after restore.
   (`mui_push_raw_mouse_event`) → the toggle's binding flipped. Mutation: SDL
   answers `true` → reddens. If a presented frame is needed, gate on
   `windowsPresentFrames` and say so.
-- **2.19** `drawnChromeHeightIsTheBarPlusTheStrip`: 0 with neither; 39 strip
+- **2.19** (strip arms lane 1, bar arms lane 2) `drawnChromeHeightIsTheBarPlusTheStrip`: 0 with neither; 39 strip
   only; 25 bar only; 64 both; 0 with both native. Mutation: report the strip
   only → reddens.
-- **2.20** `anExplicitMinimumIsMeasuredBelowTheDrawnChrome`
+- **2.20** (lane 1) `anExplicitMinimumIsMeasuredBelowTheDrawnChrome`
   (`WindowSizingTests.swift`): `minSize` 200 × 300 with a drawn strip → the
   platform receives 200 × 339; `maxSize` 500 × ∞ → 500 × ∞; native → 200 × 300.
   Mutation: send unadjusted → reddens. Existing `SV-L` pins unmoved (verify).
@@ -399,7 +434,7 @@ run, every reddened test named, `git status --short` clean after restore.
   `typecheckFile`): (a) `aPlatformWhoseSetMenuBarReturnsNothingDoesNotConform`
   — the `Void` spelling refused, the `-> Bool` spelling (positive control)
   compiles; mutate red once: a protocol-extension default `-> Bool { true }`.
-  (b) `drawnChromeHeightIsReadOnly` — assignment refused, a read compiles;
+  (b) (lane 1, `ChromeHeightCompileGuards.swift`) `drawnChromeHeightIsReadOnly` — assignment refused, a read compiles;
   mutate red once: make it settable. **+2 guards.**
 - Every compile-guard and fake `Platform` conformer changes to `-> Bool`
   (existing `G2.2` guard keeps its meaning).
@@ -419,9 +454,13 @@ run, every reddened test named, `git status --short` clean after restore.
 
 ### Counts
 
-At `0b400b4`: **2879 tests in 3 suites**, 180+ typecheck guards (read the
-`FR-J` line). Expected: lane 1 +9 (1.1–1.9; 1.9 env-gated), lane 2 +20 tests
-(2.1–2.20; 2.13 is an arm, not a test) and +2 guards, lane 3 +1 (3.2) or +2.
+At `0b400b4`: **2879 tests in 3 suites**; **lane 1 re-takes the baseline at
+`57e02a4`** (master's GX-Y tests added) before its first commit, and reads
+the `FR-J` line for guards. Expected: lane 1 +12 tests (1.1–1.9, 2.2, 2.19's
+strip arms as one test, 2.20; 1.9 env-gated) and +1 guard (2.21b), lane 2
++17 tests (2.1, 2.3–2.18; 2.13 is an arm; 2.19 gains arms, not a test) and +1
+guard (2.21a), lane 3 +1 (3.2) or +2. Env-gated tests that count while skipped:
+thirteen at the base, fifteen after 1.9 and 3.2.
 Re-measure; never add these up in place of a run.
 
 ## 6. Verification (every lane)
@@ -430,7 +469,7 @@ Re-measure; never add these up in place of a run.
 --build-system native --no-parallel` unfiltered (one summary line, the
 `FR-J no-argument frame: succeeded=` line); `swift build --build-tests` 0
 warnings; 0 `error:`; census/inventory scripts print nothing; fourteen images
-0 px (`docs/probes/demo-pixels/compare.sh <scratch> 0b400b4 HEAD`);
+0 px (`docs/probes/demo-pixels/compare.sh <scratch> 57e02a4 HEAD`);
 `DemoFrameDeterminismTests`' `Expected.swift` unedited;
 `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green; `MetalUILayout`
 and `MetalUIScene` imports unchanged. Lanes 1 and 2: `Backends/SDL` on macOS
