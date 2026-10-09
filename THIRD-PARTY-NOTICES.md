@@ -65,7 +65,9 @@ from the SDL3 release and the fetched `accesskit-c-0.23.0` directory.
 
 `Tests/Fonts/` (Noto Sans, Noto Sans Arabic, Source Sans 3) are test inputs
 (`FT-G`), loaded by `#filePath`, never a resource of a product. If you copy them
-into an app, add their OFL notices, which are not in this repo.
+into an app, ship their licences beside them: `Tests/Fonts/NotoSans-OFL.txt`,
+`Tests/Fonts/NotoSansArabic-OFL.txt` (SIL OFL 1.1) and
+`Tests/Fonts/SourceSans3-LICENSE.md` (provenance in `Tests/Fonts/SOURCES.md`).
 
 ## Licence texts
 

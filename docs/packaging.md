@@ -39,7 +39,10 @@ file and the licence files it names beside the application: in an `.app`
 `.build/checkouts/MetalUI`):
 
 ```bash
-mkdir -p "$DEST" && cp THIRD-PARTY-NOTICES.md "$DEST"/ && for f in Sources/C{StbImage,FreeType,HarfBuzz,Unibreak,SheenBidi}/{LICEN*,FTL.TXT,COPYING}; do [ -f "$f" ] && cp "$f" "$DEST/$(basename $(dirname $f))-$(basename $f)"; done
+mkdir -p "$DEST" && cp THIRD-PARTY-NOTICES.md "$DEST"/
+for f in CStbImage/LICENSE CFreeType/FTL.TXT CFreeType/LICENSE.TXT CHarfBuzz/COPYING CUnibreak/LICENCE CSheenBidi/LICENSE; do
+  cp "Sources/$f" "$DEST/$(dirname "$f")-$(basename "$f")"
+done
 ```
 
 (Drop the directories your product does not contain, see the table in the
