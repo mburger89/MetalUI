@@ -340,6 +340,13 @@ public struct Handlers {
     /// pointer target, so it blocks no click (`CI-H` item 3, `CI-I` item 3).
     var pointer: PointerAttachment?
 
+    // MARK: Keyboard (key and focus scoping, ruling `KF-I`)
+
+    /// The element's `onKeyPress` handlers, focus interactions and key-region
+    /// flag, or `nil` — the **nineteenth** member, one reference (a class box)
+    /// for `IX-N`'s Windows stack budget: 480 → 488 bytes (`KF-I`).
+    var keyboard: KeyboardAttachment?
+
     /// No handlers: the element is not a pointer target, not focusable and has
     /// no key context.
     public init() {}

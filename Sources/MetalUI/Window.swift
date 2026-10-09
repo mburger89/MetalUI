@@ -2134,6 +2134,12 @@ public final class Window {
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
     var hoverVisits = 0
 
+    /// Hovered-key-region lookups made, ever — test observability for
+    /// `KF-E` item 4's counted work: one per key event or primary press that
+    /// needs the hovered region, none per pointer move, none in a window whose
+    /// last frame registered no key region (spec test A24).
+    var keyRegionLookups = 0
+
     /// The pointer style last sent to the platform, or `nil` when unknown —
     /// before the first pointer event, and after the pointer left the window
     /// (`CI-S`), so the next pointer event sends unconditionally (`CI-H` item 7).

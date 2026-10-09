@@ -734,8 +734,8 @@ extension StyledElement {
     /// click focuses a `.focusable()` view (F3); making this element a pointer
     /// target would make every focusable container opaque to the pointer. A
     /// `@FocusState` written from an `onTapGesture` is the remedy.
-    public func focusable() -> Self {
-        handling { $0.isFocusable = true }
+    public func focusable(_ isFocusable: Bool = true) -> Self {
+        handling { $0.isFocusable = isFocusable }
     }
 
     /// Runs `handler` when a key event reaches this element — because it holds

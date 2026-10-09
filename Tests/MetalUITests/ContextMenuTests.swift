@@ -1003,8 +1003,11 @@ private struct MenuCounter: Component {
 ///
 /// Input APIs (ruling `CI-Q`): the wheel handler and the pointer style ride one
 /// more class box, `pointer` — 480. Its mutation: store the wheel closure inline.
+///
+/// Key and focus scoping (ruling `KF-I`): the `onKeyPress` handlers, focus
+/// interactions and key-region flag ride one more class box, `keyboard` — 488.
 @Test func handlersGainsOneReferenceMember() {
-    #expect(MemoryLayout<Handlers>.size == 480, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size == 488, "Handlers: \(MemoryLayout<Handlers>.size)")
 }
 
 /// **1.35** (C13c/C13, `MN-U`). Under `.allowsHitTesting(false)` a right press

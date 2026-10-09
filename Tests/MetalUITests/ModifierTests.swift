@@ -136,6 +136,12 @@ private struct HandlerShape: Equatable {
     /// Input APIs (ruling `CI-Q`): the eighteenth member, the wheel handler
     /// and pointer style's box.
     var pointer = false
+    /// Key and focus scoping (ruling `KF-I`): the nineteenth member, the
+    /// keyboard box — how many `onKeyPress` handlers (they append), the focus
+    /// interactions' bits and the key-region flag.
+    var keyPressCount = 0
+    var interactions: Int?
+    var keyRegion = false
 
     /// The projection of one element's `Handlers` — every member, one field
     /// each. The table below and the chain test after it read through this
@@ -159,7 +165,10 @@ private struct HandlerShape: Equatable {
                   draggableCount: h.gestures.filter(\.isDraggable).count,
                   contextual: h.contextual != nil,
                   hover: h.hover != nil,
-                  pointer: h.pointer != nil)
+                  pointer: h.pointer != nil,
+                  keyPressCount: h.keyboard?.keyPresses.count ?? 0,
+                  interactions: h.keyboard?.focusInteractions?.rawValue,
+                  keyRegion: h.keyboard?.isKeyRegion ?? false)
     }
 
     init(click: Bool = false, key: Bool = false, focusable: Bool = false, actionCount: Int = 0,
@@ -167,7 +176,8 @@ private struct HandlerShape: Equatable {
          contentShapeInset: Edges<Pixels>? = nil, textInput: Bool = false, valueTrack: Bool = false,
          gestureCount: Int = 0, keyboardShortcut: Bool = false, contentShape: Bool = false,
          focusBinding: Bool = false, dropDestination: Bool = false, draggableCount: Int = 0,
-         contextual: Bool = false, hover: Bool = false, pointer: Bool = false) {
+         contextual: Bool = false, hover: Bool = false, pointer: Bool = false,
+         keyPressCount: Int = 0, interactions: Int? = nil, keyRegion: Bool = false) {
         self.click = click; self.key = key; self.focusable = focusable
         self.actionCount = actionCount; self.context = context; self.axNode = axNode
         self.allowsHitTesting = allowsHitTesting; self.contentShapeInset = contentShapeInset
@@ -178,6 +188,9 @@ private struct HandlerShape: Equatable {
         self.contextual = contextual
         self.hover = hover
         self.pointer = pointer
+        self.keyPressCount = keyPressCount
+        self.interactions = interactions
+        self.keyRegion = keyRegion
     }
 }
 
@@ -447,6 +460,33 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      apply: { $0.focusable() },
                      effect: { _, _, _, h in h.focusable = true }),
 
+        // MARK: Keys and focus interactions (ruling `KF-I`)
+        //
+        // The five `onKeyPress` spellings append one handler each to the
+        // nineteenth member; `focusable(_:interactions:)` writes focusability
+        // and the interactions; `hoverKeyRegion()` the key-region flag.
+        ModifierCase(name: "onKeyPress(_:action:)",
+                     apply: { $0.onKeyPress("a") { .handled } },
+                     effect: { _, _, _, h in h.keyPressCount = 1 }),
+        ModifierCase(name: "onKeyPress(_:phases:action:)",
+                     apply: { $0.onKeyPress("a", phases: .up) { _ in .handled } },
+                     effect: { _, _, _, h in h.keyPressCount = 1 }),
+        ModifierCase(name: "onKeyPress(keys:phases:action:)",
+                     apply: { $0.onKeyPress(keys: ["a"]) { _ in .handled } },
+                     effect: { _, _, _, h in h.keyPressCount = 1 }),
+        ModifierCase(name: "onKeyPress(characters:phases:action:)",
+                     apply: { $0.onKeyPress(characters: .letters) { _ in .handled } },
+                     effect: { _, _, _, h in h.keyPressCount = 1 }),
+        ModifierCase(name: "onKeyPress(phases:action:)",
+                     apply: { $0.onKeyPress { _ in .handled } },
+                     effect: { _, _, _, h in h.keyPressCount = 1 }),
+        ModifierCase(name: "focusable(_:interactions:)",
+                     apply: { $0.focusable(interactions: .edit) },
+                     effect: { _, _, _, h in h.focusable = true; h.interactions = FocusInteractions.edit.rawValue }),
+        ModifierCase(name: "hoverKeyRegion(_:)",
+                     apply: { $0.hoverKeyRegion() },
+                     effect: { _, _, _, h in h.keyRegion = true }),
+
         // MARK: Actions and key contexts
         ModifierCase(name: "onAction(_:_:)",
                      apply: { $0.onAction(TableAction.self) { _ in } },
@@ -557,8 +597,10 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // menus (`contextMenu(menuItems:)`, `MN-Q`) = **55**. + 2 for hover
     // (`onHover(perform:)`, `onContinuousHover(perform:)`, `SV-N`) = **57**.
     // + 2 for the input APIs (`pointerStyle(_:)`, `onScrollWheel(perform:)`,
-    // `CI-Q`) = **59**.
-    #expect(cases.count == 59)
+    // `CI-Q`) = **59**. + 7 for key and focus scoping (the five `onKeyPress`
+    // spellings, `focusable(_:interactions:)`, `hoverKeyRegion(_:)`, `KF-I`) =
+    // **66**.
+    #expect(cases.count == 66)
 
     for c in cases {
         var expectedStyle = Style()

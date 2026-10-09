@@ -162,6 +162,9 @@ struct FocusRegistry {
     /// only way to assert that registration happened for an element that binds
     /// no key handler.
     var focusableCount: Int { focusable.count }
+
+    /// How many ids registered `onKeyPress` handlers this frame — stub.
+    var keyPressCount: Int { 0 }
 }
 
 /// The focused element's id and every ancestor of it, **innermost first** —
