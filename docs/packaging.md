@@ -25,6 +25,27 @@ command was run on Windows. Looking at an icon on screen is a human check
 The examples use one 1024 × 1024 PNG, `icon-1024.png`, and an application
 called `MyApp`, built from a SwiftPM executable product `MyApp`.
 
+## Third-party notices
+
+A MetalUI binary contains third-party code, so a package must carry its
+notices. `stb_image` is in **every** `MetalUI` binary, macOS included; FreeType,
+HarfBuzz, libunibreak and SheenBidi come with the portable text system
+(`MetalUIPortableText`, always on Linux and Windows); SDL3 and AccessKit come
+with the `SDL` and `AccessKit` traits. `THIRD-PARTY-NOTICES.md` (repo root)
+says which product contains what and where each licence text is. Ship that
+file and the licence files it names beside the application: in an `.app`
+`Contents/Resources`, under `/usr/share/doc/<app>/` on Linux, next to the
+`.exe` on Windows. From a checkout (a SwiftPM dependency is under
+`.build/checkouts/MetalUI`):
+
+```bash
+mkdir -p "$DEST" && cp THIRD-PARTY-NOTICES.md "$DEST"/ && for f in Sources/C{StbImage,FreeType,HarfBuzz,Unibreak,SheenBidi}/{LICEN*,FTL.TXT,COPYING}; do [ -f "$f" ] && cp "$f" "$DEST/$(basename $(dirname $f))-$(basename $f)"; done
+```
+
+(Drop the directories your product does not contain, see the table in the
+notices file.) SDL3's and
+AccessKit's licence texts are not in this repo.
+
 ## macOS: an `.app` bundle with an `.icns`
 
 A SwiftPM executable is a bare Mach-O file; Finder shows it with the generic
