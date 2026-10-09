@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AK`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AL`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1678,3 +1678,86 @@ moves a pin, a pixel or a public name.
 **Cost if wrong.** Items 1 and 2 are the two places where a reader of the doc
 comments is promised a behaviour the code does not give; item 1 is the one an
 app can hit (a custom canvas element that is also a button).
+
+## CI-AK — The branch checker: the merged tree re-taken; a declining wheel handler also stops a `TextEditor` scrolling itself
+
+**Ruling.** The adversarial branch check of `70ed000..1337ff6` (the merged
+tree). Measurements, all on `1337ff6` unless stated:
+
+1. **Suite.** `swift package clean`, native build (0 `error:`, the only
+   `warning:` SwiftPM's deprecation notice), unfiltered `--no-parallel`:
+   **`Test run with 2870 tests in 3 suites passed after 179.614 seconds`**,
+   `FR-J no-argument frame: succeeded=true`. `swift build --build-tests`
+   (default build system): build complete, **0 `warning:`**. Guards: `git grep
+   "enabled(if: canTypecheck"` reads 174 / 179 / 184 at `70ed000` / `dc6528c` /
+   `1337ff6`, so 175 → 180 → 185 with the offset, +5. Census re-run:
+   byte-identical to the committed `closeout-public-api.tsv` (2806 lines);
+   `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+   `cmp CLAUDE.md AGENTS.md` identical. Every `CI-` id cited anywhere in
+   `docs/`, `Sources/`, `Tests/`, `Backends/` and `CLAUDE.md` resolves to a
+   heading (`CI-AK`, then the next unused, aside); every test name the
+   branch's docs cite resolves.
+2. **Pixels.** `compare.sh <scratch> 70ed000 HEAD` (`1337ff6`): **0 differing,
+   scene identical, in all fourteen images**; controls at `70ed000`'s values
+   (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216, 491221, 529, 0).
+3. **Platforms after the merge** (the gap `CI-AJ` and record §81 §4.1 left):
+   `Backends/SDL` on macOS **24 + 98** (master's 24 + 88 + this branch's 10);
+   the Linux image (`git archive` of `1337ff6`) **24 + 95** (85 + 10); root in
+   `swift:6.4-noble` **6 + 35 + 18 + 199 + 67 + 22**, 0 `warning:`/`error:`
+   (master's numbers: the branch's new tests are macOS-only). The one
+   `Backends/SDL` warning in both (`AccessKitControlsParityTests.swift:83`, an
+   unneeded `try`) is master's; the branch does not touch that file.
+4. **Unchanged contracts.** The branch edits no expectation in an identity,
+   hit-testing, accessibility, animation, focus, `List` or text-input test:
+   its edits to existing tests are the `Handlers` member and size pins
+   (`theNewDeclarationsCostHandlersAtMostOnePointer`,
+   `handlersGainsOneReferenceMember`, `ModifierTests`' `HandlerShape` and case
+   count, `OuterModifierMatrixTests`' `HandlerFingerprint`,
+   `RichTextTests.theOperandCheckSeesEveryHandlersMember`, all `CI-Q`) and
+   `aRightMouseDownAndAControlClickReachOnInputAsRightMouseDown` (`CI-T`).
+   `theSevenRetentionSlotsAreMutuallyDistinct`, the `DD-Y` trio
+   (`aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`,
+   `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`,
+   `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`) and
+   `theWheelScrollsAndTypingScrollsTheCaretBackIntoView` are unedited and
+   green.
+5. **Mutations** (committed tree, restored from a copy, full unfiltered suite,
+   `git status --short` clean after each; `Sources/MetalUI/Window.swift`):
+   - **M1**: `applyScroll`'s candidates drop `region.layer == cover.layer`.
+     Red, 4 issues: `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`
+     (1), `aPopoverAboveACanvasTakesItsWheelPinchStyleAndButtonDrags` (1),
+     `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel` (2).
+   - **M2**: `buttonRelease` opens the deferred menu without
+     `!arena.activatedAnyDrag`. **Green (2870 passed)** — an equivalent mutant,
+     not a hole: `buttonMove` (and `buttonPress`, for a `minimumDistance: 0`
+     drag) clears `pendingContextMenu` the moment a drag activates, so at the
+     release the guard never sees a pending menu after a drag.
+   - **M3**: M2 plus `buttonMove`'s clearing removed (the rule itself). Red,
+     1 issue: `aSecondaryDragOpensNoContextMenu` (3.27) only. The two checks
+     are redundant with each other; each alone is green.
+6. **New finding (code, open, owner none) — `CI-AJ` item 1 reaches text
+   input.** A scratch test (not committed): `Box { TextEditor(…) }` with forty
+   lines in a 120-point window, a wheel of −100 over it. Without a wheel
+   handler: claimed, scrolled 100 (TI-H). With
+   `.onScrollWheel { _ in false }` on the editor: the handler runs once, the
+   wheel is **not claimed**, it **reaches `onInput`**, and the editor scrolls
+   **0**. Same cause as item 1: the element's pointer-only region ranks above
+   its own opaque hitbox and becomes `applyScroll`'s cover, so the
+   `cover.handlers.textInput` check (`TI-H`) and the final `cover.opaque` read
+   the pointer region's handlers, not the element's. Inside an enclosing
+   `ScrollView` the walk would go on to the parent and scroll the outer
+   scroller instead of the editor. It contradicts the `onScrollWheel` doc
+   comment ("one that declines lets it scroll"). One fix closes both: when
+   the cover is a pointer-only region, take the `TI-H` and opacity decisions
+   from the opaque hitbox with the cover's id under the point, if any. That
+   fix owes a test for each of item 1 and this item, with a mutation.
+
+**Verdict.** No pin, pixel or name moved; the open code findings are `CI-AJ`
+items 1–3 and item 6 above, none a regression of an app that does not write
+`.onScrollWheel`. Mergeable; item 1 and item 6 (one root cause) are the ones
+to fix before an app relies on a declining handler over a click target or an
+editor.
+
+**Cost if wrong.** If item 6 is left, an app that puts a declining wheel
+handler on a `TextEditor` (for example to watch the wheel) loses the editor's
+own scrolling with no diagnostic.

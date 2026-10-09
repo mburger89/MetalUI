@@ -47,7 +47,7 @@ summary.
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
-  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AK`), `TF-` (`.task`
+  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AL`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
@@ -90,9 +90,11 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   2870 tests, 0 goldens, 185 typecheck guards** (2790 + 80 tests, 180 + 5 guards;
   census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
   next label 159; `RichTextTests`' `Handlers` member count 17 → 18 with a `pointer`
-  arm, the merge's one source edit; record §81 §4, §4.5). Before the merge,
+  arm, the merge's one source edit; `Backends/SDL` 24 + 98 on macOS, 24 + 95 in the Linux
+  image, root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22, re-taken by the branch
+  checker; record §81 §4, §4.5, `CI-AK`). Before the merge,
   on `409de1a`: 2752 / 0 / 180 (2672 + 80, 175 + 5; census 2657; `Backends/SDL`
-  24 + 93 on macOS, 24 + 90 in the Linux image, not re-taken after the merge).
+  24 + 93 on macOS, 24 + 90 in the Linux image).
   Before it, `feat/rich-text` from `70ed000`, merged with master `5d6893a`:
   2790 tests, 0 goldens, 180 typecheck guards** (2723 + 67 tests, 176 + 4 guards: five
   new, `textBoldIsNotOffered` re-spelled; census 2685; the lanes' own sums 2672 + 20

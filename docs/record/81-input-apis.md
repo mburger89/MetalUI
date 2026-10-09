@@ -7,9 +7,9 @@ with a 3D viewport inside `GPUSurface`/`MetalView` and a pannable, zoomable
 node-graph canvas. Its `docs/metalui-gaps.md` sections "Reported 2026-10-07
 (C7)" and "C7 status and provisional API names" list the gaps; that file was
 never edited from here. Spec
-`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AJ`
+`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AK`
 in `docs/superpowers/2026-10-08-input-apis-decisions.md` (next unused
-`CI-AK`); probe `docs/probes/swiftui-input-apis.swift`.
+`CI-AL`); probe `docs/probes/swiftui-input-apis.swift`.
 
 **Status: complete (2026-10-08).** Three lanes: lane 1 (seam and platforms),
 lane 2 (gestures end to end), and lane 3. The second critic re-cut lane 3 into
@@ -206,8 +206,7 @@ branch made it 18. The test now expects 18 and gains a `pointer` arm (its own
 doc comment had promised both). Guards 185 (`git grep "enabled(if:
 canTypecheck"` reads 184), census 2806, goldens 0. The default-build-system
 warning count, the demo-pixel comparison, `Backends/SDL` and the Linux image
-were not re-taken after the merge: no source of those was touched by it
-except the two demo composers' additive chains.
+were not re-taken by the merge itself; the branch checker re-took them (§4.6).
 
 ### 4.2 Demo pixels, platforms, what was not taken
 
@@ -249,6 +248,26 @@ A–Y with VL and RT), `CLAUDE.md`/`AGENTS.md` (the `CI-` prefix, next `CI-AK`),
 and the census, re-recorded from the merged tree (2806 lines). The measured
 counts of the merged tree are in `CLAUDE.md`'s counts bullet.
 
+### 4.6 The branch checker (`CI-AK`)
+
+On the merged tree `1337ff6`: a clean native build and unfiltered suite,
+**`Test run with 2870 tests in 3 suites passed after 179.614 seconds`**, `FR-J`
+line present; `swift build --build-tests` 0 warnings; guards 185; the census
+re-run byte-identical (2806); both closeout checks silent; `cmp CLAUDE.md
+AGENTS.md` identical; every cited `CI-` id and test name resolves.
+`compare.sh <scratch> 70ed000 HEAD`: 0 differing, scene identical, in all
+fourteen images. `Backends/SDL` 24 + 98 on macOS and 24 + 95 in the Linux
+image; root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22, 0 warnings.
+Mutations: dropping the wheel chain's layer filter reddens
+`aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
+`aPopoverAboveACanvasTakesItsWheelPinchStyleAndButtonDrags` and
+`theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel`; removing the
+release-time drag check alone is green (an equivalent mutant: the move clears
+the pending menu first), and removing it with the move's clearing reddens
+`aSecondaryDragOpensNoContextMenu` only. One new open finding: a declining
+`.onScrollWheel` on a `TextEditor` stops the editor scrolling itself (`CI-AK`
+item 6, the same cause as `CI-AJ` item 1).
+
 ## 5. Owed and deferred
 
 - **Verifier findings left open** (`CI-AJ` items 1–4, owner none): a declining
@@ -257,6 +276,11 @@ counts of the merged tree are in `CLAUDE.md`'s counts bullet.
   false for a custom `StyledElement`; a pinch does not recompute the pointer
   style; the canvas demo's ⌃-scroll zoom, zoom clamp and momentum pan are
   unpinned (mutations m2, m6, m7 green).
+- **Branch checker's finding** (`CI-AK` item 6, owner none): a `TextEditor`
+  with a declining `.onScrollWheel` does not scroll itself (scrolled 0 against
+  100 without the handler) and the wheel reaches `onInput`: the pointer-only
+  region becomes `applyScroll`'s cover and hides the editor's `TI-H` target.
+  One fix closes it and `CI-AJ` item 1.
 
 - **Human checks group Y** (Y1–Y13, `docs/verification/human-checks.md`):
   trackpad momentum, pinch centre, rotate sign, nested magnify/rotate, every
