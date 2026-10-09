@@ -751,16 +751,32 @@ public final class Frame {
     var clipBase = 0
 
     /// The clip depth at the entry of the innermost open **flattening** paint
-    /// effect (ruling `GX-X`, the LF-a fix): 0 outside every one. The first
-    /// clip pushed inside such a scope (`clipStack.count` equal to it, above
-    /// `clipBase`) does **not** intersect the clip in force at the scope's
-    /// entry — that clip is in the space the effect maps INTO, the pushed one
-    /// in the content's — so clips pushed inside intersect among themselves in
-    /// local space, are mapped by the scope, and only then are cut by the entry
-    /// clip (`insertThroughScopes`). Unlike `clipBase` it leaves `activeClip`
-    /// alone: a primitive with no clip pushed inside still reads the entry
-    /// clip, as before. Restored by whoever moved it.
-    var flatteningClipBase = 0
+    /// effect (ruling `GX-X`, the LF-a fix), `nil` outside every one (`GX-Y`:
+    /// an `Int` with 0 for "none" could not tell a scope opened at depth 0, the
+    /// window root, from no scope). A `Deferred` needs no reset: it raises
+    /// `clipBase` to its entry depth and pushes its root clip at once, so
+    /// `atFlatteningEntry` is false inside it. The first clip pushed inside such a scope
+    /// (`clipStack.count` equal to it, with no non-flattening split above it)
+    /// does **not** intersect the clip in force at the scope's entry — that
+    /// clip is in the space the effect maps INTO, the pushed one in the
+    /// content's — so clips pushed inside intersect among themselves in local
+    /// space, are mapped by the scope, and only then are cut by the entry clip
+    /// (`insertThroughScopes`). Unlike `clipBase` it leaves `activeClip` alone:
+    /// a primitive with no clip pushed inside still reads the entry clip, as
+    /// before. Restored by whoever moved it.
+    var flatteningClipBase: Int? = nil
+
+    /// Whether the clip in force now was read at or outside the entry of the
+    /// innermost open flattening effect, with no non-flattening split nearer
+    /// (`GX-Y`): no clip has been pushed since that scope opened, so
+    /// `activeClip` is its entry clip, in the space it maps INTO — not the
+    /// content's. A clip pushed now intersects nothing (`pushClip`), and a
+    /// flattening scope opened now has no entry clip of its own to cut by: the
+    /// enclosing one's cut, after its map, covers it.
+    var atFlatteningEntry: Bool {
+        guard let base = flatteningClipBase else { return false }
+        return base >= clipBase && clipStack.count == base
+    }
 
     /// The clip a render effect's content sees before any clip is pushed inside
     /// it: unbounded, in local points (`GX-G`).
@@ -868,8 +884,7 @@ public final class Frame {
             size: bounds.size)
         // The first push inside a flattening effect intersects nothing outside
         // it (`GX-X`): `activeClip` there is the entry clip, in another space.
-        let firstInsideFlattening = flatteningClipBase > clipBase && clipStack.count == flatteningClipBase
-        let (clip, clipRadii) = firstInsideFlattening
+        let (clip, clipRadii) = atFlatteningEntry
             ? (translated, radii)
             : Self.intersect(activeClip, radii: activeClipRadii, translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
