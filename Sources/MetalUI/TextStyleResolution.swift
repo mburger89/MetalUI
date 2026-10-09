@@ -13,6 +13,9 @@ struct TextStyleRequest {
     var weight: Font.Weight?
     var italic = false
     var foreground: Color?
+    /// `Text.monospaced()` (ruling RT-E item 3): the system face's
+    /// `.monospaced` design. Only a styled `Text` sets it (`RT-F` item 3).
+    var monospaced = false
 }
 
 /// A text's resolved style: the face to ask the text system for, the glyph
@@ -57,7 +60,7 @@ func resolveTextStyle(_ own: TextStyleRequest, in environment: EnvironmentValues
     case .inherit: font = environment.font ?? defaultFont(for: environment.controlSize)
     }
     let descriptor = font.descriptor(weight: own.weight ?? environment.fontWeight,
-                                     italic: own.italic || environment.italic)
+                                     italic: own.italic || environment.italic, monospaced: own.monospaced)
     return ResolvedTextStyle(
         descriptor: descriptor,
         foreground: own.foreground ?? environment.foregroundStyle ?? .textPrimary,

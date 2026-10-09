@@ -186,7 +186,18 @@ extension Window {
     ///
     /// `reportsMoves`: whether `onContinuousHover` hears `.active` from every
     /// member (a pointer event) or only from an entering one (after a frame).
-    func updateHover(at point: Point<Pixels>?, reportsMoves: Bool) {
+    ///
+    /// Then the pointer style is resolved at the same point
+    /// (`updatePointerStyle(at:releasing:)`, ruling `CI-H` item 7): its call
+    /// sites are this method's. `releasing`: the event is a button's release,
+    /// which ends a press's hold on the style (`CI-H` item 6).
+    func updateHover(at point: Point<Pixels>?, reportsMoves: Bool, releasing: Bool = false) {
+        updateHoveredRegions(at: point, reportsMoves: reportsMoves)
+        updatePointerStyle(at: point, releasing: releasing)
+    }
+
+    /// The hovered set's half of `updateHover(at:reportsMoves:releasing:)`.
+    private func updateHoveredRegions(at point: Point<Pixels>?, reportsMoves: Bool) {
         guard lastHoverRegionCount > 0 || !hoveredRegions.isEmpty else { return }
         var next: [HoveredRegion] = []
         if let point, lastHoverRegionCount > 0, !hoverIsSuppressed,

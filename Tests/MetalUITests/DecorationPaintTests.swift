@@ -606,8 +606,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 ///
 /// One arm per site, each with a content emission that is a **separate**
 /// primitive from the element's own decoration: a 60x60 `flexShrink(0)` child
-/// that overflows the 40x40 subject (so the clip has something to cut), and for
-/// `Text` the glyphs. The `ModifiedElement` arm is a **two-layer** chain with
+/// that overflows the 40x40 subject (so the clip has something to cut), for
+/// `Text` the glyphs, and for a styled `Text` (rich text, spec test 2.12,
+/// `RT-J` item 1) its glyphs and underline — mutation M2.12, `drawStyledText`
+/// called outside `paintDecoration`'s closure, reddens that arm. The `ModifiedElement` arm is a **two-layer** chain with
 /// the decoration on the outermost layer, for `OM-AD`'s reason — a one-layer
 /// chain cannot tell a scope that contains the layers inside it from one that
 /// contains only the content.
@@ -722,6 +724,33 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
         return subject
     }
 
+    /// A STYLED `Text`'s content (rich text, lane 2, spec test 2.12): its
+    /// glyphs and its underline rect, which must agree — an underline outside
+    /// the scope would read alpha 1.0 beside faded glyphs.
+    @MainActor func readStyledText(_ scene: Scene) throws -> ContentReading {
+        let glyphs = try readGlyphs(scene)
+        let positions = paintPositions(scene)
+        let index = try #require(scene.rects.firstIndex {
+            $0.bounds.size.height < 5 && $0.borderColor.a == 0
+        }, why("no underline rect: " + scene.rects.map(describe).joined(separator: " | ")))
+        let underline = scene.rects[index]
+        #expect(underline.background.a == glyphs.alpha
+                    && underline.contentMask.origin.x == glyphs.mask.origin.x
+                    && underline.contentMask.size.width == glyphs.mask.size.width,
+                why("the underline and the glyphs disagree about their alpha or their clip: underline a="
+                    + "\(underline.background.a) mask" + describe(underline.contentMask) + ", glyphs a=\(glyphs.alpha)"))
+        return ContentReading(alpha: glyphs.alpha, mask: glyphs.mask,
+                              position: Swift.max(glyphs.position, positions.rects[index]))
+    }
+
+    @MainActor func styledTextSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool) -> Text {
+        var subject = Text("hi").underline().cssWidth(px(40)).cssHeight(px(40))
+        if opacity < 1 { subject = subject.opacity(opacity) }
+        if clipped { subject = subject.clipped() }
+        if bordered { subject = subject.border(.separator, width: px(4)) }
+        return subject
+    }
+
     /// TWO layers, the decoration on the outermost: `.padding(2)` is the inner
     /// layer and `.frame(40x40)` the outer one, so a scope that reached only its
     /// own layer's content would miss the child entirely (`OM-AD`).
@@ -739,6 +768,7 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     try check("Box", boxSite, read: readChildRect)
     try check("Stack", stackSite, read: readChildRect)
     try check("Text", textSite, read: readGlyphs)
+    try check("styled Text", styledTextSite, read: readStyledText)
     try check("ModifiedElement outermost layer", modifiedSite, read: readChildRect)
 }
 

@@ -139,6 +139,162 @@ extension Text {
     }
 }
 
+extension Text {
+    /// How an underline or strikethrough is drawn — SwiftUI's `Text.LineStyle`
+    /// (ruling RT-E item 3): a pattern and an optional colour (`nil`: the
+    /// run's foreground, `RT-J` item 4). Drawn as a filled rect at the face's
+    /// own position and thickness (`RT-J` item 2, divergence 152).
+    public struct LineStyle: Hashable, Sendable {
+        /// A line's dash pattern. **Only `.solid` is offered** (`C10d`:
+        /// SwiftUI's dashes are real; MetalUI draws none — a documented
+        /// absence, not a silent solid).
+        public struct Pattern: Hashable, Sendable {
+            /// One unbroken line.
+            public static let solid = Pattern()
+        }
+
+        /// The line's pattern.
+        public var pattern: Pattern
+        /// The line's colour; `nil` is the run's foreground.
+        public var color: Color?
+        /// `false` is an explicit "no line" — `underline(false)` — which an
+        /// outer `Text`'s line does not override (RT-E item 2).
+        var isActive = true
+
+        /// A line in `pattern`, coloured `color` (`nil`: the foreground).
+        public init(pattern: Pattern = .solid, color: Color? = nil) {
+            self.pattern = pattern
+            self.color = color
+        }
+
+        /// A solid line in the foreground colour.
+        public static let single = LineStyle()
+
+        /// The explicit "no line" of `underline(false)`.
+        static let none: LineStyle = {
+            var style = LineStyle()
+            style.isActive = false
+            return style
+        }()
+    }
+
+    /// The bold weight over whichever font this text resolves — SwiftUI's
+    /// `Text.bold()`, the same field as ``fontWeight(_:)`` (ruling RT-E item 3).
+    public func bold() -> Text { bold(true) }
+
+    /// The bold weight when `isActive`; `false` removes this text's own weight.
+    public func bold(_ isActive: Bool) -> Text {
+        fontWeight(isActive ? .bold : nil)
+    }
+
+    /// Underlines this text (ruling RT-E item 3; `RT-O` item 8): at the face's
+    /// underline position and thickness, across each line's visible extent
+    /// (`RT-J`). `false` is an explicit "none" an outer `Text`'s underline does
+    /// not reach. Takes the styled path (`RT-F` item 3).
+    public func underline(_ isActive: Bool = true, pattern: LineStyle.Pattern = .solid,
+                          color: Color? = nil) -> Text {
+        var copy = self
+        copy.rich.underline = isActive ? LineStyle(pattern: pattern, color: color) : .none
+        return copy
+    }
+
+    /// Strikes this text through at half the face's x-height (ruling RT-E
+    /// item 3, `RT-J` item 2); `false` is an explicit "none".
+    public func strikethrough(_ isActive: Bool = true, pattern: LineStyle.Pattern = .solid,
+                              color: Color? = nil) -> Text {
+        var copy = self
+        copy.rich.strikethrough = isActive ? LineStyle(pattern: pattern, color: color) : .none
+        return copy
+    }
+
+    /// `kerning` points after every grapheme, ligatures kept (rulings RT-H
+    /// item 3, `RT-P` item 4). `0` is no extra space and keeps the face's pair
+    /// kerning (`K1`), but still takes the styled path.
+    public func kerning(_ kerning: Double) -> Text {
+        var copy = self
+        copy.rich.kerning = kerning
+        return copy
+    }
+
+    /// `tracking` points after every grapheme, optional ligatures off (rulings
+    /// RT-H item 3, `C8e`).
+    public func tracking(_ tracking: Double) -> Text {
+        var copy = self
+        copy.rich.tracking = tracking
+        return copy
+    }
+
+    /// Raises this text's glyphs `baselineOffset` points (negative lowers);
+    /// the line grows to hold them (rulings RT-G item 1, RT-H item 4).
+    public func baselineOffset(_ baselineOffset: Double) -> Text {
+        var copy = self
+        copy.rich.baselineOffset = baselineOffset
+        return copy
+    }
+
+    /// The system face's `.monospaced` design over this text's font (ruling
+    /// RT-E item 3; `TE-B`). A custom font ignores it.
+    public func monospaced(_ isActive: Bool = true) -> Text {
+        var copy = self
+        copy.rich.monospaced = isActive
+        return copy
+    }
+}
+
+extension ProposalText {
+    /// The bold weight (ruling RT-E item 3), as ``Text/bold()``.
+    public func bold() -> ProposalText { bold(true) }
+
+    /// The bold weight when `isActive`, as ``Text/bold(_:)``.
+    public func bold(_ isActive: Bool) -> ProposalText {
+        fontWeight(isActive ? .bold : nil)
+    }
+
+    /// Underlines this text, as ``Text/underline(_:pattern:color:)``.
+    public func underline(_ isActive: Bool = true, pattern: Text.LineStyle.Pattern = .solid,
+                          color: Color? = nil) -> ProposalText {
+        var copy = self
+        copy.rich.underline = isActive ? Text.LineStyle(pattern: pattern, color: color) : .none
+        return copy
+    }
+
+    /// Strikes this text through, as ``Text/strikethrough(_:pattern:color:)``.
+    public func strikethrough(_ isActive: Bool = true, pattern: Text.LineStyle.Pattern = .solid,
+                              color: Color? = nil) -> ProposalText {
+        var copy = self
+        copy.rich.strikethrough = isActive ? Text.LineStyle(pattern: pattern, color: color) : .none
+        return copy
+    }
+
+    /// Kerning, as ``Text/kerning(_:)``.
+    public func kerning(_ kerning: Double) -> ProposalText {
+        var copy = self
+        copy.rich.kerning = kerning
+        return copy
+    }
+
+    /// Tracking, as ``Text/tracking(_:)``.
+    public func tracking(_ tracking: Double) -> ProposalText {
+        var copy = self
+        copy.rich.tracking = tracking
+        return copy
+    }
+
+    /// A baseline offset, as ``Text/baselineOffset(_:)``.
+    public func baselineOffset(_ baselineOffset: Double) -> ProposalText {
+        var copy = self
+        copy.rich.baselineOffset = baselineOffset
+        return copy
+    }
+
+    /// The `.monospaced` design, as ``Text/monospaced(_:)``.
+    public func monospaced(_ isActive: Bool = true) -> ProposalText {
+        var copy = self
+        copy.rich.monospaced = isActive
+        return copy
+    }
+}
+
 extension ProposalText {
     /// This text's own font; `nil` is the default font (F6b, F6c).
     public func font(_ font: Font?) -> ProposalText {

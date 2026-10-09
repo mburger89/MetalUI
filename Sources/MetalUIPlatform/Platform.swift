@@ -224,6 +224,21 @@ public protocol PlatformWindow: AnyObject {
     /// repository adds `func setToolbar(_: PlatformToolbar?) -> Bool { false }`.
     func setToolbar(_ toolbar: PlatformToolbar?) -> Bool
 
+    /// Shows `style` as the pointer while it is over the window (ruling
+    /// `CI-H` item 8). `Window` calls it only when the resolved style changes,
+    /// and once more after the pointer re-enters (`CI-S`). AppKit sets the
+    /// `NSCursor` at once while the pointer is inside the host view and
+    /// answers every `cursorUpdate(with:)` with it; SDL sets a cached system
+    /// cursor (`SDL_SetCursor`, process-global) and records the request.
+    ///
+    /// **No default implementation** (`CI-J` item 2, `EV-AB`'s reason): a
+    /// conformer that forgets it fails to compile rather than silently never
+    /// changing the pointer. Pinned by
+    /// `aPlatformWindowWithoutSetPointerStyleDoesNotCompile`. **Migration**: a
+    /// conformer outside this repository adds
+    /// `func setPointerStyle(_ style: PlatformPointerStyle) {}`.
+    func setPointerStyle(_ style: PlatformPointerStyle)
+
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

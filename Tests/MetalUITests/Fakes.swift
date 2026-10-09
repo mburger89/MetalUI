@@ -204,6 +204,10 @@ final class FakePlatformWindow: PlatformWindow {
         preferredColorSchemeRequests.append(colorScheme)
     }
 
+    /// Every `setPointerStyle` argument, in call order (ruling `CI-J` item 2).
+    private(set) var pointerStyles: [PlatformPointerStyle] = []
+    func setPointerStyle(_ style: PlatformPointerStyle) { pointerStyles.append(style) }
+
     /// Change the key state and notify, the getter already reporting it.
     ///
     /// **Fires on every call, a no-op included** — `AppKitWindow` and
@@ -262,10 +266,15 @@ final class FakePlatformWindow: PlatformWindow {
     /// event's own clock diverging from the display link's last tick — a wheel
     /// event arriving after the link has paused and real time has moved on —
     /// sets `timestamp` explicitly and this leaves it untouched.
+    ///
+    /// **A `.scrollWheel` event's `location` is set to its `position`**, as
+    /// both platforms deliver it (ruling `CI-J` item 4): an element makes it
+    /// local, not the seam.
     @discardableResult
     func simulateInput(_ event: InputEvent) -> Bool {
-        if case .scrollWheel(var scroll) = event, scroll.timestamp == 0 {
-            scroll.timestamp = currentTime
+        if case .scrollWheel(var scroll) = event {
+            if scroll.timestamp == 0 { scroll.timestamp = currentTime }
+            scroll.location = scroll.position
             return onInput?(.scrollWheel(scroll)) ?? false
         }
         return onInput?(event) ?? false

@@ -46,9 +46,12 @@ summary.
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
-  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `TF-` (`.task`
+  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
+  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AM`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
-  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), …; the full
+  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
+  `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
+  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -61,9 +64,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **105 live, next label 139**; retired labels are
-  never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–X and VL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  live SwiftUI difference — **120 live, next label 159**; retired labels are
+  never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
+  (groups A–Y, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -79,12 +82,32 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/variable-height-list` merged with `099cf80`):
-  2723 tests, 0 goldens, 176 typecheck guards** (2677 + 46 tests, 175 + 1 guard;
+- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
+  after `CI-AL`): 2873 tests, 0 goldens, 185 typecheck guards** (the merge's 2870 + `CI-AL`'s
+  3 tests, no guard; `Backends/SDL` and the image not re-taken, untouched; record §81 §4.7).
+  On the merge itself, `1337ff6`: 2870 / 0 / 185 (2790 + 80 tests, 180 + 5 guards;
+  census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
+  next label 159; `RichTextTests`' `Handlers` member count 17 → 18 with a `pointer`
+  arm, the merge's one source edit; `Backends/SDL` 24 + 98 on macOS, 24 + 95 in the Linux
+  image, root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22, re-taken by the branch
+  checker; record §81 §4, §4.5, `CI-AK`). Before the merge,
+  on `409de1a`: 2752 / 0 / 180 (2672 + 80, 175 + 5; census 2657; `Backends/SDL`
+  24 + 93 on macOS, 24 + 90 in the Linux image).
+  Before it, `feat/rich-text` from `70ed000`, merged with master `5d6893a`:
+  2790 tests, 0 goldens, 180 typecheck guards** (2723 + 67 tests, 176 + 4 guards: five
+  new, `textBoldIsNotOffered` re-spelled; census 2685; the lanes' own sums 2672 + 20
+  + 27 + 20 = 2739 before the merge; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image
+  before master's §86 fix (24 + 88 / 24 + 85 after it, record §86 §4),
+  root in the image 6 + 35 + 18 + 199 + 67 + 22; divergences 150–158 added, the header's count and next label the
+  merge's; record §83 §8). Before it, `fix/accesskit-window-show` from `cd84b0c`:
+  2723 tests, 0 goldens, 176 typecheck guards, unmoved (the fix is in
+  `Backends/SDL`: 24 + 88 on macOS, 24 + 85 in the Linux image; census 2540
+  unmoved; record §86 §4). Before it, `feat/variable-height-list` merged with `099cf80`:
+  2723 tests, 0 goldens, 176 typecheck guards (2677 + 46 tests, 175 + 1 guard;
   census 2540; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image, re-taken
   after the merge; divergences 145–147 added, the header's count and
   next label the merge's; record §82 §8, §9). Before the merge, on `70ed000`: 2718 / 0 / 176. Before it,
@@ -126,7 +149,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §84.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -217,12 +240,14 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
-  item 1; the two-argument spelling forwards `surfaces: []`).
+  item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
+  three** since rich text (styled measure, styled layout, decoration metrics,
+  `RT-F`): a third-party conformer must add them (`docs/migration.md`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (§7.8).
@@ -429,8 +454,8 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **seventeen**
-members; `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **eighteen**
+members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 
 **Environment (`EV-`).** `EnvironmentScope` is layout- and
@@ -485,6 +510,29 @@ non-finite/non-positive sizes. `fonts`/`resolvedFonts` are never swept — move
 both or neither. The glyph atlas is grow-only; `evictUnusedSince` has no
 caller and would strand pixels. Baseline alignment works in a horizontal
 stack only.
+
+**Rich text (`RT-`, record §83).** Styled runs in one `Text` cross the seam as
+`StyledText` (`MetalUITextSystem`, Foundation-free: text plus runs of
+`TextRunStyle` and paint indices; zero-length runs dropped, equal neighbours merged,
+a length mismatch traps) through **three defaultless `TextSystem` requirements**
+(styled measure, styled layout, decoration metrics) that every conformer and test
+fake implements (`RT-F`). **A one-run unstyled `Text` takes the plain calls byte for
+byte** — pixels and work of plain text must not move (`RT-M`, test 1.19, the
+fourteen images); a `Text` with runs resolves each run once through
+`resolveTextStyle`, and CoreText (one `CTTypesetter`) and the portable system
+(`shapeCascading` per run, one break table, spacing once per grapheme, ligatures off
+for tracked units by feature ranges) agree under the CoreText oracle. Underline,
+strikethrough and background are **ordinary rects inside the text's one shadow leaf**
+(no shader change, `RT-J`); colours snap (`RT-L`); a link is accent-coloured and
+**inert** (divergence 150); accessibility gets the concatenated string. Markdown in
+a string **literal** (`LocalizedStringKey`) is parsed by MetalUI's own inline
+parser (`MarkdownInline.swift`, checked against Foundation's on 2498 sources); a
+`String` value, `Text(verbatim:)` and control titles are never parsed;
+`Text(AttributedString)` reads MetalUI's attribute scope (per-key subscripts, never
+a generic one: `RT-D`, `RT-T`). `+` is deprecated and traps on a decorated operand
+(divergence 155). `TextField`/`TextEditor` stay plain. A new `Text` modifier owes
+its field to `resolveRichText`, `ProposalText` and a values test (`RT-S`); the rich
+`Text`-level fields stay boxed (`TextRichBox`, the 1 MB stack, `RT-R` 4).
 
 **GPU surfaces — `GPUSurface`/`MetalView` (`MV-`, record §71).** App code
 encodes its own GPU work into an offscreen target that MetalUI composites as
@@ -645,7 +693,36 @@ first — never trap); ImageIO stays only for other formats on macOS.
 build system warn in every consumer); without `SDL` the module declares an
 unavailable `SDLPlatform` naming the trait. A change to those targets is run
 in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
-executable (`PX-P`).
+executable (`PX-P`). **An SDL window is created hidden**: everything that must
+precede its first show (the AccessKit adapter — Windows' panics on a visible
+window) runs before `SDL_ShowWindow`, then the renderer, on every platform;
+`hiddenWindows` windows are never shown (`WS-B`, record §86).
+
+**Input APIs (`CI-`, record §81).** `SpatialTapGesture`, `MagnifyGesture`,
+`RotateGesture` and `DragGesture(minimumDistance:coordinateSpace:button:)` live
+in the one arena (`IX-B`), which has three modes: a **press** arena fails pinch
+leaves; a **pinch** arena (formed from the one ranking at a `.magnify`/`.rotate`
+event) runs only pinch leaves, ordered per kind; a **button** arena (a secondary
+or other press) runs only that button's drags. A press of the arena's own button
+or a `.began` of an active pinch kind replaces a stale arena (`CI-AB`).
+Locations are local (`Hitbox.localPoint`); `.global` is the content space
+(divergence 139); magnification is additive from 1, rotation clockwise-positive.
+**`MN-B` holds**: a secondary or other press reaches only the menu stage,
+outside-dismissal, the tooltip, hover and a drag naming its button; a context
+menu waits for the release only when a secondary drag is declared on the chain
+(`CI-F` item 4). **`.onScrollWheel` (`-> Bool`, `true` claims) dispatches
+innermost first along the cover's chain from `topmostHitbox`**: each id's
+handler before its scroll region, so a handler on a scroller's *content* can
+veto it and one on or around the scroller sees nothing (`CI-AH`; `DD-Y` kept); a
+declining handler falls through to its own element's opaque hitbox and `TI-H`
+scroll, and a pinch recomputes hover and the pointer style (`CI-AL`).
+**`.pointerStyle(_:)` resolves with hover through the one ranking** (innermost
+wins, a press holds the pressed chain's style, sent only on a change, forgotten
+on exit) through the defaultless `PlatformWindow.setPointerStyle(_:)`; SDL has
+no hand or zoom cursor (`MOVE`/arrow, `CI-H` item 8), no rotate, no pinch on
+Windows and no wheel phase. Both new regions sit inside the disabled,
+`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` and an image
+cursor would each add an enum case (`CI-AC`).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
@@ -824,7 +901,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (105 live, next label 139). A new
+- **Divergences**: `docs/divergences.md` (120 live, next label 159). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
@@ -839,7 +916,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
     line** — read the last lines of the log.
   - **Windows threads have 1 MB stacks.** A new demo section goes in its own
     function passed to a generic composer, not inline
-    (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+    (`everyProductionTreeBuildsOnAOneMegabyteThread`); that test builds each
+    large tree in its own `@inline(never)` frame — inline in its composer the
+    canvas tree passed on macOS and overflowed only in `swift:6.4-noble` (`CI-AI`).
   - **A C enum's `rawValue` is `Int32` on Windows, `UInt32` on Apple** —
     always convert explicitly.
   - `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` is compiled out on

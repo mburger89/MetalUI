@@ -58,6 +58,7 @@ private func conformer(members: [String]) -> String {
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
         func presentMenu(_: PlatformMenu, at: Point<Pixels>) -> Bool { false }
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
+        func setPointerStyle(_ style: PlatformPointerStyle) {}
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }
     """

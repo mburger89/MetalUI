@@ -143,7 +143,7 @@ struct Hitbox {
 
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
-    /// ancestor membership and `Window.enclosingScroller(of:at:)` all call it,
+    /// ancestor membership and `Window.applyScroll`'s wheel chain all call it,
     /// so a hit region is tested in one place — which is what makes a content
     /// shape reach a click, the arena, hover, active and wheel routing alike
     /// (`IX-L` item 1). Half-open on the max edges, as `Bounds.contains` is.

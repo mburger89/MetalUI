@@ -30,7 +30,7 @@ extension StyledElement {
     public func help(_ text: String) -> Self {
         handling { handlers in
             handlers.axNode.declarations.hint = text
-            handlers.contextual = ContextualAttachment(menu: handlers.contextual?.menu, help: text)
+            handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text)
         }
     }
 }
@@ -40,7 +40,7 @@ extension ProposalElementGroup {
     /// `ContextualModifier` — one identity level, for its caller only
     /// (`MN-Q`), at the same position `accessibilityHint(_:)`'s wrapper takes.
     public func help(_ text: String) -> ContextualModifier<Self> {
-        ContextualModifier(content: self, attachment: ContextualAttachment(menu: nil, help: text))
+        ContextualModifier(content: self, attachment: ContextualAttachment(locatedMenu: nil, help: text))
     }
 }
 
@@ -150,7 +150,11 @@ extension Window {
     /// is open every event hides it.
     func trackTooltip(_ event: InputEvent) {
         switch event {
-        case .mouseMoved(let mouse), .mouseDragged(let mouse):
+        // A right- or other-button drag is tracked as a primary drag is, and
+        // an other-button press hides as the other presses do (ruling `CI-Z`
+        // item 2).
+        case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDragged(let mouse):
             guard menuSession == nil else {
                 tooltipTracker.hide()
                 return
@@ -167,7 +171,8 @@ extension Window {
             } else {
                 tooltipTracker.phase = .idle
             }
-        case .mouseDown, .rightMouseDown, .scrollWheel, .keyDown:
+        // A pinch hides as a press does (spec §1.4 item 2).
+        case .mouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown, .magnify, .rotate:
             tooltipTracker.hide()
         default:
             break

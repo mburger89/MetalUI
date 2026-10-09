@@ -331,6 +331,15 @@ public struct Handlers {
     /// target, so it blocks no click (`SV-N` item 2).
     var hover: HoverAttachment?
 
+    // MARK: Wheel and pointer style (input APIs, ruling `CI-Q`)
+
+    /// The element's `.onScrollWheel` handler and `.pointerStyle`, or `nil` —
+    /// the **eighteenth** member, one reference (a class box holding both) for
+    /// `IX-N`'s Windows stack budget: 472 → 480 bytes (`CI-Q`). Registers one
+    /// **non-opaque** pointer region (`Frame.registerHandlers`), never a
+    /// pointer target, so it blocks no click (`CI-H` item 3, `CI-I` item 3).
+    var pointer: PointerAttachment?
+
     /// No handlers: the element is not a pointer target, not focusable and has
     /// no key context.
     public init() {}

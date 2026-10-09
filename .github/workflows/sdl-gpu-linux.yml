@@ -218,6 +218,26 @@ jobs:
           # The demo built HERE, checked against macOS's frame 5 (ruling DC-B).
           & "$bin\DemoCapture.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12
           exit $LASTEXITCODE
+      - name: Launch the SDL demo (ruling WS-E)
+        # The configuration that panicked at launch (item C11): a visible
+        # SDLPlatform window with the AccessKit trait. It must still be running
+        # after 8 s. A launch smoke, not a test: a slow start can only make it
+        # pass falsely; the deterministic check is SDLWindowShowOrderTests.
+        working-directory: Backends/SDL
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          $bin = (swift build @flags --show-bin-path)
+          $p = Start-Process "$bin\MetalUISDLDemo.exe" -PassThru `
+                 -RedirectStandardError "$env:RUNNER_TEMP\demo.err" -RedirectStandardOutput "$env:RUNNER_TEMP\demo.out"
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) {
+            Get-Content "$env:RUNNER_TEMP\demo.out", "$env:RUNNER_TEMP\demo.err"
+            Write-Error ("MetalUISDLDemo exited after launch with {0} (0x{0:X8})" -f $p.ExitCode)
+            exit 1
+          }
+          Stop-Process -Id $p.Id
+          "MetalUISDLDemo was still running after 8 s"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

@@ -2030,6 +2030,32 @@ Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
 and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
 light and dark icons on Linux against macOS.
 
+## 2026-10-08: input APIs (record §81) — looks owed
+
+The canvas demo (`METALUI_CANVAS_DEMO=1 swift run MetalUIDemo`, and
+`MetalUISDLDemo` with the same variable) is a new tree, not one of the
+fourteen offscreen images. Those are unchanged: 0 differing against
+`70ed000` at every lane and at `6678e60` (record §81 §4.2). The SwiftUI probe
+(`swiftui-input-apis.swift`) ran four times, byte-identical. No real-window
+capture was taken. **Owed, new here — `docs/verification/human-checks.md`
+group Y, none performed (an agent cannot)**:
+- Y1 trackpad momentum on the canvas.
+- Y2 the pinch centre held under the fingers.
+- Y3 rotate reading clockwise-positive.
+- Y4 a pinch with twist over the rotate-able node (nested magnify and
+  rotate).
+- Y5 every pointer style on AppKit, the closed hand held while a fast pan
+  leaves.
+- Y6 the same strip under SDL on Linux and Windows (`MOVE` for the hands, the
+  arrow for zoom).
+- Y7 SDL pinch speed on Wayland or X11.
+- Y8 a real mouse: middle-drag and right-drag pan, and a right-click opens
+  the node menu on release.
+- Y9 ⌥ shown mid-drag.
+- Y10 a Windows precision-touchpad pinch arriving as ⌃-wheel.
+- Y11 notched-wheel steps (`isPrecise` false).
+- Y12 the AppKit cursor changing under a still pointer (**C**).
+- Y13 a glide crossing onto the style strip (no wheel latching, `CI-AD`).
 ## 2026-10-08: variable-height `List` (record §82) — looks owed
 
 `METALUI_LIST_DEMO=1` opens a new demo (300 content-sized rows of wrapping
@@ -2052,3 +2078,24 @@ read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
 probe was not re-run at the Record phase and no real-window capture was taken.
 No new look is owed (group X's X2 already covers a counting `.task` in a real
 window).
+
+AccessKit before the first show (record §86, 2026-10-08): the fourteen offscreen
+demo images read 0 differing pixels against `cd84b0c`. The Windows VM had no
+console user, so the interactive launch was not run; group WS (WS1–WS4) in
+`docs/verification/human-checks.md` is owed.
+
+## 2026-10-08: rich text (record §83) — looks owed
+
+`METALUI_RICH_TEXT_DEMO=1` opens a new demo (Markdown forms, interpolated
+segments, mixed sizes, decorations, truncation and an attributed string) in
+`MetalUIDemo` and `MetalUISDLDemo`. It is not one of the fourteen offscreen
+images, which read 0 differing pixels against `70ed000` at lane 1 and at the
+Record phase (`docs/probes/demo-pixels/compare.sh`, record §83 §2, §8); the demo
+draws headless through the portable system (`theRichTextDemoDrawsThroughThePortableSystem`).
+The demo was not launched and no real-window capture was taken. **Owed, new
+here — `docs/verification/human-checks.md` group RT (provisional letter), none
+performed (an agent cannot)**: RT1 the demo on macOS in light and dark; RT2
+underline and strikethrough crispness at 1x and 2x against SwiftUI's snapped
+bands (divergence 152); RT3 the mixed-size paragraph's line spacing and the
+superscript; RT4 the same demo on Linux and Windows; RT5 VoiceOver reading a
+styled `Text` once without markers; RT6 a link that does nothing on click.

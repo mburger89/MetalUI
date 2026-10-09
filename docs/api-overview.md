@@ -168,6 +168,24 @@ one `TextSystem` chosen per app: CoreText on Apple (`MetalUIText`), the
 portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 `MetalUISystemFonts`) — M.
 
+**Rich text** (rulings `RT-A`…, record §83): styled runs inside one `Text`
+on both text systems. A string literal parses SwiftUI's inline Markdown
+(`LocalizedStringKey`; bold, italic, strikethrough, code, links, bare URLs and
+e-mail addresses) with MetalUI's own parser on every platform; a `String`
+value and `Text(verbatim:)` never parse (154: control titles are verbatim).
+Interpolation inserts values verbatim in the format's style (151, 156) and
+keeps an interpolated `Text`'s or `AttributedString`'s runs; `Text + Text` is
+deprecated as in SwiftUI (155: a decorated operand traps). `Text` modifiers:
+`bold()`, `underline`/`strikethrough(_:pattern:color:)` with `Text.LineStyle`
+(`.solid` only), `kerning`, `tracking`, `baselineOffset`, `monospaced`, and
+`Font.monospaced()` (157, 158). `Text(AttributedString)` reads
+`AttributeScopes.MetalUIAttributes` (SwiftUI's key names over MetalUI's types,
+per-key dynamic-member subscripts) and Foundation's `link`; on Apple platforms
+also `inlinePresentationIntent`. Links are styled in the accent and inert
+(150); underlines and strikethroughs are the face's unsnapped bands (152);
+only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
+defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
+
 ## Shapes and images — A
 
 `Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's
@@ -278,6 +296,32 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
+
+**Input for viewports and canvases** (`CI-`, record §81;
+[`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
+SwiftUI's spellings, probe-backed (`probes/swiftui-input-apis.swift`):
+`SpatialTapGesture` (`.location`, the release that ends the tap) and
+`.onTapGesture(count:coordinateSpace:perform:)` (A); `MagnifyGesture`
+(`.magnification`, `.startLocation`, `.startAnchor`) and `RotateGesture`
+(`.rotation`, clockwise-positive) in their own pinch arena from the one
+ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
+`CoordinateSpace` `.local` (the default) and `.global` — the window's content
+space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
+`.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
+`.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
+change; a paint-only view does not cover it, D 141). MetalUI-only by ruling,
+where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`
+(deltas precise or lines, phase, momentum phase, modifiers, `location` local;
+offered innermost first before each enclosing `ScrollView`, `true` claims),
+`DragGesture(minimumDistance:coordinateSpace:button:)` with `MouseButton`
+(`.secondary`, `.middle`, `.other(n)` drag in their own arena; a secondary drag
+defers the context menu to the release), `DragGesture.Value.modifiers` (D 140),
+and the located `.contextMenu { (location: Point<Pixels>?) in … }` (M). At the
+seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
+`.otherMouseUp`/`.magnify`/`.rotate`, `MagnifyEvent`, `RotateEvent`,
+`InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
+`PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
+The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
 ## Drag and drop — A / D
 

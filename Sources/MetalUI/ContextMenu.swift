@@ -10,20 +10,38 @@ import MetalUIPlatform
 /// box riding `Handlers.contextual` (`MN-Q`). A later `.contextMenu` replaces
 /// an earlier one and keeps the help text, and the reverse.
 final class ContextualAttachment {
-    /// The menu's content, evaluated at each open (`MN-D` item 4).
-    let menu: (@MainActor () -> MenuItems)?
+    /// The menu's content, evaluated at each open (`MN-D` item 4), handed the
+    /// secondary press's point in the contextual region's local space — `nil`
+    /// for a keyboard or accessibility open (ruling `CI-R` item 4). The
+    /// location-less spellings ignore it.
+    let menu: (@MainActor (Point<Pixels>?) -> MenuItems)?
     /// The tooltip and accessibility help (`MN-P`, lane 3).
     let help: String?
 
-    init(menu: (@MainActor () -> MenuItems)?, help: String?) {
+    init(locatedMenu menu: (@MainActor (Point<Pixels>?) -> MenuItems)?, help: String?) {
         self.menu = menu
         self.help = help
+    }
+
+    /// An attachment whose menu takes no location (a pull-down `Menu`'s).
+    convenience init(menu: (@MainActor () -> MenuItems)?, help: String?) {
+        guard let menu else {
+            self.init(locatedMenu: nil, help: help)
+            return
+        }
+        self.init(locatedMenu: { (_: Point<Pixels>?) -> MenuItems in menu() }, help: help)
     }
 
     /// `existing` with its menu replaced by `content`.
     static func menu<M: MenuContent>(_ content: @escaping @MainActor () -> M,
                                      over existing: ContextualAttachment?) -> ContextualAttachment {
-        ContextualAttachment(menu: { MenuItems([content()]) }, help: existing?.help)
+        ContextualAttachment(locatedMenu: { _ in MenuItems([content()]) }, help: existing?.help)
+    }
+
+    /// `existing` with its menu replaced by the located `content` (`CI-R`).
+    static func locatedMenu<M: MenuContent>(_ content: @escaping @MainActor (Point<Pixels>?) -> M,
+                                            over existing: ContextualAttachment?) -> ContextualAttachment {
+        ContextualAttachment(locatedMenu: { MenuItems([content($0)]) }, help: existing?.help)
     }
 }
 
@@ -55,6 +73,22 @@ extension StyledElement {
         copy.handlers.contextual = ContextualAttachment.menu(menuItems, over: handlers.contextual)
         return copy
     }
+
+    /// A context menu whose builder is handed **where it was opened** — the
+    /// secondary press's point in this element's local space (render effects
+    /// undone), or `nil` when the menu opens from the keyboard (`MN-G`) or an
+    /// accessibility show-menu (C11), where there is no pointer (ruling
+    /// `CI-R`). **MetalUI-only**: none of SwiftUI's `contextMenu` signatures
+    /// passes a location (probe census). With a secondary `DragGesture` on the
+    /// pressed chain the menu opens on the release (`CI-F` item 4) and is
+    /// still handed the press's point. Everything else is
+    /// `contextMenu(menuItems:)`'s; the closure's arity selects this overload.
+    public func contextMenu<M: MenuContent>(
+        @MenuContentBuilder menuItems: @escaping @MainActor (Point<Pixels>?) -> M) -> Self {
+        var copy = self
+        copy.handlers.contextual = ContextualAttachment.locatedMenu(menuItems, over: handlers.contextual)
+        return copy
+    }
 }
 
 extension ProposalElementGroup {
@@ -64,6 +98,13 @@ extension ProposalElementGroup {
     public func contextMenu<M: MenuContent>(
         @MenuContentBuilder menuItems: @escaping @MainActor () -> M) -> ContextualModifier<Self> {
         ContextualModifier(content: self, attachment: ContextualAttachment.menu(menuItems, over: nil))
+    }
+
+    /// `StyledElement.contextMenu(menuItems:)`'s located form on the proposal
+    /// path (`CI-R`): the point is local to this wrapper's bounds.
+    public func contextMenu<M: MenuContent>(
+        @MenuContentBuilder menuItems: @escaping @MainActor (Point<Pixels>?) -> M) -> ContextualModifier<Self> {
+        ContextualModifier(content: self, attachment: ContextualAttachment.locatedMenu(menuItems, over: nil))
     }
 }
 

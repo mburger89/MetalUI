@@ -54,6 +54,9 @@ func runDemo() throws {
     // `METALUI_LOOKS_DEMO=1`: the looks demo (human check S4 — the colour
     // section's swatches and scheme toggle; the window's decorations stay with
     // the system theme, `CR-M`), with the app's dark palette override.
+    // `METALUI_RICH_TEXT_DEMO=1`: rich text (human check RT4, ruling RT-O item
+    // 10) — through the portable text system; a code span draws the default
+    // face unless a monospaced family is registered (`TE-B`, `RT-O` item 12).
     // `METALUI_LIST_DEMO=1`: the variable-height list (human checks VL1–VL5,
     // ruling VL-K) — content-sized rows of wrapping text, selectable, a jump.
     let environment = ProcessInfo.processInfo.environment
@@ -67,7 +70,18 @@ func runDemo() throws {
     if environment["METALUI_LOOKS_DEMO"] == "1" {
         app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
     }
-    let window = environment["METALUI_LIST_DEMO"] == "1"
+    // `METALUI_CANVAS_DEMO=1`: input APIs' canvas (human checks Y6–Y8, Y10,
+    // Y11; spec `2026-10-08-input-apis-design.md` §6) — wheel, SDL pinch, middle
+    // and right drags, tap location, SDL's system cursors; **C** toggles the
+    // crosshair.
+    let canvasDemo = environment["METALUI_CANVAS_DEMO"] == "1"
+    let window = canvasDemo
+        ? try app.openWindow(title: "MetalUI — SDL3 canvas", size: Size(width: Pixels(920), height: Pixels(620)),
+                             content: canvasDemoContent)
+        : environment["METALUI_RICH_TEXT_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 rich text", size: Size(width: Pixels(920), height: Pixels(640)),
+                             content: richTextDemoContent)
+        : environment["METALUI_LIST_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 variable-height List", size: size,
                              content: variableListDemoContent)
         : environment["METALUI_SERVICES_DEMO"] == "1"
@@ -96,6 +110,7 @@ func runDemo() throws {
         KeyBinding("a", ToggleAnimationDemo())
         KeyBinding("q", QuitDemo())
     }
+    if canvasDemo { window.keymap.bindings.append(KeyBinding("c", ToggleCanvasCrosshair())) }
     window.onAction = { [weak window] action in
         guard let window else { return false }
         switch action {
@@ -106,7 +121,7 @@ func runDemo() throws {
         case is FocusCounter: window.focus(counterID)
         case is ClearFocus: window.focus(nil)
         case is QuitDemo: platform.stop()
-        default: return false
+        default: return canvasDemoHandle(action)
         }
         return true
     }
