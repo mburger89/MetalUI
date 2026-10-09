@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-X`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -1334,3 +1334,66 @@ counts), `README.md`, records §03/§04/§05 and the record index, and re-took:
 **Reading.** Nothing in this phase moved a source file; every figure is read
 from a run, not from a lane's report. **Cost if wrong.** None beyond the
 documents.
+
+---
+
+## GX-X — A clip pushed inside a flattening effect is cut by the clip at the effect's entry (LF-a)
+
+**Finding.** MetalCreator's gap LF-a, on `67a579e`: a `.clipped()` inside an
+`.offset` or a uniform positive `.scaleEffect` forgot the clip outside the
+effect. `GX-G` item 3 split the clip at the entry of a **non-flattening**
+paint scope only, so inside a flattening one `pushClip` intersected the new
+clip with the outer clip **in the content's pre-effect space**, and
+`RenderEffect.apply` then moved that mask by the effect and never cut it by
+the clip in force at the entry. Two symptoms of one cause, both measured red
+(record §73 §12): a clipped bar moved 60 up out of a 100 × 100 clip at
+(50, 50) kept the mask (80, 20) 40 × 40 and painted 30 px above it (under
+`scaleEffect(4)`, (20, 20) 160 × 160); and a clipped bar laid out outside the
+clip and moved **into** it got the empty mask (50, 130) 40 × 0 and drew
+nothing. Prepaint was right: it always splits (`GX-G` item 3), and a hitbox
+is tested against its local clip through the inverse and against the outer
+clip in window space — pinned, not changed.
+
+**Ruling.**
+1. **The first clip pushed inside a flattening scope intersects nothing
+   outside it**: `Frame.flatteningClipBase` (the clip depth at the innermost
+   flattening scope's entry) makes `pushClip` skip the intersection when the
+   stack is exactly that deep (and above `clipBase`). Unlike `clipBase` it
+   leaves `activeClip` alone, so a primitive with no clip pushed inside still
+   reads the entry clip — its bytes, and a removal ghost's or a drag
+   preview's capture of it, are unchanged.
+2. **A flattening effect scope keeps its entry clip** as `PaintScope.outer`
+   (as a non-flattening one already did), and `insertThroughScopes`, after
+   `apply` maps the primitive, **cuts every mask pushed inside the scope** by
+   it — the primitive's own (`innerMask`) or its transform record's outer
+   mask (`outerMaskInner`) — with `Frame.intersect(_:radii:_:radii:)`, radii
+   included. Nested flattening scopes compose: each cuts by its own entry clip
+   in its own target space. Transitions are not effect scopes and are
+   untouched.
+3. No scene, shader or record format change: the SDL replay parity is not
+   engaged.
+
+**Tests** (`RenderEffectTests`, `RenderEffectHitTests`, the `LF-a` sections):
+`aClipInsideAnOffsetIsStillCutByTheClipOutsideIt` (both vocabularies),
+`aClipInsideAUniformScaleIsStillCutByTheClipOutsideIt` (both),
+`aClipInsideNestedFlatteningEffectsIsCutByTheClipOutsideBoth`,
+`contentMovedIntoTheOuterClipByAnOffsetKeepsItsOwnClip`,
+`aRecordsOuterMaskInsideAnOffsetIsCutByTheClipOutsideIt` — red on `67a579e`;
+`aHitboxInsideAnOffsetIsCutByTheClipOutsideIt` — a pin, green on arrival.
+Mutations (each a full unfiltered suite): **M-X1** (the cut skipped for a
+primitive's own mask) → the offset, scale and nested tests; **M-X2** (no
+split at the flattening entry) → the moved-in test alone; **M-X3** (the cut
+skipped for a record's outer mask) → the record test alone; **M-X4**
+(prepaint does not split at a flattening effect) → the hitbox pin's moved-in
+arm alone.
+
+**Carried.** A removal ghost replays its capture straight into the scene,
+past every scope outside its transition (pre-existing): a ghost inside an
+`.offset` is drawn unmoved, and since this ruling a mask pushed inside the
+offset is no longer pre-cut by the clip outside it. Owner none.
+
+**Cost if wrong.** A content clip inside a flattening effect is now local,
+so a GPU surface's off-clip cull (`Frame` surface emission, which reads
+`activeClip`) inside one compares against the local clip only — it can do
+GPU work for a surface the outer clip hides; it never culls one the effect
+brings into view, which it did before.

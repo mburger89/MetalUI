@@ -38,7 +38,7 @@ summary.
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
-  `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-X`), `MN-` (menus, popovers, tooltips:
+  `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Y`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
@@ -86,7 +86,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
+- **Counts (2026-10-09, `fix/clip-in-flattening-effect` from `67a579e`, `GX-X`): 2879 tests, 0
+  goldens, 185 typecheck guards** (2873 + 6 tests, no guard; five AppKit sheet tests time out
+  in a full run under a locked screen on `67a579e` too; record §73 §12). Before it,
+  **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
   after `CI-AL`): 2873 tests, 0 goldens, 185 typecheck guards** (the merge's 2870 + `CI-AL`'s
   3 tests, no guard; `Backends/SDL` and the image not re-taken, untouched; record §81 §4.7).
   On the merge itself, `1337ff6`: 2870 / 0 / 185 (2790 + 80 tests, 180 + 5 guards;
@@ -604,7 +607,9 @@ return `Self` into `Decoration.renderEffects`, around the whole element
 via `beginLeafGroup`/`endLeafGroup` — a new text-drawing site brackets its
 draw), silhouette on the CPU, blur sigma = radius, a shadow never hits and a
 `Deferred` stops it; text and images under a scale are resampled, not
-re-rasterized (divergence 106). A new public declaration spelled
+re-rasterized (divergence 106). **A clip pushed inside a flattening effect (`.offset`, uniform
+`.scaleEffect`) is local and, once mapped, cut by the clip at the effect's entry**
+(`flatteningClipBase`, `cutToEntryClip`; `GX-X`, record §73 §12). A new public declaration spelled
 `nonisolated public` hides from the census — write `public nonisolated`.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own

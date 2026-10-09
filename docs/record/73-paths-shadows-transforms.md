@@ -390,3 +390,89 @@ Re-taken independently over `dc96395..8141567`:
   - In `Hitbox.swift`, `ContentShape`'s doc comment had been separated from
     its class by the new `HitboxTransform` declaration. It is now back above
     `ContentShape`, and the change is comment-only.
+
+## §12 The LF-a fix: a clip inside a flattening effect (2026-10-09, `GX-X`)
+
+Branch `fix/clip-in-flattening-effect` from master `67a579e`. MetalCreator's
+gap **LF-a**: a `.clipped()` inside an `.offset` or a uniform positive
+`.scaleEffect` forgot the clip outside the effect. Ruling `GX-X`.
+
+**Cause, as found.** `GX-G` item 3 split the paint clip (`clipBase`) only at a
+non-flattening scope's entry. Inside a flattening one `pushClip` intersected
+the inner clip with the outer one in the content's pre-effect space, and
+`RenderEffect.apply` moved that mask by the effect without cutting it by the
+clip in force at the entry. The reporter's reading holds, and the same cause
+has a second symptom it did not name: content laid out outside the outer clip
+and moved into it got an empty mask and drew nothing. Prepaint always splits,
+so hitboxes were right.
+
+**Red run** (`d8c6e83`, filtered, native) — six issues in five tests:
+- `aClipInsideAnOffsetIsStillCutByTheClipOutsideIt`: proposal mask
+  `(80.0, 20.0, 40.0×40.0)`, legacy `(80.0, 20.0, 40.0×40.0)`; expected
+  `(80.0, 50.0, 40.0×10.0)`.
+- `aClipInsideAUniformScaleIsStillCutByTheClipOutsideIt`: proposal and legacy
+  `(20.0, 20.0, 160.0×160.0)`; expected `(50.0, 50.0, 100.0×100.0)`.
+- `aClipInsideNestedFlatteningEffectsIsCutByTheClipOutsideBoth`:
+  `(80.0, 20.0, 40.0×40.0)`.
+- `contentMovedIntoTheOuterClipByAnOffsetKeepsItsOwnClip`:
+  `(50.0, 130.0, 40.0×0.0)`; expected `(50.0, 70.0, 40.0×40.0)`.
+- `aRecordsOuterMaskInsideAnOffsetIsCutByTheClipOutsideIt`: outer mask
+  `(80.0, 20.0, 40.0×40.0)`.
+- `aHitboxInsideAnOffsetIsCutByTheClipOutsideIt` passed: a pin.
+
+The first legacy arms put `.clipped()` on the legacy bar itself. They read
+`(50, 50) 100 × 100`, because a legacy `.clipped()` clips an element's
+children and not its own background. They now clip a `Box` around the bar.
+
+**Fix.** See `GX-X` items 1 and 2: `Frame.flatteningClipBase`, the flattening
+scope's entry clip kept as `outer`, and `Frame.cutToEntryClip` after `apply` in
+`insertThroughScopes`. There is no scene, shader or record-format change, so
+the SDL replay parity is not engaged.
+
+**Mutations.** Each was run as a full unfiltered native suite, 2879 tests, and
+then reverted. Besides the five pre-existing sheet failures below, each
+reddened only:
+- **M-X1** (`guard p.innerMask, false` in `cutToEntryClip`): the offset,
+  scale and nested tests.
+- **M-X2** (`firstInsideFlattening = false`): the moved-in test.
+- **M-X3** (`guard p.outerMaskInner, false`): the record test.
+- **M-X4** (prepaint: `if !map.isUniformPositiveScaleTranslation { clipBase =
+  clipDepth }`): the hit pin's "moved in" arm.
+
+**Suite.** `swift package clean`, then the native build (0 `error:`) and
+`swift test --build-system native --no-parallel`: **2879 tests in 3 suites**,
+5 issues. The `FR-J no-argument frame: succeeded=true` line is present.
+Guards are unmoved at 185; no guard was added.
+
+The five issues are the AppKit sheet tests in `AppKitPresentationTests`
+(`appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+`appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+`appKitCancelledDialogArrivesAsQueuedInput`,
+`appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+`appKitSecondDialogWhileASheetIsUpAnswersFalse`). Each timed out at 61 s with
+"no sheet attached". They are **pre-existing and environmental**:
+- An unmodified `67a579e` full run fails the same five: 2873 tests, 5 issues.
+- The five pass filtered on both commits.
+- The screen read `CGSSessionScreenIsLocked=Yes`.
+
+`swift build --build-tests` prints 0 warnings.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh` from `67a579e` to `5d96c04`
+(the fix): all fourteen images read `differing=0`, and every scene is
+identical. No demo tree pushes a clip inside an `.offset` or `.scaleEffect`.
+
+The controls at `67a579e` read:
+
+| Control | Reading |
+|---|---|
+| light vs dark | 1048576 |
+| default vs modal | 1031003 |
+| default vs animation | 454895 |
+| f0 vs f3 | 0 |
+| preview light vs dark | 1048576 |
+| chrome legacy vs proposal | 0 |
+| distinct, default-light-f0 | 544 |
+| distinct, chrome-legacy | 216 |
+
+The two figures that differ from the script header's quoted values are the
+baseline's own and were not caused by this change.
