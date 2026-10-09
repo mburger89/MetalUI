@@ -476,3 +476,64 @@ The controls at `67a579e` read:
 
 The two figures that differ from the script header's quoted values are the
 baseline's own and were not caused by this change.
+
+## §13 The LF-b fix: a clip inside nested flattening effects (2026-10-09, `GX-Y`)
+
+Branch `fix/clip-nested-flattening` from master `0b400b4`. MetalCreator's
+**LF-b**, a regression of §12: their node canvas over-clipped since `GX-X`.
+Ruling `GX-Y`.
+
+**Cause, as found.** The suspected cause held. An inner flattening scope opened
+inside an outer one before any clip was pushed there took the outer scope's
+entry clip (the canvas clip, window space) as its own `outer`, and
+`cutToEntryClip` applied it after the inner map only — in the outer effect's
+pre-effect space — before the outer map moved the result. The trigger is
+content whose pre-effect position lies outside the outer clip that an outer
+effect brings into view; the panel offset is irrelevant. §12's nested test
+missed it because its bar stays inside the clip in every space. A second form
+at depth 0: `flatteningClipBase == 0` meant "none", so a scope opened at the
+window root was invisible to `pushClip` and to the new rule.
+
+**Red run** (`48c9c0b` and `8d8b5f0`'s new arm, against `0b400b4`'s source,
+filtered, native):
+- `aClipInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip`: node A,
+  proposal and legacy, mask `(70.0, 90.0, 20.0×40.0) r0.0`; expected
+  `(30.0, 90.0, 60.0×40.0) r6.0`. Node B (straddling, the control) passed.
+- `aClipInsideAScaleInAScaledCanvasIsCutOnlyByTheOutermostEntryClip`: proposal
+  and legacy `(100.0, 95.0, 30.0×60.0) r0.0`, expected
+  `(40.0, 95.0, 90.0×60.0) r9.0`; the scale-in-scale arms
+  `(100.0, 95.0, 0.0×30.0) r0.0`, expected `(40.0, 95.0, 45.0×30.0) r4.5`.
+- `aClipInsideNestedFlatteningEffectsAtDepthZeroIsNotCutByTheWindow`:
+  `(150.0, 10.0, 0.0×40.0) r0.0`, expected `(50.0, 10.0, 60.0×40.0) r6.0`; the
+  second arm (added after M-Y4 stayed green) `(0.0, 290.0, 60.0×10.0) r0.0`,
+  expected `(0.0, 290.0, 60.0×40.0) r6.0`.
+- `aBarMovedOutAndBackByNestedFlatteningEffectsKeepsItsOwnClip`, MetalCreator's
+  numbers exactly: `(110.0, 80.0, 10.0×40.0)` twice and
+  `(125.0, 80.0, 5.0×20.0)`; expected `(80.0, 80.0, 40.0×40.0)` twice and
+  `(110.0, 80.0, 20.0×20.0)`.
+- `aHitboxInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip`
+  passed: a pin.
+
+**Fix.** `GX-Y` items 1 and 2: `flatteningClipBase: Int?`, one predicate
+`Frame.atFlatteningEntry` read by `pushClip` and by `paintWithRenderEffect`,
+which gives a flattening scope `outer = nil` when it holds.
+
+**Mutations.** Each a full unfiltered native suite, 2884 tests, then reverted;
+each reddened only:
+- **M-Y1** (`let outer: OuterMask? = false ? nil : …`): the four `LF-b` paint
+  tests (10 issues).
+- **M-Y2** (`guard let base = flatteningClipBase, base > 0`): the depth-zero
+  test.
+- **M-Y3** (`return base > clipBase && …`): the depth-zero test.
+- **M-Y4** (`pushClip` with `(flatteningClipBase ?? 0) > clipBase &&
+  clipStack.count == (flatteningClipBase ?? 0)`): green at first (2884 passed);
+  after the second arm, the depth-zero test alone.
+
+**Suite.** `swift package clean`, native build, `swift test --build-system
+native --no-parallel`: **2884 tests in 3 suites passed**, 0 issues (the
+AppKit sheet tests passed this time). `FR-J no-argument frame: succeeded=true`.
+Guards unmoved at 185. `swift build --build-tests` prints 0 warnings; both
+closeout checks print nothing.
+
+**Pixels.** `compare.sh` from `0b400b4` to `8d8b5f0`: all fourteen images
+`differing=0`, every scene identical; the controls read as in §12.
