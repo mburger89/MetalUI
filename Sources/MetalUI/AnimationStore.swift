@@ -42,6 +42,11 @@ final class AnimationStore {
     /// departed values its disappearances read (`LC-I`).
     let lifecycle = LifecycleStore()
 
+    /// The window's `TimelineView` cursors and its one wake (ruling `KF-K`
+    /// items 3–4), owned here so a `Window`'s frames share one and a headless
+    /// frame gets its own; closed by `endFrame()` with the other entries.
+    let timeline = TimelineStore()
+
     /// Interpolations performed by the last completed frame — a work counter
     /// (spec test 2.12), counted by `noteInterpolation()`.
     private(set) var lastFrameInterpolations = 0
@@ -82,5 +87,6 @@ final class AnimationStore {
         }
         touched.removeAll(keepingCapacity: true)
         lastFrameInterpolations = interpolationsThisFrame
+        timeline.endFrame()  // drops untouched timelines, (re)schedules or cancels the wake (KF-K item 3)
     }
 }
