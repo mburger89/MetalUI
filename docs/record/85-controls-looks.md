@@ -166,3 +166,166 @@ function by the rule. Every other mutation reddened the tests named for it.
   `NSColorWell`, the panel's drag and keys, one undo step per drag in
   MetalCreator, VoiceOver on the well and the panel's sliders.
 - A real-window look was not taken (the lock probe was not run by this lane).
+
+## §2 Lane 2 — progress view and keyframes
+
+Commits: `2afcabd` (red: tests and API stubs), `a31d446` (implementation,
+ruling `LK-V`, divergences 168, 169, 171, census, two demo sections), the
+record commit (this section).
+
+### §2.1 Red
+
+45 root tests (18 `ProgressViewTests`, 1 `ProgressViewCompileGuards`, 15
+`KeyframeTimelineTests`, 8 `KeyframeAnimatorTests`, 3
+`KeyframeCompileGuards`) written against stubs carrying the public surface with
+every answer wrong (`2afcabd`). Filtered run on the stub: **39 of 45 failed**.
+The 6 that passed were the four guards
+(`progressViewSpellingsTypecheckFromAnExternalModule`,
+`keyframeAnimatorTypechecksWithSwiftUIsCallShape`,
+`userConformancesToKeyframesDoNotCompile`,
+`springKeyframeWithoutDurationDoesNotCompile`),
+`theAnimatorShowsTheInitialValueAndCallsNoKeyframesOnAppearK10` (the stub's
+"show the initial value, run nothing" is K10's answer) and
+`theKeyframeScopeTakesNoIdentityLevel` (the stub took no level either) — all
+six are absent API at `cd84b0c`, so none compiled there; each is reddened by a
+mutation in §2.3. First failure line per test (abridged; each `Expectation
+failed:`):
+
+| test | first red line |
+|---|---|
+| `linearKeyframesMatchK1` | `KeyframeTimelineTests.swift:43` `abs(timeline.duration - 0.6) < 1e-12` |
+| `easeInOutMatchesK2`, `aLoneCubicIsSmoothstepK3b`, `cubicTangentsAreCatmullRomBetweenCubicsK3K3fK3g`, `aCubicTakesALinearNeighboursVelocityK3dK3h`, `anExplicitStartVelocityWinsK3e`, `aSpringKeyframeHoldsWhereItsDurationEndsK4`, `aSpringCarriesTheIncomingVelocityK4e`, `theNextKeyframeStartsFromTheSpringsValueK4c`, `aMoveKeyframeJumpsK5` | `:53`, `:60`, `:76`, `:103`, `:120`, `:130`, `:143`, `:156`, `:189` `misses.isEmpty` |
+| `springValuesMatchK4dAtPointOne` | `:173` `abs(value - arm.value) <= 0.005` |
+| `tracksRunInParallelAndHoldK6` | `:206` `abs(timeline.duration - 0.6) < 1e-12` |
+| `anUntrackedFieldKeepsItsInitialValueK7` | `:227` `abs(value.x - x) <= 0.001 && value.s == s` |
+| `aZeroDurationKeyframeReadsItsTarget` | `:243` `value == 10` |
+| `valueProgressClampsK9` | `:261` `zip(values, [0.0, 5, 10, 10]).allSatisfy …` |
+| `aTriggerFromRestRestartsFromTheInitialValueK11K12` | `KeyframeAnimatorTests.swift:79` `log.starts == [0]` |
+| `aTriggerMidRunStartsFromTheCurrentValueK13` | `:98` `log.starts.count == 2 && …` |
+| `theAnimatorHoldsItsEndValueAtRest` | `:111` `log.values.suffix(4).allSatisfy { near($0, 20) }` |
+| `repeatingLoopsAndCallsKeyframesOnceK14` | `:134` `log.starts == [0]` |
+| `theAnimatorNotesAnimationOnlyWhileRunning` | `:151` `started.hasActiveAnimations && midway.hasActiveAnimations` |
+| `keyframeAnimatorKeepsProposalContentProposal` | `:196` `width(…) == 20` |
+| `theSpinnerIsThirtyTwoSixteenAndTenByControlSize` | `ProgressViewTests.swift:121` `answer == SizeD(width: side, height: side)` |
+| `theBarIsGreedyTwentyTallAndZeroWideAtNil` | `:137` `measured["ideal"] == SizeD(width: 0, height: 20)` |
+| `aSmallBarIsTwelveTall` | `:148` `measured["w200"] == …` |
+| `aTitledBarStacksTheTitleAboveWithNoGap` | `:158` `measured["ideal"] == …` |
+| `aCurrentValueLabelSitsBelowInTheCaptionFont` | `:176` `measured["w300"] == …` |
+| `aTitledSpinnerStacksTheTitleBelowFourPointsApart` | `:185` `measured["ideal"] == …` |
+| `aTitledProgressViewInAnHStackStacksItsTitleAbove` | `:202` no 100 × 20 bar |
+| `aValueAboveTheTotalDrawsFull` | `:238` `bars.count == 2` |
+| `progressViewStyleCircularDrawsARingAndLinearAnIndeterminateBar` | `:268` `ring["w300"] == SizeD(width: 32, height: 32)` |
+| `theInnermostProgressViewStyleWins` | `:283` `own["w300"] == SizeD(width: 300, height: 20)` |
+| `theSpinnerAdvancesTwentyFourStepsPerPointEightSeconds`, `reduceMotionDoesNotStopTheSpinner` | `:88` `leaves.count == 1` |
+| `anIndeterminateViewKeepsTheWindowAnimatingAndADeterminateOneDoesNot` | `:309` `spinner.hasActiveAnimations` |
+| `aHiddenOrZeroSizeSpinnerRequestsNoFrames` | `:337` `visible.hasActiveAnimations` |
+| `aNegativeValueOrAZeroTotalIsIndeterminate`, `aNonFiniteValueIsIndeterminateAndNothingNonFiniteIsStored`, `aDeterminateViewPublishesAProgressIndicatorWithTheFraction`, `anIndeterminateViewPublishesABusyIndicatorWithNoValue` | `ButtonTests.swift:107` (the shared AX helper) `platform.publishedAccessibilityTrees.last` |
+
+### §2.2 Landing
+
+- **Suite** (HEAD `a31d446`), native build, unfiltered `--no-parallel`:
+  **2813 tests in 3 suites passed** (2768 + 45), `FR-J no-argument frame:
+  succeeded=true`, 0 `error:`, only SwiftPM's deprecation `warning:`.
+  `swift build --build-tests` (default build system) 0 warnings.
+- **The first green suites were not green**, both fixed before the
+  implementation commit: run 1 (6 issues) — `everyProductionTreeBuildsOnAOneMegabyteThread`
+  (`SIGBUS`: the looks tree with three temporaries), `theLooksDemoDrawsEverySurfaceItsHumanChecksName`
+  and `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours` (a `Button`
+  as the shake trigger moved the click-target count and the bottom-most press)
+  — `LK-V` item 9; run 2 (1 issue) — `aCurrentValueLabelSitsBelowInTheCaptionFont`,
+  an instrument: the titled sizes compared an unrounded answer with rounded
+  text bounds, and `captionSize` read an arbitrary recorded rect; repaired in
+  the test file.
+- **`Backends/SDL`** (no file of it touched): macOS **24 + 85**, Linux image
+  **24 + 82**, unchanged from lane 1.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> cd84b0c HEAD`
+  (HEAD `a31d446`): **all fourteen images 0 differing pixels, every scene
+  identical**.
+- **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing; census re-recorded, **2552 → 2647** (`ProgressView`,
+  `ProgressViewStyle`, the keyframe types and builders, `VectorArithmetic`,
+  `UnitCurve`, `Spring`, the animator).
+- **Divergences 168, 169, 171** added, pinned by
+  `springKeyframeWithoutDurationDoesNotCompile`,
+  `keyframeAnimatorTypechecksWithSwiftUIsCallShape` and
+  `aZeroDurationKeyframeReadsItsTarget`; the header's lines are left to the
+  merge (`LK-N`).
+
+### §2.3 Mutations
+
+Each applied to the committed tree (`a31d446`) from a copy, native build,
+**full unfiltered suite**, restored, `git status --short` empty after each.
+Spellings: the exact replacements in `/private/tmp/…/lk2mut/mutate.py`,
+summarised. Driven in two sittings (the first interrupted after `STEPS`; the
+second ran `ALWAYS` onward and the two guard mutations `GPVa`/`GPVn` added
+when `GPV` failed to build).
+
+| id | mutation | reddened (full unfiltered suite, 2813 tests) |
+|---|---|---|
+| K1 | `KeyframeSegments`: `time += segment.duration` deleted (every segment starts at 0) | `aCubicTakesALinearNeighboursVelocityK3dK3h`, `aMoveKeyframeJumpsK5`, `aSpringCarriesTheIncomingVelocityK4e`, `aTriggerFromRestRestartsFromTheInitialValueK11K12`, `aTriggerMidRunStartsFromTheCurrentValueK13`, `cubicTangentsAreCatmullRomBetweenCubicsK3K3fK3g`, `linearKeyframesMatchK1`, `repeatingLoopsAndCallsKeyframesOnceK14`, `theAnimatorHoldsItsEndValueAtRest`, `theAnimatorNotesAnimationOnlyWhileRunning`, `theNextKeyframeStartsFromTheSpringsValueK4c`, `tracksRunInParallelAndHoldK6`, `valueProgressClampsK9` |
+| K2 | a cubic/linear segment ignores its `UnitCurve` (progress `u`) | `easeInOutMatchesK2` |
+| K3b | the first cubic's start velocity is the chord slope, not 0 | `aLoneCubicIsSmoothstepK3b`, `cubicTangentsAreCatmullRomBetweenCubicsK3K3fK3g` |
+| K3g | the Catmull-Rom tangent divides by `2 × duration`, not the span | `cubicTangentsAreCatmullRomBetweenCubicsK3K3fK3g` |
+| K3d | a cubic before a linear keyframe takes no velocity from it | `aCubicTakesALinearNeighboursVelocityK3dK3h` |
+| K3e | an explicit `startVelocity:` ignored | `anExplicitStartVelocityWinsK3e` |
+| K4 | a spring segment's end is its target, not where its duration ends | `aSpringKeyframeHoldsWhereItsDurationEndsK4`, `theNextKeyframeStartsFromTheSpringsValueK4c` |
+| K4e | a spring starts at velocity 0, not the incoming one | `aSpringCarriesTheIncomingVelocityK4e` |
+| K4c | the next keyframe starts from the spring's target | `theNextKeyframeStartsFromTheSpringsValueK4c` |
+| K4d | `Spring`'s damping ratio `1 - bounce` for a negative bounce too (`Animation.swift`) | `springValuesMatchK4dAtPointOne` |
+| K5 | segment search `endTime > time` (a move keyframe at its own time reads the old value) | `aMoveKeyframeJumpsK5` |
+| K6 | timeline duration the sum of the tracks, not the maximum | `tracksRunInParallelAndHoldK6`, `valueProgressClampsK9` |
+| K7 | a track starts from `.zero`, not the initial value's field | `aTriggerMidRunStartsFromTheCurrentValueK13`, `anUntrackedFieldKeepsItsInitialValueK7`, `tracksRunInParallelAndHoldK6`, `valueProgressClampsK9` |
+| K8 | a zero-duration segment's guard deleted (divides by 0) | `aZeroDurationKeyframeReadsItsTarget` |
+| K9 | `value(progress:)` scales by the first track's duration | `valueProgressClampsK9` |
+| K10 | the animator runs its keyframes on appear | `aTriggerFromRestRestartsFromTheInitialValueK11K12`, `aTriggerMidRunStartsFromTheCurrentValueK13`, `keyframeAnimatorKeepsProposalContentProposal`, `theAnimatorHoldsItsEndValueAtRest`, `theAnimatorNotesAnimationOnlyWhileRunning`, `theAnimatorShowsTheInitialValueAndCallsNoKeyframesOnAppearK10` |
+| K11 | a trigger from rest starts from the resting value, not the initial value | `aTriggerFromRestRestartsFromTheInitialValueK11K12` |
+| K13 | a trigger mid-run starts from the initial value | `aTriggerMidRunStartsFromTheCurrentValueK13` |
+| HOLD | the resting value is the initial value, not the timeline's end | `aTriggerFromRestRestartsFromTheInitialValueK11K12`, `aTriggerMidRunStartsFromTheCurrentValueK13`, `theAnimatorHoldsItsEndValueAtRest` |
+| K14 | the timeline rebuilt every frame (`if true`) | `repeatingLoopsAndCallsKeyframesOnceK14` |
+| NOTE | `noteActiveAnimation()` every frame, running or not | `theAnimatorNotesAnimationOnlyWhileRunning` |
+| IDENT | the scope's content laid out under `.child(of: parent, at: 99)` | `theKeyframeScopeTakesNoIdentityLevel` |
+| PROP | the proposal content built from `initialValue`, not the current value | `keyframeAnimatorKeepsProposalContentProposal` |
+| G1 | the call-shape guard's negative arm without `.onClick {}` | `keyframeAnimatorTypechecksWithSwiftUIsCallShape` |
+| G2 | the carriers' initialisers and storage types made public | `userConformancesToKeyframesDoNotCompile` |
+| G3 | `SpringKeyframe`'s `duration:` defaulted to 1 | `springKeyframeWithoutDurationDoesNotCompile` |
+| GPV | `ProgressView` without `StyledElement` | **build failed**: `ProgressViewTests.swift:330`–`:331` call `.hidden()`/`.opacity` on the view; not a mutation of the guard — replaced by `GPVa`, `GPVn` |
+| V0 | `.mini` spinner 12 | `theSpinnerIsThirtyTwoSixteenAndTenByControlSize` |
+| V3 | the bar's nil-width answer 30 | `theBarIsGreedyTwentyTallAndZeroWideAtNil` |
+| V3s | a small bar 20 tall | `aSmallBarIsTwelveTall` |
+| V4gap | a bar's title gap 4 | `aCurrentValueLabelSitsBelowInTheCaptionFont`, `aTitledBarStacksTheTitleAboveWithNoGap`, `aTitledProgressViewInAnHStackStacksItsTitleAbove` |
+| V4cap | the current-value label in `.body` | `aCurrentValueLabelSitsBelowInTheCaptionFont` |
+| V1 | the spinner's title above, like a bar's | `aTitledSpinnerStacksTheTitleBelowFourPointsApart` |
+| LKP | the box a row | `aCurrentValueLabelSitsBelowInTheCaptionFont`, `aTitledBarStacksTheTitleAboveWithNoGap`, `aTitledProgressViewInAnHStackStacksItsTitleAbove`, `aTitledSpinnerStacksTheTitleBelowFourPointsApart` |
+| V8neg | a negative value accepted (clamped to 0) | `aNegativeValueOrAZeroTotalIsIndeterminate` |
+| V8full | a value above the total not clamped | `aValueAboveTheTotalDrawsFull` |
+| NAN | no finiteness checks on value, total or fraction | `aNegativeValueOrAZeroTotalIsIndeterminate`, `aNonFiniteValueIsIndeterminateAndNothingNonFiniteIsStored` |
+| STYLE | `.circular` with a value draws a bar, not the ring | `progressViewStyleCircularDrawsARingAndLinearAnIndeterminateBar`, `theInnermostProgressViewStyleWins` |
+| INNER | the environment's style before the view's own | `theInnermostProgressViewStyleWins` |
+| STEPS | 12 steps per period, not 24 | `reduceMotionDoesNotStopTheSpinner`, `theSpinnerAdvancesTwentyFourStepsPerPointEightSeconds` |
+| ALWAYS | `noteActiveAnimation()` whatever the kind or visibility (`if true`) | `aHiddenOrZeroSizeSpinnerRequestsNoFrames`, `anIndeterminateViewKeepsTheWindowAnimatingAndADeterminateOneDoesNot` |
+| VIS | the visibility test dropped (spinner/indeterminate bar only) | `aHiddenOrZeroSizeSpinnerRequestsNoFrames` |
+| RM | Reduce Motion freezes the spinner (time 0) | `reduceMotionDoesNotStopTheSpinner` |
+| RAW | the published value ×10 | `aDeterminateViewPublishesAProgressIndicatorWithTheFraction`, `progressViewStyleCircularDrawsARingAndLinearAnIndeterminateBar` |
+| BUSY0 | a busy indicator publishes value `0` | `aNegativeValueOrAZeroTotalIsIndeterminate`, `anIndeterminateViewPublishesABusyIndicatorWithNoValue` |
+| ROLE | `AccessibilityTreeBuilder` maps both hints to `.progressIndicator` | `aNegativeValueOrAZeroTotalIsIndeterminate`, `aNonFiniteValueIsIndeterminateAndNothingNonFiniteIsStored`, `anIndeterminateViewPublishesABusyIndicatorWithNoValue` |
+| GPVa | the view's own `progressViewStyle(_:) -> ProgressView` made internal | `progressViewSpellingsTypecheckFromAnExternalModule` |
+| GPVn | a public `progressViewStyle(_: String) -> Self` on `ElementGroup` | `progressViewSpellingsTypecheckFromAnExternalModule` |
+
+Every mutation reddened the tests named for it; none stayed green and none
+hung. Findings: `GPV` breaks the test target, so the guard's doc comment named
+an unobservable mutation — rewritten to name `GPVa` and `GPVn` (the record
+commit). `K10` and `IDENT` redden the two tests that passed on the stub, and
+`G1`–`G3`, `GPVa`, `GPVn` redden the four guards that did.
+
+### §2.4 Deferred and owed
+
+- `phaseAnimator`/`PhaseAnimator` are not built (`LK-H`: it needs an
+  unmeasured logical-completion rule for springs and new transaction plumbing;
+  additive later).
+- Human checks owed (spec §7 items 3, 4, 9, 10): the spinner at 32/16/10
+  against `NSProgressIndicator` and its step rate, the indeterminate bar's
+  motion, the determinate bar's colours in both schemes and key/inactive
+  windows, the shake at 60 and 120 Hz, VoiceOver on a determinate and a busy
+  indicator.
+- A real-window look was not taken (the lock probe was not run by this lane).
+

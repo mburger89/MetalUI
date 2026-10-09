@@ -18,9 +18,13 @@ private let skipReason: Comment =
 /// `.padding` and `.background` like any control (it is one `StyledElement`);
 /// a `.progressViewStyle` given a string does not (the negative control).
 ///
-/// Mutations: delete `init(value:total:label:currentValueLabel:)` (the positive
-/// fails); drop the `StyledElement` conformance (`.padding(4)` after the view's
-/// own `.progressViewStyle` fails).
+/// Mutations (record §85 §2.3, measured): the view's own
+/// `progressViewStyle(_:) -> ProgressView` made internal (the positive fails:
+/// `.padding(Pixels(4))` on the container overload's `EnvironmentScope`
+/// requires proposal content); a public `progressViewStyle(_: String)` on
+/// `ElementGroup` (the negative compiles). Dropping the `StyledElement`
+/// conformance is not a mutation of this guard: `ProgressViewTests` stops
+/// compiling (`.hidden()`, `.opacity`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func progressViewSpellingsTypecheckFromAnExternalModule() throws {
     let positive = try typecheckFile("""
