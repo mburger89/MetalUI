@@ -329,3 +329,49 @@ commit). `K10` and `IDENT` redden the two tests that passed on the stub, and
   indicator.
 - A real-window look was not taken (the lock probe was not run by this lane).
 
+
+### §2.5 Review fixes (lane 2)
+
+The lane-2 review's two majors and five minors, each red-first, committed as
+`1fbf9cf`. Native build, full unfiltered suite: **2820 tests in 3 suites passed**
+(2813 + 7), `FR-J no-argument frame: succeeded=true`.
+
+- **Sibling records (major).** `siblingKeyframeAnimatorsKeepTheirOwnRecordsV4`:
+  two trigger animators in one `Row` (only one trigger changes), and a trigger
+  animator beside a repeating one.
+- **Handler-carried modifiers (major).** `aProgressViewTakesHandlerCarriedModifiersV5`:
+  a click on a spinner with `.onClick` runs, and `.accessibilityLabel` labels the
+  one busy indicator. These are **two windows**. One window carrying both
+  modifiers publishes no progress node: a clickable element synthesizes a
+  `.button`, and `publishedRole` maps the progress hint only from `.group`,
+  so a clickable `ProgressView` publishes as a button. This is measured here,
+  not ruled. Owed: a ruling, and a SwiftUI probe of `ProgressView().onTapGesture`'s
+  role. It is accessibility, which this fix does not move.
+- **K12 after an unseen end (minor, a fix).** `KeyframeAnimator.resolve`'s
+  trigger branch now treats `running && now - start >= duration` as rest,
+  storing the end value as `resting` before the restart. Frames 0, 1, 1.19,
+  1.21 give starts `[0, 0]` (were `[0, 20]`):
+  `aTriggerJustAfterAnUnseenEndRestartsFromTheInitialValue`, red before the
+  fix.
+- **Stacked animators (minor).** `stackedKeyframeAnimatorsKeepTwoRecordsV1b`.
+- **The progress-hint strip (minor).** `anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3`:
+  no `axNodes` entry, no `$ax` slot, and the client record carries `.busy`.
+- **Trap exit tests (minor).** `theKeyframeAndSpringPreconditionsTrap`:
+  `LinearKeyframe(1.0, duration: .nan)`, `Spring(duration: .infinity)` and
+  `Spring(bounce: 1)` each abort, with their message.
+- **The moving sweep (minor).** `theIndeterminateBarSegmentMovesWithTheClockV6`:
+  segment offset 0 at t = 0 and 35 at 0.4 s in a 100-wide track.
+
+Each mutation was applied to `1fbf9cf` and restored from the committed source,
+then a native build and a **full unfiltered suite** (2820 tests) ran.
+`git status --short` was empty after each.
+
+| id | mutation | reddened |
+|---|---|---|
+| V4 | `currentValue`'s owner `child(of: parent, at: cursor, …)` → `at: 0` | `siblingKeyframeAnimatorsKeepTheirOwnRecordsV4` |
+| V1b | `withKeyframeScope`'s increment and deferred decrement deleted | `stackedKeyframeAnimatorsKeepTwoRecordsV1b` |
+| K12 | the new end-of-run check disabled (`if false, …`) | `aTriggerJustAfterAnUnseenEndRestartsFromTheInitialValue` |
+| V9 | `keyframeDuration`'s precondition deleted | `theKeyframeAndSpringPreconditionsTrap` |
+| V5 | `ProgressView.prepaint`'s `layout.body.handlers = handlers` deleted | `aProgressViewTakesHandlerCarriedModifiersV5`, plus `aWheelMouseEventReachesOnInputInPointsAndATrackpadEventIsUnchanged` (`PlatformTests`, real `NSEvent` wheel deltas): unrelated to the mutation, green in the unmutated run and in the six other mutated runs, so environmental |
+| V3 | `registerHandlers`' `declaration.progressHint = nil` deleted | `anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3` |
+| V6 | `paintSweep`'s `travel` → `0.0` | `theIndeterminateBarSegmentMovesWithTheClockV6` |
