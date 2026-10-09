@@ -549,3 +549,47 @@ after each (`runner.log` in the session scratchpad's `lk3mut/`). No hang.
   §7), the `LK-W` spellings in CLAUDE.md's one-line rule.
 - `ShapeView`'s chained `stroke(_:)` with a gradient is not offered (spec §1
   named `fill` only); `Shape.stroke(gradient…)` is.
+
+### §3.5 Review fixes (lane 3)
+
+The lane-3 review's three majors and one minor, each a missing pin on existing
+code (no source change), committed as `2456d60`; the fifth item (the
+verifier's shared-scratchpad note) asks nothing of the lane — this run used its
+own `lk3fix-c10/`. Native build, full unfiltered suite: **2857 tests in 3
+suites passed** (2850 + 7), `FR-J no-argument frame: succeeded=true`, 0
+`error:`.
+
+- **Gradient opacity (major).** `anOpacityScalesAGradient` (3.30: `.opacity(0.5)`
+  over the strip and the full raster gives image opacity 0.5, and a legacy
+  gradient background inside a legacy `.opacity`), `aFadingTransitionScalesAGradientsAlpha`
+  (3.31: half-way through a `.transition(.opacity)` insertion the image's
+  opacity is 0.5 on the flattening route and, under `.rotationEffect(30°)`, on
+  the non-flattening one), `aGradientWrittenAfterOpacityEscapesIt` (3.32:
+  `Box().frame(…).opacity(0.5).background(gradient)` draws at opacity 1).
+- **The strip's rounded-clip guard (major).** `aRoundedClipCutsAStripCandidate`
+  (3.33): a leading→trailing 100 × 40 rect under `.clipShape(RoundedRectangle(cornerRadius: 10))`
+  reads white at its corner pixel (50.5, 80.5) and red inside.
+- **`Deferred` and fades under a blur (major).** `aDeferredStopsAnEnclosingBlur`
+  (3.35, the blur arm of `aDeferredStopsAnEnclosingShadow`: the presentation's
+  50 × 30 is a rect, the bar the one blur image) and `aFadingTransitionScalesABlursAlpha`
+  (3.36, both routes as in 3.31).
+- **Last write wins (minor).** `legacyFillsAreLastWriteWinsBothWays` (3.34): a
+  translucent colour after a gradient draws no gradient image; a gradient after
+  it draws no colour rect.
+
+Each mutation was applied to `2456d60` from a copy, native build, **full
+unfiltered suite** (2857 tests), restored, `git status --short` empty after
+each (`results.txt` in the session scratchpad's `lk3fix-c10/`). No hang. Each
+reddened only the test named.
+
+| id | mutation (spelling, file) | reddened |
+|---|---|---|
+| V9 | `Frame.drawGradient`: `opacity: 1` for `opacity: activeOpacity` (`GradientRaster.swift`) | `anOpacityScalesAGradient` |
+| V6 | the `.gradient` arm of `RenderEffect.apply`'s flattening switch: `gradient.opacity *= alpha` deleted (`Transition.swift`) | `aFadingTransitionScalesAGradientsAlpha` |
+| V5 | the `.gradient` arm of `CapturedPrimitive.multiplyAlpha`: the same line deleted | `aFadingTransitionScalesAGradientsAlpha` |
+| V3 | `paintDecoration`: `let gradientEscapes = … && false` (`AnimatedColor.swift`) | `aGradientWrittenAfterOpacityEscapesIt` |
+| V7 | `stripImage`: `let inset = 0 * Double(max(…))` (`GradientRaster.swift`) | `aRoundedClipCutsAStripCandidate` |
+| V4 | `Frame.insertThroughScopes`: `, .blur where pastBarrier` removed (`Frame.swift`) | `aDeferredStopsAnEnclosingBlur` |
+| V8 | the `.blur` arm of `multiplyAlpha`: `blur.alpha *= alpha` deleted | `aFadingTransitionScalesABlursAlpha` |
+| V8f | the `.blur` arm of `RenderEffect.apply`'s flattening switch: the same line deleted | `aFadingTransitionScalesABlursAlpha` |
+| V2 | `StyledElement.background(_ color:)`: `$0.backgroundGradient = nil` deleted (`Box.swift`) | `legacyFillsAreLastWriteWinsBothWays` |
