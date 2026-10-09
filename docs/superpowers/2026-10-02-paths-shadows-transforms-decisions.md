@@ -13,7 +13,7 @@ animation; its header carries the recorded output, run twice byte-identical,
 and the reading). Where SwiftUI has no answer (the rendering technique), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`GX-`**, lettered. **Next unused: `GX-Y`.** (This line moves in the
+Prefix **`GX-`**, lettered. **Next unused: `GX-Z`.** (This line moves in the
 commit that appends a ruling; read the last `## GX-` heading.)
 
 Branch `feat/paths-shadows-transforms` from `dc96395` (master: the scaffold
@@ -1369,7 +1369,10 @@ clip in window space — pinned, not changed.
    mask (`outerMaskInner`) — with `Frame.intersect(_:radii:_:radii:)`, radii
    included. Nested flattening scopes compose: each cuts by its own entry clip
    in its own target space. Transitions are not effect scopes and are
-   untouched.
+   untouched. **Refuted in part 2026-10-09 by `GX-Y`** (LF-b): "each cuts by
+   its own entry clip in its own target space" was false for a nested scope
+   opened before any clip was pushed inside the enclosing one — its entry clip
+   was the enclosing scope's, in window space, and the cut over-clipped.
 3. No scene, shader or record format change: the SDL replay parity is not
    engaged.
 
@@ -1397,3 +1400,63 @@ so a GPU surface's off-clip cull (`Frame` surface emission, which reads
 `activeClip`) inside one compares against the local clip only — it can do
 GPU work for a surface the outer clip hides; it never culls one the effect
 brings into view, which it did before.
+
+## GX-Y — A nested flattening effect cuts only by clips pushed since the enclosing one began (LF-b, the `GX-X` regression)
+
+**Finding.** MetalCreator's LF-b, on `0b400b4` (`GX-X` merged): a node canvas
+`ZStack { Color.clear; ZStack { nodes }.scaleEffect(zoom, anchor:
+.topLeading).offset(pan) }.clipped()`, each node
+`content.clipShape(RoundedRectangle(…)).offset(position)`, over-clipped: a
+node wholly inside the canvas near its top-left showed only a right-hand
+slice of its clipped content (fine on `67a579e`, apart from LF-a's leak).
+Cause, as found: `GX-X` item 2 gave every flattening scope its entry clip
+(`activeClip`) as `outer`. A node's `.offset` opened **inside** the canvas's
+effect before any clip was pushed there, so its `activeClip` was the canvas
+clip itself — window space — and `cutToEntryClip` applied it after only the
+node's map, in the canvas effect's **pre-effect** space, before the canvas map
+moved the result. Wherever the content's pre-effect position lies outside the
+outer clip and an outer effect brings it into view, the cut ate it. The
+LF-a nested test missed it: its bar stays inside the outer clip in every
+space. A second form of the same mistake at the window root: with
+`flatteningClipBase` an `Int` with 0 for "none", a flattening scope opened at
+clip depth 0 was invisible to both `pushClip` (its first clip intersected the
+window rect in the content's space — the LF-a leak, surviving at depth 0) and
+the new rule. Prepaint was right throughout (it composes maps and keeps one
+outer clip in window space, `GX-I`), pinned again for the canvas tree.
+
+**Ruling.**
+1. **A flattening scope opened where no clip has been pushed since the
+   innermost enclosing flattening scope's entry** (and no non-flattening
+   split is nearer) **has no entry clip of its own**: `outer = nil`, so
+   `insertThroughScopes` does not cut there. The clip in force is the
+   enclosing scope's entry clip, in the space *that* scope maps into, and the
+   enclosing scope's cut — after its own map — is the only one. A clip
+   pushed inside the enclosing scope before the nested one opens is local to
+   the enclosing scope, which is exactly the nested scope's output space, so
+   it still cuts there (`GX-X` item 2 for that case). One predicate,
+   `Frame.atFlatteningEntry`, decides this and `pushClip`'s skip alike.
+2. **`flatteningClipBase` is `Int?`**, `nil` outside every flattening scope,
+   so a scope opened at depth 0 is told from none; the predicate is
+   `base >= clipBase && clipStack.count == base`. A `Deferred` needs no reset:
+   it raises `clipBase` to its entry depth and pushes its root clip at once.
+3. Non-flattening scopes are untouched (their `outer` becomes a record's
+   outer mask, read in the right space by `GX-G` item 3). No scene, shader or
+   record-format change; the SDL replay parity is not engaged.
+
+**Tests** (`RenderEffectTests`, `RenderEffectHitTests`, the `LF-b` sections):
+`aClipInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip` (both
+vocabularies),
+`aClipInsideAScaleInAScaledCanvasIsCutOnlyByTheOutermostEntryClip` (both, and
+a uniform scale in an offset in the canvas's scale),
+`aClipInsideNestedFlatteningEffectsAtDepthZeroIsNotCutByTheWindow` (two arms),
+`aBarMovedOutAndBackByNestedFlatteningEffectsKeepsItsOwnClip` (MetalCreator's
+measured repro, their numbers) — red on `0b400b4`;
+`aHitboxInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip` — a
+pin, green on arrival. Mutations (each a full unfiltered native suite, 2884
+tests): **M-Y1** (`outer` never `nil`) → the four `LF-b` paint tests;
+**M-Y2** (`guard let base = flatteningClipBase, base > 0`) and **M-Y3**
+(`base > clipBase`) → the depth-zero test alone; **M-Y4** (`pushClip` reading
+0 as "none", the `GX-X` spelling) → the depth-zero test's second arm alone
+(green until that arm was added). Record §73 §13.
+
+**Carried.** `GX-X`'s carried ghost and surface-cull notes stand.

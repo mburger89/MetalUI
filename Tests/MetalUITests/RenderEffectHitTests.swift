@@ -406,3 +406,46 @@ private let deg90 = Angle.degrees(90)
     #expect(clicks(p4, w4, log, [pt(70, 90), pt(70, 40)]) == [true, false], "moved in")
     withExtendedLifetime((w0, w1, w2, w3, w4)) {}
 }
+
+/// **LF-b hit** (`GX-Y`). The LF-b canvas (`RenderEffectTests`, a 300 × 320
+/// clip at (20, 60) in a 400-point window; nodes under a canvas
+/// `.scaleEffect(zoom, anchor: .topLeading).offset(pan)` and their own
+/// `.offset`): prepaint was already right on `0b400b4` and stays so. Zoom 1,
+/// pan (50, 20): node A paints at (30, 90) 60 × 40 — (35, 110), its left part
+/// that the paint over-clip hid, hits; node B paints at (290, 130) straddling
+/// the edge at x 320 — (300, 150) hits, (335, 150) beyond the canvas does not.
+/// Zoom 1.5, pan (80, 20): A at (40, 95) 90 × 60 — (45, 100) hits, (35, 100)
+/// does not. Both vocabularies.
+@Test @MainActor func aHitboxInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip() throws {
+    func canvas<N: ProposalElementGroup>(_ zoom: Double, _ pan: (Float, Float),
+                                         @ProposalContentBuilder _ nodes: () -> N) -> some Element {
+        VStack(alignment: .leading, spacing: px(0)) {
+            Color.clear.frame(width: px(360), height: px(40))
+            ZStack(alignment: .topLeading) {
+                Color.clear.frame(width: px(300), height: px(320))
+                ZStack(alignment: .topLeading) { nodes() }
+                    .scaleEffect(zoom, anchor: .topLeading).offset(x: px(pan.0), y: px(pan.1))
+            }.clipped()
+        }.padding(Edges(all: px(20)))
+    }
+    let log = HitLog()
+    func node(_ x: Float, _ y: Float) -> some ProposalElementGroup {
+        fxBar(60, 40).onTapGesture { log.entries.append("t") }
+            .clipShape(RoundedRectangle(cornerRadius: px(6))).offset(x: px(x), y: px(y))
+    }
+    func legacyNode(_ x: Float, _ y: Float) -> some Element {
+        Box { fxLegacyBar(60, 40) }.frame(width: px(60), height: px(40)).onClick { log.entries.append("c") }
+            .clipShape(RoundedRectangle(cornerRadius: px(6))).offset(x: px(x), y: px(y))
+    }
+    let points1 = [pt(35, 110), pt(300, 150), pt(335, 150)]
+    let (w0, p0) = try hitWindow(size: 400) { canvas(1, (50, 20)) { node(-40, 10); node(220, 50) } }
+    #expect(clicks(p0, w0, log, points1) == [true, true, false], "proposal, zoom 1")
+    let (w1, p1) = try hitWindow(size: 400) { canvas(1, (50, 20)) { legacyNode(-40, 10); legacyNode(220, 50) } }
+    #expect(clicks(p1, w1, log, points1) == [true, true, false], "legacy, zoom 1")
+    let points2 = [pt(45, 100), pt(35, 100)]
+    let (w2, p2) = try hitWindow(size: 400) { canvas(1.5, (80, 20)) { node(-40, 10) } }
+    #expect(clicks(p2, w2, log, points2) == [true, false], "proposal, zoom 1.5")
+    let (w3, p3) = try hitWindow(size: 400) { canvas(1.5, (80, 20)) { legacyNode(-40, 10) } }
+    #expect(clicks(p3, w3, log, points2) == [true, false], "legacy, zoom 1.5")
+    withExtendedLifetime((w0, w1, w2, w3)) {}
+}
