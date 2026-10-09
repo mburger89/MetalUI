@@ -33,6 +33,7 @@ private func buildEveryProductionTree() {
     _ = dragAndDropDemoContent()
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     _ = menusDemoContent()
+    _ = canvasDemoContent()   // input APIs' canvas (spec §6, test 3.36)
     buildTheServicesDemo()   // platform services (SV-T, spec test 6.1)
 }
 
