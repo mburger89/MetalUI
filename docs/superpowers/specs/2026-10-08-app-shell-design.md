@@ -6,12 +6,13 @@ marker, hidden title bar with full-size content, open-document events.
 Requested by MetalCreator (gaps M6-a…M6-d, `MetalCreator/docs/metalui-gaps.md`
 on master). Branch `feat/app-shell` from `c62d6ba`. Rulings:
 [`../2026-10-08-app-shell-decisions.md`](../2026-10-08-app-shell-decisions.md)
-(`AS-A`…`AS-I`; **its "Final spellings" table is what MetalCreator swaps its
+(`AS-A`…`AS-N`; **its "Final spellings" table is what MetalCreator swaps its
 stopgaps by**). Record: `docs/record/87-app-shell.md`. Divergence labels from
 this branch's reserved range **175–184** (175 and 176 used here; the header's
 next-label line is left for the merge).
 
-**Status: designed (2026-10-09).** Lanes 1–3 not started.
+**Status: designed (2026-10-09), revised by the critic (2026-10-09:
+`AS-J`…`AS-N`).** Lanes 1–3 not started.
 
 ## §0 Baseline (`c62d6ba`)
 
@@ -44,7 +45,7 @@ public enum CloseRequestReply: Sendable, Equatable { case now, cancel, later }
 public enum PlatformTitleBarStyle: Sendable, Equatable { case standard, hidden }
 ```
 
-`PlatformWindow` (six, no defaults):
+`PlatformWindow` (seven, no defaults; the seventh by `AS-J`):
 
 ```swift
 var onCloseRequest: (() -> Bool)? { get set }          // nil or true: close
@@ -53,6 +54,7 @@ func setDocumentEdited(_ edited: Bool)
 func setRepresentedFilePath(_ path: String?)
 func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool   // true: applied
 var titleBarInsets: Edges<Pixels> { get }               // zero unless hidden and overlaid
+func performTitleBarPress(clickCount: Int) -> Bool      // AS-J: drag / double-click action; true: acted
 ```
 
 `Platform` (four, no defaults):
@@ -74,16 +76,20 @@ var onOpenURLs: (([String]) -> Void)? { get set }       // absolute URL strings;
   `titlebarAppearsTransparent = true`, `titleVisibility = .hidden` (`H0`),
   `.standard` restores, answers `true`; `titleBarInsets` → hidden only: `top =
   frame.height − contentLayoutRect.height`, `left =` the zoom button's maxX in
-  window coordinates, else zero; KVO on `contentLayoutRect` calls
+  window coordinates, else zero — **both** zero whenever the band's height is
+  zero (full screen); KVO on `contentLayoutRect` calls
   `syncSurfaceGeometry()` (→ `onResize`).
-- `MetalHostView`: `mouseDownCanMoveWindow` → `false`; in `mouseDown(with:)`
-  (the primary, non-control branch), when the window's style is hidden, the
-  press is in the band (`y < titleBarInsets.top`) and `onInput` answered
-  `false`, call `performWindowDrag(event)` (injectable; production
-  `window.performDrag(with:)`); clickCount 2 there → `performTitleBarDoubleClick()`
-  (injectable; reads `UserDefaults.standard.string(forKey:
-  "AppleActionOnDoubleClick")`: `"Minimize"` → `miniaturize`, `"None"` →
-  nothing, else `performZoom`) (`AS-F`).
+- `MetalHostView`: `mouseDownCanMoveWindow` → `false`; `mouseDown(with:)`
+  keeps the event in `AppKitWindow.currentMouseDown` for the duration of its
+  `onInput` call (cleared after). `performTitleBarPress(clickCount:)` (`AS-J`):
+  no current mouse-down → `false`; `1` → `performWindowDrag(event)`
+  (injectable; production `window.performDrag(with:)`), `true`; `2` →
+  `performTitleBarDoubleClick()` (injectable; reads
+  `UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick")`:
+  `"Minimize"` → `miniaturize`, `"None"` → nothing, else `performZoom`),
+  `true`; else `false`. **The host view does not read `onInput`'s answer for
+  this** — `Window` decides (`AS-J`; `onInput` answers `false` for every
+  primary press, a `Button`'s included).
 - `AppKitApplicationDelegate: NSObject, NSApplicationDelegate`, owned by
   `AppKitPlatform`: `applicationShouldTerminate(_:)` → `.terminateNow` if
   `terminationApproved`, else maps `onTerminateRequest?() ?? .now`;
@@ -99,7 +105,9 @@ var onOpenURLs: (([String]) -> Void)? { get set }       // absolute URL strings;
 `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`):
 
 - `mui_platform_init`: `SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0")`
-  before `SDL_Init`. New `bool mui_window_hide(void *)`. `mui_push_event`
+  before `SDL_Init`. New `bool mui_window_hide(void *)` and `const char
+  *mui_quit_on_last_window_close_hint(void)` (`SDL_GetHint`, for test 1.13,
+  `AS-L`). `mui_push_event`
   learns `MUI_EVENT_QUIT` → `SDL_EVENT_QUIT` (tests push it). No new
   `MUI_EVENT_*` kind (existing kinds unrenumbered).
 - `dispatch`: `MUI_EVENT_QUIT` → `switch onTerminateRequest?() ?? .now {
@@ -119,7 +127,8 @@ var onOpenURLs: (([String]) -> Void)? { get set }       // absolute URL strings;
 - `setDocumentEdited`, `setRepresentedFilePath`: recorded
   (`documentEditedCalls`, `representedPaths`), no SDL call;
   `setTitleBarStyle`: recorded (`titleBarStyles`), answers `false`;
-  `titleBarInsets`: zero.
+  `titleBarInsets`: zero; `performTitleBarPress`: recorded
+  (`titleBarPresses`), answers `false`.
 
 ### §1.2 MetalUI (`Sources/MetalUI`; lane 2; `AS-B`…`AS-G`)
 
@@ -158,6 +167,12 @@ public func navigationDocument(_ url: URL) -> EnvironmentScope<Self>
 public func onOpenURL(perform action: @escaping @MainActor (URL) -> Void) -> EnvironmentScope<Self>
 ```
 
+**Band press** (`AS-J`). At the end of `onInput`'s pointer path, `if
+!handled { answerUnclaimedTitleBarPress(event) }`: a primary `.mouseDown`
+with `windowStyle == .hiddenTitleBar`, `position.y < titleBarInsets.top`,
+`active == nil` and `!hasGestureArena` (a one-line internal accessor beside
+`gestureArena`) → `platformWindow.performTitleBarPress(clickCount:)`.
+
 **Window state machine** (`AS-B`). `platformWindow.onCloseRequest = { [weak
 self] in self?.answerCloseRequest() ?? true }`. `answerCloseRequest() ->
 Bool`: closed → `false`; pending → `false` (handler not run); no handler →
@@ -166,7 +181,9 @@ Bool`: closed → `false`; pending → `false` (handler not run); no handler →
 `close()`; the app's termination walk is told the outcome (an internal
 `closeRequestResolved: ((Bool) -> Void)?`). `close()`: closed → nothing; else
 `platformWindow.close()` (whose `onClose` marks `isClosed`, which makes
-`drawFrameIfNeeded` return at once). `performClose()`: `if
+`drawFrameIfNeeded` return at once). **A real close of a window with a
+pending request clears it and fires `closeRequestResolved(true)` once**,
+whatever closed it (`AS-K` item 2). `performClose()`: `if
 answerCloseRequest() { close() }`.
 
 **App termination** (`AS-C`). `platform.onTerminateRequest = { [weak self] in
@@ -183,9 +200,14 @@ asked, or to `platform.terminate()` (on success) if `App.terminate()` asked.
 `endEverything()`: `endingApproved = true`, close every remaining window
 (each `onClose` → `runDisappearancesForClose()` once). `App.terminate()` =
 `answerTerminateRequest(fromPlatform: false)`, and `.now` → `platform.terminate()`.
-`onClose` (per window): `runDisappearancesForClose()`; drop from `windows`; if
-`windows` is empty and not `endingApproved` → `endingApproved = true`,
-`platform.terminate()` (the last close asks nobody). The
+`onClose` (per window): `runDisappearancesForClose()`; **retire** — move from
+`windows` to `retiredWindows`, emptied by `DispatchQueue.main.async` (the
+`Window` outlives the platform's close callback, `AS-K` item 3); if `windows`
+is empty, not `endingApproved` and **not `terminationInProgress`** →
+`endingApproved = true`, `platform.terminate()` (the last close asks nobody).
+`terminationInProgress` is set when a request reaches the app handler or the
+walk and cleared on `.cancel`/`reply(false)`; while set the walk alone ends
+the app (`AS-K` item 1). The
 `#if canImport(AppKit) NSApplication.shared.terminate` and
 `terminatesThroughAppKit` go.
 
@@ -228,9 +250,9 @@ window style draws exactly as before.
 
 | Lane | Files (only these; new files **bold**) |
 | --- | --- |
-| 1 | **`Sources/MetalUIPlatform/AppShell.swift`**, `Sources/MetalUIPlatform/Platform.swift` (the ten requirements), `Sources/MetalUIAppKit/AppKitPlatform.swift`, **`Sources/MetalUIAppKit/AppKitApplicationDelegate.swift`**, `Backends/SDL/Sources/SDLBridge/SDLBridge.c`, `Backends/SDL/Sources/SDLBridge/include/SDLBridge.h`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Tests/MetalUITests/Fakes.swift`, every `Tests/MetalUITests/*CompileGuards.swift` conformer template (`InputAPISeam`, `Transaction`, `Menu`, `Toolbar`, `ControlState`, `ColorScheme`, `PlatformServices`, `DragAndDrop` for `PlatformWindow`; `AppIcon`, `Commands` for `Platform`), `Backends/SDL/Tests/MetalUISDLTests/SDLLifecycleTests.swift` (`RecordingSDLPlatform` forwards the four), **`Tests/MetalUITests/AppShellSeamCompileGuards.swift`**, **`Tests/MetalUITests/AppKitAppShellTests.swift`**, **`Backends/SDL/Tests/MetalUISDLTests/SDLAppShellTests.swift`**, `docs/migration.md` (seam note), `docs/probes/closeout-inventory-map.tsv` + `closeout-public-api.tsv` (its declarations) |
-| 2 | `Sources/MetalUI/App.swift` (the `onClose` wiring, the `openWindow` parameter, one stored `shell` line, the initialiser's two handler assignments), **`Sources/MetalUI/AppShell.swift`**, `Sources/MetalUI/Window.swift` (**only**: one stored `shell` line, the `onCloseRequest` installation beside the other `platformWindow.on…` assignments, the early return in `drawFrameIfNeeded` when closed, the post-build title/document/handler read-back beside the colour-scheme read-back), **`Sources/MetalUI/WindowShell.swift`**, `Sources/MetalUI/EnvironmentScope.swift` (three cases, three `reportingPreference` arms, three modifiers — or the modifiers in a **`Sources/MetalUI/WindowPreferences.swift`**), `Sources/MetalUI/Frame.swift` (the collected fields, the root stamp of `titleBarInsets`), `Sources/MetalUI/EnvironmentValues.swift` (`titleBarInsets`), **`Tests/MetalUITests/AppShellTests.swift`**, **`Tests/MetalUITests/WindowTitleTests.swift`**, **`Tests/MetalUITests/OpenURLTests.swift`**, **`Tests/MetalUITests/AppShellCompileGuards.swift`**, `Tests/MetalUITests/LifecycleTests.swift` (only if test 7.1's direct `fake.onClose?()` must become `fake.close()` — it need not: `onClose` stays the platform's notification), `docs/migration.md` (API notes), inventory map + census (its declarations) |
-| 3 | **`Sources/MetalUIDemoContent/AppShellDemo.swift`**, `Sources/MetalUIDemo/main.swift` (the switch), `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (the same switch), `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (one own-frame builder), **`Tests/MetalUITests/AppShellDemoTests.swift`**, **`Backends/SDL/Tests/MetalUISDLTests/SDLAppShellAppTests.swift`**, `docs/divergences.md` (175, 176 and the Not-offered rows), `docs/api-overview.md`, `docs/packaging.md` (document types, URL schemes, the launch-argument recipe), `docs/verification/human-checks.md` (group AS), inventory map + census re-recorded, the decisions doc's final-spellings table re-checked against the source, `docs/record/87-app-shell.md` and the Record phase's CLAUDE.md/AGENTS.md/README/record-index rows |
+| 1 | **`Sources/MetalUIPlatform/AppShell.swift`**, `Sources/MetalUIPlatform/Platform.swift` (the eleven requirements), `Sources/MetalUIAppKit/AppKitPlatform.swift`, **`Sources/MetalUIAppKit/AppKitApplicationDelegate.swift`**, `Backends/SDL/Sources/SDLBridge/SDLBridge.c`, `Backends/SDL/Sources/SDLBridge/include/SDLBridge.h`, `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Tests/MetalUITests/Fakes.swift`, every `Tests/MetalUITests/*CompileGuards.swift` conformer template (`InputAPISeam`, `Transaction`, `Menu`, `Toolbar`, `ControlState`, `ColorScheme`, `PlatformServices`, `DragAndDrop` for `PlatformWindow`; `AppIcon`, `Commands` for `Platform`), `Backends/SDL/Tests/MetalUISDLTests/SDLLifecycleTests.swift` (`RecordingSDLPlatform` forwards the four), **`Tests/MetalUITests/AppShellSeamCompileGuards.swift`**, **`Tests/MetalUITests/AppKitAppShellTests.swift`**, **`Backends/SDL/Tests/MetalUISDLTests/SDLAppShellTests.swift`**, `docs/migration.md` (seam note), `docs/probes/closeout-inventory-map.tsv` + `closeout-public-api.tsv` (its declarations) |
+| 2 | `Sources/MetalUI/App.swift` (the `onClose` wiring, the `openWindow` parameter, one stored `shell` line, the initialiser's two handler assignments), **`Sources/MetalUI/AppShell.swift`**, `Sources/MetalUI/Window.swift` (**only**: one stored `shell` line, the `onCloseRequest` installation beside the other `platformWindow.on…` assignments, the early return in `drawFrameIfNeeded` when closed, the post-build title/document/handler read-back beside the colour-scheme read-back, the `answerUnclaimedTitleBarPress` call before `return handled` and the `hasGestureArena` accessor, `AS-J`), **`Sources/MetalUI/WindowShell.swift`**, `Sources/MetalUI/EnvironmentScope.swift` (three cases, three `reportingPreference` arms, three modifiers — or the modifiers in a **`Sources/MetalUI/WindowPreferences.swift`**), `Sources/MetalUI/Frame.swift` (the collected fields, the root stamp of `titleBarInsets`), `Sources/MetalUI/EnvironmentValues.swift` (`titleBarInsets`), **`Tests/MetalUITests/AppShellTests.swift`**, **`Tests/MetalUITests/WindowTitleTests.swift`**, **`Tests/MetalUITests/OpenURLTests.swift`**, **`Tests/MetalUITests/AppShellCompileGuards.swift`**, `Tests/MetalUITests/LifecycleTests.swift` (only if test 7.1's direct `fake.onClose?()` must become `fake.close()` — it need not: `onClose` stays the platform's notification), `docs/migration.md` (API notes), inventory map + census (its declarations) |
+| 3 | **`Sources/MetalUIDemoContent/AppShellDemo.swift`**, `Sources/MetalUIDemo/main.swift` (the switch), `Backends/SDL/Sources/MetalUISDLDemo/main.swift` (the same switch), `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` (one own-frame builder), **`Tests/MetalUITests/AppShellDemoTests.swift`**, **`Backends/SDL/Tests/MetalUISDLTests/SDLAppShellAppTests.swift`**, `docs/divergences.md` (175, 176, the Not-offered rows, and row 120 extended to the three window-preference modifiers and the root rule, `AS-N`), `docs/api-overview.md`, `docs/packaging.md` (document types, URL schemes, the launch-argument recipe), `docs/verification/human-checks.md` (group AS), inventory map + census re-recorded, the decisions doc's final-spellings table re-checked against the source, `docs/record/87-app-shell.md` and the Record phase's CLAUDE.md/AGENTS.md/README/record-index rows |
 
 Every lane appends rulings to the decisions doc (moving its "next unused" line
 in the same commit) and amendments to this spec.
@@ -261,24 +283,24 @@ reddens nothing is a finding.
 
 | # | Test | Red before | Mutation that must redden it |
 | --- | --- | --- | --- |
-| 1.1 | `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile` (guard, `typecheckFile`, plain `import MetalUIPlatform`; a conformer with all six compiles — the migration note's spelling — and six arms each missing one fail naming it) | positive arm fails (members absent) | a protocol-extension default `func setRepresentedFilePath(_: String?) {}` → that arm compiles |
+| 1.1 | `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile` (guard, `typecheckFile`, plain `import MetalUIPlatform`; a conformer with all seven compiles — the migration note's spelling — and seven arms each missing one fail naming it) | positive arm fails (members absent) | a protocol-extension default `func setRepresentedFilePath(_: String?) {}` → that arm compiles |
 | 1.2 | `aPlatformWithoutEachAppShellRequirementDoesNotCompile` (guard; four arms) | positive arm fails | a default `func terminate() {}` → that arm compiles |
 | 1.3 | `appKitWindowShouldCloseAsksOnCloseRequest`: real `AppKitWindow`; handler `false` → `performClose(nil)` leaves it visible, `onClose` not called; `true` → `onClose` once; `nil` → closes | no requirement | `windowShouldClose` answers `true` always → red |
 | 1.4 | `appKitCloseClosesWithoutAskingAndFiresOnCloseOnce` (handler would refuse; `close()` closes, handler call count 0, `onClose` 1) | absent | `close()` calls `performClose(nil)` → red |
 | 1.5 | `appKitDocumentEditedAndRepresentedPathReachTheNSWindow`: `isDocumentEdited` follows; `representedURL?.path == "/tmp/x.mcgraph"`; `nil` clears; `title` unchanged (`N3`) | absent | `setRepresentedFilePath(nil)` ignored → red |
 | 1.6 | `appKitHiddenTitleBarSetsSwiftUIsFlagsAndReportsTheBand`: `.hidden` → `true`, `.fullSizeContentView`, transparent, title hidden (`H0`); `contentSize.height` grows by the band; `titleBarInsets.top == frame − contentLayoutRect` (> 0), `left ==` zoom button maxX; `.standard` restores all and zero insets | absent | omit `titlebarAppearsTransparent` → red; insets always zero → red |
 | 1.7 | `appKitTitleBarBandChangeReportsAResize`: hidden, then `setToolbar(_:)` → `onResize` fired (KVO) and `titleBarInsets.top` larger | absent | drop the KVO → red |
-| 1.7b | `anUnclaimedPressInTheHiddenBandDragsTheWindow`: injected `performWindowDrag`; real `NSEvent` mouse-down at band y 10 with `onInput` → `false` → called once; `onInput` → `true` → not; y below the band → not; standard style → not; clickCount 2 unclaimed → injected double-click action | absent | ignore `onInput`'s answer → red |
+| 1.7b | `appKitTitleBarPressDragsOnlyDuringAMouseDown` (`AS-J`): injected `performWindowDrag`/`performTitleBarDoubleClick`; a real `NSEvent` mouse-down dispatched through `mouseDown(with:)` whose `onInput` calls `performTitleBarPress(clickCount: 1)` → `true`, the drag ran once with that event; called outside a mouse-down → `false`, nothing ran; clickCount 2 → the double-click action ran | absent | keep the event after `mouseDown` returns → the outside arm red; ignore `clickCount` → red |
 | 1.8 | `appKitApplicationDelegateMapsTheTerminateReply`: `.now/.cancel/.later` → `.terminateNow/.terminateCancel/.terminateLater`; `nil` → `.terminateNow`; `replyToTerminateRequest(true)` → injected replier got `true` | absent | `.later` → `.terminateCancel` → red |
 | 1.9 | `appKitTerminateIsApprovedAndAsksNobody`: `terminate()` → injected terminator called; then `applicationShouldTerminate` → `.terminateNow` with the handler's call count 0 | absent | `terminate()` does not set the approval → red |
 | 1.10 | `appKitOpenURLsReachOnOpenURLsAndParkUntilAHandler`: `application(_:open:)` with a file URL and `metalcreator://x` → `onOpenURLs` gets both `absoluteString`s in order; before the handler is set they park and arrive on assignment | absent | no parking → red |
 | 1.11 | `runInstallsTheApplicationDelegate`: `installApplicationDelegate()` sets `NSApp.delegate` to the platform's object (the test restores the previous delegate) | absent | install nothing → red |
 | 1.12 | `sdlACloseRequestAsksTheWindowAndAVetoKeepsItOpen` (hidden window; pushed `MUI_EVENT_CLOSE`): `false` → `openWindowCount` 1, `onClose` 0; `true` → closed, `onClose` 1 | closes at once | ignore the handler → red |
-| 1.13 | `sdlAVetoedLastWindowCloseSendsNoQuit`: one hidden window, handler `false`, close pushed, pumped twice → `onTerminateRequest` call count 0 | QUIT arrives (hidden windows count none) | remove the hint → red |
+| 1.13 | `sdlInitTurnsOffQuitOnLastWindowClose` (`AS-L`): after init `mui_quit_on_last_window_close_hint()` reads `"0"` (a pushed close never reaches SDL's quit logic, so the behaviour is human check AS10) | absent (`NULL`) | remove the hint → red |
 | 1.14 | `sdlQuitAsksOnTerminateRequest`: pushed `MUI_EVENT_QUIT`; `.cancel` → `run(maxIterations: 3)` runs all three; `.now` → stops after one; `.later` → runs on until `replyToTerminateRequest(true)` | stops at once | QUIT calls `stop()` unconditionally → red |
 | 1.15 | `sdlCloseHidesRemovesAndFiresOnCloseOnce`: `close()` → `onClose` 1, `openWindowCount` 0, a second `close()` runs nothing | absent | `close()` leaves the window in the platform → red |
 | 1.16 | `sdlAFileDroppedOnTheAppIsAnOpenURL`: raw `DROP_FILE` window 0 `"/tmp/a b.mcgraph"` and `"metalcreator://doc/1"`, then `DROP_COMPLETE` window 0 → one `onOpenURLs(["file:///tmp/a%20b.mcgraph", "metalcreator://doc/1"])`; the same on a window id still reaches `.drop` (the existing DN tests stay green) | dropped | route window-0 drops to a window → red |
-| 1.17 | `sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps`: recorded, `setTitleBarStyle(.hidden)` answers `false`, insets zero, `title` unchanged by `setDocumentEdited(true)` | absent | append `" *"` to the title on edited → red |
+| 1.17 | `sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps`: recorded, `setTitleBarStyle(.hidden)` answers `false`, `performTitleBarPress` answers `false` and is recorded, insets zero, `title` unchanged by `setDocumentEdited(true)` | absent | append `" *"` to the title on edited → red |
 | 1.18 | `theFakesRecordTheAppShellCalls`: `FakePlatformWindow`/`FakePlatform` record and simulate (close request, terminate request, open URLs, scripted insets) | absent | the fake's `simulateCloseRequest` ignores `onCloseRequest` → red |
 
 SDL tests convert every C enum `rawValue` explicitly; each helper creating an
@@ -288,7 +310,7 @@ SDL tests convert every C enum `rawValue` explicitly; each helper creating an
 
 | # | Test | Red before | Mutation |
 | --- | --- | --- | --- |
-| 2.1 | `anOutsideModuleCanSpellTheAppShellAPI` (guard, plain `import MetalUI`): every §1.2 spelling incl. `openWindow(…, windowStyle: .hiddenTitleBar)`, `Text("x").navigationTitle("T").navigationDocument(url).onOpenURL { _ in }`, `HStack { … }.navigationTitle(name)` (proposal), `@Environment(\.titleBarInsets) var insets`; negatives: `values.titleBarInsets = …`, `.navigationTitle(Text("x"))`, `WindowStyle.plain`, `Box().navigationTitle("x").padding(4)` (`EV-B`) each fail | positive fails | make `titleBarInsets`' setter public → negative compiles |
+| 2.1 | `anOutsideModuleCanSpellTheAppShellAPI` (guard, plain `import MetalUI`): every §1.2 spelling incl. `openWindow(…, windowStyle: .hiddenTitleBar)`, `Text("x").navigationTitle("T").navigationDocument(url).onOpenURL { _ in }`, `HStack { … }.navigationTitle(name)` (proposal), `openWindow(…) { Column { Box().navigationTitle("x") } }`, `@Environment(\.titleBarInsets) var insets`; negatives: `values.titleBarInsets = …`, `.navigationTitle(Text("x"))`, `WindowStyle.plain`, `Box().navigationTitle("x").padding(4)` (`EV-B`), `openWindow(…) { Box().navigationTitle("x") }` (root, `AS-N`) each fail | positive fails | make `titleBarInsets`' setter public → negative compiles |
 | 2.2 | `aCloseRequestWithNoHandlerCloses` (`simulateCloseRequest()` → `true`) | no installation | — (control for 2.3) |
 | 2.3 | `aCancelledCloseRequestKeepsTheWindowAndRunsNoOnDisappear` | absent | `answerCloseRequest` returns `true` for `.cancel` → red |
 | 2.4 | `aDeferredCloseWaitsForTheReplyAndAsksOnlyOnce`: `.later` → `false`, pending; a second request runs no handler; `reply(false)` → open, next request asks again; `reply(true)` → `fake.closeCalls == 1`, `onDisappear` once | absent | re-run the handler while pending → red; `reply(true)` without `close()` → red |
@@ -296,12 +318,14 @@ SDL tests convert every C enum `rawValue` explicitly; each helper creating an
 | 2.6 | `performCloseAsksAndCloseDoesNot` | absent | `close()` asks → red |
 | 2.7 | `aClosedWindowDrawsNoMoreFrames`: after `close()`, `setNeedsRedraw()` + tick → no new `finishFrame` | draws | drop the early return → red |
 | 2.8 | `closingOneOfTwoWindowsDoesNotTerminate`: `FakePlatform.terminateCalls` 0 after the first close, 1 after the second; `app.windows` shrinks | terminates per close | terminate on every close → red |
-| 2.9 | `aQuitWithNoHandlersClosesEveryWindowThenEnds`: `simulateTerminateRequest()` → `.now`; both windows closed, each `onDisappear` once; no `platform.terminate()` from the last close (`terminateCalls` 0: the platform ends itself on `.now`) | absent | skip `endEverything()`'s closes → red |
+| 2.9 | `aQuitWithNoHandlersClosesEveryWindowThenEnds`: `simulateTerminateRequest()` → `.now`; both windows closed, each `onDisappear` once; no `platform.terminate()` from the last close (`terminateCalls` 0: the platform ends itself on `.now`) | absent | skip `endEverything()`'s closes → red; apply the last-window rule during the walk (`AS-K`) → red (`terminateCalls` 1) |
 | 2.10 | `theAppHandlerAloneDecides`: `.cancel` → reply `.cancel`, window handlers' counts 0, nothing closed | absent | ask windows too → red |
 | 2.11 | `aDeferredTerminateEndsOnlyOnTheReply`: `.later`; `reply(false)` → `platform.replies == [false]`, nothing closed; again `.later`, `reply(true)` → windows closed, `replies == [false, true]` | absent | `reply(true)` calls `terminate()` instead of replying → red |
 | 2.12 | `withoutAnAppHandlerQuitAsksEachWindowInTurn`: A `.now`, B `.later` → `.later`; A closed, B open; `B.replyToCloseRequest(true)` → B closed, `replies == [true]`; variant `false` → `replies == [false]`, app runs on | absent | ask only the first window → red; ask B before A closes → red (order log) |
+| 2.12b | `aPendingWindowClosedDirectlyResumesTheQuit` (`AS-K` item 2): no app handler; B `.later`; `B.close()` → `replies == [true]`, `terminateCalls` 0 | absent | `close()` leaves the pending flag and tells nobody → red |
 | 2.13 | `appTerminateAsksThenEndsThroughThePlatform`: `app.terminate()` with no handlers → windows closed, `terminateCalls == 1`, `replies == []` | absent | reply instead of terminate → red |
 | 2.14 | `theLastWindowsCloseEndsTheAppWithoutAsking`: app handler counts; the last window's close → `terminateCalls == 1`, handler count 0 | asks / no terminate | route the last close through `answerTerminateRequest` → red |
+| 2.14b | `aClosedWindowOutlivesItsOwnCloseCallback` (`AS-K` item 3): a weak reference to the `Window` is non-nil when `fake.close()` returns (release after the main-queue drain documented, unpinned) | absent | drop from `windows` inside `onClose` → red |
 | 2.15 | `aRepeatedTerminateRequestWhilePendingAsksNobody` | absent | re-ask → red |
 | 2.16 | `windowTitleReachesThePlatformOnChangeOnly` (fake counts title writes) | absent | push every build → red |
 | 2.17 | `theTreeTitleWinsInnerBeatsOuterFirstSiblingBeatsSecond` (`N1`, `N2`, `N5`; removal falls back to `Window.title`) | absent | last report wins → red (siblings); outer wins → red (nesting) |
@@ -309,6 +333,7 @@ SDL tests convert every C enum `rawValue` explicitly; each helper creating an
 | 2.19 | `navigationDocumentSetsTheRepresentedPathAndLeavesTheTitle` (`N3`, `N4`; a non-file URL forwards `nil`; `Window.representedURL` fallback) | absent | forward `absoluteString` → red |
 | 2.20 | `isDocumentEditedReachesThePlatformOnChange` | absent | no push → red |
 | 2.21 | `aHiddenTitleBarLaysTheRootOutUnderTheBarAndStampsTheInsets`: fake answers `true` with insets (top 32, left 69) and grows to 450; root laid out at 450; `@Environment(\.titleBarInsets)` read in layout and paint = (32, 69); `.titleBar` → zero, fake told `.standard` | absent | stamp zero → red; never call `setTitleBarStyle` → red |
+| 2.21b | `anUnclaimedPressInTheHiddenBandAsksThePlatformToDrag` (`AS-J`): hidden style, fake insets top 32; a press on an empty band point → one `titleBarPresses` entry (clickCount 1); on a `Button` in the band → none, its action runs on release; on a `.draggable` in the band → none; below the band → none; `.titleBar` → none; a double click on the empty band → clickCount 2 | absent | drop `active == nil` → the button arm red; drop the arena check → the draggable arm red |
 | 2.22 | `openWindowAppliesTheWindowStyleBeforeTheFirstFrame` | absent | apply after the first frame → red |
 | 2.23 | `everyOnOpenURLInTheTargetWindowRunsInReversePostOrder` (nested + siblings; a `@State` write in a handler lands — `StateDispatch`) | absent | pre-order → red; no dispatch → the write is lost → red |
 | 2.24 | `anOpenGoesToTheKeyWindowThenTheFirstWithAHandlerThenTheApp` | absent | ignore key state → red |
@@ -389,8 +414,8 @@ The demo's model holds the `Window` weakly. Built in its own function
 
 ### §8.1 Migration (`docs/migration.md`)
 
-1. (lane 1) **Ten new seam requirements** (`AS-H`), with the honest minimal
-   spelling.
+1. (lane 1) **Eleven new seam requirements** (`AS-H`, `AS-J`), with the honest
+   minimal spelling (`performTitleBarPress` answering `false`).
 2. (lane 1) `AppKitPlatform.run()` sets `NSApp.delegate`; `MetalHostView`'s
    `mouseDownCanMoveWindow` is `false`.
 3. (lane 1) SDL: `SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE` is `"0"`;
@@ -422,7 +447,7 @@ The demo's model holds the `Window` weakly. Built in its own function
 Identity and state retention (`theSevenRetentionSlotsAreMutuallyDistinct`,
 MC-A/MC-C/MC-P numbering, `.id()` outermost — the three new
 `EnvironmentWrite` cases mint no id, consume no cursor index); hit testing
-(the band drag reads `onInput`'s existing answer; no hitbox change);
+(the band drag reads the press's existing `active` and arena, `AS-J`; no hitbox change, no new lookup);
 accessibility; animation; focus; `List` windowing and TB-AH; `Deferred`; text
 input. 0 px in the fourteen offscreen images; `Expected.swift` unedited; 0
 `warning:` on both build systems; `MetalUILayout` imports only `MetalUICore`;

@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-J`.**
+**Next unused id: `AS-O`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -36,6 +36,12 @@ Evidence (each header carries its recorded output and how to run it):
   title bar, dismiss behaviour, termination with a presentation up, and
   `.onOpenURL` delivery, read off the real `NSWindow`s and SwiftUI's own
   application delegate.
+  **Re-run by the critic** with the screen unlocked: `N5` and `H0`
+  byte-identical to run 1.
+- [`../probes/appkit-launch-arguments-open.swift`](../probes/appkit-launch-arguments-open.swift)
+  (**new**, critic; arms `A0`–`A6`, each run twice byte-identical) — AppKit
+  delivers no command-line path to `application(_:open:)`; a LaunchServices
+  open does, before `didFinishLaunching` (`AS-M`).
 - [`../probes/appkit-titlebar-hit-test.swift`](../probes/appkit-titlebar-hit-test.swift)
   (**new**; arms `S0`, `F0`, `F1`; run twice, byte-identical) — what a press in
   the title-bar band hits under a transparent full-size title bar, the band's
@@ -93,8 +99,8 @@ Evidence (each header carries its recorded output and how to run it):
    with `.terminateLater` + `reply(toApplicationShouldTerminate:)`,
    `isDocumentEdited`, `representedURL`) and gpui (`on_window_should_close`,
    `set_window_edited`, `on_open_urls`), not an invented vocabulary.
-4. **Ten defaultless seam requirements** (`AS-H`): six on `PlatformWindow`,
-   four on `Platform`, each with an honest AppKit, SDL and test-fake answer.
+4. **Eleven defaultless seam requirements** (`AS-H` as amended by `AS-J`):
+   seven on `PlatformWindow`, four on `Platform`, each with an honest AppKit, SDL and test-fake answer.
 
 **Cost if wrong.** A SwiftUI spelling shipped where SwiftUI's semantics differ
 would mislead a porter; each such difference is a divergence row (175, 176).
@@ -146,8 +152,8 @@ would mislead a porter; each such difference is a divergence row (175, 176).
    `mui_window_hide`), removes it from the platform and fires `onClose` once;
    `mui_platform_init` sets `SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE` to `"0"`, so a
    vetoed close of the last window sends no `SDL_EVENT_QUIT` (the SDL source;
-   pinned by test 1.13, whose hidden windows make SDL send a quit on every close
-   request with the hint at its default).
+   **amended by `AS-L`**: a pushed event never reaches SDL's quit logic, so
+   test 1.13 pins the hint's value and the behaviour is human check AS10).
 7. **Deferred:** a tree-level `.onCloseRequest { }` modifier (reading
    `@State`); owner none — it needs presence semantics per window and the
    window-level handler covers M6-b. SwiftUI's `.windowDismissBehavior(.disabled)`
@@ -194,7 +200,8 @@ that writes `@State` would need item 7.
    nobody. `replyToTerminateRequest(true)` ends the app (item 3),
    `false` cancels. A reply with nothing pending does nothing.
 5. **The last window's close ends the app without asking** — the close was
-   already the user's answer. **Closing one of several windows no longer ends
+   already the user's answer — **except while a termination request is in
+   progress, when the walk owns the end (`AS-K`)**. **Closing one of several windows no longer ends
    the app** (migration: at `c62d6ba` AppKit terminated on *every* window's
    close). `App.windows` drops a window when it closes.
 6. **Seam** (`AS-H`): `Platform.onTerminateRequest: (() -> CloseRequestReply)?`
@@ -348,7 +355,10 @@ names the difference and the insets give the padding.
    host view. AppKit drags the window from there only if that view's
    `mouseDownCanMoveWindow` allows, so a band full of MetalUI content would
    either never drag the window or drag it over MetalUI's own controls.
-2. **Rule**: `MetalHostView.mouseDownCanMoveWindow` is `false`; in
+2. **Superseded by `AS-J`** (`onInput` answers `false` for every primary
+   press, a `Button`'s included; `Window` decides from `active` and the arena
+   and calls the seventh requirement). As first written: **Rule**:
+   `MetalHostView.mouseDownCanMoveWindow` is `false`; in
    `mouseDown(with:)`, when the window style is hidden, the press lies in the
    band (`y < titleBarInsets.top`) and `onInput(.mouseDown)` answered `false`
    (no stage claimed it — no hitbox, no gesture), the host view calls
@@ -415,6 +425,8 @@ through an injectable closure (test 1.7b), the drag itself is human check AS7.
    documents. The recipe (`docs/packaging.md`, `docs/migration.md`): after
    opening the window, `app.open(CommandLine.arguments.dropFirst().filter {
    FileManager.default.fileExists(atPath: $0) }.map(URL.init(fileURLWithPath:)))`.
+   AppKit itself delivers no command-line path, so this delivers each document
+   once on macOS too (measured, `AS-M`).
    A second instance forwarding its arguments to the first (single-instance
    apps on Linux/Windows) is **deferred**, owner none.
 7. **No `InputEvent` case.** An open names no window: it reaches `App` from
@@ -432,6 +444,9 @@ URL in the existing window instead; divergence 176 and `App.onOpenURL` say how
 to get a window.
 
 ## AS-H — Ten defaultless seam requirements, honest on AppKit, SDL and every fake
+
+**Amended by `AS-J`: eleven** — `PlatformWindow.performTitleBarPress(clickCount:)
+-> Bool` is the seventh `PlatformWindow` requirement.
 
 **Ruling.**
 
@@ -472,7 +487,176 @@ human checks and the Record phase. Every test named in spec §4 with its red
 state and the mutation that must redden it. Nothing in the must-not-move list
 (spec §9) moves: identity and the seven retention slots (the three new
 `EnvironmentWrite` cases mint no id and consume no cursor index), hit testing
-(the band drag reads `onInput`'s existing answer), accessibility, animation,
+(the band drag reads the press's existing `active` and arena, `AS-J`), accessibility, animation,
 focus, `List`, `Deferred`, text input, the fourteen offscreen images (the
 standard window style is unchanged and the demo section is behind its own
 switch).
+
+## AS-J — The band drag is decided by `Window` from the press's existing state, not from `onInput`'s answer; a seventh `PlatformWindow` requirement performs it (supersedes `AS-F` item 2, amends `AS-H` item 1)
+
+**Finding (critic, from the source at `c62d6ba`).** `AS-F` item 2 dragged the
+window when `onInput(.mouseDown)` answered `false`. But `Window.onInput`
+answers `false` for **every** primary press that no text field, value track,
+drag session, menu, popover or drawn alert takes: `dispatchGestures` returns
+`false` for `.mouseDown` by design ("a press or a drag is never claimed",
+`IX-D` item 6) and a click is dispatched on the **release**. So a `Button`
+(an `onClick` hitbox) or a draggable in the band would have dragged the
+window instead of pressing — exactly what human check AS7 forbids — and test
+1.7b, which injects `onInput`'s answer, could never see it.
+
+**Ruling.**
+
+1. **`Window` decides**, in the primary `.mouseDown` path, after the stages
+   ran and only when they all declined: the window's style is
+   `.hiddenTitleBar`, the press lies in the band (`position.y <
+   titleBarInsets.top`), **`active == nil`** (no opaque hitbox at the point —
+   the one ranking's answer, `topmostOpaqueHitbox`, which `updatePointerState`
+   already stored for this press) and **no gesture arena formed** (no gesture
+   or draggable member, `DN-U`). Then it calls
+   `platformWindow.performTitleBarPress(clickCount: mouse.clickCount)`. No new
+   lookup, no hitbox change: it reads two values the press already computed.
+   A hover region (non-opaque, `SV-N`) does not block the drag; a scroll
+   region does not either (it has no opaque hitbox).
+2. **Seam**: `PlatformWindow.performTitleBarPress(clickCount: Int) -> Bool`,
+   defaultless — `true` when the platform acted. **AppKit**: valid only while
+   `MetalHostView.mouseDown(with:)` is dispatching (the event is kept for the
+   call's duration; otherwise `false`): `clickCount == 1` →
+   `performWindowDrag(event)` (injectable; production
+   `window.performDrag(with:)`), `clickCount == 2` →
+   `performTitleBarDoubleClick()` (injectable; `AppleActionOnDoubleClick`, as
+   `AS-F` item 2), else `false`. **SDL**: recorded (`titleBarPresses`), answers
+   `false` (the system title bar drags; the insets are zero, so `Window` never
+   asks). **Fakes**: recorded, scriptable answer.
+3. `MetalHostView.mouseDownCanMoveWindow` stays `false` (`AS-F` item 2). The
+   host view no longer reads `onInput`'s answer for this.
+4. **Window.swift footprint**: one call at the end of the onInput closure's
+   pointer path (`if !handled { self.answerUnclaimedTitleBarPress(event) }`),
+   and one internal read-only accessor beside `gestureArena`
+   (`var hasGestureArena: Bool { gestureArena != nil }`); the function lives in
+   `WindowShell.swift`.
+5. **Tests** (spec §4): 1.7b becomes the AppKit half (a real `NSEvent`
+   dispatched through `mouseDown(with:)` whose `onInput` calls the
+   requirement → the injected drag ran once with that event; called outside a
+   mouse-down → `false`, nothing ran; clickCount 2 → the double-click action);
+   the new 2.21b is the decision (`FakePlatformWindow`, hidden style, insets
+   top 32: a press on an empty band point → one `titleBarPresses` entry; a
+   press on a `Button` in the band → none and the button's action runs on
+   release; on a `.draggable` in the band → none; below the band → none;
+   `.titleBar` style → none; a double click → `clickCount` 2). Mutations:
+   drop `active == nil` → 2.21b's button arm red; drop the arena check → the
+   draggable arm red.
+6. The seam is now **eleven** requirements: seven on `PlatformWindow`, four on
+   `Platform` (`AS-H`). Test 1.1 has seven arms; the migration note lists
+   eleven.
+
+**Cost if wrong.** If a future stage claims presses through some third
+mechanism, the band would drag over it; the guard is 2.21b, and a new
+press-claiming stage owes an arm there.
+
+## AS-K — The termination walk owns the end; a closed window is retired, not dropped mid-callback; a pending window's real close answers its request
+
+**Finding (critic).** As written in `AS-C` and spec §1.2, the walk closes
+each window through `window.close()`, whose `onClose` runs the **last-window
+rule** (`windows` empty and not `endingApproved` → `platform.terminate()`).
+`endingApproved` is set only by `endEverything()`, after the walk. So a quit
+whose walk closes the last window would call `platform.terminate()` from
+inside AppKit's `applicationShouldTerminate` (re-entering `NSApp.terminate`)
+and, after a `.later` reply, both `terminate()` and
+`replyToTerminateRequest(true)`. Tests 2.9 and 2.12 would catch the count,
+but the mechanism they were written against is wrong. Separately, a window
+pending in the walk that the app closes with `close()` instead of
+`replyToCloseRequest(true)` left the termination pending forever — on AppKit
+a `.terminateLater` that is never answered keeps the app in the modal run
+loop. And dropping the `Window` from `App.windows` inside `onClose` can
+release the last strong reference to the `Window` — and through it the
+`AppKitWindow`/`NSWindow` — while `-[NSWindow close]` is still on the stack.
+
+**Ruling.**
+
+1. **`terminationInProgress`** (internal on `App`): set when a termination
+   request starts its walk or its app handler answers, cleared when it
+   cancels. While set, a window's `onClose` runs `runDisappearancesForClose()`
+   and retires the window but **does not** apply the last-window rule; the
+   walk alone ends the app (`.now` to the platform that asked, or
+   `replyToTerminateRequest(true)` after `.later`, or `platform.terminate()`
+   when `App.terminate()` asked).
+2. **A pending window's real close resolves its request as `true`**: when a
+   window with a pending close request actually closes — by `close()`, by the
+   platform, or by the reply — its pending flag clears and
+   `closeRequestResolved(true)` fires once, so a walk waiting on it resumes.
+3. **Retire, don't drop**: `onClose` moves the `Window` from `windows` to an
+   internal `retiredWindows`, emptied on the next main-queue turn
+   (`DispatchQueue.main.async`; AppKit drains it, SDL drains it each iteration,
+   `SV-H`). The `Window` therefore outlives the platform's close callback.
+4. **Tests** (spec §4.2): 2.9 and 2.12 additionally assert `terminateCalls`
+   (0 and 0 — the platform asked, so it is answered, never terminated);
+   new 2.12b `aPendingWindowClosedDirectlyResumesTheQuit` (B `.later`, then
+   `B.close()` → `replies == [true]`); new 2.14b
+   `aClosedWindowOutlivesItsOwnCloseCallback` (a weak reference taken inside
+   the fake's `onClose` chain is non-nil when `fake.close()` returns; release
+   after the drain is documented, not pinned — tests do not wait). Mutations:
+   apply the last-window rule during the walk → 2.9 red (`terminateCalls` 1);
+   drop item 2 → 2.12b red; drop the retirement → 2.14b red.
+
+**Cost if wrong.** None found beyond one array and one flag; the
+retirement's release timing is unpinned.
+
+## AS-L — Test 1.13 could not be red: SDL's last-window quit lives in `SDL_SendWindowEvent`, which a pushed event never reaches; the hint is pinned directly
+
+**Finding (critic).** Test 1.13 pushed `MUI_EVENT_CLOSE` through
+`mui_push_event` — `SDL_PushEvent` of an `SDL_EVENT_WINDOW_CLOSE_REQUESTED`.
+SDL's "quit after the last window's close request" is in
+`SDL_SendWindowEvent` (`src/events/SDL_windowevents.c`, the video driver's
+path, not exported), which `SDL_PushEvent` bypasses. So no `SDL_EVENT_QUIT`
+follows a pushed close with the hint at its default either: the test was
+green before and stays green under its stated mutation (remove the hint). The
+offscreen driver (CI's Linux image) generates no real close requests.
+
+**Ruling.**
+
+1. Test 1.13 becomes `sdlInitTurnsOffQuitOnLastWindowClose`: after
+   `SDLPlatform` init, the bridge's new `const char
+   *mui_quit_on_last_window_close_hint(void)` (`SDL_GetHint`) reads `"0"`.
+   Mutation: remove the `SDL_SetHint` → red. Its red-before is "absent"
+   (hint unset, `NULL`).
+2. The behaviour (a vetoed WM close of the last window keeps the app) is
+   human check AS10 on Linux and Windows, plus test 1.12's veto, which a
+   pushed event does exercise (`dispatch`'s `MUI_EVENT_CLOSE`).
+3. The `AS-B` item 6 sentence "pinned by test 1.13, whose hidden windows make
+   SDL send a quit on every close request" is withdrawn: it was a claim about
+   the SDL source's real-event path that the test never reached.
+
+## AS-M — Launch arguments: AppKit delivers none by itself, so the recipe delivers each document once; LaunchServices opens arrive before `didFinishLaunching` (probe)
+
+**Evidence.** [`../probes/appkit-launch-arguments-open.swift`](../probes/appkit-launch-arguments-open.swift)
+(arms `A0`–`A6`, each run twice byte-identical): a command-line path —
+unbundled, bundled with a matching `CFBundleDocumentTypes`, existing or not —
+never reaches `application(_:open:)` (`A1`, `A3`, `A5` read as `A0`); a
+LaunchServices open does (`A6`, the positive control) and arrives **before**
+`applicationDidFinishLaunching`.
+
+**Ruling.**
+
+1. `AS-G` item 6's recipe stands on macOS too (it was an unmeasured
+   assumption that AppKit does not double-deliver; now measured).
+2. A launch-time open reaches `App` during `run()`'s `finishLaunching`: after
+   `App`'s initialiser set `platform.onOpenURLs` and after any `openWindow`
+   made before `run()` (whose first frame was built, so its `.onOpenURL` list
+   exists). The platform's parking (`AS-G` item 4) covers an app that opens
+   its window later. Human check AS9 covers the packaged app.
+
+## AS-N — The window-preference modifiers share divergence 120's constraint; a window root needs a container
+
+**Finding (critic).** `.navigationTitle`, `.navigationDocument` and
+`.onOpenURL` return `EnvironmentScope`, a transparent `ElementGroup`: a legacy
+`Self`-returning decoration after one does not compile (spec test 2.1 has the
+negative arm), and — not stated — `App.openWindow` takes an `Element`, so
+`openWindow { Column { … }.navigationTitle("x") }` does not compile, where
+SwiftUI's scene root takes any view. That is divergence 120's constraint,
+undocumented for these three.
+
+**Ruling.** Lane 3 extends divergence 120's row (no new label) to name the
+three modifiers and the root rule (`openWindow { Column { content.navigationTitle(…) } }`);
+test 2.1 gains the negative arm `openWindow(…) { Box().navigationTitle("x") }`
+(fails) beside the positive `Column { Box().navigationTitle("x") }`; the
+demo writes them inside its root container.

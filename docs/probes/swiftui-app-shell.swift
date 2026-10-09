@@ -38,6 +38,11 @@
 // runs O1 read inner-first once (run 1, below) and O5 left-first once (run 2):
 // SwiftUI runs every handler once and its order is NOT stable.
 //
+// RE-RUN 2026-10-09 by the app-shell critic session, screen UNLOCKED (no
+// CGSSessionScreenIsLocked line, displayAsleep main: 0): arms N5 and H0
+// rebuilt and run once each from cleared defaults; every line byte-identical
+// to run 1 below, exit 0.
+//
 // OUTPUT, run 1 verbatim (run 2 differs only in O1's and O5's order):
 //
 //   === N0 control: WindowGroup("Probe"), no modifier
