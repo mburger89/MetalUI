@@ -193,8 +193,8 @@ private let traitsBlock = """
     #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", branch: "master", traits: metalUITraits),"#))
     let portable = "condition: .when(platforms: [.linux, .windows])"
     #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable + ")"))
-    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable + ")"))
-    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable + ")"))
+    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI"),"#), "unconditional (SG-D)")
+    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI"),"#), "unconditional (SG-D)")
     #expect(manifest.components(separatedBy: ".package(").count == 2, "one dependency:\n\(manifest)")
     // A pinned revision carries the traits too.
     let pinnedManifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
@@ -219,8 +219,8 @@ private let traitsBlock = """
     #expect(!manifest.contains("Backends/SDL"))
     let portable = "condition: .when(platforms: [.linux, .windows])"
     #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable))
-    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable))
-    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable))
+    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI"),"#), "unconditional (SG-D)")
+    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI"),"#), "unconditional (SG-D)")
     let main = try file("Sources/MyApp/main.swift", in: files).contents
     #expect(main.contains("#if canImport(MetalUISDL)"))
     #expect(main.contains("App(platform: try SDLPlatform(), textSystem: { PortableTextSystem(resolver: resolver) })"))
@@ -552,6 +552,84 @@ private func noLookup(_ url: String) -> PinLookup {
     let destination = root.appendingPathComponent("MyApp").path
     #expect(output == ["Created \(destination)\n\n  cd \(destination)\n  swift run MyApp\n"])
     #expect(FileManager.default.fileExists(atPath: destination + "/Sources/MyApp/main.swift"))
+}
+
+// MARK: - SMK port gaps, lane 1: the portable-text products (ruling `SG-D`)
+
+/// **1.8** (`SG-D` item 1). The cross-platform manifest names
+/// `MetalUIPortableText` and `MetalUISystemFonts` on every platform — no
+/// `condition:` — so a test target naming them builds on macOS under the
+/// default build system (SwiftPM drops a product an executable reaches
+/// conditionally from the test target's module maps: `unable to resolve
+/// module dependency`); `MetalUISDL` keeps its Linux/Windows condition. Red
+/// before: the two products carry the condition. Mutation: restore it —
+/// reddens.
+@Test func theCrossPlatformManifestNamesThePortableTextProductsOnEveryPlatform() throws {
+    for source in [MetalUISource.local(path: "/src/MetalUI"), .remote(url: "https://github.com/mburger89/MetalUI.git",
+                                                                     reference: .revision(pinned))] {
+        let manifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
+            name: "MyApp", source: source, crossPlatform: true))).contents
+        #expect(manifest.contains(#"                .product(name: "MetalUIPortableText", package: "MetalUI"),\n"#))
+        #expect(manifest.contains(#"                .product(name: "MetalUISystemFonts", package: "MetalUI"),\n"#))
+        #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),"#))
+        #expect(manifest.components(separatedBy: "condition:").count == 2, "one conditional product:\n\(manifest)")
+        #expect(manifest.contains("SG-D"), "the manifest says why, naming the ruling")
+    }
+}
+
+/// **1.9** (`SG-D` item 3; env-gated `METALUI_RUN_SCAFFOLD_BUILD_TEST=1`, a
+/// full second build of MetalUI; counts while skipped). A copy of a
+/// `--cross-platform --local` package gains a test target naming both
+/// portable-text products and constructing a `PortableTextSystem`; on macOS
+/// `swift build --build-tests` (the default build system) exits 0 and prints
+/// no `warning:` line. Red before: with the condition it fails with
+/// `unable to resolve module dependency: 'MetalUIPortableText'` (record §89).
+/// Mutation: restore the condition — reddens under the env run.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_SCAFFOLD_BUILD_TEST"] == "1"))
+func aCrossPlatformPackagesTestTargetBuildsOnMacOS() throws {
+    #if os(macOS)
+    let root = try scratchDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = try scaffoldFiles(ScaffoldOptions(name: "Smoke", source: .local(path: checkout.path), crossPlatform: true))
+    let destination = root.appendingPathComponent("Smoke")
+    try writeScaffold(files, to: destination)
+    let manifestURL = destination.appendingPathComponent("Package.swift")
+    var manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+    let package = checkout.lastPathComponent
+    let anchor = "        ),\n    ],\n    swiftLanguageModes"
+    try #require(manifest.contains(anchor), "the generated targets list ends as expected:\n\(manifest)")
+    manifest = manifest.replacingOccurrences(of: anchor, with: """
+                ),
+                .testTarget(
+                    name: "SmokeTests",
+                    dependencies: [
+                        "Smoke",
+                        .product(name: "MetalUIPortableText", package: "\(package)"),
+                        .product(name: "MetalUISystemFonts", package: "\(package)"),
+                    ]
+                ),
+            ],
+            swiftLanguageModes
+        """)
+    try manifest.write(to: manifestURL, atomically: true, encoding: .utf8)
+    let tests = destination.appendingPathComponent("Tests/SmokeTests")
+    try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+    try """
+        import Testing
+        import MetalUIPortableText
+        import MetalUISystemFonts
+
+        @Test @MainActor func aPortableTextSystemBuilds() throws {
+            _ = PortableTextSystem(resolver: try SystemFonts.resolver())
+        }
+
+        """.write(to: tests.appendingPathComponent("SmokeTests.swift"), atomically: true, encoding: .utf8)
+    let (status, output) = try run("swift", ["build", "--build-tests"], in: destination)
+    print("1.9 test-target build: status=\(status)\n\(output.suffix(2000))")
+    #expect(status == 0, "\(output)")
+    let warnings = output.split(separator: "\n").filter { $0.contains("warning:") }
+    #expect(warnings.isEmpty, "\(warnings)")
+    #endif
 }
 
 // MARK: - End to end (env-gated: builds MetalUI a second time)

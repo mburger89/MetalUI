@@ -349,3 +349,84 @@ private func draw(_ window: Window) {
     window.windowResizability = .contentMinSize
     #expect(limits(fake).last == Limits(minimum: size(400, 300), maximum: nil), "\(limits(fake))")
 }
+
+// MARK: - SMK port gaps, lane 1: drawn chrome (ruling `SG-F`; spec §5 tests 2.19's strip arms, 2.20)
+
+@Observable @MainActor private final class ChromeModel {
+    var showsToolbar = true
+}
+
+/// A 400 × 400 fake window whose root declares a toolbar while
+/// `model.showsToolbar`; with `drawn` the platform declines it (SDL's answer),
+/// so the window draws the 39-point strip (`MD-K`).
+@MainActor
+private func chromeWindow(_ model: ChromeModel, drawn: Bool) throws -> (Window, FakePlatformWindow) {
+    let (window, fake) = try makeFakeWindowOnDefaultDevice(size: 400) {
+        Column {
+            if model.showsToolbar {
+                Text("Body").frame(width: Pixels(100), height: Pixels(50))
+                    .toolbar { ToolbarItem { Button("Back") {} } }
+            } else {
+                Text("Body").frame(width: Pixels(100), height: Pixels(50))
+            }
+        }
+    }
+    fake.toolbarIsNative = !drawn
+    return (window, fake)
+}
+
+/// **2.19**, the toolbar strip's arms (`SG-F` item 1; lane 2 adds the menu
+/// bar's 25 and the both-drawn arm). `drawnChromeHeight` is 0 before the
+/// first frame, 39 once the strip is drawn, 0 when the toolbar goes, 0 with
+/// no toolbar and 0 where the platform shows the toolbar itself. Red before:
+/// does not compile. Mutation: report 0 always — reddens.
+@MainActor
+@Test func drawnChromeHeightIsTheBarPlusTheStrip() throws {
+    let model = ChromeModel()
+    let (drawn, _) = try chromeWindow(model, drawn: true)
+    #expect(drawn.drawnChromeHeight == Pixels(0), "nothing is laid out before the first frame")
+    draw(drawn)
+    #expect(drawn.drawnChromeHeight == Pixels(39), "the drawn toolbar strip")
+    model.showsToolbar = false
+    draw(drawn)
+    #expect(drawn.drawnChromeHeight == Pixels(0), "no toolbar, no strip")
+    model.showsToolbar = true
+    let (native, _) = try chromeWindow(model, drawn: false)
+    draw(native)
+    #expect(native.drawnChromeHeight == Pixels(0), "a toolbar the platform shows is not drawn chrome")
+}
+
+/// **2.20** (`SG-F` items 2–3). An explicit `minSize`/`maxSize` is a size of
+/// the content below the drawn chrome, as AppKit's `contentMinSize` excludes
+/// its toolbar: with the strip drawn the platform receives 200 × 339 for a
+/// 200 × 300 minimum, a finite maximum height grows by 39 and an infinite one
+/// stays unbounded; when the toolbar goes the limits are re-sent unadjusted;
+/// where the platform shows the toolbar, 200 × 300. Red before: does not
+/// adjust (200 × 300 with the strip). Mutation: send the explicit limits
+/// unadjusted — reddens.
+@MainActor
+@Test func anExplicitMinimumIsMeasuredBelowTheDrawnChrome() throws {
+    let model = ChromeModel()
+    let (drawn, fake) = try chromeWindow(model, drawn: true)
+    drawn.minSize = size(200, 300)
+    drawn.maxSize = size(500, .infinity)
+    draw(drawn)
+    #expect(limits(fake).last == Limits(minimum: size(200, 339), maximum: size(500, .greatestFiniteMagnitude)),
+            "below the 39-point strip; an infinite maximum stays unbounded: \(limits(fake))")
+    drawn.maxSize = size(500, 400)
+    #expect(limits(fake).last == Limits(minimum: size(200, 339), maximum: size(500, 439)), "\(limits(fake))")
+    let calls = limits(fake).count
+    draw(drawn)
+    #expect(limits(fake).count == calls, "unchanged chrome sends nothing: \(limits(fake))")
+    model.showsToolbar = false
+    draw(drawn)
+    #expect(limits(fake).last == Limits(minimum: size(200, 300), maximum: size(500, 400)),
+            "the strip gone, the limits are re-sent as written: \(limits(fake))")
+
+    model.showsToolbar = true
+    let (native, nativeFake) = try chromeWindow(model, drawn: false)
+    native.minSize = size(200, 300)
+    draw(native)
+    #expect(limits(nativeFake).last == Limits(minimum: size(200, 300), maximum: nil),
+            "a toolbar the platform shows takes nothing from the limits: \(limits(nativeFake))")
+}

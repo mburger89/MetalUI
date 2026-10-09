@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import MetalUIFreeType
+import MetalUITextSystem
 @testable import MetalUIPortableText
 @testable import MetalUISystemFonts
 
@@ -101,4 +102,99 @@ private final class LoadLog: @unchecked Sendable {
     }
     let scanned = [face("a", "Bold"), face("b", "Italic"), face("c", "Regular"), face("d", "Book")]
     #expect(SystemFonts.registrationOrder(scanned).map(\.path) == ["c", "d", "a", "b"])
+}
+
+// MARK: - SMK port gaps, lane 1: design families (ruling `SG-C`, spec §5 tests 1.5–1.7)
+
+/// **1.5** (`SG-C` items 1, 3). Each design is registered as the **first
+/// family in its list with an installed face**, by that face's own spelling,
+/// and nothing is read until a request for the design resolves: over the test
+/// directory `.monospaced` is Source Sans 3 (the first entry is not
+/// installed), `.serif` Noto Sans Arabic, and `.rounded` — no list — the
+/// default face. Red before: does not compile (no `designFamilies:`).
+/// Mutations **M1.5a** (skip the design loop), **M1.5b** (register the last
+/// installed family), **M1.5c** (register the first entry whether installed
+/// or not) — each reddens.
+@Test func aDesignResolvesToItsFirstInstalledFamilyAndReadsNothingUntilAsked() throws {
+    let log = LoadLog()
+    let resolver = try SystemFonts.resolver(directories: [fontsDirectory],
+                                            defaultFamilies: ["Noto Sans"],
+                                            fallbackFamilies: [],
+                                            designFamilies: [.monospaced: ["Not Installed", "source sans 3",
+                                                                           "Noto Sans Arabic"],
+                                                             .serif: ["Noto Sans Arabic"]],
+                                            load: log.load)
+    #expect(log.paths.isEmpty, "registering a design reads no font")
+    let mono = try resolver.resolve(FontDescriptor(size: 13, design: .monospaced))
+    #expect(mono.key.postScriptName == "SourceSans3-Regular", "the first installed family of the list")
+    #expect(log.paths == ["SourceSans3-Regular.otf"], "only the resolved face is read: \(log.paths)")
+    let serif = try resolver.resolve(FontDescriptor(size: 13, design: .serif))
+    #expect(serif.key.postScriptName == "NotoSansArabic-Regular")
+    let rounded = try resolver.resolve(FontDescriptor(size: 13, design: .rounded))
+    #expect(rounded.key.postScriptName == "NotoSans-Regular", "a design with no family is the default face")
+    #expect(log.paths.sorted() == ["NotoSans-Regular.ttf", "NotoSansArabic-Regular.ttf", "SourceSans3-Regular.otf"],
+            "each resolved face read once, nothing else: \(log.paths)")
+    // A named family still wins over the design (TE-C item 1).
+    #expect(try resolver.resolve(FontDescriptor(family: "Noto Sans", size: 13, design: .monospaced))
+                .key.postScriptName == "NotoSans-Regular")
+}
+
+/// **1.6** (`SG-C` item 2). The platform's own lists resolve on the fonts the
+/// platform ships: macOS's monospaced and serif designs are the first
+/// installed names of their lists (measured, asserted exactly); Windows'
+/// monospaced is Cascadia Mono or Consolas (the first of the list the scan
+/// finds) and serif Georgia; Linux's are DejaVu Sans Mono and DejaVu Serif
+/// where DejaVu is installed (both CI images), else the test says why it
+/// asserts nothing. `.rounded` off Apple is the default face. Red before: does
+/// not compile. Mutation **M1.6**: `designFamilies` empty — reddens on macOS
+/// and in `swift:6.4-noble`.
+@Test func thePlatformsOwnDesignFamiliesResolve() throws {
+    let faces = SystemFonts.scan(SystemFonts.directories)
+    func installed(_ family: String) -> Bool { faces.contains { $0.isFamily(family) } }
+    #if os(macOS)
+    let resolver = try SystemFonts.resolver()
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName == "SF Mono")
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .serif)).raster.familyName == "New York")
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .rounded)).raster.familyName == "SF Pro Rounded")
+    #elseif os(Windows)
+    let resolver = try SystemFonts.resolver()
+    let mono = try #require(["Cascadia Mono", "Consolas", "Courier New"].first(where: installed))
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName == mono)
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .serif)).raster.familyName == "Georgia")
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .rounded)).raster.familyName
+            == resolver.resolve(family: nil, size: 13).raster.familyName)
+    #else
+    guard installed("DejaVu Sans Mono") && installed("DejaVu Serif") else {
+        print("SG-C 1.6: DejaVu Sans Mono/Serif not installed here; nothing asserted")
+        return
+    }
+    let resolver = try SystemFonts.resolver(designFamilies: SystemFonts.linuxDesignFamilies(fontconfig: { _ in nil }))
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName == "DejaVu Sans Mono")
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .serif)).raster.familyName == "DejaVu Serif")
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .rounded)).raster.familyName
+            == resolver.resolve(family: nil, size: 13).raster.familyName)
+    // The real lists (fontconfig's answer first where `fc-match` exists) resolve too.
+    let real = try SystemFonts.resolver()
+    #expect(try real.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName
+            != real.resolve(family: nil, size: 13).raster.familyName, "a monospaced face, not the default")
+    #endif
+}
+
+/// **1.7** (`SG-C` item 4). fontconfig's answer for `monospace` and `serif`
+/// leads each Linux list, and no answer leaves the fixed lists; `.rounded` has
+/// none. The query is injected, so this runs on every platform (CI's images
+/// have no `fc-match`). Red before: does not compile. Mutation **M1.7**:
+/// fontconfig's answer appended last — reddens.
+@Test func fontconfigsAnswerLeadsEachDesignsLinuxList() {
+    let answers = ["monospace": "Hack", "serif": "Gelasio"]
+    var asked: [String] = []
+    let lists = SystemFonts.linuxDesignFamilies(fontconfig: { asked.append($0); return answers[$0] })
+    #expect(Set(asked) == ["monospace", "serif"], "one query per generic family: \(asked)")
+    #expect(lists[.monospaced]?.first == "Hack" && lists[.serif]?.first == "Gelasio")
+    #expect(lists[.monospaced]?.dropFirst().first == "DejaVu Sans Mono")
+    #expect(lists[.rounded] == nil)
+    let fixed = SystemFonts.linuxDesignFamilies(fontconfig: { _ in nil })
+    #expect(fixed[.monospaced] == ["DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono", "Ubuntu Mono", "FreeMono"])
+    #expect(fixed[.serif] == ["DejaVu Serif", "Noto Serif", "Liberation Serif", "FreeSerif"])
+    #expect(lists[.monospaced].map { Array($0.dropFirst()) } == fixed[.monospaced])
 }
