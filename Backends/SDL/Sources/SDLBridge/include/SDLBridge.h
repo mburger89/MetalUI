@@ -120,8 +120,18 @@ enum {
     // is the request's token, `window_id` its parent window (0 for none);
     // take the answer with mui_take_dialog_result. MOUSE_LEAVE: the pointer
     // left `window_id` (SDL_EVENT_WINDOW_MOUSE_LEAVE).
-    MUI_EVENT_DIALOG, MUI_EVENT_MOUSE_LEAVE
+    MUI_EVENT_DIALOG, MUI_EVENT_MOUSE_LEAVE,
+    // Input APIs (rulings CI-E item 4, CI-K item 1). Appended after
+    // MOUSE_LEAVE, so no earlier kind renumbers. OTHER_DOWN/OTHER_UP: a button
+    // but the left and the right, `button` its SDL number (SDL_BUTTON_*).
+    // RIGHT_DRAG: motion with the right button held and not the left.
+    // OTHER_DRAG: motion with neither the left nor the right held but the
+    // middle, X1 or X2 — `button` the lowest held one's SDL number. PINCH:
+    // SDL_EVENT_PINCH_*, `scale` SDL's, `phase` a MUI_PINCH_*.
+    MUI_EVENT_OTHER_DOWN, MUI_EVENT_OTHER_UP, MUI_EVENT_RIGHT_DRAG, MUI_EVENT_OTHER_DRAG,
+    MUI_EVENT_PINCH
 };
+enum { MUI_PINCH_BEGIN = 0, MUI_PINCH_UPDATE = 1, MUI_PINCH_END = 2 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
 typedef struct {
     uint32_t kind;
@@ -138,6 +148,12 @@ typedef struct {
     // Unicode code points (SDL's unit).
     const char *text;
     int32_t start, length;
+    // Appended for the input APIs (CI-E item 4, CI-K item 1); no earlier field
+    // moves. `button`: OTHER_DOWN/UP/DRAG's SDL button number. `scale`,
+    // `phase`: PINCH's.
+    int32_t button;
+    float scale;
+    int32_t phase;
 } MUIEvent;
 bool mui_platform_init(void);
 bool mui_poll_event(MUIEvent *event);
@@ -181,6 +197,39 @@ extern const uint8_t mui_sdl_button_left;
 extern const uint8_t mui_sdl_button_right;
 extern const uint32_t mui_sdl_button_lmask;
 extern const uint32_t mui_sdl_button_rmask;
+// The middle and extra buttons and their masks (ruling CI-E item 4), for the
+// translation's numbering and for tests.
+extern const uint8_t mui_sdl_button_middle;
+extern const uint8_t mui_sdl_button_x1;
+extern const uint8_t mui_sdl_button_x2;
+extern const uint32_t mui_sdl_button_mmask;
+extern const uint32_t mui_sdl_button_x1mask;
+extern const uint32_t mui_sdl_button_x2mask;
+// Pushes an unflattened SDL_EVENT_PINCH_* (`sdl_type`, one of the
+// mui_sdl_event_pinch_* constants) for `window_id` with `scale` — so a test
+// reaches translate's pinch arm through SDL's own queue (ruling CI-K). For
+// tests.
+bool mui_push_raw_pinch_event(uint32_t sdl_type, uint32_t window_id, float scale);
+extern const uint32_t mui_sdl_event_pinch_begin;
+extern const uint32_t mui_sdl_event_pinch_update;
+extern const uint32_t mui_sdl_event_pinch_end;
+// The window with mouse focus (SDL_GetMouseFocus), 0 for none — where a pinch
+// SDL names no window for goes (ruling CI-K item 2).
+uint32_t mui_mouse_focus_window_id(void);
+
+// ---- The pointer style (ruling CI-H item 8) --------------------------------
+// MetalUI's names for the SDL system cursors it uses, mapped to
+// SDL_SystemCursor in C so Swift never spells that enum's rawValue.
+enum {
+    MUI_CURSOR_DEFAULT = 0, MUI_CURSOR_TEXT, MUI_CURSOR_CROSSHAIR, MUI_CURSOR_MOVE, MUI_CURSOR_POINTER,
+    MUI_CURSOR_EW_RESIZE, MUI_CURSOR_NS_RESIZE, MUI_CURSOR_N_RESIZE, MUI_CURSOR_S_RESIZE,
+    MUI_CURSOR_E_RESIZE, MUI_CURSOR_W_RESIZE, MUI_CURSOR_NE_RESIZE, MUI_CURSOR_NW_RESIZE,
+    MUI_CURSOR_SE_RESIZE, MUI_CURSOR_SW_RESIZE, MUI_CURSOR_COUNT
+};
+// SDL_SetCursor with the system cursor `cursor` names (a MUI_CURSOR_*),
+// created once per kind and kept for the process. False when the kind is out
+// of range or SDL cannot create it (the offscreen driver may not).
+bool mui_set_system_cursor(int32_t cursor);
 // SDL's SDL_EVENT_WINDOW_MOUSE_LEAVE, for tests (ruling SV-N item 7; pushed
 // with mui_push_raw_window_event). Exported from C so Swift never spells an
 // SDL enum's `rawValue` (Int32 on Windows).

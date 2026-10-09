@@ -499,8 +499,8 @@ private func concatenateDecoratedOnTheLeft() -> Text {
 
 /// **2.20** (`RT-O` item 1). The operand check reads every `Handlers` member
 /// through `Mirror`: every child of `Handlers()` is a recognised kind and
-/// there are **17** (the merge with `feat/input-apis` moves it to 18 and adds
-/// an arm); setting any one member makes the check name it. Red before: the
+/// there are **18** (`feat/input-apis` added `pointer`, the merge added its
+/// arm); setting any one member makes the check name it. Red before: the
 /// stub answered "default" for everything. Mutations **M2.20a** drop the
 /// optional rule (the optional members' arms), **M2.20b** drop the
 /// `Equatable` rule (`isFocusable`, `allowsHitTesting`, `axNode`), **M2.20c**
@@ -508,7 +508,7 @@ private func concatenateDecoratedOnTheLeft() -> Text {
 @MainActor
 @Test func theOperandCheckSeesEveryHandlersMember() throws {
     let children = Array(Mirror(reflecting: Handlers()).children)
-    try #require(children.count == 17, "Handlers has \(children.count) members: \(children.map { $0.label ?? "?" })")
+    try #require(children.count == 18, "Handlers has \(children.count) members: \(children.map { $0.label ?? "?" })")
     for child in children {
         try #require(mirrorFieldKind(child.value) != .unrecognised,
                      note("\(child.label ?? "?") is a kind the check cannot read"))
@@ -548,6 +548,7 @@ private func concatenateDecoratedOnTheLeft() -> Text {
     }
     arm("contextual") { $0.contextual = ContextualAttachment(menu: nil, help: "x") }
     arm("hover") { $0.hover = HoverAttachment(onHover: { _ in }, onContinuousHover: nil) }
+    arm("pointer") { $0.pointer = PointerAttachment(scrollWheel: nil, style: .rectSelection) }
 }
 
 // MARK: - 2.21

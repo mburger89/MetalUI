@@ -208,6 +208,20 @@ struct MenuSession {
     }
 }
 
+/// A context menu a secondary press found but did not open, because the
+/// press's button arena has a live secondary drag (ruling `CI-F` item 4): it
+/// opens on that press's release, at `point`, unless a drag reached its
+/// minimum. On `Window`, never in `StateTable` (`CI-M`).
+struct PendingContextMenu {
+    let attachment: ContextualAttachment
+    let isEnabled: Bool
+    let declaringID: GlobalElementID
+    /// The press, in window points.
+    let point: Point<Pixels>
+    /// The press in the contextual region's local space (`CI-R` item 3).
+    let location: Point<Pixels>
+}
+
 /// The context-menu keys (ruling `MN-G` item 1): Shift-F10 and the Menu key
 /// off Apple; never on a Mac, which has no context-menu key.
 enum ContextMenuKeys {
@@ -263,11 +277,14 @@ extension Window {
     /// (`ID-F`), with its `isEnabled` (`MN-D` item 4) — numbers it and
     /// presents it at `point`: natively when the platform shows it, else in
     /// the window (`MN-C`, `MN-F`). A new menu replaces an open one. `false`,
-    /// and nothing opened, for an empty menu (C10).
+    /// and nothing opened, for an empty menu (C10). `location` is what a
+    /// located menu's builder is handed (`CI-R` item 3): the press's local
+    /// point, `nil` for a keyboard or accessibility open.
     func openContextMenu(_ attachment: ContextualAttachment, isEnabled: Bool, declaringID: GlobalElementID,
-                         at point: Point<Pixels>, openingPress: Bool, initialHighlight: Int? = nil) -> Bool {
+                         at point: Point<Pixels>, location: Point<Pixels>? = nil, openingPress: Bool,
+                         initialHighlight: Int? = nil) -> Bool {
         guard let content = attachment.menu else { return false }
-        let nodes = StateDispatch.dispatching(to: declaringID) { content().menuNodes(isEnabled: isEnabled) }
+        let nodes = StateDispatch.dispatching(to: declaringID) { content(location).menuNodes(isEnabled: isEnabled) }
         guard !nodes.isEmpty else { return false }
         var next = 1
         var actions: [Int: MenuItemAction] = [:]
@@ -318,14 +335,31 @@ extension Window {
 
     /// The context-menu stage (`MN-E`, `MN-C` item 4): a secondary press over
     /// a menu opens it; a native menu's outcome runs its item.
+    ///
+    /// **A secondary drag defers it** (ruling `CI-F` item 4): when the press's
+    /// button arena — formed from the one ranking, as the button-arena stage
+    /// forms it — has a live leaf, nothing opens on the press; the menu is
+    /// parked in `pendingContextMenu` and the press passes on to that arena,
+    /// which opens it on the release, at the press point, unless a drag
+    /// reached its minimum. The builder is handed the press's point in the
+    /// region's local space either way (`CI-R` item 3).
     func dispatchContextMenu(_ event: InputEvent) -> Bool {
         switch event {
         case .rightMouseDown(let mouse):
+            pendingContextMenu = nil
             guard let index = contextualTarget(at: mouse.position, where: { $0.menu != nil }),
                   let attachment = lastHitboxes[index].handlers.contextual else { return false }
             let region = lastHitboxes[index]
+            let inRegion = region.localPoint(mouse.position)
+            let location = Point(x: inRegion.x - region.origin.x, y: inRegion.y - region.origin.y)
+            if secondaryDragIsDeclared(at: mouse.position) {
+                pendingContextMenu = PendingContextMenu(attachment: attachment, isEnabled: region.contextualEnabled,
+                                                        declaringID: region.id, point: mouse.position,
+                                                        location: location)
+                return false
+            }
             guard openContextMenu(attachment, isEnabled: region.contextualEnabled, declaringID: region.id,
-                                  at: mouse.position, openingPress: true) else { return false }
+                                  at: mouse.position, location: location, openingPress: true) else { return false }
             if menuSession?.isNative == true { menuClaimsRelease = true }
             return true
         case .menuAction(let outcome):
@@ -360,8 +394,19 @@ extension Window {
         StateDispatch.dispatching(to: action.declaringID) { action.run() }
     }
 
+    /// Opens a context menu the press's button arena deferred (`CI-F` item
+    /// 4): at the press point, handed the press's local point (`CI-R`), never
+    /// as an opening press — its release has already happened.
+    func openPendingContextMenu(_ pending: PendingContextMenu) {
+        _ = openContextMenu(pending.attachment, isEnabled: pending.isEnabled, declaringID: pending.declaringID,
+                            at: pending.point, location: pending.location, openingPress: false)
+    }
+
     /// The open in-window menu's stage (`MN-F` item 3): first after a drag
-    /// session, it takes every pointer, wheel and key event while open.
+    /// session, it takes every pointer, wheel and key event while open — the
+    /// other buttons and a pinch included (spec §1.4 item 3): an other press
+    /// outside dismisses, consumed with its release, and a magnify or rotate
+    /// reaches nothing beneath.
     func dispatchMenuSession(_ event: InputEvent) -> Bool {
         // The release of a press a menu stage claimed.
         switch event {
@@ -370,12 +415,22 @@ extension Window {
                 menuClaimsRelease = nil
                 return true
             }
+        case .otherMouseUp where menuClaimsOtherRelease:
+            if menuSession == nil || menuSession?.isNative == true {
+                menuClaimsOtherRelease = false
+                return true
+            }
         default:
             break
         }
         guard var session = menuSession, !session.isNative else { return false }
         switch event {
-        case .mouseMoved(let mouse), .mouseDragged(let mouse):
+        // A right- or other-button drag is a move here (ruling `CI-Z` item 1):
+        // on SDL the motion of the right press that opened the menu arrives
+        // as `.rightMouseDragged` (`CI-E` item 4), and press-drag-release
+        // must still choose.
+        case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDragged(let mouse):
             session.openingPress?.moved = true
             hoverMenu(&session, at: mouse.position)
             menuSession = session
@@ -389,6 +444,15 @@ extension Window {
             }
             session.openingPress = nil
             menuSession = session
+            return true
+        case .otherMouseDown(let mouse):
+            menuClaimsOtherRelease = true
+            if session.level(at: mouse.position) == nil { menuSession = nil }   // an outside press dismisses
+            return true
+        case .otherMouseUp:
+            menuClaimsOtherRelease = false
+            return true
+        case .magnify, .rotate:
             return true
         case .mouseUp(let mouse), .rightMouseUp(let mouse):
             menuClaimsRelease = nil

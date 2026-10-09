@@ -437,6 +437,16 @@ one frame late on macOS 14–25, divergence 137); the SDL backend is a product o
 package behind the traits `SDL` and `AccessKit`, so a URL dependent builds it on Linux and
 Windows and `metalui new --cross-platform` works without `--local`
 (`docs/getting-started.md` says exactly what to install). Human checks: group X, unrun.
+**Input APIs for viewports and canvases** (user request 2026-10-02, not a plan task; record §81):
+`SpatialTapGesture` and `.onTapGesture(count:coordinateSpace:perform:)` report a local location;
+`MagnifyGesture` and `RotateGesture` follow trackpad pinches (AppKit; pinch on SDL's cocoa, X11
+and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags with other buttons
+(a right-drag declared on a node defers its context menu to the release), and
+`DragGesture.Value.modifiers` reports the keys held (divergence 140); `.onScrollWheel` hands a
+`ScrollEvent` with phase, momentum, precision and a local location, and claims or passes it on
+around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
+`METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
+group Y, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

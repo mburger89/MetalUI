@@ -572,7 +572,11 @@ private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, 
 ///
 /// **V row (platform services, ruling `SV-AH`)**: one more reference,
 /// `hover` (a class box), so 448 + 8 + 8 + 8 — 1.33 pins the exact 472.
+///
+/// **Input APIs (ruling `CI-Q`)**: one more reference, `pointer` (a class box
+/// holding the wheel handler and the pointer style), so 440 + 8 × 5 — 1.33
+/// pins the exact 480.
 @Test func theNewDeclarationsCostHandlersAtMostOnePointer() {
     #expect(MemoryLayout<AXNode>.size <= 113 + 8, "AXNode: \(MemoryLayout<AXNode>.size)")
-    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
 }

@@ -34,8 +34,18 @@ private func buildEveryProductionTree() {
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     _ = menusDemoContent()
     buildTheServicesDemo()   // platform services (SV-T, spec test 6.1)
+    buildTheCanvasDemo()     // input APIs' canvas (spec §6, test 3.36)
     buildTheRichTextDemo()   // rich text (RT-O item 10)
     buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
+}
+
+/// The input-APIs canvas demo's tree, **in its own frame** for
+/// `buildTheServicesDemo()`'s reason: built in `buildEveryProductionTree()`'s
+/// own frame it overflowed the 1 MB thread in the `swift:6.4-noble` container
+/// (`.signal(SIGSEGV)`), where macOS arm64 passed (ruling `CI-AI` item 3).
+@MainActor @inline(never)
+private func buildTheCanvasDemo() {
+    _ = canvasDemoContent()
 }
 
 /// The rich-text demo's tree, in its own frame as the services demo's is (a

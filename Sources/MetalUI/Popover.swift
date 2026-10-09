@@ -227,7 +227,7 @@ extension Window {
     /// The popovers' stage (rulings `MN-N`, `MN-Y`), between the open menu's
     /// and the context menu's:
     ///
-    /// - a press (either button) walks the open popovers topmost first and,
+    /// - a press (any button) walks the open popovers topmost first and,
     ///   while the point is outside the current one, dismisses it — the
     ///   binding written from input under its declarer's dispatch (`ID-F`) —
     ///   then **passes on** to the rest of dispatch (P4a, `MN-Y` item 1),
@@ -251,6 +251,15 @@ extension Window {
             releasePressForMenu()   // never drawn pressed, never a click on release
             if case .rightMouseDown = event { popoverClaimsRelease = true } else { popoverClaimsRelease = false }
             return true
+        // An other button's press outside dismisses too (spec §1.4 item 3,
+        // `MN-Y` item 1) and always passes on: it clicks nothing, so an
+        // anchor has no release to consume.
+        case .otherMouseDown(let mouse):
+            while let top = lastOpenPopovers.last, !top.bounds.contains(mouse.position) {
+                lastOpenPopovers.removeLast()
+                StateDispatch.dispatching(to: top.id) { top.dismiss() }
+            }
+            return false
         case .keyDown(let key) where key.charactersIgnoringModifiers == "\u{1b}" && key.modifiers.isEmpty:
             guard let top = lastOpenPopovers.popLast() else { return false }
             StateDispatch.dispatching(to: top.id) { top.dismiss() }

@@ -45,6 +45,11 @@ func runDemo() throws {
     // group U, ruling SV-T): open and save panels, an alert sheet, hover
     // tiles, dividers, a 300-option menu picker; a 900 × 600 minimum.
     let servicesDemo = ProcessInfo.processInfo.environment["METALUI_SERVICES_DEMO"] == "1"
+    // Input APIs' human looks (`docs/verification/human-checks.md` group Y,
+    // spec `2026-10-08-input-apis-design.md` §6): a pannable, zoomable node
+    // canvas — wheel, pinch, rotate, middle and right drags, tap location,
+    // pointer styles; **C** toggles its crosshair (Y12).
+    let canvasDemo = ProcessInfo.processInfo.environment["METALUI_CANVAS_DEMO"] == "1"
     // Rich text's human looks (`docs/verification/human-checks.md` group RT,
     // ruling RT-O item 10): Markdown, interpolated segments, mixed sizes,
     // decorations, truncation and an attributed string.
@@ -57,7 +62,11 @@ func runDemo() throws {
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if richTextDemo {
+    if canvasDemo {
+        window = try app.openWindow(title: "MetalUI — Canvas",
+                                    size: Size(width: Pixels(920), height: Pixels(620)),
+                                    content: canvasDemoContent)
+    } else if richTextDemo {
         window = try app.openWindow(title: "MetalUI — Rich Text",
                                     size: Size(width: Pixels(920), height: Pixels(640)),
                                     content: richTextDemoContent)
@@ -191,6 +200,7 @@ func runDemo() throws {
         KeyBinding("a", ToggleAnimationDemo())
         KeyBinding("q", QuitDemo())
     }
+    if canvasDemo { window.keymap.bindings.append(KeyBinding("c", ToggleCanvasCrosshair())) }
 
     // **The window's fallback, which is what makes a binding work with nothing
     // focused.** `Increment` and `Decrement` never reach here — `CounterPanel`
@@ -247,7 +257,7 @@ func runDemo() throws {
             return false
             #endif
         default:
-            return false
+            return canvasDemoHandle(action)
         }
     }
 

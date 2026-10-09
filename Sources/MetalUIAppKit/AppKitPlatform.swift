@@ -36,8 +36,12 @@ final class MetalHostView: NSView {
 
     /// Whether a control-press is in flight (`MN-B`, `MN-AC` item 1): it went
     /// out as `.rightMouseDown`, so its up is `.rightMouseUp` and a drag in
-    /// between is dropped.
+    /// between is a secondary drag, `.rightMouseDragged` (`CI-E` item 3).
     var controlClickInFlight = false
+
+    /// The cursor `AppKitWindow.setPointerStyle(_:)` last chose (ruling `CI-H`
+    /// item 8); `cursorUpdate(with:)` answers with it.
+    var pointerCursor: NSCursor = .arrow
 
     init(surface: MetalLayerSurface) {
         self.surface = surface
@@ -94,16 +98,35 @@ final class MetalHostView: NSView {
     /// leaving the window, `.pointerExited`). `.activeInKeyWindow` is what keeps a
     /// background window's tracking area from firing hover into a window the
     /// user is not interacting with. `.inVisibleRect` is the mechanism this
-    /// whole override exists to pair with.
+    /// whole override exists to pair with. `.cursorUpdate` makes AppKit call
+    /// `cursorUpdate(with:)` on entry, so the pointer style `Window` chose
+    /// shows there (ruling `CI-H` item 8).
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let trackingArea { removeTrackingArea(trackingArea) }
         let area = NSTrackingArea(
             rect: .zero, // ignored: `.inVisibleRect` tracks the view's own bounds
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect, .cursorUpdate],
             owner: self, userInfo: nil)
         addTrackingArea(area)
         trackingArea = area
+    }
+
+    /// AppKit asks for the cursor when the pointer enters the view and when
+    /// cursor rects are re-evaluated — the tracking area's `.cursorUpdate`
+    /// option (ruling `CI-H` item 8). Answered with the style `Window` last
+    /// chose, never `super` (which would set the arrow). Pinned by
+    /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt` and
+    /// `theHostViewsTrackingAreaRequestsCursorUpdates`.
+    override func cursorUpdate(with event: NSEvent) {
+        pointerCursor.set()
+    }
+
+    /// Whether the pointer is inside this view now — the window's own reading,
+    /// so a style chosen between events shows at once.
+    var pointerIsInside: Bool {
+        guard let window else { return false }
+        return bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     // Spec §7.9. AppKit calls this after `effectiveAppearance` has already
@@ -137,19 +160,25 @@ final class MetalHostView: NSView {
         return m
     }
 
-    private func mouseEvent(_ event: NSEvent) -> MouseEvent {
-        MouseEvent(position: point(event), modifiers: modifiers(event), clickCount: event.clickCount)
+    /// `event` as a `MouseEvent` carrying `buttonNumber` — 0 and 1 by
+    /// construction for the primary and secondary cases (ruling `CI-E` item 1:
+    /// `NSEvent.mouseEvent` reports 0 for a made right-button event), the
+    /// event's own for the other buttons.
+    private func mouseEvent(_ event: NSEvent, button: Int = 0) -> MouseEvent {
+        MouseEvent(position: point(event), modifiers: modifiers(event), clickCount: event.clickCount,
+                   buttonNumber: button)
     }
 
     /// A control-press is a secondary press on AppKit alone (rulings `MN-B`,
     /// `MN-AC` item 1 — SDL keeps it primary for `List`'s toggle): it goes out
     /// as `.rightMouseDown`, its release as `.rightMouseUp`, and a drag between
-    /// them is dropped. **Migration**: a control-click no longer presses a
-    /// `Button` or runs an `onClick`/tap here.
+    /// them as `.rightMouseDragged` (`CI-E` item 3). **Migration**: a
+    /// control-click no longer presses a `Button` or runs an `onClick`/tap
+    /// here, and a control-drag is a secondary drag.
     override func mouseDown(with event: NSEvent) {
         if event.modifierFlags.contains(.control) {
             controlClickInFlight = true
-            _ = onInput?(.rightMouseDown(mouseEvent(event)))
+            _ = onInput?(.rightMouseDown(mouseEvent(event, button: 1)))
             return
         }
         _ = onInput?(.mouseDown(mouseEvent(event)))
@@ -158,7 +187,7 @@ final class MetalHostView: NSView {
     override func mouseUp(with event: NSEvent) {
         if controlClickInFlight {
             controlClickInFlight = false
-            _ = onInput?(.rightMouseUp(mouseEvent(event)))
+            _ = onInput?(.rightMouseUp(mouseEvent(event, button: 1)))
             return
         }
         _ = onInput?(.mouseUp(mouseEvent(event)))
@@ -167,11 +196,64 @@ final class MetalHostView: NSView {
     /// The secondary button (`MN-B`): overridden whole, so `NSView`'s default —
     /// popping up `self.menu` and passing the event on — never runs.
     override func rightMouseDown(with event: NSEvent) {
-        _ = onInput?(.rightMouseDown(mouseEvent(event)))
+        _ = onInput?(.rightMouseDown(mouseEvent(event, button: 1)))
     }
 
     override func rightMouseUp(with event: NSEvent) {
-        _ = onInput?(.rightMouseUp(mouseEvent(event)))
+        _ = onInput?(.rightMouseUp(mouseEvent(event, button: 1)))
+    }
+
+    /// Motion with the secondary button held (ruling `CI-E` items 1 and 3):
+    /// overridden whole, no `super`. Pinned by
+    /// `appKitOtherButtonsAndRightDragReachOnInput`.
+    override func rightMouseDragged(with event: NSEvent) {
+        _ = onInput?(.rightMouseDragged(mouseEvent(event, button: 1)))
+    }
+
+    /// The middle and every further button (ruling `CI-E` items 1 and 3),
+    /// carrying AppKit's `buttonNumber`; overridden whole, no `super`. Pinned
+    /// by `appKitOtherButtonsAndRightDragReachOnInput`.
+    override func otherMouseDown(with event: NSEvent) {
+        _ = onInput?(.otherMouseDown(mouseEvent(event, button: event.buttonNumber)))
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        _ = onInput?(.otherMouseDragged(mouseEvent(event, button: event.buttonNumber)))
+    }
+
+    override func otherMouseUp(with event: NSEvent) {
+        _ = onInput?(.otherMouseUp(mouseEvent(event, button: event.buttonNumber)))
+    }
+
+    /// AppKit's phase as the seam's (ruling `CI-I` item 1). `NSEvent.Phase`
+    /// is an option set; an event carries one phase, `.stationary` (fingers
+    /// resting mid-gesture) reading as `.changed`.
+    nonisolated static func inputPhase(_ phase: NSEvent.Phase) -> InputPhase {
+        if phase.contains(.cancelled) { return .cancelled }
+        if phase.contains(.ended) { return .ended }
+        if phase.contains(.began) { return .began }
+        if phase.contains(.changed) || phase.contains(.stationary) { return .changed }
+        if phase.contains(.mayBegin) { return .mayBegin }
+        return .none
+    }
+
+    /// A trackpad pinch step (ruling `CI-J` item 1): this event's additive
+    /// magnification and phase. Pinned by
+    /// `appKitMagnifyAndRotateReachOnInputWithDeltasAndPhases`.
+    override func magnify(with event: NSEvent) {
+        _ = onInput?(.magnify(MagnifyEvent(position: point(event), magnification: Double(event.magnification),
+                                           phase: Self.inputPhase(event.phase), modifiers: modifiers(event),
+                                           timestamp: event.timestamp)))
+    }
+
+    /// A trackpad rotation step (ruling `CI-J` item 1). **Negated once, here**
+    /// (`CI-C` item 2, probe `Q1`): AppKit's `rotation` is counterclockwise-
+    /// positive, the seam's clockwise-positive on a y-down screen. Pinned by
+    /// `appKitMagnifyAndRotateReachOnInputWithDeltasAndPhases`.
+    override func rotate(with event: NSEvent) {
+        _ = onInput?(.rotate(RotateEvent(position: point(event), rotation: -Double(event.rotation),
+                                         phase: Self.inputPhase(event.phase), modifiers: modifiers(event),
+                                         timestamp: event.timestamp)))
     }
 
     // This fires because `updateTrackingAreas()` above installs a tracking
@@ -238,19 +320,28 @@ final class MetalHostView: NSView {
         return Point(x: Pixels(Float(x * scale)), y: Pixels(Float(y * scale)))
     }
 
+    /// The gesture phase from `NSEvent.phase`, the momentum phase from
+    /// `NSEvent.momentumPhase`, `isPrecise` from `hasPreciseScrollingDeltas`
+    /// (ruling `CI-I` item 6). Pinned by
+    /// `appKitScrollWheelCarriesPhaseMomentumAndPrecision`.
     override func scrollWheel(with event: NSEvent) {
-        let momentum = event.momentumPhase != []
         _ = onInput?(.scrollWheel(ScrollEvent(
             position: point(event),
             delta: Self.scrollDelta(x: event.scrollingDeltaX, y: event.scrollingDeltaY,
                                     precise: event.hasPreciseScrollingDeltas),
             modifiers: modifiers(event),
-            isMomentum: momentum,
+            phase: Self.inputPhase(event.phase),
+            momentumPhase: Self.inputPhase(event.momentumPhase),
+            isPrecise: event.hasPreciseScrollingDeltas,
             timestamp: event.timestamp)))
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if controlClickInFlight { return }   // a secondary press does not drag (MN-B item 4)
+        if controlClickInFlight {   // a control-press's drag is a secondary drag (CI-E item 3)
+            _ = onInput?(.rightMouseDragged(MouseEvent(position: point(event), modifiers: modifiers(event),
+                                                       buttonNumber: 1)))
+            return
+        }
         lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
                                               modifiers: modifiers(event))))
@@ -680,6 +771,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     func setPreferredColorScheme(_ colorScheme: ColorScheme?) {
         window.appearance = colorScheme.map { NSAppearance(named: $0 == .dark ? .darkAqua : .aqua) } ?? nil
         if appearance != lastReportedAppearance { reportAppearance() }
+    }
+
+    /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
+    /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
+    /// the pointer is inside the view. Pinned by
+    /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
+    func setPointerStyle(_ style: PlatformPointerStyle) {
+        let cursor = AppKitCursor.cursor(for: style)
+        hostView.pointerCursor = cursor
+        if hostView.pointerIsInside { cursor.set() }
     }
 
     /// The layer surface, still reachable for the platform tests that draw

@@ -875,10 +875,23 @@ public final class Window {
             // Hover (`SV-N` item 4): every pointer event and the pointer
             // leaving the window recompute the hovered set from input. Claims
             // nothing.
-            case .mouseMoved, .mouseDragged, .mouseDown, .mouseUp, .rightMouseDown, .rightMouseUp:
+            // The other buttons and a right drag too (`CI-X` item 1, `CI-Z`
+            // item 1: owed by lane 2).
+            // The pointer style is recomputed here too (`CI-H` item 7); a
+            // release ends a press's hold on it (`CI-H` item 6).
+            case .mouseMoved, .mouseDragged, .mouseDown, .rightMouseDown,
+                 .rightMouseDragged, .otherMouseDown, .otherMouseDragged:
                 self.updateHover(at: self.lastMousePosition, reportsMoves: true)
+            case .mouseUp, .rightMouseUp, .otherMouseUp:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: true, releasing: true)
             case .pointerExited:
                 self.updateHover(at: nil, reportsMoves: true)
+            // A pinch at its own position (spec §1.4 item 1, `CI-AL` item 2):
+            // the hovered set and the pointer style follow it; an entering
+            // region hears `onHover`, but a pinch is not a move, so
+            // `onContinuousHover` reports nothing from a member already in.
+            case .magnify, .rotate:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: false)
             default:
                 break
             }
@@ -918,11 +931,22 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
-            // Scroll routing runs before the window's general `onInput`, and
-            // claims the event outright when it hits a region — there is no
-            // scroll chaining (see `applyScroll`'s doc comment), so a claimed
-            // wheel event does not also reach whoever opened the window.
+            // Scroll routing runs before the window's general `onInput`: the
+            // wheel chain (`CI-I` item 4) offers the event to the elements'
+            // wheel handlers and scrollers under the pointer, innermost first —
+            // there is no scroll chaining (see `applyScroll`'s doc comment), so
+            // a claimed wheel event does not also reach whoever opened the
+            // window.
             if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // A trackpad pinch's arena (`CI-D`) and a secondary or other
+            // button's arena (`CI-F`): each formed from the one ranking, each
+            // apart from the primary press's arena, each claiming the event
+            // when it holds a live arena. The primary-only stages below never
+            // see these events (`MN-B`, `CI-E` item 2).
+            if self.dispatchPinch(event) || self.dispatchButtonArena(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1617,6 +1641,7 @@ public final class Window {
         lastScene = scene
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
+        lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -1731,7 +1756,7 @@ public final class Window {
     /// scroller** (ruling `DD-Y`, plan task 10 part 2 — **divergence 16
     /// retired**): the nearest ancestor of its id that registered a scroll
     /// region containing the point **on the same layer**
-    /// (`enclosingScroller(of:at:)`). Until then a click target inside a
+    /// (the wheel chain, `CI-I` item 4). Until then a click target inside a
     /// `ScrollView` swallowed that scroller's wheel over its own rect, where a
     /// browser scrolls (a wheel event bubbles up the DOM to the first
     /// scrollable ancestor) — pinned as today's behaviour by
@@ -1833,62 +1858,96 @@ public final class Window {
     /// wheel-only device should be able to drive a horizontal list at all is a
     /// UX decision with real trade-offs, and it is deliberately left to
     /// whoever owns that decision rather than made here by default.
-    private func applyScroll(_ event: ScrollEvent) -> Bool {
-        guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: event.position) else {
-            return false
-        }
-        let region = lastHitboxes[index]
-        // A multi-line text field scrolls its own content (ruling TI-H): the
-        // wheel moves its `scrollY` within its content and leaves the caret
-        // where it is, so the next frame does not scroll it back.
-        if let target = region.handlers.textInput, target.lines != nil {
-            stateTable.withState(region.id, initial: TextEditState()) {
-                $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
-                $0.revealsCaret = false
-            }
-            return true
-        }
-        // Opaque, and not a scroller (ruling `DD-Y`, divergence 16 retired):
-        // the wheel goes to the nearest ancestor scroller under the point on
-        // the same layer; with none it stops here, claimed, rather than falling
-        // through to whatever the hitbox covers.
-        guard region.scroll != nil else {
-            if let scroller = enclosingScroller(of: region, at: event.position) {
-                scroll(lastHitboxes[scroller], by: event)
-            }
-            return true
-        }
-        scroll(region, by: event)
-        return true
-    }
-
-    /// The index in `lastHitboxes` of the scroll region a wheel over the
-    /// non-scrolling hitbox `hit` passes to (ruling `DD-Y`): the **nearest
-    /// ancestor** of `hit.id` (by `GlobalElementID.parent`) that registered a
-    /// scroll region containing `point` **on `hit`'s layer**.
+    ///
+    /// **The wheel chain** (input APIs, ruling `CI-I` item 4, in place of the
+    /// lookup that stood here; `DD-Y` preserved). The cover is the one
+    /// ranking's topmost hitbox under the pointer that is opaque or carries an
+    /// `.onScrollWheel` handler. The chain is the cover's id and its ancestors
+    /// (by `GlobalElementID.parent`); at each id, among the regions **on the
+    /// cover's layer** containing the point with that id: its wheel handlers,
+    /// innermost (registered last) first, each under `StateDispatch` with
+    /// `location` made local to its region — claimed when one returns `true`;
+    /// at the cover only, a multi-line text editor (`TI-H`, claimed); then that
+    /// id's scroll region (scrolls, claimed). Unclaimed after the chain: claimed
+    /// when the cover is opaque (a click target with no scroller above it
+    /// stops the wheel, `DD-Y`), else not (the window's `onInput` sees it).
     ///
     /// **Ancestry** keeps a click target merely *overlaid* on a scroller (a
     /// `Stack` sibling) stopping its wheel; **the layer** keeps a `Deferred`
     /// scrim — hoisted to layer 1 while the scroller that declared it paints on
-    /// 0 — stopping it too. Pinned by
-    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`
-    /// and `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`; the
-    /// rule itself by `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`
-    /// and, for a single-line `TextField` (a pointer target through
-    /// `Handlers.textInput`, `DD-AC` item 3), by
-    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`.
-    private func enclosingScroller(of hit: Hitbox, at point: Point<Pixels>) -> Int? {
+    /// 0 — and a popover over a canvas stopping it too. Pinned by
+    /// `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`,
+    /// `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
+    /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`,
+    /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` and
+    /// the input-API tests 3.3–3.13 (`InputAPIWindowTests`). **The element is
+    /// the cover, not its handler's region** (`CI-AL` item 1): a legacy
+    /// `.onScrollWheel` registers its non-opaque region under the element's
+    /// own id, ranking above the element's opaque hitbox, so when the top
+    /// match is non-opaque and that id's opaque hitbox on its layer is under
+    /// the point, that hitbox is the cover — a declining handler on a click
+    /// target still stops the wheel, and one on a `TextEditor` leaves it
+    /// scrolling itself, inside a `ScrollView` too
+    /// (`aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel`,
+    /// `aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself`). No
+    /// built-in scroller shares an id with a handler, so a handler on or around
+    /// a `ScrollView` sees nothing over it (`CI-AH` item 1, narrowed by `CI-AL`
+    /// item 3: a custom `StyledElement` that calls the public
+    /// `registerScrollRegion` under its own id and takes `.onScrollWheel` does
+    /// share it, and its handler runs first — unpinned). Each event is
+    /// dispatched at its own position — no latching (`CI-AD`).
+    private func applyScroll(_ event: ScrollEvent) -> Bool {
+        let point = event.position
+        guard let topIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
+            $0.opaque || $0.handlers.pointer?.scrollWheel != nil
+        }) else { return false }
+        var cover = lastHitboxes[topIndex]
+        // A legacy `.onScrollWheel` registers its non-opaque wheel region under
+        // the element's own id after the element's opaque hitbox, so it ranks
+        // above it. The element is still the cover (`CI-AL` item 1): when that
+        // element's opaque hitbox on the same layer is under the point too —
+        // the one ranking again, never a second lookup — the cover is it, so a
+        // declining handler falls through to the element's own `TI-H` scroll
+        // and opacity rather than the handler-only region's.
+        if !cover.opaque, let own = topmostHitbox(in: lastHitboxes, at: point, where: { [cover] in
+            $0.opaque && $0.id == cover.id && $0.layer == cover.layer
+        }) {
+            cover = lastHitboxes[own]
+        }
         let candidates = lastHitboxes.indices.filter {
             let region = lastHitboxes[$0]
-            return region.scroll != nil && region.layer == hit.layer && region.contains(point)
+            return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
+                && region.layer == cover.layer && region.contains(point)
         }
-        guard !candidates.isEmpty else { return nil }
-        var ancestor = hit.id.parent
-        while let id = ancestor {
-            if let match = candidates.last(where: { lastHitboxes[$0].id == id }) { return match }
-            ancestor = id.parent
+        var cursor: GlobalElementID? = cover.id
+        while let id = cursor {
+            let here = candidates.filter { lastHitboxes[$0].id == id }
+            for index in here.reversed() {
+                let region = lastHitboxes[index]
+                guard let handler = region.handlers.pointer?.scrollWheel else { continue }
+                var local = event
+                let p = region.localPoint(point)
+                local.location = Point(x: Pixels(p.x.value - region.origin.x.value),
+                                       y: Pixels(p.y.value - region.origin.y.value))
+                if StateDispatch.dispatching(to: region.id, { handler(local) }) { return true }
+            }
+            // A multi-line text field scrolls its own content (ruling TI-H): the
+            // wheel moves its `scrollY` within its content and leaves the caret
+            // where it is, so the next frame does not scroll it back.
+            if id == cover.id, let target = cover.handlers.textInput, target.lines != nil {
+                stateTable.withState(cover.id, initial: TextEditState()) {
+                    $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
+                    $0.revealsCaret = false
+                }
+                return true
+            }
+            if let scroller = here.last(where: { lastHitboxes[$0].scroll != nil }) {
+                scroll(lastHitboxes[scroller], by: event)
+                return true
+            }
+            cursor = id.parent
         }
-        return nil
+        return cover.opaque
     }
 
     /// Moves `region`'s stored offset by the wheel's component on its axis.
@@ -1960,9 +2019,18 @@ public final class Window {
             active = nil
         case .mouseMoved(let mouse), .mouseDragged(let mouse):
             lastMousePosition = mouse.position
-        case .rightMouseDown(let mouse), .rightMouseUp(let mouse):
-            // A secondary press moves the pointer, never `active` (`MN-B` item 4).
+        case .rightMouseDown(let mouse), .rightMouseUp(let mouse), .rightMouseDragged(let mouse),
+             .otherMouseDown(let mouse), .otherMouseDragged(let mouse), .otherMouseUp(let mouse):
+            // A secondary or other press, and its drag, move the pointer,
+            // never `active` (`MN-B` item 4, `CI-E` item 2).
             lastMousePosition = mouse.position
+        case .magnify(let pinch):
+            // A pinch is at the pointer (AppKit's event location, SDL's last
+            // pointer position): it moves `lastMousePosition`, never `active`
+            // (`CI-AL` item 2).
+            lastMousePosition = pinch.position
+        case .rotate(let pinch):
+            lastMousePosition = pinch.position
         case .pointerExited:
             // The pointer left the window (`SV-N` item 7): nothing is under it.
             lastMousePosition = nil
@@ -2066,6 +2134,19 @@ public final class Window {
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
     var hoverVisits = 0
 
+    /// The pointer style last sent to the platform, or `nil` when unknown —
+    /// before the first pointer event, and after the pointer left the window
+    /// (`CI-S`), so the next pointer event sends unconditionally (`CI-H` item 7).
+    var resolvedPointerStyle: PointerStyle?
+
+    /// How many pointer-style regions the last adopted frame registered: with
+    /// none, a recompute visits no hitbox (`CI-H` item 7, `SV-U`'s shape).
+    var lastPointerStyleRegionCount = 0
+
+    /// Hitboxes the pointer-style recomputes visited, ever — test observability
+    /// for the counted work (test 3.25).
+    var pointerStyleVisits = 0
+
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
     /// command stage. `nil` for a window built without an `App`.
@@ -2131,6 +2212,14 @@ public final class Window {
     /// (`MN-F` item 3's consumed outside press, a right press that opened a
     /// native menu). `true` for the secondary button, `false` for the primary.
     var menuClaimsRelease: Bool?
+
+    /// An other button's press the open in-window menu took owes its release
+    /// a claim (spec §1.4 item 3).
+    var menuClaimsOtherRelease = false
+
+    /// A context menu deferred to its secondary press's release (`CI-F` item
+    /// 4), or `nil`.
+    var pendingContextMenu: PendingContextMenu?
 
     /// Asks the platform to show `menu` itself (`MN-C`).
     func presentMenuOnPlatform(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {
@@ -2211,7 +2300,8 @@ public final class Window {
                 // The no-target arena keys on its draggable region (`DN-U`
                 // item 5), so a continuing press compares against the same.
                 if let key, lastHitboxes[key.target].id == arena.targetID {
-                    callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true)
+                    callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true,
+                                            modifiers: mouse.modifiers)
                     gestureArena = arena
                     runGestureCallbacks(callbacks)
                     return false
@@ -2220,14 +2310,15 @@ public final class Window {
             }
             gestureArena = nil
             if let key, var arena = makeGestureArena(key, at: mouse.position) {
-                callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false)
+                callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false,
+                                         modifiers: mouse.modifiers)
                 gestureArena = arena
             }
             runGestureCallbacks(callbacks)
             return false
         case .mouseDragged(let mouse):
             guard var arena = gestureArena else { return false }
-            let callbacks = arena.move(to: mouse.position)
+            let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers)
             gestureArena = arena
             runGestureCallbacks(callbacks)
             return false
@@ -2236,6 +2327,7 @@ public final class Window {
                 return dispatchClick(event, pressedBefore: pressed)
             }
             let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
+                                          modifiers: mouse.modifiers,
                                           click: completedClick(mouse, pressedBefore: pressed))
             gestureArena = arena.isAlive ? arena : nil
             runGestureCallbacks(callbacks)
@@ -2275,7 +2367,7 @@ public final class Window {
     /// modal's click, nor its simultaneous one run beside it. Pinned by
     /// `aDeferredPresentationsPressDoesNotJoinItsDeclarersArena`.
     private func makeGestureArena(_ key: (target: Int, draggableAbove: Int?),
-                                  at point: Point<Pixels>) -> GestureArena? {
+                                  at point: Point<Pixels>, mode: ArenaMode = .press) -> GestureArena? {
         let hit = lastHitboxes[key.target]
         var ancestors: [(hitbox: Hitbox, depth: Int)] = []
         var depth = 1
@@ -2290,7 +2382,147 @@ public final class Window {
             cursor = id.parent
         }
         return GestureArena(target: hit, ancestors: ancestors,
-                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] })
+                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] }, mode: mode)
+    }
+
+    // MARK: The pinch and button arenas (input APIs, `CI-D`, `CI-F`)
+
+    /// The trackpad pinch's arena (`CI-D`), or `nil`: formed at a pinch's
+    /// first event, alive while a begun magnify or rotate has not ended.
+    private var pinchArena: GestureArena?
+
+    /// The secondary or other button's arena (`CI-F` item 3) and its button
+    /// number, or `nil`: formed at that button's press, ended by its release.
+    /// Apart from `gestureArena`, so a middle drag during a pending primary
+    /// tap sequence disturbs neither.
+    private var buttonArena: GestureArena?
+    private var buttonArenaButton = 0
+
+    /// Hands `style` to the platform window (`CI-H` item 8) — the one call
+    /// site, `updatePointerStyle(at:releasing:)`, sends only on a change.
+    func sendPointerStyle(_ style: PlatformPointerStyle) {
+        platformWindow.setPointerStyle(style)
+    }
+
+    /// The pressed target the pointer style holds to (`CI-H` item 6): a live
+    /// secondary or other button's arena, else the primary arena while it is
+    /// pressing — its owner and the layer of its opaque hitbox in the last
+    /// frame. `nil` with no press, or when the target left the frame.
+    var pointerStylePressTarget: (id: GlobalElementID, layer: Int)? {
+        let id: GlobalElementID
+        if let arena = buttonArena {
+            id = arena.targetID
+        } else if let arena = gestureArena, arena.isPressing {
+            id = arena.targetID
+        } else {
+            return nil
+        }
+        guard let hit = lastHitboxes.last(where: { $0.opaque && $0.id == id }) else { return nil }
+        return (id, hit.layer)
+    }
+
+    /// The arena of `mode` for an event at `point`, from the one ranking:
+    /// `topmostOpaqueHitbox`'s target and its gesture-carrying ancestors in
+    /// its hit layer (`makeGestureArena`), no draggable region.
+    private func makeArena(at point: Point<Pixels>, mode: ArenaMode) -> GestureArena? {
+        guard let target = topmostOpaqueHitbox(in: lastHitboxes, at: point) else { return nil }
+        return makeGestureArena((target, nil), at: point, mode: mode)
+    }
+
+    /// Whether a secondary press at `point` would form a button arena with a
+    /// live leaf — the context-menu stage's reason to defer (`CI-F` item 4).
+    func secondaryDragIsDeclared(at point: Point<Pixels>) -> Bool {
+        makeArena(at: point, mode: .button(MouseButton.secondary.buttonNumber)) != nil
+    }
+
+    /// Feeds a `.magnify` or `.rotate` to the pinch arena (`CI-D`): the first
+    /// event of a pinch forms it at the EVENT's position — an end or cancel
+    /// with no arena is dropped (`CI-V` item 4) — and the callbacks run under
+    /// their owners. Claims the event while an arena holds it.
+    private func dispatchPinch(_ event: InputEvent) -> Bool {
+        let position: Point<Pixels>, phase: InputPhase
+        switch event {
+        case .magnify(let pinch): (position, phase) = (pinch.position, pinch.phase)
+        case .rotate(let pinch): (position, phase) = (pinch.position, pinch.phase)
+        default: return false
+        }
+        // A `.began` of a kind the arena already holds active means that
+        // kind's end was lost: the stale arena is dropped silently and the
+        // event forms a new one at its own position (ruling `CI-AB` item 2).
+        if phase == .began, let arena = pinchArena, arena.holdsActivePinch(of: event) { pinchArena = nil }
+        if pinchArena == nil {
+            guard phase != .ended, phase != .cancelled,
+                  let arena = makeArena(at: position, mode: .pinch) else { return false }
+            pinchArena = arena
+        }
+        guard var arena = pinchArena else { return false }
+        let callbacks: [GestureCallback]
+        switch event {
+        case .magnify(let pinch): callbacks = arena.magnify(pinch)
+        case .rotate(let pinch): callbacks = arena.rotate(pinch)
+        default: callbacks = []
+        }
+        pinchArena = arena.isAlive ? arena : nil
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    /// Feeds a secondary or other button's press, drag and release to its
+    /// arena (`CI-F` item 3): only drags declared with that button run; with
+    /// none on the chain there is no arena and the event passes on. A second
+    /// button pressed while one's arena is alive is ignored; a press of the
+    /// arena's own button replaces it (`CI-AB`). The secondary
+    /// release opens a context menu the press deferred, unless a drag reached
+    /// its minimum (`CI-F` item 4).
+    private func dispatchButtonArena(_ event: InputEvent) -> Bool {
+        switch event {
+        case .rightMouseDown(let mouse): return buttonPress(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseDown(let mouse): return buttonPress(mouse, button: mouse.buttonNumber)
+        case .rightMouseDragged(let mouse): return buttonMove(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseDragged(let mouse): return buttonMove(mouse, button: mouse.buttonNumber)
+        case .rightMouseUp(let mouse): return buttonRelease(mouse, button: MouseButton.secondary.buttonNumber)
+        case .otherMouseUp(let mouse): return buttonRelease(mouse, button: mouse.buttonNumber)
+        default: return false
+        }
+    }
+
+    private func buttonPress(_ mouse: MouseEvent, button: Int) -> Bool {
+        // A press of the live arena's own button means its release was lost:
+        // the stale arena is dropped silently, as a primary press's
+        // re-formation drops one (ruling `CI-AB` item 1). Another button's
+        // press while an arena is alive is ignored (`CI-AA` item 4).
+        if buttonArena != nil, buttonArenaButton == button { buttonArena = nil }
+        guard buttonArena == nil, var arena = makeArena(at: mouse.position, mode: .button(button)) else {
+            return false
+        }
+        let callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false,
+                                    modifiers: mouse.modifiers)
+        buttonArena = arena
+        buttonArenaButton = button
+        if arena.activatedAnyDrag { pendingContextMenu = nil }
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    private func buttonMove(_ mouse: MouseEvent, button: Int) -> Bool {
+        guard var arena = buttonArena, buttonArenaButton == button else { return false }
+        let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers)
+        buttonArena = arena
+        if arena.activatedAnyDrag { pendingContextMenu = nil }
+        runGestureCallbacks(callbacks)
+        return true
+    }
+
+    private func buttonRelease(_ mouse: MouseEvent, button: Int) -> Bool {
+        let pending = button == MouseButton.secondary.buttonNumber ? pendingContextMenu : nil
+        if pending != nil { pendingContextMenu = nil }
+        guard var arena = buttonArena, buttonArenaButton == button else { return false }
+        let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
+                                      modifiers: mouse.modifiers, click: nil)
+        buttonArena = nil
+        runGestureCallbacks(callbacks)
+        if let pending, !arena.activatedAnyDrag { openPendingContextMenu(pending) }
+        return true
     }
 
     /// Who forms the arena for a press at `point` (drag and drop, ruling

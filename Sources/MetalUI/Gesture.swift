@@ -7,10 +7,12 @@ import MetalUILayout
 
 // MARK: - The closed protocol
 
-/// A gesture: something an element can recognize from a press — SwiftUI's
-/// `Gesture`, spelled as SwiftUI spells it for the three recognizers MetalUI
-/// offers (`TapGesture`, `LongPressGesture`, `DragGesture`) and their two
-/// combinators (`exclusively(before:)`, `simultaneously(with:)`).
+/// A gesture: something an element can recognize from a press or a pinch —
+/// SwiftUI's `Gesture`, spelled as SwiftUI spells it for the recognizers
+/// MetalUI offers (`TapGesture`, `SpatialTapGesture`, `LongPressGesture`,
+/// `DragGesture`, and — in a pinch arena, `CI-D` — `MagnifyGesture` and
+/// `RotateGesture`) and their two combinators (`exclusively(before:)`,
+/// `simultaneously(with:)`).
 ///
 /// **An outside module cannot conform** (ruling `IX-B`): the one requirement
 /// is SPI (`@_spi(MetalUIGesture)`), and so is the type it returns, so a plain
@@ -19,12 +21,12 @@ import MetalUILayout
 /// caller compose a custom gesture through `body`; MetalUI does not (owner
 /// **none**, additive: opening the protocol later breaks no caller).
 ///
-/// **Not offered** (owner none, `IX-B`): `sequenced(before:)`,
+/// **Not offered** (owner none, `IX-B`, `CI-A`): `sequenced(before:)`,
 /// `@GestureState`/`updating(_:body:)`, `GestureMask`/`including:`, the
-/// `isEnabled:`/`name:` attachment overloads, a tap with a location,
-/// `coordinateSpace:` (every value is in the gesture's element's local space,
-/// SwiftUI's default), `SpatialTapGesture`, `MagnifyGesture`, `RotateGesture`,
-/// and `TapGesture().modifiers(_:)`.
+/// `isEnabled:`/`name:` attachment overloads, `CoordinateSpace.named(_:)` and
+/// `.coordinateSpace(_:)` (`.local` and `.global` only), `time`/`velocity`/
+/// `predictedEnd*` on gesture values, `GestureInputKinds`/`inputKinds:`, and
+/// `TapGesture().modifiers(_:)`.
 public protocol Gesture {
     /// The value the gesture reports — `Void` for a tap, `Bool` for a long
     /// press, `DragGesture.Value` for a drag.
@@ -55,16 +57,29 @@ indirect enum GestureNode {
 /// One recognizer and the callbacks it runs.
 struct GestureLeaf {
     enum Kind {
-        case tap(count: Int)
+        /// `spatial` is a `SpatialTapGesture`'s space (`CI-B`), `nil` for a
+        /// `TapGesture`.
+        case tap(count: Int, spatial: CoordinateSpace?)
         case longPress(minimumDuration: Double, maximumDistance: Float)
-        case drag(minimumDistance: Float)
+        /// Live in a press arena for the primary button only, in a button
+        /// arena for its own (`CI-F` item 3).
+        case drag(minimumDistance: Float, coordinateSpace: CoordinateSpace, button: MouseButton)
         /// A `.draggable` (ruling `DN-D`): ready on the first move of more
         /// than zero points, failed at the release.
         case draggable
+        /// Live only in a pinch arena (`CI-D` item 1).
+        case magnify(minimumScaleDelta: Double)
+        /// Live only in a pinch arena; the minimum in degrees.
+        case rotate(minimumAngleDelta: Double)
     }
 
     var kind: Kind
     var tapEnded: (@MainActor () -> Void)?
+    var spatialTapEnded: (@MainActor (SpatialTapGesture.Value) -> Void)?
+    var magnifyChanged: (@MainActor (MagnifyGesture.Value) -> Void)?
+    var magnifyEnded: (@MainActor (MagnifyGesture.Value) -> Void)?
+    var rotateChanged: (@MainActor (RotateGesture.Value) -> Void)?
+    var rotateEnded: (@MainActor (RotateGesture.Value) -> Void)?
     var longPressEnded: (@MainActor (Bool) -> Void)?
     var longPressChanged: (@MainActor (Bool) -> Void)?
     /// `onLongPressGesture`'s `onPressingChanged` only (`IX-C` item 4).
@@ -108,7 +123,7 @@ public struct TapGesture: Gesture {
     }
 
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
-        var leaf = GestureLeaf(kind: .tap(count: count))
+        var leaf = GestureLeaf(kind: .tap(count: count, spatial: nil))
         leaf.tapEnded = ended
         return _GestureRecognizers(.leaf(leaf))
     }
@@ -168,9 +183,20 @@ public struct LongPressGesture: Gesture {
 /// `minimumDistance`, then on every move, and `onEnded` at the release wherever
 /// it lands; a drag that never reaches its minimum reports nothing, and
 /// `minimumDistance: 0` reports a change and an end for a click. Values are in
-/// the element's **local**, y-down space (SwiftUI's default `.local`).
+/// `coordinateSpace` — the element's **local**, y-down space by default
+/// (SwiftUI's `.local`), or the window's content space (`.global`, divergence
+/// 139).
+///
+/// **`button:` is MetalUI-only** (ruling `CI-F`; SwiftUI's drag follows the
+/// primary button alone, probe `R2`/`R4`): a drag for `.secondary`,
+/// `.middle` or `.other(n)` is recognized in that button's own arena, formed
+/// from the one ranking at the press — never in the primary press's, so every
+/// primary-only behaviour keeps `MN-B`. With a secondary drag on the pressed
+/// chain a context menu opens on the release, at the press point, and only if
+/// no such drag reached its minimum (`CI-F` item 4).
 public struct DragGesture: Gesture {
-    /// A drag's state: where it started and is, in the element's local space.
+    /// A drag's state: where it started and is, in the gesture's coordinate
+    /// space, and the modifier keys of the event that produced it.
     public struct Value: Equatable, Sendable {
         /// Where the press began.
         public var startLocation: Point<Pixels>
@@ -178,24 +204,44 @@ public struct DragGesture: Gesture {
         public var location: Point<Pixels>
         /// `location` minus `startLocation`.
         public var translation: Size<Pixels>
+        /// The modifier keys held at the event that produced this value — the
+        /// press for a `minimumDistance: 0` first change, each move, the
+        /// release for `onEnded` (ruling `CI-G`). **MetalUI-only**: SwiftUI's
+        /// value has none (divergence 140). A modifier change without a move
+        /// reports nothing.
+        public var modifiers: EventModifiers
+
+        /// A drag value with no modifiers; `translation` is derived.
+        public init(startLocation: Point<Pixels>, location: Point<Pixels>) {
+            self.init(startLocation: startLocation, location: location, modifiers: [])
+        }
 
         /// A drag value; `translation` is derived.
-        public init(startLocation: Point<Pixels>, location: Point<Pixels>) {
+        public init(startLocation: Point<Pixels>, location: Point<Pixels>, modifiers: EventModifiers) {
             self.startLocation = startLocation
             self.location = location
             self.translation = Size(width: location.x - startLocation.x,
                                     height: location.y - startLocation.y)
+            self.modifiers = modifiers
         }
     }
 
     /// How far the pointer must move before the drag begins.
     public var minimumDistance: Pixels
+    /// The space the values are in.
+    public var coordinateSpace: CoordinateSpace
+    /// The button the drag follows (MetalUI-only, `CI-F`).
+    public var button: MouseButton
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
 
-    /// A drag that begins once the pointer moves `minimumDistance`.
-    public init(minimumDistance: Pixels = Pixels(10)) {
+    /// A drag with `button` that begins once the pointer moves
+    /// `minimumDistance`, reporting values in `coordinateSpace`.
+    public init(minimumDistance: Pixels = Pixels(10), coordinateSpace: CoordinateSpace = .local,
+                button: MouseButton = .primary) {
         self.minimumDistance = minimumDistance
+        self.coordinateSpace = coordinateSpace
+        self.button = button
     }
 
     /// Runs `action` on every reported move.
@@ -213,7 +259,8 @@ public struct DragGesture: Gesture {
     }
 
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
-        var leaf = GestureLeaf(kind: .drag(minimumDistance: minimumDistance.value))
+        var leaf = GestureLeaf(kind: .drag(minimumDistance: minimumDistance.value,
+                                           coordinateSpace: coordinateSpace, button: button))
         leaf.dragChanged = changed
         leaf.dragEnded = ended
         return _GestureRecognizers(.leaf(leaf))
@@ -318,6 +365,15 @@ struct GestureAttachment {
 
 // MARK: - The arena (`IX-D`)
 
+/// Which input an arena recognizes (input APIs, `CI-D` item 1, `CI-F` item 3):
+/// the primary press, a secondary or other button's press by its AppKit button
+/// number, or a trackpad pinch. See `GestureArena`'s "Modes".
+enum ArenaMode: Equatable {
+    case press
+    case button(Int)
+    case pinch
+}
+
 /// A callback the arena decided to run, handed to the window in order. The
 /// window runs each under `StateDispatch.dispatching(to:)` its owner (`IX-D`
 /// item 5, `ID-F`); a click goes through `Window.runClick`, so it keeps
@@ -377,12 +433,78 @@ final class ArenaLeaf {
     var endValue: DragGesture.Value?
     /// Click: what the window resolved at the release.
     var click: (handler: @MainActor () -> Void, modifiers: Modifiers)?
+    /// Spatial tap: the release that ended it, in its space (`CI-B` item 1).
+    var tapLocation: Point<Pixels>?
+    /// Magnify or rotate (`CI-C`): begun in this gesture, the cumulative
+    /// delta, the fixed start point and anchor, and a change owed (`started`
+    /// and `activated` are the drag's fields, with the same meaning).
+    var pinchBegun = false
+    var pinchAmount = 0.0
+    var pinchStart = Point<Pixels>(x: Pixels(0), y: Pixels(0))
+    var pinchAnchor = UnitPoint.zero
+    var pendingPinch = false
 
     init(_ recognizer: Recognizer, owner: GlobalElementID, region: Hitbox) {
         self.recognizer = recognizer
         self.owner = owner
         self.origin = region.origin
         self.region = region
+    }
+
+    /// The two pinch kinds, which never block each other (`CI-D` item 3).
+    enum PinchKind { case magnify, rotate }
+
+    /// This leaf's pinch kind, or `nil` for every other recognizer.
+    var pinchKind: PinchKind? {
+        guard case .gesture(let leaf) = recognizer else { return nil }
+        switch leaf.kind {
+        case .magnify: return .magnify
+        case .rotate: return .rotate
+        default: return nil
+        }
+    }
+
+    /// Whether this leaf is a `DragGesture` of any button.
+    var isDrag: Bool {
+        if case .gesture(let leaf) = recognizer, case .drag = leaf.kind { return true }
+        return false
+    }
+
+    /// Whether this leaf takes part in an arena of `mode` (`CI-D` item 1,
+    /// `CI-F` item 3): a press arena runs everything but pinches and
+    /// non-primary drags; a button arena only its button's drags; a pinch
+    /// arena only magnifies and rotates.
+    func isLive(in mode: ArenaMode) -> Bool {
+        switch recognizer {
+        case .click:
+            return mode == .press
+        case .gesture(let leaf):
+            switch leaf.kind {
+            case .tap, .longPress, .draggable:
+                return mode == .press
+            case .drag(_, _, let button):
+                switch mode {
+                case .press: return button == .primary
+                case .button(let number): return button.buttonNumber == number
+                case .pinch: return false
+                }
+            case .magnify, .rotate:
+                return mode == .pinch
+            }
+        }
+    }
+
+    /// `point` (a window point) in `space`: local to the owning element, its
+    /// render effects undone, or the window point itself.
+    func point(_ point: Point<Pixels>, in space: CoordinateSpace) -> Point<Pixels> {
+        space == .local ? local(point) : point
+    }
+
+    /// The anchor of a local point: its fraction of the registered hit
+    /// region's size (`CI-C` item 3), 0 on an empty axis.
+    func anchor(of local: Point<Pixels>) -> UnitPoint {
+        let w = Double(region.bounds.size.width.value), h = Double(region.bounds.size.height.value)
+        return UnitPoint(x: w > 0 ? Double(local.x.value) / w : 0, y: h > 0 ? Double(local.y.value) / h : 0)
     }
 
     /// Whether this leaf is a `.draggable` (ruling `DN-D`).
@@ -392,7 +514,7 @@ final class ArenaLeaf {
     }
 
     var tapCount: Int? {
-        if case .gesture(let leaf) = recognizer, case .tap(let count) = leaf.kind { return count }
+        if case .gesture(let leaf) = recognizer, case .tap(let count, _) = leaf.kind { return count }
         return nil
     }
 
@@ -463,10 +585,23 @@ final class ArenaNode {
 /// sequence waits for its next press (`IX-C` item 2); a press on the same
 /// target continues it (the second click of a double), a press anywhere else
 /// abandons it first.
+///
+/// **Modes** (input APIs, `CI-D`, `CI-F`): the same arena is formed, from the
+/// same ranking, for three kinds of input, and its mode decides which leaves
+/// are live — the rest are **failed at formation**, so they neither act nor
+/// block. `.press` (the primary button): everything but magnifies, rotates
+/// and non-primary drags, plus the target's `onClick`. `.button(n)` (a
+/// secondary or other button's press): only drags with button `n`, no click.
+/// `.pinch` (a trackpad magnify or rotate): only magnifies and rotates, no
+/// click; it lives while a begun pinch kind has not ended, and **a magnify
+/// and a rotate never block or cancel each other** — among leaves of one kind
+/// the order above holds (`CI-D` item 3).
 @MainActor
 struct GestureArena {
     /// The pressed hitbox's owner.
     let targetID: GlobalElementID
+    /// Which input the arena recognizes.
+    let mode: ArenaMode
     private let exclusiveRoot: ArenaNode
     private let simultaneousRoots: [ArenaNode]
     private let leaves: [ArenaLeaf]
@@ -476,14 +611,18 @@ struct GestureArena {
     /// count is counted from it (`IX-C` item 2).
     private var baseClickCount = 1
     private var callbacks: [GestureCallback] = []
+    /// The pinch kinds begun and not yet ended (pinch mode, `CI-D` item 4).
+    private var activePinchKinds: Set<ArenaLeaf.PinchKind> = []
 
     /// The arena for a press on `target`, with `ancestors` — each a hitbox of
     /// a proper ancestor of the target's id, in the target's hit layer (`IX-Q`),
     /// containing the point, with its
-    /// distance from the target in id levels. `nil` when no gesture is
-    /// attached to any of them: dispatch is then exactly `Window.dispatchClick`
-    /// (`IX-D` item 2).
-    init?(target: Hitbox, ancestors: [(hitbox: Hitbox, depth: Int)], draggableAbove: Hitbox? = nil) {
+    /// distance from the target in id levels. `nil` when no gesture attached
+    /// to any of them is live in `mode`: a press's dispatch is then exactly
+    /// `Window.dispatchClick` (`IX-D` item 2), and a secondary, other or pinch
+    /// event forms nothing.
+    init?(target: Hitbox, ancestors: [(hitbox: Hitbox, depth: Int)], draggableAbove: Hitbox? = nil,
+          mode: ArenaMode = .press) {
         struct Member { let node: ArenaNode; let priority: GestureAttachment.Priority; let depth: Int; let index: Int }
         var members: [Member] = []
         // A non-opaque draggable region ranking above the target joins as the
@@ -498,14 +637,22 @@ struct GestureArena {
         guard !members.isEmpty else { return nil }
         let outermostFirst = { (a: Member, b: Member) in (a.depth, a.index) > (b.depth, b.index) }
         var exclusive = members.filter { $0.priority == .high }.sorted(by: outermostFirst).map(\.node)
-        if target.handlers.onClick != nil {
+        if mode == .press, target.handlers.onClick != nil {
             exclusive.append(ArenaNode(.leaf(ArenaLeaf(.click, owner: target.id, region: target))))
         }
         exclusive += members.filter { $0.priority == .normal }.sorted { outermostFirst($1, $0) }.map(\.node)
         targetID = target.id
+        self.mode = mode
         exclusiveRoot = ArenaNode(.exclusive(exclusive))
         simultaneousRoots = members.filter { $0.priority == .simultaneous }.sorted(by: outermostFirst).map(\.node)
         leaves = ([exclusiveRoot] + simultaneousRoots).flatMap(\.leaves)
+        // Failed at formation (`CI-D` items 1–2, `CI-F` item 3).
+        for leaf in leaves where !leaf.isLive(in: mode) { leaf.status = .failed }
+        let liveGesture = leaves.contains {
+            guard $0.status == .possible, case .gesture = $0.recognizer else { return false }
+            return true
+        }
+        guard liveGesture else { return nil }
     }
 
     private static func build(_ node: GestureNode, owner: GlobalElementID, region: Hitbox) -> ArenaNode {
@@ -519,8 +666,16 @@ struct GestureArena {
         }
     }
 
-    /// Something is still undecided, or the press is still down.
-    var isAlive: Bool { isPressing || leaves.contains { $0.status == .possible } }
+    /// Something is still undecided, or the press is still down; a pinch arena
+    /// while a begun kind has not ended (`CI-D` item 4).
+    var isAlive: Bool {
+        if mode == .pinch { return !activePinchKinds.isEmpty }
+        return isPressing || leaves.contains { $0.status == .possible }
+    }
+
+    /// Some drag leaf reached its minimum distance in this press (`CI-F` item
+    /// 4): a button arena's pending context menu is cancelled by it.
+    var activatedAnyDrag: Bool { leaves.contains { $0.isDrag && $0.started } }
 
     /// A timer is running: the window keeps frames coming only while this is
     /// true (`IX-C` item 4).
@@ -530,16 +685,25 @@ struct GestureArena {
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
-            case .drag, .draggable: return false
+            case .drag, .draggable, .magnify, .rotate: return false
             }
         }
     }
 
     // MARK: Events
 
+    /// `press(at:clickCount:continuing:modifiers:)` with no modifiers — the
+    /// spelling every pre-`CI-` arena test uses.
+    mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool) -> [GestureCallback] {
+        press(at: point, clickCount: clickCount, continuing: continuing, modifiers: [])
+    }
+
     /// A press. `continuing` is the second press of a tap sequence on the same
     /// target: taps re-arm, anything else still undecided is cancelled.
-    mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool) -> [GestureCallback] {
+    /// `modifiers` are the press's, for a `minimumDistance: 0` drag's first
+    /// change (`CI-G`).
+    mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool,
+                        modifiers: Modifiers) -> [GestureCallback] {
         isPressing = true
         if !continuing { baseClickCount = clickCount }
         for leaf in leaves where leaf.status == .possible {
@@ -559,24 +723,32 @@ struct GestureArena {
                     leaf.pressPoint = point
                     leaf.awaitingStamp = true
                     leaf.owesPressing = true
-                case .drag(let minimum):
+                case .drag(let minimum, let space, _):
                     if continuing { fail(leaf); continue }
                     leaf.pressPoint = point
                     if minimum <= 0 {
                         leaf.started = true
-                        leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(point),
-                                                               location: leaf.local(point))
+                        leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(point, in: space),
+                                                               location: leaf.point(point, in: space),
+                                                               modifiers: modifiers)
                     }
                 case .draggable:
                     leaf.pressPoint = point
+                case .magnify, .rotate:
+                    break
                 }
             }
         }
         return resolve()
     }
 
-    /// A move while pressed.
+    /// `move(to:modifiers:)` with no modifiers.
     mutating func move(to point: Point<Pixels>) -> [GestureCallback] {
+        move(to: point, modifiers: [])
+    }
+
+    /// A move while pressed, with the modifiers its event carried (`CI-G`).
+    mutating func move(to point: Point<Pixels>, modifiers: Modifiers) -> [GestureCallback] {
         guard isPressing else { return [] }
         for leaf in leaves where leaf.status == .possible {
             guard case .gesture(let g) = leaf.recognizer else { continue }
@@ -586,24 +758,34 @@ struct GestureArena {
                 if !leaf.ready && distance >= tapSlop { fail(leaf) }
             case .longPress(_, let maximum):
                 if distance >= maximum { fail(leaf) }
-            case .drag(let minimum):
+            case .drag(let minimum, let space, _):
                 if !leaf.started && distance >= minimum { leaf.started = true }
                 if leaf.started {
-                    leaf.pendingChange = DragGesture.Value(startLocation: leaf.local(leaf.pressPoint),
-                                                           location: leaf.local(point))
+                    leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
+                                                           location: leaf.point(point, in: space),
+                                                           modifiers: modifiers)
                 }
             case .draggable:
                 // The first move of more than zero points (`DN-D` item 1,
                 // `P17`/`P17z`): no slop, unlike a tap's.
                 if distance > 0 { leaf.ready = true }
+            case .magnify, .rotate:
+                break
             }
         }
         return resolve()
     }
 
-    /// The release. `click` is what the window's press-and-release test
-    /// resolved for the target's `onClick` — `nil` when it failed.
+    /// `release(at:clickCount:modifiers:click:)` with no modifiers.
     mutating func release(at point: Point<Pixels>, clickCount: Int,
+                          click: (handler: @MainActor () -> Void, modifiers: Modifiers)?) -> [GestureCallback] {
+        release(at: point, clickCount: clickCount, modifiers: [], click: click)
+    }
+
+    /// The release, with its event's modifiers (a drag's `onEnded`, `CI-G`).
+    /// `click` is what the window's press-and-release test resolved for the
+    /// target's `onClick` — `nil` when it failed.
+    mutating func release(at point: Point<Pixels>, clickCount: Int, modifiers: Modifiers,
                           click: (handler: @MainActor () -> Void, modifiers: Modifiers)?) -> [GestureCallback] {
         isPressing = false
         for leaf in leaves {
@@ -616,7 +798,7 @@ struct GestureArena {
                 if let click { leaf.click = click; leaf.ready = true } else { fail(leaf) }
             case .gesture(let g):
                 switch g.kind {
-                case .tap(let count):
+                case .tap(let count, let spatial):
                     guard !leaf.ready else { continue }
                     if Self.distance(point, leaf.pressPoint) >= tapSlop || !leaf.region.contains(point) {
                         fail(leaf)
@@ -625,6 +807,8 @@ struct GestureArena {
                     let taps = clickCount - baseClickCount + 1
                     if taps == count {
                         leaf.ready = true
+                        // The release that ends the tap (`CI-B` item 1).
+                        if let spatial { leaf.tapLocation = leaf.point(point, in: spatial) }
                     } else if taps < count {
                         leaf.awaitingStamp = true
                     } else {
@@ -632,7 +816,7 @@ struct GestureArena {
                     }
                 case .longPress:
                     if !leaf.ready { fail(leaf) }
-                case .drag:
+                case .drag(_, let space, _):
                     // A change still withheld at the release is never
                     // reported: a drag that did not activate during the press
                     // is cancelled with no callback (`IX-D` item 3, MetalUI's
@@ -641,15 +825,78 @@ struct GestureArena {
                     if !leaf.started {
                         fail(leaf)
                     } else {
-                        leaf.endValue = DragGesture.Value(startLocation: leaf.local(leaf.pressPoint),
-                                                          location: leaf.local(point))
+                        leaf.endValue = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
+                                                          location: leaf.point(point, in: space),
+                                                          modifiers: modifiers)
                         leaf.ready = true
                     }
                 case .draggable:
                     fail(leaf)
+                case .magnify, .rotate:
+                    break
                 }
             }
         }
+        return resolve()
+    }
+
+    /// Whether `event` — a `.magnify` or `.rotate` — is of a pinch kind this
+    /// arena holds begun and not yet ended (`CI-AB` item 2).
+    func holdsActivePinch(of event: InputEvent) -> Bool {
+        switch event {
+        case .magnify: return activePinchKinds.contains(.magnify)
+        case .rotate: return activePinchKinds.contains(.rotate)
+        default: return false
+        }
+    }
+
+    /// A trackpad magnify step (pinch mode, `CI-C`, `CI-D`).
+    mutating func magnify(_ event: MagnifyEvent) -> [GestureCallback] {
+        pinch(.magnify, delta: event.magnification, phase: event.phase, at: event.position)
+    }
+
+    /// A trackpad rotate step, clockwise-positive degrees (pinch mode).
+    mutating func rotate(_ event: RotateEvent) -> [GestureCallback] {
+        pinch(.rotate, delta: event.rotation, phase: event.phase, at: event.position)
+    }
+
+    /// One pinch step of `kind`: a `.began` (or the kind's first event) begins
+    /// it — each leaf of the kind fixes its start point and anchor and starts
+    /// from 0; every event adds its delta; a leaf owes a change once |Σ|
+    /// reaches its minimum; `.ended`/`.cancelled` makes an activated leaf
+    /// ready to end and fails the rest. An end of a kind that is not active
+    /// is ignored.
+    private mutating func pinch(_ kind: ArenaLeaf.PinchKind, delta: Double, phase: InputPhase,
+                                at point: Point<Pixels>) -> [GestureCallback] {
+        let ends = phase == .ended || phase == .cancelled
+        if ends && !activePinchKinds.contains(kind) { return [] }
+        let begins = phase == .began || !activePinchKinds.contains(kind)
+        activePinchKinds.insert(kind)
+        for leaf in leaves where leaf.status == .possible && leaf.pinchKind == kind {
+            guard case .gesture(let g) = leaf.recognizer else { continue }
+            if begins || !leaf.pinchBegun {
+                leaf.pinchBegun = true
+                leaf.pinchAmount = 0
+                leaf.started = false
+                leaf.pinchStart = leaf.local(point)
+                leaf.pinchAnchor = leaf.anchor(of: leaf.pinchStart)
+            }
+            leaf.pinchAmount += delta
+            let minimum: Double
+            switch g.kind {
+            case .magnify(let scale): minimum = scale
+            case .rotate(let degrees): minimum = degrees
+            default: continue
+            }
+            if !leaf.started && abs(leaf.pinchAmount) >= minimum { leaf.started = true }
+            if ends {
+                leaf.pendingPinch = false
+                if leaf.started { leaf.ready = true } else { fail(leaf) }
+            } else if leaf.started {
+                leaf.pendingPinch = true
+            }
+        }
+        if ends { activePinchKinds.remove(kind) }
         return resolve()
     }
 
@@ -668,7 +915,7 @@ struct GestureArena {
                 if time - stamp >= tapSequenceDeferral { fail(leaf) }
             case .longPress(let duration, _):
                 if !leaf.ready && time - stamp >= duration { leaf.ready = true }
-            case .drag, .draggable:
+            case .drag, .draggable, .magnify, .rotate:
                 break
             }
         }
@@ -764,11 +1011,20 @@ struct GestureArena {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(change) }))
                 }
             }
+            if leaf.pendingPinch {
+                leaf.pendingPinch = false
+                leaf.activated = true
+                appendPinchCallback(leaf, g, ended: false)
+            }
             guard leaf.ready else { return false }
             switch g.kind {
             case .tap:
                 leaf.status = .ended
                 if let callback = g.tapEnded { callbacks.append(.gesture(owner: leaf.owner, run: callback)) }
+                if let callback = g.spatialTapEnded, let location = leaf.tapLocation {
+                    let value = SpatialTapGesture.Value(location: location)
+                    callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
+                }
             case .longPress:
                 leaf.status = .ended
                 if let callback = g.longPressEnded {
@@ -793,8 +1049,38 @@ struct GestureArena {
                     callbacks.append(.beginDrag(owner: leaf.owner, source: source, at: leaf.pressPoint))
                 }
                 for other in leaves where other !== leaf && other.status == .possible { fail(other) }
+            case .magnify, .rotate:
+                // A pinch that never reported a change ends with no callback
+                // (`CI-C` item 4).
+                guard leaf.activated else {
+                    fail(leaf)
+                    return true
+                }
+                leaf.status = .ended
+                appendPinchCallback(leaf, g, ended: true)
             }
             return true
+        }
+    }
+
+    /// Appends a magnify's or a rotate's `onChanged` or `onEnded` with the
+    /// leaf's current value (`CI-C` items 1–3).
+    private mutating func appendPinchCallback(_ leaf: ArenaLeaf, _ g: GestureLeaf, ended: Bool) {
+        switch g.kind {
+        case .magnify:
+            let value = MagnifyGesture.Value(magnification: 1 + leaf.pinchAmount, startLocation: leaf.pinchStart,
+                                             startAnchor: leaf.pinchAnchor)
+            if let callback = ended ? g.magnifyEnded : g.magnifyChanged {
+                callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
+            }
+        case .rotate:
+            let value = RotateGesture.Value(rotation: .degrees(leaf.pinchAmount), startLocation: leaf.pinchStart,
+                                            startAnchor: leaf.pinchAnchor)
+            if let callback = ended ? g.rotateEnded : g.rotateChanged {
+                callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
+            }
+        default:
+            break
         }
     }
 
@@ -812,6 +1098,12 @@ struct GestureArena {
         if leaf.isDraggable {
             return ahead.contains { $0.status == .ended
                                     || ($0.status == .possible && !Self.yieldsToDraggable($0)) }
+        }
+        // A pinch leaf is held off only by a leaf of its own kind ahead that
+        // has not failed (`CI-D` item 3): a magnify and a rotate never block
+        // each other.
+        if let kind = leaf.pinchKind {
+            return ahead.contains { node in node.leaves.contains { $0.pinchKind == kind && $0.status != .failed } }
         }
         let count = leaf.tapCount
         // An ended member ahead blocks too: everything behind it is cancelled
@@ -838,7 +1130,7 @@ struct GestureArena {
             case .gesture(let g):
                 switch g.kind {
                 case .tap, .longPress: return true
-                case .drag, .draggable: return false
+                case .drag, .draggable, .magnify, .rotate: return false
                 }
             }
         }
@@ -860,8 +1152,15 @@ struct GestureArena {
                 break
             case .exclusive(let children):
                 if let first = children.firstIndex(where: { $0.status == .ended }) {
+                    // An ended magnify cancels only magnifies behind it, an
+                    // ended rotate only rotates (`CI-D` item 3).
+                    let ended = children[first].leaves.filter { $0.status == .ended }
+                    let kinds = Set(ended.compactMap(\.pinchKind))
+                    let pinchOnly = !ended.isEmpty && ended.allSatisfy { $0.pinchKind != nil }
                     for child in children[(first + 1)...] {
-                        cancelled += child.leaves.filter { $0.status == .possible }
+                        cancelled += child.leaves.filter { leaf in
+                            leaf.status == .possible && (!pinchOnly || leaf.pinchKind.map(kinds.contains) == true)
+                        }
                     }
                 }
                 children.forEach(walk)

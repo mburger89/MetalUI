@@ -42,6 +42,7 @@ private func describe(_ event: InputEvent) -> String {
     case .mouseDragged(let m): return "drag\(at(m))"
     case .rightMouseDown(let m): return "rdown\(at(m))"
     case .rightMouseUp(let m): return "rup\(at(m))"
+    case .rightMouseDragged(let m): return "rdrag\(at(m))"
     case .keyDown(let k):
         var mods = ""
         if k.modifiers.contains(.control) { mods += "⌃" }
@@ -196,11 +197,12 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(log.entries == ["menu(7,nil)"])
 }
 
-/// **2.4** (`MN-B`, `MN-AC` item 1). Real `NSEvent`s to the host view: the
-/// right button arrives as `.rightMouseDown`/`.rightMouseUp`; a control-click
-/// is a secondary press too — its drag dropped, its release `.rightMouseUp` —
-/// and a plain click after it is primary again. Mutation: drop the control
-/// mapping.
+/// **2.4** (`MN-B`, `MN-AC` item 1, amended by `CI-E` item 3 / `CI-T`). Real
+/// `NSEvent`s to the host view: the right button arrives as
+/// `.rightMouseDown`/`.rightMouseUp`; a control-click is a secondary press too
+/// — its drag a secondary drag (`.rightMouseDragged`; it was dropped before
+/// `CI-T`), its release `.rightMouseUp` — and a plain click after it is
+/// primary again. Mutation: drop the control mapping.
 @MainActor
 @Test func aRightMouseDownAndAControlClickReachOnInputAsRightMouseDown() throws {
     let (_, appKit, nsWindow, log) = try hostWindow()
@@ -212,7 +214,8 @@ private let appName = ProcessInfo.processInfo.processName
     view.mouseUp(with: try mouse(.leftMouseUp, 55, 65, .control, in: nsWindow))
     view.mouseDown(with: try mouse(.leftMouseDown, 70, 80, in: nsWindow))
     view.mouseUp(with: try mouse(.leftMouseUp, 70, 80, in: nsWindow))
-    #expect(log.entries == ["rdown(30,40)", "rup(30,40)", "rdown(50,60)^", "rup(55,65)^", "down(70,80)", "up(70,80)"])
+    #expect(log.entries == ["rdown(30,40)", "rup(30,40)", "rdown(50,60)^", "rdrag(55,65)^", "rup(55,65)^",
+                           "down(70,80)", "up(70,80)"])
 }
 
 // MARK: - 2.5, 2.9: key equivalents

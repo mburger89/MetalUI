@@ -15,6 +15,24 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
     public static let command = Modifiers(rawValue: 1 << 3)
 }
 
+/// The phase of a trackpad gesture or a scroll (ruling `CI-I` item 1): AppKit's
+/// `NSEvent.Phase`, one value per event. `.none` where the platform reports no
+/// phase — a wheel mouse, and every event on SDL.
+public enum InputPhase: Sendable, Hashable {
+    /// No phase: the event is not part of a gesture the platform tracks.
+    case none
+    /// A touch rests on the trackpad and a gesture may begin.
+    case mayBegin
+    /// The gesture's first event.
+    case began
+    /// The gesture continues.
+    case changed
+    /// The gesture's last event.
+    case ended
+    /// The system cancelled the gesture.
+    case cancelled
+}
+
 /// A pointer press, release or move.
 public struct MouseEvent: Sendable {
     /// The pointer's position in window points, y down.
@@ -23,9 +41,16 @@ public struct MouseEvent: Sendable {
     public var modifiers: Modifiers
     /// The click count: 2 for the second press of a double click.
     public var clickCount: Int
+    /// The button, in AppKit's numbering (ruling `CI-E` item 1): 0 primary, 1
+    /// secondary, 2 middle, 3 back, 4 forward, and so on. The primary and
+    /// secondary cases of `InputEvent` carry 0 and 1 by construction on every
+    /// platform; `Window` reads it only on the `other…` cases.
+    public var buttonNumber: Int
     /// A mouse event at `position`.
-    public init(position: Point<Pixels>, modifiers: Modifiers = [], clickCount: Int = 1) {
+    public init(position: Point<Pixels>, modifiers: Modifiers = [], clickCount: Int = 1,
+                buttonNumber: Int = 0) {
         self.position = position; self.modifiers = modifiers; self.clickCount = clickCount
+        self.buttonNumber = buttonNumber
     }
 }
 
@@ -33,13 +58,35 @@ public struct MouseEvent: Sendable {
 public struct ScrollEvent: Sendable {
     /// The pointer's position in window points.
     public var position: Point<Pixels>
-    /// How far to scroll, in points on each axis.
+    /// How far to scroll, in points on each axis — a non-precise device's lines
+    /// × 10 on both platforms (`isPrecise` says which). Never transformed by
+    /// render effects: it is the device's motion (ruling `CI-I` item 1).
     public var delta: Point<Pixels>
     /// The modifier keys held.
     public var modifiers: Modifiers
-    /// Trackpad phase. Honouring this is what makes scrolling feel native
-    /// rather than web-like (spec 8.2).
-    public var isMomentum: Bool
+    /// The trackpad gesture's phase (`NSEvent.phase`); `.none` for a wheel
+    /// mouse, for momentum events, and on SDL (ruling `CI-I` items 1 and 6).
+    public var phase: InputPhase
+    /// The momentum phase (`NSEvent.momentumPhase`): not `.none` while the
+    /// system coasts after the fingers lift; `.none` on SDL.
+    public var momentumPhase: InputPhase
+    /// Whether `delta` came from a precise device (a trackpad, a Magic Mouse)
+    /// in points; `false` for a wheel mouse's lines × 10, and always on SDL.
+    public var isPrecise: Bool
+    /// The pointer in the receiving element's local space, render effects
+    /// undone (ruling `CI-I` item 1). At the platform seam and in
+    /// `Window.onInput` it equals `position`.
+    public var location: Point<Pixels>
+    /// Whether this is a momentum event: `momentumPhase != .none`. Honouring
+    /// this is what makes scrolling feel native rather than web-like (spec
+    /// 8.2). Assignable (ruling `CI-V` item 1): `true` marks a `.none` momentum
+    /// phase `.changed` and keeps one already under way; `false` sets `.none`.
+    public var isMomentum: Bool {
+        get { momentumPhase != .none }
+        set {
+            if !newValue { momentumPhase = .none } else if momentumPhase == .none { momentumPhase = .changed }
+        }
+    }
     /// When the event occurred, on the same clock as `CADisplayLink.timestamp`
     /// (both trace to `mach_absolute_time`) — `NSEvent.timestamp` on AppKit.
     /// `Window.applyScroll` stamps `ScrollState.lastScrollTime` from this
@@ -49,12 +96,69 @@ public struct ScrollEvent: Sendable {
     /// ramp would compute an `age` large enough to suppress the indicator on
     /// the very frame that should show it.
     public var timestamp: Double
-    /// A scroll event at `position` by `delta`.
+    /// A scroll event at `position` by `delta`: no gesture phase, a precise
+    /// delta, and a momentum phase of `.changed` when `isMomentum` (the
+    /// spelling before ruling `CI-I`, meaning unchanged).
     public init(position: Point<Pixels>, delta: Point<Pixels>,
                 modifiers: Modifiers = [], isMomentum: Bool = false, timestamp: Double = 0) {
+        self.init(position: position, delta: delta, modifiers: modifiers, phase: .none,
+                  momentumPhase: isMomentum ? .changed : .none, isPrecise: true, timestamp: timestamp)
+    }
+    /// A scroll event with every field the platforms fill (ruling `CI-I` item
+    /// 1); `location` is `position`.
+    public init(position: Point<Pixels>, delta: Point<Pixels>, modifiers: Modifiers = [],
+                phase: InputPhase, momentumPhase: InputPhase, isPrecise: Bool, timestamp: Double) {
         self.position = position; self.delta = delta
-        self.modifiers = modifiers; self.isMomentum = isMomentum
+        self.modifiers = modifiers
+        self.phase = phase; self.momentumPhase = momentumPhase; self.isPrecise = isPrecise
+        self.location = position
         self.timestamp = timestamp
+    }
+}
+
+/// One step of a trackpad pinch (ruling `CI-J` item 1): AppKit's
+/// `magnify(with:)`, SDL's `SDL_EVENT_PINCH_*`.
+public struct MagnifyEvent: Sendable {
+    /// The pointer's position in window points (on SDL, which gives a pinch
+    /// none, the window's last pointer position — `CI-K` item 2).
+    public var position: Point<Pixels>
+    /// **This event's** additive delta (`NSEvent.magnification`): +0.1 is ten
+    /// percent larger; a gesture's magnification is 1 plus the sum (`CI-C`).
+    public var magnification: Double
+    /// The gesture's phase.
+    public var phase: InputPhase
+    /// The modifier keys held.
+    public var modifiers: Modifiers
+    /// When the event occurred, on `ScrollEvent.timestamp`'s clock.
+    public var timestamp: Double
+    /// A pinch step at `position` by `magnification`.
+    public init(position: Point<Pixels>, magnification: Double, phase: InputPhase,
+                modifiers: Modifiers = [], timestamp: Double = 0) {
+        self.position = position; self.magnification = magnification; self.phase = phase
+        self.modifiers = modifiers; self.timestamp = timestamp
+    }
+}
+
+/// One step of a trackpad rotation (ruling `CI-J` item 1): AppKit's
+/// `rotate(with:)`. SDL has none (`CI-K` item 3).
+public struct RotateEvent: Sendable {
+    /// The pointer's position in window points.
+    public var position: Point<Pixels>
+    /// **This event's** delta in degrees, **clockwise-positive** on screen
+    /// (y down): the negative of AppKit's `NSEvent.rotation`, negated once at
+    /// the seam (`CI-C` item 2, probe `Q1`).
+    public var rotation: Double
+    /// The gesture's phase.
+    public var phase: InputPhase
+    /// The modifier keys held.
+    public var modifiers: Modifiers
+    /// When the event occurred, on `ScrollEvent.timestamp`'s clock.
+    public var timestamp: Double
+    /// A rotation step at `position` by `rotation` degrees clockwise.
+    public init(position: Point<Pixels>, rotation: Double, phase: InputPhase,
+                modifiers: Modifiers = [], timestamp: Double = 0) {
+        self.position = position; self.rotation = rotation; self.phase = phase
+        self.modifiers = modifiers; self.timestamp = timestamp
     }
 }
 
@@ -183,6 +287,27 @@ public enum InputEvent: Sendable {
     /// **Migration** (`MD-J` item 6): an exhaustive `switch` over `InputEvent`
     /// outside this package adds a `.toolbarAction` case or a `default:`.
     case toolbarAction(ToolbarActionEvent)
+    /// Pointer motion with the secondary button held (ruling `CI-E` item 1) —
+    /// on AppKit a control-press's drag too (`CI-E` item 3). Like the secondary
+    /// press it never drags a primary-style control (`MN-B`); only a
+    /// `DragGesture` naming the secondary button follows it (`CI-F`).
+    ///
+    /// **Migration** (`CI-E` item 5): an exhaustive `switch` over `InputEvent`
+    /// outside this package adds `.rightMouseDragged`, `.otherMouseDown`,
+    /// `.otherMouseDragged`, `.otherMouseUp`, `.magnify` and `.rotate` arms (or
+    /// a `default:`).
+    case rightMouseDragged(MouseEvent)
+    /// A press of any button but the primary and the secondary (ruling `CI-E`
+    /// item 1): the middle button (`buttonNumber` 2), back (3), forward (4)….
+    case otherMouseDown(MouseEvent)
+    /// Pointer motion with an other button held (`CI-E` item 1).
+    case otherMouseDragged(MouseEvent)
+    /// The release of an other button (`CI-E` item 1).
+    case otherMouseUp(MouseEvent)
+    /// A trackpad pinch step (ruling `CI-J` item 1).
+    case magnify(MagnifyEvent)
+    /// A trackpad rotation step (ruling `CI-J` item 1); never on SDL.
+    case rotate(RotateEvent)
     // Reserved: focusMove (tvOS), spatial (visionOS). See spec 3.2.
 }
 
