@@ -36,7 +36,9 @@ extension StyledElement {
     /// put the handler on its content, `CI-AH` item 1). An opaque target drawn
     /// above that is not inside this element stops the wheel; one inside it
     /// does not. A wheel nothing claims reaches the window's `onInput`, unless
-    /// an opaque target was under the pointer.
+    /// an opaque target was under the pointer — this element's own included:
+    /// a declining handler on a click target still stops the wheel, and one
+    /// on a `TextEditor` leaves the editor scrolling itself (`CI-AL` item 1).
     ///
     /// `action` runs from input, on the main actor, dispatched to this
     /// element, so `@State` and `Binding` writes are legal. Each event is

@@ -276,8 +276,8 @@ private func scrollerWithHandlerOnFirstRow(_ log: BLog) -> some Element {
 }
 
 /// **3.6** (`CI-AH` item 1, amending `CI-I` item 4's "a legacy `.onScrollWheel`
-/// on a `ScrollView` itself (same id)": no spelling gives a handler the
-/// scroller's own id). A handler on a `ScrollView`'s **content** runs before
+/// on a `ScrollView` itself (same id)": no spelling gives a handler a built-in
+/// scroller's own id — a custom conformer can, `CI-AL` item 3). A handler on a `ScrollView`'s **content** runs before
 /// its scrolling and can veto it (claim: offset 0; decline: 37); a legacy
 /// `.onScrollWheel` written on the `ScrollView` (a `ModifiedContent` layer,
 /// the scroller's parent) sees nothing. Mutation: consult the chain's scroll
@@ -818,4 +818,139 @@ private struct GrabbingBox: Component {
     styledPlatform.simulateInput(moved(150, 100))
     #expect(styled.pointerStyleVisits > 0, "the instrument counts")
     withExtendedLifetime((plain, styled)) {}
+}
+
+// MARK: - CI-AL: a declining wheel handler falls through to its own element
+
+/// The window's only text editor's own vertical scroll, `TextEditState.scrollY`
+/// (`TI-H`). Read from the state, not from the hit region's top minus the
+/// content's: inside a scrolled `ScrollView` the region is clipped to the
+/// viewport, so that difference also moves when the outer scroller does.
+@MainActor
+private func editorScroll(_ window: Window, sourceLocation: SourceLocation = #_sourceLocation) throws -> Double {
+    let region = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }, "the editor registers",
+                              sourceLocation: sourceLocation)
+    var scrollY = 0.0
+    window.stateTable.withState(region.id, initial: TextEditState()) { scrollY = $0.scrollY }
+    return scrollY
+}
+
+/// The window point 10 points inside the top-leading corner of the editor.
+@MainActor
+private func insideEditor(_ window: Window) throws -> Point<Pixels> {
+    let region = try #require(window.lastHitboxes.first { $0.handlers.textInput != nil }, "the editor registers")
+    return Point(x: region.bounds.origin.x + px(10), y: region.bounds.origin.y + px(10))
+}
+
+@MainActor
+private final class EditorText {
+    var text = (1...40).map { "line \($0)" }.joined(separator: "\n")
+}
+
+/// **`CI-AL` item 1** (`CI-AJ` item 1). A legacy click target carrying an
+/// `.onScrollWheel` that declines still stops the wheel (`DD-Y`): the handler
+/// runs, the event is claimed and never reaches the window's `onInput`. The
+/// separating arm is 3.13 — the same box with no `onClick` is not claimed.
+/// Mutation: read the opacity off the cover (the handler's own non-opaque
+/// region) instead of the element's opaque hitbox under the point.
+@MainActor
+@Test func aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel() throws {
+    let log = BLog()
+    log.claims = false
+    let (window, platform) = try bWindow {
+        square().onClick {}.onScrollWheel { _ in log.entries.append("handler"); return log.claims }
+    }
+    try #require(window.lastHitboxes.contains { $0.opaque }, "the click target is registered")
+    var raw = 0
+    window.onInput = { event in
+        if case .scrollWheel = event { raw += 1 }
+        return false
+    }
+    #expect(platform.simulateInput(wheel(150, 150)), "the click target under the declining handler claims")
+    #expect(log.entries == ["handler"], "\(log.entries)")
+    #expect(raw == 0, "a click target stops the wheel: raw \(raw)")
+    withExtendedLifetime(window) {}
+}
+
+/// **`CI-AL` item 1** (`CI-AK` item 6). A `TextEditor` carrying an
+/// `.onScrollWheel` that declines still scrolls itself (`TI-H`): in a plain
+/// `Box` the wheel of −100 is claimed, never reaches `onInput`, and moves the
+/// editor's content 100; inside an enclosing `ScrollView` a wheel of −30 moves
+/// the editor 30 and leaves the outer scroller at 0. The handler runs once
+/// each time. The separating arm without a handler is
+/// `theWheelScrollsAndTypingScrollsTheCaretBackIntoView`. Mutation: take the
+/// `TI-H` decision from the cover's handlers instead of the element's.
+@MainActor
+@Test func aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself() throws {
+    let log = BLog()
+    log.claims = false
+    let notes = EditorText()
+    let (boxed, boxedPlatform) = try bWindow(size: 120) {
+        Box {
+            TextEditor("Notes", text: notes.text) { notes.text = $0 }
+                .onScrollWheel { _ in log.entries.append("boxed"); return log.claims }
+        }
+    }
+    var raw = 0
+    boxed.onInput = { event in
+        if case .scrollWheel = event { raw += 1 }
+        return false
+    }
+    #expect(try editorScroll(boxed) == 0)
+    #expect(boxedPlatform.simulateInput(wheel(try insideEditor(boxed).x.value, try insideEditor(boxed).y.value,
+                                              dy: -100)),
+            "the editor claims the declined wheel")
+    redraw(boxed)
+    #expect(log.entries == ["boxed"], "\(log.entries)")
+    #expect(raw == 0, "the claimed wheel never reaches onInput: raw \(raw)")
+    let boxedScroll = try editorScroll(boxed)
+    #expect(boxedScroll == 100, "the editor scrolled itself: \(boxedScroll)")
+
+    let (nested, nestedPlatform) = try bWindow(size: 100) {
+        ScrollView(.vertical, elementID: ElementID("outer")) {
+            Column {
+                TextEditor("Notes", text: notes.text) { notes.text = $0 }
+                    .onScrollWheel { _ in log.entries.append("nested"); return log.claims }
+                    .frame(width: px(100), height: px(80))
+                row(); row(); row()
+            }
+        }
+    }
+    #expect(try editorScroll(nested) == 0)
+    #expect(try scrollOffset(nested) == 0)
+    #expect(nestedPlatform.simulateInput(wheel(try insideEditor(nested).x.value, try insideEditor(nested).y.value,
+                                               dy: -30)),
+            "claimed")
+    redraw(nested)
+    #expect(log.entries == ["boxed", "nested"], "\(log.entries)")
+    let (inner, outer) = (try editorScroll(nested), try scrollOffset(nested))
+    #expect(inner == 30, "the editor scrolled itself: \(inner)")
+    #expect(outer == 0, "the outer scroller did not move: \(outer)")
+    withExtendedLifetime((boxed, nested)) {}
+}
+
+/// **`CI-AL` item 2** (`CI-AJ` item 3, spec §1.4 item 1). A pinch recomputes
+/// the hover set and the pointer style at its own position: with no pointer
+/// move yet, a `.magnify` over a `.pointerStyle(.rectSelection)` box (the
+/// platform's crosshair) that also takes `.onHover` shows the crosshair and
+/// enters the hover; after a move
+/// off the box (arrow, hover left), a `.rotate` over it does the same.
+/// Mutation: drop `.magnify, .rotate` from `Window.onInput`'s hover case.
+@MainActor
+@Test func aPinchRecomputesTheHoverAndThePointerStyleAtItsPosition() throws {
+    let log = BLog()
+    let (window, platform) = try bWindow {
+        square().onHover { log.entries.append($0 ? "in" : "out") }.pointerStyle(.rectSelection)
+    }
+    #expect(platform.pointerStyles.last != .crosshair, "\(platform.pointerStyles)")
+    platform.simulateInput(magnify(0.1, .began, at: pt(150, 150)))
+    #expect(platform.pointerStyles.last == .crosshair, "after a magnify: \(platform.pointerStyles)")
+    #expect(log.entries == ["in"], "\(log.entries)")
+    platform.simulateInput(moved(20, 20))
+    #expect(platform.pointerStyles.last == .arrow, "off the box: \(platform.pointerStyles)")
+    #expect(log.entries == ["in", "out"], "\(log.entries)")
+    platform.simulateInput(.rotate(RotateEvent(position: pt(150, 150), rotation: 5, phase: .began)))
+    #expect(platform.pointerStyles.last == .crosshair, "after a rotate: \(platform.pointerStyles)")
+    #expect(log.entries == ["in", "out", "in"], "\(log.entries)")
+    withExtendedLifetime(window) {}
 }

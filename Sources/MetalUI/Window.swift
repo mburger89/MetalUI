@@ -886,6 +886,12 @@ public final class Window {
                 self.updateHover(at: self.lastMousePosition, reportsMoves: true, releasing: true)
             case .pointerExited:
                 self.updateHover(at: nil, reportsMoves: true)
+            // A pinch at its own position (spec §1.4 item 1, `CI-AL` item 2):
+            // the hovered set and the pointer style follow it; an entering
+            // region hears `onHover`, but a pinch is not a move, so
+            // `onContinuousHover` reports nothing from a member already in.
+            case .magnify, .rotate:
+                self.updateHover(at: self.lastMousePosition, reportsMoves: false)
             default:
                 break
             }
@@ -1874,16 +1880,40 @@ public final class Window {
     /// `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`,
     /// `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`,
     /// `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller` and
-    /// the input-API tests 3.3–3.13 (`InputAPIWindowTests`). No two elements
-    /// share an id, so a scroller's own id never carries a handler (`CI-AH`
-    /// item 1): a handler around a scroller sees nothing over it. Each event is
+    /// the input-API tests 3.3–3.13 (`InputAPIWindowTests`). **The element is
+    /// the cover, not its handler's region** (`CI-AL` item 1): a legacy
+    /// `.onScrollWheel` registers its non-opaque region under the element's
+    /// own id, ranking above the element's opaque hitbox, so when the top
+    /// match is non-opaque and that id's opaque hitbox on its layer is under
+    /// the point, that hitbox is the cover — a declining handler on a click
+    /// target still stops the wheel, and one on a `TextEditor` leaves it
+    /// scrolling itself, inside a `ScrollView` too
+    /// (`aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel`,
+    /// `aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself`). No
+    /// built-in scroller shares an id with a handler, so a handler on or around
+    /// a `ScrollView` sees nothing over it (`CI-AH` item 1, narrowed by `CI-AL`
+    /// item 3: a custom `StyledElement` that calls the public
+    /// `registerScrollRegion` under its own id and takes `.onScrollWheel` does
+    /// share it, and its handler runs first — unpinned). Each event is
     /// dispatched at its own position — no latching (`CI-AD`).
     private func applyScroll(_ event: ScrollEvent) -> Bool {
         let point = event.position
-        guard let coverIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
+        guard let topIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.pointer?.scrollWheel != nil
         }) else { return false }
-        let cover = lastHitboxes[coverIndex]
+        var cover = lastHitboxes[topIndex]
+        // A legacy `.onScrollWheel` registers its non-opaque wheel region under
+        // the element's own id after the element's opaque hitbox, so it ranks
+        // above it. The element is still the cover (`CI-AL` item 1): when that
+        // element's opaque hitbox on the same layer is under the point too —
+        // the one ranking again, never a second lookup — the cover is it, so a
+        // declining handler falls through to the element's own `TI-H` scroll
+        // and opacity rather than the handler-only region's.
+        if !cover.opaque, let own = topmostHitbox(in: lastHitboxes, at: point, where: { [cover] in
+            $0.opaque && $0.id == cover.id && $0.layer == cover.layer
+        }) {
+            cover = lastHitboxes[own]
+        }
         let candidates = lastHitboxes.indices.filter {
             let region = lastHitboxes[$0]
             return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
@@ -1994,6 +2024,13 @@ public final class Window {
             // A secondary or other press, and its drag, move the pointer,
             // never `active` (`MN-B` item 4, `CI-E` item 2).
             lastMousePosition = mouse.position
+        case .magnify(let pinch):
+            // A pinch is at the pointer (AppKit's event location, SDL's last
+            // pointer position): it moves `lastMousePosition`, never `active`
+            // (`CI-AL` item 2).
+            lastMousePosition = pinch.position
+        case .rotate(let pinch):
+            lastMousePosition = pinch.position
         case .pointerExited:
             // The pointer left the window (`SV-N` item 7): nothing is under it.
             lastMousePosition = nil
