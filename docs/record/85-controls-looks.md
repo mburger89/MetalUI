@@ -866,3 +866,61 @@ capture and no demo launch.
     `AGENTS.md`, `api-overview.md`, this record and the README row.
   - CLAUDE.md's human-check group list gains WS and CL.
   - `LK-E` item 5's probe citation (the finding above).
+
+### §4.7 Merge with master `0b400b4` (2026-10-09)
+
+Master brought `GX-X` (record §73 §12, the LF-a fix: a clip pushed inside a
+flattening effect is cut, once mapped, by the clip at the effect's entry,
+through `Frame.cutToEntryClip`). Its switch over `CapturedPrimitive.kind`
+predates this branch's two kinds, so the merge did not compile ("switch must be
+exhaustive"). **The one source edit**: `.gradient` and `.blur` arms in
+`cutToEntryClip`, each cutting the kind's `contentMask`/`maskCornerRadii` like
+the other six. No ruling — the arms apply `GX-X` as written.
+
+**Other interactions, reasoned then measured.** Every other switch over the
+kind (`RenderEffect.apply`, `multiplyAlpha`, `replayed`, the shadow and blur
+leaf rasters) already had the two arms from this branch. A blur scope pushes no
+clip and moves neither `clipBase` nor `flatteningClipBase`; its item's
+`maskDepth` is its entry depth, so under an enclosing `.offset` the per-scope
+`innerMask` decides the cut exactly as for a shadow item. In the other nesting
+(an `.offset` inside a blur scope) the leaf passes the offset first and is cut
+by the existing arms before it is blurred.
+
+**Merge pins** (`RenderEffectTests.swift`, "The merge with C10"), all in
+`lfaStage` (the 100 × 100 clip at (50, 50)):
+
+- `aClippedGradientInsideAnOffsetIsCutByTheClipOutsideIt` — a gradient
+  rectangle's own `.clipped()` inside `.offset(y: -60)` draws only in (80, 50)
+  40 × 10, strip and full raster. Without the `.gradient` arm (both arms
+  `break`): `strip: … quad (80.0, 20.0, 40.0×40.0) mask (80.0, 20.0, 40.0×40.0)`,
+  and the same for `full` (RenderEffectTests.swift:656, two issues).
+- `aClippedBlurInsideAnOffsetIsCutByTheClipOutsideIt` — `.blur(radius: 4)`
+  then `.clipped()` inside the offset: same (80, 50) 40 × 10. Without the
+  `.blur` arm: `quad (80.0, 20.0, 40.0×40.0) mask (80.0, 20.0, 40.0×40.0)`
+  (RenderEffectTests.swift:673).
+- `anOffsetInsideABlurIsCutBeforeItBlurs` — the other nesting: the band blurred
+  reads 74 / 53 / 93 / 255 at y 52.5 / 55.5 / 58.5 / 75.5 (x 100.5). Under
+  `GX-X`'s M-X1 on the `.rect` arm: `y 52.5: 6 vs 74`, `y 55.5: 32 vs 53`.
+
+**Mutations** (each applied alone to the merged tree, arm body replaced by
+`break`, full unfiltered native suite, restored): the `.gradient` arm —
+3015 tests, only `aClippedGradientInsideAnOffsetIsCutByTheClipOutsideIt` red
+(2 issues); the `.blur` arm — 3015 tests, only
+`aClippedBlurInsideAnOffsetIsCutByTheClipOutsideIt` red (1 issue). (3015: before
+the third pin was added.)
+
+**Suite.** `swift package clean`; `swift build --build-system native
+--build-tests` (0 `error:`, only the deprecation notice); `swift test
+--build-system native --no-parallel` unfiltered: **`Test run with 3016 tests in
+3 suites passed after 208.167 seconds`** — the five `CI-AF` sheet tests passed
+this time; `FR-J no-argument frame: succeeded=true`. 3016 = 3007 + `GX-X`'s 6 + 3
+pins. Guards **192** unmoved (`git grep -h "enabled(if: canTypecheck" -- Tests`
+reads 191, the +1 offset of §4.2). `swift build --build-tests`: 0 warnings.
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing
+(no public declaration added).
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 0b400b4 HEAD` (HEAD
+the merge commit): all fourteen images **0 differing pixels, every scene
+identical**; controls 1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216
+/ 491221 / 529 / 0, as §4.3. `Backends/SDL` and the Linux image were not re-taken
+(the merge touches neither).

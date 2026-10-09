@@ -369,3 +369,40 @@ private let deg90 = Angle.degrees(90)
     #expect(clicks(p3, w3, log, points) == [true, true], "a background's rotated content")
     withExtendedLifetime((w0, w1, w2, w3)) {}
 }
+
+// MARK: - LF-a (GX-X): a clip inside a flattening effect, prepaint
+
+/// **LF-a 6** (`GX-X`; a pin, green on arrival — prepaint always splits the
+/// clip at an effect's entry, `GX-G` item 3). The LF-a stage's tapped bar,
+/// drawn at (80, 20) 40 × 40 with its own `.clipped()` inside an
+/// `.offset(y: -60)`, inside the 100 × 100 clip at (50, 50): a press at
+/// (100, 30) — on the drawn bar, above the outer clip — misses; (100, 55) hits;
+/// on both vocabularies, with a nested `.offset(y: -30)` pair too. And the bar
+/// moved **into** the clip from outside (LF-a 4's stage) hits at (70, 90).
+/// Mutation **M-X4**: prepaint does not split the clip at an offset's entry.
+@Test @MainActor func aHitboxInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    func stage<C: Element>(_ inner: C) -> some Element {
+        ZStack(alignment: .topLeading) { inner }
+            .frame(width: px(100), height: px(100)).clipped().padding(px(50))
+    }
+    let points = [pt(100, 30), pt(100, 55)]
+    let log = HitLog()
+    let (w0, p0) = try hitWindow { stage(fxBar(40, 40).onTapGesture { log.entries.append("t") }
+        .offset(x: px(0), y: px(-60))) }
+    try #require(clicks(p0, w0, log, points) == [false, true], "control: no inner clip")
+    let (w1, p1) = try hitWindow { stage(fxBar(40, 40).onTapGesture { log.entries.append("t") }.clipped()
+        .offset(x: px(0), y: px(-60))) }
+    #expect(clicks(p1, w1, log, points) == [false, true], "proposal")
+    let (w2, p2) = try hitWindow { stage(fxLegacyBar(40, 40).onClick { log.entries.append("c") }.clipped()
+        .offset(x: px(0), y: px(-60))) }
+    #expect(clicks(p2, w2, log, points) == [false, true], "legacy")
+    let (w3, p3) = try hitWindow { stage(fxBar(40, 40).onTapGesture { log.entries.append("t") }.clipped()
+        .offset(x: px(0), y: px(-30)).offset(x: px(0), y: px(-30))) }
+    #expect(clicks(p3, w3, log, points) == [false, true], "nested")
+    let (w4, p4) = try hitWindow { stage(ZStack(alignment: .topLeading) {
+        Color.clear.frame(width: px(100), height: px(220))
+        fxBar(40, 40).onTapGesture { log.entries.append("t") }.clipped().offset(x: px(0), y: px(80))
+    }) }
+    #expect(clicks(p4, w4, log, [pt(70, 90), pt(70, 40)]) == [true, false], "moved in")
+    withExtendedLifetime((w0, w1, w2, w3, w4)) {}
+}
