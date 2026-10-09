@@ -29,7 +29,7 @@ Where SwiftUI has no answer (a hex field, how a drawn panel takes keys, what a
 GPU surface under a blur shows) the ruling says so; gpui is named as a
 comparison where it has one, never as evidence.
 
-Prefix **`LK-`**, lettered. **Next unused: `LK-X`.** (This line moves in the
+Prefix **`LK-`**, lettered. **Next unused: `LK-Y`.** (This line moves in the
 commit that appends a ruling; read the last `## LK-` heading.)
 
 Branch `feat/controls-looks` from `cd84b0c` (master: variable-height `List`,
@@ -1087,3 +1087,70 @@ beside `.background(.surface)` and `.fill(.red)` from a plain import.
     fails too (101 px, Δ40) and passes unmutated. The frame stays: it is the
     only fixture holding a 1-texel strip, a full gradient raster and a blurred
     leaf, and it reddens by itself; it is not ruled redundant. Record §85 §3.3.
+
+## LK-X — Windows CI's asserts compiler crashes on a looping `Component` nested in another `Component`
+
+**The crash.** PR #59's two Windows jobs ("Root package (Windows x64)" and
+"Build and replay (Windows x64, D3D12)") stopped compiling
+`Sources/MetalUIDemoContent/LooksDemo.swift` with Swift 6.4's SIL type-lowering
+verifier: `Assertion failed: hasNoNontrivialLexicalLeaf && "Found non-trivial
+lexical leaf in non-trivial non-lexical type?!"` (`TypeLowering.cpp`,
+`verifyLexicalLowering`), while SILGen emitted the protocol witness thunk for
+`LooksGradientsBlurMaterials: ElementGroup`'s `prepaintGroup(layout:pass:)`.
+CI installs **6.4.0+Asserts** on Windows; macOS's release compiler (Xcode and
+the swift.org 6.4.0 toolchain) skips the check and compiles the file.
+
+**Reproduced on the Mac** with the asserts-enabled development snapshot
+`swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a` (6.5-dev; `swift-frontend
+-debug-assert-immediately` asserts, the 6.4.0 release toolchain does not):
+`swift build --build-system native --target MetalUIDemoContent` failed with the
+same assertion and the same stack (frames 3–6). The UTM VM was not reachable
+(port 22 timed out) and was not needed.
+
+**The trigger, measured by reduction** (each a one-file edit, the asserts
+snapshot, restored after):
+
+| outer `Component`'s content | crashes |
+| --- | --- |
+| the section as shipped (`Column` of a `Text` and four row `Component`s) | yes |
+| `Column` of the `Text` and `LooksGradientsRow` (no loop) only | no |
+| `Column` of the `Text` and `LooksBlurRow` only | yes |
+| `Column` of the `Text` and one `LooksMaterialsRow` only | yes |
+| `LooksBlurRow` with its `ForEach` spelled as a `for` loop | yes |
+| `LooksBlurRow` with no loop (one `Text` in its `HStack`) | no |
+| `Column` of the `Text` and an inline `ForEach` (no inner `Component`) | no |
+| `Column` of the `Text` and a `Component` whose content is a bare `ForEach` | yes |
+| that `Component` alone, no `Column` around it | no |
+| `Column` of the `Text` and a `some Element` **function** holding `HStack { ForEach }` | no |
+| the section's `Column` written inline in `content` (no section function) | yes |
+
+So: a `Component` whose content is a loop (an `Array` of prepaint states,
+which the standard library marks eager-move and so non-lexical), sitting beside
+other content in a container inside **another `Component`'s** content. The
+outer conformance's `GroupPrepaint` aggregates the inner one's
+`Content.GroupPrepaint` through its opaque `some ElementGroup`; the verifier
+then finds a lexical leaf under a type it lowered as non-lexical. A compiler
+bug, not a MetalUI fault; no `@_eagerMove`/`@_noEagerMove` appears in the
+sources.
+
+**The workaround.** `LooksBlurRow` and `LooksMaterialsRow` become private
+`@MainActor` functions, `looksBlurRow()` (`some Element`) and
+`looksMaterialsRow(scheme:)` (`some ElementGroup`, its root is an
+`EnvironmentScope`); `LooksGradientsRow` (no loop) and
+`LooksGradientsBlurMaterials` stay `Component`s, so `LK-W` item 10's 1 MB
+fix is untouched. No state lives in either row, so dropping their identity
+level resets nothing. Evidence: the asserts snapshot builds
+`MetalUIDemoContent`, every Windows-portable test target (`MetalUICoreTests`,
+`MetalUILayoutTests`, `MetalUISystemFontsTests`, `MetalUIPathTests`,
+`MetalUICrossPlatformTests`, `MetalUIScaffoldTests`), `MetalUIDemo`,
+`MetalUICLI` and `Backends/SDL` with `--build-tests`. (Its full root
+`--build-tests` stops in macOS-only `MetalUIRenderTests/GlyphABITests.swift` on
+an unrelated 6.5-dev type-checker assertion, `CSDisjunction.cpp`; no Windows job
+builds that target.) A one-off scene dump of `looksDemoContent()` at 1200 × 1200
+(a temporary test, removed) is identical before and after: 185 rects, 861
+glyphs, 21 images, the texture sizes, transforms, draw list and hitboxes. Suite
+and pixels: record §85 §4.8.
+
+**The rule it leaves**: in a `Component`'s content, a nested `Component` whose
+own content is a loop goes in a function instead (or the loop goes inline);
+check with an asserts toolchain, since macOS never fires.

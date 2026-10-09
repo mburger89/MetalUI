@@ -52,7 +52,7 @@ summary.
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
-  `2026-10-08-controls-looks-decisions.md`, next `LK-X`), …; the full
+  `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -949,6 +949,11 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
   - A proposal-path regression that reports an `…unconsumed` or presentation
     field **traps in a `Window` test and truncates the run with no summary
     line** — read the last lines of the log.
+  - **Windows CI's compiler is 6.4.0+Asserts; macOS's is not.** A `Component`
+    whose content is a loop, nested in a container inside another
+    `Component`'s content, crashes SILGen there (`verifyLexicalLowering`,
+    `LK-X`) — make the inner one a function; reproduce with the asserts dev
+    snapshot in `~/Library/Developer/Toolchains`.
   - **Windows threads have 1 MB stacks.** A new demo section goes in its own
     function passed to a generic composer, not inline
     (`everyProductionTreeBuildsOnAOneMegabyteThread`); that test builds each

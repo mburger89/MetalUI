@@ -924,3 +924,34 @@ the merge commit): all fourteen images **0 differing pixels, every scene
 identical**; controls 1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216
 / 491221 / 529 / 0, as §4.3. `Backends/SDL` and the Linux image were not re-taken
 (the merge touches neither).
+
+### §4.8 Windows CI: the asserts compiler's crash (2026-10-09, `LK-X`)
+
+PR #59's two Windows jobs crashed compiling `LooksDemo.swift` — Swift
+6.4.0+Asserts, `verifyLexicalLowering` ("Found non-trivial lexical leaf in
+non-trivial non-lexical type?!") in the witness thunk for
+`LooksGradientsBlurMaterials`' `prepaintGroup`. macOS's release compiler does
+not check. Reproduced on the Mac with the asserts dev snapshot
+(`swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a`); reduced to a `Component` whose
+content is a loop nested beside other content in another `Component`'s
+container (`LK-X`'s table). **The fix**: `LooksBlurRow` and `LooksMaterialsRow`
+are private functions (`looksBlurRow()`, `looksMaterialsRow(scheme:)`); the
+gradients row and the section stay `Component`s. The asserts snapshot then
+builds `MetalUIDemoContent`, the six Windows-portable test targets,
+`MetalUIDemo`, `MetalUICLI` and `Backends/SDL --build-tests`. The looks demo's
+scene dump (185 rects, 861 glyphs, 21 images, transforms, draw list, hitboxes)
+is identical before and after. The four Linux jobs of the same CI run failed
+at "Initialize containers" (Docker Hub's unauthenticated pull limit), not in
+the build.
+
+**Suite.** `swift package clean`; native `--build-tests` (only the deprecation
+notice); `swift test --build-system native --no-parallel` unfiltered: **`Test
+run with 3016 tests in 3 suites passed after 224.390 seconds`**, `FR-J
+no-argument frame: succeeded=true` — unmoved from §4.7 (no test added; the 1 MB
+thread test passes). `swift build --build-tests`: 0 warnings.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> 0b400b4 f599307` (the
+fix commit): all fourteen images **0 differing pixels, every scene identical**;
+controls 1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 /
+529 / 0, as §4.7. (The fourteen do not hold the looks demo; the scene dump
+above is its evidence.)
