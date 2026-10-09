@@ -31,7 +31,7 @@ says so; gpui is named as a comparison where it has one (`StyledText`'s
 `TextRun { len, font, color, background_color, underline, strikethrough }`,
 `InteractiveText` for clickable ranges), never as evidence.
 
-Prefix **`RT-`**, lettered. **Next unused: `RT-U`.** (This line moves in the
+Prefix **`RT-`**, lettered. **Next unused: `RT-V`.** (This line moves in the
 commit that appends a ruling; read the last `## RT-` heading.)
 
 Branch `feat/rich-text` from `70ed000` (master: portable app merged, PR #51).
@@ -1118,3 +1118,47 @@ moves the generated corpus — 3.2 reddens on the macOS that ships it. Item 3:
 a format that SwiftUI parses differently around a value would draw a style
 SwiftUI does not; additive to fix. Item 5's finding: a tree built off the main
 thread with `Text.font(_:)` traps in a test harness, never in an app.
+
+---
+
+## RT-U — The Windows 1 MB build: the looks tree's composition, split
+
+CI run 37853998551 (PR #55, `25427f1`) failed one test on "Root package
+(Windows x64)": `everyProductionTreeBuildsOnAOneMegabyteThread` exited
+`0xC0000005`. Reproduced on the UTM VM (Windows 11 ARM64, debug, `swift test
+--filter DemoStackBudgetTests`): red at `25427f1` with `.exitCode(-1073741571)`
+(`0xC00000FD`, stack overflow), green at master `5d6893a`.
+
+**Measured** (smallest passing thread stack per production tree, each built
+alone in its own `@inline(never)` frame by a temporary exit-test bisection at
+16 KB steps — not committed; record §83 §9):
+
+| tree | Windows ARM64 `5d6893a` | ARM64 `25427f1` | ARM64 fixed | macOS arm64 `5d6893a` → `25427f1` → fixed |
+|---|---|---|---|---|
+| `looksDemoContent` | 848 KB | 912 KB | **528 KB** | 864 → 880 → 560 KB |
+| `demoContent` | 720 KB | 720–768 KB | 720 KB | 736 → 752 KB |
+| `richTextDemoContent` | — | 464 KB | 464 KB | — → 448 KB |
+
+The rich-text demo is not the overflow: it is in its own frame and needs half
+the budget. **The looks tree is**: rich text made every `Text` 16 bytes larger
+(`MemoryLayout<Text>.size` 1040 → 1056 on macOS: `content: TextContent` and
+`richBox` where `string` was), the looks tree value 36 728 → 36 968 bytes, and
+the generic `looksRoot` — which held the title, the row of two columns and the
+colour section in one builder — reserves a debug slot for each temporary
+holding most of the tree, so its frame moved 64 KB on Windows ARM64 and 16 KB
+on macOS, past the 1 MB thread once the harness's own frame is added.
+
+**Ruling.** The looks composition is split as its sections already were (the
+CI-hazard rule, `LC-T`): `looksRoot(columns:colour:)`, `looksColumns(left:right:)`,
+`looksLeftColumn(text:shapes:pathsShadowsTransforms:)` and
+`looksRightColumn(gestures:transitions:)`, each generic over only its own
+children, each called as an argument. Same elements, same nesting, same
+modifiers, so the same identities and layout. The harness is unchanged (no
+thread size raised, no tree removed). Red/green on the VM: `25427f1` red as
+above; with the split, `√ Test everyProductionTreeBuildsOnAOneMegabyteThread()
+passed`.
+
+**Cost if wrong.** `demoContent` is now the largest tree (720 KB on Windows
+ARM64); a later field on `Text` or `Style` moves every tree again, and the
+next to cross is the default demo, which `DemoCapture.exe` builds on the 1 MB
+main thread.

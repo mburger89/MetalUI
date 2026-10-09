@@ -416,3 +416,33 @@ launched** and no real-window capture was taken.
   (150–158), §05 (the inert link), the inventory map and census.
 - **Not done**: the demo was not launched; no real-window capture; the
   Windows UTM VM was not used; CI confirms `Expected.swift` after the push.
+
+## §9 The Windows 1 MB build (CI run 37853998551, ruling `RT-U`)
+
+- **Failure**: PR #55's "Root package (Windows x64)" job, after the merge with
+  master `5d6893a` (`25427f1`): `everyProductionTreeBuildsOnAOneMegabyteThread`
+  exited `0xC0000005`; everything else green, macOS and Linux included.
+- **Reproduced on the UTM VM** (Windows 11 ARM64, Swift 6.4, debug, `swift
+  build --build-tests`, `swift test --skip-build --filter DemoStackBudgetTests`
+  over SSH; the branch went over as a `git bundle`): `25427f1` red, `expected
+  exit status ".success", but ".exitCode(-1073741571)"` (`0xC00000FD`); master
+  `5d6893a` green, `√ Test run with 2 tests in 0 suites passed`. x64 was not
+  run under emulation: ARM64 reproduces it, and CI's x64 job confirms the fix.
+- **Instrument** (temporary, not committed): an exit-test bisection of the
+  smallest thread stack that builds each production tree alone in its own
+  `@inline(never)` frame, 16 KB steps. Windows ARM64 at `5d6893a` / `25427f1`:
+  looks 848 / 912 KB, default demo 720 / 720–768 KB (two runs of the same
+  code), controls 592, drag-and-drop 400, menus 400, rich text — / 464, the
+  rest ≤ 144. macOS arm64: looks 864 / 880, default demo 736 / 752, rich text
+  448. `MemoryLayout<Text>.size` 1040 → 1056; looks tree value 36 728 → 36 968
+  bytes. **The rich-text demo is not the overflow; the looks tree is**, its
+  generic `looksRoot` holding the whole tree in many debug temporaries, so the
+  16 bytes per `Text` moved its frame 64 KB on Windows.
+- **Fix** (`RT-U`): `looksRoot` split into `looksRoot(columns:colour:)`,
+  `looksColumns`, `looksLeftColumn`, `looksRightColumn`, each an argument of
+  the one above; same elements and nesting. Looks: **528 KB** on Windows ARM64,
+  560 KB on macOS. On the VM after the fix: `√ Test
+  everyProductionTreeBuildsOnAOneMegabyteThread() passed after 1.110 seconds`,
+  `√ Test run with 2 tests in 0 suites passed`. The harness is unchanged.
+- **Owner line**: the default demo (720 KB on Windows ARM64) is now the
+  largest tree and the next to cross if `Text` or `Style` grows again.
