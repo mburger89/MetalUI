@@ -529,16 +529,22 @@ private struct KPCounter: Component {
 
 // MARK: - A43–A44: ⌘-keys against commands and shortcuts (`KF-R` item 3)
 
-/// **A43** (`KF-R` item 3, fourth row: the screen stayed locked, KX2 unrun, so
-/// the designed order ships). A focused `onKeyPress` hears ⌘J before the app's
-/// ⌘J command: a handled one runs no command; an ignored one reaches it. Red
-/// before: the command runs and the handler is silent. Mutation: decline a
-/// keystroke the command table matches (KX2's "commands first" row).
+/// **A43** (`KF-R` item 3, first row; ruling `KF-X`: KX2 and KX3 read `menu`).
+/// The app's ⌘J command runs and a focused `onKeyPress("j")` never hears ⌘J,
+/// whether it would answer `.handled` or `.ignored`; a catch-all
+/// `onKeyPress { .handled }` does not swallow it either. A ⌘-key no command
+/// binds (⌘K) still reaches the handler — the separating arm. Red before (the
+/// fourth row's order): the handler hears ⌘J and a handled one runs no
+/// command. Mutation: drop the command-table decline in `dispatchKeyPress`.
 @MainActor
-@Test func aCommandsKeystrokeReachesOnKeyPressBeforeTheCommand() throws {
+@Test func aCommandsKeystrokeRunsTheCommandNotOnKeyPress() throws {
     let m = KPLog()
     let (window, platform) = try kpWindow {
-        Box { square().focusable().onKeyPress("j") { m.log.append("kp"); return m.claims ? .handled : .ignored } }
+        Box {
+            square().focusable()
+                .onKeyPress("j") { m.log.append("kp-j"); return m.claims ? .handled : .ignored }
+                .onKeyPress { press in m.log.append("all-\(press.characters)"); return .handled }
+        }
     }
     let command: @MainActor @Sendable () -> Void = { m.log.append("command") }
     window.commandShortcuts = { [(KeyboardShortcut("j"), command)] }
@@ -546,10 +552,14 @@ private struct KPCounter: Component {
     platform.simulateInput(kd("j", [.command]))
     m.claims = false
     platform.simulateInput(kd("j", [.command]))
-    #expect(m.log == ["kp", "kp", "command"], "onKeyPress first; an ignored ⌘J reaches the command: \(m.log)")
+    #expect(m.log == ["command", "command"], "the command runs; no onKeyPress hears ⌘J: \(m.log)")
+    m.log = []
+    platform.simulateInput(kd("k", [.command]))
+    #expect(m.log == ["all-k"], "a ⌘-key no command binds reaches onKeyPress: \(m.log)")
 }
 
-/// **A44** (`KF-R` item 3, KX1 unrun). A focused `onKeyPress` hears ⌘K before
+/// **A44** (`KF-R` item 3, third row for a `Button`; ruling `KF-X`: KX1 reads
+/// `view:k[down+cmd]`, no `button`). A focused `onKeyPress` hears ⌘K before
 /// a ⌘K `Button` shortcut. Red before: the button runs. Mutation: decline a
 /// keystroke a modified `Button` shortcut matches (KX1's "button" row).
 @MainActor

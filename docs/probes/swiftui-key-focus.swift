@@ -33,12 +33,23 @@
 //
 // KX ARMS (added by the critic, ruling KF-Q; gated: `KF_PROBE_KX=1 /tmp/kf-probe`
 // prints them after T5). KX1 a ⌘-key `Button` shortcut, KX2/KX3 a main-menu
-// ⌘-key item, each against a focused view's `onKeyPress`. NOT YET RECORDED:
-// on 2026-10-09 the lock probe read `CGSSessionScreenIsLocked = 1`,
-// `displayAsleep main: 1`, so no window arm could run; the file compiles
-// (`xcrun swiftc -typecheck`). Lane A runs and records them before placing
-// `dispatchKeyPress` (KF-Q item 3).
+// ⌘-key item, each against a focused view's `onKeyPress`. RECORDED 2026-10-09
+// by lane A (ruling KF-X), macOS 27.0.1 (26A434), Apple Swift 6.4, screen
+// UNLOCKED (lock probe: no CGSSessionScreenIsLocked line, `displayAsleep
+// main: 0`): `KF_PROBE_KX=1`, compiled form, run twice, stdout byte-identical
+// (73 lines), exit 0, stderr empty both times; the 69 ungated lines below are
+// byte-identical to the 2026-10-08 recording (K2t, K2v, K4c, K4a re-taken).
 //
+//   --- KX: command-modified keys (KF-Q)
+//     KX1 focused view .handled + Button .keyboardShortcut("k") (cmd) elsewhere, cmd-k: view:k[down+cmd]
+//     KX2 focused view .handled + main-menu item cmd-J, cmd-j: menu
+//     KX3 focused view .ignored + main-menu item cmd-J, cmd-j: menu
+//
+// KX RESULT. A main-menu ⌘-key item runs BEFORE `onKeyPress`, and the
+// handler never hears the keystroke, `.handled` or `.ignored` (KX2, KX3: no
+// `view:` line). A ⌘-key `Button` shortcut runs AFTER `onKeyPress`: a handled
+// ⌘K never reaches the button (KX1), as a plain-key shortcut (K10).
+
 // RECORDED 2026-10-08 by the key-focus (C9) designer, macOS 27.0.1 (26A434),
 // Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen UNLOCKED (lock probe: no
 // CGSSessionScreenIsLocked line, `displayAsleep main: 0`). Compiled form, run
