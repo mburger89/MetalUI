@@ -799,8 +799,48 @@ style's pixels and toolbar behaviour do not move either way.
    which the mutation reddens.
 
 **Evidence.** Tests 2.1–2.27, 2.12b, 2.14b, 2.21b green on the first run of
-the implementation (41 filtered with lane 1's AppKit tests); the mutations in
-spec §4.2 (record §87).
+the implementation (41 filtered with lane 1's AppKit tests). The spec §4.2
+mutations, each applied to `06d5f3a` (M8 re-run on the commit adding 2.9's arm), the
+full unfiltered native suite (2916 tests), restored from a copy, `git status`
+clean after each; reddened (beside the five `AppKitPresentationTests` sheet
+tests, which fail identically unmutated while the screen is locked):
+
+| # | mutation (file) | reddened |
+| --- | --- | --- |
+| M1 | `titleBarInsets` setter `public` (`EnvironmentValues.swift`) | `anOutsideModuleCanSpellTheAppShellAPI` |
+| M2 | `.cancel` answers `true` (`WindowShell.swift`) | `aCancelledCloseRequestKeepsTheWindowAndRunsNoOnDisappear`, `performCloseAsksAndCloseDoesNot` |
+| M3 | the handler re-runs while pending | `aDeferredCloseWaitsForTheReplyAndAsksOnlyOnce` |
+| M4 | `replyToCloseRequest(true)` forgets without closing | `aDeferredCloseWaitsForTheReplyAndAsksOnlyOnce`, `theCloseHandlerPresentsTheDrawnAlertAndItsButtonClosesTheWindow`, `withoutAnAppHandlerQuitAsksEachWindowInTurn`, `appTerminateAsksThenEndsThroughThePlatform` |
+| M5 | `close()` asks | 2.4, 2.5, 2.6, 2.12, 2.12b, 2.13 (`…AsksOnlyOnce`, `…ButtonClosesTheWindow`, `performCloseAsksAndCloseDoesNot`, `…AsksEachWindowInTurn`, `aPendingWindowClosedDirectlyResumesTheQuit`, `appTerminate…`) |
+| M6 | no early return in `drawFrameIfNeeded` (`Window.swift`) | `aClosedWindowDrawsNoMoreFrames` |
+| M7 | terminate on every close (`AppShell.swift`) | 2.8, 2.9, 2.11, 2.12, 2.12b, 2.13 |
+| M8 | `endEverything()` closes nothing | first run `aDeferredTerminateEndsOnlyOnTheReply` only (item 9); after 2.9's new arm also `aQuitWithNoHandlersClosesEveryWindowThenEnds` |
+| M9 | the last-window rule during the walk | `aQuitWithNoHandlersClosesEveryWindowThenEnds`, `withoutAnAppHandlerQuitAsksEachWindowInTurn`, `appTerminateAsksThenEndsThroughThePlatform` |
+| M10 | the app handler's path asks the windows too | `theAppHandlerAloneDecides` |
+| M11 | `replyToTerminateRequest(true)` terminates instead of replying | `aDeferredTerminateEndsOnlyOnTheReply` |
+| M12 | the walk asks only the first window | `withoutAnAppHandlerQuitAsksEachWindowInTurn`, `aPendingWindowClosedDirectlyResumesTheQuit` |
+| M13 | the walk asks B before A closes | `withoutAnAppHandlerQuitAsksEachWindowInTurn`, `aPendingWindowClosedDirectlyResumesTheQuit` |
+| M14 | a direct close leaves the pending flag (`windowDidClose`) | `aPendingWindowClosedDirectlyResumesTheQuit` |
+| M15 | `App.terminate()` replies instead of terminating | `appTerminateAsksThenEndsThroughThePlatform` |
+| M16 | the last close goes through `answerTerminateRequest` | `theLastWindowsCloseEndsTheAppWithoutAsking` |
+| M17 | no retirement | `aClosedWindowOutlivesItsOwnCloseCallback` |
+| M18 | a pending termination re-asks | `aRepeatedTerminateRequestWhilePendingAsksNobody` |
+| M19 | the title pushed every build | `windowTitleReachesThePlatformOnChangeOnly` |
+| M20 | the last title report wins (`EnvironmentScope.swift`) | `theTreeTitleWinsInnerBeatsOuterFirstSiblingBeatsSecond` |
+| M21 | the title reported before the body (outer wins) | `theTreeTitleWinsInnerBeatsOuterFirstSiblingBeatsSecond` |
+| M22 | the read-back pushes before adopting (one frame late) | `theTreeTitle…`, `aTreeTitleIsInTheFirstPresentedFrame`, `navigationDocumentSetsTheRepresentedPathAndLeavesTheTitle`, `theWindowPreferenceScopesAreTransparent` |
+| M23 | the path is `absoluteString` | `navigationDocumentSetsTheRepresentedPathAndLeavesTheTitle` |
+| M24 | `isDocumentEdited` not pushed | `isDocumentEditedReachesThePlatformOnChange` |
+| M25 | the insets stamp removed (`Window.swift`) | `aHiddenTitleBarLaysTheRootOutUnderTheBarAndStampsTheInsets` |
+| M26 | `setTitleBarStyle` never called | `aHiddenTitleBar…`, `openWindowAppliesTheWindowStyleBeforeTheFirstFrame` |
+| M27 | the band press without `active == nil` | `anUnclaimedPressInTheHiddenBandAsksThePlatformToDrag` (the button arm, line 568, first) |
+| M28 | the band press without the arena check | `anUnclaimedPress…` (the draggable arm, line 572, first) |
+| M29 | `windowStyle` applied after the first frame (`App.swift`) | `openWindowAppliesTheWindowStyleBeforeTheFirstFrame` |
+| M30 | `.onOpenURL` handlers in pre-order | `everyOnOpenURLInTheTargetWindowRunsInReversePostOrder` |
+| M31 | no `StateDispatch` around a handler | `everyOnOpenURL…` (`counts.sorted() == [1, 1]`) |
+| M32 | routing ignores key state | `anOpenGoesToTheKeyWindowThenTheFirstWithAHandlerThenTheApp` |
+| M33 | handlers kept across builds | `aRemovedOnOpenURLNoLongerHearsURLs` |
+| M34 | a `.navigationTitle` scope bumps the cursor | `theWindowPreferenceScopesAreTransparent` |
 
 **Cost if wrong.** None beyond two access-level changes on internal members.
 
