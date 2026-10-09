@@ -355,7 +355,7 @@ in `DemoStackBudgetTests`.
 | A18 | `withNothingFocusedTheHoveredKeyRegionReceivesKeys` | `c62d6ba`: chain empty | `keyChain` = `focusChain` always |
 | A19 | `aFocusedElementOutsideTheRegionKeepsTheKeys` (`KF-D` 2) | — | prefer the hover chain when one exists |
 | A20 | `theInnermostHoveredKeyRegionWins` | — | take the outermost member |
-| A21 | `aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered` (opaque-sibling arm; presentation arm: the region's own popover, added after the lane A review) | — | drop the cover/`isOrDescends` test (first arm); V1: drop `box.layer == cover.layer` in `hoveredKeyRegion` (second arm, `KF-X` item 10) |
+| A21 | `aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered` (opaque-sibling arm; presentation arm: a popover declared inside the region, added after the lane A review) | — | drop the cover/`isOrDescends` test (first arm); V1: drop `box.layer == cover.layer` in `hoveredKeyRegion` (second arm, `KF-X` item 10) |
 | A22 | `keymapContextsReadTheHoveredRegionsChain` (`Graph` binding beats `!Panel` by depth; `!Panel` vetoed under a `Panel` region; a focused field inside `Panel` keeps the keys) | `c62d6ba`: contexts from the focus chain only | build `contextsByLevel` from `focusChain` |
 | A23 | `aPressInAKeyRegionClearsFocus`, `aPressOnAFieldInsideAKeyRegionFocusesItWithOneFocusStateChange` | `c62d6ba`: focus kept | delete step 3 / delete step 1 of §4.3 (the second reads `false,true` on the `@FocusState`) |
 | A24 | `aKeyRegionCostsNoLookupWhileThePointerMoves` (`keyRegionLookups` 0 over 50 moves, 1 per key; 0 with no region) | — | compute the hovered region in `updateHover` |

@@ -232,22 +232,25 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     #expect(window.focusedElement == nil, "control: a press on the region itself clears focus")
 }
 
-/// **A31c** (`KF-E` items 3 and 5: on the cover's layer). A press on a key
-/// region's own popover changes no focus: the popover is on another layer,
-/// so the press is not inside the region. Mutation V1′: drop `box.layer ==
+/// **A31c** (`KF-E` items 3 and 5: on the cover's layer). A press on a
+/// popover declared inside a key region changes no focus: the popover's
+/// content descends from the region and lies inside its bounds, but is on
+/// another layer, so the press is not inside the region. Mutation V1′: drop `box.layer ==
 /// cover.layer` in `focusOnPress`.
 @MainActor
 @Test func aPressOnAKeyRegionsOwnPopoverChangesNoFocus() throws {
     let m = FPLog()
     let (window, platform) = try fpWindow {
         Box {
-            square(20).focusable()
+            Column {
+                square(20).focusable()
+                square(20).popover(isPresented: .constant(true)) {
+                    square(40).onClick { m.log.append("click") }
+                }
+            }
         }
         .frame(width: px(200), height: px(200))
         .hoverKeyRegion()
-        .popover(isPresented: .constant(true)) {
-            square(40).onClick { m.log.append("click") }
-        }
     }
     for _ in 0..<4 where window.needsRedraw { window.drawFrameIfNeeded() }
     let focusable = try #require(window.lastFocusRegistry.tabOrder.first)

@@ -832,7 +832,7 @@ both must compile); the census gains two A rows.
 10. **Lane A review fixes** (2026-10-09; the verifier's mutations V1, V4, V9
     reddened nothing on the full suite at `4b80b9d`). Three tests close the
     holes: A21 gains its presentation arm (a key region is not hovered
-    through its own popover — mutation V1, drop `box.layer == cover.layer`
+    through a popover declared inside it — mutation V1, drop `box.layer == cover.layer`
     in `hoveredKeyRegion`); A31b
     `aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus` (mutation V4,
     drop `cover.id.isOrDescends(from: box.id)` in `focusOnPress`); A31c
@@ -841,7 +841,11 @@ both must compile); the census gains two A rows.
     `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne`
     (mutation V9, `isFocusable = true` regardless of the argument, run once
     per overload). Each test was green unmutated; the reddened tests per
-    mutation are in the record (§88).
+    mutation are in the record (§88). **A popover written on the region's
+    own element does not separate the layer test**: its content does not
+    descend from the region's id, so the cover-descends test already
+    excludes it (measured: green under V1); the arm declares the popover on
+    a child inside the region, as the verifier's probe did.
 11. **Three guards are equivalent mutations and stay** (`LR-X`, beside item
     6; they are **not** pinned, and the record must not say they are):
     - V2, `!hoverIsSuppressed` in `hoveredKeyRegion`: the drawn alert is

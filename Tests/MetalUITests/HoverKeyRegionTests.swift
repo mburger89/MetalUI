@@ -124,7 +124,7 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 
 /// **A21** (`KF-E` item 3: the one ranking). A key region covered by an opaque
 /// sibling drawn above it is not hovered where the sibling covers it, nor
-/// through its own popover. Mutations: drop the cover / `isOrDescends` test
+/// through a popover declared inside it. Mutations: drop the cover / `isOrDescends` test
 /// (first arm); V1, drop the layer test (second arm).
 @MainActor
 @Test func aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered() throws {
@@ -143,18 +143,23 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     platform.simulateInput(kd("y"))
     #expect(m.log == ["region"], "covered at the centre, hovered at the corner: \(m.log)")
 
-    // The presentation arm (`KF-E` item 3: on the cover's layer). The region's
-    // own popover — a `Deferred` presentation whose content descends from the
-    // region and lies inside its bounds — is on another layer, so a key typed
-    // over it reaches nothing. Mutation V1: drop `box.layer == cover.layer` in
+    // The presentation arm (`KF-E` item 3: on the cover's layer). A popover
+    // declared inside the region — a `Deferred` presentation whose content
+    // descends from the region and lies inside its bounds — is on another
+    // layer, so a key typed over it reaches nothing. (A popover written on the
+    // region's own element does not descend from the region's id, so it
+    // would not separate the layer test.) Mutation V1: drop `box.layer == cover.layer` in
     // `hoveredKeyRegion` (the region hears `p`).
     let p = HKLog()
     let (popWindow, popPlatform) = try hkWindow {
-        Box().frame(width: px(200), height: px(200)).hoverKeyRegion()
-            .onKeyPress { press in p.log.append("region \(press.characters)"); return .handled }
-            .popover(isPresented: .constant(true)) {
-                Box().frame(width: px(40), height: px(40)).onClick { p.log.append("click") }
-            }
+        Box {
+            Box().frame(width: px(20), height: px(20))
+                .popover(isPresented: .constant(true)) {
+                    Box().frame(width: px(40), height: px(40)).onClick { p.log.append("click") }
+                }
+        }
+        .frame(width: px(200), height: px(200)).hoverKeyRegion()
+        .onKeyPress { press in p.log.append("region \(press.characters)"); return .handled }
     }
     for _ in 0..<4 where popWindow.needsRedraw { popWindow.drawFrameIfNeeded() }
     let region = try keyRegions(popWindow, count: 1)[0]
