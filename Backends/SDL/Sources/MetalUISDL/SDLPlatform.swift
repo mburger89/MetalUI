@@ -214,6 +214,93 @@ public final class SDLPlatform: Platform {
     /// Ends ``run()`` after the current iteration.
     public func stop() { running = false }
 
+    // MARK: App shell (rulings `AS-B` item 6, `AS-C` item 8, `AS-G` item 5)
+
+    /// Asked when `SDL_EVENT_QUIT` arrives — ⌘Q under SDL's Cocoa backend,
+    /// SIGINT in a terminal, a desktop's session end (ruling `AS-C` item 8):
+    /// `nil` or `.now` stops the loop, `.cancel` keeps it running, `.later`
+    /// keeps it running until ``replyToTerminateRequest(_:)``.
+    public var onTerminateRequest: (() -> CloseRequestReply)?
+
+    /// Whether a quit answered `.later` awaits its reply.
+    private var terminateRequestPending = false
+
+    /// Answers the pending `.later` quit: `true` stops the loop, `false`
+    /// keeps it running; with none pending it does nothing.
+    public func replyToTerminateRequest(_ shouldTerminate: Bool) {
+        guard terminateRequestPending else { return }
+        terminateRequestPending = false
+        if shouldTerminate { stop() }
+    }
+
+    /// Stops the loop asking nobody (``stop()``).
+    public func terminate() { stop() }
+
+    /// URL strings opened before ``onOpenURLs`` was set, batch by batch.
+    private var parkedURLs: [[String]] = []
+
+    /// Files and URLs SDL reports with no window — `SDL_EVENT_DROP_FILE` on
+    /// window 0, sent by its Cocoa backend's `application:openFile:` and URL
+    /// events (ruling `AS-G` item 5) — one call per `DROP_COMPLETE`. Assigning
+    /// a handler delivers the parked batches, each once.
+    public var onOpenURLs: (([String]) -> Void)? {
+        didSet {
+            guard let onOpenURLs, !parkedURLs.isEmpty else { return }
+            let parked = parkedURLs
+            parkedURLs = []
+            for batch in parked { onOpenURLs(batch) }
+        }
+    }
+
+    /// The strings of the application-level drop in progress (window 0).
+    private var applicationDrop: [String] = []
+
+    /// A window-0 drop event (ruling `AS-G` item 5): FILE strings are copied
+    /// at once (SDL owns them until the next poll) and collected; COMPLETE
+    /// delivers them — or parks them — as one batch. A string with a URL
+    /// scheme followed by `//` is passed as is, anything else is a path
+    /// (``SDLWindow/fileURLString(fromPath:)``). TEXT, BEGIN and POSITION are
+    /// ignored: an open names documents.
+    private func handleApplicationDrop(_ event: MUIEvent) {
+        switch Int(event.kind) {
+        case Int(MUI_EVENT_DROP_FILE):
+            guard let text = event.text else { return }
+            let string = String(cString: text)
+            applicationDrop.append(Self.hasURLScheme(string) ? string : SDLWindow.fileURLString(fromPath: string))
+        case Int(MUI_EVENT_DROP_COMPLETE):
+            let urls = applicationDrop
+            applicationDrop = []
+            guard !urls.isEmpty else { return }
+            if let onOpenURLs { onOpenURLs(urls) } else { parkedURLs.append(urls) }
+        default:
+            break
+        }
+    }
+
+    /// Whether `string` starts with a URL scheme and `//`:
+    /// `[A-Za-z][A-Za-z0-9+.-]*://`. A Windows drive path `C:\…` or `C:/…`
+    /// has no `//` after its colon and stays a path.
+    nonisolated static func hasURLScheme(_ string: String) -> Bool {
+        let scalars = Array(string.unicodeScalars)
+        guard let first = scalars.first, first.isASCII, first.properties.isAlphabetic else { return false }
+        for (index, scalar) in scalars.enumerated().dropFirst() {
+            if scalar == ":" {
+                return scalars.count >= index + 3 && scalars[index + 1] == "/" && scalars[index + 2] == "/"
+            }
+            let allowed = scalar.isASCII && (scalar.properties.isAlphabetic || ("0"..."9").contains(scalar)
+                                             || scalar == "+" || scalar == "." || scalar == "-")
+            if !allowed { return false }
+        }
+        return false
+    }
+
+    /// Takes a closed window out of the platform (``SDLWindow/close()``).
+    func remove(_ window: SDLWindow) {
+        guard windows[window.id] === window else { return }
+        windows.removeValue(forKey: window.id)
+        if focusedID == window.id { focusedID = nil }
+    }
+
     /// Dispatches every pending event without waiting — one run-loop pass
     /// minus the ticks. Tests drive the platform with it.
     public func pumpEvents() {
@@ -234,13 +321,33 @@ public final class SDLPlatform: Platform {
     private func dispatch(_ event: MUIEvent) {
         switch Int(event.kind) {
         case Int(MUI_EVENT_QUIT):
-            stop()
+            // A termination request (ruling `AS-C` item 8): asked, not obeyed.
+            switch onTerminateRequest?() ?? .now {
+            case .now:
+                terminateRequestPending = false
+                stop()
+            case .cancel:
+                terminateRequestPending = false
+            case .later:
+                terminateRequestPending = true
+            }
         case Int(MUI_EVENT_THEME):
             for window in windows.values { window.appearanceChanged() }
         case Int(MUI_EVENT_CLOSE):
-            guard let window = windows.removeValue(forKey: event.window_id) else { return }
-            if focusedID == event.window_id { focusedID = nil }
+            // A user's close request (ruling `AS-B` item 6): the window's
+            // handler decides; only an approved close closes.
+            guard let window = windows[event.window_id] else { return }
+            guard window.onCloseRequest?() ?? true else { return }
             window.close()
+        case Int(MUI_EVENT_DROP_BEGIN), Int(MUI_EVENT_DROP_POSITION), Int(MUI_EVENT_DROP_FILE),
+             Int(MUI_EVENT_DROP_TEXT), Int(MUI_EVENT_DROP_COMPLETE):
+            // No window: documents opened through the application (`AS-G`
+            // item 5). On a window: a drop on it (`DN-M`).
+            if event.window_id == 0 {
+                handleApplicationDrop(event)
+            } else {
+                windows[event.window_id]?.handle(event)
+            }
         case Int(MUI_EVENT_FOCUS_GAINED):
             // A window this platform does not own is not ours to focus.
             guard windows[event.window_id] != nil else { return }
@@ -789,9 +896,66 @@ public final class SDLWindow: PlatformWindow {
 
     func appearanceChanged() { onAppearanceChange?(appearance) }
 
-    func close() {
+    // MARK: App shell (rulings `AS-B` item 6, `AS-D` item 5, `AS-E` item 6, `AS-J` item 2)
+
+    /// Asked when SDL reports a close request for this window — the window
+    /// manager's close button, Alt-F4 (ruling `AS-B` item 6): `nil` or `true`
+    /// closes, `false` keeps the window open. Never asked by ``close()``.
+    public var onCloseRequest: (() -> Bool)?
+
+    /// Closes the window without asking: hides it (`SDL_HideWindow`), takes
+    /// it out of its platform and fires ``onClose`` once; a second call does
+    /// nothing. The window itself is destroyed when this object is released.
+    /// The platform's approved close request runs the same body. Pinned by
+    /// `sdlCloseHidesRemovesAndFiresOnCloseOnce`.
+    public func close() {
+        guard !closed else { return }
         closed = true
+        _ = mui_window_hide(rawHandle)
+        platform?.remove(self)
         onClose?()
+    }
+
+    /// Every `setDocumentEdited(_:)` argument, in order — recorded for tests.
+    public private(set) var documentEditedCalls: [Bool] = []
+
+    /// Records the value and changes nothing (ruling `AS-D` item 5): SDL3 has
+    /// no edited marker, and the title is never altered behind the app's back
+    /// (`Window.title` must read what the window shows). An app wanting a
+    /// marker on Linux or Windows writes it into its title.
+    public func setDocumentEdited(_ edited: Bool) { documentEditedCalls.append(edited) }
+
+    /// Every `setRepresentedFilePath(_:)` argument, in order.
+    public private(set) var representedPaths: [String?] = []
+
+    /// Records the path and changes nothing (ruling `AS-D` item 5): SDL3 has
+    /// no represented file.
+    public func setRepresentedFilePath(_ path: String?) { representedPaths.append(path) }
+
+    /// Every `setTitleBarStyle(_:)` argument, in order.
+    public private(set) var titleBarStyles: [PlatformTitleBarStyle] = []
+
+    /// Records the style and answers `false` (ruling `AS-E` item 6, a
+    /// documented constraint): the window keeps its system decoration —
+    /// client-side decorations are deferred — and ``titleBarInsets`` stays
+    /// zero, so content laid out with them is still correct.
+    public func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
+        titleBarStyles.append(style)
+        return false
+    }
+
+    /// Always zero: the system title bar never overlaps the content.
+    public var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
+
+    /// Every `performTitleBarPress(clickCount:)` argument, in order.
+    public private(set) var titleBarPresses: [Int] = []
+
+    /// Records the press and answers `false` (ruling `AS-J` item 2): the
+    /// system title bar drags the window itself, and with zero insets
+    /// `Window` never asks.
+    public func performTitleBarPress(clickCount: Int) -> Bool {
+        titleBarPresses.append(clickCount)
+        return false
     }
 
     /// The last pointer position a motion, button or wheel event delivered —

@@ -99,18 +99,21 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     #expect(asked == 1 && ticks == 1, "an approved quit stops the loop: asked \(asked), ticks \(ticks)")
 
     ticks = 0; asked = 0; answer = .later
-    onTick = { tick in
-        if tick == 2 { platform.replyToTerminateRequest(false) }
-        if tick == 3 { platform.replyToTerminateRequest(true) }
-    }
+    onTick = { tick in if tick == 2 { platform.replyToTerminateRequest(true) } }
     push(Int32(MUI_EVENT_QUIT))
     platform.run(maxIterations: 6)
-    #expect(asked == 1 && ticks == 3, "a deferred quit ends at the approving reply: asked \(asked), ticks \(ticks)")
+    #expect(asked == 1 && ticks == 2, "a deferred quit ends at the approving reply: asked \(asked), ticks \(ticks)")
+
+    ticks = 0; asked = 0
+    onTick = { tick in if tick == 1 { platform.replyToTerminateRequest(false) } }
+    push(Int32(MUI_EVENT_QUIT))
+    platform.run(maxIterations: 3)
+    #expect(asked == 1 && ticks == 3, "a refusing reply keeps the loop running: asked \(asked), ticks \(ticks)")
 
     ticks = 0; onTick = { _ in }
     platform.replyToTerminateRequest(true)
     platform.run(maxIterations: 2)
-    #expect(ticks == 2, "a reply with nothing pending does nothing: ticks \(ticks)")
+    #expect(ticks == 2, "a reply with nothing pending (the refusal forgot it) does nothing: ticks \(ticks)")
 }
 
 /// **1.15** (`AS-B` item 6). `close()` hides the window, removes it from the

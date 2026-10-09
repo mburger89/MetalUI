@@ -49,10 +49,18 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 // MARK: - 1.3, 1.4 — the close veto
 
-/// **1.3** (`AS-B` items 5–6). `windowShouldClose(_:)` asks `onCloseRequest`:
-/// `false` keeps the window open through `performClose(nil)` (the close
-/// button's and ⌘W's path) and fires no `onClose`; `true` closes it and fires
-/// `onClose` once; no handler closes.
+/// **1.3** (`AS-B` items 5–6). The `NSWindow`'s delegate — the object AppKit
+/// asks before the close button's and ⌘W's close (`performClose:`) — answers
+/// `windowShouldClose(_:)` with `onCloseRequest`: `false` refuses and the
+/// window stays open with no `onClose`; `true` allows; no handler allows.
+///
+/// **Asked through the delegate protocol, not by `performClose(_:)`**
+/// (ruling `AS-O` item 7): `performClose(_:)` highlights the close button in
+/// a nested event loop, after which HIToolbox's pending `CFRunLoopStop`
+/// (record §61 §9) ended the test process with exit 0 and no summary line —
+/// measured on this file, six of six filtered runs, the stop landing one to
+/// three tests later even with the call inside a nested run. The button
+/// itself is human check AS1.
 ///
 /// Mutation: `windowShouldClose` answers `true` always → red.
 @MainActor
@@ -62,23 +70,21 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     var answer = false
     appKit.onCloseRequest = { asked.count += 1; return answer }
     appKit.onClose = { closed.count += 1 }
+    let delegate = try #require(nsWindow.delegate)
+    #expect(delegate === appKit, "AppKit asks the platform window")
 
-    nsWindow.performClose(nil)
-    #expect(asked.count == 1, "the close button's path asked once")
-    #expect(nsWindow.isVisible, "a refused close leaves the window open")
-    #expect(closed.count == 0, "and fires no onClose")
+    #expect(delegate.windowShouldClose?(nsWindow) == false, "a refusing handler refuses the close")
+    #expect(asked.count == 1, "asked once")
+    #expect(nsWindow.isVisible && closed.count == 0, "the window stays open, no onClose")
 
     answer = true
-    nsWindow.performClose(nil)
+    #expect(delegate.windowShouldClose?(nsWindow) == true, "an allowing handler allows it")
     #expect(asked.count == 2)
-    #expect(!nsWindow.isVisible, "an allowed close closes")
-    #expect(closed.count == 1, "onClose fires once")
-
-    let (_, unasked, unaskedWindow) = try shellWindow("1.3 nil")
-    let closedToo = Counter()
-    unasked.onClose = { closedToo.count += 1 }
-    unaskedWindow.performClose(nil)
-    #expect(!unaskedWindow.isVisible && closedToo.count == 1, "no handler: the close goes ahead")
+    appKit.onCloseRequest = nil
+    #expect(delegate.windowShouldClose?(nsWindow) == true, "no handler: the close goes ahead")
+    #expect(asked.count == 2 && closed.count == 0, "asking closes nothing by itself")
+    nsWindow.close()
+    #expect(closed.count == 1, "the close that follows fires onClose once")
 }
 
 /// **1.4** (`AS-B` item 5). `close()` closes without asking — the handler
@@ -240,7 +246,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// **1.8** (`AS-C` item 7). `applicationShouldTerminate` maps the handler's
 /// answer — `.now`, `.cancel`, `.later` → `.terminateNow`, `.terminateCancel`,
 /// `.terminateLater`; no handler → `.terminateNow` — and
-/// `replyToTerminateRequest` reaches the injected replier.
+/// `replyToTerminateRequest` reaches the injected replier once per pending
+/// `.terminateLater`, never with none pending.
 ///
 /// Mutation: `.later` → `.terminateCancel` → red.
 @MainActor
@@ -262,8 +269,12 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     answer = .later
     #expect(delegate.applicationShouldTerminate(app) == .terminateLater)
     platform.replyToTerminateRequest(true)
+    #expect(replies == [true], "the reply reaches NSApp.reply(toApplicationShouldTerminate:)")
     platform.replyToTerminateRequest(false)
-    #expect(replies == [true, false], "the reply reaches NSApp.reply(toApplicationShouldTerminate:)")
+    #expect(replies == [true], "with nothing pending a reply does nothing")
+    #expect(delegate.applicationShouldTerminate(app) == .terminateLater)
+    platform.replyToTerminateRequest(false)
+    #expect(replies == [true, false])
 }
 
 /// **1.9** (`AS-C` item 7). `terminate()` approves the termination and calls

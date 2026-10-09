@@ -12,7 +12,9 @@ this branch's reserved range **175–184** (175 and 176 used here; the header's
 next-label line is left for the merge).
 
 **Status: designed (2026-10-09), revised by the critic (2026-10-09:
-`AS-J`…`AS-N`).** Lanes 1–3 not started.
+`AS-J`…`AS-N`).** Lane 1 implemented (2026-10-09; `AS-O` — test 1.3 asks the
+delegate, not `performClose(_:)`; the hidden style and a toolbar under it keep
+the frame); lanes 2–3 not started.
 
 ## §0 Baseline (`c62d6ba`)
 
@@ -285,7 +287,7 @@ reddens nothing is a finding.
 | --- | --- | --- | --- |
 | 1.1 | `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile` (guard, `typecheckFile`, plain `import MetalUIPlatform`; a conformer with all seven compiles — the migration note's spelling — and seven arms each missing one fail naming it) | positive arm fails (members absent) | a protocol-extension default `func setRepresentedFilePath(_: String?) {}` → that arm compiles |
 | 1.2 | `aPlatformWithoutEachAppShellRequirementDoesNotCompile` (guard; four arms) | positive arm fails | a default `func terminate() {}` → that arm compiles |
-| 1.3 | `appKitWindowShouldCloseAsksOnCloseRequest`: real `AppKitWindow`; handler `false` → `performClose(nil)` leaves it visible, `onClose` not called; `true` → `onClose` once; `nil` → closes | no requirement | `windowShouldClose` answers `true` always → red |
+| 1.3 | `appKitWindowShouldCloseAsksOnCloseRequest`: real `AppKitWindow`; the `NSWindow`'s delegate is it, and `windowShouldClose(_:)` through `NSWindowDelegate` answers the handler: `false` → refused, window visible, `onClose` not called; `true` → allowed; `nil` → allowed; the close that follows fires `onClose` once (`AS-O` item 7: not `performClose(nil)`, whose nested event loop ends the test process) | no requirement | `windowShouldClose` answers `true` always → red |
 | 1.4 | `appKitCloseClosesWithoutAskingAndFiresOnCloseOnce` (handler would refuse; `close()` closes, handler call count 0, `onClose` 1) | absent | `close()` calls `performClose(nil)` → red |
 | 1.5 | `appKitDocumentEditedAndRepresentedPathReachTheNSWindow`: `isDocumentEdited` follows; `representedURL?.path == "/tmp/x.mcgraph"`; `nil` clears; `title` unchanged (`N3`) | absent | `setRepresentedFilePath(nil)` ignored → red |
 | 1.6 | `appKitHiddenTitleBarSetsSwiftUIsFlagsAndReportsTheBand`: `.hidden` → `true`, `.fullSizeContentView`, transparent, title hidden (`H0`); `contentSize.height` grows by the band; `titleBarInsets.top == frame − contentLayoutRect` (> 0), `left ==` zoom button maxX; `.standard` restores all and zero insets | absent | omit `titlebarAppearsTransparent` → red; insets always zero → red |

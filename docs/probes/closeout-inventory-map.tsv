@@ -154,6 +154,7 @@ F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsA
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 F	input-apis-seam	M	-	-	-	-	CI-E CI-I CI-J CI-V	InputPhase, MouseEvent.buttonNumber, ScrollEvent.phase/momentumPhase/isPrecise/location and its full initialiser, MagnifyEvent/RotateEvent, InputEvent.rightMouseDragged/.otherMouseDown/.otherMouseDragged/.otherMouseUp/.magnify/.rotate, PlatformPointerStyle/PlatformResizeEdge, PlatformWindow.setPointerStyle (defaultless): the platform seam for other buttons, trackpad gestures, scroll phases and the pointer style
+F	app-shell-seam	M	-	-	-	-	AS-B AS-C AS-E AS-G AS-H AS-J AS-O	CloseRequestReply, PlatformTitleBarStyle, AppKitPlatform.onTerminateRequest/replyToTerminateRequest/terminate/onOpenURLs, and the seven PlatformWindow and four Platform requirements (defaultless): the platform seam for the close veto, the terminate hook, the edited marker and represented file, the hidden title bar and its band drag, and open-document events (MetalUI-only: SwiftUI has no such seam)
 F	input-apis-gestures	A	swiftui-input-apis.swift	T1	aSpatialTapReportsItsReleasePointInLocalSpace	-	CI-B CI-C CI-D	SpatialTapGesture (.location), MagnifyGesture (.magnification/.startLocation/.startAnchor), RotateGesture (.rotation clockwise-positive/.startLocation/.startAnchor), onTapGesture(count:coordinateSpace:perform:) on both vocabularies: a spatial tap is a tap leaf reporting its release point; magnify and rotate recognize in their own pinch arena from the one ranking
 F	input-apis-global-space	D	swiftui-input-apis.swift	T2	aSpatialTapInGlobalSpaceReportsTheWindowPoint	139	CI-B CI-U	CoordinateSpace (.local, .global; the census counts the enum, not its cases): .global is the window's content space, the point MouseEvent carries; SwiftUI's .global in a titled window reads 32 points lower (T2, 139)
 F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them)
@@ -418,9 +419,11 @@ M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|lo
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
 M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
+M	MetalUIPlatform	AppShell.swift	.*	.*	.*	app-shell-seam
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render
+M	MetalUIAppKit	AppKitPlatform.swift	AppKitPlatform	(onTerminateRequest|replyToTerminateRequest|terminate|onOpenURLs)	.*	app-shell-seam
 M	MetalUIAppKit	AppKitPlatform.swift	AppKitPlatform	setMenuBar	.*	menu-bar
 M	MetalUIAppKit	AppKitPlatform.swift	AppKitPlatform	setApplicationIcon	.*	app-icon
 M	MetalUIAppKit	.*	.*	.*	.*	render

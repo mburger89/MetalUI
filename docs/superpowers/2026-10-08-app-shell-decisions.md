@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-O`.**
+**Next unused id: `AS-P`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -660,3 +660,78 @@ three modifiers and the root rule (`openWindow { Column { content.navigationTitl
 test 2.1 gains the negative arm `openWindow(…) { Box().navigationTitle("x") }`
 (fails) beside the positive `Column { Box().navigationTitle("x") }`; the
 demo writes them inside its root container.
+
+## AS-O — Lane 1: AppKit keeps the frame for the hidden title bar and for a toolbar under it; a reply with nothing pending does nothing everywhere; where the mouse-down is kept; the fakes' names
+
+**Findings (lane 1, measured** with a throwaway AppKit program — a 400 × 200
+content `NSWindow` on screen, a plain content view, the flags of `AS-E` item 2,
+then a one-item `NSToolbar` assigned directly — run on 2026-10-09):
+
+| step | frame height | `contentLayoutRect` height | content view height | KVO on `contentLayoutRect` |
+| --- | --- | --- | --- | --- |
+| standard | 232 | 200 | 200 | — |
+| `.fullSizeContentView` + transparent + title hidden | **200** | 168 | 200 | — |
+| a toolbar assigned | 200 | 134 | 200 | 3 calls |
+| `toolbarStyle = .expanded` | 200 | 117 | 200 | 3 more |
+
+Inserting `.fullSizeContentView` on a window already on screen **keeps the
+content view's size and shrinks the frame** — so the content does not grow
+under the bar, which `AS-E` item 3 and test 1.6 require. And `setToolbar`'s
+`TB1` restore (`setContentSize(contentLayoutRect.size)` from before the
+toolbar) would, under full-size content, size the whole content view to the
+old layout rect and shrink the window: the band change would always come with
+a size change, and `AS-E` item 5's observation would be unobservable (test 1.7
+could not be red under "drop the KVO").
+
+**Ruling.**
+
+1. `AppKitWindow.setTitleBarStyle(_:)` **restores the frame it found** after
+   changing the flags (either direction), so the content grows by the band
+   under `.hidden` and shrinks back under `.standard`; the host view's resize
+   reports it through `onResize`.
+2. `AppKitWindow.setToolbar(_:)` skips the `TB1` content-size restore while the
+   style is `.hidden`: the frame is kept, the toolbar deepens the band,
+   `titleBarInsets.top` grows and the `contentLayoutRect` observation reports
+   it (test 1.7). The standard style's `TB1` behaviour is unchanged (its
+   tests unmoved).
+3. **A reply with nothing pending does nothing on every platform**:
+   `AppKitApplicationDelegate` records its own `.terminateLater` and calls
+   `NSApp.reply(toApplicationShouldTerminate:)` only for it, as `SDLPlatform`
+   does for its `.later` (the `Platform.replyToTerminateRequest(_:)`
+   contract). Test 1.8 pins both halves.
+4. The primary mouse-down is kept on `MetalHostView.currentMouseDown`
+   (`private(set)`, set for the duration of the `onInput` call), read by
+   `AppKitWindow.performTitleBarPress` — not on `AppKitWindow` as spec §1.1
+   wrote; same contract (`AS-J` item 2).
+5. The fakes' spellings, which lane 2 uses (`AS-K` item 4's `replies` is
+   `terminateReplies`): `FakePlatformWindow.onCloseRequest`, `close()`,
+   `isClosed`, `closeCalls`, `simulateCloseRequest() -> Bool`
+   (`@discardableResult`), `documentEditedCalls`, `representedPaths`,
+   `titleBarStyles`, `titleBarStyleApplies` (default `true`), settable
+   `titleBarInsets` (default zero), `titleBarPresses`, `titleBarPressResult`
+   (default `true`); `FakePlatform.onTerminateRequest`,
+   `simulateTerminateRequest() -> CloseRequestReply`, `terminateReplies`,
+   `terminateCalls`, `onOpenURLs` (parking) and `simulateOpenURLs(_:)`.
+6. The SDL window-0 drop is taken in `SDLPlatform.dispatch` for all five drop
+   kinds (only FILE and COMPLETE act; a window id routes to the window as
+   before), and the URL test is `SDLPlatform.hasURLScheme(_:)` —
+   `[A-Za-z][A-Za-z0-9+.-]*://`.
+7. **Test 1.3 asks the `NSWindow`'s delegate through `NSWindowDelegate`,
+   not through `performClose(_:)`** (amends spec §4.1's 1.3 wording).
+   Measured: with `performClose(nil)` in 1.3, six of six filtered runs of the
+   lane's tests ended with exit 0 and no summary line, one to three tests
+   after 1.3, `CFRunLoopCopyCurrentMode(main)` `nil` at `exit` (an `atexit`
+   backtrace: `exit` ← `swift_task_asyncMainDrainQueue`) — Swift Testing's
+   outermost run loop was stopped, record §61 §9's HIToolbox
+   `SignalMainThread` stop; `performClose(_:)` highlights the button in a
+   nested event loop (as `performClick(_:)` does, `AppKitToolbarTests`), and
+   wrapping it in a nested run (`AppKitPresentationTests`' recipe) did not
+   help (three of three). Asking the delegate (`delegate === appKit`,
+   `windowShouldClose?(_:)`) keeps the mutation ("answers `true` always")
+   separating; three of three runs then completed. The close button and ⌘W
+   themselves are human check AS1 (lane 3).
+
+**Cost if wrong.** If an app expects the hidden style to keep the content size
+and move the frame instead, it resizes the window itself; the standard
+style's pixels and toolbar behaviour do not move either way.
+

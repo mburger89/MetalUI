@@ -36,6 +36,17 @@ private final class RecordingSDLPlatform: Platform {
     func run() { base.run() }
     func setApplicationIcon(_ images: [ImageTexture]) { base.setApplicationIcon(images) }
     func setMenuBar(_ menuBar: PlatformMenuBar) { base.setMenuBar(menuBar) }
+    // The app-shell requirements (ruling `AS-H` item 4), forwarded unchanged.
+    var onTerminateRequest: (() -> CloseRequestReply)? {
+        get { base.onTerminateRequest }
+        set { base.onTerminateRequest = newValue }
+    }
+    func replyToTerminateRequest(_ shouldTerminate: Bool) { base.replyToTerminateRequest(shouldTerminate) }
+    func terminate() { base.terminate() }
+    var onOpenURLs: (([String]) -> Void)? {
+        get { base.onOpenURLs }
+        set { base.onOpenURLs = newValue }
+    }
 }
 
 /// An `App` over a hidden-window `SDLPlatform`, drawing text with the
