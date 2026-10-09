@@ -135,7 +135,13 @@ final class FakePlatformWindow: PlatformWindow {
     /// and forwards the frame with none, so no surface table runs.
     var spyRenderer: SpyWindowRenderer?
     var renderer: any WindowRenderer { spyRenderer ?? windowRenderer }
-    var title: String = "Fake"
+    var title: String = "Fake" {
+        didSet { titleWrites.append(title) }
+    }
+    /// Every assignment to ``title``, in order — the opening platform's
+    /// included (app shell lane 2, test 2.16: `Window` sends a title only
+    /// when its effective value changes, `AS-D` item 1).
+    private(set) var titleWrites: [String] = []
 
     /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.
     ///
@@ -422,8 +428,12 @@ final class FakePlatformWindow: PlatformWindow {
     /// What `setTitleBarStyle` answers; `true`, a platform that applies it
     /// (AppKit), by default.
     var titleBarStyleApplies = true
+    /// How many frames the surface had presented at each `setTitleBarStyle`
+    /// (test 2.22: `openWindow(windowStyle:)` applies before the first frame).
+    private(set) var titleBarStylePresentsBefore: [Int] = []
     func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
         titleBarStyles.append(style)
+        titleBarStylePresentsBefore.append(fakeSurface.presentCalls)
         return titleBarStyleApplies
     }
 
