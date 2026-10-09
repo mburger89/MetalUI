@@ -36,7 +36,22 @@ public struct Material: Hashable, Sendable {
     /// The flat tint drawn for this material in `scheme` (`LK-L` item 3's
     /// table): a gamma grey at an alpha.
     func fill(for scheme: ColorScheme) -> Color {
-        .clear
+        let (grey, alpha): (Double, Double)
+        switch (kind, scheme == .dark) {
+        case (.ultraThin, false): (grey, alpha) = (0.9250, 0.4706)
+        case (.thin, false): (grey, alpha) = (0.9145, 0.5961)
+        case (.regular, false): (grey, alpha) = (0.9121, 0.7137)
+        case (.thick, false): (grey, alpha) = (0.9052, 0.8275)
+        case (.ultraThick, false): (grey, alpha) = (0.8996, 0.9373)
+        case (.bar, false): (grey, alpha) = (1.0000, 0.8000)
+        case (.ultraThin, true): (grey, alpha) = (0.2248, 0.5059)
+        case (.thin, true): (grey, alpha) = (0.2105, 0.5961)
+        case (.regular, true): (grey, alpha) = (0.2045, 0.6902)
+        case (.thick, true): (grey, alpha) = (0.2010, 0.7804)
+        case (.ultraThick, true): (grey, alpha) = (0.2000, 0.8627)
+        case (.bar, true): (grey, alpha) = (0.1779, 0.8157)
+        }
+        return Color(white: grey, opacity: alpha)
     }
 
     /// The tint as one colour following the scheme — what every site draws.

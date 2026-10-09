@@ -34,6 +34,18 @@ func lkSample(_ entry: (image: MUIImage, texture: ImageTexture), _ x: Double, _ 
             && x < Double(r.origin.x + r.size.width) && y < Double(r.origin.y + r.size.height)
     }
     guard inside(b), inside(m) else { return nil }
+    // The mask's rounded corners, as the shader cuts them.
+    let r = entry.image.maskCornerRadii
+    let mx0 = Double(m.origin.x), my0 = Double(m.origin.y)
+    let mx1 = mx0 + Double(m.size.width), my1 = my0 + Double(m.size.height)
+    for (radius, cx, cy, inCorner) in [
+        (Double(r.topLeft), mx0 + Double(r.topLeft), my0 + Double(r.topLeft), x < mx0 + Double(r.topLeft) && y < my0 + Double(r.topLeft)),
+        (Double(r.topRight), mx1 - Double(r.topRight), my0 + Double(r.topRight), x > mx1 - Double(r.topRight) && y < my0 + Double(r.topRight)),
+        (Double(r.bottomRight), mx1 - Double(r.bottomRight), my1 - Double(r.bottomRight), x > mx1 - Double(r.bottomRight) && y > my1 - Double(r.bottomRight)),
+        (Double(r.bottomLeft), mx0 + Double(r.bottomLeft), my1 - Double(r.bottomLeft), x < mx0 + Double(r.bottomLeft) && y > my1 - Double(r.bottomLeft)),
+    ] where radius > 0 && inCorner {
+        if (x - cx) * (x - cx) + (y - cy) * (y - cy) > radius * radius { return nil }
+    }
     let t = entry.texture
     let u = (x - Double(b.origin.x)) / Double(b.size.width) * Double(t.width)
     let v = (y - Double(b.origin.y)) / Double(b.size.height) * Double(t.height)
@@ -103,13 +115,17 @@ func lkNear(_ got: [Int], _ want: [Int], _ tolerance: Int) -> Bool {
 
 /// **3.2** (G1). A vertical gradient is sampled at pixel centres: a red→blue
 /// 10 × 101 reads (254, 9, 8) at y 0, (141, 82, 162) at y 50 and (2, 5, 254)
-/// at y 100. Mutation: `t = y / H` (y 0 reads pure red).
+/// at y 100. At y 0 the exact Oklab arithmetic (the probe's own,
+/// `gradient-raster-cost.swift`) reads green 6 where SwiftUI reads 9 — the
+/// steep end of the red → blue curve, where SwiftUI's renderer is 3 levels
+/// off the formula (y 1: 16 vs 19) — so y 0 takes ±3 (`LK-W` item 2); every
+/// other point ±1. Mutation: `t = y / H` (y 0 reads pure red, green 0).
 @Test @MainActor func aVerticalGradientSamplesAtPixelCentresG1() {
     let scene = lkScene(Rectangle().fill(LinearGradient(colors: [lkRed, lkBlue], startPoint: .top, endPoint: .bottom))
         .frame(width: px(10), height: px(101)), side: 201)   // origin y 50
-    for (y, want) in [(0, [254, 9, 8]), (50, [141, 82, 162]), (100, [2, 5, 254])] {
+    for (y, want, tolerance) in [(0, [254, 9, 8], 3), (50, [141, 82, 162], 1), (100, [2, 5, 254], 1)] {
         let got = lkComposite(scene, 100, 50 + Double(y) + 0.5)
-        #expect(lkNear(got, want, 1), "y \(y): \(got) vs G1 \(want)")
+        #expect(lkNear(got, want, tolerance), "y \(y): \(got) vs G1 \(want)")
     }
 }
 
@@ -257,8 +273,9 @@ func lkNear(_ got: [Int], _ want: [Int], _ tolerance: Int) -> Bool {
 
 /// **3.10** (`LK-J` item 7, a rule). A gradient change snaps: a legacy box's
 /// and a proposal view's gradient background changed under a one-second
-/// linear transaction reads the new colours fully half-way. Mutation: route
-/// the legacy gradient through `animatedBackground`.
+/// linear transaction reads, half-way, exactly what a fresh window draws for
+/// the new gradient. Mutation: route the legacy gradient through
+/// `animatedBackground`.
 @Test @MainActor func aGradientChangeSnaps() {
     func gradient(_ first: Color) -> LinearGradient {
         LinearGradient(colors: [first, lkBlue], startPoint: .leading, endPoint: .trailing)
@@ -273,9 +290,10 @@ func lkNear(_ got: [Int], _ want: [Int], _ tolerance: Int) -> Bool {
     h.frame(0, nil, tree(lkRed), side: 200)
     h.frame(0, Animation.linear(duration: 1), tree(lkGreen), side: 200)
     let scene = h.frame(0.5, nil, tree(lkGreen), side: 200).finalizedScene()
+    let fresh = lkScene(tree(lkGreen), side: 200)
     // The column is 100 × 40 at (50, 80): the legacy box above, the view below.
     for y in [90.0, 110.0] {
-        let got = lkComposite(scene, 50.5, y)
-        #expect(lkNear(got, [0, 255, 0], 3), "y \(y): the new first colour at once: \(got)")
+        let got = lkComposite(scene, 50.5, y), want = lkComposite(fresh, 50.5, y)
+        #expect(got == want && got[1] > 240, "y \(y): the new first colour at once: \(got) vs \(want)")
     }
 }

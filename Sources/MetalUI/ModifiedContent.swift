@@ -591,6 +591,9 @@ extension LayoutModifier: ModifierLayerKind {
             // precedent); radius and offset were animated in layout.
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "shadow.colour"), pass: pass)
             pass.withShadow(color: color, radius: radius, x: x, y: y, inside)
+        case let .blur(radius):
+            // The radius was animated in layout (`LK-K` item 6).
+            pass.withBlur(radius: radius, inside)
         default:
             inside()
         }

@@ -23,7 +23,7 @@ public func looksDemoContent() -> some Element {
     looksRoot(text: looksBesideH1(text: looksTextSection(), lifecycle: looksLifecycleSection()),
               shapes: looksShapesSection(),
               gestures: looksGesturesSection(),
-              transitions: looksTransitionsSection(),
+              transitions: looksTransitionsAndLooks(),
               pathsShadowsTransforms: looksPathsShadowsTransformsSection(),
               colour: looksColourAndKeyframes())
 }
@@ -604,3 +604,114 @@ struct KeyframesDemo: Component {
         .alignItems(.center)
     }
 }
+
+/// The transitions section, then the gradients, blur and materials section
+/// (C10 lane 3), the latter as a `Component` so the composer's frame holds an
+/// empty struct and the section is built in the component's own frame
+/// (`PE-K`): built inline here, the looks tree overflowed the 1 MB thread
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`, `.signal(SIGBUS)`,
+/// measured, `LK-W` item 10).
+@MainActor
+private func looksTransitionsAndLooks() -> some Element {
+    Column(gap: Pixels(18)) {
+        looksTransitionsSection()
+        LooksGradientsBlurMaterials()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The gradients, blur and materials section as a `Component` (`LK-W` item 10).
+struct LooksGradientsBlurMaterials: Component {
+    var content: some ElementGroup { gradientsBlurMaterialsSection() }
+}
+
+/// An 8 × 8 two-tone checker, the blurred image's source.
+@MainActor private let looksCheckerBitmap: ImageBitmap = {
+    var rgba: [UInt8] = []
+    for y in 0..<8 { for x in 0..<8 { rgba += (x + y) % 2 == 0 ? [230, 80, 40, 255] : [40, 90, 220, 255] } }
+    return ImageBitmap(width: 8, height: 8, rgba: rgba)
+}()
+
+/// The looks row (C10 lane 3, rulings `LK-J`, `LK-K`, `LK-L`, `LK-M`, `LK-W`;
+/// spec §6): a window-style vertical gradient panel (the strip, M5-d), a
+/// diagonal and a radial gradient, a text and an image blurred at radii 0, 2
+/// and 6 (M5-c), and the six materials over a striped backdrop in both schemes
+/// (divergence 166: a flat tint, no blur, MG-9). **Its own function**, each row
+/// in its own `Component` (`PE-K`), no click target (the demo's tests count
+/// them). Human checks: spec §7 items 5–8.
+@MainActor
+func gradientsBlurMaterialsSection() -> some Element {
+    Column(gap: Pixels(10)) {
+        Text("Gradients, blur, materials").font(size: 20)
+        LooksGradientsRow()
+        LooksBlurRow()
+        LooksMaterialsRow(scheme: .light)
+        LooksMaterialsRow(scheme: .dark)
+    }
+    .alignItems(.flexStart)
+}
+
+/// A vertical (strip), a diagonal and a radial gradient.
+struct LooksGradientsRow: Component {
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(12)) {
+            RoundedRectangle(cornerRadius: Pixels(8))
+                .fill(LinearGradient(colors: [Color(white: 0.96), Color(white: 0.82)], startPoint: .top,
+                                     endPoint: .bottom))
+                .frame(width: Pixels(90), height: Pixels(60))
+            Rectangle()
+                .fill(LinearGradient(colors: [.orange, .pink, .indigo], startPoint: .topLeading,
+                                     endPoint: .bottomTrailing))
+                .frame(width: Pixels(90), height: Pixels(60))
+            Circle()
+                .fill(RadialGradient(colors: [.yellow, .red.opacity(0)], center: .center, startRadius: Pixels(0),
+                                     endRadius: Pixels(30)))
+                .frame(width: Pixels(60), height: Pixels(60))
+        }
+    }
+}
+
+/// A text and an image blurred at radii 0, 2 and 6.
+struct LooksBlurRow: Component {
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(12)) {
+            ForEach([0, 2, 6], id: \.self) { radius in
+                VStack(spacing: Pixels(4)) {
+                    Text("Blur \(radius)").font(size: 13).blur(radius: Pixels(Float(radius)))
+                    Image(looksCheckerBitmap, scale: 1, label: Text("Checker"))
+                        .frame(width: Pixels(32), height: Pixels(32))
+                        .blur(radius: Pixels(Float(radius)))
+                }
+            }
+        }
+    }
+}
+
+/// The six materials over red and blue stripes, in `scheme`.
+struct LooksMaterialsRow: Component {
+    var scheme: ColorScheme
+
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(0)) {
+            ForEach(0..<looksMaterials.count, id: \.self) { i in
+                ZStack {
+                    HStack(spacing: Pixels(0)) {
+                        ForEach(0..<6, id: \.self) { k in
+                            (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
+                        }
+                    }
+                    Text(looksMaterials[i].0).font(size: 10)
+                        .frame(width: Pixels(60), height: Pixels(20))
+                        .background(looksMaterials[i].1)
+                }
+            }
+        }
+        .environment(\.colorScheme, scheme)
+    }
+}
+
+/// The six materials, named.
+@MainActor private let looksMaterials: [(String, Material)] = [
+    ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
+    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
+]

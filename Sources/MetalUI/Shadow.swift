@@ -119,8 +119,16 @@ extension Frame {
     /// Every number of `paint`'s leaf, for its cache key.
     private func keyShadow(_ paint: ShadowPaint, into key: inout RasterKey, retained: inout [AnyObject]) {
         key.add(paint.radius); key.add(paint.dx); key.add(paint.dy); key.add(paint.local)
-        key.add(paint.leaf.count)
-        for q in paint.leaf {
+        keyLeaf(paint.leaf, into: &key, retained: &retained)
+    }
+
+    /// Every number of a captured leaf, for a cache key — the shadow's and
+    /// the blur's (`GX-J`, `LK-K`): one switch, so the two cannot drift.
+    /// A shadow needs only alpha; a blur (`colours`) every colour.
+    func keyLeaf(_ leaf: [CapturedPrimitive], into key: inout RasterKey, retained: inout [AnyObject],
+                 colours: Bool = false) {
+        key.add(leaf.count)
+        for q in leaf {
             key.add(q.innerMask ? 1 : 0)
             key.add(q.outerMaskInner ? 1 : 0)
             if let t = q.transform {
@@ -133,9 +141,11 @@ extension Frame {
                 key.add(10); key.add(r.bounds); key.add(r.contentMask); key.add(r.maskCornerRadii)
                 key.add(r.cornerRadii); key.add(r.borderWidths); key.add(r.background.a); key.add(r.borderColor.a)
                 key.add(r.shapeKind)
+                if colours { key.add(r.background); key.add(r.borderColor) }
             case let .glyph(g):
                 key.add(11); key.add(g.bounds); key.add(g.atlasBounds); key.add(g.contentMask)
                 key.add(g.maskCornerRadii); key.add(g.color.a)
+                if colours { key.add(g.color) }
             case let .image(i, texture):
                 key.add(12); key.add(i.bounds); key.add(i.contentMask); key.add(i.maskCornerRadii)
                 key.add(i.opacity); key.add(i.filterKind)
@@ -144,6 +154,7 @@ extension Frame {
                 key.add(13); key.add(q.bounds); key.add(q.contentMask); key.add(q.maskCornerRadii); key.add(q.opacity)
             case let .path(p):
                 key.add(14); key.paths.append(p.geometry); key.add(p.local); key.add(p.color.a)
+                if colours { key.add(p.color) }
                 key.add(p.contentMask); key.add(p.maskCornerRadii)
                 switch p.mode {
                 case let .fill(rule, antialiased):
@@ -156,7 +167,17 @@ extension Frame {
                 }
             case let .shadow(inner):
                 key.add(15); key.add(inner.color.a); key.add(inner.contentMask); key.add(inner.maskCornerRadii)
+                if colours { key.add(inner.color) }
                 keyShadow(inner, into: &key, retained: &retained)
+            case let .gradient(g):
+                key.add(16); key.paths.append(g.geometry); keyMode(g.mode, into: &key); key.add(g.local)
+                key.add(g.opacity); key.add(g.contentMask); key.add(g.maskCornerRadii)
+                key.words += g.stops.keyWords
+                for w in g.axis.words { key.add(w) }
+            case let .blur(inner):
+                key.add(17); key.add(inner.radius); key.add(inner.local); key.add(inner.alpha)
+                key.add(inner.contentMask); key.add(inner.maskCornerRadii)
+                keyLeaf(inner.leaf, into: &key, retained: &retained, colours: true)
             }
         }
     }
@@ -278,6 +299,17 @@ extension Frame {
             mask = RasterMath.crop(shadowCoverage(inner, full: m.concatenating(inner.local), clip: clip, cache: cache),
                                    to: clip)
             mask = RasterMath.scale(mask, by: inner.color.a)
+        case let .gradient(g):
+            // A gradient's silhouette is its coverage times its colours' alpha
+            // (`LK-J`; SH6).
+            contentMask = (g.contentMask, g.maskCornerRadii)
+            mask = RasterMath.scale(gradientPixels(g, full: m.concatenating(g.local), clip: clip, cache: cache)
+                .channel(3), by: g.opacity)
+        case let .blur(inner):
+            // A blurred leaf's silhouette is its blurred alpha.
+            contentMask = (inner.contentMask, inner.maskCornerRadii)
+            mask = RasterMath.scale(blurLayer(inner, full: m.concatenating(inner.local), clip: clip, cache: cache)
+                .channel(3), by: inner.alpha)
         }
         guard !mask.rect.isEmpty else { return mask }
         if q.innerMask {

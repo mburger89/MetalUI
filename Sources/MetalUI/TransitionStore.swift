@@ -336,7 +336,7 @@ final class TransitionStore {
 /// (before its own effect) for a ghost or a preview.
 @MainActor
 final class PaintScope {
-    enum Kind { case transition, effect, capture, barrier, shadow }
+    enum Kind { case transition, effect, capture, barrier, shadow, blur }
 
     /// A shadow scope's shadow (`GX-J`): its colour, radius and offset in
     /// device pixels of the space it was pushed in, and the clip at its entry.
@@ -360,6 +360,17 @@ final class PaintScope {
     let outer: OuterMask?
     /// A shadow scope's shadow, `nil` for every other kind.
     let shadow: Shadow?
+    /// A blur scope's radius (device pixels of the space it was pushed in)
+    /// and the clip at its entry (`LK-K`), `nil` for every other kind.
+    var blur: Blur?
+
+    /// A blur scope's radius in device pixels of the space it was pushed in,
+    /// and the clip at its entry (`LK-K`).
+    struct Blur {
+        var radius: Double
+        var mask: MUIBounds
+        var radii: MUICorners
+    }
     var captures: [CapturedPrimitive] = []
 
     var capturing: Bool { kind == .transition || kind == .capture }

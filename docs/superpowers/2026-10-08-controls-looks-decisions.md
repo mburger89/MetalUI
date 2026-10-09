@@ -29,7 +29,7 @@ Where SwiftUI has no answer (a hex field, how a drawn panel takes keys, what a
 GPU surface under a blur shows) the ruling says so; gpui is named as a
 comparison where it has one, never as evidence.
 
-Prefix **`LK-`**, lettered. **Next unused: `LK-W`.** (This line moves in the
+Prefix **`LK-`**, lettered. **Next unused: `LK-X`.** (This line moves in the
 commit that appends a ruling; read the last `## LK-` heading.)
 
 Branch `feat/controls-looks` from `cd84b0c` (master: variable-height `List`,
@@ -973,3 +973,104 @@ exactly these:
    presses the bottom-most as the scheme toggle (a `Button` reddened both,
    measured), and the row sits above the colour section for the same reason.
 
+
+## LK-W — Lane 3: what landing gradients, blur and materials changed in the design
+
+**Final spellings (lane 3, landed)** — MetalCreator and the configurator swap
+their stopgaps to exactly these:
+
+- **M5-d** (the solid window background): `LinearGradient(colors: [a, b],
+  startPoint: .top, endPoint: .bottom)` as `.background(_:)` on a proposal view
+  (the gradient view as the background attachment) or a legacy `StyledElement`
+  (a `Decoration` fill), `Shape.fill(_:)` / `fill(_:style:)` /
+  `stroke(_:lineWidth:)` / `stroke(_:style:)`, and `.background(gradient, in:
+  shape)`; also `LinearGradient(stops:startPoint:endPoint:)`,
+  `LinearGradient(gradient:startPoint:endPoint:)`, `Gradient(colors:)`,
+  `Gradient(stops: [.init(color:location:)])` and
+  `RadialGradient(colors:center:startRadius:endRadius:)` (and `gradient:`/`stops:`).
+  A gradient is a view too: `LinearGradient(…).frame(…)`.
+- **M5-c** (blur): `.blur(radius: Pixels(6))` on both vocabularies.
+- **M5-c, MG-9** (materials): `.background(.ultraThinMaterial)` …
+  `.ultraThickMaterial`, `.bar`; `.background(.regularMaterial, in: Capsule())`;
+  `Rectangle().fill(.thinMaterial)` — **a fitted flat tint with no backdrop
+  blur** (divergence 166).
+
+Guard 3.T1 (`materialSpellingsResolveWithoutAmbiguity`) typechecks them all
+beside `.background(.surface)` and `.fill(.red)` from a plain import.
+
+**Ruling (amends `LK-J` items 4–5 and 8, `LK-K` item 2, `LK-S` item 2, spec
+§2's file table, §3.3, §4.3 and §6).**
+
+1. **"Frame 9" is the ninth frame, index 8.** The recorder's frames are
+   numbered from 0 (frame 7 is the transforms frame), so `LK-S`'s frame 9 is
+   `looksFrame` at index 8; `--expect 9` counts it. `Experiments/SDLGPU/README.md`
+   says so.
+2. **G1's red end takes ±3, measured.** The probe's own premultiplied-Oklab
+   arithmetic (`gradient-raster-cost.swift`), evaluated exactly, reads G1's
+   y 0 as (254, **6**, 8) and y 1 as (252, 16, 21) where SwiftUI reads
+   (254, 9, 8) and (251, 19, 21): the steep red end of red → blue, where
+   SwiftUI's renderer sits up to 3 levels off the formula. Every other G1, G2,
+   G4, G7 and G11 point the arithmetic reproduces within 1. The table is not
+   bent to the two points; `aVerticalGradientSamplesAtPixelCentresG1` holds
+   y 0 to ±3 (its `t = y/H` mutation still separates: green 0). Recorded, not
+   a divergence.
+3. **G4c's probe pixel 50 is the edge itself** (t = 0.5 exactly at its centre)
+   and is not pinned; its neighbours 48, 49, 51, 52 are. MetalUI's table puts
+   `t = 0.5` in the later stop's colour after the 1024-entry rounding.
+4. **A blurred leaf is keyed by its colours.** The shadow's leaf key
+   (`keyShadow`) carries alpha only — a silhouette needs no more — and the
+   blur first reused it: `blurIsPerLeafB2`'s blue square drew the red square's
+   cached texture (measured, `(255, 166, 166)` at x 26). The one leaf switch
+   is now `Frame.keyLeaf(_:into:retained:colours:)` (`Shadow.swift`), the
+   shadow passing `colours: false` (its keys unchanged) and the blur `true`.
+5. **Where the strip applies** (`LK-J` item 5, exactly): a linear gradient
+   along exactly one axis, a **fill** with antialiasing, a built-in rounded
+   rectangle (not an ellipse or path), no transform record, the composed map a
+   uniform positive scale plus translation (so translation and uniform-scale
+   effects, which flatten, keep it), and the device rect inside the clip inset
+   by the clip's largest corner radius. Its texel count is the device length
+   rounded up; texel `i` is the colour at its centre. Its image carries
+   `contentMask` = the rect and `maskCornerRadii` = the rect's radii, filter
+   linear, the gradient's opacity as the image's. A full raster carries the
+   opacity the same way (so a fade re-tints nothing).
+6. **A legacy gradient background and a colour one: the last written wins**
+   (`background(_:)` with a colour clears the gradient, a gradient clears the
+   colour); a gradient is the **plain fill slot** for the opacity-escape rule
+   (`LR-FW`); a hover or focus colour paints over it; it paints through
+   `paintDecorationBody`, under the corner radius, before the border.
+7. **Materials draw the colour site's primitive**: a proposal
+   `.background(material)` is the existing `.background(Color)` layer (it fades
+   on that layer's colour track like any colour), a legacy one is
+   `background(material.color)`, `fill(material)` is `fill(material.color)` —
+   a `Color(light:dark:)` of two gamma greys at an alpha (`LK-L` item 3's
+   table). `aGradientChangeSnaps` compares half-way with a fresh window's
+   pixels rather than a literal, since the new gradient's first pixel is not
+   pure green (t = 0.5/100).
+8. **Files beyond the spec's table**, each a few lines: `Transition.swift`
+   (the two `CapturedPrimitive` kinds and their arms), `TransitionStore.swift`
+   (`PaintScope.Kind.blur`, `PaintScope.Blur`), `DragSession.swift` (a replayed
+   preview's masks), `AnimatedColor.swift` (`paintDecorationBody`'s gradient,
+   item 6), `ModifiedContent.swift` and `ProposalAnimation.swift` (the
+   `LayoutModifier.blur` layer's paint and radius track),
+   `Tests/MetalUITests/DragPreviewTests.swift` (an exhaustive switch over
+   `CapturedPrimitive.Kind` gains an arm) and `Experiments/SDLGPU/README.md`.
+   None is on `LK-N`'s off-limits list.
+9. **The demo's blur row has fixed radii (0, 2, 6), not a slider**: a slider
+   is a click target, and `theLooksDemoDrawsEverySurfaceItsHumanChecksName`
+   pins the looks demo's at fourteen (`LK-V` item 9). The section is composed
+   with the transitions section in its own frame (`looksTransitionsAndLooks`),
+   its rows `Component`s.
+10. **The 1 MB thread, measured twice.** With `backgroundGradient` stored
+    inline `MemoryLayout<Decoration>.size` read 272 and
+    `everyProductionTreeBuildsOnAOneMegabyteThread` failed (`.signal(SIGBUS)`)
+    on the first full suite (2850, that one failure) — **even with the new demo
+    section removed**. `Decoration`'s two rarely-set paint fields, `clipShape`
+    and `backgroundGradient`, now live in one heap box (`DecorationExtras`, an
+    `indirect` case; both stay computed properties with their old spelling, `nil`
+    when neither is set): the size reads 224 and the production trees build
+    again. The section itself, composed inline beside the transitions, still
+    overflowed; as a `Component` (`LooksGradientsBlurMaterials`, `PE-K`) it
+    passes. A new stored property on `Decoration` (or any per-element value)
+    is a stack cost on Windows: box it.
+11. **`LayoutModifier.blur(radius:)` owes its migration note** in the Record
+    phase (`docs/migration.md`, `LK-R` item 3).

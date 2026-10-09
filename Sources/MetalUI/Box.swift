@@ -403,7 +403,10 @@ public struct Decoration: Sendable, Hashable {
     /// animation (nothing interpolates it). Internal, like `escapesOpacity`:
     /// a box over `any Shape & Hashable` keeps `Hashable` synthesized
     /// (`TE-AQ` item 3). `clipRegion(in:)` is its one reader.
-    var clipShape: ClipShapeBox?
+    var clipShape: ClipShapeBox? {
+        get { extras?.fields.clipShape }
+        set { setExtra { $0.clipShape = newValue } }
+    }
 
     /// The legacy render effects (`rotationEffect`, `scaleEffect`, `offset`),
     /// in written order — the last written outermost (ruling `GX-H`). Always
@@ -417,7 +420,24 @@ public struct Decoration: Sendable, Hashable {
     /// a gradient clears the colour, so the last written wins. Not animated
     /// (`animatedBackground` keeps the colour path only). Internal, like
     /// `clipShape`; empty for every element written before gradients existed.
-    var backgroundGradient: GradientFill?
+    var backgroundGradient: GradientFill? {
+        get { extras?.fields.backgroundGradient }
+        set { setExtra { $0.backgroundGradient = newValue } }
+    }
+
+    /// The rarely-set paint fields `clipShape` and `backgroundGradient`, in
+    /// one heap box (`LK-W` item 10): stored inline they grow every legacy
+    /// element, and a production tree is built on a 1 MB thread on Windows
+    /// (`everyProductionTreeBuildsOnAOneMegabyteThread`). `nil` when neither
+    /// is set, so a decoration written without them compares equal to its
+    /// memberwise twin.
+    private var extras: DecorationExtras?
+
+    private mutating func setExtra(_ change: (inout DecorationExtras.Fields) -> Void) {
+        var fields = extras?.fields ?? DecorationExtras.Fields()
+        change(&fields)
+        extras = fields == DecorationExtras.Fields() ? nil : .box(fields)
+    }
 
     /// The rect and radii this decoration clips its children to, or `nil`
     /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
@@ -1713,5 +1733,20 @@ extension StyledElement {
     /// **One field**: a second `contentShape(_:)` replaces the first.
     public func contentShape<S: Shape>(_ shape: S) -> Self {
         handling { $0.contentShape = ContentShape(shape) }
+    }
+}
+
+/// `Decoration`'s boxed rare fields (`LK-W` item 10): an `indirect` case, so
+/// the decoration holds one pointer.
+indirect enum DecorationExtras: Sendable, Hashable {
+    struct Fields: Sendable, Hashable {
+        var clipShape: ClipShapeBox?
+        var backgroundGradient: GradientFill?
+    }
+
+    case box(Fields)
+
+    var fields: Fields {
+        switch self { case let .box(f): f }
     }
 }

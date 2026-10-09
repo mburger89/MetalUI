@@ -234,7 +234,69 @@ enum GradientTable {
 
     /// The table of `stops`.
     static func make(_ stops: GradientStops) -> [UInt32] {
-        [UInt32](repeating: 0, count: count)
+        let n = stops.locations.count
+        guard n > 0 else { return [UInt32](repeating: 0, count: count) }
+        // Each stop in premultiplied Oklab (L·a, A·a, B·a, a): the probe's
+        // arithmetic (`gradient-raster-cost.swift`, G5).
+        var lab: [(Double, Double, Double, Double)] = []
+        for i in 0..<n {
+            let r = Double(stops.colors[i * 4]), g = Double(stops.colors[i * 4 + 1])
+            let b = Double(stops.colors[i * 4 + 2]), a = Double(min(max(stops.colors[i * 4 + 3], 0), 1))
+            let (l, aa, bb) = toOklab(r, g, b)
+            lab.append((l * a, aa * a, bb * a, a))
+        }
+        var out = [UInt32](repeating: 0, count: count)
+        var segment = 0
+        for i in 0..<count {
+            let t = Double(i) / Double(count - 1)
+            let p: (Double, Double, Double, Double)
+            if t <= stops.locations[0] {
+                p = lab[0]
+            } else if t >= stops.locations[n - 1] {
+                p = lab[n - 1]
+            } else {
+                // The stops bracketing t: locations[segment] <= t < locations[segment + 1]
+                // (an empty interval — equal locations — is never chosen: a hard edge).
+                while segment + 1 < n - 1 && stops.locations[segment + 1] <= t { segment += 1 }
+                let l0 = stops.locations[segment], l1 = stops.locations[segment + 1]
+                let f = l1 > l0 ? (t - l0) / (l1 - l0) : 1
+                let a = lab[segment], b = lab[segment + 1]
+                p = (a.0 + (b.0 - a.0) * f, a.1 + (b.1 - a.1) * f, a.2 + (b.2 - a.2) * f, a.3 + (b.3 - a.3) * f)
+            }
+            let alpha = p.3
+            guard alpha > 1e-6 else { continue }
+            let (r, g, b) = fromOklab(p.0 / alpha, p.1 / alpha, p.2 / alpha)
+            func byte(_ v: Double) -> UInt32 { UInt32(min(max(v, 0), 1) * 255 + 0.5) }
+            out[i] = byte(r * alpha) | byte(g * alpha) << 8 | byte(b * alpha) << 16 | byte(alpha) << 24
+        }
+        return out
+    }
+
+    private static func srgbToLinear(_ c: Double) -> Double {
+        c <= 0.04045 ? c / 12.92 : Foundation.pow((c + 0.055) / 1.055, 2.4)
+    }
+
+    private static func linearToSrgb(_ c: Double) -> Double {
+        c <= 0.0031308 ? 12.92 * c : 1.055 * Foundation.pow(max(c, 0), 1 / 2.4) - 0.055
+    }
+
+    private static func toOklab(_ r: Double, _ g: Double, _ b: Double) -> (Double, Double, Double) {
+        let lr = srgbToLinear(r), lg = srgbToLinear(g), lb = srgbToLinear(b)
+        let l = Foundation.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)
+        let m = Foundation.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)
+        let s = Foundation.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)
+        return (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+                1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+                0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+    }
+
+    private static func fromOklab(_ L: Double, _ A: Double, _ B: Double) -> (Double, Double, Double) {
+        let l = Foundation.pow(L + 0.3963377774 * A + 0.2158037573 * B, 3)
+        let m = Foundation.pow(L - 0.1055613458 * A - 0.0638541728 * B, 3)
+        let s = Foundation.pow(L - 0.0894841775 * A - 1.2914855480 * B, 3)
+        return (linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+                linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+                linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s))
     }
 
     /// The entry for parameter `t` (clamped).
@@ -292,9 +354,11 @@ extension RadialGradient: ProposalElement {
 
 @MainActor
 private func gradientViewLayout(pass: inout LayoutPass) -> (ProposalNodeID, GradientViewLayout) {
-    let node = pass.requestNativeLeaf { LayoutMeasurement(size: SizeD(width: $0.width ?? 0, height: $0.height ?? 0)) }
+    let node = pass.requestNativeLeaf { LayoutMeasurement(size: SizeD(width: $0.width ?? 10, height: $0.height ?? 10)) }
     return (node, GradientViewLayout(node: node.layoutNodeID))
 }
 
 @MainActor
-private func paintGradientView(_ fill: GradientFill, bounds: Bounds<Pixels>, pass: PaintPass) {}
+private func paintGradientView(_ fill: GradientFill, bounds: Bounds<Pixels>, pass: PaintPass) {
+    paintGradientFill(fill, .roundedRectangle(bounds, cornerRadii: Corners(all: Pixels(0))), style: nil, pass: pass)
+}
