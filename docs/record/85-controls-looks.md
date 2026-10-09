@@ -4,7 +4,13 @@ Branch `feat/controls-looks` from `cd84b0c`. User request 2026-10-02, item
 C10 of the gpui-gap priority list (not a plan task). Spec
 `docs/superpowers/specs/2026-10-08-controls-looks-design.md`; rulings
 `docs/superpowers/2026-10-08-controls-looks-decisions.md` (`LK-`). Divergence
-labels reserved for this branch: 165–174.
+labels reserved for this branch: 165–174. **Status: LANDED — every agent-doable
+clause is built or deferred by ruling; the looks are owed to a human**
+(`docs/verification/human-checks.md` group CL, provisional letter). Three
+lanes, each red first on stubs, each with a review round, all verified `ok:
+true`; the Record phase (§4) merged master `67a579e` (no record numbered 85
+existed there: §81, §83, §84 and §86 are the parallel branches', so the number
+stands), re-took the suite and the counts, and wrote the shared documents.
 
 ## §0 Baseline (lane 1, before its first change)
 
@@ -74,10 +80,10 @@ per test (abridged; each `Expectation failed:`):
   (HEAD `ec0f58a`): **all fourteen images 0 differing pixels, every scene
   identical**. Its controls at `cd84b0c` read light-vs-dark 1048576, f0-vs-f3
   0, chrome legacy-vs-proposal 0, distinct 544/216, prod default-vs-modal
-  491221; two controls read other than the script header's quoted numbers
-  (default-vs-modal 1031003 for 1030498, default-vs-animation 454895 for
-  210027) — at `cd84b0c` itself, so not this lane's; reported, not corrected
-  here.
+  491221; the controls read the header's own stage-9 corrected values
+  (default-vs-modal 1031003, default-vs-animation 454895; the bracketed
+  figures the script prints beside them are the pre-6b numbers, kept on
+  purpose; record §51 §5.6) — nothing to correct.
 - **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh`
   print nothing; census re-recorded, **2540 → 2552** (`ColorPicker` and its
   members). A first map row for the three roles was `UNUSED` — enum cases are
@@ -166,6 +172,65 @@ function by the rule. Every other mutation reddened the tests named for it.
   `NSColorWell`, the panel's drag and keys, one undo step per drag in
   MetalCreator, VoiceOver on the well and the panel's sliders.
 - A real-window look was not taken (the lock probe was not run by this lane).
+
+### §1.5 Review (lane 1)
+
+The lane-1 verifier re-took the unmutated suite at `8ca5d6e` (`swift package
+clean`, native build, unfiltered `--no-parallel`): **2768 tests in 3 suites
+passed**, `FR-J no-argument frame: succeeded=true`, 0 `error:`; `Backends/SDL`
+24 + 85 on macOS, 24 + 82 in the Linux image; the fourteen images 0 px (none
+of the fourteen renders `controlsDemoContent`, so that zero cannot see the new
+demo section — it is a look). The worktree was clean after every mutation. It
+re-ran nine of §1.3's mutations and ran nine new ones (`V`):
+
+| id | mutation | reddened |
+|---|---|---|
+| M1 re-run | `dispatchValueTrack` calls `.begin` after the press's write | `aPressWithNoDragIsTrueWriteFalse`, `aReleaseAfterTheSliderLeftTheTreeStillEndsTheEdit`, `aReleaseAfterTheSliderWasDisabledStillEndsTheEdit`, `aReleaseClaimedByTheDrawnAlertStillEndsTheEdit`, `aSecondPressWithoutAReleaseEndsTheFirstEdit`, `aSliderPressCallsEditingTrueBeforeItsFirstWrite`, `aSliderReleaseCallsEditingFalseAfterTheLastWrite`, `closingTheWindowMidDragEndsTheEdit` |
+| M3 re-run | the end moved into `.mouseUp` (the top of the hook keeps only `.mouseDown`) | `aReleaseClaimedByTheDrawnAlertStillEndsTheEdit` |
+| M6 re-run | `endSliderEdit` calls the end outside `StateDispatch` | `theEditingCallbacksRunUnderTheSlidersDispatch` |
+| M8 re-run | `runDisappearancesForClose` without `endSliderEdit()` | `closingTheWindowMidDragEndsTheEdit` |
+| M11 re-run | `ColorPicker` drops its `StyledElement` conformance (guard G1.2) | `aColorPickerTakesABackgroundAndPadding` |
+| M15 re-run | a press on the well also sets `ClickDispatch.focusRequest` | `pressingTheWellOpensThePanelAndDoesNotFocus` |
+| M21 re-run | `ColorPickerPanel.current` ignores the panel's own edit | `theHueSurvivesSaturationZeroWhileDragging` |
+| M22 re-run | `current` uses the edit whatever the binding holds | `anOutsideWriteWhileOpenReSeedsThePanel` |
+| M34 re-run | the well registers under an environment forced to enabled | `aDisabledColorPickerOpensNothing` |
+| V1 | `Frame.registerHandlers` no longer strips `colorWellHint` | none — **equivalent**: the well always declares an accessibility value (`ColorWell.prepaint` sets `composed.axNode.value = axValue` when the caller declared none), so the declaration is never empty and the strip never decides a record |
+| V2 | `publishedRole` without the `colorWellHint` to `.colorWell` line | `aDisabledColorPickerOpensNothing`, `anAccessibilityPressOnTheWellOpensThePanel`, `theWellPublishesAColorWellWithAppKitsValueFormat` |
+| V3 | the AppKit bridge's `NSNumber` value list drops `.progressIndicator` | `theThreeNewRolesHaveRowsOnTheAppKitBridge` |
+| V5 | `ColorPlane` registers none of the square's Saturation/Brightness children | `thePanelsSlidersPublishTheirValues` |
+| V6 | `ColorPicker.paint` calls `paintControl(disabled: false)` | **none** — unpinned (see below) |
+| V7 | the well never draws its checkerboard below opacity 1 | **none** — unpinned |
+| V8 | `endSliderEdit` does not clear `sliderEdit` (the end can run twice) | `closingTheWindowMidDragEndsTheEdit` |
+| V11 | `ColorWell.paint` draws no control focus ring | **none** — unpinned |
+| V12 | `ColorPanelImages.square`'s cache ignores the hue | **none** — unpinned |
+| V15 | `dispatchValueTrack`'s press never stores `sliderEdit` | `aPressWithNoDragIsTrueWriteFalse`, `aReleaseAfterTheSliderLeftTheTreeStillEndsTheEdit`, `aReleaseAfterTheSliderWasDisabledStillEndsTheEdit`, `aReleaseClaimedByTheDrawnAlertStillEndsTheEdit`, `aSecondPressWithoutAReleaseEndsTheFirstEdit`, `aSliderReleaseCallsEditingFalseAfterTheLastWrite`, `closingTheWindowMidDragEndsTheEdit`, `theEditingCallbacksRunUnderTheSlidersDispatch`, `theReleaseIsNotClaimedByTheSlider` |
+
+Four mutations stayed green. V1 is equivalent (above). **V6, V7, V11 and V12
+are four looks nothing pins**, found by the instrument, not fixed in this
+phase (a new test is lane work, and the record phase owes no source):
+
+- the disabled picker's dimmed look: `LookControl` in
+  `ControlLookTests.swift` has no `.colorPicker` case, so
+  `aDisabledControlPaintsInsideOneHalfOpacityScope` never sees it;
+- the well's control focus ring: `aFocusedControlDrawsItsRingAndAnUnfocusedOneDoesNot`
+  does not include the well;
+- the well's checkerboard below opacity 1 and the square image regenerating
+  per hue (its single-entry cache is keyed by hue).
+
+Owners: the first two are one-line additions (a `.colorPicker` case; the well
+in the ring test) for the next controls change, each to be re-run red against V6
+and V11; the last two are named as human checks CL2 and CL3
+(`docs/verification/human-checks.md`) and may become a scene-level assertion
+(the well emits an image run below opacity 1; the square's texture identity
+changes with the hue).
+
+**`LoweringSite.colorPicker` owes no arm** in
+`everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (CLAUDE.md: "a new legacy
+registration site gains … an arm"): the site is unreachable from public API —
+`ColorWell`'s and `ColorPlane`'s styles are internal and the picker's own
+fields report at `.box` — so no caller can write a field that reports there
+(`LK-U` item 6; the same holds for `LoweringSite.progressView`, `LK-V` item 8).
+Not a divergence: an exemption, stated here so the rule's reader finds it.
 
 ## §2 Lane 2 — progress view and keyframes
 
@@ -593,3 +658,127 @@ reddened only the test named.
 | V8 | the `.blur` arm of `multiplyAlpha`: `blur.alpha *= alpha` deleted | `aFadingTransitionScalesABlursAlpha` |
 | V8f | the `.blur` arm of `RenderEffect.apply`'s flattening switch: the same line deleted | `aFadingTransitionScalesABlursAlpha` |
 | V2 | `StyledElement.background(_ color:)`: `$0.backgroundGradient = nil` deleted (`Box.swift`) | `legacyFillsAreLastWriteWinsBothWays` |
+
+## §4 Record phase (2026-10-09)
+
+Commits: `31399ea` (the merge of `origin/master` `67a579e`), `2a30d98` (the
+merge's one source edit), the Record commit (this section and the shared
+documents).
+
+### §4.1 The merge
+
+`origin/master` had moved from `cd84b0c` to `67a579e` (input APIs §81, rich text
+§83, `.task` follow-ups §84, AccessKit before the first show §86, the
+third-party notices). Three conflicts and one semantic break, all additive:
+
+- `Sources/MetalUIDemoContent/LooksDemo.swift`: master (`RT-U`) split
+  `looksDemoContent()`'s composition into `looksRoot(columns:colour:)`,
+  `looksColumns`, `looksLeftColumn` and `looksRightColumn` for the 1 MB Windows
+  stack; this branch's lanes 2 and 3 had added two wrappers in the old
+  composition. Resolved by taking master's composition and passing the two
+  wrappers in place of the two sections they wrap
+  (`transitions: looksTransitionsAndLooks()`,
+  `colour: looksColourAndKeyframes()`); each wrapper is its own frame and the
+  new sections are `Component`s (`PE-K`). `everyProductionTreeBuildsOnAOneMegabyteThread`
+  passes.
+- `docs/divergences.md`: master's rows 139–141, 145–147, 150–158 sit beside this
+  branch's 165–169 and 171; the header reads **126 live, next label 175** on
+  this branch (master's 120 + 6). The labels 159–164 are other branches'
+  reservations and settle at their merges.
+- `docs/probes/closeout-public-api.tsv`: re-recorded by
+  `closeout-public-api.sh` after the merge (**2985** rows; master 2806, the
+  branch's lanes 2711 over a 2540 base); `closeout-inventory-check.sh` and
+  `closeout-undocumented.sh` print nothing.
+- **A semantic break the merge could not see**: master's
+  `RichTextTests` (`valueTrack` arm of the `Handlers` member census) built
+  `ValueTrackTarget(…, write: { _ in })`, the label lane 1 renamed `edit:`
+  (`LK-U` item 2). The first merged native build failed at
+  `RichTextTests.swift:538`; the arm now spells `edit:` (`2a30d98`). The
+  `Handlers` member count (18 on master) and size are unmoved.
+
+### §4.2 Suite, guards, census
+
+Tree `31399ea` plus the one-line test fix. `swift package clean`, `swift build
+--build-system native --build-tests` (0 `error:`; the only `warning:` is
+SwiftPM's `--build-system native` deprecation notice), `swift test
+--build-system native --no-parallel`, unfiltered, **screen locked**:
+
+**`Test run with 3007 tests in 3 suites failed after 495.4 seconds with 5
+issues`** — the five issues are exactly the locked-screen
+`AppKitPresentationTests` sheet expectations (`appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+`appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+`appKitCancelledDialogArrivesAsQueuedInput`,
+`appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+`appKitSecondDialogWhileASheetIsUpAnswersFalse`, each `attachedSheet != nil`
+after 61 s), which §81 §4.1 records as not appearing unlocked (`CI-AF`) — the
+lock probe read `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`
+here, and a clean unlocked re-take is owed to the first session at an unlocked
+Mac. Every other test passed; `FR-J no-argument frame: succeeded=true`
+present. `swift build --build-tests` (default build system): 0 warnings.
+
+| Count | `cd84b0c` | master `67a579e` | Now | By |
+|---|---|---|---|---|
+| Tests | 2723 | 2873 | **3007** | 2873 + this branch's 134 (the lanes' readings 2768, 2820 and 2857 are each over `cd84b0c`: 2723 + 45 + 52 + 37) |
+| Typecheck guards | 176 | 185 | **192** | `git grep -h "enabled(if: canTypecheck" -- Tests` reads 191 (the same +1 offset as §81 §4.1: 175 → 176, 184 → 185); this branch adds seven: `theSliderInitialisersKeepTheirSwiftUISpellings`, `aColorPickerTakesABackgroundAndPadding` (lane 1), `progressViewSpellingsTypecheckFromAnExternalModule`, `keyframeAnimatorTypechecksWithSwiftUIsCallShape`, `userConformancesToKeyframesDoNotCompile`, `springKeyframeWithoutDurationDoesNotCompile` (lane 2), `materialSpellingsResolveWithoutAmbiguity` (lane 3), each mutated red once in its lane |
+| Goldens | 0 | 0 | 0 | `find Tests/MetalUILayoutTests -name "*.json"` reads 0 |
+| Public census | 2540 | 2806 | **2985** | lane 1 +12, lane 2 +95, lane 3 +64 over a 2540 base (2711), master +266 (2806), overlap in the demo files |
+| Live divergences | 105 | 120 | **126** | 165–169, 171; next label **175** here |
+| `Backends/SDL` | 24 + 84 (macOS), 24 + 81 (image) | 24 + 98, 24 + 95 | **24 + 99**, **24 + 96** | §4.3: the lane-1 AccessKit roles test, +1 each |
+| Root in `swift:6.4-noble` | | 6 + 35 + 18 + 199 + 67 + 22 | **6 + 35 + 18 + 199 + 67 + 22** | unchanged: the branch's tests are macOS-only |
+
+(The test sum is the measurement; the "by" column's per-lane increments are the
+lanes' own readings and are not re-derived here.)
+
+### §4.3 Backends, Linux, pixels
+
+- **`Backends/SDL` on macOS** (`swift test $(python3 scripts/fetch-accesskit.py
+  --print-flags)`): **24 + 99 passed**, 0 `error:` (master 24 + 98, this
+  branch +1, the lane-1 AccessKit roles test).
+- **Linux image** (`docker build -t metalui-portable`, volume
+  `metalui-sdl-build-controls-looks`): **24 + 96 passed** (master 24 + 95, this
+  branch +1, the lane-1 AccessKit roles test), three lifecycle tests skipped
+  (`windowsPresentFrames`). One `warning:` in the build — `no calls to throwing
+  functions occur within 'try' expression` at
+  `AccessKitControlsParityTests.swift:83` — is in a file this branch does not
+  touch (`ce57328`), Linux-only, and not ours.
+- **Root package in `swift:6.4-noble`** (`git archive` of the merge, a scratch
+  volume): the build completed with no `warning:` or `error:` line in its
+  output; **6 + 35 + 18 + 199 + 67 + 22** passed, unchanged.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> cd84b0c HEAD`
+  (merged tree): **all fourteen images 0 differing pixels, every scene
+  identical**; the controls read the script header's stage-9 corrected values
+  (1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 / 529 /
+  0). `DemoFrameDeterminismTests`' `Expected.swift` is unedited; Linux and
+  Windows CI confirm on push.
+- **Imports**: `MetalUILayout` imports only `MetalUICore`, `MetalUIScene` only
+  `MetalUIShaderTypes` (`grep -rn "^import" Sources/MetalUILayout
+  Sources/MetalUIScene`).
+- **Replay parity**: lane 3's ninth fixture (frame 8) and CI's `--expect 9` are
+  in; macOS Metal and the SDL replay are 0 px on all nine (record §3.2).
+
+### §4.4 Documents changed
+
+`CLAUDE.md` and `AGENTS.md` (the `LK-` prefix with next letter `LK-X`, one
+rule paragraph, the divergences line 126 live / next 175, the counts bullet,
+the record map), `docs/api-overview.md` (a "Controls and looks" section, the
+census header 2985 in 156 families), `docs/divergences.md` (header; rows 165–169
+and 171 landed with the lanes), `docs/migration.md` (three rows: the
+`AccessibilityRole` cases, the `LayoutModifier.blur` case, `Slider.init` as a
+function reference), `docs/verification/human-checks.md` (group **CL**, CL1–CL11,
+provisional letter), `docs/record/README.md` (the row), record §03 (looks owed),
+record §04 (the 165–171 section), this record, the spec's Status,
+`docs/superpowers/2026-10-08-controls-looks-decisions.md` (header unchanged:
+next `LK-X`, no ruling added in this phase), `README.md` (a milestone paragraph) and the census/map TSVs.
+
+### §4.5 Open at the close
+
+- **The unlocked suite re-take** (§4.2): five locked-screen issues only.
+- **Four unpinned looks** (§1.5: V6, V7, V11, V12) and the two one-line
+  additions they ask for.
+- **Deferred by ruling, with owners** (`LK-A`): the native `NSColorPanel`
+  route (C10-b), a backdrop blur for materials and a GPU blur for a surface
+  leaf (C10-c), `phaseAnimator`, `AngularGradient`, `EllipticalGradient`,
+  `Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`.
+- **Human checks CL1–CL11** — none performed; an agent cannot.
+- **A real-window capture** was not taken at any lane or here (the screen was
+  locked throughout).

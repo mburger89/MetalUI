@@ -5,6 +5,11 @@ task**). Rulings: [`../2026-10-08-controls-looks-decisions.md`](../2026-10-08-co
 (`LK-A`…`LK-T`; `LK-O`…`LK-T` are the critic's amendments, and win where they differ from an earlier ruling). Record: `../../record/85-controls-looks.md`. Branch
 `feat/controls-looks` from `cd84b0c`.
 
+**Status: LANDED (2026-10-09) — every agent-doable clause is built or deferred by
+ruling (`LK-A`); the looks of §7 are owed to a human (group CL of
+`docs/verification/human-checks.md`).** Where this design and the landed source
+differ, the source and `LK-U`, `LK-V`, `LK-W` win; record §85 §4.
+
 **Motivation.** MetalCreator ships stopgaps for six missing pieces —
 `EditorModel.setInput(_:to:continuous:)`'s coalescing key (M5-a, no slider
 editing-ended callback), `GlassPanel` (M5-c, no material or blur), a solid

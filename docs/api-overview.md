@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2536 of them, in
-fifteen modules) belongs to one of 138 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2985 of them, in
+fifteen modules) belongs to one of 156 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -578,6 +578,38 @@ drain (`SV-H`).
 `AnyTransition` (`identity`, `opacity`, `move(edge:)`, `slide`, `offset`,
 `scale`, `push(from:)`, `asymmetric`, `combined`), `Edge`, `.transition(_:)`
 (96–99).
+
+## Controls and looks — A / D / M
+
+Rulings `LK-A`…, record §85 (C10). **Controls**: `Slider(value:in:step:onEditingChanged:)` —
+`true` at the press or the first key of an edit, `false` at its end (the release,
+a lost release ended by the next press, a close or a disabled gate; one pair per
+gesture, SwiftUI's order — `LK-B`, `LK-Q`); `ColorPicker(_:selection:supportsOpacity:)` and
+`ColorPicker(selection:supportsOpacity:label:)` over MetalUI's `Color`, a 48 × 24
+well beside its label that opens a **drawn** panel on every platform — a
+saturation–brightness square, a hue bar, an opacity bar, a swatch and a hex
+field (165: not `NSColorPanel`; `LK-C`, `LK-D`); `ProgressView()` (the spinner,
+sizes 32/16/10 by `controlSize`), `ProgressView(value:total:)` (a greedy 20-tall
+bar; indeterminate when the value is `nil`), the `_ title:` and label /
+current-value-label spellings, `.progressViewStyle(.automatic/.linear/.circular)`
+on the view or a container (`LK-E`, `LK-F`, `LK-V`). Three accessibility roles
+join `AccessibilityRole` (`.progressIndicator`, `.busyIndicator`, `.colorWell`; `LK-G`) — M.
+**Animation**: `keyframeAnimator(initialValue:trigger:content:keyframes:)`,
+`keyframeAnimator(initialValue:repeating:content:keyframes:)`, `KeyframeAnimator`,
+`KeyframeTimeline`, `KeyframeTrack`, `LinearKeyframe`, `CubicKeyframe`,
+`SpringKeyframe` (`duration:` required, 168), `MoveKeyframe`, `Spring`, `UnitCurve`
+and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
+`phaseAnimator` is not built (`LK-H`). **Looks**: `Gradient`, `LinearGradient` and
+`RadialGradient` (colours, stops or a `Gradient`; views, `ShapeStyle`-like `fill`,
+`stroke` and `background` overloads in both vocabularies, rasterized on the CPU
+through the image path with a one-texel strip fast path, no shader change —
+`LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
+a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
+… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **fitted flat tint, no
+backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient`,
+`Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
+`phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
+deferral (`LK-A`).
 
 ## Backends and infrastructure — M
 

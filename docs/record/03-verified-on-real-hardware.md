@@ -2099,3 +2099,24 @@ underline and strikethrough crispness at 1x and 2x against SwiftUI's snapped
 bands (divergence 152); RT3 the mixed-size paragraph's line spacing and the
 superscript; RT4 the same demo on Linux and Windows; RT5 VoiceOver reading a
 styled `Text` once without markers; RT6 a link that does nothing on click.
+
+## 2026-10-09: controls and looks (record §85) — looks owed
+
+The controls demo (`METALUI_CONTROLS_DEMO=1`, a progress row and a colour
+picker row) and the looks demo (`METALUI_LOOKS_DEMO=1`, a keyframes row and a
+gradients, blur and materials row) gained sections; the fourteen offscreen
+images are unchanged (0 differing pixels against `cd84b0c` at every lane; none
+of the fourteen renders the new rows, so the zero cannot see them). The SwiftUI
+probe `swiftui-controls-looks.swift` ran twice, 160 lines byte-identical, with
+the screen locked (`LK-O` item 1; materials `M1` is not byte-stable, ±1); no
+real-window capture was taken at any lane or at the Record phase. **Owed, new
+here — `docs/verification/human-checks.md` group CL (provisional letter), none
+performed (an agent cannot)**: CL1 the well and its panel beside an
+`NSColorWell`; CL2 the opacity checkerboard; CL3 dragging in the panel and the
+square regenerating per hue; CL4 one undo step per drag in MetalCreator; CL5
+the spinner at 32/16/10 and its step rate; CL6 the determinate bar's colours;
+CL7 gradients during live resize and at 8 bits; CL8 blur against SwiftUI's;
+CL9 materials, flat tint versus blur and in a real key window; CL10 the shake
+at 60 and 120 Hz; CL11 VoiceOver. A real window's material tint and the
+determinate bar's colours were never measured (ImageRenderer draws platform
+views as a placeholder, `V9`; `cacheDisplay` read an inactive window, `V14`).

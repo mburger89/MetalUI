@@ -51,7 +51,8 @@ summary.
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
-  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
+  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
+  `2026-10-08-controls-looks-decisions.md`, next `LK-X`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -64,7 +65,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **120 live, next label 159**; retired labels are
+  live SwiftUI difference — **126 live, next label 175**; retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (groups A–Y, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -86,8 +87,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
-  after `CI-AL`): 2873 tests, 0 goldens, 185 typecheck guards** (the merge's 2870 + `CI-AL`'s
+- **Counts (2026-10-09, `feat/controls-looks` from `cd84b0c`, merged with master `67a579e`):
+  3007 tests, 0 goldens, 192 typecheck guards** (master's 2873 + 134 tests, 185 + 7 guards;
+  the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
+  issues of `CI-AF` and nothing else; census 2985; divergences 165–169 and 171 added, the
+  header 126 live, next label 175; `Backends/SDL` 24 + 99 on macOS, 24 + 96 in the Linux
+  image, root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22; the merge's one source
+  edit `RichTextTests`' `ValueTrackTarget(edit:)`; record §85 §4). Before the merge, the lanes on
+  `cd84b0c`: 2857 / 0 / 183 (2723 + 134, 176 + 7; census 2711). Master's own reading, `feat/input-apis` from `70ed000` merged with master `dc6528c`,
+  after `CI-AL`: 2873 tests, 0 goldens, 185 typecheck guards (the merge's 2870 + `CI-AL`'s
   3 tests, no guard; `Backends/SDL` and the image not re-taken, untouched; record §81 §4.7).
   On the merge itself, `1337ff6`: 2870 / 0 / 185 (2790 + 80 tests, 180 + 5 guards;
   census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
@@ -149,7 +157,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -789,6 +797,29 @@ AppKit, **`false` on SDL, where the window draws a 39-point strip under the
 named root `$toolbar` and lays the root out below it** (`MD-K`, `MD-Z`;
 divergence 136); outcomes return as queued `InputEvent.toolbarAction`.
 
+**Controls and looks (`LK-`, record §85).** `Slider(onEditingChanged:)` runs
+`true` at a press or an edit's first key and `false` once at its end, one pair per
+gesture: the end runs at the top of `Window`'s input hook for `.mouseUp` **and**
+`.mouseDown`, and on close; `ValueTrackTarget.edit` is the one closure, so
+`Handlers` keeps its size (`LK-Q`, `LK-U`). `ColorPicker` is a drawn well and a
+drawn popover panel on every platform (divergence 165; edits write gamma-sRGB
+literals; `LK-C`, `LK-D`); the well's and `ProgressView`'s roles reach the
+element side as `AXNode.colorWellHint`/`progressHint` (internal, stripped in
+`registerHandlers`, `LK-G`), and a new `AccessibilityRole` owes a row on both
+bridges. The spinner steps by the frame clock only while visibly painted
+(`LK-F`); keyframes are a transparent scope whose records live in
+`AnimationStore` (`$keyframes<depth>`, never a `StateTable` slot; `LK-I`);
+`phaseAnimator` is not built. **A gradient is rasterized on the CPU through the
+image path** (Oklab table; a one-texel strip when linear along one axis, else a
+full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
+leaf with sigma = radius, the shadow pipeline in colour keyed by
+`Frame.keyLeaf(…colours:)` (a GPU surface leaf draws unblurred, divergence 167;
+`LK-K`); a `Material` is a fitted flat tint on the colour sites, **no backdrop
+blur** (divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
+`DecorationExtras`** (the 1 MB thread, `LK-W` item 10); a new
+`CapturedPrimitive` or `LayoutModifier` kind owes its arm in both fade
+flattenings (`multiplyAlpha`, `RenderEffect.apply`).
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -901,7 +932,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (120 live, next label 159). A new
+- **Divergences**: `docs/divergences.md` (126 live, next label 175). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
