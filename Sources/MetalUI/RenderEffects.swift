@@ -356,24 +356,28 @@ extension Frame {
     /// Paint inside `effect` (`GX-G`): a scope mapping every primitive emitted
     /// in `body` — flattened on the CPU for a translation plus a uniform
     /// positive scale, a transform record otherwise, which splits the clip at
-    /// entry. A degenerate map (a zero scale) paints nothing.
+    /// entry. A flattening scope keeps the clip at its entry as `outer` too: a
+    /// clip pushed inside it intersects nothing outside (`flatteningClipBase`)
+    /// and, once mapped, is cut by that entry clip (`GX-X`, the LF-a fix). A
+    /// degenerate map (a zero scale) paints nothing.
     func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
         effectScopesPushed += 1
         let map = effect.affine(in: scrolled(bounds))
         guard map.determinant != 0, map.determinant.isFinite else { return }
         let device = map.scaledToDevice(scaleFactor)
         let flattens = device.isUniformPositiveScaleTranslation
-        let outer = flattens ? nil : OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
-                                               radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
-                                               depth: clipDepth)
+        let outer = OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
+                              radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
+                              depth: clipDepth)
         let scope = PaintScope(kind: .effect, effect: RenderEffect(affine: device), entryClipDepth: clipDepth,
                                flattens: flattens, outer: outer)
-        let savedBase = clipBase
-        if !flattens { clipBase = clipDepth }
+        let savedBase = clipBase, savedFlatteningBase = flatteningClipBase
+        if flattens { flatteningClipBase = clipDepth } else { clipBase = clipDepth }
         paintScopes.append(scope)
         body()
         paintScopes.removeLast()
         clipBase = savedBase
+        flatteningClipBase = savedFlatteningBase
     }
 
     /// A `Deferred`'s reset of the effect stack (`GX-G`), both phases: no open
