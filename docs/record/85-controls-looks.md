@@ -789,3 +789,80 @@ next `LK-X`, no ruling added in this phase), `README.md` (a milestone paragraph)
 - **Human checks CL1–CL11** — none performed; an agent cannot.
 - **A real-window capture** was not taken at any lane or here (the screen was
   locked throughout).
+
+### §4.6 Branch checker (2026-10-09)
+
+An adversarial re-take of `cd84b0c..HEAD` at `726b391`/`a54ad6f` (the two
+docs-only commits below), screen locked throughout (lock probe:
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so no real-window
+capture and no demo launch.
+
+- **Suite.** `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`; the only `warning:` SwiftPM's deprecation notice),
+  `swift test --build-system native --no-parallel` unfiltered: **`Test run with
+  3007 tests in 3 suites failed after 525.782 seconds with 5 issues`**. The five
+  issues are exactly §4.2's locked-screen `AppKitPresentationTests` sheet tests
+  (`appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+  `appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+  `appKitCancelledDialogArrivesAsQueuedInput`,
+  `appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+  `appKitSecondDialogWhileASheetIsUpAnswersFalse`). `FR-J no-argument frame:
+  succeeded=true` is present. `swift build --build-tests` (default build
+  system): 0 `warning:`, 0 `error:`. The unlocked re-take is still owed.
+- **Must-not-move pins, green in that run:** `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`,
+  `theVoiceOverScriptQuotesThePublishedTree`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread` and
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`. Since master `67a579e`,
+  the only edit to an existing test is `RichTextTests`' one-line `edit:`
+  rename. `Expected.swift` is unedited.
+- **Backends and Linux.**
+  - `Backends/SDL` on macOS: 24 + 99.
+  - The `metalui-portable` image (rebuilt): 24 + 96, with no `warning:` line.
+  - Root package in `swift:6.4-noble` (a `git archive` of `a54ad6f`, a scratch
+    volume removed afterwards): 6 + 35 + 18 + 199 + 67 + 22, with no
+    `warning:` line.
+- **Pixels.** `compare.sh <scratch> cd84b0c HEAD` (`726b391`): the controls
+  read the stage-9 values (1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 /
+  216 / 491221 / 529 / 0). All fourteen images show 0 differing pixels and
+  every scene is identical.
+- **Closeout.** `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing. The census, re-recorded, reads **2977**, not the 2985 that
+  §4.1 first wrote (see the corrected bullet there). `cmp CLAUDE.md AGENTS.md`
+  shows them identical.
+- **Citations.** I checked 172 backticked identifiers added to this branch's
+  docs since `67a579e`. Each one resolves to a declaration in `Sources/`,
+  `Tests/`, `Backends/` or a probe, with two exceptions, and both are correct:
+  `overallIndeterminateAnimation` is an AppKit animation key in the probe's
+  output, and `theControlsLooksSectionBuildsOnAOneMegabyteThread` is the spec's
+  name for a check it says the existing `everyProductionTreeBuildsOnAOneMegabyteThread`
+  covers. Every ruling id cited (`LK-A`…`LK-W` and 66 ids from other prefixes)
+  has a heading or row. Every probe arm the decisions doc cites is in
+  `swiftui-controls-looks.swift`. The ids that do not appear there are other
+  probes' arms, cited by other rows of `divergences.md` and §04.
+- **Two mutations of the checker's own.** Each was committed first, applied
+  from a copy, run against the full unfiltered native suite (3007 tests) and
+  restored. `git status --short` was empty after each, and nothing hung.
+
+| id | mutation (file, spelling) | reddened (beyond the five locked-screen sheet tests) |
+|---|---|---|
+| MX1 | `ModifiedContent.swift`, `LayoutModifier`'s paint arm: `case let .blur(radius): pass.withBlur(radius: radius, inside)` → `inside()` (the proposal blur paints nothing) | `aBlurChangesNoLayoutHitOrAccessibilityB4`, `aClipOutsideTheBlurCutsItB5`, `aFadingTransitionScalesABlursAlpha`, `aSurfaceLeafUnderBlurIsDrawnUnblurred`, `blurIsPerLeafB2`, `blurSigmaIsTheRadiusB1`, `theBlurRadiusAnimates` |
+| MX2 | `Frame.swift` `registerHandlers`: `\|\| handlers.axNode.progressHint != nil` deleted from `hasSomethingToSay` | `aNegativeValueOrAZeroTotalIsIndeterminate`, `anIndeterminateViewPublishesABusyIndicatorWithNoValue`, `aNonFiniteValueIsIndeterminateAndNothingNonFiniteIsStored`, `anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3`, `aProgressViewTakesHandlerCarriedModifiersV5` |
+
+- **Finding: an unruled accessibility difference.** `LK-E` item 5 cited `V7`
+  and `V8` for "an indeterminate view is `.busyIndicator` with no value". The
+  probe's recorded output actually reads `AXBusyIndicator … value=0` for
+  `ProgressView()`, `value: -1` and `total: 0`. MetalUI publishes no value,
+  and `anIndeterminateViewPublishesABusyIndicatorWithNoValue` pins that. The
+  ruling now says what the probe read. The difference is owed either a
+  divergence row (170 is free in the reserved range) or a change to publish
+  `0`. It is not fixed here, because the checker writes no source.
+- **Doc fixes committed.**
+  - The census TSV, re-recorded at 2977. 2985 is corrected in `CLAUDE.md`,
+    `AGENTS.md`, `api-overview.md`, this record and the README row.
+  - CLAUDE.md's human-check group list gains WS and CL.
+  - `LK-E` item 5's probe citation (the finding above).
