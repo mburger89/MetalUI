@@ -1061,6 +1061,68 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## CL. Controls and looks — colour picker, slider editing, progress, keyframes, gradients, blur, materials (item C10, user request 2026-10-02, not a plan task)
+
+*Source: record §85 `85-controls-looks.md`, rulings `LK-A`…
+(`docs/superpowers/2026-10-08-controls-looks-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-controls-looks-design.md`). The group's
+letter is provisional — the merge settles it beside the parallel branches'
+groups.* Run `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (the slider, the
+two colour pickers and the progress row) and `METALUI_LOOKS_DEMO=1 swift run
+MetalUIDemo` (the keyframes row and the gradients, blur and materials row),
+and from `Backends/SDL` the same variables with `swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`);
+do each check in both where it says so. Pinned headless: the slider's
+callback order (`SliderEditingTests`), the picker's well, panel, keys and
+colour maths (`ColorPickerTests`, `ColorMathTests`), the progress view's sizes,
+values and clock (`ProgressViewTests`), keyframe timelines and the animator's
+records, gradient pixels against SwiftUI's probe values, blur per leaf, the
+material tints over white and black, and the fourteen offscreen images at 0
+differing pixels (none renders the controls or looks sections' new rows). What
+nothing headless sees: the looks below, the wheel and pointer feel, a real
+window's materials, VoiceOver (**an agent cannot run it**, `IX-AE`).
+
+- [ ] **CL1. The colour well and its panel.** The "Accent" well beside an
+  `NSColorWell` (e.g. a Swift playground): same 48 × 24 footprint and rounded
+  look; Tab focuses it and draws the control focus ring; a disabled picker is
+  dimmed; a click opens the drawn panel anchored to the well, which flips near
+  a window edge and closes on Escape and on an outside press (`LK-C`, `LK-D`;
+  divergence 165). **Observed:**
+- [ ] **CL2. Opacity checkerboard.** With `supportsOpacity`, a selection below
+  full opacity shows a checkerboard behind the well's colour and the panel's
+  swatch and opacity bar; the "Opaque" picker never does (pinned by nothing:
+  review mutation V7). **Observed:**
+- [ ] **CL3. Dragging in the panel.** Dragging in the square and the bars feels
+  continuous; the square's colours regenerate with the hue (review mutation
+  V12 left this unpinned); arrow keys and the hex field commit (`LK-D`).
+  **Observed:**
+- [ ] **CL4. One undo step per drag.** In MetalCreator with the new
+  `Slider(…onEditingChanged:)` and `ColorPicker`, one drag of a slider or the
+  panel is one undo step (M5-a, M6-f together; `LK-B`). **Observed:**
+- [ ] **CL5. The spinner.** At 32, 16 and 10 points against
+  `NSProgressIndicator`'s spinner: size and spoke weight; the step rate looks
+  like AppKit's (24 steps per 0.8 s); with Reduce Motion on it still turns
+  (`LK-E`, `LK-F`). Also the indeterminate bar's sweep. **Observed:**
+- [ ] **CL6. The determinate bar.** Track and fill colours in light and dark,
+  in a key window and an inactive one, beside `NSProgressIndicator`
+  (`LK-E`). **Observed:**
+- [ ] **CL7. Gradients.** A window-background gradient during live resize stays
+  smooth (the strip path), and the large diagonal one shows only a first-frame
+  raster cost; no visible banding at 8 bits on a P3 display (divergence 1
+  applies; `LK-J`). **Observed:**
+- [ ] **CL8. Blur.** A blurred text and image at radii 2 and 6 look like
+  SwiftUI's at the same radius (`LK-K`). **Observed:**
+- [ ] **CL9. Materials.** The six materials over the striped backdrop in both
+  schemes: the flat tint versus SwiftUI's blur (divergence 166 is visible by
+  design), **and over a uniform backdrop in a real key window**, whether
+  SwiftUI's tint matches the ImageRenderer fit (`LK-O` item 2). **Observed:**
+- [ ] **CL10. The shake.** The keyframes row's "Shake" reads as a shake at 60 Hz
+  and on a 120 Hz display (`LK-H`, `LK-I`). **Observed:**
+- [ ] **CL11. VoiceOver.** The well announces its colour; the panel's sliders
+  adjust; a determinate progress view announces its fraction; a spinner
+  announces busy (`LK-G`; the voiceover script's controls step is unchanged).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

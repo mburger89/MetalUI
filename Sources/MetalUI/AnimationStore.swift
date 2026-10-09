@@ -3,7 +3,9 @@ import MetalUICore
 /// Animation state that must **not** be `StateTable` state (rulings `AN-AB`,
 /// `AN-Y` item 5): `.animation(_:value:)`'s previous values now, and — lanes 2
 /// and 3 of plan task 13 — proposal modifier tracks, a `Component`'s op
-/// tracks, the legacy border-colour track and transitions (`transitions`).
+/// tracks, the legacy border-colour track and transitions (`transitions`); and
+/// since C10 lane 2 each keyframe animator's record (`KeyframeRecord`, keyed
+/// `$keyframes<depth>` under its position, `LK-I` item 9).
 ///
 /// **Window-owned, one per window** (a fresh one per headless `renderFrame`
 /// and per test-built `Frame`), handed to each `Frame`.
@@ -41,6 +43,19 @@ final class AnimationStore {
     /// lifecycle's build ends after `StateTable.sweep()` (`Frame.render`), whose
     /// departed values its disappearances read (`LC-I`).
     let lifecycle = LifecycleStore()
+
+    /// How many keyframe animators enclose the one being built (C10 lane 2,
+    /// `LK-I` item 9): the `<depth>` of its `$keyframes<depth>` key, so two
+    /// stacked at one position keep two records — `Frame.lifecycleDepth`'s
+    /// shape, held here because the records are this store's.
+    private(set) var keyframeDepth = 0
+
+    /// Runs `body` one keyframe animator deeper.
+    func withKeyframeScope<T>(_ body: () -> T) -> T {
+        keyframeDepth += 1
+        defer { keyframeDepth -= 1 }
+        return body()
+    }
 
     /// Interpolations performed by the last completed frame — a work counter
     /// (spec test 2.12), counted by `noteInterpolation()`.

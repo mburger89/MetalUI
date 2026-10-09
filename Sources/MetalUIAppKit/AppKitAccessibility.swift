@@ -439,6 +439,12 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // `AXDialog` — never published here, where the alert is native.
         case .popUpButton: .popUpButton
         case .alert: .group
+        // C10 (ruling `LK-G`): SwiftUI's `ProgressView` is `AXProgressIndicator`
+        // or `AXBusyIndicator` (probe `V7`, `V8`), its `ColorPicker` well
+        // `AXColorWell` (`C1`).
+        case .progressIndicator: .progressIndicator
+        case .busyIndicator: .busyIndicator
+        case .colorWell: .colorWell
         }
     }
 
@@ -512,14 +518,15 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     }
 
     /// The node's value — **an `NSNumber` for a check box, radio button,
-    /// slider or incrementor whose string parses as a number** (ruling `DD-U`
-    /// item 1: SwiftUI's values there are numbers, TA0 0/1, SA0 5, STA0 1), the
+    /// slider, incrementor or progress indicator whose string parses as a
+    /// number** (ruling `DD-U` item 1: SwiftUI's values there are numbers, TA0
+    /// 0/1, SA0 5, STA0 1; `LK-G`: a progress view's fraction, `V7`), the
     /// string otherwise.
     private var value: Any? {
         let node = node
         guard let string = node.value else { return nil }
         switch node.role {
-        case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox:
+        case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox, .progressIndicator:
             if let number = Double(string) { return NSNumber(value: number) }
             return string
         default:

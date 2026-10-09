@@ -626,6 +626,12 @@ enum AccessibilityTreeBuilder {
         if node.record.declared.popUpButtonHint, role == .button { role = .popUpButton }
         // A popover's chrome (`MN-O`, P2): its group publishes as a popover.
         if node.record.declared.popoverHint, role == .group { role = .popover }
+        // A `ColorPicker`'s well (`LK-G`, C1): a button with the hint.
+        if node.record.declared.colorWellHint, role == .button { role = .colorWell }
+        // A `ProgressView`'s indicator (`LK-G`, V7, V8): a group with the hint.
+        if let hint = node.record.declared.progressHint, role == .group {
+            role = hint == .determinate ? .progressIndicator : .busyIndicator
+        }
         return role
     }
 }

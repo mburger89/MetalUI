@@ -314,7 +314,7 @@ public struct Animation: Sendable, Equatable {
         // approximate duration in seconds") — this is not an invented
         // constant, only that same relationship reapplied to the newer
         // duration/bounce spelling:
-        let omega = 2 * Double.pi / duration
+        let omega = springParameters(duration: duration, bounce: bounce).omega
 
         // zeta — the damping ratio. SwiftUI's own documented semantics for
         // `bounce` are qualitative: 0 is critically damped, positive is
@@ -329,7 +329,7 @@ public struct Animation: Sendable, Equatable {
         // conversion is a BIT-EXACT match to Apple's own `Spring` type
         // across all three damping regimes (under-, critically, and
         // over-damped) and the initial-velocity / interruption case.
-        let zeta = bounce >= 0 ? (1 - bounce) : (1 / (1 + bounce))
+        let zeta = springParameters(duration: duration, bounce: bounce).zeta
 
         let x0 = from - to // displacement from the target (the equilibrium)
         let v0 = initialVelocity
@@ -434,11 +434,20 @@ public struct Animation: Sendable, Equatable {
         return (value, velocity, isFinished)
     }
 
+    /// SwiftUI's `(duration, bounce)` as the oscillator's `(omega, zeta)` —
+    /// `springValue`'s conversion, explained there; internal so a
+    /// ``SpringKeyframe`` moves by the same spring (C10 lane 2, `LK-I` item 5).
+    static func springParameters(duration: Double, bounce: Double) -> (omega: Double, zeta: Double) {
+        (2 * Double.pi / duration, bounce >= 0 ? (1 - bounce) : (1 / (1 + bounce)))
+    }
+
     /// Closed-form position and velocity of a damped harmonic oscillator
     /// `x'' + 2ζωx' + ω²x = 0` at time `t`, given `x(0) = x0`, `x'(0) = v0`.
     /// Evaluated directly rather than integrated step by step — `value(at:)`
     /// is a pure function of elapsed time, not a per-frame simulation state.
-    private static func dampedHarmonicMotion(
+    /// Internal so a ``SpringKeyframe`` moves by the same spring (C10 lane 2,
+    /// `LK-I` item 5); no behaviour change.
+    static func dampedHarmonicMotion(
         omega: Double, zeta: Double, t: Double, x0: Double, v0: Double
     ) -> (displacement: Double, velocity: Double) {
         if abs(zeta - 1) < 1e-9 {

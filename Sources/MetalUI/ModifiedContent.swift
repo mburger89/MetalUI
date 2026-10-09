@@ -591,6 +591,9 @@ extension LayoutModifier: ModifierLayerKind {
             // precedent); radius and offset were animated in layout.
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "shadow.colour"), pass: pass)
             pass.withShadow(color: color, radius: radius, x: x, y: y, inside)
+        case let .blur(radius):
+            // The radius was animated in layout (`LK-K` item 6).
+            pass.withBlur(radius: radius, inside)
         default:
             inside()
         }
@@ -644,7 +647,7 @@ extension LayoutModifier: ModifierLayerKind {
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
         case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset, .shadow:
+             .rotationEffect, .scaleEffect, .offset, .shadow, .blur:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

@@ -447,6 +447,16 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
+**Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
+`Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
+drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,
+hue, opacity, hex) on every platform, not `NSColorPanel` (divergence 165); `ProgressView()`
+spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframeAnimator` and
+`KeyframeAnimator` run `LinearKeyframe`/`CubicKeyframe`/`SpringKeyframe`/`MoveKeyframe` tracks
+(divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
+(rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
+167); `.ultraThinMaterial` … `.bar` are fitted flat tints with no backdrop blur (divergence
+166). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: group CL, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

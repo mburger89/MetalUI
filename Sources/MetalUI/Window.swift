@@ -854,6 +854,15 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // A slider's edit ends here (rulings `LK-B` item 5, `LK-Q`): at the
+            // release — or at a press that finds it still open, a lost
+            // release — before every stage that may claim the event (the
+            // drawn alert, the drag and menu sessions, the popovers), wherever
+            // it lands. It claims nothing: the event continues as before.
+            switch event {
+            case .mouseUp, .mouseDown: self.endSliderEdit()
+            default: break
+            }
             // Platform services (`SV-K`, `SV-C`, `SV-I`): a dialog's or an
             // alert's answer is first after the pointer state — no later stage
             // may claim it.
@@ -1525,12 +1534,14 @@ public final class Window {
         return dirtied
     }
 
-    /// Closing the window (ruling `LC-J`): every present element's
+    /// Closing the window (ruling `LC-J`): an open slider edit's end (`LK-B`
+    /// item 5), then every present element's
     /// `onDisappear`, then every parked one, each once, under `StateDispatch`
     /// — called by `App`'s `onClose`. A second call finds nothing. A write
     /// such an action makes dirties a window that will not draw again
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
+        endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
         }
@@ -2725,6 +2736,21 @@ public final class Window {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
     }
 
+    /// The pressed slider's open edit and its `onEditingChanged` (ruling
+    /// `LK-Q`): set by a press on a track, ended by `endSliderEdit()`. On
+    /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
+    private var sliderEdit: (id: GlobalElementID, end: @MainActor () -> Void)?
+
+    /// Ends the open slider edit, if any — `onEditingChanged(false)` under
+    /// `StateDispatch` to the slider that began it (`ID-F`), whether or not it
+    /// is still in the tree or enabled (`LK-B` item 5). Called at a release, a
+    /// press and the window's close; a second call finds nothing.
+    func endSliderEdit() {
+        guard let edit = sliderEdit else { return }
+        sliderEdit = nil
+        StateDispatch.dispatching(to: edit.id) { edit.end() }
+    }
+
     /// A slider's pointer events (ruling `DD-W` item 5); see the call site.
     /// The press resolves against `lastHitboxes` exactly as `mouseDown` does,
     /// and the drag follows the id `active` holds — the one the press made
@@ -2736,9 +2762,15 @@ public final class Window {
                   let track = lastHitboxes[index].handlers.valueTrack else { return false }
             // The slider's own local point under a render effect (`GX-P` item 3).
             let local = lastHitboxes[index].localPoint(mouse.position)
-            StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
+            let id = lastHitboxes[index].id
+            // `LK-B` item 2 (S1): the edit begins before the press's write, and
+            // the window keeps its end for the release (`LK-Q`).
+            StateDispatch.dispatching(to: id) {   // ID-F: the pressed slider
+                track.edit(.begin)
                 track.track(toWindowX: Double(local.x.value))
             }
+            let edit = track.edit
+            sliderEdit = (id, { edit(.end) })
             return true
         case .mouseDragged(let mouse):
             guard let id = active,

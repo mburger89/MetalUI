@@ -138,6 +138,21 @@ extension ElementGroup {
     }
 }
 
+extension ProposalElementGroup {
+    /// Places `gradient` behind this view, filling its bounds — SwiftUI's
+    /// `background(_:)` with a `LinearGradient` (`LK-R` item 2, probe G9): the
+    /// gradient **view** as the background attachment, a greedy view proposed
+    /// this view's size.
+    public func background(_ gradient: LinearGradient) -> BackgroundModifier<Self, LinearGradient> {
+        BackgroundModifier(content: self) { gradient }
+    }
+
+    /// Places `gradient` behind this view, filling its bounds (`LK-R`).
+    public func background(_ gradient: RadialGradient) -> BackgroundModifier<Self, RadialGradient> {
+        BackgroundModifier(content: self) { gradient }
+    }
+}
+
 extension LayoutPass {
     /// The lowering `OverlayModifier` and `BackgroundModifier` share (ruling
     /// CN-K): exactly one primary node; no secondary node registers nothing and

@@ -17,6 +17,8 @@ enum RenderEffectSpec: Hashable, Sendable {
     case offset(x: Pixels, y: Pixels)
     /// A shadow (`GX-J`): no map — a paint scope that shadows each leaf.
     case shadow(Color, radius: Pixels, x: Pixels, y: Pixels)
+    /// A blur (`LK-K`): no map — a paint scope that blurs each leaf.
+    case blur(radius: Pixels)
 
     /// The effect's map in points over `rect` — the element's rectangle in the
     /// space its primitives are emitted in (already moved by the scroll
@@ -36,7 +38,7 @@ enum RenderEffectSpec: Hashable, Sendable {
             return .scale(x: x, y: y, about: ax, ay)
         case let .offset(x, y):
             return .translation(x: Double(x.value), y: Double(y.value))
-        case .shadow:
+        case .shadow, .blur:
             return .identity
         }
     }
@@ -49,6 +51,7 @@ enum RenderEffectSpec: Hashable, Sendable {
         case let .scale(x, y, anchor): [x, y, anchor.x, anchor.y]
         case let .offset(x, y): [Double(x.value), Double(y.value)]
         case let .shadow(_, radius, x, y): [Double(radius.value), Double(x.value), Double(y.value)]
+        case let .blur(radius): [Double(radius.value)]
         }
     }
 
@@ -59,6 +62,7 @@ enum RenderEffectSpec: Hashable, Sendable {
         case .scale: 1
         case .offset: 2
         case .shadow: 3
+        case .blur: 4
         }
     }
 
@@ -74,6 +78,8 @@ enum RenderEffectSpec: Hashable, Sendable {
             return .offset(x: Pixels(Float(n[0])), y: Pixels(Float(n[1])))
         case let .shadow(token, _, _, _):
             return .shadow(token, radius: Pixels(Float(max(0, n[0]))), x: Pixels(Float(n[1])), y: Pixels(Float(n[2])))
+        case .blur:
+            return .blur(radius: Pixels(Float(max(0, n[0]))))
         }
     }
 
@@ -82,6 +88,15 @@ enum RenderEffectSpec: Hashable, Sendable {
     var isShadow: Bool {
         if case .shadow = self { return true }
         return false
+    }
+
+    /// Whether this effect is a paint scope only — a shadow or a blur — which
+    /// registers nothing and moves nothing (`GX-J`, `LK-K` item 4).
+    var isPaintScopeOnly: Bool {
+        switch self {
+        case .shadow, .blur: true
+        default: false
+        }
     }
 }
 
@@ -202,7 +217,8 @@ extension PrepaintPass {
     /// outer clip, accessibility records the transformed bounding box.
     func withRenderEffect<R>(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> R) -> R {
         // A shadow registers nothing and moves nothing (`GX-J`; H5, X6).
-        guard !effect.isShadow else { return body() }
+        // A blur likewise (`LK-K` item 4).
+        guard !effect.isPaintScopeOnly else { return body() }
         return frame.prepaintWithRenderEffect(effect, bounds: bounds, body)
     }
 
@@ -244,6 +260,8 @@ extension PaintPass {
             let color = id.map { storedAnimatedColor(token, at: legacyShadowColourKey(for: $0, index: effects.count - 1),
                                                      pass: self) } ?? resolve(token)
             withShadow(color: color, radius: radius, x: x, y: y, inner)
+        } else if case let .blur(radius) = outermost {
+            withBlur(radius: radius, inner)
         } else {
             withRenderEffect(outermost, bounds: bounds, inner)
         }
@@ -409,7 +427,8 @@ extension Frame {
             shareCandidates = savedCandidates
             (shareFloor, shareFloorAtEntry) = savedFloors
         }
-        guard paintScopes.contains(where: { $0.kind == .effect || $0.kind == .shadow }) else { return body() }
+        guard paintScopes.contains(where: { $0.kind == .effect || $0.kind == .shadow || $0.kind == .blur })
+        else { return body() }
         paintScopes.append(PaintScope(kind: .barrier, effect: .identity, entryClipDepth: clipDepth))
         defer { paintScopes.removeLast() }
         return body()

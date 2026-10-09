@@ -1679,6 +1679,8 @@ public final class Frame {
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
+        declaration.colorWellHint = false    // LK-G, the same
+        declaration.progressHint = nil       // LK-G, LK-V item 6, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1704,6 +1706,7 @@ public final class Frame {
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || handlers.axNode.progressHint != nil
                 || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
@@ -2983,7 +2986,7 @@ public final class Frame {
     /// One emitted primitive through every open transitioning group, innermost
     /// first: each captures it as it arrives (for a ghost), then applies its
     /// effect, and the result reaches the scene.
-    private func insertThroughScopes(_ primitive: CapturedPrimitive) {
+    func insertThroughScopes(_ primitive: CapturedPrimitive) {
         // Inside a text draw (`beginLeafGroup`), the glyphs wait for the
         // group's end, so a shadow scope sees the whole text as one leaf.
         if leafGroup != nil {
@@ -3007,8 +3010,8 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier, .shadow where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed or shadowed (`GX-G`)
+            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed, shadowed or blurred (`GX-G`, `LK-K`)
             default:
                 break
             }
@@ -3022,6 +3025,16 @@ public final class Frame {
                 if let shadow = scope.shadow {
                     next.append([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)])
                     next.append(group)
+                    continue
+                }
+                if let blur = scope.blur {
+                    // A GPU surface's pixels are on the GPU: it is drawn
+                    // unblurred (`LK-K` item 5, divergence 167).
+                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
+                        next.append(group)
+                    } else {
+                        next.append([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)])
+                    }
                     continue
                 }
                 if !scope.effect.isIdentity {
@@ -3090,6 +3103,12 @@ public final class Frame {
         case .shadow(var shadow):
             (shadow.contentMask, shadow.maskCornerRadii) = cut(shadow.contentMask, shadow.maskCornerRadii)
             p.kind = .shadow(shadow)
+        case .gradient(var gradient):
+            (gradient.contentMask, gradient.maskCornerRadii) = cut(gradient.contentMask, gradient.maskCornerRadii)
+            p.kind = .gradient(gradient)
+        case .blur(var blur):
+            (blur.contentMask, blur.maskCornerRadii) = cut(blur.contentMask, blur.maskCornerRadii)
+            p.kind = .blur(blur)
         }
         return p
     }
@@ -3121,6 +3140,12 @@ public final class Frame {
             scene.insert(quad, texture: texture, layer: primitive.layer)
         case .shadow(let paint):
             guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .gradient(let paint):
+            guard let (quad, texture) = gradientImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .blur(let paint):
+            guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
             scene.insert(quad, texture: texture, layer: primitive.layer)
         }
     }
