@@ -1061,6 +1061,71 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
+
+*Source: record §87 `87-app-shell.md`, rulings `AS-A`…
+(`docs/superpowers/2026-10-08-app-shell-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-app-shell-design.md`).* Run
+`METALUI_APP_SHELL_DEMO=1 swift run MetalUIDemo` (AppKit; AS1–AS8) and, from
+`Backends/SDL`, `METALUI_APP_SHELL_DEMO=1 swift run $(python3
+scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`; AS10).
+Pinned headless: the close and terminate state machines and the walk
+(`AppShellTests` 2.2–2.15), the drawn alert answering later (2.5), the title,
+document and edited marker reaching the platform (`WindowTitleTests`), the
+insets and the band press (2.21, 2.21b), open-URL routing (`OpenURLTests`),
+the AppKit delegate and window wiring (`AppKitAppShellTests` 1.3–1.11), SDL's
+quit, close and window-0 drop (`SDLAppShellTests`, `SDLAppShellAppTests`
+3.1–3.3), and this demo (`AppShellDemoTests` 3.4–3.4c). What nothing
+headless sees: the native title bar, the sheet, the edited dot, a real drag,
+logout, Finder.
+
+- [ ] **AS1. Close with unsaved changes.** Press "Make a change", then the
+  red close button: an alert sheet asks "Do you want to save the changes made
+  to “Untitled.mcgraph”?". Cancel keeps the window (still edited); Save clears
+  the marker and closes; Don't Save closes; with the last window gone the app
+  quits (`AS-B`, `AS-C` item 5). A clean window closes at once. **Observed:**
+- [ ] **AS2. ⌘Q with unsaved changes.** After "Make a change", ⌘Q shows the
+  same alert; Cancel keeps the app running; Don't Save quits (`AS-C` item 2:
+  no `App.onTerminateRequest`, so the window is asked). **Observed:**
+- [ ] **AS3. Log out with unsaved changes.** Choose Log Out from the Apple
+  menu with the document edited: the alert appears and logout waits for it
+  (`.terminateLater`); the window keeps drawing meanwhile (type in the name
+  field); Cancel cancels the logout (`AS-C` item 9). **Observed:**
+- [ ] **AS4. The edited dot.** The close button shows its dot after "Make a
+  change" and loses it after "Save"; the top bar's "— Edited" follows
+  (`AS-D` item 4). **Observed:**
+- [ ] **AS5. A represented document.** In a scratch app with
+  `.navigationDocument(URL(fileURLWithPath: "/tmp/x.mcgraph"))` (the demo
+  has none): the proxy icon appears beside the title, and ⌘-click on the title
+  shows the path menu (`AS-D` item 3). **Observed:**
+- [ ] **AS6. Hidden title bar.** The traffic lights sit over the top bar, its
+  name starts right of them, and no title text is drawn; the window's title in
+  the Window menu and Mission Control is the name field's text (`AS-E`,
+  `.navigationTitle`). **Observed:**
+- [ ] **AS7. The band drag.** Dragging the top bar's empty area moves the
+  window; a double-click there zooms (or minimises, per System Settings →
+  Desktop & Dock → "Double-click a window's title bar to"); a press on the
+  name field or a button never drags (`AS-J`). **Observed:**
+- [ ] **AS8. Full screen.** Enter full screen (green button): the band goes,
+  the top bar sits at the very top with its name 12 points from the left
+  edge; leaving full screen restores the inset (`AS-E` item 4). **Observed:**
+- [ ] **AS9. Open-document events from a packaged app.** Package the demo as
+  in `docs/packaging.md` with a `.mcgraph` document type: a Finder
+  double-click, `open -a`, a drop on the Dock icon — with the app not running
+  and with it running — each lists the file's URL once under "Opened"; `swift
+  run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
+  launch-argument recipe, `AS-G` item 6, `AS-M`). Note whether Finder shows
+  "cannot open files in this format" without an `NSDocumentClass`.
+  **Observed:**
+- [ ] **AS10. SDL (Linux, Windows; macOS too).** With the document edited,
+  the window manager's close button and Alt-F4 show the drawn alert; Ctrl-C
+  in the terminal (SIGINT → `SDL_EVENT_QUIT`) shows it too; Don't Save ends
+  the program. A file dropped on the window is a drag (nothing under
+  "Opened"); the title shows no edited marker; the window keeps its system
+  title bar, and the top bar's name sits 12 points from the left (insets
+  zero, `AS-E` item 6). On macOS, a vetoed close of the only window does not
+  quit (`AS-L`: the quit-on-last-window hint is off). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

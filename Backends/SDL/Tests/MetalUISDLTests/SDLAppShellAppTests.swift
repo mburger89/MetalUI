@@ -145,18 +145,21 @@ private func push(_ kind: Int32, window: UInt32 = 0, sourceLocation: SourceLocat
     let (platform, app) = try shellApp()
     let log = ShellLog()
     let (window, sdl) = try openLoggedWindow(app, platform, "A", log)
-    var answer = CloseRequestReply.cancel, asked = 0
-    window.onCloseRequest = { asked += 1; return answer }
+    // A box: the handler is a main-actor closure, and a captured local
+    // mutated after capture warns on Linux.
+    @MainActor final class Script { var answer = CloseRequestReply.cancel; var asked = 0 }
+    let script = Script()
+    window.onCloseRequest = { script.asked += 1; return script.answer }
 
     push(Int32(MUI_EVENT_CLOSE), window: sdl.id)
     platform.base.pumpEvents()
-    #expect(asked == 1 && platform.base.openWindowCount == 1, "a vetoed close keeps the window")
+    #expect(script.asked == 1 && platform.base.openWindowCount == 1, "a vetoed close keeps the window")
     #expect(log.entries.isEmpty && platform.terminateCalls == 0)
 
-    answer = .now
+    script.answer = .now
     push(Int32(MUI_EVENT_CLOSE), window: sdl.id)
     platform.base.pumpEvents()
-    #expect(asked == 2 && platform.base.openWindowCount == 0, "an allowed close closes it")
+    #expect(script.asked == 2 && platform.base.openWindowCount == 0, "an allowed close closes it")
     #expect(log.entries == ["A disappeared"] && platform.terminateCalls == 1, "\(log.entries)")
     #expect(platform.replies.isEmpty, "the last close asks nobody and answers nothing")
 }

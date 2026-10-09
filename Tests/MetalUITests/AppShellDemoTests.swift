@@ -117,10 +117,10 @@ import MetalUIDemoContent
         window.setNeedsRedraw()
         window.drawFrameIfNeeded()
         let tree = try #require(fake.publishedAccessibilityTrees.last)
-        let node = try #require(tree.nodes.values.first {
-            $0.role == .staticText && ($0.label == "Untitled.mcgraph" || $0.value == "Untitled.mcgraph")
+        let (id, _) = try #require(tree.nodes.first {
+            $0.value.role == .staticText && ($0.value.label == "Untitled.mcgraph" || $0.value.value == "Untitled.mcgraph")
         }, "the top bar's name")
-        return node.frame
+        return try #require(tree.geometry[id]).frame
     }
     func barHeight() -> Float? {
         let fill = window.theme[.surfaceSecondary]
