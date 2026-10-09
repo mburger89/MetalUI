@@ -840,8 +840,24 @@ both must compile); the census gains two A rows.
     `box.layer == cover.layer` in `focusOnPress`); A26b
     `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne`
     (mutation V9, `isFocusable = true` regardless of the argument, run once
-    per overload). Each test was green unmutated; the reddened tests per
-    mutation are in the record (§88). **A popover written on the region's
+    per overload). Each test was green unmutated. Measured at `ab6871f`,
+    each on the full unfiltered native suite (unmutated: 2929 tests in 3
+    suites passed, the `FR-J` line present; `git status --short` clean
+    after each restore):
+    - V1 (`HoverKeyRegion.swift` `hoveredKeyRegion`, the layer test
+      dropped): reddened only
+      `aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered`.
+    - V1′ (`focusOnPress`, the layer test dropped): reddened only
+      `aPressOnAKeyRegionsOwnPopoverChangesNoFocus`.
+    - V4 (`focusOnPress`, the cover-descends test dropped): reddened only
+      `aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus`.
+    - V9a (`Box.swift` `focusable(_:)`, `isFocusable = true`): reddened only
+      `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne`.
+    - V9b (`KeyPress.swift` `focusable(_:interactions:)`, `isFocusable =
+      true`): reddened
+      `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne`
+      and `aPressDoesNotFocusPlainOrActivateFocusables` (its `#require` on
+      three focusables). **A popover written on the region's
     own element does not separate the layer test**: its content does not
     descend from the region's id, so the cover-descends test already
     excludes it (measured: green under V1); the arm declares the popover on
