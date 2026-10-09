@@ -275,6 +275,32 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
+**Input for viewports and canvases** (`CI-`, record §81;
+[`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
+SwiftUI's spellings, probe-backed (`probes/swiftui-input-apis.swift`):
+`SpatialTapGesture` (`.location`, the release that ends the tap) and
+`.onTapGesture(count:coordinateSpace:perform:)` (A); `MagnifyGesture`
+(`.magnification`, `.startLocation`, `.startAnchor`) and `RotateGesture`
+(`.rotation`, clockwise-positive) in their own pinch arena from the one
+ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
+`CoordinateSpace` `.local` (the default) and `.global` — the window's content
+space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
+`.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
+`.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
+change; a paint-only view does not cover it, D 141). MetalUI-only by ruling,
+where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`
+(deltas precise or lines, phase, momentum phase, modifiers, `location` local;
+offered innermost first before each enclosing `ScrollView`, `true` claims),
+`DragGesture(minimumDistance:coordinateSpace:button:)` with `MouseButton`
+(`.secondary`, `.middle`, `.other(n)` drag in their own arena; a secondary drag
+defers the context menu to the release), `DragGesture.Value.modifiers` (D 140),
+and the located `.contextMenu { (location: Point<Pixels>?) in … }` (M). At the
+seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
+`.otherMouseUp`/`.magnify`/`.rotate`, `MagnifyEvent`, `RotateEvent`,
+`InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
+`PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
+The canvas demo: `METALUI_CANVAS_DEMO=1`.
+
 ## Drag and drop — A / D
 
 `Transferable` and `ContentType` — MetalUI's own synchronous, `Data`-based

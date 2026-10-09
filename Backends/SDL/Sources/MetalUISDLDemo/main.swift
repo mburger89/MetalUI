@@ -65,7 +65,15 @@ func runDemo() throws {
     if environment["METALUI_LOOKS_DEMO"] == "1" {
         app.darkTheme[LooksBrand.self] = looksBrandDarkOverride
     }
-    let window = environment["METALUI_SERVICES_DEMO"] == "1"
+    // `METALUI_CANVAS_DEMO=1`: input APIs' canvas (human checks Y6–Y8, Y10,
+    // Y11; spec `2026-10-08-input-apis-design.md` §6) — wheel, SDL pinch, middle
+    // and right drags, tap location, SDL's system cursors; **C** toggles the
+    // crosshair.
+    let canvasDemo = environment["METALUI_CANVAS_DEMO"] == "1"
+    let window = canvasDemo
+        ? try app.openWindow(title: "MetalUI — SDL3 canvas", size: Size(width: Pixels(920), height: Pixels(620)),
+                             content: canvasDemoContent)
+        : environment["METALUI_SERVICES_DEMO"] == "1"
         ? try openServicesDemoWindow(app, title: "MetalUI — SDL3 platform services")
         : environment["METALUI_LOOKS_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 looks", size: Size(width: Pixels(1180), height: Pixels(880)),
@@ -91,6 +99,7 @@ func runDemo() throws {
         KeyBinding("a", ToggleAnimationDemo())
         KeyBinding("q", QuitDemo())
     }
+    if canvasDemo { window.keymap.bindings.append(KeyBinding("c", ToggleCanvasCrosshair())) }
     window.onAction = { [weak window] action in
         guard let window else { return false }
         switch action {
@@ -101,7 +110,7 @@ func runDemo() throws {
         case is FocusCounter: window.focus(counterID)
         case is ClearFocus: window.focus(nil)
         case is QuitDemo: platform.stop()
-        default: return false
+        default: return canvasDemoHandle(action)
         }
         return true
     }

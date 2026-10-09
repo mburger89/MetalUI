@@ -902,6 +902,76 @@ the configurator's icons.
 - [ ] **X5. The configurator's icons** (light and dark) on Linux look as on
   macOS (`PX-C`; divergence 138 — its icons are untagged). **Observed:**
 
+## Y. Input APIs for viewports and canvases — scroll wheel, magnify/rotate, other buttons, tap location, pointer style (user request 2026-10-02, not a plan task)
+
+*Source: record §81 `81-input-apis.md`, rulings `CI-A`…
+(`docs/superpowers/2026-10-08-input-apis-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-input-apis-design.md`).* Pinned
+headless: the seam on both platforms (`AppKitInputAPITests`,
+`SDLInputAPITests`), the gestures and their arenas
+(`InputAPIGestureArenaTests`, `InputAPIGestureWindowTests`), the wheel chain
+and the pointer style (`InputAPIWindowTests`), and the demo's arithmetic
+(`theCanvasDemoPansZoomsAboutThePointerPicksAndShowsACrosshair`, 3.35). What
+nothing headless sees: a real trackpad's phases, momentum and pinch, a real
+cursor on screen, a real mouse's middle and right buttons, and SDL on a Linux
+or Windows desktop. Every check runs `METALUI_CANVAS_DEMO=1 swift run
+MetalUIDemo` (AppKit) or, from `Backends/SDL`, `METALUI_CANVAS_DEMO=1 swift
+run MetalUISDLDemo` (SDL); the status line under the canvas reports what each
+check reads.
+
+- [ ] **Y1. Trackpad scroll pans with momentum** (AppKit): a two-finger scroll
+  on the canvas pans it and keeps gliding after the fingers lift; during the
+  glide the status line's momentum phase reads `changed`, then `ended`
+  (`CI-I` item 1). **Observed:**
+- [ ] **Y2. Pinch zooms about the pinch centre** (AppKit): the node under the
+  fingers stays under them while the zoom changes (`CI-C`, `startLocation`).
+  **Observed:**
+- [ ] **Y3. Rotate** (AppKit): a two-finger twist over the "Revolve" node turns
+  it, and the status line's rotation is positive for a clockwise twist
+  (`CI-C` item 2, probe `Q1`). **Observed:**
+- [ ] **Y4. Nested magnify and rotate**: a pinch with a twist over "Revolve"
+  (its `RotateGesture` inside the canvas's `MagnifyGesture`) — note whether
+  both zoom and rotation change, and what happens when one ends before the
+  other (`CI-D` item 3, `CI-AA` item 2: the unmeasured corner).
+  **Observed:**
+- [ ] **Y5. Every pointer style on AppKit**: over each swatch of the style
+  strip the cursor is as named — arrow, horizontal and vertical I-beam,
+  crosshair, open and closed hand, pointing hand, zoom in and out, column and
+  row resize, the three frame resizes (`CI-H` item 8, probe `P1`–`P19`); the
+  crosshair over empty canvas, the pointing hand over a node, the open hand
+  over the strip along the canvas's top; **during a fast middle-drag pan that
+  leaves the canvas the hand stays closed** (`CI-H` item 6, MetalUI's rule,
+  `CI-U` item 3). **Observed:**
+- [ ] **Y6. The same strip under SDL** on Linux and on Windows: both hands
+  show SDL's move cursor and both zooms the arrow (`CI-H` item 8, a platform
+  constraint); the rest as named. **Observed:**
+- [ ] **Y7. SDL pinch on Wayland or X11** with a trackpad: the canvas zooms,
+  at the speed the macOS SDL build zooms for the same pinch (`CI-K` item 1's
+  cumulative-scale reading). **Observed:**
+- [ ] **Y8. A real mouse** (both platforms): a middle drag pans; a right drag
+  pans and opens no menu; a right-click on a node opens a menu whose first
+  item is "Inspect <node>", on the release (`CI-F` item 4, `CI-R`).
+  **Observed:**
+- [ ] **Y9. Modifiers during a drag**: press ⌥ in the middle of a middle-drag
+  pan; the status line's drag modifiers read `⌥` at the next move, not before
+  (`CI-G`). **Observed:**
+- [ ] **Y10. Windows precision touchpad**: a pinch arrives as ⌃-wheel and the
+  demo zooms (there is no `MagnifyGesture` on Windows, `CI-K` item 1).
+  **Observed:**
+- [ ] **Y11. A notched wheel mouse**: the status line reads `lines` and each
+  notch pans 10 points (`CI-I` item 1). **Observed:**
+- [ ] **Y12. A style change under a still pointer** (AppKit; `CI-Z` item 5):
+  rest the pointer over empty canvas and press **C** without moving it — the
+  crosshair turns to the arrow at once, and back on a second **C**
+  (`setPointerStyle`'s immediate set, which no agent can drive).
+  **Observed:**
+- [ ] **Y13. No wheel latching** (`CI-AD`): flick the canvas so it glides, then
+  move the pointer onto the style strip mid-glide: note whether the glide
+  stops (MetalUI dispatches each wheel event by the pointer), and what a
+  native AppKit scroll view (Finder, a long text document) does in the same
+  motion — the answer is the input of `CI-AD`'s unbuilt probe.
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

@@ -7,6 +7,12 @@ import MetalUICore
 /// `swiftui-input-apis.swift` read (`P1`–`P19`); SDL to a system cursor, with
 /// both hands as its move cursor and both zooms as its default (SDL has no
 /// hand or zoom cursor — a documented platform constraint).
+///
+/// **An image cursor adds a case here** (`CI-AC`): `PointerStyle.image(_:hotSpot:)`
+/// and `.shape(…)` are not offered (`CI-A`), and offering them adds a case to
+/// this enum, so an outside `PlatformWindow` conformer's exhaustive `switch` in
+/// `setPointerStyle(_:)` then owes a case or `default:` — a migration note in
+/// the change that adds it.
 public enum PlatformPointerStyle: Sendable, Hashable {
     /// The arrow: SwiftUI's `.default`.
     case arrow

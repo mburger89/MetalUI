@@ -17,7 +17,10 @@ import MetalUILayout
 ///   carries. SwiftUI's `.global` in a titled window read 32 points lower than
 ///   the content view's point (probe `T2`; divergence 139).
 ///
-/// `.named(_:)` and `.coordinateSpace(_:)` are not offered (`CI-A`).
+/// `.named(_:)` and `.coordinateSpace(_:)` are not offered (`CI-A`). **Adding
+/// `.named(_:)` adds an enum case** (`CI-AC`): MetalUI is built without library
+/// evolution, so an outside exhaustive `switch` over `CoordinateSpace` then owes
+/// a case or `default:` — a migration note in the change that adds it.
 public enum CoordinateSpace: Sendable, Hashable {
     /// The gesture element's own space.
     case local
