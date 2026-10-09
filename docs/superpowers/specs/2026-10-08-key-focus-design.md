@@ -5,11 +5,12 @@ task**), requested by MetalCreator (gaps M4-a, M4-b, M5-b, M5-g, M5-h, and
 M6's `Panel`/`!Panel` vetoes in `MetalCreator/docs/metalui-gaps.md`). Branch
 `feat/key-focus` from `c62d6ba`. Rulings:
 [`../2026-10-08-key-focus-decisions.md`](../2026-10-08-key-focus-decisions.md)
-(`KF-A`…`KF-O`, next unused `KF-P`). Record: `docs/record/88-key-focus.md`
+(`KF-A`…`KF-W`, next unused `KF-X`; the critic's amendments `KF-P`…`KF-W` of
+2026-10-09 are folded in below and win over any earlier sentence). Record: `docs/record/88-key-focus.md`
 (Record phase). Probes: `docs/probes/swiftui-key-focus.swift` (K, FC, RS, G, T
 arms) and `docs/probes/swift-builder-for-opaque.sh` (A arms).
 
-**Status: designed (2026-10-08).** Baseline at `c62d6ba`: 2873 tests in 3
+**Status: designed (2026-10-08); critic-revised (2026-10-09, `KF-P`).** Baseline at `c62d6ba`: 2873 tests in 3
 suites, 0 goldens; the `FR-J no-argument frame: succeeded=true` line present.
 
 ## 1. Scope
@@ -59,6 +60,10 @@ header has every line:
 
 `docs/probes/swift-builder-for-opaque.sh`: A1 fails, A2/A3 compile, A4/A5
 fail, A6 compiles (erasure), A7 SwiftUI has no `for`, A8 `ForEach` compiles.
+The critic (2026-10-09, `KF-P`) re-ran it byte-identical and added A9–A13 (all
+fail as A1). The SwiftUI probe could **not** be re-run (screen locked); lane A
+re-runs K2t, K2v, K4c, K4a first and runs the new gated KX arms (`KF-R`).
+Spellings were checked against the MacOSX27.0 SDK's `SwiftUI.swiftinterface`.
 
 ## 3. Public API
 
@@ -98,7 +103,7 @@ extension ProposalElementGroup {                        // each returns Keyboard
     // the five onKeyPress, focusable(_:), focusable(_:interactions:),
     // keyContext(_:_:), focused(_:), focused(_:equals:), hoverKeyRegion(_:)
 }
-public struct KeyboardModifier<Content: ProposalElementGroup>: Element   // M — the one layer
+public struct KeyboardModifier<Content: ProposalElementGroup>: Element   // M — the one layer (lane C, KF-W)
 extension KeyboardModifier { /* the same names, returning Self (KF-H item 2) */ }
 
 extension KeyEquivalent: Hashable {}
@@ -109,6 +114,9 @@ platform). The `@MainActor` on closures matches `onKey`'s `KeyHandler`; SwiftUI'
 closures are main-actor by `View`'s isolation — the same effect.
 
 ### 3.2 Geometry (lane B)
+
+Wider than SwiftUI's on purpose (`KF-S`): no `@Sendable` on `transform`, no
+`Sendable` on `T`; every SwiftUI spelling compiles.
 
 ```swift
 public struct GeometryProxy: Sendable {                 // A (MetalUI geometry types)
@@ -130,6 +138,7 @@ public struct GeometryChangeScope<Content: ElementGroup>: ElementGroup   // + Pr
 
 ```swift
 public protocol TimelineSchedule {
+    typealias Mode = TimelineScheduleMode                    // KF-T
     associatedtype Entries: Sequence where Entries.Element == Date
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> Entries
 }
@@ -144,6 +153,7 @@ public struct TimelineViewDefaultContext {
     public let cadence: Cadence
 }
 public struct TimelineView<Schedule: TimelineSchedule, Content: ProposalElementGroup>: ProposalElementGroup {
+    public typealias Context = TimelineViewDefaultContext     // KF-T: SwiftUI's nested name
     public init(_ schedule: Schedule,
                 @ProposalContentBuilder content: @escaping (TimelineViewDefaultContext) -> Content)
 }
@@ -171,6 +181,22 @@ inserts **`dispatchKeyPress(event)`** between `dispatchAction` and
 test pins it). It handles `.keyDown` (phase `.repeat` when `isRepeat`, else
 `.down`) and `.keyUp` (phase `.up`); everything else returns `false`.
 
+**Typed characters (`KF-Q`).** A focused field's printable keystrokes arrive
+as `.textInput`, never `.keyDown` (AppKit's input context, SDL's dropped
+text-producing keys), and `dispatchTextInput` runs long before the key stages.
+So `dispatchKeyPress` also has a `.textInput` arm, called in its own line
+**immediately before `dispatchTextInput`**: when a text field is focused, it
+holds no marked text, and the text is one grapheme, the walk below runs with
+`KeyPress(phase: .down, key: KeyEquivalent(text), characters: text,
+modifiers: [])`; `.handled` drops the text, `.ignored` passes it on unchanged.
+Compositions and multi-grapheme commits are never offered. Divergence 187.
+
+**⌘/⌃-keys (`KF-R`).** Before placing the stage, lane A runs probe arms
+KX1–KX3 (`KF_PROBE_KX=1`, lock probe first) and builds by `KF-R` item 3's
+table: if SwiftUI runs a menu command or a ⌘-key `Button` shortcut first,
+`dispatchKeyPress` declines a keystroke the command table (or a modified
+shortcut) matches.
+
 `dispatchKeyPress` walks `keyChain.reversed()` (root → innermost); at each id
 it asks `lastFocusRegistry.keyPresses(for:)` (registered in prepaint like
 `keyHandlers`, `FocusRegistry.register`) and runs, last-written first, every
@@ -187,7 +213,9 @@ event (`setNeedsRedraw`, return `true`).
 region was registered — `lastKeyRegionCount == 0` costs no ranking — or while
 `hoverIsSuppressed`). `dispatchAction` builds `contextsByLevel` from
 `keyChain` (was `focusChain`) and dispatches the action along it;
-`dispatchKey` walks `keyChain`; `dispatchKeyPress` as §4.1. `matchKeymap`,
+`dispatchKeyPress` as §4.1. **`dispatchKey` (the `onKey` bubble, where every
+control's `ControlKeys` live) keeps `focusChain`** (`KF-U`): with nothing
+focused `onKey` and the controls' keys still see nothing. `matchKeymap`,
 `contextDepth` and the predicate language are unchanged (a doc paragraph in
 `Keymap.swift` says where the chain comes from).
 
@@ -223,9 +251,11 @@ descends (`isOrDescends(from:)`), then:
 4. else nothing (`KF-G`: no resign).
 
 It returns `false` (the press continues to the text stage, the arena and
-click dispatch: FC6).
+click dispatch: FC6). A selectable `List` inside a key region focuses itself at
+the release (`DD-Z` item 9), so there the press clears and the release focuses
+— two events, two changes (`KF-U` item 4).
 
-### 4.4 Proposal `KeyboardModifier` (lane A, new `KeyboardModifier.swift`)
+### 4.4 Proposal `KeyboardModifier` (lane C, new `KeyboardModifier.swift`; `KF-W`)
 
 `HoverModifier`'s recipe (`Hover.swift`): stores `content` and a `Handlers`
 value holding only keyboard fields (`isFocusable`, `keyContext`,
@@ -337,10 +367,17 @@ in `DemoStackBudgetTests`.
 | A31 | `aClickFocusablePressMovesFocusFromAField` (RS4) | stub | delete step 2 |
 | A32 | `pressAndKeyRegionsChangeNoOtherPointerOutcome` (the same tree with and without `.focusable(interactions: .edit).hoverKeyRegion()`: click, hover set, tap arena, wheel scroller, drop destination identical) | — | register the region hitbox `opaque: true` |
 | A33 | `disabledHiddenAndAllowsHitTestingWithdrawThePressAndKeyRegions` | — | register outside the gates |
-| A34 | `aMetalViewTakesFocusOnPressAndHearsKeysThroughOneLayer` (proposal, end to end) | does not compile | make `KeyboardModifier`'s own methods return a nested wrapper |
-| A35 | `aProposalFocusedBindingAndKeyContextSitOnTheFocusTarget` | does not compile | register the binding on the content's id |
-| A36 | existing `everyHandlerRegisteringSite…` ×3 gain the `KeyboardModifier` arm; `HandlerShape`/`HandlerFingerprint` gain `keyboard` | — | the guards' own mutation (skip the gate in `KeyboardModifier`) |
-| A37 | portable copies of A1, A3, A6, A18 in `KeyPressPortableTests` (Linux/Windows CI) | as above | as above |
+| A34–A35 | moved to lane C as C4, C5 (`KF-W`) | | |
+| A36 | `HandlerShape`/`HandlerFingerprint` gain `keyboard` (the `KeyboardModifier` arms of the three `everyHandlerRegisteringSite…` guards move to lane C as C6) | — | drop the field from `Handlers`' equality the fingerprint reads |
+| A37 | portable copies of A1, A3, A6, A18, A42 in `KeyPressPortableTests` (Linux/Windows CI) | as above | as above |
+| A38 | `aHandledKeyPressSwallowsATypedCharacterInAFocusedField` (K4a, `KF-Q`) | stub: `z` typed | delete the `.textInput` arm |
+| A39 | `anIgnoredKeyPressLetsATypedCharacterIn` (K4b) | stub | treat `.ignored` as claimed on that arm |
+| A40 | `anAncestorsKeyPressHearsTypedCharactersBeforeTheFieldsOwn` (K2x) | stub | walk innermost first on that arm |
+| A41 | `aCompositionAndAMultiGraphemeCommitAreNeverOffered` (+ divergence 187: repeats read `.down`, no `.up` when the platform drops it) | stub | offer every `.textInput` |
+| A42 | `aDigitFilterOnAFieldKeepsOnlyDigits` (`a1b2` → `12`) | stub: `a1b2` | the A38 mutation |
+| A43 | `aCommandsKeystrokeRunsTheCommandNotOnKeyPress` — or its inverse, by KX2 (`KF-R` item 3) | stub | flip the decline |
+| A44 | `aModifiedButtonShortcutAgainstOnKeyPress` — by KX1 (`KF-R` item 3) | stub | flip the decline |
+| A45 | `aHoveredRegionDrivesNoControlKeysAndNoOnKey` (`KF-U`) | — (green against the stub; red against M) | `dispatchKey` walks `keyChain` |
 
 Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
 `import MetalUI`, `SA-P`); each mutated red once:
@@ -349,8 +386,8 @@ Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
 |---|---|---|
 | G1 | `theOnKeyPressFamilyCompilesOnBothVocabularies` | an action returning `Bool` does not compile |
 | G2 | `focusableWithNoArgumentsStillResolvesAndInteractionsCompile` | `.focusable(interactions: .bogus)` does not compile |
-| G3 | `keyboardModifiersMergeIntoOneLayer` (`let x: KeyboardModifier<MetalView> = MetalView…focusable(interactions: .edit).keyContext("V").onKeyPress("f") { .handled }`) | the same chain typed `KeyboardModifier<KeyboardModifier<MetalView>>` does not compile |
-| G4 | `keyPressHasNoPublicInitializer` | `KeyPress(phase:…)` does not compile from outside (a `@testable` test cannot see it) |
+| G3 | moved to lane C as C8 (`KF-W`) | |
+| G4 | `keyPressHasNoPublicInitializer` (`KeyPress(phase:…)` must not compile from outside; a `@testable` test cannot see it) | positive control (`KF-W` item 2): reading `press.key`, `.characters`, `.modifiers`, `.phase` inside an `onKeyPress` closure compiles |
 
 ### 5.2 Lane B — geometry and timeline
 
@@ -378,14 +415,21 @@ Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
 | T6 | `theWakeDirtiesTheWindowThroughTheStateWritePath` (fire the recorded wake: `needsRedraw`, not during a phase) | — | have the wake call nothing |
 | T7 | `aTimelineLeavingTheTreeCancelsItsWakeAndStopsTheLink` | — | keep untouched keys |
 | T8 | `aTimelineIsIdentityTransparent` (`@State` inside keeps its value when the `TimelineView` is added around it; ids equal with and without) | — | give it a cursor index |
-| T9 | `cadenceIsLiveAndModeIsNormal` | — | — (value pin) |
+| T9 | `cadenceIsLiveAndModeIsNormal` | — | report `.seconds` (`KF-V` item 4) |
 | T10 | `aCustomAndAnExplicitScheduleAreEvaluatedThroughTheirEntries` | stub | special-case only periodic |
 | T11 | `anOverlayFollowsAContinuousSurfaceThroughATimeline` (M4-b (2): the label's position moves each tick with a time-driven camera) | `c62d6ba`: does not compile | T1's mutation |
 | T12 | `aTimelineNeverRequestsAnotherFrame` (`wantsAnotherFrame` false across ticks) | — | call `requestAnotherFrame()` instead |
 | T13 | portable copies of B1, B3, T1, T4 in `GeometryTimelinePortableTests` | as above | as above |
+| T14 | `theTimelinesTypedAndUntypedEntriesAreEachPinned` (a legacy `Column` consumes a `.flexGrow(1)` item inside it; an `HStack` keeps proposal nodes; `KF-V` item 2) | stub | route the untyped entry through the typed one |
+| T15 | `anEmptyTimelineDoesNotShareItsScheduleWithTheNext` (`KF-V` item 3) | — | drop the occurrence ordinal |
 
 Guards (lane B): `onGeometryChangeAndTimelineViewCompileOnBothVocabularies`
-(separating: a non-`Equatable` `T` does not compile), and
+(separating: a non-`Equatable` `T` does not compile; further must-compile arms:
+an explicit `@Sendable` transform over a `Sendable` `T` (`KF-S`),
+`TimelineView<PeriodicTimelineSchedule, ProposalText>.Context` and a custom
+schedule's `mode: Mode` (`KF-T`); a must-not-compile arm:
+`Box{}.onGeometryChange(…).padding(4)` against the must-compile
+`.padding(4).onGeometryChange(…)` (divergence 120, `KF-V` item 1)), and
 `aTimelineViewInsideAnHStackKeepsItsProposalType` (separating: the same
 content typed as `LegacyContent<…>` does not compile). Each mutated red once.
 
@@ -395,11 +439,16 @@ content typed as `LegacyContent<…>` does not compile). Each mutated red once.
 |---|---|---|---|
 | C1 | `aForLoopOverAnOpaqueHelperIsAToolchainLimitation` (`typecheckFile`: the failing arm **must fail** with `underlying type for opaque result type`; arms `ForEach(texts, id: \.self) { label($0) }`, a `-> ProposalText` helper, a `struct Label: Element` helper and the inline chain **must compile**) | green at `c62d6ba` (it pins today's toolchain) | change the failing fixture's helper to `-> ProposalText` (the "must fail" arm reddens); delete `ForEach` from a separating arm's import path (a "must compile" arm reddens) |
 | C2 | `everyProductionTreeBuildsOnAOneMegabyteThread` gains the key-focus demo tree | new tree unbuilt | build the section inline in the composer (the tree overflows or the arm is absent) |
+| C4 | `aMetalViewTakesFocusOnPressAndHearsKeysThroughOneLayer` (was A34; proposal, end to end) | does not compile | make `KeyboardModifier`'s own methods return a nested wrapper |
+| C5 | `aProposalFocusedBindingAndKeyContextSitOnTheFocusTarget` (was A35) | does not compile | register the binding on the content's id |
+| C6 | the three `everyHandlerRegisteringSite…` guards gain the `KeyboardModifier` arm (was part of A36) | — | skip the gate in `KeyboardModifier` |
+| C7 | A5's `KeyboardModifier` arm (`theLaterOnKeyPressOnOneElementRunsFirst` gains it) | — | run the layer's handlers in written order |
+| C8 | guard `keyboardModifiersMergeIntoOneLayer` (was G3: `let x: KeyboardModifier<MetalView> = MetalView…focusable(interactions: .edit).keyContext("V").onKeyPress("f") { .handled }`; separating: the chain typed `KeyboardModifier<KeyboardModifier<MetalView>>` does not compile) | — | mutated red once |
 | C3 | the fourteen offscreen images, `docs/probes/demo-pixels/compare.sh <scratch> c62d6ba HEAD`: 0 px each; `DemoFrameDeterminismTests`' `Expected.swift` unedited | — | — (acceptance) |
 
-**Expected count**: 2873 + lane A (≈ 50 incl. 4 guards and 4 portable) + lane
-B (≈ 33 incl. 2 guards and 4 portable) + lane C (1 guard) — re-measured, never
-quoted from here. Typecheck guards: 185 at `c62d6ba` + 7.
+**Expected count**: 2873 + lane A (≈ 50 incl. 3 guards and 5 portable) + lane
+B (≈ 35 incl. 2 guards and 4 portable) + lane C (≈ 5 incl. 2 guards) —
+re-measured, never quoted from here. Typecheck guards: 185 at `c62d6ba` + 7.
 
 ## 6. Demo
 
@@ -434,9 +483,9 @@ line and the `FR-J` line, and names every mutation's reddened tests.
 
 | Lane | Owns (edits) | New files |
 |---|---|---|
-| **A** keys and focus | `Window.swift`, `Focus.swift`, `Handlers.swift`, `Box.swift` (`StyledElement` keyboard modifiers), `FocusState.swift`, `KeyboardShortcut.swift` (`Hashable`), `Keymap.swift` (doc), `Frame.swift` (`registerHandlers`' non-opaque region condition and the counts), `Tests/MetalUITests/ModifierTests.swift`, `OuterModifierMatrixTests.swift`, `DisabledTests.swift`, `HitRegionTests.swift` | `KeyPress.swift`, `KeyboardModifier.swift`, `HoverKeyRegion.swift`; tests §5.1 |
+| **A** keys and focus | `Window.swift`, `Focus.swift`, `Handlers.swift`, `Box.swift` (`StyledElement` keyboard modifiers), `FocusState.swift`, `KeyboardShortcut.swift` (`Hashable`), `Keymap.swift` (doc), `Frame.swift` (`registerHandlers`' non-opaque region condition and the counts), `Tests/MetalUITests/ModifierTests.swift`, `OuterModifierMatrixTests.swift`; `docs/probes/swiftui-key-focus.swift` (records K2t/K2v/K4c/K4a re-runs and KX1–KX3, `KF-P`, `KF-R`) | `KeyPress.swift`, `HoverKeyRegion.swift`; tests §5.1 |
 | **B** geometry and timeline | `Lifecycle.swift`, `AnimationStore.swift` | `GeometryChange.swift`, `TimelineView.swift`, `TimelineSchedule.swift`, `TimelineStore.swift`; tests §5.2 |
-| **C** builder, demo, docs | `ElementBuilder.swift`, `ProposalContentBuilder.swift` (doc comments), `Sources/MetalUIDemo/main.swift`, `Backends/SDL` demo entry, `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `docs/divergences.md`, `docs/api-overview.md`, `docs/migration.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-*` | `KeyFocusDemo.swift`, `BuilderForLoopCompileGuards.swift` |
+| **C** proposal layer, builder, demo, docs | `DisabledTests.swift`, `HitRegionTests.swift` (the `KeyboardModifier` arms), `ElementBuilder.swift`, `ProposalContentBuilder.swift` (doc comments), `Sources/MetalUIDemo/main.swift`, `Backends/SDL` demo entry, `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `docs/divergences.md`, `docs/api-overview.md`, `docs/migration.md`, `docs/verification/human-checks.md`, `docs/probes/closeout-*` | `KeyboardModifier.swift`, `KeyFocusDemo.swift`, `BuilderForLoopCompileGuards.swift`; tests C4–C8 |
 
 Lane B reads lane A's nothing; lane C's demo uses both. `Frame.swift` is lane
 A's (one condition in `registerHandlers`); lane B reads `Frame` internals
@@ -481,6 +530,12 @@ A's (one condition in `registerHandlers`); lane B reads `Frame` internals
   a click on the canvas region clears it; a click on the viewport focuses it.
 - **KF-4** Live-resizing the window: the viewport's size label follows every
   frame with no lag; on launch it is right in the first frame.
+- **KF-6** (only if `KF-R`'s arms could not run in lane A) run
+  `KF_PROBE_KX=1` on the probe with the screen unlocked and compare with what
+  shipped (A43/A44); a difference reopens `KF-R`.
+- **KF-7** Typing into a focused field with a digit filter (`KF-Q`): letters
+  never appear, digits do, an input method's composition is unaffected (AppKit
+  Japanese IME; SDL on Linux with IBus).
 - **KF-5** The timeline overlay moves smoothly with the orbiting camera; with
   the demo idle otherwise, the display link pauses once the timeline leaves.
 
@@ -495,5 +550,14 @@ A's (one condition in `registerHandlers`); lane B reads `Frame` internals
 - **94 amended** — narrowed to `.focusable()`/`.focusable(interactions:
   .automatic)`; `.edit` now focuses on click as SwiftUI does (FC3). Pin: A26.
 
-Labels 187–194 stay unused. The header's next-label line is left for the
+- **187** — a typed character reaches `onKeyPress` on a focused field as
+  `.down` only (repeats too, modifiers empty); on SDL its release is not
+  delivered (`KF-Q` item 4). Pin: A41.
+- **188** — only if KX2 reads menu-first (`KF-R` item 3): native-only menu
+  items (Quit, Hide, Minimize…) are still offered to `onKeyPress` first. Pin:
+  A43.
+- **120 amended** — `GeometryChangeScope` joins the transparent groups a legacy
+  decoration cannot follow (`KF-V` item 1). Pin: lane B's guard arm.
+
+Labels 189–194 stay unused (188 too unless `KF-R` lands its first row). The header's next-label line is left for the
 merge (`docs/divergences.md`, lane C).

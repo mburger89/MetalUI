@@ -26,6 +26,17 @@
 #   A7 SwiftUI VStack { for }: error: closure containing control flow statement cannot be used with result builder 'ViewBuilder'
 #   A8 SwiftUI ForEach over an opaque helper: ok
 #
+# RE-RUN 2026-10-09 by the key-focus critic (same toolchain): A1–A8
+# byte-identical to the lines above, twice. Arms A9–A13 added (run twice,
+# byte-identical):
+#   A9 buildExpression returning its own opaque type: error: underlying type for opaque result type 'some G' could not be inferred from return expression
+#   A10 two-statement loop body: error: underlying type for opaque result type 'some G' could not be inferred from return expression
+#   A11 opaque value bound by let in the body: error: underlying type for opaque result type 'some G' could not be inferred from return expression
+#   A12 parameterised helper (MetalCreator's label(text) shape): error: underlying type for opaque result type 'some G' could not be inferred from return expression
+#   A13 A1 under -swift-version 5: error: underlying type for opaque result type 'some G' could not be inferred from return expression
+# None of the four further library spellings (A9: an opaque `buildExpression`;
+# A10, A11: other body shapes) and neither language mode compiles: KF-M item 4.
+#
 # RESULT. The builder transform (SE-0289 as implemented since Swift 5.8)
 # declares the loop's accumulator with the BODY BLOCK's type; when that type
 # mentions an opaque result type the synthesized declaration reads as a new
@@ -114,3 +125,30 @@ func use(_ xs: [String]) -> some View { VStack { for x in xs { label(x) } } }"
 arm "A8 SwiftUI ForEach over an opaque helper" "import SwiftUI
 func label(_ s: String) -> some View { Text(s) }
 func use(_ xs: [String]) -> some View { VStack { ForEach(xs, id: \\.self) { label(\$0) } } }"
+
+# Critic's arms (2026-10-09, ruling KF-M item 4): four more library-side
+# spellings and the language mode, each against A1's failure.
+arm "A9 buildExpression returning its own opaque type" "$common
+@resultBuilder enum B {
+    static func buildExpression<X: G>(_ x: X) -> some G { x }
+    static func buildBlock<X: G>(_ x: X) -> X { x }
+    static func buildArray<X: G>(_ xs: [X]) -> ArrayGroup<X> { ArrayGroup(x: xs) }
+}
+func box<C: G>(@B _ c: () -> C) -> C { c() }
+func use(_ xs: [Int]) { _ = box { for _ in xs { label() } } }"
+
+arm "A10 two-statement loop body" "$common$builder
+func use(_ xs: [Int]) { _ = box { for _ in xs { label(); concrete() } } }"
+
+arm "A11 opaque value bound by let in the body" "$common$builder
+func use(_ xs: [Int]) { _ = box { for _ in xs { let v = label(); v } } }"
+
+arm "A12 parameterised helper (MetalCreator's label(text) shape)" "$common$builder
+func lbl(_ s: String) -> some G { T() }
+func use(_ xs: [String]) { _ = box { for x in xs { lbl(x) } } }"
+
+print -r -- "$common$builder
+func use(_ xs: [Int]) { _ = box { for _ in xs { label() } } }" > "$dir/a13.swift"
+out=$(xcrun swiftc -typecheck -swift-version 5 "$dir/a13.swift" 2>&1)
+if [[ $? -eq 0 ]]; then print -r -- "  A13 A1 under -swift-version 5: ok"
+else print -r -- "  A13 A1 under -swift-version 5: $(print -r -- "$out" | grep -m1 -o 'error: .*')"; fi

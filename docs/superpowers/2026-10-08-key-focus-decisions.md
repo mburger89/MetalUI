@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-P`.**
+**Next unused id: `KF-X`.**
 
 ## The final spellings (what an app writes)
 
@@ -20,6 +20,8 @@ Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 .onKeyPress(characters: .decimalDigits) { press in .ignored }
 .onKeyPress(phases: .all) { press in .handled }
 .onKeyPress { press in .ignored }                       // phases [.down, .repeat]
+// on a focused TextField typed characters arrive too, as .down (KF-Q, divergence 187)
+TextField("Qty", text: $qty).onKeyPress(characters: .decimalDigits.inverted) { _ in .handled }
 
 // Focus on click, SwiftUI's spelling — `.edit` opts in (KF-F)
 .focusable(interactions: .edit)
@@ -38,6 +40,7 @@ TimelineView(.animation(minimumInterval: 0.1, paused: false)) { context in … }
 TimelineView(.periodic(from: start, by: 1)) { context in … }
 TimelineView(.everyMinute) { context in … }
 TimelineView(.explicit(dates)) { context in … }
+let f: (TimelineView<PeriodicTimelineSchedule, ProposalText>.Context) -> Void  // KF-T
 
 // Proposal content: every keyboard modifier merges into ONE layer (KF-H)
 MetalView(redraw: .continuous) { … }
@@ -143,6 +146,10 @@ modifiers SwiftUI ignores, or not; K8 is the separating arm.
 
 ## KF-C — The pipeline: the Keymap, then `onKeyPress` outermost first, then the field
 
+**Amended by `KF-Q`** (typed characters on a focused field arrive as
+`.textInput` and get their own offer before `dispatchTextInput`) **and `KF-R`**
+(the ⌘/⌃-key order against commands is measured first).
+
 **Ruling.**
 
 1. **SwiftUI's order, measured.** Every `onKeyPress` on the focused view and
@@ -183,6 +190,9 @@ keyboard; the probe's synthesized `NSEvent`s go through `NSApp.sendEvent`, the
 real path.
 
 ## KF-D — The key chain: the focus chain, or with nothing focused the hovered key region's
+
+**Amended by `KF-U`**: the chain feeds the Keymap's contexts, action dispatch
+and `onKeyPress` — **not** the `onKey` bubble, which keeps `focusChain`.
 
 **Ruling.**
 
@@ -306,6 +316,8 @@ KF-3 is the check, and the remedy would be a non-claiming stage in
 `focusOnPress`'s place.
 
 ## KF-H — Proposal content: one `KeyboardModifier` layer that every keyboard modifier merges into
+
+**Built by lane C** (`KF-W` item 1), on lane A's `Handlers.keyboard`.
 
 **Ruling.**
 
@@ -503,6 +515,8 @@ pipeline, geometry and timeline arms that Linux and Windows CI run.
 
 ## KF-O — Lanes, gates and acceptance
 
+**Amended by `KF-W`** (the proposal `KeyboardModifier` moves from A to C).
+
 **Ruling.** Three lanes on disjoint files, run one at a time in this worktree
 in the order A → B → C (spec §7): **A** keyboard and focus (owns
 `Window.swift`, `Focus.swift`, `Handlers.swift`, `Box.swift`,
@@ -521,3 +535,233 @@ with the reddened tests named. Lane C additionally: the fourteen offscreen
 images at 0 px against `c62d6ba`, `DemoFrameDeterminismTests`' `Expected.swift`
 unedited, both inventory scripts print nothing, the census re-recorded,
 `Backends/SDL` built and tested locally and in the Linux image.
+
+## KF-P — Critic's review (2026-10-09): what was re-taken, what could not be
+
+**Ruling.** The committed design (`61265bc`) was attacked against the source
+at `c62d6ba`, the MacOSX27.0 SDK's `SwiftUI.swiftinterface` and the probes.
+
+1. **Builder probe re-run**: `swift-builder-for-opaque.sh` A1–A8 twice,
+   byte-identical to the recorded lines; arms A9–A13 added and recorded
+   (`KF-M` item 4).
+2. **SwiftUI probe NOT re-run**: the lock probe read
+   `CGSSessionScreenIsLocked = 1` and `displayAsleep main: 1`, so no window arm
+   can run (an `NSHostingView` probe under a locked session reads focus and
+   key routing wrongly — the designer's run 1 shows how). **Lane A re-runs
+   K2t, K2v, K4c and K4a byte for byte before its stage commit** (lock probe
+   first); a differing line stops the lane and is re-ruled before code.
+3. **Spellings checked against the SDK interface**, line by line: the five
+   `onKeyPress` overloads (labels, the single-key `phases:` form without a
+   default, the other three `= [.down, .repeat]`), `KeyPress`'s four `let`s,
+   `Phases`' four members, `Result`'s two cases, `FocusInteractions`' three,
+   `focusable(_: = true)` and `focusable(_: = true, interactions:)` — all
+   match the spec. Two differ and are ruled: `onGeometryChange` (`KF-S`) and
+   `TimelineView.Context` / `TimelineSchedule.Mode` (`KF-T`).
+4. **Defects found and fixed**: typed characters on a focused field never
+   reach the key stages (`KF-Q`); the ⌘/⌃-key order against commands and ⌘
+   shortcuts is unmeasured (`KF-R`); the SwiftUI spellings of
+   `onGeometryChange` and `TimelineView.Context` (`KF-S`, `KF-T`); the hover
+   chain would drive the controls' keys (`KF-U`); lane B's gaps (`KF-V`); the
+   lane cut and guard G4's missing positive control (`KF-W`).
+5. **Re-checked and kept**: `KF-M`'s refutation (item 1 above, A9–A13), every
+   source symbol the spec cites (`StateTable.onWrite`, `CoordinateSpace`,
+   `Frame.bounds(of:)`, `activeOffset`, `prepaintEffects`, `isOrDescends`,
+   `lastHoverRegionCount`, the three `everyHandlerRegisteringSite…` guards,
+   `KeyEvent.isRepeat` on both platforms, SDL's arrow keys as `\u{f700}`…),
+   the lifecycle drain's settle build before `finishFrame` (`KF-J` item 4),
+   no platform requirement, no shader, no C enum touched, demo pixels
+   untouched (the section is opt-in). The parallel branches: controls-looks
+   adds `$keyframes<depth>` and a depth counter to `AnimationStore` (lane B's
+   `timeline` member merges beside it); app-shell is design-only so far.
+
+## KF-Q — Typed characters on a focused text field reach `onKeyPress` (amends `KF-C` item 1)
+
+**Ruling.**
+
+1. **The defect.** `KF-C` item 1 promised SwiftUI's K4a/K4b/K4e/K4f/K2x — a
+   handled key "is never typed". But neither platform delivers a focused
+   field's printable keystroke as `.keyDown`: `AppKitPlatform.keyDown` hands
+   a non-command key to the input context first (`insertText` →
+   `.textInput`), and `SDLPlatform` drops a text-producing `KEY_DOWN`/`KEY_UP`
+   while `textInputCaret != nil` (the text arrives as `SDL_EVENT_TEXT_INPUT`
+   → `.textInput`). `.textInput` is handled by `dispatchTextInput`, long
+   before the key stages, so the designed `dispatchKeyPress` (keyDown/keyUp
+   only) would never see `z` on a focused field — only the input context's
+   commands (↑, ↓, Return, Delete, Escape), which arrive as `keyDown` through
+   `doCommand(by:)`. A6–A8 (arrows, Return) would pass and hide it.
+2. **Fix.** `dispatchKeyPress` also takes `.textInput(text)` when a text field
+   is focused, that field holds **no marked text** (no composition in
+   progress, `editState(id)`), and `text` is **exactly one grapheme**: it is
+   offered as `KeyPress(phase: .down, key: KeyEquivalent(text), characters:
+   text, modifiers: [])` along the focus chain, outermost first, **in a stage
+   immediately before `dispatchTextInput`** (for `.textInput` only; key
+   events keep `KF-C` item 3's place). `.handled` drops the text — nothing
+   typed, no undo entry, no `editedText` change; `.ignored` passes it to
+   `dispatchTextInput` unchanged. `.textComposition` and a multi-grapheme
+   commit (an input method's) are never offered: the input method owns them.
+3. **Text input moves only here, and only when a handler exists**: with no
+   `onKeyPress` on the focus chain the walk finds nothing and the event
+   reaches `dispatchTextInput` byte for byte as at `c62d6ba`. The editing
+   table, the caret (`TI-E`), undo (`TI-G`) and the IME path are untouched.
+   This is the ruling that names text input (MUST NOT MOVE).
+4. **Divergence 187** (this branch's range): a typed character reaches
+   `onKeyPress` on a focused field as `.down` only — a held key's repeats are
+   `.down` too (`.textInput` carries no repeat flag) and `modifiers` is empty;
+   its release reaches a `.up` handler on AppKit (keyUp bypasses the input
+   context) but **not on SDL**, which drops the text-producing `KEY_UP`
+   (`SDLPlatform` is not changed, `KF-N`). Pin: A41's SDL-shaped arm.
+5. **Tests** (lane A, red against the stub, each mutation on the full suite):
+   A38 `aHandledKeyPressSwallowsATypedCharacterInAFocusedField` (K4a: text
+   `abc` unchanged after `.textInput("z")`; mutation: delete the `.textInput`
+   arm); A39 `anIgnoredKeyPressLetsATypedCharacterIn` (K4b: `z`; mutation:
+   treat `.ignored` as claimed on that arm); A40
+   `anAncestorsKeyPressHearsTypedCharactersBeforeTheFieldsOwn` (K2x: `anc`,
+   `field`; mutation: walk innermost first on that arm); A41
+   `aCompositionAndAMultiGraphemeCommitAreNeverOffered` (+ the divergence-187
+   pins: repeat read as `.down`, no `.up` from a fake platform that drops it;
+   mutation: offer every `.textInput`); A42 `aDigitFilterOnAFieldKeepsOnlyDigits`
+   (`onKeyPress(characters: .decimalDigits.inverted) { .handled }`: typing
+   `a1b2` leaves `12`) and its portable copy in `KeyPressPortableTests`.
+
+**Cost if wrong.** Without it, SwiftUI's most common `onKeyPress` idiom on a
+field (a character filter) silently does nothing on both platforms.
+
+## KF-R — The ⌘/⌃-key order against commands and ⌘ shortcuts is measured before it is built
+
+**Ruling.**
+
+1. **Unmeasured in the design.** K10/K11 used a **plain-key**
+   `.keyboardShortcut("k", modifiers: [])`, and K4h's cmd-a ran in a probe
+   with no main menu. AppKit offers a ⌘-key to `performKeyEquivalent` (window,
+   then the main menu) **before** `keyDown`, where SwiftUI's `onKeyPress`
+   plausibly lives, so SwiftUI may run a ⌘-key Button shortcut and a menu
+   command **before** `onKeyPress` — the opposite of MetalUI's pipeline,
+   where `dispatchKeyPress` precedes `dispatchShortcut` and
+   `dispatchCommandShortcut` (and `MN-J` offers ⌘/⌃-keys to the whole
+   pipeline before the main menu). A catch-all `.onKeyPress { .handled }`
+   would then swallow ⌘S in MetalUI and not in SwiftUI.
+2. **Probe arms added**: `swiftui-key-focus.swift` KX1 (a ⌘K `Button`
+   shortcut vs a focused `.handled` handler), KX2/KX3 (a main-menu ⌘J item vs
+   `.handled`/`.ignored`), gated `KF_PROBE_KX=1` so the recorded 69 lines stay
+   byte-identical; compiled, not run (`KF-P` item 2).
+3. **Lane A runs and records them first, then builds by this table**:
+   - KX2 reads `menu` (no `view:`) → **commands first**: `dispatchKeyPress`
+     declines a keystroke `dispatchCommandShortcut` would match (one lookup
+     against the same table; the command then runs in its own stage);
+     test A43 `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`. Divergence 188:
+     the standard native-only items (Quit, Hide, Minimize…) are still offered
+     to `onKeyPress` first (`MN-J`'s pipeline-first order; MetalUI cannot see
+     the native menu's equivalents).
+   - KX1 reads `button` only → the same for a ⌘/⌃-modified `Button`
+     shortcut (`dispatchShortcut`'s table); a plain-key shortcut stays after
+     `onKeyPress` (K10). Test A44.
+   - KX2/KX1 read `view:` first → the designed order stands; A43/A44 pin it
+     the other way round (the handler claims; the command/button does not
+     run).
+   - **Lock never clears during the lane** → the designed order ships, the
+     arms are recorded as unrun in the record (§88), label 188 stays unused,
+     and the KX run is a named human-check prerequisite (KF-6). Not a silent
+     deferral: A43/A44 still pin whatever ships.
+
+**Cost if wrong.** Item 3's first row is one lookup; shipping the other order
+unmeasured would be a SwiftUI claim with no probe.
+
+## KF-S — `onGeometryChange` is wider than SwiftUI's on concurrency, on purpose
+
+**Ruling.** The SDK declares `of transform: @escaping @Sendable
+(GeometryProxy) -> T` with `T: Equatable, T: Sendable` (`@preconcurrency`).
+MetalUI keeps the spec's `T: Equatable` and a non-`@Sendable` transform: it
+runs on the main actor in prepaint and reads only the proxy, so `@Sendable`
+buys nothing, and the wider signature accepts **every** SwiftUI spelling
+(a `@Sendable` closure converts; a `Sendable` `T` is an `Equatable` `T`).
+Inventory class **A** with the note; no divergence (nothing SwiftUI accepts is
+refused). MetalUI's `GeometryProxy` is `Sendable` where SwiftUI's is
+`~Sendable` — wider again. Lane B's compile guard gains an arm writing the
+transform as an explicit `@Sendable` closure over a `Sendable` `T` (must
+compile).
+
+## KF-T — `TimelineView.Context` and `TimelineSchedule.Mode` exist as SwiftUI names them
+
+**Ruling.** SwiftUI nests the context (`TimelineView<Schedule,
+Content>.Context`, with `TimelineViewDefaultContext` a typealias of one
+specialization's) and its protocol declares `typealias Mode =
+TimelineScheduleMode`; a custom schedule ported from SwiftUI writes `mode:
+Mode`, and annotated closures write `TimelineView<…>.Context`. MetalUI keeps
+`TimelineViewDefaultContext` as the one struct and adds `public typealias
+Context = TimelineViewDefaultContext` on `TimelineView` and `typealias Mode =
+TimelineScheduleMode` in `TimelineSchedule`, so both spellings compile and
+`.Context.Cadence` resolves. SwiftUI's `@_disfavoredOverload init(_:content:
+(Context) -> Content)` is then the same signature and is not added. Lane B's
+compile guard gains the two arms (`(TimelineView<PeriodicTimelineSchedule,
+ProposalText>.Context) -> Void` and a custom schedule spelling `mode: Mode`,
+both must compile); the census gains two A rows.
+
+## KF-U — The hover chain feeds the Keymap and `onKeyPress`, never the `onKey` bubble (amends `KF-D` item 1)
+
+**Ruling.**
+
+1. **The defect.** `KF-D` item 1 had `dispatchKey` (the raw `onKey` bubble)
+   walk the key chain. The controls' keys live **in that bubble**:
+   `Slider`, `Stepper`, `Toggle`, `Button`, `Picker` and a selectable `List`
+   register an `onKey` that consults `ControlKeys.swift`. A key region inside
+   a `List(selection:)` row (or `Slider().hoverKeyRegion()`) would then move
+   the selection or the value with **nothing focused**, and CLAUDE.md's
+   "with nothing focused `onKey` sees nothing" would silently break.
+2. **Ruling.** The key chain (focus chain, else the hovered region's) feeds
+   **the Keymap's contexts, action dispatch and `onKeyPress`** only.
+   `dispatchKey` keeps walking `focusChain` exactly as at `c62d6ba`, so
+   `onKey` and every control's keys still need focus. A region's raw keys are
+   `onKeyPress` (SwiftUI's API) — the request's own spelling.
+3. **Test** A45 `aHoveredRegionDrivesNoControlKeysAndNoOnKey` (a selectable
+   `List` whose row holds a key region, nothing focused, pointer on the row:
+   ↓ leaves the selection unchanged, an `.onKey` on the region's ancestor
+   hears nothing, the region's `onKeyPress(.downArrow)` hears it; mutation:
+   `dispatchKey` walks `keyChain`).
+4. **A press on a selectable `List` inside a key region** clears focus at the
+   press (`KF-E` item 5) and the `List` focuses itself at the release
+   (`ClickDispatch`, `DD-Z` item 9): two events, two changes — `KF-E` item
+   5's "one change" covers only the press-time stages (text field,
+   click-focusable). Recorded, not changed.
+
+## KF-V — Lane B's gaps
+
+**Ruling.**
+
+1. **Divergence 120 extends to `GeometryChangeScope`** (the same transparent
+   `ElementGroup` as `LifecycleScope`): a `Self`-returning legacy decoration
+   after `.onGeometryChange` does not compile, and it cannot be a window's
+   root. Lane C amends row 120; lane B's compile guard pins it (a
+   `.onGeometryChange(…).padding(4)` on a `Box` must not compile; `.padding(4)
+   .onGeometryChange(…)` must).
+2. **Both `TimelineView` entries are pinned** (as B14 does for geometry):
+   T14 `theTimelinesTypedAndUntypedEntriesAreEachPinned` — a `TimelineView`
+   in a legacy `Column` whose content carries `.flexGrow(1)` is consumed by
+   the `Column` (untyped entry, nothing reported), and one in an `HStack`
+   keeps its proposal nodes; mutation: route the untyped entry through the
+   typed one (the item record is lost and reported).
+3. **A `$timeline<depth>` key touched twice in one build** (a `TimelineView`
+   whose content takes no slot, followed by a sibling at the same cursor)
+   gets an occurrence ordinal (`$timeline<depth>#<n>`, `n` the earlier
+   touches this build), so the second never iterates the first's schedule.
+   T15 `anEmptyTimelineDoesNotShareItsScheduleWithTheNext`; mutation: drop
+   the ordinal.
+4. **T9 gets a mutation** (report `.seconds` → T9 reddens); a value pin with
+   no named mutation cannot be shown red.
+
+## KF-W — Lanes re-cut; spec test G4 gains its positive control
+
+**Ruling.**
+
+1. **Lane A was too large** (≈ 45 tests, the pipeline, regions, press focus
+   and the proposal layer). **The proposal `KeyboardModifier` moves to lane
+   C**: `KeyboardModifier.swift`, A5's `KeyboardModifier` arm, A34, A35,
+   A36's `KeyboardModifier` arms in the three `everyHandlerRegisteringSite…`
+   guards, and guard G3 (renumbered C4–C8 in the spec). Lane A still adds the
+   `Handlers.keyboard` member and the `HandlerShape`/`HandlerFingerprint`
+   fields. Lanes stay sequential (A → B → C) in one worktree, so C builds on
+   A's `Handlers` with no overlap in flight; the demo (lane C) is the
+   `KeyboardModifier`'s first consumer.
+2. **G4 `keyPressHasNoPublicInitializer`** had no compiling arm: its positive
+   control is a fixture reading `press.key`, `press.characters`,
+   `press.modifiers` and `press.phase` inside an `onKeyPress` closure (must
+   compile); the guard's own arm `KeyPress(phase:…)` must not.

@@ -31,6 +31,14 @@
 //        content evaluations over a fixed spin; T2 (paused) is the separating
 //        arm for "evaluates every frame".
 //
+// KX ARMS (added by the critic, ruling KF-Q; gated: `KF_PROBE_KX=1 /tmp/kf-probe`
+// prints them after T5). KX1 a ⌘-key `Button` shortcut, KX2/KX3 a main-menu
+// ⌘-key item, each against a focused view's `onKeyPress`. NOT YET RECORDED:
+// on 2026-10-09 the lock probe read `CGSSessionScreenIsLocked = 1`,
+// `displayAsleep main: 1`, so no window arm could run; the file compiles
+// (`xcrun swiftc -typecheck`). Lane A runs and records them before placing
+// `dispatchKeyPress` (KF-Q item 3).
+//
 // RECORDED 2026-10-08 by the key-focus (C9) designer, macOS 27.0.1 (26A434),
 // Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen UNLOCKED (lock probe: no
 // CGSSessionScreenIsLocked line, `displayAsleep main: 0`). Compiled form, run
@@ -814,11 +822,63 @@ struct Cadence: View {
     arm("T5 cadence of .animation (first evaluation)", Cadence()) { _ in }
 }
 
+// MARK: - KX: command-modified keys (critic, KF-Q) — gated, NOT YET RECORDED
+
+/// A main-menu item with a key equivalent, installed for KX2/KX3 and removed
+/// after. `NSApp.sendEvent` offers a ⌘-key to `performKeyEquivalent` (window,
+/// then the main menu) before `keyDown`, so these arms separate "the menu
+/// first" from "onKeyPress first" — the order MetalUI's pipeline places
+/// `onKeyPress` in (before `dispatchCommandShortcut`, `MN-J`).
+final class MenuTarget: NSObject {
+    @objc func fire(_ sender: Any?) { Log.add("menu") }
+}
+
+@MainActor func withMenuItem(_ key: String, _ body: () -> Void) {
+    let target = MenuTarget()
+    let saved = NSApp.mainMenu
+    let main = NSMenu()
+    let top = NSMenuItem()
+    let sub = NSMenu(title: "Probe")
+    let item = NSMenuItem(title: "Probe", action: #selector(MenuTarget.fire(_:)), keyEquivalent: key)
+    item.keyEquivalentModifierMask = [.command]
+    item.target = target
+    sub.addItem(item)
+    top.submenu = sub
+    main.addItem(top)
+    NSApp.mainMenu = main
+    body()
+    NSApp.mainMenu = saved
+    withExtendedLifetime(target) {}
+}
+
+@MainActor func armKX() {
+    print("--- KX: command-modified keys (KF-Q)")
+    arm("KX1 focused view .handled + Button .keyboardShortcut(\"k\") (cmd) elsewhere, cmd-k", Filtered { f in
+        VStack {
+            Color.blue.focusable().focused(f)
+                .onKeyPress { p in Log.add("view:" + describe(p)); return .handled }
+            Button("K") { Log.add("button") }.keyboardShortcut("k")
+        }
+    }) { key($0, "k", modifiers: .command, keyCode: 40) }
+    withMenuItem("j") {
+        arm("KX2 focused view .handled + main-menu item cmd-J, cmd-j", Filtered { f in
+            Color.blue.focusable().focused(f)
+                .onKeyPress { p in Log.add("view:" + describe(p)); return .handled }
+        }) { key($0, "j", modifiers: .command, keyCode: 38) }
+        arm("KX3 focused view .ignored + main-menu item cmd-J, cmd-j", Filtered { f in
+            Color.blue.focusable().focused(f)
+                .onKeyPress { p in Log.add("view:" + describe(p)); return .ignored }
+        }) { key($0, "j", modifiers: .command, keyCode: 38) }
+    }
+}
+
 // MARK: - run
 
 @MainActor func run() {
     print("macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
     armK(); armFC(); armRS(); armG(); armT()
+    // Gated so the recorded 69 lines above stay byte-identical (KF-Q).
+    if ProcessInfo.processInfo.environment["KF_PROBE_KX"] == "1" { armKX() }
 }
 
 MainActor.assumeIsolated {
