@@ -152,3 +152,102 @@ private let diagonal = LinearGradient(colors: [lkRed, lkBlue], startPoint: .topL
     #expect(gxAlpha(shadow, 80, 140) < 10, "clear on the left: \(gxAlpha(shadow, 80, 140))")
     #expect(gxAlpha(shadow, 119, 140) > 240, "opaque on the right: \(gxAlpha(shadow, 119, 140))")
 }
+
+// MARK: - 3.30–3.34 (the lane-3 review: opacity, the strip's clip guard, last write wins)
+
+/// Half-way through a one-second linear `.transition(.opacity)` insertion of
+/// `content` over a 200 × 200 `.surface` square, and at rest: the one image's
+/// opacity (`MUIImage.opacity`, where a gradient and a blur carry their alpha).
+@MainActor func lkMidInsertionOpacity<E: ProposalElementGroup>(_ content: E) throws -> (rest: Float, mid: Float) {
+    func stage(_ shown: Bool) -> some Element {
+        ZStack {
+            Color(.surface).frame(width: px(200), height: px(200))
+            if shown { content.transition(.opacity) }
+        }
+    }
+    let h = TransitionHarness()
+    h.frame(0, nil, stage(false), side: 200)
+    h.frame(0, .linear(duration: 1), stage(true), side: 200)
+    let mid = gxImages(h.frame(0.5, nil, stage(true), side: 200).finalizedScene())
+    let rest = gxImages(effectFrame(stage(true)).finalizedScene())
+    try #require(mid.count == 1 && rest.count == 1, "one image each: \(mid.count), \(rest.count)")
+    return (rest[0].image.opacity, mid[0].image.opacity)
+}
+
+/// **3.30** (`LK-W` item 5). An `.opacity` scales a gradient's image — the
+/// strip and the full raster alike — and so does a legacy one around a legacy
+/// gradient background. Mutation **V9** (`Frame.drawGradient` passes
+/// `opacity: 1`).
+@Test @MainActor func anOpacityScalesAGradient() throws {
+    for g in [horizontal, diagonal] {
+        let images = gxImages(lkScene(Rectangle().fill(g).frame(width: px(100), height: px(40)).opacity(0.5),
+                                      side: 200))
+        try #require(images.count == 1, "one image")
+        #expect(abs(images[0].image.opacity - 0.5) < 0.001, "opacity 0.5: \(images[0].image.opacity)")
+    }
+    let legacy = gxImages(lkScene(Box().frame(width: px(100), height: px(40)).background(horizontal).opacity(0.5),
+                                  side: 200))
+    try #require(legacy.count == 1, "one image")
+    #expect(abs(legacy[0].image.opacity - 0.5) < 0.001, "the legacy fill inside: \(legacy[0].image.opacity)")
+}
+
+/// **3.31** (`LK-W` item 5, `GX-V`; the gradient arm of `ShadowTests`'
+/// `aFadingTransitionScalesAPathsAndAShadowsAlpha`). A fading transition
+/// scales a gradient's alpha: half-way through a `.transition(.opacity)`
+/// insertion the image's opacity is 0.5 (1 at rest), on the flattening route
+/// (a plain gradient) and on the non-flattening one (a gradient under a
+/// rotation, whose primitive carries a transform). Mutations **V6** (the
+/// `.gradient` arm of `RenderEffect.apply`'s flattening switch ignores the
+/// alpha) and **V5** (the `.gradient` arm of `multiplyAlpha` does).
+@Test @MainActor func aFadingTransitionScalesAGradientsAlpha() throws {
+    let flat = try lkMidInsertionOpacity(Rectangle().fill(horizontal).frame(width: px(60), height: px(60)))
+    #expect(flat.rest == 1 && abs(flat.mid - 0.5) < 0.01, "flattening: rest \(flat.rest), mid \(flat.mid)")
+    let turned = try lkMidInsertionOpacity(Rectangle().fill(horizontal).frame(width: px(60), height: px(60))
+        .rotationEffect(.degrees(30)))
+    #expect(turned.rest == 1 && abs(turned.mid - 0.5) < 0.01,
+            "non-flattening: rest \(turned.rest), mid \(turned.mid)")
+}
+
+/// **3.32** (`LK-J` item 8, `LR-FW`). A legacy gradient background written
+/// after `.opacity` escapes it (opacity 1); written before, it is inside (0.5,
+/// 3.30). Mutation **V3** (`gradientEscapes` forced `false`).
+@Test @MainActor func aGradientWrittenAfterOpacityEscapesIt() throws {
+    let images = gxImages(lkScene(Box().frame(width: px(100), height: px(40)).opacity(0.5).background(horizontal),
+                                  side: 200))
+    try #require(images.count == 1, "one image")
+    #expect(images[0].image.opacity == 1, "outside the opacity: \(images[0].image.opacity)")
+}
+
+/// **3.33** (`LK-J` item 5). A strip candidate inside a rounded clip is cut by
+/// the clip's corners: a leading→trailing 100 × 40 rect clipped to a radius-10
+/// rounded rectangle reads white at its corner pixel (outside the radius) and
+/// the gradient inside. The strip is masked only by its own bounds, so the
+/// guard sends it to the full raster. Mutation **V7** (`stripImage`'s inset
+/// `0 * …`).
+@Test @MainActor func aRoundedClipCutsAStripCandidate() throws {
+    let scene = lkScene(Rectangle().fill(horizontal).frame(width: px(100), height: px(40))
+        .clipShape(RoundedRectangle(cornerRadius: px(10))), side: 200)
+    try #require(gxImages(scene).count == 1, "one image")
+    let corner = lkComposite(scene, 50.5, 80.5), inside = lkComposite(scene, 60.5, 100.5)
+    #expect(lkNear(corner, [255, 255, 255], 2), "the backdrop at the corner: \(corner)")
+    #expect(inside[0] > 200 && inside[1] < 60, "the gradient inside: \(inside)")
+}
+
+/// **3.34** (`LK-W` item 6). Legacy fills are last write wins in both
+/// directions, with a translucent colour so a stale gradient would show: a
+/// colour after a gradient draws no gradient image (only the colour's rect);
+/// a gradient after a colour draws the gradient and no colour rect. Mutation
+/// **V2** (`background(_ color:)` keeps the gradient).
+@Test @MainActor func legacyFillsAreLastWriteWinsBothWays() throws {
+    let translucent = lkRed.opacity(0.5)
+    let colourLast = lkScene(Box().frame(width: px(100), height: px(40)).background(horizontal)
+        .background(translucent), side: 200)
+    #expect(gxImages(colourLast).isEmpty, "no gradient under the colour: \(gxImages(colourLast).count)")
+    #expect(colourLast.rects.contains { $0.bounds.size.width == 100 && $0.background.a > 0.4 && $0.background.a < 0.6 },
+            "the translucent colour drew")
+    let gradientLast = lkScene(Box().frame(width: px(100), height: px(40)).background(translucent)
+        .background(horizontal), side: 200)
+    #expect(gxImages(gradientLast).count == 1, "the gradient drew: \(gxImages(gradientLast).count)")
+    #expect(!gradientLast.rects.contains { $0.bounds.size.width == 100 && $0.background.a > 0 },
+            "no colour under the gradient")
+}

@@ -216,3 +216,39 @@ private let linear1 = Animation.linear(duration: 1)
     try #require(bare.count == 1 && padded.count == 1 && bare != padded, "the arms disagree: \(bare) \(padded)")
     #expect(blurred == padded, "one level: \(blurred) vs \(padded)")
 }
+
+// MARK: - 3.35, 3.36 (the lane-3 review: `GX-G`'s barrier, a fade's alpha)
+
+/// **3.35** (`LK-K`, `GX-G`; the blur arm of `ShadowTests`'
+/// `aDeferredStopsAnEnclosingShadow`). A `Deferred` inside a blurred subtree
+/// draws unblurred: the in-flow bar is one blurred image, the presentation's
+/// 50 × 30 its own rect. Mutation **V4** (`, .blur where pastBarrier` removed
+/// from `Frame.insertThroughScopes`).
+@Test @MainActor func aDeferredStopsAnEnclosingBlur() throws {
+    let scene = lkScene(Column {
+        Box().frame(width: px(60), height: px(20)).background(.separator)
+        Deferred { Box().frame(width: px(50), height: px(30)).background(.accent) }
+    }
+    .frame(width: px(160), height: px(100))
+    .blur(radius: px(4)), side: 200)
+    #expect(scene.rects.contains { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 },
+            "the presentation drew sharp: \(scene.rects.map { gxDescribe($0.bounds) })")
+    #expect(gxImages(scene).count == 1, "one blur, the bar's: \(gxImages(scene).map { gxDescribe($0.image.bounds) })")
+    #expect(!scene.rects.contains { $0.bounds.size.width == 60 && $0.bounds.size.height == 20 },
+            "control: the bar is blurred, not a rect")
+}
+
+/// **3.36** (`LK-K`, `GX-V`; the blur arm of `ShadowTests`'
+/// `aFadingTransitionScalesAPathsAndAShadowsAlpha`). A fading transition
+/// scales a blurred leaf's alpha: half-way through a `.transition(.opacity)`
+/// insertion its image's opacity is 0.5 (1 at rest), on the flattening route
+/// and under a rotation (the blur item carries a transform). Mutations **V8f**
+/// (the `.blur` arm of `RenderEffect.apply`'s flattening switch ignores the
+/// alpha) and **V8** (the `.blur` arm of `multiplyAlpha` does).
+@Test @MainActor func aFadingTransitionScalesABlursAlpha() throws {
+    let flat = try lkMidInsertionOpacity(square(lkBlack).blur(radius: px(4)))
+    #expect(flat.rest == 1 && abs(flat.mid - 0.5) < 0.01, "flattening: rest \(flat.rest), mid \(flat.mid)")
+    let turned = try lkMidInsertionOpacity(square(lkBlack).blur(radius: px(4)).rotationEffect(.degrees(30)))
+    #expect(turned.rest == 1 && abs(turned.mid - 0.5) < 0.01,
+            "non-flattening: rest \(turned.rest), mid \(turned.mid)")
+}
