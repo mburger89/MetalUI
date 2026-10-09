@@ -358,17 +358,26 @@ extension Frame {
     /// positive scale, a transform record otherwise, which splits the clip at
     /// entry. A flattening scope keeps the clip at its entry as `outer` too: a
     /// clip pushed inside it intersects nothing outside (`flatteningClipBase`)
-    /// and, once mapped, is cut by that entry clip (`GX-X`, the LF-a fix). A
-    /// degenerate map (a zero scale) paints nothing.
+    /// and, once mapped, is cut by that entry clip (`GX-X`, the LF-a fix) —
+    /// unless no clip was pushed since an enclosing flattening scope opened,
+    /// when it has no entry clip of its own and the enclosing one cuts
+    /// (`GX-Y`). A degenerate map (a zero scale) paints nothing.
     func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
         effectScopesPushed += 1
         let map = effect.affine(in: scrolled(bounds))
         guard map.determinant != 0, map.determinant.isFinite else { return }
         let device = map.scaledToDevice(scaleFactor)
         let flattens = device.isUniformPositiveScaleTranslation
-        let outer = OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
-                              radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
-                              depth: clipDepth)
+        // A flattening scope opened where no clip was pushed since the
+        // enclosing flattening scope's entry has no entry clip in its own
+        // output space (`GX-Y`, MetalCreator's LF-b): the clip in force is the
+        // enclosing scope's, in the space THAT one maps into, and its cut —
+        // after its map — is the only one. Cutting here would apply a
+        // window-space rect in the enclosing scope's pre-effect space.
+        let outer: OuterMask? = flattens && atFlatteningEntry ? nil
+            : OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
+                        radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
+                        depth: clipDepth)
         let scope = PaintScope(kind: .effect, effect: RenderEffect(affine: device), entryClipDepth: clipDepth,
                                flattens: flattens, outer: outer)
         let savedBase = clipBase, savedFlatteningBase = flatteningClipBase
