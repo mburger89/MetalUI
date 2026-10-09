@@ -970,6 +970,95 @@ check reads.
   stops (MetalUI dispatches each wheel event by the pointer), and what a
   native AppKit scroll view (Finder, a long text document) does in the same
   motion — the answer is the input of `CI-AD`'s unbuilt probe.
+## RT. Rich text — Markdown, interpolation, attributed strings, decorations (user request 2026-10-02, not a plan task; provisional letter, settled at the merge)
+
+*Source: record §83 `83-rich-text.md`, rulings `RT-A`…
+(`docs/superpowers/2026-10-08-rich-text-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-rich-text-design.md`).* Pinned headless:
+the parser against Foundation's on 2498 sources (`theParserAgreesWithFoundationOnTheCorpus`),
+the runs every spelling builds (`LocalizedStringKeyTests`, `AttributedTextTests`),
+styled measurement and paint on both text systems (`StyledTextSeamTests`,
+`StyledTextOracleTests`, `RichTextTests`, `RichTextPaintTests`,
+`RichTextPortableWindowTests`) and the demo drawn headlessly through the
+portable system (`theRichTextDemoDrawsThroughThePortableSystem`). What nothing
+headless sees: the look on a real display, VoiceOver, the cursor.
+
+- [ ] **RT1. The rich-text demo on macOS**, `METALUI_RICH_TEXT_DEMO=1 swift run
+  MetalUIDemo`: every Markdown form reads as styled — bold, italic, bold
+  italic, struck, monospaced code, an accent-coloured link and bare URL — in
+  light and dark (`RT-B`, `RT-K`). **Observed:**
+- [ ] **RT2. Underlines and strikethroughs** at 1× and 2× displays look crisp
+  enough beside a SwiftUI `Text(…).underline()` (divergence 152's unsnapped
+  band, `RT-J`). **Observed:**
+- [ ] **RT3. The mixed-size paragraph**: line spacing looks even and no glyph
+  is clipped by its line; the superscript sits above the line without
+  touching the line above (`RT-G`). **Observed:**
+- [ ] **RT4. The same demo on Linux and Windows** (SDL,
+  `METALUI_RICH_TEXT_DEMO=1`, `Backends/SDL`'s demo): matches macOS by eye,
+  except code spans, which draw the default face unless the app registered a
+  monospaced family (`TE-B`, `RT-O` item 12). **Observed:**
+- [ ] **RT5. VoiceOver** on a styled `Text` reads the whole sentence once,
+  without Markdown markers; a link is read as plain text (`RT-L` item 1,
+  divergence 150). **Observed:**
+- [ ] **RT6. Clicking a link** does nothing and the cursor does not change
+  (divergence 150). **Observed:**
+
+## VL. Variable-height `List` (user request 2026-10-02, not a plan task)
+
+*Source: record §82 `82-variable-height-list.md`, rulings `VL-A`…
+(`docs/superpowers/2026-10-08-variable-height-list-decisions.md`), spec §8
+(`docs/superpowers/specs/2026-10-08-variable-height-list-design.md`). The
+group's letter is provisional — the merge settles it beside the parallel
+branches' groups.* Run `METALUI_LIST_DEMO=1 swift run MetalUIDemo` (AppKit) and,
+from `Backends/SDL`, `METALUI_LIST_DEMO=1 swift run $(python3 scripts/fetch-accesskit.py
+--print-flags) MetalUISDLDemo` (`PX-I`); do each check in both. Pinned
+headless: row sizing at the list's width, windowing by prefix offsets, the row
+on top held across measurements, width changes and insertions, `scrollTo` onto
+an unmeasured row, selection and focus (`VariableHeightListTests` 2.1–2.18),
+the index (`RowExtentIndexTests`), the demo windowed and settling
+(`theVariableListDemoSettlesHeadless`). What nothing headless sees: real text
+wrapping in a real window, the wheel, the scroll thumb, a live resize.
+
+- [ ] **VL1. Scrolling.** Scroll the list top to bottom and back with the wheel
+  and with the thumb: rows of three heights (one line, two lines, a
+  paragraph), no gap at the viewport's edges, no row drawn over another
+  (`VL-B`, `VL-F`). **Observed:**
+- [ ] **VL2. No jump while rows above re-measure.** Resize the window narrower,
+  scroll to the bottom, then scroll up quickly: the row at the top of the
+  viewport stays put while rows above it are measured anew; the thumb may move
+  (`VL-G`). **Observed:**
+- [ ] **VL3. The jump.** Press "Jump to row 250": row 250 lands at the top of
+  the viewport and stays there over the next frames (`VL-H`). **Observed:**
+- [ ] **VL4. Selection.** Click, ⌘-click (ctrl-click on SDL off macOS),
+  ⇧-click and ⇧↓ select as in the controls demo's list ("Selected: n"
+  follows); ↓ past the viewport's bottom reveals the lead row fully (`VL-J`,
+  `DD-Z`). **Observed:**
+- [ ] **VL5. Live resize.** Drag the window's width continuously: the text rows
+  re-wrap and the top row keeps its place (`VL-E`, `VL-G`). **Observed:**
+
+## WS. AccessKit before the first show (item C11, user request 2026-10-02, not a plan task)
+
+Every SDL window is now created hidden; its AccessKit adapter is made, then the
+window is shown (unless `hiddenWindows`), then its renderer claims it (rulings
+`WS-A`…`WS-H`, record §86). Run the SDL demo from `Backends/SDL`: `swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`; on
+Windows the CI `windows` job's flags). Pinned headless: the order on SDL's own
+flag (`SDLWindowShowOrderTests` T1–T4, every platform), and on Windows CI a
+launch of the demo that must survive 8 s (`WS-E`). What nothing headless sees:
+the native window's appearance, focus and a screen reader.
+
+- [ ] **WS1. Windows, interactive desktop.** `MetalUISDLDemo.exe` (AccessKit
+  on) opens without a panic; the window appears at 920 × 560, focused, its
+  title in the taskbar; Narrator announces the window and reads a button
+  (`WS-A`, `WS-B`). **Observed:**
+- [ ] **WS2. Linux, X11 and Wayland desktop.** The demo window appears focused
+  at its size and draws its first frame; Orca reads the window title (`WS-B`,
+  `WS-F` item 3). **Observed:**
+- [ ] **WS3. macOS, the SDL demo.** The window appears key and draws its first
+  frame; VoiceOver (⌘F5) reads the window through AccessKit's macOS adapter,
+  now made before the show (`WS-B`). **Observed:**
+- [ ] **WS4. smk_configurator, after its MetalUI pin bump.** The packaged
+  Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
 ## Sign-off

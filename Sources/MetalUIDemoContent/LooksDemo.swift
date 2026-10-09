@@ -17,14 +17,21 @@ import MetalUI
 /// `Expected.swift` do not move. Every section is its own function, passed as
 /// an argument to the generic `looksRoot`, as `demoContent()` is spelt (the 1 MB
 /// Windows stack budget, record §50 §14); built on a 1 MB thread by
-/// `everyProductionTreeBuildsOnAOneMegabyteThread`.
+/// `everyProductionTreeBuildsOnAOneMegabyteThread`. **The composition is split
+/// too** (ruling `RT-U`): `looksRoot`, `looksColumns`, `looksLeftColumn` and
+/// `looksRightColumn` each hold only their own children. Composed in one
+/// `looksRoot` (title, a row of two columns, colour), this tree alone needed
+/// 848 KB of stack on Windows ARM64 at `5d6893a` and 912 KB once rich text made
+/// every `Text` 16 bytes larger, which overflowed the 1 MB harness on Windows
+/// (`0xC00000FD`/`0xC0000005`); split, 528 KB (macOS arm64: 864 → 880 → 560 KB).
 @MainActor
 public func looksDemoContent() -> some Element {
-    looksRoot(text: looksBesideH1(text: looksTextSection(), lifecycle: looksLifecycleSection()),
-              shapes: looksShapesSection(),
-              gestures: looksGesturesSection(),
-              transitions: looksTransitionsSection(),
-              pathsShadowsTransforms: looksPathsShadowsTransformsSection(),
+    looksRoot(columns: looksColumns(left: looksLeftColumn(text: looksBesideH1(text: looksTextSection(),
+                                                                              lifecycle: looksLifecycleSection()),
+                                                          shapes: looksShapesSection(),
+                                                          pathsShadowsTransforms: looksPathsShadowsTransformsSection()),
+                                    right: looksRightColumn(gestures: looksGesturesSection(),
+                                                            transitions: looksTransitionsSection())),
               colour: looksColourSection())
 }
 
@@ -42,31 +49,49 @@ private func looksBesideH1(text: some Element, lifecycle: some ElementGroup) -> 
     .alignItems(.flexStart)
 }
 
+/// The title, the two columns and the colour section under them.
 @MainActor
-private func looksRoot(text: some Element, shapes: some Element,
-                       gestures: some Element, transitions: some Element,
-                       pathsShadowsTransforms: some Element, colour: some Element) -> some Element {
+private func looksRoot(columns: some Element, colour: some Element) -> some Element {
     Column(gap: Pixels(18)) {
         Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3, T1–T2").font(size: 20)
-        Row(gap: Pixels(32)) {
-            Column(gap: Pixels(18)) {
-                text
-                shapes
-                pathsShadowsTransforms
-            }
-            .alignItems(.flexStart)
-            Column(gap: Pixels(18)) {
-                gestures
-                transitions
-            }
-            .alignItems(.flexStart)
-        }
-        .alignItems(.flexStart)
+        columns
         colour
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
     .background(.surface)
+}
+
+/// The left and right columns side by side.
+@MainActor
+private func looksColumns(left: some Element, right: some Element) -> some Element {
+    Row(gap: Pixels(32)) {
+        left
+        right
+    }
+    .alignItems(.flexStart)
+}
+
+/// H1 with the lifecycle section, I1 and Q1–Q6, top to bottom.
+@MainActor
+private func looksLeftColumn(text: some Element, shapes: some Element,
+                             pathsShadowsTransforms: some Element) -> some Element {
+    Column(gap: Pixels(18)) {
+        text
+        shapes
+        pathsShadowsTransforms
+    }
+    .alignItems(.flexStart)
+}
+
+/// J1 over K1–K3.
+@MainActor
+private func looksRightColumn(gestures: some Element, transitions: some Element) -> some Element {
+    Column(gap: Pixels(18)) {
+        gestures
+        transitions
+    }
+    .alignItems(.flexStart)
 }
 
 // MARK: - H1: controlSize's drawn font

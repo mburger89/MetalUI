@@ -2443,3 +2443,92 @@ directional resizes; a default I-beam or hand on MetalUI's controls;
 `time`/`velocity`/`predictedEnd*`; `inputKinds:`. Live count **105 → 108**,
 next label **142**. Lane C wrote the rows; this section was written by the
 Record phase.
+## 2026-10-08: 145–147 added, 84 amended; 108 live on the branch (variable-height `List`)
+
+Record §82; rulings `VL-B`, `VL-C`, `VL-G`, `VL-O`, `VL-I`; the published list
+is `docs/divergences.md`. Not a plan task — user request 2026-10-02. Labels
+from this branch's reserved range 145–149 (148, 149 unused); the published
+header's count and next label are left for the merge, which settles them beside
+`feat/input-apis` and `feat/rich-text`. **Added, kept:**
+
+- **145** — a content-sized `List` row's height. SwiftUI's row is its content +
+  8 (4-point insets: 30 → 38; 20, 60, 40, 100 → 28, 68, 48, 108), floored at
+  `defaultMinListRowHeight` 24 (probe `swiftui-variable-height-list.swift`
+  `V0`–`V3b`). MetalUI's row is exactly its content's height measured at the
+  list's width — no inset, no floor. Pin `aVariableListSizesEachRowToItsContent`
+  (2.1).
+- **146** — an insertion or removal above the viewport. SwiftUI moves the row
+  on top (`A3`: a row inserted at 0 moves row 100 on screen 0 → 24). MetalUI
+  keeps it in place: the list carries the anchor across the data change by id
+  and the scroller's offset is adjusted after paint (`VL-G` item 3); a removed
+  top row gives its place to the next surviving id, else the last before it
+  (`VL-O`). Pin `anInsertionAboveTheViewportKeepsTheRowOnTop` (2.7). What
+  SwiftUI does when a *realised* row above the viewport changes height was not
+  probed (`VL-N`), so no divergence is claimed for `VL-G` items 1–2.
+- **147** — an unrealised row's estimate. SwiftUI uses the constant 24 (`R2`:
+  a document of 25721 against 60000 real). MetalUI uses the declared
+  `estimatedRowHeight:`, else the running mean of the measured rows, else 24; a
+  non-positive or non-finite estimate counts as undeclared. Pins
+  `theRunningMeanEstimatesUnmeasuredRows` (1.3) and
+  `aVariableListAnswersMeasuredPlusEstimatedExtent` (2.3).
+
+**Amended:** **84** (`List` shape) — "one row height" becomes "one uniform
+`rowHeight:` (`rowHeight × count`, the fast path) or content-sized rows (the
+extent measured rows plus estimates)"; the enclosing-`ScrollView` clause stays
+for both spellings; pins `aListSizesItselfToCountTimesRowHeight` and
+`aVariableListAnswersMeasuredPlusEstimatedExtent`.
+
+Live count **105 → 108** on the branch. Lane 3 wrote the rows; this section was
+written by the Record phase.
+
+2026-10-08: 123 amended; no new label (`.task` follow-ups)
+
+Record §84; rulings `TF-A`, `TF-D`. A `task(id:)` returning from a removal ghost
+now compares its id, and an `onChange(of:)` its value, against the entry it left
+with (SwiftUI's answer, probe `swiftui-task-ghost-id.swift`); a value read from
+the content's own reset `@State` compares fresh against the departed one, a
+restart or firing SwiftUI does not make. Pin
+`aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost` (TF1.4). Live
+count unchanged at 105; the branch's reserved labels 160–164 are unused.
+
+## 2026-10-08: 150–158 added (rich text)
+
+Record §83; rulings `RT-K`, `RT-C`, `RT-J`, `RT-B`, `RT-A`, `RT-E`, `RT-O`,
+`RT-P`, `RT-R`; the published list is `docs/divergences.md`. Not a plan task —
+user request 2026-10-02. Labels from this branch's reserved range 150–159 (159
+unused); the published header's count and next label are left for the merge,
+which settles them beside `feat/input-apis`. **Added, kept:**
+
+- **150** — a link run. SwiftUI opens it through `openURL` and exposes an
+  accessibility link (probe `swiftui-rich-text.swift` `M6`, `C11ln`); MetalUI
+  styles it (the accent unless the run or `Text` colours it) and keeps it inert:
+  no click, no keyboard activation, no link element. The URL is stored on the
+  run (`RT-K`). Pin `aLinkRegistersNothingAPlainTextDoesNot` (2.18).
+- **151** — an interpolated floating-point value prints `%lf` in SwiftUI
+  (`v 3.500000`, `M11`); MetalUI prints Swift's description (`v 3.5`).
+  Pin `anInterpolatedValueIsItsDescription` (3.6).
+- **152** — underline and strikethrough placement. TextKit snaps to device
+  pixels (`C9`); MetalUI draws the face's unsnapped band as rects (`RT-J`).
+  Pin `anUnderlineIsARectAtTheFacesPosition` (2.5).
+- **153** — named character references: HTML5's table in SwiftUI/Foundation,
+  numeric references and 34 names in MetalUI (`RT-B` item 4). Pin
+  `onlyTheEntitySubsetDecodes` (3.3).
+- **154** — Markdown in control titles: SwiftUI parses `Button("**b**")`,
+  MetalUI's titles are verbatim. Pin `aControlTitleIsVerbatim` (3.15).
+- **155** — concatenating or interpolating a decorated `Text`: SwiftUI's
+  `.padding()` returns `some View`, so it does not compile; MetalUI compiles
+  and traps naming the operand and field (`RT-E` item 4). Pins 2.19, 3.8.
+- **156** — interpolating a value of a type with no dedicated overload: a
+  deprecated `String(describing:)` overload in SwiftUI, no warning here
+  (`RT-O` item 6, probe `swiftui-text-interpolation.swift` `I1`, `I2`).
+- **157** — kerning or tracking on joined Arabic on Linux and Windows: CoreText
+  inserts kashidas, the portable system leaves a gap (`RT-P` item 5). Pin
+  `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns` (1.20).
+- **158** — `Text.bold()`: SwiftUI draws semibold on the default font, heavy on
+  `.headline`, nothing on `.light` (`swiftui-text-semantics.swift` `X1`, `F2e`,
+  `X1b`); MetalUI is the bold weight over whichever font resolves (`RT-R` item
+  6). Pin the `C2b` arm of 2.1.
+
+Live count **+9** on this branch (108 on the variable-height-list branch → 117
+after both). Lane 3 wrote the rows; this section was written by the Record
+phase.

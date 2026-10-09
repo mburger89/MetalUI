@@ -360,6 +360,15 @@ private final class CountingTextSystem: TextSystem, @unchecked Sendable {
         base.lineRanges(string, font: font, wrappingAt: width, options: options)
     }
     func rasterize(_ key: GlyphKey) -> GlyphImage { base.rasterize(key) }
+    func measure(_ text: StyledText, wrappingAt width: Double?,
+                 options: TextLayoutOptions) -> StyledTextMeasurement {
+        base.measure(text, wrappingAt: width, options: options)
+    }
+    func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
+                origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
+        base.layOut(text, wrappingAt: width, options: options, origin: origin, scaleFactor: scaleFactor)
+    }
+    func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics { base.decorationMetrics(font) }
     func beginFrame() { base.beginFrame() }
     func endFrame() { base.endFrame() }
 }

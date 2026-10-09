@@ -2056,3 +2056,46 @@ group Y, none performed (an agent cannot)**:
 - Y11 notched-wheel steps (`isPrecise` false).
 - Y12 the AppKit cursor changing under a still pointer (**C**).
 - Y13 a glide crossing onto the style strip (no wheel latching, `CI-AD`).
+## 2026-10-08: variable-height `List` (record §82) — looks owed
+
+`METALUI_LIST_DEMO=1` opens a new demo (300 content-sized rows of wrapping
+text, selectable, a "Jump to row 250") in `MetalUIDemo` and `MetalUISDLDemo`.
+It is not one of the fourteen offscreen images, which read 0 differing pixels
+against `70ed000` at lanes 2 and 3 (`docs/probes/demo-pixels/compare.sh`,
+record §82 §4, §6); the demo settles headless in the derived frame counts
+(`theVariableListDemoSettlesHeadless`). The demo was not launched and no
+real-window capture was taken. **Owed, new here —
+`docs/verification/human-checks.md` group VL (provisional letter), none
+performed (an agent cannot)**: VL1 wheel and thumb scrolling over rows of three
+heights with no gap or overlap; VL2 the row on top holding still while rows
+above it re-measure after a narrowing resize; VL3 the jump landing on row 250
+and staying; VL4 click, ⌘-click, ⇧-click and ⇧↓ selection and the lead row's
+reveal; VL5 rows re-wrapping under a live resize with the top row in place —
+each on AppKit and on SDL.
+
+`.task` follow-ups (record §84, 2026-10-08): the fourteen offscreen demo images
+read 0 differing pixels against `70ed000`; the screen was locked, so the SwiftUI
+probe was not re-run at the Record phase and no real-window capture was taken.
+No new look is owed (group X's X2 already covers a counting `.task` in a real
+window).
+
+AccessKit before the first show (record §86, 2026-10-08): the fourteen offscreen
+demo images read 0 differing pixels against `cd84b0c`. The Windows VM had no
+console user, so the interactive launch was not run; group WS (WS1–WS4) in
+`docs/verification/human-checks.md` is owed.
+
+## 2026-10-08: rich text (record §83) — looks owed
+
+`METALUI_RICH_TEXT_DEMO=1` opens a new demo (Markdown forms, interpolated
+segments, mixed sizes, decorations, truncation and an attributed string) in
+`MetalUIDemo` and `MetalUISDLDemo`. It is not one of the fourteen offscreen
+images, which read 0 differing pixels against `70ed000` at lane 1 and at the
+Record phase (`docs/probes/demo-pixels/compare.sh`, record §83 §2, §8); the demo
+draws headless through the portable system (`theRichTextDemoDrawsThroughThePortableSystem`).
+The demo was not launched and no real-window capture was taken. **Owed, new
+here — `docs/verification/human-checks.md` group RT (provisional letter), none
+performed (an agent cannot)**: RT1 the demo on macOS in light and dark; RT2
+underline and strikethrough crispness at 1x and 2x against SwiftUI's snapped
+bands (divergence 152); RT3 the mixed-size paragraph's line spacing and the
+superscript; RT4 the same demo on Linux and Windows; RT5 VoiceOver reading a
+styled `Text` once without markers; RT6 a link that does nothing on click.

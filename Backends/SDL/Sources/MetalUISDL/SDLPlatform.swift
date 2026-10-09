@@ -27,6 +27,9 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
     private let hidden: Bool
+    /// Each window renders into an offscreen target instead of claiming its
+    /// swapchain (ruling `TF-C`, `TF-E`; for checks only).
+    private let offscreenRenderers: Bool
     private var running = false
     /// The window of this platform with keyboard focus, if any (ruling EV-AB,
     /// amended by EV-AF). Tracked from SDL's focus events rather than read
@@ -46,10 +49,26 @@ public final class SDLPlatform: Platform {
 
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
-    public init(hiddenWindows: Bool = false) throws {
+    ///
+    /// Every window is created hidden and shown after its AccessKit adapter
+    /// exists (ruling `WS-B`); with `hiddenWindows` it is never shown.
+    public convenience init(hiddenWindows: Bool = false) throws {
+        try self.init(hiddenWindows: hiddenWindows, offscreenRenderers: false)
+    }
+
+    /// ``init(hiddenWindows:)``, and with `offscreenRenderers` each window's
+    /// renderer draws into an offscreen target its pixel size instead of
+    /// claiming the window (ruling `TF-C`) — so under SDL's offscreen video
+    /// driver, where a swapchain never yields a drawable, `Window` still
+    /// builds frames and runs its lifecycle drain. Everything else is the
+    /// production path. A check's option, not API: SPI `Checks` (ruling
+    /// `TF-E` — `package` cannot reach `Backends/SDL`'s executables, which
+    /// are another package).
+    @_spi(Checks) public init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
         guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
         hidden = hiddenWindows
         pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
+        self.offscreenRenderers = offscreenRenderers
         #if canImport(AppKit)
         Self.installAppKitEventSignal()
         #endif
@@ -59,19 +78,27 @@ public final class SDLPlatform: Platform {
         try openSDLWindow(title: title, size: size)
     }
 
+    /// Shows a window this platform opened (ruling `WS-B`'s step 3) —
+    /// `SDL_ShowWindow` through the bridge, replaceable so a test can see the
+    /// show's place in the opening order without putting a window on screen
+    /// (ruling `WS-D`).
+    var showWindow: @MainActor (UnsafeMutableRawPointer) -> Bool = { mui_window_show($0) }
+
     /// ``openWindow(title:size:)``, typed.
     public func openSDLWindow(title: String, size: Size<Pixels>) throws -> SDLWindow {
+        // Always hidden (ruling `WS-B`): AccessKit's Windows adapter panics on
+        // a window already shown, so `SDLWindow.init` shows it after the
+        // adapter — unless this platform keeps its windows hidden.
         guard let handle = mui_window_create(title, Int32(size.width.value.rounded()),
-                                             Int32(size.height.value.rounded()), hidden) else {
+                                             Int32(size.height.value.rounded()), true) else {
             throw SDLPlatformError("SDL_CreateWindow")
         }
-        let window: SDLWindow
-        do {
-            window = try SDLWindow(handle: OpaquePointer(handle))
-        } catch {
-            mui_window_destroy(handle)
-            throw error
-        }
+        let showWindow = showWindow
+        // A throw from `SDLWindow.init` comes after it is fully initialised,
+        // so its `deinit` has already destroyed the window: no second destroy
+        // here (ruling `WS-G`).
+        let window = try SDLWindow(handle: OpaquePointer(handle), offscreen: offscreenRenderers,
+                                   show: hidden ? nil : { showWindow(handle) })
         windows[window.id] = window
         window.platform = self
         applyIcon(to: [window])
@@ -243,6 +270,17 @@ public final class SDLPlatform: Platform {
     }
 }
 
+/// One step of opening an SDL window, in the order it ran (ruling `WS-B`),
+/// recorded for tests (ruling `WS-D`). Each `shown` is SDL's flag
+/// (`mui_window_is_shown`), read when the step ran.
+enum SDLWindowOpeningStep: Equatable {
+    case created(shown: Bool)
+    /// Read immediately before the AccessKit adapter is made.
+    case accessKitAdapter(windowShown: Bool)
+    case shown
+    case renderer(windowShown: Bool)
+}
+
 /// One SDL window as a MetalUI `PlatformWindow` (ruling SP-A).
 @MainActor
 public final class SDLWindow: PlatformWindow {
@@ -266,16 +304,41 @@ public final class SDLWindow: PlatformWindow {
     /// Requests that arrived before `Window` installed its handler — parked,
     /// as the AppKit bridge parks `.activate` (AB-B).
     private var parkedAccessibilityRequests: [AccessibilityRequest] = []
+    /// The steps of this window's opening, in order (ruling `WS-D`).
+    private(set) var openingSteps: [SDLWindowOpeningStep] = []
 
-    init(handle: OpaquePointer) throws {
+    /// `offscreen`: render into a target the window's pixel size instead of
+    /// claiming the window (ruling `TF-C`). `show`: shows the window, which
+    /// was created hidden, after its AccessKit adapter and before its
+    /// renderer (ruling `WS-B`); `nil` leaves it hidden. A `false` answer
+    /// throws (ruling `WS-C`), and `deinit` destroys the window (`WS-G`).
+    init(handle: OpaquePointer, offscreen: Bool = false, show: (() -> Bool)? = nil) throws {
         self.handle = handle
-        id = mui_window_id(UnsafeMutableRawPointer(handle))
-        windowRenderer = try SDLWindowRenderer(window: handle)
-        #if AccessKit
         let raw = UnsafeMutableRawPointer(handle)
+        id = mui_window_id(raw)
+        openingSteps = [.created(shown: mui_window_is_shown(raw))]
+        #if AccessKit
+        // Before the first show (ruling `WS-B`): AccessKit's Windows adapter
+        // panics on a visible window (`WS-A`).
+        openingSteps.append(.accessKitAdapter(windowShown: mui_window_is_shown(raw)))
         accessKit = AccessKitAdapter(windowID: id, title: String(cString: mui_window_title(raw)),
                                      nativeWindow: mui_window_native_handle(raw))
         #endif
+        if let show {
+            guard show() else { throw SDLPlatformError("SDL_ShowWindow") }
+            openingSteps.append(.shown)
+        }
+        if offscreen {
+            var width: Int32 = 0, height: Int32 = 0
+            mui_window_size(UnsafeMutableRawPointer(handle), &width, &height)
+            let density = mui_window_pixel_density(UnsafeMutableRawPointer(handle))
+            windowRenderer = try SDLWindowRenderer(
+                offscreenWidth: max(1, Int((Float(width) * density).rounded())),
+                height: max(1, Int((Float(height) * density).rounded())), scaleFactor: density)
+        } else {
+            windowRenderer = try SDLWindowRenderer(window: handle)
+        }
+        openingSteps.append(.renderer(windowShown: mui_window_is_shown(raw)))
         updateAccessibilityWindowBounds()
     }
 

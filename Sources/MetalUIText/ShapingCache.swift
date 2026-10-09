@@ -87,6 +87,29 @@ public final class ShapingCache {
 
     private var storage: [Key: Entry<ShapedText>] = [:]
 
+    /// A styled text's key (ruling RT-F item 5): the whole `StyledText` value
+    /// — string and runs, each run's resolved face, kerning, tracking and
+    /// offset — with `width` by `bitPattern` and the options, as ``Key``.
+    private struct StyledKey: Hashable {
+        var text: StyledText
+        var width: Double?
+        var options: TextLayoutOptions
+
+        static func == (lhs: StyledKey, rhs: StyledKey) -> Bool {
+            lhs.text == rhs.text && lhs.width?.bitPattern == rhs.width?.bitPattern && lhs.options == rhs.options
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(text)
+            hasher.combine(width?.bitPattern)
+            hasher.combine(options)
+        }
+    }
+
+    /// Styled shapes, in their own dictionary under the same sweep (RT-F item
+    /// 5); a lookup counts in ``hits``/``misses`` like a plain one.
+    private var styledStorage: [StyledKey: Entry<StyledShapedText>] = [:]
+
     /// The font last registered under each key, for ``font(for:)``.
     ///
     /// **Never swept, and the asymmetry with `storage` is deliberate, not a
@@ -388,6 +411,24 @@ public final class ShapingCache {
         return result
     }
 
+    /// `text` (`fonts` one resolved face per run) at `width` under `options`,
+    /// consulting the styled cache first (ruling RT-F item 5). Registers every
+    /// font, as ``shaped(_:font:wrappingAt:options:)`` does.
+    func styled(_ text: StyledText, fonts: [ResolvedFont], wrappingAt width: Double?,
+                options: TextLayoutOptions) -> StyledShapedText {
+        for font in fonts { registerFont(font) }
+        let key = StyledKey(text: text, width: width, options: options)
+        if let idx = styledStorage.index(forKey: key) {
+            hits += 1
+            styledStorage.values[idx].generation = currentGeneration
+            return styledStorage.values[idx].value
+        }
+        misses += 1
+        let result = StyledShaper.shape(text, fonts: fonts, wrappingAt: width, options: options)
+        styledStorage[key] = Entry(value: result, generation: currentGeneration)
+        return result
+    }
+
     /// Begins one frame's worth of shaping. Every ``shaped(_:font:wrappingAt:)``
     /// call made before the matching
     /// ``endFrame()`` stamps its entry with the generation this call
@@ -430,6 +471,7 @@ public final class ShapingCache {
         precondition(isBuildingFrame, "endFrame called without a matching beginFrame")
         isBuildingFrame = false
         sweep(&storage)
+        sweep(&styledStorage)
     }
 
     /// Drops every entry untouched for ``staleAfterGenerations``, but only

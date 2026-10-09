@@ -291,6 +291,13 @@ void mui_window_size(void *window, int32_t *width, int32_t *height);
 bool mui_window_set_title(void *window, const char *title);
 const char *mui_window_title(void *window);
 bool mui_window_show(void *window);
+// Whether SDL considers the window shown: no SDL_WINDOW_HIDDEN in
+// SDL_GetWindowFlags (ruling WS-D) — the window-opening order's reading,
+// valid on every video driver, the offscreen one included.
+bool mui_window_is_shown(void *window);
+// SDL_GetWindowFromID(id) != NULL (ruling WS-G): whether a window with this
+// id still exists — how a test sees that a failed opening destroyed it.
+bool mui_window_id_is_open(uint32_t id);
 // 0 light, 1 dark (SDL_GetSystemTheme; unknown reads as light).
 int32_t mui_system_theme(void);
 double mui_now(void);

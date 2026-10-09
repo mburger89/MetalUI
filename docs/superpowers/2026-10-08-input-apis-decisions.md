@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AJ`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AK`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1625,3 +1625,56 @@ names and the platform runs. Nothing in it renames a provisional name
 **Cost if wrong.** Item 3: a later demo section built inline in the
 composer passes on macOS and overflows only in CI. The test's doc comment
 names the rule, and so does CLAUDE.md's 1 MB bullet.
+
+## CI-AJ — The verifiers' open findings, and the merge with master
+
+**Ruling.** Six findings from the lane verifications are recorded here, not
+fixed in this branch; each has a named owner of "none" unless stated. None
+moves a pin, a pixel or a public name.
+
+1. **A declining wheel handler on a click target.** `Box().onClick{}
+   .onScrollWheel{ _ in false }` with no scroller above: the handler's pointer
+   region ranks above the element's own opaque hitbox, becomes the cover, and
+   `applyScroll` returns `cover.opaque` (false), so the wheel reaches the
+   window's `onInput`. The two doc comments (`onScrollWheel`, `applyScroll`)
+   promise that an opaque target stops it. Measured by the lane B verifier with
+   a scratch probe (`claimed=false ran=1 raw=1`; the same box without the
+   modifier `claimed=true raw=0`). **Open**: the options are to claim when any
+   opaque hitbox on the cover's layer contains the point, or to rule that a
+   declining handler hands the wheel on and amend the comments. Either owes a
+   test and its mutation.
+2. **`CI-AH` item 1 overstates.** "No spelling gives a handler the scroller's
+   own id" holds for the built-in scrollers. `PrepaintPass.registerScrollRegion`
+   is public: a custom `StyledElement` registering a scroll region under its own
+   id and then taking `.onScrollWheel` shares the id, and the handler runs
+   first (`here.reversed()` before `here.last(where: scroll != nil)`) with no
+   test pinning that order. **Open**: narrow the sentence or pin the order with
+   a custom-conformer test.
+3. **Pinch does not recompute the pointer style.** Spec §1.4 item 1 lists
+   `.magnify`/`.rotate` among the events that recompute hover and style;
+   `Window.onInput`'s switch does not. Harmless while a pinch never moves the
+   pointer. **Open**: add the cases with a pin, or amend the spec.
+4. **Three canvas-demo behaviours are unpinned** (lane C mutations m2, m6, m7,
+   all green on the full suite): ⌃-scroll zooms like ⌘ (the Windows precision
+   touchpad's pinch), the zoom clamp 0.25…4, and a momentum wheel keeps panning.
+   They are left to human check Y (Y6–Y11) on purpose; the right-drag pan is
+   covered through the menu deferral only, and the primary-drag pan strip and
+   the Revolve `RotateGesture` not at all.
+5. **3.36 has a direct measurement.** On a `swift:6.4-noble` `git archive` of
+   `409de1a` the unmutated test passes; with the inline
+   `_ = canvasDemoContent()` it fails `.signal(SIGSEGV)` at
+   `DemoStackBudgetTests.swift:89`, and `aThreadTooSmallForTheDemoFailsTheSameHarness`
+   stays green. This replaces `CI-AI` item 3's "not run as a separate mutation".
+6. **The merge with master** (`dc6528c`; records 82, 83, 84 and 86 had landed,
+   81 stayed free). The conflicts were additive: the three demo composers and
+   the SDL demo gain both branches' env switches in one chain
+   (canvas, rich text, list, …), `DemoStackBudgetTests` calls three
+   `@inline(never)` builders, `SDLPlatform.init` keeps the pinch-driver read
+   beside `offscreenRenderers`, the divergence table keeps 139–141 and
+   145–158 (live **120**, next label **159**; labels 142–144 and 148–149 are
+   reserved by the lines that skipped them), the human-check groups are A–Y
+   with VL and RT, and the census was re-recorded from the merged tree.
+
+**Cost if wrong.** Items 1 and 2 are the two places where a reader of the doc
+comments is promised a behaviour the code does not give; item 1 is the one an
+app can hit (a custom canvas element that is also a button).

@@ -30,6 +30,18 @@ public final class PortableTextSystem: TextSystem {
         var generation: Int
     }
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
+    /// A styled text's measurement key (ruling RT-F item 5): the whole value,
+    /// so two run splits of one string are two entries.
+    private struct StyledKey: Hashable {
+        let text: StyledText
+        let width: Double?
+        let options: TextLayoutOptions
+    }
+    private var styledMeasurements: [StyledKey: Entry<StyledTextMeasurement>] = [:]
+    /// Styled measurements answered from an entry, and computed (ruling
+    /// RT-F item 5) — what a warm styled frame is counted by.
+    private(set) var styledHits = 0
+    private(set) var styledMisses = 0
     private var generation = 0
 
     /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
@@ -104,6 +116,49 @@ public final class PortableTextSystem: TextSystem {
         }
     }
 
+    // MARK: Styled text (ruling RT-F)
+
+    /// Measures `text` (rulings RT-F, RT-G, RT-H, RT-I), cached by the whole
+    /// value under the same two-frame lifetime as plain measurements.
+    public func measure(_ text: StyledText, wrappingAt width: Double?,
+                        options: TextLayoutOptions) -> StyledTextMeasurement {
+        let key = StyledKey(text: text, width: width, options: options)
+        if let hit = styledMeasurements[key] {
+            styledHits += 1
+            styledMeasurements[key]?.generation = generation
+            return hit.value
+        }
+        styledMisses += 1
+        let fonts = text.runs.map { registered($0.style.font) }
+        let value = trapping {
+            try PortableText.styledLines(text, fonts: fonts, wrappingAt: width, options: options).measurement
+        }
+        styledMeasurements[key] = Entry(value: value, generation: generation)
+        return value
+    }
+
+    /// Lays `text` out as ``measure(_:wrappingAt:options:)`` does and places
+    /// every glyph, with its run, and every run segment.
+    public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
+                       origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
+        let fonts = text.runs.map { registered($0.style.font) }
+        return trapping {
+            try PortableText.styledLayout(text, fonts: fonts, wrappingAt: width, options: options, origin: origin,
+                                          scaleFactor: scaleFactor)
+        }
+    }
+
+    /// `font`'s `post` underline position and thickness and half its
+    /// x-height, scaled `units × (size / unitsPerEm)` — `CTFontGetUnderlinePosition`'s
+    /// numbers (ruling RT-J item 2, measured equal on the three test faces).
+    public func decorationMetrics(_ font: FontKey) -> TextDecorationMetrics {
+        let face = registered(font).raster
+        let scale = face.size / Double(face.unitsPerEm)
+        return TextDecorationMetrics(underlinePosition: Double(face.underlinePosition) * scale,
+                                     underlineThickness: Double(face.underlineThickness) * scale,
+                                     strikethroughPosition: Double(face.xHeight) * scale / 2)
+    }
+
     /// Rasterizes the glyph `key` names with FreeType; an empty image if it
     /// cannot.
     public func rasterize(_ key: GlyphKey) -> GlyphImage {
@@ -119,6 +174,7 @@ public final class PortableTextSystem: TextSystem {
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
+        styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
     }
 
     private func registered(_ key: FontKey) -> PortableFont {

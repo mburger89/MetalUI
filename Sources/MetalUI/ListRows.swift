@@ -60,6 +60,12 @@ struct ListRows<Row: Element>: ElementGroup {
     /// the animated one; nothing on a `List`'s own style is animatable today).
     var listStyle: Style
 
+    /// Which `ProposalLayout` arranges the rows (ruling `VL-Q`): the uniform
+    /// `WindowedRowsLayout` (the default, and every caller's until a
+    /// variable-height `List` passes `.variable`) or `VariableRowsLayout`.
+    /// Defaulted so the memberwise initialiser `List` calls is unchanged.
+    var arrangement: ListRowArrangement = .uniform
+
     /// Each row's own `SingleElementLayout`, threaded to
     /// `prepaintGroup`/`paintGroup` the way every other group threads its
     /// members'.
@@ -150,10 +156,19 @@ struct ListRows<Row: Element>: ElementGroup {
                                          parentSite: .list, fields: &fields)
         let node: LayoutNodeID
         if fields.isEmpty {
-            node = pass.frame.requestNativeLayout(
-                WindowedRowsLayout(rowHeight: rowHeight, logicalCount: logicalCount,
-                                   firstIndex: firstIndex),
-                children: pass.registerLegacyItems(rowNodes, plans))
+            let children = pass.registerLegacyItems(rowNodes, plans)
+            switch arrangement {
+            case .uniform:
+                node = pass.frame.requestNativeLayout(
+                    WindowedRowsLayout(rowHeight: rowHeight, logicalCount: logicalCount,
+                                       firstIndex: firstIndex),
+                    children: children)
+            case .variable(let anchorSlot, let anchorY, let trailingExtent):
+                node = pass.frame.requestNativeLayout(
+                    VariableRowsLayout(anchorSlot: anchorSlot, anchorY: anchorY,
+                                       trailingExtent: trailingExtent),
+                    children: children)
+            }
         } else {
             // `report`'s shape (`LegacyLowering.swift`), which is `private`
             // there: note every entry and stand a 0×0 native leaf in for the
@@ -294,5 +309,89 @@ struct WindowedRowsLayout: ProposalLayout {
                 at: Point(x: bounds.x, y: bounds.y + Double(firstIndex + index) * rowHeight),
                 anchor: .topLeading, proposal: rowProposal)
         }
+    }
+}
+
+/// Which layout `ListRows` registers over its realised rows (ruling `VL-Q`).
+enum ListRowArrangement: Equatable {
+    /// `WindowedRowsLayout`: every row `rowHeight` tall — the uniform fast path
+    /// (`VL-I`).
+    case uniform
+    /// `VariableRowsLayout`: rows sized by their content, the anchor row
+    /// (`anchorSlot`, an index into the realised rows) at `anchorY`.
+    case variable(anchorSlot: Int, anchorY: Double, trailingExtent: Double)
+}
+
+/// A variable-height `List`'s realised rows as a `ProposalLayout` (rulings
+/// `VL-B`, `VL-G` item 1, `VL-Q`): each row sized by its content, measured at
+/// the list's width, the **anchor** row placed at its offset and the others
+/// around it.
+///
+/// - **Width** is the proposal's when there is one, else the widest realised
+///   row's answer at `(nil, nil)` — `WindowedRowsLayout`'s nil-width rule
+///   (a vertical list in a horizontal scroller), with no row height to offer.
+/// - **Each row is proposed `(width, nil)`** and takes its answer's height
+///   (`VL-B`: no inset, no floor — divergence 145).
+/// - **Height** is `anchorY + Σ h[anchorSlot...] + trailingExtent`: the
+///   estimated-or-measured extent above the anchor (the list computes
+///   `anchorY` from its `RowExtentIndex`), the realised rows from the anchor
+///   down, and the extent after the window.
+/// - **Placement**: the anchor row at `bounds.y + anchorY`, each later row
+///   directly below the one before it, each earlier row directly **above** the
+///   one after it. So re-measuring a row above the anchor moves only rows above
+///   the anchor — the region above the viewport's top — and the row on top stays
+///   where it was in this frame (`VL-G` item 1); the list's `prepaint` then
+///   corrects the scroll offset for the next frame (item 2).
+///
+/// **Cost.** On the concrete-width path `sizeThatFits` measures each realised
+/// row once at `(width, nil)` and placement re-measures it at the same key (a
+/// cache hit) — `O(window)`. On the nil-width path each row is measured at
+/// `(nil, nil)` and at `(widest, nil)`, two keys.
+///
+/// **It rejects nothing** (`SA-J`): `anchorSlot` is clamped into
+/// `0...subviews.count`; a negative `anchorY` or `trailingExtent` gives what
+/// arithmetic gives, as `WindowedRowsLayout`'s negative row height does.
+struct VariableRowsLayout: ProposalLayout {
+    /// The index, among the realised rows (subviews), of the anchor row.
+    var anchorSlot: Int
+    /// Where the anchor row's top sits, from the layout's top.
+    var anchorY: Double
+    /// The extent after the last realised row (the rows not built).
+    var trailingExtent: Double
+
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        let width = proposal.width ?? Self.widest(subviews)
+        let slot = Swift.min(Swift.max(anchorSlot, 0), subviews.count)
+        var below = 0.0
+        for index in slot..<subviews.count {
+            below += subviews[index].sizeThatFits(ProposedSize(width: width, height: nil)).size.height
+        }
+        return LayoutMeasurement(size: SizeD(width: width, height: anchorY + below + trailingExtent))
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize,
+                       subviews: PlacementSubviews) {
+        let rowProposal = ProposedSize(width: bounds.width, height: nil)
+        let heights = subviews.indices.map { subviews[$0].sizeThatFits(rowProposal).size.height }
+        let slot = Swift.min(Swift.max(anchorSlot, 0), subviews.count)
+        var y = bounds.y + anchorY
+        for index in slot..<subviews.count {
+            subviews[index].place(at: Point(x: bounds.x, y: y), anchor: .topLeading, proposal: rowProposal)
+            y += heights[index]
+        }
+        y = bounds.y + anchorY
+        for index in stride(from: slot - 1, through: 0, by: -1) {
+            y -= heights[index]
+            subviews[index].place(at: Point(x: bounds.x, y: y), anchor: .topLeading, proposal: rowProposal)
+        }
+    }
+
+    /// The widest row's answer at `(nil, nil)`.
+    private static func widest(_ subviews: MeasurementSubviews) -> Double {
+        var widest = 0.0
+        for index in subviews.indices {
+            widest = Swift.max(widest, subviews[index].sizeThatFits(.unspecified).size.width)
+        }
+        return widest
     }
 }

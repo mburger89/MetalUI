@@ -19,6 +19,11 @@
 // root's `.task` yields three times, removes its own content and awaits its
 // cancellation — which the next frame's lifecycle drain issues. It needs a
 // presented frame, so its test is gated off SDL's offscreen driver.
+// `MainQueueDrainCheck task-modifier-offscreen` (ruling `TF-C`; spec test
+// 3.20b): the same tree and line over `SDLPlatform(hiddenWindows: true,
+// offscreenRenderers: true)` — every window renders into an offscreen target,
+// so frames build (and the lifecycle drain runs) with no presented frame:
+// ungated, it runs in CI's Linux image.
 // `MainQueueDrainCheck immediate-task`: top-level code starts
 // `Task.immediate { @MainActor in … }` (what the modifier's start does) before
 // the loop; it yields three times and awaits a cancellation a later
@@ -32,7 +37,7 @@ import Foundation
 import Observation
 import MetalUICore
 import MetalUIPlatform
-import MetalUISDL
+@_spi(Checks) import MetalUISDL
 import SDLBridge
 import MetalUI
 import MetalUIPortableText
@@ -86,7 +91,7 @@ let mode = CommandLine.arguments.dropFirst().first ?? "task"
 // working drain as a broken one. A loop that never drains still ends here.
 let iterationLimit = 200_000
 
-let platform = try SDLPlatform(hiddenWindows: true)
+let platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: mode == "task-modifier-offscreen")
 let window = try platform.openSDLWindow(title: "MainQueueDrainCheck",
                                         size: Size(width: Pixels(64), height: Pixels(64)))
 var iterations = 0
@@ -96,7 +101,7 @@ window.startDisplayLink { _ in
 }
 
 switch mode {
-case "task-modifier":
+case "task-modifier", "task-modifier-offscreen":
     let check = TaskCheck()
     let textSystem = try portableTextSystem()
     let app = App(platform: platform, textSystem: { textSystem })

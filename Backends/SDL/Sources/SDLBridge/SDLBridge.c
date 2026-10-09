@@ -1283,6 +1283,10 @@ void mui_window_size(void *w, int32_t *width, int32_t *height) { SDL_GetWindowSi
 bool mui_window_set_title(void *w, const char *t) { return SDL_SetWindowTitle((SDL_Window *)w, t); }
 const char *mui_window_title(void *w) { return SDL_GetWindowTitle((SDL_Window *)w); }
 bool mui_window_show(void *w) { return SDL_ShowWindow((SDL_Window *)w); }
+bool mui_window_is_shown(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_HIDDEN) == 0;
+}
+bool mui_window_id_is_open(uint32_t id) { return SDL_GetWindowFromID((SDL_WindowID)id) != NULL; }
 bool mui_window_start_text_input(void *w, int32_t x, int32_t y, int32_t width, int32_t height) {
     SDL_Rect area = { x, y, width, height };
     if (!SDL_SetTextInputArea((SDL_Window *)w, &area, 0)) return false;

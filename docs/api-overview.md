@@ -118,7 +118,9 @@ except `nativeFrame`, kept undeprecated (`SA-K`).
 
 ## Layout, legacy vocabulary — M
 
-`Box`, `Row`, `Column`, `Stack`, `ScrollView` (54), `List` (13, 32, 84),
+`Box`, `Row`, `Column`, `Stack`, `ScrollView` (54), `List` (13, 32, 84;
+uniform `rowHeight:` rows, or content-sized rows through `List(_:rowContent:)`
+and `estimatedRowHeight:`, 145–147),
 `Text`, `Style` (opaque outside the package), `Decoration`/`BorderStyle`, and
 the `StyledElement` modifiers: `.padding` and `.frame` (A — SwiftUI's
 answers), `.background`/`.hoverBackground`/`.cornerRadius`/`.border`/
@@ -138,14 +140,16 @@ vocabulary: [`migration.md`](migration.md).
 
 `Button` (`ButtonRole`, `ButtonStyle`, `.buttonStyle`, `.keyboardShortcut`;
 76, 80), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
-(81, 82), `List(_:selection:rowHeight:row:)` (M), `TextField` and
+(81, 82), `List(_:selection:rowHeight:row:)` and the content-sized
+`List(_:selection:estimatedRowHeight:rowContent:)` (M; `VL-A`), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
 initialisers, submit, undo and paging M). Each composes in both vocabularies
 — a `Row`/`Column` and, since `PE-B`, an `HStack`/`VStack`/`Grid` — with
 SwiftUI's sizing classes: `TextField` and `Slider` greedy wide, `TextEditor`
 greedy on both axes (`PE-D`), the rest hugging; the metrics and the
 below-ideal answers are MetalUI's (130, 131), and `List` keeps its
-`rowHeight × count` height (84). Style modifiers (`.buttonStyle`,
+`rowHeight × count` height (84) — a content-sized list answers its measured
+rows plus estimates for the rest (147), each row exactly its content's height (145). Style modifiers (`.buttonStyle`,
 `.pickerStyle`, `.keyboardShortcut`) return the control: write them on it,
 before any wrapper (`PE-R`). `TextField` draws SwiftUI's bordered field by
 default and takes `.textFieldStyle(_:)` (`TextFieldStyle`: `.automatic`,
@@ -163,6 +167,24 @@ text styles, custom families), `Font.Weight`, `Font.Design`, `Font.TextStyle`,
 one `TextSystem` chosen per app: CoreText on Apple (`MetalUIText`), the
 portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 `MetalUISystemFonts`) — M.
+
+**Rich text** (rulings `RT-A`…, record §83): styled runs inside one `Text`
+on both text systems. A string literal parses SwiftUI's inline Markdown
+(`LocalizedStringKey`; bold, italic, strikethrough, code, links, bare URLs and
+e-mail addresses) with MetalUI's own parser on every platform; a `String`
+value and `Text(verbatim:)` never parse (154: control titles are verbatim).
+Interpolation inserts values verbatim in the format's style (151, 156) and
+keeps an interpolated `Text`'s or `AttributedString`'s runs; `Text + Text` is
+deprecated as in SwiftUI (155: a decorated operand traps). `Text` modifiers:
+`bold()`, `underline`/`strikethrough(_:pattern:color:)` with `Text.LineStyle`
+(`.solid` only), `kerning`, `tracking`, `baselineOffset`, `monospaced`, and
+`Font.monospaced()` (157, 158). `Text(AttributedString)` reads
+`AttributeScopes.MetalUIAttributes` (SwiftUI's key names over MetalUI's types,
+per-key dynamic-member subscripts) and Foundation's `link`; on Apple platforms
+also `inlinePresentationIntent`. Links are styled in the accent and inert
+(150); underlines and strikethroughs are the face's unsnapped bands (152);
+only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
+defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
 
 ## Shapes and images — A
 

@@ -1,7 +1,9 @@
 import MetalUICore
 import MetalUILayout
 
-/// A vertically stacked, uniformly sized sequence of rows built from data.
+/// A vertically stacked sequence of rows built from data — uniformly sized
+/// (`List(_:rowHeight:row:)`) or sized by their content (`List(_:rowContent:)`,
+/// rulings `VL-A`…`VL-T`).
 ///
 /// **Rows take identity from the data, and that is forced rather than
 /// preferred.** Identity in this framework is structural: `.positional(Int)`
@@ -93,11 +95,23 @@ import MetalUILayout
 /// string-shaped (or is a wrapper like `AnyHashable`) must ensure distinct
 /// ids describe distinctly.
 ///
-/// **A uniform `rowHeight` is what makes windowing O(visible).** Every row's
-/// own height is pinned to `rowHeight`, so a row's position is `index *
-/// rowHeight` by construction and the window is computed by division, with no
-/// row laid out to find it. Variable heights need a prefix-sum index and are
-/// out of scope.
+/// **A uniform `rowHeight` is what makes windowing O(visible) by division.**
+/// Every row's own height is pinned to `rowHeight`, so a row's position is
+/// `index * rowHeight` by construction and the window is computed by division,
+/// with no row laid out to find it — the fast path (`VL-I`), unchanged.
+///
+/// **Content-sized rows window through a prefix-sum index** (`VL-D`): a
+/// `RowExtentIndex` held in `ListOrigin.extents` answers each row's offset in
+/// `O(log n)` from the heights measured so far and an estimate for the rest
+/// (`VL-C`), so a warm frame costs `O(window · log n)`. The row holding the
+/// viewport's top is the **anchor** (`VL-G`): it is placed at its offset and
+/// the rows above it upward, and when a measurement replaces an estimate above
+/// it the scroller's offset is corrected after the frame
+/// (`Frame.noteScrollAnchorAdjustment`), so what is on screen does not jump. A
+/// data change rebuilds the index by id and keeps the row on top (`VL-E`,
+/// `VL-O`); a `scrollTo` onto an unmeasured row is refined once it is measured
+/// (`VL-H`). Ids, selection, focus, accessibility and TB-AH retention are the
+/// uniform path's own (`VL-J`).
 ///
 /// **`rowStyle.minSize.height = 0` is kept as a statement of intent, and its
 /// documented mechanism NO LONGER FIRES.** Read this before deciding either
@@ -227,8 +241,35 @@ where Data.Element: Identifiable {
     /// builds the row array, reading `data` fresh every frame so the window it
     /// builds always reflects the current scroll position.
     private var data: Data
-    private var rowHeight: Pixels
+    /// How rows are sized (ruling `VL-I`): one uniform `rowHeight` (the fast
+    /// path) or each row's own content (`VL-B`). Replaces the stored
+    /// `rowHeight` — a stored-property change on a public generic type, so a
+    /// `swift package clean` follows it.
+    private var rowSizing: ListRowSizing
     private var row: (Data.Element) -> Row
+
+    /// The uniform row height — read **only on the uniform path** (`VL-I`);
+    /// a variable list answers 0 here and never reads it.
+    private var rowHeight: Pixels {
+        if case .uniform(let height) = rowSizing { return height }
+        return Pixels(0)
+    }
+
+    /// A variable list's `RowExtentIndex` as `requestLayout` used it — the
+    /// stored one, or a fresh estimate-only one on a bounded frame with none
+    /// stored — threaded to `prepaint`, which stores it if the entry holds
+    /// none (ruling `VL-D`). Nil on the uniform path.
+    private var layoutExtents: RowExtentIndex<Data.Element.ID>?
+
+    /// The ids of the rows `requestLayout` built, in window order — what
+    /// `prepaint` records each measured height under (`VL-E` item 1). Empty
+    /// on the uniform path.
+    private var builtIDs: [Data.Element.ID] = []
+
+    /// The anchor `requestLayout` placed (`VL-G` item 1): the row holding the
+    /// viewport's top and its offset in the list. Nil on an unbounded window
+    /// and on the uniform path.
+    private var anchor: (index: Int, y: Double)?
 
     /// Rows built beyond the exact window on each side, so a partially
     /// scrolled edge — the window's boundary landing mid-row rather than on a
@@ -294,7 +335,7 @@ where Data.Element: Identifiable {
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
         self.data = data
-        self.rowHeight = rowHeight
+        self.rowSizing = .uniform(rowHeight)
         self.row = row
         self.decoration = Decoration()
         self.elementID = nil
@@ -407,22 +448,38 @@ where Data.Element: Identifiable {
         // for `List` to control its size. See the type doc for why both
         // `minSize.height` and `flexShrink` are overridden here, not only
         // `size.height`.
+        // A variable row (`VL-B`) declares no height: it is its content's.
         var rowStyle = Style()
-        rowStyle.size.height = .length(.pixels(rowHeight))
+        if case .uniform = rowSizing { rowStyle.size.height = .length(.pixels(rowHeight)) }
         rowStyle.minSize.height = .length(.pixels(Pixels(0)))
         rowStyle.flexShrink = 0
 
         let count = data.count
         // `DD-F` item 1: last frame's measured origin, read with `peek` so a
         // list outside every scroller mints no entry. `prepaint` stores it.
-        let origin = pass.frame.stateTable.peek(id, as: ListOrigin.self)?.offset ?? 0
-        let window = visibleRange(count: count, origin: origin, pass: pass)
-        builtWindow = window
-        // The same test `visibleRange`'s guard makes, kept rather than inferred
-        // from `window`: a short list's real window can equal `0..<count`.
+        let stored = pass.frame.stateTable.peek(id, as: ListOrigin.self)
+        let origin = stored?.offset ?? 0
         let context = pass.scrollContext
-        windowIsBounded = context.map { $0.axis == .vertical && $0.viewportExtent > 0 } == true
-            && rowHeight.value > 0
+        let window: Range<Int>
+        let arrangement: ListRowArrangement
+        switch rowSizing {
+        case .uniform:
+            window = visibleRange(count: count, origin: origin, pass: pass)
+            // The same test `visibleRange`'s guard makes, kept rather than inferred
+            // from `window`: a short list's real window can equal `0..<count`.
+            windowIsBounded = context.map { $0.axis == .vertical && $0.viewportExtent > 0 } == true
+                && rowHeight.value > 0
+            arrangement = .uniform
+        case .variable(let estimate):
+            let plan = variableWindow(count: count, stored: stored, origin: origin,
+                                      context: context, estimate: estimate)
+            window = plan.window
+            arrangement = plan.arrangement
+            layoutExtents = plan.index
+            anchor = plan.anchor
+            windowIsBounded = context.map { $0.axis == .vertical && $0.viewportExtent > 0 } == true
+        }
+        builtWindow = window
         windowAwaitsViewport = context.map { $0.axis == .vertical && !($0.viewportExtent > 0) } == true
         // A row's logical index, for an accessibility client, only while one is
         // active and only for a bounded window (AB-L, AB-X): an unbounded window
@@ -447,6 +504,7 @@ where Data.Element: Identifiable {
 
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
         let windowEnd = data.index(data.startIndex, offsetBy: window.upperBound)
+        if case .variable = rowSizing { builtIDs = data[windowStart..<windowEnd].map(\.id) }
 
         // `DD-K`: while a `scrollTo` is pending, each realised row's `datum.id`
         // is its typed key, so a row keyed `2` is not reached by `"2"` through
@@ -497,7 +555,8 @@ where Data.Element: Identifiable {
                                           rowHeight: Double(rowHeight.value),
                                           logicalCount: count,
                                           firstIndex: window.lowerBound,
-                                          listStyle: style))
+                                          listStyle: style,
+                                          arrangement: arrangement))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
         // `.axNode` rides the same trip: design spec §9's virtualization
@@ -536,8 +595,14 @@ where Data.Element: Identifiable {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> PrepaintState {
-        noteOriginAndStaleness(id, bounds: bounds, pass: pass)
-        if pass.frame.hasUnresolvedScrollRequests { resolveScrollRequests(id, bounds: bounds, pass: pass) }
+        switch rowSizing {
+        case .uniform:
+            noteOriginAndStaleness(id, bounds: bounds, pass: pass)
+            if pass.frame.hasUnresolvedScrollRequests { resolveScrollRequests(id, bounds: bounds, pass: pass) }
+        case .variable(let estimate):
+            prepaintVariableRows(id, bounds: bounds, rows: layout.inner.content.rows,
+                                 estimate: estimate, pass: pass)
+        }
         if !selection.isNone { composeSelectionKeys(id, pass: pass) }
         // `DD-AC` item 6, as amended by `DD-AG` item 1: a selectable list whose
         // window can never be bounded (no vertical scroller, or a zero
@@ -646,6 +711,59 @@ where Data.Element: Identifiable {
 }
 
 extension List {
+    /// A list of `data` whose rows size from their content (SwiftUI's
+    /// `List(_:rowContent:)`; rulings `VL-A`, `VL-B`): each row is measured at
+    /// the list's width and is exactly its content's height — no inset, no
+    /// floor (divergence 145). Inside an enclosing vertical `ScrollView` only
+    /// the rows in view are built (`VL-F`); a row not yet measured counts as
+    /// `estimatedRowHeight`, else the mean of the rows measured so far, else 24
+    /// (`VL-C`, divergence 147), and the row on top of the viewport stays put
+    /// when a measurement replaces an estimate above it (`VL-G`).
+    /// `estimatedRowHeight` is MetalUI's own; a non-positive or non-finite one
+    /// counts as not given. `List(_:rowHeight:row:)` stays the uniform fast path.
+    public init(_ data: Data, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.data = data
+        self.rowSizing = .variable(estimate: Self.clampedEstimate(estimatedRowHeight))
+        self.row = rowContent
+        self.decoration = Decoration()
+        self.elementID = nil
+
+        // `VL-I`'s migration note: no `size.height` — the list's extent is its
+        // layout's answer (`VariableRowsLayout`), so it reads `.auto` here.
+        var style = Style()
+        style.flexDirection = .column
+        self.style = style
+
+        self.box = Box(style: style, decoration: decoration,
+                       content: ListRows(rows: [], rowHeight: 0, logicalCount: data.count,
+                                         firstIndex: 0, listStyle: style))
+    }
+
+    /// A content-sized list whose rows select into `selection`, one row at a
+    /// time (SwiftUI's `List(_:selection:rowContent:)`; rulings `VL-A`, `DD-Z`).
+    public init(_ data: Data, selection: Binding<Data.Element.ID?>, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.init(data, estimatedRowHeight: estimatedRowHeight, rowContent: rowContent)
+        self.selection = .single(selection)
+    }
+
+    /// A content-sized list whose rows select into the set `selection`
+    /// (rulings `VL-A`, `DD-Z`).
+    public init(_ data: Data, selection: Binding<Set<Data.Element.ID>>, estimatedRowHeight: Pixels? = nil,
+                @ElementBuilder rowContent: @escaping (Data.Element) -> Row) {
+        self.init(data, estimatedRowHeight: estimatedRowHeight, rowContent: rowContent)
+        self.selection = .multi(selection)
+    }
+
+    /// Spec §3.1: a non-positive or non-finite estimate is **clamped** to "not
+    /// declared" — never a trap (SwiftUI has no such parameter to reject it;
+    /// trap → clamp is additive, the reverse is not).
+    static func clampedEstimate(_ estimate: Pixels?) -> Pixels? {
+        guard let estimate, estimate.value.isFinite, estimate.value > 0 else { return nil }
+        return estimate
+    }
+
     /// A list whose rows select into `selection`, one row at a time
     /// (SwiftUI's `List(_:selection:rowContent:)`; ruling `DD-Z`).
     public init(_ data: Data, selection: Binding<Data.Element.ID?>, rowHeight: Pixels,
@@ -660,6 +778,236 @@ extension List {
         self.init(data, rowHeight: rowHeight, row: row)
         self.selection = .multi(selection)
     }
+}
+
+// MARK: - The variable branch (rulings `VL-E`…`VL-H`, `VL-O`, `VL-P`)
+
+extension List {
+    /// `requestLayout`'s window for a variable list (spec §3.3 steps 2–5).
+    ///
+    /// **Unbounded** (no vertical context, or the scroller's first frame,
+    /// `MP-I`): every row, no anchor, rows placed from 0 — and each is
+    /// measured, so the cold frame fills the index. A stored index whose count
+    /// differs is rebuilt by id first, so `prepaint`'s records land at the
+    /// right indices.
+    ///
+    /// **Bounded**: the index is the stored one, or a fresh estimate-only one
+    /// (`prepaint` stores it). The anchor is the row holding `top` (`DD-F`'s
+    /// clamp and origin) at `offset(of: anchor)`, both from the index as it
+    /// stands. A data change rebuilds the index by id (`VL-E` item 3) — on a
+    /// count change before the window is chosen, or on a realised row whose
+    /// recorded id differs from its datum's, once, with the window recomputed
+    /// — and the anchor follows its id, placed at its **old** offset (`VL-G`
+    /// item 3, `VL-O`). The window is `VL-F`'s: the anchor − 2 ..< the row
+    /// holding the viewport's bottom + 1 + 2, clamped.
+    fileprivate func variableWindow(count: Int, stored: ListOrigin?, origin: Double,
+                                    context: ScrollContext?, estimate: Pixels?)
+        -> (window: Range<Int>, arrangement: ListRowArrangement,
+            index: RowExtentIndex<Data.Element.ID>?, anchor: (index: Int, y: Double)?) {
+        let storedIndex = stored?.extents as? RowExtentIndex<Data.Element.ID>
+        guard let context, context.axis == .vertical, context.viewportExtent > 0 else {
+            if let storedIndex, storedIndex.count != count { storedIndex.rebuild(ids: data.lazy.map(\.id)) }
+            return (0..<count, .variable(anchorSlot: 0, anchorY: 0, trailingExtent: 0), storedIndex, nil)
+        }
+        let index = storedIndex
+            ?? RowExtentIndex(count: count, declaredEstimate: estimate.map { Double($0.value) })
+        let viewport = context.viewportExtent
+        var total = index.totalExtent
+        let top = min(max(0, context.offset - origin), max(0, total - viewport))
+        var anchorIndex = index.index(containing: top)
+        let anchorY = index.offset(of: anchorIndex)
+        // After a rebuild the anchor sits at `anchorY` while the index puts it
+        // at `offset(of: anchorIndex)`; the window is found `shift` further on.
+        var shift = 0.0
+        var rebuilt = false
+        func rebuild() {
+            anchorIndex = rebuildKeepingAnchor(index, oldAnchor: anchorIndex)
+            shift = index.offset(of: anchorIndex) - anchorY
+            total = index.totalExtent
+            rebuilt = true
+        }
+        func window() -> Range<Int> {
+            let first = min(max(0, anchorIndex - Self.overscan), count)
+            let last = min(max(first, index.index(containing: top + shift + viewport) + 1 + Self.overscan), count)
+            return first..<last
+        }
+        if index.count != count { rebuild() }
+        var built = window()
+        if !rebuilt && realisedIDsDiffer(index, in: built) {
+            rebuild()
+            built = window()
+        }
+        let trailing = total - index.offset(of: built.upperBound)
+        let arrangement = ListRowArrangement.variable(anchorSlot: anchorIndex - built.lowerBound,
+                                                      anchorY: anchorY, trailingExtent: trailing)
+        return (built, arrangement, index, count > 0 ? (anchorIndex, anchorY) : nil)
+    }
+
+    /// Whether a row about to be realised carries an id other than the one
+    /// recorded at its index (`VL-E` item 3's second detection) — `O(window)`.
+    private func realisedIDsDiffer(_ index: RowExtentIndex<Data.Element.ID>, in window: Range<Int>) -> Bool {
+        let start = data.index(data.startIndex, offsetBy: window.lowerBound)
+        let end = data.index(data.startIndex, offsetBy: window.upperBound)
+        for (position, datum) in zip(window, data[start..<end]) {
+            if let recorded = index.id(at: position), recorded != datum.id { return true }
+        }
+        return false
+    }
+
+    /// Rebuilds `index` for the current data by id and returns where the
+    /// anchor went (`VL-G` item 3, `VL-O` item 1): the old anchor's id at its
+    /// new index; if that id is gone, the first id recorded **after** the old
+    /// anchor that is still present, else the last one before it that is,
+    /// else `min(oldAnchor, count − 1)`. `O(n)`, as the rebuild is.
+    private func rebuildKeepingAnchor(_ index: RowExtentIndex<Data.Element.ID>, oldAnchor: Int) -> Int {
+        let oldIDs = (0..<index.count).map { index.id(at: $0) }
+        let lookup = index.rebuild(ids: data.lazy.map(\.id))
+        func present(_ position: Int) -> Int? {
+            guard let id = oldIDs[position] else { return nil }
+            return lookup[id]
+        }
+        if oldIDs.indices.contains(oldAnchor), let found = present(oldAnchor) { return found }
+        if oldAnchor + 1 < oldIDs.count {
+            for position in (oldAnchor + 1)..<oldIDs.count {
+                if let found = present(position) { return found }
+            }
+        }
+        var position = min(oldAnchor - 1, oldIDs.count - 1)
+        while position >= 0 {
+            if let found = present(position) { return found }
+            position -= 1
+        }
+        return max(0, min(oldAnchor, index.count - 1))
+    }
+
+    /// `prepaint` for a variable list (spec §3.3, in this order):
+    ///
+    /// 1. **Inside a vertical scroller**: stores the origin (`DD-F` item 1)
+    ///    and the index (created now if the entry holds none — `VL-D`: only
+    ///    here, through `withState`, never `write`); forgets every height when
+    ///    the list's width changed (`VL-E` item 2); records each realised row's
+    ///    placed height under its id (item 1).
+    /// 2. **The anchor correction** (`VL-G` item 2): `D = offset(of: anchor) −
+    ///    anchorY` from the updated index; nonzero → `Frame.noteScrollAnchorAdjustment`.
+    /// 3. **Staleness** (`DD-F` item 3, `VL-F`): the window the updated index
+    ///    and `offset + D` give; not contained in the built one → one more frame.
+    /// 4. **`scrollTo` and keyboard reveals** (`VL-H`).
+    ///
+    /// Outside every scroller (and in a horizontal one, or a `Deferred`) a
+    /// variable list has no index and no entry: a column of measured rows.
+    fileprivate func prepaintVariableRows(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                          rows: [SingleElementLayout<Box<Row>>],
+                                          estimate: Pixels?, pass: PrepaintPass) {
+        var index: RowExtentIndex<Data.Element.ID>?
+        var adjustment = 0.0
+        if let scroller = pass.frame.activeScrollerFrame, scroller.axis == .vertical {
+            let origin = Double(bounds.origin.y.value - scroller.contentOrigin.y.value)
+            let count = data.count
+            let made = layoutExtents
+            var held: RowExtentIndex<Data.Element.ID>?
+            pass.withState(id, initial: ListOrigin()) { entry in
+                entry.offset = origin
+                if let existing = entry.extents as? RowExtentIndex<Data.Element.ID> {
+                    held = existing
+                } else {
+                    let fresh = made ?? RowExtentIndex(count: count,
+                                                      declaredEstimate: estimate.map { Double($0.value) })
+                    entry.extents = fresh
+                    held = fresh
+                }
+            }
+            if let extents = held {
+                if extents.count != count { extents.rebuild(ids: data.lazy.map(\.id)) }
+                let width = Double(bounds.size.width.value)
+                if extents.width != width { extents.forgetMeasurements(width: width) }
+                for (slot, row) in rows.enumerated() where slot < builtIDs.count {
+                    let height = Double(pass.bounds(of: row.node).size.height.value)
+                    extents.record(height, at: builtWindow.lowerBound + slot, id: builtIDs[slot])
+                }
+                if let anchor {
+                    adjustment = extents.offset(of: anchor.index) - anchor.y
+                    pass.frame.noteScrollAnchorAdjustment(scroller: scroller.scrollerID, delta: adjustment)
+                }
+                let fresh: Range<Int>
+                if scroller.viewportExtent > 0 {
+                    let viewport = scroller.viewportExtent
+                    let top = min(max(0, scroller.offset + adjustment - origin),
+                                  max(0, extents.totalExtent - viewport))
+                    let first = min(max(0, extents.index(containing: top) - Self.overscan), count)
+                    let last = min(max(first, extents.index(containing: top + viewport) + 1 + Self.overscan), count)
+                    fresh = first..<last
+                } else {
+                    fresh = 0..<count
+                }
+                let contained = fresh.isEmpty
+                    || (builtWindow.lowerBound <= fresh.lowerBound && fresh.upperBound <= builtWindow.upperBound)
+                if !contained { pass.frame.requestAnotherFrame() }
+                index = extents
+            }
+        }
+        if pass.frame.hasUnresolvedScrollRequests {
+            resolveVariableScrollRequests(id, bounds: bounds, rows: rows, index: index,
+                                          adjustment: adjustment, pass: pass)
+        }
+    }
+
+    /// `VL-H` (and `DD-G` item 2, `DD-K`, `DD-AC` item 2): a pending request
+    /// whose key is a row's `datum.id`, or this list's own lead reveal for it,
+    /// targets the row at `offset(of: i)` with height `extent(at: i)` from the
+    /// updated index, in **this** frame's coordinates (`− D`;
+    /// `applyScrollResolutions` adds `D` back). When the row was unmeasured and
+    /// the request is not already a refinement, a refinement for the same row,
+    /// scope and anchor is carried into the next frame (`ScrollRequestQueue.carry`:
+    /// no `onEnqueue`) — so a target lands in at most two resolutions (`VL-P`).
+    /// Without an index (no vertical scroller) a realised row's placed bounds
+    /// are the target.
+    private func resolveVariableScrollRequests(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                               rows: [SingleElementLayout<Box<Row>>],
+                                               index: RowExtentIndex<Data.Element.ID>?,
+                                               adjustment: Double, pass: PrepaintPass) {
+        let pending = pass.frame.unresolvedScrollRequestsWithScope(enclosing: id)
+        guard !pending.isEmpty else { return }
+        typealias Match = (index: Int, refined: Bool, scope: GlobalElementID, anchor: UnitPoint?)
+        let reveals = pending.compactMap { request -> (row: AnyHashable, match: Match)? in
+            guard let reveal = request.key.base as? ListLeadReveal, reveal.list == id else { return nil }
+            return (reveal.row, (request.index, reveal.refined, request.scope, request.anchor))
+        }
+        for (position, datum) in data.enumerated() {
+            let key = AnyHashable(datum.id)
+            let matching: [Match] = pending.filter { $0.key == key }.map { ($0.index, false, $0.scope, $0.anchor) }
+                + reveals.filter { $0.row == key }.map(\.match)
+            for request in matching where !pass.frame.isScrollRequestResolved(request.index) {
+                let target: Bounds<Pixels>
+                if let index {
+                    let y = Double(bounds.origin.y.value) + index.offset(of: position) - adjustment
+                    target = Bounds(origin: Point(x: bounds.origin.x, y: Pixels(Float(y))),
+                                    size: Size(width: bounds.size.width,
+                                               height: Pixels(Float(index.extent(at: position)))))
+                    if !request.refined && !index.isMeasured(position) {
+                        pass.frame.scrollRequestQueue.carry(
+                            ScrollRequest(scope: request.scope,
+                                          key: AnyHashable(ListLeadReveal(list: id, row: key, refined: true)),
+                                          anchor: request.anchor))
+                    }
+                } else if builtWindow.contains(position), position - builtWindow.lowerBound < rows.count {
+                    target = pass.bounds(of: rows[position - builtWindow.lowerBound].node)
+                } else {
+                    target = Bounds(origin: bounds.origin, size: Size(width: bounds.size.width, height: Pixels(0)))
+                }
+                pass.frame.resolveScrollRequest(request.index, target: target)
+            }
+        }
+    }
+}
+
+/// How a `List` sizes its rows (ruling `VL-I`).
+enum ListRowSizing {
+    /// Every row `rowHeight` tall: `List(_:rowHeight:row:)`, the fast path.
+    case uniform(Pixels)
+    /// Each row its content's height (`VL-B`); unmeasured rows count as the
+    /// declared estimate (already clamped), else the running mean, else 24
+    /// (`VL-C`).
+    case variable(estimate: Pixels?)
 }
 
 /// A `List`'s selection model (`DD-Z` item 1).
@@ -683,6 +1031,9 @@ struct ListOrigin: @unchecked Sendable {
     var lead: AnyHashable?
     /// The row a ⇧-move or ⇧-click extends from (a datum id), or nil.
     var anchor: AnyHashable?
+    /// A variable-height list's `RowExtentIndex` (ruling `VL-D`), held as
+    /// `AnyObject` because this type is not generic; nil for a uniform list.
+    var extents: AnyObject?
 }
 
 /// The key a selectable list's keyboard move enqueues on the `DD-G` queue to
@@ -691,6 +1042,10 @@ struct ListOrigin: @unchecked Sendable {
 struct ListLeadReveal: Hashable {
     let list: GlobalElementID
     let row: AnyHashable
+    /// A variable-height list's carried refinement (ruling `VL-P`): a reveal
+    /// that has already been resolved once against an estimate, and never
+    /// refines again.
+    var refined: Bool = false
 }
 
 extension ListSelection {

@@ -47,7 +47,11 @@ summary.
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
-  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AJ`), …; the full
+  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AK`), `TF-` (`.task`
+  follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
+  (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
+  `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
+  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -60,9 +64,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **108 live, next label 142**; retired labels are
+  live SwiftUI difference — **120 live, next label 159**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–Y, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -78,16 +82,35 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_CANVAS_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, every lane):
-  2752 tests, 0 goldens, 180 typecheck guards** (2672 + 80 tests, 175 + 5 guards;
-  census 2657; `Backends/SDL` 24 + 93 on macOS, 24 + 90 in the Linux image,
-  root in the image 6 + 35 + 18 + 199 + 49 + 22 unmoved; record §81 §4). Before it,
+- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`):
+  2870 tests, 0 goldens, 185 typecheck guards** (2790 + 80 tests, 180 + 5 guards;
+  census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
+  next label 159; `RichTextTests`' `Handlers` member count 17 → 18 with a `pointer`
+  arm, the merge's one source edit; record §81 §4, §4.5). Before the merge,
+  on `409de1a`: 2752 / 0 / 180 (2672 + 80, 175 + 5; census 2657; `Backends/SDL`
+  24 + 93 on macOS, 24 + 90 in the Linux image, not re-taken after the merge).
+  Before it, `feat/rich-text` from `70ed000`, merged with master `5d6893a`:
+  2790 tests, 0 goldens, 180 typecheck guards** (2723 + 67 tests, 176 + 4 guards: five
+  new, `textBoldIsNotOffered` re-spelled; census 2685; the lanes' own sums 2672 + 20
+  + 27 + 20 = 2739 before the merge; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image
+  before master's §86 fix (24 + 88 / 24 + 85 after it, record §86 §4),
+  root in the image 6 + 35 + 18 + 199 + 67 + 22; divergences 150–158 added, the header's count and next label the
+  merge's; record §83 §8). Before it, `fix/accesskit-window-show` from `cd84b0c`:
+  2723 tests, 0 goldens, 176 typecheck guards, unmoved (the fix is in
+  `Backends/SDL`: 24 + 88 on macOS, 24 + 85 in the Linux image; census 2540
+  unmoved; record §86 §4). Before it, `feat/variable-height-list` merged with `099cf80`:
+  2723 tests, 0 goldens, 176 typecheck guards (2677 + 46 tests, 175 + 1 guard;
+  census 2540; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image, re-taken
+  after the merge; divergences 145–147 added, the header's count and
+  next label the merge's; record §82 §8, §9). Before the merge, on `70ed000`: 2718 / 0 / 176. Before it,
+  `fix/task-followups` from `70ed000`: 2677 / 0 / 175 (2672 + 5 tests, no guard;
+  census 2536; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image; record §84 §4). Before that,
   `feat/portable-app` from `359444e`, all three lanes:
-  2672 tests, 0 goldens, 175 typecheck guards (2630 + 42 tests, 171 + 4 guards;
+  2672 / 0 / 175 (2630 + 42 tests, 171 + 4 guards;
   census 2536; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image,
   root in the image 6 + 35 + 18 + 199 + 49 + 22; record §80 §4). Before it,
   `feat/port-gaps-medium` from `d48b26d`, all three lanes:
@@ -122,7 +145,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §79, §80, §81.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -218,7 +241,9 @@ these violations show.
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
-  item 1; the two-argument spelling forwards `surfaces: []`).
+  item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
+  three** since rich text (styled measure, styled layout, decoration metrics,
+  `RT-F`): a third-party conformer must add them (`docs/migration.md`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (§7.8).
@@ -307,7 +332,14 @@ answer is `rowHeight × count`, not SwiftUI's greedy one. Rows out of window
 durable values in data. `List(selection:)` (`DD-Z`): reads the binding fresh
 every frame, never prunes; click selects and focuses the list; ⌘/ctrl
 toggles, ⇧ ranges; selection logic runs in input handlers so a warm frame
-stays O(window).
+stays O(window). **`List(_:rowContent:)` sizes rows from content** (`VL-`,
+record §82): each row exactly its content's height at the list's width (divergence 145),
+the extent measured rows plus an estimate (divergence 147) through a per-list
+`RowExtentIndex` (Fenwick prefix offsets, heights by id) in `ListOrigin`, the
+row on top anchored across measurements and data changes by
+`Frame.noteScrollAnchorAdjustment` after paint (`VL-G`, divergence 146); the
+`rowHeight:` spelling is the untouched fast path (`VL-I`) — a change to one
+branch must leave the other's pins and work literals unmoved.
 
 **Controls** (`Button`, `Toggle`, `Slider`, `Stepper`, `Picker`, selectable
 `List`) sit on `Binding` and the existing handler machinery: one hitbox each,
@@ -475,6 +507,29 @@ both or neither. The glyph atlas is grow-only; `evictUnusedSince` has no
 caller and would strand pixels. Baseline alignment works in a horizontal
 stack only.
 
+**Rich text (`RT-`, record §83).** Styled runs in one `Text` cross the seam as
+`StyledText` (`MetalUITextSystem`, Foundation-free: text plus runs of
+`TextRunStyle` and paint indices; zero-length runs dropped, equal neighbours merged,
+a length mismatch traps) through **three defaultless `TextSystem` requirements**
+(styled measure, styled layout, decoration metrics) that every conformer and test
+fake implements (`RT-F`). **A one-run unstyled `Text` takes the plain calls byte for
+byte** — pixels and work of plain text must not move (`RT-M`, test 1.19, the
+fourteen images); a `Text` with runs resolves each run once through
+`resolveTextStyle`, and CoreText (one `CTTypesetter`) and the portable system
+(`shapeCascading` per run, one break table, spacing once per grapheme, ligatures off
+for tracked units by feature ranges) agree under the CoreText oracle. Underline,
+strikethrough and background are **ordinary rects inside the text's one shadow leaf**
+(no shader change, `RT-J`); colours snap (`RT-L`); a link is accent-coloured and
+**inert** (divergence 150); accessibility gets the concatenated string. Markdown in
+a string **literal** (`LocalizedStringKey`) is parsed by MetalUI's own inline
+parser (`MarkdownInline.swift`, checked against Foundation's on 2498 sources); a
+`String` value, `Text(verbatim:)` and control titles are never parsed;
+`Text(AttributedString)` reads MetalUI's attribute scope (per-key subscripts, never
+a generic one: `RT-D`, `RT-T`). `+` is deprecated and traps on a decorated operand
+(divergence 155). `TextField`/`TextEditor` stay plain. A new `Text` modifier owes
+its field to `resolveRichText`, `ProposalText` and a values test (`RT-S`); the rich
+`Text`-level fields stay boxed (`TextRichBox`, the 1 MB stack, `RT-R` 4).
+
 **GPU surfaces — `GPUSurface`/`MetalView` (`MV-`, record §71).** App code
 encodes its own GPU work into an offscreen target that MetalUI composites as
 an `Image` (clip, radii, opacity, layer, transitions, drag preview), through
@@ -610,7 +665,14 @@ one more `LifecycleWrite` — started with `Task.immediate` as an appearance
 disappearance (parked under a removal ghost, the box carried back on
 re-insertion), an id change cancels the old task **then** starts the new one
 in the change bucket; `LC-L`'s blocker went with `SV-H`. A steady frame costs 3K for K scopes and 0
-with none.
+with none. **A key returning from a removal ghost compares its `task(id:)` id and
+`onChange` value against the entry it left with** (`TF-A`, record §84; the
+departed entry is parked, not dropped; a value read from the content's own reset
+`@State` still compares fresh, divergence 123). `.task` under SDL in CI's Linux
+image is tested through `@_spi(Checks)` `SDLPlatform(offscreenRenderers:)`, which
+renders each window offscreen so frames and the lifecycle drain run with no
+presented frame (`TF-C`, `TF-E`; test 3.20b). Consumer test 1.7 refuses every
+`warning:` line (`TF-B`).
 
 **A MetalUI app on Linux and Windows (`PX-`, record §80).** **One decoder
 everywhere**: PNG and JPEG go through the vendored stb_image 2.30
@@ -627,7 +689,10 @@ first — never trap); ImageIO stays only for other formats on macOS.
 build system warn in every consumer); without `SDL` the module declares an
 unavailable `SDLPlatform` naming the trait. A change to those targets is run
 in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
-executable (`PX-P`).
+executable (`PX-P`). **An SDL window is created hidden**: everything that must
+precede its first show (the AccessKit adapter — Windows' panics on a visible
+window) runs before `SDL_ShowWindow`, then the renderer, on every platform;
+`hiddenWindows` windows are never shown (`WS-B`, record §86).
 
 **Input APIs (`CI-`, record §81).** `SpatialTapGesture`, `MagnifyGesture`,
 `RotateGesture` and `DragGesture(minimumDistance:coordinateSpace:button:)` live
@@ -830,7 +895,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (108 live, next label 142). A new
+- **Divergences**: `docs/divergences.md` (120 live, next label 159). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

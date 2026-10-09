@@ -561,6 +561,109 @@ struct MeasurePerformanceTests {
                     """)
         }
     }
+
+    // MARK: - Variable-height `List` (spec 2026-10-08 §5 tests 2.20/2.21; `VL-D`, `VL-R` item 7)
+
+    /// The native layout work one warm `variableLikeRows(_:)` frame does.
+    ///
+    /// **Derived from the cold column before the warm frames were asserted**
+    /// (record §82 §4), as `demoLikeRowsWarmWork` was: a cold frame realises
+    /// and measures every row (`MP-I`), so its work at several counts gives
+    /// the per-row function. Measured (a throwaway probe, deleted) at
+    /// n = 40 / 160 / 500 / 2000:
+    ///
+    /// | n | `measureCalls` | `cacheHits` | `cacheMisses` |
+    /// |---|---|---|---|
+    /// | 40 | 81 | 206 | 207 |
+    /// | 160 | 321 | 806 | 807 |
+    /// | 500 | 1001 | 2506 | 2507 |
+    /// | 2000 | 4001 | 10006 | 10007 |
+    ///
+    /// — exactly `2r + 1`, `5r + 6` and `5r + 7`. Evaluated at the warm window's
+    /// r = 16 (`variableLikeRows`' doc) the model predicts **33 / 86 / 87**, the
+    /// same at every logical count: `O(window)`.
+    static let variableLikeRowsWarmWork = NativeLayoutWork(measureCalls: 33, cacheHits: 86, cacheMisses: 87)
+
+    /// The `RowExtentIndex` nodes one warm `variableLikeRows(n)` frame visits,
+    /// derived from `List`'s variable branch at offset 0 over a 370pt viewport
+    /// of 28pt rows, every row measured by the cold frame:
+    ///
+    /// - `requestLayout`: `totalExtent` (`offset(of: n)`: one visit per set
+    ///   bit of `n`), `index(containing: 0)` (0: an offset at or before 0
+    ///   answers row 0 without descending), `offset(of: 0)` (0),
+    ///   `index(containing: 370)` (a full descent, `⌊log₂ n⌋ + 1`), and the
+    ///   trailing extent's `offset(of: 16)` (16 = 10000₂: 1);
+    /// - `prepaint`: 16 `record`s of unchanged heights (0 each), `D`'s
+    ///   `offset(of: 0)` (0), and the staleness window: `totalExtent`
+    ///   (popcount n), `index(containing: 0)` (0), `index(containing: 370)`
+    ///   (`⌊log₂ n⌋ + 1`).
+    ///
+    /// So `2 · popcount(n) + 2 · (⌊log₂ n⌋ + 1) + 1`: n = 40 (101000₂, ⌊log₂⌋ 5)
+    /// → 4 + 12 + 1 = **17**; 160 (10100000₂, 7) → 4 + 16 + 1 = **21**; 500
+    /// (111110100₂, 8) → 12 + 18 + 1 = **31**; 100 000 (11000011010100000₂,
+    /// 16) → 12 + 34 + 1 = **47**. `O(window · log n)` with a window whose
+    /// records cost nothing at rest.
+    static func variableLikeRowsWarmVisits(_ n: Int) -> Int {
+        2 * n.nonzeroBitCount + 2 * (Int.bitWidth - n.leadingZeroBitCount) + 1
+    }
+
+    /// The list's index after a frame over `variableLikeRows`.
+    static func variableIndex(_ states: StateTable) -> RowExtentIndex<Int>? {
+        let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+        let scroller = GlobalElementID.child(of: root, at: 0, name: nil)
+        let list = GlobalElementID.child(of: scroller, at: 0, name: nil)
+        return states.peek(list, as: ListOrigin.self)?.extents as? RowExtentIndex<Int>
+    }
+
+    /// One cold then one warm `variableLikeRows(n)` frame: the warm frame's
+    /// layout work, its index visits, and the index's rebuild count.
+    static func variableWarmFrame(_ n: Int) throws
+        -> (work: NativeLayoutWork, visits: Int, rebuilds: Int, report: [UnlowerableField]) {
+        let states = StateTable()
+        _ = render({ variableLikeRows(n) }, states: states, reportsUnlowerableFields: true)
+        let index = try #require(variableIndex(states), "the cold frame stored no index (n = \(n))")
+        let before = index.nodeVisits
+        let warm = render({ variableLikeRows(n) }, states: states, reportsUnlowerableFields: true)
+        return (warm.tree.lastNativeLayoutWork, index.nodeVisits - before, index.rebuilds, warm.unlowerableFields)
+    }
+
+    /// **2.20** (`VL-D`, `VL-R` item 7). A variable list's warm frame does the
+    /// same layout work at 40 rows as at 160, equal to
+    /// `variableLikeRowsWarmWork`; its index is never rebuilt on a warm frame;
+    /// and it visits exactly `variableLikeRowsWarmVisits(n)` nodes (17 / 21).
+    /// Red-before: the stub stores no index. Mutations: (a) rebuild every
+    /// frame (`rebuilds` 1); (b) a linear `offset(of:)` (more visits).
+    @Test
+    func aVariableListsWorkIsTheSameFor160RowsAsFor40() throws {
+        let f40 = try Self.variableWarmFrame(40)
+        let f160 = try Self.variableWarmFrame(160)
+        #expect(f40.report.isEmpty && f160.report.isEmpty, "\(f40.report) \(f160.report)")
+        #expect(f40.work == Self.variableLikeRowsWarmWork, "40 rows: \(f40.work)")
+        #expect(f160.work == Self.variableLikeRowsWarmWork, "160 rows: \(f160.work)")
+        #expect(f40.rebuilds == 0 && f160.rebuilds == 0, "rebuilds \(f40.rebuilds) / \(f160.rebuilds)")
+        #expect(Self.variableLikeRowsWarmVisits(40) == 17 && Self.variableLikeRowsWarmVisits(160) == 21,
+                "the derivation's own arithmetic")
+        #expect(f40.visits == 17, "40 rows: \(f40.visits) visits")
+        #expect(f160.visits == 21, "160 rows: \(f160.visits) visits")
+    }
+
+    /// **2.21** (gated like its uniform twin). As 2.20 at 500 and 100 000 rows:
+    /// equal layout work, no rebuild, and 31 / 47 index visits per warm frame.
+    ///
+    ///   METALUI_RUN_100K_LIST_TEST=1 swift test --filter aVariableListsWorkIsTheSameFor100kRowsAsFor500
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_100K_LIST_TEST"] == "1"))
+    func aVariableListsWorkIsTheSameFor100kRowsAsFor500() throws {
+        let f500 = try Self.variableWarmFrame(500)
+        let f100k = try Self.variableWarmFrame(100_000)
+        #expect(f500.report.isEmpty && f100k.report.isEmpty, "\(f500.report) \(f100k.report)")
+        #expect(f500.work == Self.variableLikeRowsWarmWork, "500 rows: \(f500.work)")
+        #expect(f100k.work == Self.variableLikeRowsWarmWork, "100k rows: \(f100k.work)")
+        #expect(f500.rebuilds == 0 && f100k.rebuilds == 0, "rebuilds \(f500.rebuilds) / \(f100k.rebuilds)")
+        #expect(Self.variableLikeRowsWarmVisits(500) == 31 && Self.variableLikeRowsWarmVisits(100_000) == 47,
+                "the derivation's own arithmetic")
+        #expect(f500.visits == 31, "500 rows: \(f500.visits) visits")
+        #expect(f100k.visits == 47, "100k rows: \(f100k.visits) visits")
+    }
 }
 
 // `ScrollView` conforms to `Element`, not `StyledElement` (CLAUDE.md's
@@ -605,6 +708,40 @@ func demoLikeRows(_ n: Int) -> some Element {
     .cssWidth(Pixels(420))
     .cssHeight(Pixels(370))
     .cssMinHeight(Pixels(0))
+}
+
+/// `demoLikeRows(_:)`'s shape over a **variable-height** `List` (spec
+/// 2026-10-08 tests 2.20/2.21): the same 420 × 370 box and vertical
+/// `ScrollView`, rows sized by their content — a lowered leaf 28 tall, so the
+/// warm window is the uniform fixture's r = 16 (row 13 spans 364…392 and holds
+/// 370: 0 ..< 13 + 1 + 2) without a text system in the derivation.
+@MainActor
+func variableLikeRows(_ n: Int) -> some Element {
+    Box {
+        ScrollView(.vertical) {
+            List((0..<n).map(DemoRow.init)) { _ in TwentyEightLeaf() }
+        }
+    }
+    .cssWidth(Pixels(420))
+    .cssHeight(Pixels(370))
+    .cssMinHeight(Pixels(0))
+}
+
+/// A lowered leaf 28 tall at any width (`variableLikeRows`' row).
+private struct TwentyEightLeaf: Element {
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.lowerLegacyLeaf(Style(), declared: Style(), site: .box) {
+            pass.frame.requestNativeLeaf { p in LayoutMeasurement(size: SizeD(width: p.width ?? 420, height: 28)) }
+        }
+        return (node, ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
 /// A `List` row with a live `@State` slot and no content — this file's own

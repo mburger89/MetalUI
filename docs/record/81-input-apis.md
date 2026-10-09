@@ -7,9 +7,9 @@ with a 3D viewport inside `GPUSurface`/`MetalView` and a pannable, zoomable
 node-graph canvas. Its `docs/metalui-gaps.md` sections "Reported 2026-10-07
 (C7)" and "C7 status and provisional API names" list the gaps; that file was
 never edited from here. Spec
-`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AI`
+`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AJ`
 in `docs/superpowers/2026-10-08-input-apis-decisions.md` (next unused
-`CI-AJ`); probe `docs/probes/swiftui-input-apis.swift`.
+`CI-AK`); probe `docs/probes/swiftui-input-apis.swift`.
 
 **Status: complete (2026-10-08).** Three lanes: lane 1 (seam and platforms),
 lane 2 (gestures end to end), and lane 3. The second critic re-cut lane 3 into
@@ -197,6 +197,18 @@ unlocked (`CI-AF`).
 `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
 `swift build --build-tests` (default build system), after the clean: **0 warnings** (1101 steps, a full rebuild).
 
+**After the merge with master** (`dc6528c`, section 4.5): `swift package clean`,
+native build 0 `error:`, unfiltered native suite **`Test run with 2870 tests
+in 3 suites passed`** (173.6 s; 2790 + 80), `FR-J` line present. The first run
+read one issue, `RichTextTests.theOperandCheckSeesEveryHandlersMember`
+(`children.count == 17`): rich text pinned the `Handlers` count it knew, this
+branch made it 18. The test now expects 18 and gains a `pointer` arm (its own
+doc comment had promised both). Guards 185 (`git grep "enabled(if:
+canTypecheck"` reads 184), census 2806, goldens 0. The default-build-system
+warning count, the demo-pixel comparison, `Backends/SDL` and the Linux image
+were not re-taken after the merge: no source of those was touched by it
+except the two demo composers' additive chains.
+
 ### 4.2 Demo pixels, platforms, what was not taken
 
 - `compare.sh <scratch> 70ed000 6678e60`: **0 differing pixels, scene
@@ -220,13 +232,31 @@ measurement).
 
 ### 4.4 Spec §8.3, discharged
 
-`CLAUDE.md`/`AGENTS.md` got the `CI-` prefix with next `CI-AJ`, a rule
+`CLAUDE.md`/`AGENTS.md` got the `CI-` prefix with next `CI-AK`, a rule
 paragraph, "`Handlers` has **eighteen** members", `setPointerStyle(_:)` in the
-defaultless list, divergences 108 / next 142, group Y, `METALUI_CANVAS_DEMO=1`
+defaultless list, divergences 108 / next 142 (120 / 159 after the merge below), group Y, `METALUI_CANVAS_DEMO=1`
 and the counts. `README.md`, `docs/record/README.md` (row 81), record §03 (the
 looks owed) and §04 (139–141) were updated too.
 
+### 4.5 The merge with master (`CI-AJ` item 6)
+
+Master had moved to `dc6528c` (records 82, 83, 84, 86; this record keeps 81).
+Conflicts were additive and resolved by keeping both sides: the macOS and SDL
+demo composers (canvas, rich text, list, services…), `DemoStackBudgetTests`
+(three `@inline(never)` builders), `SDLPlatform.init`, the divergence table and
+header (live 120, next label 159), the record map, §03/§04, human checks (groups
+A–Y with VL and RT), `CLAUDE.md`/`AGENTS.md` (the `CI-` prefix, next `CI-AK`),
+and the census, re-recorded from the merged tree (2806 lines). The measured
+counts of the merged tree are in `CLAUDE.md`'s counts bullet.
+
 ## 5. Owed and deferred
+
+- **Verifier findings left open** (`CI-AJ` items 1–4, owner none): a declining
+  `.onScrollWheel` on a click target lets the wheel reach `onInput` against
+  both doc comments; `CI-AH` item 1's "no spelling shares the scroller's id" is
+  false for a custom `StyledElement`; a pinch does not recompute the pointer
+  style; the canvas demo's ⌃-scroll zoom, zoom clamp and momentum pan are
+  unpinned (mutations m2, m6, m7 green).
 
 - **Human checks group Y** (Y1–Y13, `docs/verification/human-checks.md`):
   trackpad momentum, pinch centre, rotate sign, nested magnify/rotate, every
