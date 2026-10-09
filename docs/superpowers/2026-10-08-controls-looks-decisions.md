@@ -1074,3 +1074,10 @@ beside `.background(.surface)` and `.fill(.red)` from a plain import.
     is a stack cost on Windows: box it.
 11. **`LayoutModifier.blur(radius:)` owes its migration note** in the Record
     phase (`docs/migration.md`, `LK-R` item 3).
+12. **Frame 8 is a second witness, not the first** (`LK-S` item 3, measured).
+    The sampler mutation (`address_mode_v` → `REPEAT` on `SDLBridge.c`'s one
+    image sampler) fails `PortableReplay` on **frame 6** first (12223 px,
+    Δ99), whose stretched images already sample the edge rows; frame 8 alone
+    fails too (101 px, Δ40) and passes unmutated. The frame stays: it is the
+    only fixture holding a 1-texel strip, a full gradient raster and a blurred
+    leaf, and it reddens by itself; it is not ruled redundant. Record §85 §3.3.

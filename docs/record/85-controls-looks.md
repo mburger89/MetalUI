@@ -375,3 +375,177 @@ then a native build and a **full unfiltered suite** (2820 tests) ran.
 | V5 | `ProgressView.prepaint`'s `layout.body.handlers = handlers` deleted | `aProgressViewTakesHandlerCarriedModifiersV5`, plus `aWheelMouseEventReachesOnInputInPointsAndATrackpadEventIsUnchanged` (`PlatformTests`, real `NSEvent` wheel deltas): unrelated to the mutation, green in the unmutated run and in the six other mutated runs, so environmental |
 | V3 | `registerHandlers`' `declaration.progressHint = nil` deleted | `anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3` |
 | V6 | `paintSweep`'s `travel` → `0.0` | `theIndeterminateBarSegmentMovesWithTheClockV6` |
+
+## §3 Lane 3 — looks (gradients, blur, materials)
+
+Commits: `87b82ce` (red: tests and API stubs), `5927784` (implementation,
+ruling `LK-W`, divergences 166, 167, census, demo section, replay frame 8 and
+CI `--expect 9`), the record commit (this section). Baseline: lane 2's review
+head `2e99439`, **2820 tests** (§2.5).
+
+### §3.1 Red
+
+30 root tests (10 `GradientTests`, 6 `GradientRasterTests`, 11 `BlurTests`, 2
+`MaterialTests`, 1 `LooksCompileGuards`) written against stubs carrying the
+public surface with every answer wrong (`87b82ce`: a gradient view of ideal 0
+painting nothing, a gradient fill painting nothing, a table of zeros, a blur
+returning its content, materials `.clear`). Filtered run on the stub: **27 of
+30 failed** (the commit message's "29 of 32" miscounted the files; the run's
+own lines are these). The 3 that passed: `aBlurOfRadiusZeroDrawsTheLeafUnchanged`
+(the stub's "no blur" is radius 0's answer), `theLayoutModifierBlurCaseIsOneIdentityLevel`
+(the stub already wrapped one layer) and `materialSpellingsResolveWithoutAmbiguity`
+(the overloads were the stub) — all absent API at `cd84b0c`, each reddened by
+a mutation in §3.3. First failure line per test (each `Expectation failed:`):
+
+| test | first red line |
+|---|---|
+| `theOklabTableMatchesG11G2G5` | `GradientTests.swift:95` `lkNear(g11, [140, 83, 162], 1)` |
+| `aVerticalGradientSamplesAtPixelCentresG1` | `:112` `lkNear(got, want, 1)` |
+| `aDiagonalGradientsIsolinesArePerpendicularInPointsG3` | `:129` `lkNear(a, [73, 73, 72], 2)` |
+| `stopsAreSortedPaddedAndHardAtEqualLocationsG4G4bG4cG7` | `:150` `lkNear(at(g4, x), want, 2)` |
+| `aDegenerateGradientDrawsTheLastColourG6` | `:176` `lkNear(got, [0, 0, 255], 1)` |
+| `aRadialGradientIsCircularInPointsR1R2` | `:192` `abs(got[0] - want) <= 2` |
+| `aGradientFilledCircleIsCutByTheCircleG8` | `:211` `lkNear(at(20, 1), [0, 1, 0], 3)` |
+| `aLinearGradientViewIsGreedyWithAnIdealOfTenG10` | `:228` `images.count == 1` |
+| `legacyAndProposalBackgroundGradientsFillTheFrameG9` | `:251` `abs(got[0] - want) <= 2` |
+| `aGradientChangeSnaps` | `:279` `lkNear(got, [0, 255, 0], 3)` |
+| `anAxisAlignedRectGradientDrawsAOnePixelStrip` | `GradientRasterTests.swift:32` `tallImages.count == 1` |
+| `aDiagonalOrClippedGradientRastersInFull` | `:69` `images.count == 1` |
+| `anUnchangedGradientKeepsItsTextureIdentity` | `:99` `first.count == 1 && again.count == 1` |
+| `aChangedStopMakesANewTexture` | `:117` `gxImages(red).count == 1 && …` |
+| `aGradientUnderARotationFollowsTheTransform` | `:133` `gxImages(scene).count == 1` |
+| `aShadowSeesAGradientLeafsAlpha` | `:150` `images.count == 2` |
+| `blurIsPerLeafB2` | `BlurTests.swift:34` `gxImages(scene).count == 2` |
+| `blurSigmaIsTheRadiusB1` | `:48` `gxImages(scene).count == 1` |
+| `aBlurChangesNoLayoutHitOrAccessibilityB4` | `:96` `gxImages(window.lastScene).count == 2` |
+| `aClipOutsideTheBlurCutsItB5` | `:109` `images.count == 1` |
+| `aTextRunBlursAsOneLeaf` | `:124` `gxImages(scene).count == 1` |
+| `aSurfaceLeafUnderBlurIsDrawnUnblurred` | `:139` `gxImages(scene).count == 1` |
+| `theBlurRadiusAnimates` | `:157` `midway.count == 1 && four.count == 1` |
+| `aNonFiniteBlurRadiusTraps` | `:178` expected exit status `.failure`, but `.exitCode(EXIT_SUCCESS)` |
+| `theLegacyBlurJoinsRenderEffectsInWrittenOrder` | `:199` `scaledBlur.count == 1 && blurredScale.count == 1` |
+| `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5` | `MaterialTests.swift:48` `abs(white - want.white) <= 1 && …` |
+| `aMaterialFollowsTheColourScheme` | `:82` `light.count == 3 && dark.count == 3` |
+
+Three test edits after the red commit, each in `LK-W`: G1's y 0 takes ±3
+(item 2), the sampler `lkSample` honours an image's mask radii as the shader
+does (the circle's strip-path quad is cut there — the first green run read the
+G8 corner black because the helper ignored the radii), and `aGradientChangeSnaps`
+compares with a fresh window (item 7).
+
+### §3.2 Landing
+
+- **Suite** (HEAD `5927784`), `swift package clean`, native build, unfiltered
+  `--no-parallel`: **2850 tests in 3 suites passed** (2820 + 30),
+  `FR-J no-argument frame: succeeded=true`, 0 `error:`, only SwiftPM's
+  deprecation `warning:`; guard 3.T1 ran (`CONTROLS LOOKS GUARD 3.T1 positive:
+  succeeded=true`). `swift build --build-tests` (default build system) 0
+  warnings.
+- **The first green suites were not green**, both fixed before the
+  implementation commit: run 1 and run 2 (2850, one issue each) —
+  `everyProductionTreeBuildsOnAOneMegabyteThread` (`.signal(SIGBUS)`), from
+  `Decoration` growing by the inline `backgroundGradient` (272 bytes; it failed
+  with the new demo section removed too) and from the section composed inline
+  — `LK-W` item 10: `clipShape` and `backgroundGradient` boxed (224 bytes), the
+  section a `Component`. Before them the lane's own filtered run found
+  `blurIsPerLeafB2` reading the red leaf's texture for the blue one (the
+  shadow's alpha-only leaf key, `LK-W` item 4) and an `AlphaMask` precondition
+  (a quad built from an empty mask; `RasterPlacement.quad(over: RasterRect)`).
+- **`Backends/SDL`**: no file of it touched (the `LK-S` mutation was applied
+  and restored in place, §3.3); not re-run.
+- **Replay** (`LK-S`): `Experiments/SDLGPU` `Replay --portable --record
+  fixtures` (SDL GPU over Metal, SPIR-V → MSL): frames 0–8 **0 differing
+  pixels**, frame 8 "(gradients and blur) 640x380: 0 rects, 0 glyphs, 5 images,
+  5 runs"; draw-order control detected (283 px, Δ152). `Backends/SDL`
+  `PortableReplay … --driver metal --expect 9`: **9 fixtures, every frame 0 px,
+  PASS**. CI's two `--expect 8` are `--expect 9`; Linux llvmpipe and Windows
+  D3D12 confirm on push.
+- **Pixels**: `docs/probes/demo-pixels/compare.sh <scratch> cd84b0c HEAD`
+  (HEAD `5927784`): controls as recorded, **all fourteen images 0 differing
+  pixels, every scene identical**.
+- **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing; families `gradients` (A), `blur` (D 167), `materials`
+  (D 166); census re-recorded, **2647 → 2711**.
+- **Divergences 166, 167** added, pinned by
+  `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5` and
+  `aSurfaceLeafUnderBlurIsDrawnUnblurred`; the header's lines are left to the
+  merge (`LK-N`).
+- **A real window**: the lock probe allowed it (no `CGSSessionScreenIsLocked`
+  line, `displayAsleep main: 0`) during the replay; no window capture was taken
+  of the demo (human checks 5–8 stay owed).
+
+### §3.3 Mutations
+
+Each applied to the committed tree (`5927784`) from a copy, native build,
+**full unfiltered suite** (2850 tests), restored, `git status --short` empty
+after each (`runner.log` in the session scratchpad's `lk3mut/`). No hang.
+
+| id | mutation (spelling, file) | reddened |
+|---|---|---|
+| L1 | `GradientTable.make`: `toOklab`/`fromOklab` replaced by the identity (premultiplied gamma sRGB) | `aDiagonalGradientsIsolinesArePerpendicularInPointsG3`, `aGradientFilledCircleIsCutByTheCircleG8`, `aRadialGradientIsCircularInPointsR1R2`, `aVerticalGradientSamplesAtPixelCentresG1`, `legacyAndProposalBackgroundGradientsFillTheFrameG9`, `stopsAreSortedPaddedAndHardAtEqualLocationsG4G4bG4cG7`, `theOklabTableMatchesG11G2G5` |
+| L2 | both sample sites drop the half pixel: the strip's texel centre `origin + i·length/count`, the full raster's `inverse.apply(x, y)` | `aGradientFilledCircleIsCutByTheCircleG8`, `aRadialGradientIsCircularInPointsR1R2`, `aVerticalGradientSamplesAtPixelCentresG1`, `legacyAndProposalBackgroundGradientsFillTheFrameG9`, `stopsAreSortedPaddedAndHardAtEqualLocationsG4G4bG4cG7`, `theOklabTableMatchesG11G2G5` |
+| L3 | `GradientAxis.parameter` (linear): `((x − sx)/dx + (y − sy)/dy)/2` when both deltas are non-zero — unit space for a corner-to-corner axis | `aDiagonalGradientsIsolinesArePerpendicularInPointsG3` |
+| L4 | `GradientStops`' sort compares indices (`$0 < $1`): written order | `stopsAreSortedPaddedAndHardAtEqualLocationsG4G4bG4cG7` |
+| L5 | start == end answers `t = 0` (the first colour) | `aDegenerateGradientDrawsTheLastColourG6` |
+| L6 | radial distance with `dx²/4` (elliptical) | `aRadialGradientIsCircularInPointsR1R2` |
+| L7 | `paintGradientFill`: `Path(geometry.rect)` for a built-in geometry | **none (green)** — see below |
+| L7r | the strip quad's `maskCornerRadii` zero (a circle drawn as its bounding square) | `aGradientFilledCircleIsCutByTheCircleG8`, `anAxisAlignedRectGradientDrawsAOnePixelStrip` |
+| L8 | the gradient view's nil axis `?? 0` | `aLinearGradientViewIsGreedyWithAnIdealOfTenG10` |
+| L9a | `paintDecorationBody`: `if let gradient, false` | `legacyAndProposalBackgroundGradientsFillTheFrameG9` |
+| L9b | `ProposalElementGroup.background(_: LinearGradient)`: `alignment: .topLeading` | **none (green)** — see below |
+| L9c | the gradient view answers 10 × 10 whatever the proposal | `aLinearGradientViewIsGreedyWithAnIdealOfTenG10`, `legacyAndProposalBackgroundGradientsFillTheFrameG9` |
+| L10 | `gradientImage`: `if transform == nil, false, let strip` | `anAxisAlignedRectGradientDrawsAOnePixelStrip` |
+| L11 | `stripImage`'s axis test `|| true` (a diagonal takes the strip) | `aDiagonalGradientsIsolinesArePerpendicularInPointsG3`, `aDiagonalOrClippedGradientRastersInFull` |
+| L12 | `key.words += paint.stops.keyWords` deleted from the strip's and the full raster's keys | `aChangedStopMakesANewTexture`, `aGradientChangeSnaps` |
+| L13 | `RasterCache.image`: `if false, let hit` | `anUnchangedGradientKeepsItsTextureIdentity` |
+| L14 | `gradientPixels`: the device pixel centre used as the outline point (no inverse map) | `aGradientUnderARotationFollowsTheTransform` |
+| L16 | the shadow silhouette of a gradient: its bounding rect filled | `aShadowSeesAGradientLeafsAlpha` |
+| B2 | composite first: the blur scope collects every leaf (`scope.captures`) and `paintWithBlur` inserts ONE blur item at its exit | `blurIsPerLeafB2`, `theLegacyBlurJoinsRenderEffectsInWrittenOrder` |
+| B1 | `blurLayer`: `sigma = radius × linearScale / 2` | `aClipOutsideTheBlurCutsItB5`, `blurIsPerLeafB2`, `blurSigmaIsTheRadiusB1`, `theLegacyBlurJoinsRenderEffectsInWrittenOrder` |
+| B4 | `LayoutModifier.blur`'s wrapper a padding of 3 × radius | `aBlurChangesNoLayoutHitOrAccessibilityB4`, `aClipOutsideTheBlurCutsItB5` |
+| B5 | `paintWithBlur`'s entry mask unbounded (±100000) | `aClipOutsideTheBlurCutsItB5` |
+| B6 | the blur branch makes one blur item per primitive of the leaf | `aTextRunBlursAsOneLeaf` |
+| B7 | the blur branch drops an all-surface leaf | `aSurfaceLeafUnderBlurIsDrawnUnblurred` |
+| B8 | `LayoutModifier.animate`: `.blur` keeps its declared radius (no track) | `theBlurRadiusAnimates` |
+| B9 | `paintWithBlur`: `guard r >= 0` | `aBlurOfRadiusZeroDrawsTheLeafUnchanged` |
+| B10 | both `precondition(radius.value.isFinite, …)` deleted | `aNonFiniteBlurRadiusTraps` |
+| B11 | the legacy `blur(radius:)` inserts its effect at index 0 | `theLegacyBlurJoinsRenderEffectsInWrittenOrder` |
+| B12 | the proposal `blur(radius:)` wraps a second `.padding(0)` layer | `theLayoutModifierBlurCaseIsOneIdentityLevel` |
+| M1 | `Material.fill`: light thin and thick rows swapped | `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5` |
+| M2 | `Material.fill`: `switch (kind, false)` (light in dark) | `aMaterialFollowsTheColourScheme`, `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5` |
+| G1 | `Material` gains `public static let surface` | **the module fails to build**: `ToolbarStrip.swift:78:26: error: ambiguous use of 'surface'` (MetalUI's own `.background(.surface)`) — the hazard the guard names, reddened before the guard can run |
+| G2 | `ElementGroup.background(_: Material, in:)` moved to `ProposalElementGroup` | `materialSpellingsResolveWithoutAmbiguity` |
+
+- **L7 green, explained**: a `Circle` is a built-in rounded rectangle (radius
+  = half the side), so it takes the strip, whose mask radii cut it — the path
+  `paintGradientFill` builds is not on its route. Respelled at the strip's
+  radii (L7r), red.
+- **L9b green, the correct spelling** (`LR-X`): a greedy attachment fills the
+  primary whatever its alignment. The proposal arm's separating mutation is
+  L9c (the view not greedy), red.
+- **`aGradientChangeSnaps` (`LK-J` item 7)** pins a rule with no animating code
+  to break; L12 (stale stops) reddens it as a stale raster would.
+- **The replay (`LK-S` item 3)**: `SDLBridge.c` line 158, the one image
+  sampler's `address_mode_v` → `SDL_GPU_SAMPLERADDRESSMODE_REPEAT`, applied in
+  place and restored from a copy (never committed; `git status` empty after),
+  `PortableReplay … --driver metal --expect 9`: **frame 6 fails first**
+  (`inside glyph and image quads: 12223 px, max Δ99 (≤8)`; the replay stops
+  there), frames 0–5 pass. Frame 8 alone (a directory holding only
+  `frame-8.muireplay`, `--expect 1`): **fails, 101 px, max Δ40** under the
+  mutant and passes unmutated (0 px). So frame 8 separates the sampler's edge
+  mode on its own, but frame 6's stretched images already did: the fixture is
+  not the first witness (`LK-W` item 12).
+- **The 1 MB thread**: `LK-W` item 10's two measurements (inline
+  `backgroundGradient`; the section inline) are this lane's reddening of
+  `everyProductionTreeBuildsOnAOneMegabyteThread`.
+
+### §3.4 Deferred and owed
+
+- `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
+  `.foregroundStyle(gradient)`, gradient animation, `.blur(radius:opaque:)`
+  — `LK-A`, unchanged. Backdrop blur for materials — C10-c (`LK-L` item 4).
+- The Record phase owes: `docs/migration.md`'s `LayoutModifier.blur` note
+  (`LK-W` item 11), divergences 166/167 in record §04, human checks 5–8 (spec
+  §7), the `LK-W` spellings in CLAUDE.md's one-line rule.
+- `ShapeView`'s chained `stroke(_:)` with a gradient is not offered (spec §1
+  named `fill` only); `Shape.stroke(gradient…)` is.
