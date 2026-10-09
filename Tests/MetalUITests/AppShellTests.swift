@@ -251,7 +251,9 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
 /// answers `.now`, closing both windows first (each `onDisappear` once); the
 /// platform asked, so it ends itself — no `terminate()` from the last close.
 /// Mutations: skip `endEverything()`'s closes; apply the last-window rule
-/// during the walk (`terminateCalls` 1).
+/// during the walk (`terminateCalls` 1). The walk closes each window as it
+/// goes, so `endEverything()`'s own closes are reached through the app
+/// handler's `.now` — the second arm (`AS-P` item 9).
 @MainActor
 @Test func aQuitWithNoHandlersClosesEveryWindowThenEnds() throws {
     let (app, platform) = try shellApp()
@@ -264,7 +266,19 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
     #expect(platform.terminateCalls == 0, "the platform asked: it ends itself on .now")
     #expect(platform.terminateReplies.isEmpty)
     #expect(app.windows.isEmpty)
-    withExtendedLifetime((a, b)) {}
+
+    // An app handler's `.now`: no window is asked, every window still closes
+    // first, each `onDisappear` once.
+    let (app2, platform2) = try shellApp()
+    let log2 = ShellLog()
+    let (c, fakeC) = try shellWindow(app2, platform2, "C", log2)
+    let (d, fakeD) = try shellWindow(app2, platform2, "D", log2)
+    app2.onTerminateRequest = { .now }
+    #expect(platform2.simulateTerminateRequest() == .now)
+    #expect(fakeC.isClosed && fakeD.isClosed)
+    #expect(log2.entries.sorted() == ["C disappeared", "D disappeared"])
+    #expect(platform2.terminateCalls == 0)
+    withExtendedLifetime((a, b, c, d)) {}
 }
 
 /// **2.10** (`AS-C` item 2). With `onTerminateRequest` set it alone decides:

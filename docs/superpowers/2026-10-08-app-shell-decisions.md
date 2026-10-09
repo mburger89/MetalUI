@@ -790,6 +790,14 @@ style's pixels and toolbar behaviour do not move either way.
    the platform without waiting for a frame, and a settle build re-sends
    nothing unchanged.
 
+9. **Mutation finding** (spec §4.2, 2.9's first mutation): "skip
+   `endEverything()`'s closes" left 2.9 green — with no handlers the walk
+   closes each window itself (`AS-C` item 2), so `endEverything()` finds none
+   left; its closes are reached only through the app handler's `.now` and an
+   approved `.later` (2.11 reddened). 2.9 gained a second arm (app handler
+   `.now`: both windows closed, each `onDisappear` once, `terminateCalls` 0),
+   which the mutation reddens.
+
 **Evidence.** Tests 2.1–2.27, 2.12b, 2.14b, 2.21b green on the first run of
 the implementation (41 filtered with lane 1's AppKit tests); the mutations in
 spec §4.2 (record §87).
