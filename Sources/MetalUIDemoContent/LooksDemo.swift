@@ -662,16 +662,17 @@ struct LooksGradientsBlurMaterials: Component {
 /// diagonal and a radial gradient, a text and an image blurred at radii 0, 2
 /// and 6 (M5-c), and the six materials over a striped backdrop in both schemes
 /// (divergence 166: a flat tint, no blur, MG-9). **Its own function**, each row
-/// in its own `Component` (`PE-K`), no click target (the demo's tests count
+/// in its own frame — the gradients row a `Component` (`PE-K`), the blur and
+/// materials rows functions (`LK-X`) — no click target (the demo's tests count
 /// them). Human checks: spec §7 items 5–8.
 @MainActor
 func gradientsBlurMaterialsSection() -> some Element {
     Column(gap: Pixels(10)) {
         Text("Gradients, blur, materials").font(size: 20)
         LooksGradientsRow()
-        LooksBlurRow()
-        LooksMaterialsRow(scheme: .light)
-        LooksMaterialsRow(scheme: .dark)
+        looksBlurRow()
+        looksMaterialsRow(scheme: .light)
+        looksMaterialsRow(scheme: .dark)
     }
     .alignItems(.flexStart)
 }
@@ -696,43 +697,42 @@ struct LooksGradientsRow: Component {
     }
 }
 
-/// A text and an image blurred at radii 0, 2 and 6.
-struct LooksBlurRow: Component {
-    var content: some ElementGroup {
-        HStack(spacing: Pixels(12)) {
-            ForEach([0, 2, 6], id: \.self) { radius in
-                VStack(spacing: Pixels(4)) {
-                    Text("Blur \(radius)").font(size: 13).blur(radius: Pixels(Float(radius)))
-                    Image(looksCheckerBitmap, scale: 1, label: Text("Checker"))
-                        .frame(width: Pixels(32), height: Pixels(32))
-                        .blur(radius: Pixels(Float(radius)))
-                }
+/// A text and an image blurred at radii 0, 2 and 6. A function, not a
+/// `Component`: a `Component` whose content is a loop, inside another
+/// `Component`'s container, crashes Swift 6.4's asserts compiler (`LK-X`).
+@MainActor
+private func looksBlurRow() -> some Element {
+    HStack(spacing: Pixels(12)) {
+        ForEach([0, 2, 6], id: \.self) { radius in
+            VStack(spacing: Pixels(4)) {
+                Text("Blur \(radius)").font(size: 13).blur(radius: Pixels(Float(radius)))
+                Image(looksCheckerBitmap, scale: 1, label: Text("Checker"))
+                    .frame(width: Pixels(32), height: Pixels(32))
+                    .blur(radius: Pixels(Float(radius)))
             }
         }
     }
 }
 
-/// The six materials over red and blue stripes, in `scheme`.
-struct LooksMaterialsRow: Component {
-    var scheme: ColorScheme
-
-    var content: some ElementGroup {
-        HStack(spacing: Pixels(0)) {
-            ForEach(0..<looksMaterials.count, id: \.self) { i in
-                ZStack {
-                    HStack(spacing: Pixels(0)) {
-                        ForEach(0..<6, id: \.self) { k in
-                            (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
-                        }
+/// The six materials over red and blue stripes, in `scheme`. A function, not a
+/// `Component`, for the reason `looksBlurRow()` gives (`LK-X`).
+@MainActor
+private func looksMaterialsRow(scheme: ColorScheme) -> some ElementGroup {
+    HStack(spacing: Pixels(0)) {
+        ForEach(0..<looksMaterials.count, id: \.self) { i in
+            ZStack {
+                HStack(spacing: Pixels(0)) {
+                    ForEach(0..<6, id: \.self) { k in
+                        (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
                     }
-                    Text(looksMaterials[i].0).font(size: 10)
-                        .frame(width: Pixels(60), height: Pixels(20))
-                        .background(looksMaterials[i].1)
                 }
+                Text(looksMaterials[i].0).font(size: 10)
+                    .frame(width: Pixels(60), height: Pixels(20))
+                    .background(looksMaterials[i].1)
             }
         }
-        .environment(\.colorScheme, scheme)
     }
+    .environment(\.colorScheme, scheme)
 }
 
 /// The six materials, named.
