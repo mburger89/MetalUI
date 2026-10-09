@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AH`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AI`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -496,7 +496,9 @@ looks at every style on AppKit.
    `ScrollView`; a handler outside a `ScrollView` sees only what the scroller
    left — which is nothing, since a scroller always claims (`DD-Y`); a legacy
    `.onScrollWheel` on a `ScrollView` itself (same id) runs **before** its
-   scrolling and can veto it.
+   scrolling and can veto it. **Amended by `CI-AH` item 1**: no spelling gives
+   a handler the scroller's id — a handler on or around a `ScrollView` sees
+   nothing over it; a handler on its **content** runs first and can veto.
 5. **Where**: still before the window's general `onInput` and after the menu,
    popover and context-menu stages; an open in-window menu takes the wheel
    (`MN-F`); a drawn alert takes it (`SV-J`).
@@ -668,7 +670,8 @@ So the wheel handler and the style ride **one class box**,
 `PointerAttachment` (`final class`, `let scrollWheel: (@MainActor
 (ScrollEvent) -> Bool)?`, `let style: PointerStyle?`; a later `.onScrollWheel`
 or `.pointerStyle` replaces its own field and keeps the other, as
-`ContextualAttachment` does), the **eighteenth** member `pointer:
+`ContextualAttachment` does — **amended by `CI-AH` item 2**: a later
+`.pointerStyle` keeps an existing style, the first written being the inner), the **eighteenth** member `pointer:
 PointerAttachment?`. Size **472 → 480**: lane 3 edits both pins (`== 480` and
 `<= 440 + 8 × 5`) with a doc line naming this ruling, and their mutation becomes
 "store the closure inline". `HandlerShape` and `HandlerFingerprint` each gain
@@ -1429,3 +1432,108 @@ that never pass through `Window.dispatchPinch`, so neither can see M4.
 
 **Cost if wrong.** These are pins only. If a platform did need a different
 button's press to replace an arena, 2.28 is the test to re-rule.
+
+## CI-AH — Lane B: a handler around a scroller sees nothing; the first legacy style is the inner; every lane-B mutation reddens its named test
+
+**Findings (lane B, while building spec §1.3/§1.4's wheel and style stages).**
+Two sentences of the design could not be built as written.
+
+1. `CI-I` item 4 ends "a legacy `.onScrollWheel` on a `ScrollView` itself
+   (same id) runs **before** its scrolling and can veto it". No spelling
+   gives a handler the scroller's own id. Legacy `ScrollView` is a plain
+   `Element`, not a `StyledElement`, so `.onScrollWheel` reaches it only
+   through a `ModifiedContent` layer (`.frame(…).onScrollWheel`). That layer
+   is the scroller's **parent** (`MC-A`). The proposal `.onScrollWheel` on a
+   `ProposalScrollView` is a `ScrollWheelModifier`, which is also the parent
+   (`CI-V` item 2). No two elements share an id.
+2. `PointerAttachment` is one box per element, so two `.pointerStyle` calls
+   on one legacy element (`StyledElement` → `Self`) write the same field. The
+   design said "a later `.pointerStyle` replaces its own field" (`CI-Q`).
+   That would make the **outer** call win on a legacy element, while nested
+   views and the proposal wrapper make the inner one win (`P11`).
+
+**Ruling.**
+
+1. **A wheel handler on or around a scroller sees nothing over it.** The
+   scroller is reached first on the chain and always claims (`DD-Y`). **To
+   veto scrolling, put the handler on the scroller's content.** The content
+   is a descendant, so its handler runs first, and it may claim (no scroll)
+   or decline (the scroller scrolls). This amends `CI-I` item 4's last
+   clause. Test 3.6 is renamed
+   `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt`
+   and pins both halves: the content's claim vetoes, the content's decline
+   scrolls, and a wrapper layer on the `ScrollView` sees nothing. The
+   `onScrollWheel` doc comments, `applyScroll`'s doc and `docs/migration.md`
+   say so. Spec §4.3's mutation for 3.6, "scroll region before the same-id
+   handler", reaches no test because no handler shares a scroller's id. It is
+   **green, and that is the measurement** (item 3). 3.6's pin is reddened by
+   the outermost-first pre-walk spelling (3.3's).
+2. **On one legacy element, the first `.pointerStyle` written is the inner
+   one, and it wins.** A later `.pointerStyle` keeps an existing style.
+   `.onScrollWheel` still replaces its own field and keeps the style, as
+   `CI-Q` says. This matches SwiftUI's innermost-wins (`P11`). In
+   `square().pointerStyle(.rectSelection).pointerStyle(.link)`,
+   `.rectSelection` is written closer to the content. `nil` still attaches
+   nothing (`CI-H` item 2). This amends `CI-Q`'s "replaces its own field" for
+   the style. Pinned by `theInnermostPointerStyleWinsAndNilDefers`'s fifth
+   arm. Mutation 3.16b (a later style replaces) reddens it.
+3. **Every lane-B mutation, run against the full suite.** Each mutation was
+   applied once to `e93ddbe`'s spelling (the files named) and restored from a
+   copy. Each run was a native build and the full unfiltered `--no-parallel`
+   suite, with the screen **locked**. Every run read **2751 tests in 3
+   suites**. Every issue count includes the five locked-screen
+   `AppKitPresentationTests` sheet issues (`CI-AF`), and those five are left
+   out of the lists below. There was no hang (about 455–570 s each, with
+   other worktrees' suites running beside it), and `git status --short` was
+   clean after each run.
+
+   | Row | Mutation (spelling) | Issues | Reddened (besides the five) |
+   | --- | --- | --- | --- |
+   | 3.2 | `applyScroll` passes `position` as `location` | 9 | `onScrollWheelReceivesTheEventInLocalSpaceUnderStateDispatch`, `aWheelThroughAScaleEffectReportsALocalLocationAndARawDelta`, `aGPUSurfaceViewportReceivesWheelPinchButtonDragsAndStyle` |
+   | 3.3 (and 3.6) | before the chain walk, scroll the outermost scroller the cover descends from | 20 | `aWheelHandlerThatClaimsStopsAnEnclosingScrollView`, `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView`, `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt`, `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`, `aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest`, `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints` |
+   | 3.6 (spec's spelling) | at each id, the scroll region before the same-id handlers | 5 | **none: green**, the measurement of item 1 |
+   | 3.4 | a handler's `false` claims | 10 | `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView`, `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt`, `anUnclaimedWheelOverOnlyANonOpaqueHandlerReachesTheWindowsOnInput` |
+   | 3.5 | the scroller no longer ends the walk, so every handler up the chain runs | 11 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed`, `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt`, `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`, `aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest`, `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints` |
+   | 3.5b | the **parent** id's handler joins each id's step | 7 | `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt` only. 3.5's proposal arm stays green, because `.frame` puts a layer between the wrapper and the scroller, so the wrapper is the grandparent |
+   | 3.5c | before a scroller scrolls, every ancestor's handler runs | 11 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed` (both arms: lines 267–268 legacy, 273–274 proposal), `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt` |
+   | 3.7 | the walk stops at an opaque cover | 13 | `aWheelOverAClickTargetInsideACanvasReachesTheCanvasHandler`, `aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, `aClickTargetInsideNestedScrollViewsPassesTheWheelToTheNearest`, `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`, `aSelectableListScrollsUnderTheWheelOverARow`, `aContentShapeInsideAScrolledScrollerFollowsTheScroll`, `anEffectInAScrolledScrollerTurnsAboutItsScrolledAnchor`, `aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame` |
+   | 3.8 | at the root step, every containing region joins (no ancestry) | 11 | `anOverlaidSiblingClickTargetStopsTheCanvasWheel`, `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`, `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView`, `hoverActiveAndTheGestureArenaFollowTheContentShape` |
+   | 3.9 | the pointer region registers outside the `allowsHitTesting` gate | 9 | `aWheelRegionIsWithdrawnByDisabledAllowsHitTestingAndHidden`, `pointerStyleIsWithdrawnByDisabledAllowsHitTestingAndHidden` |
+   | 3.10 | the wheel chain drops its layer clause | 9 | `aPopoverAboveACanvasTakesItsWheelPinchStyleAndButtonDrags`, `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`, `theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel` |
+   | 3.12 | the delta goes through the region's inverse transform | 6 | `aWheelThroughAScaleEffectReportsALocalLocationAndARawDelta` |
+   | 3.13 | a wheel claims whenever a handler ran | 8 | `anUnclaimedWheelOverOnlyANonOpaqueHandlerReachesTheWindowsOnInput` |
+   | 3.14 | every gated element registers a pointer region | 132 | `aFrameWithNoWheelOrStyleRegionRegistersNoExtraHitbox` and 77 more tests (78 in all, 127 issues; an extra region on every gated element moves hitbox lists), e.g. `onlyABoxWithAHandlerRegistersAHitbox`, `aTreeWithoutHoverRegistersNoRegionAndDoesNoHoverWork` and `everyHandlerRegisteringSiteHonoursAllowsHitTesting` |
+   | 3.15 | `updatePointerStyle` drops the dedupe | 9 | `pointerStyleReachesThePlatformOnlyOnAChange`, `aFrameWithNoStyleRegionDoesNoPointerStyleWork`, `aGPUSurfaceViewportReceivesWheelPinchButtonDragsAndStyle` |
+   | 3.16 | the first (outermost) style region wins | 7 | `theInnermostPointerStyleWinsAndNilDefers` |
+   | 3.16b | a later legacy `.pointerStyle` replaces the earlier one (item 2) | 6 | `theInnermostPointerStyleWinsAndNilDefers` |
+   | 3.17 | the style cover's eligibility drops `opaque` | 7 | `anOpaqueTargetAboveCoversAPointerStyleBeneath`, `aPopoverAboveACanvasTakesItsWheelPinchStyleAndButtonDrags` |
+   | 3.18 | — (divergence 141's pin; a fix reddens it) | — | — |
+   | 3.19 | the pointer region registers outside the disabled gate | 9 | `pointerStyleIsWithdrawnByDisabledAllowsHitTestingAndHidden`, `aWheelRegionIsWithdrawnByDisabledAllowsHitTestingAndHidden` |
+   | 3.20 | the press-hold arm never applies | 6 | `aPressHoldsThePressedTargetsStyleWhileThePointerLeaves` |
+   | 3.21 | the style is recomputed only from pointer events (`reportsMoves`) | 9 | `contentMovingUnderAStillPointerChangesTheStyleAfterTheFrame`, `anInWindowMenuOrDrawnAlertResetsTheStyleToDefault`, `aPressHoldsThePressedTargetsStyleWhileThePointerLeaves` |
+   | 3.22 | the style ignores `hoverIsSuppressed` | 7 | `anInWindowMenuOrDrawnAlertResetsTheStyleToDefault` |
+   | 3.23 | an exit sets the last-sent style to `.default` | 17 | `aPointerReEntryResendsTheStyleEvenWhenItIsDefault`, `aFrameWithNoStyleRegionDoesNoPointerStyleWork`, `anOpaqueTargetAboveCoversAPointerStyleBeneath`, `aPopoverAboveACanvasTakesItsWheelPinchStyleAndButtonDrags`, `contentMovingUnderAStillPointerChangesTheStyleAfterTheFrame`, `pointerStyleIsWithdrawnByDisabledAllowsHitTestingAndHidden` |
+   | 3.24 | style containment uses the untransformed `bounds` | 6 | `aPointerStyleThroughARotationFollowsTheDrawing` |
+   | 3.25 | the no-style-region early return is removed | 6 | `aFrameWithNoStyleRegionDoesNoPointerStyleWork` |
+   | 3.37 | the wheel closure is also stored inline in `Handlers` | 7 | `handlersGainsOneReferenceMember`, `theNewDeclarationsCostHandlersAtMostOnePointer` |
+
+   3.11 (`aGPUSurfaceViewportReceivesWheelPinchButtonDragsAndStyle`) is a
+   coverage pin. It reddens under 3.2 and 3.15, as spec §4.3 says it should.
+4. **The unmutated suite at `e93ddbe`**: native build, unfiltered
+   `--no-parallel`, screen locked. It read **2751 tests in 3 suites** (`f23c922`'s
+   2727 + `InputAPIWindowTests`' 24, 3.2–3.25; 3.37 edits two existing pins), with the `FR-J` line present, 0
+   `error:` and **5 issues, all of them the locked-screen sheet issues**
+   (`CI-AF`). `swift build --build-tests` (default build system, after touching every
+   source and test file the branch changed): **0 warnings**.
+   Both closeout scripts (`closeout-inventory-check.sh`,
+   `closeout-undocumented.sh`) print nothing. **Demo pixels** (`compare.sh`,
+   offscreen, `70ed000` → `e93ddbe`): all fourteen images **0 differing**, scene
+   dumps identical, every control at its recorded value (default vs modal
+   1031003, default vs animation 454895, as recorded at `70ed000`). No `Backends/SDL` change
+   and no shader change.
+
+**Cost if wrong.** Item 1: suppose a caller needs a handler that sees a wheel
+over a scroller *before* the scroller, without owning its content. That
+would need a new scroller hook (none is designed); it would be additive.
+Item 2: if SwiftUI is ever probed with two `.pointerStyle` calls on one view
+and the outer one wins, item 2 flips and 3.16b's arm is the pin to edit.

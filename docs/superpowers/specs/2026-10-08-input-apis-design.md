@@ -373,8 +373,8 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | 3.2 | `onScrollWheelReceivesTheEventInLocalSpaceUnderStateDispatch` (a `@State` write lands; `delta`, `phase`, `momentumPhase`, `modifiers` passed through; `location` local) | absent | pass `position` as `location` → red |
 | 3.3 | `aWheelHandlerThatClaimsStopsAnEnclosingScrollView` | absent | consult each id's scroll region before its descendants' handlers (outermost first) → red |
 | 3.4 | `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView` | absent | treat `false` as claimed → red |
-| 3.5 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed` (+ arm: a **proposal** `.onScrollWheel` on a `ScrollView` sees nothing, `CI-V` item 2) | absent | call every handler on the chain → red; consult a wrapper's handler before its child's scroll region → the proposal arm red |
-| 3.6 | `aLegacyWheelHandlerOnAScrollViewRunsBeforeItsScrollingAndCanVetoIt` | absent | scroll region before the same-id handler → red |
+| 3.5 | `aWheelHandlerOutsideAScrollViewSeesNothingTheScrollerClaimed` (+ arm: a **proposal** `.onScrollWheel` on a `ScrollView` sees nothing, `CI-V` item 2) | absent | call every handler on the chain → red; consult every ancestor's handler before a scroll region → both arms red (only the parent's: the proposal arm stays green — `.frame` sits between, `CI-AH` item 3) |
+| 3.6 | `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt` (renamed by `CI-AH` item 1: a handler on the content vetoes or passes; a wrapper on the `ScrollView` sees nothing) | absent | consult the chain's scroll regions before any handler → red (the original "scroll region before the same-id handler" is green: no handler shares a scroller's id, `CI-AH` item 3) |
 | 3.7 | `aWheelOverAClickTargetInsideACanvasReachesTheCanvasHandler` | absent | stop at the opaque cover → red |
 | 3.8 | `anOverlaidSiblingClickTargetStopsTheCanvasWheel` | absent | drop the ancestry test (any containing region) → red |
 | 3.9 | `aWheelRegionIsWithdrawnByDisabledAllowsHitTestingAndHidden` (three arms) | absent | register outside the `allowsHitTesting` gate → that arm red |
@@ -409,6 +409,10 @@ an `SDLPlatform` arms `armMainRunLoopExitCheck()`; none needs a presented frame.
 | — | Unchanged and green: the `DD-Y` pins (`aClickTargetInsideAScrollViewPassesTheWheelToItsScroller`, `aClickTargetOverlaidOnAScrollViewButNotInsideItStillSwallowsTheWheel`, `aDeferredScrimDeclaredInsideAScrollViewStillSwallowsTheWheel`, `aSingleLineTextFieldInsideAScrollViewPassesTheWheelToItsScroller`, `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`), every `MN-B`/`MN-E`/`SV-N` pin, `theSevenRetentionSlotsAreMutuallyDistinct`, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` | — | — |
 
 | 3.37 | `handlersGainsOneReferenceMember` (== 480) and `theNewDeclarationsCostHandlersAtMostOnePointer` (<= 440 + 8 × 5), edited (`CI-Q`) | red at 472 after the box lands | store the wheel closure inline in `Handlers` → red |
+
+**Lane B ran every lane-B row** (3.2–3.25, 3.37, plus 3.16b for `CI-AH`
+item 2) against the full unfiltered suite at `e93ddbe`: the spellings and
+every test reddened are `CI-AH` item 3.
 
 **Lane assignment (`CI-W`)**: 3.1 and 3.26–3.34 run in **lane 2** (ids
 kept); every other 3.x in lane 3.
