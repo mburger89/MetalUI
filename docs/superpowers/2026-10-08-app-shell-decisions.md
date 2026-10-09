@@ -845,6 +845,9 @@ tests, which fail identically unmutated while the screen is locked):
 | M32 | routing ignores key state | `anOpenGoesToTheKeyWindowThenTheFirstWithAHandlerThenTheApp` |
 | M33 | handlers kept across builds | `aRemovedOnOpenURLNoLongerHearsURLs` |
 | M34 | a `.navigationTitle` scope bumps the cursor | `theWindowPreferenceScopesAreTransparent` |
+| M35 | (review V1, on `5e101c0`) the `title` setter only stores — no `reconcileTitleAndDocument()` (`WindowShell.swift`) | `windowTitleReachesThePlatformOnChangeOnly` (its no-redraw arm, added in `5e101c0`; green on `778ef12` before it) |
+| M36 | (review V2, on `5e101c0`) the `.onOpenURL` owner is `.child(of: parent, at: cursor + 1)` (`EnvironmentScope.swift`) | `anOnOpenURLOutsideAnAliasedElementWritesThatOccurrencesState` (2.23b; 2.23 stays green — its state sits on a `Component` above the scope) |
+| M37 | (review V10, on `5e101c0`) `answerCloseRequest` without `!shell.isClosed` (`WindowShell.swift`) | `performCloseAsksAndCloseDoesNot` (its closed-window arm) |
 
 **Cost if wrong.** None beyond two access-level changes on internal members.
 
