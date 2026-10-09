@@ -14,7 +14,10 @@ next-label line is left for the merge).
 **Status: designed (2026-10-09), revised by the critic (2026-10-09:
 `AS-J`…`AS-N`).** Lane 1 implemented (2026-10-09; `AS-O` — test 1.3 asks the
 delegate, not `performClose(_:)`; the hidden style and a toolbar under it keep
-the frame); lanes 2–3 not started.
+the frame); lane 2 implemented (2026-10-09; `AS-P` — `Window` stamps
+`titleBarInsets` beside its other root stamps, the insets follow the
+platform's answer, `platformWindow` and `App.windows` internal); lane 3 not
+started.
 
 ## §0 Baseline (`c62d6ba`)
 
@@ -229,8 +232,9 @@ first report wins: `N2`, `N5`).
 before the first frame) → `platformWindow.setTitleBarStyle(style ==
 .hiddenTitleBar ? .hidden : .standard)` on change; the answer is kept
 (`titleBarStyleApplied`, internal, for tests). Each build stamps
-`titleBarInsets = platformWindow.titleBarInsets` at the root, as
-`displayScale` is stamped (`Frame.scopedValues` / the root values).
+`titleBarInsets` at the root — the platform's while the hidden style is
+applied, else zero — **by `Window`** beside `accessibilityReduceMotion`
+(`AS-P` items 2–3).
 
 **Open URLs** (`AS-G`). `.onOpenURL`'s `reportingPreference` arm runs the body,
 then appends `(owner: .child(of: parent, at: cursor, name: nil), action)` to

@@ -25,8 +25,10 @@ private struct URLCounter: Component {
     }
 }
 
-/// **2.23** (`AS-G` items 2–3). Every handler in the window runs once in
-/// reverse post-order — later sibling first, outer before inner — and a
+/// **2.23** (`AS-G` items 2–3; probe `O1`: SwiftUI runs every handler once,
+/// in an order that varied, outer-first in five runs of six). Every handler in
+/// the window runs once in reverse post-order — later sibling first, outer
+/// before inner — and a
 /// `@State` write in a handler lands in its own occurrence (`StateDispatch`;
 /// one `URLCounter` value placed twice). Mutations: pre-order; no dispatch
 /// (both writes reach the last-bound occurrence).

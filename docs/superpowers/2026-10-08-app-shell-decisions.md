@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-P`.**
+**Next unused id: `AS-Q`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -735,4 +735,64 @@ could not be red under "drop the KVO").
 **Cost if wrong.** If an app expects the hidden style to keep the content size
 and move the frame instead, it resizes the window itself; the standard
 style's pixels and toolbar behaviour do not move either way.
+
+## AS-P — Lane 2: where `Window` and `App` hold the shell, and what the spec's footprint left out
+
+**Findings (lane 2, from the source at `3356851`).**
+
+1. `Window.platformWindow` was `private`; `WindowShell.swift` (a separate
+   file, spec §2) must reach it. It is now internal (`Window.swift` line 15,
+   one word) — not an accessor, which would be a second spelling of the same
+   reference.
+2. Spec §1.2 stamped `titleBarInsets` "at the root by `Frame`". `Frame` does
+   not know the platform window; the window already stamps
+   `controlActiveState`, `accessibilityReduceMotion`, `colorScheme` and
+   `fileDialogs` into `rootEnvironment` before `frame.rootEnvironment =`.
+   **Ruling**: `Window` stamps `rootEnvironment.titleBarInsets =
+   effectiveTitleBarInsets` beside them (one line in `buildAndAdoptFrame`);
+   the `Frame.swift` edit is only the collected fields and the three
+   `scopedValues` arms. Same effect: a scope cannot write it (`public
+   internal(set)`), so the root value is the only one.
+3. **The insets and the band press follow the platform's answer, not its
+   report**: `effectiveTitleBarInsets` is `platformWindow.titleBarInsets`
+   only while the style is `.hiddenTitleBar` **and** `setTitleBarStyle`
+   answered `true`; otherwise zero. So the standard style reads zero whatever
+   a platform reports (test 2.21's last arm), and a declining platform (SDL)
+   never gets a band press. `AS-E` item 4's "all zero under `.titleBar`" is
+   `Window`'s guarantee, not each platform's.
+4. **Where a real close is observed**: `App.adoptShell` installs the
+   platform window's `onClose` → `App.windowDidClose`: `Window.noteClosed()`
+   (closed flag, every `onDisappear` once), retire, `Window.resolvePendingCloseRequest()`
+   (`AS-K` item 2), then the last-window rule — in that order, so a walk
+   resumed by the resolution no longer sees the window, and the rule sees the
+   walk's outcome (`endingApproved`/`terminationInProgress`). `Window.close()`
+   on a window no `App` opened (only tests build one) marks itself closed
+   after `platformWindow.close()`, since nobody listens to its `onClose`.
+   Mutation sites for spec §4.2: 2.12b's "`close()` … tells nobody" is the
+   `resolvePendingCloseRequest()` call in `windowDidClose`; 2.14b's "drop
+   from `windows` inside `onClose`" is `retire`.
+5. `WindowStyle.automatic` and `.titleBar` are **distinct values** (each
+   reads back as assigned) that ask the platform for the same `.standard`;
+   the platform is asked only when that mapped style changes, so a window
+   opened `.automatic` never calls `setTitleBarStyle` (the standard style's
+   pixels and calls do not move).
+6. `App.windows` is internal (it was `private`): `AppShell.swift` retires
+   from it and tests read it (2.8). `terminatesThroughAppKit` and the
+   `NSApplication.shared.terminate` call are gone (spec §1.2).
+7. **Test support**: `FakePlatformWindow.title` records every assignment
+   (`titleWrites`, test 2.16) and `setTitleBarStyle` records the presented
+   frame count (`titleBarStylePresentsBefore`, test 2.22). Lane 1's fake
+   file, extended by lane 2.
+8. The window's title and document are reconciled in each build's
+   read-back (`adoptShellPreferences(of:)`, in `buildAndAdoptFrame` beside
+   the presentation records) **and** at once by the `title`/`representedURL`
+   setters against the last build's tree values — so an assignment reaches
+   the platform without waiting for a frame, and a settle build re-sends
+   nothing unchanged.
+
+**Evidence.** Tests 2.1–2.27, 2.12b, 2.14b, 2.21b green on the first run of
+the implementation (41 filtered with lane 1's AppKit tests); the mutations in
+spec §4.2 (record §87).
+
+**Cost if wrong.** None beyond two access-level changes on internal members.
 

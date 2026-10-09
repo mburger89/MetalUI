@@ -189,14 +189,15 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
     let (app, platform) = try shellApp()
     let log = ShellLog()
     let (window, fake) = try shellWindow(app, platform, "A", log)
-    var asked = 0
-    var answer = CloseRequestReply.cancel
-    window.onCloseRequest = { asked += 1; return answer }
+    let log2 = ShellLog()
+    window.onCloseRequest = {
+        log2.entries.append("asked")
+        return log2.entries.count == 1 ? .cancel : .now
+    }
     window.performClose()
-    #expect(asked == 1 && !fake.isClosed, "performClose asked, and .cancel kept it")
-    answer = .now
+    #expect(log2.entries.count == 1 && !fake.isClosed, "performClose asked, and .cancel kept it")
     window.performClose()
-    #expect(asked == 2 && fake.isClosed && fake.closeCalls == 1)
+    #expect(log2.entries.count == 2 && fake.isClosed && fake.closeCalls == 1)
 
     let (other, otherFake) = try shellWindow(app, platform, "B", log)
     var otherAsked = 0

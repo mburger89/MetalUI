@@ -155,6 +155,9 @@ F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability an
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 F	input-apis-seam	M	-	-	-	-	CI-E CI-I CI-J CI-V	InputPhase, MouseEvent.buttonNumber, ScrollEvent.phase/momentumPhase/isPrecise/location and its full initialiser, MagnifyEvent/RotateEvent, InputEvent.rightMouseDragged/.otherMouseDown/.otherMouseDragged/.otherMouseUp/.magnify/.rotate, PlatformPointerStyle/PlatformResizeEdge, PlatformWindow.setPointerStyle (defaultless): the platform seam for other buttons, trackpad gestures, scroll phases and the pointer style
 F	app-shell-seam	M	-	-	-	-	AS-B AS-C AS-E AS-G AS-H AS-J AS-O	CloseRequestReply, PlatformTitleBarStyle, AppKitPlatform.onTerminateRequest/replyToTerminateRequest/terminate/onOpenURLs, and the seven PlatformWindow and four Platform requirements (defaultless): the platform seam for the close veto, the terminate hook, the edited marker and represented file, the hidden title bar and its band drag, and open-document events (MetalUI-only: SwiftUI has no such seam)
+F	window-shell	M	-	-	-	-	AS-B AS-C AS-D AS-E AS-G AS-K	Window.title/isDocumentEdited/representedURL/windowStyle/onCloseRequest/isCloseRequestPending/replyToCloseRequest/close/performClose, App.onTerminateRequest/replyToTerminateRequest/terminate/onOpenURL/open, WindowStyle, EnvironmentValues.titleBarInsets: the close veto (now/cancel/later + reply), the terminate hook (the app handler alone, else every window asked in turn; the last window's close ends the app), the title and edited marker, the represented file, the hidden title bar with its insets, the catch-all open handler (MetalUI-only: SwiftUI has no close veto, terminate hook, runtime title setter or edited marker, and a WindowStyle protocol on scenes)
+F	navigation-title	A	swiftui-app-shell.swift	N2	theTreeTitleWinsInnerBeatsOuterFirstSiblingBeatsSecond	-	AS-D	.navigationTitle(_:)/.navigationDocument(_:): the window's title and represented file while present (N1, N3); the first report in post-order wins — inner beats outer (N2), first sibling beats second (N5); the document never changes the title (N3)
+F	on-open-url	A	swiftui-app-shell.swift	O1	everyOnOpenURLInTheTargetWindowRunsInReversePostOrder	-	AS-G	.onOpenURL(perform:): every handler in one window runs once per URL (O1), under StateDispatch; MetalUI routes to the key window with a handler, else the first, else App.onOpenURL, and never opens a window (lane 3 adds divergence 176)
 F	input-apis-gestures	A	swiftui-input-apis.swift	T1	aSpatialTapReportsItsReleasePointInLocalSpace	-	CI-B CI-C CI-D	SpatialTapGesture (.location), MagnifyGesture (.magnification/.startLocation/.startAnchor), RotateGesture (.rotation clockwise-positive/.startLocation/.startAnchor), onTapGesture(count:coordinateSpace:perform:) on both vocabularies: a spatial tap is a tap leaf reporting its release point; magnify and rotate recognize in their own pinch arena from the one ranking
 F	input-apis-global-space	D	swiftui-input-apis.swift	T2	aSpatialTapInGlobalSpaceReportsTheWindowPoint	139	CI-B CI-U	CoordinateSpace (.local, .global; the census counts the enum, not its cases): .global is the window's content space, the point MouseEvent carries; SwiftUI's .global in a titled window reads 32 points lower (T2, 139)
 F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them)
@@ -191,12 +194,15 @@ M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
 M	MetalUI	App.swift	App	icon	.*	app-icon
 M	MetalUI	App.swift	App	(preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	App.swift	App	openWindow	.*(minSize|windowResizability).*	window-sizing
+M	MetalUI	AppShell.swift	App	(onTerminateRequest|replyToTerminateRequest|terminate|onOpenURL|open)	.*	window-shell
 M	MetalUI	App.swift	.*	.*	.*	host
 M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
 M	MetalUI	Window.swift	Window	(colorScheme|preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	Window.swift	Window	(minSize|maxSize|windowResizability)	.*	window-sizing
 M	MetalUI	WindowSizing.swift	.*	.*	.*	window-resizability
+M	MetalUI	WindowShell.swift	Window	(title|isDocumentEdited|representedURL|windowStyle|onCloseRequest|isCloseRequestPending|replyToCloseRequest|close|performClose)	.*	window-shell
+M	MetalUI	WindowShell.swift	(-|WindowStyle)	.*	.*	window-shell
 M	MetalUI	Window.swift	.*	.*	.*	host
 M	MetalUI	AXNode.swift	-	AXActionKind	.*	axnode-actions
 M	MetalUI	AXNode.swift	AXNode	actions	.*	axnode-actions
@@ -265,6 +271,9 @@ M	MetalUI	EnvironmentValues.swift	EnvironmentValues	locale	.*	environment-locale
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(font|lineLimit|truncationMode|multilineTextAlignment)	.*	text-modifiers
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	colorScheme	.*	color-scheme
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	fileDialogs	.*	file-dialog-call
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	titleBarInsets	.*	window-shell
+M	MetalUI	WindowPreferences.swift	ElementGroup	(navigationTitle|navigationDocument)	.*	navigation-title
+M	MetalUI	WindowPreferences.swift	ElementGroup	onOpenURL	.*	on-open-url
 M	MetalUI	EnvironmentValues.swift	.*	.*	.*	environment
 M	MetalUI	Flex.swift	.*	.*	.*	legacy-containers
 M	MetalUI	Stack.swift	.*	.*	.*	legacy-containers
