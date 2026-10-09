@@ -110,6 +110,9 @@ F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (p
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
 F	gestures	A	swiftui-interaction.swift	H2	anOuterHighPriorityGestureBeatsTheInnerOneAndAButton	-	IX-B IX-C IX-D IX-Q	Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
+F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
+F	focus-interactions	A	swiftui-key-focus.swift	FC3	aPressFocusesAnEditInteractionFocusable	94	KF-F	FocusInteractions/focusable(_:interactions:): .edit focuses on a primary press as SwiftUI does (FC3); .activate and .automatic focus by Tab only (94)
+F	hover-key-region	M	-	-	-	-	KF-D KF-E KF-U	hoverKeyRegion(_:): with nothing focused, keys go to the hovered key region (its onKeyPress and Keymap contexts, not onKey); a press in it clears focus; MetalUI-only (SwiftUI routes no key by hover, K1u/K1v)
 F	keymap	M	-	-	-	-	EV-N IN-A	Keymap/KeyBinding/Keystroke/KeymapBuilder/KeyContext/ContextPredicate/Action/ActionHandler: gpui's keymap and actions
 F	accessibility-modifiers	A	swiftui-accessibility-part2.swift	E3	aCombinedElementJoinsItsChildrenIntoOneStaticText	29 30 31 33 34 82 95	IX-U IX-V IX-X IX-Y AB-T	accessibility modifiers on both vocabularies, AccessibilityModifier/Traits/ChildBehavior/Adjustment: .ignore/.combine/.contain, hidden, hint, identifier, traits, declared and named actions, modal isolation (95)
 F	axnode	M	-	-	-	32	AB-C AB-F AB-U	AXNode/AXRole/AXTrait: the neutral accessibility record a StyledElement declares; a List publishes realised rows only (32)
@@ -295,6 +298,11 @@ M	MetalUI	Grid.swift	.*	.*	.*	grid
 M	MetalUI	Image.swift	.*	.*	.*	image
 M	MetalUI	ImageBitmap.swift	ImageBitmap	init\??	(contentsOfFile|data|resource)	image-decoding
 M	MetalUI	ImageBitmap.swift	.*	.*	.*	image-bitmap
+M	MetalUI	KeyPress.swift	StyledElement	focusable	.*	focus-interactions
+M	MetalUI	KeyPress.swift	-	FocusInteractions	.*	focus-interactions
+M	MetalUI	KeyPress.swift	FocusInteractions	.*	.*	focus-interactions
+M	MetalUI	KeyPress.swift	.*	.*	.*	key-press
+M	MetalUI	HoverKeyRegion.swift	.*	.*	.*	hover-key-region
 M	MetalUI	KeyboardShortcut.swift	.*	.*	.*	keyboard-shortcut
 M	MetalUI	KeyContext.swift	.*	.*	.*	keymap
 M	MetalUI	Keymap.swift	.*	.*	.*	keymap

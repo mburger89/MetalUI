@@ -803,7 +803,31 @@ both must compile); the census gains two A rows.
    the decline. A44 `aModifiedButtonShortcutReachesOnKeyPressBeforeTheButton`
    is unchanged (KX1); its mutation is the decline extended to
    `dispatchShortcut`'s table.
-6. Human check KF-6's KX prerequisite is met; it stays a look on a real
+6. **A23b's mutation (delete §4.3 step 1, the text-field early return in
+   `focusOnPress`) is equivalent and stays** (`LR-X`: the green mutant is a
+   correct spelling). The text stage directly after it claims every press
+   step 1 matches, with the same `topmostOpaqueHitbox` lookup, and
+   `Window.focus(_:)` is a plain assignment: without step 1 a press on a field
+   inside a key region writes `focus(nil)` then `focus(field)` within one
+   input event, before any frame reconciles `@FocusState` — no observer sees
+   the intermediate `nil`. Step 1 is kept as the cheaper path (no region
+   walk). Measured on the full suite: nothing reddened but the five
+   lock-dependent `AppKitPresentationTests` (see item 8).
+7. **A2's mutation** is spelled as the spec names it — the walk iterates every
+   id that registered a handler, ignoring the chain — not "every handler at
+   each chain level", which keeps an empty chain empty and leaves A2 green
+   (measured first, recorded as an instrument error, then re-run).
+8. **The screen locked mid-run** (lock probe: `CGSSessionScreenIsLocked = 1`,
+   `displayAsleep main: 1` from mutation A23a on): from there every
+   mutation run also reads the five `AppKitPresentationTests` sheet tests red
+   (`appKitCancelledDialogArrivesAsQueuedInput`,
+   `appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+   `appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+   `appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+   `appKitSecondDialogWhileASheetIsUpAnswersFalse`) — the known
+   locked-screen failure, green on the unmutated suite with the screen
+   unlocked (2926 passed); they are not counted as reddened.
+9. Human check KF-6's KX prerequisite is met; it stays a look on a real
    menu bar (a native item's equivalent), which no test sees.
 
 **Cost if wrong.** A catch-all `onKeyPress` on a canvas would swallow every
