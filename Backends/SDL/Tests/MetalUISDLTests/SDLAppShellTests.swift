@@ -79,7 +79,9 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
 /// after the pass that saw the quit, `.later` runs on until
 /// `replyToTerminateRequest(true)`; `false` keeps it running.
 ///
-/// Mutation: QUIT calls `stop()` unconditionally → red.
+/// Mutations: QUIT calls `stop()` unconditionally → red; the
+/// nothing-pending guard in `replyToTerminateRequest` removed → red (the last
+/// arm, its reply sent from inside the loop).
 @MainActor
 @Test func sdlQuitAsksOnTerminateRequest() throws {
     let (platform, window) = try shellPlatform()
@@ -110,23 +112,31 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     platform.run(maxIterations: 3)
     #expect(asked == 1 && ticks == 3, "a refusing reply keeps the loop running: asked \(asked), ticks \(ticks)")
 
-    ticks = 0; onTick = { _ in }
-    platform.replyToTerminateRequest(true)
-    platform.run(maxIterations: 2)
-    #expect(ticks == 2, "a reply with nothing pending (the refusal forgot it) does nothing: ticks \(ticks)")
+    // Sent from inside the running loop: `run(maxIterations:)` sets `running`
+    // on entry, so a reply sent before it would be overwritten and pin nothing.
+    ticks = 0
+    onTick = { tick in if tick == 1 { platform.replyToTerminateRequest(true) } }
+    platform.run(maxIterations: 3)
+    #expect(ticks == 3, "a reply with nothing pending (the refusal forgot it) does nothing: ticks \(ticks)")
 }
 
 /// **1.15** (`AS-B` item 6). `close()` hides the window, removes it from the
 /// platform and fires `onClose` once; a second `close()` runs nothing; the
 /// handler is not asked.
 ///
-/// Mutation: `close()` leaves the window in the platform → red.
+/// Mutations: `close()` leaves the window in the platform → red; `close()`
+/// no longer hides the window → red (the window is shown first).
 @MainActor
 @Test func sdlCloseHidesRemovesAndFiresOnCloseOnce() throws {
     let (platform, window) = try shellPlatform()
     var closed = 0, asked = 0
     window.onClose = { closed += 1 }
     window.onCloseRequest = { asked += 1; return false }
+    // The platform's windows are never shown (`hiddenWindows`, WS-B); show this
+    // one so "hidden" separates. The offscreen driver reports the shown state
+    // through SDL_GetWindowFlags (WS-D), so the test stays ungated.
+    _ = mui_window_show(window.rawHandle)
+    try #require(mui_window_is_shown(window.rawHandle), "shown before close()")
     window.close()
     #expect(closed == 1 && platform.openWindowCount == 0, "closed, removed, onClose once")
     #expect(!mui_window_is_shown(window.rawHandle), "hidden")

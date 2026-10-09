@@ -88,7 +88,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 }
 
 /// **1.4** (`AS-B` item 5). `close()` closes without asking — the handler
-/// that would refuse is not called — and `onClose` follows exactly once.
+/// that would refuse is not called — and `onClose` follows exactly once; a
+/// second `close()` runs nothing (AppKit sends `windowWillClose` once).
 ///
 /// Mutation: `close()` calls `performClose(nil)` → red.
 @MainActor
@@ -101,6 +102,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     #expect(asked.count == 0, "close() asks nobody")
     #expect(!nsWindow.isVisible, "and closes")
     #expect(closed.count == 1, "onClose once")
+    appKit.close()
+    #expect(closed.count == 1, "a second close() runs nothing")
 }
 
 // MARK: - 1.5 — edited marker and represented file

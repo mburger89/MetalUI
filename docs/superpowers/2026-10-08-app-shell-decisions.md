@@ -698,7 +698,8 @@ could not be red under "drop the KVO").
    `AppKitApplicationDelegate` records its own `.terminateLater` and calls
    `NSApp.reply(toApplicationShouldTerminate:)` only for it, as `SDLPlatform`
    does for its `.later` (the `Platform.replyToTerminateRequest(_:)`
-   contract). Test 1.8 pins both halves.
+   contract). Test 1.8 pins the AppKit half, test 1.14's last arm (its
+   stale reply sent from inside the running loop) the SDL half.
 4. The primary mouse-down is kept on `MetalHostView.currentMouseDown`
    (`private(set)`, set for the duration of the `onInput` call), read by
    `AppKitWindow.performTitleBarPress` — not on `AppKitWindow` as spec §1.1
