@@ -686,9 +686,16 @@ third-party notices). Three conflicts and one semantic break, all additive:
   this branch (master's 120 + 6). The labels 159–164 are other branches'
   reservations and settle at their merges.
 - `docs/probes/closeout-public-api.tsv`: re-recorded by
-  `closeout-public-api.sh` after the merge (**2985** rows; master 2806, the
-  branch's lanes 2711 over a 2540 base); `closeout-inventory-check.sh` and
-  `closeout-undocumented.sh` print nothing.
+  `closeout-public-api.sh` after the merge (**2977** rows; master 2806, the
+  branch's lanes 2711 over a 2540 base: 2711 + 266 = 2977);
+  `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+  (The merge commit's own TSV held 2985 rows: it was recorded while
+  `LooksDemo.swift` was still unmerged in the index, where `git ls-files` —
+  the census's file list — names an unmerged path once per stage, so
+  `looksDemoContent`, `LooksBrand`, its `defaultValue` and
+  `looksBrandDarkOverride` were censused three times at the same lines. The
+  branch checker (§4.6) re-recorded it on the resolved tree. **Re-record the
+  census only after `git add` of every conflicted file.**)
 - **A semantic break the merge could not see**: master's
   `RichTextTests` (`valueTrack` arm of the `Handlers` member census) built
   `ValueTrackTarget(…, write: { _ in })`, the label lane 1 renamed `edit:`
@@ -721,7 +728,7 @@ present. `swift build --build-tests` (default build system): 0 warnings.
 | Tests | 2723 | 2873 | **3007** | 2873 + this branch's 134 (the lanes' readings 2768, 2820 and 2857 are each over `cd84b0c`: 2723 + 45 + 52 + 37) |
 | Typecheck guards | 176 | 185 | **192** | `git grep -h "enabled(if: canTypecheck" -- Tests` reads 191 (the same +1 offset as §81 §4.1: 175 → 176, 184 → 185); this branch adds seven: `theSliderInitialisersKeepTheirSwiftUISpellings`, `aColorPickerTakesABackgroundAndPadding` (lane 1), `progressViewSpellingsTypecheckFromAnExternalModule`, `keyframeAnimatorTypechecksWithSwiftUIsCallShape`, `userConformancesToKeyframesDoNotCompile`, `springKeyframeWithoutDurationDoesNotCompile` (lane 2), `materialSpellingsResolveWithoutAmbiguity` (lane 3), each mutated red once in its lane |
 | Goldens | 0 | 0 | 0 | `find Tests/MetalUILayoutTests -name "*.json"` reads 0 |
-| Public census | 2540 | 2806 | **2985** | lane 1 +12, lane 2 +95, lane 3 +64 over a 2540 base (2711), master +266 (2806), overlap in the demo files |
+| Public census | 2540 | 2806 | **2977** | lane 1 +12, lane 2 +95, lane 3 +64 over a 2540 base (2711), master +266 (2806), overlap in the demo files |
 | Live divergences | 105 | 120 | **126** | 165–169, 171; next label **175** here |
 | `Backends/SDL` | 24 + 84 (macOS), 24 + 81 (image) | 24 + 98, 24 + 95 | **24 + 99**, **24 + 96** | §4.3: the lane-1 AccessKit roles test, +1 each |
 | Root in `swift:6.4-noble` | | 6 + 35 + 18 + 199 + 67 + 22 | **6 + 35 + 18 + 199 + 67 + 22** | unchanged: the branch's tests are macOS-only |
@@ -761,7 +768,7 @@ lanes' own readings and are not re-derived here.)
 `CLAUDE.md` and `AGENTS.md` (the `LK-` prefix with next letter `LK-X`, one
 rule paragraph, the divergences line 126 live / next 175, the counts bullet,
 the record map), `docs/api-overview.md` (a "Controls and looks" section, the
-census header 2985 in 156 families), `docs/divergences.md` (header; rows 165–169
+census header 2977 in 156 families), `docs/divergences.md` (header; rows 165–169
 and 171 landed with the lanes), `docs/migration.md` (three rows: the
 `AccessibilityRole` cases, the `LayoutModifier.blur` case, `Slider.init` as a
 function reference), `docs/verification/human-checks.md` (group **CL**, CL1–CL11,

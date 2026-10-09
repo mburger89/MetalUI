@@ -67,7 +67,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **126 live, next label 175**; retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS and CL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -90,7 +90,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 - **Counts (2026-10-09, `feat/controls-looks` from `cd84b0c`, merged with master `67a579e`):
   3007 tests, 0 goldens, 192 typecheck guards** (master's 2873 + 134 tests, 185 + 7 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
-  issues of `CI-AF` and nothing else; census 2985; divergences 165–169 and 171 added, the
+  issues of `CI-AF` and nothing else; census 2977; divergences 165–169 and 171 added, the
   header 126 live, next label 175; `Backends/SDL` 24 + 99 on macOS, 24 + 96 in the Linux
   image, root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22; the merge's one source
   edit `RichTextTests`' `ValueTrackTarget(edit:)`; record §85 §4). Before the merge, the lanes on

@@ -2946,14 +2946,6 @@ MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:28	-	func	looksDem
 MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:363	-	enum	LooksBrand
 MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:365	LooksBrand	var	defaultValue
 MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:374	-	let	looksBrandDarkOverride
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:28	-	func	looksDemoContent
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:363	-	enum	LooksBrand
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:365	LooksBrand	var	defaultValue
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:374	-	let	looksBrandDarkOverride
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:28	-	func	looksDemoContent
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:363	-	enum	LooksBrand
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:365	LooksBrand	var	defaultValue
-MetalUIDemoContent	Sources/MetalUIDemoContent/LooksDemo.swift:374	-	let	looksBrandDarkOverride
 MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:25	-	func	menusDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:33	-	class	MenusDemoModel
 MetalUIDemoContent	Sources/MetalUIDemoContent/MenusDemo.swift:35	MenusDemoModel	var	status
