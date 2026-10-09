@@ -2414,3 +2414,32 @@ kept:**
 
 Live count **103 → 105**, next label **139**. Lane 3 wrote the rows; this
 section was written by the Record phase.
+
+## 2026-10-08: 139–141 added; 108 live, next label 142 (input APIs)
+
+Record §81; rulings `CI-B`, `CI-G`, `CI-H`; the published list is
+`docs/divergences.md`. Not a plan task — user request 2026-10-02. **Added,
+kept:**
+
+- **139** — `CoordinateSpace.global`. In a titled window SwiftUI's `.global`
+  reads 32 points lower than the content view's point (probe
+  `swiftui-input-apis.swift` `T2`: content (60, 40) → (60, 72)). Whether the
+  offset is the title bar or the hosting view's inset was not separated
+  (`CI-U` item 1). MetalUI's `.global` is the window's content space, the
+  point `MouseEvent` carries. Pin `aSpatialTapInGlobalSpaceReportsTheWindowPoint`
+  (2.4).
+- **140** — modifiers during a drag. SwiftUI's `DragGesture.Value` has no
+  modifiers (interface census). MetalUI's `Value.modifiers` holds the keys
+  held at the event that produced the value, and `Value`'s equality compares
+  it. Pin `aDragValueCarriesTheModifiersOfItsEvent` (2.7).
+- **141** — a paint-only view above a pointer style. SwiftUI hides the style
+  beneath any view drawn above (`P14`). MetalUI registers no hitbox for a
+  view that only paints, so the style shows through, as hover does (`SV-N`).
+  Pin `aPaintOnlyOverlayDoesNotCoverAPointerStyle` (3.18).
+
+Six **Not offered** rows were added with them: image and shape cursors and the
+directional resizes; a default I-beam or hand on MetalUI's controls;
+`onModifierKeysChanged`; `CoordinateSpace.named`; gesture
+`time`/`velocity`/`predictedEnd*`; `inputKinds:`. Live count **105 → 108**,
+next label **142**. Lane C wrote the rows; this section was written by the
+Record phase.

@@ -5,7 +5,7 @@ task**), motivated by MetalCreator (`/Users/maxburger/Developer/MetalCreator`,
 `docs/metalui-gaps.md` "Reported 2026-10-07 (C7)" and "C7 status and
 provisional API names"; never edited from here). Rulings: prefix **`CI-`** in
 [`../2026-10-08-input-apis-decisions.md`](../2026-10-08-input-apis-decisions.md)
-(`CI-A`…`CI-AA`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X`, `CI-Y` and `CI-Z` are lane 1's, `CI-AA` lane 2's). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
+(`CI-A`…`CI-AA`; `CI-P`…`CI-W` are the critic's corrections, and win where they differ; `CI-X`, `CI-Y` and `CI-Z` are lane 1's, `CI-AA` lane 2's; `CI-AB`…`CI-AE` the second critic's, `CI-AF`/`CI-AG` lane A's, `CI-AH` lane B's, `CI-AI` lane C's — the demo also zooms on ⌃-scroll, `CI-AI` item 1). Evidence: [`../../probes/swiftui-input-apis.swift`](../../probes/swiftui-input-apis.swift).
 Record: `docs/record/81-input-apis.md` (the Record phase writes it).
 
 Branch `feat/input-apis` from `70ed000`, worktree

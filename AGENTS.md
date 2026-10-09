@@ -46,7 +46,8 @@ summary.
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
-  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), …; the full
+  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
+  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AJ`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -59,9 +60,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **105 live, next label 139**; retired labels are
+  live SwiftUI difference — **108 live, next label 142**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–X, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -77,12 +78,16 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_CANVAS_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-07, `feat/portable-app` from `359444e`, all three lanes):
-  2672 tests, 0 goldens, 175 typecheck guards** (2630 + 42 tests, 171 + 4 guards;
+- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, every lane):
+  2752 tests, 0 goldens, 180 typecheck guards** (2672 + 80 tests, 175 + 5 guards;
+  census 2657; `Backends/SDL` 24 + 93 on macOS, 24 + 90 in the Linux image,
+  root in the image 6 + 35 + 18 + 199 + 49 + 22 unmoved; record §81 §4). Before it,
+  `feat/portable-app` from `359444e`, all three lanes:
+  2672 tests, 0 goldens, 175 typecheck guards (2630 + 42 tests, 171 + 4 guards;
   census 2536; `Backends/SDL` 24 + 83 on macOS, 24 + 80 in the Linux image,
   root in the image 6 + 35 + 18 + 199 + 49 + 22; record §80 §4). Before it,
   `feat/port-gaps-medium` from `d48b26d`, all three lanes:
@@ -117,7 +122,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78.
+  merge), §72, §73, §74, §75, §76, §77, §78, §79, §80, §81.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -208,7 +213,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
@@ -413,8 +418,8 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **seventeen**
-members; `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **eighteen**
+members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 
 **Environment (`EV-`).** `EnvironmentScope` is layout- and
@@ -624,6 +629,30 @@ unavailable `SDLPlatform` naming the trait. A change to those targets is run
 in `Backends/SDL` and in the Linux image; SDL shaders are found beside the
 executable (`PX-P`).
 
+**Input APIs (`CI-`, record §81).** `SpatialTapGesture`, `MagnifyGesture`,
+`RotateGesture` and `DragGesture(minimumDistance:coordinateSpace:button:)` live
+in the one arena (`IX-B`), which has three modes: a **press** arena fails pinch
+leaves; a **pinch** arena (formed from the one ranking at a `.magnify`/`.rotate`
+event) runs only pinch leaves, ordered per kind; a **button** arena (a secondary
+or other press) runs only that button's drags. A press of the arena's own button
+or a `.began` of an active pinch kind replaces a stale arena (`CI-AB`).
+Locations are local (`Hitbox.localPoint`); `.global` is the content space
+(divergence 139); magnification is additive from 1, rotation clockwise-positive.
+**`MN-B` holds**: a secondary or other press reaches only the menu stage,
+outside-dismissal, the tooltip, hover and a drag naming its button; a context
+menu waits for the release only when a secondary drag is declared on the chain
+(`CI-F` item 4). **`.onScrollWheel` (`-> Bool`, `true` claims) dispatches
+innermost first along the cover's chain from `topmostHitbox`**: each id's
+handler before its scroll region, so a handler on a scroller's *content* can
+veto it and one on or around the scroller sees nothing (`CI-AH`; `DD-Y` kept).
+**`.pointerStyle(_:)` resolves with hover through the one ranking** (innermost
+wins, a press holds the pressed chain's style, sent only on a change, forgotten
+on exit) through the defaultless `PlatformWindow.setPointerStyle(_:)`; SDL has
+no hand or zoom cursor (`MOVE`/arrow, `CI-H` item 8), no rotate, no pinch on
+Windows and no wheel phase. Both new regions sit inside the disabled,
+`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` and an image
+cursor would each add an enum case (`CI-AC`).
+
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
 transparent `PresentationScope` (no node, no id level; the record lives in the
@@ -801,7 +830,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (105 live, next label 139). A new
+- **Divergences**: `docs/divergences.md` (108 live, next label 142). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
@@ -816,7 +845,9 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
     line** — read the last lines of the log.
   - **Windows threads have 1 MB stacks.** A new demo section goes in its own
     function passed to a generic composer, not inline
-    (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+    (`everyProductionTreeBuildsOnAOneMegabyteThread`); that test builds each
+    large tree in its own `@inline(never)` frame — inline in its composer the
+    canvas tree passed on macOS and overflowed only in `swift:6.4-noble` (`CI-AI`).
   - **A C enum's `rawValue` is `Int32` on Windows, `UInt32` on Apple** —
     always convert explicitly.
   - `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` is compiled out on

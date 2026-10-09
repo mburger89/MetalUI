@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AI`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AJ`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -1537,3 +1537,91 @@ over a scroller *before* the scroller, without owning its content. That
 would need a new scroller hook (none is designed); it would be additive.
 Item 2: if SwiftUI is ever probed with two `.pointerStyle` calls on one view
 and the outer one wins, item 2 flips and 3.16b's arm is the pin to edit.
+
+## CI-AI — Lane C: the canvas demo's shape and arithmetic; its tree builds in its own frame; registries and the platform runs
+
+**Ruling.** Lane C (commits `ef139f4` red, `28c266a` implementation,
+`6678e60` the stack fix) built spec §6's demo, the registries `CI-AE` item 3
+names and the platform runs. Nothing in it renames a provisional name
+(**MetalCreator: every name in the header stands**).
+
+1. **The demo's shape** (`Sources/MetalUIDemoContent/CanvasDemo.swift`,
+   `METALUI_CANVAS_DEMO=1` in `MetalUIDemo` and `MetalUISDLDemo`). One
+   `@Observable` `CanvasDemoModel` (`canvasDemoModel`), written only from
+   input. Each part (`canvasHeader`, `canvasSurface`, `canvasStyleStrip`,
+   `canvasStatus`) is its own function passed to the generic `canvasRoot`.
+   Middle and right drags pan anywhere on the canvas (the demo has no 3D
+   viewport, so right-drag pans rather than orbits). A primary drag pans only
+   on the strip along the top, which shows `.grabIdle` and `.grabActive`
+   while any pan drags (`CI-V` item 3). Two-finger scroll pans and honours
+   momentum. **⌘- and ⌃-scroll** zoom about the wheel's `location`. ⌃ is
+   added because a Windows precision touchpad's pinch arrives as
+   control+wheel (`CI-C` item 5, Y10). Pinch zooms about `startLocation`.
+   Zoom is clamped to 0.25…4. A `SpatialTapGesture` picks. A right-click on a
+   node opens a located menu, on the release. The pointer is `.rectSelection`
+   over empty canvas and `.link` over a node. **C** toggles the crosshair with
+   no pointer motion (Y12). "Revolve" carries a `RotateGesture` inside the
+   canvas's `MagnifyGesture` (Y4). Below the canvas are a style strip and a
+   status line. No existing demo tree changes.
+2. **The arithmetic, derived before the run** (test 3.35's header). A canvas
+   point `c` is drawn at the canvas-local point `pan + c × zoom`. A zoom by
+   `f` about the local point `p` keeps the canvas point under `p`, so
+   `pan' = p − (p − pan) × f`. A ⌘-wheel zooms by `2^(Δy / 100)`. A plain
+   wheel pans by its delta. A pinch applies its cumulative magnification to
+   the view it began on.
+3. **The canvas tree builds in its own frame on the 1 MB thread** (test
+   3.36). Lane C first added `_ = canvasDemoContent()` inline to
+   `buildEveryProductionTree()`. On macOS arm64 that passed. In the
+   `swift:6.4-noble` container the cross-platform target died with
+   `.signal(SIGSEGV)`: the composer's frame plus the canvas tree overflowed
+   the 1 MB thread. The test now calls an `@inline(never)`
+   `buildTheCanvasDemo()`, for the same reason as `buildTheServicesDemo()`
+   (`SV-T`). Production is unaffected: both demo mains pass
+   `canvasDemoContent` to `openWindow` as the window's content. **This is 3.36's
+   measurement.** Spec §4.3's mutation for 3.36, "inline the demo's body into
+   the composer", is the spelling that overflowed. It overflows only off
+   macOS, which is why the arm runs in the Linux and Windows CI jobs.
+4. **Registries.** Divergences 139–141 were written, and six Not-offered
+   rows for spec §9's deferrals (`docs/divergences.md`: **108 live, next
+   label 142**). `CoordinateSpace` moved to the class-D family
+   `input-apis-global-space` (139), and `DragGesture.Value.modifiers` to
+   `input-apis-drag-modifiers` (140). `pointerStyle(_:)` got its own D family,
+   `input-apis-pointer-style-modifier` (141), as spec §8.2 marks it. That makes
+   three class-D families (`CI-AA` item 9). `CI-AC`'s sentence is in
+   `CoordinateSpace`'s and `PlatformPointerStyle`'s doc comments. The census
+   was re-recorded: 2639 at `28c266a`, which missed the 18 public
+   `MetalUIDemoContent` declarations of `CanvasDemo.swift`. The close
+   re-ran `closeout-public-api.sh`, and the diff was exactly those 18 lines,
+   so the census is **2657**. The map's `demo-content` rule already classifies
+   them, and both check scripts print nothing. `docs/api-overview.md` gained the section, and
+   `docs/verification/human-checks.md` gained group Y (Y1–Y13, none run: an
+   agent cannot).
+5. **Verification** (the numbers in record §81 §4):
+   - Red at `ef139f4`: the build failed with `CanvasDemoTests.swift:25:5
+     cannot find 'canvasDemoModel' in scope`, `:27:78 cannot find
+     'canvasDemoContent' in scope`, and `DemoStackBudgetTests.swift:36:9
+     cannot find 'canvasDemoContent' in scope`.
+   - Mutation **3.35** ("zoom about the canvas origin": `zoom(to:aboutX:y:from:)`
+     sets `pan = start.pan × factor`) was applied to `6678e60`'s spelling and
+     restored from a copy. One native build and the full unfiltered
+     `--no-parallel` suite, with the screen unlocked. It read **2752 tests in 3 suites, 3 issues**, all in
+     `theCanvasDemoPansZoomsAboutThePointerPicksAndShowsACrosshair`
+     (`CanvasDemoTests.swift:77`, `:85`, `:89`: the pinch, ⌘-wheel and wheel
+     pans). No other test reddened. There was no locked-screen sheet issue
+     (the screen was unlocked). `git status --short` was clean of source after
+     the restore.
+   - Demo pixels (`compare.sh`, `70ed000` → `6678e60`): **all fourteen images
+     0 differing, scene identical**. Every control is at its recorded value
+     (default vs modal 1031003, default vs animation 454895).
+   - `Backends/SDL` on macOS: **24 + 93**, the same as `CI-Z` item 7 (lanes
+     A–C added no SDL test). CI's Linux image (`offscreen`): **24 + 90**,
+     three lifecycle tests skipped by `windowsPresentFrames`. The only
+     warning is the pre-existing `AccessKitControlsParityTests.swift:83`.
+   - `swift:6.4-noble`, on a `git archive` of `6678e60`: root `swift build
+     --build-tests` completed with 0 warnings. Its portable tests passed:
+     6 + 35 + 18 + 199 + 49 + 22, with the cross-platform target's 49
+     unchanged (3.36 is an arm of an existing test).
+
+**Cost if wrong.** Item 3: a later demo section built inline in the
+composer passes on macOS and overflows only in CI. The test's doc comment
+names the rule, and so does CLAUDE.md's 1 MB bullet.

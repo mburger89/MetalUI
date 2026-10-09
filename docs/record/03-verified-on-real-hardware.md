@@ -2029,3 +2029,30 @@ README's install list, then the shipped copy with `MetalUISDLShaders`); X2 a cou
 Windows (stops on removal, restarts from 0); X3 Orca with the `AccessKit` trait
 and with `--no-accesskit`; X4 the same app on Windows; X5 the configurator's
 light and dark icons on Linux against macOS.
+
+## 2026-10-08: input APIs (record §81) — looks owed
+
+The canvas demo (`METALUI_CANVAS_DEMO=1 swift run MetalUIDemo`, and
+`MetalUISDLDemo` with the same variable) is a new tree, not one of the
+fourteen offscreen images. Those are unchanged: 0 differing against
+`70ed000` at every lane and at `6678e60` (record §81 §4.2). The SwiftUI probe
+(`swiftui-input-apis.swift`) ran four times, byte-identical. No real-window
+capture was taken. **Owed, new here — `docs/verification/human-checks.md`
+group Y, none performed (an agent cannot)**:
+- Y1 trackpad momentum on the canvas.
+- Y2 the pinch centre held under the fingers.
+- Y3 rotate reading clockwise-positive.
+- Y4 a pinch with twist over the rotate-able node (nested magnify and
+  rotate).
+- Y5 every pointer style on AppKit, the closed hand held while a fast pan
+  leaves.
+- Y6 the same strip under SDL on Linux and Windows (`MOVE` for the hands, the
+  arrow for zoom).
+- Y7 SDL pinch speed on Wayland or X11.
+- Y8 a real mouse: middle-drag and right-drag pan, and a right-click opens
+  the node menu on release.
+- Y9 ⌥ shown mid-drag.
+- Y10 a Windows precision-touchpad pinch arriving as ⌃-wheel.
+- Y11 notched-wheel steps (`isPrecise` false).
+- Y12 the AppKit cursor changing under a still pointer (**C**).
+- Y13 a glide crossing onto the style strip (no wheel latching, `CI-AD`).
