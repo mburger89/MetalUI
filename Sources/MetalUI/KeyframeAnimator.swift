@@ -146,6 +146,12 @@ public struct KeyframeAnimator<Value, Content: ElementGroup, K: Keyframes>: Elem
                                                      resting: initialValue, running: false), false)
             }
             if let previous = next.trigger, !matches(previous) {
+                // A run whose end no build saw is at rest (`K12`: the change
+                // may land within one frame interval of the end).
+                if next.running, let timeline = next.timeline, now - next.start >= timeline.duration {
+                    next.resting = timeline.value(time: timeline.duration)
+                    next.running = false
+                }
                 // From rest: from the initial value (`K11`, `K12`); mid-run:
                 // from the current value (`K13`).
                 let start: Value

@@ -269,3 +269,25 @@ private struct Shake: Equatable {
     #expect(abs(two.value(progress: 1.5).s - 5) <= 0.001 && abs(two.value(progress: -1).s - 1) <= 0.001,
             "progress outside 0…1 clamps: \(two.value(progress: 1.5).s), \(two.value(progress: -1).s)")
 }
+
+/// The keyframe traps (`LK-I`): a non-finite keyframe duration (`keyframeDuration`,
+/// shared by Linear/Cubic/SpringKeyframe), a non-finite `Spring` duration and a
+/// bounce outside (−1, 1) each abort, naming their check. Mutation **V9**:
+/// `keyframeDuration`'s precondition deleted (the first child exits 0).
+@Test func theKeyframeAndSpringPreconditionsTrap() async {
+    let linear = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        _ = LinearKeyframe(1.0, duration: .nan)
+    }
+    let linearStderr = String(decoding: linear?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(linearStderr.contains("LinearKeyframe's duration must be finite"), "aborted elsewhere:\n\(linearStderr)")
+    let duration = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        _ = Spring(duration: .infinity)
+    }
+    let durationStderr = String(decoding: duration?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(durationStderr.contains("Spring(duration:) must be finite"), "aborted elsewhere:\n\(durationStderr)")
+    let bounce = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        _ = Spring(bounce: 1)
+    }
+    let bounceStderr = String(decoding: bounce?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(bounceStderr.contains("Spring(bounce:) must be strictly between"), "aborted elsewhere:\n\(bounceStderr)")
+}

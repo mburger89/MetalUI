@@ -195,3 +195,93 @@ private func near(_ a: Double?, _ b: Double) -> Bool { a.map { abs($0 - b) < 1e-
     frame(root(1), at: 1, store)
     #expect(width(frame(root(1), at: 1.1, store, recordsBounds: true)) == 20, "10 + 10 at half way")
 }
+
+/// A trigger animator over the probe's keyframes whose `content` logs into `log`.
+@MainActor
+private func animated<E: ElementGroup>(_ element: E, _ trigger: Int, _ log: AnimatorLog) -> some ElementGroup {
+    element.keyframeAnimator(initialValue: 0.0, trigger: trigger) { content, value in
+        let _ = log.value(value)
+        content
+    } keyframes: { start in
+        KeyframeTrack {
+            LinearKeyframe(log.start(start), duration: 0.1)
+            LinearKeyframe(start + 20, duration: 0.1)
+        }
+    }
+}
+
+/// `LK-I` item 9, `LK-V` item 5: **a keyframe animator's record is keyed by its
+/// position** — `$keyframes<depth>` under `.child(of: parent, at: cursor)` — so
+/// two sibling animators in one container keep two records over one shared
+/// store (the shipped `keyframesSection` has two in one `Row`). Arm 1: two
+/// trigger animators; only the second's trigger changes, and the first stays at
+/// its initial value with `keyframes` never called while the second runs 0 → 10
+/// → 20. Arm 2: a trigger animator beside a repeating one; the trigger animator
+/// stays at rest while its sibling loops.
+///
+/// Mutation **V4**: `currentValue`'s owner `child(of: parent, at: cursor, …)` →
+/// `at: 0` (the siblings share one record; the resting one sees the other's
+/// trigger and starts a run).
+@Test @MainActor func siblingKeyframeAnimatorsKeepTheirOwnRecordsV4() {
+    let store = AnimationStore(), a = AnimatorLog(), b = AnimatorLog()
+    func root(_ ta: Int, _ tb: Int) -> some Element {
+        Row {
+            animated(Box().frame(width: Pixels(20), height: Pixels(20)), ta, a)
+            animated(Box().frame(width: Pixels(20), height: Pixels(20)), tb, b)
+        }
+    }
+    for (time, tb) in [(0.0, 0), (1, 1), (1.05, 1), (1.15, 1), (1.6, 1)] { frame(root(0, tb), at: time, store) }
+    #expect(a.starts.isEmpty && a.values.allSatisfy { near($0, 0) }, "the resting sibling moved: \(a.starts) \(a.values)")
+    #expect(b.starts == [0] && near(b.values[3], 10) && near(b.values.last, 20), "the running sibling: \(b.values)")
+
+    let mixed = AnimationStore(), c = AnimatorLog(), loop = AnimatorLog()
+    func mixedRoot() -> some Element {
+        Row {
+            animated(Box().frame(width: Pixels(20), height: Pixels(20)), 0, c)
+            Box().frame(width: Pixels(20), height: Pixels(20))
+                .keyframeAnimator(initialValue: 0.0, repeating: true) { content, value in
+                    let _ = loop.value(value)
+                    content
+                } keyframes: { start in
+                    KeyframeTrack {
+                        LinearKeyframe(start, duration: 0.1)
+                        LinearKeyframe(start + 20, duration: 0.1)
+                    }
+                }
+        }
+    }
+    for time in [0, 0.15, 0.35] { frame(mixedRoot(), at: time, mixed) }
+    #expect(c.starts.isEmpty && c.values.allSatisfy { near($0, 0) }, "the trigger sibling moved: \(c.values)")
+    #expect(loop.values.count == 3 && near(loop.values[1], 10) && near(loop.values[2], 10), "the loop: \(loop.values)")
+}
+
+/// `LK-I` item 9, `LK-V` item 5: two `.keyframeAnimator`s stacked on one
+/// element sit at one position and keep two records through the depth counter
+/// (`$keyframes0`, `$keyframes1`). Only the outer trigger changes: the outer
+/// runs (10 at 0.15 s) while the inner stays at 0 with `keyframes` never called.
+///
+/// Mutation **V1b**: `AnimationStore.withKeyframeScope`'s increment and
+/// deferred decrement deleted (both at depth 0; one record).
+@Test @MainActor func stackedKeyframeAnimatorsKeepTwoRecordsV1b() {
+    let store = AnimationStore(), inner = AnimatorLog(), outer = AnimatorLog()
+    func root(_ to: Int) -> some Element {
+        Column { animated(animated(Box().frame(width: Pixels(20), height: Pixels(20)), 0, inner), to, outer) }
+    }
+    for (time, to) in [(0.0, 0), (1, 1), (1.15, 1), (1.6, 1)] { frame(root(to), at: time, store) }
+    #expect(outer.starts == [0] && near(outer.values[2], 10) && near(outer.values.last, 20), "outer \(outer.values)")
+    #expect(inner.starts.isEmpty && inner.values.allSatisfy { near($0, 0) },
+            "inner moved: \(inner.starts) \(inner.values)")
+}
+
+/// **K12** (`LK-I` item 10) when no build saw the run end: a trigger change
+/// in the first build after the end (keyframes 0 → 20 over 0.2 s; frames at 0,
+/// 1, 1.19, then 1.21 with a new trigger) restarts from the initial value, not
+/// the held end value — in a real window the write lands within one frame
+/// interval of the end. Mutation: the trigger branch's end-of-run check
+/// removed (`keyframes(20)`).
+@Test @MainActor func aTriggerJustAfterAnUnseenEndRestartsFromTheInitialValue() {
+    let store = AnimationStore(), log = AnimatorLog()
+    for (time, trigger) in [(0.0, 0), (1, 1), (1.19, 1), (1.21, 2)] { frame(triggered(trigger, log), at: time, store) }
+    #expect(log.starts == [0, 0], "keyframes(start:) \(log.starts)")
+    #expect(near(log.values.last, 0), "the restart shows \(log.values)")
+}

@@ -377,3 +377,69 @@ private func progressNodes(_ tree: AccessibilityTree) -> [AccessibilityNode] {
     try #require(nodes.count == 1, "one progress node")
     #expect(nodes[0].role == .busyIndicator && nodes[0].value == nil, "\(nodes[0].role) \(nodes[0].value ?? "nil")")
 }
+
+// MARK: - Handler-carried modifiers, the hint strip, the sweep (lane 2 review)
+
+/// `LK-P`, `LK-V`: a `ProgressView` takes the handler-carried `StyledElement`
+/// modifiers as any control does. `.onClick` on a spinner runs on a click at its
+/// centre; `.accessibilityLabel` labels the one published busy indicator (still
+/// exactly one progress node). Two windows: a clickable element synthesizes a
+/// button, and the progress hint names only a group's role (`publishedRole`),
+/// so a clickable `ProgressView` publishes as a button — measured, not ruled
+/// here. Mutation **V5**: `ProgressView.prepaint`'s `layout.body.handlers =
+/// handlers` deleted (no click target; the label never reaches the node).
+@Test @MainActor func aProgressViewTakesHandlerCarriedModifiersV5() throws {
+    let model = ControlModel()
+    let (clickable, clickPlatform) = try progressWindow { ProgressView().onClick { model.count += 1 } }
+    let spinner = try spinnerBounds(clickable)
+    let centre = Point(x: spinner.origin.x + spinner.size.width / 2, y: spinner.origin.y + spinner.size.height / 2)
+    clickPlatform.simulateInput(.mouseDown(MouseEvent(position: centre)))
+    clickPlatform.simulateInput(.mouseUp(MouseEvent(position: centre)))
+    #expect(model.count == 1, "the click ran \(model.count) times")
+    let (labelled, platform) = try progressWindow { ProgressView().accessibilityLabel("Syncing") }
+    let nodes = progressNodes(try controlTree(labelled, platform))
+    try #require(nodes.count == 1, "one progress node: \(nodes.map(\.role))")
+    #expect(nodes[0].role == .busyIndicator && nodes[0].label == "Syncing",
+            "\(nodes[0].role) label \(nodes[0].label ?? "nil")")
+}
+
+/// `LK-G`, `LK-V` item 6 (`AB-U`): the progress hint is stripped before the
+/// declaration test, as `popoverHint` is — an untitled `ProgressView()` emits
+/// no `axNodes` entry and writes no `$ax` slot, while its client record still
+/// carries the busy hint. Mutation **V3**: `Frame.registerHandlers`'
+/// `declaration.progressHint = nil` deleted (a declared node and a `$ax` slot).
+@Test @MainActor func anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3() throws {
+    let table = StateTable()
+    var root = controlRoot { ProgressView() }
+    let frame = Frame(contentSize: Size(width: controlPx(400), height: controlPx(200)), scaleFactor: 1,
+                      stateTable: table, collectsAccessibility: true)
+    frame.render(&root)
+    #expect(frame.axNodes.isEmpty, "declared nodes \(frame.axNodes.values.map(\.role))")
+    #expect(!table.ids.contains { $0.component == .named(ElementID("$ax")) }, "a $ax slot was written")
+    #expect(frame.axEmissions.contains { $0.declared.progressHint == .busy }, "the client record carries the busy hint")
+}
+
+/// `LK-F` item 2: the indeterminate bar's segment moves with the frame clock —
+/// at t = 0 it sits at the track's start, at 0.4 s (a quarter of the 1.6 s
+/// period) half way along its travel, both inside the 100-wide track (the
+/// period and segment are a look, human check). Mutation **V6**:
+/// `paintSweep`'s `travel` → `0.0` (the segment never moves).
+@Test @MainActor func theIndeterminateBarSegmentMovesWithTheClockV6() throws {
+    let (window, platform) = try progressWindow {
+        ProgressView().progressViewStyle(.linear).frame(width: Pixels(100))
+    }
+    func segment() throws -> Float {
+        let bars = window.lastScene.rects.filter { $0.bounds.size.height == 8 }
+        try #require(bars.count == 2, "a track and a segment: \(bars.map(\.bounds))")
+        let track = try #require(bars.first { $0.bounds.size.width == 100 }).bounds
+        let accent = try #require(bars.first { $0.bounds.size.width == 30 }).bounds
+        #expect(accent.origin.x >= track.origin.x && accent.origin.x + 30 <= track.origin.x + 100,
+                "segment \(accent) outside track \(track)")
+        return accent.origin.x - track.origin.x
+    }
+    platform.simulateTick(timestamp: 0)
+    let start = try segment()
+    platform.simulateTick(timestamp: 0.4)
+    let quarter = try segment()
+    #expect(start == 0 && quarter == 35, "segment offsets \(start), \(quarter)")
+}
