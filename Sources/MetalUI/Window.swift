@@ -1028,8 +1028,9 @@ public final class Window {
             // keymap — MetalUI's window-level command layer — and before a
             // focused field's editing keys, so a handled ↑ never moves the
             // caret and a handled Return never submits (K4c, K4g); before a
-            // `Button`'s shortcut (K10) and the app's commands (`KF-R` item 3:
-            // KX1/KX2 unrun, the designed order). Outermost first. Pinned by
+            // `Button`'s shortcut, plain or ⌘-modified (K10, KX1). A keystroke
+            // an app command binds is declined and runs the command instead
+            // (ruling `KF-X`, KX2/KX3). Outermost first. Pinned by
             // `onKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField` and
             // `aBoundKeymapActionRunsBeforeOnKeyPress`.
             if self.dispatchKeyPress(event, along: keyChain) {
@@ -2898,6 +2899,13 @@ public final class Window {
         default: return false
         }
         guard let first = key.charactersIgnoringModifiers.first else { return false }
+        // Commands first (ruling `KF-X`, KX2/KX3): a keystroke an enabled
+        // command binds is never offered to `onKeyPress` — the command runs in
+        // its own stage below. One lookup against the command stage's table.
+        // A `Button`'s ⌘-key shortcut is not declined (KX1). Pinned by
+        // `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`.
+        if case .keyDown = event, lastFocusRegistry.keyPressCount > 0,
+           let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
                              modifiers: key.modifiers)
         return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry)

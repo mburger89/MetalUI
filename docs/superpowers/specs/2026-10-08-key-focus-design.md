@@ -195,7 +195,8 @@ Compositions and multi-grapheme commits are never offered. Divergence 187.
 KX1–KX3 (`KF_PROBE_KX=1`, lock probe first) and builds by `KF-R` item 3's
 table: if SwiftUI runs a menu command or a ⌘-key `Button` shortcut first,
 `dispatchKeyPress` declines a keystroke the command table (or a modified
-shortcut) matches.
+shortcut) matches. **Measured (`KF-X`)**: KX2/KX3 read `menu` — the command
+table is declined; KX1 reads `view:` — a `Button`'s ⌘-key shortcut is not.
 
 `dispatchKeyPress` walks `keyChain.reversed()` (root → innermost); at each id
 it asks `lastFocusRegistry.keyPresses(for:)` (registered in prepaint like
@@ -375,8 +376,8 @@ in `DemoStackBudgetTests`.
 | A40 | `anAncestorsKeyPressHearsTypedCharactersBeforeTheFieldsOwn` (K2x) | stub | walk innermost first on that arm |
 | A41 | `aCompositionAndAMultiGraphemeCommitAreNeverOffered` (+ divergence 187: repeats read `.down`, no `.up` when the platform drops it) | stub | offer every `.textInput` |
 | A42 | `aDigitFilterOnAFieldKeepsOnlyDigits` (`a1b2` → `12`) | stub: `a1b2` | the A38 mutation |
-| A43 | `aCommandsKeystrokeRunsTheCommandNotOnKeyPress` — or its inverse, by KX2 (`KF-R` item 3) | stub | flip the decline |
-| A44 | `aModifiedButtonShortcutAgainstOnKeyPress` — by KX1 (`KF-R` item 3) | stub | flip the decline |
+| A43 | `aCommandsKeystrokeRunsTheCommandNotOnKeyPress` (KX2/KX3 read `menu`, `KF-X`: the handler never hears ⌘J; ⌘K, unbound, reaches a catch-all) | `7d00e5b`: `["all-j", "all-j"]` | drop the command-table decline |
+| A44 | `aModifiedButtonShortcutReachesOnKeyPressBeforeTheButton` (KX1 reads `view:`, `KF-X`) | stub | decline a keystroke `dispatchShortcut`'s table matches |
 | A45 | `aHoveredRegionDrivesNoControlKeysAndNoOnKey` (`KF-U`) | — (green against the stub; red against M) | `dispatchKey` walks `keyChain` |
 
 Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
@@ -530,9 +531,10 @@ A's (one condition in `registerHandlers`); lane B reads `Frame` internals
   a click on the canvas region clears it; a click on the viewport focuses it.
 - **KF-4** Live-resizing the window: the viewport's size label follows every
   frame with no lag; on launch it is right in the first frame.
-- **KF-6** (only if `KF-R`'s arms could not run in lane A) run
-  `KF_PROBE_KX=1` on the probe with the screen unlocked and compare with what
-  shipped (A43/A44); a difference reopens `KF-R`.
+- **KF-6** (`KF-X`: the KX arms ran in lane A, so only the look remains) a
+  native-only menu item's ⌘-key (⌘Q, ⌘H) under a focused catch-all
+  `onKeyPress { .handled }` is swallowed (divergence 188); an app command's
+  ⌘-key runs the command.
 - **KF-7** Typing into a focused field with a digit filter (`KF-Q`): letters
   never appear, digits do, an input method's composition is unaffected (AppKit
   Japanese IME; SDL on Linux with IBus).
@@ -553,11 +555,11 @@ A's (one condition in `registerHandlers`); lane B reads `Frame` internals
 - **187** — a typed character reaches `onKeyPress` on a focused field as
   `.down` only (repeats too, modifiers empty); on SDL its release is not
   delivered (`KF-Q` item 4). Pin: A41.
-- **188** — only if KX2 reads menu-first (`KF-R` item 3): native-only menu
-  items (Quit, Hide, Minimize…) are still offered to `onKeyPress` first. Pin:
-  A43.
+- **188** — used (`KF-X`: KX2 reads menu-first): native-only menu items
+  (Quit, Hide, Minimize…) are still offered to `onKeyPress` first. Pin: A43's
+  separating arm.
 - **120 amended** — `GeometryChangeScope` joins the transparent groups a legacy
   decoration cannot follow (`KF-V` item 1). Pin: lane B's guard arm.
 
-Labels 189–194 stay unused (188 too unless `KF-R` lands its first row). The header's next-label line is left for the
+Labels 189–194 stay unused (188 is used, `KF-X`). The header's next-label line is left for the
 merge (`docs/divergences.md`, lane C).

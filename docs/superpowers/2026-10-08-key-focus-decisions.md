@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-X`.**
+**Next unused id: `KF-Y`.**
 
 ## The final spellings (what an app writes)
 
@@ -765,3 +765,46 @@ both must compile); the census gains two A rows.
    control is a fixture reading `press.key`, `press.characters`,
    `press.modifiers` and `press.phase` inside an `onKeyPress` closure (must
    compile); the guard's own arm `KeyPress(phase:…)` must not.
+
+## KF-X — KX recorded: commands before `onKeyPress`, a `Button`'s ⌘-key after it (lands `KF-R` item 3)
+
+**Ruling.**
+
+1. **Measured** (2026-10-09, lane A, screen unlocked — the lock probe printed
+   no `CGSSessionScreenIsLocked` line and `displayAsleep main: 0`):
+   `KF_PROBE_KX=1` `swiftui-key-focus.swift`, compiled, run twice,
+   byte-identical 73 lines, exit 0. The 69 ungated lines are byte-identical
+   to the designer's recording, so K2t (`outer, inner`), K2v (`root, mid,
+   inner`), K4c (`up,text=z`) and K4a (`f:z[down]`) are re-taken and stand.
+   KX1 `view:k[down+cmd]`; KX2 `menu`; KX3 `menu`.
+2. **Commands first** (`KF-R` item 3, first row): `Window.dispatchKeyPress`
+   declines a `keyDown` that an enabled command shortcut matches — one
+   lookup against `commandShortcuts` with the command stage's own
+   `KeyboardShortcut.matches`, only when some `onKeyPress` handler is
+   registered — and the command then runs in its own stage, unchanged
+   (`MN-J`). The handler **never hears** the keystroke, `.handled` or
+   `.ignored` (KX3 has no `view:` line). A `keyUp` is not declined
+   (unmeasured; the command stage reads `keyDown` only).
+3. **A `Button`'s ⌘-/⌃-key shortcut stays after `onKeyPress`** (`KF-R` item
+   3, third row for the button: KX1 reads `view:` and no `button`), as a
+   plain-key shortcut does (K10). The order in `Window`'s key stages is
+   unchanged: keymap → `onKeyPress` → field editing keys → `onKey` →
+   context-menu key → `Button` shortcut → commands → Tab.
+4. **Divergence 188** (this branch's range) is **used**: the platform's
+   native-only menu items, which MetalUI cannot see (Quit, Hide, Minimize,
+   Close, the Edit menu's standard actions…), are still offered to the
+   pipeline — and so to `onKeyPress` — first (`MN-J`'s pipeline-first order),
+   where SwiftUI's main menu runs them first: a catch-all
+   `.onKeyPress { .handled }` on a focused view swallows ⌘Q in MetalUI.
+   Pin: A43's separating arm (a ⌘-key no command binds reaches the catch-all).
+   The row in `docs/divergences.md` is lane C's (with 185–187).
+5. **Tests.** A43 is renamed `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`
+   and inverted (red against `7d00e5b`: `["all-j", "all-j"]`); mutation: drop
+   the decline. A44 `aModifiedButtonShortcutReachesOnKeyPressBeforeTheButton`
+   is unchanged (KX1); its mutation is the decline extended to
+   `dispatchShortcut`'s table.
+6. Human check KF-6's KX prerequisite is met; it stays a look on a real
+   menu bar (a native item's equivalent), which no test sees.
+
+**Cost if wrong.** A catch-all `onKeyPress` on a canvas would swallow every
+app command's ⌘-key — MetalCreator's palette and viewport both carry one.
