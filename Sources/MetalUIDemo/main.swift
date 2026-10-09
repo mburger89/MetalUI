@@ -45,6 +45,10 @@ func runDemo() throws {
     // group U, ruling SV-T): open and save panels, an alert sheet, hover
     // tiles, dividers, a 300-option menu picker; a 900 × 600 minimum.
     let servicesDemo = ProcessInfo.processInfo.environment["METALUI_SERVICES_DEMO"] == "1"
+    // Rich text's human looks (`docs/verification/human-checks.md` group RT,
+    // ruling RT-O item 10): Markdown, interpolated segments, mixed sizes,
+    // decorations, truncation and an attributed string.
+    let richTextDemo = ProcessInfo.processInfo.environment["METALUI_RICH_TEXT_DEMO"] == "1"
     // Variable-height List's human looks (`docs/verification/human-checks.md`
     // group VL, ruling VL-K): 300 content-sized rows of wrapping text,
     // selectable, with a "Jump to row 250" button.
@@ -53,7 +57,11 @@ func runDemo() throws {
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if listDemo {
+    if richTextDemo {
+        window = try app.openWindow(title: "MetalUI — Rich Text",
+                                    size: Size(width: Pixels(920), height: Pixels(640)),
+                                    content: richTextDemoContent)
+    } else if listDemo {
         window = try app.openWindow(title: "MetalUI — Variable-height List",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: variableListDemoContent)

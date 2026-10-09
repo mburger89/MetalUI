@@ -34,7 +34,15 @@ private func buildEveryProductionTree() {
     _ = metalViewDemoContent(draws: MetalViewDemoDraws()) { _ in }
     _ = menusDemoContent()
     buildTheServicesDemo()   // platform services (SV-T, spec test 6.1)
+    buildTheRichTextDemo()   // rich text (RT-O item 10)
     buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
+}
+
+/// The rich-text demo's tree, in its own frame as the services demo's is (a
+/// debug build reserves a slot per temporary for the whole function).
+@MainActor @inline(never)
+private func buildTheRichTextDemo() {
+    _ = richTextDemoContent()
 }
 
 /// The variable-height list demo's tree and, since its root is a `Component`

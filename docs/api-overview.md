@@ -168,6 +168,24 @@ one `TextSystem` chosen per app: CoreText on Apple (`MetalUIText`), the
 portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
 `MetalUISystemFonts`) — M.
 
+**Rich text** (rulings `RT-A`…, record §83): styled runs inside one `Text`
+on both text systems. A string literal parses SwiftUI's inline Markdown
+(`LocalizedStringKey`; bold, italic, strikethrough, code, links, bare URLs and
+e-mail addresses) with MetalUI's own parser on every platform; a `String`
+value and `Text(verbatim:)` never parse (154: control titles are verbatim).
+Interpolation inserts values verbatim in the format's style (151, 156) and
+keeps an interpolated `Text`'s or `AttributedString`'s runs; `Text + Text` is
+deprecated as in SwiftUI (155: a decorated operand traps). `Text` modifiers:
+`bold()`, `underline`/`strikethrough(_:pattern:color:)` with `Text.LineStyle`
+(`.solid` only), `kerning`, `tracking`, `baselineOffset`, `monospaced`, and
+`Font.monospaced()` (157, 158). `Text(AttributedString)` reads
+`AttributeScopes.MetalUIAttributes` (SwiftUI's key names over MetalUI's types,
+per-key dynamic-member subscripts) and Foundation's `link`; on Apple platforms
+also `inlinePresentationIntent`. Links are styled in the accent and inert
+(150); underlines and strikethroughs are the face's unsnapped bands (152);
+only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
+defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
+
 ## Shapes and images — A
 
 `Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's

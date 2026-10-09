@@ -260,6 +260,9 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package (toolbar) | implement `func setToolbar(_: PlatformToolbar?) -> Bool { false }` — honest where the platform has no native toolbar: `Window` then draws the toolbar in the window; answer `true` only if the platform shows it and delivers each control's outcome as `.toolbarAction`; no default | `MD-J` items 2, 5 |
 | an exhaustive `switch` over `InputEvent` (toolbar) | add a `.toolbarAction(_:)` arm (or `default:`) | `MD-J` item 6 |
 | an exhaustive `switch` over `AccessibilityRole` (platform services) | add `.popUpButton` and `.alert` arms (or `default:`) | `SV-S` |
+| a `TextSystem` conformer outside the package (rich text) | implement `measure(_: StyledText, wrappingAt:options:) -> StyledTextMeasurement`, `layOut(_: StyledText, wrappingAt:options:origin:scaleFactor:) -> StyledTextLayout` and `decorationMetrics(_: FontKey) -> TextDecorationMetrics` — no defaults; a one-run `StyledText` must answer what the plain calls answer | `RT-F` item 2 |
+| `Text.init` / `ProposalText.init` as a function reference (`strings.map(Text.init)`) | annotate the type: `strings.map { Text($0) }` or `map(Text.init as (String) -> Text)` — `Text(_ string: String)` is now SwiftUI's three, `init(_ key: LocalizedStringKey)`, the disfavoured `init<S: StringProtocol>(_:)` and `init(verbatim:)` | `RT-C` item 2 |
+| `Text("…\(image)")` interpolating an `Image` | it compiled, writing the image's description; now it warns (deprecated, "not offered") and **traps**: interpolate a `Text`, or lay the `Image` beside the text | `RT-T` item 1 |
 | `.borderWidth(_:)` | `.border(_:width:)` | `OM-M` |
 | `width(percent:)`/`height(percent:)` taking a fraction | `.frame` (they were renamed `fraction:` then deprecated) | `CN-O`, `CX-C` |
 
@@ -275,6 +278,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | `Rectangle(color:)` | `Rectangle().fill(token)` | `TE-AC` |
 | `AXNode.actions`, `AXActionKind`, `AXNode(…actions:…)` | `.accessibilityAction(_:)`, `.accessibilityAdjustableAction(_:)` | `IX-Y` item 4 |
 | `Color.color` (the `ColorToken` a `Color` view held; now `ColorToken?`, `nil` for a literal) | compare the `Color` (`c == .surface`), or resolve it with `PaintPass.resolve(_:)` | `CR-E`, `CR-D` |
+| `Text + Text` | string interpolation: `Text("Total: \(Text("12").bold())")` — SwiftUI's own deprecation and message; an operand carrying a style, decoration, id or handler traps (divergence 155) | `RT-E` item 1 |
 
 ### Behaviour changes (compile unchanged, answer differently)
 
@@ -321,6 +325,10 @@ public-API removals the records list. **Source** changes stop compiling;
 | **`.task` exists** (it was not offered): a type of the app's own with a `task` method on an element group is now ambiguous or shadowed | rename the app's method | `PX-F` |
 | **`metalui new --cross-platform` works without `--local`**: generated manifests name `MetalUISDL` from the MetalUI package with `traits: ["SDL", "AccessKit"]` on Linux/Windows | regenerate, or edit an existing manifest: delete the `Backends/SDL` path dependency and add the traits to the MetalUI dependency ([`getting-started.md`](getting-started.md)) | `PX-H`, `PX-J` |
 | **`Backends/SDL` on macOS builds with flags**, not `PKG_CONFIG_PATH`: `swift test $(python3 scripts/fetch-accesskit.py --print-flags)` from `Backends/SDL` | update local scripts | `PX-I` item 6 |
+| **a string literal in `Text` and `ProposalText` parses inline Markdown** (it lands on `init(_ key: LocalizedStringKey)`): a literal containing `**`, `_x_`, `` ` ``, `~`, `[…](…)`, a URL, an e-mail address, `&…;` or a backslash now renders styled, linked or decoded. A `String` value is never parsed, nor `Text(verbatim:)`. Every literal under `Sources/` and the suite's rendered ones parse to themselves (spec §0's census) | wrap a literal that must stay literal in `Text(verbatim:)` | `RT-B`, `RT-M` item 3 |
+| an interpolated value in a `Text` literal is inserted verbatim in the format's style: `Text("**\(name)**")` is bold; a floating-point value prints its Swift description (`3.5`, where SwiftUI prints `3.500000`, divergence 151); any other value its description with no warning (divergence 156); an interpolated `Text` or `AttributedString` keeps its runs | nothing | `RT-C` items 3–4, `RT-O` items 4–6 |
+| on Linux and Windows a code span (`` `x` ``) draws the family registered for the `.monospaced` design (`PortableFontResolver.register(design:family:)`), else the default face | register a monospaced family to see one | `TE-B`, `RT-O` item 12 |
+| `Text.bold()` exists (it was withheld): the bold weight over whichever font resolves — SwiftUI's draws semibold on the default font (divergence 158) | write `.fontWeight(.semibold)` to match SwiftUI's default | `RT-R` item 6 |
 | **`List(_:rowContent:)` and its selection twins exist** (content-sized rows; they did not compile). A content-sized list's `style.size.height` is `.auto` — its extent is its layout's answer (measured rows plus estimates), where a uniform list's is `rowHeight × count`; the uniform spelling is unchanged | read a content-sized list's height from layout (`Frame.bounds(of:)`, `Window.lastElementBounds`), not from `List.style` | `VL-A`, `VL-I` |
 
 ## Large trees in a debug build

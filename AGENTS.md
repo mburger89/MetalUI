@@ -49,7 +49,8 @@ summary.
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
-  `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), …; the full
+  `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
+  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -64,7 +65,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **105 live, next label 139**; retired labels are
   never reused), `docs/migration.md`, `docs/verification/human-checks.md`
-  (groups A–X and VL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–X, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -80,12 +81,18 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `fix/accesskit-window-show` from `cd84b0c`):
-  2723 tests, 0 goldens, 176 typecheck guards, unmoved** (the fix is in
+- **Counts (2026-10-08, `feat/rich-text` from `70ed000`, merged with master `5d6893a`):
+  2790 tests, 0 goldens, 180 typecheck guards** (2723 + 67 tests, 176 + 4 guards: five
+  new, `textBoldIsNotOffered` re-spelled; census 2685; the lanes' own sums 2672 + 20
+  + 27 + 20 = 2739 before the merge; `Backends/SDL` 24 + 84 on macOS, 24 + 81 in the Linux image
+  before master's §86 fix (24 + 88 / 24 + 85 after it, record §86 §4),
+  root in the image 6 + 35 + 18 + 199 + 67 + 22; divergences 150–158 added, the header's count and next label the
+  merge's; record §83 §8). Before it, `fix/accesskit-window-show` from `cd84b0c`:
+  2723 tests, 0 goldens, 176 typecheck guards, unmoved (the fix is in
   `Backends/SDL`: 24 + 88 on macOS, 24 + 85 in the Linux image; census 2540
   unmoved; record §86 §4). Before it, `feat/variable-height-list` merged with `099cf80`:
   2723 tests, 0 goldens, 176 typecheck guards (2677 + 46 tests, 175 + 1 guard;
@@ -130,7 +137,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §84.
+  merge), §72, §73, §74, §75, §76, §77, §78, §82, §83, §84.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -226,7 +233,9 @@ these violations show.
   and every test fake implement all of them. **`Platform` (not a window) has
   two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
-  item 1; the two-argument spelling forwards `surfaces: []`).
+  item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
+  three** since rich text (styled measure, styled layout, decoration metrics,
+  `RT-F`): a third-party conformer must add them (`docs/migration.md`).
 - Every `LayoutTree` that could exchange ids needs a distinct `generation`
   (C-3); `Frame` is the only `Sources/` constructor.
 - Pixel format is `bgra8Unorm`, never `_sRGB` (§7.8).
@@ -489,6 +498,29 @@ non-finite/non-positive sizes. `fonts`/`resolvedFonts` are never swept — move
 both or neither. The glyph atlas is grow-only; `evictUnusedSince` has no
 caller and would strand pixels. Baseline alignment works in a horizontal
 stack only.
+
+**Rich text (`RT-`, record §83).** Styled runs in one `Text` cross the seam as
+`StyledText` (`MetalUITextSystem`, Foundation-free: text plus runs of
+`TextRunStyle` and paint indices; zero-length runs dropped, equal neighbours merged,
+a length mismatch traps) through **three defaultless `TextSystem` requirements**
+(styled measure, styled layout, decoration metrics) that every conformer and test
+fake implements (`RT-F`). **A one-run unstyled `Text` takes the plain calls byte for
+byte** — pixels and work of plain text must not move (`RT-M`, test 1.19, the
+fourteen images); a `Text` with runs resolves each run once through
+`resolveTextStyle`, and CoreText (one `CTTypesetter`) and the portable system
+(`shapeCascading` per run, one break table, spacing once per grapheme, ligatures off
+for tracked units by feature ranges) agree under the CoreText oracle. Underline,
+strikethrough and background are **ordinary rects inside the text's one shadow leaf**
+(no shader change, `RT-J`); colours snap (`RT-L`); a link is accent-coloured and
+**inert** (divergence 150); accessibility gets the concatenated string. Markdown in
+a string **literal** (`LocalizedStringKey`) is parsed by MetalUI's own inline
+parser (`MarkdownInline.swift`, checked against Foundation's on 2498 sources); a
+`String` value, `Text(verbatim:)` and control titles are never parsed;
+`Text(AttributedString)` reads MetalUI's attribute scope (per-key subscripts, never
+a generic one: `RT-D`, `RT-T`). `+` is deprecated and traps on a decorated operand
+(divergence 155). `TextField`/`TextEditor` stay plain. A new `Text` modifier owes
+its field to `resolveRichText`, `ProposalText` and a values test (`RT-S`); the rich
+`Text`-level fields stay boxed (`TextRichBox`, the 1 MB stack, `RT-R` 4).
 
 **GPU surfaces — `GPUSurface`/`MetalView` (`MV-`, record §71).** App code
 encodes its own GPU work into an offscreen target that MetalUI composites as

@@ -2462,3 +2462,45 @@ the content's own reset `@State` compares fresh against the departed one, a
 restart or firing SwiftUI does not make. Pin
 `aTaskIDReadFromTheContentsOwnStateRestartsOnReturnFromAGhost` (TF1.4). Live
 count unchanged at 105; the branch's reserved labels 160–164 are unused.
+
+## 2026-10-08: 150–158 added (rich text)
+
+Record §83; rulings `RT-K`, `RT-C`, `RT-J`, `RT-B`, `RT-A`, `RT-E`, `RT-O`,
+`RT-P`, `RT-R`; the published list is `docs/divergences.md`. Not a plan task —
+user request 2026-10-02. Labels from this branch's reserved range 150–159 (159
+unused); the published header's count and next label are left for the merge,
+which settles them beside `feat/input-apis`. **Added, kept:**
+
+- **150** — a link run. SwiftUI opens it through `openURL` and exposes an
+  accessibility link (probe `swiftui-rich-text.swift` `M6`, `C11ln`); MetalUI
+  styles it (the accent unless the run or `Text` colours it) and keeps it inert:
+  no click, no keyboard activation, no link element. The URL is stored on the
+  run (`RT-K`). Pin `aLinkRegistersNothingAPlainTextDoesNot` (2.18).
+- **151** — an interpolated floating-point value prints `%lf` in SwiftUI
+  (`v 3.500000`, `M11`); MetalUI prints Swift's description (`v 3.5`).
+  Pin `anInterpolatedValueIsItsDescription` (3.6).
+- **152** — underline and strikethrough placement. TextKit snaps to device
+  pixels (`C9`); MetalUI draws the face's unsnapped band as rects (`RT-J`).
+  Pin `anUnderlineIsARectAtTheFacesPosition` (2.5).
+- **153** — named character references: HTML5's table in SwiftUI/Foundation,
+  numeric references and 34 names in MetalUI (`RT-B` item 4). Pin
+  `onlyTheEntitySubsetDecodes` (3.3).
+- **154** — Markdown in control titles: SwiftUI parses `Button("**b**")`,
+  MetalUI's titles are verbatim. Pin `aControlTitleIsVerbatim` (3.15).
+- **155** — concatenating or interpolating a decorated `Text`: SwiftUI's
+  `.padding()` returns `some View`, so it does not compile; MetalUI compiles
+  and traps naming the operand and field (`RT-E` item 4). Pins 2.19, 3.8.
+- **156** — interpolating a value of a type with no dedicated overload: a
+  deprecated `String(describing:)` overload in SwiftUI, no warning here
+  (`RT-O` item 6, probe `swiftui-text-interpolation.swift` `I1`, `I2`).
+- **157** — kerning or tracking on joined Arabic on Linux and Windows: CoreText
+  inserts kashidas, the portable system leaves a gap (`RT-P` item 5). Pin
+  `spacingIsOncePerGraphemeAndKeepsPairKerningAcrossRuns` (1.20).
+- **158** — `Text.bold()`: SwiftUI draws semibold on the default font, heavy on
+  `.headline`, nothing on `.light` (`swiftui-text-semantics.swift` `X1`, `F2e`,
+  `X1b`); MetalUI is the bold weight over whichever font resolves (`RT-R` item
+  6). Pin the `C2b` arm of 2.1.
+
+Live count **+9** on this branch (108 on the variable-height-list branch → 117
+after both). Lane 3 wrote the rows; this section was written by the Record
+phase.

@@ -81,34 +81,38 @@ func theTextModifiersAreSwiftUIsSpellings() throws {
     #expect(positive.succeeded, "every text spelling must compile from a plain import: \(positive.messages)")
 }
 
-/// **G3.2.** `Text("a").bold()` is not offered (ruling TE-B item 4: SwiftUI's
-/// draws semibold, heavy or nothing by font, X1/X1b/F2e — no rule fits);
-/// **positive control**: `Text("a").font(.body.bold())` compiles.
+/// **G3.2, as amended by rich text** (ruling RT-E item 3, `RT-R` item 6).
+/// Until rich text this guard pinned `Text("a").bold()` as **not** offered
+/// (ruling TE-B item 4: SwiftUI's draws semibold, heavy or nothing by font,
+/// X1/X1b/F2e — no rule fits). Rich text offers it, as `fontWeight(.bold)`
+/// on `Text` and `ProposalText`, returning `Text`; TE-B item 4's measured
+/// difference is carried as a divergence to write (`RT-R` item 6). The
+/// guard now pins the offer: `Text("a").bold()` compiles from a plain import
+/// and is a `Text`; **control**: `Text("a").bolder()` does not compile.
 ///
-/// Mutation **MG3b**: add `Text.bold()`.
+/// Mutation **MG3b** (re-spelled): delete `Text.bold()`.
 @MainActor
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func textBoldIsNotOffered() throws {
+func textBoldIsOfferedSinceRichText() throws {
     let bold = """
         @MainActor
         func use() {
-            _ = Text("a").bold()
+            let text: Text = Text("a").bold()
+            _ = text
         }
         """
     let control = """
         @MainActor
         func use() {
-            _ = Text("a").font(.body.bold())
-            _ = Text("a").fontWeight(.bold)
+            _ = Text("a").bolder()
         }
         """
-    let negative = try typecheckFile(bold, importing: "MetalUI")
-    let positive = try typecheckFile(control, importing: "MetalUI")
+    let positive = try typecheckFile(bold, importing: "MetalUI")
+    let negative = try typecheckFile(control, importing: "MetalUI")
     print("""
-        TE-B bold: bold succeeded=\(negative.succeeded) messages=[\(negative.messages)]; \
-        control succeeded=\(positive.succeeded) messages=[\(positive.messages)]
+        TE-B bold: bold succeeded=\(positive.succeeded) messages=[\(positive.messages)]; \
+        control succeeded=\(negative.succeeded) messages=[\(negative.messages)]
         """)
-    try #require(positive.succeeded, "the control must compile, or this guard cannot: \(positive.messages)")
-    #expect(!negative.succeeded, "Text.bold() must not be offered")
-    #expect(negative.messages.contains("bold"), "it fails for the missing method: \(negative.messages)")
+    try #require(!negative.succeeded, "the control must fail, or this guard cannot: \(negative.messages)")
+    #expect(positive.succeeded, "Text.bold() is offered and returns Text: \(positive.messages)")
 }
