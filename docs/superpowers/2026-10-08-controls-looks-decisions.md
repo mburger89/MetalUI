@@ -274,6 +274,12 @@ re-draw, no API change.
    **`.progressIndicator`** with the **fraction 0…1** as its value (`5/10` reads
    `0.5`) and the title as its label; an indeterminate one is
    **`.busyIndicator`** with no value. Both new roles are `LK-G`.
+   (**Branch checker, record §85 §4.6:** `V7` and `V8` do not read "no value"
+   for the busy indicator — SwiftUI's `AXBusyIndicator` publishes `value=0`
+   (`min=nil max=nil`) for `ProgressView()`, `value: -1` and `total: 0`.
+   MetalUI publishes no value (`anIndeterminateViewPublishesABusyIndicatorWithNoValue`).
+   That is an unruled accessibility difference: it is owed a divergence row
+   from 165–174, or a change to publish `0`.)
 
 **Cost if wrong.** Sizes are pinned literals from `V0`–`V12`; a later probe
 that disagrees reddens a named test.
