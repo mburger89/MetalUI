@@ -64,6 +64,46 @@ private struct URLCounter: Component {
     #expect(counts.sorted() == [1, 1], "each handler wrote its own occurrence; last-bound reads [0, 2]: \(counts)")
 }
 
+/// A `@State` counter whose content records the count it was built with.
+private struct BuiltCounter: Component {
+    @State var n = 0
+    let log: ShellLog
+    var content: some ElementGroup {
+        log.entries.append("built \(n)")
+        return Box().frame(width: px(10), height: px(10))
+    }
+}
+
+/// **2.23b** (`AS-G` item 2, `AS-P`). The handler's owner is the scope's own
+/// position — the element it wraps — so an `.onOpenURL` written **outside** an
+/// element value placed twice, writing that element's own `@State`, lands in
+/// its own occurrence. In 2.23 the state sits on a `Component` above the
+/// scope, where a sibling or parent owner climbs to the same place; here
+/// neither does. Mutations: owner `cursor + 1` (both writes reach the second
+/// occurrence); owner `parent` (both reach the last-bound one) — `AS-P` V2.
+@MainActor
+@Test func anOnOpenURLOutsideAnAliasedElementWritesThatOccurrencesState() throws {
+    let (app, platform) = try shellApp()
+    let log = ShellLog()
+    let window = try app.openWindow(title: "W", size: Size(width: px(64), height: px(64)),
+                                    startsDisplayLink: false) {
+        let counter = BuiltCounter(log: log)
+        return Column {
+            counter.onOpenURL { _ in counter.n += 1 }
+            counter.onOpenURL { _ in counter.n += 1 }
+        }
+    }
+    try #require(window.openURLHandlerOwners.count == 2)
+    platform.simulateOpenURLs(["file:///tmp/doc.mcgraph"])
+    log.entries.removeAll()
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    let built = log.entries.filter { $0.hasPrefix("built") }
+    try #require(built.count >= 2, "control: both occurrences rebuilt: \(log.entries)")
+    #expect(Array(built.suffix(2)) == ["built 1", "built 1"],
+            "each handler wrote its own occurrence; a sibling or parent owner reads [0, 2]: \(built)")
+}
+
 /// A window whose root holds a box with an `.onOpenURL` logging `"<name>"`.
 @MainActor private func urlWindow(_ app: App, _ platform: FakePlatform, _ name: String,
                                   _ log: ShellLog) throws -> (Window, FakePlatformWindow) {
@@ -127,6 +167,30 @@ private struct URLCounter: Component {
                          URL(fileURLWithPath: "/tmp/a b.mcgraph"), URL(string: "metalcreator://doc/1")!],
             "\(received)")
     withExtendedLifetime((plain, window)) {}
+}
+
+/// **2.25b** (`AS-Q`). The platform's parking covers only URLs that arrive
+/// before `App`'s initialiser: the initialiser takes them at once, when no
+/// window and no `App.onOpenURL` can exist, so they are dropped like any URL
+/// nobody handles (`AS-G` item 1) — `App` keeps nothing for a receiver that
+/// comes later. An open after the receivers exist is delivered (control).
+@MainActor
+@Test func urlsParkedBeforeTheAppExistsAreTakenAtItsInitialiserAndDropped() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let platform = FakePlatform(device: device)
+    platform.simulateOpenURLs(["file:///tmp/launch.doc"])
+    let app = App(platform: platform)
+    var received: [String] = []
+    app.onOpenURL = { received.append("app \($0.lastPathComponent)") }
+    let window = try app.openWindow(title: "W", size: Size(width: px(64), height: px(64)),
+                                    startsDisplayLink: false) {
+        Column { Box().frame(width: px(4), height: px(4)).onOpenURL { received.append("window \($0.lastPathComponent)") } }
+    }
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(received.isEmpty, "the parked URL was taken by App's initialiser and dropped: \(received)")
+    platform.simulateOpenURLs(["file:///tmp/later.doc"])
+    #expect(received == ["window later.doc"], "control: a later open is delivered: \(received)")
 }
 
 @Observable @MainActor private final class ListeningModel {

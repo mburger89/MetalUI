@@ -22,7 +22,8 @@ private let fileURL = URL(fileURLWithPath: "/tmp/x.mcgraph")
 }
 
 /// **2.16** (`AS-D` item 1). `Window.title` reaches the platform when it
-/// changes, never per build. Mutation: push every build.
+/// changes, never per build, and at once from the setter. Mutations: push
+/// every build; the setter only stores (`AS-P` V1).
 @MainActor
 @Test func windowTitleReachesThePlatformOnChangeOnly() throws {
     let (app, platform) = try shellApp()
@@ -49,6 +50,13 @@ private let fileURL = URL(fileURLWithPath: "/tmp/x.mcgraph")
     window.drawFrameIfNeeded()
     #expect(fake.titleWrites.count == writesAfterOpen + 1)
     #expect(window.title == "Renamed")
+
+    // The setter sends at once (`AS-D` item 1, `AS-P` item 8): no redraw
+    // requested, no frame drawn — an idle window whose display link is
+    // paused still shows a runtime rename. Mutation: the setter only stores.
+    window.title = "Immediate"
+    #expect(fake.title == "Immediate", "the setter itself reaches the platform")
+    #expect(fake.titleWrites.count == writesAfterOpen + 2, "\(fake.titleWrites)")
 }
 
 /// **2.17** (`AS-D` item 2, `N1`, `N2`, `N5`). Inner beats outer; the first

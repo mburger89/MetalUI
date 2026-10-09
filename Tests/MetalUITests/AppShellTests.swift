@@ -183,7 +183,8 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
 }
 
 /// **2.6** (`AS-B` item 1). `performClose()` asks as the close button does;
-/// `close()` never asks. Mutation: `close()` asks.
+/// `close()` never asks; a closed window asks nobody. Mutations: `close()`
+/// asks; drop `answerCloseRequest`'s closed guard (`AS-P` V10).
 @MainActor
 @Test func performCloseAsksAndCloseDoesNot() throws {
     let (app, platform) = try shellApp()
@@ -198,6 +199,14 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
     #expect(log2.entries.count == 1 && !fake.isClosed, "performClose asked, and .cancel kept it")
     window.performClose()
     #expect(log2.entries.count == 2 && fake.isClosed && fake.closeCalls == 1)
+    // A closed window answers no request and runs no handler (`AS-B` item 5,
+    // `answerCloseRequest`'s closed guard): neither `performClose()` nor the
+    // platform's question reaches the handler again. Mutation: drop the guard.
+    window.performClose()
+    let platformAnswer = fake.onCloseRequest?()
+    #expect(log2.entries.count == 2, "a closed window's handler is not asked: \(log2.entries)")
+    #expect(platformAnswer != true, "a closed window does not answer `close`")
+    #expect(fake.closeCalls == 1)
 
     let (other, otherFake) = try shellWindow(app, platform, "B", log)
     var otherAsked = 0

@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-Q`.**
+**Next unused id: `AS-R`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -408,7 +408,8 @@ through an injectable closure (test 1.7b), the drag itself is human check AS7.
    absolute URL strings; a platform **parks** URLs that arrive before the
    handler is set and delivers them on assignment. `App` sets it in its
    initialiser and converts with `URL(string:)` (an unparsable string is
-   dropped).
+   dropped). Parked URLs therefore reach `App` inside its initialiser, before
+   any window or `App.onOpenURL` can exist, and are dropped (`AS-Q`).
 5. **AppKit**: the delegate's `application(_:open:)` (Finder double-click,
    `open -a`, a drop on the Dock icon, Open Recent, a URL scheme — the bundle
    must declare `CFBundleDocumentTypes`/`CFBundleURLTypes`, build-side,
@@ -642,8 +643,11 @@ LaunchServices open does (`A6`, the positive control) and arrives **before**
 2. A launch-time open reaches `App` during `run()`'s `finishLaunching`: after
    `App`'s initialiser set `platform.onOpenURLs` and after any `openWindow`
    made before `run()` (whose first frame was built, so its `.onOpenURL` list
-   exists). The platform's parking (`AS-G` item 4) covers an app that opens
-   its window later. Human check AS9 covers the packaged app.
+   exists). An app that opens its window only after `run()` began does not
+   receive a launch-time open: the platform's parking (`AS-G` item 4) covers
+   only URLs that arrive before `App`'s initialiser, and `App` drops those
+   (`AS-Q` corrects this item, which said parking covered that app). Human
+   check AS9 covers the packaged app.
 
 ## AS-N — The window-preference modifiers share divergence 120's constraint; a window root needs a container
 
@@ -844,3 +848,32 @@ tests, which fail identically unmutated while the screen is locked):
 
 **Cost if wrong.** None beyond two access-level changes on internal members.
 
+## AS-Q — Parking covers only URLs that arrive before `App`'s initialiser, and `App` drops them (corrects `AS-M` item 2)
+
+**Finding (lane 2 review).** `AS-M` item 2 said the platform's parking
+"covers an app that opens its window later". It does not: every `App`
+initialiser calls `installShellHandlers()`, which assigns
+`platform.onOpenURLs`; the fake, `AppKitApplicationDelegate.onOpenURLs` and
+`SDLPlatform.onOpenURLs` hand the parked batches over on that assignment —
+before any window exists and before the app can set `App.onOpenURL` — so
+`App.open(_:)` finds no receiver and drops them (`AS-G` item 1). A scratch
+test (`simulateOpenURLs` before `App(platform:)`) received nothing.
+
+**Ruling.**
+
+1. Parking covers exactly the URLs that arrive before `App`'s initialiser;
+   `App` takes them there and drops them like any URL nobody handles. `App`
+   keeps no queue for a receiver that comes later — keeping one would make
+   "dropped" (`AS-G` item 1, test 2.25) depend on timing.
+2. Nothing parks in practice today: AppKit's opens arrive inside `run()`
+   (`AS-M`), after the initialiser and any window opened before `run()`; SDL's
+   arrive as queued events processed by the run loop. An app that wants a
+   launch-time document opens its window (or sets `App.onOpenURL`) before
+   `run()`.
+3. Pinned by test 2.25b
+   (`urlsParkedBeforeTheAppExistsAreTakenAtItsInitialiserAndDropped`): a URL
+   parked before `App(platform:)` reaches neither a later `App.onOpenURL` nor
+   a later window's `.onOpenURL`; a later open does (control).
+
+**Cost if wrong.** An app that needs a pre-initialiser URL would need `App` to
+queue; additive.
