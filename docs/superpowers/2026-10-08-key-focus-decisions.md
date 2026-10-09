@@ -829,6 +829,43 @@ both must compile); the census gains two A rows.
    unlocked (2926 passed); they are not counted as reddened.
 9. Human check KF-6's KX prerequisite is met; it stays a look on a real
    menu bar (a native item's equivalent), which no test sees.
+10. **Lane A review fixes** (2026-10-09; the verifier's mutations V1, V4, V9
+    reddened nothing on the full suite at `4b80b9d`). Three tests close the
+    holes: A21 gains its presentation arm (a key region is not hovered
+    through its own popover — mutation V1, drop `box.layer == cover.layer`
+    in `hoveredKeyRegion`); A31b
+    `aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus` (mutation V4,
+    drop `cover.id.isOrDescends(from: box.id)` in `focusOnPress`); A31c
+    `aPressOnAKeyRegionsOwnPopoverChangesNoFocus` (mutation V1′, drop
+    `box.layer == cover.layer` in `focusOnPress`); A26b
+    `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne`
+    (mutation V9, `isFocusable = true` regardless of the argument, run once
+    per overload). Each test was green unmutated; the reddened tests per
+    mutation are in the record (§88).
+11. **Three guards are equivalent mutations and stay** (`LR-X`, beside item
+    6; they are **not** pinned, and the record must not say they are):
+    - V2, `!hoverIsSuppressed` in `hoveredKeyRegion`: the drawn alert is
+      modal and the in-window menu session claims every `keyDown`/`keyUp`
+      (`dispatchMenuSession`) earlier in the pipeline, and `keyChain` is
+      `hoveredKeyRegion`'s only caller — whenever hover is suppressed no key
+      reaches the lookup. Kept as the hover rule's own statement (the same
+      condition the hover set reads), so a later key stage ahead of the
+      menu cannot route keys under a suppressed hover.
+    - V7, `keyboardHiddenDepth == 0` in the key/press region gate
+      (`Frame.registerHandlers`): `disablingHitTestingIfHidden` is the only
+      place that raises it, and it always raises `hitTestingDisabledDepth`
+      with it. Kept to mirror the hover and pointer regions' gates.
+    - V3, `pointerHandlers.keyboard = nil` (`KF-I`'s strip): the opaque
+      pointer box has the same id and region as the key/press region and
+      narrower-or-equal gates, so every lookup that walks
+      `handlers.keyboard != nil` picks the same ids either way. Kept so each
+      element's keyboard box is on exactly one hitbox.
+12. **Red-first provenance.** The red runs for A18–A45 are the implementer's
+    (against the stub `8e83342`, and A43's against `7d00e5b`); the verifier
+    did not re-take them. Its own mutations V5, V6, V8, V10 and V11 reddened
+    named tests, which shows those instruments can fail. A21's presentation
+    arm, A26b, A31b and A31c were added green (they pin shipped behaviour);
+    their failing runs are their mutations'.
 
 **Cost if wrong.** A catch-all `onKeyPress` on a canvas would swallow every
 app command's ⌘-key — MetalCreator's palette and viewport both carry one.

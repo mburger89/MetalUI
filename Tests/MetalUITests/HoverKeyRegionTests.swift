@@ -123,8 +123,9 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
 }
 
 /// **A21** (`KF-E` item 3: the one ranking). A key region covered by an opaque
-/// sibling drawn above it is not hovered where the sibling covers it.
-/// Mutation: drop the cover / `isOrDescends` test.
+/// sibling drawn above it is not hovered where the sibling covers it, nor
+/// through its own popover. Mutations: drop the cover / `isOrDescends` test
+/// (first arm); V1, drop the layer test (second arm).
 @MainActor
 @Test func aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered() throws {
     let m = HKLog()
@@ -141,6 +142,33 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     platform.simulateInput(mv(Point(x: px(20), y: px(20))))
     platform.simulateInput(kd("y"))
     #expect(m.log == ["region"], "covered at the centre, hovered at the corner: \(m.log)")
+
+    // The presentation arm (`KF-E` item 3: on the cover's layer). The region's
+    // own popover — a `Deferred` presentation whose content descends from the
+    // region and lies inside its bounds — is on another layer, so a key typed
+    // over it reaches nothing. Mutation V1: drop `box.layer == cover.layer` in
+    // `hoveredKeyRegion` (the region hears `p`).
+    let p = HKLog()
+    let (popWindow, popPlatform) = try hkWindow {
+        Box().frame(width: px(200), height: px(200)).hoverKeyRegion()
+            .onKeyPress { press in p.log.append("region \(press.characters)"); return .handled }
+            .popover(isPresented: .constant(true)) {
+                Box().frame(width: px(40), height: px(40)).onClick { p.log.append("click") }
+            }
+    }
+    for _ in 0..<4 where popWindow.needsRedraw { popWindow.drawFrameIfNeeded() }
+    let region = try keyRegions(popWindow, count: 1)[0]
+    let popover = try #require(popWindow.lastHitboxes.first { $0.handlers.onClick != nil },
+                               "set up: the popover's click box registered")
+    try #require(popover.layer != region.layer, "set up: the popover is on its own layer")
+    try #require(region.contains(centre(popover.bounds)), "set up: the popover lies inside the region")
+    let corner = Point(x: px(5), y: px(5))
+    try #require(!popover.contains(corner), "set up: the corner is off the popover")
+    popPlatform.simulateInput(mv(centre(popover.bounds)))
+    popPlatform.simulateInput(kd("p"))
+    popPlatform.simulateInput(mv(corner))
+    popPlatform.simulateInput(kd("q"))
+    #expect(p.log == ["region q"], "over the popover nothing; over the region's corner the region: \(p.log)")
 }
 
 // MARK: - A22: Keymap contexts

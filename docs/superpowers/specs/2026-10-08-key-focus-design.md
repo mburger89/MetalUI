@@ -355,7 +355,7 @@ in `DemoStackBudgetTests`.
 | A18 | `withNothingFocusedTheHoveredKeyRegionReceivesKeys` | `c62d6ba`: chain empty | `keyChain` = `focusChain` always |
 | A19 | `aFocusedElementOutsideTheRegionKeepsTheKeys` (`KF-D` 2) | — | prefer the hover chain when one exists |
 | A20 | `theInnermostHoveredKeyRegionWins` | — | take the outermost member |
-| A21 | `aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered` | — | drop the cover/`isOrDescends` test |
+| A21 | `aKeyRegionUnderAnOpaqueSiblingOrAPresentationIsNotHovered` (opaque-sibling arm; presentation arm: the region's own popover, added after the lane A review) | — | drop the cover/`isOrDescends` test (first arm); V1: drop `box.layer == cover.layer` in `hoveredKeyRegion` (second arm, `KF-X` item 10) |
 | A22 | `keymapContextsReadTheHoveredRegionsChain` (`Graph` binding beats `!Panel` by depth; `!Panel` vetoed under a `Panel` region; a focused field inside `Panel` keeps the keys) | `c62d6ba`: contexts from the focus chain only | build `contextsByLevel` from `focusChain` |
 | A23 | `aPressInAKeyRegionClearsFocus`, `aPressOnAFieldInsideAKeyRegionFocusesItWithOneFocusStateChange` | `c62d6ba`: focus kept | delete step 3 / delete step 1 of §4.3 (the second reads `false,true` on the `@FocusState`) |
 | A24 | `aKeyRegionCostsNoLookupWhileThePointerMoves` (`keyRegionLookups` 0 over 50 moves, 1 per key; 0 with no region) | — | compute the hovered region in `updateHover` |
@@ -366,6 +366,9 @@ in `DemoStackBudgetTests`.
 | A29 | `aSecondaryPressFocusesNothing` | — | run the stage on `.rightMouseDown` |
 | A30 | `aPressElsewhereDoesNotResignAFocusedField` (RS1, RS2, RS3, RS5: plain, tap, `Button`, drag) | green at `c62d6ba` (SwiftUI-aligned pin) | `focus(nil)` on every press outside a field |
 | A31 | `aClickFocusablePressMovesFocusFromAField` (RS4) | stub | delete step 2 |
+| A31b | `aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus` (`KF-G`, `KF-E` 5; review fix) | — (green against `4b80b9d`; red under V4) | V4: drop `cover.id.isOrDescends(from: box.id)` in `focusOnPress` |
+| A31c | `aPressOnAKeyRegionsOwnPopoverChangesNoFocus` (`KF-E` 3, 5; review fix) | — (green against `4b80b9d`; red under V1′) | V1′: drop `box.layer == cover.layer` in `focusOnPress` |
+| A26b | `focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne` (review fix) | — (green against `4b80b9d`; red under V9) | V9: `isFocusable = true` regardless of the argument, in `focusable(_:)` and separately in `focusable(_:interactions:)` |
 | A32 | `pressAndKeyRegionsChangeNoOtherPointerOutcome` (the same tree with and without `.focusable(interactions: .edit).hoverKeyRegion()`: click, hover set, tap arena, wheel scroller, drop destination identical) | — | register the region hitbox `opaque: true` |
 | A33 | `disabledHiddenAndAllowsHitTestingWithdrawThePressAndKeyRegions` | — | register outside the gates |
 | A34–A35 | moved to lane C as C4, C5 (`KF-W`) | | |

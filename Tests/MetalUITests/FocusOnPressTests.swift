@@ -200,6 +200,97 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     #expect(window.focusedElement == surface, "the click-focusable surface took focus (RS4)")
 }
 
+/// **A31b** (`KF-G`, `KF-E` item 5: the cover descends from the region). A
+/// press on an opaque sibling drawn above a key region — an overlay button
+/// over a canvas — changes no focus, and the click still lands; a press on
+/// the region beside it clears focus (the control). Mutation V4: drop
+/// `cover.id.isOrDescends(from: box.id)` in `focusOnPress`.
+@MainActor
+@Test func aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus() throws {
+    let m = FPLog()
+    let (window, platform) = try fpWindow {
+        VStack {
+            ZStack {
+                Box().frame(width: px(200), height: px(150)).hoverKeyRegion()
+                square(40).onClick { m.log.append("click") }
+            }
+            square(20).focusable()
+        }
+    }
+    let focusable = try #require(window.lastFocusRegistry.tabOrder.first)
+    let button = try #require(window.lastHitboxes.first { $0.handlers.onClick != nil })
+    let region = try #require(window.lastHitboxes.first { $0.handlers.keyboard?.isKeyRegion == true })
+    window.focus(focusable)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == focusable, "set up: focused")
+    click(platform, centreOf(button.bounds))
+    #expect(m.log == ["click"], "the click landed: \(m.log)")
+    #expect(window.focusedElement == focusable, "a press on the sibling above the region kept focus")
+    let corner = Point(x: px(region.bounds.origin.x.value + 5), y: px(region.bounds.origin.y.value + 5))
+    try #require(!button.contains(corner), "set up: the corner is off the button")
+    click(platform, corner)
+    #expect(window.focusedElement == nil, "control: a press on the region itself clears focus")
+}
+
+/// **A31c** (`KF-E` items 3 and 5: on the cover's layer). A press on a key
+/// region's own popover changes no focus: the popover is on another layer,
+/// so the press is not inside the region. Mutation V1′: drop `box.layer ==
+/// cover.layer` in `focusOnPress`.
+@MainActor
+@Test func aPressOnAKeyRegionsOwnPopoverChangesNoFocus() throws {
+    let m = FPLog()
+    let (window, platform) = try fpWindow {
+        Box {
+            square(20).focusable()
+        }
+        .frame(width: px(200), height: px(200))
+        .hoverKeyRegion()
+        .popover(isPresented: .constant(true)) {
+            square(40).onClick { m.log.append("click") }
+        }
+    }
+    for _ in 0..<4 where window.needsRedraw { window.drawFrameIfNeeded() }
+    let focusable = try #require(window.lastFocusRegistry.tabOrder.first)
+    let region = try #require(window.lastHitboxes.first { $0.handlers.keyboard?.isKeyRegion == true })
+    let popover = try #require(window.lastHitboxes.first { $0.handlers.onClick != nil })
+    try #require(popover.layer != region.layer && region.contains(centreOf(popover.bounds)),
+                 "set up: the popover is on its own layer, inside the region's bounds")
+    window.focus(focusable)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == focusable, "set up: focused")
+    click(platform, centreOf(popover.bounds))
+    #expect(m.log == ["click"], "the popover's click landed: \(m.log)")
+    #expect(window.focusedElement == focusable, "a press on the region's own popover kept focus")
+}
+
+/// **A26b** (`focusable(_:)`, `focusable(_:interactions:)`). `false` makes an
+/// element not focusable — Tab skips it — and a later call replaces an
+/// earlier one; `focusable(false, interactions: .edit)` is not focused by a
+/// press. Mutation V9: `$0.isFocusable = true` regardless of the argument
+/// (each overload separately).
+@MainActor
+@Test func focusableFalseRegistersNoFocusableAndALaterCallReplacesAnEarlierOne() throws {
+    let (window, platform) = try fpWindow {
+        HStack(spacing: 0) {
+            square(40).focusable(false)
+            square(40).focusable(true).focusable(false)
+            square(40).focusable(false).focusable(true)
+            square(40).focusable(false, interactions: .edit)
+            square(40).focusable(interactions: .edit).focusable(false, interactions: .edit)
+        }
+    }
+    let order = window.lastFocusRegistry.tabOrder
+    #expect(order.count == 1, "only the box whose last call is focusable(true): \(order)")
+    for x: Float in [140, 180] {
+        platform.simulateInput(down(pt(x, 100)))
+        platform.simulateInput(up(pt(x, 100)))
+        #expect(window.focusedElement == nil, "a press at x \(x) on focusable(false, .edit) focused nothing")
+    }
+    window.focus(nil)
+    platform.simulateInput(.keyDown(KeyEvent(charactersIgnoringModifiers: "\t", characters: "\t", timestamp: 0)))
+    #expect(window.focusedElement == order.first, "Tab reaches only the focusable box")
+}
+
 private func centreOf(_ b: Bounds<Pixels>) -> Point<Pixels> {
     Point(x: px(b.origin.x.value + b.size.width.value / 2), y: px(b.origin.y.value + b.size.height.value / 2))
 }
