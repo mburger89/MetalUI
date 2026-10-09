@@ -851,8 +851,9 @@ private final class EditorText {
 /// `.onScrollWheel` that declines still stops the wheel (`DD-Y`): the handler
 /// runs, the event is claimed and never reaches the window's `onInput`. The
 /// separating arm is 3.13 — the same box with no `onClick` is not claimed.
-/// Mutation: read the opacity off the cover (the handler's own non-opaque
-/// region) instead of the element's opaque hitbox under the point.
+/// Mutation: read the opacity off the ranking's top match (the handler's own
+/// non-opaque region) instead of the element's opaque hitbox under the point
+/// (`CI-AL` M3; M1, no re-cover at all, reddens it too).
 @MainActor
 @Test func aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel() throws {
     let log = BLog()
@@ -879,7 +880,8 @@ private final class EditorText {
 /// the editor 30 and leaves the outer scroller at 0. The handler runs once
 /// each time. The separating arm without a handler is
 /// `theWheelScrollsAndTypingScrollsTheCaretBackIntoView`. Mutation: take the
-/// `TI-H` decision from the cover's handlers instead of the element's.
+/// `TI-H` decision from the ranking's top match instead of the element's
+/// opaque hitbox (`CI-AL` M2; M1 reddens it too).
 @MainActor
 @Test func aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself() throws {
     let log = BLog()
@@ -935,7 +937,9 @@ private final class EditorText {
 /// platform's crosshair) that also takes `.onHover` shows the crosshair and
 /// enters the hover; after a move
 /// off the box (arrow, hover left), a `.rotate` over it does the same.
-/// Mutation: drop `.magnify, .rotate` from `Window.onInput`'s hover case.
+/// Mutations: drop `.magnify, .rotate` from `Window.onInput`'s hover case;
+/// keep the case but leave `lastMousePosition` where a pinch found it (each
+/// reddens this test alone, `CI-AL` M5, M6).
 @MainActor
 @Test func aPinchRecomputesTheHoverAndThePointerStyleAtItsPosition() throws {
     let log = BLog()

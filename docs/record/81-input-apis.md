@@ -7,9 +7,9 @@ with a 3D viewport inside `GPUSurface`/`MetalView` and a pannable, zoomable
 node-graph canvas. Its `docs/metalui-gaps.md` sections "Reported 2026-10-07
 (C7)" and "C7 status and provisional API names" list the gaps; that file was
 never edited from here. Spec
-`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AK`
+`docs/superpowers/specs/2026-10-08-input-apis-design.md`; rulings `CI-A`…`CI-AL`
 in `docs/superpowers/2026-10-08-input-apis-decisions.md` (next unused
-`CI-AL`); probe `docs/probes/swiftui-input-apis.swift`.
+`CI-AM`); probe `docs/probes/swiftui-input-apis.swift`.
 
 **Status: complete (2026-10-08).** Three lanes: lane 1 (seam and platforms),
 lane 2 (gestures end to end), and lane 3. The second critic re-cut lane 3 into
@@ -137,7 +137,10 @@ Commits `401882f` (red) and `e93ddbe`, with the verification in `c101fe6`.
   then the multi-line editor at the cover. An inner claim stops an outer
   `ScrollView`. `DD-Y` is preserved. **A handler on or around a scroller sees
   nothing over it; a handler on its content runs first and can veto**
-  (`CI-AH` item 1). `location` is local through the region's inverse
+  (`CI-AH` item 1; the built-in scrollers — a custom conformer sharing its
+  scroller's id is narrowed out by `CI-AL` item 3). A declining handler falls
+  through to its own element's opaque hitbox and `TI-H` scroll (`CI-AL`
+  item 1). `location` is local through the region's inverse
   transform. Deltas are not transformed.
 - **`.pointerStyle(_:)`**: a non-opaque style region inside the disabled,
   `allowsHitTesting` and `hidden()` gates. It is resolved with hover through
@@ -268,19 +271,38 @@ the pending menu first), and removing it with the move's clearing reddens
 `.onScrollWheel` on a `TextEditor` stops the editor scrolling itself (`CI-AK`
 item 6, the same cause as `CI-AJ` item 1).
 
+### 4.7 The open findings fixed (`CI-AL`)
+
+Red first on `2723d56`, fixed in `e5f9da5`. **`CI-AJ` item 1 and `CI-AK`
+item 6 resolved** (one cause): when the ranking's top wheel match is a
+handler-only region and the same id's opaque hitbox on its layer is under the
+point, `applyScroll` makes that hitbox the cover (the one ranking again), so a
+declining `.onScrollWheel` on a click target still stops the wheel and one on a
+`TextEditor` leaves it scrolling itself, in a `Box` and inside a `ScrollView`
+(`aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel`,
+`aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself`; red lines:
+`→ false`, `raw 1`; editor `0.0`, outer scroller `30.0`). **`CI-AJ` item 3
+resolved**: a `.magnify`/`.rotate` moves `lastMousePosition` and recomputes
+hover and the pointer style
+(`aPinchRecomputesTheHoverAndThePointerStyleAtItsPosition`; red: `[]`,
+`[.arrow]`). **`CI-AJ` item 2 resolved, doc only**: `CI-AH` item 1 holds for
+the built-in scrollers; a custom conformer's shared-id order stays unpinned.
+Mutations M1–M6 each red on the full suite, naming only the new tests except
+M4 (four existing wheel tests). Clean native suite **`Test run with 2873
+tests in 3 suites passed after 177.500 seconds`**, `FR-J` line present
+(one earlier run stopped silently mid-suite and did not reproduce, `CI-AL`
+item 5); default build 0 warnings; guards 185; closeout checks silent;
+fourteen images 0 px.
+
 ## 5. Owed and deferred
 
-- **Verifier findings left open** (`CI-AJ` items 1–4, owner none): a declining
-  `.onScrollWheel` on a click target lets the wheel reach `onInput` against
-  both doc comments; `CI-AH` item 1's "no spelling shares the scroller's id" is
-  false for a custom `StyledElement`; a pinch does not recompute the pointer
-  style; the canvas demo's ⌃-scroll zoom, zoom clamp and momentum pan are
-  unpinned (mutations m2, m6, m7 green).
-- **Branch checker's finding** (`CI-AK` item 6, owner none): a `TextEditor`
-  with a declining `.onScrollWheel` does not scroll itself (scrolled 0 against
-  100 without the handler) and the wheel reaches `onInput`: the pointer-only
-  region becomes `applyScroll`'s cover and hides the editor's `TI-H` target.
-  One fix closes it and `CI-AJ` item 1.
+- **Verifier findings** (`CI-AJ` items 1–4): items 1–3 **resolved by
+  `CI-AL`** (item 2 by narrowing the sentence; a custom conformer's shared-id
+  order is unpinned, owner none). Item 4 stays open, owner none: the canvas
+  demo's ⌃-scroll zoom, zoom clamp and momentum pan are unpinned (mutations
+  m2, m6, m7 green).
+- **Branch checker's finding** (`CI-AK` item 6): **resolved by `CI-AL`
+  item 1**, with `CI-AJ` item 1.
 
 - **Human checks group Y** (Y1–Y13, `docs/verification/human-checks.md`):
   trackpad momentum, pinch centre, rotate sign, nested magnify/rotate, every

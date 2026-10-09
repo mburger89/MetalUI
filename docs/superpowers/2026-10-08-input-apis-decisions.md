@@ -52,7 +52,7 @@ Evidence (each header carries its recorded output and how to run it):
   cursors have no open/closed hand and no zoom (`SDL_mouse.h`, 3.4.18 on this
   Mac).
 
-Prefix **`CI-`**, lettered. **Next unused: `CI-AL`.** (This line moves in the
+Prefix **`CI-`**, lettered. **Next unused: `CI-AM`.** (This line moves in the
 commit that appends a ruling; read the last `## CI-` heading.)
 
 Branch `feat/input-apis` from `70ed000` (master: portable app merged, PR #51).
@@ -497,7 +497,7 @@ looks at every style on AppKit.
    left — which is nothing, since a scroller always claims (`DD-Y`); a legacy
    `.onScrollWheel` on a `ScrollView` itself (same id) runs **before** its
    scrolling and can veto it. **Amended by `CI-AH` item 1**: no spelling gives
-   a handler the scroller's id — a handler on or around a `ScrollView` sees
+   a handler a built-in scroller's id (a custom conformer can, `CI-AL` item 3) — a handler on or around a `ScrollView` sees
    nothing over it; a handler on its **content** runs first and can veto.
 5. **Where**: still before the window's general `onInput` and after the menu,
    popover and context-menu stages; an open in-window menu takes the wheel
@@ -1445,7 +1445,8 @@ Two sentences of the design could not be built as written.
    through a `ModifiedContent` layer (`.frame(…).onScrollWheel`). That layer
    is the scroller's **parent** (`MC-A`). The proposal `.onScrollWheel` on a
    `ProposalScrollView` is a `ScrollWheelModifier`, which is also the parent
-   (`CI-V` item 2). No two elements share an id.
+   (`CI-V` item 2). No two elements share an id. (True of the built-in
+   scrollers only: a custom conformer can share it, `CI-AL` item 3.)
 2. `PointerAttachment` is one box per element, so two `.pointerStyle` calls
    on one legacy element (`StyledElement` → `Self`) write the same field. The
    design said "a later `.pointerStyle` replaces its own field" (`CI-Q`).
@@ -1642,18 +1643,21 @@ moves a pin, a pixel or a public name.
    modifier `claimed=true raw=0`). **Open**: the options are to claim when any
    opaque hitbox on the cover's layer contains the point, or to rule that a
    declining handler hands the wheel on and amend the comments. Either owes a
-   test and its mutation.
+   test and its mutation. **Resolved by `CI-AL` item 1** (the element's own
+   opaque hitbox becomes the cover; pinned, M1 and M3 red).
 2. **`CI-AH` item 1 overstates.** "No spelling gives a handler the scroller's
    own id" holds for the built-in scrollers. `PrepaintPass.registerScrollRegion`
    is public: a custom `StyledElement` registering a scroll region under its own
    id and then taking `.onScrollWheel` shares the id, and the handler runs
    first (`here.reversed()` before `here.last(where: scroll != nil)`) with no
    test pinning that order. **Open**: narrow the sentence or pin the order with
-   a custom-conformer test.
+   a custom-conformer test. **Resolved by `CI-AL` item 3** (narrowed, doc
+   only; the order stays unpinned).
 3. **Pinch does not recompute the pointer style.** Spec §1.4 item 1 lists
    `.magnify`/`.rotate` among the events that recompute hover and style;
    `Window.onInput`'s switch does not. Harmless while a pinch never moves the
    pointer. **Open**: add the cases with a pin, or amend the spec.
+   **Resolved by `CI-AL` item 2** (the cases added, pinned, M5 and M6 red).
 4. **Three canvas-demo behaviours are unpinned** (lane C mutations m2, m6, m7,
    all green on the full suite): ⌃-scroll zooms like ⌘ (the Windows precision
    touchpad's pinch), the zoom clamp 0.25…4, and a momentum wheel keeps panning.
@@ -1751,6 +1755,8 @@ tree). Measurements, all on `1337ff6` unless stated:
    the cover is a pointer-only region, take the `TI-H` and opacity decisions
    from the opaque hitbox with the cover's id under the point, if any. That
    fix owes a test for each of item 1 and this item, with a mutation.
+   **Resolved by `CI-AL` item 1** (pinned in a `Box` and inside a
+   `ScrollView`, M1 and M2 red).
 
 **Verdict.** No pin, pixel or name moved; the open code findings are `CI-AJ`
 items 1–3 and item 6 above, none a regression of an app that does not write
@@ -1761,3 +1767,103 @@ editor.
 **Cost if wrong.** If item 6 is left, an app that puts a declining wheel
 handler on a `TextEditor` (for example to watch the wheel) loses the editor's
 own scrolling with no diagnostic.
+
+## CI-AL — A declining wheel handler falls through to its own element; a pinch recomputes hover and style
+
+**Ruling.** Fixes `CI-AJ` items 1 and 3 and `CI-AK` item 6, narrows `CI-AJ`
+item 2. On `2723d56`, red first; the fix is `e5f9da5`.
+
+1. **The element is the wheel's cover, not its handler's region** (`CI-AJ`
+   item 1, `CI-AK` item 6, one cause). A legacy `.onScrollWheel` returns
+   `Self`, so its non-opaque wheel region is registered under the element's
+   own id after the element's opaque hitbox and outranks it. `applyScroll`
+   now takes the one ranking's top match and, **when it is not opaque and
+   the same id has an opaque hitbox on the same layer under the point**,
+   makes that hitbox the cover — found with `topmostHitbox(in:at:where:)`
+   again (eligibility `opaque && id == cover.id && layer == cover.layer`), not
+   a second lookup. The chain, the candidates and the order are unchanged;
+   only the cover's `TI-H` target and its opacity are now the element's. A
+   proposal `.onScrollWheel` is unaffected: its `ScrollWheelModifier` has its
+   own id and registers before its content, whose opaque hitbox already
+   outranks it. Tests (`InputAPIWindowTests`):
+   - `aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel` —
+     `square().onClick {}.onScrollWheel { false }`: the handler runs, the wheel
+     is claimed, `onInput` sees 0 wheels (3.13 is the separating arm: no
+     `onClick`, not claimed). **Red on `2723d56`**: `simulateInput(wheel(150,
+     150)) → false`; `raw 1`.
+   - `aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself` — forty
+     lines; in a `Box` (120-point window) a wheel of −100 is claimed, `onInput`
+     sees none, `TextEditState.scrollY` is 100; inside a `ScrollView` (the
+     editor framed 100 × 80 over three rows, 100-point window) a wheel of −30
+     moves the editor 30 and the outer scroller 0. **Red on `2723d56`**:
+     boxed `simulateInput → false`, `raw 1`, scroll `0.0`; nested editor
+     `0.0`, outer scroller `30.0` (the walk went on to the parent). The
+     editor's scroll is read from its state, not from region top minus
+     content top: inside a scrolled `ScrollView` the region is clipped to the
+     viewport, so that difference moved by 30 with the outer scroller and
+     passed for the wrong reason on the first draft.
+2. **A pinch recomputes hover and the pointer style** (`CI-AJ` item 3, spec
+   §1.4 item 1 now true as written). `updatePointerState` moves
+   `lastMousePosition` to a `.magnify`/`.rotate` event's position (AppKit's
+   event location, SDL's last pointer position — the pointer either way),
+   never `active`; `Window.onInput`'s hover switch gains `case .magnify,
+   .rotate: updateHover(at: lastMousePosition, reportsMoves: false)` — an
+   entering region hears `onHover`, a member already in hears no
+   `onContinuousHover` move. Test
+   `aPinchRecomputesTheHoverAndThePointerStyleAtItsPosition`: with no move
+   yet, a magnify at (150, 150) over a `.pointerStyle(.rectSelection)` box
+   with `.onHover` sends the crosshair and enters; a move off (arrow, leaves);
+   a rotate over it sends the crosshair and enters again. **Red on
+   `2723d56`**: `pointerStyles` `[]` after the magnify, `[.arrow]` after the
+   rotate; hover log `[]` throughout.
+3. **`CI-AH` item 1 narrowed** (`CI-AJ` item 2, doc only). "No spelling gives
+   a handler the scroller's own id" holds for the built-in scrollers; a custom
+   `StyledElement` calling the public `registerScrollRegion` under its own id
+   and taking `.onScrollWheel` does share it, and its handler runs first
+   (`here.reversed()` before the scroll region). Said so in `applyScroll`'s
+   doc comment, test 3.6's, and `CI-I` item 4's amendment line; the order is
+   **not pinned** — a custom-conformer fixture was judged not cheap beside
+   items 1–2, owner none.
+4. **Mutations** (`Sources/MetalUI/Window.swift` at `e5f9da5`, restored from a
+   copy, `git status --short` clean after each; full unfiltered native
+   `--no-parallel` suite each, 2873 tests):
+   - **M1** `if false, !cover.opaque, let own = …` (no re-cover): red, 7
+     issues — `aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel` (2),
+     `aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself` (5).
+   - **M2** the `TI-H` arm reads `lastHitboxes[topIndex].handlers.textInput`:
+     red, 3 issues — `aDecliningWheelHandlerOnATextEditorLeavesItScrollingItself`
+     only (the claim still holds through the cover's opacity; the editor
+     scrolls 0 and the outer scroller does not move — the click arm is green).
+   - **M3** the final `return lastHitboxes[topIndex].opaque`: red, 2 issues —
+     `aDecliningWheelHandlerOnAClickTargetStillSwallowsTheWheel` only.
+   - **M4** the eligibility drops `$0.id == cover.id` (any opaque hitbox on
+     the layer): red, 11 issues — `aWheelHandlerThatClaimsStopsAnEnclosingScrollView`,
+     `aWheelHandlerThatDeclinesPassesToTheEnclosingScrollView`,
+     `aWheelHandlerOnAScrollViewsContentRunsBeforeItsScrollingAndCanVetoIt`,
+     `aGPUSurfaceViewportReceivesWheelPinchButtonDragsAndStyle`.
+   - **M5** the `case .magnify, .rotate:` hover arm deleted: red, 5 issues —
+     `aPinchRecomputesTheHoverAndThePointerStyleAtItsPosition` only.
+   - **M6** the arm kept, `updatePointerState`'s pinch cases leave
+     `lastMousePosition` alone: red, 5 issues — the same test only.
+5. **Verification** on the committed tree (`e5f9da5` plus this record's doc
+   lines): `swift package clean`; native build with tests, 0 `error:` (the
+   only `warning:` SwiftPM's deprecation notice); unfiltered native suite
+   **`Test run with 2873 tests in 3 suites passed after 177.500 seconds`**,
+   `FR-J no-argument frame: succeeded=true`. The first unfiltered run after
+   the clean build stopped silently after 1058 started tests (last line
+   `decorationSubstitutionReachesTheElementOnBoxAndStack() started`, no
+   summary, no fatal message); that test passes alone and the immediate
+   re-run completed — not reproduced, not explained. `swift build
+   --build-tests` (default build system): 0 `warning:`. Guards unmoved (185:
+   no guard added). No public declaration added: both closeout checks print
+   nothing. `compare.sh <scratch> 70ed000 HEAD`: 0 differing, scene
+   identical, in all fourteen images; controls at the `CI-AK` values.
+   `Backends/SDL` and the Linux image were not re-run: no file there changed
+   and the new tests are macOS window tests.
+
+**Cost if wrong.** If item 1's eligibility were too wide (M4), a handler-only
+region over an unrelated click target would hand the cover — and the chain — to
+that target, and every wheel handler inside a `ScrollView` row would lose its
+event; four existing tests catch it. If item 2's position write were wrong, a
+pinch would recompute hover where the last move left it, which is harmless
+while a pinch never moves the pointer.

@@ -47,7 +47,7 @@ summary.
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
-  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AL`), `TF-` (`.task`
+  buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AM`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
@@ -86,8 +86,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`):
-  2870 tests, 0 goldens, 185 typecheck guards** (2790 + 80 tests, 180 + 5 guards;
+- **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
+  after `CI-AL`): 2873 tests, 0 goldens, 185 typecheck guards** (the merge's 2870 + `CI-AL`'s
+  3 tests, no guard; `Backends/SDL` and the image not re-taken, untouched; record §81 §4.7).
+  On the merge itself, `1337ff6`: 2870 / 0 / 185 (2790 + 80 tests, 180 + 5 guards;
   census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
   next label 159; `RichTextTests`' `Handlers` member count 17 → 18 with a `pointer`
   arm, the merge's one source edit; `Backends/SDL` 24 + 98 on macOS, 24 + 95 in the Linux
@@ -711,7 +713,9 @@ menu waits for the release only when a secondary drag is declared on the chain
 (`CI-F` item 4). **`.onScrollWheel` (`-> Bool`, `true` claims) dispatches
 innermost first along the cover's chain from `topmostHitbox`**: each id's
 handler before its scroll region, so a handler on a scroller's *content* can
-veto it and one on or around the scroller sees nothing (`CI-AH`; `DD-Y` kept).
+veto it and one on or around the scroller sees nothing (`CI-AH`; `DD-Y` kept); a
+declining handler falls through to its own element's opaque hitbox and `TI-H`
+scroll, and a pinch recomputes hover and the pointer style (`CI-AL`).
 **`.pointerStyle(_:)` resolves with hover through the one ranking** (innermost
 wins, a press holds the pressed chain's style, sent only on a change, forgotten
 on exit) through the defaultless `PlatformWindow.setPointerStyle(_:)`; SDL has
