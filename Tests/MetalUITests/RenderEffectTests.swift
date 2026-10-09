@@ -737,7 +737,16 @@ private func lfaBounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> String
 /// inside an `.offset(x: 150)`, paints at (50, 10) 60 × 40 with its own
 /// rounded clip moved with it — (50, 10) 60 × 40, radius 6. Red on `0b400b4`:
 /// an empty mask, the window rect cut in the outer effect's pre-effect space
-/// (x −100…−40). Mutation **M-Y2**: depth 0 read as "no flattening scope open".
+/// (x −100…−40). Mutations **M-Y2** (depth 0 read as "no flattening scope
+/// open"), **M-Y3** (`atFlatteningEntry`'s `>=` as `>`).
+///
+/// The second arm is the same depth-0 mistake in `pushClip`, one effect deep:
+/// a 460-tall root (a 420-tall spacer over the bar) is placed centred at y −30,
+/// so the bar is laid out at (0, 390), past the window's bottom edge, and an
+/// `.offset(y: −100)` brings it to (0, 290) 60 × 40. Its first clip inside
+/// the offset must not intersect the window rect in the pre-effect space —
+/// mask (0, 290) 60 × 40, not (0, 290) 60 × 10. Mutation **M-Y4**: `pushClip`
+/// reading 0 as "no flattening scope" (the `GX-X` spelling).
 @Test @MainActor func aClipInsideNestedFlatteningEffectsAtDepthZeroIsNotCutByTheWindow() throws {
     let rows = lfbMasks(ZStack(alignment: .topLeading) {
         Color.clear.frame(width: px(400), height: px(400))
@@ -746,6 +755,17 @@ private func lfaBounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> String
     try #require(rows.count == 1, "one node: \(rows)")
     #expect(rows[0] == "\(lfaBounds(50, 10, 60, 40)) m\(lfaBounds(50, 10, 60, 40)) r6.0",
             "its own clip, moved twice: \(rows[0])")
+
+    let below = lfbMasks(ZStack(alignment: .topLeading) {
+        Color.clear.frame(width: px(400), height: px(400))
+        VStack(alignment: .leading, spacing: px(0)) {
+            Color.clear.frame(width: px(60), height: px(420))
+            fxBar(60, 40).clipShape(RoundedRectangle(cornerRadius: px(6)))
+        }.offset(x: px(0), y: px(-100))
+    })
+    try #require(below.count == 1, "one bar: \(below)")
+    #expect(below[0] == "\(lfaBounds(0, 290, 60, 40)) m\(lfaBounds(0, 290, 60, 40)) r6.0",
+            "laid out past the window, moved in: its own clip: \(below[0])")
 }
 
 /// **LF-b 4** (`GX-Y`, MetalCreator's measured repro on the LF-a stage). The
