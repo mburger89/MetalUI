@@ -89,7 +89,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-10, `feat/key-focus` from `c62d6ba`, merged with master `70e9389`: 3172 tests, 0 goldens, 202 typecheck guards** (master's 3069 + 103 tests, 195 + 7 guards; record §88 §11). Before it, (2026-10-09) `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+- **Counts (2026-10-10, `feat/key-focus` from `c62d6ba`, merged with master `70e9389`: 3173 tests, 0 goldens, 202 typecheck guards** (master's 3069 + 104 tests (3172 at the checker, + its owed MX2 pin, record §88 §13), 195 + 7 guards; record §88 §11). Before it, (2026-10-09) `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
   3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
   issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105

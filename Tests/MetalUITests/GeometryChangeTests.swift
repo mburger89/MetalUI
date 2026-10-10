@@ -157,6 +157,32 @@ private struct GCPair: Component {
     #expect(log.entries == ["w:200", "w:210", "w:220", "w:230", "w:240", "w:250"], "\(log.entries)")
 }
 
+/// **B4b** (G2/G5, `g:200x180->300x230`). A resize under the two-argument form
+/// passes the value it replaces as `old`: one call per drawn step, each
+/// `old` the previous step's `new`. Mutation MX2 (record §88 §12): pass
+/// `action(new, new)` on a change in `closeGeometry()` — reddens this test
+/// alone (every other change test uses the one-value form, and B2/B6 see only
+/// first calls, where old equals new).
+@MainActor
+@Test func theTwoArgumentFormPassesThePreviousValueAsOldOnAResize() throws {
+    let log = GCLog()
+    let (window, platform) = try gcWindow(size: 200) {
+        Box {
+            Box().frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { old, new in
+                    log.add("\(Int(old))->\(Int(new))")
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    window.drawFrameIfNeeded()
+    platform.simulateResize(to: gcSize(320, 200))
+    window.drawFrameIfNeeded()
+    platform.simulateResize(to: gcSize(250, 200))
+    window.drawFrameIfNeeded()
+    #expect(log.entries == ["200->200", "200->320", "320->250"], "\(log.entries)")
+}
+
 /// **B5** (G3: an unchanged value is not reported). Frames redrawn by an
 /// unrelated write report nothing. Red on the stub: the initial call is
 /// missing. Mutation: compare nothing (report every build).

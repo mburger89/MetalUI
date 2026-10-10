@@ -334,3 +334,16 @@ verdicts, §5, §6).
 
 - **Not re-taken here**: the SwiftUI probe and a real-window capture (no claim rests on a new
   run); the looks stay owed to a human (group KF).
+
+## §13 Before the PR: the MX2 pin
+
+The checker's MX2 (§12) reddened nothing, so the pin it owed was added before the PR:
+`theTwoArgumentFormPassesThePreviousValueAsOldOnAResize` (`Tests/MetalUITests/GeometryChangeTests.swift`,
+B4b): two resizes under the two-argument form read `["200->200", "200->320", "320->250"]`. MX2
+(`action(new, new)` on a change in `closeGeometry()`) reddens it alone (`GeometryChangeTests` filtered:
+16 tests, 1 issue, at line 183); restored, it passes.
+
+Then, on the merged tree after `swift package clean`: native build 0 `error:`; unfiltered native
+`--no-parallel` **`Test run with 3173 tests in 3 suites passed after 231.380 seconds.`** (3172 + 1);
+`FR-J no-argument frame: succeeded=true`; default build system 0 warnings; `cmp CLAUDE.md AGENTS.md`
+equal; both inventory scripts print nothing. Guards 202, unmoved (the pin is a test, not a guard).
