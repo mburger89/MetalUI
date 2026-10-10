@@ -222,18 +222,25 @@ final class RasterCache {
         return texture
     }
 
-    /// Premultiplied RGBA8 of `color` times each coverage byte, in integers.
+    /// Premultiplied RGBA8 of `color` times each coverage byte, in integers —
+    /// one unchecked pass (`PF-F` item 2), byte for byte 2155f1e's loop
+    /// (`RasterMathReferenceTests`).
     static func tint(_ mask: AlphaMask, color: Hsla) -> ImageTexture {
         let rgb = color.toRgba()
         func byte(_ v: Float) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
         let r = byte(rgb.r), g = byte(rgb.g), b = byte(rgb.b), a = byte(color.a)
-        var pixels = [UInt8](repeating: 0, count: mask.alpha.count * 4)
-        for i in 0..<mask.alpha.count {
-            let alpha = (Int(mask.alpha[i]) * a + 127) / 255
-            pixels[i * 4] = UInt8((r * alpha + 127) / 255)
-            pixels[i * 4 + 1] = UInt8((g * alpha + 127) / 255)
-            pixels[i * 4 + 2] = UInt8((b * alpha + 127) / 255)
-            pixels[i * 4 + 3] = UInt8(alpha)
+        let count = mask.alpha.count
+        let pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for i in 0..<count {
+                    let alpha = (Int(source[i]) * a + 127) / 255
+                    out[i &* 4] = UInt8(truncatingIfNeeded: (r * alpha + 127) / 255)
+                    out[i &* 4 &+ 1] = UInt8(truncatingIfNeeded: (g * alpha + 127) / 255)
+                    out[i &* 4 &+ 2] = UInt8(truncatingIfNeeded: (b * alpha + 127) / 255)
+                    out[i &* 4 &+ 3] = UInt8(truncatingIfNeeded: alpha)
+                }
+            }
+            initialized = count * 4
         }
         return ImageTexture(width: mask.rect.width, height: mask.rect.height, premultipliedRGBA: pixels)
     }
@@ -253,35 +260,57 @@ enum RasterMath {
     }
 
     /// `a` multiplied by `b` per pixel, over the two rectangles' overlap
-    /// (outside `b` the product is 0, so the result is trimmed to it).
+    /// (outside `b` the product is 0, so the result is trimmed to it). Row by
+    /// row over unchecked buffers (`PF-F` item 2), byte for byte 2155f1e's loop.
     static func multiply(_ a: AlphaMask, _ b: AlphaMask) -> AlphaMask {
         let r = a.rect.intersection(b.rect)
         guard !r.isEmpty else { return AlphaMask(rect: RasterRect(x: a.rect.x, y: a.rect.y, width: 0, height: 0), alpha: []) }
-        var out = [UInt8](repeating: 0, count: r.area)
-        for y in 0..<r.height {
-            for x in 0..<r.width {
-                let p = Int(a.value(atX: r.x + x, y: r.y + y)), q = Int(b.value(atX: r.x + x, y: r.y + y))
-                out[y * r.width + x] = UInt8((p * q + 127) / 255)
+        let out = [UInt8](unsafeUninitializedCapacity: r.area) { out, initialized in
+            a.alpha.withUnsafeBufferPointer { pa in
+                b.alpha.withUnsafeBufferPointer { pb in
+                    for y in 0..<r.height {
+                        let rowA = (r.y - a.rect.y + y) * a.rect.width + (r.x - a.rect.x)
+                        let rowB = (r.y - b.rect.y + y) * b.rect.width + (r.x - b.rect.x)
+                        let rowOut = y * r.width
+                        for x in 0..<r.width {
+                            let p = Int(pa[rowA &+ x]), q = Int(pb[rowB &+ x])
+                            out[rowOut &+ x] = UInt8(truncatingIfNeeded: (p * q + 127) / 255)
+                        }
+                    }
+                }
             }
+            initialized = r.area
         }
         return AlphaMask(rect: r, alpha: out)
     }
 
-    /// `mask` scaled by `factor` (0…1).
+    /// `mask` scaled by `factor` (0…1), one unchecked pass (`PF-F` item 2).
     static func scale(_ mask: AlphaMask, by factor: Float) -> AlphaMask {
         guard factor < 1 else { return mask }
         let f = Int((max(factor, 0) * 255).rounded())
-        return AlphaMask(rect: mask.rect, alpha: mask.alpha.map { UInt8((Int($0) * f + 127) / 255) })
+        let count = mask.alpha.count
+        let out = [UInt8](unsafeUninitializedCapacity: count) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for i in 0..<count { out[i] = UInt8(truncatingIfNeeded: (Int(source[i]) * f + 127) / 255) }
+            }
+            initialized = count
+        }
+        return AlphaMask(rect: mask.rect, alpha: out)
     }
 
-    /// `mask` restricted to `rect`.
+    /// `mask` restricted to `rect`, copied row by row (`PF-F` item 2).
     static func crop(_ mask: AlphaMask, to rect: RasterRect) -> AlphaMask {
         let r = mask.rect.intersection(rect)
         guard !r.isEmpty else { return AlphaMask(rect: RasterRect(x: rect.x, y: rect.y, width: 0, height: 0), alpha: []) }
         if r == mask.rect { return mask }
-        var out = [UInt8](repeating: 0, count: r.area)
-        for y in 0..<r.height {
-            for x in 0..<r.width { out[y * r.width + x] = mask.value(atX: r.x + x, y: r.y + y) }
+        let out = [UInt8](unsafeUninitializedCapacity: r.area) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for y in 0..<r.height {
+                    let row = (r.y - mask.rect.y + y) * mask.rect.width + (r.x - mask.rect.x)
+                    for x in 0..<r.width { out[y &* r.width &+ x] = source[row &+ x] }
+                }
+            }
+            initialized = r.area
         }
         return AlphaMask(rect: r, alpha: out)
     }
