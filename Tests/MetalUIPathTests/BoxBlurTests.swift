@@ -61,3 +61,70 @@ import Testing
                                        into: RasterRect(x: 0, y: 0, width: 1, height: 1), filter: .nearest)
     #expect(one.alpha == [200])
 }
+
+// MARK: - C13 / PERF-a, lane 2: the faster loops against 2155f1e (`PF-F`)
+
+/// Bytes from a seeded 64-bit LCG (Knuth's MMIX constants), its high byte:
+/// the same masks on every run and platform.
+private struct SeededBytes {
+    var state: UInt64
+    mutating func next() -> UInt8 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return UInt8(truncatingIfNeeded: state >> 56)
+    }
+}
+
+/// The masks L2.1 and L2.2 run over: 1×1, 1×N, N×1, odd and even sizes, a
+/// larger one, an off-origin one, seeded bytes; plus a solid and a sparse mask
+/// (the extremes of the running sums).
+private func referenceMasks() -> [AlphaMask] {
+    var bytes = SeededBytes(state: 0xC13)
+    func seeded(_ x: Int, _ y: Int, _ w: Int, _ h: Int) -> AlphaMask {
+        AlphaMask(rect: RasterRect(x: x, y: y, width: w, height: h), alpha: (0..<(w * h)).map { _ in bytes.next() })
+    }
+    var sparse = [UInt8](repeating: 0, count: 23 * 17)
+    for i in stride(from: 5, to: sparse.count, by: 41) { sparse[i] = 255 }
+    return [
+        seeded(0, 0, 1, 1), seeded(0, 0, 1, 37), seeded(0, 0, 37, 1),
+        seeded(0, 0, 13, 9), seeded(0, 0, 16, 10), seeded(-3, 7, 61, 40),
+        AlphaMask(rect: RasterRect(x: 2, y: -5, width: 20, height: 11), alpha: [UInt8](repeating: 255, count: 220)),
+        AlphaMask(rect: RasterRect(x: 0, y: 0, width: 23, height: 17), alpha: sparse),
+    ]
+}
+
+/// **L2.1** (`PF-F` item 1). `BoxBlur.blur` equals the 2155f1e loop copied in
+/// `BoxBlurReference.swift`: sigmas 0.3, 0.8, 1, 2.5, 10 and 33 over every
+/// reference mask — the same rectangle and 0 differing bytes. Mutations
+/// **M2a** (`(sum + half)` → `sum`) and **M2b** (the vertical running sum off
+/// by one row) redden it.
+@Test func theFastBoxBlurEqualsTheReferenceByteForByte() throws {
+    let masks = referenceMasks()
+    try #require(masks.count == 8)
+    var compared = 0
+    for sigma in [0.3, 0.8, 1, 2.5, 10, 33] {
+        for mask in masks {
+            let fast = BoxBlur.blur(mask, sigma: sigma), reference = ReferenceBoxBlur.blur(mask, sigma: sigma)
+            try #require(fast.rect == reference.rect, "σ \(sigma) \(mask.rect): rect \(fast.rect) vs \(reference.rect)")
+            let differing = zip(fast.alpha, reference.alpha).filter { $0 != $1 }.count
+            #expect(differing == 0, "σ \(sigma) \(mask.rect): \(differing) differing bytes")
+            compared += fast.alpha.count
+        }
+    }
+    #expect(compared > 100_000, "the comparison covered the padded areas: \(compared) bytes")
+}
+
+/// **L2.2** (`PF-F` item 2). `AlphaCompositor.union` equals the 2155f1e loop:
+/// every ordered pair of the reference masks (overlapping, disjoint, nested,
+/// off-origin) and an empty operand on either side — the same rectangle and 0
+/// differing bytes.
+@Test func theFastUnionEqualsTheReferenceByteForByte() throws {
+    let masks = referenceMasks() + [AlphaMask.empty]
+    for a in masks {
+        for b in masks {
+            let fast = AlphaCompositor.union(a, b), reference = ReferenceBoxBlur.union(a, b)
+            try #require(fast.rect == reference.rect, "\(a.rect) ∪ \(b.rect): rect \(fast.rect) vs \(reference.rect)")
+            let differing = zip(fast.alpha, reference.alpha).filter { $0 != $1 }.count
+            #expect(differing == 0, "\(a.rect) ∪ \(b.rect): \(differing) differing bytes")
+        }
+    }
+}

@@ -2894,6 +2894,10 @@ public final class Frame {
     /// `rotationEffect`, `scaleEffect` or `offset`.
     var effectScopesPushed = 0
 
+    /// Composite scopes pushed this frame (`PF-E`, test L2.5): 0 for a tree
+    /// whose `compositingGroup()`s have no shadow or blur outside them.
+    var compositeScopesPushed = 0
+
     /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
