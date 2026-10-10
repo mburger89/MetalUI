@@ -23,7 +23,10 @@
 #   enabled (`-c release -Xswiftc -enable-testing`, own scratch path), runs a
 #   headless 20-node shadowed graph at 2×, one node moving 2 pt a frame, and
 #   prints median/mean ms per frame and the per-frame work counters. Wall
-#   clock: REPORT ONLY (the suite pins the counted work).
+#   clock: REPORT ONLY (the suite pins the counted work). From lane 2 on,
+#   ZZShadowCacheMeasureComposited.swift (the same graph with
+#   `.compositingGroup()` before each shadow) is copied in too where the commit
+#   has `compositingGroup()`, and prints `SHADOWMEASURE composited` lines.
 #
 # Recorded output is in docs/record/90-shadow-cache.md.
 set -e
@@ -82,6 +85,9 @@ measure)
   for c in "$@"; do
     sha=$(exportCommit $c)
     cp $HERE/ZZShadowCacheMeasure.swift src-$sha/Tests/MetalUITests/ZZShadowCacheMeasure.swift
+    # The composited arm (lane 2) only where compositingGroup() exists.
+    [ -f src-$sha/Sources/MetalUI/CompositingGroup.swift ] \
+      && cp $HERE/ZZShadowCacheMeasureComposited.swift src-$sha/Tests/MetalUITests/ZZShadowCacheMeasureComposited.swift
     (cd src-$sha \
       && swift build -c release -Xswiftc -enable-testing --build-tests --scratch-path .build-release \
            > ../measure-build-$sha.log 2>&1 \
