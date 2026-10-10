@@ -9,9 +9,21 @@ import MetalUITextSystem
 ///
 /// **⌘↩ (⌃↩ off macOS) is not an editing key** (ruling `KF-Z` item 2): it
 /// passes on to `onKey`, a `Button`'s shortcut, the app's commands and the
-/// window. To commit on it, write `.onKeyPress(keys: [.return]) { press in
-/// press.modifiers.contains(.command) ? commit() : .ignored }` — handlers run
-/// before the editor's own keys.
+/// window. To commit on it, test the platform's shortcut modifier — `.command`
+/// on macOS, `.control` on Linux and Windows (MetalUI exposes no constant for
+/// it) — in an `onKeyPress`, which runs before the editor's own keys:
+///
+/// ```swift
+/// #if os(macOS)
+/// let commitModifier: Modifiers = .command
+/// #else
+/// let commitModifier: Modifiers = .control
+/// #endif
+/// TextEditor(text: model.notes) { model.notes = $0 }
+///     .onKeyPress(keys: [.return]) { press in
+///         press.modifiers.contains(commitModifier) ? commit() : .ignored
+///     }
+/// ```
 ///
 /// **Controlled**, like `TextField`: it shows `text` and calls `onChange`
 /// with every edit.

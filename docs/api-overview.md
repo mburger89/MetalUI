@@ -361,7 +361,9 @@ binding, the context and the handlers sit on one id: `MetalView { … }
 .focusable(interactions: .edit).keyContext("Viewport").onKeyPress("f") { … }`
 (`KF-H`); on one layer `onKeyPress` and `.focusable()` are order-free (D 185).
 **A `TextEditor`'s commit key**: `.onKeyPress(keys: [.return]) { press in
-press.modifiers.contains(.command) ? commit() : .ignored }` — ⌘↩ (⌃↩ off
+press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
+`commitModifier` is `.command` on macOS and `.control` on Linux and Windows
+(an app's own `#if os(macOS)`; MetalUI exposes no constant) — ⌘↩ (⌃↩ off
 macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.

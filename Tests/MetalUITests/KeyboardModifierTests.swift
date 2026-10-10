@@ -104,6 +104,49 @@ private func kd(_ c: String, _ modifiers: Modifiers = []) -> InputEvent {
     #expect(m.log == ["proposal", "styled"], "each handler written before .focusable() heard (divergence 185): \(m.log)")
 }
 
+/// **C12** (`KF-AA`; `GX-P` item 1, MetalCreator M4-a's viewport under a
+/// render effect). A `KeyboardModifier` written after an effect follows it:
+/// its press region and its key region sit where the content is drawn, not at
+/// the untransformed rect. A 40-point square offset by 60 in a 200 window is
+/// drawn centred at (160, 100); a press there focuses it, and with nothing
+/// focused a key region hovered there hears a key — at the untransformed centre
+/// (100, 100) neither happens. Mutation (M14): register the layer's handlers
+/// directly, outside `frame.sharingRegistrationsWithEffects`.
+@MainActor
+@Test func aKeyboardLayerAfterAnOffsetFollowsItForPressAndHover() throws {
+    let m = KMLog()
+    let (window, platform) = try kmWindow {
+        HStack(spacing: 0) {
+            Rectangle(width: px(40), height: px(40))
+                .offset(x: px(60))
+                .focusable(interactions: .edit)
+        }
+    }
+    try #require(window.lastFocusRegistry.tabOrder.count == 1, "set up: one focusable layer")
+    platform.simulateInput(.mouseDown(MouseEvent(position: pt(100, 100))))
+    platform.simulateInput(.mouseUp(MouseEvent(position: pt(100, 100))))
+    #expect(window.focusedElement == nil, "a press at the untransformed centre focuses nothing")
+    platform.simulateInput(.mouseDown(MouseEvent(position: pt(160, 100))))
+    platform.simulateInput(.mouseUp(MouseEvent(position: pt(160, 100))))
+    #expect(window.focusedElement == window.lastFocusRegistry.tabOrder.first,
+            "a press where the square is drawn focuses it")
+
+    let (regionWindow, regionPlatform) = try kmWindow {
+        HStack(spacing: 0) {
+            Rectangle(width: px(40), height: px(40))
+                .offset(x: px(60))
+                .hoverKeyRegion()
+                .onKeyPress { press in m.log.append(press.characters); return .handled }
+        }
+    }
+    _ = regionWindow
+    regionPlatform.simulateInput(.mouseMoved(MouseEvent(position: pt(100, 100))))
+    #expect(!regionPlatform.simulateInput(kd("a")), "the untransformed centre is not the region")
+    regionPlatform.simulateInput(.mouseMoved(MouseEvent(position: pt(160, 100))))
+    #expect(regionPlatform.simulateInput(kd("b")), "the region where it is drawn claims the key")
+    #expect(m.log == ["b"], "\(m.log)")
+}
+
 /// A proposal pane binding its viewport's focus to a `@FocusState`.
 private struct KMFocusPane: Component {
     @FocusState var flag: Bool
@@ -162,8 +205,11 @@ private struct KMFocusPane: Component {
 /// `TextEditor` with `.onKeyPress(keys: [.return])` answering `.handled` for
 /// ⌘↩ runs the handler and leaves the text unchanged; a plain Return, which the
 /// handler ignores, still inserts a line break (`TI-H`). Red before: does not
-/// compile at `c62d6ba` (no `onKeyPress`). Mutation: move `dispatchKeyPress`
-/// after `dispatchTextKey` (⌘↩ inserts a line break).
+/// compile at `c62d6ba` (no `onKeyPress`). Mutation (M13, `KF-AA` item 2):
+/// move `dispatchKeyPress` after `dispatchTextKey` **and** delete
+/// `TextEditing.key`'s shortcut-modified Return arm (⌘↩ inserts a line
+/// break). Either half alone leaves this test green: since `KF-Z` item 2 the
+/// editor declines ⌘↩ itself, so the moved handler still hears it.
 @MainActor
 @Test func aTextEditorsOnKeyPressTakesCommandReturnAndPlainReturnStillBreaksTheLine() throws {
     let m = KMLog("ab")
@@ -186,7 +232,8 @@ private struct KMFocusPane: Component {
 
 /// **CM-a**, the declined arm. A handler that ignores ⌘↩ passes it on: it
 /// reaches the window's `onInput` and the text is unchanged. Red before: does
-/// not compile at `c62d6ba`.
+/// not compile at `c62d6ba`. Mutation (M8): delete `TextEditing.key`'s
+/// shortcut-modified Return arm.
 @MainActor
 @Test func aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput() throws {
     let m = KMLog("ab")
