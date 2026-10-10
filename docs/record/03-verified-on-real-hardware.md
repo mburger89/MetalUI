@@ -2125,7 +2125,7 @@ views as a placeholder, `V9`; `cacheDisplay` read an inactive window, `V14`).
 
 The app shell demo (`METALUI_APP_SHELL_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
 section behind its own switch; the fourteen offscreen images are unchanged (0 differing pixels
-against `c62d6ba` at lane 3 and at the Record phase; none of the fourteen renders the section, so
+against `c62d6ba` at lane 3, and against master `2155f1e` after the merge at the Record phase; none of the fourteen renders the section, so
 the zero cannot see it). The SwiftUI probe `swiftui-app-shell.swift` and the two AppKit probes ran
 with the screen mostly locked (the critic re-ran `N5` and `H0` unlocked, byte-identical); no
 real-window capture was taken at any lane or at the Record phase (the lock probe read

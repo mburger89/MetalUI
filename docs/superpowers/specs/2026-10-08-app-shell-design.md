@@ -16,8 +16,9 @@ next-label line is left for the merge).
 delegate, not `performClose(_:)`; the hidden style and a toolbar under it keep
 the frame); lane 2 implemented (2026-10-09; `AS-P` — `Window` stamps
 `titleBarInsets` beside its other root stamps, the insets follow the
-platform's answer, `platformWindow` and `App.windows` internal); lane 3 not
-started.
+platform's answer, `platformWindow` and `App.windows` internal); lane 3 implemented
+(2026-10-09; the demo, the SDL `App`-level tests, divergences 175–176, human checks AS1–AS10);
+**recorded 2026-10-09** (record §87; merged with master `2155f1e`, counts 3069 / 0 / 195).
 
 ## §0 Baseline (`c62d6ba`)
 

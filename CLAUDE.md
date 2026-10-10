@@ -88,8 +88,15 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `feat/controls-looks` from `cd84b0c`, merged with master `67a579e`, then
-  `0b400b4` (`GX-X`, +6 tests) and `9ad2254` (`GX-Y`, +5 tests): 3021 tests, 0 goldens, 192 typecheck guards (measured on the merge, all passed); at `0b400b4`'s merge: 3016 tests, 0 goldens, 192 typecheck guards** (+ `GX-X`'s 6 and
+- **Counts (2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+  3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
+  the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
+  issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105
+  in the Linux image; divergences 175, 176 added, the header's count and next label the merge's;
+  record §87 §12). Before the merge, the lanes on `c62d6ba`: 2921 / 0 / 188 (2873 + 48, 185 + 3;
+  `Backends/SDL` 24 + 107 on macOS, 24 + 104 in the Linux image). Before it, `feat/controls-looks`
+  from `cd84b0c`, merged with master `67a579e`, then
+  `0b400b4` (`GX-X`, +6 tests) and `9ad2254` (`GX-Y`, +5 tests): 3021 tests, 0 goldens, 192 typecheck guards (measured on the merge, all passed); at `0b400b4`'s merge: 3016 tests, 0 goldens, 192 typecheck guards (+ `GX-X`'s 6 and
   3 merge pins; `cutToEntryClip` gains `.gradient`/`.blur` arms; record §85 §4.7); **at `67a579e`'s merge:
   3007 tests, 0 goldens, 192 typecheck guards** (master's 2873 + 134 tests, 185 + 7 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet

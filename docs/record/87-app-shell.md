@@ -184,11 +184,21 @@ in the decisions doc, so only these three are claimed):
 | M2 | the top bar's left padding `insets.left.value + 12` replaced by `12` | `theAppShellDemoPadsItsTopBarByTheTitleBarInsets` |
 | M3 | `appShellDemoLaunchURLs` without its file-exists filter (the first run was killed by an external signal, exit 144; restored and re-run to completion) | `theAppShellDemoListsLaunchArgumentsAndLaterOpens` |
 | M4 | `openAppShellDemoWindow`'s `windowStyle: .hiddenTitleBar` replaced by `.automatic` | `theAppShellDemoPadsItsTopBarByTheTitleBarInsets` |
-| D | `if closed { return }` before `switch walkWindows` in `windowCloseRequestResolved` (`AppShell.swift`); run on the `Backends/SDL` suite (24 passed; 107 tests, 5 issues). Also run on the root suite in this Record phase, §5a | `anSDLAppAsksOnQuitAndEndsOnTheWindowsReply` |
+| D | `if closed { return }` before `switch walkWindows` in `windowCloseRequestResolved` (`AppShell.swift`); run on the `Backends/SDL` suite (24 passed; 107 tests, 5 issues). Also run on the full unfiltered root suite in this Record phase (3069 tests, 8 issues: the five sheet tests of §9 and these three) | `anSDLAppAsksOnQuitAndEndsOnTheWindowsReply` (SDL); root: `withoutAnAppHandlerQuitAsksEachWindowInTurn` (line 359), `aPendingWindowClosedDirectlyResumesTheQuit` (385), `appTerminateAsksThenEndsThroughThePlatform` (413) |
 | E | `SDLPlatform.dispatch`'s `MUI_EVENT_CLOSE` ignores the veto (`_ = window.onCloseRequest?()`) | `anSDLWindowCloseVetoKeepsTheAppRunning`, `sdlACloseRequestAsksTheWindowAndAVetoKeepsItOpen` |
 | F | window-0 drops not routed to the application (`if event.window_id == 0 && false`) | `anSDLAppDeliversAnAppLevelFileDropToOnOpenURL`, `sdlAFileDroppedOnTheAppIsAnOpenURL` |
 
-GUARD_TABLE
+The three new typecheck guards, each mutated red once (Record phase; G1 and G2 applied together
+to `Sources/MetalUIPlatform/Platform.swift`, two protocol-extension defaults, run with
+`--filter DoesNotCompile` on the native build: 33 tests, 4 issues — filtered, since each guard is
+its own test and the filter selects the two that read the source; restored from a copy, `git
+status` clean):
+
+| # | mutation | reddened |
+| --- | --- | --- |
+| G1 | `extension PlatformWindow { public func close() {} }` | `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile` (lines 121, 122: `!without.succeeded`, the message naming the member) |
+| G2 | `extension Platform { public func terminate() {} }` | `aPlatformWithoutEachAppShellRequirementDoesNotCompile` (lines 142, 143) |
+| G3 | `titleBarInsets`' setter `public` (`AS-P` M1, lane 2, full suite) | `anOutsideModuleCanSpellTheAppShellAPI` |
 
 ## §6 Green mutations and pins that prove less than they look
 
@@ -214,7 +224,10 @@ GUARD_TABLE
 identical scene in all fourteen offscreen images**, every control non-zero where required. The
 standard window style is unchanged and the app shell section sits behind its own switch, so none of
 the fourteen can see it (the zero is a statement about what must not move, not about the new
-section). The Record phase's re-run after the merge is in §10. `DemoFrameDeterminismTests`'
+section). The Record phase's re-run **after the merge**, against master `2155f1e` (the right
+base once master's own rendering work is in; `compare.sh <scratch> 2155f1e c2cd8f9`, `c2cd8f9` this
+branch's merge-plus-docs commit, which touches no `Sources/` file): **0 differing pixels and an
+identical scene in all fourteen images**. `DemoFrameDeterminismTests`'
 `Expected.swift` unedited; `git diff c62d6ba..HEAD` touches no file under `Sources/MetalUILayout`,
 `Sources/MetalUIScene` or `Expected.swift`.
 
@@ -271,4 +284,27 @@ conflict. Counts after the merge are in §12.
 
 ## §12 Counts
 
-COUNTS_PLACEHOLDER
+| Where | Tests | Goldens | Guards | Notes |
+| --- | --- | --- | --- | --- |
+| `c62d6ba` (baseline) | 2873 | 0 | 185 | |
+| lane 1 (`3356851`) | 2886 | 0 | 187 | +13: the 11 of `AppKitAppShellTests` and guards 1.1, 1.2 |
+| lane 2 (`d3da951`) | 2918 | 0 | 188 | +32: 19 + 6 + 6 and guard 2.1 (2.23b and 2.25b are the review's) |
+| lane 3 (`cfc7e00`) | 2921 | 0 | 188 | +3 (`AppShellDemoTests`); the arm 3.5 is inside an existing test |
+| **merge with `2155f1e`** | **3069** | **0** | **195** | master's 3021 + 48; guards 192 + 3 |
+
+The merge's native run (`swift package clean`, `swift build --build-system native --build-tests`,
+unfiltered `swift test --build-system native --no-parallel`, 568 s) printed one summary line,
+"Test run with 3069 tests in 3 suites failed after 568.215 seconds with 5 issues": exactly the five
+`AppKitPresentationTests` sheet tests of §9, which fail identically on a locked screen at
+`c62d6ba`. `FR-J no-argument frame: succeeded=true` present; 0 `error:`; the only `warning:` is
+SwiftPM's `--build-system native` deprecation notice; `swift build --build-tests` after the clean
+build above printed 0 warnings. The guard count is the number of `canTypecheck(module:` gates in
+`Tests` (194 on `2155f1e`, 197 here: +3, 1.1, 1.2 and 2.1) added to master's recorded 192.
+
+`Backends/SDL` on macOS (`swift test $(python3 scripts/fetch-accesskit.py --print-flags)`): **24 + 108
+passed**. CI's Linux image (`docker build -t metalui-portable …`, the `metalui-sdl-build-app-shell`
+volume): **24 + 105 passed**, the app shell tests running ungated under the offscreen driver.
+Census: `closeout-public-api.sh` re-recorded, **3021** declarations (master 2977, +44);
+`closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Divergences 175, 176
+added; the header's live count and next label are left for the merge to settle (this branch's
+reserved range is 175–184). Human checks group AS (AS1–AS10) owed.
