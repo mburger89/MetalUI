@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-R`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-S`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -399,3 +399,54 @@ files.
 7. **An in-window menu bar** — SDL draws none (`MN-I` item 3, C12's
    territory); `TestApp.menuBar` reads the seam regardless.
 
+## HT-R — Critic revisions (2026-10-09), each checked against the source at `70e9389`
+
+**Ruling.** The committed design is kept except where named here; the spec
+is corrected in the same commit.
+1. **The window lookup reads `App.windows`, not `Window.liveWindows`.**
+   `liveWindows` is `private static` in `Window.swift` (line 1113), so a
+   `package` hook in a new file cannot read it without editing `Window.swift`
+   (HT-C 2). `App.windows` is internal and `App.openWindow` appends the window
+   (`App.swift` line 148) before its first `drawFrameIfNeeded()` (line 161), so
+   `App.testingWindow(for:)` finds it from the renderer's first `beginFrame()`.
+2. **`TestElement` is `Equatable`, not `Sendable`.** Its `id` is
+   `AccessibilityNodeID`, a public struct wrapping `AnyHashable` and declared
+   `Hashable` only; a cross-module public struct is not implicitly `Sendable`,
+   so the spelled conformance would not compile under Swift 6. Every harness
+   API is `@MainActor`, so nothing needs to send one.
+3. **Test 1.35 states no literal.** The design's "6 leaves, one proposal each:
+   6" contradicted the stack algorithm (`CN-B`…: a stack measures a child more
+   than once, flexibility probes included). The lane derives the per-frame
+   measure/hit/miss literals before the run (`SA-M`). Its mutation was
+   "`onFrameAdopted` captured only on the first build", which a one-build drag
+   frame cannot see; it is now "the frame accumulator not reset at
+   `finishFrame`", plus a stale-read arm.
+4. **Every lane-2 test names a mutation.** 2.15, 2.17, 2.22, 2.23, 2.25 had
+   none; each now names one on the harness declaration it exercises (2.12
+   stays the named control for 2.11).
+5. **Guard 3.4 is dropped.** `MenuContent`'s requirement is SPI (`MN-D` item 1),
+   already pinned by `anOutsideTypeCannotConformToMenuContent`; `MenuEvaluation`
+   adds no way to conform, and its proposed mutation ("generic over `Any`")
+   would not compile the implementation, so the guard could never be red for a
+   real reason. Guards +3, lane 3 +5 tests.
+6. **`HeadlessPlatform.run()` returns at once** (said, not implied): a test
+   never enters a run loop; the clock is the harness's (HT-E).
+7. **Merge debt with C12** named in spec §9: `MenuSession.number` and
+   `MenuContent`'s SPI are read by `TestingMenuHooks.swift` alone.
+
+Checked and **kept**: the probe was re-run byte for byte (X1 exit 0, X2 exit 1
+with `rightTap`, S0 2/10, S1 all 0, R1–R3 as recorded); every seam type the
+spec names (`DropItem`, `AccessibilityActions`, `KeyEquivalent`,
+`EventModifiers`, `PlatformMenuBar`, `MouseButton`, `CloseRequestReply`,
+`ToolbarActionEvent`, `PlatformPointerStyle`, `SurfaceDrawRequest`,
+`Scene.textures`, `Window.setNeedsRedraw`/`needsRedraw`/`hasActiveAnimations`/
+`framesDrawn`) exists and is public; `RasterCache.lastRasterizedPixels`/
+`lastBlurredPixels` and `NativeLayoutWork` exist (internal, read through
+`package` hooks); `MetalUI` re-exports `MetalUIPlatform`, so `MetalUITesting`
+conforms to `PlatformWindow` without a direct dependency. No Apple type in the
+surface, no platform requirement added, no renderer primitive, no C enum, no
+`Window.swift` edit, no pixel change.
+
+**Cost if wrong.** If `App.windows` is ever filled after the first draw, 1.25
+reddens and the recorded fallback (set the flag after `openWindow`, draw once)
+applies.

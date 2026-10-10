@@ -8,9 +8,9 @@ Requested by MetalCreator (`docs/metalui-gaps.md` **M6-e**, **M7-b**, **TH-a**)
 and the SMK configurator port (`2026-10-06-metalui-gaps.md` **MG-17**,
 **MG-12**). Branch `feat/test-harness` from `70e9389`. Rulings:
 [`../2026-10-09-test-harness-decisions.md`](../2026-10-09-test-harness-decisions.md)
-(`HT-A`…`HT-Q`). Record: `docs/record/91-test-harness.md`.
+(`HT-A`…`HT-R`). Record: `docs/record/91-test-harness.md`.
 
-**Status: designed (2026-10-09).**
+**Status: designed, critic-revised (2026-10-09, HT-R).**
 
 ## §0 Baseline and constraints
 
@@ -99,7 +99,7 @@ public final class HeadlessPlatform: Platform {
     public private(set) var terminateCalls: Int
     public func simulateTerminateRequest() -> CloseRequestReply
     public func simulateOpenURLs(_ urls: [String])                    // parked until a handler, as platforms do
-    // + every Platform requirement
+    // + every Platform requirement; run() returns at once (no run loop, HT-R item 6)
 }
 
 public final class HeadlessPlatformWindow: PlatformWindow {
@@ -280,7 +280,7 @@ takes `button: MouseButton = .middle`.
 ### §2.5 Inspection (HT-G, HT-H; lane 2)
 
 ```swift
-public struct TestElement: Sendable, Equatable {   // a snapshot of one node
+public struct TestElement: Equatable {   // a snapshot of one node; not Sendable (HT-R item 2)
     public var id: AccessibilityNodeID
     public var role: AccessibilityRole
     public var label: String?, value: String?, identifier: String?, hint: String?
@@ -374,9 +374,12 @@ import MetalUITesting
    `Window.swift` edit): the harness gives the new platform window's renderer
    a one-shot `onFirstBeginFrame` closure; `beginFrame()` runs it inside
    `drawFrameIfNeeded`, before the build. The closure finds the `Window` by
-   its platform window through the package hook `Window.testingWindow(for:)`
-   (a scan of the internal weak `Window.liveWindows`; `Window.register` runs
-   at the end of `Window.init`, before `openWindow`'s draw) and sets
+   its platform window through the package hook `App.testingWindow(for:)` — a
+   scan of the internal `App.windows` by `platformWindow` identity:
+   `openWindow` appends the window (`App.swift`, `windows.append(window)`)
+   **before** its `window.drawFrameIfNeeded()`. (Not `Window.liveWindows`:
+   it is `private static`, unreadable from a new file without editing
+   `Window.swift` — HT-R item 1.) It sets
    `testingRecordsElementBounds` and the frame-work observer
    (`testingOnFrameAdopted`). Lane 1 pins this with 1.25 asserting a frame
    right after open; **if the lookup fails, the fallback is recorded**: the
@@ -405,8 +408,8 @@ import MetalUITesting
    `Window.testingElementBounds` (`lastElementBounds`),
    `Window.testingOnFrameAdopted` (set `onFrameAdopted` with a closure handed
    a `package struct BuildWork` — measure calls, hits, misses, rasterized,
-   blurred — so `Frame` stays internal), `Window.testingWindow(for:)`,
-   `App.hasDefaultTextSystem`. `MetalUILayout`: `NativeLayoutWork` and its
+   blurred — so `Frame` stays internal), `App.testingWindow(for:)` (over
+   `App.windows`, HT-R item 1), `App.hasDefaultTextSystem`. `MetalUILayout`: `NativeLayoutWork` and its
    three fields and `LayoutTree.lastNativeLayoutWork`'s getter become
    `package` (no other change).
 7. **Doc comments and inventory rows** for lane 1's declarations; census
@@ -509,7 +512,7 @@ fixed-size frames.
 | 1.32 | `theLastWindowsCloseTerminatesTheTestApp` — `platform.terminateCalls == 1` | — | `terminate()` not counted |
 | 1.33 | `theSecondUnchangedFrameUploadsNothing` (M7-b) — frame 1 `atlasUploadPixels > 0`, `newTextures` for an image > 0; a forced redraw (`window.setNeedsRedraw(); tick()`) reports 0 and 0 | — | renderer skips `clearDirtyRect()` |
 | 1.34 | `frameWorkSumsEveryBuildOfAFrame` — an `onAppear` write: `lastFrameWork.builds == 2` at open (LC-E) | — | accumulator reset per build |
-| 1.35 | `aWarmDragLoopCountsLayoutWorkPerFrame` — a branching tree (2 stacks × 3 fixed leaves, one leaf `.offset` by the drag): each drag frame `layoutMeasureCalls` equals the literal derived before the run (6 leaves, one proposal each: 6), sum over 10 frames 60 | — | `onFrameAdopted` captured only on the first build — and the `SA-M` literal is re-derived, never read off a run |
+| 1.35 | `aWarmDragLoopCountsLayoutWorkPerFrame` — a branching tree (2 stacks × 3 fixed leaves, one leaf `.offset` by the drag): each drag frame `layoutMeasureCalls`, `layoutCacheHits`, `layoutCacheMisses` equal literals the lane derives **before** the run from the stack algorithm (`CN-B`…, probe `swiftui-stack-algorithms.swift`: a stack proposes each child more than once, so the count is not the leaf count — HT-R item 3), equal on all 10 frames, and the sum is 10 × the per-frame literal | — | the frame accumulator not reset at `finishFrame` (frame 2 reads twice frame 1's work); second mutation: the hook reads the previous build's `lastNativeLayoutWork` |
 | 1.36 | `anUnchangedPathIsRasterizedOnceAcrossFrames` — a `Path` fill: frame 1 `rasterizedPixels > 0`, frame 2 `== 0` | — | hook reads the counters before the build |
 | 1.37 | `theDefaultTextSystemIsCoreTextOnApple` (`#if canImport(Darwin)`) / `aMissingTextSystemThrowsOffApple` (`#else`) — one test name, two arms | stub | `hasDefaultTextSystem` answers the other value |
 | 1.38 | `XCTestHarnessTests.testAClickRunsAnOnClickFromXCTest` — XCTest, `@MainActor func … async throws` | — | as 1.4 |
@@ -532,17 +535,17 @@ fixed-size frames.
 | 2.12 | `aCancelledFileDialogReachesTheHandler` | — | — (control for 2.11's arm) |
 | 2.13 | `aContextMenuIsReadAndAnItemChosenByTitle` — `rightClick(element)`; titles, `isOn`, shortcut; `chooseMenuItem("Dark")` runs | stub | `item: nil` sent |
 | 2.14 | `aSubmenuItemIsChosenByPath` | — | path walk stops at depth 1 |
-| 2.15 | `aDrawnMenuIsDrivenThroughTheTree` — `presentsMenusNatively: false`: `.menuItem` nodes, click one | — | — |
+| 2.15 | `aDrawnMenuIsDrivenThroughTheTree` — `presentsMenusNatively: false`: `.menuItem` nodes, click one | — | `presentMenu` answers `true` regardless of the option |
 | 2.16 | `aDisabledMenuItemThrows` | — | no enabled check |
-| 2.17 | `aPullDownMenuIsReadTheSameWay` — `Menu("Options") { … }` clicked | — | — |
+| 2.17 | `aPullDownMenuIsReadTheSameWay` — `Menu("Options") { … }` clicked; `presentedMenu == nil` after the choice | — | a token answered by `.menuAction` still counts as unanswered |
 | 2.18 | `theMenuBarListsCommandsAndPerformsOne` (TH-a) — `app.commands { CommandMenu("Theme") { Toggle("Dark", isOn: …) } }`; `performMenuBarItem("Theme", "Dark")` flips the model | stub | `perform(id + 1)` |
 | 2.19 | `theMenuBarIsReEvaluatedAtEachRead` — `isOn` true after 2.18's perform | — | cached content |
 | 2.20 | `menuEvaluationReadsContentOutsideAnyWindow` (TH-a) — `Button`, `Divider`, `Toggle` with shortcut: kinds, titles, `isOn`, shortcut; `perform("Save")` runs | stub | `isEnabled: false` passed |
 | 2.21 | `theToolbarIsReadAndAnItemTriggered` | stub | `.toolbarAction` with wrong item |
-| 2.22 | `aDeclinedToolbarIsDrawnAndItsButtonClickable` — `showsToolbarNatively: false`: `$toolbar` strip (MD-K), its button by label | — | — |
-| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds | — | — |
+| 2.22 | `aDeclinedToolbarIsDrawnAndItsButtonClickable` — `showsToolbarNatively: false`: `$toolbar` strip (MD-K), its button by label | — | `setToolbar` answers `true` regardless of the option |
+| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds | — | the query walk visits only `roots.first` (a presentation root's node is another root, or the test records that it is not and swaps the mutation for "skip children of a `.popover`") |
 | 2.24 | `pointerStyleFollowsHover` — `.pointerStyle(.link)` → `pointerStyle` | — | last style not read |
-| 2.25 | `copyInAFieldReachesTheWindowsClipboard` — ⌘A ⌘C | — | — |
+| 2.25 | `copyInAFieldReachesTheWindowsClipboard` — ⌘A ⌘C | — | `writeClipboard` drops the write |
 | 2.26 | `aClickByElementReRunsLane1sClickTestThroughTheTree` — 1.4 re-pinned by label | — | as 1.4 |
 
 ### §4.3 Lane 3
@@ -552,7 +555,6 @@ fixed-size frames.
 | 3.1 | `anOutsideTestFileCanDriveATestWindowWithAPlainImport` (`typecheckFile`, imports `MetalUI` and `MetalUITesting` only: open, click by label, `frame(ofID:)`, `respondToAlert`, `MenuEvaluation`, `menuBar`) — must typecheck | — | `TestWindow.click(_:modifierFlags:)` made `internal` → red |
 | 3.2 | `anOutsideFileCannotReachTheTestingHooks` — `window.testingElementBounds` must fail | — | hook made `public` → red |
 | 3.3 | `anOutsideFileStillCannotConstructAWindow` — `Window(platformWindow:…)` must fail | — | `Window.init` made `public` → red |
-| 3.4 | `anOutsideFileCannotConformToMenuContentThroughTheHarness` — `MenuEvaluation` accepts only `MenuContent` (MN-D item 1 unmoved) | — | `MenuEvaluation.init` made generic over `Any` → red |
 | 3.5 | `aClickInsideTheBoundsRunsTheHandler` (moved from `InputDispatchTests`) | — | as its original mutation (recorded there) |
 | 3.6 | `anIfThatInsertsContentRunsItsOnAppearOnce` (moved from `LifecycleTests`) | — | as its original |
 | 3.7 | `anAlertResultWritesIsPresentedFalseThenRunsTheAction` (moved from `AlertTests`) | — | as its original |
@@ -563,9 +565,9 @@ fixed-size frames.
 
 Count expectation: lane 1 +38 (37 swift-testing + 1 XCTest; the XCTest
 counts in the summary only if the native summary includes XCTest — lane 1
-reads both summary lines), lane 2 +26, lane 3 +7 (3.1–3.4, 3.9, 3.10; 3.11
-modified; 3.5–3.8 moved, net 0). Guards +4 (3.1–3.4). Re-measured, never
-trusted.
+reads both summary lines), lane 2 +26, lane 3 +5 (3.1–3.3, 3.9, 3.10; 3.11
+modified; 3.5–3.8 moved, net 0; 3.4 dropped, HT-R item 5). Guards +3
+(3.1–3.3, HT-M). Re-measured, never trusted.
 
 ## §5 Platforms
 
@@ -624,6 +626,9 @@ look. Its XCTest path is run by test 1.38 rather than by hand.
    are the merge's first look.
 2. **C13** may rename `RasterCache.lastRasterizedPixels`/`lastBlurredPixels`;
    `TestingHooks.swift` is the only reader.
+2a. **C12** (menus on SDL) may change `MenuSession.number`'s signature or
+   `MenuContent`'s SPI; `TestingMenuHooks.swift` is the only reader, re-pointed
+   at merge, and tests 2.13–2.20 are the merge's first look (HT-R item 7).
 3. Not measured by the designer (each lane measures and records): the
    accessibility-at-open path (HT-D 4) and its fallback; whether
    `testingRecordsElementBounds` can be set before `App.openWindow`'s first
