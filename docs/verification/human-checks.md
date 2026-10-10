@@ -1112,8 +1112,8 @@ logout, Finder.
 - [ ] **AS9. Open-document events from a packaged app.** Package the demo as
   in `docs/packaging.md` with a `.mcgraph` document type: a Finder
   double-click, `open -a`, a drop on the Dock icon — with the app not running
-  and with it running — each lists the file's URL once under "Opened"; `swift
-  run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
+  and with it running — each lists the file's URL once under "Opened"; `METALUI_APP_SHELL_DEMO=1
+  swift run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
   launch-argument recipe, `AS-G` item 6, `AS-M`). Note whether Finder shows
   "cannot open files in this format" without an `NSDocumentClass`.
   **Observed:**

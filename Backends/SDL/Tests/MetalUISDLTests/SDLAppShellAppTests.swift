@@ -140,6 +140,8 @@ private func push(_ kind: Int32, window: UInt32 = 0, sourceLocation: SourceLocat
 /// and the app (no `onDisappear`, no terminate); `.now` closes it, its
 /// `onDisappear` runs once, and the last window's close ends the app asking
 /// nobody (`terminate()` once).
+/// Mutation: `SDLPlatform.dispatch`'s `MUI_EVENT_CLOSE` ignores the veto
+/// (`_ = window.onCloseRequest?()`) → red (record §87 E).
 @MainActor
 @Test func anSDLWindowCloseVetoKeepsTheAppRunning() throws {
     let (platform, app) = try shellApp()
@@ -168,6 +170,8 @@ private func push(_ kind: Int32, window: UInt32 = 0, sourceLocation: SourceLocat
 /// `SDL_EVENT_DROP_FILE` on window 0, then its `DROP_COMPLETE` — reaches the
 /// window's `.onOpenURL` as a file URL, and a URL string as itself; the app's
 /// catch-all hears nothing while a window handles it.
+/// Mutation: window-0 drops not routed to the application's handler
+/// (`if event.window_id == 0 && false`) → red (record §87 F).
 @MainActor
 @Test func anSDLAppDeliversAnAppLevelFileDropToOnOpenURL() throws {
     let (platform, app) = try shellApp()

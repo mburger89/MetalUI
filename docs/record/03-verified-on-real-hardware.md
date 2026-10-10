@@ -2120,3 +2120,19 @@ CL9 materials, flat tint versus blur and in a real key window; CL10 the shake
 at 60 and 120 Hz; CL11 VoiceOver. A real window's material tint and the
 determinate bar's colours were never measured (ImageRenderer draws platform
 views as a placeholder, `V9`; `cacheDisplay` read an inactive window, `V14`).
+
+## 2026-10-09: app shell (record §87) — looks owed
+
+The app shell demo (`METALUI_APP_SHELL_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
+section behind its own switch; the fourteen offscreen images are unchanged (0 differing pixels
+against `c62d6ba` at lane 3 and at the Record phase; none of the fourteen renders the section, so
+the zero cannot see it). The SwiftUI probe `swiftui-app-shell.swift` and the two AppKit probes ran
+with the screen mostly locked (the critic re-ran `N5` and `H0` unlocked, byte-identical); no
+real-window capture was taken at any lane or at the Record phase (the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`). **Owed, new here —
+`docs/verification/human-checks.md` group AS (provisional letter), none performed (an agent
+cannot)**: AS1 the close button with unsaved changes (the alert sheet, Don't Save / Cancel); AS2
+⌘Q with unsaved changes; AS3 Log Out with unsaved changes; AS4 the edited dot; AS5 a represented
+document's proxy icon; AS6 the hidden title bar against the traffic lights; AS7 the band drag;
+AS8 full screen; AS9 open-document events from a packaged app; AS10 SDL on Linux, Windows and
+macOS (the drawn alert, the window manager's close, a file dropped on the app).
