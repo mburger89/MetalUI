@@ -60,6 +60,18 @@ final class MetalHostView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }   // top-left origin, matching our geometry
 
+    /// `false`: AppKit never drags the window from the host view on its own
+    /// (rulings `AS-F` item 2, `AS-J` item 3). Under a hidden title bar a
+    /// press in the band reaches this view (probe `F0`); `Window` decides
+    /// whether it drags, through `AppKitWindow.performTitleBarPress`.
+    /// Pinned by `appKitTitleBarPressDragsOnlyDuringAMouseDown`.
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    /// The primary mouse-down this view is dispatching, kept only for the
+    /// duration of its `onInput` call (ruling `AS-J` item 2) — what
+    /// `performTitleBarPress` drags with. `nil` otherwise.
+    private(set) var currentMouseDown: NSEvent?
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         onGeometryChange?()
@@ -181,6 +193,8 @@ final class MetalHostView: NSView {
             _ = onInput?(.rightMouseDown(mouseEvent(event, button: 1)))
             return
         }
+        currentMouseDown = event
+        defer { currentMouseDown = nil }
         _ = onInput?(.mouseDown(mouseEvent(event)))
     }
 
@@ -520,6 +534,122 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var onResize: ((Size<Pixels>, Float) -> Void)?
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
+
+    // MARK: App shell (rulings `AS-B`, `AS-D`, `AS-E`, `AS-J`)
+
+    /// Asked by `windowShouldClose(_:)` — the close button's and ⌘W's
+    /// (`performClose:`) path, never ``close()``'s (ruling `AS-B` item 6).
+    var onCloseRequest: (() -> Bool)?
+
+    /// AppKit's question before a user's close: ``onCloseRequest``'s answer,
+    /// `true` with none. Pinned by `appKitWindowShouldCloseAsksOnCloseRequest`.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        onCloseRequest?() ?? true
+    }
+
+    /// `NSWindow.close()`: no `windowShouldClose(_:)`, and `windowWillClose`
+    /// fires ``onClose`` once (AppKit sends it only for a window still open).
+    /// Pinned by `appKitCloseClosesWithoutAskingAndFiresOnCloseOnce`.
+    func close() {
+        window.close()
+    }
+
+    /// `NSWindow.isDocumentEdited` — the dot in the close button (ruling
+    /// `AS-D` item 5). Pinned by
+    /// `appKitDocumentEditedAndRepresentedPathReachTheNSWindow`.
+    func setDocumentEdited(_ edited: Bool) {
+        window.isDocumentEdited = edited
+    }
+
+    /// `NSWindow.representedURL` as a file URL, `nil` clearing it (ruling
+    /// `AS-D` item 5); the title is untouched (probe `N3`).
+    func setRepresentedFilePath(_ path: String?) {
+        window.representedURL = path.map { URL(fileURLWithPath: $0) }
+    }
+
+    /// The style last applied, so the insets and the band observation know it.
+    private var titleBarStyle: PlatformTitleBarStyle = .standard
+
+    /// Observes `contentLayoutRect` while the title bar is hidden (ruling
+    /// `AS-E` item 5): a band change with no size change — a toolbar arriving
+    /// — reaches `onResize`.
+    private var contentLayoutObservation: NSKeyValueObservation?
+
+    /// SwiftUI's flags for `.windowStyle(.hiddenTitleBar)` (probe `H0`):
+    /// `.fullSizeContentView`, a transparent title bar, a hidden title —
+    /// `.standard` restores all three — and answers `true` (ruling `AS-E`
+    /// item 2). **The frame is kept** (`AS-O` item 1): AppKit alone keeps the
+    /// content view's size and moves the frame (measured: a 400 × 200 content
+    /// window's frame went from 232 to 200 high on inserting the flag), so the
+    /// frame is restored and the content grows under the bar, reported through
+    /// `onResize` by the host view's resize. Pinned by
+    /// `appKitHiddenTitleBarSetsSwiftUIsFlagsAndReportsTheBand`.
+    func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
+        let frame = window.frame
+        titleBarStyle = style
+        switch style {
+        case .hidden:
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            contentLayoutObservation = window.observe(\.contentLayoutRect, options: []) { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.syncSurfaceGeometry() }
+            }
+        case .standard:
+            contentLayoutObservation = nil
+            window.styleMask.remove(.fullSizeContentView)
+            window.titlebarAppearsTransparent = false
+            window.titleVisibility = .visible
+        }
+        if window.frame != frame { window.setFrame(frame, display: true) }
+        return true
+    }
+
+    /// Under the hidden style: `top` the band's height (`frame −
+    /// contentLayoutRect`), `left` the zoom button's right edge in window
+    /// coordinates; both zero when the band has no height (full screen), and
+    /// all zero under the standard style (ruling `AS-E` item 4).
+    var titleBarInsets: Edges<Pixels> {
+        let zero = Edges(all: Pixels(0))
+        guard titleBarStyle == .hidden else { return zero }
+        let band = window.frame.height - window.contentLayoutRect.height
+        guard band > 0 else { return zero }
+        let left = window.standardWindowButton(.zoomButton).map { $0.convert($0.bounds, to: nil).maxX } ?? 0
+        return Edges(top: Pixels(Float(band)), right: Pixels(0), bottom: Pixels(0), left: Pixels(Float(left)))
+    }
+
+    /// Drags the window with the mouse-down being dispatched —
+    /// `NSWindow.performDrag(with:)` in production; a test injects a recorder
+    /// (ruling `AS-J` item 2).
+    lazy var performWindowDrag: @MainActor (NSEvent) -> Void = { [weak self] event in
+        self?.window.performDrag(with: event)
+    }
+
+    /// The system's title-bar double-click action (ruling `AS-J` item 2):
+    /// `AppleActionOnDoubleClick` — `"Minimize"` minimises, `"None"` does
+    /// nothing, anything else (`"Maximize"`, unset) zooms. Injectable.
+    lazy var performTitleBarDoubleClick: @MainActor () -> Void = { [weak self] in
+        guard let window = self?.window else { return }
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "Minimize": window.miniaturize(nil)
+        case "None": break
+        default: window.performZoom(nil)
+        }
+    }
+
+    /// Acts only while the host view is dispatching a primary mouse-down
+    /// (ruling `AS-J` item 2): 1 drags with that event, 2 runs the double-click
+    /// action, anything else — or no mouse-down — answers `false`. Pinned by
+    /// `appKitTitleBarPressDragsOnlyDuringAMouseDown`.
+    func performTitleBarPress(clickCount: Int) -> Bool {
+        guard let event = hostView.currentMouseDown else { return false }
+        switch clickCount {
+        case 1: performWindowDrag(event)
+        case 2: performTitleBarDoubleClick()
+        default: return false
+        }
+        return true
+    }
 
     // MARK: Control active state (ruling EV-AB, amended by EV-AF)
 
@@ -902,9 +1032,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         // toolbar (`TB1`). AppKit alone does not hold it for a window built
         // here — measured: a 900 × 200 content read 900 × 232 after the
         // toolbar was set, the frame 52 taller — so it is restored explicitly.
+        //
+        // **Under the hidden title bar the frame is kept instead** (`AS-O`
+        // item 2): the content already lies under the band, the toolbar
+        // deepens the band, and `titleBarInsets` reports it through the
+        // `contentLayoutRect` observation — `setContentSize` there would size
+        // the full-size content view to the old layout rect and shrink the
+        // window.
         let content = window.contentLayoutRect.size
         toolbarController.apply(toolbar, to: window)
-        if window.contentLayoutRect.size != content { window.setContentSize(content) }
+        if titleBarStyle == .standard, window.contentLayoutRect.size != content { window.setContentSize(content) }
         return true
     }
 
@@ -1013,9 +1150,53 @@ public final class AppKitPlatform: Platform {
         NSApplication.shared.mainMenu = bar.makeMainMenu()
     }
 
+    // MARK: App shell (rulings `AS-C` item 7, `AS-G` item 5)
+
+    /// The application delegate this platform owns (`NSApp.delegate` is
+    /// weak), installed by ``run()``. Internal so a test drives it.
+    let applicationDelegate = AppKitApplicationDelegate()
+
+    /// Asked by `applicationShouldTerminate(_:)` — ⌘Q, Quit, a logout or
+    /// shutdown — through the application delegate (ruling `AS-C` item 7).
+    public var onTerminateRequest: (() -> CloseRequestReply)? {
+        get { applicationDelegate.onTerminateRequest }
+        set { applicationDelegate.onTerminateRequest = newValue }
+    }
+
+    /// `NSApp.reply(toApplicationShouldTerminate:)` for a pending
+    /// `.terminateLater`; nothing with none pending.
+    public func replyToTerminateRequest(_ shouldTerminate: Bool) {
+        applicationDelegate.replyToTerminateRequest(shouldTerminate)
+    }
+
+    /// `NSApp.terminate(nil)`, approved: `applicationShouldTerminate(_:)`
+    /// answers `.terminateNow` without asking ``onTerminateRequest``.
+    public func terminate() {
+        applicationDelegate.terminate()
+    }
+
+    /// `application(_:open:)`'s URLs as absolute strings, parked until set
+    /// (ruling `AS-G` items 4–5).
+    public var onOpenURLs: (([String]) -> Void)? {
+        get { applicationDelegate.onOpenURLs }
+        set { applicationDelegate.onOpenURLs = newValue }
+    }
+
+    /// Makes ``applicationDelegate`` `NSApp.delegate` (ruling `AS-C` item 7)
+    /// — called by ``run()`` before `NSApplication.run()`, so the launch-time
+    /// open-documents Apple Event that `finishLaunching` dispatches finds it.
+    /// **Migration**: an `NSApp.delegate` the app set itself is replaced.
+    /// Pinned by `runInstallsTheApplicationDelegate`.
+    func installApplicationDelegate() {
+        NSApplication.shared.delegate = applicationDelegate
+    }
+
     /// Runs `NSApplication`'s event loop; returns when the application stops.
+    /// The platform's application delegate is installed first
+    /// (``installApplicationDelegate()``).
     public func run() {
         let app = NSApplication.shared
+        installApplicationDelegate()
         app.setActivationPolicy(.regular)
         // `AI-E` item 4: an icon set before `run()` is assigned again once the
         // process is a regular application with a Dock tile. Defensive and

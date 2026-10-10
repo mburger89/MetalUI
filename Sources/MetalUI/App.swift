@@ -32,11 +32,13 @@ public enum AppError: Error, CustomStringConvertible {
 @MainActor
 public final class App {
     let platform: any Platform
-    private var windows: [Window] = []
+    /// The open windows, in open order; a window leaves when it closes
+    /// (ruling `AS-C` item 5).
+    var windows: [Window] = []
+    /// The app shell's state (rulings `AS-C`, `AS-G`, `AS-K`): `AppShell.swift`.
+    var shell = AppShellState()
     /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
-    /// Whether closing the last window ends the process through AppKit.
-    private let terminatesThroughAppKit: Bool
     /// The menu bar's commands, `nil` until `commands(content:)` (ruling
     /// `MN-I`); re-evaluated whenever the bar's content is needed.
     var commandsContent: (@MainActor () -> any Commands)?
@@ -65,8 +67,8 @@ public final class App {
         self.device = device
         self.makeTextSystem = textSystem
         self.platform = AppKitPlatform(renderer: try Renderer(device: device))
-        self.terminatesThroughAppKit = true
         installMenuBar()   // MN-I item 4: every app has the default bar
+        installShellHandlers()   // AS-C item 6, AS-G item 4
     }
 
     /// An app on `platform` — the SDL platform on macOS too — drawing text
@@ -75,8 +77,8 @@ public final class App {
         self.device = nil
         self.makeTextSystem = textSystem
         self.platform = platform
-        self.terminatesThroughAppKit = platform is AppKitPlatform
         installMenuBar()   // MN-I item 4
+        installShellHandlers()   // AS-C item 6, AS-G item 4
     }
     #else
     /// An app on `platform` — `Backends/SDL`'s `SDLPlatform` — drawing text
@@ -85,8 +87,8 @@ public final class App {
     public init(platform: any Platform, textSystem: @escaping @MainActor () -> any TextSystem) {
         self.makeTextSystem = textSystem
         self.platform = platform
-        self.terminatesThroughAppKit = false
         installMenuBar()   // MN-I item 4
+        installShellHandlers()   // AS-C item 6, AS-G item 4
     }
     #endif
 
@@ -105,6 +107,15 @@ public final class App {
     /// and `windowResizability` lets the root's layout limit it too — each
     /// also settable later on the returned `Window`. Limits given here reach
     /// the platform before the first frame.
+    ///
+    /// **Title bar** (ruling `AS-E`; SwiftUI's `.windowStyle(_:)` scene
+    /// modifier): `windowStyle: .hiddenTitleBar` lays the content out under a
+    /// transparent title bar from the first frame; `Window.windowStyle`
+    /// changes it later.
+    ///
+    /// **Closing** (rulings `AS-B`, `AS-C`): a user's close asks
+    /// `Window.onCloseRequest`; the last window's close ends the app; closing
+    /// one of several does not.
     @discardableResult
     public func openWindow<Root: Element>(
         title: String,
@@ -112,6 +123,7 @@ public final class App {
         minSize: Size<Pixels>? = nil,
         maxSize: Size<Pixels>? = nil,
         windowResizability: WindowResizability = .automatic,
+        windowStyle: WindowStyle = .automatic,
         startsDisplayLink: Bool = true,
         content: @escaping @MainActor () -> Root
     ) throws -> Window {
@@ -123,24 +135,16 @@ public final class App {
         // Before the first frame (`SV-L` item 4): the platform clamps the
         // window into explicit limits before anything is drawn at its size.
         window.applySizing(minSize: minSize, maxSize: maxSize, windowResizability: windowResizability)
+        window.windowStyle = windowStyle   // before the first frame too (AS-E item 1)
         // A command's shortcut reaches this window's command stage (ruling
         // `MN-J`), evaluated afresh at each keystroke that gets that far.
         window.commandShortcuts = { [weak self] in self?.enabledCommandShortcuts() ?? [] }
-        // Closing the last window must end the process: there is no app
-        // delegate, so on SDL this close button is the only way out (AppKit's
-        // menu bar also has Quit since `MN-I` — this comment's earlier "no menu
-        // bar anywhere in the framework" is corrected). AppKit's run loop is
-        // ended here; SDL's `run()` returns on its own once its last window has
-        // closed.
-        let terminates = terminatesThroughAppKit
-        platformWindow.onClose = { [weak window] in
-            // Every present `onDisappear` runs once before anything ends
-            // (ruling `LC-J`): the window's content leaves with it (`W3`).
-            window?.runDisappearancesForClose()
-            #if canImport(AppKit)
-            if terminates { NSApplication.shared.terminate(nil) }
-            #endif
-        }
+        // The platform's close runs every present `onDisappear` once (ruling
+        // `LC-J`), retires the window and — for the last one, unless a quit is
+        // being decided — ends the app through `Platform.terminate()` (rulings
+        // `AS-C` item 5, `AS-K`). At `c62d6ba` AppKit terminated on every
+        // window's close.
+        adoptShell(window, platformWindow)
         windows.append(window)
         // The app's scheme and themes reach the window before its first frame
         // (rulings `CR-L` item 4, `CR-N` item 4), so it never presents in the

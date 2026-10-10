@@ -1,3 +1,4 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 import MetalUIPrimitives
@@ -563,6 +564,8 @@ public final class Frame {
             values.theme = theme   // tokens only; `colorScheme` untouched (`CR-K` item 3)
         case .preferredColorScheme:
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
+        case .navigationTitle, .navigationDocument, .onOpenURL:
+            break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
         }
         return values
     }
@@ -594,6 +597,16 @@ public final class Frame {
     var collectedColorSchemePreference: ColorScheme? {
         mainColorSchemePreference ?? presentationColorSchemePreference
     }
+
+    // MARK: Window preferences (rulings `AS-D`, `AS-G`)
+
+    /// The first `.navigationTitle` reported in post-order this build, read
+    /// by `Window` after it (`AS-D` item 2).
+    var collectedNavigationTitle: String?
+    /// The first `.navigationDocument` reported in post-order (`AS-D` item 3).
+    var collectedNavigationDocument: URL?
+    /// Every `.onOpenURL` present this build, in post-order (`AS-G` item 2).
+    var openURLHandlers: [OpenURLHandler] = []
 
     // MARK: Content size limits (ruling `SV-L` item 2)
 

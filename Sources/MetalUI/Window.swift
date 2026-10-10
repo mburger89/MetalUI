@@ -12,7 +12,7 @@ import MetalUITextSystem
 /// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
 public final class Window {
-    private let platformWindow: any PlatformWindow
+    let platformWindow: any PlatformWindow   // internal: the app shell reads it (WindowShell.swift)
 
     /// Builds and walks the root element for one frame.
     ///
@@ -223,6 +223,9 @@ public final class Window {
     /// The preference the last built frame collected from the tree
     /// (`Frame.collectedColorSchemePreference`).
     private var treeColorSchemePreference: ColorScheme?
+
+    /// The app shell's state (rulings `AS-B`…`AS-K`): `WindowShell.swift`.
+    var shell = WindowShellState()
 
     /// The preference last handed to `PlatformWindow.setPreferredColorScheme`
     /// — `nil` until one is requested, so a window nobody asks is never told.
@@ -802,6 +805,7 @@ public final class Window {
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
+        installShell()   // the opening title and the close question (AS-B item 5)
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // The platform's appearance is one input to the effective scheme
             // (`CR-L` item 4); assigning `colorScheme` drives its guarded
@@ -1044,6 +1048,7 @@ public final class Window {
                 return true
             }
             let handled = self.onInput?(event) ?? false
+            if !handled { self.answerUnclaimedTitleBarPress(event) }   // the band press (AS-J)
             self.setNeedsRedraw()
             return handled
         }
@@ -1269,6 +1274,7 @@ public final class Window {
     /// Builds and draws one frame if the window is dirty or an animation is
     /// running; otherwise pauses the display link.
     public func drawFrameIfNeeded() {
+        if shell.isClosed { return }   // a closed window draws nothing more (AS-B item 4)
         lastDrawBuildCount = 0
         // Binding design spec §4.4, and the widening M4 spec 1 could not make.
         // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
@@ -1620,6 +1626,7 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
+        rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
@@ -1656,6 +1663,7 @@ public final class Window {
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
+        adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
         lastElementBounds = frame.elementBounds
@@ -2266,6 +2274,9 @@ public final class Window {
     /// a `mouseDown`, kept past the release only while a tap sequence waits for
     /// its next press.
     private var gestureArena: GestureArena?
+    /// Whether a press formed a gesture arena — the band press's second
+    /// condition (`AS-J` item 1).
+    var hasGestureArena: Bool { gestureArena != nil }
 
     /// The open in-window drag (ruling `DN-H`), or `nil`. On `Window`, never
     /// in `StateTable` (`DN-H` item 6), so no id path or reserved slot moves.

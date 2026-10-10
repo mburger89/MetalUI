@@ -241,6 +241,77 @@ public protocol PlatformWindow: AnyObject {
 
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
+
+    // MARK: App shell (rulings `AS-B`, `AS-D`, `AS-E`, `AS-H`, `AS-J`)
+    //
+    // **No default implementation, for any of the seven** (`MD-J`/`CR-M`'s
+    // rule): a conformer that forgets one fails to compile rather than
+    // silently closing unasked, dropping the marker or the title-bar style.
+    // Pinned by `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile`.
+    // **Migration** (`docs/migration.md`): a conformer outside this repository
+    // adds `var onCloseRequest: (() -> Bool)?` (asked before a user's close),
+    // `func close()` (closing, then `onClose` once),
+    // `func setDocumentEdited(_: Bool) {}`, `func setRepresentedFilePath(_: String?) {}`,
+    // `func setTitleBarStyle(_: PlatformTitleBarStyle) -> Bool { false }`,
+    // `var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }` and
+    // `func performTitleBarPress(clickCount: Int) -> Bool { false }`.
+
+    /// Asked before a **user's** close goes ahead (ruling `AS-B` item 5) — the
+    /// title bar's close button, ⌘W (`performClose:`), the window manager's
+    /// close (SDL's `SDL_EVENT_WINDOW_CLOSE_REQUESTED`, Alt-F4). `nil` or
+    /// `true`: the window closes and ``onClose`` follows once; `false`: it stays
+    /// open and nothing fires. Never asked by ``close()``. AppKit answers
+    /// `windowShouldClose(_:)` with it; SDL asks it in its event dispatch.
+    /// `Window` installs it and turns a `.later` answer into `false` plus its
+    /// own pending request — no platform has a window-level "later".
+    var onCloseRequest: (() -> Bool)? { get set }
+
+    /// Closes the window **without asking** ``onCloseRequest`` (ruling `AS-B`
+    /// item 5) — AppKit's `NSWindow.close()`; SDL hides the window and removes
+    /// it from the platform. ``onClose`` fires exactly once, from this call or
+    /// the platform's own close, never twice; a second `close()` does nothing.
+    func close()
+
+    /// Shows or clears the edited marker (ruling `AS-D` item 5): AppKit's
+    /// `NSWindow.isDocumentEdited`, the dot in the close button. `Window`
+    /// calls it only when the value changes. SDL records it and changes
+    /// nothing — the title is never altered behind the app's back.
+    func setDocumentEdited(_ edited: Bool)
+
+    /// The file the window represents, as a path, or `nil` for none (ruling
+    /// `AS-D` item 5): AppKit's `NSWindow.representedURL` (the title's proxy
+    /// icon and its path menu); it never changes the title (probe `N3`).
+    /// `Window` calls it only when the value changes. SDL records it.
+    func setRepresentedFilePath(_ path: String?)
+
+    /// Applies a title-bar style and answers whether it did (ruling `AS-E`
+    /// item 5). `.hidden` on AppKit sets SwiftUI's flags for
+    /// `.windowStyle(.hiddenTitleBar)` (probe `H0`): `.fullSizeContentView`, a
+    /// transparent title bar and a hidden title; the window keeps its frame,
+    /// so the content grows under the bar and reports it through
+    /// ``onResize``. `.standard` restores all three. SDL records the request
+    /// and answers `false` — it keeps its system decoration (`AS-E` item 6).
+    func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool
+
+    /// How far the title bar overlaps the content, in window points (ruling
+    /// `AS-E` item 4): under the hidden style on AppKit `top` is the band's
+    /// height (`frame − contentLayoutRect`) and `left` the zoom button's right
+    /// edge; `right` and `bottom` are zero. All zero under the standard style,
+    /// whenever the band has no height (full screen), and on SDL. A change of
+    /// the band with no change of size (a toolbar arriving) is reported
+    /// through ``onResize``. `Window` reads it at each build.
+    var titleBarInsets: Edges<Pixels> { get }
+
+    /// Performs what a press in an empty stretch of the title bar would —
+    /// with `clickCount` 1 the window drag, with 2 the system's title-bar
+    /// double-click action (zoom, minimise or nothing) — and answers whether
+    /// it acted (ruling `AS-J` item 2). `Window` calls it only from inside its
+    /// `onInput` handling of a primary press that no stage claimed, in the
+    /// band of a hidden title bar. AppKit acts only while its host view is
+    /// dispatching that mouse-down (the drag needs the event), else answers
+    /// `false`; any other `clickCount` answers `false`. SDL records it and
+    /// answers `false` (its system title bar drags itself).
+    func performTitleBarPress(clickCount: Int) -> Bool
 }
 
 /// A windowing platform: opens windows and runs the event loop. Conformers:
@@ -279,6 +350,49 @@ public protocol Platform: AnyObject {
     /// **Migration**: a conformer outside this repository adds
     /// `func setMenuBar(_: PlatformMenuBar) {}`.
     func setMenuBar(_ menuBar: PlatformMenuBar)
+
+    // MARK: App shell (rulings `AS-C`, `AS-G`, `AS-H`)
+    //
+    // **No default implementation, for any of the four** (`MD-J`/`CR-M`'s
+    // rule): a conformer that forgets one fails to compile rather than
+    // silently quitting unasked or dropping documents. Pinned by
+    // `aPlatformWithoutEachAppShellRequirementDoesNotCompile`. **Migration**
+    // (`docs/migration.md`): a conformer outside this repository adds
+    // `var onTerminateRequest: (() -> CloseRequestReply)?` (asked before
+    // ending), `func replyToTerminateRequest(_: Bool)` (ending on `true` when
+    // a request is pending), `func terminate()` (ending) and
+    // `var onOpenURLs: (([String]) -> Void)?`.
+
+    /// Asked before a termination the **platform** starts goes ahead (ruling
+    /// `AS-C` item 6) — ⌘Q and the application menu's Quit, a logout or
+    /// shutdown (AppKit's `applicationShouldTerminate(_:)`), SDL's
+    /// `SDL_EVENT_QUIT` (⌘Q under SDL's Cocoa backend, SIGINT, a desktop's
+    /// session end). `nil` answers `.now`. `.cancel` keeps the application
+    /// running; `.later` keeps it running until
+    /// ``replyToTerminateRequest(_:)``. `App` installs it.
+    var onTerminateRequest: (() -> CloseRequestReply)? { get set }
+
+    /// Answers the termination request this platform asked that got `.later`
+    /// (ruling `AS-C` item 6): `true` ends the application, `false` keeps it
+    /// running. With no request pending it does nothing. AppKit calls
+    /// `NSApp.reply(toApplicationShouldTerminate:)`; SDL stops its loop.
+    func replyToTerminateRequest(_ shouldTerminate: Bool)
+
+    /// Ends the application's event loop now, **asking nobody** (ruling
+    /// `AS-C` item 6) — `App` calls it once it has approved a termination
+    /// itself (the last window's close, `App.terminate()`). AppKit calls
+    /// `NSApp.terminate(nil)`, whose `applicationShouldTerminate(_:)` then
+    /// answers `.terminateNow` unasked; SDL stops its loop.
+    func terminate()
+
+    /// Receives documents and URLs the system asks the application to open
+    /// (ruling `AS-G` item 4), as absolute URL strings, one call per batch.
+    /// AppKit: `application(_:open:)` — a Finder double-click, `open -a`, a
+    /// drop on the Dock icon, Open Recent, a URL scheme. SDL: files and URLs
+    /// SDL reports with no window (`SDL_EVENT_DROP_FILE` on window 0 — its
+    /// Cocoa backend's `openFile:` and URL events). URLs that arrive before a
+    /// handler is set are **parked** and delivered, once, on assignment.
+    var onOpenURLs: (([String]) -> Void)? { get set }
 }
 
 /// Why a platform could not open a window.

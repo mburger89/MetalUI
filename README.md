@@ -457,6 +457,16 @@ spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframe
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
 167); `.ultraThinMaterial` … `.bar` are fitted flat tints with no backdrop blur (divergence
 166). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: group CL, unrun.
+**App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
+`Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
+`replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same
+for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navigationTitle`,
+`isDocumentEdited` and `.navigationDocument` set the title, the edited dot and the proxy icon;
+`windowStyle: .hiddenTitleBar` lays content under the title bar with
+`@Environment(\.titleBarInsets)` (AppKit only; SDL keeps its system decoration, divergence
+175); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
+edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
+MetalUIDemo` shows them. Human checks: group AS, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

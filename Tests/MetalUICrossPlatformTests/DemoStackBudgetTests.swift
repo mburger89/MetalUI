@@ -37,6 +37,15 @@ private func buildEveryProductionTree() {
     buildTheCanvasDemo()     // input APIs' canvas (spec §6, test 3.36)
     buildTheRichTextDemo()   // rich text (RT-O item 10)
     buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
+    buildTheAppShellDemo()   // app shell (AS-, spec test 3.5)
+}
+
+/// The app shell demo's tree and its document section's body (a `Component`
+/// built at layout), in its own frame as `buildTheServicesDemo()`'s note says.
+@MainActor @inline(never)
+private func buildTheAppShellDemo() {
+    _ = appShellDemoContent()
+    _ = appShellDocumentSectionBody()
 }
 
 /// The input-APIs canvas demo's tree, **in its own frame** for

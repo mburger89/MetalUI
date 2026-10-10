@@ -52,7 +52,8 @@ summary.
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
-  `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), …; the full
+  `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
+  `2026-10-08-app-shell-decisions.md`, next `AS-R`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -83,12 +84,19 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `feat/controls-looks` from `cd84b0c`, merged with master `67a579e`, then
-  `0b400b4` (`GX-X`, +6 tests) and `9ad2254` (`GX-Y`, +5 tests): 3021 tests, 0 goldens, 192 typecheck guards (measured on the merge, all passed); at `0b400b4`'s merge: 3016 tests, 0 goldens, 192 typecheck guards** (+ `GX-X`'s 6 and
+- **Counts (2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+  3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
+  the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
+  issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105
+  in the Linux image; divergences 175, 176 added, the header's count and next label the merge's;
+  record §87 §12). Before the merge, the lanes on `c62d6ba`: 2921 / 0 / 188 (2873 + 48, 185 + 3;
+  `Backends/SDL` 24 + 107 on macOS, 24 + 104 in the Linux image). Before it, `feat/controls-looks`
+  from `cd84b0c`, merged with master `67a579e`, then
+  `0b400b4` (`GX-X`, +6 tests) and `9ad2254` (`GX-Y`, +5 tests): 3021 tests, 0 goldens, 192 typecheck guards (measured on the merge, all passed); at `0b400b4`'s merge: 3016 tests, 0 goldens, 192 typecheck guards (+ `GX-X`'s 6 and
   3 merge pins; `cutToEntryClip` gains `.gradient`/`.blur` arms; record §85 §4.7); **at `67a579e`'s merge:
   3007 tests, 0 goldens, 192 typecheck guards** (master's 2873 + 134 tests, 185 + 7 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
@@ -159,7 +167,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -250,10 +258,11 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
-  two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
+  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:)`** (`MN-I`) **and the app shell's
+  `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
   three** since rich text (styled measure, styled layout, decoration metrics,
@@ -825,6 +834,34 @@ blur** (divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
 `DecorationExtras`** (the 1 MB thread, `LK-W` item 10); a new
 `CapturedPrimitive` or `LayoutModifier` kind owes its arm in both fade
 flattenings (`multiplyAlpha`, `RenderEffect.apply`).
+
+**App shell (`AS-`, record §87).** `Window.onCloseRequest` answers
+`CloseRequestReply` (`.now`, `.cancel`, `.later` plus `replyToCloseRequest(_:)`);
+`close()` never asks, `performClose()` does; `App.onTerminateRequest`/
+`replyToTerminateRequest(_:)`/`terminate()` hook a quit, and **with no app handler
+the walk asks every window in turn and owns the end** (a `.later` pauses it, the
+window's real close resumes it); closing one of several windows no longer
+terminates and the last close ends the app asking nobody (`AS-B`, `AS-C`,
+`AS-K`). MetalUI-only by ruling: SwiftUI has no veto API. The platform seam is
+**eleven defaultless requirements** (seven on `PlatformWindow`, four on
+`Platform`; a conformer adds them, `AS-H`, `AS-J`); AppKit asks through
+`windowShouldClose` and `AppKitApplicationDelegate`, SDL through
+`SDL_EVENT_WINDOW_CLOSE_REQUESTED`/`SDL_EVENT_QUIT` with its quit-on-last-window
+hint off (`AS-L`). `.navigationTitle`, `.navigationDocument` and `.onOpenURL`
+are three transparent `EnvironmentWrite` cases (no node, no id level, first
+report in post-order wins, handlers run in reverse post-order under
+`StateDispatch`); `Window.title`/`isDocumentEdited`/`representedURL` reach the
+platform on change only (SDL records the edited marker and path, no-ops).
+`windowStyle: .hiddenTitleBar` lays the root **under** the bar (divergence 175)
+and `@Environment(\.titleBarInsets)` is stamped by `Window` from the
+platform's *answer* (zero on SDL, which answers `false`; client decorations
+deferred, `AS-E` item 6); an unclaimed primary press in the band drags the
+window (`AS-J`). An open-document event goes to the key window with a handler,
+else the first window with one, else `App.onOpenURL`, never a new window (divergence 176);
+AppKit delivers no launch argument, so `App.open(_:)` is the recipe (`AS-M`);
+URLs arriving before `App`'s initialiser are dropped (`AS-Q`). A test never
+calls a real `performClose(_:)` (its nested loop ends the process, `AS-O`
+item 7).
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
