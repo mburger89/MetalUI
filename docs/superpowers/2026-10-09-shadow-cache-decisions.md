@@ -10,7 +10,7 @@ Record: `../record/90-shadow-cache.md` (written in the Record phase).
 Branch `perf/shadow-cache` from `2155f1e`; divergence labels reserved for this
 branch: **205–214**.
 
-**Next unused id: `PF-M`.** (Moves in the commit that appends a ruling; read
+**Next unused id: `PF-O`.** (Moves in the commit that appends a ruling; read
 the last `## PF-` heading, not this line, if they disagree.)
 
 Evidence (each header carries its recorded output and how to run it):
@@ -55,7 +55,7 @@ Code inventory (2155f1e) — why every move misses:
 
 ## PF-A — Translation-free raster keys: a canonical anchor, the raster a pure function of the key
 
-*Amended by the critic: PF-I (masks) amends item 1.*
+*Amended by the critic: PF-I (masks) amends item 1. Amended by lane 1: PF-M (nested content re-anchors) amends item 1.*
 
 **Ruling.**
 
@@ -153,7 +153,7 @@ still miss on every move (performance only, D2).
 
 ## PF-C — Bit-identity: canonical rasters equal today's absolute rasters, byte for byte
 
-*Amended by the critic: PF-K item 1 amends item 1 (the run.sh fixture).*
+*Amended by the critic: PF-K item 1 amends item 1 (the run.sh fixture). Amended by lane 1: PF-N amends items 2–3 (measured).*
 
 **Ruling.**
 
@@ -441,3 +441,93 @@ clip. Mutation M1e (`E` without the padding) reddens it.
    its faster loops (`PF-K` item 2) are last and severable. If the lane runs
    long they move to the Record phase's list, with an owner, rather than
    growing the lane.
+
+---
+
+Lane 1 rulings (2026-10-09, the implementer). Each amends a design ruling
+with what the implementation measured.
+
+## PF-M — Nested content re-anchors to its own corner; layout moves are whole points (amends PF-A item 1, spec §8)
+
+**Ruling.**
+
+1. A nested outline or leaf inside a canonical raster — a path's or a
+   gradient's outline, a nested shadow's or blur's leaf — is **re-anchored to
+   its own floored minimum corner** `R_i` (grid `1/s` for an outline under a
+   uniform scale `s ∈ {1, 2, 4}`, else 1; grid 1 for a leaf), its `local`
+   becoming `T(−R)·local·T(R_i)` (`Affine2D.reanchored`, the integer sums
+   first). `PF-A` item 1 as written translated only the nested `local.tx/ty`
+   and left "their own content in their own space": a path's control points
+   and a nested shadow's leaf are **absolute window coordinates**, so a node
+   holding a shadowed path or a shadow of a shadow would still have missed on
+   every layout move. The map from nested content to device pixels is
+   unchanged in exact arithmetic.
+2. **Layout places on whole points** (measured: a padding of 40.5 pt at 2×
+   draws where 41 pt does). So a half-point *layout* move does not exist; the
+   tests drag by whole points at 2× through layout and by half points through
+   an `.offset` (a flattened effect: the fraction lands in the shadow's or
+   path's `local`, i.e. in `f`). L1.4 and L1.10 move by 0.3 and 0.25 pt
+   through an `.offset` for the same reason, and L1.5's fractions are
+   `.offset`s inside each shadow (the leaf's own bounds) and outside the whole
+   fixture (the map).
+3. The test probe `RasterCache.onRaster` (internal; `nil` costs one test per
+   raster) hands L1.5 every raster as the scope carried it, so the canonical
+   result is compared with 2155f1e's absolute helpers on the same input.
+
+**Evidence.** `RasterAnchorTests` L1.1–L1.3, L1.7–L1.9 (red at `e8d70c2`,
+green at `06393c6`); `aCachedShadowIsPlacedAtTheNewPosition`.
+
+**Cost if wrong.** A re-anchoring that is not exact makes nested content miss
+(performance only; L1.4 and L1.5 still hold, the bytes being a function of the
+key).
+
+## PF-N — Canonical against 2155f1e: 0 px where it binds, measured rounding elsewhere (amends PF-C items 2–3)
+
+**Ruling.**
+
+1. **The binding criteria hold unchanged** (`PF-C` item 1), measured at
+   `06393c6` against `2155f1e`: the fourteen `demo-pixels` images 0 px, every
+   scene dump identical; the thirteen `shadow-cache/run.sh pixels` images 0 px
+   (frozen looks rows light, dark and 2×; both five-frame drags, whose frames
+   1 and 4 hit the cache), controls non-zero; `Expected.swift` unedited.
+2. **L1.5 compares on the device**: each texel at its device pixel, 0 outside
+   its rectangle, so a raster one all-zero row wider is no difference.
+   Measured, 21 rasters per configuration (every kind `PF-C` item 2 names):
+
+   | position (inner, outer offset, pt) | 1× | 2× |
+   |---|---|---|
+   | integer (0, 0), (0, 0) | 0 bytes (1 raster one zero column wider) | 0 bytes (2 wider) |
+   | dyadic (0.25, 0.5), (0.5, 0.25) | 0 bytes | **53 bytes, max Δ 1** (the bordered rounded box's two shadows, both strokes) |
+   | non-dyadic (0.3, 0.7), (0.1, 0.45) | 0 bytes | 0 bytes |
+
+   `PF-C` item 3 expected dyadic positions exact: **refuted at 2×**. Cause: a
+   curved outline's edge deposits (a rounded ring's corners, a stroke's joins)
+   are computed at another magnitude and round differently, and the
+   rasterizer's per-row running sum carries that difference to a
+   half-covered straight-edge pixel whose exact value is 127.5 + 0.5 = 128,
+   which then reads 127. L1.5 pins **device max Δ ≤ 1 at every position, 0
+   bytes at integer positions**.
+3. **An integer coincidence can move a resampled leaf's bleed column** (L1.5b,
+   pinned as measured): a 6 × 6 image whose inner and outer fractions sum to
+   whole device pixels at 2× differs in 609 bytes, max Δ 4, in that one
+   shadow. 2155f1e's `Affine2D.boundingBox(of: MUIBounds)` returns `Float`, so
+   at absolute magnitude 163.99999991 rounds up to 164 while the canonical
+   0.99999991 stays below 1: the canonical resample rectangle holds one more
+   column, the bilinear filter's bleed past the image's edge (texel −1 = 0
+   blended at weight ¼), and the blur spreads it to Δ 4. Neither rectangle is
+   the right one — 2155f1e keeps that column wherever its box rounds down.
+   This is rounding, not a wrong transform, so `PF-C` item 3's stop does not
+   apply. A `Double` resample rectangle in both would remove the magnitude
+   dependence; it is a pixel change against 2155f1e and is not taken. Owner:
+   none.
+4. **`PF-A` item 1 is kept**: the bytes are a function of the key (L1.4, L1.10
+   green), so what differs from 2155f1e differs the same way warm or cold.
+
+**Evidence.** `aCanonicalRasterEqualsTheAbsoluteOne`,
+`aResampledLeafAtAnIntegerCoincidenceMayGainItsBleedColumn` (each prints its
+row); `docs/probes/demo-pixels/compare.sh` and `docs/probes/shadow-cache/run.sh
+pixels` logs in record §90.
+
+**Cost if wrong.** A shadow at a half-pixel position at 2× can differ from
+2155f1e by one level at a few edge pixels; the record's numbers and L1.5 bound
+it.

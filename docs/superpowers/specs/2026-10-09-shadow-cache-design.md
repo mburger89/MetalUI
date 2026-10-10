@@ -3,7 +3,7 @@
 Item C13 of the gpui-gap priority list (user request 2026-10-02; **not a plan
 task**). Reported by MetalCreator, `docs/metalui-gaps.md` "Node-drag
 performance, 2026-10-08", PERF-a (measured on MetalUI `dc6528c`). Branch
-`perf/shadow-cache` from `2155f1e`. Rulings: `PF-A`…`PF-L` in
+`perf/shadow-cache` from `2155f1e`. Rulings: `PF-A`…`PF-N` in
 [`../2026-10-09-shadow-cache-decisions.md`](../2026-10-09-shadow-cache-decisions.md)
 (the binding text; this spec only arranges them into work). Record:
 `docs/record/90-shadow-cache.md` (Record phase). Divergence labels reserved for
@@ -95,6 +95,9 @@ A new internal type (`RasterAnchor.swift`) computes, for one raster:
   `keyLeaf` keys every mask unconditionally; a mask at or outside the scope's
   entry is the panel's or window's absolute clip, which a moving node moves
   against, so translating it by `−R` would still miss on every move.
+- A nested outline or leaf (a path's or gradient's outline, a nested shadow's
+  or blur's leaf) re-anchors to its own floored corner, its `local` absorbing
+  it (`PF-M` item 1): their content is absolute window coordinates too.
 - `RasterKey` gains nothing absolute; `RasterKey.add(_:)` overloads are reused.
 
 `keyLeaf` stays **one switch** shared by shadow and blur (`GX-J`, `LK-K`); it
@@ -200,7 +203,8 @@ first commit (counter added, keys unchanged) — taken and named in the record.
 **Lane 1**
 
 - **L1.1** layout drag: a 9-leaf `.shadow(radius: 10)` container moved 1 px
-  per frame (1×) and 0.5 pt (2×) for 5 frames: frames 2–5 read 0 blurred, 0
+  per frame (1×), 1 pt (2×, layout places on whole points, `PF-M` item 2) and
+  0.5 pt through an `.offset` (2×) for 5 frames: frames 2–5 read 0 blurred, 0
   rasterized, 0 textures made; every image's texture `===` frame 1's.
 - **L1.2** pan: the same under a parent `.offset` changing by whole pixels.
 - **L1.3** blur: a `.blur(radius: 4)` container dragged: same counters.
@@ -209,8 +213,10 @@ first commit (counter added, keys unchanged) — taken and named in the record.
 - **L1.5** canonical = absolute: per raster kind (rect, rounded rect, ellipse,
   bordered rect, text, image, stroked path with miter, nested shadow, gradient,
   nested blur), at integer, dyadic and non-dyadic positions, scale 1 and 2:
-  canonical raster shifted by `S` equals today's absolute call, 0 bytes
-  (contingency `PF-C` 3).
+  canonical raster shifted by `S` against today's absolute call, compared on
+  the device: max Δ ≤ 1, 0 bytes at integer positions (`PF-N` item 2, which
+  measured dyadic 2× at Δ 1). **L1.5b** pins the integer-coincidence bleed
+  column (`PF-N` item 3).
 - **L1.6** cut: a shadow straddling a `.clipped()` edge, dragged: rasterizes
   every frame (mode 2), bounds equal today's (3.20 unchanged).
 - **L1.7** path dragged by whole pixels: 0 rasterized after frame 1.
