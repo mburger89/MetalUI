@@ -156,3 +156,43 @@ import Testing
     try window.click(add)
     #expect(m.count == 1)
 }
+
+/// 2.29 — an alert the window dismisses (its `isPresented` written `false`
+/// by the model, outside the alert) is no longer presented, though the
+/// harness never answered it (spec §3.2 item 3, ruling `HT-T` item 2).
+/// Mutation: `presentedAlert`'s `dismissedPresentations` check dropped.
+@Test @MainActor func anAlertTheWindowDismissesIsNoLongerPresented() throws {
+    let m = PresentModel()
+    let window = try harnessWindow { alertTree(m) }
+    try window.click(window.element(label: "Ask"))
+    let alert = try #require(window.presentedAlert)
+    m.shown = false
+    window.window.setNeedsRedraw()
+    window.tick()
+    #expect(window.platformWindow.dismissedPresentations.contains(alert.token))
+    #expect(window.presentedAlert == nil)
+    #expect(m.log.isEmpty)
+}
+
+/// 2.30 — `respondToAlert(button:)` refuses a title two buttons share:
+/// `.ambiguous` with the count, and the alert stays presented (spec §3.2 item
+/// 3). Mutation: the `matches.count == 1` guard dropped.
+@Test @MainActor func anAlertButtonTitleTwoButtonsShareIsAmbiguous() throws {
+    let m = PresentModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Button("Ask") { m.shown = true }
+                .alert("Pick", isPresented: m.binding) {
+                    Button("OK") { m.log.append("first") }
+                    Button("OK") { m.log.append("second") }
+                }
+        }
+    }
+    try window.click(window.element(label: "Ask"))
+    #expect(try #require(window.presentedAlert).buttons.map(\.title) == ["OK", "OK"])
+    #expect(throws: TestHarnessError.ambiguous("alert button \"OK\"", count: 2)) {
+        try window.respondToAlert(button: "OK")
+    }
+    #expect(m.log.isEmpty)
+    #expect(window.presentedAlert != nil)
+}

@@ -157,8 +157,11 @@ private struct PressCounter: Component {
 }
 
 /// 2.23 — a popover is a presentation root: its `.popover` node is found by
-/// role (another root of the tree, `AB-V`) and lies inside the window.
-/// Mutation: the query walk visits only `roots.first`.
+/// role and lies inside the window. Its node is **not** another root of the
+/// accessibility tree — it sits inside the window's one root, so neither "the
+/// query walk visits only `roots.first`" nor "only the last root" reddens this
+/// test (ruling `HT-U` item 3). Mutation: the walk skips the children of a
+/// `.popover` node (the `Pop` text is then not found).
 @Test @MainActor func aPopoverAppearsInTheTreeInsideTheWindow() throws {
     let window = try harnessWindow {
         Box().frame(width: Pixels(60), height: Pixels(40)).background(.accent)
@@ -202,7 +205,7 @@ private struct PressCounter: Component {
     var text = ""
 }
 
-/// 2.25 — ⌘A ⌘C in a focused field copies its text to the window's
+/// 2.25 — select-all, copy (⌘A ⌘C on macOS, ⌃A ⌃C elsewhere) in a focused field copies its text to the window's
 /// clipboard. Mutation: `writeClipboard` drops the write.
 @Test @MainActor func copyInAFieldReachesTheWindowsClipboard() throws {
     let model = FieldModel()
@@ -213,8 +216,14 @@ private struct PressCounter: Component {
     let field = try #require(try window.elements(role: .textField).first)
     try window.typeText("abc", into: field)
     #expect(model.text == "abc")
-    window.typeKey("a", modifierFlags: .command)
-    window.typeKey("c", modifierFlags: .command)
+    // The editing shortcuts are ⌘ on macOS and ⌃ elsewhere (`TextEditing`).
+    #if os(macOS)
+    let shortcut: EventModifiers = .command
+    #else
+    let shortcut: EventModifiers = .control
+    #endif
+    window.typeKey("a", modifierFlags: shortcut)
+    window.typeKey("c", modifierFlags: shortcut)
     #expect(window.platformWindow.clipboard == "abc")
 }
 

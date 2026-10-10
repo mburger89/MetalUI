@@ -184,3 +184,42 @@ import Testing
     #expect(throws: TestHarnessError.disabledMenuItem(["Save"])) { try disabled.perform("Save") }
     #expect(m.log == ["save"])
 }
+
+/// A model the observation machinery does not see, for 2.27.
+@MainActor private final class PlainModel {
+    var dark = false
+}
+
+/// 2.27 — a menu-bar command draws its change in every window even when no
+/// observation reaches the window: the model here is a plain class, the
+/// macOS spelling of what every model is on Linux, where a `@MainActor` test
+/// runs off the main thread and the observation hop is a later `Task`
+/// (ruling `HT-U` item 1). Mutation: the windows not marked dirty before the
+/// tick (`setNeedsRedraw` dropped from `performMenuBarItem`).
+@Test @MainActor func aMenuBarCommandDrawsWithNoObservationHop() throws {
+    let m = PlainModel()
+    let app = try TestApp(textSystem: harnessTextSystem)
+    app.app.commands {
+        CommandMenu("Theme") {
+            Toggle("Dark", isOn: Binding(get: { m.dark }, set: { m.dark = $0 }))
+        }
+    }
+    let window = try app.openWindow(size: sz(400, 300)) { Text(m.dark ? "dark" : "light") }
+    let drawn = window.framesDrawn
+    try app.performMenuBarItem("Theme", "Dark")
+    #expect(m.dark)
+    #expect(window.framesDrawn == drawn + 1)
+    #expect(try window.element(label: "dark").role == .staticText)
+}
+
+/// 2.28 — a standard menu-bar item (Edit ▸ Copy) is the platform's own
+/// command and is not performed: `.noMenuItem` (ruling `HT-T` item 3), though
+/// the bar lists it. Mutation: the `standardAction` guard dropped.
+@Test @MainActor func aStandardMenuBarItemIsNotPerformed() throws {
+    let m = MenuModel()
+    let (app, _) = try themedApp(m)
+    let edit = try #require(app.menuBar.first { $0.title == "Edit" })
+    let copy = try #require(edit.items.first { $0.title == "Copy" })
+    #expect(copy.standardAction != nil)
+    #expect(throws: TestHarnessError.noMenuItem(["Edit", "Copy"])) { try app.performMenuBarItem("Edit", "Copy") }
+}

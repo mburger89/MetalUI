@@ -546,10 +546,14 @@ fixed-size frames.
 | 2.20 | `menuEvaluationReadsContentOutsideAnyWindow` (TH-a) — `Button`, `Divider`, `Toggle` with shortcut: kinds, titles, `isOn`, shortcut; `perform("Save")` runs | stub | `isEnabled: false` passed |
 | 2.21 | `theToolbarIsReadAndAnItemTriggered` | stub | `.toolbarAction` with wrong item |
 | 2.22 | `aDeclinedToolbarIsDrawnAndItsButtonClickable` — `showsToolbarNatively: false`: `$toolbar` strip (MD-K), its button by label | — | `setToolbar` answers `true` regardless of the option |
-| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds, one tick after the open frame (HT-T 4) | — | the query walk visits only `roots.first` (a presentation root's node is another root, or the test records that it is not and swaps the mutation for "skip children of a `.popover`") |
+| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds, one tick after the open frame (HT-T 4) | — | the walk skips the children of a `.popover` node (HT-U 3: the popover's node is **not** another root — "only `roots.first`" and "only the last root" both left 2.23 green) |
 | 2.24 | `pointerStyleFollowsHover` — `.pointerStyle(.link)` → `pointerStyle` | — | last style not read |
-| 2.25 | `copyInAFieldReachesTheWindowsClipboard` — ⌘A ⌘C | — | `writeClipboard` drops the write |
+| 2.25 | `copyInAFieldReachesTheWindowsClipboard` — ⌘A ⌘C on macOS, ⌃A ⌃C elsewhere (HT-U 2) | — | `writeClipboard` drops the write |
 | 2.26 | `aClickByElementReRunsLane1sClickTestThroughTheTree` — 1.4 re-pinned by label | — | as 1.4 |
+| 2.27 | `aMenuBarCommandDrawsWithNoObservationHop` (HT-U 1) — a plain-class model: `performMenuBarItem` still draws one frame with the change | red (no frame) | `setNeedsRedraw` dropped from `performMenuBarItem` |
+| 2.28 | `aStandardMenuBarItemIsNotPerformed` (HT-T 3) — Edit ▸ Copy listed, `.noMenuItem` | — | the `standardAction` guard dropped |
+| 2.29 | `anAlertTheWindowDismissesIsNoLongerPresented` (HT-T 2) — `isPresented` written `false` by the model: token in `dismissedPresentations`, `presentedAlert == nil` | — | the `dismissedPresentations` check dropped |
+| 2.30 | `anAlertButtonTitleTwoButtonsShareIsAmbiguous` (§3.2 item 3) — two `OK` buttons: `.ambiguous(…, count: 2)`, the alert stays | — | the `matches.count == 1` guard dropped |
 
 ### §4.3 Lane 3
 

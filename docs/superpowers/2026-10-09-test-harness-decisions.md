@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-U`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-V`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -562,3 +562,33 @@ in the same commit.
 **Cost if wrong.** Each item is pinned by the test it names; if `Text` ever
 publishes its string as a label, item 1's fallback is dead code and 2.2 stays
 green.
+
+## HT-U — Lane 2's verifier findings, measured (2026-10-10)
+
+**Ruling.** Lane 2's verifier ran the root package in `swift:6.4-noble` and
+the named mutations; the spec (§4.2) is corrected in the same commit.
+1. **`performMenuBarItem` marks every window dirty before its tick.** A
+   menu-bar action runs outside window input, so a model write reaches a
+   window only through the observation hop (`markDirtyFromObservation`),
+   which is synchronous on macOS only: on Linux a swift-testing `@MainActor`
+   test runs off the main thread and the hop is a later `Task`, so the tick
+   found the window clean and drew nothing (2.18 red in the image). The
+   harness's promise "then draws a frame in every window" (`HT-E`) now holds
+   on every platform; a toolbar or menu answer needs no change, since it
+   arrives as window input, which dirties the window itself. Test 2.27 pins
+   it on macOS with a plain-class model (no observation at all).
+2. **The editing shortcuts are the platform's**: `TextEditing` uses ⌘ on
+   macOS and ⌃ elsewhere, so a test that copies or selects all sends
+   `.command` under `#if os(macOS)`, else `.control` (2.25). The harness adds
+   no helper.
+3. **A popover's node is not another root.** It sits inside the window's
+   one root, so "the query walk visits only `roots.first`" and "only the last
+   root" both leave 2.23 green; 2.23's mutation is "the walk skips the
+   children of a `.popover`", which reddened 2.23 alone.
+4. **Three claims gain pins**: `presentedAlert` reads a token the window
+   dismissed as answered (2.29), a standard menu-bar item is refused (2.28),
+   and `respondToAlert(button:)` refuses a shared title as `.ambiguous`
+   (2.30).
+
+**Cost if wrong.** If the observation hop ever becomes synchronous off macOS,
+item 1's `setNeedsRedraw` costs nothing (one frame either way).
