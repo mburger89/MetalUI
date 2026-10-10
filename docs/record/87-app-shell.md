@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba` (master at the time: the `fix/clip-nested
 `docs/probes/swiftui-app-shell.swift` (arms `N0`–`N5`, `H0`, `H1`, `D0`, `D1`, `T0`–`T3`,
 `O0`–`O5`), `appkit-titlebar-hit-test.swift` (`S0`, `F0`, `F1`) and
 `appkit-launch-arguments-open.swift` (`A0`–`A6`). Parallel branches at the time:
-`feat/controls-looks` (§85, merged into this branch at `2155f1e`, §10) and `feat/key-focus` (§88).
+`feat/controls-looks` (§85, merged into this branch at `2155f1e`, §11) and `feat/key-focus` (§88).
 
 **Status: implemented and recorded (2026-10-09)** — a design session and critic, three lanes
 (1 the seam and both platforms; 2 `App`, `Window` and the tree modifiers; 3 the demo, the SDL
@@ -123,7 +123,7 @@ Baseline `c62d6ba`: 2873 tests, 0 goldens, 185 guards. Root +48 tests; `Backends
 | `Backends/SDL` `SDLAppShellAppTests.swift` | 3 | 3.1–3.3: an `App` over `SDLPlatform(hiddenWindows:offscreenRenderers:)`, ungated, runs under the Linux image's offscreen driver |
 
 Ten existing guard files (the `*CompileGuards.swift` conformer templates) gained the eleven conformer members (test support). New typecheck
-guards: three (1.1, 1.2, 2.1), each mutated red once (§4 G1–G3).
+guards: three (1.1, 1.2, 2.1), each mutated red once (§5 G1–G3).
 
 ## §3 Probes
 
