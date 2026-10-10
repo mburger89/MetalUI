@@ -75,6 +75,18 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// subrole `AXDialog` — never published there, whose alert is native;
     /// AccessKit `ALERT_DIALOG`).
     case alert
+    /// A determinate `ProgressView`, its value the fraction 0…1 (ruling
+    /// `LK-G`, probe `V7`/`V8`; AppKit `AXProgressIndicator` with an
+    /// `NSNumber` value, AccessKit `PROGRESS_INDICATOR` with a numeric value
+    /// over 0…1).
+    case progressIndicator
+    /// An indeterminate `ProgressView`, no value (`LK-G`, `V8`; AppKit
+    /// `AXBusyIndicator`, AccessKit `PROGRESS_INDICATOR` with no numeric value
+    /// — `accesskit.h` 0.23 has no busy role).
+    case busyIndicator
+    /// A `ColorPicker`'s well, its value `rgb R G B A` (`LK-G`, `LK-C` item 7,
+    /// probe `C1`; AppKit `AXColorWell`, AccessKit `COLOR_WELL`).
+    case colorWell
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

@@ -118,10 +118,19 @@ final class RasterCache {
         let color: [UInt32]
     }
 
+    private struct Image {
+        let entry: (rect: RasterRect, texture: ImageTexture)?
+        let retained: [AnyObject]
+    }
+
     private var coverage: [RasterKey: Coverage] = [:]
     private var tinted: [TintKey: ImageTexture] = [:]
+    private var images: [RasterKey: Image] = [:]
+    private var tables: [[UInt64]: [UInt32]] = [:]
     private var touchedCoverage: Set<RasterKey> = []
     private var touchedTint: Set<TintKey> = []
+    private var touchedImages: Set<RasterKey> = []
+    private var touchedTables: Set<[UInt64]> = []
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
 
@@ -132,7 +141,7 @@ final class RasterCache {
     private(set) var lastBlurredPixels = 0
 
     /// Tinted textures held now.
-    var textureCount: Int { tinted.count }
+    var textureCount: Int { tinted.count + images.count }
 
     func beginFrame() {
         rasterizedThisFrame = 0
@@ -142,8 +151,12 @@ final class RasterCache {
     func endFrame() {
         if touchedCoverage.count != coverage.count { coverage = coverage.filter { touchedCoverage.contains($0.key) } }
         if touchedTint.count != tinted.count { tinted = tinted.filter { touchedTint.contains($0.key) } }
+        if touchedImages.count != images.count { images = images.filter { touchedImages.contains($0.key) } }
+        if touchedTables.count != tables.count { tables = tables.filter { touchedTables.contains($0.key) } }
         touchedCoverage.removeAll(keepingCapacity: true)
         touchedTint.removeAll(keepingCapacity: true)
+        touchedImages.removeAll(keepingCapacity: true)
+        touchedTables.removeAll(keepingCapacity: true)
         lastRasterizedPixels = rasterizedThisFrame
         lastBlurredPixels = blurredThisFrame
     }
@@ -158,6 +171,29 @@ final class RasterCache {
         let mask = make()
         coverage[key] = Coverage(mask: mask, retained: retaining)
         return mask
+    }
+
+    /// A finished colour image for `key` — a gradient raster or strip
+    /// (`LK-J`), a blurred leaf (`LK-K`) — made by `make` on a miss (`nil`:
+    /// nothing visible, remembered too). One `ImageTexture` identity while the
+    /// key is drawn every frame.
+    func image(for key: RasterKey, retaining: [AnyObject] = [],
+               make: () -> (rect: RasterRect, texture: ImageTexture)?) -> (rect: RasterRect, texture: ImageTexture)? {
+        touchedImages.insert(key)
+        if let hit = images[key] { return hit.entry }
+        let entry = make()
+        images[key] = Image(entry: entry, retained: retaining)
+        return entry
+    }
+
+    /// The 1024-entry table of `stops` (`LK-J` item 3), built once while drawn.
+    func gradientTable(_ stops: GradientStops) -> [UInt32] {
+        let key = stops.keyWords
+        touchedTables.insert(key)
+        if let hit = tables[key] { return hit }
+        let table = GradientTable.make(stops)
+        tables[key] = table
+        return table
     }
 
     /// `mask` tinted by `color` (premultiplied, gamma space), for `key`.
@@ -301,9 +337,12 @@ struct RasterPlacement {
     }
 
     /// The image quad over `mask`'s rectangle.
-    func quad(over mask: AlphaMask) -> MUIImage {
-        MUIImage(bounds: MUIBounds(origin: MUIPoint(x: Float(mask.rect.x), y: Float(mask.rect.y)),
-                                   size: MUISize(width: Float(mask.rect.width), height: Float(mask.rect.height))),
+    func quad(over mask: AlphaMask) -> MUIImage { quad(over: mask.rect) }
+
+    /// The image quad over `rect` (`LK-J`, `LK-K`: a colour raster's).
+    func quad(over rect: RasterRect) -> MUIImage {
+        MUIImage(bounds: MUIBounds(origin: MUIPoint(x: Float(rect.x), y: Float(rect.y)),
+                                   size: MUISize(width: Float(rect.width), height: Float(rect.height))),
                  contentMask: imageMask, maskCornerRadii: imageRadii, opacity: 1, texture: 0,
                  filter: ImageFilter.nearest.rawValue, order: 0)
     }

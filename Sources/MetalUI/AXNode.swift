@@ -195,6 +195,21 @@ public struct AXNode: Equatable {
     /// chrome's record, as a selection hint does. Internal.
     var popoverHint = false
 
+    /// **A role hint, not a declaration** (C10, ruling `LK-G`, `LK-C` item 7):
+    /// set by a `ColorPicker`'s well, published as `.colorWell` (SwiftUI's
+    /// `AXColorWell`, probe `C1`) where the node would otherwise be a
+    /// `.button`. Stripped by `Frame.registerHandlers` exactly as
+    /// `popUpButtonHint` is. Internal.
+    var colorWellHint = false
+
+    /// **A role hint, not a declaration** (C10 lane 2, rulings `LK-G`,
+    /// `LK-E` item 5, `LK-V` item 6): set by a `ProgressView`'s indicator,
+    /// published as `.progressIndicator` (determinate, probe `V7`) or
+    /// `.busyIndicator` (indeterminate, `V8`) where the node would otherwise be
+    /// a `.group`. Stripped by `Frame.registerHandlers` exactly as
+    /// `popoverHint` is, and like it makes the indicator's record. Internal.
+    var progressHint: ProgressRoleHint?
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own
@@ -333,4 +348,10 @@ final class AXDeclarationsBox: Equatable {
     var value: AXDeclarations
     init(_ value: AXDeclarations) { self.value = value }
     static func == (lhs: AXDeclarationsBox, rhs: AXDeclarationsBox) -> Bool { lhs.value == rhs.value }
+}
+
+/// Which of the two progress roles a `ProgressView`'s indicator publishes
+/// (`AXNode.progressHint`, `LK-G`).
+enum ProgressRoleHint: Equatable, Sendable {
+    case determinate, busy
 }

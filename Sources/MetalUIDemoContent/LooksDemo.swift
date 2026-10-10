@@ -31,8 +31,8 @@ public func looksDemoContent() -> some Element {
                                                           shapes: looksShapesSection(),
                                                           pathsShadowsTransforms: looksPathsShadowsTransformsSection()),
                                     right: looksRightColumn(gestures: looksGesturesSection(),
-                                                            transitions: looksTransitionsSection())),
-              colour: looksColourSection())
+                                                            transitions: looksTransitionsAndLooks())),
+              colour: looksColourAndKeyframes())
 }
 
 /// H1's narrow column and, beside it where the left column has room, the
@@ -568,3 +568,175 @@ struct LooksLifecycleCounter: Component {
         }
     }
 }
+
+/// The keyframes row, then the colour section (C10 lane 2): composed in **its
+/// own frame**, so `looksDemoContent()`'s frame holds one temporary for both —
+/// passed in as three it overflowed the 1 MB thread
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`, `.signal(SIGBUS)`, `LK-V`).
+@MainActor
+private func looksColourAndKeyframes() -> some Element {
+    Column(gap: Pixels(18)) {
+        keyframesSection()
+        looksColourSection()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The keyframes row (C10 lane 2, rulings `LK-H`, `LK-I`, `LK-M`; spec §6): a
+/// "Shake" tap target shaking a box with MetalCreator's refused-wire keyframes
+/// (M5-i), and a box bobbing on a repeating cubic track. **Its own function**,
+/// its state in its own `Component`. Human check: the shake at 60 and 120 Hz
+/// (spec §7 item 9).
+@MainActor
+func keyframesSection() -> some Element {
+    Column(gap: Pixels(12)) {
+        Text("Keyframes").font(size: 20)
+        KeyframesDemo()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The keyframes row's state: how many times the box was refused.
+struct KeyframesDemo: Component {
+    @State var refusals = 0
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(24)) {
+            // A tap gesture, not a `Button`: the looks demo's tests count its
+            // click targets and press the bottom-most as the scheme toggle.
+            Text("Shake").padding(Pixels(6)).background(.surfaceSecondary).cornerRadius(Pixels(5))
+                .onTapGesture { refusals += 1 }
+            Box().frame(width: Pixels(60), height: Pixels(24)).background(.accent).cornerRadius(Pixels(4))
+                .keyframeAnimator(initialValue: 0.0, trigger: refusals) { content, x in
+                    content.offset(x: Pixels(Float(x)))
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        LinearKeyframe(6, duration: 0.05)
+                        LinearKeyframe(-6, duration: 0.1)
+                        LinearKeyframe(0, duration: 0.05)
+                    }
+                }
+            Box().frame(width: Pixels(24), height: Pixels(24)).background(.separator).cornerRadius(Pixels(12))
+                .keyframeAnimator(initialValue: 0.0, repeating: true) { content, y in
+                    content.offset(y: Pixels(Float(y)))
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        CubicKeyframe(-8, duration: 0.4)
+                        CubicKeyframe(0, duration: 0.4)
+                    }
+                }
+        }
+        .alignItems(.center)
+    }
+}
+
+/// The transitions section, then the gradients, blur and materials section
+/// (C10 lane 3), the latter as a `Component` so the composer's frame holds an
+/// empty struct and the section is built in the component's own frame
+/// (`PE-K`): built inline here, the looks tree overflowed the 1 MB thread
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`, `.signal(SIGBUS)`,
+/// measured, `LK-W` item 10).
+@MainActor
+private func looksTransitionsAndLooks() -> some Element {
+    Column(gap: Pixels(18)) {
+        looksTransitionsSection()
+        LooksGradientsBlurMaterials()
+    }
+    .alignItems(.flexStart)
+}
+
+/// The gradients, blur and materials section as a `Component` (`LK-W` item 10).
+struct LooksGradientsBlurMaterials: Component {
+    var content: some ElementGroup { gradientsBlurMaterialsSection() }
+}
+
+/// An 8 × 8 two-tone checker, the blurred image's source.
+@MainActor private let looksCheckerBitmap: ImageBitmap = {
+    var rgba: [UInt8] = []
+    for y in 0..<8 { for x in 0..<8 { rgba += (x + y) % 2 == 0 ? [230, 80, 40, 255] : [40, 90, 220, 255] } }
+    return ImageBitmap(width: 8, height: 8, rgba: rgba)
+}()
+
+/// The looks row (C10 lane 3, rulings `LK-J`, `LK-K`, `LK-L`, `LK-M`, `LK-W`;
+/// spec §6): a window-style vertical gradient panel (the strip, M5-d), a
+/// diagonal and a radial gradient, a text and an image blurred at radii 0, 2
+/// and 6 (M5-c), and the six materials over a striped backdrop in both schemes
+/// (divergence 166: a flat tint, no blur, MG-9). **Its own function**, each row
+/// in its own frame — the gradients row a `Component` (`PE-K`), the blur and
+/// materials rows functions (`LK-X`) — no click target (the demo's tests count
+/// them). Human checks: spec §7 items 5–8.
+@MainActor
+func gradientsBlurMaterialsSection() -> some Element {
+    Column(gap: Pixels(10)) {
+        Text("Gradients, blur, materials").font(size: 20)
+        LooksGradientsRow()
+        looksBlurRow()
+        looksMaterialsRow(scheme: .light)
+        looksMaterialsRow(scheme: .dark)
+    }
+    .alignItems(.flexStart)
+}
+
+/// A vertical (strip), a diagonal and a radial gradient.
+struct LooksGradientsRow: Component {
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(12)) {
+            RoundedRectangle(cornerRadius: Pixels(8))
+                .fill(LinearGradient(colors: [Color(white: 0.96), Color(white: 0.82)], startPoint: .top,
+                                     endPoint: .bottom))
+                .frame(width: Pixels(90), height: Pixels(60))
+            Rectangle()
+                .fill(LinearGradient(colors: [.orange, .pink, .indigo], startPoint: .topLeading,
+                                     endPoint: .bottomTrailing))
+                .frame(width: Pixels(90), height: Pixels(60))
+            Circle()
+                .fill(RadialGradient(colors: [.yellow, .red.opacity(0)], center: .center, startRadius: Pixels(0),
+                                     endRadius: Pixels(30)))
+                .frame(width: Pixels(60), height: Pixels(60))
+        }
+    }
+}
+
+/// A text and an image blurred at radii 0, 2 and 6. A function, not a
+/// `Component`: a `Component` whose content is a loop, inside another
+/// `Component`'s container, crashes Swift 6.4's asserts compiler (`LK-X`).
+@MainActor
+private func looksBlurRow() -> some Element {
+    HStack(spacing: Pixels(12)) {
+        ForEach([0, 2, 6], id: \.self) { radius in
+            VStack(spacing: Pixels(4)) {
+                Text("Blur \(radius)").font(size: 13).blur(radius: Pixels(Float(radius)))
+                Image(looksCheckerBitmap, scale: 1, label: Text("Checker"))
+                    .frame(width: Pixels(32), height: Pixels(32))
+                    .blur(radius: Pixels(Float(radius)))
+            }
+        }
+    }
+}
+
+/// The six materials over red and blue stripes, in `scheme`. A function, not a
+/// `Component`, for the reason `looksBlurRow()` gives (`LK-X`).
+@MainActor
+private func looksMaterialsRow(scheme: ColorScheme) -> some ElementGroup {
+    HStack(spacing: Pixels(0)) {
+        ForEach(0..<looksMaterials.count, id: \.self) { i in
+            ZStack {
+                HStack(spacing: Pixels(0)) {
+                    ForEach(0..<6, id: \.self) { k in
+                        (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
+                    }
+                }
+                Text(looksMaterials[i].0).font(size: 10)
+                    .frame(width: Pixels(60), height: Pixels(20))
+                    .background(looksMaterials[i].1)
+            }
+        }
+    }
+    .environment(\.colorScheme, scheme)
+}
+
+/// The six materials, named.
+@MainActor private let looksMaterials: [(String, Material)] = [
+    ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
+    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
+]
