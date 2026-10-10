@@ -4,8 +4,12 @@ import MetalUILayout
 
 // MARK: - `TimelineView` (rulings `KF-K`, `KF-L`, `KF-T`)
 //
-// STUB (lane B red): the content is built with the caller's parent and cursor
-// and the store's (stub) context.
+// The content is evaluated in layout, once per build, with the context the
+// window's `TimelineStore` gives its position, and laid out with the caller's
+// parent and cursor (`KF-L`). A live `.animation` timeline notes an active
+// animation every build — never `requestAnotherFrame()` — so the display link
+// runs exactly while one is on screen (`KF-K` item 2); every other schedule
+// rebuilds through the store's one wake (`KF-K` item 3).
 
 /// What a `TimelineView`'s content is built with — SwiftUI's
 /// `TimelineViewDefaultContext` (ruling `KF-K` item 1).
@@ -66,10 +70,13 @@ public struct TimelineView<Schedule: TimelineSchedule, Content: ProposalElementG
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], TimelineViewLayout<Content>) {
         let store = pass.frame.animationStore.timeline
-        let (context, _) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
-                                         timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
+        let (context, live) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
+                                            timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
+        if live { pass.frame.noteActiveAnimation() }
         var built = content(context)
-        let (nodes, layout) = built.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        let (nodes, layout) = store.withScope {
+            built.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        }
         return (nodes, TimelineViewLayout(content: built, layout: layout))
     }
 
@@ -80,10 +87,13 @@ public struct TimelineView<Schedule: TimelineSchedule, Content: ProposalElementG
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], TimelineViewLayout<Content>) {
         let store = pass.frame.animationStore.timeline
-        let (context, _) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
-                                         timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
+        let (context, live) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
+                                            timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
+        if live { pass.frame.noteActiveAnimation() }
         var built = content(context)
-        let (nodes, layout) = built.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+        let (nodes, layout) = store.withScope {
+            built.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+        }
         return (nodes, TimelineViewLayout(content: built, layout: layout))
     }
 

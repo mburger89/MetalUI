@@ -113,6 +113,8 @@ F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWitho
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
 F	focus-interactions	A	swiftui-key-focus.swift	FC3	aPressFocusesAnEditInteractionFocusable	94	KF-F	FocusInteractions/focusable(_:interactions:): .edit focuses on a primary press as SwiftUI does (FC3); .activate and .automatic focus by Tab only (94)
 F	hover-key-region	M	-	-	-	-	KF-D KF-E KF-U	hoverKeyRegion(_:): with nothing focused, keys go to the hovered key region (its onKeyPress and Keymap contexts, not onKey); a press in it clears focus; MetalUI-only (SwiftUI routes no key by hover, K1u/K1v)
+F	geometry-change	A	swiftui-key-focus.swift	G1	theInitialValueIsReportedOnceBeforeOnAppear	120	KF-J KF-S KF-V	onGeometryChange(for:of:action:) (both forms), GeometryProxy (size, frame(in: .local/.global)) and GeometryChangeScope: a transparent scope noted in prepaint; the initial value before onAppear (G1), one call per changed value (G5), none unchanged (G3), the union over a group (G6), the initial value again on re-insertion (G7), an .offset written after it included (G4a); actions run in the lifecycle drain, so the first frame and a resize's frame carry their writes; wider than SwiftUI's on Sendable (KF-S); a decoration after the scope does not compile (120)
+F	timeline-view	A	swiftui-key-focus.swift	T4	aPeriodicTimelineReportsTheEntryNotTheClock	-	KF-K KF-L KF-T KF-Y	TimelineView, TimelineViewDefaultContext (date, cadence always .live), TimelineView.Context, TimelineSchedule (Mode) and the animation, periodic, everyMinute and explicit schedules: .animation rebuilds every frame through the active-animation answer (T1; paused once, T2; stepped, T3); other schedules show their last entry not after now (T4) and wake the window once at the next entry; identity- and layout-transparent (KF-L); mode always .normal
 F	keymap	M	-	-	-	-	EV-N IN-A	Keymap/KeyBinding/Keystroke/KeymapBuilder/KeyContext/ContextPredicate/Action/ActionHandler: gpui's keymap and actions
 F	accessibility-modifiers	A	swiftui-accessibility-part2.swift	E3	aCombinedElementJoinsItsChildrenIntoOneStaticText	29 30 31 33 34 82 95	IX-U IX-V IX-X IX-Y AB-T	accessibility modifiers on both vocabularies, AccessibilityModifier/Traits/ChildBehavior/Adjustment: .ignore/.combine/.contain, hidden, hint, identifier, traits, declared and named actions, modal isolation (95)
 F	axnode	M	-	-	-	32	AB-C AB-F AB-U	AXNode/AXRole/AXTrait: the neutral accessibility record a StyledElement declares; a List publishes realised rows only (32)
@@ -303,6 +305,9 @@ M	MetalUI	KeyPress.swift	-	FocusInteractions	.*	focus-interactions
 M	MetalUI	KeyPress.swift	FocusInteractions	.*	.*	focus-interactions
 M	MetalUI	KeyPress.swift	.*	.*	.*	key-press
 M	MetalUI	HoverKeyRegion.swift	.*	.*	.*	hover-key-region
+M	MetalUI	GeometryChange.swift	.*	.*	.*	geometry-change
+M	MetalUI	TimelineSchedule.swift	.*	.*	.*	timeline-view
+M	MetalUI	TimelineView.swift	.*	.*	.*	timeline-view
 M	MetalUI	KeyboardShortcut.swift	.*	.*	.*	keyboard-shortcut
 M	MetalUI	KeyContext.swift	.*	.*	.*	keymap
 M	MetalUI	Keymap.swift	.*	.*	.*	keymap

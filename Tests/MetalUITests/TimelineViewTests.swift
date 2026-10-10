@@ -45,9 +45,9 @@ import MetalUIPlatform
     var cancels = 0
     func install(on window: Window) {
         window.animationStore.timeline.clockOffset = 0
-        window.animationStore.timeline.scheduler = { [unowned self] date, fire in
-            self.scheduled.append((date.timeIntervalSinceReferenceDate, fire))
-            return { [unowned self] in self.cancels += 1 }
+        window.animationStore.timeline.scheduler = { [weak self] date, fire in
+            self?.scheduled.append((date.timeIntervalSinceReferenceDate, fire))
+            return { [weak self] in self?.cancels += 1 }
         }
     }
 }
@@ -129,11 +129,12 @@ private struct TLCustomSchedule: TimelineSchedule {
 @MainActor
 @Test func minimumIntervalStepsTheDateInWholeIntervals() throws {
     let log = TLLog()
-    let (_, platform, _) = try tlWindow {
+    let (window, platform, _) = try tlWindow {
         HStack { TimelineView(.animation(minimumInterval: 0.1)) { tlLeaf($0, log) } }
     }
     for t in [0.0, 0.05, 0.12, 0.25] { platform.simulateTick(timestamp: t) }
     #expect(near(log.distinct, [0, 0.1, 0.2]), "\(log.dates)")
+    withExtendedLifetime(window) {}
 }
 
 /// **T11** (M4-b (2)). An overlay above a `.continuous` `MetalView` follows a
@@ -327,7 +328,7 @@ private struct TLCounter: Component {
 @MainActor
 @Test func cadenceIsLiveAndModeIsNormal() throws {
     let log = TLLog()
-    let (_, platform, _) = try tlWindow {
+    let (window, platform, _) = try tlWindow {
         HStack {
             TimelineView(.animation) { tlLeaf($0, log) }
             TimelineView(TLCustomSchedule(log: log)) { tlLeaf($0, log) }
@@ -337,6 +338,7 @@ private struct TLCounter: Component {
     try #require(!log.cadences.isEmpty && !log.modes.isEmpty)
     #expect(log.cadences.allSatisfy { $0 == .live }, "\(log.cadences)")
     #expect(log.modes.allSatisfy { $0 == .normal }, "\(log.modes)")
+    withExtendedLifetime(window) {}
 }
 
 /// **T14** (`KF-V` item 2). Both entries are pinned: a `TimelineView` in a

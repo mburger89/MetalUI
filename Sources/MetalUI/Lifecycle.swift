@@ -231,6 +231,76 @@ final class LifecycleStore {
     private(set) var hasDisappearActions = false
     private var currentHasDisappearActions = false
 
+    // MARK: Geometry (`onGeometryChange`, ruling `KF-J`)
+
+    /// One geometry scope's value this build, and what to run when it is new
+    /// or changed.
+    struct GeometryEntry {
+        let order: Int
+        let owner: GlobalElementID
+        let value: Any
+        let watch: GeometryWatch
+    }
+
+    private var geometryCurrent: [Key: GeometryEntry] = [:]
+    private var geometryPrevious: [Key: GeometryEntry] = [:]
+    /// Geometry scopes noted this build per key — the occurrence rule.
+    private var geometryOccurrences: [GlobalElementID: Int] = [:]
+    private var nextGeometryOrder = 0
+
+    /// How many geometry scopes enclose the one being laid out — the depth in
+    /// its key (`KF-J` item 3, `LC-C` item 2's reason).
+    private(set) var geometryDepth = 0
+
+    /// Runs `body` one geometry scope deeper.
+    func withGeometryScope<R>(_ body: () -> R) -> R {
+        geometryDepth += 1
+        defer { geometryDepth -= 1 }
+        return body()
+    }
+
+    /// A geometry scope's value (prepaint, `KF-J` item 3).
+    func noteGeometry(_ value: Any, watch: GeometryWatch, key scope: GlobalElementID, owner: GlobalElementID) {
+        let occurrence = geometryOccurrences[scope, default: 0]
+        geometryOccurrences[scope] = occurrence + 1
+        geometryCurrent[Key(scope: scope, occurrence: occurrence)] =
+            GeometryEntry(order: nextGeometryOrder, owner: owner, value: value, watch: watch)
+        nextGeometryOrder += 1
+        workThisFrame += 1
+    }
+
+    /// Closes a build's geometry into events (`KF-J` item 2): a key the last
+    /// build did not hold reports its value as old and new (G1, G7); a held
+    /// key whose value differs reports old and new (G5); an equal one reports
+    /// nothing (G3); a key this build did not note is dropped silently — no
+    /// SwiftUI callback — so a return reports its initial value again (G7).
+    /// In reverse note order (children first, `LC-F`'s order).
+    private func closeGeometry() -> [LifecycleEvent] {
+        defer {
+            geometryOccurrences.removeAll(keepingCapacity: true)
+            nextGeometryOrder = 0
+            swap(&geometryCurrent, &geometryPrevious)
+            geometryCurrent.removeAll(keepingCapacity: true)
+        }
+        guard !geometryCurrent.isEmpty else { return [] }
+        var events: [(order: Int, event: LifecycleEvent)] = []
+        for (key, entry) in geometryCurrent {
+            workThisFrame += 1
+            let new = entry.value
+            let action = entry.watch.action
+            if let old = geometryPrevious[key]?.value {
+                guard !entry.watch.isEqual(old, new) else { continue }
+                events.append((entry.order, LifecycleEvent(owner: entry.owner, action: { action(old, new) },
+                                                           departed: nil)))
+            } else {
+                events.append((entry.order, LifecycleEvent(owner: entry.owner, action: { action(new, new) },
+                                                           departed: nil)))
+            }
+        }
+        events.sort { $0.order > $1.order }
+        return events.map(\.event)
+    }
+
     /// The next registration order in the build being laid out.
     func reserveOrder() -> Int {
         defer { nextOrder += 1 }
@@ -276,6 +346,9 @@ final class LifecycleStore {
             occurrences.removeAll(keepingCapacity: true)
             nextOrder = 0
         }
+        // This build's geometry events run ahead of its lifecycle events
+        // (G1: the initial value before `onAppear`; `KF-J` item 3).
+        pending.append(contentsOf: closeGeometry())
         guard !current.isEmpty || !previous.isEmpty || !parked.isEmpty else {
             lastFrameWork = workThisFrame
             workThisFrame = 0
@@ -444,6 +517,8 @@ final class LifecycleStore {
         current.removeAll()
         previous.removeAll()
         parked.removeAll()
+        geometryCurrent.removeAll()
+        geometryPrevious.removeAll()
         hasDisappearActions = false
         currentHasDisappearActions = false
         pending.removeAll()
