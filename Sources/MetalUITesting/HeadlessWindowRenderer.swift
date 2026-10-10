@@ -67,7 +67,11 @@ public final class HeadlessWindowRenderer: WindowRenderer {
             onFirstBeginFrame = nil
             setup()
         }
-        return nil   // STUB (lane 1 red run): draws nothing
+        if failsNextFrame {
+            failsNextFrame = false
+            return nil
+        }
+        return scaleFactor
     }
 
     /// Presents the frame: keeps `scene`, accounts and clears the atlas's dirty

@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-S`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-T`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -450,3 +450,63 @@ surface, no platform requirement added, no renderer primitive, no C enum, no
 **Cost if wrong.** If `App.windows` is ever filled after the first draw, 1.25
 reddens and the recorded fallback (set the flag after `openWindow`, draw once)
 applies.
+
+## HT-S — Lane 1's measured corrections (2026-10-10)
+
+**Ruling.** Lane 1 (the host) measured these against the source at `70e9389`
+plus its own commits; the spec (§2.3, §3.1, §4.1) is corrected in the same
+commit.
+1. **`runUntilIdle()` returns after four consecutive quiet yields**, not after
+   the first round that draws nothing: a `.task`'s continuation and an
+   observation hop each need a main-actor turn of their own, so one quiet
+   yield can come before the work it waits for. A round is `await
+   Task.yield()`, then one tick at `now` when the window is dirty (a window
+   dirty only through a running animation counts as quiet: it needs the
+   clock). Still bounded at 64 rounds, then `.notIdle(rounds: 64)`. Measured:
+   test 1.20's model suspends twice and completes; 1.21's phase-time write
+   throws.
+2. **`sequenced(before:)` does not exist** in MetalUI (`Gesture.swift` offers
+   `exclusively(before:)` and `simultaneously(with:)` only), so test 1.15 puts
+   a `DragGesture` and a `.simultaneousGesture(LongPressGesture(…))` on one box.
+3. **The gesture arena stamps a press at the first tick after it**
+   (`GestureArena.tick`'s `awaitingStamp`: a mouse event carries no
+   timestamp). So `click(at:forDuration:thenDragTo:)` delivers the press, draws
+   the press's frame at `now`, and only then advances; test 1.14 ticks after
+   its raw press. Measured: without that tick 1.14's long press had not run at
+   0.6 s (stamped at 0.4) and 1.15's `held` was `false`.
+4. **`frame(ofID:)` is the laid-out rect**, in window content space, **before
+   any scroll offset or render effect** — what `Frame.recordElementBounds`
+   records. Measured (test 1.12): after a −50 wheel delta every row's presented
+   rect moved up 50 while `frame(ofID: "row3")` stayed at y 150. The visible
+   rect is the accessibility element's (lane 2's `visibleFrame`). Test 1.12 now
+   reads the scene's rects for the scroll and pins `frame(ofID:)` unchanged.
+   Owner of a scrolled frame query: none (the window keeps scroll offsets per
+   scroller, not per element; a `package` hook could compose them later).
+5. **Test 1.11's separating half is a raw key reader.** `KeyboardShortcut` and
+   `Keystroke` both match case-folded, so "Shift not applied to the
+   characters" leaves a ⌘⇧S shortcut firing; 1.11 also reads an unclaimed ⇧A
+   at the window's fallback `onInput` (`"A"` in both character fields).
+6. **Test 1.13 uses `DragGesture()`** (minimum distance 10):
+   `DragGesture(minimumDistance: 0)` reports a change at the press, 9 for 8
+   steps (measured).
+7. **Test 1.5 separates the leading move at the window's fallback `onInput`**:
+   a press recomputes hover too (`Window.swift`'s `.mouseDown` arm), so hover
+   alone cannot see the move.
+8. **Test 1.37 is two names under `#if canImport(Darwin)`**; off Apple
+   `TestApp.init`'s `#else` branch throws whatever `App.hasDefaultTextSystem`
+   answers, so the mutation runs on the Apple arm.
+9. **A static text's string is its node's `value`**, not its `label` (test 1.2).
+10. **`TestApp.windows` holds its windows weakly** and is a computed get-only
+    property (spec §2.3 said `private(set) var`): a `TestWindow` keeps its app,
+    so a `TestApp` ↔ `TestWindow` cycle would keep a dirty `Window` alive in
+    `Window.liveWindows` and make `withAnimation`'s "a frame build is pending"
+    answer for later tests in the same process.
+11. Small additions: `HeadlessPlatformWindow.options` is a public `var`, it
+    records `performTitleBarPress` in `titleBarPresses` (answering `false`),
+    and `HeadlessWindowRenderer.scaleFactor` is `public internal(set)`;
+    `MetalUITestingTests` also depends on `MetalUIScene` (it reads
+    `MUIRect`). `lastFrameWork`/`frameWork` are computed get-only.
+
+**Cost if wrong.** Each item is pinned by the test it names; a later
+`sequenced(before:)` or a timestamped mouse event re-spells 1.14/1.15 only.
+

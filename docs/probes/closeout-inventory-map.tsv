@@ -184,6 +184,8 @@ F	gradients	A	swiftui-controls-looks.swift	G11	theOklabTableMatchesG11G2G5	-	LK-
 F	blur	D	swiftui-controls-looks.swift	B2	blurIsPerLeafB2	167	LK-K	blur(radius:) on both vocabularies (one LayoutModifier.blur layer; a legacy render effect in written order): per leaf (B2), sigma = radius (B1, the shadow's three-box blur), render only (B4), cut by a clip outside (B5), the radius animates; a GPU surface inside is drawn unblurred (167)
 F	materials	D	swiftui-controls-looks.swift	M5	everyMaterialMatchesSwiftUIOverWhiteAndBlackM5	166	LK-L LK-O LK-R	Material .ultraThinMaterial/.thinMaterial/.regularMaterial/.thickMaterial/.ultraThickMaterial/.bar as .background(_:) on both vocabularies, .background(_:in:) and Shape.fill(_:): a flat grey tint per material and scheme fitted from ImageRenderer so that over uniform white and black it matches SwiftUI's within one level (M5); no backdrop blur (166)
 
+F	test-harness-host	M	-	-	-	-	HT-A HT-B HT-C HT-D HT-E HT-F HT-G HT-I HT-J HT-K HT-S	MetalUITesting (lane 1, the host): HeadlessPlatform/HeadlessPlatformWindow/HeadlessWindowRenderer implementing every platform requirement (recorded requests, simulated events, AppKit-default options), TestApp/TestWindow over the real App.openWindow, input by point with AppKit key routing, a simulated clock and runUntilIdle, resize/scale/appearance/close, frame(ofID:) laid-out rects, FrameWork per presented frame; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
+
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
 M	MetalUI	AccessibilityModifiers.swift	.*	.*	.*	accessibility-modifiers
@@ -485,3 +487,4 @@ M	MetalUI	PointerStyle.swift	PointerStyleModifier	.*	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	-	PointerStyleModifier	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	.*	.*	.*	input-apis-pointer-style
 M	MetalUI	ScrollWheel.swift	.*	.*	.*	input-apis-wheel
+M	MetalUITesting	(TestHarnessError|HeadlessPlatform|HeadlessPlatformWindow|HeadlessWindowRenderer|TestApp|TestWindow|TestWindowInput|FrameWork)\.swift	.*	.*	.*	test-harness-host

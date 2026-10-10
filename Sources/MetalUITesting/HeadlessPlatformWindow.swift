@@ -122,7 +122,10 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// is sent `.activate` at once (`HT-D` item 4).
     public var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)? {
         didSet {
-            // STUB: no activation
+            guard options.accessibilityClientActive, !hasActivatedAccessibility,
+                  let handler = onAccessibilityRequest else { return }
+            hasActivatedAccessibility = true
+            _ = handler(.activate)
         }
     }
     private var hasActivatedAccessibility = false

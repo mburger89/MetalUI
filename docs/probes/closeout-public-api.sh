@@ -24,7 +24,7 @@ cd $ROOT
 TARGETS=(MetalUI MetalUICore MetalUILayout MetalUIPlatform MetalUIPrimitives
          MetalUITextSystem MetalUIRender MetalUIText MetalUIAppKit MetalUIScene
          MetalUIFreeType MetalUIHarfBuzz MetalUIPortableText MetalUISystemFonts
-         MetalUIDemoContent)
+         MetalUIDemoContent MetalUITesting)
 for t in $TARGETS; do
   for f in $(git ls-files "Sources/$t/*.swift" | sort); do
     awk -v T=$t -v F=$f '

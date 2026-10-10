@@ -8,9 +8,9 @@ Requested by MetalCreator (`docs/metalui-gaps.md` **M6-e**, **M7-b**, **TH-a**)
 and the SMK configurator port (`2026-10-06-metalui-gaps.md` **MG-17**,
 **MG-12**). Branch `feat/test-harness` from `70e9389`. Rulings:
 [`../2026-10-09-test-harness-decisions.md`](../2026-10-09-test-harness-decisions.md)
-(`HT-A`…`HT-R`). Record: `docs/record/91-test-harness.md`.
+(`HT-A`…`HT-S`). Record: `docs/record/91-test-harness.md`.
 
-**Status: designed, critic-revised (2026-10-09, HT-R).**
+**Status: designed, critic-revised (2026-10-09, HT-R); lane 1 measured corrections HT-S (2026-10-10).**
 
 ## §0 Baseline and constraints
 
@@ -174,7 +174,7 @@ public final class TestApp {
     public init(textSystem: (@MainActor () -> any TextSystem)? = nil) throws  // HT-J
     public let app: App                         // the real one: commands, themes, icon
     public let platform: HeadlessPlatform
-    public private(set) var windows: [TestWindow]
+    public var windows: [TestWindow] { get }               // weak: a TestWindow keeps its app (HT-S 10)
     public func openWindow<Root: Element>(
         title: String = "Test",
         size: Size<Pixels> = Size(width: Pixels(800), height: Pixels(600)),
@@ -209,7 +209,7 @@ public final class TestWindow {
     public func tick()
     public func advance(by seconds: Double)
     public func advanceFrames(_ count: Int = 1)        // 1/60 s apart
-    public func runUntilIdle() async throws
+    public func runUntilIdle() async throws           // 4 quiet yields in a row, ≤ 64 rounds (HT-S 1)
     @discardableResult public func send(_ event: InputEvent) -> Bool   // raw, no frame
     // Platform simulation (HT-K):
     public func resize(to size: Size<Pixels>)
@@ -220,7 +220,7 @@ public final class TestWindow {
     public func close()                                // platform close: onDisappear runs (LC-J)
     @discardableResult public func requestClose() -> Bool   // asks onCloseRequest
     // Layout (HT-G 2):
-    public func frame(ofID name: String) throws -> Bounds<Pixels>
+    public func frame(ofID name: String) throws -> Bounds<Pixels>   // laid out, before scroll offsets (HT-S 4)
     public func frames(ofID name: String) throws -> [Bounds<Pixels>]
     // Work (HT-I):
     public private(set) var lastFrameWork: FrameWork
@@ -489,10 +489,10 @@ fixed-size frames.
 | 1.9 | `aPlainLetterKeymapBindingIsSilentWhileAFieldIsFocused` — keymap `k` fires unfocused, not while a field has the caret | — | routing ignores `textInputAreas` |
 | 1.10 | `typeKeyWithCommandFiresAKeyboardShortcut` — `.keyboardShortcut("s")` runs on `typeKey("s", modifierFlags: .command)`, not on plain `s` | — | modifiers dropped |
 | 1.11 | `aShiftedShortcutMatchesAsAppKitDeliversIt` — `[.command, .shift]` `"s"` shortcut fires | — | shift not applied to characters |
-| 1.12 | `scrollMovesAScrollViewsContent` — a row's `frame(ofID:)` moves up by the delta | — | `location` not set to `position` |
+| 1.12 | `scrollMovesAScrollViewsContent` — every row's presented rect moves up by the delta; `frame(ofID:)` (laid out) does not (HT-S 4) | — | `location` not set to `position` |
 | 1.13 | `aDragDeliversStepsDraggedEventsEachWithAFrame` — `DragGesture` `onChanged` count == steps, final translation == end − start, `framesDrawn` +steps+1 | — | steps collapsed to 1 |
 | 1.14 | `aLongPressRunsOnlyAfterItsDurationUnderAdvance` — 0.5 s press: not at `advance(by: 0.4)`, yes after `+0.2` | — | `advance` does not fire a tick |
-| 1.15 | `clickForDurationThenDragToHoldsThenDrags` — a long press then a drag on a `LongPressGesture().sequenced(before: DragGesture())` | — | no hold before the drags |
+| 1.15 | `clickForDurationThenDragToHoldsThenDrags` — a `DragGesture` and a simultaneous `LongPressGesture` on one box: the press is held, the drag ends at end − start (no `sequenced(before:)`, HT-S 2) | — | no hold before the drags |
 | 1.16 | `magnifyAndRotateReachTheirGestures` — `MagnifyGesture` value 1.5, `RotateGesture` 30° | — | `.ended` only |
 | 1.17 | `aRawSendDrawsNoFrameUntilATick` | stub `send` draws | `send` ticks |
 | 1.18 | `anOnAppearWriteIsInTheFirstFrame` (MG-12 item 2) | — | `Window.drainLifecycle` returns at once (in `Window.swift`, restored) — shows the harness runs the real drain |

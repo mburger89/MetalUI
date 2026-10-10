@@ -30,7 +30,8 @@ import Testing
     let tree = try #require(window.platformWindow.publishedAccessibilityTrees.last,
                             "the first frame published a tree")
     #expect(!tree.nodes.isEmpty && !tree.roots.isEmpty)
-    #expect(tree.nodes.values.contains { $0.label == "Hello" }, "the text is a node of the first tree")
+    #expect(tree.nodes.values.contains { $0.role == .staticText && $0.value == "Hello" },
+            "the text is a node of the first tree (a static text carries its string as its value)")
 }
 
 /// 1.3 — a renderer that has no drawable for one tick leaves the window dirty,

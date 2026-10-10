@@ -154,27 +154,32 @@ private struct HarnessKAction: Action {}
     #expect(log.entries == ["export", "A|A|true"])
 }
 
-/// 1.12 — `scroll` moves a `ScrollView`'s content: row 3 (y 150 fresh) moves by
-/// the delta, read through `frame(ofID:)`. Mutation: the event's `location`
-/// not set to its `position`.
+/// 1.12 — `scroll` moves a `ScrollView`'s content by the delta: a −50 wheel
+/// delta (AppKit's sign: content up) moves every row's presented rect up 50.
+/// `frame(ofID:)` is the laid-out rect, before the scroll offset (`HT-S`
+/// item 4), so it does not move. Mutation: the event's `location` not set to
+/// its `position`.
 @Test @MainActor func scrollMovesAScrollViewsContent() throws {
     let window = try harnessWindow {
         ScrollView {
             Column {
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row0")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row1")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row2")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row3")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row4")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row5")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row6")
-                Box().frame(width: Pixels(400), height: Pixels(50)).id("row7")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.accent).id("row0")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.surface).id("row1")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.accent).id("row2")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.surface).id("row3")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.accent).id("row4")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.surface).id("row5")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.accent).id("row6")
+                Box().frame(width: Pixels(400), height: Pixels(50)).background(.surface).id("row7")
             }
         }
     }
+    func rowTops() -> [Float] { rects(window, height: 50).map { $0.bounds.origin.y } }
+    #expect(rowTops() == [0, 50, 100, 150, 200, 250, 300, 350])
     #expect(try window.frame(ofID: "row3").origin.y == Pixels(150))
     window.scroll(at: pt(200, 150), byDeltaX: 0, deltaY: -50)
-    #expect(try window.frame(ofID: "row3").origin.y == Pixels(100), "the content moved up 50")
+    #expect(rowTops() == [-50, 0, 50, 100, 150, 200, 250, 300], "the content moved up 50")
+    #expect(try window.frame(ofID: "row3").origin.y == Pixels(150), "the laid-out rect did not")
 }
 
 /// What a drag gesture reported.
@@ -185,13 +190,14 @@ private struct HarnessKAction: Action {}
 }
 
 /// 1.13 — `drag` delivers `steps` dragged events, each with a frame: a
-/// `DragGesture` hears `steps` changes and ends at end − start, and the drag
-/// draws `steps` + 1 frames. Mutation: the steps collapsed to 1.
+/// `DragGesture` (minimum distance 10; each step moves 10√2) hears `steps`
+/// changes and ends at end − start, and the drag draws `steps` + 1 frames.
+/// Mutation: the steps collapsed to 1.
 @Test @MainActor func aDragDeliversStepsDraggedEventsEachWithAFrame() throws {
     let drag = HarnessDragLog()
     let window = try harnessWindow {
         Box().frame(width: Pixels(200), height: Pixels(200)).background(.accent)
-            .gesture(DragGesture(minimumDistance: Pixels(0))
+            .gesture(DragGesture()
                 .onChanged { _ in drag.changes += 1 }
                 .onEnded { drag.ended = $0.translation })
     }
@@ -240,5 +246,6 @@ private struct HarnessKAction: Action {}
     window.magnify(at: pt(150, 150), by: 1.5)
     window.rotate(at: pt(250, 150), byDegrees: 30)
     #expect(pinch.magnification == 1.5)
-    #expect(pinch.degrees == 30)
+    let degrees = try #require(pinch.degrees)
+    #expect(abs(degrees - 30) < 1e-9, "30° (summed through radians)")
 }

@@ -12,36 +12,53 @@ extension TestWindow {
     /// A primary click at `point` (window points): the pointer moves there
     /// first if it is elsewhere, then a press and a release, then one frame.
     public func click(at point: Point<Pixels>, modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: point)
+        deliverClick(at: point, clickCount: 1, modifierFlags: modifierFlags)
+        tick()
     }
 
     /// Two primary clicks at `point`, the second with click count 2, then one
     /// frame.
     public func doubleClick(at point: Point<Pixels>, modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: point)
+        deliverClick(at: point, clickCount: 1, modifierFlags: modifierFlags)
+        deliverClick(at: point, clickCount: 2, modifierFlags: modifierFlags)
+        tick()
     }
 
     /// A secondary click at `point`, then one frame — what opens a context
     /// menu; it never presses, taps or focuses (`MN-B`).
     public func rightClick(at point: Point<Pixels>, modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: point)
+        let event = mouse(point, modifierFlags, buttonNumber: MouseButton.secondary.buttonNumber)
+        send(.rightMouseDown(event))
+        send(.rightMouseUp(event))
+        tick()
     }
 
     /// A click of another button (`.middle` by default) at `point`, then one
     /// frame.
     public func otherClick(at point: Point<Pixels>, button: MouseButton = .middle,
                            modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: point)
+        let event = mouse(point, modifierFlags, buttonNumber: button.buttonNumber)
+        send(.otherMouseDown(event))
+        send(.otherMouseUp(event))
+        tick()
     }
 
     /// Moves the pointer to `point`, then one frame.
     public func hover(at point: Point<Pixels>) {
-        // STUB
+        pointer = point
+        send(.mouseMoved(mouse(point, [])))
+        tick()
     }
 
     /// The pointer leaves the window, then one frame.
     public func exitPointer() {
-        // STUB
+        pointer = nil
+        send(.pointerExited)
+        tick()
     }
 
     /// A wheel or trackpad scroll by (`dx`, `dy`) at `point`, then one frame.
@@ -49,41 +66,100 @@ extension TestWindow {
     /// its top), as AppKit's `scrollingDeltaY` does.
     public func scroll(at point: Point<Pixels>, byDeltaX dx: Float, deltaY dy: Float,
                        modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: point)
+        send(.scrollWheel(ScrollEvent(position: point,
+                                      delta: Point(x: Pixels(dx), y: Pixels(dy)),
+                                      modifiers: heldModifiers.union(modifierFlags),
+                                      timestamp: now)))
+        tick()
     }
 
-    /// XCUITest's press-and-drag: a press at `point`, held for `seconds`
-    /// (the clock advances, so a long press matures), dragged to `end` in 8
-    /// steps one frame apart, released, then one frame.
+    /// XCUITest's press-and-drag: a press at `point` and the frame it draws,
+    /// held for `seconds` (the clock advances, so a long press matures),
+    /// dragged to `end` in 8 steps one frame apart, released, then one frame.
+    /// The press's frame comes first because the gesture arena stamps a press
+    /// at the first tick after it (`HT-S` item 3).
     public func click(at point: Point<Pixels>, forDuration seconds: Double, thenDragTo end: Point<Pixels>) {
-        // STUB
+        moveIfNeeded(to: point)
+        send(.mouseDown(mouse(point, [])))
+        tick()
+        advance(by: seconds)
+        let steps = 8
+        for step in 1...steps {
+            let position = Self.interpolate(point, end, Float(step) / Float(steps))
+            pointer = position
+            send(.mouseDragged(mouse(position, [])))
+            advanceFrames(1)
+        }
+        send(.mouseUp(mouse(end, [])))
+        tick()
     }
 
     /// A drag of `button` from `start` to `end`: a press, `steps` drag events
     /// each followed by one frame 1/60 s on, a release, then one frame.
     public func drag(from start: Point<Pixels>, to end: Point<Pixels>, steps: Int = 8,
                      button: MouseButton = .primary, modifierFlags: EventModifiers = []) {
-        // STUB
+        moveIfNeeded(to: start)
+        let count = max(1, steps)
+        let number = button.buttonNumber
+        send(Self.press(button, mouse(start, modifierFlags, buttonNumber: number)))
+        for step in 1...count {
+            let position = Self.interpolate(start, end, Float(step) / Float(count))
+            pointer = position
+            send(Self.drag(button, mouse(position, modifierFlags, buttonNumber: number)))
+            advanceFrames(1)
+        }
+        send(Self.release(button, mouse(end, modifierFlags, buttonNumber: number)))
+        tick()
     }
 
     /// A trackpad pinch at `point` growing the magnification by
     /// `magnification − 1` in `steps` equal steps: `.began`, the steps, then
     /// `.ended`, each followed by one frame.
     public func magnify(at point: Point<Pixels>, by magnification: Double, steps: Int = 4) {
-        // STUB
+        moveIfNeeded(to: point)
+        let count = max(1, steps)
+        let modifiers = heldModifiers
+        send(.magnify(MagnifyEvent(position: point, magnification: 0, phase: .began,
+                                   modifiers: modifiers, timestamp: now)))
+        advanceFrames(1)
+        for _ in 0..<count {
+            send(.magnify(MagnifyEvent(position: point, magnification: (magnification - 1) / Double(count),
+                                       phase: .changed, modifiers: modifiers, timestamp: now)))
+            advanceFrames(1)
+        }
+        send(.magnify(MagnifyEvent(position: point, magnification: 0, phase: .ended,
+                                   modifiers: modifiers, timestamp: now)))
+        advanceFrames(1)
     }
 
     /// A trackpad rotation at `point` by `degrees` (clockwise-positive on
     /// screen) in `steps` equal steps: `.began`, the steps, then `.ended`,
     /// each followed by one frame.
     public func rotate(at point: Point<Pixels>, byDegrees degrees: Double, steps: Int = 4) {
-        // STUB
+        moveIfNeeded(to: point)
+        let count = max(1, steps)
+        let modifiers = heldModifiers
+        send(.rotate(RotateEvent(position: point, rotation: 0, phase: .began,
+                                 modifiers: modifiers, timestamp: now)))
+        advanceFrames(1)
+        for _ in 0..<count {
+            send(.rotate(RotateEvent(position: point, rotation: degrees / Double(count),
+                                     phase: .changed, modifiers: modifiers, timestamp: now)))
+            advanceFrames(1)
+        }
+        send(.rotate(RotateEvent(position: point, rotation: 0, phase: .ended,
+                                 modifiers: modifiers, timestamp: now)))
+        advanceFrames(1)
     }
 
     /// A drag from outside the window dropped at `point`: entered, moved,
     /// performed, then one frame.
     public func drop(_ items: [DropItem], at point: Point<Pixels>) {
-        // STUB
+        send(.drop(.entered(position: point, items: items)))
+        send(.drop(.moved(position: point)))
+        send(.drop(.performed(position: point, items: items)))
+        tick()
     }
 
     // MARK: Keyboard
@@ -93,20 +169,30 @@ extension TestWindow {
     /// otherwise as a key press and release — as AppKit and SDL route them
     /// (ruling `HT-F` item 3). An uppercase letter is typed with Shift.
     public func typeText(_ text: String) {
-        // STUB
+        for character in text {
+            let shift: EventModifiers = character.isUppercase ? .shift : []
+            deliverKey(String(character), modifiers: heldModifiers.union(shift))
+        }
+        tick()
     }
 
     /// One key with `modifierFlags`, then one frame. A letter with Shift is
     /// delivered uppercased in both `characters` and
     /// `charactersIgnoringModifiers`, as AppKit delivers it.
     public func typeKey(_ key: KeyEquivalent, modifierFlags: EventModifiers = []) {
-        // STUB
+        let modifiers = heldModifiers.union(modifierFlags)
+        var characters = String(key.character)
+        if modifiers.contains(.shift), key.character.isLetter { characters = characters.uppercased() }
+        deliverKey(characters, modifiers: modifiers)
+        tick()
     }
 
     /// Holds `modifiers` (and only them) from now on: a `.modifiersChanged`
     /// event, then one frame. Later mouse and key events carry them.
     public func pressModifiers(_ modifiers: EventModifiers) {
-        // STUB
+        heldModifiers = modifiers
+        send(.modifiersChanged(modifiers))
+        tick()
     }
 
     // MARK: Delivery

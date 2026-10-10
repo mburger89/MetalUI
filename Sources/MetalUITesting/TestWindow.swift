@@ -91,18 +91,22 @@ public final class TestWindow {
     /// Fires one display-link tick at ``now``: the window draws if anything
     /// changed or an animation runs.
     public func tick() {
-        // STUB
+        platformWindow.simulateTick(timestamp: now)
     }
 
     /// Moves the clock on by `seconds` and fires one tick there — a long
     /// press matures, an animation advances.
     public func advance(by seconds: Double) {
-        // STUB
+        now += seconds
+        tick()
     }
 
     /// Fires `count` ticks 1/60 s apart — the display link's pacing.
     public func advanceFrames(_ count: Int = 1) {
-        // STUB
+        for _ in 0..<max(0, count) {
+            now += 1.0 / 60.0
+            tick()
+        }
     }
 
     /// How many consecutive quiet yields ``runUntilIdle()`` waits for
@@ -119,56 +123,70 @@ public final class TestWindow {
     /// ``TestHarnessError/notIdle(rounds:)`` after 64 rounds. A task awaiting
     /// real time (`Task.sleep`) does not finish here: inject a clock.
     public func runUntilIdle() async throws {
-        // STUB
+        var quiet = 0
+        for _ in 0..<Self.idleRoundLimit {
+            await Task.yield()
+            if window.needsRedraw {
+                quiet = 0
+                tick()
+            } else {
+                quiet += 1
+                if quiet >= Self.quietYieldsForIdle { return }
+            }
+        }
+        throw TestHarnessError.notIdle(rounds: Self.idleRoundLimit)
     }
 
     /// Delivers one raw event through the platform window and draws nothing;
     /// answers what the window said.
     @discardableResult
     public func send(_ event: InputEvent) -> Bool {
-        // STUB
-        false
+        platformWindow.simulateInput(event)
     }
 
     // MARK: Platform simulation (`HT-K`)
 
     /// Resizes the content, then draws.
     public func resize(to size: Size<Pixels>) {
-        // STUB
+        platformWindow.simulateResize(to: size)
+        tick()
     }
 
     /// Moves the window to a display of scale `scale`, then draws.
     public func setScaleFactor(_ scale: Float) {
-        // STUB
+        platformWindow.simulateScaleFactorChange(to: scale)
+        tick()
     }
 
     /// Switches the system appearance, then draws.
     public func setAppearance(_ appearance: Appearance) {
-        // STUB
+        platformWindow.simulateAppearanceChange(to: appearance)
+        tick()
     }
 
     /// Changes the window's key state, then draws.
     public func setControlActiveState(_ state: ControlActiveState) {
-        // STUB
+        platformWindow.simulateControlActiveStateChange(to: state)
+        tick()
     }
 
     /// Changes Reduce Motion, then draws.
     public func setReduceMotion(_ value: Bool) {
-        // STUB
+        platformWindow.simulateReduceMotionChange(to: value)
+        tick()
     }
 
     /// Closes the window as the platform does, asking nobody: every
     /// `onDisappear` runs once (`LC-J`), and the app ends if it was the last.
     public func close() {
-        // STUB
+        platformWindow.close()
     }
 
     /// A user's close request: `Window.onCloseRequest` decides. Answers
     /// whether the window closed.
     @discardableResult
     public func requestClose() -> Bool {
-        // STUB
-        false
+        platformWindow.simulateCloseRequest()
     }
 
     // MARK: Layout (`HT-G` item 2)
@@ -189,8 +207,15 @@ public final class TestWindow {
     /// The rects of every element named `name` with `.id(name)` (under
     /// different parents), top to bottom, then left to right.
     public func frames(ofID name: String) throws -> [Bounds<Pixels>] {
-        // STUB
-        throw TestHarnessError.notRecorded("layout")
+        guard recorder.recordsLayout else { throw TestHarnessError.notRecorded("layout") }
+        let component = PathComponent.named(ElementID(name))
+        return window.testingElementBounds
+            .filter { $0.key.component == component }
+            .map(\.value)
+            .sorted { a, b in
+                (a.origin.y.value, a.origin.x.value, a.size.width.value, a.size.height.value)
+                    < (b.origin.y.value, b.origin.x.value, b.size.width.value, b.size.height.value)
+            }
     }
 
     // MARK: Work (`HT-I`)

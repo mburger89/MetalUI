@@ -8,8 +8,10 @@ import Testing
 // Nothing here reads a wall clock or sleeps.
 
 /// 1.14 — a 0.5 s long press runs only once the clock passes its duration:
-/// not at `advance(by: 0.4)`, yes after 0.2 more. Mutation: `advance` does not
-/// fire a tick.
+/// not at `advance(by: 0.4)`, yes after 0.2 more. The arena stamps a press at
+/// the first tick after it (a mouse event carries no timestamp), so the raw
+/// press is followed by the frame it draws, at 0 (`HT-S` item 3). Mutation:
+/// `advance` does not fire a tick.
 @Test @MainActor func aLongPressRunsOnlyAfterItsDurationUnderAdvance() throws {
     let log = HarnessLog()
     let window = try harnessWindow {
@@ -17,6 +19,7 @@ import Testing
             .onLongPressGesture(minimumDuration: 0.5) { log.add("long") }
     }
     window.send(.mouseDown(MouseEvent(position: pt(200, 150))))
+    window.tick()
     window.advance(by: 0.4)
     #expect(log.entries.isEmpty, "0.4 s is short of 0.5")
     window.advance(by: 0.2)
