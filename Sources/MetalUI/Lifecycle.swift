@@ -274,7 +274,7 @@ final class LifecycleStore {
     /// key whose value differs reports old and new (G5); an equal one reports
     /// nothing (G3); a key this build did not note is dropped silently — no
     /// SwiftUI callback — so a return reports its initial value again (G7).
-    /// In reverse note order (children first, `LC-F`'s order).
+    /// In reverse note order (children first, `LC-F`'s order; B15).
     private func closeGeometry() -> [LifecycleEvent] {
         defer {
             geometryOccurrences.removeAll(keepingCapacity: true)

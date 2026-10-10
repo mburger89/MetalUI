@@ -300,7 +300,7 @@ is live), calls `pass.frame.noteActiveAnimation()` when it is, builds
 `TimelineStore`:
 
 - `clock` (internal, injectable): timestamp → `Date`, default one offset taken
-  at first use;
+  at the first nonzero timestamp, the wall clock before it (`KF-Y` item 1);
 - per key: first appearance date, an iterator over `entries(from:)`, the
   current and next entries (a non-animation schedule), the stepped date
   (`minimumInterval`), touched-this-build;
@@ -411,11 +411,13 @@ Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
 | B12 | `geometryActionsRunUnderStateDispatch` | stub | drop `StateDispatch` in the drain path |
 | B13 | `aViewportKnowsItsSizeInTheFirstPresentedFrame` (M4-a end to end: a `MetalView` whose overlay label reads the size the action stored) | `c62d6ba`: does not compile → stub: label missing | B3's mutation |
 | B14 | `theTypedAndUntypedEntriesAreEachPinned` (the scope in a legacy `Column` and in an `HStack`) | stub | break one entry's key computation |
+| B15 | `geometryActionsRunChildrenFirst` (inner and outer scope on one rectangle, an `.offset` between: `inner, outer`; `KF-Y` item 3) | — | sort `closeGeometry`'s events ascending (Bx-order-forward) |
 | T1 | `anAnimationTimelineRebuildsEveryTickWithTheFrameDate` (ticks 0, 1/60, 2/60: dates equal under the zero-offset clock) | stub: one evaluation | drop `noteActiveAnimation()` (the link pauses: `pausesEntered`) |
 | T2 | `aPausedAnimationTimelineEvaluatesOnceAndAsksNoFrame` (T2) | — | ignore `paused` |
 | T3 | `minimumIntervalStepsTheDateInWholeIntervals` (T3) | stub | pass the frame date unstepped |
 | T4 | `aPeriodicTimelineReportsTheEntryNotTheClock` (T4: tick 0.37 → date 0.30) | stub | report the clock |
 | T5 | `aPeriodicTimelineSchedulesOneWakeAtTheNextEntry` (recording scheduler: one wake at 0.4) | stub | schedule no wake |
+| T5b | `anEqualEarliestEntryKeepsThePendingWake` (period 1, redraws at 0, 0.2, 0.4: one wake, 0 cancels; `KF-Y` item 3) | — | delete the equal-earliest guard in `endFrame` |
 | T6 | `theWakeDirtiesTheWindowThroughTheStateWritePath` (fire the recorded wake: `needsRedraw`, not during a phase) | — | have the wake call nothing |
 | T7 | `aTimelineLeavingTheTreeCancelsItsWakeAndStopsTheLink` | — | keep untouched keys |
 | T8 | `aTimelineIsIdentityTransparent` (`@State` inside keeps its value when the `TimelineView` is added around it; ids equal with and without) | — | give it a cursor index |
@@ -424,8 +426,10 @@ Typecheck guards (`KeyFocusCompileGuards.swift`, `typecheckFile` with a plain
 | T11 | `anOverlayFollowsAContinuousSurfaceThroughATimeline` (M4-b (2): the label's position moves each tick with a time-driven camera) | `c62d6ba`: does not compile | T1's mutation |
 | T12 | `aTimelineNeverRequestsAnotherFrame` (`wantsAnotherFrame` false across ticks) | — | call `requestAnotherFrame()` instead |
 | T13 | portable copies of B1, B3, T1, T4 in `GeometryTimelinePortableTests` | as above | as above |
-| T14 | `theTimelinesTypedAndUntypedEntriesAreEachPinned` (a legacy `Column` consumes a `.flexGrow(1)` item inside it; an `HStack` keeps proposal nodes; `KF-V` item 2) | stub | route the untyped entry through the typed one |
+| T14 | `theTimelinesTypedAndUntypedEntriesAreEachPinned` (a legacy `Column` consumes a `.flexGrow(1)` item inside it; an `HStack` keeps proposal nodes; `KF-V` item 2) | stub | route the untyped entry through the typed one — **equivalent** (`KF-Y` item 2, `LR-X`: `LegacyContent`'s typed entry carries the item record unchanged); the untyped entry's live behaviour is T1u's |
+| T1u | `aTimelineInALegacyColumnKeepsTheLinkRunning` (`.animation` in a legacy `Column`, ticks 0…3/60: four dates, no pause; `KF-Y` item 2) | — | drop `noteActiveAnimation()` in `requestGroupLayout` only (T1u) |
 | T15 | `anEmptyTimelineDoesNotShareItsScheduleWithTheNext` (`KF-V` item 3) | — | drop the occurrence ordinal |
+| T16 | `aZeroTimestampFrameDoesNotFixTheClockOffset` (no clock override; ticks 0 then 5000: the last date within 60 s of now; `KF-Y` item 1) | — | delete `guard timestamp != 0` in `TimelineStore.date(at:)` (Tx) |
 
 Guards (lane B): `onGeometryChangeAndTimelineViewCompileOnBothVocabularies`
 (separating: a non-`Equatable` `T` does not compile; further must-compile arms:

@@ -56,8 +56,11 @@ public struct GeometryChangeScopeLayout<ContentLayout> {
     /// The store key and owner of a scope at `cursor` under `parent`
     /// (`KF-J` item 3): the owner — which the action is dispatched to — is the
     /// position; the key is `.named("$geometry<depth>")` under it, `depth` the
-    /// geometry scopes enclosing this one, so two stacked at one position keep
-    /// two entries. A store key, never a `StateTable` id (no reserved name, no
+    /// geometry scopes enclosing this one. Two scopes stacked at one position
+    /// are kept as two entries by `LifecycleStore.noteGeometry`'s occurrence
+    /// ordinal, not by `depth`: replacing `depth` with 0 reddens nothing
+    /// (`KF-Y` item 4, equivalent per `LR-X`); `depth` stays as `LC-C` item 2's
+    /// spelling. A store key, never a `StateTable` id (no reserved name, no
     /// `noteNamed`).
     static func key(under parent: GlobalElementID?, at cursor: Int,
                     depth: Int) -> (GlobalElementID?, GlobalElementID?) {

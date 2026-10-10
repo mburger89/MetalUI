@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-Y`.**
+**Next unused id: `KF-Z`.**
 
 ## The final spellings (what an app writes)
 
@@ -738,7 +738,9 @@ both must compile); the census gains two A rows.
    in a legacy `Column` whose content carries `.flexGrow(1)` is consumed by
    the `Column` (untyped entry, nothing reported), and one in an `HStack`
    keeps its proposal nodes; mutation: route the untyped entry through the
-   typed one (the item record is lost and reported).
+   typed one. **Refuted** (`KF-Y` item 2): that mutation is equivalent — the
+   item record is not lost — and the untyped entry's live behaviour is pinned
+   by T1u instead.
 3. **A `$timeline<depth>` key touched twice in one build** (a `TimelineView`
    whose content takes no slot, followed by a sibling at the same cursor)
    gets an occurrence ordinal (`$timeline<depth>#<n>`, `n` the earlier
@@ -889,3 +891,44 @@ both must compile); the census gains two A rows.
 
 **Cost if wrong.** A catch-all `onKeyPress` on a canvas would swallow every
 app command's ⌘-key — MetalCreator's palette and viewport both carry one.
+
+## KF-Y — Lane B review: the clock's first offset, two equivalent mutations, two new pins
+
+**Ruling.**
+
+1. **Amends `KF-K` item 4.** The display-link clock offset is taken at the
+   **first nonzero timestamp**, as `Date.now − timestamp`, not at the store's
+   first use: a window's first frame is drawn before its first tick and
+   carries timestamp 0, which is not on the link's timebase, so an offset
+   taken there would put every later date `timestamp` seconds in the future.
+   Until the offset is taken, a date is the wall clock. Tests that set the
+   offset (0) are unaffected. Pin: T16
+   `aZeroTimestampFrameDoesNotFixTheClockOffset` (no clock override, ticks 0
+   then 5000, the last date within 60 s of now); mutation Tx: delete
+   `guard timestamp != 0 else { return now }` in `TimelineStore.date(at:)`.
+2. **`KF-V` item 2's premise is refuted.** Routing `TimelineView`'s untyped
+   entry through its typed one is **equivalent** (`LR-X`): the `.flexGrow(1)`
+   box T14 places inside it is wrapped in `LegacyContent`, whose typed entry
+   carries the item record to the enclosing `Column` unchanged, so nothing is
+   lost or reported (full suite at `e540c60`: 2963 passed, nothing reddened).
+   T14 stays as a value pin of both entries. The untyped entry's **live**
+   behaviour was unpinned (mutation T1u, `noteActiveAnimation()` dropped in
+   `requestGroupLayout` only, reddened nothing): T1u
+   `aTimelineInALegacyColumnKeepsTheLinkRunning` pins it (`.animation` in a
+   legacy `Column`, four ticks, four dates, no pause).
+3. **Two documented behaviours gain pins.** T5b
+   `anEqualEarliestEntryKeepsThePendingWake` (period 1, redraws at 0, 0.2,
+   0.4: one wake, no cancel; mutation T5b: delete
+   `guard pendingWake?.date != earliest` in `TimelineStore.endFrame()`); B15
+   `geometryActionsRunChildrenFirst` (an inner and an outer
+   `.onGeometryChange` on one rectangle with an `.offset` between — a
+   two-layer chain, `OM-AD` — run `inner, outer`; mutation Bx-order-forward:
+   sort `closeGeometry`'s events ascending).
+4. **The depth in `$geometry<depth>` separates nothing** (`KF-J` item 3):
+   two scopes stacked at one position are kept as two entries by
+   `LifecycleStore.noteGeometry`'s occurrence ordinal, in a stable prepaint
+   order. Mutation Bx-depth (`$geometry\(depth)` → `$geometry0`) reddened
+   nothing on the full suite at `e540c60` (the five lock-dependent
+   `AppKitPresentationTests` sheet tests aside, which fail unmutated on a
+   locked screen) — **equivalent** (`LR-X`). The depth stays, as `LC-C` item
+   2's spelling; `GeometryChangeScopeLayout.key`'s comment says so.

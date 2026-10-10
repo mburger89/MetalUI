@@ -103,6 +103,47 @@ private struct TLCustomSchedule: TimelineSchedule {
     #expect(window.hasActiveAnimations)
 }
 
+/// **T1u** (`KF-V` item 2, `KF-Y` item 2). The untyped entry is live too: a
+/// `TimelineView(.animation)` inside a legacy `Column` (laid out through
+/// `requestGroupLayout`, not the typed entry) rebuilds every tick and keeps
+/// the display link running. Mutation T1u: drop `noteActiveAnimation()` in
+/// `requestGroupLayout` only (the link pauses, nothing animates) — T1 and
+/// T11 cannot see it, both sit in a proposal stack.
+@MainActor
+@Test func aTimelineInALegacyColumnKeepsTheLinkRunning() throws {
+    let log = TLLog()
+    let (window, platform, _) = try tlWindow {
+        Column { TimelineView(.animation) { tlLeaf($0, log) } }
+            .frame(width: Pixels(100), height: Pixels(100))
+    }
+    let pauses = window.pausesEntered
+    for t in [0.0, 1.0 / 60, 2.0 / 60, 3.0 / 60] { platform.simulateTick(timestamp: t) }
+    #expect(near(log.distinct, [0, 1.0 / 60, 2.0 / 60, 3.0 / 60]), "\(log.dates)")
+    #expect(window.pausesEntered == pauses, "a live timeline in a legacy container keeps the link running")
+    #expect(window.hasActiveAnimations)
+}
+
+/// **T16** (`KF-Y` item 1). The clock offset is taken at the first NONZERO
+/// timestamp: a window's first frame (timestamp 0, not on the link's
+/// timebase) shows the wall clock and fixes nothing, so a later tick at
+/// 5000 s still maps to about now. No clock override (the store's own
+/// clock); the scheduler is a recorder. Mutation Tx: delete
+/// `guard timestamp != 0 else { return now }` (the offset is taken at 0, and
+/// the tick at 5000 reads 5000 s in the future).
+@MainActor
+@Test func aZeroTimestampFrameDoesNotFixTheClockOffset() throws {
+    let log = TLLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200, startsDisplayLink: true) {
+        HStack { TimelineView(.animation) { tlLeaf($0, log) } }
+    }
+    window.animationStore.timeline.scheduler = { _, _ in {} }
+    platform.simulateTick(timestamp: 0)
+    platform.simulateTick(timestamp: 5000)
+    let last = try #require(log.dates.last)
+    let now = Date().timeIntervalSinceReferenceDate
+    #expect(abs(last - now) < 60, "the tick at 5000 s maps to about now: \(last) vs \(now)")
+}
+
 /// **T2** (T2: paused evaluates once). A paused animation timeline is built
 /// with the date it first appeared and asks for no frame: later ticks pause
 /// the link and build nothing.
@@ -215,6 +256,27 @@ private struct TLCustomSchedule: TimelineSchedule {
     #expect(near(wakes.scheduled.last?.date ?? -1, 0.1 * 4))
     #expect(wakes.cancels == 1, "the earlier wake was replaced")
     #expect(!window.hasActiveAnimations, "a periodic timeline does not keep the link running")
+}
+
+/// **T5b** (`KF-K` item 3). An equal earliest entry keeps the pending wake:
+/// redraws at 0, 0.2 and 0.4 under a 1 s period all have the next entry 1,
+/// so ONE wake is scheduled and none is cancelled. Mutation T5b: delete
+/// `guard pendingWake?.date != earliest else { return }` (every build
+/// cancels and reschedules the same wake).
+@MainActor
+@Test func anEqualEarliestEntryKeepsThePendingWake() throws {
+    let log = TLLog()
+    let (window, platform, wakes) = try tlWindow {
+        HStack { TimelineView(.periodic(from: t0, by: 1)) { tlLeaf($0, log) } }
+    }
+    for t in [0.0, 0.2, 0.4] {
+        window.setNeedsRedraw()
+        platform.simulateTick(timestamp: t)
+    }
+    try #require(log.dates.count >= 3, "three builds: \(log.dates)")
+    #expect(wakes.scheduled.count == 1, "\(wakes.scheduled.map(\.date))")
+    #expect(near(wakes.scheduled.first?.date ?? -1, 1))
+    #expect(wakes.cancels == 0, "the equal wake was kept")
 }
 
 /// **T6** (`KF-K` item 3). Firing the wake dirties the window through the
@@ -345,8 +407,12 @@ private struct TLCounter: Component {
 /// legacy `Column` whose content carries `.flexGrow(1)` is consumed by the
 /// `Column` (the untyped entry; a reporting frame's report is empty), and
 /// one in an `HStack` keeps its proposal node (the typed entry: the stack is
-/// its content's 30 wide). Mutation: route the untyped entry through the
-/// typed one (the item record is lost and reported).
+/// its content's 30 wide). The ruling's named mutation — route the untyped
+/// entry through the typed one — is **equivalent** (`KF-Y` item 2, `LR-X`):
+/// the `.flexGrow(1)` box sits in `LegacyContent`, whose typed entry carries
+/// its item record to the `Column` unchanged, so nothing is lost or reported
+/// (full suite at `e540c60`: nothing reddened). The untyped entry's live
+/// behaviour is pinned by T1u.
 @MainActor
 @Test func theTimelinesTypedAndUntypedEntriesAreEachPinned() throws {
     var untyped = Column {

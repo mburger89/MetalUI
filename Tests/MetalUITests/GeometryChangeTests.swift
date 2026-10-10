@@ -418,3 +418,25 @@ private struct GCPair: Component {
     #expect(Set(log.entries) == ["untyped 20x10", "typed 30x10"], "\(log.entries)")
     #expect(log.entries.count == 2)
 }
+
+// MARK: - Order (B15)
+
+/// **B15** (`KF-Y` item 3; `LC-F`'s order, a two-layer chain per `OM-AD`).
+/// Geometry actions run in reverse note order, children first: an inner and
+/// an outer `.onGeometryChange` on one rectangle, an `.offset` between them,
+/// run `inner` then `outer` on the first frame. Mutation Bx-order-forward:
+/// sort `closeGeometry`'s events ascending (`outer` runs first).
+@MainActor
+@Test func geometryActionsRunChildrenFirst() throws {
+    let log = GCLog()
+    let (window, _) = try gcWindow {
+        HStack {
+            Rectangle().frame(width: Pixels(20), height: Pixels(10))
+                .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in log.add("inner") }
+                .offset(x: Pixels(5))
+                .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in log.add("outer") }
+        }
+    }
+    window.drawFrameIfNeeded()
+    #expect(log.entries == ["inner", "outer"], "\(log.entries)")
+}
