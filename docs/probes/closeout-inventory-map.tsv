@@ -152,6 +152,9 @@ F	shadows	A	swiftui-paths-shadows-transforms.swift	SH5	aShadowIsDrawnBelowEachLe
 F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
 F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsAnswerAtAZeroProposal	126	SV-L	WindowResizability (.automatic, .contentMinSize, .contentSize): SwiftUI's cases as window state; .contentMinSize's minimum is the root's answer at a zero proposal (W1), .contentSize adds its answer at an infinite proposal (W2); .automatic asks the content nothing, and the limits carry no title-bar inset (126)
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
+F	primary-modifier	M	-	-	-	-	SG-B	Modifiers.primary (EventModifiers.primary): the platform's shortcut modifier, ⌘ (.command) on macOS and Ctrl (.control) on Linux/Windows, the default of KeyboardShortcut(_:modifiers:) and .keyboardShortcut(_:modifiers:); SwiftUI has no such member (probe swiftui-shortcut-modifiers.swift refuses it) and ships only where its default .command is the primary key
+F	design-families	M	-	-	-	-	SG-C SF-B	SystemFonts.designFamilies and resolver(designFamilies:): each system-font design (.monospaced/.serif/.rounded) registered lazily as the first installed family of its per-platform list on the portable text system
+F	drawn-chrome-height	M	-	-	-	-	SG-F MD-K	Window.drawnChromeHeight: the height MetalUI draws above the root (the SDL toolbar strip), 0 where the platform shows its own; an explicit minSize/maxSize is measured below it
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 F	input-apis-seam	M	-	-	-	-	CI-E CI-I CI-J CI-V	InputPhase, MouseEvent.buttonNumber, ScrollEvent.phase/momentumPhase/isPrecise/location and its full initialiser, MagnifyEvent/RotateEvent, InputEvent.rightMouseDragged/.otherMouseDown/.otherMouseDragged/.otherMouseUp/.magnify/.rotate, PlatformPointerStyle/PlatformResizeEdge, PlatformWindow.setPointerStyle (defaultless): the platform seam for other buttons, trackpad gestures, scroll phases and the pointer style
 F	input-apis-gestures	A	swiftui-input-apis.swift	T1	aSpatialTapReportsItsReleasePointInLocalSpace	-	CI-B CI-C CI-D	SpatialTapGesture (.location), MagnifyGesture (.magnification/.startLocation/.startAnchor), RotateGesture (.rotation clockwise-positive/.startLocation/.startAnchor), onTapGesture(count:coordinateSpace:perform:) on both vocabularies: a spatial tap is a tap leaf reporting its release point; magnify and rotate recognize in their own pinch arena from the one ranking
@@ -195,6 +198,7 @@ M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
 M	MetalUI	Window.swift	Window	(colorScheme|preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	Window.swift	Window	(minSize|maxSize|windowResizability)	.*	window-sizing
+M	MetalUI	Window.swift	Window	drawnChromeHeight	.*	drawn-chrome-height
 M	MetalUI	WindowSizing.swift	.*	.*	.*	window-resizability
 M	MetalUI	Window.swift	.*	.*	.*	host
 M	MetalUI	AXNode.swift	-	AXActionKind	.*	axnode-actions
@@ -418,6 +422,7 @@ M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|lo
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
 M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
+M	MetalUIPlatform	InputEvent.swift	Modifiers	primary	.*	primary-modifier
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render
@@ -430,6 +435,7 @@ M	MetalUITextSystem	.*	.*	.*	.*	text-system
 M	MetalUIFreeType	.*	.*	.*	.*	portable-text
 M	MetalUIHarfBuzz	.*	.*	.*	.*	portable-text
 M	MetalUIPortableText	.*	.*	.*	.*	portable-text
+M	MetalUISystemFonts	SystemFonts.swift	SystemFonts	designFamilies	.*	design-families
 M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
 M	MetalUIDemoContent	DemoIcon.swift	.*	.*	.*	app-icon
 M	MetalUIDemoContent	.*	.*	.*	.*	demo-content

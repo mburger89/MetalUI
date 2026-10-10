@@ -282,6 +282,22 @@ design today; `PortableFontResolver.register(design:family:)` and its
 default face (never a trap); a family name FreeType spells differently is
 caught by the platform test on that platform.
 
+**Measured (lane 1, 2026-10-09, macOS 27, FreeType's family names over
+`SystemFonts.directories`).** The system's own SF Mono and New York are the
+**hidden** families `.SF NS Mono` (`SFNSMono.ttf`, Light only) and `.New York`
+(`NewYork.ttf`), not "SF Mono"/"New York"; those two names resolve only where
+Apple's downloadable fonts are installed in `/Library/Fonts`. The lists are
+kept (a dot-prefixed family is private to CoreText and is not named): on a
+stock Mac `.monospaced` resolves **Menlo** (`Menlo-Regular`) and `.serif`
+**Times New Roman** (`TimesNewRomanPSMT`); `.rounded` resolved SF Pro Rounded
+on the measuring Mac (Apple's download installed) and is Arial Rounded MT Bold
+on a stock one. Test 1.6's macOS arm computes the first installed name of
+each list from the scan and asserts it exactly (Menlo/Times New Roman where the
+downloads are absent). **Laziness, stated precisely**: registering a design
+reads nothing; resolving one reads the design's face **and the cascade's
+default face** (`resolve` loads the cascade, SF-C) — test 1.5 pins the exact
+set after the first resolve.
+
 ## SG-D — The cross-platform manifest names the portable-text products on every platform
 
 **Ruling.** MG-26 is a SwiftPM defect: a product reached conditionally through
@@ -314,6 +330,21 @@ package depending on this checkout by path**, and records the verbatim lines.
    nobody files it from an agent).
 
 **Cost if wrong.** A macOS app links code it never runs (size measured).
+
+**Measured (lane 1, 2026-10-09, at `c98c0cb` plus the fix; Xcode-beta's
+toolchain, a scratch `metalui new Smoke --cross-platform --local <checkout>`
+plus a `SmokeTests` target naming both products and constructing a
+`PortableTextSystem`).** Item 4 does not apply — the defect reproduces:
+
+| build | conditional products | unconditional |
+| --- | --- | --- |
+| default build system, `swift build --build-tests` | **fails**: `error: unable to resolve module dependency: 'CFreeType'`, and the same for `'CHarfBuzz'`, `'CSheenBidi'`, `'CUnibreak'` (`clang dependency scanning failure` in `SwiftDriver SmokeTests`) | builds, no `warning:` |
+| native build system | builds | builds |
+| `swift build -c release --product Smoke` (no test target in play) | 8 554 184 bytes | 10 706 552 bytes (+2 152 368, 2.15 MB) |
+
+So the dropped module maps are the products' **C** modules, not the Swift
+modules; `docs/getting-started.md`, the scaffold's comment and test 1.9's doc
+quote the measured line.
 
 ## SG-E — Swift 6.4.0's asserts compiler on a `Component` whose content is a `switch`
 
@@ -379,7 +410,10 @@ compilers never fire, so **no CI job except Windows can see it**.
    (`Frame.computeRootLayout`); they add the whole chrome now.
 3. Re-sent when the chrome changes (a toolbar appearing, the bar's first
    build), through the existing `reconcileContentSizeLimits` after every
-   built frame — no new call site.
+   built frame — no new call site. (Lane 1: the call in `Window.adopt` moved out of the
+   `windowResizability != .automatic` branch, so it runs under `.automatic`
+   too — there `contentLimits` stays empty and only the explicit limits plus
+   the chrome reach the platform; an unchanged pair sends nothing.)
 4. `ToolbarStrip.height` stays internal; the strip's and bar's heights are
    documented on `drawnChromeHeight`.
 

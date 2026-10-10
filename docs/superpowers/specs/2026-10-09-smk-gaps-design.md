@@ -313,7 +313,8 @@ run, every reddened test named, `git status --short` clean after restore.
   `defaultFamilies: ["Noto Sans"]`, `fallbackFamilies: []`, a `LoadLog`: nothing
   read after building; `.monospaced` resolves `SourceSans3-Regular`, `.serif`
   `NotoSansArabic-Regular`, `.rounded` the default `NotoSans-Regular`; the log
-  holds only the resolved files. Red: does not compile. Mutations: M1.5a skip
+  holds only the resolved files (after the first resolve: the design's face and
+  the cascade's default face, which `resolve` loads — `SG-C`, measured). Red: does not compile. Mutations: M1.5a skip
   the design loop; M1.5b register the last installed family; M1.5c register
   the first entry whether installed or not — each reddens.
 - **1.6** `thePlatformsOwnDesignFamiliesResolve`: macOS — `.monospaced` and
