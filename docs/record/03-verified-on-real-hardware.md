@@ -2149,3 +2149,15 @@ keyboard; KF-2 hover routing; KF-3 clicks and focus (a press elsewhere keeps a f
 KF-4 the viewport size in the first frame and during live resize; KF-5 the orbit label and the
 display link stopping; KF-6 native menu items under a catch-all `onKeyPress` (divergence 188);
 KF-7 the digit filter and an input method's composition (divergence 187).
+
+## 2026-10-10: shadow cache (record §90) — looks owed
+
+`LooksDemo` gains a `compositingGroup()` pair (per-leaf shadows beside one shadow of the union),
+in its own function; the fourteen offscreen images are unchanged (0 differing pixels against
+`2155f1e`, lane 1 and the Record phase; the new pair sits in a section none of the fourteen
+renders, so the zero cannot see it). `docs/probes/swiftui-shadow-cache.swift` ran in
+`ImageRenderer` only; no real-window capture was taken at any lane (the lock probe read the
+screen locked at lane 1). **Owed, new here — `docs/verification/human-checks.md` group PF, none
+performed (an agent cannot)**: PF1 a trackpad drag of a shadowed node at 2x (how many frames hit,
+sub-pixel positions missing by design, `PF-D`); PF2 the `compositingGroup()` pair beside
+SwiftUI's reading.

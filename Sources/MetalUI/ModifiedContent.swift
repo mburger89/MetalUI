@@ -594,6 +594,9 @@ extension LayoutModifier: ModifierLayerKind {
         case let .blur(radius):
             // The radius was animated in layout (`LK-K` item 6).
             pass.withBlur(radius: radius, inside)
+        case .compositingGroup:
+            // Collects leaves only under an enclosing shadow or blur (`PF-E`).
+            pass.withCompositingGroup(inside)
         default:
             inside()
         }
@@ -647,7 +650,7 @@ extension LayoutModifier: ModifierLayerKind {
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
         case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset, .shadow, .blur:
+             .rotationEffect, .scaleEffect, .offset, .shadow, .blur, .compositingGroup:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

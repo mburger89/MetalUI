@@ -57,6 +57,11 @@ public enum LayoutModifier: Sendable {
     /// since controls and looks** — an exhaustive `switch` outside the package
     /// gains one arm (`LK-R` item 3).
     case blur(radius: Pixels)
+    /// `compositingGroup()`: the content's leaves composited into one before
+    /// an enclosing shadow or blur sees them; layout, hit testing and
+    /// accessibility unchanged (ruling `PF-E`). **New since the shadow cache**
+    /// — an exhaustive `switch` outside the package gains one arm.
+    case compositingGroup
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,

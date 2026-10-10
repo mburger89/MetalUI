@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **126 live divergences**, each measured (a probe
+place it knowingly does not: **133 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -160,6 +160,7 @@ scheduled).
 | 186 | focus when a window first shows | the first focusable view is focused (K1, K1t) | nothing is focused until Tab, a press on a click-focusable element or `Window.focus(_:)` | `KF-B` (spec §11) | `noElementHoldsFocusWhenTheWindowFirstDraws` | a focus item when requested |
 | 187 | a typed character on a focused text field, as `onKeyPress` sees it | a `KeyPress` with the key's phase and modifiers | offered once as `.down` (repeats too) with empty modifiers, from the committed text; an input method's composition is never offered; on SDL its release is not delivered | `KF-Q` | `aCompositionAndAMultiGraphemeCommitAreNeverOffered` (A41) | none |
 | 188 | a native-only menu item's ⌘-key (Quit, Hide, Minimize, the Edit menu's standard actions) under a focused `onKeyPress` | the main menu runs it first; the handler never hears it | MetalUI cannot see those items, so the keystroke is offered to the pipeline — and `onKeyPress` — first: a catch-all `.onKeyPress { .handled }` swallows ⌘Q (an app command's ⌘-key still runs the command, KX2/KX3) | `KF-X` item 4 | `aCommandsKeystrokeRunsTheCommandNotOnKeyPress` (A43's separating arm: an unbound ⌘-key reaches the catch-all) | none |
+| 205 | an opacity (or any effect but a shadow or blur) written outside `compositingGroup()` | composited: the group is flattened offscreen first, then faded once — the overlap of two squares at `opacity(0.5)` reads (255, 128, 128) (probe `swiftui-shadow-cache.swift` `CG1`) | not composited: the opacity multiplies each primitive, so the lower square shows through the upper — (191, 64, 128), as without the group; `compositingGroup()` makes the content one leaf only to an enclosing `.shadow` or `.blur` (`P2`, `CG2`) | `PF-E` item 3 | `aCompositingGroupDoesNotCompositeAnOpacity` | none (an offscreen pass in both renderers, `TE-AD`) |
 
 ## Retired
 
@@ -223,7 +224,7 @@ stated.
 | `ShapeStyle` as a protocol, `HierarchicalShapeStyle`, materials, `AnyShapeStyle`; `.tint(_:)`, `.accentColor(_:)` | not built: every colour-taking site takes a concrete `Color` (divergence 119); controls read the theme's `.accent` | `CR-A`, colour spec §10 (`specs/2026-10-03-colour-design.md`) |
 | `Color.RGBColorSpace.displayP3`; `Color("Name", bundle:)` asset-catalog colours; `Color(nsColor:)`, `Color(cgColor:)`; `Color.Resolved`'s initialiser and linear accessors, `Color(_ resolved:)` | not built: P3 needs a colour-managed pipeline (divergence 1); no catalog compiler off Apple — an app palette is a `ThemeColorKey` (`CR-N`); the rest AppKit interop or unneeded | `CR-A`, `CR-N` |
 | `colorSchemeContrast`, a `preferredColorScheme` scoped to a presentation, the user's system accent colour | not built: no portable source (SDL has none); MetalUI's popovers are in-window (`MN-M`) | `CR-A` |
-| `Path.applying`/`transform:` parameters, `addRelativeArc`, `trimmedPath`/`Shape.trim`, `strokedPath`, SVG strings, `compositingGroup()`, `drawingGroup()`, inner shadows, `ShapeStyle` shadows, `.blur(radius:)`, `.shadow` on a `Component` | deferred, owner none (additive later; `trim` animates in SwiftUI, N10; a composited shadow needs an offscreen pass, SH5c) | `GX-A`, `GX-P` item 5; paths spec §9 (`specs/2026-10-02-paths-shadows-transforms-design.md`) |
+| `Path.applying`/`transform:` parameters, `addRelativeArc`, `trimmedPath`/`Shape.trim`, `strokedPath`, SVG strings, `drawingGroup()`, inner shadows, `ShapeStyle` shadows, `.shadow` on a `Component` | deferred, owner none (additive later; `.blur(radius:)` is built since controls and looks, `LK-K`; `trim` animates in SwiftUI, N10; a composited shadow needs an offscreen pass, SH5c; `compositingGroup()` is built since the shadow cache — one leaf to an enclosing shadow or blur, its opacity not composited, divergence 205) | `GX-A`, `GX-P` item 5, `PF-E` item 3; paths spec §9 (`specs/2026-10-02-paths-shadows-transforms-design.md`) |
 | elliptical corners (`RoundedRectangle(cornerSize:)`), `UnevenRoundedRectangle` | renderer constraint (per-corner circular radii only) | shapes spec §9, `CX-I` item 3 |
 | `matchedGeometryEffect`, `contentTransition`, `.modifier(active:identity:)` and custom transitions, `AnyTransition.animation(_:)`, `.blurReplace` | not built | `AN-AE` |
 | Increase Contrast, Reduce Transparency, Differentiate Without Colour | not built (Reduce Motion is: `accessibilityReduceMotion`, `AN-AD`; `colorScheme` is readable since colour and colour scheme, `CR-J`) | `TE-AO` item 1, `CX-I` item 3 |
