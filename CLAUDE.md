@@ -258,10 +258,11 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
-  two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
+  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:)`** (`MN-I`) **and the app shell's
+  `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
   three** since rich text (styled measure, styled layout, decoration metrics,
@@ -856,7 +857,7 @@ and `@Environment(\.titleBarInsets)` is stamped by `Window` from the
 platform's *answer* (zero on SDL, which answers `false`; client decorations
 deferred, `AS-E` item 6); an unclaimed primary press in the band drags the
 window (`AS-J`). An open-document event goes to the key window with a handler,
-else the first, else `App.onOpenURL`, never a new window (divergence 176);
+else the first window with one, else `App.onOpenURL`, never a new window (divergence 176);
 AppKit delivers no launch argument, so `App.open(_:)` is the recipe (`AS-M`);
 URLs arriving before `App`'s initialiser are dropped (`AS-Q`). A test never
 calls a real `performClose(_:)` (its nested loop ends the process, `AS-O`

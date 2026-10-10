@@ -122,7 +122,7 @@ Baseline `c62d6ba`: 2873 tests, 0 goldens, 185 guards. Root +48 tests; `Backends
 | `Backends/SDL` `SDLAppShellTests.swift` | 6 | 1.12–1.17 over a hidden window, pushed events, no presented frame |
 | `Backends/SDL` `SDLAppShellAppTests.swift` | 3 | 3.1–3.3: an `App` over `SDLPlatform(hiddenWindows:offscreenRenderers:)`, ungated, runs under the Linux image's offscreen driver |
 
-Eleven existing guard files gained the eleven conformer members (test support). New typecheck
+Ten existing guard files (the `*CompileGuards.swift` conformer templates) gained the eleven conformer members (test support). New typecheck
 guards: three (1.1, 1.2, 2.1), each mutated red once (§4 G1–G3).
 
 ## §3 Probes
