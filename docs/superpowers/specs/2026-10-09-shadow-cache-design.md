@@ -233,7 +233,7 @@ first commit (counter added, keys unchanged) — taken and named in the record.
 Mutations (each on its own commit copy, full suite, tests named):
 **M1a** key `full` with its absolute translation (L1.1, L1.2, L1.7, L1.8);
 **M1b** drop `f` from the key (L1.4); **M1c** key non-inner masks (L1.9);
-**M1d** always mode 1 (3.14, 3.20, L1.6); **M1e** `E` without the blur padding
+**M1d** always mode 1 (3.14, L1.6 — measured; 3.20 reads one frame, so mode 1 with today's clip still passes it); **M1e** `E` without the blur padding
 (a fixture in L1.6 whose padding alone crosses the clip); **M1f** stored rect
 not shifted by `S` (L1.1 bounds); **M1g** counter not incremented (L1.13);
 **M1h** a `tint` rounding changed (L1.11).
