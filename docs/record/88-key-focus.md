@@ -119,7 +119,7 @@ of them typecheck guards).
 | `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift` | (arm) | `buildTheKeyFocusDemo()` (C2), merged beside the app shell's |
 
 Typecheck guards: the seven above are the branch's new ones (baseline 188 at `c62d6ba`; the merged
-tree's count is in §10). Each was mutated red once (§5).
+tree's count is in §11). Each was mutated red once (§5).
 
 ## §3 Probes
 
@@ -221,8 +221,8 @@ these are pinned.**
 
 ## §7 Demo comparison and looks
 
-- **Fourteen offscreen images, `docs/probes/demo-pixels/compare.sh`** (see §10 for the Record
-  phase's re-take against `c62d6ba` and master `70e9389`): the key-focus demo is its own tree behind
+- **Fourteen offscreen images, `docs/probes/demo-pixels/compare.sh`** (the Record phase did not re-take it, §11;
+  the branch checker's re-take against `c62d6ba` is §12): the key-focus demo is its own tree behind
   `METALUI_KEY_FOCUS_DEMO` and is in none of the fourteen; `DemoFrameDeterminismTests`'
   `Expected.swift` is unedited.
 - **The SwiftUI probe was taken with the screen unlocked for lane A** (`KF-X` item 1); lane B and
