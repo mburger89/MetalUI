@@ -13,7 +13,7 @@ run twice, byte-identical) and `docs/probes/swiftui-overlays-coords-typecheck.sh
 (`anchored()`, `Anchor::TopLeft`, `AnchoredFitMode::SwitchAnchor` by default,
 `position` in window coordinates) and `on_mouse_down_out`.
 
-**Next unused id: `OV-Q`.**
+**Next unused id: `OV-R`.**
 
 ## The final spellings (what an app writes)
 
@@ -398,4 +398,34 @@ all four (and `Window.lastPresentationSpaces`) with a unit test each in
 `CoordinateSpaceTests` (A18 `presentationSpacesAreCarriedToTheNextFrame`;
 mutation: not carried). `PopoverModifier`'s stored properties change (lane B):
 `swift package clean` before the native build that follows, per CLAUDE.md.
+
+## OV-Q — Lane A's spellings of the hooks (refines `OV-E` item 3, `OV-H`, `OV-N`, `OV-P`)
+
+**Question.** The spec named the hooks; three spellings were left to lane A.
+
+**Ruling.**
+1. `Frame.localSpace` has two overloads: `localSpace(of bounds: Bounds<Pixels>, name:)
+   -> NamedSpace` (an element with its own `bounds` in hand — lane B's
+   `PopoverModifier.prepaint`) and `localSpace(of nodes: [LayoutNodeID], name:) ->
+   NamedSpace?` (`nil` for no node — the scope). Both take the bounds unscrolled,
+   in the current offset, and map through `scrolled` and the innermost open
+   effect's composed map. A degenerate map gives a `NamedSpace` whose `toSpace` is
+   `nil`; `NamedSpace.resolve` and `Frame.namedSpace(_:)` treat it as missing
+   without falling through to an outer space of the same name. `noteGeometry`
+   shares the union computation (`Frame.union(of:)`), not `localSpace`.
+2. A gesture arena takes its members' snapshots **by owner id**
+   (`GestureArena.init(…, namedSpaces: [GlobalElementID: [NamedSpace]])`, built by
+   `Window.makeGestureArena` from `lastHitboxNamedSpaces` at the target's, the
+   draggable's and each joining ancestor's index): the stack in force at an
+   element's registrations is fixed by its ancestors, so every hitbox of one id
+   carries the same snapshot. Hover keeps it per region (`HoveredRegion.namedSpaces`).
+3. Two mutation sites in the spec's table were re-spelled to sites that exist:
+   A8's "each entry's push dropped" is "each entry's node record emptied" (the
+   push is in the shared `prepaintGroup`, so only the record separates the
+   entries, `GeometryChangeScope` B14's shape); A16's "named value excluded from
+   `isEqual`" has no such site (the store compares the transform's value) and is
+   "the entry built without the composed map" (a container move then changes the
+   value and re-reports). A3, A16 and A18's second arm share that mutation.
+
+**Cost if wrong.** Internal only; no public spelling.
 
