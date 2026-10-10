@@ -95,7 +95,7 @@ private func platformConformer(_ members: [String]) -> String {
         }
         func run() {}
         func setApplicationIcon(_: [ImageTexture]) {}
-        func setMenuBar(_: PlatformMenuBar) {}
+        func setMenuBar(_: PlatformMenuBar) -> Bool { false }
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }
     """

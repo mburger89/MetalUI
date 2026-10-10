@@ -13,7 +13,8 @@ import MetalUITestSupport
 private let platformSkipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUIPlatform not found — guard skipped"
 
-/// A `Platform` conformer with every requirement but `setMenuBar`, spliced in.
+/// A `Platform` conformer with every requirement but `setMenuBar`, spliced in
+/// (the four app-shell requirements of `AS-H` included).
 private func conformer(member: String) -> String {
     """
     import MetalUICore
@@ -26,6 +27,10 @@ private func conformer(member: String) -> String {
         }
         func run() {}
         func setApplicationIcon(_: [ImageTexture]) {}
+        var onTerminateRequest: (() -> CloseRequestReply)?
+        func replyToTerminateRequest(_ shouldTerminate: Bool) {}
+        func terminate() {}
+        var onOpenURLs: (([String]) -> Void)?
     \(member)
     }
     """

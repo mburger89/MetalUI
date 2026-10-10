@@ -42,7 +42,7 @@ private final class ShellRecordingPlatform: Platform {
     }
     func run() { base.run() }
     func setApplicationIcon(_ images: [ImageTexture]) { base.setApplicationIcon(images) }
-    func setMenuBar(_ menuBar: PlatformMenuBar) { base.setMenuBar(menuBar) }
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool { base.setMenuBar(menuBar) }
     var onTerminateRequest: (() -> CloseRequestReply)? {
         get { base.onTerminateRequest }
         set { base.onTerminateRequest = newValue }
