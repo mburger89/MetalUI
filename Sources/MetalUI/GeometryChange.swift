@@ -54,7 +54,7 @@ public struct GeometryProxy: Sendable {
         case .global:
             return globalFrame
         case .named(let name):
-            guard let toSpace = NamedSpace.resolve(name, in: namedSpaces)?.toSpace, Bool("STUB") == true else { return globalFrame }
+            guard let toSpace = NamedSpace.resolve(name, in: namedSpaces)?.toSpace else { return globalFrame }
             let map = composed.map { toSpace.concatenating($0) } ?? toSpace
             return map.boundingBox(of: scrolledFrame)
         }

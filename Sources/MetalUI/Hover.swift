@@ -188,7 +188,7 @@ struct HoveredRegion {
 
     /// `point` (a window point) in the continuous callback's space (`OV-F`).
     func point(_ point: Point<Pixels>) -> Point<Pixels> {
-        switch CoordinateSpace.local /* STUB */ {
+        switch attachment.coordinateSpace {
         case .local:
             let local = region.localPoint(point)
             return Point(x: Pixels(local.x.value - region.origin.x.value),

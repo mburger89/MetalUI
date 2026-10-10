@@ -507,7 +507,7 @@ final class ArenaLeaf {
         switch space {
         case .local: local(point)
         case .global: point
-        case .named: point  // STUB
+        case .named(let name): NamedSpace.resolve(name, in: namedSpaces)?.toSpace?.apply(point) ?? point
         }
     }
 

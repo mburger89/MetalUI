@@ -165,7 +165,9 @@ F	window-shell	M	-	-	-	-	AS-B AS-C AS-D AS-E AS-G AS-K	Window.title/isDocumentEd
 F	navigation-title	A	swiftui-app-shell.swift	N2	theTreeTitleWinsInnerBeatsOuterFirstSiblingBeatsSecond	-	AS-D	.navigationTitle(_:)/.navigationDocument(_:): the window's title and represented file while present (N1, N3); the first report in post-order wins — inner beats outer (N2), first sibling beats second (N5); the document never changes the title (N3)
 F	on-open-url	A	swiftui-app-shell.swift	O1	everyOnOpenURLInTheTargetWindowRunsInReversePostOrder	-	AS-G	.onOpenURL(perform:): every handler in one window runs once per URL (O1), under StateDispatch; MetalUI routes to the key window with a handler, else the first, else App.onOpenURL, and never opens a window (lane 3 adds divergence 176)
 F	input-apis-gestures	A	swiftui-input-apis.swift	T1	aSpatialTapReportsItsReleasePointInLocalSpace	-	CI-B CI-C CI-D	SpatialTapGesture (.location), MagnifyGesture (.magnification/.startLocation/.startAnchor), RotateGesture (.rotation clockwise-positive/.startLocation/.startAnchor), onTapGesture(count:coordinateSpace:perform:) on both vocabularies: a spatial tap is a tap leaf reporting its release point; magnify and rotate recognize in their own pinch arena from the one ranking
-F	input-apis-global-space	D	swiftui-input-apis.swift	T2	aSpatialTapInGlobalSpaceReportsTheWindowPoint	139	CI-B CI-U	CoordinateSpace (.local, .global; the census counts the enum, not its cases): .global is the window's content space, the point MouseEvent carries; SwiftUI's .global in a titled window reads 32 points lower (T2, 139)
+F	input-apis-global-space	D	swiftui-input-apis.swift	T2	aSpatialTapInGlobalSpaceReportsTheWindowPoint	139	CI-B CI-U	CoordinateSpace (.local, .global, .named — OV-D; the census counts the enum, not its cases): .global is the window's content space, the point MouseEvent carries; SwiftUI's .global in a titled window reads 32 points lower (T2, 139)
+F	named-coordinate-space	A	swiftui-overlays-coords.swift	G6	aRotatedNamedSpaceReportsTheUnrotatedFrame	-	OV-D OV-E OV-F OV-H OV-L OV-M	NamedCoordinateSpace.named(_:), coordinateSpace(_:) and CoordinateSpaceScope on both vocabularies: a transparent scope (no node, no identity level) whose content resolves .named against the nearest ancestor so named (G1, G2), falling back to .global (G1, G5); the space moves with enclosing scrolls and with effects written after it (G3, G4), a rotated space reporting the unrotated frame (G6) and an effect between space and element its box in the space (G7); hover, DragGesture and SpatialTapGesture resolve through the hitbox snapshot; a presentation inherits its declarer's spaces (MetalUI-only composition, OV-M item 2); @unchecked Sendable where SwiftUI is ~Sendable (OV-L)
+F	window-size	M	-	-	-	-	OV-G OV-O	EnvironmentValues.windowSize: the window's content size stamped by Window at each build (drawn chrome included), get-only outside the module (MetalUI-only: SwiftUI has no window-size environment key, probe arms W0/W1, T5-T8)
 F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them)
 F	input-apis-drag-modifiers	D	-	-	-	140	CI-G	DragGesture.Value.modifiers: the modifier keys held at the event that produced the value; SwiftUI's Value has none (census, 140)
 F	input-apis-pointer-style	A	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	-	CI-H CI-S CI-AH	PointerStyle (.default/.horizontalText/.verticalText/.rectSelection/.grabIdle/.grabActive/.link/.zoomIn/.zoomOut/.columnResize/.rowResize/frameResize(position:directions:)), FrameResizePosition, FrameResizeDirection(.Set): SwiftUI's spellings and its innermost-wins (P11/P11c), nil defers (P12), an opaque target above covers (P13); a non-opaque style region per element through the one ranking, sent to the platform on a change
@@ -285,6 +287,7 @@ M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(font|lineLimit|truncationMo
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	colorScheme	.*	color-scheme
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	fileDialogs	.*	file-dialog-call
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	titleBarInsets	.*	window-shell
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	windowSize	.*	window-size
 M	MetalUI	WindowPreferences.swift	ElementGroup	(navigationTitle|navigationDocument)	.*	navigation-title
 M	MetalUI	WindowPreferences.swift	ElementGroup	onOpenURL	.*	on-open-url
 M	MetalUI	EnvironmentValues.swift	.*	.*	.*	environment
@@ -305,6 +308,7 @@ M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
 M	MetalUI	SpatialGestures.swift	(-|MouseButton)	(MouseButton|buttonNumber|primary|secondary|middle|other)	.*	input-apis-gestures-metalui
 M	MetalUI	SpatialGestures.swift	-	CoordinateSpace	.*	input-apis-global-space
+M	MetalUI	SpatialGestures.swift	(-|NamedCoordinateSpace)	(NamedCoordinateSpace|named)	.*	named-coordinate-space
 M	MetalUI	SpatialGestures.swift	.*	.*	.*	input-apis-gestures
 M	MetalUI	Gesture.swift	DragGesture	(coordinateSpace|button)	.*	input-apis-gestures-metalui
 M	MetalUI	Gesture.swift	DragGesture	init	.*coordinateSpace.*	input-apis-gestures-metalui
@@ -324,6 +328,7 @@ M	MetalUI	KeyPress.swift	FocusInteractions	.*	.*	focus-interactions
 M	MetalUI	KeyPress.swift	.*	.*	.*	key-press
 M	MetalUI	HoverKeyRegion.swift	.*	.*	.*	hover-key-region
 M	MetalUI	KeyboardModifier.swift	.*	.*	.*	keyboard-modifier
+M	MetalUI	CoordinateSpaceScope.swift	.*	.*	.*	named-coordinate-space
 M	MetalUI	GeometryChange.swift	.*	.*	.*	geometry-change
 M	MetalUI	TimelineSchedule.swift	.*	.*	.*	timeline-view
 M	MetalUI	TimelineView.swift	.*	.*	.*	timeline-view

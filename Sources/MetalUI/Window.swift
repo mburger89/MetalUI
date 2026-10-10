@@ -1679,13 +1679,13 @@ public final class Window {
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
         rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
-        // STUB rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
+        rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
         frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
         frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
-        // STUB frame.previousPresentationSpaces = lastPresentationSpaces   // overlays' spaces (OV-K, OV-N)
+        frame.previousPresentationSpaces = lastPresentationSpaces   // overlays' spaces (OV-K, OV-N)
         frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
             frame.dragSourceID = session.sourceID

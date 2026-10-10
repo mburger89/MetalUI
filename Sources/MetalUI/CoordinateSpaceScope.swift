@@ -124,7 +124,7 @@ public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
     /// (`OV-E` item 2); content that registered nothing declares nothing.
     public mutating func prepaintGroup(layout: inout CoordinateSpaceScopeLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        guard let space = pass.frame.localSpace(of: layout.nodes, name: name), Bool("STUB") == true else {
+        guard let space = pass.frame.localSpace(of: layout.nodes, name: name) else {
             return content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
         return pass.frame.withNamedSpace(space) {
