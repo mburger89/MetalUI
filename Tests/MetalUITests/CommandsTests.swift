@@ -195,3 +195,50 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
     platform.menuBars[1].perform(run.id)
     #expect(log.entries == ["run"])
 }
+
+// MARK: - SMK port gaps, lane 2, test 2.6: the drawn style (`SG-A` item 3, `SG-H` item 3)
+
+/// The drawn style's menus for `app`'s commands, as strings.
+@MainActor private func drawn(_ app: App) -> [String] {
+    describe(app.evaluateMenuBar(style: .drawn).menus)
+}
+
+/// **2.6** (`SG-A` item 3, `SG-H` item 3). The drawn bar follows the desktop
+/// arrangement: no application menu; File = the new-item group, then the
+/// additions at `.appVisibility` and `.appTermination` (their standard items
+/// dropped); Edit with the standard items; the `CommandMenu`s; Window only
+/// with additions; Help = the help group, then the additions at `.appInfo`;
+/// an empty menu dropped. A `CommandGroup(replacing: .pasteboard)` replaces
+/// the drawn Edit's Cut/Copy/Paste/Delete/Select All as it replaces AppKit's.
+/// The AppKit style's strings are unchanged (`defaultApp`…`defaultWindow`).
+/// Mutations: keep the application menu in the drawn style; keep the standard
+/// items under a replacement — each reddens.
+@MainActor
+@Test func theDrawnBarFollowsTheDesktopArrangement() throws {
+    let (app, _) = try fakeApp()
+    #expect(drawn(app) == [String(defaultEdit)], "no commands: Edit alone: \(drawn(app))")
+    app.commands {
+        CommandGroup(after: .newItem) { Button("New Note") {}.keyboardShortcut("n") }
+        CommandGroup(after: .appVisibility) { Button("Vis") {} }
+        CommandGroup(before: .appTermination) { Button("Prefs") {} }
+        CommandMenu("Tools") { Button("Go") {} }
+        CommandMenu("Empty") {}
+        CommandGroup(after: .windowSize) { Button("Tile") {} }
+        CommandGroup(after: .help) { Button("Docs") {} }
+        CommandGroup(after: .appInfo) { Button("About Me") {} }
+    }
+    #expect(drawn(app) == [
+        "File: New Note ⌘n, ---, Vis, ---, Prefs",
+        String(defaultEdit),
+        "Tools: Go",
+        "Window: Tile",
+        "Help: Docs, ---, About Me",
+    ], "\(drawn(app))")
+    app.commands {
+        CommandGroup(replacing: .pasteboard) { Button("Paste Plain") {} }
+    }
+    #expect(drawn(app) == ["Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Paste Plain"], "\(drawn(app))")
+    app.commands {}
+    #expect(describe(app.menuBarContent()) == [defaultApp, defaultFile, defaultEdit, defaultWindow],
+            "the AppKit style is unchanged")
+}

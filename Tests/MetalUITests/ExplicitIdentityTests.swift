@@ -416,6 +416,39 @@ private struct NamedCounterComponent: Component {
         // this arm alone.
         let caret = toolbarStripCaret(steps)
         #expect(caret == (expected == 1 ? 0 : 3), "a toolbar strip item named over \(steps): caret \(String(describing: caret))")
+
+        // The drawn menu bar (SMK port gaps, lane 2, spec test 2.13; rulings
+        // `SG-A` item 6, `SG-I`): its titles live under the named root
+        // `$menubar`, each keyed by its menu index and title. A menu titled
+        // a, a, b, a gives its title a, a, b, a's ids — the returning title is
+        // the id it left with, the replaced one another — while the constant
+        // control keeps one id. Mutation **M2.13b** (titles keyed by index
+        // alone) reddens this arm; **M2.13** (the root's `noteNamed` dropped)
+        // is an instrument with nothing to see (`SG-I`, `MD-Z` item 1).
+        let ids = menuBarTitleIDs(steps)
+        #expect(ids.count == 4 && ids[0] == ids[1] && ids[0] == ids[3] && (ids[2] == ids[0]) == (expected == 4),
+                "a menu-bar title named over \(steps): \(ids.map(\.count))")
+    }
+}
+
+/// Renders one frame per step with a drawn menu bar titled Edit and the
+/// step; returns, per frame, the set of ids recorded under `$menubar`.
+@MainActor
+private func menuBarTitleIDs(_ steps: [String]) -> [Set<GlobalElementID>] {
+    let table = StateTable()
+    return steps.map { step in
+        var tree = Column { Text("x") }
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table, recordsElementBounds: true)
+        frame.menuBarTitles = ["Edit", step]
+        frame.render(&tree)
+        return Set(frame.elementBounds.keys.filter { id in
+            var cursor: GlobalElementID? = id
+            while let current = cursor {
+                if current == MenuBarStrip.rootID { return id != MenuBarStrip.rootID }
+                cursor = current.parent
+            }
+            return false
+        })
     }
 }
 

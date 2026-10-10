@@ -394,6 +394,30 @@ private func chromeWindow(_ model: ChromeModel, drawn: Bool) throws -> (Window, 
     let (native, _) = try chromeWindow(model, drawn: false)
     draw(native)
     #expect(native.drawnChromeHeight == Pixels(0), "a toolbar the platform shows is not drawn chrome")
+
+    // The drawn menu bar's arms (lane 2, `SG-A` item 5): an app declaring
+    // commands on a platform declining the bar — 25 with the bar alone, 64 with
+    // the bar and the strip, 0 with both shown by the platform.
+    for (barNative, stripDrawn, expected) in [(false, false, Float(25)), (false, true, 64), (true, false, 0)] {
+        let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+        let platform = FakePlatform(device: device)
+        platform.menuBarIsNative = barNative
+        platform.windowSize = 400
+        let app = App(platform: platform)
+        app.commands { CommandMenu("Tools") { Button("Go") {} } }
+        let window = try app.openWindow(title: "Chrome", size: size(400, 400), startsDisplayLink: false) {
+            Column {
+                Text("Body").frame(width: Pixels(100), height: Pixels(50))
+                    .toolbar { ToolbarItem { Button("Back") {} } }
+            }
+        }
+        let fake = try #require(platform.openedWindows.last)
+        fake.toolbarIsNative = !stripDrawn
+        draw(window)
+        draw(window)
+        #expect(window.drawnChromeHeight == Pixels(expected),
+                "bar native \(barNative), strip drawn \(stripDrawn): \(window.drawnChromeHeight)")
+    }
 }
 
 /// **2.20** (`SG-F` items 2–3). An explicit `minSize`/`maxSize` is a size of
