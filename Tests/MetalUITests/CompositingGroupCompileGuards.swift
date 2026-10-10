@@ -20,8 +20,11 @@ private let skipReason: Comment =
 /// which is not built (divergence row of `GX-A`'s deferred list) and must not
 /// compile.
 ///
-/// Mutation that reddened it once (record §90): the proposal
-/// `compositingGroup()` declared `internal`.
+/// Mutation that reddened it once (record §90; native build, full suite over
+/// `ab65ef3`'s sources): the LEGACY `StyledElement.compositingGroup()` declared
+/// `internal` — the positive arm read `succeeded=false` and this test failed.
+/// (The proposal spelling cannot be narrowed alone: `MetalUIDemoContent`'s
+/// LooksDemo spells it, so the package stops building.)
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func compositingGroupIsSpellableOnBothVocabularies() throws {
     func source(_ member: String) -> String {
