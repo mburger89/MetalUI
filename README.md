@@ -467,6 +467,17 @@ for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navi
 175); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
 edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
 MetalUIDemo` shows them. Human checks: group AS, unrun.
+**Key and focus scoping** (user request 2026-10-02, item C9, not a plan task; record §88):
+SwiftUI's `onKeyPress` family runs after the Keymap and before a focused field's editing keys,
+outermost handler first; `.hoverKeyRegion()` (MetalUI-only) gives keys to the region under the
+pointer while nothing is focused; `.focusable(interactions: .edit)` focuses on a click (divergence
+94, narrowed); a proposal `KeyboardModifier` carries all of it onto `MetalView`/`GPUSurface`;
+`.onGeometryChange` reports a size or frame in the first presented frame and during a resize;
+`TimelineView` runs `.animation`, `.periodic`, `.everyMinute`, `.explicit` and custom schedules.
+A `for` over an opaque-returning helper in a builder is a Swift 6.4 defect (use `ForEach`), pinned
+by a guard. Divergences 185–188. `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` shows it. Human
+checks: group KF, unrun.
+
 **Shadow cache** (user request 2026-10-02, item C13, MetalCreator's PERF-a, not a plan task; record §90):
 a shadow, blur, path or full-gradient raster is keyed relative to a floored device anchor, so
 dragging or panning a shadowed container by whole device pixels reuses its cached texture

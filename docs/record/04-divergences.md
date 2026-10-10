@@ -2572,3 +2572,41 @@ reservations and settle at their merges. **Added, kept:**
   MetalUI reads its target. Pin `aZeroDurationKeyframeReadsItsTarget`.
 
 **Amended:** none. **Retired:** none.
+
+## 2026-10-10: 185–188 added, 94 narrowed, 120 amended (key and focus scoping)
+
+Record §88; rulings `KF-H`, `KF-B`, `KF-Q`, `KF-X`, `KF-F`, `KF-J`; the published
+list is `docs/divergences.md`. Not a plan task — user request 2026-10-02, item
+C9. Labels from this branch's reserved range 185–194; 189–194 were never used
+(no divergence ever held them, so they are not retired). The header's live count
+and next label are left for the merge to settle. Every SwiftUI answer below is
+an arm of `docs/probes/swiftui-key-focus.swift`. **Added, kept:**
+
+- **185** — `onKeyPress` written inside `.focusable()` on one element. SwiftUI's
+  handler never hears (`K12`: it sits inside the focus target); on one MetalUI
+  keyboard layer (a `StyledElement`, or a proposal `KeyboardModifier` chain) the
+  two are order-free; a non-keyboard modifier between them splits the layers and
+  `K12`'s rule holds (`KF-H` item 3). Pins
+  `onKeyPressBeforeFocusableHearsOnOneKeyboardLayer`,
+  `theLaterOnKeyPressOnOneElementRunsFirst`, `keyboardModifiersMergeIntoOneLayer`.
+- **186** — focus when a window first shows. SwiftUI focuses the first focusable
+  view (`K1`, `K1t`); MetalUI focuses nothing until Tab, a press on a
+  click-focusable element or `Window.focus(_:)` (`KF-B`). Pin
+  `noElementHoldsFocusWhenTheWindowFirstDraws`.
+- **187** — a typed character on a focused text field as `onKeyPress` sees it.
+  SwiftUI passes the key's phase and modifiers; MetalUI offers the committed
+  character once as `.down` with empty modifiers, never an input method's
+  composition, and on SDL no release (`KF-Q`). Pin
+  `aCompositionAndAMultiGraphemeCommitAreNeverOffered`.
+- **188** — a native-only menu item's ⌘-key (Quit, Hide, Minimize, the Edit
+  menu's standard actions) under a focused `onKeyPress`. SwiftUI's main menu runs
+  it first (`KX2`, `KX3`); MetalUI cannot see those items, so the pipeline and
+  `onKeyPress` see the keystroke first and a catch-all `.handled` swallows ⌘Q (an
+  app command's ⌘-key still runs, `KF-X` item 4). Pin
+  `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`.
+
+**Amended:** **94** narrowed — `.focusable(interactions: .edit)` focuses on a
+primary press, as SwiftUI does (`FC3`, `KF-F`; pins
+`aPressFocusesAnEditInteractionFocusable`,
+`aPressDoesNotFocusPlainOrActivateFocusables`); **120** extended to
+`.onGeometryChange` (`GeometryChangeScope`, `KF-J`). **Retired:** none.

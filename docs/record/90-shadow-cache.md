@@ -381,3 +381,23 @@ Then, after `swift package clean`: native build 0 `error:`; unfiltered native `-
 **`Test run with 3100 tests in 3 suites passed after 214.516 seconds.`** (3099 + 1);
 `FR-J no-argument frame: succeeded=true`; default build system 0 warnings; `cmp CLAUDE.md
 AGENTS.md` equal; both inventory scripts print nothing. Guards 196, unmoved.
+
+## 7. The merge with master `0a9eb36` (key-focus, §88)
+
+Master moved to `0a9eb36` (C9, §88) before the PR. The merge conflicted only in shared docs, each
+resolved by keeping both sides in label/record order: `README.md` (§88's paragraph, then this
+one), `docs/divergences.md` (185–188, then 205), `docs/record/README.md` (the 88 row, then 90),
+record §03 (§88's looks, then §90's), and `CLAUDE.md` (the `KF-` and `PF-` prefixes, groups KF
+and PF, the counts bullet, the history list). **The divergences header** had lagged since
+master's 2026-10-01 count (126): the merged Live table holds **133 rows**, and the next label
+after 205 is **206** (195–204 and 215–224 reserved by the open `fix/smk-port-gaps` and
+`feat/test-harness`; 189–194 unused by C9). No source conflicted (`Frame.swift` auto-merged:
+this branch's composite scope beside §88's keyboard registration).
+
+On the merge, after `swift package clean`: native build 0 `error:`; unfiltered native
+`--no-parallel` **3204 tests in 3 suites passed after 236.292 seconds** (3173 + 31);
+`FR-J no-argument frame: succeeded=true`; default build system 0 warnings; the census re-run
+equals the merged `closeout-public-api.tsv` (3134 lines); both inventory scripts print nothing;
+`cmp CLAUDE.md AGENTS.md` equal. Guards 203 (202 + 1), derived. The fourteen images and
+`Backends/SDL` were not re-taken: neither branch's merge changed a painted path the other uses
+(§88's demo is behind its own switch), and CI runs both.

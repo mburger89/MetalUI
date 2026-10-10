@@ -575,8 +575,9 @@ private struct NonSynthesizingDeclarer<Content: ProposalElementGroup>: Element, 
 ///
 /// **Input APIs (ruling `CI-Q`)**: one more reference, `pointer` (a class box
 /// holding the wheel handler and the pointer style), so 440 + 8 × 5 — 1.33
-/// pins the exact 480.
+/// pins the exact 480. **Key and focus scoping (`KF-I`)**: one more,
+/// `keyboard`, so 440 + 8 × 6 (1.33 pins 488).
 @Test func theNewDeclarationsCostHandlersAtMostOnePointer() {
     #expect(MemoryLayout<AXNode>.size <= 113 + 8, "AXNode: \(MemoryLayout<AXNode>.size)")
-    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size <= 440 + 8 + 8 + 8 + 8 + 8 + 8, "Handlers: \(MemoryLayout<Handlers>.size)")
 }

@@ -2137,6 +2137,19 @@ document's proxy icon; AS6 the hidden title bar against the traffic lights; AS7 
 AS8 full screen; AS9 open-document events from a packaged app; AS10 SDL on Linux, Windows and
 macOS (the drawn alert, the window manager's close, a file dropped on the app).
 
+## 2026-10-10: key and focus scoping (record §88) — looks owed
+
+The key and focus demo (`METALUI_KEY_FOCUS_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
+section behind its own switch; none of the fourteen offscreen images renders it, so their zero
+cannot see it. The SwiftUI probe `swiftui-key-focus.swift` was taken with the screen unlocked
+(lane A, runs 10 and 11 and the gated KX arms); lanes B and C ran with the screen locked, and no
+real-window capture was taken. **Owed, new here — `docs/verification/human-checks.md` group KF
+(provisional letter), none performed (an agent cannot)**: KF-1 order and the palette with a real
+keyboard; KF-2 hover routing; KF-3 clicks and focus (a press elsewhere keeps a field focused);
+KF-4 the viewport size in the first frame and during live resize; KF-5 the orbit label and the
+display link stopping; KF-6 native menu items under a catch-all `onKeyPress` (divergence 188);
+KF-7 the digit filter and an input method's composition (divergence 187).
+
 ## 2026-10-10: shadow cache (record §90) — looks owed
 
 `LooksDemo` gains a `compositingGroup()` pair (per-leaf shadows beside one shadow of the union),

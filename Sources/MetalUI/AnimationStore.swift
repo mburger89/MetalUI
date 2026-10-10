@@ -44,6 +44,11 @@ final class AnimationStore {
     /// departed values its disappearances read (`LC-I`).
     let lifecycle = LifecycleStore()
 
+    /// The window's `TimelineView` cursors and its one wake (ruling `KF-K`
+    /// items 3–4), owned here so a `Window`'s frames share one and a headless
+    /// frame gets its own; closed by `endFrame()` with the other entries.
+    let timeline = TimelineStore()
+
     /// How many keyframe animators enclose the one being built (C10 lane 2,
     /// `LK-I` item 9): the `<depth>` of its `$keyframes<depth>` key, so two
     /// stacked at one position keep two records — `Frame.lifecycleDepth`'s
@@ -97,5 +102,6 @@ final class AnimationStore {
         }
         touched.removeAll(keepingCapacity: true)
         lastFrameInterpolations = interpolationsThisFrame
+        timeline.endFrame()  // drops untouched timelines, (re)schedules or cancels the wake (KF-K item 3)
     }
 }
