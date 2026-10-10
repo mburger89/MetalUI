@@ -391,6 +391,155 @@ compilers never fire, so **no CI job except Windows can see it**.
 **Cost if wrong.** A box that does not cure the crash costs an allocation per
 `Component` per frame for nothing — gate (a) prevents it landing.
 
+**Lane 3's measurements (2026-10-10; amends items 1–5, the next-unused line
+does not move).**
+
+6. **Reproduced, both shapes, debug and release.** The toolchain is selected
+   by bundle identifier: `TOOLCHAINS=org.swift.64202605271a swift build`
+   (read from the `.xctoolchain`'s `Info.plist`; `xcrun --toolchain
+   org.swift.64202605271a swiftc` for a single file). Swift 6.5-dev (LLVM
+   8f81a64f6a8bcf6, Swift 4d0c97fa5b05711). A scratch package depending on
+   this checkout by path, one target per shape: `LK-X`'s minimal row
+   (`Column { Text("a"); Inner() }` in a `Component`, `Inner` a `Component`
+   whose content is a bare `ForEach`) and MG-27's (a `Component` whose content
+   is a `switch` over four cases: a `Text`, a nested `Component` holding
+   `Column { ForEach }`, an `AnyElement(Box { … })`, a `Column`) both assert
+   at `1dec007` in **debug and release** — `Assertion failed:
+   (hasNoNontrivialLexicalLeaf && "Found non-trivial lexical leaf in
+   non-trivial non-lexical type?!"), function verifyLexicalLowering, file
+   TypeLowering.cpp, line 3390`, "While generating protocol witness thunk …
+   `prepaintGroup(layout:pass:)`" of the outer conformance. (MG-27 saw it at
+   `-c release` only on Windows' 6.4.0+Asserts; the Mac snapshot fires in
+   both — the debug/release difference is not reproduced here.) The function
+   workaround compiles in both. **The UTM VM did not answer** (`ssh
+   metalui-win`: port 22 timed out; `utmctl list` reads the VM `stopped`); it
+   was not started — the Windows ARM64 run is human check SG6.
+7. **MG-27's reduction against MetalUI** (debug; each row one edit from the
+   shape as written):
+
+   | edit | asserts |
+   | --- | --- |
+   | the shape as written | yes |
+   | case `.b` a `Text` (no nested `Component`) | no |
+   | `Rows`' `ForEach` replaced by one `Text` (no loop) | no |
+   | case `.c` a `Text` (no `AnyElement`) | yes |
+   | `Rows`' content a bare `ForEach` (no `Column`) | yes |
+   | two cases and a `default` | yes |
+   | `if mode == .b { Rows } else { Text }` (no `switch`) | yes |
+   | `if mode == .b { Rows }` (no `else`: an `Optional`) | no |
+   | `Rows` alone (no `switch`) | no |
+   | the loop inline in case `.b` (no nested `Component`) | no |
+   | case `.b` a function returning `some ElementGroup` (the workaround) | no |
+
+   So MG-27 is `LK-X`'s trigger: a nested `Component` whose content holds a
+   loop, inside an **aggregate** record of the enclosing `Component` — a
+   `Pair` (beside other content) or an `EitherGroup` (an `if`/`else` or a
+   `switch` branch) — but not alone and not under an `Optional`.
+8. **A reduction with no MetalUI import** (`AssertsCompilerTests.swift`'s
+   `standaloneFixture`, 25 lines): a protocol `Group { associatedtype
+   Prepaint; func prepaint() -> Prepaint }`, a leaf whose `Prepaint` is
+   `String`, a generic `Pair` whose `Prepaint` is a struct of both halves', a
+   `Component: Group` with `var content: Content` and an extension witness
+   `func prepaint() -> Content.Prepaint`, `Inner { var content: some Group {
+   Text() } }` and `Outer { var content: some Group { Pair(a: Text(), b:
+   Inner()) } }`. One edit each (`xcrun --toolchain … swiftc -parse-as-library
+   -emit-library`):
+
+   | edit | asserts |
+   | --- | --- |
+   | as written | yes |
+   | `-O`; `-swift-version 6`; `-Xfrontend -enable-lexical-lifetimes=false` | yes |
+   | `-Xllvm -sil-verify-none` (the verifier off) | no |
+   | the leaf's `Prepaint` `[Int]`, `Set<Int>`, `[Int: Int]`, `Substring`, `[String]` | yes |
+   | the leaf's `Prepaint` `Int`, `Int?`, a class, a struct holding a class, an enum with a class payload | no |
+   | `Outer`'s content `Inner()` alone | no |
+   | `Outer`'s content `Pair(a: Inner(), b: Inner())` | yes |
+   | `Outer`'s content spelled `Pair<Text, Inner>` (concrete) | yes |
+   | `Inner`'s content spelled `Text` (concrete) | no |
+   | `Pair.Prepaint` a tuple instead of a struct | no |
+   | `Pair.Prepaint` a struct of `b` alone | yes |
+   | `Outer` declares its own `prepaint()` (no default witness) | yes |
+   | the extension witness returns a **final class** holding `Content.Prepaint` | no |
+   | … a struct holding a final class (`ComponentPrepaint`'s shape) | no |
+   | … a plain generic struct holding `Content.Prepaint` | yes |
+
+   The trigger: an inner conformer's **opaque** content whose associated
+   record is an eager-move standard-library type (`String`, `Array`, `Set`,
+   `Dictionary`, `Substring`), stored as a field of a struct in the outer
+   conformer's record. A compiler bug; MetalUI's sources carry no
+   `@_eagerMove`/`@_noEagerMove`.
+9. **Adopted: `ComponentPrepaint`** (`Component.swift`, beside
+   `ComponentLayout`): `Component`'s `GroupPrepaint` is a public struct over a
+   `final class` holding `Content.GroupPrepaint`, made in `prepaintGroup`,
+   mutated in place by `paintGroup` through `withPrepaint(_:)`;
+   `StyledComponent` forwards `C.GroupPrepaint` unchanged. The five gates:
+   (a) both shapes compile under the snapshot in debug and release (the guard,
+   green), and the snapshot builds `MetalUIDemoContent`, `MetalUIDemo`,
+   `MetalUICLI` and the six Windows-portable test targets (`MetalUICoreTests`,
+   `MetalUILayoutTests`, `MetalUISystemFontsTests`, `MetalUIPathTests`,
+   `MetalUICrossPlatformTests`, `MetalUIScaffoldTests`) with no assertion;
+   (b) the native suite after `swift package clean`: 2915 tests in 3 suites
+   passed (2913 + 3.2 + 3.3); (c) the fourteen images (`docs/probes/demo-pixels/compare.sh <scratch> 0b400b4 1dec007
+   1972662`): 0 differing pixels, every scene identical, at both steps; controls
+   1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 / 529 / 0;
+   (d) pins moved: none — no test reddened; the figures, unboxed (M3.2) → boxed:
+   `aShellOverTwelveComponentPanesUsesTheStackOfOnePane`'s `STACK-METER` pane
+   1 027 776 → 1 027 792 bytes, shell 2 1 029 312 and shell 12 1 032 288
+   both unmoved; `theStackMeterSeesTheContentGettersFrame` unmoved (getter
+   4 313 632, inline 2 1 322 800, inline 12 4 370 784); the env-gated
+   `measureComponentBoxAllocations` (`METALUI_COMPONENT_ALLOC_MEASURE=1`):
+   one `Component` per settled frame **2.00 → 3.00 allocations** (152 → 168
+   bytes) — exactly the one box the ruling expected; (e) the census gains `struct ComponentPrepaint` (claimed by
+   `Component.swift`'s `M` row, family `component`, which now names `SG-E`),
+   doc-commented. **Mutations** (full unfiltered native suite each, after
+   `swift package clean`): **M3.2**, un-box (`Component`'s witnesses back to
+   `Content.GroupPrepaint`, the type left in place) — the suite stays green
+   (2915 passed: no macOS test can see it) and the env-gated guard reddens
+   with exactly four issues, `LKX` and `MG27` asserting in debug and release
+   (`Workaround` compiles, the reduction asserts); **M3.3**, `withPrepaint`
+   runs `body` on a copy — reddens `aComponentsPrepaintIsHeldOnceAndMutatedInPlace`
+   alone (its second arm). **No migration note**: `GroupPrepaint` is an associated type
+   no conformer names (`Component`'s witnesses are defaults), and
+   `ComponentPrepaint`'s initialiser and accessor are internal.
+10. **Workaround, where the box does not reach** (code with its own protocols
+    of item 8's shape, or a MetalUI before the box): the looping member as a
+    `@MainActor` function returning `some Element`/`some ElementGroup`
+    (`LK-X`'s rule, which covers `switch` and `if`/`else` branches too);
+    `-enable-lexical-lifetimes=false` does not help; `-Xllvm
+    -sil-verify-none` avoids it on the reduction (macOS only, unmeasured on
+    Windows). `docs/packaging.md` §"Windows" item 4.
+11. **The upstream report** (for swiftlang/swift; not filed from here):
+
+    > **Title:** SILGen `verifyLexicalLowering` assertion ("Found non-trivial
+    > lexical leaf in non-trivial non-lexical type?!") on a protocol witness
+    > returning an associated type of an opaque result whose underlying type
+    > is an eager-move stdlib type nested in a generic struct
+    >
+    > **Toolchains:** asserts — swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a (6.5-dev,
+    > arm64-apple-macosx) and Windows 6.4.0+Asserts (aarch64 and x86_64 MSVC,
+    > `-c release`). Release-built compilers (6.4.0 on macOS and Linux) compile
+    > it.
+    >
+    > **Reproduction:** `swiftc -parse-as-library -emit-library -o /dev/null
+    > repro.swift`, with `repro.swift` the 25-line file in item 8.
+    >
+    > **Result:** `Assertion failed: (hasNoNontrivialLexicalLeaf && "Found
+    > non-trivial lexical leaf in non-trivial non-lexical type?!"), function
+    > verifyLexicalLowering, file TypeLowering.cpp, line 3390.` Stack dump:
+    > `3. While evaluating request ASTLoweringRequest(Lowering AST to SIL for
+    > file "repro.swift")`, `4. While silgen visitDecl 'Outer'`, `5. While
+    > generating SIL witness table protocol conformance Outer: Group`, `6.
+    > While generating protocol witness thunk SIL function
+    > "@$s4null5OuterVAA5GroupA2aDP8prepaint8PrepaintQzyFTW" for
+    > 'prepaint()'`.
+    >
+    > **Narrowing:** passes when the leaf's type is `Int`, a class or a
+    > struct holding a class; when `Inner.content` is concrete; when the outer
+    > record is a tuple; when `Outer.content` is `Inner()` alone. Fails with
+    > `Array`, `Set`, `Dictionary`, `String`, `Substring`; with `-O`; with
+    > `-enable-lexical-lifetimes=false`. Wrapping the witness's result in a
+    > final class avoids it; a plain generic struct does not.
+
 ## SG-F — `Window.drawnChromeHeight`, and explicit size limits are measured below the drawn chrome
 
 **Ruling.**

@@ -25,8 +25,10 @@ private struct LoopingComponent: Component {
 /// reference wide whatever its content, and a copy shares the record: a
 /// write through `withPrepaint` on one is read through the other, so
 /// `paintGroup` mutates the record `prepaintGroup` made, in place.
-/// Mutation: un-box (`Storage`'s field stored inline in the struct) — both
-/// arms redden.
+/// Mutation M3.3 (`withPrepaint` runs `body` on a copy of the record) —
+/// the second arm reddens, and nothing else in the suite (a paint's writes
+/// into its prepaint record are read by nothing after it). The first arm is
+/// the box's shape: a field stored beside the reference widens it.
 @Test func aComponentsPrepaintIsHeldOnceAndMutatedInPlace() {
     typealias Record = ComponentPrepaint<LoopingComponent>
     #expect(MemoryLayout<Record>.size == MemoryLayout<AnyObject>.size,
