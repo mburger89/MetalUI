@@ -398,7 +398,9 @@ run, every reddened test named, `git status --short` clean after restore.
   focused, the seven Edit rows are disabled and a `Button("A"){…}
   .keyboardShortcut("a")` in the window has not run after a press on Select
   All's row (`SG-H` item 1). Mutations: deliver nothing; deliver Copy as "x";
-  enable the Edit rows always → each reddens.
+  enable the Edit rows always → each reddens (deliver Copy as "x" only
+  through the arm `model.text == "abc"` after Copy, added by `SG-K` item 2).
+  **2.11b** `everyDrawnEditRowDeliversItsKey` pins all seven keys (`SG-K`).
 - **2.12** `aCommandShortcutStillRunsOnceWithADrawnBar`: a command bound to
   `.primary`+G runs once on that key in a window drawing the bar (`MN-J`).
   Mutation: also perform from the bar on a matching key → reddens (twice).
@@ -411,10 +413,16 @@ run, every reddened test named, `git status --short` clean after restore.
 - **2.15** `aMenuBarTitleIsAnAccessibleButton`: once a client activated the
   window, the published tree holds each title as a button labelled with its
   title; no new role. Mutation: drop `.accessibilityAddTraits(.isButton)` →
+  reddens. **Refuted (`SG-K` item 1):** that mutation is equivalent — the
+  role comes from the title's `.onClick` (`AccessibilityTreeBuilder` gives a
+  clickable element `.button`) — and stays green; dropping `.onClick` (M2.15b)
   reddens.
 - **2.16** `theDrawnBarsTitlesFollowTheCommandsLive`: a `CommandMenu` under
   `if model.flag` (an `@Observable`) appears on the frame after the flag is
   written from input. Mutation: evaluate titles once at install → reddens.
+  **2.16b**/**2.16c** (`SG-K` item 4): the flag written outside input dirties
+  the window (titles read inside the tracking), and `commands` called after
+  `openWindow` draws the bar on the next frame.
 - **2.17** `sdlDeclinesTheMenuBarAndRecordsIt` (rewrites S2.1
   `sdlRecordsTheMenuBarAndDrawsNothing`, moved by `SG-A`): answers `false`,
   records, never calls `content`. Mutation: answer `true` → reddens.

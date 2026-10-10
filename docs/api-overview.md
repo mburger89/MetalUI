@@ -411,8 +411,9 @@ below itself, published as a menu button.
 with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
 Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
-`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL draws no bar;
-command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
+`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL's `setMenuBar` answers
+`false`, so every window draws the bar itself: a 25-point strip across its top, above a drawn
+toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
 
 **Popovers (A / D 111, 112, 115).** `.popover(isPresented:arrowEdge:content:)` and
 `.popover(item:arrowEdge:content:)`: anchored to the declaring element, placed on

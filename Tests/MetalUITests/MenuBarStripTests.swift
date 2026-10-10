@@ -240,8 +240,10 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 /// menu, Edit, its first enabled row (Undo, a field focused) highlighted; an
 /// `onKey` that claims F10 keeps it shut; Shift+F10 over a focused element
 /// with a context menu still opens that menu (the keyboard opener off Apple);
-/// F10 in a window drawing no bar opens nothing. Mutation: the F10 stage
-/// before the `onKey` bubble — the second arm reddens.
+/// F10 in a window drawing no bar opens nothing; Shift, Control or Option +
+/// F10 where no context menu claims it opens no bar menu. Mutations: the F10
+/// stage before the `onKey` bubble — the second arm reddens; M2.10c (no
+/// modifier check) — the first arm's modified keys redden.
 @MainActor
 @Test func f10OpensTheFirstMenuOnlyWhenNothingClaimsIt() throws {
     let (app, platform) = try barApp()
@@ -256,6 +258,11 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     let session = try #require(plain.menuSession, "F10 opened a menu")
     #expect(session.barIndex == 0 && session.levels[0].items.first?.title == "Undo")
     #expect(session.levels[0].highlighted == 0, "Undo highlighted")
+    plain.menuSession = nil
+    for mods: Modifiers in [.shift, .control, .option] {
+        plainFake.simulateInput(key(f10, mods))
+        #expect(plain.menuSession == nil, "F10 with \(mods.rawValue), no context menu, opens no bar menu (M2.10c)")
+    }
 
     let (claimed, claimedFake) = try open(app, platform) {
         Column { TextField("f", text: text).frame(width: px(200)) }
@@ -291,7 +298,8 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 /// their keys through the window's key pipeline. With nothing focused the
 /// seven Edit rows are disabled and a press on Select All runs nothing, so a
 /// `Button`'s ⌘A (primary + A) shortcut stays unrun. Mutations: deliver
-/// nothing; deliver Copy as X; enable the rows always — each reddens.
+/// nothing; deliver Copy as X (M2.11b, through the text Copy leaves alone);
+/// enable the rows always — each reddens. The other mappings: 2.11b.
 @MainActor
 @Test func aDrawnEditItemReachesTheFocusedField() throws {
     let (app, platform) = try barApp()
@@ -324,12 +332,50 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     try clickTitle(window, fake, 0)
     try clickRow(window, fake, "Copy")
     #expect(fake.clipboard == "abc", "Select All then Copy reached the field: \(String(describing: fake.clipboard))")
+    #expect(model.text == "abc", "Copy left the text alone (Cut would empty it): \(model.text)")
     redraw(window)
     fake.clipboard = "Z"
     try clickTitle(window, fake, 0)
     try clickRow(window, fake, "Paste")
     #expect(model.text == "Z", "Paste replaced the selection: \(model.text)")
     #expect(log.entries.isEmpty, "the field claimed primary + A, not the button")
+}
+
+/// **2.11b** (`SG-A` item 4, `SG-H` item 2). Each of the seven drawn Edit
+/// rows, a field focused, hands the window's input hook exactly its key:
+/// Undo primary + Z, Redo primary + shift + Z, Cut primary + X, Copy
+/// primary + C, Paste primary + V, Delete U+007F with no modifier, Select All
+/// primary + A — recorded by wrapping the fake window's `onInput`, the hook
+/// `Window.deliverStandardEditKey` calls. Mutations M2.11d (Delete as
+/// U+0008) and M2.11e (Undo as primary + shift + Z) each redden.
+@MainActor
+@Test func everyDrawnEditRowDeliversItsKey() throws {
+    let (app, platform) = try barApp()
+    app.commands { tools(BarLog()) }
+    let model = BarModel()
+    let (window, fake) = try open(app, platform) {
+        TextField("f", text: Binding(get: { model.text }, set: { model.text = $0 })).frame(width: px(200))
+    }
+    window.focus(try fieldHitbox(window).id)
+    redraw(window)
+    let hook = try #require(fake.onInput, "the window installed its input hook")
+    var keys: [String] = []
+    fake.onInput = { event in
+        if case .keyDown(let key) = event {
+            keys.append("\(key.charactersIgnoringModifiers.unicodeScalars.map { String($0.value, radix: 16) }) \(key.modifiers.rawValue)")
+        }
+        return hook(event)
+    }
+    let rows = ["Undo", "Redo", "Cut", "Copy", "Paste", "Delete", "Select All"]
+    for row in rows {
+        try clickTitle(window, fake, 0)
+        try clickRow(window, fake, row)
+        redraw(window)
+    }
+    let primary = Modifiers.primary.rawValue
+    let shifted = Modifiers.primary.union(.shift).rawValue
+    #expect(keys == ["[\"7a\"] \(primary)", "[\"7a\"] \(shifted)", "[\"78\"] \(primary)", "[\"63\"] \(primary)",
+                     "[\"76\"] \(primary)", "[\"7f\"] 0", "[\"61\"] \(primary)"], "\(keys)")
 }
 
 /// **2.12** (`SG-A` item 10, `MN-J`). A command bound to primary + G runs
@@ -380,8 +426,11 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 }
 
 /// **2.15** (`SG-A` item 7). Once a client activated the window, each title
-/// publishes as a button labelled with its title — no new role. Mutation:
-/// drop `.accessibilityAddTraits(.isButton)` — reddens.
+/// publishes as a button labelled with its title — no new role. The role
+/// comes from the `.onClick` (`AccessibilityTreeBuilder` gives a clickable
+/// element `.button`), so M2.15, dropping `.accessibilityAddTraits(.isButton)`,
+/// is equivalent and stays green (`SG-K`); dropping `.onClick` (M2.15b)
+/// reddens.
 @MainActor
 @Test func aMenuBarTitleIsAnAccessibleButton() throws {
     let (app, platform) = try barApp()
@@ -415,4 +464,44 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     #expect(fake.simulateInput(key("t", .primary)))
     window.drawFrameIfNeeded()
     #expect(window.lastMenuBarTitles == ["Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
+}
+
+/// **2.16b** (`SG-A` item 9). The titles are read inside the frame's
+/// observation tracking: the flag written outside input (the tree never
+/// reads it) dirties the window, and the next frame shows the new title.
+/// Mutation M2.16b, the titles evaluated outside `withObservationTracking` —
+/// reddens.
+@MainActor
+@Test func aCommandsObservableWriteOutsideInputRedrawsTheBar() throws {
+    let (app, platform) = try barApp()
+    let model = BarModel()
+    app.commands {
+        tools(BarLog())
+        if model.extra {
+            CommandMenu("Extra") { Button("More") {} }
+        }
+    }
+    let (window, _) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
+    window.drawFrameIfNeeded()
+    try #require(!window.needsRedraw && window.lastMenuBarTitles == ["Edit", "Tools"])
+    model.extra = true
+    #expect(window.needsRedraw, "a command's observable read dirtied the window")
+    window.drawFrameIfNeeded()
+    #expect(window.lastMenuBarTitles == ["Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
+}
+
+/// **2.16c** (`SG-I` item 6). `App.commands` called after `openWindow`, on a
+/// platform declining the bar, dirties the open window, and its next
+/// `drawFrameIfNeeded` draws the bar. Mutation M2.16c, the redraw in
+/// `App.commands` removed — reddens.
+@MainActor
+@Test func commandsDeclaredAfterOpenWindowDrawTheBarOnTheNextFrame() throws {
+    let (app, platform) = try barApp()
+    let (window, _) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
+    window.drawFrameIfNeeded()
+    try #require(!window.needsRedraw && window.lastMenuBarTitles.isEmpty, "no commands, no bar")
+    app.commands { tools(BarLog()) }
+    #expect(window.needsRedraw, "commands(content:) dirtied the window")
+    window.drawFrameIfNeeded()
+    #expect(window.lastMenuBarTitles == ["Edit", "Tools"], "\(window.lastMenuBarTitles)")
 }

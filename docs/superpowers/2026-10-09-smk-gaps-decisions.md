@@ -9,7 +9,7 @@ Record: `../record/89-smk-gaps.md` (written in the Record phase). Branch
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
 
-**Next unused id: `SG-K`.**
+**Next unused id: `SG-L`.**
 
 ## The final spellings (what the configurator swaps its workarounds for)
 
@@ -625,3 +625,45 @@ nothing else beside `CI-AF`'s five locked-screen `AppKitPresentationTests`
 sheet issues; restored. Fourteen offscreen images `57e02a4` → `b1b7918`:
 0 px, every scene identical, controls as recorded. The spec's other lane-2
 mutations (M2.3a…M2.19) are left to the lane's verifier.
+
+## SG-K — Lane 2's verifier: five instruments that could not fail, and the documents still saying SDL draws no bar
+
+**Found (lane 2's verifier, mutating `fa5ff84`, full unfiltered native suite,
+2910 passed under each).**
+
+1. M2.15 (drop the title's `.accessibilityAddTraits(.isButton)`) stays green
+   and is **equivalent**: `AccessibilityTreeBuilder.resolveText` gives any
+   clickable record the `.button` role, so the title's role comes from its
+   `.onClick`. Spec 2.15, the test's doc comment and `SG-I` item 2's spelling
+   claimed the trait was what 2.15 pinned.
+2. M2.11b (deliver Copy as primary + X) stayed green: after Select All both
+   Copy and Cut put "abc" on the clipboard and the later Paste of "Z" leaves
+   "Z" either way.
+3. M2.11d (Delete as U+0008) and M2.11e (Undo as primary + shift + Z) stayed
+   green: only Select All, Copy and Paste were exercised.
+4. M2.10c (no `key.modifiers.isEmpty` in `dispatchMenuBarKey`) stayed green;
+   M2.16b (titles evaluated outside `withObservationTracking`) and M2.16c
+   (`App.commands`' redraw removed) stayed green — 2.16 writes from input,
+   which dirties the window on its own.
+5. `docs/api-overview.md`, `docs/migration.md` and the `menu-bar` family row
+   of `closeout-inventory-map.tsv` still said SDL draws no bar.
+
+**Ruling.**
+
+1. The trait stays (it is harmless and says what the element is); 2.15 is
+   documented as pinning the role from `.onClick`, its separating mutation
+   M2.15b (drop `.onClick`); M2.15 is recorded as equivalent.
+2. 2.11 expects `model.text == "abc"` right after Copy (Cut would empty it).
+3. New test 2.11b `everyDrawnEditRowDeliversItsKey`: a field focused, each of
+   the seven rows chosen in turn, the keys reaching the fake window's
+   `onInput` (wrapped) are exactly Undo primary+Z, Redo primary+shift+Z,
+   Cut primary+X, Copy primary+C, Paste primary+V, Delete U+007F with no
+   modifier, Select All primary+A.
+4. 2.10 gains an arm: Shift, Control and Option + F10 in a window with no
+   context menu open no bar menu. New tests 2.16b
+   `aCommandsObservableWriteOutsideInputRedrawsTheBar` and 2.16c
+   `commandsDeclaredAfterOpenWindowDrawTheBarOnTheNextFrame`.
+5. The three documents describe the drawn bar (divergence 195, `SG-A`).
+
+**Cost if wrong.** None in behaviour: no source line moves, only tests and
+documents.
