@@ -308,3 +308,39 @@ Census: `closeout-public-api.sh` re-recorded, **3021** declarations (master 2977
 `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Divergences 175, 176
 added; the header's live count and next label are left for the merge to settle (this branch's
 reserved range is 175–184). Human checks group AS (AS1–AS10) owed.
+
+## §13 Branch checker (2026-10-09, on `24425d4`)
+
+Screen unlocked (lock probe: no `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`).
+
+- **Suite**: `swift package clean`, native build (0 `error:`, the one SwiftPM deprecation
+  `warning:`), unfiltered `swift test --build-system native --no-parallel`: "Test run with 3069
+  tests in 3 suites passed after 197.665 seconds" — the five sheet tests of §9 pass unlocked.
+  `FR-J no-argument frame: succeeded=true` present. `swift build --build-tests`: 0 warnings.
+  Green by name: `theSevenRetentionSlotsAreMutuallyDistinct`, `everyNamingSiteStartsAReturningNameFresh`,
+  `theWindowPreferenceScopesAreTransparent`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`.
+- **`Backends/SDL`** on macOS 24 + 108; CI's Linux image 24 + 105, 0 warnings; the root package in
+  `swift:6.4-noble` builds and runs 6 + 35 + 18 + 199 + 67 + 22 (master's figures, unmoved).
+- **Demo pixels**: `compare.sh <scratch> c62d6ba 2155f1e HEAD` — controls as recorded, 0 differing
+  pixels and an identical scene in all fourteen images on both legs.
+- **Census** re-run byte-identical (3021); inventory and undocumented checks print nothing;
+  `cmp CLAUDE.md AGENTS.md` identical; every `AS-` id cited resolves to a heading (`AS-A`…`AS-Q`,
+  next `AS-R`); every test name the branch's docs add resolves to a declaration.
+- **Two mutations of the checker's own**, each on the full unfiltered suite, source restored from a
+  copy, `git status` clean after each:
+
+| # | Mutation | Reddened |
+| --- | --- | --- |
+| MX1 | `AppKitWindow.setTitleBarStyle(_:)` no longer restores the frame (`AS-O` item 1) | `appKitHiddenTitleBarSetsSwiftUIsFlagsAndReportsTheBand` (line 158, the content growing by the band) |
+| MX2 | `App.open(_:)` delivers each URL to every window with a handler, not one (divergence 176) | `anOpenGoesToTheKeyWindowThenTheFirstWithAHandlerThenTheApp` (lines 130, 134, 139, 144) |
+
+- **No `NSDocumentClass` needed** (probe `appkit-open-without-document-class.swift`, new): a bundle
+  of MetalCreator's `.mcgraph` shape (role Editor, `LSHandlerRank` Owner, an exported type, no
+  `NSDocumentClass`) opened with `open -a` delivers the file to a delegate implementing
+  `application(_:open:)` with no window and no alert, at launch (`W0`) and while running (`W2`);
+  AppKit's "cannot open files" alert (`_NSAlertPanel`, modal) comes up only when the delegate does
+  not implement it (`W1`, the separating arm). `docs/packaging.md` and human check AS9 now say so;
+  the Finder double-click and the Dock drop stay AS9's.
