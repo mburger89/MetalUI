@@ -356,6 +356,7 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 @MainActor
 @Test func theMenuBarAndTheToolbarStripStackAboveTheRoot() throws {
     let (app, platform) = try barApp()
+    platform.windowsShowToolbars = false
     app.commands { tools(BarLog()) }
     let window = try app.openWindow(title: "Bar", size: Size(width: px(400), height: px(400)),
                                     windowResizability: .contentMinSize, startsDisplayLink: false) {
@@ -364,7 +365,6 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
         }
     }
     let fake = try #require(platform.openedWindows.last)
-    fake.toolbarIsNative = false
     window.recordsElementBounds = true
     redraw(window)
     redraw(window)

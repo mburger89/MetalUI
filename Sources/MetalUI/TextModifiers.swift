@@ -101,7 +101,10 @@ extension Text {
     /// **`nil` is the default font, not the inherited one** (F6c).
     public func font(_ font: Font?) -> Text {
         var copy = self
-        copy.fontRequest = font.map { .explicit($0) } ?? .defaultFont
+        // No closure (ruling `SG-J`): one here is main-actor isolated and
+        // checks its executor, so a tree setting a font built off the main
+        // thread (`everyProductionTreeBuildsOnAOneMegabyteThread`) trapped.
+        if let font { copy.fontRequest = .explicit(font) } else { copy.fontRequest = .defaultFont }
         return copy
     }
 
@@ -299,7 +302,10 @@ extension ProposalText {
     /// This text's own font; `nil` is the default font (F6b, F6c).
     public func font(_ font: Font?) -> ProposalText {
         var copy = self
-        copy.fontRequest = font.map { .explicit($0) } ?? .defaultFont
+        // No closure (ruling `SG-J`): one here is main-actor isolated and
+        // checks its executor, so a tree setting a font built off the main
+        // thread (`everyProductionTreeBuildsOnAOneMegabyteThread`) trapped.
+        if let font { copy.fontRequest = .explicit(font) } else { copy.fontRequest = .defaultFont }
         return copy
     }
 
@@ -336,7 +342,10 @@ extension TextField {
     /// The field's own font; `nil` is the default font (TE-F item 2).
     public func font(_ font: Font?) -> TextField {
         var copy = self
-        copy.fontRequest = font.map { .explicit($0) } ?? .defaultFont
+        // No closure (ruling `SG-J`): one here is main-actor isolated and
+        // checks its executor, so a tree setting a font built off the main
+        // thread (`everyProductionTreeBuildsOnAOneMegabyteThread`) trapped.
+        if let font { copy.fontRequest = .explicit(font) } else { copy.fontRequest = .defaultFont }
         return copy
     }
 }
@@ -345,7 +354,10 @@ extension TextEditor {
     /// The editor's own font; `nil` is the default font (TE-F item 2).
     public func font(_ font: Font?) -> TextEditor {
         var copy = self
-        copy.fontRequest = font.map { .explicit($0) } ?? .defaultFont
+        // No closure (ruling `SG-J`): one here is main-actor isolated and
+        // checks its executor, so a tree setting a font built off the main
+        // thread (`everyProductionTreeBuildsOnAOneMegabyteThread`) trapped.
+        if let font { copy.fontRequest = .explicit(font) } else { copy.fontRequest = .defaultFont }
         return copy
     }
 }

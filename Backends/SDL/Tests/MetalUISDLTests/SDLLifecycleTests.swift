@@ -35,7 +35,7 @@ private final class RecordingSDLPlatform: Platform {
     }
     func run() { base.run() }
     func setApplicationIcon(_ images: [ImageTexture]) { base.setApplicationIcon(images) }
-    func setMenuBar(_ menuBar: PlatformMenuBar) { base.setMenuBar(menuBar) }
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool { base.setMenuBar(menuBar) }
 }
 
 /// An `App` over a hidden-window `SDLPlatform`, drawing text with the

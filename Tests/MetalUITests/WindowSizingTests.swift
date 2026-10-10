@@ -403,6 +403,7 @@ private func chromeWindow(_ model: ChromeModel, drawn: Bool) throws -> (Window, 
         let platform = FakePlatform(device: device)
         platform.menuBarIsNative = barNative
         platform.windowSize = 400
+        platform.windowsShowToolbars = !stripDrawn
         let app = App(platform: platform)
         app.commands { CommandMenu("Tools") { Button("Go") {} } }
         let window = try app.openWindow(title: "Chrome", size: size(400, 400), startsDisplayLink: false) {
@@ -411,8 +412,6 @@ private func chromeWindow(_ model: ChromeModel, drawn: Bool) throws -> (Window, 
                     .toolbar { ToolbarItem { Button("Back") {} } }
             }
         }
-        let fake = try #require(platform.openedWindows.last)
-        fake.toolbarIsNative = !stripDrawn
         draw(window)
         draw(window)
         #expect(window.drawnChromeHeight == Pixels(expected),

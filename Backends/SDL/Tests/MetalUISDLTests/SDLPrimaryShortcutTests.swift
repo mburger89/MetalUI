@@ -34,7 +34,7 @@ private final class ShortcutSDLPlatform: Platform {
     }
     func run() { base.run() }
     func setApplicationIcon(_ images: [ImageTexture]) { base.setApplicationIcon(images) }
-    func setMenuBar(_ menuBar: PlatformMenuBar) { base.setMenuBar(menuBar) }
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool { base.setMenuBar(menuBar) }
 }
 
 @MainActor

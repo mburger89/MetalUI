@@ -32,7 +32,7 @@ public enum AppError: Error, CustomStringConvertible {
 @MainActor
 public final class App {
     let platform: any Platform
-    private var windows: [Window] = []
+    var windows: [Window] = []
     /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
     /// Whether closing the last window ends the process through AppKit.
@@ -43,6 +43,12 @@ public final class App {
     /// The command items' actions from the bar's last evaluation, by item id —
     /// what `PlatformMenuBar.perform` runs (spec §3.6).
     var menuBarActions: [Int: @MainActor () -> Void] = [:]
+    /// Whether the platform declined the menu bar at its last install, so the
+    /// app's windows draw it while it declares commands (ruling `SG-A` item 2).
+    var menuBarIsDrawn = false
+    /// The drawn bar's command actions from its last evaluation at an open,
+    /// by item id (`SG-A` item 8).
+    var drawnMenuBarActions: [Int: @MainActor () -> Void] = [:]
 
     #if canImport(MetalUIAppKit)
     /// The Metal device the AppKit platform draws with; `nil` for an app on
@@ -126,6 +132,9 @@ public final class App {
         // A command's shortcut reaches this window's command stage (ruling
         // `MN-J`), evaluated afresh at each keystroke that gets that far.
         window.commandShortcuts = { [weak self] in self?.enabledCommandShortcuts() ?? [] }
+        // The drawn menu bar (ruling `SG-A` item 2): every window, open and
+        // later, draws it where the platform declined it and commands exist.
+        window.drawnMenuBarSource = drawnMenuBarSource()
         // Closing the last window must end the process: there is no app
         // delegate, so on SDL this close button is the only way out (AppKit's
         // menu bar also has Quit since `MN-I` — this comment's earlier "no menu

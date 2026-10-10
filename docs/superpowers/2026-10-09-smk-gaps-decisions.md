@@ -9,7 +9,7 @@ Record: `../record/89-smk-gaps.md` (written in the Record phase). Branch
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
 
-**Next unused id: `SG-I`.**
+**Next unused id: `SG-K`.**
 
 ## The final spellings (what the configurator swaps its workarounds for)
 
@@ -518,3 +518,100 @@ reaches; key-focus (C9) changes `dispatchAction`/adds `dispatchKeyPress` in
 `Window.swift` but not the unclaimed-key stage F10 joins, and its `KF-X`
 reads `commandShortcuts`, which `SG-A` leaves unchanged.
 
+## SG-I — Lane 2, as built: the bar's naming arm, the title's spelling, the demo's modifier, the fakes
+
+**Found (lane 2, implementing `SG-A`).**
+
+1. Spec test 2.13 names mutation M2.13, "drop the `noteNamed`". `$menubar` is
+   one fixed name at its own position `(nil, 2)`; `noteNamed` departs a name
+   only when a **different** name is minted at the same position, so the
+   root's note can depart nothing and no arm can see it — exactly `MD-Z`
+   item 1's finding for `$toolbar`. The titles carry no state either (a
+   `Text` in an `onClick` frame), so no "starts fresh" reading exists for them.
+2. Legacy `Text.padding` takes one uniform `Pixels`, not `Edges`: spec §3.4
+   item 9's `Text(title).padding(h 8)` does not compile on the legacy `Text`.
+3. Spec §3.4 item 11 moves the demo's commands "verbatim", but they bind Say
+   Hello to `[.command, .shift]` — the Super key off Apple — while human check
+   SG2 (and the demo's new "⇧ + primary + H" line) expects Ctrl+Shift+H there.
+4. `FakePlatform.openWindow` made 64-point windows and left each window's
+   `toolbarIsNative` at its default; `App.openWindow` draws the first frame at
+   once, so a test could not choose a 400-point window or a declined toolbar
+   before that frame.
+5. Lane 1's verifier flagged lane 1's uncommitted edit of `Commands.swift`
+   (spec §4 gives it to lane 2); lane 1's committed fix left it out.
+
+**Ruling.**
+
+1. The root's `noteNamed` stays (every site minting a named id notes it,
+   `ID-R`; it marks `$menubar` produced). 2.13's arm in
+   `everyNamingSiteStartsAReturningNameFresh` pins the **titles' keying**: a
+   menu titled a, a, b, a gives the ids under `$menubar` a, a, b, a's sets —
+   the returning title has the id it left with, the replaced one another —
+   and the constant control one set. Its mutation is **M2.13b**, titles keyed
+   by index alone; M2.13 is run and recorded, expected green (an instrument
+   with nothing to see, not a finding).
+2. A title is `Text(title)` in `.frame(width: textWidth + 16, height: 24)` —
+   the text centred, so 8 a side, the same geometry — then `.background`
+   (`.accent` when open, `Color.clear` otherwise), `.onClick`,
+   `.accessibilityLabel`, `.accessibilityAddTraits(.isButton)`. The widths are
+   measured once per build (`MenuBarStrip.titleFrames`, the control font
+   through `Frame.textSystem`, rounded up) and are the rects the window keeps
+   for the anchor and hover switching.
+3. `installMenusDemoCommands(_:)` (in `MetalUIDemoContent`) binds Say Hello to
+   `[.primary, .shift]`; on macOS that is the old `[.command, .shift]`, so the
+   AppKit demo is unchanged; New Note keeps `.keyboardShortcut("n")`, now
+   `.primary` by `SG-B`. Reset Status is added, with no shortcut.
+4. `FakePlatform` gains `windowSize` (default 64) and `windowsShowToolbars`
+   (default `true`), applied in `openWindow`, beside `menuBarIsNative`
+   (default `true`); no existing test sees a change.
+5. `MenuBarModel.standard`'s default and Redo's modifiers become `.primary`
+   in lane 2's commit (both styles; value-identical on macOS), as spec §4 and
+   `SG-B` item 3 assign.
+6. `App.commands(content:)` marks every window dirty when the bar is drawn,
+   so a `commands` call after `openWindow` shows on the next frame; on AppKit
+   (the answer `true`) nothing changes.
+7. At an open, the drawn Edit items' `isEnabled` is overridden by the focused
+   text field rule (`SG-H` item 1) and their actions run
+   `Window.deliverStandardEditKey` through `PlatformWindow.onInput`, as
+   `AppKitMenus.deliverEditKey` does; command items run
+   `DrawnMenuBarSource.perform` — `App.drawnMenuBarActions`, the drawn
+   evaluation's own table, apart from AppKit's `menuBarActions` so an
+   AppKit-style `content()` never renumbers it. Both run under
+   `StateDispatch.dispatching(to: $menubar)` (`runMenuAction`).
+
+**Cost if wrong.** Item 1: a future title with state would need a real
+"starts fresh" arm. Item 2: a title wider than its share of the window is
+compressed by the `HStack` and its recorded rect is then wider than drawn —
+hover switching and the anchor use the recorded rect (clicks use the real
+hitboxes); a window narrower than its titles is outside the configurator's
+use.
+
+
+## SG-J — `Text.font(_:)` takes no closure: the menus demo's monospaced line trapped the 1 MB build
+
+**Found (lane 2's full suite).** With `SG-A`'s demo line
+(`Text("Shortcut: ⇧ + primary + H").font(.system(size: 12, design: .monospaced))`,
+spec §3.4 item 11) in `menusDemoContent()`,
+`everyProductionTreeBuildsOnAOneMegabyteThread` failed on macOS arm64 (the
+native unfiltered run, 2910 tests, its one issue) and in `swift:6.4-noble`
+aarch64 alike: `expected exit status ".success", but ".signal(SIGTRAP)"`.
+Not the stack: moving the menus demo into its own `@inline(never)` frame (the
+`CI-AI` remedy) still trapped, and `menusDemoContent()` built on the main
+thread passed. Run on a 1 MB secondary thread outside an exit test, the
+backtrace reads `closure #1 in Text.font(_:)` (`TextModifiers.swift:104`) ←
+`menusShortcutLine()` ← `menusDemoContent()`: the `font.map { .explicit($0) }`
+closure inherits the main actor and checks its executor, and the harness
+builds the trees on a secondary thread with the isolation cast away. The
+menus line is the first `Text.font(Font)` call in any production tree (the
+others use the legacy `.font(size:)`), so no earlier tree reached it.
+
+**Ruling.** The four `font(_ font: Font?)` bodies in `TextModifiers.swift`
+(`Text`'s, `ProposalText`'s, `TextField`'s and `TextEditor`'s) assign through `if let`/`else` — the same
+values, no closure. No public signature, no behaviour on the main thread
+moves; the demo line stays (human check SG4 needs it). The 1 MB test's
+harness is unchanged.
+
+**Cost if wrong.** None on a real app (trees build on the main actor). A
+future production tree that reaches another isolated closure in a modifier
+traps the same test with the same signal; the backtrace above is how to find
+it.

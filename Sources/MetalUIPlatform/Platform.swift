@@ -265,20 +265,25 @@ public protocol Platform: AnyObject {
     /// `func setApplicationIcon(_: [ImageTexture]) {}`.
     func setApplicationIcon(_ images: [ImageTexture])
 
-    /// Installs the application's menu bar (ruling `MN-I`): AppKit builds
-    /// `NSApp.mainMenu` from `menuBar.content()`, rebuilding a menu each time
-    /// it opens, and runs a chosen command item through `menuBar.perform`;
-    /// SDL records it and draws nothing (Linux and Windows SDL windows have no
-    /// menu bar — a command's shortcut still works through `Window`, `MN-J`).
-    /// `App` calls it once at init and again from `App.commands(content:)`; a
-    /// later call replaces the bar.
+    /// Installs the application's menu bar (rulings `MN-I`, `SG-A`) and
+    /// answers whether the platform shows it: `true` when it does — AppKit
+    /// builds `NSApp.mainMenu` from `menuBar.content()`, rebuilding a menu
+    /// each time it opens, and runs a chosen command item through
+    /// `menuBar.perform` — `false` when it cannot, and MetalUI draws the bar
+    /// inside every window of an app that declared `commands` (SDL: SDL3 has
+    /// no menu-bar API; it still records the bar). A command's shortcut works
+    /// through `Window` either way (`MN-J`). `App` calls it once at init and
+    /// again from `App.commands(content:)`; a later call replaces the bar.
     ///
     /// **No default implementation** (`AB-R`/`EV-AB`/`DN-C`'s reason): a
     /// conformer that forgets it fails to compile rather than silently showing
-    /// no menu bar. Pinned by `aPlatformWithoutSetMenuBarDoesNotCompile`.
-    /// **Migration**: a conformer outside this repository adds
-    /// `func setMenuBar(_: PlatformMenuBar) {}`.
-    func setMenuBar(_ menuBar: PlatformMenuBar)
+    /// no menu bar. Pinned by `aPlatformWithoutSetMenuBarDoesNotCompile` and,
+    /// for the answer, `aPlatformWhoseSetMenuBarReturnsNothingDoesNotConform`.
+    /// **Migration** (`SG-A` item 1): a conformer outside this repository
+    /// changes `func setMenuBar(_: PlatformMenuBar) {}` to
+    /// `func setMenuBar(_: PlatformMenuBar) -> Bool { false }` — or `true` if
+    /// it shows a bar itself.
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool
 }
 
 /// Why a platform could not open a window.

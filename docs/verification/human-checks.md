@@ -1061,6 +1061,40 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, settled at the merge)
+
+Rulings `SG-A`…`SG-I`, record §89. On Linux and Windows an app declaring
+`commands` draws its menu bar in every window (divergence 195); a shortcut
+written without modifiers is Ctrl there; `SystemFonts.resolver()` registers
+the platform's monospaced and serif families. Run the SDL demo from
+`Backends/SDL`: `METALUI_MENUS_DEMO=1 METALUI_SYSTEM_FONTS=1 swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo`. Pinned
+headless: the bar's layout, titles, opening, switching, F10, Edit delivery and
+the chrome height over a fake platform (`MenuBarStripTests`, 2.3–2.16), a real
+SDL window's click path (`anSDLWindowDrawsTheCommandsAndAClickRunsOne`, 2.18).
+What nothing headless sees: the bar's look, real pointer and keyboard on a
+desktop, the monospaced face on screen, a Windows release build.
+
+- [ ] **SG1. Linux and Windows, the menus demo.** A menu bar shows File (New
+  Note), Edit and Demo; clicking a title opens its menu under it; moving the
+  pointer across titles switches menus; Left/Right switch; F10 opens Edit;
+  Escape closes; Demo ▸ Reset Status (no shortcut) sets the status line.
+  **Observed:**
+- [ ] **SG2.** Ctrl+Shift+H runs Say Hello; Super/Win+Shift+H does not; the
+  Demo menu shows "Ctrl+Shift+H". **Observed:**
+- [ ] **SG3.** In the popover's focused text field, Edit ▸ Copy, Paste and
+  Select All work; with no field focused the Edit items are greyed out.
+  **Observed:**
+- [ ] **SG4.** The "Shortcut:" line draws in DejaVu Sans Mono (Linux) /
+  Cascadia Mono or Consolas (Windows) — monospaced, not the UI face.
+  **Observed:**
+- [ ] **SG5.** The bar and a toolbar together (the services demo with
+  commands, or an app with both): bar on top, strip below, content below both;
+  resizing to the minimum keeps the content's minimum visible. **Observed:**
+- [ ] **SG6. Windows ARM64 and x64.** `swift build -c release` of the SMK
+  configurator (or the `SG-E` fixture) builds, or fails exactly as `SG-E`
+  documents. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

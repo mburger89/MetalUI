@@ -172,6 +172,19 @@ public struct CommandGroupPlacement: Sendable, Hashable {
 
 // MARK: - The menu bar's model (spec §3.6)
 
+/// Which arrangement a `MenuBarModel` builds (ruling `SG-A` item 3).
+enum MenuBarStyle {
+    /// The Mac's: the application menu, File, Edit, the `CommandMenu`s,
+    /// Window and Help — what AppKit shows (`MN-I` item 2), unchanged.
+    case appKit
+    /// The desktop convention a drawn bar follows (Windows, GNOME): no
+    /// application menu; File holds the new-item group and the additions at
+    /// `.appVisibility` and `.appTermination`; Edit; the `CommandMenu`s;
+    /// Window only with additions; Help holds the help group and the additions
+    /// at `.appInfo`; a menu left empty is not shown.
+    case drawn
+}
+
 /// One evaluation of the menu bar (spec §3.6): its menus, every enabled command
 /// item's action by id, and the enabled command shortcuts in menu order.
 @MainActor
@@ -179,16 +192,23 @@ struct MenuBarModel {
     var menus: [PlatformMenu] = []
     var actions: [Int: @MainActor () -> Void] = [:]
     var shortcuts: [(KeyboardShortcut, @MainActor () -> Void)] = []
+    /// The ids of `Toggle` items, which a drawn menu publishes as
+    /// `.menuItemCheckBox` (`MN-R`).
+    var toggles: Set<Int> = []
     private var next = 1
 
     /// The entries `commands(content:)` declared.
     private let entries: [CommandEntry]
 
-    /// Evaluates `entries` against the standard menus (`MN-I` item 2): ids
-    /// depth-first in menu order, so an unchanged structure numbers the same
-    /// at every evaluation.
-    init(entries: [CommandEntry], appName: String) {
+    /// Evaluates `entries` against the standard menus (`MN-I` item 2) in
+    /// `style`'s arrangement (`SG-A` item 3): ids depth-first in menu order,
+    /// so an unchanged structure numbers the same at every evaluation.
+    init(entries: [CommandEntry], appName: String, style: MenuBarStyle = .appKit) {
         self.entries = entries
+        if style == .drawn {
+            buildDrawn()
+            return
+        }
         // Each group's standard items are numbered before its additions, in
         // locals: a mutating call cannot take another mutating call's result
         // as an argument (overlapping access to `self`).
@@ -202,7 +222,7 @@ struct MenuBarModel {
         let newItem = group(.newItem, [])
         let close = [standard("Close", .close, "w")]
         appendMenu("File", groups: [newItem, close])
-        let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.command, .shift])]
+        let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.primary, .shift])]
         let pasteboard = [standard("Cut", .cut, "x"), standard("Copy", .copy, "c"), standard("Paste", .paste, "v"),
                           standard("Delete", .delete), standard("Select All", .selectAll, "a")]
         let editGroups = [group(.undoRedo, undoRedo), group(.pasteboard, pasteboard)]
@@ -219,9 +239,38 @@ struct MenuBarModel {
         if !help.isEmpty { appendMenu("Help", groups: [help]) }   // shown only when something is placed
     }
 
-    /// A standard item: the platform's own command, its shortcut shown.
+    /// The drawn arrangement (`SG-A` item 3): the standard items of the
+    /// application, File and Window menus dropped (no `PlatformWindow`
+    /// minimise, zoom, close or quit exists — `SG-A` item 11), their
+    /// placements' additions kept; the Edit menu as AppKit's, its standard
+    /// items replaceable exactly as there (`SG-H` item 3); an empty menu
+    /// dropped.
+    private mutating func buildDrawn() {
+        let newItem = group(.newItem, [])
+        let visibility = group(.appVisibility, [])
+        let termination = group(.appTermination, [])
+        appendMenu("File", groups: [newItem, visibility, termination], dropsEmpty: true)
+        let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.primary, .shift])]
+        let pasteboard = [standard("Cut", .cut, "x"), standard("Copy", .copy, "c"), standard("Paste", .paste, "v"),
+                          standard("Delete", .delete), standard("Select All", .selectAll, "a")]
+        let editGroups = [group(.undoRedo, undoRedo), group(.pasteboard, pasteboard)]
+        appendMenu("Edit", groups: editGroups, dropsEmpty: true)
+        for case .menu(let name, let content) in entries {
+            let items = number(content().menuNodes(isEnabled: true), enabled: true)
+            appendMenu(name, groups: [items], dropsEmpty: true)
+        }
+        let size = group(.windowSize, [])
+        let arrangement = group(.windowArrangement, [])
+        appendMenu("Window", groups: [size, arrangement], dropsEmpty: true)
+        let help = group(.help, [])
+        let info = group(.appInfo, [])
+        appendMenu("Help", groups: [help, info], dropsEmpty: true)
+    }
+
+    /// A standard item: the platform's own command, its shortcut shown — on
+    /// `.primary` unless given (`SG-B` item 3: ⌘ on Apple, Ctrl elsewhere).
     private mutating func standard(_ title: String, _ action: StandardMenuAction, _ key: String? = nil,
-                                   _ modifiers: Modifiers = .command) -> PlatformMenuItem {
+                                   _ modifiers: Modifiers = .primary) -> PlatformMenuItem {
         defer { next += 1 }
         return PlatformMenuItem(id: next, kind: .action, title: title,
                                 shortcut: key.map { PlatformKeyEquivalent(key: $0, modifiers: modifiers) },
@@ -247,8 +296,9 @@ struct MenuBarModel {
     }
 
     /// A top-level menu of `groups`, a separator between each two non-empty
-    /// ones (the PLAIN arm's separators).
-    private mutating func appendMenu(_ title: String, groups: [[PlatformMenuItem]]) {
+    /// ones (the PLAIN arm's separators); with `dropsEmpty`, not appended when
+    /// it holds nothing (the drawn style, `SG-A` item 3).
+    private mutating func appendMenu(_ title: String, groups: [[PlatformMenuItem]], dropsEmpty: Bool = false) {
         var items: [PlatformMenuItem] = []
         for group in groups where !group.isEmpty {
             if !items.isEmpty {
@@ -257,6 +307,7 @@ struct MenuBarModel {
             }
             items += group
         }
+        if dropsEmpty && items.isEmpty { return }
         menus.append(PlatformMenu(token: 0, title: title, items: items))
     }
 
@@ -277,6 +328,7 @@ struct MenuBarModel {
             case .text:
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: false)
             case .action, .toggle:
+                if case .toggle = node.kind { toggles.insert(id) }
                 if isEnabled, let run = node.run {
                     actions[id] = run
                     if let shortcut = node.shortcut { shortcuts.append((shortcut, run)) }
@@ -304,24 +356,54 @@ extension App {
     /// `.keyboardShortcut` fires in every window of this app when nothing in
     /// the window claims the key first — its keymap, a focused field, a raw
     /// `onKey`, a `Button`'s shortcut (`MN-J`) — once either way. On AppKit the
-    /// bar is `NSApp.mainMenu`; on SDL (Linux, Windows) no bar is drawn and the
-    /// shortcuts still work (`MN-I` item 3).
+    /// bar is `NSApp.mainMenu`. **Where the platform declines a menu bar** (SDL:
+    /// Linux, Windows) every window of the app draws it — a 25-point strip
+    /// across the window's top, above a drawn toolbar strip, in the desktop
+    /// arrangement: no application menu, File only with additions, Edit, these
+    /// `CommandMenu`s, Window only with additions, Help with the `.help` and
+    /// `.appInfo` additions (ruling `SG-A`, divergence 195). A title opens its
+    /// menu on a click, F10 opens the first; Edit's items reach the focused
+    /// text field as their keys. An app that never calls `commands` draws no
+    /// bar.
     public func commands<C: Commands>(@CommandsBuilder content: @escaping @MainActor () -> C) {
         commandsContent = { content() }
         installMenuBar()
+        if menuBarIsDrawn { for window in windows { window.setNeedsRedraw() } }   // the bar on the next frame
     }
 
-    /// Hands the platform the bar (`MN-I` items 3–4): called once by every
-    /// initialiser and again by `commands(content:)`.
+    /// Hands the platform the bar (`MN-I` items 3–4) and keeps its answer
+    /// (`SG-A` item 2): called once by every initialiser and again by
+    /// `commands(content:)`.
     func installMenuBar() {
-        platform.setMenuBar(PlatformMenuBar(content: { [weak self] in self?.menuBarContent() ?? [] },
-                                            perform: { [weak self] id in self?.menuBarActions[id]?() }))
+        menuBarIsDrawn = !platform.setMenuBar(PlatformMenuBar(
+            content: { [weak self] in self?.menuBarContent() ?? [] },
+            perform: { [weak self] id in self?.menuBarActions[id]?() }))
     }
 
-    /// One evaluation of the bar (spec §3.6).
-    func evaluateMenuBar() -> MenuBarModel {
+    /// One evaluation of the bar (spec §3.6) in `style`'s arrangement.
+    func evaluateMenuBar(style: MenuBarStyle = .appKit) -> MenuBarModel {
         MenuBarModel(entries: commandsContent?()._commandEntries().entries ?? [],
-                     appName: ProcessInfo.processInfo.processName)
+                     appName: ProcessInfo.processInfo.processName, style: style)
+    }
+
+    /// What every window of this app draws its menu bar from (`SG-A` item 2):
+    /// titles only while the platform declined the bar and commands are
+    /// declared — read afresh at each build, so `commands(content:)` called
+    /// after `openWindow` takes effect — and the drawn menus at an open, their
+    /// command items' actions kept for `perform`.
+    func drawnMenuBarSource() -> DrawnMenuBarSource {
+        DrawnMenuBarSource(
+            titles: { [weak self] in
+                guard let self, self.menuBarIsDrawn, self.commandsContent != nil else { return nil }
+                return self.evaluateMenuBar(style: .drawn).menus.map(\.title)
+            },
+            menus: { [weak self] in
+                guard let self else { return ([], []) }
+                let model = self.evaluateMenuBar(style: .drawn)
+                self.drawnMenuBarActions = model.actions
+                return (model.menus, model.toggles)
+            },
+            perform: { [weak self] id in self?.drawnMenuBarActions[id]?() })
     }
 
     /// The bar's menus as they are now, keeping their command items' actions

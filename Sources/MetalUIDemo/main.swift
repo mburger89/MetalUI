@@ -77,16 +77,7 @@ func runDemo() throws {
     } else if servicesDemo {
         window = try openServicesDemoWindow(app, title: "MetalUI — Platform Services")
     } else if menusDemo {
-        app.commands {
-            CommandMenu("Demo") {
-                Button("Say Hello") { menusDemoModel.status = "Hello from the menu bar" }
-                    .keyboardShortcut("h", modifiers: [.command, .shift])
-                Toggle("Pinned", isOn: menusDemoPinned())
-            }
-            CommandGroup(after: .newItem) {
-                Button("New Note") { menusDemoModel.status = "New Note from the menu bar" }.keyboardShortcut("n")
-            }
-        }
+        installMenusDemoCommands(app)   // the Demo menu and New Note (SG-A; MetalUIDemoContent)
         window = try app.openWindow(title: "MetalUI — Menus",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: menusDemoContent)

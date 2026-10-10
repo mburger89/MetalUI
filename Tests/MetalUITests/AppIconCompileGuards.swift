@@ -24,7 +24,7 @@ private func conformer(member: String) -> String {
             throw PlatformError.windowCreationFailed
         }
         func run() {}
-        func setMenuBar(_: PlatformMenuBar) {}
+        func setMenuBar(_: PlatformMenuBar) -> Bool { false }
     \(member)
     }
     """

@@ -1006,11 +1006,13 @@ public final class AppKitPlatform: Platform {
     /// items on AppKit's own selectors (the application menu's targeting
     /// `NSApp`, the rest the responder chain — the host view answers the Edit
     /// items, `MN-K`), command items running `menuBar.perform`. A later call
-    /// replaces the bar.
-    public func setMenuBar(_ menuBar: PlatformMenuBar) {
+    /// replaces the bar. Answers `true`: AppKit shows the bar itself, so no
+    /// window draws one (`SG-A` item 1).
+    public func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool {
         let bar = AppKitMenuBar(menuBar)
         installedMenuBar = bar
         NSApplication.shared.mainMenu = bar.makeMainMenu()
+        return true
     }
 
     /// Runs `NSApplication`'s event loop; returns when the application stops.

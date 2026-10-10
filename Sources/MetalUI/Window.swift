@@ -734,10 +734,12 @@ public final class Window {
     private var lastBuildDrewToolbarStrip = false
 
     /// The height MetalUI draws above the root in this window, in window
-    /// points (ruling `SG-F` item 1): the drawn toolbar strip (`MD-K`, 39 —
-    /// on a platform whose `setToolbar` declines, SDL) as the last adopted
-    /// frame laid it out; **0** where the platform shows its own toolbar
-    /// (AppKit), with no toolbar, and before the first frame. The root is laid
+    /// points (ruling `SG-F` item 1): the drawn menu bar (`SG-A`, 25 — on a
+    /// platform whose `setMenuBar` declines, SDL, in an app that declared
+    /// `commands`) plus the drawn toolbar strip below it (`MD-K`, 39 — where
+    /// `setToolbar` declines) as the last adopted frame laid them out: 0, 25,
+    /// 39 or 64. **0** where the platform shows its own bar and toolbar
+    /// (AppKit), with neither, and before the first frame. The root is laid
     /// out in the rect below it, and an explicit ``minSize``/``maxSize`` is a
     /// size of that rect. Read-only; MetalUI-only.
     public var drawnChromeHeight: Pixels { Pixels(drawnChromeHeightValue) }
@@ -1053,6 +1055,13 @@ public final class Window {
             // before Tab traversal. **Migration**: a key a command binds no
             // longer reaches Tab traversal or the window's own `onInput`.
             if self.dispatchCommandShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // F10 opens the drawn menu bar's first menu (ruling `SG-A` item
+            // 8): an unclaimed-key stage after the commands, beside Tab
+            // traversal — every earlier stage sees the key first.
+            if self.dispatchMenuBarKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1656,12 +1665,20 @@ public final class Window {
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
         frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
+        if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
+            frame.menuBarOpenIndex = session.barIndex
+        }
+        frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
             // phases is tracked too, which is what makes an `@Observable`
             // model a dependency with no opt-in.
             _ = redrawSentinel.tick
+            // The drawn menu bar's titles, evaluated for every build (`SG-A`
+            // item 9) and inside the tracking, so a command's `@Observable`
+            // read redraws the window as the tree's does. Writes nothing.
+            frame.menuBarTitles = drawnMenuBarSource?.titles()
             renderRoot(frame)
         } onChange: { [weak self] in
             self?.markDirtyFromObservation()
@@ -1676,7 +1693,10 @@ public final class Window {
         presentations.records = frame.presentationRecords   // SV-K item 2
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
-        drawnChromeHeightValue = frame.drewToolbarStrip ? ToolbarStrip.height : 0   // SG-F item 1
+        drawnChromeHeightValue = (frame.drewToolbarStrip ? ToolbarStrip.height : 0)
+            + (frame.drewMenuBar ? MenuBarStrip.height : 0)   // SG-F item 1
+        lastMenuBarTitles = frame.drewMenuBar ? frame.menuBarTitles ?? [] : []   // SG-A
+        lastMenuBarTitleFrames = frame.drewMenuBar ? frame.menuBarTitleFrames : []
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -2178,6 +2198,40 @@ public final class Window {
     /// Hitboxes the pointer-style recomputes visited, ever — test observability
     /// for the counted work (test 3.25).
     var pointerStyleVisits = 0
+
+    /// What this window draws its menu bar from (ruling `SG-A` item 2): set
+    /// by `App.openWindow`; `nil` for a window built without an `App`, whose
+    /// source's titles are `nil` while the platform shows the bar or no
+    /// commands are declared.
+    var drawnMenuBarSource: DrawnMenuBarSource?
+
+    /// The drawn bar's titles and their rects as the last adopted frame laid
+    /// them out — empty with no bar (`SG-A` items 5, 8).
+    var lastMenuBarTitles: [String] = []
+    var lastMenuBarTitleFrames: [Bounds<Pixels>] = []
+
+    /// Delivers a drawn standard Edit item as its own key through this
+    /// window's key pipeline, from input (`SG-A` item 4, `SG-H` item 2) —
+    /// the seven keys `AppKitMenus.deliverEditKey` delivers on AppKit:
+    /// primary + Z, primary + ⇧Z, primary + X/C/V/A, and Delete as `\u{7f}`
+    /// with no modifiers — so a focused field handles both bars' Edit items
+    /// through one path.
+    func deliverStandardEditKey(_ action: StandardMenuAction) {
+        let key: String
+        let modifiers: Modifiers
+        switch action {
+        case .undo: (key, modifiers) = ("z", .primary)
+        case .redo: (key, modifiers) = ("z", [.primary, .shift])
+        case .cut: (key, modifiers) = ("x", .primary)
+        case .copy: (key, modifiers) = ("c", .primary)
+        case .paste: (key, modifiers) = ("v", .primary)
+        case .selectAll: (key, modifiers) = ("a", .primary)
+        case .delete: (key, modifiers) = ("\u{7f}", [])
+        default: return
+        }
+        _ = platformWindow.onInput?(.keyDown(KeyEvent(charactersIgnoringModifiers: key, characters: key,
+                                                      modifiers: modifiers, timestamp: lastTick)))
+    }
 
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the

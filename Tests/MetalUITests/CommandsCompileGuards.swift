@@ -105,7 +105,7 @@ private func conformer(member: String) -> String {
 func aPlatformWithoutSetMenuBarDoesNotCompile() throws {
     let without = try typecheckFile(conformer(member: ""), importing: "MetalUIPlatform")
     let with = try typecheckFile(conformer(member: """
-            func setMenuBar(_: PlatformMenuBar) {}
+            func setMenuBar(_: PlatformMenuBar) -> Bool { false }
         """), importing: "MetalUIPlatform")
     print("""
         MN-I member required: without succeeded=\(without.succeeded) \
