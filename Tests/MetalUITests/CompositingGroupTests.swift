@@ -311,3 +311,40 @@ private struct TapCounter: ProposalElement {
     #expect(grouped.blurred == area, "one padded mask: \(grouped.blurred) vs \(area)")
     #expect(grouped.blurred < plain.blurred, "less work than per leaf: \(grouped.blurred) vs \(plain.blurred)")
 }
+
+// MARK: - L2.12 (PF-E, the inner clip through the scope)
+
+/// A 60 × 60 square clipped to its left 30 points.
+@MainActor private func clippedSquare() -> some Element & ProposalElementGroup {
+    Color(.accent).frame(width: px(60), height: px(60))
+        .frame(width: px(30), height: px(60)).clipped()
+}
+
+/// **L2.12** (`PF-E` item 2). A `.clipped()` inside a composited, shadowed
+/// group keeps its mask when the composite's captures pass through the shadow
+/// (`PaintScope.captureDepths`, `insertThroughScopes(leaf:depths:)`): the
+/// group's shadow is the per-leaf shadow texel for texel — 30 wide, offset 10,
+/// alpha 0 where the unclipped square would reach. Mutation **Xa** (the depths
+/// dropped: the group's shadow reads 60 wide).
+@Test @MainActor func aClipInsideACompositingGroupCutsItsShadow() throws {
+    let per = gxImages(effectFrame(clippedSquare()
+        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene())
+    let group = gxImages(effectFrame(clippedSquare().compositingGroup()
+        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene())
+    try #require(per.count == 1 && group.count == 1,
+                 "one shadow each: \(per.map { gxDescribe($0.image.bounds) }) / \(group.map { gxDescribe($0.image.bounds) })")
+    let b = per[0].image.bounds
+    try #require(b.size.width == 30 && b.size.height == 60, "the per-leaf shadow is clipped: \(gxDescribe(b))")
+    #expect(group[0].image.bounds.size.width == 30, "the group's shadow is clipped: \(gxDescribe(group[0].image.bounds))")
+    var diff = 0
+    var outside = 0
+    let x0 = Int(b.origin.x), y0 = Int(b.origin.y)
+    for y in y0 - 20..<y0 + Int(b.size.height) + 20 {
+        for x in x0 - 20..<x0 + 60 + 20 {
+            if gxAlpha(per[0], x, y) != gxAlpha(group[0], x, y) { diff += 1 }
+            if x >= x0 + 30, gxAlpha(group[0], x, y) != 0 { outside += 1 }
+        }
+    }
+    #expect(diff == 0, "texel for texel: \(diff) differ")
+    #expect(outside == 0, "nothing past the clip: \(outside) texels")
+}

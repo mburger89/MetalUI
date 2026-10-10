@@ -257,13 +257,17 @@ not shifted by `S` (L1.1 bounds); **M1g** counter not incremented (L1.13);
 - **L2.10** legacy `compositingGroup()` in written order (divergence 108).
 - **L2.11** 9-leaf node with `.compositingGroup().shadow(radius: 10)` blurs one
   mask (blurred pixels = one padded area).
+- **L2.12** a `.clipped()` leaf inside `.compositingGroup().shadow(...)` casts
+  the per-leaf shadow texel for texel (30 wide, alpha 0 past the clip): the
+  captures carry their clip depths through the enclosing scope.
 - **Guard** `compositingGroup` spellable on both vocabularies under a plain
   import (`typecheckFile`), mutated red once.
 
 Mutations: **M2a** `(sum + half)` → `sum` (L2.1); **M2b** vertical running sum
 off by one row (L2.1); **M2c** composite forwards per primitive (L2.3, L2.11);
 **M2d** composite always pushed (L2.5); **M2e** barrier ignored (L2.8);
-**M2f** no identity level (L2.6).
+**M2f** no identity level (L2.6); **Xa** (lane 2 verifier) the captures'
+depths dropped, `insertThroughScopes(leaf: scope.captures)` (L2.12).
 
 ## 9. Deferrals and named limits
 
