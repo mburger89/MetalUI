@@ -438,6 +438,35 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }
     }
 
+    // Key and focus scoping (ruling `KF-H`, spec test C6): the proposal
+    // `KeyboardModifier` is its own handler-registering site. Its press region
+    // (`.focusable(interactions: .edit)`) and its focusability are inside the
+    // one disabled gate: the control's press focuses it and a key reaches its
+    // `onKeyPress`; disabled, the press focuses nothing and the key is heard by
+    // no one. Mutation: `KeyboardModifier` registers past the gate (the
+    // disabled arm hears the key).
+    func keyed<Root: Element>(_ content: @escaping @MainActor () -> Root) throws -> Int {
+        log.names.removeAll()
+        let (window, platform) = try makeFakeWindow(device: device, size: 100, content: content)
+        window.drawFrameIfNeeded()
+        click(platform, at: pt(50, 50))
+        window.drawFrameIfNeeded()
+        platform.simulateInput(key("q"))
+        return log.count("keyboard-proposal")
+    }
+    for d in [false, true] {
+        let heard = try keyed {
+            HStack {
+                Rectangle(width: px(100), height: px(100))
+                    .focusable(interactions: .edit)
+                    .onKeyPress { _ in log.names.append("keyboard-proposal"); return .handled }
+                    .disabled(d)
+            }
+        }
+        #expect(heard == (d ? 0 : 1),
+                "keyboard-proposal: disabled \(d) — the press focused and the key was heard \(heard) times")
+    }
+
     // EV-X: after the scope fires (O2); the same layers with the scope written
     // last do not (O1), and that spelling's own control does.
     let after = try fired("after", at: pt(10, 50)) {

@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-Z`.**
+**Next unused id: `KF-AA`.**
 
 ## The final spellings (what an app writes)
 
@@ -941,3 +941,48 @@ app command's ⌘-key — MetalCreator's palette and viewport both carry one.
    `aZeroTimestampFrameDoesNotFixTheClockOffset`; T5b →
    `anEqualEarliestEntryKeepsThePendingWake`; Bx-order-forward →
    `geometryActionsRunChildrenFirst`.
+
+## KF-Z — Lane C: the contextual-type overload, and a shortcut-modified Return in a `TextEditor`
+
+**Ruling.**
+
+1. **A contextual type can select the generic overload** (amends `KF-H`
+   item 2's guard). On a `KeyboardModifier` the keyboard modifiers return
+   `Self` and overload resolution prefers them, so a chain an app writes with
+   no contextual type is one layer. But a chain annotated with the nested
+   type — `let x: KeyboardModifier<KeyboardModifier<MetalView>> = MetalView
+   { … }.focusable().hoverKeyRegion()` — **compiles**: the annotation selects
+   `ProposalElementGroup`'s `hoverKeyRegion` for the last call (measured
+   against the lane C stub: `G3`'s separating arm as the spec wrote it
+   compiled, `negative succeeded=true`). Nothing an app writes by accident
+   reaches it, and excluding a type from a generic extension is not
+   expressible in Swift. Guard C8 therefore infers the chain first and
+   converts the inferred value: to `KeyboardModifier<MetalView>` it compiles,
+   to the nested type it does not (`cannot assign value of type
+   'KeyboardModifier<MetalView>'`).
+2. **A Return with the platform's shortcut modifier is not an editing key in
+   a `TextEditor`** (MetalCreator CM-a; names *text input* from the
+   must-not-move list). At `c62d6ba` a focused `TextEditor` inserted a line
+   break for ⌘↩ (⌃↩ off macOS) exactly as for Return, so the key never reached
+   `onKey`, a `Button`'s `.keyboardShortcut(.return, modifiers: .command)`,
+   the app's commands or `Window.onInput`. Now `TextEditing.handleKey`'s
+   multi-line branch declines Return (and Enter, `\u{3}`) when the modifiers
+   contain the shortcut modifier (`.command` on macOS, `.control` elsewhere —
+   the same choice as its ⌘A/⌘C/⌘V table): the key passes on through the
+   later stages. Plain Return, ⇧↩ and ⌥↩ still insert a line break (`TI-H`).
+   A `TextField`'s Return (submit) is unchanged. **The commit spelling** is
+   `.onKeyPress(keys: [.return]) { press in press.modifiers.contains(.command)
+   ? commit() : .ignored }` on the `TextEditor` (it runs before the field's
+   editing keys, `KF-C`); a declined ⌘↩ now reaches the window. MetalUI's own
+   rule — SwiftUI's and `NSTextView`'s ⌘↩ are unmeasured (no probe claim is
+   made). Pins: `aTextEditorsOnKeyPressTakesCommandReturnAndPlainReturnStillBreaksTheLine`
+   and `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput` (red at
+   the lane C red commit: `m.log → ["heard"]`, `m.text → "ab\n"`).
+   **Migration**: an app that relied on ⌘↩ (⌃↩) inserting a line break in a
+   `TextEditor` binds it with `onKeyPress` and inserts the break itself.
+3. **The concrete-helper arm of guard C1** is a `Component` whose content is
+   proposal (`struct Label: Component`), the spelling an app writes; the
+   spec's `struct Label: Element` would need the four `Element` requirements
+   by hand. Its fixtures use `.offset(x:)`, not `.padding(2)` (the proposal
+   `padding` takes `Edges`; the first draft failed for that, not the opaque
+   type).

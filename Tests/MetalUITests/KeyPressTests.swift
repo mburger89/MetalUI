@@ -152,7 +152,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 }
 
 /// **A5** (K2w). On one element the later-written `onKeyPress` runs first —
-/// the `StyledElement` arm (lane C adds the `KeyboardModifier` arm, C7).
+/// the `StyledElement` arm, and lane C's `KeyboardModifier` arm (C7).
 /// Red before: `[]`. Mutation: run one element's handlers in written order.
 @MainActor
 @Test func theLaterOnKeyPressOnOneElementRunsFirst() throws {
@@ -167,6 +167,22 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     try focusFirst(window)
     platform.simulateInput(kd("q"))
     #expect(m.log == ["second", "first"], "last written first (K2w): \(m.log)")
+
+    // **C7** (lane C, `KF-H` item 2): the `KeyboardModifier` arm — two
+    // `onKeyPress` on one proposal layer, the later-written first. Mutation:
+    // `KeyboardModifier.addingKeyPress` prepends (runs the layer's handlers in
+    // written order).
+    let p = KPLog()
+    let (proposal, proposalPlatform) = try kpWindow {
+        HStack {
+            Rectangle(width: px(20), height: px(20)).focusable()
+                .onKeyPress { _ in p.log.append("first"); return .ignored }
+                .onKeyPress { _ in p.log.append("second"); return .ignored }
+        }
+    }
+    try focusFirst(proposal)
+    proposalPlatform.simulateInput(kd("q"))
+    #expect(p.log == ["second", "first"], "last written first on one keyboard layer (K2w): \(p.log)")
 }
 
 // MARK: - A6–A8: before the field's editing keys
