@@ -112,8 +112,9 @@ public final class LayoutTree {
     /// tree is reachable after `Frame.render`. A test observable with no
     /// production reader, pinned by
     /// `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` and
-    /// `nativeLayoutWorkIsPerCall`.
-    private(set) var lastNativeLayoutWork = NativeLayoutWork()
+    /// `nativeLayoutWorkIsPerCall`. Its getter is **`package`** since the
+    /// test harness (`HT-C` item 2): `TestingHooks.swift` reads it.
+    package private(set) var lastNativeLayoutWork = NativeLayoutWork()
 
     /// The deepest native recursion level the last native layout call reached —
     /// `NativeLayoutRun`'s own `depth` at its maximum, the quantity its `maxDepth`
