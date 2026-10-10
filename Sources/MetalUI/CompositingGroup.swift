@@ -58,6 +58,27 @@ extension Frame {
     /// collected primitives, in order, go through the scopes outside it as one
     /// leaf (`insertThroughScopes(leaf:depths:)`).
     func paintWithCompositingGroup(_ body: () -> Void) {
+        guard compositeHasAReader else { return body() }
+        compositeScopesPushed += 1
+        let scope = PaintScope(kind: .composite, effect: .identity, entryClipDepth: clipDepth)
+        paintScopes.append(scope)
         body()
+        paintScopes.removeLast()
+        if !scope.captures.isEmpty { insertThroughScopes(leaf: scope.captures, depths: scope.captureDepths) }
+    }
+
+    /// Whether a shadow or blur scope is open outside, nearer than the last
+    /// `Deferred` barrier: the only scopes that see a leaf's extent (`PF-E`
+    /// item 2, CG4). An effect, a transition or a capture maps or keeps each
+    /// primitive alike, collected or not.
+    private var compositeHasAReader: Bool {
+        for scope in paintScopes.reversed() {
+            switch scope.kind {
+            case .barrier: return false
+            case .shadow, .blur: return true
+            case .transition, .effect, .capture, .composite: continue
+            }
+        }
+        return false
     }
 }

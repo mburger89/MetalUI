@@ -481,6 +481,47 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
             "cut bounds: \(gxDescribe(first.images[0].image.bounds))")
 }
 
+/// **L1.6b** (`PF-J` item 1; lane 1 verifier's issues 1 and 2). Two more cut
+/// fixtures whose extent crosses the clip only through a padding `E` must
+/// hold: a `.blur(radius: 4)` square whose blur padding alone reaches the edge
+/// (mutation **X1**, `blurImage`'s `E` without `BoxBlur.padding`, lets it hit
+/// and draw past 100), and a crisp outer shadow of an inner `radius: 4`
+/// shadow, where only the INNER effect's padding crosses (mutation **X5**,
+/// `RasterExtent.of`'s nested arms grown by 1, lets the outer raster of the
+/// inner shadow hit and draw past 100). Every frame of a whole-pixel drag
+/// re-rasterizes, and no image passes the clip's edge.
+@Test @MainActor func aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove() throws {
+    func clipped(_ e: some Element & ProposalElementGroup, _ x: Float) -> some Element {
+        e.padding(Edges(top: px(30), right: px(0), bottom: px(0), left: px(x)))
+            .frame(width: px(100), height: px(100), alignment: .topLeading).clipped()
+            .frame(width: px(300), height: px(300), alignment: .topLeading)
+    }
+    func blurred(_ x: Float) -> some Element {
+        clipped(Color(.accent).frame(width: px(40), height: px(40)).blur(radius: px(4)), x)
+    }
+    func nested(_ x: Float) -> some Element {
+        clipped(Color(.accent).frame(width: px(40), height: px(40))
+            .shadow(color: .textPrimary, radius: px(4))
+            .shadow(color: .textPrimary, radius: px(0)), x)
+    }
+    let hb = TransitionHarness()
+    for i in 0..<4 {
+        let w = render(hb, blurred(48 + Float(i)))
+        try #require(w.images.count == 1, "blur frame \(i + 1): one image: \(w.images.count)")
+        let b = w.images[0].image.bounds
+        #expect(b.origin.x + b.size.width == 100, "blur frame \(i + 1): cut at 100: \(gxDescribe(b))")
+        #expect(w.rasterized + w.blurred > 0, "blur frame \(i + 1): re-rasterized: \(w.rasterized) \(w.blurred)")
+    }
+    let hn = TransitionHarness()
+    for i in 0..<4 {
+        let w = render(hn, nested(48 + Float(i)))
+        try #require(w.images.count == 3, "nested frame \(i + 1): three images: \(w.images.count)")
+        let past = w.images.map(\.image.bounds).filter { $0.origin.x + $0.size.width > 100 }
+        #expect(past.isEmpty, "nested frame \(i + 1): nothing past 100: \(past.map(gxDescribe))")
+        #expect(w.rasterized > 0, "nested frame \(i + 1): re-rasterized: \(w.rasterized)")
+    }
+}
+
 // MARK: - L1.7, L1.8 (PF-A): a path and a gradient dragged
 
 /// **L1.7** (`PF-A`). A filled path and a mitred stroke dragged by whole

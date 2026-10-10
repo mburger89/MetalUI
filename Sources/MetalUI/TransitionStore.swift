@@ -105,6 +105,10 @@ final class TransitionStore {
         /// The same in the scene's device pixels, where it painted.
         var surfaceRect: MUIBounds?
         var captures: [CapturedPrimitive] = []
+    /// A composite scope's collected primitives' emission clip depths, one per
+    /// entry of `captures` (`PF-E`): what `maskDepth(emittedAt:)` reads when
+    /// the collection goes through the scopes outside it.
+    var captureDepths: [Int] = []
     }
 
     private var records: [GlobalElementID: Record] = [:]
@@ -330,13 +334,15 @@ final class TransitionStore {
 /// One open paint scope (`Frame.paintScopes`, ruling `GX-G`): a claimed
 /// transition group's (plan task 13, `AN-AE`), a render effect's (`GX-H`), a
 /// drag source's capture (`DN-J`), or a `Deferred`'s barrier, past which an
-/// outer effect does not reach (`GX-G`; a portal is not transformed). Each
+/// outer effect does not reach (`GX-G`; a portal is not transformed), or a
+/// `compositingGroup()`'s composite (`PF-E`), which collects what reaches it
+/// and re-emits it as one leaf when it closes. Each
 /// processes every primitive emitted inside it, innermost first: the effect
 /// applied, and — for a transition or a capture — what it received kept
 /// (before its own effect) for a ghost or a preview.
 @MainActor
 final class PaintScope {
-    enum Kind { case transition, effect, capture, barrier, shadow, blur }
+    enum Kind { case transition, effect, capture, barrier, shadow, blur, composite }
 
     /// A shadow scope's shadow (`GX-J`): its colour, radius and offset in
     /// device pixels of the space it was pushed in, and the clip at its entry.
@@ -374,6 +380,10 @@ final class PaintScope {
         var radii: MUICorners
     }
     var captures: [CapturedPrimitive] = []
+    /// A composite scope's collected primitives' emission clip depths, one per
+    /// entry of `captures` (`PF-E`): what `maskDepth(emittedAt:)` reads when
+    /// the collection goes through the scopes outside it.
+    var captureDepths: [Int] = []
 
     var capturing: Bool { kind == .transition || kind == .capture }
 

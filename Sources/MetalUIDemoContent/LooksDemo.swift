@@ -660,7 +660,8 @@ struct LooksGradientsBlurMaterials: Component {
 /// The looks row (C10 lane 3, rulings `LK-J`, `LK-K`, `LK-L`, `LK-M`, `LK-W`;
 /// spec §6): a window-style vertical gradient panel (the strip, M5-d), a
 /// diagonal and a radial gradient, a text and an image blurred at radii 0, 2
-/// and 6 (M5-c), and the six materials over a striped backdrop in both schemes
+/// and 6 (M5-c), a pair of squares shadowed per leaf and through
+/// `compositingGroup()` (C13, `PF-E`), and the six materials over a striped backdrop in both schemes
 /// (divergence 166: a flat tint, no blur, MG-9). **Its own function**, each row
 /// in its own frame — the gradients row a `Component` (`PE-K`), the blur and
 /// materials rows functions (`LK-X`) — no click target (the demo's tests count
@@ -671,6 +672,7 @@ func gradientsBlurMaterialsSection() -> some Element {
         Text("Gradients, blur, materials").font(size: 20)
         LooksGradientsRow()
         looksBlurRow()
+        looksCompositingGroupRow()
         looksMaterialsRow(scheme: .light)
         looksMaterialsRow(scheme: .dark)
     }
@@ -710,6 +712,34 @@ private func looksBlurRow() -> some Element {
                     .frame(width: Pixels(32), height: Pixels(32))
                     .blur(radius: Pixels(Float(radius)))
             }
+        }
+    }
+}
+
+/// Two overlapping squares, a red and a blue offset (16, 16) over it.
+@MainActor
+private func looksOverlappingSquares() -> some Element & ProposalElementGroup {
+    ZStack {
+        Color.red.frame(width: Pixels(36), height: Pixels(36))
+        Color.blue.frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(16), y: Pixels(16))
+    }
+}
+
+/// `compositingGroup()` (C13, ruling `PF-E`; human check PF2): the same pair
+/// of overlapping squares shadowed per leaf (two shadows — the red square's
+/// falls on the blue, SwiftUI's P1) and through `.compositingGroup()` (one
+/// shadow of the pair's union, drawn below both, P2). A function, no loop
+/// (`LK-X`), in the gradients-blur-materials section's own frame.
+@MainActor
+private func looksCompositingGroupRow() -> some Element {
+    HStack(spacing: Pixels(28)) {
+        VStack(spacing: Pixels(6)) {
+            looksOverlappingSquares().shadow(radius: Pixels(3), x: Pixels(6), y: Pixels(6))
+            Text("per leaf").font(size: 11)
+        }
+        VStack(spacing: Pixels(6)) {
+            looksOverlappingSquares().compositingGroup().shadow(radius: Pixels(3), x: Pixels(6), y: Pixels(6))
+            Text("compositingGroup()").font(size: 11)
         }
     }
 }

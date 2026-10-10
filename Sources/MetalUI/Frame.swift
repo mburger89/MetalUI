@@ -3005,8 +3005,16 @@ public final class Frame {
     /// a drag preview) and applies its map; a shadow scope puts the leaf's
     /// shadow before it, itself a leaf to every scope further out (`GX-J`;
     /// SH5, SH11). What survives reaches the scene in order.
-    private func insertThroughScopes(leaf: [CapturedPrimitive]) {
-        var leaves: [[CapturedPrimitive]] = [leaf]
+    ///
+    /// A composite scope (`PF-E`) collects what reaches it, with each
+    /// primitive's emission clip depth, and stops it there; when it closes,
+    /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
+    /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
+    /// means every primitive was emitted at the current depth).
+    func insertThroughScopes(leaf: [CapturedPrimitive], depths: [Int]? = nil) {
+        // Each group carries its primitives' emission depths, `nil` for "all
+        // at `depth`" (no array on the ordinary path).
+        var leaves: [([CapturedPrimitive], [Int]?)] = [(leaf, depths)]
         let depth = clipStack.count
         var pastBarrier = false
         for scope in paintScopes.reversed() {
@@ -3014,47 +3022,66 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed, shadowed or blurred (`GX-G`, `LK-K`)
+            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier,
+                 .composite where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed, shadowed, blurred or composited (`GX-G`, `LK-K`, `PF-E`)
+            case .composite:
+                for (group, emitted) in leaves {
+                    scope.captures.append(contentsOf: group)
+                    scope.captureDepths.append(contentsOf: emitted ?? Array(repeating: depth, count: group.count))
+                }
+                return
             default:
                 break
             }
-            var next: [[CapturedPrimitive]] = []
-            for var group in leaves {
+            var next: [([CapturedPrimitive], [Int]?)] = []
+            for (var group, var emitted) in leaves {
                 for i in group.indices {
-                    group[i].innerMask = group[i].maskDepth(emittedAt: depth) > scope.entryClipDepth
+                    group[i].innerMask = group[i].maskDepth(emittedAt: emitted?[i] ?? depth) > scope.entryClipDepth
                     group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
-                    next.append([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)])
-                    next.append(group)
+                    next.append(([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)], nil))
+                    next.append((group, emitted))
                     continue
                 }
                 if let blur = scope.blur {
                     // A GPU surface's pixels are on the GPU: it is drawn
                     // unblurred (`LK-K` item 5, divergence 167).
                     if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
-                        next.append(group)
+                        next.append((group, emitted))
                     } else {
-                        next.append([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)])
+                        next.append(([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)], nil))
                     }
                     continue
                 }
                 if !scope.effect.isIdentity {
-                    group = group.compactMap {
-                        scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                    if let d = emitted {
+                        var mapped: [CapturedPrimitive] = [], kept: [Int] = []
+                        for i in group.indices {
+                            guard let p = scope.effect.apply(to: group[i], flattens: scope.flattens, outer: scope.outer)
+                            else { continue }
+                            mapped.append(p)
+                            kept.append(d[i])
+                        }
+                        group = mapped
+                        emitted = kept
+                    } else {
+                        group = group.compactMap {
+                            scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                        }
                     }
                     if group.isEmpty { continue }
                 }
                 if scope.kind == .effect, scope.flattens, let entry = scope.outer {
                     for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
                 }
-                next.append(group)
+                next.append((group, emitted))
             }
             leaves = next
         }
-        for group in leaves {
+        for (group, _) in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
     }
