@@ -467,6 +467,15 @@ for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navi
 175); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
 edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
 MetalUIDemo` shows them. Human checks: group AS, unrun.
+**Shadow cache** (user request 2026-10-02, item C13, MetalCreator's PERF-a, not a plan task; record §90):
+a shadow, blur, path or full-gradient raster is keyed relative to a floored device anchor, so
+dragging or panning a shadowed container by whole device pixels reuses its cached texture
+instead of re-blurring on every move (a 20-node graph at 2x: 330264 blurred pixels and 9 new
+textures a frame before, 0 after; a sub-pixel move still re-rasterizes, and pixels are
+unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf to an enclosing
+`.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
+opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
+group PF, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

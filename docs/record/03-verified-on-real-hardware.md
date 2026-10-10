@@ -2136,3 +2136,15 @@ cannot)**: AS1 the close button with unsaved changes (the alert sheet, Don't Sav
 document's proxy icon; AS6 the hidden title bar against the traffic lights; AS7 the band drag;
 AS8 full screen; AS9 open-document events from a packaged app; AS10 SDL on Linux, Windows and
 macOS (the drawn alert, the window manager's close, a file dropped on the app).
+
+## 2026-10-10: shadow cache (record §90) — looks owed
+
+`LooksDemo` gains a `compositingGroup()` pair (per-leaf shadows beside one shadow of the union),
+in its own function; the fourteen offscreen images are unchanged (0 differing pixels against
+`2155f1e`, lane 1 and the Record phase; the new pair sits in a section none of the fourteen
+renders, so the zero cannot see it). `docs/probes/swiftui-shadow-cache.swift` ran in
+`ImageRenderer` only; no real-window capture was taken at any lane (the lock probe read the
+screen locked at lane 1). **Owed, new here — `docs/verification/human-checks.md` group PF, none
+performed (an agent cannot)**: PF1 a trackpad drag of a shadowed node at 2x (how many frames hit,
+sub-pixel positions missing by design, `PF-D`); PF2 the `compositingGroup()` pair beside
+SwiftUI's reading.
