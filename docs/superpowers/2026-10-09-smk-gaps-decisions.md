@@ -615,3 +615,13 @@ harness is unchanged.
 future production tree that reaches another isolated closure in a modifier
 traps the same test with the same signal; the backtrace above is how to find
 it.
+
+**Lane 2's measurements (at `b1b7918`, not a ruling).** Guard 2.21a mutated
+red once: a protocol-extension default `func setMenuBar(_:) -> Bool { true }`
+in `Platform.swift` (full unfiltered native suite) reddened
+`aPlatformWhoseSetMenuBarReturnsNothingDoesNotConform` (void and answering
+both `succeeded=true`) and `aPlatformWithoutSetMenuBarDoesNotCompile`, and
+nothing else beside `CI-AF`'s five locked-screen `AppKitPresentationTests`
+sheet issues; restored. Fourteen offscreen images `57e02a4` → `b1b7918`:
+0 px, every scene identical, controls as recorded. The spec's other lane-2
+mutations (M2.3a…M2.19) are left to the lane's verifier.
