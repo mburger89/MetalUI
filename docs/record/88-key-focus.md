@@ -303,3 +303,34 @@ goldens, `FR-J no-argument frame: succeeded=` line present, 0 `error:`. Typechec
 run: `Backends/SDL`, the Linux image and the fourteen-image comparison (unmoved since the lanes'
 verdicts, §5, §6).
 
+
+## §12 Branch checker (2026-10-10, on `667e831`)
+
+- **Suite.** `swift package clean`, native build (0 `error:`, the only `warning:` SwiftPM's
+  deprecation notice), unfiltered `swift test --build-system native --no-parallel`: **`Test run
+  with 3172 tests in 3 suites passed after 317.595 seconds.`**; `FR-J no-argument frame:
+  succeeded=true` present. `swift build --build-tests` (default build system): 0 warnings, 0
+  errors. The seven new guards counted by file (3 + 2 + 1 + 1); 202 stays derived.
+- **`Backends/SDL`** on macOS: 24 + 108 passed. **Linux image** (`swift:6.4`, offscreen driver):
+  24 + 105 passed — both unmoved from master's §87 §13. The image prints one `warning:` in
+  `AccessKitControlsParityTests.swift:83` (an unnecessary `try`), a file this branch does not touch.
+- **Fourteen offscreen images**, `compare.sh <scratch> c62d6ba 667e831`: every control at its
+  corrected value (1048576, 1031003, 454895, 0, 1048576, 0, 544, 216), and **0 differing pixels,
+  scene identical, in all fourteen**. `Expected.swift` unedited since `c62d6ba`.
+- **Inventory**: `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing;
+  `closeout-public-api.sh` re-run reproduces the committed TSV byte for byte. `cmp CLAUDE.md
+  AGENTS.md` clean. Every `KF-` id cited in the changed docs resolves (`KF-A`…`KF-AA`, next
+  `KF-AB`); every backticked test name of 25+ characters in them resolves, except two pre-existing
+  lines (`fileDialogDefaultDirectory`, a SwiftUI name; `theRunCounterIgnoresCallsMadeOffTheMainThread`,
+  record §03's history).
+- **Record §04** gained the 185–188 section (94 narrowed, 120 amended), missing until now.
+- **The checker's mutations** (each from a copy, full unfiltered suite, `git status --short` clean
+  after each restore):
+
+| Mutation | Reddened |
+|---|---|
+| MX1 `dispatchKeyPress(_:along:in:)` (`KeyPress.swift`): `for id in chain` (innermost first) instead of `chain.reversed()` | `onKeyPressRunsOutermostFirstAlongTheFocusChain`, `portableOnKeyPressRunsOutermostFirstAlongTheFocusChain`, `aHandledKeyPressStopsTheWalk`, `anAncestorsKeyPressHearsTypedCharactersBeforeTheFieldsOwn`, `theInnermostHoveredKeyRegionWins`, `theKeyFocusDemoRoutesTabOverTheCanvasAndKeysToAClickedViewport` (7 issues) |
+| MX2 `LifecycleStore.closeGeometry()` (`Lifecycle.swift`): a change passes `action(new, new)` instead of `action(old, new)` | **nothing — 3172 passed.** The two-argument form's `old` on a change is unpinned: every change test uses the one-value form (`GCResizer`, `w:`), and the two two-argument tests see only initial calls (`old == new`). Probe `G2`/`G5` give SwiftUI's answer (`g:200x180->300x230`). Owed: one pin (resize under the two-argument form, expecting `"200x…->320x…"`), named for this mutation. |
+
+- **Not re-taken here**: the SwiftUI probe and a real-window capture (no claim rests on a new
+  run); the looks stay owed to a human (group KF).
