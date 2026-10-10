@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md` (written in the Record phase). Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AA`.**
+**Next unused id: `KF-AB`.**
 
 ## The final spellings (what an app writes)
 
@@ -986,3 +986,49 @@ app command's ⌘-key — MetalCreator's palette and viewport both carry one.
    by hand. Its fixtures use `.offset(x:)`, not `.padding(2)` (the proposal
    `padding` takes `Edges`; the first draft failed for that, not the opaque
    type).
+
+## KF-AA — Lane C review: the effect-sharing pin, C10's mutations, the commit spelling off macOS
+
+**Ruling.**
+
+1. **A `KeyboardModifier` follows an effect written inside it** (`GX-P`
+   item 1; names *hit testing* from the must-not-move list, which does not
+   move — this pins what lane C built). Its `prepaint` registers through
+   `frame.sharingRegistrationsWithEffects`, so the press-focus hitbox and the
+   key region sit where the content is drawn. At review nothing pinned it:
+   M14 (call `pass.registerHandlers` directly, outside the sharing) passed
+   the full suite (2975). New pin C12,
+   `aKeyboardLayerAfterAnOffsetFollowsItForPressAndHover`: a 40-point
+   `Rectangle` `.offset(x: 60)` in a 200 window; a press at (100, 100)
+   focuses nothing, one at (160, 100) focuses it (`.focusable(interactions:
+   .edit)`); with nothing focused a `.hoverKeyRegion()` hovered at (100, 100)
+   claims no key and at (160, 100) claims one. **M14 on the full unfiltered
+   native suite (2976): reddens only C12** (4 issues — the untransformed
+   press focused, the drawn-centre press did not, the untransformed hover
+   claimed the key, the drawn-centre hover did not).
+2. **C10's mutations, measured.** Since item 2 of `KF-Z` the editor declines
+   ⌘↩ itself, so moving `dispatchKeyPress` after `dispatchTextKey` (M9)
+   alone leaves the handler hearing ⌘↩ after the text stage: neither C10
+   test reddens (the reviewer's run; M9 alone reddens the four `TextField`
+   order tests named below). Deleting the shortcut-modified Return arm in
+   `TextEditing.key` (M8) alone reddens only
+   `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput`. The
+   handled test's mutation is **M13 = M8 + M9**; on the full suite (2976)
+   it reddens exactly `aTextEditorsOnKeyPressTakesCommandReturnAndPlainReturnStillBreaksTheLine`,
+   `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput`,
+   `onKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField`,
+   `portableOnKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField`,
+   `anIgnoredKeyPressLetsTheFieldEdit` and `aHandledReturnDoesNotSubmitTheField`
+   (11 issues). The test's doc comment and spec row C10 now say so.
+3. **The commit spelling is platform-correct** (amends `KF-Z` item 2's
+   spelling). The editor declines the platform's shortcut modifier with
+   Return — `.command` on macOS, `.control` on Linux and Windows — and
+   MetalUI exposes no public constant for it, so the documented spelling
+   tests an app-side `commitModifier` chosen by `#if os(macOS)`:
+   `.onKeyPress(keys: [.return]) { press in press.modifiers.contains(commitModifier)
+   ? commit() : .ignored }`. Testing `.command` alone never commits off
+   macOS. `TextEditor`'s doc comment, `docs/api-overview.md` and
+   `docs/migration.md` carry it.
+4. **The lane C count is 2975** (the implementation commit's message said
+   2974); with C12, 2976.
+
