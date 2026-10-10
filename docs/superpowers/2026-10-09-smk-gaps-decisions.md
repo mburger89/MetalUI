@@ -413,7 +413,12 @@ compilers never fire, so **no CI job except Windows can see it**.
    built frame — no new call site. (Lane 1: the call in `Window.adopt` moved out of the
    `windowResizability != .automatic` branch, so it runs under `.automatic`
    too — there `contentLimits` stays empty and only the explicit limits plus
-   the chrome reach the platform; an unchanged pair sends nothing.)
+   the chrome reach the platform; an unchanged pair sends nothing. Mutation,
+   on `58fe672`, `Window.adopt`'s spelling: the call moved back inside the
+   `if` — the full unfiltered native suite reddens
+   `anExplicitMinimumIsMeasuredBelowTheDrawnChrome` (2.20) at
+   `WindowSizingTests.swift:414` and `:423`, nothing else beyond the five
+   screen-lock `AppKitPresentationTests`; restored, `git status` clean.)
 4. `ToolbarStrip.height` stays internal; the strip's and bar's heights are
    documented on `drawnChromeHeight`.
 
