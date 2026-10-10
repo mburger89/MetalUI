@@ -58,6 +58,11 @@ func runDemo() throws {
     // group VL, ruling VL-K): 300 content-sized rows of wrapping text,
     // selectable, with a "Jump to row 250" button.
     let listDemo = ProcessInfo.processInfo.environment["METALUI_LIST_DEMO"] == "1"
+    // Key and focus scoping's human looks (`docs/verification/human-checks.md`
+    // group KF, spec `2026-10-08-key-focus-design.md` §6): a key-region canvas,
+    // an inspector, a palette, a click-focusable viewport with a size label
+    // and a timeline overlay.
+    let keyFocusDemo = ProcessInfo.processInfo.environment["METALUI_KEY_FOCUS_DEMO"] == "1"
     // App shell's human looks (`docs/verification/human-checks.md` group AS,
     // spec `2026-10-08-app-shell-design.md` §6): a hidden title bar, the
     // edited dot, a close and quit alert, `.onOpenURL` fed from the launch
@@ -70,6 +75,10 @@ func runDemo() throws {
     if appShellDemo {
         window = try openAppShellDemoWindow(app, title: "MetalUI — App Shell",
                                             launchArguments: Array(CommandLine.arguments.dropFirst()))
+    } else if keyFocusDemo {
+        window = try app.openWindow(title: "MetalUI — Key and Focus",
+                                    size: Size(width: Pixels(1000), height: Pixels(620)),
+                                    content: keyFocusDemoContent)
     } else if canvasDemo {
         window = try app.openWindow(title: "MetalUI — Canvas",
                                     size: Size(width: Pixels(920), height: Pixels(620)),

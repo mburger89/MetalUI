@@ -89,6 +89,15 @@ public enum ElementBuilder {
     }
 
     /// `for … in …`.
+    ///
+    /// **A loop body that calls a helper returning `some …` does not compile**
+    /// ("underlying type for opaque result type … could not be inferred"): the
+    /// Swift 6.4 builder transform types the loop's accumulator before this
+    /// method is consulted, so no spelling of it can help (ruling `KF-M`,
+    /// probe `docs/probes/swift-builder-for-opaque.sh`, guard
+    /// `aForLoopOverAnOpaqueHelperIsAToolchainLimitation`). Write
+    /// `ForEach(items, id: \.self) { helper($0) }`, a helper returning a
+    /// concrete type, or the chain inline.
     public static func buildArray<Group: ElementGroup>(_ groups: [Group]) -> ArrayGroup<Group> {
         StackMeter.sample()
         return ArrayGroup(groups)

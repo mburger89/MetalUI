@@ -140,6 +140,11 @@ private struct HandlerFingerprint: Equatable {
     var hover = false
     /// Input APIs (`CI-Q`): the wheel handler and pointer style's box.
     var pointer = false
+    /// Key and focus scoping (`KF-I`): the keyboard box — handler count,
+    /// interactions' bits, key-region flag.
+    var keyPressCount = 0
+    var interactions: Int?
+    var keyRegion = false
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -161,6 +166,9 @@ private struct HandlerFingerprint: Equatable {
         contextual = h.contextual != nil
         hover = h.hover != nil
         pointer = h.pointer != nil
+        keyPressCount = h.keyboard?.keyPresses.count ?? 0
+        interactions = h.keyboard?.focusInteractions?.rawValue
+        keyRegion = h.keyboard?.isKeyRegion ?? false
     }
 }
 
