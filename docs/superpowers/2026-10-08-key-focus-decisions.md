@@ -932,3 +932,12 @@ app command's ⌘-key — MetalCreator's palette and viewport both carry one.
    `AppKitPresentationTests` sheet tests aside, which fail unmutated on a
    locked screen) — **equivalent** (`LR-X`). The depth stays, as `LC-C` item
    2's spelling; `GeometryChangeScopeLayout.key`'s comment says so.
+5. **Measured** (2026-10-10, `2ed2e5e`, native build, full unfiltered
+   `--no-parallel` suite, screen locked): unmutated 2967 tests, only the five
+   lock-dependent `AppKitPresentationTests` sheet tests failing, the
+   `FR-J no-argument frame: succeeded=` line present. Each mutation, restored
+   from a copy (tree clean after each), reddened exactly one test beyond those
+   five: T1u → `aTimelineInALegacyColumnKeepsTheLinkRunning`; Tx →
+   `aZeroTimestampFrameDoesNotFixTheClockOffset`; T5b →
+   `anEqualEarliestEntryKeepsThePendingWake`; Bx-order-forward →
+   `geometryActionsRunChildrenFirst`.
