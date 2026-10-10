@@ -400,6 +400,15 @@ public final class Window {
     /// window, which is the hazard named at `StyledElement.onClick(_:)`.
     private(set) var lastHitboxes: [Hitbox] = []
 
+    /// The named-space stack each of `lastHitboxes` registered under, by index
+    /// (`OV-E` item 3): hover and gestures resolve `.named` through it. Empty
+    /// for a frame with no `coordinateSpace(_:)`; hit testing never reads it.
+    private(set) var lastHitboxNamedSpaces: [Int: [NamedSpace]] = [:]
+
+    /// How many named-space snapshots the last frame took (`Frame.namedSpaceSnapshots`,
+    /// `OV-E` item 3's work counter).
+    private(set) var lastNamedSpaceSnapshots = 0
+
     /// The scrolling subset of `lastHitboxes`, in registration order — test
     /// observability, and a **derived view** rather than a second capture.
     ///
@@ -1670,11 +1679,13 @@ public final class Window {
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
         rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
+        // STUB rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
         frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
         frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
+        // STUB frame.previousPresentationSpaces = lastPresentationSpaces   // overlays' spaces (OV-K, OV-N)
         frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
         if let session = dragSession {   // the drag preview (DN-J)
             frame.dragSourceID = session.sourceID
@@ -1701,6 +1712,8 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastHitboxNamedSpaces = frame.hitboxNamedSpaces   // OV-E item 3
+        lastNamedSpaceSnapshots = frame.namedSpaceSnapshots
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
         lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
@@ -1717,6 +1730,7 @@ public final class Window {
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
         lastPresentationAnchors = frame.presentationAnchors
+        lastPresentationSpaces = frame.presentationSpaces
         lastOpenPopovers = frame.openPopovers
         lastDragCapturedPrimitives = frame.dragCapturedPrimitives
         lastEffectScopesPushed = frame.effectScopesPushed
@@ -2244,6 +2258,11 @@ public final class Window {
     /// The window-owned anchor map; frame-scoped, never `StateTable`.
     var lastPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
 
+    /// The presentation spaces the last frame recorded, by declarer (`OV-N`,
+    /// `OV-P`), handed to the next frame for its overlays' placement. Window-
+    /// owned; frame-scoped, never `StateTable`.
+    var lastPresentationSpaces: [GlobalElementID: NamedSpace] = [:]
+
     /// The popovers the last frame presented, topmost last (spec §3.8): the
     /// dismissal stage's table. A dismissed one leaves it at once, so a second
     /// event before the next frame does not dismiss it again.
@@ -2449,19 +2468,30 @@ public final class Window {
                                   at point: Point<Pixels>, mode: ArenaMode = .press) -> GestureArena? {
         let hit = lastHitboxes[key.target]
         var ancestors: [(hitbox: Hitbox, depth: Int)] = []
+        // Each member's named-space snapshot, by owner (`OV-H`); nothing to
+        // look up in a frame with no `coordinateSpace(_:)`.
+        var namedSpaces: [GlobalElementID: [NamedSpace]] = [:]
+        func noteSpaces(_ index: Int) {
+            guard !lastHitboxNamedSpaces.isEmpty, let spaces = lastHitboxNamedSpaces[index] else { return }
+            namedSpaces[lastHitboxes[index].id] = spaces
+        }
+        noteSpaces(key.target)
+        if let above = key.draggableAbove { noteSpaces(above) }
         var depth = 1
         var cursor = hit.id.parent
         while let id = cursor {
-            if let box = lastHitboxes.last(where: { $0.id == id && $0.layer == hit.layer
-                                                        && !$0.handlers.gestures.isEmpty
-                                                        && $0.contains(point) }) {
-                ancestors.append((box, depth))
+            if let index = lastHitboxes.lastIndex(where: { $0.id == id && $0.layer == hit.layer
+                                                              && !$0.handlers.gestures.isEmpty
+                                                              && $0.contains(point) }) {
+                ancestors.append((lastHitboxes[index], depth))
+                noteSpaces(index)
             }
             depth += 1
             cursor = id.parent
         }
         return GestureArena(target: hit, ancestors: ancestors,
-                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] }, mode: mode)
+                            draggableAbove: key.draggableAbove.map { lastHitboxes[$0] }, mode: mode,
+                            namedSpaces: namedSpaces)
     }
 
     // MARK: The pinch and button arenas (input APIs, `CI-D`, `CI-F`)

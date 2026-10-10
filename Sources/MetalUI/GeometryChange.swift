@@ -20,20 +20,43 @@ public struct GeometryProxy: Sendable {
     /// effect (a `scaleEffect` does not change it).
     public let size: Size<Pixels>
     let globalFrame: Bounds<Pixels>
+    /// The union, scrolled — window points before the open render effects —
+    /// and the innermost open effect's composed map (`nil`: none), for a named
+    /// frame (`OV-M` item 1).
+    let scrolledFrame: Bounds<Pixels>
+    let composed: Affine2D?
+    /// The named spaces in force at the scope, innermost last (`OV-E`).
+    let namedSpaces: [NamedSpace]
 
-    init(size: Size<Pixels>, globalFrame: Bounds<Pixels>) {
+    init(size: Size<Pixels>, globalFrame: Bounds<Pixels>, scrolledFrame: Bounds<Pixels>? = nil,
+         composed: Affine2D? = nil, namedSpaces: [NamedSpace] = []) {
         self.size = size
         self.globalFrame = globalFrame
+        self.scrolledFrame = scrolledFrame ?? globalFrame
+        self.composed = composed
+        self.namedSpaces = namedSpaces
     }
 
     /// The content's frame in `space`: `.local` is `size` at the origin;
     /// `.global` is the window's content space (divergence 139's), moved by
     /// enclosing scroll offsets and the bounding box under enclosing render
     /// effects (an `.offset` written after the modifier included, G4a).
+    /// `.named(n)` is relative to the nearest ancestor that declared
+    /// `.coordinateSpace(.named(n))` (`OV-E`, `OV-M`): the content mapped
+    /// through its own effects and then the space's inverse map, boxed once —
+    /// so a space rotated as a whole reports the unrotated frame (G6) and an
+    /// effect between the space and the content its bounding box in the space
+    /// (G7). A name no ancestor declares reads `.global` (G1, G5).
     public func frame(in space: CoordinateSpace) -> Bounds<Pixels> {
         switch space {
-        case .local: Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: size)
-        case .global: globalFrame
+        case .local:
+            return Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: size)
+        case .global:
+            return globalFrame
+        case .named(let name):
+            guard let toSpace = NamedSpace.resolve(name, in: namedSpaces)?.toSpace, Bool("STUB") == true else { return globalFrame }
+            let map = composed.map { toSpace.concatenating($0) } ?? toSpace
+            return map.boundingBox(of: scrolledFrame)
         }
     }
 }
@@ -78,19 +101,12 @@ extension Frame {
     /// so an `.offset` written after the modifier is included (G4a).
     func noteGeometry(_ watch: GeometryWatch, key: GlobalElementID, owner: GlobalElementID,
                       nodes: [LayoutNodeID]) {
-        var union = bounds(of: nodes[0])
-        for node in nodes.dropFirst() {
-            let b = bounds(of: node)
-            let minX = min(union.origin.x.value, b.origin.x.value)
-            let minY = min(union.origin.y.value, b.origin.y.value)
-            let maxX = max(union.origin.x.value + union.size.width.value, b.origin.x.value + b.size.width.value)
-            let maxY = max(union.origin.y.value + union.size.height.value, b.origin.y.value + b.size.height.value)
-            union = Bounds(origin: Point(x: Pixels(minX), y: Pixels(minY)),
-                           size: Size(width: Pixels(maxX - minX), height: Pixels(maxY - minY)))
-        }
-        let moved = scrolled(union)
-        let global = prepaintEffects.last.map { $0.composed.boundingBox(of: moved) } ?? moved
-        let value = watch.transform(GeometryProxy(size: union.size, globalFrame: global))
+        let contentUnion = union(of: nodes)
+        let moved = scrolled(contentUnion)
+        let composed = prepaintEffects.last?.composed
+        let global = composed.map { $0.boundingBox(of: moved) } ?? moved
+        let value = watch.transform(GeometryProxy(size: contentUnion.size, globalFrame: global, scrolledFrame: moved,
+                                                  composed: composed, namedSpaces: namedSpaces))
         animationStore.lifecycle.noteGeometry(value, watch: watch, key: key, owner: owner)
     }
 }

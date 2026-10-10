@@ -14,10 +14,12 @@ import MetalUIPlatform
 /// `onContinuousHover(perform:)` — SwiftUI's `HoverPhase` (ruling `SV-N` item
 /// 1).
 public enum HoverPhase: Equatable, Sendable {
-    /// The pointer is over the element, at this point in the element's own
-    /// space (its top-leading corner is the origin; a render effect is undone,
-    /// so a rotated element reports where on itself the pointer is). Only
-    /// `.local` is offered — no `coordinateSpace:` parameter.
+    /// The pointer is over the element, at this point in the space
+    /// `onContinuousHover(coordinateSpace:perform:)` named — by default
+    /// `.local`, the element's own space (its top-leading corner is the
+    /// origin; a render effect is undone, so a rotated element reports where
+    /// on itself the pointer is); `.global` the window point; `.named(n)` the
+    /// point in the nearest ancestor space so named (`OV-F`).
     case active(Point<Pixels>)
     /// The pointer left the element, the element stopped being hoverable, or
     /// it left the tree.
@@ -30,21 +32,27 @@ public enum HoverPhase: Equatable, Sendable {
 final class HoverAttachment {
     let onHover: ((Bool) -> Void)?
     let onContinuousHover: ((HoverPhase) -> Void)?
+    /// The space `onContinuousHover`'s points are in (`OV-F`).
+    let coordinateSpace: CoordinateSpace
 
-    init(onHover: ((Bool) -> Void)?, onContinuousHover: ((HoverPhase) -> Void)?) {
+    init(onHover: ((Bool) -> Void)?, onContinuousHover: ((HoverPhase) -> Void)?,
+         coordinateSpace: CoordinateSpace = .local) {
         self.onHover = onHover
         self.onContinuousHover = onContinuousHover
+        self.coordinateSpace = coordinateSpace
     }
 
-    /// `existing` with its `onHover` replaced by `action`.
+    /// `existing` with its `onHover` replaced by `action`; the continuous
+    /// callback and its space are kept (`OV-F`).
     static func hover(_ action: @escaping (Bool) -> Void, over existing: HoverAttachment?) -> HoverAttachment {
-        HoverAttachment(onHover: action, onContinuousHover: existing?.onContinuousHover)
+        HoverAttachment(onHover: action, onContinuousHover: existing?.onContinuousHover,
+                        coordinateSpace: existing?.coordinateSpace ?? .local)
     }
 
-    /// `existing` with its `onContinuousHover` replaced by `action`.
-    static func continuous(_ action: @escaping (HoverPhase) -> Void,
+    /// `existing` with its `onContinuousHover` replaced by `action` in `space`.
+    static func continuous(_ action: @escaping (HoverPhase) -> Void, in space: CoordinateSpace,
                            over existing: HoverAttachment?) -> HoverAttachment {
-        HoverAttachment(onHover: existing?.onHover, onContinuousHover: action)
+        HoverAttachment(onHover: existing?.onHover, onContinuousHover: action, coordinateSpace: space)
     }
 }
 
@@ -80,15 +88,20 @@ extension StyledElement {
         return copy
     }
 
-    /// Runs `action` with `.active(point)` — the pointer in this element's own
-    /// space — on entering and on every pointer move over this element, and
-    /// with `.ended` when it leaves: SwiftUI's `onContinuousHover(perform:)`
-    /// with the `.local` coordinate space only (ruling `SV-N` item 1). Hovered
-    /// exactly when `onHover(perform:)`'s rule says, and run from the same
-    /// places; `onHover` and this may be declared together.
-    public func onContinuousHover(perform action: @escaping (HoverPhase) -> Void) -> Self {
+    /// Runs `action` with `.active(point)` — the pointer in `coordinateSpace`
+    /// — on entering and on every pointer move over this element, and with
+    /// `.ended` when it leaves: SwiftUI's
+    /// `onContinuousHover(coordinateSpace:perform:)` (rulings `SV-N` item 1,
+    /// `OV-F`). `.local` (the default) is this element's own space, its render
+    /// effects undone; `.global` the window's content space (divergence 139);
+    /// `.named(n)` the nearest ancestor space so named, as it stood in the last
+    /// frame, `.global` when none is. Hovered exactly when `onHover(perform:)`'s
+    /// rule says, and run from the same places; `onHover` and this may be
+    /// declared together, and a later `onHover` keeps this and its space.
+    public func onContinuousHover(coordinateSpace: CoordinateSpace = .local,
+                                  perform action: @escaping (HoverPhase) -> Void) -> Self {
         var copy = self
-        copy.handlers.hover = HoverAttachment.continuous(action, over: handlers.hover)
+        copy.handlers.hover = HoverAttachment.continuous(action, in: coordinateSpace, over: handlers.hover)
         return copy
     }
 }
@@ -101,10 +114,11 @@ extension ProposalElementGroup {
         HoverModifier(content: self, attachment: HoverAttachment.hover(action, over: nil))
     }
 
-    /// `StyledElement.onContinuousHover(perform:)` on the proposal path: wraps
-    /// once in a `HoverModifier`.
-    public func onContinuousHover(perform action: @escaping (HoverPhase) -> Void) -> HoverModifier<Self> {
-        HoverModifier(content: self, attachment: HoverAttachment.continuous(action, over: nil))
+    /// `StyledElement.onContinuousHover(coordinateSpace:perform:)` on the
+    /// proposal path: wraps once in a `HoverModifier`.
+    public func onContinuousHover(coordinateSpace: CoordinateSpace = .local,
+                                  perform action: @escaping (HoverPhase) -> Void) -> HoverModifier<Self> {
+        HoverModifier(content: self, attachment: HoverAttachment.continuous(action, in: coordinateSpace, over: nil))
     }
 }
 
@@ -169,6 +183,22 @@ struct HoveredRegion {
     let key: Key
     let attachment: HoverAttachment
     let region: Hitbox
+    /// The named spaces in force at the region's registration (`OV-F`).
+    let namedSpaces: [NamedSpace]
+
+    /// `point` (a window point) in the continuous callback's space (`OV-F`).
+    func point(_ point: Point<Pixels>) -> Point<Pixels> {
+        switch CoordinateSpace.local /* STUB */ {
+        case .local:
+            let local = region.localPoint(point)
+            return Point(x: Pixels(local.x.value - region.origin.x.value),
+                         y: Pixels(local.y.value - region.origin.y.value))
+        case .global:
+            return point
+        case .named(let name):
+            return NamedSpace.resolve(name, in: namedSpaces)?.toSpace?.apply(point) ?? point
+        }
+    }
 }
 
 extension Window {
@@ -205,14 +235,15 @@ extension Window {
                                      where: { $0.opaque || $0.handlers.hover != nil }) {
             let top = lastHitboxes[cover]
             var occurrences: [GlobalElementID: Int] = [:]
-            for region in lastHitboxes {
+            for (index, region) in lastHitboxes.enumerated() {
                 hoverVisits += 1
                 guard let attachment = region.handlers.hover else { continue }
                 let occurrence = occurrences[region.id, default: 0]
                 occurrences[region.id] = occurrence + 1
                 if region.layer == top.layer, region.contains(point), top.id.isOrDescends(from: region.id) {
                     next.append(HoveredRegion(key: HoveredRegion.Key(id: region.id, occurrence: occurrence),
-                                              attachment: attachment, region: region))
+                                              attachment: attachment, region: region,
+                                              namedSpaces: lastHitboxNamedSpaces[index] ?? []))
                 }
             }
         }
@@ -236,9 +267,7 @@ extension Window {
             StateDispatch.dispatching(to: region.key.id) {
                 if entering { region.attachment.onHover?(true) }
                 if let continuous = region.attachment.onContinuousHover {
-                    let local = region.region.localPoint(point)
-                    continuous(.active(Point(x: Pixels(local.x.value - region.region.origin.x.value),
-                                             y: Pixels(local.y.value - region.region.origin.y.value))))
+                    continuous(.active(region.point(point)))
                 }
             }
         }
