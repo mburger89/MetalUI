@@ -125,6 +125,7 @@ extension Frame {
     /// A gradient's image (`LK-J` items 4–5): the strip when it applies, else
     /// the full raster; `nil` when nothing is visible.
     func gradientImage(_ paint: GradientPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
+        animationStore.rasters.onRaster?(.gradient(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.opacity > 0, !paint.stops.isEmpty else { return nil }

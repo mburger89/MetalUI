@@ -97,6 +97,7 @@ extension Frame {
     /// the composed transform, offset by the mapped offset, blurred with sigma
     /// = radius × `sqrt|det|`, cut by the clip at the shadow's entry, tinted.
     func shadowImage(_ paint: ShadowPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
+        animationStore.rasters.onRaster?(.shadow(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.color.a > 0, !paint.leaf.isEmpty else { return nil }

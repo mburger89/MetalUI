@@ -133,12 +133,23 @@ final class RasterCache {
     private var touchedTables: Set<[UInt64]> = []
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
+    private var texturesMadeThisFrame = 0
 
     /// Device pixels the last completed frame rasterized (coverage misses) — a
     /// work counter, never time.
     private(set) var lastRasterizedPixels = 0
     /// Device pixels the last completed frame blurred (shadow misses).
     private(set) var lastBlurredPixels = 0
+    /// `ImageTexture`s the last completed frame created (`PF-G`): tint misses
+    /// plus colour-image misses that made one — the headless stand-in for
+    /// "textures uploaded", since the renderers upload once per new identity
+    /// (`TE-AF`). A work counter, never time.
+    private(set) var lastTexturesMade = 0
+
+    /// A test probe (`PF-C`, test L1.5): every raster `Frame` asks for, as the
+    /// scope carried it, before any key is made. `nil` (the default) costs
+    /// one test per raster.
+    var onRaster: ((CapturedPrimitive.Kind, PrimitiveTransform?) -> Void)?
 
     /// Tinted textures held now.
     var textureCount: Int { tinted.count + images.count }
@@ -146,6 +157,7 @@ final class RasterCache {
     func beginFrame() {
         rasterizedThisFrame = 0
         blurredThisFrame = 0
+        texturesMadeThisFrame = 0
     }
 
     func endFrame() {
@@ -159,6 +171,7 @@ final class RasterCache {
         touchedTables.removeAll(keepingCapacity: true)
         lastRasterizedPixels = rasterizedThisFrame
         lastBlurredPixels = blurredThisFrame
+        lastTexturesMade = texturesMadeThisFrame
     }
 
     func noteRasterized(_ pixels: Int) { rasterizedThisFrame += pixels }
@@ -182,6 +195,7 @@ final class RasterCache {
         touchedImages.insert(key)
         if let hit = images[key] { return hit.entry }
         let entry = make()
+        if entry != nil { texturesMadeThisFrame += 1 }
         images[key] = Image(entry: entry, retained: retaining)
         return entry
     }
@@ -203,6 +217,7 @@ final class RasterCache {
         touchedTint.insert(tint)
         if let hit = tinted[tint] { return hit }
         let texture = RasterCache.tint(mask, color: color)
+        texturesMadeThisFrame += 1
         tinted[tint] = texture
         return texture
     }
@@ -361,6 +376,7 @@ extension Frame {
     /// transform (`transform ∘ local`), inside the visible rectangle only, the
     /// colour multiplied in; `nil` when nothing is visible.
     func pathImage(_ paint: PathPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
+        animationStore.rasters.onRaster?(.path(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.color.a > 0 else { return nil }

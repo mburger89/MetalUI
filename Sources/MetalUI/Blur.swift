@@ -106,6 +106,7 @@ extension Frame {
     /// under the composed transform, each premultiplied channel blurred with
     /// sigma = radius × `sqrt|det|`, cut by the clip at the blur's entry.
     func blurImage(_ paint: BlurPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
+        animationStore.rasters.onRaster?(.blur(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.alpha > 0, !paint.leaf.isEmpty else { return nil }

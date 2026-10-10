@@ -322,6 +322,25 @@ package struct PathGeometry: Hashable, Sendable {
         return out
     }
 
+    /// Every point moved by `(dx, dy)` — one addition per coordinate, so a
+    /// move by a value on the coordinates' own grid (an integer, a dyadic
+    /// fraction) is exact, and moving back restores the same bits (`PF-A`:
+    /// a raster's canonical outline).
+    package func translated(dx: Double, dy: Double) -> PathGeometry {
+        func move(_ p: PathPoint) -> PathPoint { PathPoint(p.x + dx, p.y + dy) }
+        var out = PathGeometry()
+        for element in elements {
+            switch element {
+            case .move(let p): out.move(to: move(p))
+            case .line(let p): out.addLine(to: move(p))
+            case .quad(let c, let p): out.addQuadCurve(to: move(p), control: move(c))
+            case .cubic(let c1, let c2, let p): out.addCurve(to: move(p), control1: move(c1), control2: move(c2))
+            case .close: out.closeSubpath()
+            }
+        }
+        return out
+    }
+
     /// The box of every point and control point, or `nil` when empty.
     package var controlPointBounds: (minX: Double, minY: Double, maxX: Double, maxY: Double)? {
         var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
