@@ -519,3 +519,348 @@ private let linear1 = Animation.linear(duration: 1)
     #expect(move == "(200.0, 270.0, 100.0×60.0) r12.0 w0.0 m(0.0, 0.0, 600.0×600.0) | (200.0, 270.0, 100.0×60.0) r12.0 w6.0 m(0.0, 0.0, 600.0×600.0)", "move: \(move)")
     #expect(both == "(285.0, 289.0, 50.0×30.0) r6.0 w0.0 m(0.0, 0.0, 600.0×600.0) | (285.0, 289.0, 50.0×30.0) r6.0 w3.0 m(0.0, 0.0, 600.0×600.0)", "both: \(both)")
 }
+
+// MARK: - LF-a (GX-X): a clip inside a flattening effect
+
+/// The LF-a stage (`GX-X`): a 100 × 100 clip at (50, 50) — `.frame` then
+/// `.clipped()` — around a `ZStack` whose content is `inner`. The window is the
+/// 200-point square at scale 1, so points are device pixels.
+@MainActor private func lfaStage<C: Element>(_ inner: C) -> some Element {
+    ZStack(alignment: .topLeading) { inner }
+        .frame(width: px(100), height: px(100)).clipped().padding(px(50))
+}
+
+private func lfaBounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> String {
+    fxDescribe(MUIBounds(origin: MUIPoint(x: x, y: y), size: MUISize(width: w, height: h)))
+}
+
+/// **LF-a 1** (`GX-X`, MetalCreator's repro). A 40 × 40 bar at (80, 80) with
+/// its own `.clipped()`, moved up 60 by an `.offset` inside the 100 × 100 clip
+/// at (50, 50): it paints at (80, 20), and its mask is its own clip moved with
+/// it **cut by the clip outside the effect** — (80, 50) 40 × 10, not (80, 20)
+/// 40 × 40. Both vocabularies (a legacy effect wraps the whole element, its
+/// `.clipped()` included, divergence 108; the legacy clip is a `Box`'s over its
+/// bar child). Red before: the mask (80, 20)
+/// 40 × 40 on both arms. Mutation **M-X1**: the flattened inner mask not cut by
+/// the entry clip.
+@Test @MainActor func aClipInsideAnOffsetIsStillCutByTheClipOutsideIt() throws {
+    let control = effectFrame(lfaStage(fxBar(40, 40).offset(x: px(0), y: px(-60)))).finalizedScene()
+    let c = try #require(effectRects(control).first, "control: the bar")
+    try #require(fxDescribe(c.bounds) == lfaBounds(80, 20, 40, 40), "control: the bar at \(fxDescribe(c.bounds))")
+    try #require(fxDescribe(c.contentMask) == lfaBounds(50, 50, 100, 100),
+                 "control: no inner clip, the outer one: \(fxDescribe(c.contentMask))")
+
+    let proposal = effectFrame(lfaStage(fxBar(40, 40).clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+    let p = try #require(effectRects(proposal).first, "proposal: the bar")
+    #expect(fxDescribe(p.bounds) == lfaBounds(80, 20, 40, 40), "proposal: moved: \(fxDescribe(p.bounds))")
+    #expect(fxDescribe(p.contentMask) == lfaBounds(80, 50, 40, 10),
+            "proposal: the inner clip cut by the outer one: \(fxDescribe(p.contentMask))")
+    #expect(proposal.transforms.isEmpty, "proposal: still flattened")
+
+    let legacy = effectFrame(lfaStage(Box { fxLegacyBar(40, 40) }.frame(width: px(40), height: px(40)).clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+    let l = try #require(effectRects(legacy).first, "legacy: the bar")
+    #expect(fxDescribe(l.bounds) == lfaBounds(80, 20, 40, 40), "legacy: moved: \(fxDescribe(l.bounds))")
+    #expect(fxDescribe(l.contentMask) == lfaBounds(80, 50, 40, 10),
+            "legacy: the inner clip cut by the outer one: \(fxDescribe(l.contentMask))")
+}
+
+/// **LF-a 2** (`GX-X`). The same bar under `.scaleEffect(4)` about its centre
+/// (100, 100): bounds (20, 20) 160 × 160, mask the outer clip (50, 50)
+/// 100 × 100 — its own clip scaled with it, then cut. Both vocabularies. Red
+/// before: the mask (20, 20) 160 × 160. Mutation **M-X1**.
+@Test @MainActor func aClipInsideAUniformScaleIsStillCutByTheClipOutsideIt() throws {
+    let proposal = effectFrame(lfaStage(fxBar(40, 40).clipped().scaleEffect(4))).finalizedScene()
+    let p = try #require(effectRects(proposal).first, "proposal: the bar")
+    #expect(fxDescribe(p.bounds) == lfaBounds(20, 20, 160, 160), "proposal: scaled: \(fxDescribe(p.bounds))")
+    #expect(fxDescribe(p.contentMask) == lfaBounds(50, 50, 100, 100),
+            "proposal: cut by the outer clip: \(fxDescribe(p.contentMask))")
+
+    let legacy = effectFrame(lfaStage(Box { fxLegacyBar(40, 40) }.frame(width: px(40), height: px(40)).clipped().scaleEffect(4))).finalizedScene()
+    let l = try #require(effectRects(legacy).first, "legacy: the bar")
+    #expect(fxDescribe(l.bounds) == lfaBounds(20, 20, 160, 160), "legacy: scaled: \(fxDescribe(l.bounds))")
+    #expect(fxDescribe(l.contentMask) == lfaBounds(50, 50, 100, 100),
+            "legacy: cut by the outer clip: \(fxDescribe(l.contentMask))")
+}
+
+/// **LF-a 3** (`GX-X`). An effect in an effect: the bar's clip inside two
+/// `.offset(y: -30)`s ends at (80, 20) and is cut by the clip outside both —
+/// (80, 50) 40 × 10. Red before: (80, 20) 40 × 40. Mutation **M-X1**.
+@Test @MainActor func aClipInsideNestedFlatteningEffectsIsCutByTheClipOutsideBoth() throws {
+    let scene = effectFrame(lfaStage(fxBar(40, 40).clipped().offset(x: px(0), y: px(-30))
+        .offset(x: px(0), y: px(-30)))).finalizedScene()
+    let r = try #require(effectRects(scene).first, "the bar")
+    #expect(fxDescribe(r.bounds) == lfaBounds(80, 20, 40, 40), "moved 60: \(fxDescribe(r.bounds))")
+    #expect(fxDescribe(r.contentMask) == lfaBounds(80, 50, 40, 10),
+            "cut by the outer clip: \(fxDescribe(r.contentMask))")
+}
+
+/// **LF-a 4** (`GX-X`). The other half of the same mistake: content laid out
+/// **outside** the outer clip (a 220-tall `ZStack` overflowing the 100 × 100
+/// frame puts the bar at (50, −10)) and moved **into** it by `.offset(y: 80)`
+/// paints at (50, 70), its own clip moved with it — (50, 70) 40 × 40. Red
+/// before: the inner clip was intersected with the outer one in the content's
+/// pre-effect space, an empty mask (50, 50) 40 × 0, so the bar drew nothing.
+/// Mutation **M-X2**: the clip not split at a flattening effect's entry.
+@Test @MainActor func contentMovedIntoTheOuterClipByAnOffsetKeepsItsOwnClip() throws {
+    let scene = effectFrame(lfaStage(ZStack(alignment: .topLeading) {
+        Color.clear.frame(width: px(100), height: px(220))
+        fxBar(40, 40).clipped().offset(x: px(0), y: px(80))
+    })).finalizedScene()
+    let r = try #require(effectRects(scene).first, "the bar")
+    #expect(fxDescribe(r.bounds) == lfaBounds(50, 70, 40, 40), "moved in: \(fxDescribe(r.bounds))")
+    #expect(fxDescribe(r.contentMask) == lfaBounds(50, 70, 40, 40),
+            "its own clip, moved with it: \(fxDescribe(r.contentMask))")
+}
+
+/// **LF-a 5** (`GX-X`). A transformed primitive's outer mask follows the same
+/// rule: a rotated bar with a `.clipped()` outside the rotation and inside an
+/// `.offset(y: -60)` names a record whose outer mask is that clip moved up 60
+/// and cut by the clip outside the offset — (80, 50) 40 × 10. Red before:
+/// (80, 20) 40 × 40. Mutation **M-X3**: the transform branch's mapped outer
+/// mask not cut.
+@Test @MainActor func aRecordsOuterMaskInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    let scene = effectFrame(lfaStage(fxBar(40, 40).rotationEffect(deg90).clipped()
+        .offset(x: px(0), y: px(-60)))).finalizedScene()
+    let r = try #require(effectRects(scene).first, "the bar")
+    let record = try #require(effectRecord(r, in: scene), "a record")
+    #expect(fxDescribe(record.outerMask) == lfaBounds(80, 50, 40, 10),
+            "the outer mask cut by the outer clip: \(fxDescribe(record.outerMask))")
+}
+
+// MARK: - The merge with C10 (`GX-X` × `LK-J`/`LK-K`)
+
+/// Where an image run can draw: its quad cut by its mask.
+private func lfaVisible(_ image: MUIImage) -> String {
+    let b = image.bounds, m = image.contentMask
+    let x0 = max(b.origin.x, m.origin.x), y0 = max(b.origin.y, m.origin.y)
+    let x1 = min(b.origin.x + b.size.width, m.origin.x + m.size.width)
+    let y1 = min(b.origin.y + b.size.height, m.origin.y + m.size.height)
+    return lfaBounds(x0, y0, max(0, x1 - x0), max(0, y1 - y0))
+}
+
+/// **LF-a merge 1** (`GX-X` × `LK-J`). A gradient-filled 40 × 40 rectangle
+/// with its own `.clipped()`, moved up 60 by an `.offset` inside the 100 × 100
+/// clip at (50, 50), draws only inside (80, 50) 40 × 10 — its own clip moved
+/// with it and cut by the clip outside the effect — on both raster paths (the
+/// axis-aligned strip and the diagonal full raster). Red without
+/// `cutToEntryClip`'s `.gradient` arm: (80, 20) 40 × 40.
+@Test @MainActor func aClippedGradientInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    for (name, gradient) in [
+        ("strip", LinearGradient(colors: [lkRed, lkBlue], startPoint: .top, endPoint: .bottom)),
+        ("full", LinearGradient(colors: [lkRed, lkBlue], startPoint: .topLeading, endPoint: .bottomTrailing)),
+    ] {
+        let scene = effectFrame(lfaStage(Rectangle().fill(gradient).frame(width: px(40), height: px(40))
+            .clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+        let images = gxImages(scene)
+        try #require(images.count == 1, "\(name): one image")
+        #expect(lfaVisible(images[0].image) == lfaBounds(80, 50, 40, 10),
+                "\(name): cut by the outer clip: quad \(fxDescribe(images[0].image.bounds)) mask \(fxDescribe(images[0].image.contentMask))")
+        #expect(scene.transforms.isEmpty, "\(name): still flattened")
+    }
+}
+
+/// **LF-a merge 2** (`GX-X` × `LK-K`). A `.blur(radius: 4)`-ed 40 × 40 square
+/// with a `.clipped()` outside the blur, moved up 60 by an `.offset` inside
+/// the 100 × 100 clip at (50, 50): the blur's image is cut by its own clip
+/// moved with it and then by the clip outside the effect — it draws only
+/// inside (80, 50) 40 × 10. Red without `cutToEntryClip`'s `.blur` arm:
+/// (80, 20) 40 × 40.
+@Test @MainActor func aClippedBlurInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    let scene = effectFrame(lfaStage(Color(white: 0).frame(width: px(40), height: px(40))
+        .blur(radius: px(4)).clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+    let images = gxImages(scene)
+    try #require(images.count == 1, "one image")
+    #expect(lfaVisible(images[0].image) == lfaBounds(80, 50, 40, 10),
+            "cut by the outer clip: quad \(fxDescribe(images[0].image.bounds)) mask \(fxDescribe(images[0].image.contentMask))")
+    #expect(scene.transforms.isEmpty, "still flattened")
+}
+
+/// **LF-a merge 3** (`GX-X` × `LK-K`, the other nesting). An `.offset` inside
+/// a blur scope: the square's own clip, moved up 60 and cut by the clip outside
+/// the offset, shapes the leaf **before** it is blurred — a 40 × 10 band at
+/// (80, 50) — and the blur's image is cut by the clip at the blur's entry,
+/// (50, 50) 100 × 100. So 2.5 below the band's top edge reads half-dark, not
+/// the black of a 40-tall leaf, and nothing draws above y 50. Red under
+/// `GX-X`'s **M-X1** (the rect arm not cut): the band 40 tall.
+@Test @MainActor func anOffsetInsideABlurIsCutBeforeItBlurs() throws {
+    let scene = effectFrame(lfaStage(Color(white: 0).frame(width: px(40), height: px(40))
+        .clipped().offset(x: px(0), y: px(-60)).blur(radius: px(4)))).finalizedScene()
+    let images = gxImages(scene)
+    try #require(images.count == 1, "one image")
+    let v = images[0].image
+    #expect(v.bounds.origin.y >= 50 || v.contentMask.origin.y >= 50,
+            "nothing above the outer clip: quad \(fxDescribe(v.bounds)) mask \(fxDescribe(v.contentMask))")
+    // Measured on the merge: 74, 53, 93, 255 — a 10-tall band blurred.
+    for (y, want) in [(52.5, 74), (55.5, 53), (58.5, 93), (75.5, 255)] {
+        let got = lkComposite(scene, 100.5, y)[0]
+        #expect(abs(got - want) <= 8, "y \(y): \(got) vs \(want)")
+    }
+}
+
+// MARK: - LF-b (GX-Y): a clip inside NESTED flattening effects
+
+/// The LF-b stage (`GX-Y`, MetalCreator's node canvas): in the 400-point
+/// window, a 40-tall top bar and 20 of padding put a 300 × 320 canvas at
+/// (20, 60), `.clipped()` — the clip C. Inside it a `ZStack` of `nodes` (each
+/// 60 × 40 at the canvas origin before its own effects) under the canvas's
+/// **outer** flattening effect, `.scaleEffect(zoom, anchor: .topLeading)` then
+/// `.offset(pan)`; each node carries its own **inner** flattening `.offset`.
+/// So the outer map is x' = 20 + zoom(x − 20) + pan.x, y' = 60 + zoom(y − 60) + pan.y.
+@MainActor private func lfbCanvas<N: ProposalElementGroup>(zoom: Double, pan: (Float, Float),
+                                                         @ProposalContentBuilder _ nodes: () -> N) -> some Element {
+    VStack(alignment: .leading, spacing: px(0)) {
+        Color.clear.frame(width: px(360), height: px(40))
+        ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: px(300), height: px(320))
+            ZStack(alignment: .topLeading) { nodes() }
+                .scaleEffect(zoom, anchor: .topLeading).offset(x: px(pan.0), y: px(pan.1))
+        }.clipped()
+    }.padding(Edges(all: px(20)))
+}
+
+/// A proposal node: a 60 × 40 bar clipped to a radius-6 rounded rectangle,
+/// then moved by its own `.offset`.
+@MainActor private func lfbNode(_ x: Float, _ y: Float) -> some ProposalElementGroup {
+    fxBar(60, 40).clipShape(RoundedRectangle(cornerRadius: px(6))).offset(x: px(x), y: px(y))
+}
+
+/// The same node in the legacy vocabulary: a `Box`'s rounded clip over its bar
+/// child, the legacy `.offset` wrapping the whole element (divergence 108).
+@MainActor private func lfbLegacyNode(_ x: Float, _ y: Float) -> some Element {
+    Box { fxLegacyBar(60, 40) }.frame(width: px(60), height: px(40))
+        .clipShape(RoundedRectangle(cornerRadius: px(6))).offset(x: px(x), y: px(y))
+}
+
+/// Each accent rect's bounds and mask, in emission order.
+@MainActor private func lfbMasks(_ element: some Element) -> [String] {
+    effectRects(effectFrame(element, side: 400).finalizedScene()).map {
+        "\(fxDescribe($0.bounds)) m\(fxDescribe($0.contentMask)) r\($0.maskCornerRadii.topLeft)"
+    }
+}
+
+/// **LF-b 1** (`GX-Y`, MetalCreator's over-clip after `GX-X`). Zoom 1, pan
+/// (50, 20). Node A at offset (−40, 10) sits at (−20, 70) before the canvas's
+/// effect and paints wholly inside the canvas at (30, 90) 60 × 40: its mask is
+/// its own rounded clip moved with it — (30, 90) 60 × 40, radius 6. Node B at
+/// offset (220, 50) paints at (290, 130), straddling the canvas's right edge
+/// (x 320): its mask is its own clip cut by C — (290, 130) 30 × 40 (the cut
+/// meets the rounding, so the radii follow `intersect`). Both vocabularies.
+/// Red on `0b400b4`: A's mask (70, 90) 20 × 40 — the inner `.offset`'s cut used
+/// C, a window-space clip, in the outer effect's pre-effect space, where A's
+/// clip lies at x −20…40 and C keeps only 20…40, then the pan moved that
+/// sliver right. Mutation **M-Y1**.
+@Test @MainActor func aClipInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip() throws {
+    let proposal = lfbMasks(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbNode(-40, 10); lfbNode(220, 50) })
+    try #require(proposal.count == 2, "proposal: two nodes: \(proposal)")
+    #expect(proposal[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
+            "proposal A: its own clip, moved: \(proposal[0])")
+    #expect(proposal[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40))"),
+            "proposal B: its own clip cut by the canvas: \(proposal[1])")
+
+    let legacy = lfbMasks(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbLegacyNode(-40, 10); lfbLegacyNode(220, 50) })
+    try #require(legacy.count == 2, "legacy: two nodes: \(legacy)")
+    #expect(legacy[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
+            "legacy A: its own clip, moved: \(legacy[0])")
+    #expect(legacy[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40))"),
+            "legacy B: its own clip cut by the canvas: \(legacy[1])")
+}
+
+/// **LF-b 2** (`GX-Y`). Zoom 1.5, pan (80, 20): node A's (−20, 70) 60 × 40
+/// paints at (40, 95) 90 × 60, mask the same, radius 9; and with an inner
+/// **uniform scale** too — `.scaleEffect(0.5, anchor: .topLeading)` before its
+/// `.offset`, so a flattening scale in a flattening offset in the canvas's
+/// scale — it is (−20, 70) 30 × 20 before the canvas's effect and paints at
+/// (40, 95) 45 × 30, radius 4.5. Both vocabularies. Red on `0b400b4`: the mask
+/// (100, 95) 30 × 60, and empty for the half-size node. Mutation **M-Y1**.
+@Test @MainActor func aClipInsideAScaleInAScaledCanvasIsCutOnlyByTheOutermostEntryClip() throws {
+    let proposal = lfbMasks(lfbCanvas(zoom: 1.5, pan: (80, 20)) { lfbNode(-40, 10) })
+    try #require(proposal.count == 1, "proposal: one node: \(proposal)")
+    #expect(proposal[0] == "\(lfaBounds(40, 95, 90, 60)) m\(lfaBounds(40, 95, 90, 60)) r9.0",
+            "proposal: its own clip, scaled and moved: \(proposal[0])")
+
+    let legacy = lfbMasks(lfbCanvas(zoom: 1.5, pan: (80, 20)) { lfbLegacyNode(-40, 10) })
+    try #require(legacy.count == 1, "legacy: one node: \(legacy)")
+    #expect(legacy[0] == "\(lfaBounds(40, 95, 90, 60)) m\(lfaBounds(40, 95, 90, 60)) r9.0",
+            "legacy: its own clip, scaled and moved: \(legacy[0])")
+
+    let half = lfbMasks(lfbCanvas(zoom: 1.5, pan: (80, 20)) {
+        fxBar(60, 40).clipShape(RoundedRectangle(cornerRadius: px(6)))
+            .scaleEffect(0.5, anchor: .topLeading).offset(x: px(-40), y: px(10))
+    })
+    try #require(half.count == 1, "scale in scale: one node: \(half)")
+    #expect(half[0] == "\(lfaBounds(40, 95, 45, 30)) m\(lfaBounds(40, 95, 45, 30)) r4.5",
+            "scale in scale: its own clip through three maps: \(half[0])")
+
+    let legacyHalf = lfbMasks(lfbCanvas(zoom: 1.5, pan: (80, 20)) {
+        Box { fxLegacyBar(60, 40) }.frame(width: px(60), height: px(40))
+            .clipShape(RoundedRectangle(cornerRadius: px(6)))
+            .scaleEffect(0.5, anchor: .topLeading).offset(x: px(-40), y: px(10))
+    })
+    try #require(legacyHalf.count == 1, "legacy scale in scale: one node: \(legacyHalf)")
+    #expect(legacyHalf[0] == "\(lfaBounds(40, 95, 45, 30)) m\(lfaBounds(40, 95, 45, 30)) r4.5",
+            "legacy scale in scale: its own clip through three maps: \(legacyHalf[0])")
+}
+
+/// **LF-b 3** (`GX-Y`). The same nesting with **no clip anywhere**: the outer
+/// flattening effect opens at clip depth 0, where the clip in force is the
+/// window itself. A node laid out at the origin, `.offset(x: −100, y: 10)`
+/// inside an `.offset(x: 150)`, paints at (50, 10) 60 × 40 with its own
+/// rounded clip moved with it — (50, 10) 60 × 40, radius 6. Red on `0b400b4`:
+/// an empty mask, the window rect cut in the outer effect's pre-effect space
+/// (x −100…−40). Mutations **M-Y2** (depth 0 read as "no flattening scope
+/// open"), **M-Y3** (`atFlatteningEntry`'s `>=` as `>`).
+///
+/// The second arm is the same depth-0 mistake in `pushClip`, one effect deep:
+/// a 460-tall root (a 420-tall spacer over the bar) is placed centred at y −30,
+/// so the bar is laid out at (0, 390), past the window's bottom edge, and an
+/// `.offset(y: −100)` brings it to (0, 290) 60 × 40. Its first clip inside
+/// the offset must not intersect the window rect in the pre-effect space —
+/// mask (0, 290) 60 × 40, not (0, 290) 60 × 10. Mutation **M-Y4**: `pushClip`
+/// reading 0 as "no flattening scope" (the `GX-X` spelling).
+@Test @MainActor func aClipInsideNestedFlatteningEffectsAtDepthZeroIsNotCutByTheWindow() throws {
+    let rows = lfbMasks(ZStack(alignment: .topLeading) {
+        Color.clear.frame(width: px(400), height: px(400))
+        ZStack(alignment: .topLeading) { lfbNode(-100, 10) }.offset(x: px(150), y: px(0))
+    })
+    try #require(rows.count == 1, "one node: \(rows)")
+    #expect(rows[0] == "\(lfaBounds(50, 10, 60, 40)) m\(lfaBounds(50, 10, 60, 40)) r6.0",
+            "its own clip, moved twice: \(rows[0])")
+
+    let below = lfbMasks(ZStack(alignment: .topLeading) {
+        Color.clear.frame(width: px(400), height: px(400))
+        VStack(alignment: .leading, spacing: px(0)) {
+            Color.clear.frame(width: px(60), height: px(420))
+            fxBar(60, 40).clipShape(RoundedRectangle(cornerRadius: px(6)))
+        }.offset(x: px(0), y: px(-100))
+    })
+    try #require(below.count == 1, "one bar: \(below)")
+    #expect(below[0] == "\(lfaBounds(0, 290, 60, 40)) m\(lfaBounds(0, 290, 60, 40)) r6.0",
+            "laid out past the window, moved in: its own clip: \(below[0])")
+}
+
+/// **LF-b 4** (`GX-Y`, MetalCreator's measured repro on the LF-a stage). The
+/// bar's pre-effect position lies outside the 100 × 100 clip at (50, 50) and an
+/// outer flattening effect brings it into view; the panel offset is irrelevant.
+/// `.clipped().offset(x: −60).offset(x: 60)` paints at (80, 80) 40 × 40, wholly
+/// inside the clip: its mask is its own clip, (80, 80) 40 × 40, as on
+/// `67a579e`. The same under a `ZStack`'s `.scaleEffect(1, anchor:
+/// .topLeading).offset(x: 60)`; under `.scaleEffect(0.5, …)` the bar is
+/// (110, 80) 20 × 20 and so is its mask. Red on `0b400b4`: (110, 80) 10 × 40,
+/// (110, 80) 10 × 40 and (125, 80) 5 × 20. Mutation **M-Y1**.
+@Test @MainActor func aBarMovedOutAndBackByNestedFlatteningEffectsKeepsItsOwnClip() throws {
+    func row(_ element: some Element) throws -> String {
+        let r = try #require(effectRects(effectFrame(element).finalizedScene()).first, "the bar")
+        return "\(fxDescribe(r.bounds)) m\(fxDescribe(r.contentMask))"
+    }
+    let control = try row(lfaStage(fxBar(40, 40).offset(x: px(-60), y: px(0)).offset(x: px(60), y: px(0))))
+    try #require(control == "\(lfaBounds(80, 80, 40, 40)) m\(lfaBounds(50, 50, 100, 100))",
+                 "control: no inner clip, the outer one: \(control)")
+    let offsets = try row(lfaStage(fxBar(40, 40).clipped().offset(x: px(-60), y: px(0)).offset(x: px(60), y: px(0))))
+    #expect(offsets == "\(lfaBounds(80, 80, 40, 40)) m\(lfaBounds(80, 80, 40, 40))", "two offsets: \(offsets)")
+    let scale1 = try row(lfaStage(ZStack(alignment: .topLeading) { fxBar(40, 40).clipped().offset(x: px(-60), y: px(0)) }
+        .scaleEffect(1, anchor: .topLeading).offset(x: px(60), y: px(0))))
+    #expect(scale1 == "\(lfaBounds(80, 80, 40, 40)) m\(lfaBounds(80, 80, 40, 40))", "scale 1: \(scale1)")
+    let scaleHalf = try row(lfaStage(ZStack(alignment: .topLeading) { fxBar(40, 40).clipped().offset(x: px(-60), y: px(0)) }
+        .scaleEffect(0.5, anchor: .topLeading).offset(x: px(60), y: px(0))))
+    #expect(scaleHalf == "\(lfaBounds(110, 80, 20, 20)) m\(lfaBounds(110, 80, 20, 20))", "scale 0.5: \(scaleHalf)")
+}

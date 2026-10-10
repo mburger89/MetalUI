@@ -210,6 +210,10 @@ extension LayoutModifier {
             // The radius and both offsets (`GX-J`; N4, N5); the colour in paint.
             let v = numbers("shadow", [raw(radius), raw(x), raw(y)], any)
             self = .shadow(token, radius: px(max(0, v[0]!))!, x: px(v[1])!, y: px(v[2])!)
+        case let .blur(radius):
+            // The radius (`LK-K` item 6, the shadow-radius precedent).
+            let v = numbers("blur", [raw(radius)], size)
+            self = .blur(radius: px(v[0])!)
         case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting:
             break
         }

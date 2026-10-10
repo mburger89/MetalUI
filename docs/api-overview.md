@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2536 of them, in
-fifteen modules) belongs to one of 138 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (2977 of them, in
+fifteen modules) belongs to one of 156 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's
@@ -436,6 +436,61 @@ seam, `Platform.setApplicationIcon(_:)` over `ImageTexture`s, defaultless
 (`AI-B`). Shipping an icon with the application itself is build-side:
 [`packaging.md`](packaging.md).
 
+## App shell — M / A / D
+
+The close veto, the terminate hook, the window title and edited marker, a
+hidden title bar and open-document events (rulings `AS-A`…`AS-Q`,
+[`superpowers/2026-10-08-app-shell-decisions.md`](superpowers/2026-10-08-app-shell-decisions.md),
+whose "Final spellings" table is the short form).
+
+- **Close veto** (M, `AS-B`; SwiftUI has none): `Window.onCloseRequest:
+  (@MainActor () -> CloseRequestReply)?` is asked by the close button, ⌘W,
+  SDL's `SDL_EVENT_WINDOW_CLOSE_REQUESTED` and `Window.performClose()` —
+  `.now` closes, `.cancel` keeps, `.later` waits for
+  `Window.replyToCloseRequest(_:)` (show an `.alert` from the handler, reply
+  from its buttons; `isCloseRequestPending` while waiting, and a repeated
+  request asks nobody). `Window.close()` closes without asking. A window's
+  `onDisappear` runs only when it really closes.
+- **Terminate hook** (M, `AS-C`, `AS-K`): `App.onTerminateRequest` answers
+  ⌘Q, a logout or shutdown (AppKit's `applicationShouldTerminate`, `.later` →
+  `.terminateLater`), `SDL_EVENT_QUIT` and `App.terminate()`; after `.later`,
+  `App.replyToTerminateRequest(_:)`. **With no handler a quit asks each
+  window's `onCloseRequest` in turn**, so a one-window app sets only the
+  window's. An approved quit closes every window first (each `onDisappear`
+  once); the last window's own close ends the app asking nobody; closing one
+  of several windows no longer quits.
+- **Title and document** (`AS-D`): `Window.title` (M, settable);
+  `.navigationTitle(_:)` (A; inner beats outer, the first sibling wins, in the
+  first presented frame; probe `swiftui-app-shell.swift` `N1`–`N5`) and
+  `.navigationDocument(_ url: URL)` (A; the proxy icon, never the title) in
+  the tree win while present; `Window.representedURL` and
+  `Window.isDocumentEdited` (M; AppKit's edited dot). SDL records the edited
+  marker and represented file and shows nothing.
+- **Hidden title bar** (D, divergence 175; `AS-E`, `AS-J`):
+  `App.openWindow(…, windowStyle: .hiddenTitleBar, …)` or `Window.windowStyle`
+  (`WindowStyle` `.automatic`, `.titleBar`, `.hiddenTitleBar`) — SwiftUI's
+  `.windowStyle(_:)` scene modifier as window state. The content lays out
+  **under** the bar; `@Environment(\.titleBarInsets)` (M, `Edges<Pixels>`:
+  `top` the band's height, `left` the window buttons' right edge) says what to
+  pad by; a press nothing claims in the band drags the window, a double-click
+  there zooms or minimises as System Settings says. SDL keeps its system
+  title bar and the insets read zero (`AS-E` item 6).
+- **Open-document events** (A / D, divergence 176; `AS-G`, `AS-M`, `AS-Q`):
+  `.onOpenURL { url in }` in the tree; `App.onOpenURL` when no window has one;
+  `App.open(_ urls: [URL])` delivers as the platform does — the launch
+  arguments recipe in [`packaging.md`](packaging.md). AppKit delivers Finder,
+  `open -a`, Dock drops, Open Recent and URL schemes (the bundle declares its
+  document types and schemes); SDL delivers a file dropped on the application
+  (window 0). MetalUI never opens a window for an open.
+- **Seam** (`AS-H`, `AS-J`; defaultless, `docs/migration.md`): seven
+  `PlatformWindow` requirements (`onCloseRequest`, `close()`,
+  `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`,
+  `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`,
+  `performTitleBarPress(clickCount:) -> Bool`) and four `Platform` ones
+  (`onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`,
+  `onOpenURLs`); `CloseRequestReply` and `PlatformTitleBarStyle` live in
+  `MetalUIPlatform`.
+
 ## Menus, popovers and tooltips — A / D / M
 
 **Context menus (A; 110, 114).** `.contextMenu { }` on both vocabularies, over a
@@ -639,6 +694,38 @@ through one wake at their next date.
 `AnyTransition` (`identity`, `opacity`, `move(edge:)`, `slide`, `offset`,
 `scale`, `push(from:)`, `asymmetric`, `combined`), `Edge`, `.transition(_:)`
 (96–99).
+
+## Controls and looks — A / D / M
+
+Rulings `LK-A`…, record §85 (C10). **Controls**: `Slider(value:in:step:onEditingChanged:)` —
+`true` at the press or the first key of an edit, `false` at its end (the release,
+a lost release ended by the next press, a close or a disabled gate; one pair per
+gesture, SwiftUI's order — `LK-B`, `LK-Q`); `ColorPicker(_:selection:supportsOpacity:)` and
+`ColorPicker(selection:supportsOpacity:label:)` over MetalUI's `Color`, a 48 × 24
+well beside its label that opens a **drawn** panel on every platform — a
+saturation–brightness square, a hue bar, an opacity bar, a swatch and a hex
+field (165: not `NSColorPanel`; `LK-C`, `LK-D`); `ProgressView()` (the spinner,
+sizes 32/16/10 by `controlSize`), `ProgressView(value:total:)` (a greedy 20-tall
+bar; indeterminate when the value is `nil`), the `_ title:` and label /
+current-value-label spellings, `.progressViewStyle(.automatic/.linear/.circular)`
+on the view or a container (`LK-E`, `LK-F`, `LK-V`). Three accessibility roles
+join `AccessibilityRole` (`.progressIndicator`, `.busyIndicator`, `.colorWell`; `LK-G`) — M.
+**Animation**: `keyframeAnimator(initialValue:trigger:content:keyframes:)`,
+`keyframeAnimator(initialValue:repeating:content:keyframes:)`, `KeyframeAnimator`,
+`KeyframeTimeline`, `KeyframeTrack`, `LinearKeyframe`, `CubicKeyframe`,
+`SpringKeyframe` (`duration:` required, 168), `MoveKeyframe`, `Spring`, `UnitCurve`
+and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
+`phaseAnimator` is not built (`LK-H`). **Looks**: `Gradient`, `LinearGradient` and
+`RadialGradient` (colours, stops or a `Gradient`; views, `ShapeStyle`-like `fill`,
+`stroke` and `background` overloads in both vocabularies, rasterized on the CPU
+through the image path with a one-texel strip fast path, no shader change —
+`LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
+a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
+… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **fitted flat tint, no
+backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient`,
+`Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
+`phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
+deferral (`LK-A`).
 
 ## Backends and infrastructure — M
 

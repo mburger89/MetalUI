@@ -390,3 +390,150 @@ Re-taken independently over `dc96395..8141567`:
   - In `Hitbox.swift`, `ContentShape`'s doc comment had been separated from
     its class by the new `HitboxTransform` declaration. It is now back above
     `ContentShape`, and the change is comment-only.
+
+## §12 The LF-a fix: a clip inside a flattening effect (2026-10-09, `GX-X`)
+
+Branch `fix/clip-in-flattening-effect` from master `67a579e`. MetalCreator's
+gap **LF-a**: a `.clipped()` inside an `.offset` or a uniform positive
+`.scaleEffect` forgot the clip outside the effect. Ruling `GX-X`.
+
+**Cause, as found.** `GX-G` item 3 split the paint clip (`clipBase`) only at a
+non-flattening scope's entry. Inside a flattening one `pushClip` intersected
+the inner clip with the outer one in the content's pre-effect space, and
+`RenderEffect.apply` moved that mask by the effect without cutting it by the
+clip in force at the entry. The reporter's reading holds, and the same cause
+has a second symptom it did not name: content laid out outside the outer clip
+and moved into it got an empty mask and drew nothing. Prepaint always splits,
+so hitboxes were right.
+
+**Red run** (`d8c6e83`, filtered, native) — six issues in five tests:
+- `aClipInsideAnOffsetIsStillCutByTheClipOutsideIt`: proposal mask
+  `(80.0, 20.0, 40.0×40.0)`, legacy `(80.0, 20.0, 40.0×40.0)`; expected
+  `(80.0, 50.0, 40.0×10.0)`.
+- `aClipInsideAUniformScaleIsStillCutByTheClipOutsideIt`: proposal and legacy
+  `(20.0, 20.0, 160.0×160.0)`; expected `(50.0, 50.0, 100.0×100.0)`.
+- `aClipInsideNestedFlatteningEffectsIsCutByTheClipOutsideBoth`:
+  `(80.0, 20.0, 40.0×40.0)`.
+- `contentMovedIntoTheOuterClipByAnOffsetKeepsItsOwnClip`:
+  `(50.0, 130.0, 40.0×0.0)`; expected `(50.0, 70.0, 40.0×40.0)`.
+- `aRecordsOuterMaskInsideAnOffsetIsCutByTheClipOutsideIt`: outer mask
+  `(80.0, 20.0, 40.0×40.0)`.
+- `aHitboxInsideAnOffsetIsCutByTheClipOutsideIt` passed: a pin.
+
+The first legacy arms put `.clipped()` on the legacy bar itself. They read
+`(50, 50) 100 × 100`, because a legacy `.clipped()` clips an element's
+children and not its own background. They now clip a `Box` around the bar.
+
+**Fix.** See `GX-X` items 1 and 2: `Frame.flatteningClipBase`, the flattening
+scope's entry clip kept as `outer`, and `Frame.cutToEntryClip` after `apply` in
+`insertThroughScopes`. There is no scene, shader or record-format change, so
+the SDL replay parity is not engaged.
+
+**Mutations.** Each was run as a full unfiltered native suite, 2879 tests, and
+then reverted. Besides the five pre-existing sheet failures below, each
+reddened only:
+- **M-X1** (`guard p.innerMask, false` in `cutToEntryClip`): the offset,
+  scale and nested tests.
+- **M-X2** (`firstInsideFlattening = false`): the moved-in test.
+- **M-X3** (`guard p.outerMaskInner, false`): the record test.
+- **M-X4** (prepaint: `if !map.isUniformPositiveScaleTranslation { clipBase =
+  clipDepth }`): the hit pin's "moved in" arm.
+
+**Suite.** `swift package clean`, then the native build (0 `error:`) and
+`swift test --build-system native --no-parallel`: **2879 tests in 3 suites**,
+5 issues. The `FR-J no-argument frame: succeeded=true` line is present.
+Guards are unmoved at 185; no guard was added.
+
+The five issues are the AppKit sheet tests in `AppKitPresentationTests`
+(`appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+`appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+`appKitCancelledDialogArrivesAsQueuedInput`,
+`appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+`appKitSecondDialogWhileASheetIsUpAnswersFalse`). Each timed out at 61 s with
+"no sheet attached". They are **pre-existing and environmental**:
+- An unmodified `67a579e` full run fails the same five: 2873 tests, 5 issues.
+- The five pass filtered on both commits.
+- The screen read `CGSSessionScreenIsLocked=Yes`.
+
+`swift build --build-tests` prints 0 warnings.
+
+**Pixels.** `docs/probes/demo-pixels/compare.sh` from `67a579e` to `5d96c04`
+(the fix): all fourteen images read `differing=0`, and every scene is
+identical. No demo tree pushes a clip inside an `.offset` or `.scaleEffect`.
+
+The controls at `67a579e` read:
+
+| Control | Reading |
+|---|---|
+| light vs dark | 1048576 |
+| default vs modal | 1031003 |
+| default vs animation | 454895 |
+| f0 vs f3 | 0 |
+| preview light vs dark | 1048576 |
+| chrome legacy vs proposal | 0 |
+| distinct, default-light-f0 | 544 |
+| distinct, chrome-legacy | 216 |
+
+The two figures that differ from the script header's quoted values are the
+baseline's own and were not caused by this change.
+
+## §13 The LF-b fix: a clip inside nested flattening effects (2026-10-09, `GX-Y`)
+
+Branch `fix/clip-nested-flattening` from master `0b400b4`. MetalCreator's
+**LF-b**, a regression of §12: their node canvas over-clipped since `GX-X`.
+Ruling `GX-Y`.
+
+**Cause, as found.** The suspected cause held. An inner flattening scope opened
+inside an outer one before any clip was pushed there took the outer scope's
+entry clip (the canvas clip, window space) as its own `outer`, and
+`cutToEntryClip` applied it after the inner map only — in the outer effect's
+pre-effect space — before the outer map moved the result. The trigger is
+content whose pre-effect position lies outside the outer clip that an outer
+effect brings into view; the panel offset is irrelevant. §12's nested test
+missed it because its bar stays inside the clip in every space. A second form
+at depth 0: `flatteningClipBase == 0` meant "none", so a scope opened at the
+window root was invisible to `pushClip` and to the new rule.
+
+**Red run** (`48c9c0b` and `8d8b5f0`'s new arm, against `0b400b4`'s source,
+filtered, native):
+- `aClipInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip`: node A,
+  proposal and legacy, mask `(70.0, 90.0, 20.0×40.0) r0.0`; expected
+  `(30.0, 90.0, 60.0×40.0) r6.0`. Node B (straddling, the control) passed.
+- `aClipInsideAScaleInAScaledCanvasIsCutOnlyByTheOutermostEntryClip`: proposal
+  and legacy `(100.0, 95.0, 30.0×60.0) r0.0`, expected
+  `(40.0, 95.0, 90.0×60.0) r9.0`; the scale-in-scale arms
+  `(100.0, 95.0, 0.0×30.0) r0.0`, expected `(40.0, 95.0, 45.0×30.0) r4.5`.
+- `aClipInsideNestedFlatteningEffectsAtDepthZeroIsNotCutByTheWindow`:
+  `(150.0, 10.0, 0.0×40.0) r0.0`, expected `(50.0, 10.0, 60.0×40.0) r6.0`; the
+  second arm (added after M-Y4 stayed green) `(0.0, 290.0, 60.0×10.0) r0.0`,
+  expected `(0.0, 290.0, 60.0×40.0) r6.0`.
+- `aBarMovedOutAndBackByNestedFlatteningEffectsKeepsItsOwnClip`, MetalCreator's
+  numbers exactly: `(110.0, 80.0, 10.0×40.0)` twice and
+  `(125.0, 80.0, 5.0×20.0)`; expected `(80.0, 80.0, 40.0×40.0)` twice and
+  `(110.0, 80.0, 20.0×20.0)`.
+- `aHitboxInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip`
+  passed: a pin.
+
+**Fix.** `GX-Y` items 1 and 2: `flatteningClipBase: Int?`, one predicate
+`Frame.atFlatteningEntry` read by `pushClip` and by `paintWithRenderEffect`,
+which gives a flattening scope `outer = nil` when it holds.
+
+**Mutations.** Each a full unfiltered native suite, 2884 tests, then reverted;
+each reddened only:
+- **M-Y1** (`let outer: OuterMask? = false ? nil : …`): the four `LF-b` paint
+  tests (10 issues).
+- **M-Y2** (`guard let base = flatteningClipBase, base > 0`): the depth-zero
+  test.
+- **M-Y3** (`return base > clipBase && …`): the depth-zero test.
+- **M-Y4** (`pushClip` with `(flatteningClipBase ?? 0) > clipBase &&
+  clipStack.count == (flatteningClipBase ?? 0)`): green at first (2884 passed);
+  after the second arm, the depth-zero test alone.
+
+**Suite.** `swift package clean`, native build, `swift test --build-system
+native --no-parallel`: **2884 tests in 3 suites passed**, 0 issues (the
+AppKit sheet tests passed this time). `FR-J no-argument frame: succeeded=true`.
+Guards unmoved at 185. `swift build --build-tests` prints 0 warnings; both
+closeout checks print nothing.
+
+**Pixels.** `compare.sh` from `0b400b4` to `8d8b5f0`: all fourteen images
+`differing=0`, every scene identical; the controls read as in §12.

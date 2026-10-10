@@ -63,11 +63,19 @@ func runDemo() throws {
     // an inspector, a palette, a click-focusable viewport with a size label
     // and a timeline overlay.
     let keyFocusDemo = ProcessInfo.processInfo.environment["METALUI_KEY_FOCUS_DEMO"] == "1"
+    // App shell's human looks (`docs/verification/human-checks.md` group AS,
+    // spec `2026-10-08-app-shell-design.md` §6): a hidden title bar, the
+    // edited dot, a close and quit alert, `.onOpenURL` fed from the launch
+    // arguments (`AS-G` item 6's recipe).
+    let appShellDemo = ProcessInfo.processInfo.environment["METALUI_APP_SHELL_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if keyFocusDemo {
+    if appShellDemo {
+        window = try openAppShellDemoWindow(app, title: "MetalUI — App Shell",
+                                            launchArguments: Array(CommandLine.arguments.dropFirst()))
+    } else if keyFocusDemo {
         window = try app.openWindow(title: "MetalUI — Key and Focus",
                                     size: Size(width: Pixels(1000), height: Pixels(620)),
                                     content: keyFocusDemoContent)

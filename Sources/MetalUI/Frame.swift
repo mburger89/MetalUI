@@ -1,3 +1,4 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 import MetalUIPrimitives
@@ -570,6 +571,8 @@ public final class Frame {
             values.theme = theme   // tokens only; `colorScheme` untouched (`CR-K` item 3)
         case .preferredColorScheme:
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
+        case .navigationTitle, .navigationDocument, .onOpenURL:
+            break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
         }
         return values
     }
@@ -601,6 +604,16 @@ public final class Frame {
     var collectedColorSchemePreference: ColorScheme? {
         mainColorSchemePreference ?? presentationColorSchemePreference
     }
+
+    // MARK: Window preferences (rulings `AS-D`, `AS-G`)
+
+    /// The first `.navigationTitle` reported in post-order this build, read
+    /// by `Window` after it (`AS-D` item 2).
+    var collectedNavigationTitle: String?
+    /// The first `.navigationDocument` reported in post-order (`AS-D` item 3).
+    var collectedNavigationDocument: URL?
+    /// Every `.onOpenURL` present this build, in post-order (`AS-G` item 2).
+    var openURLHandlers: [OpenURLHandler] = []
 
     // MARK: Content size limits (ruling `SV-L` item 2)
 
@@ -757,6 +770,34 @@ public final class Frame {
     /// stays in force inside an effect. Restored by whoever moved it.
     var clipBase = 0
 
+    /// The clip depth at the entry of the innermost open **flattening** paint
+    /// effect (ruling `GX-X`, the LF-a fix), `nil` outside every one (`GX-Y`:
+    /// an `Int` with 0 for "none" could not tell a scope opened at depth 0, the
+    /// window root, from no scope). A `Deferred` needs no reset: it raises
+    /// `clipBase` to its entry depth and pushes its root clip at once, so
+    /// `atFlatteningEntry` is false inside it. The first clip pushed inside such a scope
+    /// (`clipStack.count` equal to it, with no non-flattening split above it)
+    /// does **not** intersect the clip in force at the scope's entry — that
+    /// clip is in the space the effect maps INTO, the pushed one in the
+    /// content's — so clips pushed inside intersect among themselves in local
+    /// space, are mapped by the scope, and only then are cut by the entry clip
+    /// (`insertThroughScopes`). Unlike `clipBase` it leaves `activeClip` alone:
+    /// a primitive with no clip pushed inside still reads the entry clip, as
+    /// before. Restored by whoever moved it.
+    var flatteningClipBase: Int? = nil
+
+    /// Whether the clip in force now was read at or outside the entry of the
+    /// innermost open flattening effect, with no non-flattening split nearer
+    /// (`GX-Y`): no clip has been pushed since that scope opened, so
+    /// `activeClip` is its entry clip, in the space it maps INTO — not the
+    /// content's. A clip pushed now intersects nothing (`pushClip`), and a
+    /// flattening scope opened now has no entry clip of its own to cut by: the
+    /// enclosing one's cut, after its map, covers it.
+    var atFlatteningEntry: Bool {
+        guard let base = flatteningClipBase else { return false }
+        return base >= clipBase && clipStack.count == base
+    }
+
     /// The clip a render effect's content sees before any clip is pushed inside
     /// it: unbounded, in local points (`GX-G`).
     static let unboundedLocalClip = Bounds(origin: Point(x: Pixels(-1_000_000), y: Pixels(-1_000_000)),
@@ -861,8 +902,11 @@ public final class Frame {
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
-                                               translated, radii: radii)
+        // The first push inside a flattening effect intersects nothing outside
+        // it (`GX-X`): `activeClip` there is the entry clip, in another space.
+        let (clip, clipRadii) = atFlatteningEntry
+            ? (translated, radii)
+            : Self.intersect(activeClip, radii: activeClipRadii, translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
         clipStack.append((clip, composed, clipRadii))
@@ -1675,6 +1719,8 @@ public final class Frame {
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
+        declaration.colorWellHint = false    // LK-G, the same
+        declaration.progressHint = nil       // LK-G, LK-V item 6, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1700,6 +1746,7 @@ public final class Frame {
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || handlers.axNode.progressHint != nil
                 || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
@@ -2979,7 +3026,7 @@ public final class Frame {
     /// One emitted primitive through every open transitioning group, innermost
     /// first: each captures it as it arrives (for a ghost), then applies its
     /// effect, and the result reaches the scene.
-    private func insertThroughScopes(_ primitive: CapturedPrimitive) {
+    func insertThroughScopes(_ primitive: CapturedPrimitive) {
         // Inside a text draw (`beginLeafGroup`), the glyphs wait for the
         // group's end, so a shadow scope sees the whole text as one leaf.
         if leafGroup != nil {
@@ -3003,8 +3050,8 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier, .shadow where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed or shadowed (`GX-G`)
+            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed, shadowed or blurred (`GX-G`, `LK-K`)
             default:
                 break
             }
@@ -3020,11 +3067,24 @@ public final class Frame {
                     next.append(group)
                     continue
                 }
+                if let blur = scope.blur {
+                    // A GPU surface's pixels are on the GPU: it is drawn
+                    // unblurred (`LK-K` item 5, divergence 167).
+                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
+                        next.append(group)
+                    } else {
+                        next.append([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)])
+                    }
+                    continue
+                }
                 if !scope.effect.isIdentity {
                     group = group.compactMap {
                         scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
                     }
                     if group.isEmpty { continue }
+                }
+                if scope.kind == .effect, scope.flattens, let entry = scope.outer {
+                    for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
                 }
                 next.append(group)
             }
@@ -3033,6 +3093,64 @@ public final class Frame {
         for group in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
+    }
+
+    /// `primitive` after a flattening effect mapped it (`GX-X`, the LF-a fix):
+    /// a mask pushed inside the scope — its own (`innerMask`), or its
+    /// transform's outer mask (`outerMaskInner`) — cut by `entry`, the clip in
+    /// force at the scope's entry, in the space the scope maps into. Any other
+    /// mask was read at or outside the entry and already is that clip.
+    private static func cutToEntryClip(_ primitive: CapturedPrimitive, _ entry: OuterMask) -> CapturedPrimitive {
+        func cut(_ mask: MUIBounds, _ radii: MUICorners) -> (MUIBounds, MUICorners) {
+            func bounds(_ b: MUIBounds) -> Bounds<Pixels> {
+                Bounds(origin: Point(x: Pixels(b.origin.x), y: Pixels(b.origin.y)),
+                       size: Size(width: Pixels(b.size.width), height: Pixels(b.size.height)))
+            }
+            func corners(_ c: MUICorners) -> Corners<Pixels> {
+                Corners(topLeft: Pixels(c.topLeft), topRight: Pixels(c.topRight),
+                        bottomRight: Pixels(c.bottomRight), bottomLeft: Pixels(c.bottomLeft))
+            }
+            let (b, r) = intersect(bounds(entry.bounds), radii: corners(entry.radii), bounds(mask), radii: corners(radii))
+            return (MUIBounds(origin: MUIPoint(x: b.origin.x.value, y: b.origin.y.value),
+                              size: MUISize(width: b.size.width.value, height: b.size.height.value)),
+                    MUICorners(topLeft: r.topLeft.value, topRight: r.topRight.value,
+                               bottomRight: r.bottomRight.value, bottomLeft: r.bottomLeft.value))
+        }
+        var p = primitive
+        if var t = p.transform {
+            guard p.outerMaskInner else { return p }
+            (t.outerMask, t.outerMaskRadii) = cut(t.outerMask, t.outerMaskRadii)
+            p.transform = t
+            return p
+        }
+        guard p.innerMask else { return p }
+        switch p.kind {
+        case .rect(var r):
+            (r.contentMask, r.maskCornerRadii) = cut(r.contentMask, r.maskCornerRadii)
+            p.kind = .rect(r)
+        case .glyph(var g):
+            (g.contentMask, g.maskCornerRadii) = cut(g.contentMask, g.maskCornerRadii)
+            p.kind = .glyph(g)
+        case .image(var i, let texture):
+            (i.contentMask, i.maskCornerRadii) = cut(i.contentMask, i.maskCornerRadii)
+            p.kind = .image(i, texture: texture)
+        case .surface(var q, let target):
+            (q.contentMask, q.maskCornerRadii) = cut(q.contentMask, q.maskCornerRadii)
+            p.kind = .surface(q, target: target)
+        case .path(var path):
+            (path.contentMask, path.maskCornerRadii) = cut(path.contentMask, path.maskCornerRadii)
+            p.kind = .path(path)
+        case .shadow(var shadow):
+            (shadow.contentMask, shadow.maskCornerRadii) = cut(shadow.contentMask, shadow.maskCornerRadii)
+            p.kind = .shadow(shadow)
+        case .gradient(var gradient):
+            (gradient.contentMask, gradient.maskCornerRadii) = cut(gradient.contentMask, gradient.maskCornerRadii)
+            p.kind = .gradient(gradient)
+        case .blur(var blur):
+            (blur.contentMask, blur.maskCornerRadii) = cut(blur.contentMask, blur.maskCornerRadii)
+            p.kind = .blur(blur)
+        }
+        return p
     }
 
     /// The shadow of `leaf` under a shadow scope (`GX-J`), in the space the
@@ -3062,6 +3180,12 @@ public final class Frame {
             scene.insert(quad, texture: texture, layer: primitive.layer)
         case .shadow(let paint):
             guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .gradient(let paint):
+            guard let (quad, texture) = gradientImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .blur(let paint):
+            guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
             scene.insert(quad, texture: texture, layer: primitive.layer)
         }
     }

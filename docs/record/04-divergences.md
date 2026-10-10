@@ -2532,3 +2532,43 @@ which settles them beside `feat/input-apis`. **Added, kept:**
 Live count **+9** on this branch (108 on the variable-height-list branch → 117
 after both). Lane 3 wrote the rows; this section was written by the Record
 phase.
+
+## 2026-10-09: 165–169 and 171 added (controls and looks)
+
+Record §85; rulings `LK-C`, `LK-D`, `LK-L`, `LK-O`, `LK-K`, `LK-I`, `LK-T`; the
+published list is `docs/divergences.md`. Not a plan task — user request
+2026-10-02, item C10. Labels from this branch's reserved range 165–174; 170 and
+172–174 were never used (no divergence ever held them, so they are not
+retired). The published header reads 126 live, next label 175 on this branch
+(120 on master `67a579e` + 6); the labels 159–164 belong to other branches'
+reservations and settle at their merges. **Added, kept:**
+
+- **165** — what a `ColorPicker`'s well opens on macOS. SwiftUI opens the shared
+  `NSColorPanel` (probe `swiftui-controls-looks.swift` `C3`: `active=true
+  panelVisible=true showsAlpha=true`); MetalUI draws a popover from the well on
+  every platform (a square, a hue bar, an opacity bar, a swatch and a hex
+  field; SDL has no colour panel). The binding sees the same writes (`C4`–`C8`).
+  Owner C10-b: the designed `PlatformWindow.presentColorPanel` seam. Pin
+  `pressingTheWellOpensThePanelAndDoesNotFocus`.
+- **166** — a `Material` background or fill. SwiftUI blurs the backdrop and
+  tints it (over 10-point stripes every material reads nearly one colour, `M1`);
+  MetalUI draws a flat grey tint at an alpha per material and scheme, fitted from
+  ImageRenderer's `M5` so that over uniform white and black it matches within one
+  level, and no blur. A real window's tint is unmeasured (`LK-O` item 2). Owner
+  C10-c, a backdrop blur in both renderers. Pin
+  `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5`.
+- **167** — a GPU surface under `.blur(radius:)`. SwiftUI blurs it with its
+  siblings; MetalUI draws it unblurred (its pixels are on the GPU, the blur runs
+  on the CPU per leaf). Pin `aSurfaceLeafUnderBlurIsDrawnUnblurred`.
+- **168** — `SpringKeyframe` without `duration:`. SwiftUI compiles it and lasts a
+  derived settling length (`K4b`: 1.273 s for `Spring(duration: 0.4, bounce:
+  0.3)`); MetalUI requires `duration:`, runs the spring for it and holds the value
+  it reached (`K4`). Pin `springKeyframeWithoutDurationDoesNotCompile`.
+- **169** — a keyframe track's value type and `.keyframeAnimator`'s content
+  argument. SwiftUI: `Value: Animatable`, a placeholder view; MetalUI:
+  `Value: VectorArithmetic` (`Double`, `Float`, `CGFloat`, `Angle`) and the
+  element itself. Pin `keyframeAnimatorTypechecksWithSwiftUIsCallShape`.
+- **171** — a zero-duration keyframe at its own time. SwiftUI reads `nan` (`K8`);
+  MetalUI reads its target. Pin `aZeroDurationKeyframeReadsItsTarget`.
+
+**Amended:** none. **Retired:** none.

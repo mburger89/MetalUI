@@ -535,7 +535,7 @@ private func concatenateDecoratedOnTheLeft() -> Text {
                                        onChange: { _ in }, onSubmit: nil)
     }
     arm("valueTrack") {
-        $0.valueTrack = ValueTrackTarget(minX: 0, width: 1, thumb: 0, bounds: 0...1, step: nil, write: { _ in })
+        $0.valueTrack = ValueTrackTarget(minX: 0, width: 1, thumb: 0, bounds: 0...1, step: nil, edit: { _ in })
     }
     arm("gestures") { $0.gestures = [GestureAttachment(TapGesture(), priority: .normal)] }
     arm("keyboardShortcut") { $0.keyboardShortcut = ShortcutTarget(KeyboardShortcut("a"), action: {}) }

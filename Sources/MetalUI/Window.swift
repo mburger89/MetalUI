@@ -12,7 +12,7 @@ import MetalUITextSystem
 /// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
 public final class Window {
-    private let platformWindow: any PlatformWindow
+    let platformWindow: any PlatformWindow   // internal: the app shell reads it (WindowShell.swift)
 
     /// Builds and walks the root element for one frame.
     ///
@@ -223,6 +223,9 @@ public final class Window {
     /// The preference the last built frame collected from the tree
     /// (`Frame.collectedColorSchemePreference`).
     private var treeColorSchemePreference: ColorScheme?
+
+    /// The app shell's state (rulings `AS-B`…`AS-K`): `WindowShell.swift`.
+    var shell = WindowShellState()
 
     /// The preference last handed to `PlatformWindow.setPreferredColorScheme`
     /// — `nil` until one is requested, so a window nobody asks is never told.
@@ -805,6 +808,7 @@ public final class Window {
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
+        installShell()   // the opening title and the close question (AS-B item 5)
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // The platform's appearance is one input to the effective scheme
             // (`CR-L` item 4); assigning `colorScheme` drives its guarded
@@ -857,6 +861,15 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // A slider's edit ends here (rulings `LK-B` item 5, `LK-Q`): at the
+            // release — or at a press that finds it still open, a lost
+            // release — before every stage that may claim the event (the
+            // drawn alert, the drag and menu sessions, the popovers), wherever
+            // it lands. It claims nothing: the event continues as before.
+            switch event {
+            case .mouseUp, .mouseDown: self.endSliderEdit()
+            default: break
+            }
             // Platform services (`SV-K`, `SV-C`, `SV-I`): a dialog's or an
             // alert's answer is first after the pointer state — no later stage
             // may claim it.
@@ -1078,6 +1091,7 @@ public final class Window {
                 return true
             }
             let handled = self.onInput?(event) ?? false
+            if !handled { self.answerUnclaimedTitleBarPress(event) }   // the band press (AS-J)
             self.setNeedsRedraw()
             return handled
         }
@@ -1303,6 +1317,7 @@ public final class Window {
     /// Builds and draws one frame if the window is dirty or an animation is
     /// running; otherwise pauses the display link.
     public func drawFrameIfNeeded() {
+        if shell.isClosed { return }   // a closed window draws nothing more (AS-B item 4)
         lastDrawBuildCount = 0
         // Binding design spec §4.4, and the widening M4 spec 1 could not make.
         // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
@@ -1568,12 +1583,14 @@ public final class Window {
         return dirtied
     }
 
-    /// Closing the window (ruling `LC-J`): every present element's
+    /// Closing the window (ruling `LC-J`): an open slider edit's end (`LK-B`
+    /// item 5), then every present element's
     /// `onDisappear`, then every parked one, each once, under `StateDispatch`
     /// — called by `App`'s `onClose`. A second call finds nothing. A write
     /// such an action makes dirties a window that will not draw again
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
+        endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
         }
@@ -1652,6 +1669,7 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
+        rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
@@ -1690,6 +1708,7 @@ public final class Window {
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
+        adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
         lastElementBounds = frame.elementBounds
@@ -2312,6 +2331,9 @@ public final class Window {
     /// a `mouseDown`, kept past the release only while a tap sequence waits for
     /// its next press.
     private var gestureArena: GestureArena?
+    /// Whether a press formed a gesture arena — the band press's second
+    /// condition (`AS-J` item 1).
+    var hasGestureArena: Bool { gestureArena != nil }
 
     /// The open in-window drag (ruling `DN-H`), or `nil`. On `Window`, never
     /// in `StateTable` (`DN-H` item 6), so no id path or reserved slot moves.
@@ -2785,6 +2807,21 @@ public final class Window {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
     }
 
+    /// The pressed slider's open edit and its `onEditingChanged` (ruling
+    /// `LK-Q`): set by a press on a track, ended by `endSliderEdit()`. On
+    /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
+    private var sliderEdit: (id: GlobalElementID, end: @MainActor () -> Void)?
+
+    /// Ends the open slider edit, if any — `onEditingChanged(false)` under
+    /// `StateDispatch` to the slider that began it (`ID-F`), whether or not it
+    /// is still in the tree or enabled (`LK-B` item 5). Called at a release, a
+    /// press and the window's close; a second call finds nothing.
+    func endSliderEdit() {
+        guard let edit = sliderEdit else { return }
+        sliderEdit = nil
+        StateDispatch.dispatching(to: edit.id) { edit.end() }
+    }
+
     /// A slider's pointer events (ruling `DD-W` item 5); see the call site.
     /// The press resolves against `lastHitboxes` exactly as `mouseDown` does,
     /// and the drag follows the id `active` holds — the one the press made
@@ -2796,9 +2833,15 @@ public final class Window {
                   let track = lastHitboxes[index].handlers.valueTrack else { return false }
             // The slider's own local point under a render effect (`GX-P` item 3).
             let local = lastHitboxes[index].localPoint(mouse.position)
-            StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
+            let id = lastHitboxes[index].id
+            // `LK-B` item 2 (S1): the edit begins before the press's write, and
+            // the window keeps its end for the release (`LK-Q`).
+            StateDispatch.dispatching(to: id) {   // ID-F: the pressed slider
+                track.edit(.begin)
                 track.track(toWindowX: Double(local.x.value))
             }
+            let edit = track.edit
+            sliderEdit = (id, { edit(.end) })
             return true
         case .mouseDragged(let mouse):
             guard let id = active,

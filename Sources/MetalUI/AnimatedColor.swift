@@ -465,9 +465,10 @@ extension PaintPass {
         let border = resolved.map { (color: $0.color, widths: $0.widths) }
         let radii = Corners(all: decoration.cornerRadius)
 
+        let gradient = decoration.backgroundGradient
         guard decoration.opacity < 1 else {
-            paintDecorationBody(bounds, radii: radii, background: background?.color, border: border,
-                                clip: decoration.clipRegion(in: bounds), content: content)
+            paintDecorationBody(bounds, radii: radii, gradient: gradient, background: background?.color,
+                                border: border, clip: decoration.clipRegion(in: bounds), content: content)
             return
         }
         // Stage 11 (`LR-FW` as amended): a fill or border whose WINNING slot was
@@ -476,28 +477,38 @@ extension PaintPass {
         let escapes = decoration.escapesOpacity
         let fillEscapes = background.map { escapes.contains($0.slot.fill) } ?? false
         let borderEscapes = resolved.map { escapes.contains($0.slot.border) } ?? false
-        if fillEscapes, let background {
-            paintDecorationBody(bounds, radii: radii, background: background.color, border: nil,
+        // A gradient is the plain fill slot (`LK-J` item 8).
+        let gradientEscapes = gradient != nil && escapes.contains(.plainFill)
+        if fillEscapes || gradientEscapes {
+            paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? gradient : nil,
+                                background: fillEscapes ? background?.color : nil, border: nil,
                                 clip: nil) {}
         }
         opacity(decoration.opacity) {
-            paintDecorationBody(bounds, radii: radii,
+            paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? nil : gradient,
                                 background: fillEscapes ? nil : background?.color,
                                 border: borderEscapes ? nil : border,
                                 clip: decoration.clipRegion(in: bounds), content: content)
         }
         if borderEscapes, let border {
-            paintDecorationBody(bounds, radii: radii, background: nil, border: border,
+            paintDecorationBody(bounds, radii: radii, gradient: nil, background: nil, border: border,
                                 clip: nil) {}
         }
     }
 
     /// Steps 2–4 of `paintDecoration`, so the opacity scope can wrap them.
     private func paintDecorationBody(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>,
+                                     gradient: GradientFill? = nil,
                                      background: Hsla?,
                                      border: (color: Hsla, widths: Edges<Pixels>)?,
                                      clip: (bounds: Bounds<Pixels>, radii: Corners<Pixels>)?,
                                      content: () -> Void) {
+        if let gradient {
+            // A legacy gradient background (`LK-J` item 8): under the corner
+            // radius, before a pointer-state colour and the border. Snaps.
+            paintGradientFill(gradient, .roundedRectangle(bounds, cornerRadii: radii, style: .circular),
+                              style: nil, pass: self)
+        }
         if let background {
             fill(bounds, color: background, cornerRadii: radii)
         }

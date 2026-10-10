@@ -78,7 +78,15 @@ func runDemo() throws {
     // `METALUI_KEY_FOCUS_DEMO=1`: key and focus scoping (human checks KF-1…KF-7;
     // spec `2026-10-08-key-focus-design.md` §6) — a key-region canvas, an
     // inspector, a palette, a click-focusable viewport.
-    let window = environment["METALUI_KEY_FOCUS_DEMO"] == "1"
+    // `METALUI_APP_SHELL_DEMO=1`: the app shell (human check AS10, spec
+    // `2026-10-08-app-shell-design.md` §6) — the WM close, Alt-F4 and Ctrl-C ask
+    // before an edited document goes; the system title bar stays (`AS-E` item 6),
+    // so the insets read zero; documents named on the command line are opened
+    // (`AS-G` item 6's recipe).
+    let window = environment["METALUI_APP_SHELL_DEMO"] == "1"
+        ? try openAppShellDemoWindow(app, title: "MetalUI — SDL3 app shell",
+                                     launchArguments: Array(CommandLine.arguments.dropFirst()))
+        : environment["METALUI_KEY_FOCUS_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 key and focus",
                              size: Size(width: Pixels(1000), height: Pixels(620)), content: keyFocusDemoContent)
         : canvasDemo

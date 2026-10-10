@@ -1105,6 +1105,135 @@ pointer, an input method, the display link and the menu bar.
   appear, digits do; an input method's composition (AppKit Japanese IME; SDL
   on Linux with IBus) is unaffected (`KF-Q`, divergence 187). **Observed:**
 
+## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
+
+*Source: record §87 `87-app-shell.md`, rulings `AS-A`…
+(`docs/superpowers/2026-10-08-app-shell-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-app-shell-design.md`).* Run
+`METALUI_APP_SHELL_DEMO=1 swift run MetalUIDemo` (AppKit; AS1–AS8) and, from
+`Backends/SDL`, `METALUI_APP_SHELL_DEMO=1 swift run $(python3
+scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`; AS10).
+Pinned headless: the close and terminate state machines and the walk
+(`AppShellTests` 2.2–2.15), the drawn alert answering later (2.5), the title,
+document and edited marker reaching the platform (`WindowTitleTests`), the
+insets and the band press (2.21, 2.21b), open-URL routing (`OpenURLTests`),
+the AppKit delegate and window wiring (`AppKitAppShellTests` 1.3–1.11), SDL's
+quit, close and window-0 drop (`SDLAppShellTests`, `SDLAppShellAppTests`
+3.1–3.3), and this demo (`AppShellDemoTests` 3.4–3.4c). What nothing
+headless sees: the native title bar, the sheet, the edited dot, a real drag,
+logout, Finder.
+
+- [ ] **AS1. Close with unsaved changes.** Press "Make a change", then the
+  red close button: an alert sheet asks "Do you want to save the changes made
+  to “Untitled.mcgraph”?". Cancel keeps the window (still edited); Save clears
+  the marker and closes; Don't Save closes; with the last window gone the app
+  quits (`AS-B`, `AS-C` item 5). A clean window closes at once. **Observed:**
+- [ ] **AS2. ⌘Q with unsaved changes.** After "Make a change", ⌘Q shows the
+  same alert; Cancel keeps the app running; Don't Save quits (`AS-C` item 2:
+  no `App.onTerminateRequest`, so the window is asked). **Observed:**
+- [ ] **AS3. Log out with unsaved changes.** Choose Log Out from the Apple
+  menu with the document edited: the alert appears and logout waits for it
+  (`.terminateLater`); the window keeps drawing meanwhile (type in the name
+  field); Cancel cancels the logout (`AS-C` item 9). **Observed:**
+- [ ] **AS4. The edited dot.** The close button shows its dot after "Make a
+  change" and loses it after "Save"; the top bar's "— Edited" follows
+  (`AS-D` item 4). **Observed:**
+- [ ] **AS5. A represented document.** In a scratch app with
+  `.navigationDocument(URL(fileURLWithPath: "/tmp/x.mcgraph"))` (the demo
+  has none): the proxy icon appears beside the title, and ⌘-click on the title
+  shows the path menu (`AS-D` item 3). **Observed:**
+- [ ] **AS6. Hidden title bar.** The traffic lights sit over the top bar, its
+  name starts right of them, and no title text is drawn; the window's title in
+  the Window menu and Mission Control is the name field's text (`AS-E`,
+  `.navigationTitle`). **Observed:**
+- [ ] **AS7. The band drag.** Dragging the top bar's empty area moves the
+  window; a double-click there zooms (or minimises, per System Settings →
+  Desktop & Dock → "Double-click a window's title bar to"); a press on the
+  name field or a button never drags (`AS-J`). **Observed:**
+- [ ] **AS8. Full screen.** Enter full screen (green button): the band goes,
+  the top bar sits at the very top with its name 12 points from the left
+  edge; leaving full screen restores the inset (`AS-E` item 4). **Observed:**
+- [ ] **AS9. Open-document events from a packaged app.** Package the demo as
+  in `docs/packaging.md` with a `.mcgraph` document type: a Finder
+  double-click, `open -a`, a drop on the Dock icon — with the app not running
+  and with it running — each lists the file's URL once under "Opened"; `METALUI_APP_SHELL_DEMO=1
+  swift run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
+  launch-argument recipe, `AS-G` item 6, `AS-M`). No "cannot open files in
+  this format" alert appears without an `NSDocumentClass` (measured for
+  `open -a` by probe `appkit-open-without-document-class.swift` `W0`/`W2`;
+  confirm it for the double-click and the Dock drop).
+  **Observed:**
+- [ ] **AS10. SDL (Linux, Windows; macOS too).** With the document edited,
+  the window manager's close button and Alt-F4 show the drawn alert; Ctrl-C
+  in the terminal (SIGINT → `SDL_EVENT_QUIT`) shows it too; Don't Save ends
+  the program. A file dropped on the window is a drag (nothing under
+  "Opened"); the title shows no edited marker; the window keeps its system
+  title bar, and the top bar's name sits 12 points from the left (insets
+  zero, `AS-E` item 6). On macOS, a vetoed close of the only window does not
+  quit (`AS-L`: the quit-on-last-window hint is off). **Observed:**
+
+## CL. Controls and looks — colour picker, slider editing, progress, keyframes, gradients, blur, materials (item C10, user request 2026-10-02, not a plan task)
+
+*Source: record §85 `85-controls-looks.md`, rulings `LK-A`…
+(`docs/superpowers/2026-10-08-controls-looks-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-controls-looks-design.md`). The group's
+letter is provisional — the merge settles it beside the parallel branches'
+groups.* Run `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (the slider, the
+two colour pickers and the progress row) and `METALUI_LOOKS_DEMO=1 swift run
+MetalUIDemo` (the keyframes row and the gradients, blur and materials row),
+and from `Backends/SDL` the same variables with `swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`);
+do each check in both where it says so. Pinned headless: the slider's
+callback order (`SliderEditingTests`), the picker's well, panel, keys and
+colour maths (`ColorPickerTests`, `ColorMathTests`), the progress view's sizes,
+values and clock (`ProgressViewTests`), keyframe timelines and the animator's
+records, gradient pixels against SwiftUI's probe values, blur per leaf, the
+material tints over white and black, and the fourteen offscreen images at 0
+differing pixels (none renders the controls or looks sections' new rows). What
+nothing headless sees: the looks below, the wheel and pointer feel, a real
+window's materials, VoiceOver (**an agent cannot run it**, `IX-AE`).
+
+- [ ] **CL1. The colour well and its panel.** The "Accent" well beside an
+  `NSColorWell` (e.g. a Swift playground): same 48 × 24 footprint and rounded
+  look; Tab focuses it and draws the control focus ring; a disabled picker is
+  dimmed; a click opens the drawn panel anchored to the well, which flips near
+  a window edge and closes on Escape and on an outside press (`LK-C`, `LK-D`;
+  divergence 165). **Observed:**
+- [ ] **CL2. Opacity checkerboard.** With `supportsOpacity`, a selection below
+  full opacity shows a checkerboard behind the well's colour and the panel's
+  swatch and opacity bar; the "Opaque" picker never does (pinned by nothing:
+  review mutation V7). **Observed:**
+- [ ] **CL3. Dragging in the panel.** Dragging in the square and the bars feels
+  continuous; the square's colours regenerate with the hue (review mutation
+  V12 left this unpinned); arrow keys and the hex field commit (`LK-D`).
+  **Observed:**
+- [ ] **CL4. One undo step per drag.** In MetalCreator with the new
+  `Slider(…onEditingChanged:)` and `ColorPicker`, one drag of a slider or the
+  panel is one undo step (M5-a, M6-f together; `LK-B`). **Observed:**
+- [ ] **CL5. The spinner.** At 32, 16 and 10 points against
+  `NSProgressIndicator`'s spinner: size and spoke weight; the step rate looks
+  like AppKit's (24 steps per 0.8 s); with Reduce Motion on it still turns
+  (`LK-E`, `LK-F`). Also the indeterminate bar's sweep. **Observed:**
+- [ ] **CL6. The determinate bar.** Track and fill colours in light and dark,
+  in a key window and an inactive one, beside `NSProgressIndicator`
+  (`LK-E`). **Observed:**
+- [ ] **CL7. Gradients.** A window-background gradient during live resize stays
+  smooth (the strip path), and the large diagonal one shows only a first-frame
+  raster cost; no visible banding at 8 bits on a P3 display (divergence 1
+  applies; `LK-J`). **Observed:**
+- [ ] **CL8. Blur.** A blurred text and image at radii 2 and 6 look like
+  SwiftUI's at the same radius (`LK-K`). **Observed:**
+- [ ] **CL9. Materials.** The six materials over the striped backdrop in both
+  schemes: the flat tint versus SwiftUI's blur (divergence 166 is visible by
+  design), **and over a uniform backdrop in a real key window**, whether
+  SwiftUI's tint matches the ImageRenderer fit (`LK-O` item 2). **Observed:**
+- [ ] **CL10. The shake.** The keyframes row's "Shake" reads as a shake at 60 Hz
+  and on a 120 Hz display (`LK-H`, `LK-I`). **Observed:**
+- [ ] **CL11. VoiceOver.** The well announces its colour; the panel's sliders
+  adjust; a determinate progress view announces its fraction; a spinner
+  announces busy (`LK-G`; the voiceover script's controls step is unchanged).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

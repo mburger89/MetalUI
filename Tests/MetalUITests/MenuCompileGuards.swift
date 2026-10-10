@@ -143,6 +143,14 @@ private func conformer(member: String) -> String {
 
     @MainActor
     final class Conformer: PlatformWindow {
+        // The app-shell requirements (`AS-H`, `AS-J`).
+        var onCloseRequest: (() -> Bool)?
+        func close() { onClose?() }
+        func setDocumentEdited(_ edited: Bool) {}
+        func setRepresentedFilePath(_ path: String?) {}
+        func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool { false }
+        var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
+        func performTitleBarPress(clickCount: Int) -> Bool { false }
         var contentSize: Size<Pixels> { Size(width: Pixels(1), height: Pixels(1)) }
         var scaleFactor: Float { 1 }
         var renderer: any WindowRenderer { fatalError("never drawn") }
