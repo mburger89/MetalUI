@@ -379,10 +379,15 @@ passes them to `.onOpenURL` — a launch-time open arrives during `run()`,
 before `applicationDidFinishLaunching` (probe
 `appkit-launch-arguments-open.swift` `A6`), so **open the window before
 `run()`** or set `App.onOpenURL` there (`AS-Q`: nothing is queued for a
-receiver that comes later). **Unverified**: the opens themselves from a
-packaged app, launched and already running, and whether a document type with
-no `NSDocumentClass` makes Finder show AppKit's "cannot open files in this
-format" alert instead — human check AS9.
+receiver that comes later). **No `NSDocumentClass` is needed** (probe
+`appkit-open-without-document-class.swift`, 2026-10-09): with a document type
+of exactly this shape and no `NSDocumentClass`, `open -a` delivers the file to
+`application(_:open:)` with no alert, at launch and with the app already
+running (`W0`, `W2`); AppKit's "cannot open files in this format" alert comes
+up only for a delegate that does not implement `application(_:open:)` (`W1`,
+the separating arm) — so do not replace `NSApp.delegate` after `run()`
+installs MetalUI's. **Unverified**: a Finder double-click, a Dock drop and Open
+Recent from a packaged MetalUI app — human check AS9.
 
 ### Launch arguments — the recipe (every platform)
 

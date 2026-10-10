@@ -1114,8 +1114,10 @@ logout, Finder.
   double-click, `open -a`, a drop on the Dock icon — with the app not running
   and with it running — each lists the file's URL once under "Opened"; `METALUI_APP_SHELL_DEMO=1
   swift run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
-  launch-argument recipe, `AS-G` item 6, `AS-M`). Note whether Finder shows
-  "cannot open files in this format" without an `NSDocumentClass`.
+  launch-argument recipe, `AS-G` item 6, `AS-M`). No "cannot open files in
+  this format" alert appears without an `NSDocumentClass` (measured for
+  `open -a` by probe `appkit-open-without-document-class.swift` `W0`/`W2`;
+  confirm it for the double-click and the Dock drop).
   **Observed:**
 - [ ] **AS10. SDL (Linux, Windows; macOS too).** With the document edited,
   the window manager's close button and Alt-F4 show the drawn alert; Ctrl-C
