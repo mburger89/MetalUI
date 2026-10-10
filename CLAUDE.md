@@ -89,7 +89,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+- **Counts (2026-10-10, `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
+  3099 tests, 0 goldens, 196 typecheck guards** (master's 3069 + 30 tests, 195 + 1 guard; native
+  run on an unlocked screen, all passed; census 3023 (3021 + the two `compositingGroup()`
+  functions); divergence 205 added beside master's 175, 176, the header's count and next label
+  the merge's; `Backends/SDL` 24 + 105 and root in `swift:6.4-noble` 6 + 35 + 21 + 199 + 67 + 22 in the Linux image, unmoved by this branch; record §90 §3). Before the merge, lane 2 at `ef3b11c`: 3051 tests (3021 + 30;
+  lane 1 at `31c88a4`: 3037), one new guard. Before it, **2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
   3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
   issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105

@@ -53,7 +53,8 @@ summary.
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
   `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
-  `2026-10-08-app-shell-decisions.md`, next `AS-R`), …; the full
+  `2026-10-08-app-shell-decisions.md`, next `AS-R`), `PF-` (shadow cache, `compositingGroup()`:
+  `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -68,7 +69,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **126 live, next label 175**; retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS and CL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL and PF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -88,7 +89,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+- **Counts (2026-10-10, `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
+  3099 tests, 0 goldens, 196 typecheck guards** (master's 3069 + 30 tests, 195 + 1 guard; native
+  run on an unlocked screen, all passed; census 3023 (3021 + the two `compositingGroup()`
+  functions); divergence 205 added beside master's 175, 176, the header's count and next label
+  the merge's; `Backends/SDL` 24 + 105 and root in `swift:6.4-noble` 6 + 35 + 21 + 199 + 67 + 22 in the Linux image, unmoved by this branch; record §90 §3). Before the merge, lane 2 at `ef3b11c`: 3051 tests (3021 + 30;
+  lane 1 at `31c88a4`: 3037), one new guard. Before it, **2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
   3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
   issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105
@@ -167,7 +173,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §90.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -629,6 +635,24 @@ re-rasterized (divergence 106). **A clip pushed inside a flattening effect (`.of
 effect opened before any clip is pushed inside the enclosing one has no entry clip of its own**
 — the outermost's cut, after its map, covers it (`Frame.atFlatteningEntry`, `GX-Y`, §13). A new public declaration spelled
 `nonisolated public` hides from the census — write `public nonisolated`.
+
+**Shadow cache (`PF-`, record §90).** The shadow, blur, path and full-gradient rasters are keyed
+**relative to a floored device anchor** (`RasterAnchor.swift`: anchor `R`, integer offset `S`,
+fractional offset `f` stays in the key): the raster is a pure function of its key, cached
+canonical and placed at `+S`, so a whole-device-pixel move or pan hands back the **same
+`ImageTexture`** and does no CPU work; a sub-pixel move, a raster cut by its clip (mode 2: the key
+holds `clip − S`) and a local mask (mode 3: 2155f1e's absolute key) miss as before (`PF-A`,
+`PF-B`, `PF-J`). `keyLeaf` keys a mask only when it decides a byte (`PF-I`); **a new raster site
+keys through `RasterAnchor`, never an absolute position, and its extent `E` is conservative**
+(`BoxBlur.padding`, nested reach). Pixels equal 2155f1e's (0 px, fourteen images; `PF-N` records the
+measured 2× rounding). `RasterCache.lastTexturesMade` joins the work counters (`PF-G`); pins count
+work, never time. `.shadow`/`.blur` stay **per leaf**; one shadow of a container is SwiftUI's
+`.compositingGroup()` (both vocabularies, one `LayoutModifier` layer, `PF-E`): a
+`PaintScope.Kind.composite` pushed **only when a shadow or blur scope is open outside it**,
+collecting leaves with their clip depths (`captureDepths`) and re-emitting them as one leaf, stopped
+by a `Deferred` barrier; alone it changes nothing, and it does **not** composite an opacity
+(divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
+its reference copy, still importing nothing (`PF-F`).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);

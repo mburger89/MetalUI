@@ -85,8 +85,8 @@ sheet failures above are left out of the lists.
 | M1f | the shadow's image not shifted by `S` | L1.1b `aCachedShadowIsPlacedAtTheNewPosition`, L1.5, L1.5b, L1.6, `aDeferredStopsAnEnclosingShadow`, `aFadingTransitionScalesAPathsAndAShadowsAlpha`, `aLegacyShadowReturnsSelfAndShadowsTheWholeElement`, `aLegacyShadowsColourRadiusAndOffsetAnimate`, `aMetalViewsShadowIsItsQuad`, `aSecondShadowShadowsTheFirst`, `aShadowFollowsItsContentsAlpha`, `aShadowInsideARotationOrScaleHasItsOffsetTransformed`, `aShadowIsCutByAnOuterClipAndShapedByAnInnerOne`, `aShadowIsDrawnBelowEachLeaf`, `aShadowSeesAGradientLeafsAlpha`, `shadowColourRadiusAndOffsetAnimate`, `theDefaultShadowColourIsTheShadowToken`, `theShadowBlurMatchesSwiftUIsProfile` |
 | M1g | `texture(for:)` does not count its miss; and (verifier) `RasterCache.image(for:)` does not count a made entry | L1.13 `texturesMadeCountsTintAndImageMisses` (both halves) |
 | M1h | `tint`'s alpha rounds `+ 128` (on `31c88a4`'s unchecked loop; lane 1 verifier) | `tintMatchesItsReferenceCopy` |
-| X1 | `blurImage`'s extent without `BoxBlur.padding` (verifier extra) | **nothing** — issue 1; `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove` (L1.6b, `ab65ef3`) added, not re-mutated by the verifier |
-| X5 | `RasterExtent.of`'s nested arms grown by 1 (verifier extra) | **nothing** — issue 2; the same L1.6b nested arm, as X1 |
+| X1 | `blurImage`'s extent without `BoxBlur.padding` (verifier extra) | **nothing** at `31c88a4` — issue 1; L1.6b `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove` added in `ab65ef3`; reddens it, §2.5 |
+| X5 | `RasterExtent.of`'s nested arms grown by 1 (verifier extra) | **nothing** at `31c88a4` — issue 2; the same L1.6b, reddens it, §2.5 |
 | X2 | `RasterMath.crop`'s unchecked row offset drops the column term (verifier extra) | `maskArithmeticMatchesItsReferenceCopies` |
 | X3 | `PathGeometry.translated` leaves a quad control point unmoved (verifier extra) | `aTranslatedPathMovesEveryPointExactly` |
 
@@ -220,7 +220,20 @@ Applied on lane 2's committed tree, restored from a copy, `git status --short` a
 |---|---|---|
 | Xa | (lane 2 verifier, full unfiltered suite at `ef3b11c`) `insertThroughScopes(leaf: scope.captures, depths: scope.captureDepths)` → `insertThroughScopes(leaf: scope.captures)` | `aClipInsideACompositingGroupCutsItsShadow` (3 issues: the shadow's width 30, diff 0, outside 0). Before L2.12 (`ab65ef3`) this mutation reddened nothing but the five environmental sheet tests |
 | guard | (lane 2, once) the legacy `StyledElement.compositingGroup()` declared `internal` | `compositingGroupIsSpellableOnBothVocabularies` (positive arm `succeeded=false`); the proposal spelling cannot be narrowed alone: `MetalUIDemoContent`'s LooksDemo spells it and the package stops building |
-M2_ROWS
+| M2a | `BoxBlur`'s two `(sum + half) / width` → `sum / width` (horizontal and vertical) | `theFastBoxBlurEqualsTheReferenceByteForByte` (L2.1); `theBoxBlurApproximatesAGaussianOfSigmaRadius` stays green |
+| M2b | the vertical pass drops one row late (`leaving = i - r - 1`) | `theFastBoxBlurEqualsTheReferenceByteForByte` |
+| M2c | the composite arm of `insertThroughScopes` `continue`s (leaves forward per primitive) | `aCompositingGroupCastsOneShadowOfTheUnion`, `aCompositingGroupIsBlurredAsOneLeaf`, `aCompositedNodeBlursOneMask` |
+| M2d | `paintWithCompositingGroup` always pushes (`compositeHasAReader \|\| true`) | `aCompositingGroupAloneChangesNothingAndPushesNoScope` |
+| M2e | the composite ignores a `Deferred` barrier (`.composite where pastBarrier` removed) | `aDeferredInsideACompositingGroupIsNotShadowed` |
+| X1 | `blurImage`'s extent pad `= 1` (lane 1 verifier's, with L1.6b now present) | `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove` (6 issues) |
+| X5 | `RasterExtent.of`'s nested arms grown by 1 (as X1) | `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove` (3 issues) |
+
+The Record phase re-applied M2a–M2e, X1 and X5 on the merged tree (`d6a2add`), each restored from
+a copy with `git status --short` clean after, and ran **only the named tests** (filtered, native):
+they were the pinned tests for the mutated declaration, not a whole-suite run — the full suite
+ran once unmutated (§3.1). **M2f** (no identity level) is not re-run: removing the layer changes a
+return type, so it is not a one-line mutation; L2.6 (`theCompositingGroupLayerIsOneIdentityLevel`)
+and L2.6b pin it and were green in the unmutated suite.
 
 ### 2.6 Measurement (`PF-F` item 3)
 
@@ -229,3 +242,85 @@ The table in §1.7 carries the lane 2 columns. Lane 2 on top of lane 1 moves the
 and `.compositingGroup()` on each node reads 2.46 ms. The portable blur's own speed-up is the
 unchecked loops (`BoxBlur` was ~70 % of MetalCreator's release `sample`); with the cache hitting
 there is little blur left in a drag frame to measure, which is the point of lane 1.
+
+## 3. The Record phase (2026-10-10)
+
+### 3.1 Merge and suite
+
+- Master moved to `70e9389` (C8 app shell, §87) while the branch was paused. `git merge`
+  produced one conflict, `docs/divergences.md` (both sides appended at the table's end): kept
+  master's 175 and 176, then this branch's 205 (`431b4c6`). Master holds no record numbered 90.
+  The header's count (126 live) and next label (175) are left for the merge to master.
+- `swift package clean`, then `swift build --build-system native --build-tests` on `d6a2add`:
+  0 `error:`, the only `warning:` SwiftPM's `--build-system native` deprecation notice.
+  `swift test --build-system native --no-parallel`, unfiltered, unlocked screen:
+  **`Test run with 3099 tests in 3 suites passed after 344.118 seconds`** (master's 3069 + 30:
+  16 in lane 1, 14 in lane 2), `FR-J no-argument frame: succeeded=true`, no issue recorded (the
+  five `AppKitPresentationTests` sheet tests passed). `COMPOSITING GROUP GUARD L2.G positive:
+  succeeded=true`, `control: succeeded=false`.
+- Typecheck guards: **196** (master's 195 + `compositingGroupIsSpellableOnBothVocabularies`;
+  the count of `canTypecheck`-gated tests grew by one against `origin/master`).
+- Census: `docs/probes/closeout-public-api.sh` reads **3023** lines (3021 + the two
+  `compositingGroup()` declarations), identical to the recorded
+  `closeout-public-api.tsv`; `closeout-inventory-check.sh` and `closeout-undocumented.sh` print
+  nothing.
+- The suite was re-taken a second time in the same phase on the same tree (clean, native): **`Test run with 3099 tests in 3 suites passed after 210.910 seconds`**, `FR-J no-argument frame: succeeded=true`, 0 `error:`, the native deprecation notice the only `warning:`. `swift build --build-tests` (default build system): 0 `warning:` lines (§3.1 default-build line, taken after the second run).
+
+### 3.2 Pixels against `2155f1e`
+
+- `docs/probes/demo-pixels/compare.sh <scratch> 2155f1e HEAD` (HEAD the merge, `431b4c6`):
+  controls as recorded (light vs dark 1048576, default vs modal 1031003, default vs animation
+  454895, f0 vs f3 0, preview light vs dark 1048576, chrome 0, distinct 544 / 216, prod default
+  vs modal 491221, distinct prod 529, indicator rects 0); **all fourteen images `differing=0`,
+  scene identical**.
+- `docs/probes/shadow-cache/run.sh pixels <scratch> 2155f1e HEAD` (`d6a2add`): controls looks
+  light vs dark 17610, drag 1x f0 vs f1 5101, drag 2x f2 vs f3 8016, distinct looks-light 1853,
+  distinct drag-2x-f4 539; **all thirteen images `differing=0`**.
+- `DemoFrameDeterminismTests`' `Expected.swift` unedited (not in `git diff 2155f1e HEAD`);
+  Linux and Windows CI confirm on push.
+- No real-window capture (an agent cannot judge a look; PF1 and PF2 are owed).
+
+### 3.3 Linux image and other targets
+
+Taken on the merged tree, CI's Linux image (`SDL_VIDEO_DRIVER=offscreen`), OrbStack left running:
+
+- `Backends/SDL` in `metalui-portable`: **24 + 105** passed (master's figures, unmoved: this branch
+  touches nothing under `Backends/SDL`; lane 2 read 24 + 96 before the merge brought master's `AS-`
+  tests).
+- Root package in `swift:6.4-noble`: `swift build --build-tests` then `swift test --skip-build`
+  read **6 + 35 + 21 + 199 + 67 + 22**, all passed, 0 source `warning:`/`error:`. (A first attempt
+  with a differently named scratch path failed on a module-cache path mismatch left in a reused
+  Docker volume; it is volume state, not source, and the rerun at `/tmp/build` was clean.)
+- Windows: not run locally (no VM session this phase); CI confirms on push. The branch changes no
+  C-enum use and adds no target.
+
+### 3.4 Docs changed
+
+`CLAUDE.md` (the `PF-` paragraph under Architecture rules, the prefix list, the counts bullet,
+the human-checks groups, the record map) and `AGENTS.md` (copied, `cmp` equal);
+`docs/api-overview.md` (lane 2: `compositingGroup()` and the translation-free cache),
+`docs/divergences.md` (205; `GX-A`'s deferred row amended; the header left for the merge),
+`docs/migration.md` (an exhaustive `switch` over `LayoutModifier` gains `.compositingGroup`),
+`docs/verification/human-checks.md` (group PF), `docs/record/README.md` (row 90),
+`docs/record/03-verified-on-real-hardware.md` (looks owed), `README.md` (a summary paragraph),
+the inventory map and the census (`b325e10`), the spec's Status.
+
+## 4. Hazards, deferrals and owners
+
+- **Spec §9 D1–D5 stand** (sub-pixel moves miss; a cut raster misses on every move; the
+  local-mask case and the gradient strip keep their absolute keys; a non-translation effect may
+  miss). Owner: none; a measured report reopens them.
+- **`PF-N` item 3**: a resampled leaf's bleed column can differ from 2155f1e at an integer
+  coincidence (L1.5b, 609 bytes, max delta 4). Owner: none.
+- **Divergence 205**: an opacity (or any effect but a shadow or blur) outside
+  `compositingGroup()` is not composited; compositing it needs an offscreen pass in both
+  renderers (`TE-AD`). Owner: none. `drawingGroup()` stays unbuilt.
+- **A new raster site must key through `RasterAnchor`** and keep a conservative extent: an
+  extent too small treats a cut raster as uncut and shares a key with the uncut one (X1, X5 are
+  the pins). A new drawn-primitive kind owes its arm in `RasterExtent.of`.
+- **`LayoutModifier` gained a public case**: `swift package clean` after the change, and an
+  exhaustive `switch` outside the package gains an arm (migration).
+- **Measured wall time is indicative only** (other workflows shared the Mac); the pins count
+  work. Not re-measured in the Record phase.
+- **Human checks owed**: group PF (PF1 a trackpad drag, PF2 the LooksDemo pair), none performed.
+- No ruling was appended in lane 2 or the Record phase; `PF-O` is the next unused id.

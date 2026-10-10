@@ -11,6 +11,12 @@ this branch: **205–214**. Probe: `docs/probes/swiftui-shadow-cache.swift`
 (re-run byte for byte by the critic, 2026-10-09: 25 lines identical to its
 header).
 
+**Status: implemented and verified (2026-10-10).** Lane 1 (§3, `PF-A`, `PF-I`, `PF-J`, `PF-M`,
+`PF-N`) and lane 2 (§4 and §5, `PF-F`, `PF-E`) landed, each verified `ok`; 3099 tests, 196 typecheck
+guards on the merge with master `70e9389`; 0 px against `2155f1e` in the fourteen offscreen
+images. Measured results, mutation tables, deferrals and hazards: record
+[`90-shadow-cache.md`](../../record/90-shadow-cache.md).
+
 ## 1. The problem and what is built
 
 Moving a `.shadow(radius: 10)` node by 2 points re-rasterizes and re-blurs
