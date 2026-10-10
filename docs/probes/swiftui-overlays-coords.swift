@@ -38,7 +38,11 @@
 //   G2 two nested spaces named alike; G3 the named container offset by
 //   `.offset(x: 7, y: 9)` (written after `coordinateSpace`); G4 the named
 //   container rotated 90° (`rotationEffect`), so a translation-only and a true
-//   transform disagree (separating arm).
+//   transform disagree (separating arm); G6 the container rotated 30°, where
+//   "the global bounding box mapped back" and "the element's own map composed
+//   with the space's inverse" disagree (separating — at 90° they coincide);
+//   G7 the same 30° on the LEAF inside the named container (an effect between
+//   the space and the element; G6's global, a different named frame).
 // - W (window size): every key of `EnvironmentValues`' description inside a
 //   hosted view, filtered to names containing "size", "Size", "window",
 //   "Window", "frame" or "Frame" (W0 control: `displayScale`'s key is listed
@@ -47,7 +51,9 @@
 // RECORDED 2026-10-10 by the C15 design session, macOS 27.0, Apple Swift
 // 6.4, screen UNLOCKED (no CGSSessionScreenIsLocked line, displayAsleep main:
 // 0), app activation policy `.accessory` (never key). Compiled form, run
-// twice: stdout byte-identical (90 lines), stderr empty.
+// twice: stdout byte-identical (90 lines), stderr empty. RE-RUN 2026-10-10 by
+// the C15 critic: the 90 lines reproduced byte for byte; arms G6 and G7 added,
+// run twice, byte-identical (100 lines), stderr empty — the block below.
 //
 // WHAT IT SAYS (read before resting a ruling on an arm):
 // - A: a point anchor is a zero-size rect at the unit point of the anchor's
@@ -69,7 +75,12 @@
 //   falls back to `.global` (G1 missing, G5 sibling); a render effect on the
 //   named container (G3 offset, G4 rotation) moves `.global` but not the
 //   named frame — the named space moves with its container, transform and
-//   all (G4: global is the rotated bounding box 20x40, named stays 40x20).
+//   all (G4: global is the rotated bounding box 20x40, named stays 40x20;
+//   G6 at 30°: global 44.6x37.3, named still exactly (30,30,40x20) — so the
+//   named frame is NOT the global bounding box mapped back, which would be
+//   larger). An effect between the space and the element (G7) reports the
+//   element's bounding box IN the space (27.7,21.3,44.6x37.3): the same
+//   bounding-box rule `.global` uses.
 //   SwiftUI's `.global` here is measured from the window frame's top-left,
 //   32-pt title bar included (MetalUI's is the content space, divergence 139).
 // - W: no environment key's name mentions a size, window frame or bounds
@@ -163,6 +174,16 @@
 //     global: (70,72,40x20)
 //     named(outer): (70,72,40x20)
 //     named(missing): (70,72,40x20)
+//   === G6 named container .rotationEffect(30°)
+//     local: (0,0,40x20)
+//     global: (77.7,93.3,44.6x37.3)
+//     named(outer): (30,30,40x20)
+//     named(missing): (77.7,93.3,44.6x37.3)
+//   === G7 leaf .rotationEffect(30°) inside the named container
+//     local: (0,0,40x20)
+//     global: (77.7,93.3,44.6x37.3)
+//     named(outer): (27.7,21.3,44.6x37.3)
+//     named(missing): (77.7,93.3,44.6x37.3)
 //   --- W: window size in the environment
 //     W total distinct *Key names: 39
 //     W0 control DisplayScale listed: true
@@ -322,6 +343,24 @@ struct G4: View {   // named container rotated 90 degrees about its centre
         .frame(width: 300, height: 200, alignment: .topLeading)
     }
 }
+struct G6: View {   // named container rotated 30 degrees: a bounding box of the global frame mapped back is not the named frame (separating)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GeoLeaf(tag: "G6").padding(30).coordinateSpace(.named("outer")).rotationEffect(.degrees(30))
+        }
+        .padding(.leading, 50).padding(.top, 40)
+        .frame(width: 300, height: 200, alignment: .topLeading)
+    }
+}
+struct G7: View {   // an effect BETWEEN the named container and the leaf: the leaf rotated 30 degrees inside it
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GeoLeaf(tag: "G7").rotationEffect(.degrees(30)).padding(30).coordinateSpace(.named("outer"))
+        }
+        .padding(.leading, 50).padding(.top, 40)
+        .frame(width: 300, height: 200, alignment: .topLeading)
+    }
+}
 struct G5: View {   // the space declared on a sibling, not an ancestor
     var body: some View {
         HStack(spacing: 0) {
@@ -396,7 +435,9 @@ MainActor.assumeIsolated {
                          ("G2 nested spaces both named outer (inner at +10)", AnyView(G2())),
                          ("G3 named container .offset(x: 7, y: 9)", AnyView(G3())),
                          ("G4 named container .rotationEffect(90°)", AnyView(G4())),
-                         ("G5 space named on a sibling", AnyView(G5()))] {
+                         ("G5 space named on a sibling", AnyView(G5())),
+                         ("G6 named container .rotationEffect(30°)", AnyView(G6())),
+                         ("G7 leaf .rotationEffect(30°) inside the named container", AnyView(G7()))] {
         let h = host(name, view)
         let tag = String(name.prefix(2))
         for kind in ["local", "global", "named(outer)", "named(missing)"] {

@@ -13,7 +13,7 @@ run twice, byte-identical) and `docs/probes/swiftui-overlays-coords-typecheck.sh
 (`anchored()`, `Anchor::TopLeft`, `AnchoredFitMode::SwitchAnchor` by default,
 `position` in window coordinates) and `on_mouse_down_out`.
 
-**Next unused id: `OV-L`.**
+**Next unused id: `OV-Q`.**
 
 ## The final spellings (what an app writes)
 
@@ -155,7 +155,8 @@ border and shadow kept as SwiftUI keeps its frame). Inventory class R.
 refuses). T4/T16/T3/T2: `.coordinateSpace(.named("x"))`,
 `frame(in: .named("x"))`, `onContinuousHover(coordinateSpace:)` all exist.
 
-**Ruling.** Add `case named(AnyHashable)` — SwiftUI's case set exactly.
+**Ruling.** Add `case named(AnyHashable)` — SwiftUI's case set exactly
+(the enum's `Sendable` footing: `OV-L`).
 **Migration note** (docs/migration.md, the case's doc comment, `CI-AC`'s
 sentence): an outside exhaustive `switch` over `CoordinateSpace` owes a
 `.named` case or `default:`. Add `NamedCoordinateSpace` (a struct;
@@ -202,14 +203,14 @@ frame (G4: global is the rotated 20 × 40 bounding box, named stays 40 × 20).
    index in `Frame.hitboxNamedSpaces` (empty, and no work, when no scope is
    open — pinned by a work counter); `Window` keeps the last frame's table
    beside `lastHitboxes`. Hit testing does not read it.
-4. `GeometryProxy.frame(in: .named(n))` = the bounding box of the element's
-   global frame mapped through the space's map (exact under translation; under
-   a rotation of the container itself the element's own composed map includes
-   it and the inverse undoes it, G4).
+4. `GeometryProxy.frame(in: .named(n))` — **amended by `OV-M`**: the
+   element's scrolled union mapped through **one** affine (the element's
+   composed map, then the space's window → space map), *then* the bounding box;
+   never the bounding box of the already-boxed global frame mapped back (G6).
 
 **Cost if wrong.** Under an effect *between* the named container and the
-element (not probed), MetalUI reports the bounding box in the space — the same
-choice `.global` already makes (`KF-J`, G4a). A probe arm can refine it later.
+element, MetalUI reports the bounding box in the space — probed since (G7,
+`OV-M`): SwiftUI does the same.
 
 ## OV-F — `onContinuousHover(coordinateSpace:perform:)`
 
@@ -223,7 +224,7 @@ the name is missing. `HoverAttachment` gains the space; `.ended` unchanged;
 `HoverPhase`'s "only `.local` is offered" sentence goes. A later `.onHover`
 keeps the continuous callback **and its space**.
 
-## OV-G — The window's size in the environment: MetalUI-only `windowSize`
+## OV-G — The window's size in the environment: MetalUI-only `windowSize` (clarified by `OV-O`)
 
 **Evidence.** W1: no environment key in a hosted SwiftUI view mentions a size,
 window frame or bounds; T5–T8 refuse `windowSize`, `windowFrame`,
@@ -260,7 +261,7 @@ two points, `.named` under a rotation rotates it — SwiftUI unmeasured, noted).
 MetalCreator's EP-a "element frame in window coordinates" is answered by C9;
 the record says so.
 
-## OV-J — Two lanes, coordinates first
+## OV-J — Two lanes, coordinates first (amended by `OV-P`)
 
 Lane A (coordinates: OV-D…OV-H) lands first: it owns `Frame.swift` and
 `Window.swift` and provides what lane B reads — `Frame.namedSpace(_:)`, the
@@ -278,8 +279,9 @@ event: placing from last frame's point would draw one frame at the old point.
 
 **Ruling.** The overlay's **point** is read fresh at layout (it is a value in
 the modifier, not geometry); only the mapping from its space to the window
-comes from the last frame: `.local` adds the declarer's last-frame bounds'
-origin (`previousPresentationAnchors`, as `.popover`'s anchor), `.global` is
+comes from the last frame: `.local` maps through the declarer's own space
+recorded in its last prepaint (**amended by `OV-N`**; the bounds-origin
+shortcut ignored render effects), `.global` is
 the point itself, `.named(n)` maps through the space recorded for the declarer
 in its last prepaint (`Frame.presentationSpaces[id]`, resolved by OV-E; the
 overlay's own entry is `.global` when missing). So a point written with the
@@ -288,3 +290,112 @@ open moves the overlay in the frame presenting the move. Only a moving
 **declarer** costs the one extra frame `.popover` already pays. A window
 resize re-places the overlay (re-flipped) in the frame presenting it — EP-a's
 "left where it opened" limit goes.
+
+## OV-L — `CoordinateSpace` keeps `Sendable` through `@unchecked Sendable`; `named(_:)` takes `some Hashable`
+
+**Question.** The spec left open (§2.2) how `case named(AnyHashable)` fits a
+`Sendable` enum, and it spelled `NamedCoordinateSpace.named(_ name: some Hashable
+& Sendable)` while `OV-D` spelled `some Hashable` — a public spelling unsettled.
+
+**Evidence.** Measured (critic, 2026-10-10, `xcrun swiftc -swift-version 6
+-typecheck`): `public enum CS: Sendable, Hashable { case named(AnyHashable) }`
+refuses — "associated value 'named' of 'Sendable'-conforming enum 'CS' has
+non-Sendable type 'AnyHashable'"; the same for a `Sendable` struct storing one.
+SwiftUI's interface (macOS 27.0 SDK, `SwiftUICore.swiftinterface`):
+`public enum CoordinateSpace : ~Swift::Sendable { … case named(Swift::AnyHashable) }`,
+`public struct NamedCoordinateSpace : CoordinateSpaceProtocol, Equatable, ~Sendable`,
+`public static func named(_ name: some Hashable) -> NamedCoordinateSpace`;
+`PopoverAttachmentAnchor : ~Swift.Sendable`.
+
+**Ruling.** The payload is SwiftUI's, `AnyHashable`; `CoordinateSpace` is
+declared `@unchecked Sendable, Hashable` (MetalUI's existing conformance kept:
+dropping it is a source break for an outside `Sendable` type storing a space,
+and no MetalUI site reads a name off the main actor — every resolution runs in
+prepaint or input dispatch). `NamedCoordinateSpace` is `@unchecked Sendable,
+Hashable` and its factory is SwiftUI's exactly, `named(_ name: some Hashable)` —
+**no `& Sendable`**. The hole (a reference-typed, non-`Sendable` name moved
+across actors by app code) is named in both doc comments. Extra conformances
+over SwiftUI's (`Sendable`, `Hashable`, on `PopoverAttachmentAnchor` too, whose
+payloads are all `Sendable` values) are additive: code written for SwiftUI
+compiles unchanged, so no divergence label. Guard **GA3** gains
+`.coordinateSpace(.named(NonSendableName()))` under Swift 6 with a plain import
+(red: the factory constrained `& Sendable`).
+
+**Rejected.** (a) Dropping `Sendable` to match SwiftUI's `~Sendable`: a
+migration-noted break for nothing MetalUI needs. (b) `named(String)`: loses
+SwiftUI's `.named(MyEnum.canvas)` spellings.
+
+## OV-M — A named frame composes the maps before boxing (amends `OV-E` item 4); presentations inherit the stack
+
+**Evidence.** New probe arms (critic, 2026-10-10; run twice, byte-identical,
+100 lines; the 90 recorded lines reproduced byte for byte): **G6**, the named
+container rotated 30°: global (77.7,93.3,44.6x37.3), **named exactly
+(30,30,40x20)** — the bounding box of the global frame mapped back through
+−30° would be ≈ 57 × 51, so `OV-E` item 4's literal wording was wrong (at G4's
+90° the two rules coincide, so G4 could not separate them). **G7**, the same
+30° on the leaf inside the container: the same global, named
+(27.7,21.3,44.6x37.3) — the bounding box in the space.
+
+**Ruling.**
+1. `frame(in: .named(n))` maps the element's scrolled union through
+   `space.toSpace ∘ composed` (one affine) and takes the bounding box once —
+   exact for an effect on the container at any angle (G6), the box for an
+   effect between (G7). `noteGeometry` therefore hands `GeometryProxy` the
+   scrolled union and the composed map (or the named frames it needs), not only
+   the boxed `globalFrame`. Test **A4** runs at **30°** (G6's literals; its
+   mutation, "box the global frame, then map it", is now separating), and new
+   test **A4b** `anEffectBetweenTheSpaceAndTheElementReportsItsBoxInTheSpace`
+   pins G7 (mutation: the element's own effect dropped from the composed map).
+   The spec's deferral of the "effect between" case is withdrawn.
+2. A presentation's content (`.popover`, `anchoredOverlay`, `Deferred`)
+   **inherits the named-space stack in force at its declarer** — it is a
+   descendant; `PrepaintPass.deferred` resets clip, scroll and render effects,
+   not the stack — and resolves against its real window position, so a
+   palette's `frame(in: .named("canvas"))` is relative to the canvas. SwiftUI's
+   popover content is a separate window (unmeasurable here); MetalUI-only
+   semantics, no label (a named space in a presentation is MetalUI's own
+   composition). New test **A17**
+   `aPresentationsContentResolvesItsDeclarersNamedSpace` (mutation:
+   `deferred` clears the stack — it then falls back to `.global`).
+
+## OV-N — An overlay's `.local` point is the declarer's own space, effects included (amends `OV-K`)
+
+**Question.** `OV-K` placed `.local` as "the point plus the declarer's
+last-frame bounds' origin" (`previousPresentationAnchors`). Those anchors are
+recorded by `Frame.recordPresentationAnchor` with the scroll offset only — **no
+render effect**. Under a `.scaleEffect(2)` on the canvas, the pointer
+`onContinuousHover` reports in `.local` (effects undone, `Hitbox.localPoint`)
+would be placed at half its distance from the origin: the palette would open
+away from the pointer, the exact use EP-b names.
+
+**Ruling.** `.local` is the declarer's own space with its effects, the same
+meaning hover, gestures and `GeometryProxy` give `.local`: in its prepaint the
+declarer records, for an overlay, a `NamedSpace` built from its **own** frame
+and composed map (lane A's `Frame.localSpace(of: nodes)`, the scope's
+computation factored once) under `Frame.presentationSpaces[id]`; `.named(n)`
+records `Frame.namedSpace(n)`; `.global` records nothing. `NamedSpace` stores
+both directions (`toSpace` and `toWindow`); placement maps the point through
+`toWindow`; a degenerate space places as `.global`. Test **B18** gains a
+`.local`-under-`.scaleEffect(2)` arm (mutation: `.local` resolved as bounds
+origin + point). `.popover`'s anchor is unchanged (`MN-M`).
+
+## OV-O — `windowSize` is the frame's `contentSize`, drawn chrome included (clarifies `OV-G`)
+
+The stamp is the same `platformWindow.contentSize` the `Frame` is built with
+(never a second read that could disagree). It includes everything drawn inside
+the content: the `.hiddenTitleBar` band (divergence 175), SDL's 39-point drawn
+toolbar strip (`MD-K`), and — when `fix/smk-port-gaps` merges — its drawn menu
+bar; an app that wants the area below drawn chrome subtracts
+`titleBarInsets`/its own chrome. The merge owes a sentence if C12 rules a
+chrome-height environment value. A14 asserts the size equals `contentSize`
+under SDL-style toolbar fallback too (a fake answering `setToolbar` `false`).
+
+## OV-P — Lane B owns no `Frame`/`Window` edit; lane A provides the presentation hooks
+
+Lane B needs from `Frame`: `namedSpace(_:)`, `localSpace(of:)`,
+`recordPresentationSpace(_:for:)` and `previousPresentationSpaces`; lane A adds
+all four (and `Window.lastPresentationSpaces`) with a unit test each in
+`CoordinateSpaceTests` (A18 `presentationSpacesAreCarriedToTheNextFrame`;
+mutation: not carried). `PopoverModifier`'s stored properties change (lane B):
+`swift package clean` before the native build that follows, per CLAUDE.md.
+

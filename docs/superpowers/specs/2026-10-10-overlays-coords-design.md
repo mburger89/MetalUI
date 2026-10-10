@@ -6,7 +6,7 @@ in window/named coordinates, a coordinate space on `onContinuousHover`, the
 window's size) and **EP-b** (a chrome-less point-anchored popover that closes on
 any outside press), `docs/metalui-gaps.md` from line ~420, checked on `c62d6ba`.
 Branch `feat/overlays-coords` from `ebcf3c7` (3204 tests in 3 suites). Rulings
-`OV-A`…`OV-K` in `../2026-10-10-overlays-coords-decisions.md`; record §92;
+`OV-A`…`OV-P` in `../2026-10-10-overlays-coords-decisions.md`; record §92;
 divergence labels 225–234 (this branch's range; only **225** is used).
 
 Builds on C9 (record §88: `onGeometryChange`, `KF-J`/`KF-S`, `.global` frames
@@ -16,7 +16,8 @@ anchored presentation root, `MN-M`/`MN-N`/`MN-Y`/`MN-Z`). `.help` needs nothing.
 ## 1. SwiftUI's answers (probes, recorded 2026-10-10)
 
 `docs/probes/swiftui-overlays-coords.swift` (compiled, run twice,
-byte-identical, 90 lines) and `docs/probes/swiftui-overlays-coords-typecheck.sh`
+byte-identical, 90 lines; re-run by the critic byte for byte, then arms G6/G7
+added, 100 lines, run twice byte-identical) and `docs/probes/swiftui-overlays-coords-typecheck.sh`
 (T0–T16, each a one-file `swiftc -typecheck`).
 
 | Claim | Arm | Answer |
@@ -26,6 +27,8 @@ byte-identical, 90 lines) and `docs/probes/swiftui-overlays-coords-typecheck.sh`
 | A corner of the popover at the point | A1–A7 | never |
 | Chrome-less popover | B0–B2, T15 | `.presentationBackground(.clear)` keeps frame, glass and shadow (B1 = B0); `.red` recolours (B2, separating); no `popoverStyle` |
 | Named spaces | G1–G5, T4, T16 | nearest ancestor; missing or sibling → `.global`; moves with its container's effects, rotation included |
+| Named frame under a rotation | G6 vs G4, G7 | container at 30°: named stays exact (30,30,40x20) — not the global box mapped back (separating; at 90° they coincide); an effect between space and element: its box in the space (`OV-M`) |
+| `Sendable` | SDK interface, `swiftc -swift-version 6` | SwiftUI's `CoordinateSpace`, `NamedCoordinateSpace`, `PopoverAttachmentAnchor` are `~Sendable`; an `AnyHashable` payload refuses in a `Sendable` enum (`OV-L`) |
 | `CoordinateSpace` cases | T9 vs T10 | exactly `local`, `global`, `named` |
 | Hover coordinate space | T1–T3 | `onContinuousHover(coordinateSpace:)` exists; behaviour unmeasurable (hover is a recorded broken instrument, `SV-N`) |
 | Window size in the environment | W0/W1, T0 vs T5–T8 | none |
@@ -40,7 +43,7 @@ nothing.
 ### 2.1 EP-b (lane B)
 
 ```swift
-public enum PopoverAttachmentAnchor: Sendable, Hashable {      // OV-B, divergence 225
+public enum PopoverAttachmentAnchor: Sendable, Hashable {      // OV-B, divergence 225; extra conformances additive (OV-L)
     case rect(Source)
     case point(UnitPoint)
     public struct Source: Sendable, Hashable {
@@ -74,12 +77,12 @@ re-records their signatures). `presentationBackground(_:)` is not built (OV-C).
 ### 2.2 EP-a (lane A)
 
 ```swift
-public enum CoordinateSpace: Sendable, Hashable {             // OV-D — migration note
+public enum CoordinateSpace: @unchecked Sendable, Hashable {  // OV-D — migration note; OV-L
     case local, global
     case named(AnyHashable)
 }
-public struct NamedCoordinateSpace: Sendable, Hashable {
-    public static func named(_ name: some Hashable & Sendable) -> NamedCoordinateSpace
+public struct NamedCoordinateSpace: @unchecked Sendable, Hashable {   // OV-L
+    public static func named(_ name: some Hashable) -> NamedCoordinateSpace   // SwiftUI's exactly
 }
 extension ElementGroup {                                      // both vocabularies through ElementGroup
     public func coordinateSpace(_ space: NamedCoordinateSpace) -> CoordinateSpaceScope<Self>
@@ -102,9 +105,9 @@ extension EnvironmentValues {
 `SpatialTapGesture(coordinateSpace:)` and `onTapGesture(coordinateSpace:)`
 accept `.named` through the enum (OV-E, OV-H). The old
 `onContinuousHover(perform:)` declarations are replaced by the defaulted ones.
-(If `AnyHashable` in a `Sendable` enum refuses under Swift 6, the payload is
-stored as `AnyHashable` behind `@unchecked Sendable` on the enum only — lane A
-records which, with the compiler's message.)
+`AnyHashable` in a `Sendable` enum refuses under Swift 6 (measured): `OV-L`
+settles `@unchecked Sendable` on both types, the hole named in their doc
+comments.
 
 ## 3. Implementation
 
@@ -116,19 +119,24 @@ records which, with the compiler's message.)
   copied from `GeometryChangeScope`'s two entries (typed and untyped, each
   pinned). Layout records the content's nodes; prepaint computes the frame like
   `noteGeometry` (factor the union-scroll-effect computation into
-  `Frame.globalFrame(of nodes:)`, used by both), builds a `NamedSpace(name:,
-  toSpace: Affine2D?, origin:)` and runs the content's prepaint inside
-  `frame.withNamedSpace(_:)` (push/pop).
+  `Frame.localSpace(of nodes:) -> NamedSpace?`, used by the scope, by
+  `noteGeometry` and by lane B's `.local` overlay, `OV-N`), builds a
+  `NamedSpace(name:, toSpace:, toWindow:)` (both directions; `nil`
+  `toSpace` when degenerate) and runs the content's prepaint inside
+  `frame.withNamedSpace(_:)` (push/pop). `PrepaintPass.deferred` keeps the
+  stack (`OV-M` item 2).
 - **`Frame.swift`**: `namedSpaces: [NamedSpace]` (the stack),
   `namedSpace(_ name: AnyHashable) -> NamedSpace?` (innermost; `nil` for a
   degenerate entry), `hitboxNamedSpaces: [Int: [NamedSpace]]` filled in
   `insertHitbox`'s registering path only while the stack is non-empty,
   `namedSpaceSnapshots` work counter, and `presentationSpaces:
-  [GlobalElementID: NamedSpace]` with `recordPresentationSpace(_:for:)` (for
-  lane B, OV-K).
-- **`GeometryChange.swift`**: `GeometryProxy` gains the named spaces in force
-  (`frame(in: .named(n))` = OV-E item 4; `.global` when missing); the switch is
-  exhaustive.
+  [GlobalElementID: NamedSpace]` with `recordPresentationSpace(_:for:)` and
+  `previousPresentationSpaces` (for lane B, OV-K, OV-N, OV-P).
+- **`GeometryChange.swift`**: `GeometryProxy` gains the named spaces in force,
+  the scrolled union and the element's composed map; `frame(in: .named(n))`
+  maps the union through `toSpace ∘ composed` and boxes once (`OV-M` item 1 —
+  never the boxed `globalFrame` mapped back); `.global` when missing; the
+  switch is exhaustive.
 - **`Hover.swift`**: `HoverAttachment.coordinateSpace`; both
   `onContinuousHover`s take it; `updateHoveredRegions` converts through it
   (`.local` as today, `.global` the window point, `.named` via
@@ -150,10 +158,13 @@ records which, with the compiler's message.)
 - **`Popover.swift`**: `PopoverModifier` stores a `PopoverKind`
   (`.popover(PopoverAttachmentAnchor, Edge)` or `.overlay(point, space,
   anchor)`); `layOutPopover` resolves the attachment anchor against
-  `previousPresentationAnchors[id]` (OV-B) or the overlay point (OV-K: `.local`
-  + last bounds' origin, `.global` as is, `.named` through
-  `previousPresentationSpaces[id]`); prepaint records the declarer's named space
-  for an overlay `in: .named(n)` (`frame.recordPresentationSpace`). The overlay's
+  `previousPresentationAnchors[id]` (OV-B) or the overlay point (OV-K, OV-N:
+  `.global` as is; `.local` and `.named` through
+  `previousPresentationSpaces[id].toWindow`, `.global` when absent or
+  degenerate); prepaint records, for an overlay, the declarer's own space
+  (`frame.localSpace(of:)`, `.local`) or `frame.namedSpace(n)` (`.named`)
+  with `frame.recordPresentationSpace`. `PopoverModifier`'s stored properties
+  change: `swift package clean` before the next native build. The overlay's
   chrome `Box` has padding 0. `dispatchPopovers` honours
   `consumesAnchorPress`. The four popover overloads gain `attachmentAnchor:`.
 - **New `AnchoredOverlay.swift`**: `PopoverAttachmentAnchor`, the four
@@ -168,7 +179,9 @@ records which, with the compiler's message.)
   readout of `windowSize` and the palette's `onGeometryChange` named frame.
   **Expectation**: the palette's top-left corner is at the click, flipped at the
   right/bottom edges; any press outside (left, right, middle; onto the field
-  beside it or the slider) closes it; Escape closes it; typing reaches its
+  beside it or the slider) closes it — a primary press on the canvas itself
+  closes it **and** reaches the canvas, whose click handler reopens it at the
+  new point (OV-A item 3, gpui's `on_mouse_down_out`); Escape closes it; typing reaches its
   field. No existing demo moves: **0 px in all fourteen images**.
 
 ### 3.3 Platforms
@@ -195,7 +208,8 @@ name every reddened test.
 | A1 | `frameInNamedSpaceIsRelativeToTheNearestAncestorSoNamed` | G1, G2 | `namedSpace(_:)` takes the outermost match |
 | A2 | `aNameNoAncestorDeclaresFallsBackToGlobal` (missing; sibling) | G1, G5 | the scope never pops its entry (sibling arm) |
 | A3 | `aNamedSpaceMovesWithAnOffsetOnItsContainer` | G3 | the entry built without the composed map |
-| A4 | `aRotatedNamedSpaceReportsTheUnrotatedFrame` | G4 | `toSpace` as "minus the bounding box's origin" (A3 stays green: separating) |
+| A4 | `aRotatedNamedSpaceReportsTheUnrotatedFrame` (**30°**, G6's literals) | G6 | (a) `toSpace` as "minus the bounding box's origin" (A3 stays green: separating); (b) the boxed `globalFrame` mapped back (`OV-M`; separating only off 90°) |
+| A4b | `anEffectBetweenTheSpaceAndTheElementReportsItsBoxInTheSpace` | G7 | the element's own effect dropped from the composed map |
 | A5 | `aNamedSpaceInsideAScrollerFollowsTheScroll` (space inside content: constant; outside: moves by the offset) | — | entry origin unscrolled |
 | A6 | `coordinateSpaceAddsNoNodeAndNoIdentityLevel` | — | the scope numbers its content from 0 under a new level |
 | A7 | `noNamedSpaceMeansNoSnapshots` (work counter 0; K spaces × H hitboxes = derived literal) | — | snapshot on every registration |
@@ -205,9 +219,11 @@ name every reddened test.
 | A11 | `continuousHoverDefaultsToLocalAndALaterOnHoverKeepsTheSpace` | OV-F | default `.global`; `HoverAttachment.hover` dropping the space |
 | A12 | `aDragGestureInANamedSpaceReportsNamedLocations` | OV-H | `point(_:in:)` maps `.named` as `.global` |
 | A13 | `aSpatialTapInANamedSpaceReportsTheNamedPoint` | OV-H | same site (A12 and A13 both named) |
-| A14 | `windowSizeIsInTheFirstPresentedFrameAndFollowsAResize` | OV-G | drop the stamp |
+| A14 | `windowSizeIsInTheFirstPresentedFrameAndFollowsAResize` (equals `contentSize`, also with a fake answering `setToolbar` `false`, the drawn strip included) | OV-G, OV-O | drop the stamp; stamp the root's size below the strip |
 | A15 | `stampingWindowSizeLeavesASteadyWindowClean` (a second `drawFrameIfNeeded` draws nothing) | OV-G | stamp through `Window.environment` |
 | A16 | `aNamedGeometryValueIsReportedOnceAndOnChange` | KF-J | named value excluded from `isEqual` input (re-reports every frame) |
+| A17 | `aPresentationsContentResolvesItsDeclarersNamedSpace` | OV-M 2 | `PrepaintPass.deferred` clears the stack |
+| A18 | `presentationSpacesAreCarriedToTheNextFrame` (`.local` with an effect, `.named`) | OV-N, OV-P | not carried; `localSpace` without the composed map |
 
 Guards (`Tests/MetalUITests/CoordinateSpaceCompileGuards.swift`, `typecheckFile`
 with a plain import, each mutated red once): **GA1**
@@ -216,8 +232,10 @@ with a plain import, each mutated red once): **GA1**
 red: parameter typed `CoordinateSpace`); **GA3** `theNamedSpaceSpellingsCompile`
 (`.coordinateSpace(.named("x"))`, `frame(in: .named("x"))`,
 `onContinuousHover(coordinateSpace: .named("x"))`, `DragGesture(coordinateSpace:
-.named("x"))`, an exhaustive three-case switch, `\.windowSize`; red: drop
-`coordinateSpace:` from the proposal `onContinuousHover`).
+.named("x"))`, an exhaustive three-case switch, `\.windowSize`,
+`.coordinateSpace(.named(NonSendableName()))` under Swift 6; red: drop
+`coordinateSpace:` from the proposal `onContinuousHover`; second red, `OV-L`:
+the factory constrained `& Sendable`).
 
 Unchanged and staying green: every `GeometryChangeTests`, `HoverTests`,
 `InputAPI*` test (A11's default mutation must redden the existing local-point
@@ -244,7 +262,7 @@ hover tests too — lane A names them).
 | B15 | `aPressOrWheelOnTheOverlayNeverReachesBeneath` | MN-Z | the raw opaque hitbox skipped when `chrome == false` |
 | B16 | `keysReachAFocusedTextFieldInsideTheOverlay` | OV-A 5 | — (pin; mutation: the popover stage claims every key while open) |
 | B17 | `anOverlayAtAPointWrittenWithItsBindingAppearsThereInTheFirstFrame` | OV-K | the point taken from the last frame |
-| B18 | `anOverlayInGlobalAndNamedSpaces` | OV-K | `.named` placed as `.global` |
+| B18 | `anOverlayInGlobalAndNamedSpaces` (+ arm: `.local` under `.scaleEffect(2)` on the declarer) | OV-K, OV-N | `.named` placed as `.global`; `.local` as bounds origin + point (scale arm) |
 | B19 | `anOverlayIsReplacedOnAWindowResize` | OV-K | placement cached across frames |
 | B20 | `anOverlayAddsOneIdentityLevelOnlyForItsCaller` | MN-L | slot at cursor 0 |
 | B21 | `anOverlayWritesNoStateTableEntryAndPublishesAPopoverNode` | MN-O | `popoverHint` dropped for overlays |
@@ -262,7 +280,7 @@ from the proposal `item:` overload); **GB2** `theAnchoredOverlaySpellingsCompile
 
 Unchanged and staying green: every `PopoverTests`/`PopoverCompileGuards` test.
 
-**Expected totals**: 3204 + 16 (A) + 24 test functions (B, parametrised cases
+**Expected totals**: 3204 + 19 (A) + 24 test functions (B, parametrised cases
 counted as the runner counts them, measured) + the 1 MB arm if it is a new
 case; guards 195 → 200 is not assumed — the lanes measure under
 `--build-system native` and grep `FR-J no-argument frame: succeeded=`.
@@ -293,8 +311,8 @@ case; guards 195 → 200 is not assumed — the lanes measure under
 
 | Lane | Files (owned) |
 |---|---|
-| **A — coordinates** (OV-D–OV-H, OV-J's provisions) | `Sources/MetalUI/SpatialGestures.swift`, `GeometryChange.swift`, `Hover.swift`, `Gesture.swift`, `EnvironmentValues.swift`, `Window.swift`, `Frame.swift`, new `CoordinateSpaceScope.swift`; tests `CoordinateSpaceTests.swift`, `CoordinateSpaceCompileGuards.swift` |
-| **B — presentation** (OV-A, OV-B, OV-K) | `Sources/MetalUI/Popover.swift`, `AnchoredPresentation.swift`, new `AnchoredOverlay.swift`; `Sources/MetalUIDemoContent/OverlaysDemo.swift`, `Sources/MetalUIDemo/main.swift`; tests `AnchoredOverlayTests.swift`, `AnchoredOverlayCompileGuards.swift`, additions to `PopoverTests.swift`, the arm in `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `docs/verification/human-checks.md` group OV |
+| **A — coordinates** (OV-D–OV-H, OV-L, OV-M, OV-O, OV-J/OV-P's provisions) | `Sources/MetalUI/SpatialGestures.swift`, `GeometryChange.swift`, `Hover.swift`, `Gesture.swift`, `EnvironmentValues.swift`, `Window.swift`, `Frame.swift`, new `CoordinateSpaceScope.swift`; tests `CoordinateSpaceTests.swift`, `CoordinateSpaceCompileGuards.swift` |
+| **B — presentation** (OV-A, OV-B, OV-K, OV-N) | `Sources/MetalUI/Popover.swift`, `AnchoredPresentation.swift`, new `AnchoredOverlay.swift`; `Sources/MetalUIDemoContent/OverlaysDemo.swift`, `Sources/MetalUIDemo/main.swift`; tests `AnchoredOverlayTests.swift`, `AnchoredOverlayCompileGuards.swift`, additions to `PopoverTests.swift`, the arm in `Tests/MetalUICrossPlatformTests/DemoStackBudgetTests.swift`, `docs/verification/human-checks.md` group OV |
 
 Parallel branches: `fix/smk-port-gaps` (C12: drawn menu bar, `MenuSession`,
 window chrome height) and `feat/test-harness` (item 8: `Sources/MetalUITesting`).
@@ -317,9 +335,8 @@ build systems; `MetalUILayout`/`MetalUIScene` imports unchanged;
   asks.
 - `coordinateSpace(name:)` (deprecated in SwiftUI), `CoordinateSpaceProtocol`,
   `.scrollView` — OV-D; `.named` covers EP-a; no owner.
-- A named space under an effect **between** the container and the element
-  (bounding box, not exact) — OV-E cost line; owner: a probe arm when an app
-  hits it.
+- ~~A named space under an effect between the container and the element~~ —
+  withdrawn: probed (G7) and built (`OV-M`, A4b).
 - `.named` translation of a `DragGesture` under a rotated space — OV-H;
   unmeasured.
 - SwiftUI's overlay-like `presentationCompactAdaptation` and iOS sheets —
