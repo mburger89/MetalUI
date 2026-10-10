@@ -53,7 +53,8 @@ summary.
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
   `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
-  `2026-10-08-app-shell-decisions.md`, next `AS-R`), …; the full
+  `2026-10-08-app-shell-decisions.md`, next `AS-R`), `KF-` (key and focus:
+  `2026-10-08-key-focus-decisions.md`, next `KF-AB`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -68,7 +69,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **126 live, next label 175**; retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS and CL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL and KF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -88,7 +89,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+- **Counts (2026-10-10, `feat/key-focus` from `c62d6ba`, merged with master `70e9389`: 3172 tests, 0 goldens, 202 typecheck guards** (master's 3069 + 103 tests, 195 + 7 guards; record §88 §11). Before it, (2026-10-09) `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
   3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
   the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
   issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105
@@ -167,7 +168,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -473,8 +474,8 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **eighteen**
-members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **nineteen**
+members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`; the nineteenth, `keyboard`, one box for the `onKeyPress` handlers, the focus interactions and the key-region flag, `KF-I`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 
 **Environment (`EV-`).** `EnvironmentScope` is layout- and
@@ -502,12 +503,12 @@ Qualify `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 `AXNode.actions`/`AXActionKind` are deprecated. **An agent cannot run
 VoiceOver or claim the validation** (`IX-AE`).
 
-**Focus.** Clicking does not focus, except `TextField`/`TextEditor` and a
-selectable `List`. Focus leaves with its identity and does not return
+**Focus.** Clicking does not focus, except `TextField`/`TextEditor`, a
+selectable `List` and `.focusable(interactions: .edit)` (`KF-F`). Focus leaves with its identity and does not return
 (`IX-I`); a `List` row out of window keeps it. `@FocusState` writes apply from
 input, before the next frame. `.hidden()` removes focus/Tab/keys but not a
-keyboard shortcut. Keys go Keymap → focused field's editing keys → bubbling
-`onKey` (controls' `ControlKeys` there) → unclaimed Tab traverses
+keyboard shortcut. Keys go Keymap → `onKeyPress` (outermost first, `KF-C`) →
+focused field's editing keys → bubbling `onKey` (controls' `ControlKeys` there) → unclaimed Tab traverses
 (`FocusRegistry.tabOrder`). With nothing focused `onKey` sees nothing.
 
 **Text input (`TI-`).** `TextField` is controlled and one line; `TextEditor`
@@ -862,6 +863,29 @@ AppKit delivers no launch argument, so `App.open(_:)` is the recipe (`AS-M`);
 URLs arriving before `App`'s initialiser are dropped (`AS-Q`). A test never
 calls a real `performClose(_:)` (its nested loop ends the process, `AS-O`
 item 7).
+
+**Key and focus scoping (`KF-`, record §88).** `onKeyPress` (SwiftUI's five spellings,
+`KeyPress`, `FocusInteractions`) runs **after the Keymap and before a focused field's editing
+keys, outermost handler first** (the opposite of `onKey`'s bubble); a command's ⌘-key is declined
+by it and runs the command, a `Button`'s ⌘-key and every native-only menu item stay after it
+(`KX`, divergence 188); a typed character on a focused field is offered once as `.down`, one
+grapheme, never during composition (`KF-Q`, divergence 187). **The key chain** is the focus chain,
+else the innermost `.hoverKeyRegion()`'s (the one ranking, found on demand at a key or press, never
+per pointer move) and feeds the Keymap's contexts, actions and `onKeyPress` **only** — `onKey` and
+every control's keys still need focus (`KF-U`). `.focusable(interactions: .edit)` focuses on a
+primary press in the non-claiming `focusOnPress` stage; plain `.focusable()` does not (divergence
+94, narrowed); a press elsewhere does not resign a focused field (SwiftUI, `KF-G`). Proposal
+content (`MetalView`, `GPUSurface`) takes the keyboard modifiers as **one `KeyboardModifier`
+layer** that every further keyboard modifier merges into (`KF-H`, divergence 185), registered
+inside `sharingRegistrationsWithEffects`. A Return with the platform's shortcut modifier is not a
+`TextEditor` editing key (`KF-Z`). `.onGeometryChange` is a transparent `GeometryChangeScope` (no
+node, `$geometry<depth>` a `LifecycleStore` key, never a `StateTable` slot): the value is noted in
+prepaint and the action runs in the lifecycle drain, so the first presented frame carries what it
+wrote (`KF-J`, divergence 120). `TimelineView(.animation)` calls `noteActiveAnimation()`, never
+`requestAnotherFrame()`; other schedules wake the window once through `TimelineStore`
+(`$timeline<depth>`, `AnimationStore`; `KF-K`). **`for` over an opaque-returning helper in a
+builder is a Swift 6.4 defect, not fixable in the builder** (`KF-M`, guard C1): use `ForEach` or a
+concrete helper.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent

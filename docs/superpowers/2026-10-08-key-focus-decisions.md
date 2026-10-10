@@ -5,7 +5,7 @@ Rulings for item C9 of the gpui-gap priority list (user request 2026-10-02;
 M5-h and M6's `Panel`/`!Panel` keymap vetoes in its `docs/metalui-gaps.md`).
 Prefix `KF-`. Spec:
 [`specs/2026-10-08-key-focus-design.md`](specs/2026-10-08-key-focus-design.md).
-Record: `../record/88-key-focus.md` (written in the Record phase). Branch
+Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
 **Next unused id: `KF-AB`.**

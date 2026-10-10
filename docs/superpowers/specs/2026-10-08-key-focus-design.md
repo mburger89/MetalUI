@@ -10,7 +10,7 @@ M6's `Panel`/`!Panel` vetoes in `MetalCreator/docs/metalui-gaps.md`). Branch
 (Record phase). Probes: `docs/probes/swiftui-key-focus.swift` (K, FC, RS, G, T
 arms) and `docs/probes/swift-builder-for-opaque.sh` (A arms).
 
-**Status: designed (2026-10-08); critic-revised (2026-10-09, `KF-P`).** Baseline at `c62d6ba`: 2873 tests in 3
+**Status: LANDED (2026-10-10, record §88) — designed 2026-10-08, critic-revised 2026-10-09 (`KF-P`), three lanes built and verified; the human looks (group KF) are owed.** Baseline at `c62d6ba`: 2873 tests in 3
 suites, 0 goldens; the `FR-J no-argument frame: succeeded=true` line present.
 
 ## 1. Scope

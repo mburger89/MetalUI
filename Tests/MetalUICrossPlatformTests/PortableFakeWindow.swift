@@ -66,6 +66,13 @@ final class PortableFakeWindow: PlatformWindow {
     func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
     func setToolbar(_ toolbar: PlatformToolbar?) -> Bool { false }
     func setPointerStyle(_ style: PlatformPointerStyle) {}
+    var onCloseRequest: (() -> Bool)?
+    func close() { onClose?() }
+    func setDocumentEdited(_ edited: Bool) {}
+    func setRepresentedFilePath(_ path: String?) {}
+    func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool { false }
+    var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
+    func performTitleBarPress(clickCount: Int) -> Bool { false }
 
     /// Delivers `event` as a platform would.
     @discardableResult
