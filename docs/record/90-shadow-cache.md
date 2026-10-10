@@ -366,3 +366,18 @@ the inventory map and the census (`b325e10`), the spec's Status.
   `PaintScope.captureDepths` (mis-indented, never read or written). Owner: the merge.
 - `swift build --build-tests` (default build system): 0 `warning:`.
 - No real-window capture; human checks PF1, PF2 owed, none claimed.
+
+## 6. Before the PR: the C1 pin and the dead field
+
+The checker's C1 (§5: `emitted = nil` in `insertThroughScopes`' effect arm, `Frame.swift`)
+reddened nothing, so the pin it owed was added: **L2.13**
+`aClipInsideACompositingGroupUnderAnEffectCutsItsShadow` (`CompositingGroupTests.swift`), the
+checker's probe as a test — L2.12's clipped square with `.compositingGroup().offset(x: 4, y: 0)`
+under the shadow, the group's shadow 30 wide. C1 reddens it alone (`CompositingGroupTests`
+filtered: 11 tests, 1 issue, the width expectation); restored, it passes. The stray
+`TransitionStore.Record.captureDepths` the checker found (nothing read or wrote it) is deleted.
+
+Then, after `swift package clean`: native build 0 `error:`; unfiltered native `--no-parallel`
+**`Test run with 3100 tests in 3 suites passed after 214.516 seconds.`** (3099 + 1);
+`FR-J no-argument frame: succeeded=true`; default build system 0 warnings; `cmp CLAUDE.md
+AGENTS.md` equal; both inventory scripts print nothing. Guards 196, unmoved.

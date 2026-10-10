@@ -90,7 +90,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 ```
 
 - **Counts (2026-10-10, `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
-  3099 tests, 0 goldens, 196 typecheck guards** (master's 3069 + 30 tests, 195 + 1 guard; native
+  3100 tests, 0 goldens, 196 typecheck guards** (master's 3069 + 31 tests (3099 at the checker, + its owed C1 pin L2.13, record §90 §6), 195 + 1 guard; native
   run on an unlocked screen, all passed; census 3023 (3021 + the two `compositingGroup()`
   functions); divergence 205 added beside master's 175, 176, the header's count and next label
   the merge's; `Backends/SDL` 24 + 105 and root in `swift:6.4-noble` 6 + 35 + 21 + 199 + 67 + 22 in the Linux image, unmoved by this branch; record §90 §3). Before the merge, lane 2 at `ef3b11c`: 3051 tests (3021 + 30;

@@ -348,3 +348,15 @@ private struct TapCounter: ProposalElement {
     #expect(diff == 0, "texel for texel: \(diff) differ")
     #expect(outside == 0, "nothing past the clip: \(outside) texels")
 }
+
+/// **L2.13** (`PF-E` item 2, through an effect). The same clipped square with
+/// an `.offset` between the `compositingGroup()` and the shadow: the effect's
+/// arm of `insertThroughScopes` keeps each capture's clip depth (`emitted =
+/// kept`), so the group's shadow is still 30 wide. Mutation **C1** (record §90
+/// §5: `emitted = nil` in that arm) reads 60 wide and reddens this test alone.
+@Test @MainActor func aClipInsideACompositingGroupUnderAnEffectCutsItsShadow() throws {
+    let group = gxImages(effectFrame(clippedSquare().compositingGroup().offset(x: px(4), y: px(0))
+        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene())
+    try #require(group.count == 1, "one shadow: \(group.map { gxDescribe($0.image.bounds) })")
+    #expect(group[0].image.bounds.size.width == 30, "the group's shadow is clipped: \(gxDescribe(group[0].image.bounds))")
+}

@@ -105,10 +105,6 @@ final class TransitionStore {
         /// The same in the scene's device pixels, where it painted.
         var surfaceRect: MUIBounds?
         var captures: [CapturedPrimitive] = []
-    /// A composite scope's collected primitives' emission clip depths, one per
-    /// entry of `captures` (`PF-E`): what `maskDepth(emittedAt:)` reads when
-    /// the collection goes through the scopes outside it.
-    var captureDepths: [Int] = []
     }
 
     private var records: [GlobalElementID: Record] = [:]
