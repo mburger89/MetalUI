@@ -107,7 +107,8 @@ enum TextEditing {
     // MARK: Keys
 
     /// One key, per TI-D's table; with `lines` the field is multi-line
-    /// (ruling TI-H): return inserts a line break, up and down move between
+    /// (ruling TI-H): return inserts a line break (not with the shortcut
+    /// modifier, ⌘↩/⌃↩, which passes on — `KF-Z` item 2), up and down move between
     /// display lines at a remembered x, and the line keys work on the display
     /// line.
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
@@ -213,6 +214,12 @@ enum TextEditing {
                 let (newText, newState) = replace(lineStart..<state.head, with: "", in: characters, state: state)
                 return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
                                   text: newText, handled: true)
+            // A Return with the platform's shortcut modifier (⌘↩, ⌃↩ off
+            // macOS) is not an editing key (ruling `KF-Z` item 2): it passes on
+            // to `onKey`, a `Button`'s shortcut, the commands and `onInput`.
+            // Pinned by `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput`.
+            case "\r" where mods.contains(shortcut), "\u{3}" where mods.contains(shortcut):
+                return unhandled
             case "\r", "\u{3}":
                 let (newText, newState) = replace(state.selection, with: "\n", in: characters, state: state)
                 if !state.selection.isEmpty { state.history.openGroup = nil }

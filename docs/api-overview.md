@@ -69,6 +69,16 @@ the window's top layer — a portal for modals, popovers and tooltips
   layout-transparent, so `HStack { Text("Name"); TextField("Name", text: $name) }`
   composes as SwiftUI's does (`PE-B`, `PE-C`). A legacy item field there
   (`.flexGrow`, `.margin`, …) is reported by name.
+- **A `for` loop over a helper returning `some …`** (`for t in texts {
+  label(t) }` with `func label(_:) -> some ProposalElementGroup`) does not
+  compile in either builder: "underlying type for opaque result type … could
+  not be inferred" — a Swift 6.4 result-builder defect no `buildArray` can
+  reach (`KF-M`; probe `probes/swift-builder-for-opaque.sh`; guard
+  `aForLoopOverAnOpaqueHelperIsAToolchainLimitation`, which turns red when a
+  toolchain fixes it). Write `ForEach(texts, id: \.self) { label($0) }`
+  (SwiftUI's spelling — its `ViewBuilder` has no `for` at all), a helper
+  returning a concrete type (`-> ProposalText`, or a `Component`), or the
+  chain inline.
 - **Identity** — structural by position; `.id(_:)` on any element group
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
@@ -323,6 +333,39 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Key and focus scoping** (`KF-`, record §88;
+[`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
+probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
+key:action:)`, `(_:phases:action:)`, `(keys:phases:action:)`,
+`(characters:phases:action:)`, `(phases:action:)` — with `KeyPress`
+(`.key`, `.characters`, `.modifiers`, `.phase`; made by MetalUI only),
+`KeyPress.Phases`, `KeyPress.Result` (A), on a `StyledElement` (returning
+`Self`) and on proposal content (returning `KeyboardModifier<Self>`, M). Keys
+need focus and walk the chain **outermost first**, after the window's
+`Keymap` and before a focused field's editing keys, `onKey`, a `Button`'s
+shortcut and Tab; `.handled` stops the walk; a keystroke an app command binds
+runs the command and never reaches `onKeyPress` (`KF-B`, `KF-C`, `KF-X`). A
+typed character on a focused field is offered as `.down` (D 187); a native-only
+menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
+`focusable()`, which still resolves) and `focusable(_:interactions:)` with
+`FocusInteractions` (A): `.edit` focuses on a primary press (SwiftUI's FC3),
+`.activate`/`.automatic` do not (D 94, narrowed); nothing is focused when a
+window shows (D 186). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
+focused, keys (and the `Keymap`'s contexts) go to the key region under the
+pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press
+elsewhere never resigns focus (`KF-G`, SwiftUI's answer). On proposal content
+— a `MetalView`, a `GPUSurface` — the keyboard modifiers (`onKeyPress`,
+`focusable`, `keyContext`, `focused`, `hoverKeyRegion`) wrap once in a
+**`KeyboardModifier`** and every later one joins that layer, so focus, the
+binding, the context and the handlers sit on one id: `MetalView { … }
+.focusable(interactions: .edit).keyContext("Viewport").onKeyPress("f") { … }`
+(`KF-H`); on one layer `onKeyPress` and `.focusable()` are order-free (D 185).
+**A `TextEditor`'s commit key**: `.onKeyPress(keys: [.return]) { press in
+press.modifiers.contains(.command) ? commit() : .ignored }` — ⌘↩ (⌃↩ off
+macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
+the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
+`METALUI_KEY_FOCUS_DEMO=1`.
+
 ## Drag and drop — A / D
 
 `Transferable` and `ContentType` — MetalUI's own synchronous, `Data`-based
@@ -569,6 +612,22 @@ none. Priority defaults to `.userInitiated`, the name to `"View.task @
 <file>:<line>"`. On macOS 14–25 the body starts on the next main-queue turn
 (137). Under `SDLPlatform` a task progresses through the loop's main-queue
 drain (`SV-H`).
+
+**Geometry and time** (`KF-J`, `KF-K`, `KF-L`, `KF-S`, `KF-T`, record §88).
+`.onGeometryChange(for:of:action:)` in both action forms (`{ new in }`, `{
+old, new in }`) with `GeometryProxy` (`.size`, `.frame(in: .local / .global)`)
+(A; wider than SwiftUI on concurrency — no `@Sendable`, no `Sendable` `T`,
+`KF-S`): a transparent `GeometryChangeScope` (M) whose value is computed in
+prepaint and whose action runs in the lifecycle drain, before the build's
+lifecycle events — the initial value is in the first presented frame, a live
+resize reports every frame; a legacy decoration after it does not compile (D
+120). `TimelineView(_:content:)` with `TimelineSchedule`,
+`TimelineScheduleMode`, `.animation`, `.animation(minimumInterval:paused:)`,
+`.periodic(from:by:)`, `.everyMinute`, `.explicit(_:)`,
+`TimelineViewDefaultContext` (`.date`, `.cadence`, always `.live`) and its
+`Context` typealias (A): identity- and layout-transparent; `.animation` keeps
+the display link running exactly while it is built, other schedules rebuild
+through one wake at their next date.
 
 ## Animation and transitions — A
 

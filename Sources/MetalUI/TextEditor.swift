@@ -7,6 +7,12 @@ import MetalUITextSystem
 /// return inserting a line break, up and down moving between display lines,
 /// and a vertical scroll that follows the caret and the mouse wheel.
 ///
+/// **⌘↩ (⌃↩ off macOS) is not an editing key** (ruling `KF-Z` item 2): it
+/// passes on to `onKey`, a `Button`'s shortcut, the app's commands and the
+/// window. To commit on it, write `.onKeyPress(keys: [.return]) { press in
+/// press.modifiers.contains(.command) ? commit() : .ignored }` — handlers run
+/// before the editor's own keys.
+///
 /// **Controlled**, like `TextField`: it shows `text` and calls `onChange`
 /// with every edit.
 ///

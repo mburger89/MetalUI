@@ -1061,6 +1061,50 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## KF. Key and focus scoping — `onKeyPress`, key regions, focus on press, `onGeometryChange`, `TimelineView` (item C9, user request 2026-10-02, not a plan task)
+
+SwiftUI's `onKeyPress` family on both vocabularies, MetalUI's hover key
+regions, focus on a press for `.focusable(interactions: .edit)`, a proposal
+`KeyboardModifier` layer, `onGeometryChange` and `TimelineView` (rulings
+`KF-A`…`KF-Z`, record §88). Run `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo`,
+and the SDL demo from `Backends/SDL` with the same variable (`swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo`). The status
+line shows the last key and its walk (`root › …`). Pinned headless: the
+pipeline order, the key chain, the press stage, the geometry and timeline
+events (`KeyPressTests`, `HoverKeyRegionTests`, `FocusOnPressTests`,
+`KeyboardModifierTests`, `GeometryChangeTests`, `TimelineViewTests`,
+`KeyFocusDemoTests`). What nothing headless sees: a real keyboard, a real
+pointer, an input method, the display link and the menu bar.
+
+- [ ] **KF-1. Order and the palette.** With a real keyboard (AppKit, and SDL on
+  Linux/Windows), hover the canvas with nothing focused and press Tab: the
+  palette opens and the walk reads `root › canvas` — the ancestor first. In
+  the palette's focused search field ↑/↓ move the highlight (the caret does
+  not move) and Return picks ("picked …") without inserting anything; Escape
+  closes it (`KF-B`, `KF-C`). **Observed:**
+- [ ] **KF-2. Hover routing.** With nothing focused, Tab over the canvas opens
+  the palette and Tab elsewhere does not; with the Name field focused, Tab
+  moves focus to Depth wherever the pointer rests (`KF-D`). **Observed:**
+- [ ] **KF-3. Clicks and focus.** With a field focused, a click on the header
+  text leaves it focused (RS1, `KF-G`); a click on the canvas clears it
+  (`KF-E` item 5); a click on the viewport focuses it and a key then reads
+  `root › viewport` with the viewport's key count going up (`KF-F`, `KF-H`).
+  **Observed:**
+- [ ] **KF-4. The viewport's size.** On launch the status line's viewport size
+  reads 240 × 200 in the first frame; resizing the window does not change it
+  (the viewport has a fixed frame) and nothing lags (`KF-J`). **Observed:**
+- [ ] **KF-5. The timeline.** The "orbit" label circles the viewport smoothly,
+  one turn about every six seconds; closing the demo's other animations, the
+  display link runs only while the label is on screen (`KF-K`). **Observed:**
+- [ ] **KF-6. Native menu items.** With the viewport focused (its catch-all
+  `onKeyPress` answers `.handled`), ⌘Q and ⌘H are swallowed (divergence 188);
+  with the viewport not focused they quit and hide as usual. (An app
+  command's ⌘-key running the command is pinned headless, A43, `KF-X`.)
+  **Observed:**
+- [ ] **KF-7. The digit filter.** Typing into the Depth field: letters never
+  appear, digits do; an input method's composition (AppKit Japanese IME; SDL
+  on Linux with IBus) is unaffected (`KF-Q`, divergence 187). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

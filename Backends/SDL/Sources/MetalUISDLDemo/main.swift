@@ -75,7 +75,13 @@ func runDemo() throws {
     // and right drags, tap location, SDL's system cursors; **C** toggles the
     // crosshair.
     let canvasDemo = environment["METALUI_CANVAS_DEMO"] == "1"
-    let window = canvasDemo
+    // `METALUI_KEY_FOCUS_DEMO=1`: key and focus scoping (human checks KF-1…KF-7;
+    // spec `2026-10-08-key-focus-design.md` §6) — a key-region canvas, an
+    // inspector, a palette, a click-focusable viewport.
+    let window = environment["METALUI_KEY_FOCUS_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 key and focus",
+                             size: Size(width: Pixels(1000), height: Pixels(620)), content: keyFocusDemoContent)
+        : canvasDemo
         ? try app.openWindow(title: "MetalUI — SDL3 canvas", size: Size(width: Pixels(920), height: Pixels(620)),
                              content: canvasDemoContent)
         : environment["METALUI_RICH_TEXT_DEMO"] == "1"

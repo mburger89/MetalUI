@@ -74,6 +74,36 @@ private func kd(_ c: String, _ modifiers: Modifiers = []) -> InputEvent {
     #expect(m.log == ["f"], "\(m.log)")
 }
 
+/// **Divergence 185's pin** (`KF-H` item 3; SwiftUI K12: an `onKeyPress`
+/// written inside `.focusable()` never hears). On one keyboard layer — and on
+/// one `StyledElement`, as before — `onKeyPress` written **before**
+/// `.focusable()` hears the focused element's key. Mutation: make
+/// `KeyboardModifier.focusable(_:)` wrap `self` in a new layer (the proposal
+/// arm's handler then sits inside the focus target and never hears).
+@MainActor
+@Test func onKeyPressBeforeFocusableHearsOnOneKeyboardLayer() throws {
+    let m = KMLog()
+    let (window, platform) = try kmWindow {
+        HStack(spacing: 0) {
+            Rectangle(width: px(40), height: px(40))
+                .onKeyPress("p") { m.log.append("proposal"); return .handled }
+                .focusable()
+            Box().frame(width: px(40), height: px(40))
+                .onKeyPress("s") { m.log.append("styled"); return .handled }
+                .focusable()
+        }
+    }
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 2, "two focusable elements: \(order)")
+    window.focus(order[0])
+    window.drawFrameIfNeeded()
+    platform.simulateInput(kd("p"))
+    window.focus(order[1])
+    window.drawFrameIfNeeded()
+    platform.simulateInput(kd("s"))
+    #expect(m.log == ["proposal", "styled"], "each handler written before .focusable() heard (divergence 185): \(m.log)")
+}
+
 /// A proposal pane binding its viewport's focus to a `@FocusState`.
 private struct KMFocusPane: Component {
     @FocusState var flag: Bool

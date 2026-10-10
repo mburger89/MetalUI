@@ -37,6 +37,14 @@ private func buildEveryProductionTree() {
     buildTheCanvasDemo()     // input APIs' canvas (spec §6, test 3.36)
     buildTheRichTextDemo()   // rich text (RT-O item 10)
     buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
+    buildTheKeyFocusDemo()   // key and focus scoping (KF, spec test C2)
+}
+
+/// The key-and-focus demo's tree, in its own frame as the services demo's is
+/// (a debug build reserves a slot per temporary for the whole function).
+@MainActor @inline(never)
+private func buildTheKeyFocusDemo() {
+    _ = keyFocusDemoContent()
 }
 
 /// The input-APIs canvas demo's tree, **in its own frame** for

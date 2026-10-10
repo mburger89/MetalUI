@@ -445,13 +445,16 @@ content typed as `LegacyContent<…>` does not compile). Each mutated red once.
 
 | # | Test | Red before | Mutation that must redden it |
 |---|---|---|---|
-| C1 | `aForLoopOverAnOpaqueHelperIsAToolchainLimitation` (`typecheckFile`: the failing arm **must fail** with `underlying type for opaque result type`; arms `ForEach(texts, id: \.self) { label($0) }`, a `-> ProposalText` helper, a `struct Label: Element` helper and the inline chain **must compile**) | green at `c62d6ba` (it pins today's toolchain) | change the failing fixture's helper to `-> ProposalText` (the "must fail" arm reddens); delete `ForEach` from a separating arm's import path (a "must compile" arm reddens) |
+| C1 | `aForLoopOverAnOpaqueHelperIsAToolchainLimitation` (`typecheckFile`: the failing arm **must fail** with `underlying type for opaque result type`; arms `ForEach(texts, id: \.self) { label($0) }`, a `-> ProposalText` helper, a `struct Label: Component` helper (`KF-Z` item 3) and the inline chain **must compile**) | green at `c62d6ba` (it pins today's toolchain) | change the failing fixture's helper to `-> ProposalText` (the "must fail" arm reddens); delete `ForEach` from a separating arm's import path (a "must compile" arm reddens) |
 | C2 | `everyProductionTreeBuildsOnAOneMegabyteThread` gains the key-focus demo tree | new tree unbuilt | build the section inline in the composer (the tree overflows or the arm is absent) |
 | C4 | `aMetalViewTakesFocusOnPressAndHearsKeysThroughOneLayer` (was A34; proposal, end to end) | does not compile | make `KeyboardModifier`'s own methods return a nested wrapper |
 | C5 | `aProposalFocusedBindingAndKeyContextSitOnTheFocusTarget` (was A35) | does not compile | register the binding on the content's id |
 | C6 | the three `everyHandlerRegisteringSite…` guards gain the `KeyboardModifier` arm (was part of A36) | — | skip the gate in `KeyboardModifier` |
 | C7 | A5's `KeyboardModifier` arm (`theLaterOnKeyPressOnOneElementRunsFirst` gains it) | — | run the layer's handlers in written order |
-| C8 | guard `keyboardModifiersMergeIntoOneLayer` (was G3: `let x: KeyboardModifier<MetalView> = MetalView…focusable(interactions: .edit).keyContext("V").onKeyPress("f") { .handled }`; separating: the chain typed `KeyboardModifier<KeyboardModifier<MetalView>>` does not compile) | — | mutated red once |
+| C8 | guard `keyboardModifiersMergeIntoOneLayer` (was G3: the chain `MetalView…focusable(interactions: .edit).keyContext("V").onKeyPress("f") { .handled }…` inferred, then converted: to `KeyboardModifier<MetalView>` it compiles; separating: to `KeyboardModifier<KeyboardModifier<MetalView>>` it does not — annotating the chain itself selects the generic overload, `KF-Z` item 1) | — | make `KeyboardModifier.keyContext` return `KeyboardModifier<Self>` |
+| C9 | `onKeyPressBeforeFocusableHearsOnOneKeyboardLayer` (divergence 185's pin, both vocabularies) | does not compile | make `KeyboardModifier.focusable(_:)` wrap `self` in a new layer |
+| C10 | `aTextEditorsOnKeyPressTakesCommandReturnAndPlainReturnStillBreaksTheLine`, `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput` (MetalCreator CM-a, `KF-Z` item 2) | does not compile at `c62d6ba`; the declined arm red against the lane C stub (`["heard"]`, `"ab\n"`) | move `dispatchKeyPress` after `dispatchTextKey`; delete the shortcut-modified Return arm in `TextEditing.key` |
+| C11 | `theKeyFocusDemoRoutesTabOverTheCanvasAndKeysToAClickedViewport` (the demo, headless) | does not compile | — |
 | C3 | the fourteen offscreen images, `docs/probes/demo-pixels/compare.sh <scratch> c62d6ba HEAD`: 0 px each; `DemoFrameDeterminismTests`' `Expected.swift` unedited | — | — (acceptance) |
 
 **Expected count**: 2873 + lane A (≈ 50 incl. 3 guards and 5 portable) + lane

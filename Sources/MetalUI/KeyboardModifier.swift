@@ -233,8 +233,14 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        // STUB (lane C red commit): registers nothing.
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let handlers = self.handlers
+        // A wrapper's registration follows an effect written inside it at the
+        // same rect (`GX-P` item 1); the one gate is `registerHandlers`'.
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                  synthesizesAccessibility: false)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
