@@ -415,8 +415,9 @@ run, every reddened test named, `git status --short` clean after restore.
   title; no new role. Mutation: drop `.accessibilityAddTraits(.isButton)` →
   reddens. **Refuted (`SG-K` item 1):** that mutation is equivalent — the
   role comes from the title's `.onClick` (`AccessibilityTreeBuilder` gives a
-  clickable element `.button`) — and stays green; dropping `.onClick` (M2.15b)
-  reddens.
+  clickable element `.button`) — and stays green. **Refuted again (`SG-L`):**
+  dropping `.onClick` alone (M2.15b) is equivalent too, the trait giving
+  `.button`; 2.15 reddens only when both are dropped (M2.15c).
 - **2.16** `theDrawnBarsTitlesFollowTheCommandsLive`: a `CommandMenu` under
   `if model.flag` (an `@Observable`) appears on the frame after the flag is
   written from input. Mutation: evaluate titles once at install → reddens.

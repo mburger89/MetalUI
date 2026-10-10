@@ -4,8 +4,8 @@ import MetalUILayout
 // Fill, stroke and strokeBorder (plan task 11, part 2; ruling `TE-AI`), and
 // since paths, shadows and transforms their `FillStyle`/`StrokeStyle` forms
 // (`GX-E`). Colours are `Color`s (`CR-E`; a `ColorToken` twin kept on every
-// method); there is no `ShapeStyle`
-// and no gradient (spec §9).
+// method); there is no `ShapeStyle`: since controls and looks a gradient or a
+// material is one more overload beside the colour's (`LK-R`).
 
 extension Shape {
     /// Fills the shape with the foreground style (`foregroundStyle ??
@@ -119,6 +119,63 @@ extension Shape {
     public func strokeBorder(_ token: ColorToken, lineWidth: Pixels = Pixels(1)) -> ShapeView<Self> {
         strokeBorder(Color(token), lineWidth: lineWidth)
     }
+
+    // MARK: Gradients and materials (C10 lane 3, `LK-J`, `LK-L`, `LK-R`)
+
+    /// Fills the shape with `gradient` — SwiftUI's `fill(_:)` with a
+    /// `LinearGradient` (`LK-J`): the unit points map to the shape's
+    /// bounding rectangle, and the shape cuts the gradient (probe G8).
+    public func fill(_ gradient: LinearGradient) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientFill(.linear(gradient), nil)])
+    }
+
+    /// Fills the shape with `gradient` (`LK-J`).
+    public func fill(_ gradient: RadialGradient) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientFill(.radial(gradient), nil)])
+    }
+
+    /// Fills the shape with `gradient` under `style` (`LK-R` item 2).
+    public func fill(_ gradient: LinearGradient, style: FillStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientFill(.linear(gradient), style)])
+    }
+
+    /// Fills the shape with `gradient` under `style` (`LK-R` item 2).
+    public func fill(_ gradient: RadialGradient, style: FillStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientFill(.radial(gradient), style)])
+    }
+
+    /// Fills the shape with `material`'s flat tint (`LK-L`, divergence 166):
+    /// exactly ``fill(_:)`` with the material's colour.
+    public func fill(_ material: Material) -> ShapeView<Self> {
+        fill(material.color)
+    }
+
+    /// Fills the shape with `material`'s flat tint under `style` (`LK-R`).
+    public func fill(_ material: Material, style: FillStyle) -> ShapeView<Self> {
+        fill(material.color, style: style)
+    }
+
+    /// Strokes the shape's outline with `gradient`, centred on its edge
+    /// (`LK-J`): the outline stroked on the CPU, coloured by the gradient over
+    /// the shape's bounding rectangle.
+    public func stroke(_ gradient: LinearGradient, lineWidth: Pixels = Pixels(1)) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientStroke(.linear(gradient), StrokeStyle(lineWidth: lineWidth))])
+    }
+
+    /// Strokes the shape's outline with `gradient` (`LK-J`).
+    public func stroke(_ gradient: RadialGradient, lineWidth: Pixels = Pixels(1)) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientStroke(.radial(gradient), StrokeStyle(lineWidth: lineWidth))])
+    }
+
+    /// Strokes the shape's outline with `gradient` under `style` (`LK-J`).
+    public func stroke(_ gradient: LinearGradient, style: StrokeStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientStroke(.linear(gradient), style)])
+    }
+
+    /// Strokes the shape's outline with `gradient` under `style` (`LK-J`).
+    public func stroke(_ gradient: RadialGradient, style: StrokeStyle) -> ShapeView<Self> {
+        ShapeView(shape: self, layers: [.gradientStroke(.radial(gradient), style)])
+    }
 }
 
 /// A shape with fills and strokes — SwiftUI's `_ShapeView`. Its layers paint
@@ -134,6 +191,10 @@ public struct ShapeView<S: Shape>: Element {
         case fill(Color?, FillStyle?)
         case stroke(Color, StrokeStyle)
         case strokeBorder(Color, StrokeStyle)
+        /// A gradient fill (`LK-J`); `nil` style as `.fill`'s.
+        case gradientFill(GradientFill, FillStyle?)
+        /// A centred gradient stroke (`LK-J`).
+        case gradientStroke(GradientFill, StrokeStyle)
     }
 
     var layers: [Layer]
@@ -167,6 +228,36 @@ public struct ShapeView<S: Shape>: Element {
     @_disfavoredOverload
     public func fill(_ token: ColorToken, style: FillStyle) -> ShapeView<S> {
         fill(Color(token), style: style)
+    }
+
+    /// Adds a gradient fill over the layers so far (`LK-R` item 2).
+    public func fill(_ gradient: LinearGradient) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.gradientFill(.linear(gradient), nil)])
+    }
+
+    /// Adds a gradient fill over the layers so far (`LK-R` item 2).
+    public func fill(_ gradient: RadialGradient) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.gradientFill(.radial(gradient), nil)])
+    }
+
+    /// Adds a gradient fill under `style` over the layers so far (`LK-R`).
+    public func fill(_ gradient: LinearGradient, style: FillStyle) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.gradientFill(.linear(gradient), style)])
+    }
+
+    /// Adds a gradient fill under `style` over the layers so far (`LK-R`).
+    public func fill(_ gradient: RadialGradient, style: FillStyle) -> ShapeView<S> {
+        ShapeView(shape: shape, layers: layers + [.gradientFill(.radial(gradient), style)])
+    }
+
+    /// Adds a material's flat tint over the layers so far (`LK-L`).
+    public func fill(_ material: Material) -> ShapeView<S> {
+        fill(material.color)
+    }
+
+    /// Adds a material's flat tint under `style` over the layers so far.
+    public func fill(_ material: Material, style: FillStyle) -> ShapeView<S> {
+        fill(material.color, style: style)
     }
 
     /// Adds a centred stroke over the layers so far.
@@ -243,6 +334,10 @@ public struct ShapeView<S: Shape>: Element {
             case let .strokeBorder(color, style):
                 paintStyledStroke(shape, geometry, bounds: bounds, color: color, style: style, outset: false,
                                   pass: pass)
+            case let .gradientFill(fill, style):
+                paintGradientFill(fill, geometry, style: style, pass: pass)
+            case let .gradientStroke(fill, style):
+                paintGradientStroke(fill, geometry, style: style, pass: pass)
             }
         }
     }

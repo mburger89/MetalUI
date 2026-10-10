@@ -447,6 +447,46 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
+**Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
+`Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
+drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,
+hue, opacity, hex) on every platform, not `NSColorPanel` (divergence 165); `ProgressView()`
+spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframeAnimator` and
+`KeyframeAnimator` run `LinearKeyframe`/`CubicKeyframe`/`SpringKeyframe`/`MoveKeyframe` tracks
+(divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
+(rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
+167); `.ultraThinMaterial` … `.bar` are fitted flat tints with no backdrop blur (divergence
+166). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: group CL, unrun.
+**App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
+`Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
+`replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same
+for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navigationTitle`,
+`isDocumentEdited` and `.navigationDocument` set the title, the edited dot and the proxy icon;
+`windowStyle: .hiddenTitleBar` lays content under the title bar with
+`@Environment(\.titleBarInsets)` (AppKit only; SDL keeps its system decoration, divergence
+175); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
+edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
+MetalUIDemo` shows them. Human checks: group AS, unrun.
+**Key and focus scoping** (user request 2026-10-02, item C9, not a plan task; record §88):
+SwiftUI's `onKeyPress` family runs after the Keymap and before a focused field's editing keys,
+outermost handler first; `.hoverKeyRegion()` (MetalUI-only) gives keys to the region under the
+pointer while nothing is focused; `.focusable(interactions: .edit)` focuses on a click (divergence
+94, narrowed); a proposal `KeyboardModifier` carries all of it onto `MetalView`/`GPUSurface`;
+`.onGeometryChange` reports a size or frame in the first presented frame and during a resize;
+`TimelineView` runs `.animation`, `.periodic`, `.everyMinute`, `.explicit` and custom schedules.
+A `for` over an opaque-returning helper in a builder is a Swift 6.4 defect (use `ForEach`), pinned
+by a guard. Divergences 185–188. `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` shows it. Human
+checks: group KF, unrun.
+
+**Shadow cache** (user request 2026-10-02, item C13, MetalCreator's PERF-a, not a plan task; record §90):
+a shadow, blur, path or full-gradient raster is keyed relative to a floored device anchor, so
+dragging or panning a shadowed container by whole device pixels reuses its cached texture
+instead of re-blurring on every move (a 20-node graph at 2x: 330264 blurred pixels and 9 new
+textures a frame before, 0 after; a sub-pixel move still re-rasterizes, and pixels are
+unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf to an enclosing
+`.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
+opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
+group PF, unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

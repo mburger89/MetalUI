@@ -1,3 +1,4 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 import MetalUIPrimitives
@@ -383,6 +384,13 @@ public final class Frame {
     /// with none (`SV-U`'s shape).
     private(set) var pointerStyleRegionCount = 0
 
+    /// How many key regions (`hoverKeyRegion`) and click-focusable press
+    /// regions (`focusable(_:interactions:)` with `.edit`) this frame
+    /// registered (rulings `KF-E` item 4, `KF-F` item 3): with neither, a key
+    /// event and a press do no lookup.
+    private(set) var keyRegionCount = 0
+    private(set) var focusOnPressCount = 0
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0
@@ -579,6 +587,8 @@ public final class Frame {
             values.theme = theme   // tokens only; `colorScheme` untouched (`CR-K` item 3)
         case .preferredColorScheme:
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
+        case .navigationTitle, .navigationDocument, .onOpenURL:
+            break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
         }
         return values
     }
@@ -610,6 +620,16 @@ public final class Frame {
     var collectedColorSchemePreference: ColorScheme? {
         mainColorSchemePreference ?? presentationColorSchemePreference
     }
+
+    // MARK: Window preferences (rulings `AS-D`, `AS-G`)
+
+    /// The first `.navigationTitle` reported in post-order this build, read
+    /// by `Window` after it (`AS-D` item 2).
+    var collectedNavigationTitle: String?
+    /// The first `.navigationDocument` reported in post-order (`AS-D` item 3).
+    var collectedNavigationDocument: URL?
+    /// Every `.onOpenURL` present this build, in post-order (`AS-G` item 2).
+    var openURLHandlers: [OpenURLHandler] = []
 
     // MARK: Content size limits (ruling `SV-L` item 2)
 
@@ -1557,6 +1577,8 @@ public final class Frame {
         // Nor the wheel handler and pointer style (`CI-I` item 3, `CI-H` item
         // 3): the pointer region below carries them, once per element.
         pointerHandlers.pointer = nil
+        // Nor the keyboard box (`KF-I`): the key/press region below carries it.
+        pointerHandlers.keyboard = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -1646,6 +1668,24 @@ public final class Frame {
                              shape: handlers.contentShape?.geometry(in: region))
             if pointer.style != nil { pointerStyleRegionCount += 1 }
         }
+        // A key region and a click-focusable press region (rulings `KF-E` item
+        // 2, `KF-F` item 3): ONE non-opaque region carrying only the keyboard
+        // box (and focusability, which `focusesOnPress` reads), at the
+        // element's hit region, inside the disabled, `allowsHitTesting` and
+        // `hidden()` gates exactly as the hover region. No other stage reads
+        // these fields, so every existing ranking is unchanged (spec test
+        // A32). A frame with neither registers nothing here.
+        if let keyboard = handlers.keyboard, keyboard.isKeyRegion || handlers.focusesOnPress,
+           enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.keyboard = keyboard
+            only.isFocusable = handlers.isFocusable
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            if keyboard.isKeyRegion { keyRegionCount += 1 }
+            if handlers.focusesOnPress { focusOnPressCount += 1 }
+        }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
         // `Text.prepaint` — which call this and nothing else — dropped a
@@ -1695,6 +1735,8 @@ public final class Frame {
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
+        declaration.colorWellHint = false    // LK-G, the same
+        declaration.progressHint = nil       // LK-G, LK-V item 6, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -1720,6 +1762,7 @@ public final class Frame {
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || handlers.axNode.selectionHint || handlers.axNode.popoverHint
+                || handlers.axNode.progressHint != nil
                 || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
@@ -2918,6 +2961,10 @@ public final class Frame {
     /// `rotationEffect`, `scaleEffect` or `offset`.
     var effectScopesPushed = 0
 
+    /// Composite scopes pushed this frame (`PF-E`, test L2.5): 0 for a tree
+    /// whose `compositingGroup()`s have no shadow or blur outside them.
+    var compositeScopesPushed = 0
+
     /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
@@ -3010,7 +3057,7 @@ public final class Frame {
     /// One emitted primitive through every open transitioning group, innermost
     /// first: each captures it as it arrives (for a ghost), then applies its
     /// effect, and the result reaches the scene.
-    private func insertThroughScopes(_ primitive: CapturedPrimitive) {
+    func insertThroughScopes(_ primitive: CapturedPrimitive) {
         // Inside a text draw (`beginLeafGroup`), the glyphs wait for the
         // group's end, so a shadow scope sees the whole text as one leaf.
         if leafGroup != nil {
@@ -3025,8 +3072,16 @@ public final class Frame {
     /// a drag preview) and applies its map; a shadow scope puts the leaf's
     /// shadow before it, itself a leaf to every scope further out (`GX-J`;
     /// SH5, SH11). What survives reaches the scene in order.
-    private func insertThroughScopes(leaf: [CapturedPrimitive]) {
-        var leaves: [[CapturedPrimitive]] = [leaf]
+    ///
+    /// A composite scope (`PF-E`) collects what reaches it, with each
+    /// primitive's emission clip depth, and stops it there; when it closes,
+    /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
+    /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
+    /// means every primitive was emitted at the current depth).
+    func insertThroughScopes(leaf: [CapturedPrimitive], depths: [Int]? = nil) {
+        // Each group carries its primitives' emission depths, `nil` for "all
+        // at `depth`" (no array on the ordinary path).
+        var leaves: [([CapturedPrimitive], [Int]?)] = [(leaf, depths)]
         let depth = clipStack.count
         var pastBarrier = false
         for scope in paintScopes.reversed() {
@@ -3034,37 +3089,66 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier, .shadow where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed or shadowed (`GX-G`)
+            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier,
+                 .composite where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed, shadowed, blurred or composited (`GX-G`, `LK-K`, `PF-E`)
+            case .composite:
+                for (group, emitted) in leaves {
+                    scope.captures.append(contentsOf: group)
+                    scope.captureDepths.append(contentsOf: emitted ?? Array(repeating: depth, count: group.count))
+                }
+                return
             default:
                 break
             }
-            var next: [[CapturedPrimitive]] = []
-            for var group in leaves {
+            var next: [([CapturedPrimitive], [Int]?)] = []
+            for (var group, var emitted) in leaves {
                 for i in group.indices {
-                    group[i].innerMask = group[i].maskDepth(emittedAt: depth) > scope.entryClipDepth
+                    group[i].innerMask = group[i].maskDepth(emittedAt: emitted?[i] ?? depth) > scope.entryClipDepth
                     group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
-                    next.append([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)])
-                    next.append(group)
+                    next.append(([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)], nil))
+                    next.append((group, emitted))
+                    continue
+                }
+                if let blur = scope.blur {
+                    // A GPU surface's pixels are on the GPU: it is drawn
+                    // unblurred (`LK-K` item 5, divergence 167).
+                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
+                        next.append((group, emitted))
+                    } else {
+                        next.append(([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)], nil))
+                    }
                     continue
                 }
                 if !scope.effect.isIdentity {
-                    group = group.compactMap {
-                        scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                    if let d = emitted {
+                        var mapped: [CapturedPrimitive] = [], kept: [Int] = []
+                        for i in group.indices {
+                            guard let p = scope.effect.apply(to: group[i], flattens: scope.flattens, outer: scope.outer)
+                            else { continue }
+                            mapped.append(p)
+                            kept.append(d[i])
+                        }
+                        group = mapped
+                        emitted = kept
+                    } else {
+                        group = group.compactMap {
+                            scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                        }
                     }
                     if group.isEmpty { continue }
                 }
                 if scope.kind == .effect, scope.flattens, let entry = scope.outer {
                     for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
                 }
-                next.append(group)
+                next.append((group, emitted))
             }
             leaves = next
         }
-        for group in leaves {
+        for (group, _) in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
     }
@@ -3117,6 +3201,12 @@ public final class Frame {
         case .shadow(var shadow):
             (shadow.contentMask, shadow.maskCornerRadii) = cut(shadow.contentMask, shadow.maskCornerRadii)
             p.kind = .shadow(shadow)
+        case .gradient(var gradient):
+            (gradient.contentMask, gradient.maskCornerRadii) = cut(gradient.contentMask, gradient.maskCornerRadii)
+            p.kind = .gradient(gradient)
+        case .blur(var blur):
+            (blur.contentMask, blur.maskCornerRadii) = cut(blur.contentMask, blur.maskCornerRadii)
+            p.kind = .blur(blur)
         }
         return p
     }
@@ -3148,6 +3238,12 @@ public final class Frame {
             scene.insert(quad, texture: texture, layer: primitive.layer)
         case .shadow(let paint):
             guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .gradient(let paint):
+            guard let (quad, texture) = gradientImage(paint, transform: primitive.transform) else { return }
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .blur(let paint):
+            guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
             scene.insert(quad, texture: texture, layer: primitive.layer)
         }
     }

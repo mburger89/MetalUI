@@ -2532,3 +2532,81 @@ which settles them beside `feat/input-apis`. **Added, kept:**
 Live count **+9** on this branch (108 on the variable-height-list branch → 117
 after both). Lane 3 wrote the rows; this section was written by the Record
 phase.
+
+## 2026-10-09: 165–169 and 171 added (controls and looks)
+
+Record §85; rulings `LK-C`, `LK-D`, `LK-L`, `LK-O`, `LK-K`, `LK-I`, `LK-T`; the
+published list is `docs/divergences.md`. Not a plan task — user request
+2026-10-02, item C10. Labels from this branch's reserved range 165–174; 170 and
+172–174 were never used (no divergence ever held them, so they are not
+retired). The published header reads 126 live, next label 175 on this branch
+(120 on master `67a579e` + 6); the labels 159–164 belong to other branches'
+reservations and settle at their merges. **Added, kept:**
+
+- **165** — what a `ColorPicker`'s well opens on macOS. SwiftUI opens the shared
+  `NSColorPanel` (probe `swiftui-controls-looks.swift` `C3`: `active=true
+  panelVisible=true showsAlpha=true`); MetalUI draws a popover from the well on
+  every platform (a square, a hue bar, an opacity bar, a swatch and a hex
+  field; SDL has no colour panel). The binding sees the same writes (`C4`–`C8`).
+  Owner C10-b: the designed `PlatformWindow.presentColorPanel` seam. Pin
+  `pressingTheWellOpensThePanelAndDoesNotFocus`.
+- **166** — a `Material` background or fill. SwiftUI blurs the backdrop and
+  tints it (over 10-point stripes every material reads nearly one colour, `M1`);
+  MetalUI draws a flat grey tint at an alpha per material and scheme, fitted from
+  ImageRenderer's `M5` so that over uniform white and black it matches within one
+  level, and no blur. A real window's tint is unmeasured (`LK-O` item 2). Owner
+  C10-c, a backdrop blur in both renderers. Pin
+  `everyMaterialMatchesSwiftUIOverWhiteAndBlackM5`.
+- **167** — a GPU surface under `.blur(radius:)`. SwiftUI blurs it with its
+  siblings; MetalUI draws it unblurred (its pixels are on the GPU, the blur runs
+  on the CPU per leaf). Pin `aSurfaceLeafUnderBlurIsDrawnUnblurred`.
+- **168** — `SpringKeyframe` without `duration:`. SwiftUI compiles it and lasts a
+  derived settling length (`K4b`: 1.273 s for `Spring(duration: 0.4, bounce:
+  0.3)`); MetalUI requires `duration:`, runs the spring for it and holds the value
+  it reached (`K4`). Pin `springKeyframeWithoutDurationDoesNotCompile`.
+- **169** — a keyframe track's value type and `.keyframeAnimator`'s content
+  argument. SwiftUI: `Value: Animatable`, a placeholder view; MetalUI:
+  `Value: VectorArithmetic` (`Double`, `Float`, `CGFloat`, `Angle`) and the
+  element itself. Pin `keyframeAnimatorTypechecksWithSwiftUIsCallShape`.
+- **171** — a zero-duration keyframe at its own time. SwiftUI reads `nan` (`K8`);
+  MetalUI reads its target. Pin `aZeroDurationKeyframeReadsItsTarget`.
+
+**Amended:** none. **Retired:** none.
+
+## 2026-10-10: 185–188 added, 94 narrowed, 120 amended (key and focus scoping)
+
+Record §88; rulings `KF-H`, `KF-B`, `KF-Q`, `KF-X`, `KF-F`, `KF-J`; the published
+list is `docs/divergences.md`. Not a plan task — user request 2026-10-02, item
+C9. Labels from this branch's reserved range 185–194; 189–194 were never used
+(no divergence ever held them, so they are not retired). The header's live count
+and next label are left for the merge to settle. Every SwiftUI answer below is
+an arm of `docs/probes/swiftui-key-focus.swift`. **Added, kept:**
+
+- **185** — `onKeyPress` written inside `.focusable()` on one element. SwiftUI's
+  handler never hears (`K12`: it sits inside the focus target); on one MetalUI
+  keyboard layer (a `StyledElement`, or a proposal `KeyboardModifier` chain) the
+  two are order-free; a non-keyboard modifier between them splits the layers and
+  `K12`'s rule holds (`KF-H` item 3). Pins
+  `onKeyPressBeforeFocusableHearsOnOneKeyboardLayer`,
+  `theLaterOnKeyPressOnOneElementRunsFirst`, `keyboardModifiersMergeIntoOneLayer`.
+- **186** — focus when a window first shows. SwiftUI focuses the first focusable
+  view (`K1`, `K1t`); MetalUI focuses nothing until Tab, a press on a
+  click-focusable element or `Window.focus(_:)` (`KF-B`). Pin
+  `noElementHoldsFocusWhenTheWindowFirstDraws`.
+- **187** — a typed character on a focused text field as `onKeyPress` sees it.
+  SwiftUI passes the key's phase and modifiers; MetalUI offers the committed
+  character once as `.down` with empty modifiers, never an input method's
+  composition, and on SDL no release (`KF-Q`). Pin
+  `aCompositionAndAMultiGraphemeCommitAreNeverOffered`.
+- **188** — a native-only menu item's ⌘-key (Quit, Hide, Minimize, the Edit
+  menu's standard actions) under a focused `onKeyPress`. SwiftUI's main menu runs
+  it first (`KX2`, `KX3`); MetalUI cannot see those items, so the pipeline and
+  `onKeyPress` see the keystroke first and a catch-all `.handled` swallows ⌘Q (an
+  app command's ⌘-key still runs, `KF-X` item 4). Pin
+  `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`.
+
+**Amended:** **94** narrowed — `.focusable(interactions: .edit)` focuses on a
+primary press, as SwiftUI does (`FC3`, `KF-F`; pins
+`aPressFocusesAnEditInteractionFocusable`,
+`aPressDoesNotFocusPlainOrActivateFocusables`); **120** extended to
+`.onGeometryChange` (`GeometryChangeScope`, `KF-J`). **Retired:** none.

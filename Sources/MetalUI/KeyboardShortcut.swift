@@ -19,7 +19,7 @@ public typealias EventModifiers = Modifiers
 /// The named keys are AppKit's characters (which SDL's keys are translated to,
 /// `SP-C`): Return `\r`, Escape `\u{1b}`, Delete `\u{7f}`, and the function-key
 /// range for the arrows, Home, End, Page Up/Down, Clear and forward delete.
-public struct KeyEquivalent: Equatable, Sendable, ExpressibleByExtendedGraphemeClusterLiteral {
+public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeClusterLiteral {
     /// The character the key produces.
     public let character: Character
 

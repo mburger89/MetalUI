@@ -89,4 +89,26 @@ extension ElementGroup {
     public func background<S: Shape>(in shape: S) -> BackgroundModifier<Self, ShapeView<S>> {
         BackgroundModifier(content: self) { shape.fill(.background) }
     }
+
+    /// Places `shape`, filled with `gradient`, behind this view — SwiftUI's
+    /// `background(_:in:)` with a gradient, the same as
+    /// `background { shape.fill(gradient) }` (`LK-R` item 2), on both
+    /// vocabularies beside the colour pair.
+    public func background<S: Shape>(_ gradient: LinearGradient, in shape: S)
+        -> BackgroundModifier<Self, ShapeView<S>> {
+        BackgroundModifier(content: self) { shape.fill(gradient) }
+    }
+
+    /// Places `shape`, filled with `gradient`, behind this view (`LK-R`).
+    public func background<S: Shape>(_ gradient: RadialGradient, in shape: S)
+        -> BackgroundModifier<Self, ShapeView<S>> {
+        BackgroundModifier(content: self) { shape.fill(gradient) }
+    }
+
+    /// Places `shape`, filled with `material`'s flat tint, behind this view
+    /// (`LK-L`, divergence 166; `LK-R`).
+    public func background<S: Shape>(_ material: Material, in shape: S)
+        -> BackgroundModifier<Self, ShapeView<S>> {
+        BackgroundModifier(content: self) { shape.fill(material) }
+    }
 }

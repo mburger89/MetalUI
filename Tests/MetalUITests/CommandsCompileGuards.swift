@@ -85,6 +85,11 @@ private func conformer(member: String) -> String {
 
     @MainActor
     final class Conformer: Platform {
+        // The app-shell requirements (`AS-H`, `AS-J`).
+        var onTerminateRequest: (() -> CloseRequestReply)?
+        func replyToTerminateRequest(_ shouldTerminate: Bool) {}
+        func terminate() {}
+        var onOpenURLs: (([String]) -> Void)?
         func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
             throw PlatformError.windowCreationFailed
         }

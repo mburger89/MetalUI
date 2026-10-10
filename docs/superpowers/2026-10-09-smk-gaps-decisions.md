@@ -9,7 +9,7 @@ Record: `../record/89-smk-gaps.md` (written in the Record phase). Branch
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
 
-**Next unused id: `SG-L`.**
+**Next unused id: `SG-M`.**
 
 ## The final spellings (what the configurator swaps its workarounds for)
 
@@ -800,8 +800,9 @@ mutations (M2.3a…M2.19) are left to the lane's verifier.
 **Ruling.**
 
 1. The trait stays (it is harmless and says what the element is); 2.15 is
-   documented as pinning the role from `.onClick`, its separating mutation
-   M2.15b (drop `.onClick`); M2.15 is recorded as equivalent.
+   documented as pinning the role from `.onClick`; M2.15 is recorded as
+   equivalent. (Its "separating mutation M2.15b (drop `.onClick`)" was wrong
+   too: `SG-L`.)
 2. 2.11 expects `model.text == "abc"` right after Copy (Cut would empty it).
 3. New test 2.11b `everyDrawnEditRowDeliversItsKey`: a field focused, each of
    the seven rows chosen in turn, the keys reaching the fake window's
@@ -816,3 +817,30 @@ mutations (M2.3a…M2.19) are left to the lane's verifier.
 
 **Cost if wrong.** None in behaviour: no source line moves, only tests and
 documents.
+
+## SG-L — M2.15b is equivalent as well: the title's role has two sources
+
+**Found (the second verifier, mutating `1dec007`, full unfiltered native
+suite).** `SG-K` item 1 replaced one refuted claim with another: it said
+dropping the title's `.onClick` (M2.15b) reddens 2.15
+`aMenuBarTitleIsAnAccessibleButton`. It does not — 2913 tests, 11 issues
+(`aDrawnEditItemReachesTheFocusedField`,
+`clickingATitleOpensItsMenuBelowItAndAChoiceRunsTheCommand`,
+`everyDrawnEditRowDeliversItsKey`,
+`hoveringAnotherTitleWhileOpenSwitchesAndArrowsWrap`,
+`thePressedOpenTitleAndEscapeCloseTheMenu`), 2.15 green: the
+`.accessibilityAddTraits(.isButton)` trait still gives the `.button` role.
+
+**Ruling.** The role has **two sources**, the trait and the clickable record;
+M2.15 (drop the trait) and M2.15b (drop `.onClick`) are each equivalent for
+2.15, and it reddens only when both go (**M2.15c**: 2.15 plus the five click
+tests, 13 issues). Both spellings stay in the title (harmless, and the click is
+the feature). Corrected in the test's doc comment, spec §5 2.15 and `SG-K`
+item 1. 2.15 is recorded as a one-source-loss-tolerant pin; it is not widened
+(a press-action assertion would only re-pin the click tests).
+
+**Also found (lane 3's verifier, minors, fixed here).** The asserts-compiler
+guard launched `/usr/bin/env` on every platform and shared one scratch
+directory across checkouts: the doc comment now says it runs on macOS and
+Linux only (Windows stays human check `SG6`), and the directory carries a hash
+of the checkout path so two worktrees never race on its `Package.swift`.

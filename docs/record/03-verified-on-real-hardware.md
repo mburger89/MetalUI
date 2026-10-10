@@ -2099,3 +2099,65 @@ underline and strikethrough crispness at 1x and 2x against SwiftUI's snapped
 bands (divergence 152); RT3 the mixed-size paragraph's line spacing and the
 superscript; RT4 the same demo on Linux and Windows; RT5 VoiceOver reading a
 styled `Text` once without markers; RT6 a link that does nothing on click.
+
+## 2026-10-09: controls and looks (record §85) — looks owed
+
+The controls demo (`METALUI_CONTROLS_DEMO=1`, a progress row and a colour
+picker row) and the looks demo (`METALUI_LOOKS_DEMO=1`, a keyframes row and a
+gradients, blur and materials row) gained sections; the fourteen offscreen
+images are unchanged (0 differing pixels against `cd84b0c` at every lane; none
+of the fourteen renders the new rows, so the zero cannot see them). The SwiftUI
+probe `swiftui-controls-looks.swift` ran twice, 160 lines byte-identical, with
+the screen locked (`LK-O` item 1; materials `M1` is not byte-stable, ±1); no
+real-window capture was taken at any lane or at the Record phase. **Owed, new
+here — `docs/verification/human-checks.md` group CL (provisional letter), none
+performed (an agent cannot)**: CL1 the well and its panel beside an
+`NSColorWell`; CL2 the opacity checkerboard; CL3 dragging in the panel and the
+square regenerating per hue; CL4 one undo step per drag in MetalCreator; CL5
+the spinner at 32/16/10 and its step rate; CL6 the determinate bar's colours;
+CL7 gradients during live resize and at 8 bits; CL8 blur against SwiftUI's;
+CL9 materials, flat tint versus blur and in a real key window; CL10 the shake
+at 60 and 120 Hz; CL11 VoiceOver. A real window's material tint and the
+determinate bar's colours were never measured (ImageRenderer draws platform
+views as a placeholder, `V9`; `cacheDisplay` read an inactive window, `V14`).
+
+## 2026-10-09: app shell (record §87) — looks owed
+
+The app shell demo (`METALUI_APP_SHELL_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
+section behind its own switch; the fourteen offscreen images are unchanged (0 differing pixels
+against `c62d6ba` at lane 3, and against master `2155f1e` after the merge at the Record phase; none of the fourteen renders the section, so
+the zero cannot see it). The SwiftUI probe `swiftui-app-shell.swift` and the two AppKit probes ran
+with the screen mostly locked (the critic re-ran `N5` and `H0` unlocked, byte-identical); no
+real-window capture was taken at any lane or at the Record phase (the lock probe read
+`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`). **Owed, new here —
+`docs/verification/human-checks.md` group AS (provisional letter), none performed (an agent
+cannot)**: AS1 the close button with unsaved changes (the alert sheet, Don't Save / Cancel); AS2
+⌘Q with unsaved changes; AS3 Log Out with unsaved changes; AS4 the edited dot; AS5 a represented
+document's proxy icon; AS6 the hidden title bar against the traffic lights; AS7 the band drag;
+AS8 full screen; AS9 open-document events from a packaged app; AS10 SDL on Linux, Windows and
+macOS (the drawn alert, the window manager's close, a file dropped on the app).
+
+## 2026-10-10: key and focus scoping (record §88) — looks owed
+
+The key and focus demo (`METALUI_KEY_FOCUS_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
+section behind its own switch; none of the fourteen offscreen images renders it, so their zero
+cannot see it. The SwiftUI probe `swiftui-key-focus.swift` was taken with the screen unlocked
+(lane A, runs 10 and 11 and the gated KX arms); lanes B and C ran with the screen locked, and no
+real-window capture was taken. **Owed, new here — `docs/verification/human-checks.md` group KF
+(provisional letter), none performed (an agent cannot)**: KF-1 order and the palette with a real
+keyboard; KF-2 hover routing; KF-3 clicks and focus (a press elsewhere keeps a field focused);
+KF-4 the viewport size in the first frame and during live resize; KF-5 the orbit label and the
+display link stopping; KF-6 native menu items under a catch-all `onKeyPress` (divergence 188);
+KF-7 the digit filter and an input method's composition (divergence 187).
+
+## 2026-10-10: shadow cache (record §90) — looks owed
+
+`LooksDemo` gains a `compositingGroup()` pair (per-leaf shadows beside one shadow of the union),
+in its own function; the fourteen offscreen images are unchanged (0 differing pixels against
+`2155f1e`, lane 1 and the Record phase; the new pair sits in a section none of the fourteen
+renders, so the zero cannot see it). `docs/probes/swiftui-shadow-cache.swift` ran in
+`ImageRenderer` only; no real-window capture was taken at any lane (the lock probe read the
+screen locked at lane 1). **Owed, new here — `docs/verification/human-checks.md` group PF, none
+performed (an agent cannot)**: PF1 a trackpad drag of a shadowed node at 2x (how many frames hit,
+sub-pixel positions missing by design, `PF-D`); PF2 the `compositingGroup()` pair beside
+SwiftUI's reading.

@@ -310,6 +310,12 @@ extension CapturedPrimitive {
         case .shadow(var shadow):
             shadow.contentMask = mask; shadow.maskCornerRadii = square
             p.kind = .shadow(shadow)
+        case .gradient(var gradient):
+            gradient.contentMask = mask; gradient.maskCornerRadii = square
+            p.kind = .gradient(gradient)
+        case .blur(var blur):
+            blur.contentMask = mask; blur.maskCornerRadii = square
+            p.kind = .blur(blur)
         }
         return p
     }

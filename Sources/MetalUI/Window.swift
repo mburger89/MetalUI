@@ -12,7 +12,7 @@ import MetalUITextSystem
 /// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
 public final class Window {
-    private let platformWindow: any PlatformWindow
+    let platformWindow: any PlatformWindow   // internal: the app shell reads it (WindowShell.swift)
 
     /// Builds and walks the root element for one frame.
     ///
@@ -223,6 +223,9 @@ public final class Window {
     /// The preference the last built frame collected from the tree
     /// (`Frame.collectedColorSchemePreference`).
     private var treeColorSchemePreference: ColorScheme?
+
+    /// The app shell's state (rulings `AS-B`…`AS-K`): `WindowShell.swift`.
+    var shell = WindowShellState()
 
     /// The preference last handed to `PlatformWindow.setPreferredColorScheme`
     /// — `nil` until one is requested, so a window nobody asks is never told.
@@ -552,10 +555,13 @@ public final class Window {
     /// could never stick at all. See the read-back for the mechanism, and
     /// `focusingFromInsideAFrameSurvivesThatFrame` for the pin.
     ///
-    /// **Nothing here focuses anything on its own.** Focus-by-click is a policy
-    /// decision this framework has not made: a `mouseDown` on an element with
-    /// an `onClick` moves `active` and does *not* move focus. A caller who
-    /// wants that behaviour writes it in a handler.
+    /// **Nothing here focuses anything on its own.** A `mouseDown` on an
+    /// element with an `onClick` moves `active` and does *not* move focus. The
+    /// press-time focus changes are opt-ins with stages of their own: a
+    /// `TextField`/`TextEditor` and a selectable `List` focus themselves, a
+    /// `focusable(_:interactions:)` `.edit` element takes focus and a press in
+    /// a `hoverKeyRegion()` clears it (`focusOnPress`, rulings `KF-F`, `KF-E`
+    /// item 5).
     ///
     /// Marks the window dirty, because focus is visible.
     public func focus(_ id: GlobalElementID?) {
@@ -833,6 +839,7 @@ public final class Window {
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
+        installShell()   // the opening title and the close question (AS-B item 5)
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // The platform's appearance is one input to the effective scheme
             // (`CR-L` item 4); assigning `colorScheme` drives its guarded
@@ -885,6 +892,15 @@ public final class Window {
             // a handler that reads either would expect.
             let pressed = self.active
             self.updatePointerState(event)
+            // A slider's edit ends here (rulings `LK-B` item 5, `LK-Q`): at the
+            // release — or at a press that finds it still open, a lost
+            // release — before every stage that may claim the event (the
+            // drawn alert, the drag and menu sessions, the popovers), wherever
+            // it lands. It claims nothing: the event continues as before.
+            switch event {
+            case .mouseUp, .mouseDown: self.endSliderEdit()
+            default: break
+            }
             // Platform services (`SV-K`, `SV-C`, `SV-I`): a dialog's or an
             // alert's answer is first after the pointer state — no later stage
             // may claim it.
@@ -981,6 +997,23 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Focus on a primary press (rulings `KF-F`, `KF-E` item 5): a
+            // click-focusable element takes focus, a press in a key region
+            // clears it. Claims nothing — the press goes on to the text stage,
+            // the arena and click dispatch (FC6) — and runs before the text
+            // stage, so a field inside either takes focus last (inner wins).
+            // Pinned by `aPressFocusesAnEditInteractionFocusable` and
+            // `aPressFocusesAndStillTaps`.
+            self.focusOnPress(event)
+            // A typed character on a focused field is offered to `onKeyPress`
+            // first (ruling `KF-Q`, divergence 187): the input context hands
+            // it over as `.textInput`, never `.keyDown`, so this is its only
+            // offer. `.handled` drops it. Pinned by
+            // `aHandledKeyPressSwallowsATypedCharacterInAFocusedField`.
+            if self.dispatchTypedKeyPress(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Text fields (ruling TI-B): a press on one focuses it and places
             // the caret, a drag from it selects, and committed or marked text
             // goes to the focused one. Ahead of click dispatch — a field has
@@ -1021,7 +1054,30 @@ public final class Window {
             // keymap. Swapping these two lines makes every raw handler shadow
             // every binding on the same keystroke; pinned by
             // `aBoundActionRunsBeforeARawOnKeyHandler`.
-            if self.dispatchAction(event) {
+            //
+            // The key chain (ruling `KF-D`, `KF-U`): the focus chain, or with
+            // nothing focused the hovered key region's — found once per key
+            // event, for the keymap's contexts, its action dispatch and
+            // `onKeyPress`; the raw `onKey` bubble keeps the focus chain.
+            let keyChain: [GlobalElementID]
+            switch event {
+            case .keyDown, .keyUp: keyChain = self.keyChain
+            default: keyChain = []
+            }
+            if self.dispatchAction(event, along: keyChain) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // SwiftUI's `onKeyPress` (rulings `KF-B`, `KF-C`): after the
+            // keymap — MetalUI's window-level command layer — and before a
+            // focused field's editing keys, so a handled ↑ never moves the
+            // caret and a handled Return never submits (K4c, K4g); before a
+            // `Button`'s shortcut, plain or ⌘-modified (K10, KX1). A keystroke
+            // an app command binds is declined and runs the command instead
+            // (ruling `KF-X`, KX2/KX3). Outermost first. Pinned by
+            // `onKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField` and
+            // `aBoundKeymapActionRunsBeforeOnKeyPress`.
+            if self.dispatchKeyPress(event, along: keyChain) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1073,6 +1129,7 @@ public final class Window {
                 return true
             }
             let handled = self.onInput?(event) ?? false
+            if !handled { self.answerUnclaimedTitleBarPress(event) }   // the band press (AS-J)
             self.setNeedsRedraw()
             return handled
         }
@@ -1298,6 +1355,7 @@ public final class Window {
     /// Builds and draws one frame if the window is dirty or an animation is
     /// running; otherwise pauses the display link.
     public func drawFrameIfNeeded() {
+        if shell.isClosed { return }   // a closed window draws nothing more (AS-B item 4)
         lastDrawBuildCount = 0
         // Binding design spec §4.4, and the widening M4 spec 1 could not make.
         // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
@@ -1563,12 +1621,14 @@ public final class Window {
         return dirtied
     }
 
-    /// Closing the window (ruling `LC-J`): every present element's
+    /// Closing the window (ruling `LC-J`): an open slider edit's end (`LK-B`
+    /// item 5), then every present element's
     /// `onDisappear`, then every parked one, each once, under `StateDispatch`
     /// — called by `App`'s `onClose`. A second call finds nothing. A write
     /// such an action makes dirties a window that will not draw again
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
+        endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
         }
@@ -1647,6 +1707,7 @@ public final class Window {
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
+        rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
         frame.rootEnvironment = rootEnvironment
         frame.scrollRequestQueue = scrollRequests
         frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
@@ -1688,9 +1749,12 @@ public final class Window {
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
+        lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
+        lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
+        adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
         drawnChromeHeightValue = (frame.drewToolbarStrip ? ToolbarStrip.height : 0)
@@ -2175,6 +2239,12 @@ public final class Window {
     /// none and nothing hovered, a pointer event or frame does no hover work.
     var lastHoverRegionCount = 0
 
+    /// How many key regions and click-focusable press regions the last
+    /// adopted frame registered (`KF-E` item 4, `KF-F` item 3): with neither,
+    /// a key event and a press do no lookup.
+    var lastKeyRegionCount = 0
+    var lastFocusOnPressCount = 0
+
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
     var lastMenuRowsPainted = 0
@@ -2185,6 +2255,12 @@ public final class Window {
     /// Hitboxes the hover recomputes visited, ever — test observability for
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
     var hoverVisits = 0
+
+    /// Hovered-key-region lookups made, ever — test observability for
+    /// `KF-E` item 4's counted work: one per key event or primary press that
+    /// needs the hovered region, none per pointer move, none in a window whose
+    /// last frame registered no key region (spec test A24).
+    var keyRegionLookups = 0
 
     /// The pointer style last sent to the platform, or `nil` when unknown —
     /// before the first pointer event, and after the pointer left the window
@@ -2341,6 +2417,9 @@ public final class Window {
     /// a `mouseDown`, kept past the release only while a tap sequence waits for
     /// its next press.
     private var gestureArena: GestureArena?
+    /// Whether a press formed a gesture arena — the band press's second
+    /// condition (`AS-J` item 1).
+    var hasGestureArena: Bool { gestureArena != nil }
 
     /// The open in-window drag (ruling `DN-H`), or `nil`. On `Window`, never
     /// in `StateTable` (`DN-H` item 6), so no id path or reserved slot moves.
@@ -2743,9 +2822,12 @@ public final class Window {
     /// **Against `lastFocusRegistry`**, exactly as `dispatchKey` and
     /// `dispatchClick` resolve against the last frame's records: there is no
     /// frame in flight when an input event arrives.
-    private func dispatchAction(_ event: InputEvent) -> Bool {
+    ///
+    /// **Along the key chain** (ruling `KF-D`): the focus chain, or with
+    /// nothing focused the hovered key region's, so a region's key context
+    /// scopes bindings while the pointer rests on it.
+    private func dispatchAction(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
         guard case .keyDown(let key) = event else { return false }
-        let chain = focusChain
         let contexts = chain.map { lastFocusRegistry.context(for: $0) }
         switch matchKeymap(key, in: keymap, contextsByLevel: contexts,
                            pending: &pendingStroke) {
@@ -2811,6 +2893,21 @@ public final class Window {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
     }
 
+    /// The pressed slider's open edit and its `onEditingChanged` (ruling
+    /// `LK-Q`): set by a press on a track, ended by `endSliderEdit()`. On
+    /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
+    private var sliderEdit: (id: GlobalElementID, end: @MainActor () -> Void)?
+
+    /// Ends the open slider edit, if any — `onEditingChanged(false)` under
+    /// `StateDispatch` to the slider that began it (`ID-F`), whether or not it
+    /// is still in the tree or enabled (`LK-B` item 5). Called at a release, a
+    /// press and the window's close; a second call finds nothing.
+    func endSliderEdit() {
+        guard let edit = sliderEdit else { return }
+        sliderEdit = nil
+        StateDispatch.dispatching(to: edit.id) { edit.end() }
+    }
+
     /// A slider's pointer events (ruling `DD-W` item 5); see the call site.
     /// The press resolves against `lastHitboxes` exactly as `mouseDown` does,
     /// and the drag follows the id `active` holds — the one the press made
@@ -2822,9 +2919,15 @@ public final class Window {
                   let track = lastHitboxes[index].handlers.valueTrack else { return false }
             // The slider's own local point under a render effect (`GX-P` item 3).
             let local = lastHitboxes[index].localPoint(mouse.position)
-            StateDispatch.dispatching(to: lastHitboxes[index].id) {   // ID-F: the pressed slider
+            let id = lastHitboxes[index].id
+            // `LK-B` item 2 (S1): the edit begins before the press's write, and
+            // the window keeps its end for the release (`LK-Q`).
+            StateDispatch.dispatching(to: id) {   // ID-F: the pressed slider
+                track.edit(.begin)
                 track.track(toWindowX: Double(local.x.value))
             }
+            let edit = track.edit
+            sliderEdit = (id, { edit(.end) })
             return true
         case .mouseDragged(let mouse):
             guard let id = active,
@@ -2910,6 +3013,47 @@ public final class Window {
             setEditState(next, state)
         }
         return true
+    }
+
+    /// SwiftUI's `onKeyPress` for a key event (rulings `KF-B`, `KF-C`): a
+    /// `keyDown` is `.repeat` when `isRepeat`, else `.down`; a `keyUp` is
+    /// `.up`. The key is the first character of `charactersIgnoringModifiers`
+    /// (an event with none is not offered). Walks `chain` outermost first.
+    private func dispatchKeyPress(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
+        let key: KeyEvent
+        let phase: KeyPress.Phases
+        switch event {
+        case .keyDown(let down): key = down; phase = down.isRepeat ? .repeat : .down
+        case .keyUp(let up): key = up; phase = .up
+        default: return false
+        }
+        guard let first = key.charactersIgnoringModifiers.first else { return false }
+        // Commands first (ruling `KF-X`, KX2/KX3): a keystroke an enabled
+        // command binds is never offered to `onKeyPress` — the command runs in
+        // its own stage below. One lookup against the command stage's table.
+        // A `Button`'s ⌘-key shortcut is not declined (KX1). Pinned by
+        // `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`.
+        if case .keyDown = event, lastFocusRegistry.keyPressCount > 0,
+           let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
+        let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
+                             modifiers: key.modifiers)
+        return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry)
+    }
+
+    /// A typed character on a focused field, offered to `onKeyPress` before
+    /// the field types it (ruling `KF-Q`): only while a text field holds focus
+    /// with no composition in progress, and only a one-grapheme commit — an
+    /// input method's compositions and multi-grapheme commits are its own.
+    /// `KeyPress(phase: .down, key: the character, characters: text,
+    /// modifiers: [])` (divergence 187). With no handler anywhere, the event
+    /// reaches `dispatchTextInput` byte for byte as before.
+    private func dispatchTypedKeyPress(_ event: InputEvent) -> Bool {
+        guard case .textInput(let text) = event, lastFocusRegistry.keyPressCount > 0,
+              let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil,
+              text.count == 1, let character = text.first,
+              editState(id).composition.text.isEmpty else { return false }
+        let press = KeyPress(phase: .down, key: KeyEquivalent(character), characters: text, modifiers: [])
+        return MetalUI.dispatchKeyPress(press, along: focusChain, in: lastFocusRegistry)
     }
 
     /// The focused field's editing keys (TI-D's table).

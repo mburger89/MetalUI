@@ -395,6 +395,45 @@ func pathRasters(atlas: GlyphAtlas) throws -> Scene {
     }, size: Size(width: Pixels(240), height: Pixels(64)), scaleFactor: 1, textSystem: system, atlas: atlas)
 }
 
+/// Frame 8, the ninth (C10 lane 3, ruling `LK-S`): MetalUI's CPU-made
+/// gradient and blur images through `renderFrame` — the production path —
+/// inserted as the images they are. The strip (`LK-J` item 5) is the one new
+/// way they use the image pipeline: a 1-texel-thick texture stretched over a
+/// rect at quarter-pixel device bounds, with mask radii (a vertical one and a
+/// horizontal one); beside them a diagonal (full raster) rect, a radial circle
+/// and a blurred text leaf. The texels are shared by both renderers, so this
+/// frame tests only what the image pipeline does with them (`LK-S` item 1).
+@MainActor
+func looksFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    let red = Color(red: 0.9, green: 0.15, blue: 0.1), blue = Color(red: 0.1, green: 0.3, blue: 0.95)
+    let yellow = Color(red: 1, green: 0.85, blue: 0.2)
+    return renderFrame({
+        VStack(spacing: Pixels(24)) {
+            HStack(spacing: Pixels(24)) {
+                RoundedRectangle(cornerRadius: Pixels(14))
+                    .fill(LinearGradient(colors: [red, yellow, blue], startPoint: .top, endPoint: .bottom))
+                    .frame(width: Pixels(120), height: Pixels(150))
+                    .offset(x: Pixels(0.25), y: Pixels(0.75))
+                RoundedRectangle(cornerRadius: Pixels(10))
+                    .fill(LinearGradient(colors: [blue, red], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: Pixels(150), height: Pixels(60))
+                    .offset(x: Pixels(0.5), y: Pixels(0.25))
+                Rectangle()
+                    .fill(LinearGradient(colors: [yellow, blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: Pixels(110), height: Pixels(90))
+                Circle()
+                    .fill(RadialGradient(colors: [yellow, red.opacity(0)], center: .center, startRadius: Pixels(4),
+                                         endRadius: Pixels(50)))
+                    .frame(width: Pixels(100), height: Pixels(100))
+            }
+            Text("Blurred leaf").font(size: 34).blur(radius: Pixels(3))
+        }
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -476,15 +515,20 @@ func run() throws {
     let shapesAtlas = GlyphAtlas(width: 16, height: 16)
     // Frame 7's turned text (ruling GX-F), CoreText's, into its own atlas.
     let transformsAtlas = GlyphAtlas(width: 512, height: 512)
+    // Frame 8's blurred text is PortableText's, into its own atlas (`LK-S`).
+    let looksAtlas = GlyphAtlas(width: 512, height: 512)
     for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                                (640, 380)].enumerated() {
+                                (640, 380), (640, 380)].enumerated() {
         let (width, height) = dimensions
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
         let transforms = index == 7
-        let frameAtlas = transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = transforms
+        let looks = index == 8
+        let frameAtlas = looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = looks
+            ? try looksFrame(width: width, height: height, atlas: looksAtlas)
+            : transforms
             ? try transformsFrame(width: width, height: height, atlas: transformsAtlas)
             : shapes
             ? shapesAndImagesFrame(width: width, height: height)
@@ -501,7 +545,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
@@ -509,7 +553,8 @@ func run() throws {
         // before. Frame 6's images are judged as glyphs are (ruling TE-AF item
         // 6): ≤ 8 inside an image quad, ≤ 1 outside; frame 7's transformed
         // sprites likewise (ruling GX-F), its quads placed by the records.
-        try require(shapes || transforms ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
+        // Frame 8's CPU-made images likewise (`LK-S`).
+        try require(shapes || transforms || looks ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
             try Data(frameFixture.encoded()).write(to: path)

@@ -52,6 +52,16 @@ public enum LayoutModifier: Sendable {
     /// since paths, shadows and transforms**, like the three effects above.
     /// The colour is a `Color` since the colour work (`CR-W`).
     case shadow(Color, radius: Pixels, x: Pixels, y: Pixels)
+    /// `blur(radius:)`: each leaf of the content blurred, sigma = radius;
+    /// layout, hit testing and accessibility unchanged (ruling `LK-K`). **New
+    /// since controls and looks** — an exhaustive `switch` outside the package
+    /// gains one arm (`LK-R` item 3).
+    case blur(radius: Pixels)
+    /// `compositingGroup()`: the content's leaves composited into one before
+    /// an enclosing shadow or blur sees them; layout, hit testing and
+    /// accessibility unchanged (ruling `PF-E`). **New since the shadow cache**
+    /// — an exhaustive `switch` outside the package gains one arm.
+    case compositingGroup
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,
@@ -120,6 +130,14 @@ extension ProposalElementGroup {
     @_disfavoredOverload
     public func background(_ token: ColorToken) -> ModifiedContent<ProposalBase, LayoutModifier> {
         background(Color(token))
+    }
+
+    /// Paints `material`'s flat tint behind this native subtree — SwiftUI's
+    /// `background(_:)` with a `Material` (`LK-L`, `LK-R` item 2): the
+    /// existing `.background(_:)` layer with the material's colour, following
+    /// the scheme. No backdrop blur (divergence 166).
+    public func background(_ material: Material) -> ModifiedContent<ProposalBase, LayoutModifier> {
+        background(material.color)
     }
 
     /// Temporary source-compatible spelling for the native migration surface.

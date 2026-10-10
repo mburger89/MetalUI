@@ -403,13 +403,41 @@ public struct Decoration: Sendable, Hashable {
     /// animation (nothing interpolates it). Internal, like `escapesOpacity`:
     /// a box over `any Shape & Hashable` keeps `Hashable` synthesized
     /// (`TE-AQ` item 3). `clipRegion(in:)` is its one reader.
-    var clipShape: ClipShapeBox?
+    var clipShape: ClipShapeBox? {
+        get { extras?.fields.clipShape }
+        set { setExtra { $0.clipShape = newValue } }
+    }
 
     /// The legacy render effects (`rotationEffect`, `scaleEffect`, `offset`),
     /// in written order — the last written outermost (ruling `GX-H`). Always
     /// wrapping the whole element (background, content, border): divergence
     /// 108. Empty for every element written before effects existed.
     var renderEffects: [RenderEffectSpec] = []
+
+    /// A legacy gradient background (`LK-J` item 8): painted where
+    /// `background` is, under the corner radius and border, through
+    /// `paintDecoration` (`DN-X`). `background(_:)` with a colour clears it and
+    /// a gradient clears the colour, so the last written wins. Not animated
+    /// (`animatedBackground` keeps the colour path only). Internal, like
+    /// `clipShape`; empty for every element written before gradients existed.
+    var backgroundGradient: GradientFill? {
+        get { extras?.fields.backgroundGradient }
+        set { setExtra { $0.backgroundGradient = newValue } }
+    }
+
+    /// The rarely-set paint fields `clipShape` and `backgroundGradient`, in
+    /// one heap box (`LK-W` item 10): stored inline they grow every legacy
+    /// element, and a production tree is built on a 1 MB thread on Windows
+    /// (`everyProductionTreeBuildsOnAOneMegabyteThread`). `nil` when neither
+    /// is set, so a decoration written without them compares equal to its
+    /// memberwise twin.
+    private var extras: DecorationExtras?
+
+    private mutating func setExtra(_ change: (inout DecorationExtras.Fields) -> Void) {
+        var fields = extras?.fields ?? DecorationExtras.Fields()
+        change(&fields)
+        extras = fields == DecorationExtras.Fields() ? nil : .box(fields)
+    }
 
     /// The rect and radii this decoration clips its children to, or `nil`
     /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
@@ -730,12 +758,18 @@ extension StyledElement {
     /// keyboard shortcut still fires (arm X1). Until that ruling a hidden
     /// focusable box took focus and swallowed keystrokes nobody could see.
     ///
-    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2): SwiftUI's
-    /// click focuses a `.focusable()` view (F3); making this element a pointer
-    /// target would make every focusable container opaque to the pointer. A
-    /// `@FocusState` written from an `onTapGesture` is the remedy.
-    public func focusable() -> Self {
-        handling { $0.isFocusable = true }
+    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2, narrowed
+    /// by `KF-F`): SwiftUI's click focuses a `.focusable()` view (F3);
+    /// `focusable(_:interactions:)` with `.edit` is the opt-in (SwiftUI's FC3).
+    ///
+    /// `isFocusable` (SwiftUI's `focusable(_:)`): `false` makes the element not
+    /// focusable. A later `focusable` replaces an earlier one, interactions
+    /// included (this spelling's are `.automatic`).
+    public func focusable(_ isFocusable: Bool = true) -> Self {
+        handling {
+            $0.isFocusable = isFocusable
+            $0.keyboard = KeyboardAttachment.interactions(nil, over: $0.keyboard)
+        }
     }
 
     /// Runs `handler` when a key event reaches this element — because it holds
@@ -882,7 +916,7 @@ extension StyledElement {
     /// token. A `Color(light:dark:)` or palette colour is the spelling that
     /// follows the scheme.
     public func background(_ color: Color) -> Self {
-        decorating { $0.background = color; $0.noteWrite(.plainFill) }
+        decorating { $0.background = color; $0.backgroundGradient = nil; $0.noteWrite(.plainFill) }
     }
 
     /// ``background(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
@@ -890,6 +924,25 @@ extension StyledElement {
     @_disfavoredOverload
     public func background(_ token: ColorToken) -> Self {
         background(Color(token))
+    }
+
+    /// Fills this element's border box with `gradient`, under its corner
+    /// radius and border (`LK-J` item 8). It replaces a colour background
+    /// written before it; a colour written after it replaces it. Not animated:
+    /// a change snaps (`LK-J` item 7).
+    public func background(_ gradient: LinearGradient) -> Self {
+        decorating { $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+    }
+
+    /// Fills this element's border box with `gradient` (`LK-J` item 8).
+    public func background(_ gradient: RadialGradient) -> Self {
+        decorating { $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+    }
+
+    /// Fills this element's border box with `material`'s flat tint — exactly
+    /// ``background(_:)`` with the material's colour (`LK-L`, divergence 166).
+    public func background(_ material: Material) -> Self {
+        background(material.color)
     }
 
     /// Fills with `token` instead of `background(_:)` while the pointer is over
@@ -1686,5 +1739,20 @@ extension StyledElement {
     /// **One field**: a second `contentShape(_:)` replaces the first.
     public func contentShape<S: Shape>(_ shape: S) -> Self {
         handling { $0.contentShape = ContentShape(shape) }
+    }
+}
+
+/// `Decoration`'s boxed rare fields (`LK-W` item 10): an `indirect` case, so
+/// the decoration holds one pointer.
+indirect enum DecorationExtras: Sendable, Hashable {
+    struct Fields: Sendable, Hashable {
+        var clipShape: ClipShapeBox?
+        var backgroundGradient: GradientFill?
+    }
+
+    case box(Fields)
+
+    var fields: Fields {
+        switch self { case let .box(f): f }
     }
 }

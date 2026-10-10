@@ -177,6 +177,17 @@ public struct EnvironmentValues {
     /// becomes an opacity cross-fade on the same animation.
     public internal(set) var accessibilityReduceMotion: Bool = false
 
+    /// How far a hidden title bar overlaps the content (ruling `AS-E` item 4,
+    /// MetalUI-only — SwiftUI keeps the content in a safe area instead,
+    /// divergence 175): `top` is the bar's height (32 points on macOS, more
+    /// with a toolbar), `left` the window buttons' right edge (69 points), in
+    /// the window's coordinates; `right` and `bottom` are 0. **Zero** under the
+    /// standard title bar, in full screen and on SDL. Pad a top bar by them to
+    /// keep clear of the traffic lights. Zero in a bare value; a `Window`
+    /// stamps its own into the root at draw, as it does
+    /// `accessibilityReduceMotion`; get-only outside the module.
+    public internal(set) var titleBarInsets: Edges<Pixels> = Edges(all: Pixels(0))
+
     /// The window's open and save dialogs as async calls (ruling `SV-D`) —
     /// MetalUI-only. A bare value's has no window, so a call throws
     /// `FileDialogError.noWindow`; a `Window` stamps its own into the root at

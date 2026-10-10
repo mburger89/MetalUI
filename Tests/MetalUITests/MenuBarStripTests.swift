@@ -429,8 +429,9 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 /// publishes as a button labelled with its title — no new role. The role
 /// comes from the `.onClick` (`AccessibilityTreeBuilder` gives a clickable
 /// element `.button`), so M2.15, dropping `.accessibilityAddTraits(.isButton)`,
-/// is equivalent and stays green (`SG-K`); dropping `.onClick` (M2.15b)
-/// reddens.
+/// is equivalent and stays green (`SG-K`), and so is dropping `.onClick`
+/// alone (M2.15b) — the trait and the clickable record each give `.button`;
+/// the test reddens only when both are dropped (M2.15c, `SG-L`).
 @MainActor
 @Test func aMenuBarTitleIsAnAccessibleButton() throws {
     let (app, platform) = try barApp()

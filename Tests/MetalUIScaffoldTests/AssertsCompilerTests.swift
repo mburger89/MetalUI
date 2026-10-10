@@ -140,8 +140,10 @@ private let standaloneFixture = """
 /// Runs `swift` with `arguments` in `directory` under the asserts toolchain:
 /// on macOS the `.xctoolchain` at `METALUI_ASSERTS_TOOLCHAIN` (default the
 /// development snapshot `LK-X` and `SG-E` measured with), selected by its
-/// bundle identifier through `TOOLCHAINS`; elsewhere the `swift` on `PATH`
-/// (Windows CI's is 6.4.0+Asserts). Its exit status and output, interleaved.
+/// bundle identifier through `TOOLCHAINS`; elsewhere (Linux) the `swift` on
+/// `PATH`, through `/usr/bin/env`. **Not run on Windows** — there is no
+/// `/usr/bin/env`; Windows CI's 6.4.0+Asserts compiler is checked by hand
+/// (human check `SG6`). Its exit status and output, interleaved.
 private func swiftUnderAssertsToolchain(_ arguments: [String], in directory: URL) throws -> (Int32, String) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -185,8 +187,13 @@ private func swiftUnderAssertsToolchain(_ arguments: [String], in directory: URL
 /// `Content.GroupPrepaint`) — the two shape arms redden under the env run.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_ASSERTS_COMPILER_TEST"] == "1"))
 func theComponentSwitchShapeAgainstAnAssertsCompiler() throws {
-    // One stable directory, so a re-run builds MetalUI incrementally.
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("metalui-asserts-compiler")
+    // One stable directory per checkout (a hash of its path, so two worktrees
+    // running this at once never share a Package.swift), so a re-run builds
+    // MetalUI incrementally.
+    var hash: UInt64 = 5381
+    for byte in checkout.path.utf8 { hash = hash &* 33 &+ UInt64(byte) }
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("metalui-asserts-compiler-\(String(hash, radix: 16))")
     let fixtures = [("LKX", lkxFixture, true), ("MG27", mg27Fixture, true),
                     ("Workaround", workaroundFixture, true), ("Standalone", standaloneFixture, false)]
     for (name, source, _) in fixtures {

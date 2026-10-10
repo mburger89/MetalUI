@@ -21,6 +21,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// `accesskit.h` 0.23 has no pop-up-button role, so a combo box with
         /// a menu popup).
         case comboBox, alertDialog
+        /// A progress view — determinate or busy — and a colour well (ruling
+        /// `LK-G`).
+        case progressIndicator, colorWell
     }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
@@ -68,6 +71,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A button that opens a menu — `.menuButton` (ruling `MN-R`) and
         /// `.popUpButton` (`SV-S`): sent as AccessKit's `has_popup = MENU`.
         public var hasPopupMenu: Bool = false
+        /// A determinate progress indicator's range, AccessKit's
+        /// `min_numeric_value` 0 and `max_numeric_value` 1 (ruling `LK-G`).
+        public var numericRange: Bool = false
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -78,7 +84,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.rowCount == b.rowCount && a.rowIndex == b.rowIndex
                 && a.hint == b.hint && a.authorID == b.authorID
                 && a.customActions == b.customActions && a.isSelectable == b.isSelectable
-                && a.hasPopupMenu == b.hasPopupMenu
+                && a.hasPopupMenu == b.hasPopupMenu && a.numericRange == b.numericRange
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -163,7 +169,8 @@ extension AccessKitSnapshot {
                 toggled: toggled(node), numericValue: numericValue(node),
                 rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
-                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton))
+                isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
+                numericRange: node.role == .progressIndicator))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -198,6 +205,11 @@ extension AccessKitSnapshot {
         // with a menu popup (`hasPopupMenu`), a drawn alert an `ALERT_DIALOG`.
         case .popUpButton: .comboBox
         case .alert: .alertDialog
+        // C10 (ruling `LK-G`): a determinate and a busy progress view are both
+        // `PROGRESS_INDICATOR` (`accesskit.h` 0.23 has no busy role); only the
+        // determinate one carries a numeric value and its 0…1 range.
+        case .progressIndicator, .busyIndicator: .progressIndicator
+        case .colorWell: .colorWell
         }
     }
 
@@ -213,10 +225,11 @@ extension AccessKitSnapshot {
         }
     }
 
-    /// A slider's or stepper's value as a number when it parses (`DD-U` item
-    /// 1); `nil` for any other role.
+    /// A slider's, stepper's or determinate progress indicator's value as a
+    /// number when it parses (`DD-U` item 1, `LK-G`); `nil` for any other role
+    /// — a busy indicator's included.
     static func numericValue(_ node: AccessibilityNode) -> Double? {
-        guard node.role == .slider || node.role == .incrementor else { return nil }
+        guard node.role == .slider || node.role == .incrementor || node.role == .progressIndicator else { return nil }
         return node.value.flatMap(Double.init)
     }
 

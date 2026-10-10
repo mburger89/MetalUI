@@ -51,7 +51,11 @@ summary.
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
-  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), …; the full
+  (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
+  `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
+  `2026-10-08-app-shell-decisions.md`, next `AS-R`), `KF-` (key and focus:
+  `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
+  `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -64,9 +68,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **120 live, next label 159**; retired labels are
+  live SwiftUI difference — **133 live, next label 206** (195–204 and 215–224 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL and RT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF and PF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -82,17 +86,34 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-09, `fix/clip-nested-flattening` from `0b400b4`, `GX-Y`): 2884 tests, 0
-  goldens, 185 typecheck guards** (2879 + 5 tests, no guard; record §73 §13). Before it,
-  **Counts (2026-10-09, `fix/clip-in-flattening-effect` from `67a579e`, `GX-X`): 2879 tests, 0
-  goldens, 185 typecheck guards** (2873 + 6 tests, no guard; five AppKit sheet tests time out
-  in a full run under a locked screen on `67a579e` too; record §73 §12). Before it,
-  **Counts (2026-10-08, `feat/input-apis` from `70ed000`, merged with master `dc6528c`,
-  after `CI-AL`): 2873 tests, 0 goldens, 185 typecheck guards** (the merge's 2870 + `CI-AL`'s
+- **Counts (2026-10-10, `perf/shadow-cache` merged with master `0a9eb36` (key-focus, §88): 3204 tests, 0 goldens, 203 typecheck guards (3173 + the branch's 31 tests, 202 + 1 guard; all passed unlocked; census 3134; divergences 133 live, next label 206)** (record §90 §7). Before it, the branch alone, (2026-10-10) `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
+  3100 tests, 0 goldens, 196 typecheck guards (master's 3069 + 31 tests (3099 at the checker, + its owed C1 pin L2.13, record §90 §6), 195 + 1 guard; native
+  run on an unlocked screen, all passed; census 3023 (3021 + the two `compositingGroup()`
+  functions); divergence 205 added beside master's 175, 176, the header's count and next label
+  the merge's; `Backends/SDL` 24 + 105 and root in `swift:6.4-noble` 6 + 35 + 21 + 199 + 67 + 22 in the Linux image, unmoved by this branch; record §90 §3). Before the merge, lane 2 at `ef3b11c`: 3051 tests (3021 + 30;
+  lane 1 at `31c88a4`: 3037), one new guard. Before it, **2026-10-09, `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+  Master before the merge, (2026-10-10) `feat/key-focus` from `c62d6ba`, merged with master `70e9389`: 3173 tests, 0 goldens, 202 typecheck guards (master's 3069 + 104 tests (3172 at the checker, + its owed MX2 pin, record §88 §13), 195 + 7 guards; record §88 §11). Before it, (2026-10-09) `feat/app-shell` from `c62d6ba`, merged with master `2155f1e`:
+  3069 tests, 0 goldens, 195 typecheck guards** (master's 3021 + 48 tests, 192 + 3 guards;
+  the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
+  issues and nothing else; census 3021 (2977 + 44); `Backends/SDL` 24 + 108 on macOS, 24 + 105
+  in the Linux image; divergences 175, 176 added, the header's count and next label the merge's;
+  record §87 §12). Before the merge, the lanes on `c62d6ba`: 2921 / 0 / 188 (2873 + 48, 185 + 3;
+  `Backends/SDL` 24 + 107 on macOS, 24 + 104 in the Linux image). Before it, `feat/controls-looks`
+  from `cd84b0c`, merged with master `67a579e`, then
+  `0b400b4` (`GX-X`, +6 tests) and `9ad2254` (`GX-Y`, +5 tests): 3021 tests, 0 goldens, 192 typecheck guards (measured on the merge, all passed); at `0b400b4`'s merge: 3016 tests, 0 goldens, 192 typecheck guards (+ `GX-X`'s 6 and
+  3 merge pins; `cutToEntryClip` gains `.gradient`/`.blur` arms; record §85 §4.7); **at `67a579e`'s merge:
+  3007 tests, 0 goldens, 192 typecheck guards** (master's 2873 + 134 tests, 185 + 7 guards;
+  the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet
+  issues of `CI-AF` and nothing else; census 2977; divergences 165–169 and 171 added, the
+  header 126 live, next label 175; `Backends/SDL` 24 + 99 on macOS, 24 + 96 in the Linux
+  image, root in `swift:6.4-noble` 6 + 35 + 18 + 199 + 67 + 22; the merge's one source
+  edit `RichTextTests`' `ValueTrackTarget(edit:)`; record §85 §4). Before the merge, the lanes on
+  `cd84b0c`: 2857 / 0 / 183 (2723 + 134, 176 + 7; census 2711). Master's `GX-Y` (`fix/clip-nested-flattening` from `0b400b4`): 2884 / 0 / 185 (2879 + 5, record §73 §13). Before it, `GX-X` (`fix/clip-in-flattening-effect` from `67a579e`): 2879 / 0 / 185 (2873 + 6, record §73 §12). Before it, `feat/input-apis` from `70ed000` merged with master `dc6528c`,
+  after `CI-AL`: 2873 tests, 0 goldens, 185 typecheck guards (the merge's 2870 + `CI-AL`'s
   3 tests, no guard; `Backends/SDL` and the image not re-taken, untouched; record §81 §4.7).
   On the merge itself, `1337ff6`: 2870 / 0 / 185 (2790 + 80 tests, 180 + 5 guards;
   census 2806; divergences 139–141 added beside master's 145–158, the header 120 live,
@@ -154,7 +175,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §90.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -245,10 +266,11 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
-  two: `setApplicationIcon(_:)`** (`AI-B`) **and `setMenuBar(_:)`** (`MN-I`), beside it for the same reason,
+  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:)`** (`MN-I`) **and the app shell's
+  `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
   three** since rich text (styled measure, styled layout, decoration metrics,
@@ -459,8 +481,8 @@ each half has its own per-site guard (`OM-AI`). `registerHandlers` holds the
 hitbox, focus, AX record and disabled gate; skipping it makes an element
 ungated and invisible to VoiceOver. **Any hook added to `Element`'s group
 defaults must be mirrored per layer in `ModifiedContent` and in
-`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **eighteen**
-members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
+`AnyElement`'s group entry** (`MC-B`, `LR-AA`). `Handlers` has **nineteen**
+members (the eighteenth, `pointer`, one box for the wheel closure and the style, `CI-Q`; the nineteenth, `keyboard`, one box for the `onKeyPress` handlers, the focus interactions and the key-region flag, `KF-I`); `HandlerShape` (`ModifierTests`) and `HandlerFingerprint`
 (`OuterModifierMatrixTests`) each gain a field when it gains one.
 
 **Environment (`EV-`).** `EnvironmentScope` is layout- and
@@ -488,12 +510,12 @@ Qualify `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 `AXNode.actions`/`AXActionKind` are deprecated. **An agent cannot run
 VoiceOver or claim the validation** (`IX-AE`).
 
-**Focus.** Clicking does not focus, except `TextField`/`TextEditor` and a
-selectable `List`. Focus leaves with its identity and does not return
+**Focus.** Clicking does not focus, except `TextField`/`TextEditor`, a
+selectable `List` and `.focusable(interactions: .edit)` (`KF-F`). Focus leaves with its identity and does not return
 (`IX-I`); a `List` row out of window keeps it. `@FocusState` writes apply from
 input, before the next frame. `.hidden()` removes focus/Tab/keys but not a
-keyboard shortcut. Keys go Keymap → focused field's editing keys → bubbling
-`onKey` (controls' `ControlKeys` there) → unclaimed Tab traverses
+keyboard shortcut. Keys go Keymap → `onKeyPress` (outermost first, `KF-C`) →
+focused field's editing keys → bubbling `onKey` (controls' `ControlKeys` there) → unclaimed Tab traverses
 (`FocusRegistry.tabOrder`). With nothing focused `onKey` sees nothing.
 
 **Text input (`TI-`).** `TextField` is controlled and one line; `TextEditor`
@@ -615,6 +637,24 @@ re-rasterized (divergence 106). **A clip pushed inside a flattening effect (`.of
 effect opened before any clip is pushed inside the enclosing one has no entry clip of its own**
 — the outermost's cut, after its map, covers it (`Frame.atFlatteningEntry`, `GX-Y`, §13). A new public declaration spelled
 `nonisolated public` hides from the census — write `public nonisolated`.
+
+**Shadow cache (`PF-`, record §90).** The shadow, blur, path and full-gradient rasters are keyed
+**relative to a floored device anchor** (`RasterAnchor.swift`: anchor `R`, integer offset `S`,
+fractional offset `f` stays in the key): the raster is a pure function of its key, cached
+canonical and placed at `+S`, so a whole-device-pixel move or pan hands back the **same
+`ImageTexture`** and does no CPU work; a sub-pixel move, a raster cut by its clip (mode 2: the key
+holds `clip − S`) and a local mask (mode 3: 2155f1e's absolute key) miss as before (`PF-A`,
+`PF-B`, `PF-J`). `keyLeaf` keys a mask only when it decides a byte (`PF-I`); **a new raster site
+keys through `RasterAnchor`, never an absolute position, and its extent `E` is conservative**
+(`BoxBlur.padding`, nested reach). Pixels equal 2155f1e's (0 px, fourteen images; `PF-N` records the
+measured 2× rounding). `RasterCache.lastTexturesMade` joins the work counters (`PF-G`); pins count
+work, never time. `.shadow`/`.blur` stay **per leaf**; one shadow of a container is SwiftUI's
+`.compositingGroup()` (both vocabularies, one `LayoutModifier` layer, `PF-E`): a
+`PaintScope.Kind.composite` pushed **only when a shadow or blur scope is open outside it**,
+collecting leaves with their clip depths (`captureDepths`) and re-emitting them as one leaf, stopped
+by a `Deferred` barrier; alone it changes nothing, and it does **not** composite an opacity
+(divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
+its reference copy, still importing nothing (`PF-F`).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
@@ -798,6 +838,80 @@ AppKit, **`false` on SDL, where the window draws a 39-point strip under the
 named root `$toolbar` and lays the root out below it** (`MD-K`, `MD-Z`;
 divergence 136); outcomes return as queued `InputEvent.toolbarAction`.
 
+**Controls and looks (`LK-`, record §85).** `Slider(onEditingChanged:)` runs
+`true` at a press or an edit's first key and `false` once at its end, one pair per
+gesture: the end runs at the top of `Window`'s input hook for `.mouseUp` **and**
+`.mouseDown`, and on close; `ValueTrackTarget.edit` is the one closure, so
+`Handlers` keeps its size (`LK-Q`, `LK-U`). `ColorPicker` is a drawn well and a
+drawn popover panel on every platform (divergence 165; edits write gamma-sRGB
+literals; `LK-C`, `LK-D`); the well's and `ProgressView`'s roles reach the
+element side as `AXNode.colorWellHint`/`progressHint` (internal, stripped in
+`registerHandlers`, `LK-G`), and a new `AccessibilityRole` owes a row on both
+bridges. The spinner steps by the frame clock only while visibly painted
+(`LK-F`); keyframes are a transparent scope whose records live in
+`AnimationStore` (`$keyframes<depth>`, never a `StateTable` slot; `LK-I`);
+`phaseAnimator` is not built. **A gradient is rasterized on the CPU through the
+image path** (Oklab table; a one-texel strip when linear along one axis, else a
+full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
+leaf with sigma = radius, the shadow pipeline in colour keyed by
+`Frame.keyLeaf(…colours:)` (a GPU surface leaf draws unblurred, divergence 167;
+`LK-K`); a `Material` is a fitted flat tint on the colour sites, **no backdrop
+blur** (divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
+`DecorationExtras`** (the 1 MB thread, `LK-W` item 10); a new
+`CapturedPrimitive` or `LayoutModifier` kind owes its arm in both fade
+flattenings (`multiplyAlpha`, `RenderEffect.apply`).
+
+**App shell (`AS-`, record §87).** `Window.onCloseRequest` answers
+`CloseRequestReply` (`.now`, `.cancel`, `.later` plus `replyToCloseRequest(_:)`);
+`close()` never asks, `performClose()` does; `App.onTerminateRequest`/
+`replyToTerminateRequest(_:)`/`terminate()` hook a quit, and **with no app handler
+the walk asks every window in turn and owns the end** (a `.later` pauses it, the
+window's real close resumes it); closing one of several windows no longer
+terminates and the last close ends the app asking nobody (`AS-B`, `AS-C`,
+`AS-K`). MetalUI-only by ruling: SwiftUI has no veto API. The platform seam is
+**eleven defaultless requirements** (seven on `PlatformWindow`, four on
+`Platform`; a conformer adds them, `AS-H`, `AS-J`); AppKit asks through
+`windowShouldClose` and `AppKitApplicationDelegate`, SDL through
+`SDL_EVENT_WINDOW_CLOSE_REQUESTED`/`SDL_EVENT_QUIT` with its quit-on-last-window
+hint off (`AS-L`). `.navigationTitle`, `.navigationDocument` and `.onOpenURL`
+are three transparent `EnvironmentWrite` cases (no node, no id level, first
+report in post-order wins, handlers run in reverse post-order under
+`StateDispatch`); `Window.title`/`isDocumentEdited`/`representedURL` reach the
+platform on change only (SDL records the edited marker and path, no-ops).
+`windowStyle: .hiddenTitleBar` lays the root **under** the bar (divergence 175)
+and `@Environment(\.titleBarInsets)` is stamped by `Window` from the
+platform's *answer* (zero on SDL, which answers `false`; client decorations
+deferred, `AS-E` item 6); an unclaimed primary press in the band drags the
+window (`AS-J`). An open-document event goes to the key window with a handler,
+else the first window with one, else `App.onOpenURL`, never a new window (divergence 176);
+AppKit delivers no launch argument, so `App.open(_:)` is the recipe (`AS-M`);
+URLs arriving before `App`'s initialiser are dropped (`AS-Q`). A test never
+calls a real `performClose(_:)` (its nested loop ends the process, `AS-O`
+item 7).
+
+**Key and focus scoping (`KF-`, record §88).** `onKeyPress` (SwiftUI's five spellings,
+`KeyPress`, `FocusInteractions`) runs **after the Keymap and before a focused field's editing
+keys, outermost handler first** (the opposite of `onKey`'s bubble); a command's ⌘-key is declined
+by it and runs the command, a `Button`'s ⌘-key and every native-only menu item stay after it
+(`KX`, divergence 188); a typed character on a focused field is offered once as `.down`, one
+grapheme, never during composition (`KF-Q`, divergence 187). **The key chain** is the focus chain,
+else the innermost `.hoverKeyRegion()`'s (the one ranking, found on demand at a key or press, never
+per pointer move) and feeds the Keymap's contexts, actions and `onKeyPress` **only** — `onKey` and
+every control's keys still need focus (`KF-U`). `.focusable(interactions: .edit)` focuses on a
+primary press in the non-claiming `focusOnPress` stage; plain `.focusable()` does not (divergence
+94, narrowed); a press elsewhere does not resign a focused field (SwiftUI, `KF-G`). Proposal
+content (`MetalView`, `GPUSurface`) takes the keyboard modifiers as **one `KeyboardModifier`
+layer** that every further keyboard modifier merges into (`KF-H`, divergence 185), registered
+inside `sharingRegistrationsWithEffects`. A Return with the platform's shortcut modifier is not a
+`TextEditor` editing key (`KF-Z`). `.onGeometryChange` is a transparent `GeometryChangeScope` (no
+node, `$geometry<depth>` a `LifecycleStore` key, never a `StateTable` slot): the value is noted in
+prepaint and the action runs in the lifecycle drain, so the first presented frame carries what it
+wrote (`KF-J`, divergence 120). `TimelineView(.animation)` calls `noteActiveAnimation()`, never
+`requestAnotherFrame()`; other schedules wake the window once through `TimelineStore`
+(`$timeline<depth>`, `AnimationStore`; `KF-K`). **`for` over an opaque-returning helper in a
+builder is a Swift 6.4 defect, not fixable in the builder** (`KF-M`, guard C1): use `ForEach` or a
+concrete helper.
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -910,7 +1024,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (120 live, next label 159). A new
+- **Divergences**: `docs/divergences.md` (133 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
@@ -923,6 +1037,11 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
   - A proposal-path regression that reports an `…unconsumed` or presentation
     field **traps in a `Window` test and truncates the run with no summary
     line** — read the last lines of the log.
+  - **Windows CI's compiler is 6.4.0+Asserts; macOS's is not.** A `Component`
+    whose content is a loop, nested in a container inside another
+    `Component`'s content, crashes SILGen there (`verifyLexicalLowering`,
+    `LK-X`) — make the inner one a function; reproduce with the asserts dev
+    snapshot in `~/Library/Developer/Toolchains`.
   - **Windows threads have 1 MB stacks.** A new demo section goes in its own
     function passed to a generic composer, not inline
     (`everyProductionTreeBuildsOnAOneMegabyteThread`); that test builds each

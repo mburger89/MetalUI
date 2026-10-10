@@ -347,6 +347,25 @@ struct RenderEffect: Equatable {
                 }
                 shadow.color.a *= alpha
                 p.kind = .shadow(shadow)
+            case .gradient(var gradient):
+                // A gradient stays a vector, as a path does (`LK-J` item 4).
+                gradient.local = affine.concatenating(gradient.local)
+                if p.innerMask {
+                    gradient.contentMask = map(gradient.contentMask)
+                    gradient.maskCornerRadii = map(gradient.maskCornerRadii)
+                }
+                gradient.opacity *= alpha
+                p.kind = .gradient(gradient)
+            case .blur(var blur):
+                // A blur's reach follows the composed map, as a shadow's does
+                // (`LK-K`): its leaf stays in creation space under `local`.
+                blur.local = affine.concatenating(blur.local)
+                if p.innerMask {
+                    blur.contentMask = map(blur.contentMask)
+                    blur.maskCornerRadii = map(blur.maskCornerRadii)
+                }
+                blur.alpha *= alpha
+                p.kind = .blur(blur)
             }
             return p
         }
@@ -431,6 +450,12 @@ struct CapturedPrimitive {
         /// One leaf's shadow (`GX-J`): rasterized at `insertIntoScene`, drawn
         /// just before its leaf.
         case shadow(ShadowPaint)
+        /// A gradient, still a vector (`LK-J` item 4): rasterized at
+        /// `insertIntoScene`.
+        case gradient(GradientPaint)
+        /// One leaf blurred (`LK-K`): rasterized in colour at
+        /// `insertIntoScene`, in its leaf's place.
+        case blur(BlurPaint)
     }
 
     var kind: Kind
@@ -464,6 +489,8 @@ struct CapturedPrimitive {
         case .surface(let q, _): q.bounds
         case .path(let path): path.bounds
         case .shadow(let shadow): shadow.bounds
+        case .gradient(let gradient): gradient.bounds
+        case .blur(let blur): blur.bounds
         }
     }
 
@@ -471,6 +498,7 @@ struct CapturedPrimitive {
     /// its emission: a shadow's mask is its scope's entry clip (`GX-J`).
     func maskDepth(emittedAt depth: Int) -> Int {
         if case let .shadow(shadow) = kind { return shadow.entryDepth }
+        if case let .blur(blur) = kind { return blur.entryDepth }
         return depth
     }
 
@@ -503,6 +531,12 @@ struct CapturedPrimitive {
         case .shadow(var shadow):
             shadow.color.a *= alpha
             kind = .shadow(shadow)
+        case .gradient(var gradient):
+            gradient.opacity *= alpha
+            kind = .gradient(gradient)
+        case .blur(var blur):
+            blur.alpha *= alpha
+            kind = .blur(blur)
         }
     }
 }

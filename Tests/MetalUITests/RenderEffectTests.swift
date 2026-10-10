@@ -627,6 +627,76 @@ private func lfaBounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> String
             "the outer mask cut by the outer clip: \(fxDescribe(record.outerMask))")
 }
 
+// MARK: - The merge with C10 (`GX-X` × `LK-J`/`LK-K`)
+
+/// Where an image run can draw: its quad cut by its mask.
+private func lfaVisible(_ image: MUIImage) -> String {
+    let b = image.bounds, m = image.contentMask
+    let x0 = max(b.origin.x, m.origin.x), y0 = max(b.origin.y, m.origin.y)
+    let x1 = min(b.origin.x + b.size.width, m.origin.x + m.size.width)
+    let y1 = min(b.origin.y + b.size.height, m.origin.y + m.size.height)
+    return lfaBounds(x0, y0, max(0, x1 - x0), max(0, y1 - y0))
+}
+
+/// **LF-a merge 1** (`GX-X` × `LK-J`). A gradient-filled 40 × 40 rectangle
+/// with its own `.clipped()`, moved up 60 by an `.offset` inside the 100 × 100
+/// clip at (50, 50), draws only inside (80, 50) 40 × 10 — its own clip moved
+/// with it and cut by the clip outside the effect — on both raster paths (the
+/// axis-aligned strip and the diagonal full raster). Red without
+/// `cutToEntryClip`'s `.gradient` arm: (80, 20) 40 × 40.
+@Test @MainActor func aClippedGradientInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    for (name, gradient) in [
+        ("strip", LinearGradient(colors: [lkRed, lkBlue], startPoint: .top, endPoint: .bottom)),
+        ("full", LinearGradient(colors: [lkRed, lkBlue], startPoint: .topLeading, endPoint: .bottomTrailing)),
+    ] {
+        let scene = effectFrame(lfaStage(Rectangle().fill(gradient).frame(width: px(40), height: px(40))
+            .clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+        let images = gxImages(scene)
+        try #require(images.count == 1, "\(name): one image")
+        #expect(lfaVisible(images[0].image) == lfaBounds(80, 50, 40, 10),
+                "\(name): cut by the outer clip: quad \(fxDescribe(images[0].image.bounds)) mask \(fxDescribe(images[0].image.contentMask))")
+        #expect(scene.transforms.isEmpty, "\(name): still flattened")
+    }
+}
+
+/// **LF-a merge 2** (`GX-X` × `LK-K`). A `.blur(radius: 4)`-ed 40 × 40 square
+/// with a `.clipped()` outside the blur, moved up 60 by an `.offset` inside
+/// the 100 × 100 clip at (50, 50): the blur's image is cut by its own clip
+/// moved with it and then by the clip outside the effect — it draws only
+/// inside (80, 50) 40 × 10. Red without `cutToEntryClip`'s `.blur` arm:
+/// (80, 20) 40 × 40.
+@Test @MainActor func aClippedBlurInsideAnOffsetIsCutByTheClipOutsideIt() throws {
+    let scene = effectFrame(lfaStage(Color(white: 0).frame(width: px(40), height: px(40))
+        .blur(radius: px(4)).clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
+    let images = gxImages(scene)
+    try #require(images.count == 1, "one image")
+    #expect(lfaVisible(images[0].image) == lfaBounds(80, 50, 40, 10),
+            "cut by the outer clip: quad \(fxDescribe(images[0].image.bounds)) mask \(fxDescribe(images[0].image.contentMask))")
+    #expect(scene.transforms.isEmpty, "still flattened")
+}
+
+/// **LF-a merge 3** (`GX-X` × `LK-K`, the other nesting). An `.offset` inside
+/// a blur scope: the square's own clip, moved up 60 and cut by the clip outside
+/// the offset, shapes the leaf **before** it is blurred — a 40 × 10 band at
+/// (80, 50) — and the blur's image is cut by the clip at the blur's entry,
+/// (50, 50) 100 × 100. So 2.5 below the band's top edge reads half-dark, not
+/// the black of a 40-tall leaf, and nothing draws above y 50. Red under
+/// `GX-X`'s **M-X1** (the rect arm not cut): the band 40 tall.
+@Test @MainActor func anOffsetInsideABlurIsCutBeforeItBlurs() throws {
+    let scene = effectFrame(lfaStage(Color(white: 0).frame(width: px(40), height: px(40))
+        .clipped().offset(x: px(0), y: px(-60)).blur(radius: px(4)))).finalizedScene()
+    let images = gxImages(scene)
+    try #require(images.count == 1, "one image")
+    let v = images[0].image
+    #expect(v.bounds.origin.y >= 50 || v.contentMask.origin.y >= 50,
+            "nothing above the outer clip: quad \(fxDescribe(v.bounds)) mask \(fxDescribe(v.contentMask))")
+    // Measured on the merge: 74, 53, 93, 255 — a 10-tall band blurred.
+    for (y, want) in [(52.5, 74), (55.5, 53), (58.5, 93), (75.5, 255)] {
+        let got = lkComposite(scene, 100.5, y)[0]
+        #expect(abs(got - want) <= 8, "y \(y): \(got) vs \(want)")
+    }
+}
+
 // MARK: - LF-b (GX-Y): a clip inside NESTED flattening effects
 
 /// The LF-b stage (`GX-Y`, MetalCreator's node canvas): in the 400-point

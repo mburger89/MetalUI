@@ -99,6 +99,7 @@ struct FocusRegistry {
         if let context = handlers.keyContext { contexts[id] = context }
         if let target = handlers.textInput { textTargets[id] = target }
         if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
+        if let presses = handlers.keyboard?.keyPresses, !presses.isEmpty { keyPressHandlers[id] = presses }
     }
 
     /// A hidden element's keyboard shortcut, and nothing else of its keyboard
@@ -162,6 +163,18 @@ struct FocusRegistry {
     /// only way to assert that registration happened for an element that binds
     /// no key handler.
     var focusableCount: Int { focusable.count }
+
+    /// Every id that registered `onKeyPress` handlers this frame, in written
+    /// order (ruling `KF-C`) — the lookup `dispatchKeyPress` makes at each
+    /// level of the key chain.
+    private var keyPressHandlers: [GlobalElementID: [KeyPressHandler]] = [:]
+
+    /// `id`'s `onKeyPress` handlers this frame, in written order.
+    func keyPresses(for id: GlobalElementID) -> [KeyPressHandler] { keyPressHandlers[id] ?? [] }
+
+    /// How many ids registered `onKeyPress` handlers this frame: with none, a
+    /// key event walks no chain for them.
+    var keyPressCount: Int { keyPressHandlers.count }
 }
 
 /// The focused element's id and every ancestor of it, **innermost first** —

@@ -1061,6 +1061,200 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## KF. Key and focus scoping — `onKeyPress`, key regions, focus on press, `onGeometryChange`, `TimelineView` (item C9, user request 2026-10-02, not a plan task)
+
+SwiftUI's `onKeyPress` family on both vocabularies, MetalUI's hover key
+regions, focus on a press for `.focusable(interactions: .edit)`, a proposal
+`KeyboardModifier` layer, `onGeometryChange` and `TimelineView` (rulings
+`KF-A`…`KF-Z`, record §88). Run `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo`,
+and the SDL demo from `Backends/SDL` with the same variable (`swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo`). The status
+line shows the last key and its walk (`root › …`). Pinned headless: the
+pipeline order, the key chain, the press stage, the geometry and timeline
+events (`KeyPressTests`, `HoverKeyRegionTests`, `FocusOnPressTests`,
+`KeyboardModifierTests`, `GeometryChangeTests`, `TimelineViewTests`,
+`KeyFocusDemoTests`). What nothing headless sees: a real keyboard, a real
+pointer, an input method, the display link and the menu bar.
+
+- [ ] **KF-1. Order and the palette.** With a real keyboard (AppKit, and SDL on
+  Linux/Windows), hover the canvas with nothing focused and press Tab: the
+  palette opens and the walk reads `root › canvas` — the ancestor first. In
+  the palette's focused search field ↑/↓ move the highlight (the caret does
+  not move) and Return picks ("picked …") without inserting anything; Escape
+  closes it (`KF-B`, `KF-C`). **Observed:**
+- [ ] **KF-2. Hover routing.** With nothing focused, Tab over the canvas opens
+  the palette and Tab elsewhere does not; with the Name field focused, Tab
+  moves focus to Depth wherever the pointer rests (`KF-D`). **Observed:**
+- [ ] **KF-3. Clicks and focus.** With a field focused, a click on the header
+  text leaves it focused (RS1, `KF-G`); a click on the canvas clears it
+  (`KF-E` item 5); a click on the viewport focuses it and a key then reads
+  `root › viewport` with the viewport's key count going up (`KF-F`, `KF-H`).
+  **Observed:**
+- [ ] **KF-4. The viewport's size.** On launch the status line's viewport size
+  reads 240 × 200 in the first frame; resizing the window does not change it
+  (the viewport has a fixed frame) and nothing lags (`KF-J`). **Observed:**
+- [ ] **KF-5. The timeline.** The "orbit" label circles the viewport smoothly,
+  one turn about every six seconds; closing the demo's other animations, the
+  display link runs only while the label is on screen (`KF-K`). **Observed:**
+- [ ] **KF-6. Native menu items.** With the viewport focused (its catch-all
+  `onKeyPress` answers `.handled`), ⌘Q and ⌘H are swallowed (divergence 188);
+  with the viewport not focused they quit and hide as usual. (An app
+  command's ⌘-key running the command is pinned headless, A43, `KF-X`.)
+  **Observed:**
+- [ ] **KF-7. The digit filter.** Typing into the Depth field: letters never
+  appear, digits do; an input method's composition (AppKit Japanese IME; SDL
+  on Linux with IBus) is unaffected (`KF-Q`, divergence 187). **Observed:**
+
+## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
+
+*Source: record §87 `87-app-shell.md`, rulings `AS-A`…
+(`docs/superpowers/2026-10-08-app-shell-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-app-shell-design.md`).* Run
+`METALUI_APP_SHELL_DEMO=1 swift run MetalUIDemo` (AppKit; AS1–AS8) and, from
+`Backends/SDL`, `METALUI_APP_SHELL_DEMO=1 swift run $(python3
+scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`; AS10).
+Pinned headless: the close and terminate state machines and the walk
+(`AppShellTests` 2.2–2.15), the drawn alert answering later (2.5), the title,
+document and edited marker reaching the platform (`WindowTitleTests`), the
+insets and the band press (2.21, 2.21b), open-URL routing (`OpenURLTests`),
+the AppKit delegate and window wiring (`AppKitAppShellTests` 1.3–1.11), SDL's
+quit, close and window-0 drop (`SDLAppShellTests`, `SDLAppShellAppTests`
+3.1–3.3), and this demo (`AppShellDemoTests` 3.4–3.4c). What nothing
+headless sees: the native title bar, the sheet, the edited dot, a real drag,
+logout, Finder.
+
+- [ ] **AS1. Close with unsaved changes.** Press "Make a change", then the
+  red close button: an alert sheet asks "Do you want to save the changes made
+  to “Untitled.mcgraph”?". Cancel keeps the window (still edited); Save clears
+  the marker and closes; Don't Save closes; with the last window gone the app
+  quits (`AS-B`, `AS-C` item 5). A clean window closes at once. **Observed:**
+- [ ] **AS2. ⌘Q with unsaved changes.** After "Make a change", ⌘Q shows the
+  same alert; Cancel keeps the app running; Don't Save quits (`AS-C` item 2:
+  no `App.onTerminateRequest`, so the window is asked). **Observed:**
+- [ ] **AS3. Log out with unsaved changes.** Choose Log Out from the Apple
+  menu with the document edited: the alert appears and logout waits for it
+  (`.terminateLater`); the window keeps drawing meanwhile (type in the name
+  field); Cancel cancels the logout (`AS-C` item 9). **Observed:**
+- [ ] **AS4. The edited dot.** The close button shows its dot after "Make a
+  change" and loses it after "Save"; the top bar's "— Edited" follows
+  (`AS-D` item 4). **Observed:**
+- [ ] **AS5. A represented document.** In a scratch app with
+  `.navigationDocument(URL(fileURLWithPath: "/tmp/x.mcgraph"))` (the demo
+  has none): the proxy icon appears beside the title, and ⌘-click on the title
+  shows the path menu (`AS-D` item 3). **Observed:**
+- [ ] **AS6. Hidden title bar.** The traffic lights sit over the top bar, its
+  name starts right of them, and no title text is drawn; the window's title in
+  the Window menu and Mission Control is the name field's text (`AS-E`,
+  `.navigationTitle`). **Observed:**
+- [ ] **AS7. The band drag.** Dragging the top bar's empty area moves the
+  window; a double-click there zooms (or minimises, per System Settings →
+  Desktop & Dock → "Double-click a window's title bar to"); a press on the
+  name field or a button never drags (`AS-J`). **Observed:**
+- [ ] **AS8. Full screen.** Enter full screen (green button): the band goes,
+  the top bar sits at the very top with its name 12 points from the left
+  edge; leaving full screen restores the inset (`AS-E` item 4). **Observed:**
+- [ ] **AS9. Open-document events from a packaged app.** Package the demo as
+  in `docs/packaging.md` with a `.mcgraph` document type: a Finder
+  double-click, `open -a`, a drop on the Dock icon — with the app not running
+  and with it running — each lists the file's URL once under "Opened"; `METALUI_APP_SHELL_DEMO=1
+  swift run MetalUIDemo /path/to/file.mcgraph` lists it once too (the
+  launch-argument recipe, `AS-G` item 6, `AS-M`). No "cannot open files in
+  this format" alert appears without an `NSDocumentClass` (measured for
+  `open -a` by probe `appkit-open-without-document-class.swift` `W0`/`W2`;
+  confirm it for the double-click and the Dock drop).
+  **Observed:**
+- [ ] **AS10. SDL (Linux, Windows; macOS too).** With the document edited,
+  the window manager's close button and Alt-F4 show the drawn alert; Ctrl-C
+  in the terminal (SIGINT → `SDL_EVENT_QUIT`) shows it too; Don't Save ends
+  the program. A file dropped on the window is a drag (nothing under
+  "Opened"); the title shows no edited marker; the window keeps its system
+  title bar, and the top bar's name sits 12 points from the left (insets
+  zero, `AS-E` item 6). On macOS, a vetoed close of the only window does not
+  quit (`AS-L`: the quit-on-last-window hint is off). **Observed:**
+
+## CL. Controls and looks — colour picker, slider editing, progress, keyframes, gradients, blur, materials (item C10, user request 2026-10-02, not a plan task)
+
+*Source: record §85 `85-controls-looks.md`, rulings `LK-A`…
+(`docs/superpowers/2026-10-08-controls-looks-decisions.md`), spec §7
+(`docs/superpowers/specs/2026-10-08-controls-looks-design.md`). The group's
+letter is provisional — the merge settles it beside the parallel branches'
+groups.* Run `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (the slider, the
+two colour pickers and the progress row) and `METALUI_LOOKS_DEMO=1 swift run
+MetalUIDemo` (the keyframes row and the gradients, blur and materials row),
+and from `Backends/SDL` the same variables with `swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (`PX-I`);
+do each check in both where it says so. Pinned headless: the slider's
+callback order (`SliderEditingTests`), the picker's well, panel, keys and
+colour maths (`ColorPickerTests`, `ColorMathTests`), the progress view's sizes,
+values and clock (`ProgressViewTests`), keyframe timelines and the animator's
+records, gradient pixels against SwiftUI's probe values, blur per leaf, the
+material tints over white and black, and the fourteen offscreen images at 0
+differing pixels (none renders the controls or looks sections' new rows). What
+nothing headless sees: the looks below, the wheel and pointer feel, a real
+window's materials, VoiceOver (**an agent cannot run it**, `IX-AE`).
+
+- [ ] **CL1. The colour well and its panel.** The "Accent" well beside an
+  `NSColorWell` (e.g. a Swift playground): same 48 × 24 footprint and rounded
+  look; Tab focuses it and draws the control focus ring; a disabled picker is
+  dimmed; a click opens the drawn panel anchored to the well, which flips near
+  a window edge and closes on Escape and on an outside press (`LK-C`, `LK-D`;
+  divergence 165). **Observed:**
+- [ ] **CL2. Opacity checkerboard.** With `supportsOpacity`, a selection below
+  full opacity shows a checkerboard behind the well's colour and the panel's
+  swatch and opacity bar; the "Opaque" picker never does (pinned by nothing:
+  review mutation V7). **Observed:**
+- [ ] **CL3. Dragging in the panel.** Dragging in the square and the bars feels
+  continuous; the square's colours regenerate with the hue (review mutation
+  V12 left this unpinned); arrow keys and the hex field commit (`LK-D`).
+  **Observed:**
+- [ ] **CL4. One undo step per drag.** In MetalCreator with the new
+  `Slider(…onEditingChanged:)` and `ColorPicker`, one drag of a slider or the
+  panel is one undo step (M5-a, M6-f together; `LK-B`). **Observed:**
+- [ ] **CL5. The spinner.** At 32, 16 and 10 points against
+  `NSProgressIndicator`'s spinner: size and spoke weight; the step rate looks
+  like AppKit's (24 steps per 0.8 s); with Reduce Motion on it still turns
+  (`LK-E`, `LK-F`). Also the indeterminate bar's sweep. **Observed:**
+- [ ] **CL6. The determinate bar.** Track and fill colours in light and dark,
+  in a key window and an inactive one, beside `NSProgressIndicator`
+  (`LK-E`). **Observed:**
+- [ ] **CL7. Gradients.** A window-background gradient during live resize stays
+  smooth (the strip path), and the large diagonal one shows only a first-frame
+  raster cost; no visible banding at 8 bits on a P3 display (divergence 1
+  applies; `LK-J`). **Observed:**
+- [ ] **CL8. Blur.** A blurred text and image at radii 2 and 6 look like
+  SwiftUI's at the same radius (`LK-K`). **Observed:**
+- [ ] **CL9. Materials.** The six materials over the striped backdrop in both
+  schemes: the flat tint versus SwiftUI's blur (divergence 166 is visible by
+  design), **and over a uniform backdrop in a real key window**, whether
+  SwiftUI's tint matches the ImageRenderer fit (`LK-O` item 2). **Observed:**
+- [ ] **CL10. The shake.** The keyframes row's "Shake" reads as a shake at 60 Hz
+  and on a 120 Hz display (`LK-H`, `LK-I`). **Observed:**
+- [ ] **CL11. VoiceOver.** The well announces its colour; the panel's sliders
+  adjust; a determinate progress view announces its fraction; a spinner
+  announces busy (`LK-G`; the voiceover script's controls step is unchanged).
+  **Observed:**
+
+## PF. Shadow cache — translation-free rasters, `compositingGroup()` (item C13, user request 2026-10-02, not a plan task)
+
+Shadow, blur, path and full-gradient rasters are keyed relative to a floored
+device anchor, so a whole-device-pixel move or pan reuses the cached texture;
+`compositingGroup()` makes a container one leaf to an enclosing shadow or blur;
+`BoxBlur` is faster with byte-identical output (rulings `PF-A`…`PF-N`, record
+§90). Pinned headless: work counters (`RasterCache.lastBlurredPixels`,
+`lastRasterizedPixels`, `lastTexturesMade`) and texture identity under drags
+(`RasterAnchorTests`), the composite's images (`CompositingGroupTests`), the
+blur against its 2155f1e copy (L2.1). What nothing headless sees: a real
+pointer's sub-pixel positions and the look beside SwiftUI.
+
+- [ ] **PF1. A trackpad drag.** In a MetalCreator-style graph, drag a node with
+  `.shadow(radius: 10)` by trackpad at 2×: it moves smoothly; logging the three
+  counters per frame shows how many frames hit (a sub-pixel position misses by
+  design, `PF-D`). **Observed:**
+- [ ] **PF2. `compositingGroup()` beside SwiftUI.** LooksDemo
+  (`METALUI_LOOKS_DEMO=1`), "Gradients, blur, materials": the per-leaf pair
+  shows the red square's shadow on the blue; the `compositingGroup()` pair one
+  shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
+
 ## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, settled at the merge)
 
 Rulings `SG-A`…`SG-I`, record §89. On Linux and Windows an app declaring

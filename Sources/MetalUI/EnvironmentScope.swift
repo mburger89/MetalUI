@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import MetalUICore
 import MetalUILayout
@@ -16,6 +17,12 @@ enum EnvironmentWrite {
     /// `.preferredColorScheme(_:)` (ruling `CR-L`): changes no value; the
     /// scope reports it to the frame while its content builds.
     case preferredColorScheme(ColorScheme?)
+    /// `.navigationTitle(_:)`, `.navigationDocument(_:)` and `.onOpenURL`
+    /// (rulings `AS-D` item 6, `AS-G` item 1): change no value; each scope
+    /// reports to the frame **after** its content builds (post-order).
+    case navigationTitle(String)
+    case navigationDocument(URL)
+    case onOpenURL(@MainActor (URL) -> Void)
 }
 
 /// What an `EnvironmentScope` carries between phases: the values it computed in
@@ -80,7 +87,7 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
         // The ONLY place the write runs (ruling EV-V). `parent` and `cursor`
         // are forwarded unchanged: a scope is not a level in the tree.
         let values = pass.frame.scopedValues(applying: write)
-        let (nodes, layout) = reportingPreference(pass.frame) {
+        let (nodes, layout) = reportingPreference(pass.frame, under: parent, at: cursor) {
             pass.frame.withEnvironment(values) {
                 content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
             }
@@ -89,11 +96,37 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
     }
 
     /// Runs `body` under the frame's preference bookkeeping when this scope
-    /// is a `.preferredColorScheme` (ruling `CR-L`), and plainly otherwise.
-    /// Layout only: prepaint and paint report nothing.
-    func reportingPreference<R>(_ frame: Frame, _ body: () -> R) -> R {
-        guard case .preferredColorScheme(let value) = write else { return body() }
-        return frame.withColorSchemePreference(value, body)
+    /// is a `.preferredColorScheme` (ruling `CR-L`) or a window preference
+    /// (`AS-D`, `AS-G`), and plainly otherwise. Layout only: prepaint and
+    /// paint report nothing.
+    ///
+    /// A window preference reports **after** `body`: a title or document
+    /// only if none was reported yet this build — the first report in
+    /// post-order, so an inner scope beats an outer one and the first of two
+    /// siblings wins (probe `swiftui-app-shell.swift` `N2`, `N5`); an
+    /// `.onOpenURL` appends its handler, owned by the scope's position
+    /// `.child(of: parent, at: cursor)` (`cursor` as it was on entry).
+    func reportingPreference<R>(_ frame: Frame, under parent: GlobalElementID?, at cursor: Int,
+                                _ body: () -> R) -> R {
+        switch write {
+        case .preferredColorScheme(let value):
+            return frame.withColorSchemePreference(value, body)
+        case .navigationTitle(let title):
+            let result = body()
+            if frame.collectedNavigationTitle == nil { frame.collectedNavigationTitle = title }
+            return result
+        case .navigationDocument(let url):
+            let result = body()
+            if frame.collectedNavigationDocument == nil { frame.collectedNavigationDocument = url }
+            return result
+        case .onOpenURL(let action):
+            let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
+            let result = body()
+            frame.openURLHandlers.append(OpenURLHandler(owner: owner, action: action))
+            return result
+        case .transform, .theme:
+            return body()
+        }
     }
 
     public mutating func prepaintGroup(layout: inout EnvironmentScopeLayout<Content.GroupLayout>,
@@ -131,7 +164,7 @@ extension EnvironmentScope: ProposalElementGroup where Content: ProposalElementG
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], EnvironmentScopeLayout<Content.GroupLayout>) {
         let values = pass.frame.scopedValues(applying: write)      // once (EV-V)
-        let (nodes, layout) = reportingPreference(pass.frame) {    // CR-L, this entry's own report
+        let (nodes, layout) = reportingPreference(pass.frame, under: parent, at: cursor) {   // CR-L, AS-D: this entry's own report
             pass.frame.withEnvironment(values) {                     // the push (EV-A)
                 content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
             }                                                        // parent, cursor unchanged (EV-B)

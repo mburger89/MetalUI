@@ -158,7 +158,8 @@ typedef struct {
 bool mui_platform_init(void);
 bool mui_poll_event(MUIEvent *event);
 bool mui_wait_event(MUIEvent *event, int32_t timeout_ms);
-// Pushes a synthetic SDL event built from `event` — for tests.
+// Pushes a synthetic SDL event built from `event` — for tests. MUI_EVENT_QUIT
+// pushes SDL_EVENT_QUIT (ruling AS-C item 8).
 bool mui_push_event(const MUIEvent *event);
 // Pushes an unflattened SDL_EVENT_WINDOW_* of type `sdl_type` for `window_id`,
 // so a test reaches translate's arms for kinds mui_push_event cannot spell
@@ -291,6 +292,12 @@ void mui_window_size(void *window, int32_t *width, int32_t *height);
 bool mui_window_set_title(void *window, const char *title);
 const char *mui_window_title(void *window);
 bool mui_window_show(void *window);
+// SDL_HideWindow — a window MetalUI closed (ruling AS-B item 6) stays alive
+// until its SDLWindow is released, hidden.
+bool mui_window_hide(void *window);
+// SDL_GetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE), NULL when unset —
+// mui_platform_init sets "0" (ruling AS-L). For tests.
+const char *mui_quit_on_last_window_close_hint(void);
 // Whether SDL considers the window shown: no SDL_WINDOW_HIDDEN in
 // SDL_GetWindowFlags (ruling WS-D) — the window-opening order's reading,
 // valid on every video driver, the offscreen one included.
