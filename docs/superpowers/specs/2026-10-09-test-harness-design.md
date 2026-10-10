@@ -8,9 +8,9 @@ Requested by MetalCreator (`docs/metalui-gaps.md` **M6-e**, **M7-b**, **TH-a**)
 and the SMK configurator port (`2026-10-06-metalui-gaps.md` **MG-17**,
 **MG-12**). Branch `feat/test-harness` from `70e9389`. Rulings:
 [`../2026-10-09-test-harness-decisions.md`](../2026-10-09-test-harness-decisions.md)
-(`HT-A`…`HT-S`). Record: `docs/record/91-test-harness.md`.
+(`HT-A`…`HT-T`). Record: `docs/record/91-test-harness.md`.
 
-**Status: designed, critic-revised (2026-10-09, HT-R); lane 1 measured corrections HT-S (2026-10-10).**
+**Status: designed, critic-revised (2026-10-09, HT-R); lane 1 measured corrections HT-S, lane 2 HT-T (2026-10-10).**
 
 ## §0 Baseline and constraints
 
@@ -291,14 +291,14 @@ public struct TestElement: Equatable {   // a snapshot of one node; not Sendable
 extension TestWindow {
     public var accessibilityTree: AccessibilityTree { get throws }   // .notRecorded when inactive
     public func element(identifier: String) throws -> TestElement
-    public func element(label: String) throws -> TestElement
+    public func element(label: String) throws -> TestElement      // a static text by its value (HT-T 1)
     public func elements(role: AccessibilityRole) throws -> [TestElement]   // tree order
     public func elements(where predicate: (TestElement) -> Bool) throws -> [TestElement]
     public var focusedElement: TestElement? { get throws }
     @discardableResult
     public func performAccessibilityAction(_ action: AccessibilityActions, on element: TestElement) throws -> Bool
     public func focus(_ element: TestElement) throws
-    // Presentations (latest unanswered):
+    // Presentations (latest unanswered; nil when the option makes the window draw it, HT-T 2):
     public var presentedAlert: PlatformAlert? { get }
     public var presentedFileDialog: PlatformFileDialog? { get }
     public var presentedMenu: PlatformMenu? { get }
@@ -419,7 +419,8 @@ import MetalUITesting
 
 1. `TestElement.swift`, `TestWindowQueries.swift` (§2.5 queries; the tree is
    `platformWindow.publishedAccessibilityTrees.last`; `isFocused` from
-   `tree.focused`; tree order = pre-order from `roots`).
+   `tree.focused`; tree order = pre-order from `roots`; the label query
+   matches a static text's `value`, HT-T 1).
 2. `TestWindowElementInput.swift` (the element verbs; `visibleFrame` centre;
    zero area → `.notHittable`; `typeText(_:into:)` clicks then types).
 3. `TestWindowPresentations.swift`: "latest unanswered" — a request is
@@ -429,7 +430,9 @@ import MetalUITesting
    walks titles through `.submenu`, refuses a disabled item, sends
    `.menuAction(MenuActionEvent(menu: token, item: id))`, ticks;
    `dismissMenu` sends `item: nil`; `performToolbarItem` sends
-   `.toolbarAction(ToolbarActionEvent(item:action:))`.
+   `.toolbarAction(ToolbarActionEvent(item:action:))`. The answered tokens
+   live in one internal stored property on `TestWindow` (HT-T 2); a getter
+   answers `nil` when its option makes the window draw (HT-T 2).
 4. `TestAppMenuBar.swift`: `menuBar`/`performMenuBarItem` over
    `platform.menuBar` (lane 1 declared the stored property; this file adds
    only the extension's computed members — **`TestApp.menuBar` is declared
@@ -521,18 +524,18 @@ fixed-size frames.
 
 | # | Test | Red before | Mutation |
 |---|---|---|---|
-| 2.1 | `elementByIdentifierReturnsItsFrame` — `.accessibilityIdentifier("save")` `Button`: role `.button`, frame literal | stub throws | activation off by default |
+| 2.1 | `elementByIdentifierReturnsItsFrame` — `.accessibilityIdentifier("save")` `Button`: role `.button`, frame literal (the 52 × 24 chrome centred in its 80 × 30 frame, (174, 138), HT-T 5) | stub throws | activation off by default |
 | 2.2 | `elementByLabelFindsAStaticText` | stub | match on `identifier` instead |
 | 2.3 | `elementsByRoleAreInTreeOrder` — three buttons in a `VStack`, labels in order | — | dictionary order (`nodes.values`) |
 | 2.4 | `aMissingAndAnAmbiguousElementThrowNamingTheQuery` | — | ambiguous returns first |
-| 2.5 | `clickOnAnElementAimsAtItsVisibleFrame` — a button half scrolled out of a `ScrollView`: the click lands (its `frame` centre is outside the viewport) | — | aim at `frame` centre |
+| 2.5 | `clickOnAnElementAimsAtItsVisibleFrame` — a button running past a `ScrollView`'s viewport (chrome y 298–322 in a 300-tall window, 2 points visible): the click lands (its `frame` centre is outside the viewport) | — | aim at `frame` centre |
 | 2.6 | `aZeroAreaElementIsNotHittable` — fully scrolled out | — | no zero check |
 | 2.7 | `anAccessibilityPressRunsAButton` | — | `.increment` sent |
 | 2.8 | `tabMovesFocusAndFocusedElementFollows` | — | `isFocused` from `isFocusable` |
 | 2.9 | `anAlertIsReadAndAnsweredByButtonTitle` — title, message, buttons; `respondToAlert(button: "Delete")` runs the action, `presentedAlert == nil` after | stub | token off by one |
 | 2.10 | `aDeclinedAlertIsDrawnAndPressedThroughTheTree` — options `presentsAlertsNatively: false`: role `.alert` node, its button pressed by `click` | — | option ignored |
 | 2.11 | `aFileImporterIsAnsweredWithPaths` — `.fileImporter`: `presentedFileDialog?.kind == .open(false)`; `respondToFileDialog(choosing: ["/tmp/a.json"])` → handler `.success` with that path | — | outcome `.cancelled` |
-| 2.12 | `aCancelledFileDialogReachesTheHandler` | — | — (control for 2.11's arm) |
+| 2.12 | `aCancelledFileDialogReachesTheHandler` — `isPresented` written `false`, no completion (`D2`) | — | — (control for 2.11's arm) |
 | 2.13 | `aContextMenuIsReadAndAnItemChosenByTitle` — `rightClick(element)`; titles, `isOn`, shortcut; `chooseMenuItem("Dark")` runs | stub | `item: nil` sent |
 | 2.14 | `aSubmenuItemIsChosenByPath` | — | path walk stops at depth 1 |
 | 2.15 | `aDrawnMenuIsDrivenThroughTheTree` — `presentsMenusNatively: false`: `.menuItem` nodes, click one | — | `presentMenu` answers `true` regardless of the option |
@@ -543,7 +546,7 @@ fixed-size frames.
 | 2.20 | `menuEvaluationReadsContentOutsideAnyWindow` (TH-a) — `Button`, `Divider`, `Toggle` with shortcut: kinds, titles, `isOn`, shortcut; `perform("Save")` runs | stub | `isEnabled: false` passed |
 | 2.21 | `theToolbarIsReadAndAnItemTriggered` | stub | `.toolbarAction` with wrong item |
 | 2.22 | `aDeclinedToolbarIsDrawnAndItsButtonClickable` — `showsToolbarNatively: false`: `$toolbar` strip (MD-K), its button by label | — | `setToolbar` answers `true` regardless of the option |
-| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds | — | the query walk visits only `roots.first` (a presentation root's node is another root, or the test records that it is not and swaps the mutation for "skip children of a `.popover`") |
+| 2.23 | `aPopoverAppearsInTheTreeInsideTheWindow` — role `.popover`, its frame inside the window bounds, one tick after the open frame (HT-T 4) | — | the query walk visits only `roots.first` (a presentation root's node is another root, or the test records that it is not and swaps the mutation for "skip children of a `.popover`") |
 | 2.24 | `pointerStyleFollowsHover` — `.pointerStyle(.link)` → `pointerStyle` | — | last style not read |
 | 2.25 | `copyInAFieldReachesTheWindowsClipboard` — ⌘A ⌘C | — | `writeClipboard` drops the write |
 | 2.26 | `aClickByElementReRunsLane1sClickTestThroughTheTree` — 1.4 re-pinned by label | — | as 1.4 |

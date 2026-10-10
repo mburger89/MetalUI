@@ -185,6 +185,7 @@ F	blur	D	swiftui-controls-looks.swift	B2	blurIsPerLeafB2	167	LK-K	blur(radius:) 
 F	materials	D	swiftui-controls-looks.swift	M5	everyMaterialMatchesSwiftUIOverWhiteAndBlackM5	166	LK-L LK-O LK-R	Material .ultraThinMaterial/.thinMaterial/.regularMaterial/.thickMaterial/.ultraThickMaterial/.bar as .background(_:) on both vocabularies, .background(_:in:) and Shape.fill(_:): a flat grey tint per material and scheme fitted from ImageRenderer so that over uniform white and black it matches SwiftUI's within one level (M5); no backdrop blur (166)
 
 F	test-harness-host	M	-	-	-	-	HT-A HT-B HT-C HT-D HT-E HT-F HT-G HT-I HT-J HT-K HT-S	MetalUITesting (lane 1, the host): HeadlessPlatform/HeadlessPlatformWindow/HeadlessWindowRenderer implementing every platform requirement (recorded requests, simulated events, AppKit-default options), TestApp/TestWindow over the real App.openWindow, input by point with AppKit key routing, a simulated clock and runUntilIdle, resize/scale/appearance/close, frame(ofID:) laid-out rects, FrameWork per presented frame; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
+F	test-harness-inspection	M	-	-	-	-	HT-B HT-G HT-H HT-R HT-T	MetalUITesting (lane 2, inspection): TestElement snapshots of the published accessibility tree, queries by identifier/label/role/predicate in tree pre-order, focusedElement, accessibility actions and focus, input aimed at an element's visible-frame centre (.notHittable at zero area), the latest unanswered native alert/file dialog/menu and the native toolbar answered as queued InputEvents, the menu bar read from PlatformMenuBar.content() at each read and performed, MenuEvaluation over MenuSession.number; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -488,3 +489,4 @@ M	MetalUI	PointerStyle.swift	-	PointerStyleModifier	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	.*	.*	.*	input-apis-pointer-style
 M	MetalUI	ScrollWheel.swift	.*	.*	.*	input-apis-wheel
 M	MetalUITesting	(TestHarnessError|HeadlessPlatform|HeadlessPlatformWindow|HeadlessWindowRenderer|TestApp|TestWindow|TestWindowInput|FrameWork)\.swift	.*	.*	.*	test-harness-host
+M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindowPresentations|TestAppMenuBar|MenuEvaluation)\.swift	.*	.*	.*	test-harness-inspection

@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-T`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-U`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -510,3 +510,55 @@ commit.
 **Cost if wrong.** Each item is pinned by the test it names; a later
 `sequenced(before:)` or a timestamped mouse event re-spells 1.14/1.15 only.
 
+
+## HT-T — Lane 2's measured corrections (2026-10-10)
+
+**Ruling.** Lane 2 (inspection) measured these against the source at
+`70e9389` plus the branch's commits; the spec (§2.5, §3.2, §4.2) is corrected
+in the same commit.
+1. **`element(label:)` matches a static text by its string.** A `Text`
+   publishes its string as the node's `value` with no `label` (`HT-S` item 9;
+   `AccessibilityTreeBuilder`'s `.staticText` node), while XCUITest's `label`
+   of a static text is its text. So the label query matches a node's `label`,
+   or, for a `.staticText` with no label, its `value`. `TestElement.label`
+   stays the node's raw label (a snapshot, not a reinterpretation). Measured:
+   tests 2.2 and 2.26 find `Text("Hello")` and `"pressed 1 times"` by label.
+2. **A presentation getter answers `nil` when the option makes the window
+   draw it.** `presentedAlert`, `presentedMenu`, `presentedFileDialog` and
+   `toolbar` read `HeadlessPlatformWindow.options` at the call: with
+   `presentsAlertsNatively`/`presentsMenusNatively`/`showsToolbarNatively`
+   off the window draws (an `.alert` node, `.menuItem` nodes, the `$toolbar`
+   strip) and the test drives it through the tree (2.10, 2.15, 2.22); with
+   `presentsFileDialogs` off the window completes the dialog as failed. Only
+   the latest request is read (one is in flight per window, `SV-B`); it is
+   answered once the harness sends its result or the window dismisses its
+   token. The answered tokens live in one internal stored property on
+   `TestWindow` (`answered`) — the only lane-1 file lane 2 edits.
+3. **A standard menu-bar item is not performed.** `PlatformMenuBar.perform`
+   never sees a `standardAction` item (Quit, Copy …: the platform's own
+   command), and the headless platform has none to run, so
+   `performMenuBarItem` throws `.noMenuItem` for one. Owner: none (a test of
+   Quit drives `HeadlessPlatform.simulateTerminateRequest()`).
+4. **A popover is in the tree one tick after the frame that opens it.** A
+   popover anchors to the last frame's bounds, so the open frame asks for one
+   more (`window.needsRedraw` true after `TestWindow.init`) and the next
+   display-link tick draws it (test 2.23 pins both halves). The harness keeps
+   `HT-E`'s "an action draws one frame"; a test ticks.
+5. **A `Button`'s node is its chrome, not its `.frame` wrapper.** The
+   accessibility frame of `Button("Save").frame(width: 80, height: 30)` is
+   the 52 × 24 bordered button centred in the 80 × 30 frame (Noto Sans
+   through the portable text system, so equal on every platform); 2.1's and
+   2.5's literals are re-derived from that.
+6. **`performAccessibilityAction` takes an `AccessibilityActions` set**:
+   each member runs, in the order press, increment, decrement, show-menu, then
+   one frame; it answers whether the window handled every one (`false` for an
+   empty set). `focus(_:)` is `.focus`, then one frame. Both throw only
+   `.notRecorded` (accessibility off).
+7. **`MenuEvaluation.perform` runs the action directly** and refuses a
+   disabled item (`.disabledMenuItem`) or a non-command item (`.noMenuItem`);
+   `item(_:)` returns any item on the path, disabled or a submenu.
+   `testingEvaluateMenu` hands back only enabled actions.
+
+**Cost if wrong.** Each item is pinned by the test it names; if `Text` ever
+publishes its string as a label, item 1's fallback is dead code and 2.2 stays
+green.

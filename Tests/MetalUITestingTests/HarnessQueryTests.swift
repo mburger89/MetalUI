@@ -19,8 +19,11 @@ private struct PressCounter: Component {
 }
 
 /// 2.1 — `element(identifier:)` finds a `.accessibilityIdentifier("save")`
-/// button: role `.button`, its frame the 80 × 30 frame centred in the window,
-/// (160, 135). Mutation: `accessibilityClientActive` off by default.
+/// button: role `.button`, its frame the button's own bordered chrome — 24
+/// tall, 52 wide ("Save" in Noto Sans plus the chrome's padding, measured by
+/// the portable text system, so the same on every platform) — centred in the
+/// 80 × 30 frame, itself centred in the window at (160, 135): (174, 138).
+/// Mutation: `accessibilityClientActive` off by default.
 @Test @MainActor func elementByIdentifierReturnsItsFrame() throws {
     let window = try harnessWindow {
         Button("Save") {}.frame(width: Pixels(80), height: Pixels(30)).accessibilityIdentifier("save")
@@ -28,8 +31,8 @@ private struct PressCounter: Component {
     let save = try window.element(identifier: "save")
     #expect(save.role == .button)
     #expect(save.label == "Save")
-    #expect(save.frame == rect(160, 135, 80, 30))
-    #expect(save.visibleFrame == rect(160, 135, 80, 30))
+    #expect(save.frame == rect(174, 138, 52, 24))
+    #expect(save.visibleFrame == rect(174, 138, 52, 24))
     #expect(save.isEnabled)
 }
 
@@ -80,9 +83,11 @@ private struct PressCounter: Component {
 }
 
 /// 2.5 — a click on an element aims at its **visible** frame's centre: a
-/// button whose frame (y 290–330) runs past the 300-tall scroll viewport is
-/// clicked at y 295, inside it — its frame's centre, y 310, is outside the
-/// window. Mutation: aim at the `frame` centre.
+/// button whose 400 × 40 frame (y 290–330) runs past the 300-tall scroll viewport is
+/// clicked inside it. The button's chrome (48 × 24, "Low" in Noto Sans) sits
+/// centred in that 400 × 40 frame, y 298–322, so 2 points show: the click
+/// lands at y 299, while the frame's centre, y 310, is outside the window.
+/// Mutation: aim at the `frame` centre.
 @Test @MainActor func clickOnAnElementAimsAtItsVisibleFrame() throws {
     let log = HarnessLog()
     let window = try harnessWindow {
@@ -95,8 +100,8 @@ private struct PressCounter: Component {
         }
     }
     let low = try window.element(label: "Low")
-    #expect(low.frame == rect(0, 290, 400, 40))
-    #expect(low.visibleFrame == rect(0, 290, 400, 10))
+    #expect(low.frame == rect(176, 298, 48, 24))
+    #expect(low.visibleFrame == rect(176, 298, 48, 2))
     try window.click(low)
     #expect(log.entries == ["low"])
 }
@@ -161,6 +166,11 @@ private struct PressCounter: Component {
                 Text("Pop").frame(width: Pixels(100), height: Pixels(50))
             }
     }
+    // A popover anchors to the last frame's bounds: the open frame asks for
+    // one more, which the next display-link tick draws.
+    #expect(try window.elements(role: .popover).isEmpty, "not in the open frame")
+    #expect(window.window.needsRedraw)
+    window.tick()
     let popovers = try window.elements(role: .popover)
     try #require(popovers.count == 1)
     let frame = popovers[0].frame
