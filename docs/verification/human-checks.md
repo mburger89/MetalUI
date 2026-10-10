@@ -1123,6 +1123,27 @@ window's materials, VoiceOver (**an agent cannot run it**, `IX-AE`).
   announces busy (`LK-G`; the voiceover script's controls step is unchanged).
   **Observed:**
 
+## PF. Shadow cache — translation-free rasters, `compositingGroup()` (item C13, user request 2026-10-02, not a plan task)
+
+Shadow, blur, path and full-gradient rasters are keyed relative to a floored
+device anchor, so a whole-device-pixel move or pan reuses the cached texture;
+`compositingGroup()` makes a container one leaf to an enclosing shadow or blur;
+`BoxBlur` is faster with byte-identical output (rulings `PF-A`…`PF-N`, record
+§90). Pinned headless: work counters (`RasterCache.lastBlurredPixels`,
+`lastRasterizedPixels`, `lastTexturesMade`) and texture identity under drags
+(`RasterAnchorTests`), the composite's images (`CompositingGroupTests`), the
+blur against its 2155f1e copy (L2.1). What nothing headless sees: a real
+pointer's sub-pixel positions and the look beside SwiftUI.
+
+- [ ] **PF1. A trackpad drag.** In a MetalCreator-style graph, drag a node with
+  `.shadow(radius: 10)` by trackpad at 2×: it moves smoothly; logging the three
+  counters per frame shows how many frames hit (a sub-pixel position misses by
+  design, `PF-D`). **Observed:**
+- [ ] **PF2. `compositingGroup()` beside SwiftUI.** LooksDemo
+  (`METALUI_LOOKS_DEMO=1`), "Gradients, blur, materials": the per-leaf pair
+  shows the red square's shadow on the blue; the `compositingGroup()` pair one
+  shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

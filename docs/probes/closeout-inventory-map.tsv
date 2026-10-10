@@ -178,6 +178,7 @@ F	progress-view	A	swiftui-controls-looks.swift	V0	theSpinnerIsThirtyTwoSixteenAn
 F	keyframes	D	swiftui-controls-looks.swift	K1	linearKeyframesMatchK1	168 169 171	LK-H LK-I LK-T LK-V	KeyframeTimeline/KeyframeTrack/LinearKeyframe/CubicKeyframe/SpringKeyframe/MoveKeyframe/UnitCurve/Spring/KeyframesBuilder/KeyframeTrackContentBuilder/VectorArithmetic and keyframeAnimator(initialValue:trigger:)/(initialValue:repeating:)/KeyframeAnimator: SwiftUI's timeline values K1–K9 and animator rules K10–K14, a transparent scope keyed in the animation store; SpringKeyframe requires duration (168); track values are VectorArithmetic and the content closure receives the element (169); a zero-duration keyframe reads its target (171)
 F	gradients	A	swiftui-controls-looks.swift	G11	theOklabTableMatchesG11G2G5	-	LK-J LK-R LK-S	Gradient/Gradient.Stop/LinearGradient/RadialGradient as greedy views (ideal 10 × 10, G10) and as Shape.fill/stroke and .background(_:)/.background(_:in:) fills: premultiplied-Oklab colours (G11, G2, G5), the linear parameter projected in points (G3), radial distance circular in points (R2), sorted, padded, hard-edged stops (G4–G7), start == end the last colour (G6); rasterized on the CPU into cached images, a one-pixel strip for an axis-aligned rect
 F	blur	D	swiftui-controls-looks.swift	B2	blurIsPerLeafB2	167	LK-K	blur(radius:) on both vocabularies (one LayoutModifier.blur layer; a legacy render effect in written order): per leaf (B2), sigma = radius (B1, the shadow's three-box blur), render only (B4), cut by a clip outside (B5), the radius animates; a GPU surface inside is drawn unblurred (167)
+F	compositing-group	D	swiftui-shadow-cache.swift	P2	aCompositingGroupCastsOneShadowOfTheUnion	205	PF-E	compositingGroup() on both vocabularies (one LayoutModifier.compositingGroup layer; a legacy render effect in written order returning Self): an enclosing shadow or blur sees the content as one leaf — one shadow of the union below the whole group (P2), one blur of the composite (CG2); alone it changes nothing (CG4); render only (CG3); an opacity outside it is not composited (205, CG1)
 F	materials	D	swiftui-controls-looks.swift	M5	everyMaterialMatchesSwiftUIOverWhiteAndBlackM5	166	LK-L LK-O LK-R	Material .ultraThinMaterial/.thinMaterial/.regularMaterial/.thickMaterial/.ultraThickMaterial/.bar as .background(_:) on both vocabularies, .background(_:in:) and Shape.fill(_:): a flat grey tint per material and scheme fitted from ImageRenderer so that over uniform white and black it matches SwiftUI's within one level (M5); no backdrop blur (166)
 
 # ---------------------------------------------------------------- MetalUI
@@ -335,6 +336,7 @@ M	MetalUI	Path.swift	.*	.*	.*	paths
 M	MetalUI	Shadow.swift	.*	.*	.*	shadows
 M	MetalUI	StrokeStyle.swift	.*	.*	.*	stroke-styles
 M	MetalUI	NativeModifiedContent.swift	LayoutModifier	shadow	.*	shadows
+M	MetalUI	NativeModifiedContent.swift	LayoutModifier	compositingGroup	.*	compositing-group
 M	MetalUI	NativeModifiedContent.swift	LayoutModifier	rotationEffect|scaleEffect|offset	.*	render-effects
 M	MetalUI	NativeModifiedContent.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeModifiedContent.swift	ProposalElementGroup	nativeFrame	.*	native-frame-alias
@@ -380,6 +382,7 @@ M	MetalUI	Keyframes.swift	.*	.*	.*	keyframes
 M	MetalUI	KeyframeAnimator.swift	.*	.*	.*	keyframes
 M	MetalUI	Gradient.swift	.*	.*	.*	gradients
 M	MetalUI	Blur.swift	.*	.*	.*	blur
+M	MetalUI	CompositingGroup.swift	.*	.*	.*	compositing-group
 M	MetalUI	Material.swift	.*	.*	.*	materials
 M	MetalUI	VectorArithmetic.swift	.*	.*	.*	keyframes
 M	MetalUI	StackAlignment.swift	.*	.*	.*	stacks

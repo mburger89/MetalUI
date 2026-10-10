@@ -225,8 +225,15 @@ default colour `ColorToken.shadow` (black at 0.33 in both themes; `Theme`'s
 initialiser takes it as a trailing defaulted `shadow:`). Per leaf — a text draw
 is one leaf, a `Box`'s background and border one, a surface its quad (104); a
 triple box blur of sigma = radius (105); render only: no layout, hit region or
-accessibility change. Colour, radius and offset animate. Not offered:
-`compositingGroup`, `drawingGroup`, inner shadows.
+accessibility change. Colour, radius and offset animate. **One shadow per
+container** is SwiftUI's own spelling, `compositingGroup()` (`PF-E`, both
+vocabularies; a `LayoutModifier.compositingGroup` layer, on a `StyledElement`
+it returns `Self`): an enclosing `.shadow` or `.blur` sees the group as one
+leaf — one shadow of the union drawn below the whole group, one blur of the
+composite. Alone it changes nothing; render only; an opacity outside it is not
+composited (205). Shadow, blur, path and gradient rasters are cached
+translation-free, so a whole-device-pixel move or pan reuses them (`PF-A`).
+Not offered: `drawingGroup`, inner shadows.
 
 ## Colour — A / D / M
 
