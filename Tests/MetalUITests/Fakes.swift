@@ -135,7 +135,13 @@ final class FakePlatformWindow: PlatformWindow {
     /// and forwards the frame with none, so no surface table runs.
     var spyRenderer: SpyWindowRenderer?
     var renderer: any WindowRenderer { spyRenderer ?? windowRenderer }
-    var title: String = "Fake"
+    var title: String = "Fake" {
+        didSet { titleWrites.append(title) }
+    }
+    /// Every assignment to ``title``, in order — the opening platform's
+    /// included (app shell lane 2, test 2.16: `Window` sends a title only
+    /// when its effective value changes, `AS-D` item 1).
+    private(set) var titleWrites: [String] = []
 
     /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.
     ///
@@ -380,6 +386,71 @@ final class FakePlatformWindow: PlatformWindow {
         if clamped != contentSize { simulateResize(to: clamped) }
     }
 
+    // MARK: App shell (ruling `AS-H` item 4)
+
+    /// The platform's question before a user's close (`AS-B` item 5).
+    var onCloseRequest: (() -> Bool)?
+    /// Whether the window has closed (``close()`` ran once).
+    private(set) var isClosed = false
+    /// Every ``close()`` call, a repeat and a request's included.
+    private(set) var closeCalls = 0
+
+    /// Closes without asking: counted, and ``onClose`` fires the first time
+    /// only — as a platform's close does.
+    func close() {
+        closeCalls += 1
+        guard !isClosed else { return }
+        isClosed = true
+        onClose?()
+    }
+
+    /// A user's close request, the way the close button or SDL's
+    /// `SDL_EVENT_WINDOW_CLOSE_REQUESTED` makes one: ``onCloseRequest`` is
+    /// asked and the window closes only on `true` (or with no handler).
+    /// Answers whether it closed.
+    @discardableResult
+    func simulateCloseRequest() -> Bool {
+        guard onCloseRequest?() ?? true else { return false }
+        close()
+        return true
+    }
+
+    /// Every `setDocumentEdited` argument, in order.
+    private(set) var documentEditedCalls: [Bool] = []
+    func setDocumentEdited(_ edited: Bool) { documentEditedCalls.append(edited) }
+
+    /// Every `setRepresentedFilePath` argument, in order.
+    private(set) var representedPaths: [String?] = []
+    func setRepresentedFilePath(_ path: String?) { representedPaths.append(path) }
+
+    /// Every `setTitleBarStyle` argument, in order.
+    private(set) var titleBarStyles: [PlatformTitleBarStyle] = []
+    /// What `setTitleBarStyle` answers; `true`, a platform that applies it
+    /// (AppKit), by default.
+    var titleBarStyleApplies = true
+    /// How many frames the surface had presented at each `setTitleBarStyle`
+    /// (test 2.22: `openWindow(windowStyle:)` applies before the first frame).
+    private(set) var titleBarStylePresentsBefore: [Int] = []
+    func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
+        titleBarStyles.append(style)
+        titleBarStylePresentsBefore.append(fakeSurface.presentCalls)
+        return titleBarStyleApplies
+    }
+
+    /// Scripted by a test; zero, a standard title bar's, by default. A test
+    /// that changes it reports the change itself (`simulateResize`), as
+    /// AppKit's `contentLayoutRect` observation does.
+    var titleBarInsets = Edges(all: Pixels(0))
+
+    /// Every `performTitleBarPress` click count, in order.
+    private(set) var titleBarPresses: [Int] = []
+    /// What `performTitleBarPress` answers; `true` by default.
+    var titleBarPressResult = true
+    func performTitleBarPress(clickCount: Int) -> Bool {
+        titleBarPresses.append(clickCount)
+        return titleBarPressResult
+    }
+
     /// Delivers a drag from outside the window (ruling `DN-C`), as the
     /// platform's drop path would, and answers what the window answered.
     @discardableResult
@@ -503,5 +574,42 @@ final class FakePlatform: Platform {
 
     func setMenuBar(_ menuBar: PlatformMenuBar) {
         menuBars.append(menuBar)
+    }
+
+    // MARK: App shell (ruling `AS-H` item 4)
+
+    /// The platform's question before a termination it starts (`AS-C`).
+    var onTerminateRequest: (() -> CloseRequestReply)?
+    /// Every `replyToTerminateRequest` argument, in order.
+    private(set) var terminateReplies: [Bool] = []
+    /// How many times `terminate()` was called.
+    private(set) var terminateCalls = 0
+
+    func replyToTerminateRequest(_ shouldTerminate: Bool) { terminateReplies.append(shouldTerminate) }
+    func terminate() { terminateCalls += 1 }
+
+    /// A termination request the way ⌘Q or `SDL_EVENT_QUIT` makes one: the
+    /// handler's answer, `.now` with none.
+    func simulateTerminateRequest() -> CloseRequestReply {
+        onTerminateRequest?() ?? .now
+    }
+
+    /// URL batches that arrived before ``onOpenURLs`` was set.
+    private var parkedURLs: [[String]] = []
+    /// Assigning a handler delivers the parked batches, each once — the
+    /// platforms' parking (`AS-G` item 4).
+    var onOpenURLs: (([String]) -> Void)? {
+        didSet {
+            guard let onOpenURLs, !parkedURLs.isEmpty else { return }
+            let parked = parkedURLs
+            parkedURLs = []
+            for batch in parked { onOpenURLs(batch) }
+        }
+    }
+
+    /// Documents opened through the application, as `application(_:open:)`
+    /// or SDL's window-0 drop delivers them — or parked.
+    func simulateOpenURLs(_ urls: [String]) {
+        if let onOpenURLs { onOpenURLs(urls) } else { parkedURLs.append(urls) }
     }
 }

@@ -58,11 +58,19 @@ func runDemo() throws {
     // group VL, ruling VL-K): 300 content-sized rows of wrapping text,
     // selectable, with a "Jump to row 250" button.
     let listDemo = ProcessInfo.processInfo.environment["METALUI_LIST_DEMO"] == "1"
+    // App shell's human looks (`docs/verification/human-checks.md` group AS,
+    // spec `2026-10-08-app-shell-design.md` §6): a hidden title bar, the
+    // edited dot, a close and quit alert, `.onOpenURL` fed from the launch
+    // arguments (`AS-G` item 6's recipe).
+    let appShellDemo = ProcessInfo.processInfo.environment["METALUI_APP_SHELL_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if canvasDemo {
+    if appShellDemo {
+        window = try openAppShellDemoWindow(app, title: "MetalUI — App Shell",
+                                            launchArguments: Array(CommandLine.arguments.dropFirst()))
+    } else if canvasDemo {
         window = try app.openWindow(title: "MetalUI — Canvas",
                                     size: Size(width: Pixels(920), height: Pixels(620)),
                                     content: canvasDemoContent)

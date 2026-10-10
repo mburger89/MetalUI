@@ -770,6 +770,11 @@ static Uint32 dialog_event_type = 0;
 static SDL_Mutex *dialog_mutex = NULL;
 
 bool mui_platform_init(void) {
+    // The application decides when it ends (ruling AS-B item 6): SDL's own
+    // SDL_EVENT_QUIT after the last visible window's close request would end
+    // a run whose close the app just vetoed. Every close request reaches
+    // MetalUI, and only an approved one closes.
+    SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
     // Drops from other applications (ruling DN-M) — enabled explicitly, so a
     // build of SDL that ships either kind disabled still delivers both.
@@ -920,6 +925,7 @@ bool mui_push_event(const MUIEvent *in) {
     SDL_Event e;
     SDL_zero(e);
     switch (in->kind) {
+    case MUI_EVENT_QUIT: e.type = SDL_EVENT_QUIT; break;   // a termination request (AS-C item 8)
     case MUI_EVENT_MOUSE_DOWN: case MUI_EVENT_MOUSE_UP:
         e.type = in->kind == MUI_EVENT_MOUSE_DOWN ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
         e.button.windowID = in->window_id; e.button.button = SDL_BUTTON_LEFT;
@@ -1283,6 +1289,8 @@ void mui_window_size(void *w, int32_t *width, int32_t *height) { SDL_GetWindowSi
 bool mui_window_set_title(void *w, const char *t) { return SDL_SetWindowTitle((SDL_Window *)w, t); }
 const char *mui_window_title(void *w) { return SDL_GetWindowTitle((SDL_Window *)w); }
 bool mui_window_show(void *w) { return SDL_ShowWindow((SDL_Window *)w); }
+bool mui_window_hide(void *w) { return SDL_HideWindow((SDL_Window *)w); }
+const char *mui_quit_on_last_window_close_hint(void) { return SDL_GetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE); }
 bool mui_window_is_shown(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_HIDDEN) == 0;
 }

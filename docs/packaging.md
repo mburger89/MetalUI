@@ -322,3 +322,115 @@ compiled shaders as `MetalUISDLShaders`, copied from
 `.build\checkouts\MetalUI\Backends\SDL\Shaders\compiled` exactly as on Linux
 (section 4 above, ruling `PX-P`). AccessKit is a static library and ships
 inside the executable. No command here was run on Windows (human check X4).
+
+## Documents and URLs an application opens (app shell)
+
+**Build-side too** (ruling `AS-G` items 5–6, `AS-M`,
+`docs/superpowers/2026-10-08-app-shell-decisions.md`). At runtime a MetalUI
+app hears an open through `.onOpenURL { url in }` in a window's tree (or
+`App.onOpenURL` when no window has one); which files and URL schemes the
+system sends it is declared here, outside the program.
+
+### macOS: document types and URL schemes in `Info.plist` — lint verified
+
+Add to the bundle's `Info.plist` (section 2 above) — an exported type for a
+new extension, a document type naming it, and a URL scheme:
+
+```xml
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>         <string>MyApp Document</string>
+            <key>CFBundleTypeRole</key>         <string>Editor</string>
+            <key>LSHandlerRank</key>            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array><string>com.example.myapp.document</string></array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>         <string>com.example.myapp.document</string>
+            <key>UTTypeDescription</key>        <string>MyApp Document</string>
+            <key>UTTypeConformsTo</key>
+            <array><string>public.data</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array><string>myapp</string></array>
+            </dict>
+        </dict>
+    </array>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>          <string>com.example.MyApp</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>myapp</string></array>
+        </dict>
+    </array>
+```
+
+**Verified** (2026-10-09): `plutil -lint` reads `OK` on these keys in a
+property list. `AppKitPlatform.run()` installs MetalUI's application delegate,
+whose `application(_:open:)` receives Finder's double-click, `open -a MyApp
+file.myapp`, a drop on the Dock icon, Open Recent and `myapp://…` links, and
+passes them to `.onOpenURL` — a launch-time open arrives during `run()`,
+before `applicationDidFinishLaunching` (probe
+`appkit-launch-arguments-open.swift` `A6`), so **open the window before
+`run()`** or set `App.onOpenURL` there (`AS-Q`: nothing is queued for a
+receiver that comes later). **No `NSDocumentClass` is needed** (probe
+`appkit-open-without-document-class.swift`, 2026-10-09): with a document type
+of exactly this shape and no `NSDocumentClass`, `open -a` delivers the file to
+`application(_:open:)` with no alert, at launch and with the app already
+running (`W0`, `W2`); AppKit's "cannot open files in this format" alert comes
+up only for a delegate that does not implement `application(_:open:)` (`W1`,
+the separating arm) — so do not replace `NSApp.delegate` after `run()`
+installs MetalUI's. **Unverified**: a Finder double-click, a Dock drop and Open
+Recent from a packaged MetalUI app — human check AS9.
+
+### Launch arguments — the recipe (every platform)
+
+**MetalUI reads no `CommandLine.arguments`** (`AS-G` item 6): a test
+runner's and SwiftPM's flags are there too, and only the app knows which
+arguments are documents. AppKit delivers none of them by itself (probe `A1`,
+`A3`, `A5`), so on macOS too the app delivers them, each once, after opening
+its window:
+
+```swift
+let window = try app.openWindow(title: "MyApp", size: size) { MyAppRoot() }
+app.open(CommandLine.arguments.dropFirst()
+    .filter { FileManager.default.fileExists(atPath: $0) }
+    .map { URL(fileURLWithPath: $0) })
+app.run()
+```
+
+This is how `swift run MyApp file.myapp` opens a file, and how Linux and
+Windows file associations (below) reach the app. The app shell demo uses it
+(`appShellDemoLaunchURLs(_:)`, `METALUI_APP_SHELL_DEMO=1`). A second
+instance forwarding its arguments to the first (single-instance apps on Linux
+and Windows) is not built (owner none).
+
+### Linux: `MimeType=` and `%F` in the desktop entry — unverified
+
+Extend the desktop entry of section 2 above so the file manager offers the
+app for a MIME type and passes the files as arguments:
+
+```ini
+Exec=/opt/myapp/MyApp %F
+MimeType=application/x-myapp-document;
+```
+
+A new MIME type also needs a shared-mime-info package
+(`/usr/share/mime/packages/myapp.xml` mapping `*.myapp`, then
+`update-mime-database`). Not validated: `desktop-file-validate` was not run
+on these lines. SDL also reports a file dropped on the application itself (no
+window) — SDL's Cocoa backend does on macOS — to `.onOpenURL`; a file dropped
+on a window stays a drag and drop (`DN-M`).
+
+### Windows: a file association — unverified
+
+Register a ProgID whose `shell\open\command` is `"C:\Program
+Files\MyApp\MyApp.exe" "%1"` and point the extension at it (an installer's
+job: WiX, Inno Setup or MSIX). The path arrives as an argument and the recipe
+above delivers it. No command here was run on Windows (human check AS10).

@@ -75,7 +75,15 @@ func runDemo() throws {
     // and right drags, tap location, SDL's system cursors; **C** toggles the
     // crosshair.
     let canvasDemo = environment["METALUI_CANVAS_DEMO"] == "1"
-    let window = canvasDemo
+    // `METALUI_APP_SHELL_DEMO=1`: the app shell (human check AS10, spec
+    // `2026-10-08-app-shell-design.md` §6) — the WM close, Alt-F4 and Ctrl-C ask
+    // before an edited document goes; the system title bar stays (`AS-E` item 6),
+    // so the insets read zero; documents named on the command line are opened
+    // (`AS-G` item 6's recipe).
+    let window = environment["METALUI_APP_SHELL_DEMO"] == "1"
+        ? try openAppShellDemoWindow(app, title: "MetalUI — SDL3 app shell",
+                                     launchArguments: Array(CommandLine.arguments.dropFirst()))
+        : canvasDemo
         ? try app.openWindow(title: "MetalUI — SDL3 canvas", size: Size(width: Pixels(920), height: Pixels(620)),
                              content: canvasDemoContent)
         : environment["METALUI_RICH_TEXT_DEMO"] == "1"
