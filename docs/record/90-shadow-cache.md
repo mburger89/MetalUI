@@ -324,3 +324,45 @@ the inventory map and the census (`b325e10`), the spec's Status.
   work. Not re-measured in the Record phase.
 - **Human checks owed**: group PF (PF1 a trackpad drag, PF2 the LooksDemo pair), none performed.
 - No ruling was appended in lane 2 or the Record phase; `PF-O` is the next unused id.
+
+## 5. Branch checker (2026-10-10, adversarial, `2155f1e..d79e1b9`)
+
+- **Suite.** `swift package clean`, native build (0 `error:`, the only `warning:` SwiftPM's
+  deprecation notice), unfiltered `--no-parallel` at `474892c`: **`Test run with 3099 tests in 3
+  suites passed after 272.064 seconds.`** `FR-J no-argument frame: succeeded=true`; `COMPOSITING
+  GROUP GUARD L2.G` positive `succeeded=true`, control `succeeded=false`. No existing test file
+  was edited on the branch (`git diff --name-status 70e9389..HEAD -- Tests`: six added, only
+  `BoxBlurTests.swift` modified, additions only), so the identity, hit-testing, accessibility and
+  animation pins stand unedited and green: `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyProductionTreeBuildsOnAOneMegabyteThread`, `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`.
+- **Docs.** `cmp CLAUDE.md AGENTS.md` equal; every `PF-` id cited in a changed doc resolves to a
+  heading (`PF-A`…`PF-N`, next `PF-O`); every test or symbol name of 23+ characters added to a
+  changed doc resolves in `Sources`/`Tests`/`docs/probes` (55 names). Inventory and undocumented
+  checks print nothing; the census re-run equals `closeout-public-api.tsv` (3023 rows). Fixed in
+  `d79e1b9`: the amended `GX-A` deferred row still listed `.blur(radius:)` (built since `LK-K`).
+- **Mutation C1** (`insertThroughScopes`' effect arm, captured depths dropped: `emitted = nil`
+  instead of `kept`): the full suite **3099 passed — nothing reddens**. A checker probe (not
+  committed) — L2.12's clipped square with `.compositingGroup().offset(x: 4, y: 0)` under the
+  shadow — reads the group's shadow 60 wide under C1 and 30 wide restored: the effect arm's depth
+  carry (`kept`) is live and unpinned. Owner: the merge (a test like L2.12 with an effect between
+  the group and the shadow).
+- **Mutation C2** (`shadowImage` keys and cuts with the absolute `placement.clip` instead of
+  `anchor.canonical(placement.clip)`): 39 issues in `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove`,
+  `aCanonicalRasterEqualsTheAbsoluteOne`, `aCompositedNodeBlursOneMask`,
+  `aLegacyShadowsColourRadiusAndOffsetAnimate`, `aResampledLeafAtAnIntegerCoincidenceMayGainItsBleedColumn`,
+  `aShadowCutByItsClipIsRasterizedOnEveryMove`, `aShadowIsCutByAnOuterClipAndShapedByAnInnerOne`,
+  `shadowColourRadiusAndOffsetAnimate`. Both restored from copies; `git status --short` clean.
+- **Pixels** re-taken (`compare.sh <scratch> 2155f1e HEAD` at `d79e1b9`): controls 1048576 /
+  1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 / 529 / 0; all fourteen images
+  `differing=0`, scenes identical.
+- **Linux.** `metalui-portable`: `Backends/SDL` **24 + 105**; `swift:6.4-noble` root **6 + 35 + 21
+  + 199 + 67 + 22**, 0 `warning:`. **macOS** `Backends/SDL`: **24 + 108** (its two `warning:` lines,
+  `AccessKitControlsParityTests.swift:83` and the SDL dylib's deployment target, are master's; the
+  branch touches nothing under `Backends/SDL`).
+- **Dead code** (reported, not fixed): `TransitionStore.Record.captureDepths` is a stray copy of
+  `PaintScope.captureDepths` (mis-indented, never read or written). Owner: the merge.
+- `swift build --build-tests` (default build system): 0 `warning:`.
+- No real-window capture; human checks PF1, PF2 owed, none claimed.
