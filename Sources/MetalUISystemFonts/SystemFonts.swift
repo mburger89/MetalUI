@@ -1,6 +1,7 @@
 import Foundation
 import MetalUIFreeType
 import MetalUIPortableText
+import MetalUITextSystem
 
 /// The platform's installed fonts as a ``PortableFontResolver`` (roadmap item
 /// 8b, rulings SF-A…SF-D).
@@ -22,6 +23,9 @@ import MetalUIPortableText
 ///   regular style.
 /// - **The cascade (SF-C)** is the platform's fallback families that are
 ///   installed, in order; every other face resolves by name only.
+/// - **Designs (SG-C):** `.monospaced` and `.serif` resolve to the first
+///   installed family of ``designFamilies`` — registered by name, read only
+///   when a request for the design resolves.
 public enum SystemFonts {
     /// No scalable font file was found in the searched directories.
     public struct NoFontsFound: Error, CustomStringConvertible {
@@ -66,7 +70,7 @@ public enum SystemFonts {
         #elseif os(Windows)
         return ["Segoe UI", "Arial", "Tahoma"]
         #else
-        return (fontconfigSansSerif().map { [$0] } ?? [])
+        return (fontconfigFamily("sans-serif").map { [$0] } ?? [])
             + ["DejaVu Sans", "Noto Sans", "Liberation Sans", "Ubuntu", "Cantarell", "FreeSans"]
         #endif
     }
@@ -85,6 +89,48 @@ public enum SystemFonts {
                 "Noto Sans Hebrew", "Noto Sans Devanagari", "Noto Sans Thai", "Noto Sans Symbols",
                 "Noto Sans Symbols2", "FreeSans", "Liberation Sans"]
         #endif
+    }
+
+    /// The families each system-font design resolves to, first installed wins
+    /// (ruling `SG-C`): what `Font.system(size:design:)` draws with on the
+    /// portable text system. A design with no installed family — and
+    /// `.rounded` off Apple, which no Linux or Windows install ships —
+    /// resolves to the default face, never a trap; an app with a rounded face
+    /// calls `PortableFontResolver.register(design:family:)` itself.
+    ///
+    /// - **macOS** (the portable system there is tests and tools; production
+    ///   uses CoreText): `.monospaced` SF Mono, Menlo, Courier New; `.serif`
+    ///   New York, Times New Roman, Times; `.rounded` SF Pro Rounded, Arial
+    ///   Rounded MT Bold.
+    /// - **Windows**: `.monospaced` Cascadia Mono, Consolas, Courier New;
+    ///   `.serif` Georgia, Times New Roman.
+    /// - **Linux**: fontconfig's own `monospace` and `serif` answers first when
+    ///   `fc-match` is installed, then `.monospaced` DejaVu Sans Mono, Noto
+    ///   Sans Mono, Liberation Mono, Ubuntu Mono, FreeMono; `.serif` DejaVu
+    ///   Serif, Noto Serif, Liberation Serif, FreeSerif.
+    public static var designFamilies: [FontDesign: [String]] {
+        #if os(macOS)
+        return [.monospaced: ["SF Mono", "Menlo", "Courier New"],
+                .serif: ["New York", "Times New Roman", "Times"],
+                .rounded: ["SF Pro Rounded", "Arial Rounded MT Bold"]]
+        #elseif os(Windows)
+        return [.monospaced: ["Cascadia Mono", "Consolas", "Courier New"],
+                .serif: ["Georgia", "Times New Roman"]]
+        #else
+        return linuxDesignFamilies(fontconfig: fontconfigFamily)
+        #endif
+    }
+
+    /// Linux's design lists with `fontconfig`'s answer for each generic
+    /// family (`monospace`, `serif`) leading its fixed list — compiled on
+    /// every platform so the ordering is tested everywhere (`SG-C` item 4).
+    static func linuxDesignFamilies(fontconfig: (String) -> String?) -> [FontDesign: [String]] {
+        func list(_ generic: String, _ fixed: [String]) -> [String] {
+            (fontconfig(generic).map { [$0] } ?? []) + fixed
+        }
+        return [.monospaced: list("monospace", ["DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
+                                                "Ubuntu Mono", "FreeMono"]),
+                .serif: list("serif", ["DejaVu Serif", "Noto Serif", "Liberation Serif", "FreeSerif"])]
     }
 
     // MARK: Discovery
@@ -109,11 +155,13 @@ public enum SystemFonts {
 
     // MARK: The resolver
 
-    /// A resolver over the faces under `directories` (SF-A…SF-D). `load`
-    /// reads a file's bytes — injectable so a test can count the reads.
+    /// A resolver over the faces under `directories` (SF-A…SF-D), each design
+    /// of `designFamilies` registered as its first installed family (SG-C).
+    /// `load` reads a file's bytes — injectable so a test can count the reads.
     public static func resolver(directories: [String] = directories,
                                 defaultFamilies: [String] = defaultFamilies,
                                 fallbackFamilies: [String] = fallbackFamilies,
+                                designFamilies: [FontDesign: [String]] = designFamilies,
                                 load: @escaping (String) throws -> [UInt8] = { [UInt8](try Data(contentsOf: URL(fileURLWithPath: $0))) })
         throws -> PortableFontResolver {
         let faces = scan(directories)
@@ -131,6 +179,14 @@ public enum SystemFonts {
         for face in ordered where !registered.contains(face) {
             resolver.register(face.names, inCascade: false) { try load(face.path) }
         }
+        // A name, not a face: nothing is read until the design resolves (SG-C
+        // item 1, SF-B). The face's own spelling, so the resolver's name match
+        // finds exactly it.
+        for (design, families) in designFamilies {
+            guard let face = families.lazy.compactMap({ family in ordered.first { $0.isFamily(family) } }).first
+            else { continue }
+            resolver.register(design: design, family: face.names.family)
+        }
         return resolver
     }
 
@@ -141,14 +197,15 @@ public enum SystemFonts {
         faces.filter(\.isRegular) + faces.filter { !$0.isRegular }
     }
 
-    /// fontconfig's family for `sans-serif`, if `fc-match` is on the path.
-    static func fontconfigSansSerif() -> String? {
+    /// fontconfig's family for the generic family `generic` (`sans-serif`,
+    /// `monospace`, `serif`), if `fc-match` is installed.
+    static func fontconfigFamily(_ generic: String) -> String? {
         #if os(Linux)
         for candidate in ["/usr/bin/fc-match", "/usr/local/bin/fc-match"]
         where FileManager.default.isExecutableFile(atPath: candidate) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: candidate)
-            process.arguments = ["-f", "%{family[0]}", "sans-serif"]
+            process.arguments = ["-f", "%{family[0]}", generic]
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = FileHandle.nullDevice

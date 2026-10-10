@@ -660,6 +660,11 @@ public final class Window {
     /// with the content's own minimum under `.contentMinSize`/`.contentSize`
     /// (the larger wins). A negative axis counts as 0; NaN traps. Applied at
     /// once: a window smaller than it is resized to it.
+    ///
+    /// Where MetalUI draws chrome above the root (``drawnChromeHeight``, the
+    /// SDL toolbar strip) the minimum is the content's below it — the
+    /// platform receives the height plus the chrome — as AppKit's
+    /// `contentMinSize` excludes its toolbar (ruling `SG-F` item 2).
     public var minSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(minSize, "minSize")
@@ -671,7 +676,8 @@ public final class Window {
     /// points; `nil`, the default, sets none (ruling `SV-L`). An infinite axis
     /// is no limit on that axis; one below the minimum is raised to it; NaN
     /// traps. Combined with the content's maximum under `.contentSize` (the
-    /// smaller wins).
+    /// smaller wins). Measured below drawn chrome as ``minSize`` is (an
+    /// infinite height stays unbounded; `SG-F` item 2).
     public var maxSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(maxSize, "maxSize")
@@ -727,6 +733,17 @@ public final class Window {
     /// (`MD-K` item 5).
     private var lastBuildDrewToolbarStrip = false
 
+    /// The height MetalUI draws above the root in this window, in window
+    /// points (ruling `SG-F` item 1): the drawn toolbar strip (`MD-K`, 39 —
+    /// on a platform whose `setToolbar` declines, SDL) as the last adopted
+    /// frame laid it out; **0** where the platform shows its own toolbar
+    /// (AppKit), with no toolbar, and before the first frame. The root is laid
+    /// out in the rect below it, and an explicit ``minSize``/``maxSize`` is a
+    /// size of that rect. Read-only; MetalUI-only.
+    public var drawnChromeHeight: Pixels { Pixels(drawnChromeHeightValue) }
+    /// `drawnChromeHeight`'s value, set when a frame is adopted.
+    private var drawnChromeHeightValue: Float = 0
+
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
     /// resized into, `SV-AG` item 3) still owes the next frame after a
@@ -746,12 +763,24 @@ public final class Window {
     /// that never change reach the platform once — and none, never.
     private func reconcileContentSizeLimits() {
         guard !isApplyingSizing else { return }
-        let effective = ContentSizeLimits.effective(minimum: minSize, maximum: maxSize,
+        // An explicit limit is the content's below the drawn chrome (SG-F
+        // item 2); the content's own limits already include it
+        // (`Frame.computeRootLayout`).
+        let effective = ContentSizeLimits.effective(minimum: belowDrawnChrome(minSize),
+                                                    maximum: belowDrawnChrome(maxSize),
                                                     contentMinimum: contentLimits.minimum,
                                                     contentMaximum: contentLimits.maximum)
         guard effective != appliedContentSizeLimits else { return }
         appliedContentSizeLimits = effective
         platformWindow.setContentSizeLimits(minimum: effective.minimum, maximum: effective.maximum)
+    }
+
+    /// `size` with ``drawnChromeHeight`` added to a finite, non-negative
+    /// height (a negative one counts as 0, as `ContentSizeLimits` clamps it);
+    /// unchanged with no drawn chrome.
+    private func belowDrawnChrome(_ size: Size<Pixels>?) -> Size<Pixels>? {
+        guard let size, drawnChromeHeightValue > 0, size.height.value.isFinite else { return size }
+        return Size(width: size.width, height: Pixels(max(size.height.value, 0) + drawnChromeHeightValue))
     }
 
     init<Root: Element>(platformWindow: any PlatformWindow,
@@ -1647,6 +1676,7 @@ public final class Window {
         presentations.records = frame.presentationRecords   // SV-K item 2
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
+        drawnChromeHeightValue = frame.drewToolbarStrip ? ToolbarStrip.height : 0   // SG-F item 1
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -1728,8 +1758,10 @@ public final class Window {
         // `onResize` and dirties the window for the next frame.
         if windowResizability != .automatic {
             contentLimits = ContentSizeLimits(minimum: frame.contentMinimum, maximum: frame.contentMaximum)
-            reconcileContentSizeLimits()
         }
+        // Also when only the drawn chrome changed (SG-F item 3); a pair equal
+        // to the last one sent sends nothing.
+        reconcileContentSizeLimits()
         onFrameAdopted?(frame)
         return (frame, scene)
     }

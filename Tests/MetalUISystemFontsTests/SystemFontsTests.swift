@@ -111,7 +111,10 @@ private final class LoadLog: @unchecked Sendable {
 /// and nothing is read until a request for the design resolves: over the test
 /// directory `.monospaced` is Source Sans 3 (the first entry is not
 /// installed), `.serif` Noto Sans Arabic, and `.rounded` — no list — the
-/// default face. Red before: does not compile (no `designFamilies:`).
+/// default face. Resolving a design also reads the cascade's default face
+/// (`resolve` loads the cascade, SF-C), so the log after the first resolve is
+/// exactly that face and the design's. Red before: does not compile (no
+/// `designFamilies:`).
 /// Mutations **M1.5a** (skip the design loop), **M1.5b** (register the last
 /// installed family), **M1.5c** (register the first entry whether installed
 /// or not) — each reddens.
@@ -127,7 +130,11 @@ private final class LoadLog: @unchecked Sendable {
     #expect(log.paths.isEmpty, "registering a design reads no font")
     let mono = try resolver.resolve(FontDescriptor(size: 13, design: .monospaced))
     #expect(mono.key.postScriptName == "SourceSans3-Regular", "the first installed family of the list")
-    #expect(log.paths == ["SourceSans3-Regular.otf"], "only the resolved face is read: \(log.paths)")
+    // Resolving also reads the cascade's default face (Noto Sans, the
+    // default family is the cascade's first entry, SF-C) — never the serif
+    // design's face.
+    #expect(log.paths.sorted() == ["NotoSans-Regular.ttf", "SourceSans3-Regular.otf"],
+            "the resolved face and the cascade's default face only: \(log.paths)")
     let serif = try resolver.resolve(FontDescriptor(size: 13, design: .serif))
     #expect(serif.key.postScriptName == "NotoSansArabic-Regular")
     let rounded = try resolver.resolve(FontDescriptor(size: 13, design: .rounded))
@@ -140,8 +147,10 @@ private final class LoadLog: @unchecked Sendable {
 }
 
 /// **1.6** (`SG-C` item 2). The platform's own lists resolve on the fonts the
-/// platform ships: macOS's monospaced and serif designs are the first
-/// installed names of their lists (measured, asserted exactly); Windows'
+/// platform ships: macOS's three designs are the first installed names of
+/// their lists, computed from the scan — Menlo and Times New Roman where
+/// Apple's downloadable SF Mono and New York are absent (measured: the
+/// system's own are the hidden ".SF NS Mono"/".New York" families); Windows'
 /// monospaced is Cascadia Mono or Consolas (the first of the list the scan
 /// finds) and serif Georgia; Linux's are DejaVu Sans Mono and DejaVu Serif
 /// where DejaVu is installed (both CI images), else the test says why it
@@ -153,9 +162,22 @@ private final class LoadLog: @unchecked Sendable {
     func installed(_ family: String) -> Bool { faces.contains { $0.isFamily(family) } }
     #if os(macOS)
     let resolver = try SystemFonts.resolver()
-    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName == "SF Mono")
-    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .serif)).raster.familyName == "New York")
-    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .rounded)).raster.familyName == "SF Pro Rounded")
+    // Measured 2026-10-09 (FreeType's family names over `directories`): the
+    // system's own SF Mono and New York are the hidden families ".SF NS Mono"
+    // and ".New York", so "SF Mono"/"New York" resolve only where Apple's
+    // downloadable fonts are installed in /Library/Fonts; Menlo, Times New
+    // Roman and Arial Rounded MT Bold ship with macOS. The first installed
+    // name of each list is computed from the scan and asserted exactly.
+    #expect(installed("Menlo") && installed("Times New Roman") && installed("Arial Rounded MT Bold"),
+            "macOS ships each list's fallback")
+    let monoFamily = try #require(["SF Mono", "Menlo", "Courier New"].first(where: installed))
+    let serifFamily = try #require(["New York", "Times New Roman", "Times"].first(where: installed))
+    let roundedFamily = try #require(["SF Pro Rounded", "Arial Rounded MT Bold"].first(where: installed))
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .monospaced)).raster.familyName == monoFamily)
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .serif)).raster.familyName == serifFamily)
+    #expect(try resolver.resolve(FontDescriptor(size: 13, design: .rounded)).raster.familyName == roundedFamily)
+    if !installed("SF Mono") { #expect(monoFamily == "Menlo") }
+    if !installed("New York") { #expect(serifFamily == "Times New Roman") }
     #elseif os(Windows)
     let resolver = try SystemFonts.resolver()
     let mono = try #require(["Cascadia Mono", "Consolas", "Courier New"].first(where: installed))

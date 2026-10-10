@@ -9,7 +9,7 @@ import MetalUIPlatform
 // on Windows — the SDL bridge maps `SDL_KMOD_GUI` to `.command`), `.option`
 // "Alt", `.shift` "Shift", in that order. Red before: `.command` read "Ctrl".
 
-private func text(_ key: String, _ modifiers: Modifiers, _ platform: TextEditing.Platform,
+@MainActor private func text(_ key: String, _ modifiers: Modifiers, _ platform: TextEditing.Platform,
                   superKeyName: String = "Super") -> String? {
     MenuPanel.shortcutText(PlatformKeyEquivalent(key: key, modifiers: modifiers), platform: platform,
                            superKeyName: superKeyName)
@@ -19,7 +19,7 @@ private func text(_ key: String, _ modifiers: Modifiers, _ platform: TextEditing
 /// Windows name), Ctrl+Super+Alt+Shift+K, and a default (`.primary`)
 /// shortcut reads as the key it is. The Mac spelling is unchanged. Mutation:
 /// `.command` labelled "Ctrl" — reddens.
-@Test func aDrawnMenusShortcutTextNamesEachKey() {
+@Test @MainActor func aDrawnMenusShortcutTextNamesEachKey() {
     #expect(text("k", .control, .other) == "Ctrl+K")
     #expect(text("k", .command, .other) == "Super+K", "the Super key is not Ctrl")
     #expect(text("k", .command, .other, superKeyName: "Win") == "Win+K", "Windows' name for it")

@@ -165,8 +165,8 @@ var targets: [Target] = [
         // The one portable text target with a file system: imports Foundation
         // (swift-corelibs-foundation off Apple), MetalUIFreeType and
         // MetalUIPortableText.
-        .target(name: "MetalUISystemFonts", dependencies: ["MetalUIPortableText", "MetalUIFreeType"]),
-        .testTarget(name: "MetalUISystemFontsTests", dependencies: ["MetalUISystemFonts"]),
+        .target(name: "MetalUISystemFonts", dependencies: ["MetalUIPortableText", "MetalUIFreeType", "MetalUITextSystem"]),
+        .testTarget(name: "MetalUISystemFontsTests", dependencies: ["MetalUISystemFonts", "MetalUITextSystem"]),
 
         // Shaping with no Apple framework (rulings SH-B, SH-K): imports only
         // CHarfBuzz. One run: no line breaking, bidi, itemization or fallback.

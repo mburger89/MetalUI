@@ -58,8 +58,23 @@ enum MenuPanel {
         resolveTextStyle(TextStyleRequest(), in: EnvironmentValues()).descriptor
     }
 
-    /// A shortcut as shown: `⌘K` on Apple, `Ctrl+K` elsewhere.
-    static func shortcutText(_ shortcut: PlatformKeyEquivalent?, platform: TextEditing.Platform) -> String? {
+    /// What the drawn menu calls the `.command` modifier off Apple — the key
+    /// the SDL bridge maps `SDL_KMOD_GUI` to (ruling `SG-B` item 5): "Win" on
+    /// Windows, "Super" elsewhere.
+    static var superKeyName: String {
+        #if os(Windows)
+        return "Win"
+        #else
+        return "Super"
+        #endif
+    }
+
+    /// A shortcut as shown: `⌃⌥⇧⌘K` on Apple; elsewhere each held key by its
+    /// own name, `Ctrl+Super+Alt+Shift+K` (ruling `SG-B` item 5) — `.command`
+    /// is `superKeyName`, never "Ctrl", so a default (`.primary`, Ctrl off
+    /// Apple) shortcut reads `Ctrl+S` and is Ctrl+S.
+    static func shortcutText(_ shortcut: PlatformKeyEquivalent?, platform: TextEditing.Platform,
+                             superKeyName: String = MenuPanel.superKeyName) -> String? {
         guard let shortcut else { return nil }
         let key = shortcut.key.uppercased()
         switch platform {
@@ -72,12 +87,11 @@ enum MenuPanel {
             return s + key
         case .other:
             var parts: [String] = []
-            if shortcut.modifiers.contains(.command) { parts.append("Ctrl") }
             if shortcut.modifiers.contains(.control) { parts.append("Ctrl") }
+            if shortcut.modifiers.contains(.command) { parts.append(superKeyName) }
             if shortcut.modifiers.contains(.option) { parts.append("Alt") }
             if shortcut.modifiers.contains(.shift) { parts.append("Shift") }
-            var seen = Set<String>()
-            return (parts.filter { seen.insert($0).inserted } + [key]).joined(separator: "+")
+            return (parts + [key]).joined(separator: "+")
         }
     }
 

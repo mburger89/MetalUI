@@ -33,6 +33,7 @@ struct ToolbarStripItem {
 enum ToolbarStrip {
     /// The strip's height: 7 + the regular control height 24 + 7, and the
     /// 1-point separator below (`MD-K` item 1).
+    /// Public as `Window.drawnChromeHeight` (ruling `SG-F` item 4).
     static let height: Float = 39
     /// The bar above the separator.
     static let barHeight: Float = 38

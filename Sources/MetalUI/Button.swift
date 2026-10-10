@@ -195,8 +195,10 @@ extension Button {
     /// Focus is not needed; the first button in tree order wins a shared
     /// shortcut; a focused element's own key handler, a keymap binding and a
     /// focused field's editing keys claim the key first; a disabled button's is
-    /// silent and a hit-testing-off or invisible one's still fires.
-    public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .command) -> Self {
+    /// silent and a hit-testing-off or invisible one's still fires. `modifiers`
+    /// defaults to `.primary` — ⌘ on macOS (SwiftUI's `.command`), Ctrl on
+    /// Linux and Windows (ruling `SG-B` item 3).
+    public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .primary) -> Self {
         keyboardShortcut(KeyboardShortcut(key, modifiers: modifiers))
     }
 

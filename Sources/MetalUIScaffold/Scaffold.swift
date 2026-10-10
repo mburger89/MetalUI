@@ -249,9 +249,15 @@ func manifest(_ options: ScaffoldOptions) -> String {
             """
         let portable = ".when(platforms: [.linux, .windows])"
         let package = swiftString(metalUIPackage)
+        // SG-D: the portable-text products are unconditional — SwiftPM's
+        // default build system drops the C modules of a product the
+        // executable reaches only conditionally from a test target's module
+        // maps on macOS ("unable to resolve module dependency: 'CFreeType'").
         products += "                .product(name: \"MetalUISDL\", package: \(package), condition: \(portable)),\n"
-            + "                .product(name: \"MetalUIPortableText\", package: \(package), condition: \(portable)),\n"
-            + "                .product(name: \"MetalUISystemFonts\", package: \(package), condition: \(portable)),\n"
+            + "                // On every platform (SG-D): a test target naming these fails to build on macOS\n"
+            + "                // when they are conditional here (\"unable to resolve module dependency: 'CFreeType'\").\n"
+            + "                .product(name: \"MetalUIPortableText\", package: \(package)),\n"
+            + "                .product(name: \"MetalUISystemFonts\", package: \(package)),\n"
     }
     return """
         // swift-tools-version: \(toolsVersion)

@@ -13,6 +13,22 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
     public static let option  = Modifiers(rawValue: 1 << 2)
     /// Command on Apple platforms; the Super/Windows key elsewhere.
     public static let command = Modifiers(rawValue: 1 << 3)
+
+    /// The platform's shortcut modifier (ruling `SG-B` item 2): ⌘
+    /// (``command``) on macOS, Ctrl (``control``) on Linux and Windows — the
+    /// default of every `.keyboardShortcut(_:modifiers:)` and
+    /// `KeyboardShortcut(_:modifiers:)`, so `.keyboardShortcut("s")` is ⌘S on
+    /// a Mac and Ctrl+S elsewhere. Not a new bit: a name for one of the four.
+    /// An explicit ``command`` stays the Super/Windows key off Apple.
+    /// MetalUI-only — SwiftUI ships only on Apple platforms, where its
+    /// default is `.command`.
+    public static let primary: Modifiers = {
+        #if os(macOS) || os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
+        return .command
+        #else
+        return .control
+        #endif
+    }()
 }
 
 /// The phase of a trackpad gesture or a scroll (ruling `CI-I` item 1): AppKit's

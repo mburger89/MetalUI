@@ -559,9 +559,9 @@ private func noLookup(_ url: String) -> PinLookup {
 /// **1.8** (`SG-D` item 1). The cross-platform manifest names
 /// `MetalUIPortableText` and `MetalUISystemFonts` on every platform — no
 /// `condition:` — so a test target naming them builds on macOS under the
-/// default build system (SwiftPM drops a product an executable reaches
-/// conditionally from the test target's module maps: `unable to resolve
-/// module dependency`); `MetalUISDL` keeps its Linux/Windows condition. Red
+/// default build system (SwiftPM drops the C modules of a product an
+/// executable reaches conditionally from the test target's module maps:
+/// `unable to resolve module dependency: 'CFreeType'`); `MetalUISDL` keeps its Linux/Windows condition. Red
 /// before: the two products carry the condition. Mutation: restore it —
 /// reddens.
 @Test func theCrossPlatformManifestNamesThePortableTextProductsOnEveryPlatform() throws {
@@ -569,8 +569,8 @@ private func noLookup(_ url: String) -> PinLookup {
                                                                      reference: .revision(pinned))] {
         let manifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
             name: "MyApp", source: source, crossPlatform: true))).contents
-        #expect(manifest.contains(#"                .product(name: "MetalUIPortableText", package: "MetalUI"),\n"#))
-        #expect(manifest.contains(#"                .product(name: "MetalUISystemFonts", package: "MetalUI"),\n"#))
+        #expect(manifest.contains(#"                .product(name: "MetalUIPortableText", package: "MetalUI"),\#n"#))
+        #expect(manifest.contains(#"                .product(name: "MetalUISystemFonts", package: "MetalUI"),\#n"#))
         #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),"#))
         #expect(manifest.components(separatedBy: "condition:").count == 2, "one conditional product:\n\(manifest)")
         #expect(manifest.contains("SG-D"), "the manifest says why, naming the ruling")
@@ -583,7 +583,8 @@ private func noLookup(_ url: String) -> PinLookup {
 /// portable-text products and constructing a `PortableTextSystem`; on macOS
 /// `swift build --build-tests` (the default build system) exits 0 and prints
 /// no `warning:` line. Red before: with the condition it fails with
-/// `unable to resolve module dependency: 'MetalUIPortableText'` (record §89).
+/// `error: unable to resolve module dependency: 'CFreeType'` (and `CHarfBuzz`,
+/// `CSheenBidi`, `CUnibreak`; measured 2026-10-09, record §89).
 /// Mutation: restore the condition — reddens under the env run.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_SCAFFOLD_BUILD_TEST"] == "1"))
 func aCrossPlatformPackagesTestTargetBuildsOnMacOS() throws {
