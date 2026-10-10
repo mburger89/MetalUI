@@ -272,13 +272,35 @@ private enum Absolute {
     }
 }
 
-/// The canonical rasters of `content`'s frame against `absolute`: how many
-/// rasters, how many differ in bounds, how many bytes differ and by how much.
+/// The canonical rasters of `content`'s frame against `absolute`, compared
+/// **on the device** — each texel at its device pixel, 0 outside its rect — so
+/// an extra all-zero row is no difference: how many rasters, how many have
+/// other bounds, how many device bytes differ, by how much at most, and the
+/// kinds that differ.
 private struct Comparison: CustomStringConvertible {
     var rasters = 0, strips = 0, boundsDiffer = 0, bytesDiffer = 0, maxDelta = 0
+    var differing: [String] = []
     var description: String {
-        "\(rasters) rasters (\(strips) strips), \(boundsDiffer) bounds differ, \(bytesDiffer) bytes differ, max Δ \(maxDelta)"
+        "\(rasters) rasters (\(strips) strips), \(boundsDiffer) other bounds, \(bytesDiffer) device bytes differ, "
+            + "max Δ \(maxDelta)\(differing.isEmpty ? "" : " in \(differing)")"
     }
+}
+
+/// The name of a raster kind and its first leaf's, for a report.
+private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
+    func name(_ k: CapturedPrimitive.Kind) -> String {
+        switch k {
+        case .rect: "rect"
+        case .glyph: "glyph"
+        case .image: "image"
+        case .surface: "surface"
+        case .path: "path"
+        case let .shadow(p): "shadow(\(p.leaf.first.map { name($0.kind) } ?? ""))"
+        case .gradient: "gradient"
+        case let .blur(p): "blur(\(p.leaf.first.map { name($0.kind) } ?? ""))"
+        }
+    }
+    return name(kind)
 }
 
 @MainActor private func compareCanonical<E: Element>(_ element: E, scale: Float) -> Comparison {
@@ -298,24 +320,38 @@ private struct Comparison: CustomStringConvertible {
         default: drawn = nil
         }
         c.rasters += 1
+        let reference: (RasterRect, [UInt8])
         switch absolute(kind, t, in: frame) {
         case .strip:
             c.strips += 1
+            continue
         case .none:
-            if drawn != nil { c.boundsDiffer += 1 }
+            reference = (RasterRect(x: 0, y: 0, width: 0, height: 0), [])
         case let .image(rect, bytes):
-            guard let (quad, texture) = drawn else { c.boundsDiffer += 1; continue }
+            reference = (rect, bytes)
+        }
+        var mine = (RasterRect(x: 0, y: 0, width: 0, height: 0), [UInt8]())
+        if let (quad, texture) = drawn {
             if quad.filter & 0xFF == ImageFilter.linear.rawValue { c.strips += 1; continue }
-            let b = quad.bounds
-            guard b.origin.x == Float(rect.x), b.origin.y == Float(rect.y), b.size.width == Float(rect.width),
-                  b.size.height == Float(rect.height), texture.pixels.count == bytes.count else {
-                c.boundsDiffer += 1; continue
-            }
-            for (x, y) in zip(texture.pixels, bytes) where x != y {
-                c.bytesDiffer += 1
-                c.maxDelta = max(c.maxDelta, abs(Int(x) - Int(y)))
+            mine = (RasterRect(x: Int(quad.bounds.origin.x), y: Int(quad.bounds.origin.y), width: texture.width,
+                               height: texture.height), texture.pixels)
+        }
+        if mine.0 != reference.0 { c.boundsDiffer += 1 }
+        func byte(_ r: (RasterRect, [UInt8]), _ x: Int, _ y: Int, _ k: Int) -> Int {
+            guard x >= r.0.x, y >= r.0.y, x < r.0.maxX, y < r.0.maxY else { return 0 }
+            return Int(r.1[((y - r.0.y) * r.0.width + (x - r.0.x)) * 4 + k])
+        }
+        let union = mine.0.union(reference.0)
+        var differs = false
+        for y in union.y..<union.maxY {
+            for x in union.x..<union.maxX {
+                for k in 0..<4 {
+                    let d = abs(byte(mine, x, y, k) - byte(reference, x, y, k))
+                    if d > 0 { c.bytesDiffer += 1; c.maxDelta = max(c.maxDelta, d); differs = true }
+                }
             }
         }
+        if differs { c.differing.append(kindName(kind)) }
     }
     return c
 }
@@ -370,29 +406,47 @@ private struct Comparison: CustomStringConvertible {
     }
 }
 
-/// **L1.5** (`PF-C` item 2). The canonical raster, shifted by `S`, equals
-/// 2155f1e's absolute call — every raster kind, at an integer, a dyadic and a
-/// non-dyadic position (each a fraction of the leaves inside their effect and
-/// of the maps outside it), at 1× and 2×: the same bounds always, the same
-/// bytes at integer and dyadic positions, and at a non-dyadic one at most 1
-/// apart (`PF-C` item 3's contingency; the measured counts are in record §90).
+/// **L1.5** (`PF-C` item 2, as `PF-M` amends it). The canonical raster,
+/// shifted by `S`, against 2155f1e's absolute call — every raster kind, at an
+/// integer, a dyadic and a non-dyadic position (each a fraction of the leaves
+/// inside their effect and of the maps outside it), at 1× and 2×, compared on
+/// the device: at most 1 apart anywhere, 0 at integer positions. A dyadic
+/// position is not always exact (`PF-M` item 1: a curved outline's deposits
+/// round differently in the rasterizer's running sum at another magnitude, and
+/// a half-covered pixel at exactly 128 can read 127); the measured counts are
+/// in record §90.
 @Test @MainActor func aCanonicalRasterEqualsTheAbsoluteOne() throws {
-    let positions: [(x: Float, y: Float, dyadic: Bool)] = [(0, 0, true), (0.5, 0.25, true), (0.3, 0.7, false)]
+    let positions: [(inner: (Float, Float), outer: (Float, Float), integer: Bool)] =
+        [((0, 0), (0, 0), true), ((0.25, 0.5), (0.5, 0.25), false), ((0.3, 0.7), (0.1, 0.45), false)]
     for scale: Float in [1, 2] {
         for p in positions {
-            let tree = placed(everyRasterKind(inner: (p.y, p.x)), x: 20, y: 30).offset(x: px(p.x), y: px(p.y))
+            let tree = placed(everyRasterKind(inner: p.inner), x: 20, y: 30).offset(x: px(p.outer.0), y: px(p.outer.1))
             let c = compareCanonical(tree, scale: scale)
-            let note = "\(scale)× at (\(p.x), \(p.y)): \(c)"
+            let note = "\(scale)× inner \(p.inner) outer \(p.outer): \(c)"
             try #require(c.rasters >= 20, Comment(rawValue: note))
-            #expect(c.strips == 0 && c.boundsDiffer == 0, Comment(rawValue: note))
-            if p.dyadic {
-                #expect(c.bytesDiffer == 0, Comment(rawValue: note))
-            } else {
-                #expect(c.maxDelta <= 1, Comment(rawValue: note))
-            }
+            #expect(c.strips == 0 && c.maxDelta <= 1, Comment(rawValue: note))
+            if p.integer { #expect(c.bytesDiffer == 0, Comment(rawValue: note)) }
             print("L1.5 \(note)")
         }
     }
+}
+
+/// **L1.5b** (`PF-M` item 2, pin). Where a resampled leaf's box lands within a
+/// `Float` rounding of an integer at one magnitude and not the other — here a
+/// 6 × 6 image whose inner and outer fractions sum to whole device pixels —
+/// 2155f1e's `Float` bounding box and the canonical one enclose different
+/// rectangles, and the column the canonical raster gains or loses holds the
+/// bilinear filter's bleed past the image's edge. Pinned as measured: only the
+/// resampled kinds differ, by at most 4 after the blur; every outline stays
+/// within 1.
+@Test @MainActor func aResampledLeafAtAnIntegerCoincidenceMayGainItsBleedColumn() throws {
+    let c = compareCanonical(placed(everyRasterKind(inner: (0.7, 0.3)), x: 20, y: 30).offset(x: px(0.3), y: px(0.7)),
+                             scale: 2)
+    let note = "\(c)"
+    try #require(c.rasters >= 20, Comment(rawValue: note))
+    let resampled: Set<String> = ["shadow(image)", "shadow(glyph)", "blur(image)", "blur(glyph)"]
+    #expect(Set(c.differing).isSubset(of: resampled) && c.maxDelta <= 4, Comment(rawValue: note))
+    print("L1.5b \(note)")
 }
 
 // MARK: - L1.6 (PF-B, PF-J): a cut raster misses

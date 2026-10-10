@@ -132,16 +132,27 @@ extension Frame {
         let full = (transform?.affine ?? .identity).concatenating(paint.local)
         let cache = animationStore.rasters
         if transform == nil, let strip = stripImage(paint, full: full, cache: cache) { return strip }
+        // The full raster, canonical (`PF-A`): the outline, its axis and its
+        // strip rectangle translated by the floored anchor.
+        let (rx, ry) = RasterAnchor.outlineAnchor(paint.geometry, map: full) ?? (0, 0)
+        var box = ExtentBox()
+        box.add((transform?.affine ?? .identity).boundingBox(of: paint.bounds))
+        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: box.rect(grownBy: 1), placement: placement)
+        var canonical = paint
+        if anchor.isCanonical {
+            canonical.geometry = paint.geometry.translated(dx: -rx, dy: -ry)
+            canonical.axis = paint.axis.offsetBy(dx: -rx, dy: -ry)
+        }
+        let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
         key.add(6)
-        key.paths.append(paint.geometry)
+        key.paths.append(canonical.geometry)
         keyMode(paint.mode, into: &key)
-        key.add(full)
-        placement.keyed(&key)
+        anchor.keyed(&key, clip: clip, placement: placement)
         key.words += paint.stops.keyWords
-        for w in paint.axis.words { key.add(w) }
+        for w in canonical.axis.words { key.add(w) }
         guard let (rect, texture) = cache.image(for: key, make: {
-            let layer = gradientPixels(paint, full: full, clip: placement.clip, cache: cache)
+            let layer = gradientPixels(canonical, full: anchor.map, clip: clip, cache: cache)
             guard !layer.rect.isEmpty else { return nil }
             var cut = layer
             if let localMask = placement.localMask {
@@ -152,7 +163,7 @@ extension Frame {
             guard !cut.rect.isEmpty else { return nil }
             return (cut.rect, cut.texture)
         }) else { return nil }
-        var quad = placement.quad(over: rect)
+        var quad = placement.quad(over: anchor.placed(rect))
         quad.opacity = paint.opacity
         return (quad, texture)
     }

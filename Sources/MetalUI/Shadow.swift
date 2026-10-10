@@ -96,25 +96,39 @@ extension Frame {
     /// A shadow's image (`GX-J`): the leaf's silhouette in device pixels under
     /// the composed transform, offset by the mapped offset, blurred with sigma
     /// = radius × `sqrt|det|`, cut by the clip at the shadow's entry, tinted.
+    /// Made and keyed in canonical coordinates (`PF-A`): the leaf translated
+    /// by its floored anchor, placed at the integer device anchor, the clip in
+    /// the key only when it cuts (`PF-B`, `PF-J`) — so a whole-pixel move hits.
     func shadowImage(_ paint: ShadowPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
         animationStore.rasters.onRaster?(.shadow(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
-        guard !placement.clip.isEmpty, paint.color.a > 0, !paint.leaf.isEmpty else { return nil }
+        guard !placement.clip.isEmpty, paint.color.a > 0, !paint.leaf.isEmpty,
+              let (rx, ry) = RasterAnchor.leafAnchor(paint.leaf) else { return nil }
         let full = (transform?.affine ?? .identity).concatenating(paint.local)
+        // The conservative extent (`PF-J`): the leaf under the offset map,
+        // grown by the blur's reach and a pixel.
+        let ox = full.a * paint.dx + full.c * paint.dy, oy = full.b * paint.dx + full.d * paint.dy
+        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
+        let extent = RasterExtent.of(paint.leaf, map: Affine2D.translation(x: ox, y: oy).concatenating(full))
+            .rect(grownBy: pad)
+        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        var canonical = paint
+        canonical.local = .identity
+        if anchor.isCanonical { canonical.leaf = paint.leaf.map { $0.movedCanonically(-rx, -ry) } }
+        let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
         key.add(2)
-        key.add(full)
-        placement.keyed(&key)
+        anchor.keyed(&key, clip: clip, placement: placement)
         var retained: [AnyObject] = []
-        keyShadow(paint, into: &key, retained: &retained)
+        keyShadow(canonical, into: &key, retained: &retained)
         let cache = animationStore.rasters
         let mask = cache.coverage(for: key, retaining: retained) {
-            let blurred = shadowCoverage(paint, full: full, clip: placement.clip, cache: cache)
-            return placement.applyingLocalMask(RasterMath.crop(blurred, to: placement.clip), cache: cache)
+            let blurred = shadowCoverage(canonical, full: anchor.map, clip: clip, cache: cache)
+            return placement.applyingLocalMask(RasterMath.crop(blurred, to: clip), cache: cache)
         }
         guard !mask.rect.isEmpty else { return nil }
-        return (placement.quad(over: mask), cache.texture(for: key, color: paint.color, mask: mask))
+        return (placement.quad(over: anchor.placed(mask.rect)), cache.texture(for: key, color: paint.color, mask: mask))
     }
 
     /// Every number of `paint`'s leaf, for its cache key.
@@ -125,38 +139,47 @@ extension Frame {
 
     /// Every number of a captured leaf, for a cache key — the shadow's and
     /// the blur's (`GX-J`, `LK-K`): one switch, so the two cannot drift.
-    /// A shadow needs only alpha; a blur (`colours`) every colour.
+    /// A shadow needs only alpha; a blur (`colours`) every colour. A mask
+    /// enters only when it decides a byte (`PF-I`): a primitive's own mask
+    /// when it was pushed inside the scope (`innerMask`), its transform's outer
+    /// mask when `outerMaskInner`; otherwise the word `-2` stands in — a mask
+    /// at or outside the scope's entry is the panel's or window's absolute
+    /// clip, which a moving node moves against.
     func keyLeaf(_ leaf: [CapturedPrimitive], into key: inout RasterKey, retained: inout [AnyObject],
                  colours: Bool = false) {
         key.add(leaf.count)
         for q in leaf {
+            func mask(_ bounds: MUIBounds, _ radii: MUICorners) {
+                if q.innerMask { key.add(bounds); key.add(radii) } else { key.add(-2) }
+            }
             key.add(q.innerMask ? 1 : 0)
             key.add(q.outerMaskInner ? 1 : 0)
             if let t = q.transform {
-                key.add(t.affine); key.add(t.outerMask); key.add(t.outerMaskRadii)
+                key.add(t.affine)
+                if q.outerMaskInner { key.add(t.outerMask); key.add(t.outerMaskRadii) } else { key.add(-2) }
             } else {
                 key.add(-1)
             }
             switch q.kind {
             case let .rect(r):
-                key.add(10); key.add(r.bounds); key.add(r.contentMask); key.add(r.maskCornerRadii)
+                key.add(10); key.add(r.bounds); mask(r.contentMask, r.maskCornerRadii)
                 key.add(r.cornerRadii); key.add(r.borderWidths); key.add(r.background.a); key.add(r.borderColor.a)
                 key.add(r.shapeKind)
                 if colours { key.add(r.background); key.add(r.borderColor) }
             case let .glyph(g):
-                key.add(11); key.add(g.bounds); key.add(g.atlasBounds); key.add(g.contentMask)
-                key.add(g.maskCornerRadii); key.add(g.color.a)
+                key.add(11); key.add(g.bounds); key.add(g.atlasBounds); mask(g.contentMask, g.maskCornerRadii)
+                key.add(g.color.a)
                 if colours { key.add(g.color) }
             case let .image(i, texture):
-                key.add(12); key.add(i.bounds); key.add(i.contentMask); key.add(i.maskCornerRadii)
+                key.add(12); key.add(i.bounds); mask(i.contentMask, i.maskCornerRadii)
                 key.add(i.opacity); key.add(i.filterKind)
                 key.objects.append(ObjectIdentifier(texture)); retained.append(texture)
             case let .surface(q, _):
-                key.add(13); key.add(q.bounds); key.add(q.contentMask); key.add(q.maskCornerRadii); key.add(q.opacity)
+                key.add(13); key.add(q.bounds); mask(q.contentMask, q.maskCornerRadii); key.add(q.opacity)
             case let .path(p):
                 key.add(14); key.paths.append(p.geometry); key.add(p.local); key.add(p.color.a)
                 if colours { key.add(p.color) }
-                key.add(p.contentMask); key.add(p.maskCornerRadii)
+                mask(p.contentMask, p.maskCornerRadii)
                 switch p.mode {
                 case let .fill(rule, antialiased):
                     key.add(rule == .evenOdd ? 1 : 0); key.add(antialiased ? 1 : 0)
@@ -167,17 +190,17 @@ extension Frame {
                     for d in style.dash { key.add(d) }
                 }
             case let .shadow(inner):
-                key.add(15); key.add(inner.color.a); key.add(inner.contentMask); key.add(inner.maskCornerRadii)
+                key.add(15); key.add(inner.color.a); mask(inner.contentMask, inner.maskCornerRadii)
                 if colours { key.add(inner.color) }
                 keyShadow(inner, into: &key, retained: &retained)
             case let .gradient(g):
                 key.add(16); key.paths.append(g.geometry); keyMode(g.mode, into: &key); key.add(g.local)
-                key.add(g.opacity); key.add(g.contentMask); key.add(g.maskCornerRadii)
+                key.add(g.opacity); mask(g.contentMask, g.maskCornerRadii)
                 key.words += g.stops.keyWords
                 for w in g.axis.words { key.add(w) }
             case let .blur(inner):
                 key.add(17); key.add(inner.radius); key.add(inner.local); key.add(inner.alpha)
-                key.add(inner.contentMask); key.add(inner.maskCornerRadii)
+                mask(inner.contentMask, inner.maskCornerRadii)
                 keyLeaf(inner.leaf, into: &key, retained: &retained, colours: true)
             }
         }

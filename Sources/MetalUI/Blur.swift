@@ -104,23 +104,32 @@ extension Frame {
 
     /// A blurred leaf's image (`LK-K`): the leaf in colour in device pixels
     /// under the composed transform, each premultiplied channel blurred with
-    /// sigma = radius × `sqrt|det|`, cut by the clip at the blur's entry.
+    /// sigma = radius × `sqrt|det|`, cut by the clip at the blur's entry. Made
+    /// and keyed in canonical coordinates, as a shadow's (`PF-A`, `PF-B`): the
+    /// cached rectangle is canonical and placed at the integer device anchor.
     func blurImage(_ paint: BlurPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
         animationStore.rasters.onRaster?(.blur(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
-        guard !placement.clip.isEmpty, paint.alpha > 0, !paint.leaf.isEmpty else { return nil }
+        guard !placement.clip.isEmpty, paint.alpha > 0, !paint.leaf.isEmpty,
+              let (rx, ry) = RasterAnchor.leafAnchor(paint.leaf) else { return nil }
         let full = (transform?.affine ?? .identity).concatenating(paint.local)
+        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
+        let extent = RasterExtent.of(paint.leaf, map: full).rect(grownBy: pad)
+        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        var canonical = paint
+        canonical.local = .identity
+        if anchor.isCanonical { canonical.leaf = paint.leaf.map { $0.movedCanonically(-rx, -ry) } }
+        let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
         key.add(7)
-        key.add(full)
-        placement.keyed(&key)
+        anchor.keyed(&key, clip: clip, placement: placement)
         key.add(paint.radius)
         var retained: [AnyObject] = []
-        keyLeaf(paint.leaf, into: &key, retained: &retained, colours: true)
+        keyLeaf(canonical.leaf, into: &key, retained: &retained, colours: true)
         let cache = animationStore.rasters
         guard let (rect, texture) = cache.image(for: key, retaining: retained, make: {
-            var layer = blurLayer(paint, full: full, clip: placement.clip, cache: cache).cropped(to: placement.clip)
+            var layer = blurLayer(canonical, full: anchor.map, clip: clip, cache: cache).cropped(to: clip)
             if let localMask = placement.localMask, !layer.rect.isEmpty {
                 layer = layer.multiplied(by: RasterMath.maskCoverage(localMask.bounds, localMask.radii,
                                                                      map: localMask.map, clip: layer.rect,
@@ -129,7 +138,7 @@ extension Frame {
             guard !layer.rect.isEmpty else { return nil }
             return (layer.rect, layer.texture)
         }) else { return nil }
-        var quad = placement.quad(over: rect)
+        var quad = placement.quad(over: anchor.placed(rect))
         quad.opacity = paint.alpha
         return (quad, texture)
     }

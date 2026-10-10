@@ -374,15 +374,25 @@ extension Frame {
 
     /// A path's image (`GX-B`): rasterized in device pixels under its composed
     /// transform (`transform ∘ local`), inside the visible rectangle only, the
-    /// colour multiplied in; `nil` when nothing is visible.
+    /// colour multiplied in; `nil` when nothing is visible. Made and keyed in
+    /// canonical coordinates (`PF-A`): the outline translated by its anchor
+    /// floored to the device grid, placed at the integer device anchor, the
+    /// clip keyed only when it cuts (`PF-B`).
     func pathImage(_ paint: PathPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
         animationStore.rasters.onRaster?(.path(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.color.a > 0 else { return nil }
-        let full = (transform?.affine ?? .identity).concatenating(paint.local)
+        let outer = transform?.affine ?? .identity
+        let full = outer.concatenating(paint.local)
+        let (rx, ry) = RasterAnchor.outlineAnchor(paint.geometry, map: full) ?? (0, 0)
+        var box = ExtentBox()
+        box.add(outer.boundingBox(of: paint.bounds))
+        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: box.rect(grownBy: 1), placement: placement)
+        let geometry = anchor.isCanonical ? paint.geometry.translated(dx: -rx, dy: -ry) : paint.geometry
+        let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
-        key.paths.append(paint.geometry)
+        key.paths.append(geometry)
         switch paint.mode {
         case let .fill(rule, antialiased):
             key.add(0); key.add(rule == .evenOdd ? 1 : 0); key.add(antialiased ? 1 : 0)
@@ -392,24 +402,24 @@ extension Frame {
             key.add(style.join == .miter ? 0 : style.join == .round ? 1 : 2)
             for d in style.dash { key.add(d) }
         }
-        key.add(full)
-        placement.keyed(&key)
+        anchor.keyed(&key, clip: clip, placement: placement)
         let cache = animationStore.rasters
+        let map = anchor.map.pathAffine
         let mask = cache.coverage(for: key) {
             var rasterizer = CoverageRasterizer()
             let coverage: AlphaMask
             switch paint.mode {
             case let .fill(rule, antialiased):
-                coverage = PathRaster.fill(paint.geometry, rule: rule, transform: full.pathAffine,
-                                           clip: placement.clip, antialiased: antialiased, rasterizer: &rasterizer)
+                coverage = PathRaster.fill(geometry, rule: rule, transform: map, clip: clip,
+                                           antialiased: antialiased, rasterizer: &rasterizer)
             case let .stroke(style):
-                coverage = PathRaster.stroke(paint.geometry, style: style, transform: full.pathAffine,
-                                             clip: placement.clip, rasterizer: &rasterizer)
+                coverage = PathRaster.stroke(geometry, style: style, transform: map, clip: clip,
+                                             rasterizer: &rasterizer)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return placement.applyingLocalMask(coverage, cache: cache)
         }
         guard !mask.rect.isEmpty else { return nil }
-        return (placement.quad(over: mask), cache.texture(for: key, color: paint.color, mask: mask))
+        return (placement.quad(over: anchor.placed(mask.rect)), cache.texture(for: key, color: paint.color, mask: mask))
     }
 }
