@@ -47,6 +47,9 @@ public final class TestWindow {
     var pointer: Point<Pixels>?
     /// The modifier keys held since the last ``pressModifiers(_:)``.
     var heldModifiers: EventModifiers = []
+    /// The presentation tokens the harness has answered (lane 2,
+    /// `TestWindowPresentations.swift`).
+    var answered = AnsweredPresentations()
 
     init(testApp: TestApp, parts: Parts) {
         self.testApp = testApp
