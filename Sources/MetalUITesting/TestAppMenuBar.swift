@@ -12,7 +12,9 @@ extension TestApp {
 
     /// Performs the menu-bar command at `path` (a menu title, then item
     /// titles through submenus) from a fresh evaluation, then draws a frame in
-    /// every window. Throws ``TestHarnessError/noMenuItem(_:)`` for no such
+    /// every window — each is marked dirty first, since the action runs outside
+    /// window input and an `@Observable` write reaches the window through the
+    /// observation hop, synchronous on macOS only (ruling `HT-U` item 1). Throws ``TestHarnessError/noMenuItem(_:)`` for no such
     /// command — a standard item (Quit, Copy …) is the platform's own command
     /// and has none here (ruling `HT-T`) — and
     /// ``TestHarnessError/disabledMenuItem(_:)`` for a disabled one.
@@ -25,6 +27,9 @@ extension TestApp {
         let item = try MenuPath.command(Array(path.dropFirst()), in: menu.items, reportedAs: path)
         guard item.standardAction == nil else { throw TestHarnessError.noMenuItem(path) }
         bar.perform(item.id)
-        for window in windows { window.tick() }
+        for window in windows {
+            window.window.setNeedsRedraw()
+            window.tick()
+        }
     }
 }
