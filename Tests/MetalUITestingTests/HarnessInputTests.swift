@@ -119,8 +119,10 @@ private struct HarnessKAction: Action {}
     #expect(model.text == "k", "and the key went to the field")
 }
 
-/// 1.10 — `typeKey` with ⌘ fires a ⌘S keyboard shortcut; plain S does not
-/// (`IX-F` item 2: modifiers match exactly). Mutation: modifiers dropped.
+/// 1.10 — `typeKey` with the primary modifier (⌘ on Apple, ⌃ elsewhere:
+/// `SG-B`, the default of `.keyboardShortcut`) fires an S keyboard shortcut;
+/// plain S does not (`IX-F` item 2: modifiers match exactly). Mutation:
+/// modifiers dropped.
 @Test @MainActor func typeKeyWithCommandFiresAKeyboardShortcut() throws {
     let log = HarnessLog()
     let window = try harnessWindow {
@@ -128,7 +130,7 @@ private struct HarnessKAction: Action {}
     }
     window.typeKey("s")
     #expect(log.entries.isEmpty, "plain S is not ⌘S")
-    window.typeKey("s", modifierFlags: .command)
+    window.typeKey("s", modifierFlags: .primary)
     #expect(log.entries == ["save"])
 }
 

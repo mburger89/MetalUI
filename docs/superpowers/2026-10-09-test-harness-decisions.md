@@ -702,7 +702,14 @@ made three things true, each pinned.
    target naming them conditionally fails on macOS; the generated test target
    (`HT-O`) had copied the condition. The merge lists them unconditionally on
    the executable and the test target; `docs/testing.md` says so.
-3. **Count debt**: every count in `CLAUDE.md` is the merge's (record §91 §12).
+3. **`.keyboardShortcut`'s default modifier is the primary one** (`SG-B`:
+   `Modifiers.primary`, ⌘ on Apple and ⌃ elsewhere). Three lane tests
+   wrote `.command` (`typeKeyWithCommandFiresAKeyboardShortcut`,
+   `menuEvaluationReadsContentOutsideAnyWindow`,
+   `aContextMenuIsReadAndAnItemChosenByTitle`) and failed in the noble image
+   at the merge (`.command` is Super there); they now write `.primary`,
+   value-identical on macOS. Test 2.25's rule (`HT-U` 2) was this one.
+4. **Count debt**: every count in `CLAUDE.md` is the merge's (record §91 §12).
 
 **Cost if wrong.** A third platform answer for `setMenuBar` adds nothing: the
 option is one Boolean.
