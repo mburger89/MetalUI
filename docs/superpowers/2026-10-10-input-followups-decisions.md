@@ -21,7 +21,7 @@ Evidence:
 - gpui is **not read** for this item; where a ruling is MetalUI's own design
   (`IF-F`, `IF-G`, `IF-H`) it says so.
 
-Prefix **`IF-`**, lettered. **Next unused: `IF-M`.** (This line moves in the
+Prefix **`IF-`**, lettered. **Next unused: `IF-N`.** (This line moves in the
 commit that appends a ruling; read the last `## IF-` heading.)
 
 Branch `feat/input-followups` from `f2fe54a`. `docs/divergences.md`: this
@@ -404,3 +404,41 @@ overclaims were corrected in `IF-C` and `IF-E` (the 0.33 s equality; `C5`'s
 **Cost if wrong.** A `DragGesture` with no `onChanged` closure still counts as
 having activated, so a lone `onCancelled` runs: intended (the owner learns the drag
 began without being told each move).
+
+## IF-M — Lane 2 as built: the latch, the synthesized cancel, the platform sends
+
+**Ruling (as built; `IF-G`, `IF-H`, `IF-I` stand).**
+
+1. `ScrollLatch` (own file) holds the cover id and layer, the two in-flight flags
+   and **the last event** (its position, modifiers, precision and timestamp are
+   what the synthesized terminal event repeats; added to `IF-G`'s four fields).
+   `Window.applyScroll` is three functions: the entry (latch bookkeeping),
+   `applyScrollAtPointer` (the former body up to the candidate list, returning the
+   cover) and `dispatchScrollChain` (the former walk, shared). The pointer path is
+   byte for byte the old one; the latched path differs only in the candidate list
+   (every wheel/scroll region on the latched layer, no `contains`).
+2. A latch is set at **every** `.began`, even when the dispatch claimed nothing or
+   the cover is not a scroller; a `.began` over nothing clears it. A gesture event
+   whose latched id is gone from the last frame clears the latch and takes the
+   pointer path (`IF-G` item 3).
+3. The synthesized event goes to the latched cover's wheel handlers, innermost first,
+   and **stops at the first handler that answers `true` or at the first scroller**:
+   those are the elements that saw the scroll's events, so the same elements see
+   its end. `IF-H`'s "the `Bool` is ignored" means it never claims anything; a
+   `false` answer lets the next outer handler see the end, as it saw the events.
+   Its `timestamp` is the last event's (the platform's clock; `Window` has no other).
+   Hence test 2.9 cannot see a `scroll(_:by:)` mutation through the offset or the
+   last-scroll stamp (a zero delta and an equal timestamp): see the record for what
+   reddens it.
+4. AppKit: `refreshControlActiveState` sends `.modifiersChanged` after the callback
+   when the new state is `.key`; the flags come from `AppKitWindow.currentModifierFlags`
+   (internal; `NSEvent.modifierFlags` in production, a test's stand-in otherwise).
+   SDL: `translate` fills `modifiers` of the focus-gained event from `SDL_GetModState`,
+   `SDLPlatform` hands that event to its window after recording the focus, and
+   `SDLWindow.handle` sends `.modifiersChanged`. The bridge's test synthesizer sets
+   SDL's tracked modifier state from the synthetic event's `modifiers` (a window
+   event carries none), so a following `FOCUS_LOST` with `0` restores it.
+
+**Cost if wrong.** A `.began` over a non-scrolling, non-handling cover latches it:
+the glide then reaches that cover's chain, whose answer is the pointer path's for
+that cover (the opaque target swallows it).

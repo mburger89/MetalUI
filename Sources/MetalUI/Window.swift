@@ -858,6 +858,7 @@ public final class Window {
                 self?.dismissInWindowMenu()   // `MN-F` item 3
                 self?.hideTooltip()   // `MN-P` item 2
                 self?.cancelPinchArena()   // its end is lost for certain (`IF-F` item 4)
+                self?.synthesizeTerminalScroll()   // `IF-H`
             }
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
@@ -1630,6 +1631,7 @@ public final class Window {
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
         cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
+        synthesizeTerminalScroll()   // `IF-H`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
@@ -2012,13 +2014,53 @@ public final class Window {
     /// a `ScrollView` sees nothing over it (`CI-AH` item 1, narrowed by `CI-AL`
     /// item 3: a custom `StyledElement` that calls the public
     /// `registerScrollRegion` under its own id and takes `.onScrollWheel` does
-    /// share it, and its handler runs first — unpinned). Each event is
-    /// dispatched at its own position — no latching (`CI-AD`).
+    /// share it, and its handler runs first — unpinned). **A trackpad scroll is
+    /// latched** (`IF-G`, `ScrollLatch`): `.began` records the cover, and the
+    /// scroll's later events and its momentum go to that cover's chain wherever
+    /// the pointer is; every other event is dispatched at its own position.
     private func applyScroll(_ event: ScrollEvent) -> Bool {
+        // A wheel mouse (and every SDL event) has no phase: never latched, and
+        // it ends a latch (`IF-G` item 3).
+        if event.phase == .none, event.momentumPhase == .none { scrollLatch = nil }
+        // A trackpad scroll that began somewhere goes on there (`IF-G` items
+        // 1, 2): the latched cover's chain, no `contains` test. An element
+        // that left the frame falls back to the pointer, for good.
+        if ScrollLatch.isGestureEvent(event), var latch = scrollLatch {
+            if let cover = latchedScrollCover(latch) {
+                let claimed = dispatchScrollChain(event, cover: cover, candidates: lastHitboxes.indices.filter {
+                    let region = lastHitboxes[$0]
+                    return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
+                        && region.layer == cover.layer
+                })
+                scrollLatch = latch.advance(with: event) ? latch : nil
+                return claimed
+            }
+            scrollLatch = nil
+        }
+        let (claimed, cover) = applyScrollAtPointer(event)
+        if event.phase == .began {
+            scrollLatch = cover.map { ScrollLatch(cover: $0, event: event) }   // replaces any latch
+        }
+        return claimed
+    }
+
+    /// The latched cover's hitbox in the last frame: its opaque hitbox on the
+    /// latched layer, else any region of that id and layer; `nil` when the
+    /// element left the frame.
+    private func latchedScrollCover(_ latch: ScrollLatch) -> Hitbox? {
+        let here = lastHitboxes.filter { $0.id == latch.cover && $0.layer == latch.layer }
+        return here.last(where: { $0.opaque }) ?? here.last
+    }
+
+    /// The pointer path of `applyScroll` (`DD-Y`, `CI-AH`, `CI-AL`): the cover
+    /// of the one ranking at the event's position, and whether the chain
+    /// claimed. The cover is returned (`nil` when nothing was under the
+    /// pointer) for the latch.
+    private func applyScrollAtPointer(_ event: ScrollEvent) -> (claimed: Bool, cover: Hitbox?) {
         let point = event.position
         guard let topIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.pointer?.scrollWheel != nil
-        }) else { return false }
+        }) else { return (false, nil) }
         var cover = lastHitboxes[topIndex]
         // A legacy `.onScrollWheel` registers its non-opaque wheel region under
         // the element's own id after the element's opaque hitbox, so it ranks
@@ -2037,6 +2079,15 @@ public final class Window {
             return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
                 && region.layer == cover.layer && region.contains(point)
         }
+        return (dispatchScrollChain(event, cover: cover, candidates: candidates), cover)
+    }
+
+    /// Walks the cover's chain over `candidates` (the regions on the cover's
+    /// layer — those containing the pointer on the pointer path, all of them
+    /// on the latched one): at each id, the wheel handlers innermost first,
+    /// the multi-line editor at the cover, then the id's scroller.
+    private func dispatchScrollChain(_ event: ScrollEvent, cover: Hitbox, candidates: [Int]) -> Bool {
+        let point = event.position
         var cursor: GlobalElementID? = cover.id
         while let id = cursor {
             let here = candidates.filter { lastHitboxes[$0].id == id }
@@ -2066,6 +2117,32 @@ public final class Window {
             cursor = id.parent
         }
         return cover.opaque
+    }
+
+    /// Ends a scroll that lost its terminal phase (`IF-H`): on leaving key and
+    /// on a close, a scroll still in flight gets one synthesized terminal
+    /// event — delta zero, `.cancelled` in the stage under way — offered to
+    /// the latched cover's wheel handlers, innermost first, up to the first
+    /// scroller or the first handler that answers `true`. It moves nothing, and
+    /// the latch is over.
+    func synthesizeTerminalScroll() {
+        guard let latch = scrollLatch else { return }
+        scrollLatch = nil
+        guard let event = latch.terminalEvent, let cover = latchedScrollCover(latch) else { return }
+        var cursor: GlobalElementID? = cover.id
+        while let id = cursor {
+            let here = lastHitboxes.filter { $0.id == id && $0.layer == latch.layer }
+            for region in here.reversed() {
+                guard let handler = region.handlers.pointer?.scrollWheel else { continue }
+                var local = event
+                let p = region.localPoint(event.position)
+                local.location = Point(x: Pixels(p.x.value - region.origin.x.value),
+                                       y: Pixels(p.y.value - region.origin.y.value))
+                if StateDispatch.dispatching(to: region.id, { handler(local) }) { return }
+            }
+            if here.contains(where: { $0.scroll != nil }) { return }
+            cursor = id.parent
+        }
     }
 
     /// Moves `region`'s stored offset by the wheel's component on its axis.
@@ -2557,6 +2634,9 @@ public final class Window {
     /// The trackpad pinch's arena (`CI-D`), or `nil`: formed at a pinch's
     /// first event, alive while a begun magnify or rotate has not ended.
     private var pinchArena: GestureArena?
+
+    /// Where the trackpad scroll under way is latched (`IF-G`), or `nil`.
+    private var scrollLatch: ScrollLatch?
 
     /// The secondary or other button's arena (`CI-F` item 3) and its button
     /// number, or `nil`: formed at that button's press, ended by its release.

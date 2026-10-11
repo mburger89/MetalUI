@@ -713,6 +713,24 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         guard state != lastControlActiveState else { return }
         lastControlActiveState = state
         onControlActiveStateChange?(state)
+        // A window that becomes key learns the modifiers held now (`IF-I`): a
+        // key pressed while another window was key sent this one no
+        // `flagsChanged`.
+        if state == .key { _ = onInput?(.modifiersChanged(Self.modifiers(currentModifierFlags()))) }
+    }
+
+    /// The modifier keys held now: `NSEvent.modifierFlags` in production, a
+    /// test's stand-in otherwise.
+    var currentModifierFlags: @MainActor () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }
+
+    /// `flags` as MetalUI's modifiers.
+    static func modifiers(_ flags: NSEvent.ModifierFlags) -> Modifiers {
+        var m: Modifiers = []
+        if flags.contains(.shift) { m.insert(.shift) }
+        if flags.contains(.control) { m.insert(.control) }
+        if flags.contains(.option) { m.insert(.option) }
+        if flags.contains(.command) { m.insert(.command) }
+        return m
     }
 
     // MARK: Reduce Motion (plan task 13, ruling AN-AD)
