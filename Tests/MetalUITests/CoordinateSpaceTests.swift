@@ -5,9 +5,10 @@ import MetalUICore
 import MetalUILayout
 import MetalUIPlatform
 @testable import MetalUI
+import MetalUIText
 
 // Overlays and coordinates (C15), lane A — named coordinate spaces, the hover
-// coordinate space and the window size in the environment: tests A1–A18
+// coordinate space and the window size in the environment: tests A1–A21
 // (rulings `OV-D`…`OV-H`, `OV-L`…`OV-P`; spec
 // `docs/superpowers/specs/2026-10-10-overlays-coords-design.md` §4.1).
 // SwiftUI's side is `docs/probes/swiftui-overlays-coords.swift`, arms G1–G7;
@@ -663,4 +664,115 @@ private struct SpaceRecorder: ProposalElement {
     #expect(near(space.toWindow.apply(pt(0, 0)), pt(75, 75)), "the 50 × 50 container at (75, 75): \(space.toWindow)")
     #expect(named.previous.last! == named.recorded[named.recorded.count - 2])
     withExtendedLifetime((window, namedWindow)) {}
+}
+
+// MARK: - A19–A21: review follow-ups (record §92)
+
+/// **A19** (`OV-H`, `OV-Q` item 2). A gesture on an **ancestor** of the
+/// pressed target resolves `.named` through the ancestor's own snapshot —
+/// MetalCreator's case: a tile with a tap inside a canvas whose pan is a
+/// `DragGesture(coordinateSpace: .named("c"))`. The 200 × 200 container
+/// carries the drag, padded 10 in space `c` (at (40, 40)); its 50 × 50 child,
+/// centred at (125, 125)…(175, 175), is its own press target
+/// (`.onTapGesture {}`). A press at (140, 150) dragged to (160, 170) reaches
+/// the container's drag as (100, 110) → (120, 130), and a
+/// `SpatialTapGesture(coordinateSpace: .named("c"))` on the container sees a
+/// tap on the child at (100, 110). Mutation X1: `makeGestureArena` without
+/// `noteSpaces(index)` for a joining ancestor — the drag reports window points
+/// (140, 150)/(160, 170) and the tap (140, 150).
+@MainActor
+@Test func anAncestorsGestureResolvesItsNamedSpaceWhenAChildIsPressed() throws {
+    func tree<G: Gesture>(_ gesture: G) -> some Element {
+        HStack {
+            ZStack {
+                Rectangle().frame(width: px(200), height: px(200))
+                Rectangle().frame(width: px(50), height: px(50)).onTapGesture {}
+            }
+            .gesture(gesture)
+            .padding(Edges(all: px(10))).coordinateSpace(.named("c"))
+        }
+    }
+    var values: [DragGesture.Value] = []
+    let (window, platform) = try csWindow {
+        tree(DragGesture(minimumDistance: px(1), coordinateSpace: .named("c")).onChanged { values.append($0) })
+    }
+    try #require(window.lastHitboxes.filter { !$0.handlers.gestures.isEmpty }.count >= 2,
+                 "the child and the container each carry a gesture")
+    platform.simulateInput(ldown(140, 150))
+    platform.simulateInput(ldrag(160, 170))
+    platform.simulateInput(lup(160, 170))
+    let last = try #require(values.last)
+    #expect(near(last.startLocation, pt(100, 110)), "\(values)")
+    #expect(near(last.location, pt(120, 130)), "\(values)")
+
+    var locations: [Point<Pixels>] = []
+    let (spatialWindow, spatialPlatform) = try csWindow {
+        HStack {
+            ZStack {
+                Rectangle().frame(width: px(200), height: px(200))
+                Rectangle().frame(width: px(50), height: px(50)).onTapGesture {}
+            }
+            .simultaneousGesture(SpatialTapGesture(coordinateSpace: .named("c")).onEnded { locations.append($0.location) })
+            .padding(Edges(all: px(10))).coordinateSpace(.named("c"))
+        }
+    }
+    spatialPlatform.simulateInput(ldown(140, 150))
+    spatialPlatform.simulateInput(lup(140, 150))
+    #expect(locations.count == 1 && near(locations.first, pt(100, 110)), "\(locations)")
+    withExtendedLifetime((window, spatialWindow)) {}
+}
+
+/// A 40 × 20 rectangle reporting its global frame and its frame in
+/// `.named(name)`, tagged.
+@MainActor private func namedLeaf(_ log: CSLog, _ tag: String, _ name: String) -> some ProposalElementGroup {
+    Rectangle().frame(width: px(40), height: px(20))
+        .onGeometryChange(for: [Bounds<Pixels>].self, of: { p in
+            [p.frame(in: .global), p.frame(in: .named(name))]
+        }) { v in log.add(tag + " global", v[0]); log.add(tag + " named", v[1]) }
+}
+
+/// **A20** (`OV-E` items 2–3, `OV-Q` item 1). A degenerate space — a zero
+/// scale written after its `coordinateSpace` — resolves as missing, so its
+/// content reads `.global`; and an innermost degenerate entry never falls
+/// through to an outer space of the same name: the inner `outer` under
+/// `.scaleEffect(0)`, the outer at (50, 40), reads `.global`, not global less
+/// (50, 40). Mutation X3: `NamedSpace.resolve` skips degenerate entries
+/// (`last(where: { $0.name == name && $0.toSpace != nil })`) — the nested arm
+/// reads the outer space.
+@MainActor
+@Test func aDegenerateInnermostSpaceReadsGlobalAndNeverFallsThrough() throws {
+    let log = CSLog()
+    let (window, _) = try csWindow {
+        placed(VStack(alignment: .leading, spacing: px(0)) {
+            namedLeaf(log, "solo", "solo").padding(Edges(all: px(30))).coordinateSpace(.named("solo"))
+                .scaleEffect(0)
+            namedLeaf(log, "nested", "outer").padding(Edges(all: px(30))).coordinateSpace(.named("outer"))
+                .scaleEffect(0)
+                .padding(Edges(all: px(10))).coordinateSpace(.named("outer"))
+        })
+    }
+    let solo = try #require(log.frames["solo global"]?.first, "\(log.frames)")
+    #expect(near(log.frames["solo named"]?.first, solo), "degenerate → global: \(log.frames)")
+    let nested = try #require(log.frames["nested global"]?.first, "\(log.frames)")
+    #expect(near(log.frames["nested named"]?.first, nested), "no fall-through: \(log.frames)")
+    #expect(!near(log.frames["nested named"]?.first, rect(nested.origin.x.value - 50, nested.origin.y.value - 40,
+                                                          nested.size.width.value, nested.size.height.value)),
+            "not the outer space's reading")
+    withExtendedLifetime(window) {}
+}
+
+/// **A21** (`OV-R`). The headless `renderFrame` stamps `windowSize` with its
+/// `size`, as one frame of a window of that size would (XP-C): the bars of
+/// A14 are a quarter of 200 × 120 — 50 and 30 wide. Red before the fix: no bar
+/// (unstamped, 0 wide). Mutation: drop the stamp.
+@MainActor
+@Test func renderFrameStampsWindowSize() throws {
+    let scene = renderFrame({ Column { WindowSizeBars() } },
+                            size: Size(width: px(200), height: px(120)), scaleFactor: 1,
+                            textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 64, height: 64))
+    func widths(_ h: Float) -> [Float] {
+        scene.rects.filter { $0.bounds.size.height == h }.map { $0.bounds.size.width }
+    }
+    #expect(widths(7) == [50], "\(widths(7))")
+    #expect(widths(9) == [30], "\(widths(9))")
 }

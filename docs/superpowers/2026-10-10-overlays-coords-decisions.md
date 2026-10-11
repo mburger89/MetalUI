@@ -13,7 +13,7 @@ run twice, byte-identical) and `docs/probes/swiftui-overlays-coords-typecheck.sh
 (`anchored()`, `Anchor::TopLeft`, `AnchoredFitMode::SwitchAnchor` by default,
 `position` in window coordinates) and `on_mouse_down_out`.
 
-**Next unused id: `OV-R`.**
+**Next unused id: `OV-S`.**
 
 ## The final spellings (what an app writes)
 
@@ -399,7 +399,7 @@ all four (and `Window.lastPresentationSpaces`) with a unit test each in
 mutation: not carried). `PopoverModifier`'s stored properties change (lane B):
 `swift package clean` before the native build that follows, per CLAUDE.md.
 
-## OV-Q — Lane A's spellings of the hooks (refines `OV-E` item 3, `OV-H`, `OV-N`, `OV-P`)
+## OV-Q — Lane A's spellings of the hooks (refines `OV-E` item 3, `OV-H`, `OV-N`, `OV-P`; item 2 amended by `OV-R`)
 
 **Question.** The spec named the hooks; three spellings were left to lane A.
 
@@ -428,4 +428,38 @@ mutation: not carried). `PopoverModifier`'s stored properties change (lane B):
    value and re-reports). A3, A16 and A18's second arm share that mutation.
 
 **Cost if wrong.** Internal only; no public spelling.
+
+## OV-R — Lane A review: no draggable snapshot; the headless frame stamps `windowSize` (amends `OV-Q` item 2, clarifies `OV-G`)
+
+**Question.** The lane-A review found three lines no test reddened and one
+unstamped path: (X1) the joining ancestor's snapshot in
+`Window.makeGestureArena`; (X2) the draggable-above snapshot there; (X3) the
+rule that a degenerate innermost space never falls through to an outer one of
+the same name; and the headless `renderFrame`, which never stamped
+`windowSize` although it renders "exactly as one frame of a window of `size`
+would" (`XP-C`).
+
+**Ruling.**
+1. X1 and X3 are pinned: A19
+   (`anAncestorsGestureResolvesItsNamedSpaceWhenAChildIsPressed`, MetalCreator's
+   tile inside a `.named("canvas")` pan) and A20
+   (`aDegenerateInnermostSpaceReadsGlobalAndNeverFallsThrough`). The rules stand.
+2. **The arena takes no snapshot for the draggable above the target.** A
+   non-opaque draggable region is registered only for an element that is not a
+   pointer target (`Frame.registerHandlers`, `!handlers.isPointerTarget`), so
+   every gesture it carries is a `.draggable`, and a draggable leaf never
+   resolves a coordinate space (`press`/`move`/`release` read only its
+   `pressPoint`). An element with a `.draggable` and a `.named` `DragGesture` is
+   a pointer target: its opaque hitbox is the target itself (A12's case). The
+   line was dead, so it is removed rather than pinned; `OV-Q` item 2's "the
+   draggable's" index is struck. A future draggable that reads a space restores
+   it with a test.
+3. **`renderFrame` stamps `windowSize = size`**, as a `Window` stamps its
+   `contentSize` (`OV-O`): a tree sized from `@Environment(\.windowSize)` renders
+   the same headless. Pinned by A21 (`renderFrameStampsWindowSize`; red before,
+   0 wide). The `windowSize` doc comment says so.
+
+**Cost if wrong.** Item 2: a draggable gaining a space-reading recognizer
+reports window points until the snapshot returns. Item 3: none for existing
+callers — no production tree read `windowSize` before this branch.
 

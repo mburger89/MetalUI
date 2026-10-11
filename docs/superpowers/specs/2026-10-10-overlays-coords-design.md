@@ -224,6 +224,9 @@ name every reddened test.
 | A16 | `aNamedGeometryValueIsReportedOnceAndOnChange` | KF-J | named value excluded from `isEqual` input (re-reports every frame) |
 | A17 | `aPresentationsContentResolvesItsDeclarersNamedSpace` | OV-M 2 | `PrepaintPass.deferred` clears the stack |
 | A18 | `presentationSpacesAreCarriedToTheNextFrame` (`.local` with an effect, `.named`) | OV-N, OV-P | not carried; `localSpace` without the composed map |
+| A19 | `anAncestorsGestureResolvesItsNamedSpaceWhenAChildIsPressed` (a `.named` drag and spatial tap on a container, a child with `.onTapGesture {}` pressed) | OV-H, OV-Q 2 | X1: `makeGestureArena` without the joining ancestor's `noteSpaces(index)` |
+| A20 | `aDegenerateInnermostSpaceReadsGlobalAndNeverFallsThrough` (`.scaleEffect(0)` after the space; nested `outer`) | OV-E 2–3, OV-Q 1 | X3: `NamedSpace.resolve` skips degenerate entries |
+| A21 | `renderFrameStampsWindowSize` | OV-R | drop `renderFrame`'s stamp |
 
 Guards (`Tests/MetalUITests/CoordinateSpaceCompileGuards.swift`, `typecheckFile`
 with a plain import, each mutated red once): **GA1**

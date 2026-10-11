@@ -2476,7 +2476,10 @@ public final class Window {
             namedSpaces[lastHitboxes[index].id] = spaces
         }
         noteSpaces(key.target)
-        if let above = key.draggableAbove { noteSpaces(above) }
+        // No snapshot for `key.draggableAbove` (`OV-R`): a draggable region
+        // exists only for an element whose every gesture is a `.draggable`
+        // (`Frame.registerHandlers`, `!isPointerTarget`), and a draggable leaf
+        // never resolves a coordinate space.
         var depth = 1
         var cursor = hit.id.parent
         while let id = cursor {

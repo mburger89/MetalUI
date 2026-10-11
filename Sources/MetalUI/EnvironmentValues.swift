@@ -196,7 +196,8 @@ public struct EnvironmentValues {
     /// `titleBarInsets` for the area below a hidden bar. Zero in a bare value;
     /// a `Window` stamps the size each build is laid out at into the root
     /// (never through `Window.environment`), so a live resize is in the frame
-    /// presenting it. Get-only outside the module.
+    /// presenting it; the headless `renderFrame` stamps its `size` (`OV-R`).
+    /// Get-only outside the module.
     public internal(set) var windowSize: Size<Pixels> = Size(width: Pixels(0), height: Pixels(0))
 
     /// The window's open and save dialogs as async calls (ruling `SV-D`) —
