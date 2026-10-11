@@ -57,7 +57,8 @@ summary.
   `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
-  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), …; the full
+  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
+  `2026-10-09-test-harness-decisions.md`, next `HT-Y`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -72,7 +73,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **134 live, next label 206** (196–204 unused by C12, 215–224 reserved by an open branch, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF and SG, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG and HT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -92,7 +93,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`, then `SG-M` (File ▸ Close and Quit, +2): 3237 tests,
+- **Counts (2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3310 tests, 0 goldens, 208 typecheck guards**
+  (master's 3237 + 73 tests, 205 + 3 guards: lane 1's 37, lane 2's 30, lane 3's 5, the merge's 2.31; native
+  `--build-system native` run all passed after `swift package clean`, the default build system 0 `warning:`; census 3356 (3134 +
+  the product's 222); root in `swift:6.4-noble` 9 + 40 + 21 + 199 + 78 + 22 plus `MetalUITestingTests` 72; `Backends/SDL` untouched
+  by this branch; the fourteen images 0 px against `70e9389` at lanes 1 and 3; record §91 §12). Before it,
+  **(2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`, then `SG-M` (File ▸ Close and Quit, +2): 3237 tests,
   0 goldens, 205 typecheck guards** (master's 3204 + 33 tests, 203 + 2 guards; 3237 re-measured clean by the orchestrator on `e1937ea`, record §89 §14; native run on an
   unlocked screen, all passed; census 3139 (3134 + 5); `Backends/SDL` 24 + 111 on macOS, 24 + 108
   in the Linux image; root in `swift:6.4-noble` 9 + 38 + 21 + 199 + 78 + 22; the fourteen images 0 px against
@@ -182,7 +188,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -244,8 +250,9 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty-three one-way-dependent targets (`MetalUIPath`, `GX-B`, and the last two
-`MetalUIScaffold` and `MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
+Twenty-four one-way-dependent targets (`MetalUIPath`, `GX-B`, the last two
+`MetalUIScaffold` and `MetalUICLI`, `SC-A`, and portable `MetalUITesting`, which imports
+only `MetalUI` and `MetalUIScene`, `HT-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
 Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
@@ -274,8 +281,9 @@ these violations show.
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
   `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
-  default so a conformer that forgets one fails to compile. Both conformers
-  and every test fake implement all of them. **`Platform` (not a window) has
+  default so a conformer that forgets one fails to compile. Both conformers,
+  the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
+  answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
   six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:) -> Bool`** (`MN-I`, `SG-A`: `true` when the platform shows the bar) **and the app shell's
   `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
@@ -934,6 +942,24 @@ manifest names the two portable-text products unconditionally (a SwiftPM defect,
 **`Window.drawnChromeHeight`** is the bar plus the strip, and an explicit `minSize`/`maxSize` is
 measured below it (`SG-F`). A `Component`'s prepaint record is one heap box (`ComponentPrepaint`,
 `SG-E`).
+
+**Test harness (`HT-`, record §91, `docs/testing.md`).** `MetalUITesting` is a portable library
+product for test targets only (`MetalUI` never links it): `TestApp`/`TestWindow` run the **real**
+`App.openWindow` and `Window` over `HeadlessPlatform`/`HeadlessPlatformWindow`/
+`HeadlessWindowRenderer`, which implement every platform requirement honestly (options default to
+AppKit's answers). Input is XCUITest's names with AppKit's key routing; a **simulated clock**
+(`tick`, `advance(by:)`, `runUntilIdle()` — four quiet yields, bounded at 64 rounds); **an action
+draws one frame, `tick` draws the next**, and a test's model is a plain class plus
+`setNeedsRedraw()` or `@Observable` with `runUntilIdle()` (the observation hop is asynchronous off
+macOS); queries read the accessibility tree (`element(label:)` also matches a static text's string)
+and `frame(ofID:)` is the laid-out rect before scroll and effects; presentations are read and
+answered at the seam, or driven through the tree where the option makes the window draw them
+(`presentsAlertsNatively`, `presentsMenusNatively`, `showsToolbarNatively`,
+`HeadlessPlatform.showsMenuBarNatively`); `FrameWork` counts a frame's work (benchmarks count work,
+never time). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swift` and
+`TestingMenuHooks.swift` (plain-import guards 3.1–3.3 pin them unreachable); no pixels, no GPU
+surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name
+(`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent

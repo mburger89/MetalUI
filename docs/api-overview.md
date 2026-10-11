@@ -758,7 +758,7 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 `element(identifier:)`, `elements(role:)`, `TestElement`), laid-out frames
 (`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
 `chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
-`MenuEvaluation`) and per-frame work counters (`FrameWork`) for benchmarks
+`MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
 that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 

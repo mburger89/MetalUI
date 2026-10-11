@@ -250,4 +250,27 @@ counts bullet), `docs/api-overview.md` (a Testing section), `docs/migration.md`
 
 ## §12 Closing measurements (the merge, 2026-10-10)
 
-@@CLOSING@@
+Merge `2bc6c12` (master `f2fe54a` into the branch), then `HT-X`'s fixes; the head measured is `fd9de58`.
+
+- **The merge broke the root package twice, both caught here**: master's defaultless
+  `setMenuBar(_:) -> Bool` (`HeadlessPlatform` compiled no more; `HT-X` 1, red: the build, then 2.31
+  written first and its mutation, `setMenuBar` answering `true` regardless, reddened exactly
+  `aMenuBarThePlatformDeclinesIsDrawnAndDrivenThroughTheTree` in a full unfiltered run of 3310
+  tests, source restored from a copy, `git status --short` empty), and `SG-B`'s primary modifier
+  (three lane tests wrote `.command`; red only in the noble image, `HT-X` 3).
+- **macOS, `--build-system native`, unfiltered `--no-parallel`**: after `swift package clean` the
+  first build found the `setMenuBar` error; fixed, then **3310 tests in 3 suites passed** (master's
+  3237 + 73: 37 + 30 + 5 + 2.31), the `FR-J no-argument frame: succeeded=true` line present, 0 `error:`,
+  the only `warning:` SwiftPM's deprecation notice. Guards 208 (master's 205 + 3). Default build system
+  `swift build --build-tests`: 0 `warning:`, build complete.
+- **`swift:6.4-noble`, root package** (volume `metalui-root-build-test-harness`): `MetalUITestingTests`
+  72 + 9 + 40 + 21 + 199 + 78 + 22, all passed, 0 `warning:`, 0 `error:` (the first run read the three
+  `.command` failures; the second, after the fix, none).
+- **Census** 3356 declarations (`closeout-public-api.sh` re-recorded, `closeout-public-api.tsv`);
+  `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+- **Fourteen images**, `compare.sh <scratch> 70e9389 fd9de58`: all `differing=0`, scene identical;
+  the controls read as recorded (light vs dark 1048576, default vs modal 1031003, f0 vs f3 0).
+  `Expected.swift` unedited. The screen was not probed: no real-window capture was taken.
+- **`Backends/SDL`** is untouched by the branch (its sources arrive only through master's merge); not
+  re-run. The Linux/Windows CI confirm on push.
+
