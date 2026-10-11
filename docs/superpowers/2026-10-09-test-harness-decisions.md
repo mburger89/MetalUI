@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-W`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-X`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -643,3 +643,41 @@ branch at `cafc337`; the spec (§3.3, §4.3) is corrected in the same commit.
 **Cost if wrong.** Each item is pinned by the test it names (3.9 for the
 backticks, 3.10 for the refusals); a Windows failure costs one manifest
 condition and a migration note.
+
+## HT-W — Lane 3's mutations, measured (2026-10-10)
+
+**Ruling.** Each lane-3 row of spec §4.3 was mutated once on `6d3da45`
+from a copy, native build, full unfiltered `--no-parallel` run, source
+restored, `git status --short` empty after each. Every one reddened its
+test (3141 tests per run):
+1. **3.1's mutation needs a companion edit to be measurable.** Making
+   `TestWindow.click(_ element:modifierFlags:)` `internal` also stops
+   `MetalUITestingTests` compiling (its files import the harness plainly),
+   so the build fails before the guard runs. The measured spelling makes it
+   `internal` **and** switches those twelve files to `@testable import
+   MetalUITesting` for the run: then only the plain-import guard can see the
+   change, and it reddened exactly
+   `anOutsideTestFileCanDriveATestWindowWithAPlainImport`.
+2. 3.2 (`testingElementBounds` made `public`): exactly
+   `anOutsideFileCannotReachTheTestingHooks`. 3.3 (`Window.init` made
+   `public`): exactly `anOutsideFileStillCannotConstructAWindow`.
+3. 3.5 (`runClick` called twice in `dispatchClick`): 113 tests, the moved
+   `aClickInsideTheBoundsRunsTheHandler` among them. 3.6 (`previous[key] ??
+   returned[key]` → `returned[key]` in `LifecycleStore`): 41 tests, the moved
+   `anIfThatInsertsContentRunsItsOnAppearOnce` among them. 3.7 (drop `token ==
+   result.token` from `handleAlertResult`): exactly
+   `aStaleAlertAnswerNeverReachesTheNextAlert`. 3.8 (skip the menu session's
+   token comparison): exactly `aMenuActionWithAStaleTokenRunsNothing`.
+4. 3.9, drop the test file: `aGeneratedPackageHasATestTargetOverTheHarness`
+   and `theDefaultPackageIsMacOSOnlyAndDependsOnTheRepositoryByGitURL` (the
+   file listing). Never escape a keyword:
+   `aGeneratedPackageHasATestTargetOverTheHarness`, plus the five
+   `AppKitPresentationTests` sheet issues of `CI-AF`, which that one run also
+   read (an environment flake, not the mutation: no other run here read them).
+5. 3.10, drop the `MetalUI` prefix refusal: `metalUITestingIsARefusedName`
+   and `aNameThatIsNotAModuleNameIsRefusedWithItsReason`. Drop the `Testing`
+   entry: exactly `metalUITestingIsARefusedName`.
+
+**Cost if wrong.** None to the code; the spec's 3.1 row now names the
+companion edit, so a re-run of the mutation measures the guard and does not
+stop at a build failure.

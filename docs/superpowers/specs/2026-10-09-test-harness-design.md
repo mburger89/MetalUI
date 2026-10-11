@@ -559,7 +559,7 @@ fixed-size frames.
 
 | # | Test | Red before | Mutation |
 |---|---|---|---|
-| 3.1 | `anOutsideTestFileCanDriveATestWindowWithAPlainImport` (`typecheckFile`, imports `MetalUI` and `MetalUITesting` only: open, click by label, `frame(ofID:)`, `respondToAlert`, `MenuEvaluation`, `menuBar`) — must typecheck | — | `TestWindow.click(_:modifierFlags:)` made `internal` → red |
+| 3.1 | `anOutsideTestFileCanDriveATestWindowWithAPlainImport` (`typecheckFile`, imports `MetalUI` and `MetalUITesting` only: open, click by label, `frame(ofID:)`, `respondToAlert`, `MenuEvaluation`, `menuBar`) — must typecheck | — | `TestWindow.click(_ element:modifierFlags:)` made `internal`, with `MetalUITestingTests`' imports switched to `@testable` for the run so they still compile (`HT-W` item 1) → red |
 | 3.2 | `anOutsideFileCannotReachTheTestingHooks` — `window.testingElementBounds` must fail | — | hook made `public` → red |
 | 3.3 | `anOutsideFileStillCannotConstructAWindow` — `Window(platformWindow:…)` must fail | — | `Window.init` made `public` → red |
 | 3.5 | `aClickInsideTheBoundsRunsTheHandler` (moved from `InputDispatchTests`) | — | `runClick` called twice in `dispatchClick` (the original named none, `HT-V` item 1) |
