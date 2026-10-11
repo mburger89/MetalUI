@@ -192,6 +192,8 @@ F	gradients	A	swiftui-controls-looks.swift	G11	theOklabTableMatchesG11G2G5	-	LK-
 F	blur	D	swiftui-controls-looks.swift	B2	blurIsPerLeafB2	167	LK-K	blur(radius:) on both vocabularies (one LayoutModifier.blur layer; a legacy render effect in written order): per leaf (B2), sigma = radius (B1, the shadow's three-box blur), render only (B4), cut by a clip outside (B5), the radius animates; a GPU surface inside is drawn unblurred (167)
 F	compositing-group	D	swiftui-shadow-cache.swift	P2	aCompositingGroupCastsOneShadowOfTheUnion	205	PF-E	compositingGroup() on both vocabularies (one LayoutModifier.compositingGroup layer; a legacy render effect in written order returning Self): an enclosing shadow or blur sees the content as one leaf — one shadow of the union below the whole group (P2), one blur of the composite (CG2); alone it changes nothing (CG4); render only (CG3); an opacity outside it is not composited (205, CG1)
 F	materials	D	swiftui-controls-looks.swift	M5	everyMaterialMatchesSwiftUIOverWhiteAndBlackM5	166	LK-L LK-O LK-R	Material .ultraThinMaterial/.thinMaterial/.regularMaterial/.thickMaterial/.ultraThickMaterial/.bar as .background(_:) on both vocabularies, .background(_:in:) and Shape.fill(_:): a flat grey tint per material and scheme fitted from ImageRenderer so that over uniform white and black it matches SwiftUI's within one level (M5); no backdrop blur (166)
+F	popover-attachment-anchor	D	swiftui-overlays-coords.swift	A1	aPointAnchorCentresThePopoverOnThePoint	225	OV-B OV-L OV-T	PopoverAttachmentAnchor (.rect(Source), .point(UnitPoint)) and its nested Source (.bounds, .rect(_:)) on the four .popover overloads' attachmentAnchor: (default .rect(.bounds)): a point is a zero-size rect at the unit point of the declarer's bounds, a .rect(.rect(r)) is r in the declarer's own space (A1-A7); Source for SwiftUI's Anchor<CGRect>.Source and the rect a Bounds<Pixels> (225); Sendable/Hashable additive (OV-L)
+F	anchored-overlay	M	swiftui-overlays-coords.swift	A1	anOverlayPutsItsTopLeadingCornerAtThePoint	-	OV-A OV-K OV-N OV-S	anchoredOverlay(isPresented:at:in:anchor:content:) and anchoredOverlay(item:at:in:anchor:content:) on both vocabularies (PopoverModifier): MetalUI-only, gpui's anchored() + on_mouse_down_out — no chrome, the content's anchor unit point at a point read fresh at layout in .local/.global/.named, flipped per axis then clamped inside the window; any outside press of any button dismisses and passes on (the declarer's too), Escape the topmost; SwiftUI has no chrome-less or corner-anchored popover (A0-A7, B0-B2)
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -329,6 +331,8 @@ M	MetalUI	KeyPress.swift	.*	.*	.*	key-press
 M	MetalUI	HoverKeyRegion.swift	.*	.*	.*	hover-key-region
 M	MetalUI	KeyboardModifier.swift	.*	.*	.*	keyboard-modifier
 M	MetalUI	CoordinateSpaceScope.swift	.*	.*	.*	named-coordinate-space
+M	MetalUI	AnchoredOverlay.swift	(-|PopoverAttachmentAnchor|PopoverAttachmentAnchor\.Source)	(PopoverAttachmentAnchor|Source|bounds|rect)	.*	popover-attachment-anchor
+M	MetalUI	AnchoredOverlay.swift	.*	.*	.*	anchored-overlay
 M	MetalUI	GeometryChange.swift	.*	.*	.*	geometry-change
 M	MetalUI	TimelineSchedule.swift	.*	.*	.*	timeline-view
 M	MetalUI	TimelineView.swift	.*	.*	.*	timeline-view

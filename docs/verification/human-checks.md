@@ -1255,6 +1255,34 @@ pointer's sub-pixel positions and the look beside SwiftUI.
   shows the red square's shadow on the blue; the `compositingGroup()` pair one
   shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
 
+## OV. Overlays and coordinates — `anchoredOverlay`, point anchors, named spaces, `windowSize` (item C15, user request 2026-10-02, not a plan task)
+
+A chrome-less overlay with its corner at a point, dismissed by any outside
+press and Escape; `.popover(attachmentAnchor:)`; named coordinate spaces on
+`onGeometryChange`, hover and gestures; `@Environment(\.windowSize)` (rulings
+`OV-A`…`OV-T`, record §92). Pinned headless through a fake window
+(`AnchoredOverlayTests` B6–B24, `PopoverTests` B1–B5, `CoordinateSpaceTests`
+A1–A21). What nothing headless sees: a real pointer, a live resize, the native
+context menu over the dismissal. Demo: `METALUI_OVERLAYS_DEMO=1 swift run
+MetalUIDemo`. **Not run — an agent cannot.**
+
+- [ ] **OV1. The palette at the pointer.** Click the canvas: the palette opens
+  with its top-left corner exactly at the pointer; near the window's right or
+  bottom edge it flips to the other side of the pointer on that axis only.
+  **Observed:**
+- [ ] **OV2. One right-click outside.** With the palette open, right-click the
+  "Right-click me" card: the palette closes and the context menu opens on that
+  same press; a middle click outside closes it too. **Observed:**
+- [ ] **OV3. Keys and Escape.** Click the palette's search field and type: the
+  text appears; press Escape with the field focused: the palette closes.
+  **Observed:**
+- [ ] **OV4. The crosshair.** Move over the canvas: the crosshair from
+  `onContinuousHover(coordinateSpace: .named("canvas"))` stays under the
+  pointer. **Observed:**
+- [ ] **OV5. `windowSize` and a live resize.** Resize the window: the readout's
+  window size follows it; an open palette near the edge re-flips in the same
+  frame. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

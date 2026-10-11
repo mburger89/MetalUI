@@ -13,7 +13,7 @@ run twice, byte-identical) and `docs/probes/swiftui-overlays-coords-typecheck.sh
 (`anchored()`, `Anchor::TopLeft`, `AnchoredFitMode::SwitchAnchor` by default,
 `position` in window coordinates) and `on_mouse_down_out`.
 
-**Next unused id: `OV-S`.**
+**Next unused id: `OV-U`.**
 
 ## The final spellings (what an app writes)
 
@@ -467,3 +467,40 @@ would" (`XP-C`).
 reports window points until the snapshot returns. Item 3: none for existing
 callers — no production tree read `windowSize` before this branch.
 
+
+## OV-S — A `.local` or `.named` overlay waits one frame for its declarer's space (refines `OV-K`)
+
+**Question.** `OV-K` maps a `.local`/`.named` point through the space the
+declarer recorded in its **last** prepaint, "`.global` when absent". On the
+first frame a declarer is laid out there is no last prepaint, so "absent" means
+two things: no space yet, or a name no ancestor declares.
+
+**Ruling.** The two are told apart by the anchor map every `PopoverModifier`
+already records (`previousPresentationAnchors`, `MN-M` item 2): with no last
+anchor, a `.local`/`.named` overlay is not produced and the frame asks for one
+more (`.popover`'s own rule, test 3.14's shape), so it never draws one frame at
+the raw point; with a last anchor and no recorded space (a missing name) or a
+degenerate one, it places as `.global` (`OV-E`). A `.global` overlay needs
+nothing from the last frame and presents in its first. The space is recorded in
+every prepaint, presented or not, so the usual case — the canvas laid out long
+before the click — places the point written with the binding in the frame
+presenting it (B17). A presented overlay whose recorded space changed asks for
+one more frame, as a moved anchor does. Pinned by B22 (frame 0 empty, frame 1
+placed) and B17.
+
+**Cost if wrong.** An overlay presented from the very first frame of a window
+appears on the second (as `.popover` does today).
+
+## OV-T — Guard G3.2 is re-spelled: `.popover` takes `attachmentAnchor:` (supersedes `MN-L` item 3)
+
+`MN-L` item 3 ruled that `.popover` takes no `attachmentAnchor:`, pinned by
+guard G3.2 `aPopoverHasNoAttachmentAnchorParameter` (an `attachmentAnchor: 0`
+call refused). `OV-B` adds SwiftUI's argument, so that guard's claim is false.
+The spec's "every `PopoverCompileGuards` test unchanged" was wrong for G3.2.
+**Ruling**: G3.2 becomes `aPopoversAttachmentAnchorTakesOnlyAPopoverAttachmentAnchor`
+— an `Int` anchor is still refused, now naming `PopoverAttachmentAnchor`, and
+`.point(.center)`/`.rect(.bounds)` compile (positive control); its mutation
+MG3.2 is unchanged (an `attachmentAnchor: Int = 0` overload makes the negative
+compile). The guard count does not move. The menus decisions doc's `MN-L`
+item 3 and the inventory map's `popovers` row are owed a "superseded by
+`OV-B`" note in the Record phase.
