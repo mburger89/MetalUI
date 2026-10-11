@@ -96,3 +96,31 @@ private struct HarnessRestless: Component {
         #expect(error == .notIdle(rounds: 64))
     }
 }
+
+/// Pacing pin (`HT-E`; the branch checker's X2) — `advanceFrames(_:)` moves the
+/// clock 1/60 s per frame, so 30 frames are half a second: a 1 s linear
+/// animation of a box from 10 to 110 wide reads 60 at the 30th frame (derived
+/// 10 + 100 × 0.5; ±2 for the start frame's quantisation). Mutation: delete
+/// `now += 1.0 / 60.0` in `advanceFrames` (the clock stays 0, the box stays
+/// 10 and `now` stays 0).
+@Test @MainActor func advanceFramesPacesTheClockAtOneSixtiethOfASecondPerFrame() throws {
+    let model = HarnessWide()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Box().frame(width: Pixels(model.wide ? 110 : 10), height: Pixels(10)).background(.accent)
+                .onClick { withAnimation(.linear(duration: 1)) { model.wide = true } }
+        }
+    }
+    let box = try #require(rects(window, height: 10).first)
+    window.click(at: Point(x: Pixels(box.bounds.origin.x + 2), y: Pixels(box.bounds.origin.y + 2)))
+    #expect(window.now == 0, "the click moves no clock")
+    window.advanceFrames(30)
+    #expect(abs(window.now - 0.5) < 1e-9, "30 frames at 1/60 s are half a second: \(window.now)")
+    let widths = rects(window, height: 10).map { $0.bounds.size.width }
+    let width = try #require(widths.first)
+    #expect(abs(width - 60) <= 2, "halfway through a 1 s linear 10 -> 110: \(widths)")
+    window.advanceFrames(30)
+    #expect(try #require(rects(window, height: 10).first).bounds.size.width == 110, "and done at 1 s")
+}
+
+@Observable @MainActor final class HarnessWide { var wide = false }

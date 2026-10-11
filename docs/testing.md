@@ -114,6 +114,75 @@ test sees its effect.
   `pressModifiers(_:)`. The editing shortcuts are ⌘ on macOS and ⌃ elsewhere.
 - Raw: `send(_ event: InputEvent)` delivers one event and draws nothing.
 
+### Recipe: typing into a canvas app's field
+
+A text field that commits on the shortcut-modified Return, submits on a plain
+Return, handles Escape, and loses focus to a click on the canvas around it
+(a `.hoverKeyRegion()`, `KF-E`). `.primary` is the platform's shortcut
+modifier (⌘ on macOS, Ctrl elsewhere), so the same chord works on every
+platform; `typeText` reaches the field as text input, and `onKeyPress` runs
+before the field's own editing keys, so the handler decides the chord and a
+plain Return falls through (`.ignored`) to `onSubmit`. **This exact code is
+`Tests/MetalUITestingTests/TestingRecipeTests.swift`, run on every platform, so
+it cannot rot; change both together.** (`harnessWindow` is the test target's helper over
+`TestWindow(size:textSystem:content:)`, as in "Setting it up".)
+
+```swift
+@Observable @MainActor final class RecipeModel {
+    var text = ""
+    var committed: [String] = []
+    var log: [String] = []
+}
+
+@Test @MainActor func typingIntoAFieldCommitsOnTheShortcutReturnAndAClickInAKeyRegionResignsFocus() throws {
+    let model = RecipeModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            TextField("Name", text: model.text) { model.text = $0 }
+                .onSubmit { model.log.append("submit") }
+                .frame(width: Pixels(200), height: Pixels(24))
+                .accessibilityIdentifier("name")
+                .onKeyPress(keys: [.return]) { press in
+                    guard press.modifiers.contains(.primary) else { return .ignored }
+                    model.committed.append(model.text)
+                    return .handled
+                }
+                .onKeyPress(keys: [.escape]) { _ in
+                    model.log.append("escape")
+                    return .handled
+                }
+            Box().frame(width: Pixels(100), height: Pixels(100)).background(.surface)
+                .hoverKeyRegion()
+                .id("canvas")
+        }
+    }
+
+    // Focus the field: a click focuses a TextField.
+    let field = try window.element(identifier: "name")
+    try window.click(field)
+    #expect(try window.focusedElement?.identifier == "name")
+
+    // Text arrives as text input; the shortcut-modified Return commits.
+    window.typeText("Ada")
+    #expect(model.text == "Ada")
+    window.typeKey(.return, modifierFlags: .primary)
+    #expect(model.committed == ["Ada"], "the chord reached onKeyPress")
+    #expect(model.log.isEmpty, "and did not submit the field")
+
+    // Plain Return is declined by the handler and submits; Escape is claimed.
+    window.typeKey(.return)
+    window.typeKey(.escape)
+    #expect(model.log == ["submit", "escape"])
+    #expect(model.committed == ["Ada"], "a plain Return commits nothing")
+
+    // A click inside the key region outside the field clears focus.
+    let canvas = try window.frame(ofID: "canvas")
+    window.click(at: Point(x: canvas.origin.x + Pixels(50), y: canvas.origin.y + Pixels(50)))
+    #expect(try window.focusedElement == nil)
+    #expect(model.text == "Ada", "the committed text is untouched")
+}
+```
+
 ## Queries
 
 **The accessibility tree** is XCUITest's model: `element(identifier:)`,

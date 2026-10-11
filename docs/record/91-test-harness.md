@@ -347,3 +347,27 @@ Merge `2bc6c12` (master `f2fe54a` into the branch), then `HT-X`'s fixes; the hea
     after `advanceFrames(n)`, or a `TimelineView(.animation)` date).
 - The lane 2 table above (§4) was missing from the record; the checker added it from the verifier's
   logs.
+
+## §14 The two owed pieces (2026-10-10)
+
+Both written after §13, no source change, no public API (no inventory row).
+
+- **X2's owed pin**: `advanceFramesPacesTheClockAtOneSixtiethOfASecondPerFrame`
+  (`HarnessClockTests.swift`). A box clicked into a `withAnimation(.linear(duration: 1))` write
+  (10 → 110 wide), then `advanceFrames(30)`: `now` reads 0.5 and the width 60 ± 2 (derived
+  10 + 100 × 0.5 before the run), after 30 more it is 110. **Mutation X2** (`now += 1.0 / 60.0`
+  deleted from `advanceFrames`), full unfiltered native suite (3312): red — exactly that test
+  (3 issues: the clock, the halfway width, the final width). Restored from a copy,
+  `git status --short Sources` empty.
+- **The CT-c recipe**: `docs/testing.md` "Recipe: typing into a canvas app's field", whose code is
+  `Tests/MetalUITestingTests/TestingRecipeTests.swift` verbatim
+  (`typingIntoAFieldCommitsOnTheShortcutReturnAndAClickInAKeyRegionResignsFocus`): click focuses a
+  `TextField`, `typeText("Ada")`, `typeKey(.return, modifierFlags: .primary)` caught by
+  `.onKeyPress(keys: [.return])` testing `.primary` (the committing chord; no submit), plain Return
+  declined and submitted, Escape claimed, a click inside a `.hoverKeyRegion()` (`KF-E` item 5) clears
+  `focusedElement`. Mutations, each alone on the full native suite (3312), restored from a copy:
+  **M1** drop `modifierFlags: .primary` from the chord — reddens only that test (4 issues:
+  `committed`, the submit log, the final log, `committed`); **M2** remove `.hoverKeyRegion()` —
+  reddens only that test (1 issue: `focusedElement == nil`). The recipe spells the commit with
+  `.primary` (`SG-B`), not the `#if os(macOS)` `commitModifier` of `KF-AA` item 3.
+- **Count**: 3312 tests (3310 + 2).

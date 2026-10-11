@@ -93,7 +93,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3310 tests, 0 goldens, 208 typecheck guards**
+- **Counts (2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3312 tests, 0 goldens, 208 typecheck guards (3310 + the two §14 pins, record §91 §14)**
   (master's 3237 + 73 tests, 205 + 3 guards: lane 1's 37, lane 2's 30, lane 3's 5, the merge's 2.31; native
   `--build-system native` run all passed after `swift package clean`, the default build system 0 `warning:`; census 3356 (3134 +
   the product's 222); root in `swift:6.4-noble` 9 + 40 + 21 + 199 + 78 + 22 plus `MetalUITestingTests` 72; `Backends/SDL` untouched
