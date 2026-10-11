@@ -428,7 +428,8 @@ began without being told each move).
    `false` answer lets the next outer handler see the end, as it saw the events.
    Its `timestamp` is the last event's (the platform's clock; `Window` has no other).
    Hence test 2.9 cannot see a `scroll(_:by:)` mutation through the offset or the
-   last-scroll stamp (a zero delta and an equal timestamp): see the record for what
+   last-scroll stamp (a zero delta and an equal timestamp, measured: M9 stayed green
+   on both); it counts `StateTable.writeCount` across the cancel instead, which
    reddens it.
 4. AppKit: `refreshControlActiveState` sends `.modifiersChanged` after the callback
    when the new state is `.key`; the flags come from `AppKitWindow.currentModifierFlags`
