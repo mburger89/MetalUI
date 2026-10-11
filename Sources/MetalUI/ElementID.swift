@@ -2,11 +2,43 @@
 ///
 /// A local name, unique only among its siblings. On its own it is not an
 /// identity: `GlobalElementID` is.
+///
+/// **An optional internal discriminator** (`key`, `FI-A`, `FI-J`): a `ForEach`
+/// whose id type does not print injectively (a custom struct, an enum, an
+/// `AnyHashable`) names each element by `String(describing:)` as before and
+/// also carries the id's value, so two ids that print alike and differ in value
+/// are two path components. The synthesized `==`/`hash` compare name **and**
+/// key; `GlobalElementID`'s chain walk and cached hash are untouched (`FI-C`).
+/// A plain `ElementID("x")` (what `.id("x")` and every injective-id `ForEach`
+/// mint) has no key and is byte-identical to the old component.
 public struct ElementID: Hashable, Sendable {
     /// The name, compared by value among siblings.
     public let name: String
+    /// The id's value when the name alone would not identify it; `nil` for a name.
+    let key: IdentityKey?
     /// A local name for an element.
-    public init(_ name: String) { self.name = name }
+    public init(_ name: String) {
+        self.name = name
+        self.key = nil
+    }
+    /// A name carrying the value that identifies it (`ForEach`, `FI-B`).
+    init(name: String, key: IdentityKey?) {
+        self.name = name
+        self.key = key
+    }
+}
+
+/// An id's Hashable value, carried in a path component (`FI-J`).
+///
+/// A final class rather than a struct around `AnyHashable` so `ElementID` grows
+/// by exactly one reference and `==` short-circuits on identity. `@unchecked
+/// Sendable`: the value is a main-actor id in practice and is only compared,
+/// never mutated (`let`).
+final class IdentityKey: Hashable, @unchecked Sendable {
+    let value: AnyHashable
+    init(_ value: AnyHashable) { self.value = value }
+    static func == (l: IdentityKey, r: IdentityKey) -> Bool { l === r || l.value == r.value }
+    func hash(into hasher: inout Hasher) { hasher.combine(value) }
 }
 
 /// One component of an element's identity path (spec §4.3).

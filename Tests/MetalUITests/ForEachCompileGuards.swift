@@ -102,3 +102,24 @@ func aForEachOfLegacyContentCompilesInsideAProposalStack() throws {
     #expect(legacy.messages.contains("ProposalElementGroup"),
             "rejected FOR the conformance:\n\(legacy.output)")
 }
+
+/// **G1 (`FI-G`/spec §5) — the keyed `ElementID` initialiser and `key` are not
+/// public** (plain import): `ElementID("x")` compiles; `ElementID(name:key:)` and
+/// `.key` do not. Mutation **M9** (the init made `public`) reddens the control.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theKeyedElementIDInitialiserIsNotPublic() throws {
+    let positive = try typecheckFile("""
+        public func plain() -> ElementID { ElementID("x") }
+        """, importing: "MetalUI")
+    print("FOREACH GUARD G1 positive: succeeded=\(positive.succeeded)\n\(positive.messages)")
+    let init_ = try typecheckFile("""
+        public func keyed(_ n: String) -> ElementID { ElementID(name: n, key: nil) }
+        """, importing: "MetalUI")
+    let key = try typecheckFile("""
+        public func read(_ id: ElementID) -> Bool { id.key == nil }
+        """, importing: "MetalUI")
+    print("FOREACH GUARD G1 init: succeeded=\(init_.succeeded) key: succeeded=\(key.succeeded)")
+    try #require(positive.succeeded, "control: the plain initialiser compiles:\n\(positive.output)")
+    #expect(!init_.succeeded, "ElementID(name:key:) must not be public:\n\(init_.output)")
+    #expect(!key.succeeded, "ElementID.key must not be public:\n\(key.output)")
+}
