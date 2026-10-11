@@ -107,7 +107,7 @@ mutation M10); other fast-path types pay nothing.
 **Rejected.** Keying floats (a keyed NaN is unequal to its own path: state lost
 every frame).
 
-## FI-L-reserved — critic review rejections
+## Critic review — rejections (no id consumed)
 
 The critic re-ran probe arms H1-H3 byte-for-shape (tokens random, shape equal)
 and rejected, with reason: moving the `List` fix into this branch (FI-I stands:
