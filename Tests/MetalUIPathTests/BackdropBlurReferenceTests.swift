@@ -18,10 +18,11 @@ private func erf(_ x: Double) -> Double {
     return x < 0 ? -y : y
 }
 
-/// A 1536 x 4 premultiplied strip: black (0) left of x = 768 + `phase`, white
+/// A 1500 x 4 premultiplied strip: black (0) left of x = 750 + `phase`, white
 /// (1) right -- wide enough that the clamped edges are 6 sigma from the step
-/// at sigma 104 (`BB-R`).
-private let stripWidth = 1536
+/// at sigma 104, and **not a multiple of 2^L** (1500 / 32 = 46.875: a width that is would hide the
+/// `uv x size` mistake `BB-R` names, since the level and region scales then agree).
+private let stripWidth = 1500
 private func step(phase: Int) -> [Float] {
     var pixels = [Float](repeating: 0, count: stripWidth * 4 * 4)
     for y in 0..<4 { for x in (stripWidth / 2 + phase)..<stripWidth { for c in 0..<4 { pixels[(y * stripWidth + x) * 4 + c] = 1 } } }
