@@ -46,23 +46,27 @@ private func tinted(_ scene: Scene) -> [MUIRect] { scene.rects.filter { $0.backg
 // MARK: - 1.2
 
 /// **1.2** (`BB-A`, `LK-L` item 3). The record's tint is the `LK-L` table for
-/// every material in both schemes: straight alpha, the table's grey, the same
-/// resolution `Material.color` gives. Mutation: swap two rows of
-/// `Material.fill(for:)`.
+/// every material in both schemes, against the table's own literals (grey and
+/// alpha, straight alpha): not against `Material.color`, which would follow a
+/// swapped row. Mutation: swap two rows of `Material.fill(for:)`.
 @Test @MainActor func theBackdropTintIsTheLKLTableForEverySchemeAndMaterial() throws {
+    let table: [ColorScheme: [String: (grey: Float, alpha: Float)]] = [
+        .light: ["ultraThin": (0.9250, 0.4706), "thin": (0.9145, 0.5961), "regular": (0.9121, 0.7137),
+                 "thick": (0.9052, 0.8275), "ultraThick": (0.8996, 0.9373), "bar": (1.0000, 0.8000)],
+        .dark: ["ultraThin": (0.2248, 0.5059), "thin": (0.2105, 0.5961), "regular": (0.2045, 0.6902),
+                "thick": (0.2010, 0.7804), "ultraThick": (0.2000, 0.8627), "bar": (0.1779, 0.8157)],
+    ]
     for scheme in [ColorScheme.light, .dark] {
-        var environment = EnvironmentValues()
-        environment.colorScheme = scheme
         for (name, material) in allMaterials {
             let scene = lkScene(Column {
                 Color.clear.frame(width: px(40), height: px(20)).background(material)
                     .environment(\.colorScheme, scheme)
             }, side: 100)
             let record = try #require(scene.backdrops.first, "\(scheme) \(name): a record")
-            let want = material.color.resolve(in: environment)
+            let want = try #require(table[scheme]?[name])
             let got = Hsla(h: record.tint.h, s: record.tint.s, l: record.tint.l, a: record.tint.a).toRgba()
-            #expect(abs(got.r - want.red) < 1e-4 && abs(got.g - want.green) < 1e-4 && abs(got.b - want.blue) < 1e-4
-                    && abs(got.a - want.opacity) < 1e-4,
+            #expect(abs(got.r - want.grey) < 2e-3 && abs(got.g - want.grey) < 2e-3 && abs(got.b - want.grey) < 2e-3
+                    && abs(got.a - want.alpha) < 1e-4,
                     "\(scheme) \(name): tint \(got) vs the table \(want)")
         }
     }

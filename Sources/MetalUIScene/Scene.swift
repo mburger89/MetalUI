@@ -97,7 +97,8 @@ public struct Scene: Sendable {
     /// Emission sequence per kind, so `finalize()` can tiebreak equal orders
     /// across types. Not public: it is bookkeeping for one method.
     ///
-    /// **Plain arrays — eight since the surface kind (ruling `MV-C` item 2),
+    /// **Plain arrays — ten since the backdrop kind (ruling `BB-A`), eight since the
+    /// surface kind (ruling `MV-C` item 2),
     /// six since the image kind (ruling TE-AF), four before — not
     /// `[PrimitiveKind: [Int]]` dictionaries.**
     /// The dictionary form did a subscript per `insert` and two per element in
