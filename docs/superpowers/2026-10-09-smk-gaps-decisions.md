@@ -9,7 +9,7 @@ Record: `../record/89-smk-gaps.md`. Branch
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
 
-**Next unused id: `SG-M`.**
+**Next unused id: `SG-N`.**
 
 ## The final spellings (what the configurator swaps its workarounds for)
 
@@ -94,7 +94,8 @@ owner none".
    `PlatformWindow` minimise/zoom exists); **Help** = the `.help` group, then
    the additions at `.appInfo` (About lives in Help on Windows and GNOME). A
    menu left empty is not shown (File is empty unless the app adds to it —
-   Close/Quit are item 11's deferral).
+   Close/Quit are item 11's deferral; *amended by `SG-M`: File holds Close and
+   Quit/Exit*).
 4. *(Amended by `SG-H` items 1–2: the Edit items are enabled only while a
    text field is focused, as AppKit's `validateMenuItem` enables them
    (`MN-K`); Delete is `\u{7f}` with no modifiers, AppKit's `delete(_:)`
@@ -844,3 +845,34 @@ guard launched `/usr/bin/env` on every platform and shared one scratch
 directory across checkouts: the doc comment now says it runs on macOS and
 Linux only (Windows stays human check `SG6`), and the directory carries a hash
 of the checkout path so two worktrees never race on its `Package.swift`.
+
+## SG-M — File ▸ Close and Quit/Exit in the drawn bar (item 11a, done)
+
+**Context.** `SG-A` item 11(a) deferred them to "whichever of C8 and C12
+merges second". C8 (`feat/app-shell`, `AS-`, record §87) merged first, so
+`PlatformWindow.close()`, `Window.performClose()`, `Platform.terminate()` and
+`App.terminate()` exist and the work is this branch's.
+
+**Ruling.**
+1. The drawn File menu is `.newItem` additions, `.appVisibility` additions,
+   **Close**, then the `.appTermination` group whose standard item is **Quit**
+   (labelled **Exit** on Windows, `SG-B`'s convention for the platform; "Quit"
+   on Linux), then the additions. Close sits in no replaceable placement, as in
+   the AppKit arrangement; Quit is replaceable by
+   `CommandGroup(replacing: .appTermination)` exactly as AppKit's. File is no
+   longer ever empty, so the bar's first title is always File.
+2. They are `StandardMenuAction.close`/`.quit` items, handled by
+   `Window.openMenuBarMenu`, not delivered as keys: Close runs
+   `Window.performClose()` (asks `onCloseRequest`, `AS-B`; never `close()`),
+   Quit runs `App.terminate()` (the terminate-request walk, `AS-C`) through a
+   new `DrawnMenuBarSource.terminate` closure (internal). Close is disabled once
+   the window is closed; Quit is always enabled.
+3. **No shortcut is shown or bound** on either (`SG-A` item 10: the drawn bar
+   adds no shortcut path, and a shown shortcut that does nothing would lie).
+   ⌘W/⌘Q-style keys stay the app's own business off Apple.
+4. No new public declaration; divergence 195's text drops the "absent" clause.
+
+**Cost if wrong.** An app that wanted a bare File menu gets two items it can
+hide with `CommandGroup(replacing: .appTermination) {}` (Quit only; Close
+stays, as on AppKit). Evidence: record §89 §14.
+

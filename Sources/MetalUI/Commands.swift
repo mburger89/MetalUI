@@ -241,15 +241,30 @@ struct MenuBarModel {
 
     /// The drawn arrangement (`SG-A` item 3): the standard items of the
     /// application, File and Window menus dropped (no `PlatformWindow`
-    /// minimise, zoom, close or quit exists — `SG-A` item 11), their
+    /// minimise or zoom exists — `SG-A` item 11; File keeps Close and Quit,
+    /// `SG-M`), their
     /// placements' additions kept; the Edit menu as AppKit's, its standard
     /// items replaceable exactly as there (`SG-H` item 3); an empty menu
     /// dropped.
+    /// The drawn File menu's last item: "Exit" on Windows, "Quit" elsewhere (`SG-M`).
+    static var drawnQuitTitle: String {
+        #if os(Windows)
+        "Exit"
+        #else
+        "Quit"
+        #endif
+    }
+
     private mutating func buildDrawn() {
         let newItem = group(.newItem, [])
         let visibility = group(.appVisibility, [])
-        let termination = group(.appTermination, [])
-        appendMenu("File", groups: [newItem, visibility, termination], dropsEmpty: true)
+        // File ▸ Close and Quit/Exit (`SG-M`): the window's close (asks `onCloseRequest`) and
+        // the app's terminate walk. No shortcut is shown: the drawn bar adds no shortcut path
+        // (`SG-A` item 10). Numbered in menu order, close before quit.
+        let closeGroup = [standard("Close", .close)]
+        let quit = [standard(Self.drawnQuitTitle, .quit)]
+        let termination = group(.appTermination, quit)
+        appendMenu("File", groups: [newItem, visibility, closeGroup, termination], dropsEmpty: true)
         let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.primary, .shift])]
         let pasteboard = [standard("Cut", .cut, "x"), standard("Copy", .copy, "c"), standard("Paste", .paste, "v"),
                           standard("Delete", .delete), standard("Select All", .selectAll, "a")]
@@ -403,7 +418,8 @@ extension App {
                 self.drawnMenuBarActions = model.actions
                 return (model.menus, model.toggles)
             },
-            perform: { [weak self] id in self?.drawnMenuBarActions[id]?() })
+            perform: { [weak self] id in self?.drawnMenuBarActions[id]?() },
+            terminate: { [weak self] in self?.terminate() })
     }
 
     /// The bar's menus as they are now, keeping their command items' actions

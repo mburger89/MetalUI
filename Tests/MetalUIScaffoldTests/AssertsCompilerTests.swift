@@ -141,12 +141,13 @@ private let standaloneFixture = """
 /// on macOS the `.xctoolchain` at `METALUI_ASSERTS_TOOLCHAIN` (default the
 /// development snapshot `LK-X` and `SG-E` measured with), selected by its
 /// bundle identifier through `TOOLCHAINS`; elsewhere (Linux) the `swift` on
-/// `PATH`, through `/usr/bin/env`. **Not run on Windows** — there is no
-/// `/usr/bin/env`; Windows CI's 6.4.0+Asserts compiler is checked by hand
-/// (human check `SG6`). Its exit status and output, interleaved.
+/// `PATH`, through `/usr/bin/env`; on Windows (which has no `/usr/bin/env`)
+/// the first `swift.exe` on `PATH`, found by splitting it at `;` and launched
+/// directly. The Windows arm compiles there but has **not been run** — CI's
+/// 6.4.0+Asserts compiler is still checked by hand (human check `SG6`). Its
+/// exit status and output, interleaved.
 private func swiftUnderAssertsToolchain(_ arguments: [String], in directory: URL) throws -> (Int32, String) {
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     var environment = ProcessInfo.processInfo.environment
     #if os(macOS)
     let toolchain = environment["METALUI_ASSERTS_TOOLCHAIN"]
@@ -157,7 +158,18 @@ private func swiftUnderAssertsToolchain(_ arguments: [String], in directory: URL
     environment["TOOLCHAINS"] = try #require(info["CFBundleIdentifier"] as? String, "no bundle id in \(toolchain)")
     #endif
     process.environment = environment
+    #if os(Windows)
+    let searchPath = (environment["Path"] ?? environment["PATH"] ?? "").split(separator: ";").map(String.init)
+    let swiftExe = try #require(
+        searchPath.map { URL(fileURLWithPath: $0).appendingPathComponent("swift.exe") }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) },
+        "no swift.exe on PATH")
+    process.executableURL = swiftExe
+    process.arguments = arguments
+    #else
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["swift"] + arguments
+    #endif
     process.currentDirectoryURL = directory
     let pipe = Pipe()
     process.standardOutput = pipe

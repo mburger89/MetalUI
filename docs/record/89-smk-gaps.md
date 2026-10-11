@@ -280,13 +280,8 @@ size (SG5), a Windows ARM64/x64 release build (SG6).
 
 ## §9 Deferrals, with owners
 
-- **File ▸ Close and Exit/Quit in the drawn bar** (`SG-A` item 11a). The ruling named the owner:
-  "whichever of C8 and C12 merges second". **C8 (`feat/app-shell`, §87) merged first**, so `PlatformWindow.
-  close()` and `Platform.terminate()` now exist and the work is **this branch's, not done in the Record
-  phase** (a source change with tests and mutations, not a docs task). Owed before this branch's PR: add the
-  `.close` and `.quit` standard items to the drawn File menu, performed through `Window.performClose()` and
-  `App.terminate()`, with tests and mutation runs; until then the window's close button is the way out, as
-  before. The merge did not touch it.
+- **File ▸ Close and Exit/Quit in the drawn bar** (`SG-A` item 11a) — **resolved** (`SG-M`, §14). C8 (§87)
+  merged first, so the work was this branch's.
 - Alt-alone activation and `&` mnemonics; a native Win32 `HMENU`; Window ▸ Minimize/Zoom on SDL — owner none
   (`SG-A` item 11).
 - A menu-bar accessibility role (VoiceOver/Narrator read the titles as buttons) — owner none (`SG-A` item 7).
@@ -425,6 +420,40 @@ Adversarial check of `0b400b4..54dda21`, the branch's own change read as `ebcf3c
     and `thePlatformsOwnDesignFamiliesResolve` (6 issues).
 - **Doc defect fixed.** `Package.swift`'s comment on `MetalUISystemFonts` listed its imports without
   `MetalUITextSystem`, which `SG-C` added for `FontDesign`. It is a comment only.
-- **Still owed before the PR** (§9): File ▸ Close and Quit in the drawn bar (`SG-A` item 11a). C8
-  merged first, so this branch owns it.
+- *(Owed then, done in §14:)* File ▸ Close and Quit in the drawn bar (`SG-A` item 11a).
 - **Not run.** The Windows VM and real-window capture. The looks are human-checks group SG.
+
+## §14 File ▸ Close and Quit/Exit in the drawn bar (`SG-M`, 2026-10-10)
+
+`SG-A` item 11a, owed by §9. The drawn File menu is now `.newItem` additions, `.appVisibility` additions,
+**Close**, the `.appTermination` group (standard item **Quit**, **Exit** under `#if os(Windows)`), its
+additions. `Window.openMenuBarMenu` handles `.close`/`.quit` before the Edit key delivery: Close runs
+`performClose()` (asks `onCloseRequest`; disabled once the window is closed), Quit a new internal
+`DrawnMenuBarSource.terminate` closure (`App.terminate()`, the terminate-request walk). No shortcut is shown.
+File is never empty now, so the bar's first title is File: nine existing `MenuBarStripTests` indices moved
+(Edit 0 → 1, Tools 1 → 2, F10 opens File) and `theDrawnBarFollowsTheDesktopArrangement` gained File lines and
+a `replacing: .appTermination` arm. No public declaration changed.
+
+New tests: `theDrawnFileMenusCloseAsksTheWindowFirst` (2.17: `.cancel` keeps the fake window open with the
+handler asked once, `.now` closes it; never a real `performClose(_:)`, `AS-O` item 7) and
+`theDrawnFileMenusQuitRunsTheTerminateWalk` (2.18: `onTerminateRequest` asked, `.cancel` leaves
+`platform.terminateCalls` 0, `.now` makes it 1).
+
+**Asserts guard** (lane 3's two minors, finished): the scratch directory already carried a hash of the
+checkout path (djb2 over the UTF-8 bytes, deterministic); on Windows the guard now finds `swift.exe` on
+`PATH` (split at `;`) and launches it directly. It compiles there and has never run: human check `SG6`.
+`docs/packaging.md` says so.
+
+**Mutations** (full unfiltered `swift test --build-system native --no-parallel`, 3237 tests each, source
+restored from a copy after each):
+
+| Mutation | Reddened (tests) |
+|---|---|
+| M14.1 drop the Close group from the drawn File menu (`[newItem, visibility, closeGroup, termination]` without `closeGroup`) | `theDrawnFileMenusCloseAsksTheWindowFirst`, `theDrawnBarFollowsTheDesktopArrangement`, `f10OpensTheFirstMenuOnlyWhenNothingClaimsIt`, `hoveringAnotherTitleWhileOpenSwitchesAndArrowsWrap` (7 issues) |
+| M14.2 Close runs `close()` instead of `performClose()` | `theDrawnFileMenusCloseAsksTheWindowFirst` (2) |
+| M14.3 swap the two actions (Close → `terminate`, Quit → `performClose`) | `theDrawnFileMenusQuitRunsTheTerminateWalk` (2); the Close test stays green — the terminate walk also asks the window's `onCloseRequest` and a `.cancel` answers the same, then `.now` closes the window |
+| M14.4 Quit outside the `.appTermination` group (`termination = quit`) | `theDrawnBarFollowsTheDesktopArrangement` (2: the `replacing` arm) |
+
+**Counts**: 3237 tests (3235 + 2), 0 goldens; guard count measured in the final run below. The human check
+is `SG7`.
+

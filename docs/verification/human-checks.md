@@ -1288,6 +1288,10 @@ desktop, the monospaced face on screen, a Windows release build.
 - [ ] **SG6. Windows ARM64 and x64.** `swift build -c release` of the SMK
   configurator (or the `SG-E` fixture) builds, or fails exactly as `SG-E`
   documents. **Observed:**
+- [ ] **SG7.** On SDL (Linux, Windows), File ▸ Close closes the window (a
+  window with an `onCloseRequest` that cancels stays open) and File ▸ Quit
+  ("Exit" on Windows) ends the app; with two windows open Close closes one.
+  **Observed:**
 
 ## Sign-off
 

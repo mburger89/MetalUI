@@ -203,6 +203,8 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
     describe(app.evaluateMenuBar(style: .drawn).menus)
 }
 
+private let drawnFile = "File: Close [close], ---, Quit [quit]"
+
 /// **2.6** (`SG-A` item 3, `SG-H` item 3). The drawn bar follows the desktop
 /// arrangement: no application menu; File = the new-item group, then the
 /// additions at `.appVisibility` and `.appTermination` (their standard items
@@ -216,7 +218,7 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
 @MainActor
 @Test func theDrawnBarFollowsTheDesktopArrangement() throws {
     let (app, _) = try fakeApp()
-    #expect(drawn(app) == [String(defaultEdit)], "no commands: Edit alone: \(drawn(app))")
+    #expect(drawn(app) == [drawnFile, String(defaultEdit)], "no commands: File (Close, Quit) and Edit: \(drawn(app))")
     app.commands {
         CommandGroup(after: .newItem) { Button("New Note") {}.keyboardShortcut("n") }
         CommandGroup(after: .appVisibility) { Button("Vis") {} }
@@ -228,7 +230,7 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
         CommandGroup(after: .appInfo) { Button("About Me") {} }
     }
     #expect(drawn(app) == [
-        "File: New Note ⌘n, ---, Vis, ---, Prefs",
+        "File: New Note ⌘n, ---, Vis, ---, Close [close], ---, Prefs, Quit [quit]",
         String(defaultEdit),
         "Tools: Go",
         "Window: Tile",
@@ -237,7 +239,10 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
     app.commands {
         CommandGroup(replacing: .pasteboard) { Button("Paste Plain") {} }
     }
-    #expect(drawn(app) == ["Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Paste Plain"], "\(drawn(app))")
+    #expect(drawn(app) == [drawnFile, "Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Paste Plain"], "\(drawn(app))")
+    // `SG-M`: Quit is replaceable at `.appTermination` exactly as AppKit's; Close stays.
+    app.commands { CommandGroup(replacing: .appTermination) { Button("Leave") {} } }
+    #expect(drawn(app).first == "File: Close [close], ---, Leave", "\(drawn(app))")
     app.commands {}
     #expect(describe(app.menuBarContent()) == [defaultApp, defaultFile, defaultEdit, defaultWindow],
             "the AppKit style is unchanged")

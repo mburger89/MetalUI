@@ -27,6 +27,8 @@ struct DrawnMenuBarSource {
     let menus: @MainActor () -> (menus: [PlatformMenu], toggles: Set<Int>)
     /// Runs the command item `id` from the last `menus()`, from input.
     let perform: @MainActor (_ id: Int) -> Void
+    /// Asks the app to end, as ⌘Q does (`App.terminate()`; File ▸ Quit, `SG-M`).
+    let terminate: @MainActor () -> Void
 }
 
 /// One title of the drawn bar, keyed by its menu index and title (`SG-A`
@@ -156,6 +158,16 @@ extension Window {
             items.map { item in
                 var item = item
                 let id = item.id
+                if let action = item.standardAction, action == .close || action == .quit {
+                    // File ▸ Close asks `onCloseRequest` (`performClose`, never `close()`);
+                    // Quit runs the app's terminate walk (`SG-M`).
+                    let enabled = action == .quit || !shell.isClosed
+                    item.isEnabled = enabled
+                    actions[id] = MenuItemAction(
+                        run: { [weak self] in action == .close ? self?.performClose() : source.terminate() },
+                        declaringID: MenuBarStrip.rootID, isEnabled: enabled)
+                    return item
+                }
                 if let action = item.standardAction {
                     item.isEnabled = editEnabled
                     actions[id] = MenuItemAction(run: { [weak self] in self?.deliverStandardEditKey(action) },

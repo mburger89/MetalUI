@@ -131,7 +131,7 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
         #expect(rect(bar) == [0, 0, 400, 25], "\(name): the bar \(bar)")
         let root = try #require(window.lastElementBounds[rootID])
         #expect(root.origin.y.value >= 25, "\(name): the root below the bar \(root)")
-        #expect(window.lastMenuBarTitles == ["Edit", "Tools"], "\(name): \(window.lastMenuBarTitles)")
+        #expect(window.lastMenuBarTitles == ["File", "Edit", "Tools"], "\(name): \(window.lastMenuBarTitles)")
         for (id, b) in barBounds(window) {
             #expect(b.origin.y.value >= 0 && b.origin.y.value + b.size.height.value <= 25,
                     "\(name): a bar element within y 0…25: \(id) \(b)")
@@ -178,10 +178,10 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     let log = BarLog()
     app.commands { tools(log) }
     let (window, fake) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
-    try clickTitle(window, fake, 1)
+    try clickTitle(window, fake, 2)
     let session = try #require(window.menuSession, "the click opened a menu")
-    #expect(!session.isNative && session.barIndex == 1, "in-window, bar menu 1")
-    let toolsFrame = window.lastMenuBarTitleFrames[1]
+    #expect(!session.isNative && session.barIndex == 2, "in-window, bar menu 2")
+    let toolsFrame = window.lastMenuBarTitleFrames[2]
     #expect(session.levels[0].origin == Point(x: toolsFrame.origin.x, y: px(25)),
             "below the title: \(session.levels[0].origin) vs \(toolsFrame)")
     #expect(session.levels[0].items.map(\.title) == ["Go"])
@@ -200,16 +200,16 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     let log = BarLog()
     app.commands { tools(log) }
     let (window, fake) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
-    try clickTitle(window, fake, 0)
-    #expect(window.menuSession?.barIndex == 0, "Edit open")
-    fake.simulateInput(.mouseMoved(MouseEvent(position: centre(window.lastMenuBarTitleFrames[1]))))
-    #expect(window.menuSession?.barIndex == 1, "the pointer on Tools switched to it")
+    try clickTitle(window, fake, 1)
+    #expect(window.menuSession?.barIndex == 1, "Edit open")
+    fake.simulateInput(.mouseMoved(MouseEvent(position: centre(window.lastMenuBarTitleFrames[2]))))
+    #expect(window.menuSession?.barIndex == 2, "the pointer on Tools switched to it")
     #expect(window.menuSession?.levels.first?.items.map(\.title) == ["Go"])
     fake.simulateInput(key("\u{f703}"))
-    #expect(window.menuSession?.barIndex == 0, "Right from the last menu wraps to the first")
-    #expect(window.menuSession?.levels.first?.items.first?.title == "Undo")
+    #expect(window.menuSession?.barIndex == 0, "Right from the last menu wraps to the first (File)")
+    #expect(window.menuSession?.levels.first?.items.first?.title == "Close")
     fake.simulateInput(key("\u{f702}"))
-    #expect(window.menuSession?.barIndex == 1, "Left from the first wraps to the last")
+    #expect(window.menuSession?.barIndex == 2, "Left from the first wraps to the last")
     #expect(window.menuSession?.levels.first?.highlighted == 0, "Go highlighted")
 }
 
@@ -221,12 +221,12 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     let (app, platform) = try barApp()
     app.commands { tools(BarLog()) }
     let (window, fake) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
-    try clickTitle(window, fake, 1)
-    try #require(window.menuSession?.barIndex == 1)
-    try clickTitle(window, fake, 1)
+    try clickTitle(window, fake, 2)
+    try #require(window.menuSession?.barIndex == 2)
+    try clickTitle(window, fake, 2)
     #expect(window.menuSession == nil, "a press on the open title closes it")
-    try clickTitle(window, fake, 1)
-    try #require(window.menuSession?.barIndex == 1, "a later click opens it again")
+    try clickTitle(window, fake, 2)
+    try #require(window.menuSession?.barIndex == 2, "a later click opens it again")
     fake.simulateInput(key("\u{1b}"))
     #expect(window.menuSession == nil, "Escape closes it")
 }
@@ -237,7 +237,7 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 }
 
 /// **2.10** (`SG-A` item 8). F10 with nothing claiming it opens the first
-/// menu, Edit, its first enabled row (Undo, a field focused) highlighted; an
+/// menu, File, its first enabled row (Close) highlighted; an
 /// `onKey` that claims F10 keeps it shut; Shift+F10 over a focused element
 /// with a context menu still opens that menu (the keyboard opener off Apple);
 /// F10 in a window drawing no bar opens nothing; Shift, Control or Option +
@@ -256,8 +256,8 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     redraw(plain)
     plainFake.simulateInput(key(f10))
     let session = try #require(plain.menuSession, "F10 opened a menu")
-    #expect(session.barIndex == 0 && session.levels[0].items.first?.title == "Undo")
-    #expect(session.levels[0].highlighted == 0, "Undo highlighted")
+    #expect(session.barIndex == 0 && session.levels[0].items.first?.title == "Close")
+    #expect(session.levels[0].highlighted == 0, "Close highlighted")
     plain.menuSession = nil
     for mods: Modifiers in [.shift, .control, .option] {
         plainFake.simulateInput(key(f10, mods))
@@ -313,7 +313,7 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
         }
     }
 
-    try clickTitle(window, fake, 0)
+    try clickTitle(window, fake, 1)
     let disabled = try #require(window.menuSession?.levels.first?.items)
     let edit = disabled.filter { $0.standardAction != nil }
     #expect(edit.count == 7 && edit.allSatisfy { !$0.isEnabled },
@@ -324,18 +324,18 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
 
     window.focus(try fieldHitbox(window).id)
     redraw(window)
-    try clickTitle(window, fake, 0)
+    try clickTitle(window, fake, 1)
     let enabled = try #require(window.menuSession?.levels.first?.items).filter { $0.standardAction != nil }
     #expect(enabled.count == 7 && enabled.allSatisfy(\.isEnabled), "a field focused: the rows enabled")
     try clickRow(window, fake, "Select All")
     redraw(window)
-    try clickTitle(window, fake, 0)
+    try clickTitle(window, fake, 1)
     try clickRow(window, fake, "Copy")
     #expect(fake.clipboard == "abc", "Select All then Copy reached the field: \(String(describing: fake.clipboard))")
     #expect(model.text == "abc", "Copy left the text alone (Cut would empty it): \(model.text)")
     redraw(window)
     fake.clipboard = "Z"
-    try clickTitle(window, fake, 0)
+    try clickTitle(window, fake, 1)
     try clickRow(window, fake, "Paste")
     #expect(model.text == "Z", "Paste replaced the selection: \(model.text)")
     #expect(log.entries.isEmpty, "the field claimed primary + A, not the button")
@@ -368,7 +368,7 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     }
     let rows = ["Undo", "Redo", "Cut", "Copy", "Paste", "Delete", "Select All"]
     for row in rows {
-        try clickTitle(window, fake, 0)
+        try clickTitle(window, fake, 1)
         try clickRow(window, fake, row)
         redraw(window)
     }
@@ -461,10 +461,10 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     let (window, fake) = try open(app, platform) {
         Button("Toggle") { model.extra = true }.keyboardShortcut("t")
     }
-    #expect(window.lastMenuBarTitles == ["Edit", "Tools"])
+    #expect(window.lastMenuBarTitles == ["File", "Edit", "Tools"])
     #expect(fake.simulateInput(key("t", .primary)))
     window.drawFrameIfNeeded()
-    #expect(window.lastMenuBarTitles == ["Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
+    #expect(window.lastMenuBarTitles == ["File", "Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
 }
 
 /// **2.16b** (`SG-A` item 9). The titles are read inside the frame's
@@ -484,11 +484,11 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     }
     let (window, _) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
     window.drawFrameIfNeeded()
-    try #require(!window.needsRedraw && window.lastMenuBarTitles == ["Edit", "Tools"])
+    try #require(!window.needsRedraw && window.lastMenuBarTitles == ["File", "Edit", "Tools"])
     model.extra = true
     #expect(window.needsRedraw, "a command's observable read dirtied the window")
     window.drawFrameIfNeeded()
-    #expect(window.lastMenuBarTitles == ["Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
+    #expect(window.lastMenuBarTitles == ["File", "Edit", "Tools", "Extra"], "\(window.lastMenuBarTitles)")
 }
 
 /// **2.16c** (`SG-I` item 6). `App.commands` called after `openWindow`, on a
@@ -504,5 +504,59 @@ private func rect(_ b: Bounds<Pixels>) -> [Float] {
     app.commands { tools(BarLog()) }
     #expect(window.needsRedraw, "commands(content:) dirtied the window")
     window.drawFrameIfNeeded()
-    #expect(window.lastMenuBarTitles == ["Edit", "Tools"], "\(window.lastMenuBarTitles)")
+    #expect(window.lastMenuBarTitles == ["File", "Edit", "Tools"], "\(window.lastMenuBarTitles)")
+}
+
+/// How often a close or terminate question was asked, and its next answer.
+@MainActor private final class AskedReplies {
+    var asked = 0
+    var reply = CloseRequestReply.cancel
+}
+
+// MARK: - SG-M: File ▸ Close and Quit (`SG-A` item 11a)
+
+/// **2.17** (`SG-M`). The drawn File menu's Close asks `onCloseRequest`
+/// (`performClose()`): a `.cancel` keeps the window open and the handler ran
+/// once; a `.now` closes it. Never `close()` (which asks nobody) and never a
+/// real `performClose(_:)` (`AS-O` item 7: a fake window). Mutation: route
+/// Close to `close()` — reddens the `.cancel` arm.
+@MainActor
+@Test func theDrawnFileMenusCloseAsksTheWindowFirst() throws {
+    let (app, platform) = try barApp()
+    app.commands { tools(BarLog()) }
+    let (window, fake) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
+    let answers = AskedReplies()
+    window.onCloseRequest = { answers.asked += 1; return answers.reply }
+    let file = try #require(window.lastMenuBarTitles.firstIndex(of: "File"), "\(window.lastMenuBarTitles)")
+    try clickTitle(window, fake, file)
+    try clickRow(window, fake, "Close")
+    #expect(answers.asked == 1 && !fake.isClosed, "Close asked, and .cancel kept the window: asked \(answers.asked)")
+    redraw(window)
+    answers.reply = .now
+    try clickTitle(window, fake, file)
+    try clickRow(window, fake, "Close")
+    #expect(answers.asked == 2 && fake.isClosed, "Close asked again, and .now closed it: asked \(answers.asked)")
+}
+
+/// **2.18** (`SG-M`). The drawn File menu's Quit runs the app's terminate
+/// walk (`App.terminate()`): the app's `onTerminateRequest` is asked once, a
+/// `.cancel` leaves the platform running, a `.now` ends it
+/// (`Platform.terminate()` once). Close never terminates. Mutations: swap the
+/// two actions; Quit routed to the window's close — each reddens.
+@MainActor
+@Test func theDrawnFileMenusQuitRunsTheTerminateWalk() throws {
+    let (app, platform) = try barApp()
+    app.commands { tools(BarLog()) }
+    let (window, fake) = try open(app, platform) { Text("Body").frame(width: px(100), height: px(50)) }
+    let answers = AskedReplies()
+    app.onTerminateRequest = { answers.asked += 1; return answers.reply }
+    let file = try #require(window.lastMenuBarTitles.firstIndex(of: "File"), "\(window.lastMenuBarTitles)")
+    try clickTitle(window, fake, file)
+    try clickRow(window, fake, "Quit")
+    #expect(answers.asked == 1 && platform.terminateCalls == 0 && !fake.isClosed, "cancelled: asked \(answers.asked)")
+    redraw(window)
+    answers.reply = .now
+    try clickTitle(window, fake, file)
+    try clickRow(window, fake, "Quit")
+    #expect(answers.asked == 2 && platform.terminateCalls == 1, "approved: asked \(answers.asked), calls \(platform.terminateCalls)")
 }

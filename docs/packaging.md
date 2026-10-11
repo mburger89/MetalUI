@@ -369,8 +369,9 @@ guard does this against a scratch package:
 `METALUI_RUN_ASSERTS_COMPILER_TEST=1 swift test --filter
 theComponentSwitchShapeAgainstAnAssertsCompiler` (toolchain path in
 `METALUI_ASSERTS_TOOLCHAIN`). **Verified** on macOS 27 with that snapshot
-(Swift 6.5-dev). **Unverified** on Windows: the UTM VM did not answer on
-2026-10-10 (human check SG6).
+(Swift 6.5-dev). **Unverified** on Windows: the guard finds `swift.exe` on `PATH` there and
+launches it directly (it compiles, but has never run), and the UTM VM did not
+answer on 2026-10-10 (human check SG6).
 
 ## Documents and URLs an application opens (app shell)
 
