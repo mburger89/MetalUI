@@ -21,7 +21,7 @@ Evidence:
 - gpui is **not read** for this item; where a ruling is MetalUI's own design
   (`IF-F`, `IF-G`, `IF-H`) it says so.
 
-Prefix **`IF-`**, lettered. **Next unused: `IF-L`.** (This line moves in the
+Prefix **`IF-`**, lettered. **Next unused: `IF-M`.** (This line moves in the
 commit that appends a ruling; read the last `## IF-` heading.)
 
 Branch `feat/input-followups` from `f2fe54a`. `docs/divergences.md`: this
@@ -364,3 +364,43 @@ overclaims were corrected in `IF-C` and `IF-E` (the 0.33 s equality; `C5`'s
 5. **`onModifierKeysChanged`'s unprobed behaviours** (empty first report, mask
    timing) are listed under human check `IF1`; no divergence label is spent on an
    unmeasured difference. If `IF1` shows one, it takes label 237.
+
+
+## IF-L — Lane 1 as built: what the arena cancels, and the sites
+
+**Finding.** Built as `IF-E`/`IF-F`, with these particulars of the code:
+
+1. `GestureArena.cancel(includingReady:)` appends, for each undecided leaf that
+   has **activated** (reported a change: `ArenaLeaf.activated`, the drag's and the
+   pinch's own flag) and whose gesture has an `onCancelled`, one callback, then
+   fails the leaf. `abandon()` calls it with `includingReady: false` first — a
+   leaf only waiting to be allowed to end still ends — and returns the cancels
+   ahead of the callbacks its `resolve()` frees. Every other site drops the
+   whole arena and uses the default (ready leaves included).
+2. The draggable's win (`act`'s `.draggable` arm) is where `IF-F` item 1's
+   preview case is reachable: the other members fail there, so it appends their
+   cancels **before** the `.beginDrag` callback. `endPressForDrag` is not given a
+   second cancel (it finds only ended or failed leaves; dead code is untestable).
+3. `ArenaLeaf` gains `pressModifiers` and `pressClickCount`, set for every
+   undecided leaf at **each** press (a continuing press overwrites: the last
+   press, `IF-B`). A `DragGesture.Value` carries the leaf's count from the
+   press, never the move or release event's (test 1.3 sends 1 on the moves).
+4. `DragGesture.Value.init(startLocation:location:modifiers:clickCount:)` has
+   `clickCount` defaulted; the 2-argument spelling stays. `SpatialTapGesture.Value`
+   gains a public `init(location:modifiers:)`.
+5. `.mouseMoved` with a live button arena cancels it, clears `pendingContextMenu`
+   and **does not claim the move**, so hover, tooltip and the pointer style run on
+   it as before. The pointer style of the cancelled press is recomputed by the next
+   move (one event later). The platform event kinds are pinned by existing tests,
+   not new ones: `sdlMotionWithRightOrMiddleHeldIsARightOrOtherDrag` (SDL),
+   `appKitOtherButtonsAndRightDragReachOnInput` and `aControlDragOnAppKitIsASecondaryDrag`
+   (AppKit) — a held button is always a `*Dragged`, so the window tests 1.10/1.10b
+   drive the same sequences through the fake.
+6. Window sites: `onControlActiveStateChange` (`state != .key`) calls
+   `cancelPinchArena()`; `runDisappearancesForClose` begins with `cancelLiveArenas()`
+   (primary, button, pinch); `dispatchPinch` and `buttonPress` cancel the stale arena
+   before forming the new one.
+
+**Cost if wrong.** A `DragGesture` with no `onChanged` closure still counts as
+having activated, so a lone `onCancelled` runs: intended (the owner learns the drag
+began without being told each move).

@@ -61,6 +61,18 @@ public struct SpatialTapGesture: Gesture {
     public struct Value: Equatable, Sendable {
         /// The release point, in the gesture's coordinate space.
         public var location: Point<Pixels>
+        /// The modifier keys held at **the last press** of the sequence — the
+        /// second press of a `count: 2` tap, not the release (ruling `IF-B`),
+        /// so a ⇧ let go a moment before the button still counts.
+        /// **MetalUI-only**: SwiftUI's value has `location` alone (divergence
+        /// 235).
+        public var modifiers: EventModifiers
+
+        /// A tap value; `modifiers` defaults to none.
+        public init(location: Point<Pixels>, modifiers: EventModifiers = []) {
+            self.location = location
+            self.modifiers = modifiers
+        }
     }
 
     /// The number of clicks that end the gesture.
@@ -124,6 +136,7 @@ public struct MagnifyGesture: Gesture {
     public var minimumScaleDelta: Double
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
+    var cancelled: (@MainActor () -> Void)?
 
     /// A pinch that reports once its magnification moves `minimumScaleDelta`
     /// from 1.
@@ -145,10 +158,22 @@ public struct MagnifyGesture: Gesture {
         return copy
     }
 
+    /// Runs `action` once if the pinch had reported a change and its arena was
+    /// then dropped without `onEnded` (ruling `IF-E`): a new pinch of the kind
+    /// began over a lost end, or the window left key mid-pinch or closed.
+    /// **MetalUI-only** (divergence 236); never after `onEnded`, never for a
+    /// pinch that did not report.
+    public func onCancelled(_ action: @escaping @MainActor () -> Void) -> MagnifyGesture {
+        var copy = self
+        copy.cancelled = action
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .magnify(minimumScaleDelta: minimumScaleDelta))
         leaf.magnifyChanged = changed
         leaf.magnifyEnded = ended
+        leaf.magnifyCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
     }
 }
@@ -177,6 +202,7 @@ public struct RotateGesture: Gesture {
     public var minimumAngleDelta: Angle
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
+    var cancelled: (@MainActor () -> Void)?
 
     /// A rotation that reports once it has turned `minimumAngleDelta`.
     public init(minimumAngleDelta: Angle = .degrees(1)) {
@@ -197,10 +223,22 @@ public struct RotateGesture: Gesture {
         return copy
     }
 
+    /// Runs `action` once if the pinch had reported a change and its arena was
+    /// then dropped without `onEnded` (ruling `IF-E`): a new pinch of the kind
+    /// began over a lost end, or the window left key mid-pinch or closed.
+    /// **MetalUI-only** (divergence 236); never after `onEnded`, never for a
+    /// pinch that did not report.
+    public func onCancelled(_ action: @escaping @MainActor () -> Void) -> RotateGesture {
+        var copy = self
+        copy.cancelled = action
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .rotate(minimumAngleDelta: minimumAngleDelta.degrees))
         leaf.rotateChanged = changed
         leaf.rotateEnded = ended
+        leaf.rotateCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
     }
 }

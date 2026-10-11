@@ -26,7 +26,9 @@ import MetalUILayout
 /// `isEnabled:`/`name:` attachment overloads, `CoordinateSpace.named(_:)` and
 /// `.coordinateSpace(_:)` (`.local` and `.global` only), `time`/`velocity`/
 /// `predictedEnd*` on gesture values, `GestureInputKinds`/`inputKinds:`, and
-/// `TapGesture().modifiers(_:)`.
+/// `TapGesture().modifiers(_:)`. `@GestureState` is replaced by `onCancelled(_:)`
+/// on `DragGesture`, `MagnifyGesture` and `RotateGesture` (`IF-A`, `IF-E`):
+/// reset in it what `onChanged` set.
 public protocol Gesture {
     /// The value the gesture reports — `Void` for a tap, `Bool` for a long
     /// press, `DragGesture.Value` for a drag.
@@ -86,6 +88,10 @@ struct GestureLeaf {
     var pressingChanged: (@MainActor (Bool) -> Void)?
     var dragChanged: (@MainActor (DragGesture.Value) -> Void)?
     var dragEnded: (@MainActor (DragGesture.Value) -> Void)?
+    /// `onCancelled` of a drag, a magnify, a rotate (`IF-E`).
+    var dragCancelled: (@MainActor () -> Void)?
+    var magnifyCancelled: (@MainActor () -> Void)?
+    var rotateCancelled: (@MainActor () -> Void)?
     /// A draggable's payload (`DN-D`); `nil` for every other kind.
     var dragSource: DragSource?
 
@@ -210,19 +216,27 @@ public struct DragGesture: Gesture {
         /// value has none (divergence 140). A modifier change without a move
         /// reports nothing.
         public var modifiers: EventModifiers
+        /// The click count of the press that began the drag — the platform's
+        /// (`NSEvent.clickCount`, which honours the user's double-click speed;
+        /// SDL's `clicks`), the same in every `onChanged` and the `onEnded`; 1
+        /// for a value built without one (ruling `IF-C`). **MetalUI-only**:
+        /// SwiftUI's value has none (divergence 235).
+        public var clickCount: Int
 
         /// A drag value with no modifiers; `translation` is derived.
         public init(startLocation: Point<Pixels>, location: Point<Pixels>) {
-            self.init(startLocation: startLocation, location: location, modifiers: [])
+            self.init(startLocation: startLocation, location: location, modifiers: [], clickCount: 1)
         }
 
-        /// A drag value; `translation` is derived.
-        public init(startLocation: Point<Pixels>, location: Point<Pixels>, modifiers: EventModifiers) {
+        /// A drag value; `translation` is derived. `clickCount` defaults to 1.
+        public init(startLocation: Point<Pixels>, location: Point<Pixels>, modifiers: EventModifiers,
+                    clickCount: Int = 1) {
             self.startLocation = startLocation
             self.location = location
             self.translation = Size(width: location.x - startLocation.x,
                                     height: location.y - startLocation.y)
             self.modifiers = modifiers
+            self.clickCount = clickCount
         }
     }
 
@@ -234,6 +248,7 @@ public struct DragGesture: Gesture {
     public var button: MouseButton
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
+    var cancelled: (@MainActor () -> Void)?
 
     /// A drag with `button` that begins once the pointer moves
     /// `minimumDistance`, reporting values in `coordinateSpace`.
@@ -258,11 +273,28 @@ public struct DragGesture: Gesture {
         return copy
     }
 
+    /// Runs `action` once if the drag had reported a change and its gesture
+    /// then ended **without** `onEnded` (ruling `IF-E`): the arena was dropped
+    /// because another press replaced it, a button's release was lost (a move
+    /// with no button down), a draggable's preview took over, or the window
+    /// closed. **MetalUI-only** (divergence 236): SwiftUI never calls `onEnded`
+    /// for a cancelled gesture and tells its owner only through `@GestureState`,
+    /// which MetalUI does not offer. Never after `onEnded`, never for a drag
+    /// that did not begin, and not when the gesture is disabled or its owner
+    /// removed mid-drag (the closure belongs to state that is reset, `IF-K`
+    /// item 3). Reset what `onChanged` set here.
+    public func onCancelled(_ action: @escaping @MainActor () -> Void) -> DragGesture {
+        var copy = self
+        copy.cancelled = action
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .drag(minimumDistance: minimumDistance.value,
                                            coordinateSpace: coordinateSpace, button: button))
         leaf.dragChanged = changed
         leaf.dragEnded = ended
+        leaf.dragCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
     }
 }
@@ -431,6 +463,9 @@ final class ArenaLeaf {
     var activated = false
     var pendingChange: DragGesture.Value?
     var endValue: DragGesture.Value?
+    /// The last press's modifiers and click count (`IF-B`, `IF-C`).
+    var pressModifiers = Modifiers()
+    var pressClickCount = 1
     /// Click: what the window resolved at the release.
     var click: (handler: @MainActor () -> Void, modifiers: Modifiers)?
     /// Spatial tap: the release that ended it, in its space (`CI-B` item 1).
@@ -707,6 +742,8 @@ struct GestureArena {
         isPressing = true
         if !continuing { baseClickCount = clickCount }
         for leaf in leaves where leaf.status == .possible {
+            leaf.pressModifiers = modifiers
+            leaf.pressClickCount = clickCount
             switch leaf.recognizer {
             case .click:
                 if continuing { fail(leaf) }
@@ -730,7 +767,7 @@ struct GestureArena {
                         leaf.started = true
                         leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(point, in: space),
                                                                location: leaf.point(point, in: space),
-                                                               modifiers: modifiers)
+                                                               modifiers: modifiers, clickCount: clickCount)
                     }
                 case .draggable:
                     leaf.pressPoint = point
@@ -763,7 +800,7 @@ struct GestureArena {
                 if leaf.started {
                     leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
                                                            location: leaf.point(point, in: space),
-                                                           modifiers: modifiers)
+                                                           modifiers: modifiers, clickCount: leaf.pressClickCount)
                 }
             case .draggable:
                 // The first move of more than zero points (`DN-D` item 1,
@@ -827,7 +864,7 @@ struct GestureArena {
                     } else {
                         leaf.endValue = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
                                                           location: leaf.point(point, in: space),
-                                                          modifiers: modifiers)
+                                                          modifiers: modifiers, clickCount: leaf.pressClickCount)
                         leaf.ready = true
                     }
                 case .draggable:
@@ -925,13 +962,44 @@ struct GestureArena {
     /// A press elsewhere: everything undecided fails, and whatever that frees
     /// (a tap waiting on a larger one) ends.
     mutating func abandon() -> [GestureCallback] {
+        // A leaf that reported and is not waiting to end owes `onCancelled`
+        // (`IF-F` item 1) — before anything the freed members then run.
+        var cancels = cancel(includingReady: false)
         isPressing = false
         for leaf in leaves {
             leaf.owesPressing = false
             if leaf.pressingReported { reportPressing(leaf, false) }
         }
         for leaf in leaves where leaf.status == .possible && !leaf.ready { fail(leaf) }
-        return resolve()
+        cancels += resolve()
+        return cancels
+    }
+
+    /// The arena is dropped without its leaves ending (`IF-E`, `IF-F`): every
+    /// undecided leaf that had reported a change owes its `onCancelled`, once,
+    /// and then fails. `includingReady` is `false` for `abandon()`, where a
+    /// leaf that is only waiting to be allowed to end still ends.
+    mutating func cancel(includingReady: Bool = true) -> [GestureCallback] {
+        var out: [GestureCallback] = []
+        for leaf in leaves where leaf.status == .possible && (includingReady || !leaf.ready) {
+            if let callback = cancelCallback(leaf) { out.append(callback) }
+            if leaf.activated { fail(leaf) }
+        }
+        return out
+    }
+
+    /// `leaf`'s `onCancelled`, if it reported a change and has one.
+    private func cancelCallback(_ leaf: ArenaLeaf) -> GestureCallback? {
+        guard leaf.activated, case .gesture(let g) = leaf.recognizer else { return nil }
+        let run: (@MainActor () -> Void)?
+        switch g.kind {
+        case .drag: run = g.dragCancelled
+        case .magnify: run = g.magnifyCancelled
+        case .rotate: run = g.rotateCancelled
+        default: run = nil
+        }
+        guard let run else { return nil }
+        return .gesture(owner: leaf.owner, run: run)
     }
 
     // MARK: Resolution
@@ -1022,7 +1090,8 @@ struct GestureArena {
                 leaf.status = .ended
                 if let callback = g.tapEnded { callbacks.append(.gesture(owner: leaf.owner, run: callback)) }
                 if let callback = g.spatialTapEnded, let location = leaf.tapLocation {
-                    let value = SpatialTapGesture.Value(location: location)
+                    let value = SpatialTapGesture.Value(location: location,
+                                                        modifiers: leaf.pressModifiers)
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
                 }
             case .longPress:
@@ -1045,6 +1114,11 @@ struct GestureArena {
                 // this event keeps its callbacks, which precede this one
                 // (`DN-D` item 4, `P2e`) — simultaneous roots are visited first.
                 leaf.status = .ended
+                // A member that had reported is cancelled (`IF-F` item 1),
+                // ahead of the session opening.
+                for other in leaves where other !== leaf && other.status == .possible {
+                    if let callback = cancelCallback(other) { callbacks.append(callback) }
+                }
                 if let source = g.dragSource {
                     callbacks.append(.beginDrag(owner: leaf.owner, source: source, at: leaf.pressPoint))
                 }

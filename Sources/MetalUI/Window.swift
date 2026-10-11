@@ -857,6 +857,7 @@ public final class Window {
             if state != .key {
                 self?.dismissInWindowMenu()   // `MN-F` item 3
                 self?.hideTooltip()   // `MN-P` item 2
+                self?.cancelPinchArena()   // its end is lost for certain (`IF-F` item 4)
             }
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
@@ -1628,6 +1629,7 @@ public final class Window {
     /// such an action makes dirties a window that will not draw again
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
+        cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
@@ -2612,9 +2614,14 @@ public final class Window {
         default: return false
         }
         // A `.began` of a kind the arena already holds active means that
-        // kind's end was lost: the stale arena is dropped silently and the
-        // event forms a new one at its own position (ruling `CI-AB` item 2).
-        if phase == .began, let arena = pinchArena, arena.holdsActivePinch(of: event) { pinchArena = nil }
+        // kind's end was lost: the stale arena is dropped — its owners told
+        // by `onCancelled`, ahead of the new pinch's callbacks (`IF-F` item 2)
+        // — and the event forms a new one at its own position (ruling `CI-AB`
+        // item 2).
+        if phase == .began, var arena = pinchArena, arena.holdsActivePinch(of: event) {
+            pinchArena = nil
+            runGestureCallbacks(arena.cancel())
+        }
         if pinchArena == nil {
             guard phase != .ended, phase != .cancelled,
                   let arena = makeArena(at: position, mode: .pinch) else { return false }
@@ -2647,8 +2654,39 @@ public final class Window {
         case .otherMouseDragged(let mouse): return buttonMove(mouse, button: mouse.buttonNumber)
         case .rightMouseUp(let mouse): return buttonRelease(mouse, button: MouseButton.secondary.buttonNumber)
         case .otherMouseUp(let mouse): return buttonRelease(mouse, button: mouse.buttonNumber)
+        case .mouseMoved:
+            // AppKit and SDL send a move with no button only when none is down
+            // (`rightMouseDragged`/`otherMouseDragged` while one is held), so
+            // a live button arena here lost its release — a modal panel or a
+            // native menu took it (`IF-F` item 3). Never claims the move.
+            guard var arena = buttonArena else { return false }
+            buttonArena = nil
+            pendingContextMenu = nil
+            runGestureCallbacks(arena.cancel())
+            return false
         default: return false
         }
+    }
+
+    /// Cancels the pinch arena, if any (`IF-F` item 4): a window that leaves
+    /// key never receives the pinch's end.
+    func cancelPinchArena() {
+        guard var arena = pinchArena else { return }
+        pinchArena = nil
+        runGestureCallbacks(arena.cancel())
+    }
+
+    /// Cancels every live arena — the pinch's, the button's and the primary's
+    /// — for a closing window (`IF-F` item 5).
+    func cancelLiveArenas() {
+        var callbacks: [GestureCallback] = []
+        if var arena = gestureArena { callbacks += arena.cancel() }
+        if var arena = buttonArena { callbacks += arena.cancel() }
+        if var arena = pinchArena { callbacks += arena.cancel() }
+        gestureArena = nil
+        buttonArena = nil
+        pinchArena = nil
+        runGestureCallbacks(callbacks)
     }
 
     private func buttonPress(_ mouse: MouseEvent, button: Int) -> Bool {
@@ -2656,7 +2694,10 @@ public final class Window {
         // the stale arena is dropped silently, as a primary press's
         // re-formation drops one (ruling `CI-AB` item 1). Another button's
         // press while an arena is alive is ignored (`CI-AA` item 4).
-        if buttonArena != nil, buttonArenaButton == button { buttonArena = nil }
+        if var stale = buttonArena, buttonArenaButton == button {
+            buttonArena = nil
+            runGestureCallbacks(stale.cancel())   // `IF-F` item 2
+        }
         guard buttonArena == nil, var arena = makeArena(at: mouse.position, mode: .button(button)) else {
             return false
         }
