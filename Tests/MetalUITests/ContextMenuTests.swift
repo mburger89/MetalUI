@@ -187,25 +187,9 @@ private struct MenuCounter: Component {
     withExtendedLifetime(window) {}
 }
 
-/// **1.3** (`MN-C` item 4). A `.menuAction` naming an earlier menu's token runs
-/// nothing; the current token's runs. Mutation: skip the token comparison.
-@MainActor
-@Test func aMenuActionWithAStaleTokenRunsNothing() throws {
-    let log = MLog()
-    let (window, platform) = try menuWindow { card(log) }
-    platform.simulateInput(rdown(10, 10))
-    platform.simulateInput(rup(10, 10))
-    platform.simulateInput(rdown(20, 20))
-    platform.simulateInput(rup(20, 20))
-    try #require(platform.presentedMenus.count == 2)
-    let (old, current) = (platform.presentedMenus[0].menu.token, platform.presentedMenus[1].menu.token)
-    try #require(old != current, "each presentation has its own token")
-    platform.simulateInput(.menuAction(MenuActionEvent(menu: old, item: 1)))
-    #expect(log.entries.isEmpty, "a stale token runs nothing")
-    platform.simulateInput(.menuAction(MenuActionEvent(menu: current, item: 2)))
-    #expect(log.entries == ["delete"], "the current token runs its item")
-    withExtendedLifetime(window) {}
-}
+// **1.3** `aMenuActionWithAStaleTokenRunsNothing` moved to the public harness:
+// `Tests/MetalUITestingTests/MigratedHarnessTests.swift` (ruling `HT-N`, test 3.8 — the
+// swap for 1.2, which reads `Window.stateTable`; `HT-V`).
 
 /// **1.4** (C4c). The content is evaluated at each open: after Flag is
 /// chosen (it writes `false`), the reopened menu shows it off — after a

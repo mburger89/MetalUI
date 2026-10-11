@@ -45,25 +45,8 @@ private final class ClickLog {
 
 // MARK: - The four the brief names
 
-/// A click inside an `onClick` box's bounds runs its handler exactly once.
-///
-/// **The `count == 1` is not decoration.** A dispatcher that fired on
-/// `.mouseDown` *and* `.mouseUp`, or one that ran every hit rather than the
-/// topmost, passes a bare "did it run" assertion and fails this one.
-@Test @MainActor func aClickInsideTheBoundsRunsTheHandler() throws {
-    let device = try #require(MTLCreateSystemDefaultDevice())
-    let log = ClickLog()
-    // Stage 6b (`LR-DG`, R-centre): the root declares both axes, so under the
-    // proposal authority it is centred at its own 40x40 answer (`CN-J`):
-    // (100 - 40) / 2 = 30, the box at 30..70 on both axes.
-    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        Box().cssWidth(px(40)).cssHeight(px(40)).onClick { log.names.append("btn") }
-    }
-    window.drawFrameIfNeeded()
-
-    click(platformWindow, at: pt(50, 50))
-    #expect(log.names == ["btn"], "a press and release inside the box is one click")
-}
+// `aClickInsideTheBoundsRunsTheHandler` moved to the public harness:
+// `Tests/MetalUITestingTests/MigratedHarnessTests.swift` (ruling `HT-N`, test 3.5).
 
 /// A click outside the box's bounds runs nothing.
 ///

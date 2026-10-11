@@ -160,6 +160,44 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     #expect(!main.contains("SDL"))
 }
 
+/// 3.9 (ruling `HT-O`): every generated package has a test target over the
+/// public harness — `Tests/<Name>Tests`, depending on the app's executable
+/// target and `MetalUITesting`, with one swift-testing test that clicks the
+/// starter's button by its label and reads the label it changes. A
+/// cross-platform package's test passes the portable text system over the
+/// installed fonts off Apple, as its `main.swift` does. Mutation: drop the
+/// test file from `scaffoldFiles`.
+@Test func aGeneratedPackageHasATestTargetOverTheHarness() throws {
+    for crossPlatform in [false, true] {
+        let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", crossPlatform: crossPlatform))
+        let manifest = try file("Package.swift", in: files).contents
+        #expect(manifest.contains(".testTarget(\n"), "\(manifest)")
+        #expect(manifest.contains(#"name: "MyAppTests","#), "\(manifest)")
+        #expect(manifest.contains(#"                "MyApp","#), "the app's executable target:\n\(manifest)")
+        #expect(manifest.contains(#".product(name: "MetalUITesting", package: "MetalUI"),"#), "\(manifest)")
+        let test = try file("Tests/MyAppTests/MyAppTests.swift", in: files).contents
+        #expect(test.contains("import Testing\n"))
+        #expect(test.contains("import MetalUITesting\n"))
+        #expect(test.contains("@testable import MyApp\n"))
+        #expect(test.contains(#"try window.click(window.element(label: "Press me"))"#))
+        #expect(test.contains(#"window.element(label: "pressed 1 times")"#))
+        #expect(test.contains("PortableTextSystem") == crossPlatform, "\(test)")
+        let readme = try file("README.md", in: files).contents
+        #expect(readme.contains("## Test the interface\n"), "\(readme)")
+    }
+}
+
+/// 3.10 (ruling `HT-O`, `SC-H`): a package named `MetalUITesting` fails to
+/// build (measured, record §91: the generated package renamed by hand, since
+/// the `MetalUI` prefix already refuses the name), so the name is refused.
+/// Mutation: drop the `MetalUI` prefix refusal from `validateName`.
+@Test func metalUITestingIsARefusedName() {
+    #expect(throws: ScaffoldError.invalidName(
+        "MetalUITesting", reason: "names starting with MetalUI collide with the framework's modules")) {
+        try validateName("MetalUITesting")
+    }
+}
+
 @Test func aLocalCheckoutIsAPathDependencyNamedByItsDirectory() throws {
     // SwiftPM names a path dependency by its last path component, so a
     // checkout in a directory not called MetalUI must be named as that.
