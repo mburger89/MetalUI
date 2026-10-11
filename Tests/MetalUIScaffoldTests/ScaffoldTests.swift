@@ -101,7 +101,7 @@ func aNameOnlyBackendsSDLDeclaresGenerates(_ name: String) throws {
 /// SC-H: module lookup is case-sensitive even on case-insensitive APFS — each
 /// of these built (record §72 §6.3) — and a keyword is a valid module name.
 @Test(arguments: ["foundation", "appkit", "metal", "swift", "SWIFT", "coretext", "observation", "cfreetype",
-                  "MetalKit", "SwiftUI", "XCTest", "Testing", "Cocoa", "Accelerate", "class", "func", "Self",
+                  "MetalKit", "SwiftUI", "XCTest", "Cocoa", "Accelerate", "class", "func", "Self",
                   "ReplayFixtureTests", "Distributed", "RegexBuilder"])
 func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     try validateName(name)
@@ -147,7 +147,7 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
 @Test func theDefaultPackageIsMacOSOnlyAndDependsOnTheRepositoryByGitURL() throws {
     let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp"))
     #expect(files.map(\.path) == ["Package.swift", "Sources/MyApp/main.swift", "Sources/MyApp/ContentView.swift",
-                                  ".gitignore", "README.md", "Packaging/macOS/Info.plist",
+                                  "Tests/MyAppTests/MyAppTests.swift", ".gitignore", "README.md", "Packaging/macOS/Info.plist",
                                   "scripts/bundle-macos.sh"])
     let manifest = try file("Package.swift", in: files).contents
     #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", branch: "master"),"#))
@@ -185,16 +185,38 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
         let readme = try file("README.md", in: files).contents
         #expect(readme.contains("## Test the interface\n"), "\(readme)")
     }
+    // A keyword is imported in backticks (`HT-V`: measured, `class`, `func`
+    // and `Self` fail unescaped). Mutation: never escape.
+    for keyword in ["class", "func", "Self"] {
+        let test = try file("Tests/\(keyword)Tests/\(keyword)Tests.swift",
+                            in: try scaffoldFiles(ScaffoldOptions(name: keyword))).contents
+        #expect(test.contains("@testable import `\(keyword)`\n"), "\(test)")
+    }
 }
 
-/// 3.10 (ruling `HT-O`, `SC-H`): a package named `MetalUITesting` fails to
-/// build (measured, record §91: the generated package renamed by hand, since
-/// the `MetalUI` prefix already refuses the name), so the name is refused.
-/// Mutation: drop the `MetalUI` prefix refusal from `validateName`.
+/// 3.10 (ruling `HT-O`, `SC-H`), measured 2026-10-10 on macOS by generating
+/// a `--local` package and renaming it by hand (record §91): a package named
+/// `MetalUITesting` fails at graph load —
+///
+///     error: multiple packages ('probe', 'test-harness') declare targets with
+///     a conflicting name: 'MetalUITesting'; target names need to be unique
+///     across the package graph
+///
+/// — and is refused by the `MetalUI` prefix. Since the generated test target,
+/// a package named `Testing` passes `swift build` and fails
+/// `swift build --build-tests` in a fresh build directory (`unknown attribute
+/// 'Test'`: the test file's `import Testing` reaches the app's own module), so
+/// it left the look-alike list for the refusal set (`HT-V`; `XCTest` built and
+/// its test passed, and stays accepted). Mutations: drop the `MetalUI` prefix
+/// refusal; drop the `Testing` entry.
 @Test func metalUITestingIsARefusedName() {
     #expect(throws: ScaffoldError.invalidName(
         "MetalUITesting", reason: "names starting with MetalUI collide with the framework's modules")) {
         try validateName("MetalUITesting")
+    }
+    #expect(throws: ScaffoldError.invalidName(
+        "Testing", reason: "the generated test target imports Testing, and an app module of that name shadows it")) {
+        try validateName("Testing")
     }
 }
 
@@ -594,23 +616,32 @@ private func noLookup(_ url: String) -> PinLookup {
 
 // MARK: - End to end (env-gated: builds MetalUI a second time)
 
-/// A generated package resolves against this checkout and compiles. Off by
-/// default — it is a full second build of MetalUI, minutes long. Counts
-/// while skipped.
+/// 3.11 (ruling `HT-O`, extended from SC-A's): a generated package resolves
+/// against this checkout, compiles, builds its tests and **runs** them — the
+/// generated test clicks the starter's button through `MetalUITesting` — with
+/// and without `--cross-platform` (on macOS the cross-platform package takes
+/// its CoreText arm). Off by default — each package is a full second build of
+/// MetalUI, minutes long. Counts while skipped.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_SCAFFOLD_BUILD_TEST"] == "1"))
 func aGeneratedPackageBuildsAgainstThisCheckout() throws {
     #if os(macOS) || os(Linux)
     let root = try scratchDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    let files = try scaffoldFiles(ScaffoldOptions(name: "Smoke", source: .local(path: checkout.path)))
-    let destination = root.appendingPathComponent("Smoke")
-    try writeScaffold(files, to: destination)
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["swift", "build", "--package-path", destination.path]
-    try process.run()
-    process.waitUntilExit()
-    #expect(process.terminationStatus == 0)
+    for (name, crossPlatform) in [("Smoke", false), ("SmokeXP", true)] {
+        let files = try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: checkout.path),
+                                                      crossPlatform: crossPlatform))
+        let destination = root.appendingPathComponent(name)
+        try writeScaffold(files, to: destination)
+        for arguments in [["build"], ["build", "--build-tests"], ["test", "--skip-build"]] {
+            let (status, output) = try run("swift", arguments, in: destination)
+            print("3.11 \(name) swift \(arguments.joined(separator: " ")): status=\(status)\n\(output.suffix(1500))")
+            #expect(status == 0, "\(name) swift \(arguments): \(output)")
+            if arguments.first == "test" {
+                #expect(output.contains("Test pressingTheButtonCountsThePress() passed"), "\(output)")
+                #expect(output.contains("Test run with 1 test"), "\(output)")
+            }
+        }
+    }
     #endif
 }
 

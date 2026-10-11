@@ -352,6 +352,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | an interpolated value in a `Text` literal is inserted verbatim in the format's style: `Text("**\(name)**")` is bold; a floating-point value prints its Swift description (`3.5`, where SwiftUI prints `3.500000`, divergence 151); any other value its description with no warning (divergence 156); an interpolated `Text` or `AttributedString` keeps its runs | nothing | `RT-C` items 3–4, `RT-O` items 4–6 |
 | on Linux and Windows a code span (`` `x` ``) draws the family registered for the `.monospaced` design (`PortableFontResolver.register(design:family:)`), else the default face | register a monospaced family to see one | `TE-B`, `RT-O` item 12 |
 | `Text.bold()` exists (it was withheld): the bold weight over whichever font resolves — SwiftUI's draws semibold on the default font (divergence 158) | write `.fontWeight(.semibold)` to match SwiftUI's default | `RT-R` item 6 |
+| **`MetalUITesting` exists** (a library product for test targets): an app's own headless `Platform`/`PlatformWindow`/`WindowRenderer` test fake can be replaced by `HeadlessPlatform`, `HeadlessPlatformWindow` and `HeadlessWindowRenderer`, which implement every requirement and to which MetalUI adds each new platform requirement in the change that introduces it; `metalui new` now generates `Tests/<Name>Tests` over it, and refuses the name `Testing` (such a package fails `swift build --build-tests`) | drop the app's own fake for the harness ([`testing.md`](testing.md)); an existing generated package can add the test target by hand (`getting-started.md`) | `HT-A`, `HT-D`, `HT-O`, `HT-V` |
 | **`List(_:rowContent:)` and its selection twins exist** (content-sized rows; they did not compile). A content-sized list's `style.size.height` is `.auto` — its extent is its layout's answer (measured rows plus estimates), where a uniform list's is `rowHeight × count`; the uniform spelling is unchanged | read a content-sized list's height from layout (`Frame.bounds(of:)`, `Window.lastElementBounds`), not from `List.style` | `VL-A`, `VL-I` |
 
 ## Large trees in a debug build
@@ -383,6 +384,7 @@ waits for a threshold chosen against them (`PE-T`).
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.
+- [`testing.md`](testing.md) — testing an app's interface headless.
 - [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
 - [`verification/human-checks.md`](verification/human-checks.md) — the looks
   that still need a human.

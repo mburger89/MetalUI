@@ -562,12 +562,12 @@ fixed-size frames.
 | 3.1 | `anOutsideTestFileCanDriveATestWindowWithAPlainImport` (`typecheckFile`, imports `MetalUI` and `MetalUITesting` only: open, click by label, `frame(ofID:)`, `respondToAlert`, `MenuEvaluation`, `menuBar`) — must typecheck | — | `TestWindow.click(_:modifierFlags:)` made `internal` → red |
 | 3.2 | `anOutsideFileCannotReachTheTestingHooks` — `window.testingElementBounds` must fail | — | hook made `public` → red |
 | 3.3 | `anOutsideFileStillCannotConstructAWindow` — `Window(platformWindow:…)` must fail | — | `Window.init` made `public` → red |
-| 3.5 | `aClickInsideTheBoundsRunsTheHandler` (moved from `InputDispatchTests`) | — | as its original mutation (recorded there) |
+| 3.5 | `aClickInsideTheBoundsRunsTheHandler` (moved from `InputDispatchTests`) | — | `runClick` called twice in `dispatchClick` (the original named none, `HT-V` item 1) |
 | 3.6 | `anIfThatInsertsContentRunsItsOnAppearOnce` (moved from `LifecycleTests`) | — | as its original |
-| 3.7 | `anAlertResultWritesIsPresentedFalseThenRunsTheAction` (moved from `AlertTests`) | — | as its original |
-| 3.8 | `aChosenItemRunsItsActionFromInputUnderStateDispatch` (moved from `ContextMenuTests`) | — | as its original |
-| 3.9 | `aGeneratedPackageHasATestTargetOverTheHarness` (`ScaffoldTests`) — manifest has the `.testTarget` with `MetalUITesting`; the test file exists | — | drop the file |
-| 3.10 | `metalUITestingIsARefusedName` — only after the measured build failure (SC-H) | — | remove the refusal |
+| 3.7 | `aStaleAlertAnswerNeverReachesTheNextAlert` (moved from `AlertTests`; the swap for `anAlertResultWritesIsPresentedFalseThenRunsTheAction`, whose owner check reads `StateDispatch.owner`, `HT-V` item 1) | — | as its original: drop `token == result.token` from `handleAlertResult` |
+| 3.8 | `aMenuActionWithAStaleTokenRunsNothing` (moved from `ContextMenuTests`; the swap for `aChosenItemRunsItsActionFromInputUnderStateDispatch`, which reads `Window.stateTable`, `HT-V` item 1) | — | as its original: skip the token comparison |
+| 3.9 | `aGeneratedPackageHasATestTargetOverTheHarness` (`ScaffoldTests`) — manifest has the `.testTarget` with `MetalUITesting`; the test file exists; a keyword name is imported in backticks (`HT-V` item 3) | red (no test target) | drop the file; never escape a keyword |
+| 3.10 | `metalUITestingIsARefusedName` — only after the measured build failure (SC-H); also `Testing`, measured (`HT-V` item 2) | — | remove the prefix refusal; remove the `Testing` entry |
 | 3.11 | `aGeneratedPackageBuildsAgainstThisCheckout` (env-gated, extended: builds and runs the generated test) | — | — (run, not mutated) |
 
 Count expectation: lane 1 +38 (37 swift-testing + 1 XCTest; the XCTest

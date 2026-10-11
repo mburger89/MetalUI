@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-V`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-W`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -592,3 +592,54 @@ the named mutations; the spec (§4.2) is corrected in the same commit.
 
 **Cost if wrong.** If the observation hop ever becomes synchronous off macOS,
 item 1's `setNeedsRedraw` costs nothing (one frame either way).
+
+## HT-V — Lane 3's measured corrections (2026-10-10)
+
+**Ruling.** Lane 3 (proof and documentation) measured these against the
+branch at `cafc337`; the spec (§3.3, §4.3) is corrected in the same commit.
+1. **Two of the four migrations are swaps** (`HT-N`'s rule). 3.7's
+   `anAlertResultWritesIsPresentedFalseThenRunsTheAction` asserts the
+   action's owner through `StateDispatch.owner`, and 3.8's
+   `aChosenItemRunsItsActionFromInputUnderStateDispatch` reads
+   `Window.stateTable` — both internal — so they stay where they are and
+   `AlertTests`' 2.23b `aStaleAlertAnswerNeverReachesTheNextAlert` and
+   `ContextMenuTests`' 1.3 `aMenuActionWithAStaleTokenRunsNothing` moved
+   instead, each keeping its named mutation. 3.5 and 3.6 moved as named. The
+   moved tests use plain-class models plus `setNeedsRedraw()` and a tick,
+   never `@Observable` (the hop is asynchronous off macOS, `HT-U` item 1),
+   `.frame` for the old `cssWidth`, and 3.8 a two-item menu for the C1 shape
+   (the token is what it pins). 3.5's original named no mutation; its
+   recorded one is "`runClick` called twice in `dispatchClick`".
+2. **Refused names, measured** (`SC-H`; a `--local` package generated as
+   `Probe`, renamed by hand, built on macOS): `MetalUITesting` fails at graph
+   load (`multiple packages … declare targets with a conflicting name:
+   'MetalUITesting'`) and was already refused by the `MetalUI` prefix;
+   **`Testing` passes `swift build` and fails `swift build --build-tests`**
+   (`unknown attribute 'Test'`: the test file's `import Testing` reaches the
+   app's module), measured twice, the second in a fresh build directory, so it
+   joins the refusal set and leaves the look-alike list. **`XCTest` is not
+   refused**: its first failure was an instrument fault (a `Testing` module
+   left in the shared build directory by the run before it); in a fresh build
+   directory it built and its generated test passed.
+3. **A keyword app name is imported in backticks.** `class`, `func` and
+   `Self` (accepted names since `SC-H`) failed `swift build --build-tests`
+   with the import unescaped (`expected identifier in import declaration`)
+   and built and passed with `` @testable import `class` `` (`Self` likewise),
+   so `testSource` escapes a name in `swiftKeywords`.
+4. **The generated test target is declared on every platform.** Whether a
+   testable executable imports on Windows is **unmeasured**: the UTM VM was
+   stopped and `ssh metalui-win` timed out, and starting it was out of this
+   lane's budget. Owner: the first Windows run of a generated package (a CI
+   consumer job or the VM); if it fails, `HT-O`'s fallback applies (the
+   manifest declares the test target off Windows only).
+5. **The cross-platform test's Linux arm** (`SystemFonts.resolver()` plus
+   `PortableTextSystem`) is compiled and run only where the env-gated tests
+   run it, and this lane ran it in neither Linux image: it needs installed
+   system fonts, and `Backends/SDL/linux/Dockerfile` installs no font package
+   (unmeasured there; owner: a Linux consumer run with fonts). The env-gated
+   `aGeneratedPackageBuildsAgainstThisCheckout` (3.11) builds and runs both
+   packages on macOS, the cross-platform one on its CoreText arm.
+
+**Cost if wrong.** Each item is pinned by the test it names (3.9 for the
+backticks, 3.10 for the refusals); a Windows failure costs one manifest
+condition and a migration note.

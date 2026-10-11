@@ -21,10 +21,23 @@ MyApp/
   Package.swift                  depends on MetalUI (git URL, pinned to one commit)
   Sources/MyApp/main.swift       App(), one window, app.run()
   Sources/MyApp/ContentView.swift  a Component with @State and a Button
+  Tests/MyAppTests/MyAppTests.swift  presses the Button headless (`swift test`)
   Packaging/macOS/Info.plist     identifier com.example.MyApp (--bundle-id)
   scripts/bundle-macos.sh        → build/MyApp.app
   README.md, .gitignore
 ```
+
+## Testing the interface
+
+`swift test` runs `Tests/MyAppTests`: it opens `rootView()` in a headless
+window through MetalUI's test harness (`MetalUITesting`, ruling `HT-O`),
+clicks the button by its accessibility label and reads the text it changes —
+no screen and no real window, so it runs in CI. A cross-platform package's
+test passes the portable text system over the installed fonts on Linux and
+Windows, as `main.swift` does. [`testing.md`](testing.md) covers the rest:
+input, queries, alerts, menus, the clock and counting a frame's work. Because
+of the test target, `Testing` is a refused name (`HT-V`), beside
+`MetalUITesting` (refused by the `MetalUI` prefix).
 
 ## Which MetalUI the app gets
 

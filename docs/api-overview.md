@@ -666,6 +666,22 @@ backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient
 `phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
 deferral (`LK-A`).
 
+## Testing — M
+
+`MetalUITesting` (a library product for test targets, portable; rulings
+`HT-A`…, [`superpowers/2026-10-09-test-harness-decisions.md`](superpowers/2026-10-09-test-harness-decisions.md)):
+`TestApp` and `TestWindow` run the real `App` and `Window` over
+`HeadlessPlatform`/`HeadlessPlatformWindow`/`HeadlessWindowRenderer`, with a
+simulated clock (`tick`, `advance(by:)`, `advanceFrames`, `runUntilIdle`),
+input by point and by element in XCUITest's names (`click`, `typeText`,
+`scroll`, `drag`, …), accessibility queries (`element(label:)`,
+`element(identifier:)`, `elements(role:)`, `TestElement`), laid-out frames
+(`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
+`chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
+`MenuEvaluation`) and per-frame work counters (`FrameWork`) for benchmarks
+that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
+How an app uses it: [`testing.md`](testing.md).
+
 ## Backends and infrastructure — M
 
 `MetalUICore` (geometry, units — `Pixels`, `Length`, `Dimension` — colours,
