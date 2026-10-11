@@ -1,0 +1,878 @@
+# SMK configurator port gaps MG-23…MG-28 — decisions
+
+Rulings for the six gaps the SMK configurator's Linux/Windows port (C4b)
+reported against MetalUI `70ed000` (user request 2026-10-02, item C12 of the
+gpui-gap priority list; **not a plan task**). Prefix `SG-`. Spec:
+[`specs/2026-10-09-smk-gaps-design.md`](specs/2026-10-09-smk-gaps-design.md).
+Record: `../record/89-smk-gaps.md`. Branch
+`fix/smk-port-gaps` from `0b400b4`. The gap list is the configurator's
+`docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
+only; never edited from here).
+
+**Next unused id: `SG-N`.**
+
+## The final spellings (what the configurator swaps its workarounds for)
+
+| gap | the configurator's workaround | MetalUI's answer, by name |
+| --- | --- | --- |
+| MG-23 | a Linux/Windows-only `.toolbar` mirroring the File and View menus | **nothing to write**: `app.commands { … }` is drawn as an in-window menu bar wherever `Platform.setMenuBar(_:)` answers `false` (SDL) — `SG-A` |
+| MG-24 | `primaryShortcutModifier` passed on every `.keyboardShortcut` | **`EventModifiers.primary`**, and it is now the **default** of `KeyboardShortcut(_:modifiers:)` and `.keyboardShortcut(_:modifiers:)` — `.keyboardShortcut("s")` is ⌘S on macOS and Ctrl+S on Linux/Windows — `SG-B` |
+| MG-25 | `resolver.register(design: .monospaced, family: "DejaVu Sans Mono"/"Consolas")` | **nothing to write**: `SystemFonts.resolver()` registers the platform's monospaced and serif families (`SystemFonts.designFamilies`) — `SG-C` |
+| MG-26 | the two portable-text products unconditional on the app target | the same, now what `metalui new --cross-platform` and `docs/getting-started.md` write — `SG-D` |
+| MG-27 | package the Windows debug build | `SG-E` (reduced, measured; the spec's lane 3 decides between a `Component` change and the documented workaround — this ruling is completed by that lane) |
+| MG-28 | the literal 39 | **`Window.drawnChromeHeight`** (read-only, `Pixels`), and an explicit `Window.minSize`/`maxSize` is now measured **below** the drawn chrome, as AppKit's `contentMinSize` is below its toolbar — so the app's `+ 39` goes — `SG-F` |
+
+Evidence:
+
+- [`../probes/swiftui-shortcut-modifiers.swift`](../probes/swiftui-shortcut-modifiers.swift)
+  (**new**; default build and the `PRIMARY`/`PLATFORM` separating arms) —
+  SwiftUI's default shortcut modifier and the absence of a "primary" one.
+- [`../probes/swiftui-commands.swift`](../probes/swiftui-commands.swift)
+  (`MN-I`'s; PLAIN and FULL) — the AppKit menu bar SwiftUI builds, which
+  `SG-A`'s drawn style departs from on purpose.
+- The source at `0b400b4`: `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`
+  (`setMenuBar` records and draws nothing, `MN-I` item 3);
+  `Sources/MetalUI/Commands.swift` (`MenuBarModel`, the AppKit-shaped
+  standard menus); `Sources/MetalUI/MenuSession.swift`/`MenuPanel.swift` (the
+  drawn menu; `MenuPanel.shortcutText` labels `.command` "Ctrl" off Apple —
+  untrue today, the SDL bridge maps `SDL_KMOD_GUI` to `.command`);
+  `Sources/MetalUI/ToolbarStrip.swift` + `Frame.computeRootLayout` (the drawn
+  strip, `MD-K`, the precedent for chrome laid out above the root);
+  `Sources/MetalUIAppKit/AppKitMenus.swift` (`deliverEditKey`: AppKit's Edit
+  items are already delivered to the window as their own key — `SG-A` item 4's
+  precedent); `Sources/MetalUIAppKit/AppKitPresentations.swift:173`
+  (`contentMinSize`/`contentMaxSize` — AppKit's limits exclude its toolbar);
+  `Sources/MetalUISystemFonts/SystemFonts.swift` (no `register(design:)`
+  call); `Sources/MetalUIPortableText/PortableFontResolver.swift:187`
+  (`register(design:family:)` stores a name, reads nothing);
+  `Sources/MetalUIScaffold/Scaffold.swift:252` (the conditional products).
+- CI's Linux images, measured 2026-10-09: `swift:6.4-noble` and
+  `metalui-portable` both carry `/usr/share/fonts/truetype/dejavu/`
+  (DejaVu Sans, Sans Mono, Serif, with bold/oblique) and **no `fc-match`**.
+- `feat/controls-looks`'s `LK-X` (an asserts-compiler crash in a `Component`
+  witness thunk, reduced on the Mac with
+  `swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a`), the family MG-27 belongs to.
+- A first standalone reduction attempt for MG-27 (this session, scratch only):
+  a ten-line `Group`/`Comp` protocol pair mimicking `ElementGroup`/`Component`
+  with an `Array` prepaint in a nested component compiles under the asserts
+  snapshot at `-Onone` and `-O` — the trigger needs more of MetalUI's shape
+  than that; lane 3 reduces from MetalUI itself.
+
+## SG-A — `App.commands` is drawn as an in-window menu bar where the platform declines it
+
+**Ruling.** Supersedes `MN-I` item 3's "an in-window menu bar is deferred,
+owner none".
+
+1. **The seam: `Platform.setMenuBar(_:) -> Bool`**, still defaultless, its
+   return type changed (the `presentMenu`/`setToolbar`/`presentAlert`
+   pattern): `true` when the platform shows the bar itself (AppKit,
+   `NSApp.mainMenu`, unchanged), `false` when it cannot (SDL: SDL3 has no
+   menu-bar API; it still records the bar for tests). Every test fake answers
+   a configurable value, default `true`, so every existing window test is
+   unmoved. **Migration** (`docs/migration.md`): a third-party conformer
+   changes `func setMenuBar(_:) {}` to `func setMenuBar(_:) -> Bool { false }`
+   (or `true` if it shows a bar). A conformer that keeps the `Void` spelling
+   no longer conforms — pinned by a plain-import typecheck guard (spec 2.21).
+2. **When it is drawn.** `App.installMenuBar()` keeps the answer; every
+   window of the app — open and later — draws the bar **when the answer was
+   `false` and the app declared `commands`**. An app that never calls
+   `.commands` draws nothing: its bar would hold only the standard Edit items,
+   whose keys already work in a field; and every existing SDL window, test and
+   image stays as it is. Each window draws its own bar (the Windows and GTK
+   convention: a menu bar per top-level window).
+3. **The drawn style of the bar's model** (`MenuBarModel`, a `style:`
+   parameter; the AppKit style is byte-for-byte today's, its pins unmoved). The
+   desktop convention, not the Mac's: **no application menu**; **File** = the
+   `.newItem` group, then the additions at `.appVisibility` and
+   `.appTermination` (their standard items dropped); **Edit** = Undo, Redo, —,
+   Cut, Copy, Paste, Delete, Select All (the `.undoRedo` and `.pasteboard`
+   groups, standard items kept unless a `CommandGroup(replacing:)` replaces
+   them, exactly as the AppKit style replaces them — amended by `SG-H` item
+   3; shortcuts `.primary`, `SG-B`); then every
+   `CommandMenu` in declaration order; **Window** only when something is
+   placed at `.windowSize`/`.windowArrangement` (standard items dropped — no
+   `PlatformWindow` minimise/zoom exists); **Help** = the `.help` group, then
+   the additions at `.appInfo` (About lives in Help on Windows and GNOME). A
+   menu left empty is not shown (File is empty unless the app adds to it —
+   Close/Quit are item 11's deferral; *amended by `SG-M`: File holds Close and
+   Quit/Exit*).
+4. *(Amended by `SG-H` items 1–2: the Edit items are enabled only while a
+   text field is focused, as AppKit's `validateMenuItem` enables them
+   (`MN-K`); Delete is `\u{7f}` with no modifiers, AppKit's `delete(_:)`
+   key — not `\u{f728}`.)* **A standard Edit item is delivered as its own key** to the window that
+   drew the bar — `.primary`+Z, `.primary`+⇧Z, `.primary`+X/C/V/A, and Delete
+   as `\u{7f}` with no modifiers — through the window's ordinary key
+   pipeline, from input. AppKit already does exactly this
+   (`AppKitMenus.deliverEditKey`, the same seven keys), so a focused
+   `TextField` handles both bars' Edit items through one path. The items are
+   **disabled unless a text field holds focus** (AppKit's
+   `MetalHostView.validateMenuItem`, `MN-K`), evaluated at each open, so a
+   drawn Select All never reaches a `Button` shortcut or an app command bound
+   to the same key.
+5. **Geometry and look.** A strip across the window's top, **25 points**:
+   a 24-point bar (the regular control height `MD-K` item 1 uses) and a
+   1-point `.separator` line, filled `.surface` like the toolbar strip. Titles
+   in the control font, each padded 8 horizontally, no spacing between them,
+   the row padded 4 at the leading edge; the title whose menu is open is
+   filled with the drawn menu's highlight colour and drawn in its highlighted
+   text colour (`MenuPanel`'s tokens, so the open title and the highlighted
+   row match). When the toolbar strip is drawn too it sits **below** the bar;
+   the root is laid out below both (`SG-F`'s chrome).
+6. **Elements and identity.** The bar is ordinary elements under a
+   window-owned **named root `$menubar`** at cursor index **2** (beside the
+   root's `(nil, 0)` and `$toolbar`'s `(nil, 1)`), its name noted (`ID-R`) —
+   an element name, never a `StateTable` slot: the seven retention slots are
+   unmoved. Titles are keyed by menu index and title (`ForEach(id:)`). A new
+   naming site, so it owes `StateTable.noteNamed` and an arm in
+   `everyNamingSiteStartsAReturningNameFresh`.
+7. **A title is `Text` + `.padding` + `.background` + `.onClick` +
+   `.accessibilityLabel` + `.accessibilityAddTraits(.isButton)`** — existing
+   modifiers only, so no new `StyledElement` site, no new handler-registering
+   site (the D2 guard and `DN-X` are not owed), no new accessibility role (no
+   bridge rows). An `onClick` target does not take focus and is not a Tab stop
+   (divergence 94's rule): the bar is reached by pointer and F10, not Tab.
+   Cost if wrong: VoiceOver/Narrator read the titles as buttons, not menu-bar
+   items — a role row on both bridges would fix it later, owner none.
+8. **Input.** *(Amended by `SG-H` item 4: a title's `onClick` opens on the
+   click, i.e. the release, not the press.)* A click on a title opens its menu through the window's existing
+   menu machinery (`MenuSession`, `presentMenuOnPlatform` first — SDL answers
+   `false`, so the in-window panel), anchored at the title's bottom-leading
+   corner, the session remembering which bar menu it is. While a bar menu is
+   open: the pointer moving onto another title opens that one instead; Left
+   and Right on a level with no submenu to enter or leave move to the
+   adjacent menu, wrapping; a press on the open title, Escape or a press
+   outside closes it (the session's existing dismissals). **F10** with no
+   modifiers opens the first menu with its first enabled row highlighted —
+   as an *unclaimed-key* stage after the keymap, a focused field, the `onKey`
+   bubble, `Button` shortcuts and the command stage, beside Tab traversal —
+   only in a window that draws a bar; Shift+F10 stays the context-menu key
+   (`ContextMenuKeys`). A command item chosen runs through
+   `PlatformMenuBar.perform` (the app's one action table, evaluated at the
+   open, so ids match), under the same dispatch as AppKit's; a `Toggle` item
+   shows its state.
+9. **Liveness.** The titles are evaluated for every build in which the bar is
+   drawn (a `CommandMenu` under an `if` comes and goes on the next frame, as
+   `MN-I`'s "evaluated afresh" promises); the items at each open. Evaluation
+   writes nothing.
+10. **Shortcuts are unchanged.** The window's command stage (`MN-J`) is still
+    the one shortcut path; the drawn bar adds none, so a command shortcut runs
+    once whether or not the bar is drawn.
+11. **Deferred.** (a) **File ▸ Close and Exit/Quit**: they need
+    `PlatformWindow.close()` and `Platform.terminate()`, which `feat/app-shell`
+    (C8, `AS-`) is adding now; owner: **whichever of C8 and C12 merges second**
+    adds them to the drawn File menu (`.close`, `.quit` standard items,
+    performed through those requirements). Until then the window's close
+    button is the way out, as today. (b) Alt-alone activation and `&`
+    mnemonics (SDL reports no modifier-only key; SwiftUI titles carry no
+    mnemonic) — owner none. (c) A native Win32 `HMENU` through SDL's window
+    properties — owner none: one drawn look on every SDL platform, and Linux
+    has no equivalent. (d) Window ▸ Minimize/Zoom — no `PlatformWindow` API,
+    owner none.
+
+**Divergence 195** (this branch's range): on SDL the commands' menu bar is
+drawn inside the window, above the toolbar strip, taking the content's height,
+in the desktop arrangement of item 3 (no application menu; Edit items
+delivered as keys; File ▸ Close/Quit absent until item 11a). SwiftUI ships only
+on Apple platforms, where the bar is the system's.
+
+**Evidence.** `MN-I` item 3 (SDL3 has no menu-bar API — re-checked: SDL 3.4's
+headers name none); the drawn strip `MD-K` (chrome above the root, its own
+layout run, a named root, paint after the root and before presentations);
+`AppKitMenus.deliverEditKey`. gpui's approach, **recalled, not measured, and
+no item rests on it**: gpui's Linux and Windows platforms keep the menus
+`set_menus` is handed and Zed draws an application menu in its own title bar.
+
+**Cost if wrong.** A drawn bar that should not be there (an app with
+`.commands` that wanted none on Linux) costs 25 points; the app can drop its
+`.commands` under `#if os(macOS)`. Changing `setMenuBar`'s return type breaks
+third-party `Platform` conformers at compile time (honest, with a migration
+line).
+
+## SG-B — `EventModifiers.primary`, and it is the default shortcut modifier
+
+**Ruling.**
+
+1. **SwiftUI's answer, probed** (`swiftui-shortcut-modifiers.swift`):
+   `KeyboardShortcut("s").modifiers == .command` (raw 16); SwiftUI has no
+   `.primary` or `.platform` member (both separating arms refused by the
+   compiler). SwiftUI ships only on Apple platforms, so "⌘" is its primary
+   modifier by construction; it has no answer off Apple.
+2. **`public static let primary: Modifiers`** (so `EventModifiers.primary`) in
+   `MetalUIPlatform` beside `.command`: `.command` on Apple platforms,
+   `.control` elsewhere (the same `os(...)` split as `TextEditing.platform`,
+   `TI-D`). Not a new bit: a name for one of the existing four. MetalUI-only
+   (inventory **M**).
+3. **The defaults become `.primary`**: `KeyboardShortcut.init(_:modifiers:)`
+   and `Button.keyboardShortcut(_:modifiers:)` (and every other
+   `.keyboardShortcut(_:modifiers:)` spelling that defaults a modifier), and
+   the standard menu items' shortcuts (`MenuBarModel.standard`'s default and
+   Redo's `[.primary, .shift]`; Hide Others stays `[.command, .option]` — an
+   AppKit-only item). **On macOS nothing moves**: `.primary == .command`, so
+   every macOS pin, AppKit menu and test is value-identical (no divergence).
+   On Linux/Windows `.keyboardShortcut("s")` fires on Ctrl+S.
+4. **An explicit `.command` keeps meaning the Super/Windows key off Apple** —
+   no event translation, the SDL bridge's `SDL_KMOD_GUI → .command` is
+   unchanged. Qt's "Ctrl means ⌘ on macOS" re-mapping was considered and
+   refused: it makes `.command` and `.control` collide off Apple
+   (`[.command, .control]` would be Ctrl+Ctrl) and makes a Super binding
+   unspellable. Modifiers still match exactly (`IX-F` item 2).
+5. **Labels.** The drawn menu's shortcut text off Apple names each key
+   honestly: `.control` "Ctrl", `.command` "Super" on Linux and "Win" on
+   Windows, `.option` "Alt", `.shift` "Shift", in that order (Ctrl+Super+Alt+
+   Shift+K). Today's text labels `.command` "Ctrl" — false since the bridge
+   maps GUI to `.command`; with `.primary` the default, a default shortcut
+   reads "Ctrl+S" and is Ctrl+S.
+6. **Unchanged**: `TextEditing` and `ControlKeys` already switch ⌘/Ctrl by
+   platform (`TI-D`); `AppKitMenus` is macOS-only.
+7. **Deferred**: a `"primary"` token in `Keymap`'s keystroke parser
+   (`Keymap.modifierNames`) — `feat/key-focus` (C9) is changing the key
+   pipeline now and a gpui-spelling claim (`secondary`) needs gpui's source;
+   owner none (a later keymap item).
+
+**Migration** (`docs/migration.md`): on Linux/Windows a shortcut written
+without modifiers now fires on Ctrl, not Super; write `.command` to keep the
+Super key. A portable app's `primaryShortcutModifier` constant can be replaced
+by `.primary` or dropped.
+
+**Cost if wrong.** An SDL app that deliberately used the default for Super
+moves to Ctrl (one migration line). A Linux app binding Ctrl+key in a raw
+`onKey` now also has a default shortcut on the same key if it declares one —
+the shortcut pipeline order (`MN-J`) is unchanged, so which runs is as before
+for an explicit `.control`.
+
+## SG-C — The portable system fonts register monospaced and serif families
+
+**Ruling.**
+
+1. **`public static var designFamilies: [FontDesign: [String]]`** on
+   `SystemFonts`, beside `defaultFamilies`/`fallbackFamilies`, and a
+   `designFamilies:` parameter on `SystemFonts.resolver(...)` defaulting to
+   it. For each design, the **first family in its list with an installed
+   face** is registered through `PortableFontResolver.register(design:family:)`
+   (TE-C item 1). Registration stores a name: **no face is read** until a
+   request for the design resolves (SF-B laziness kept; the faces are already
+   registered by name, `inCascade: false`). A design with no installed family
+   registers nothing and resolves to the default face, as an unregistered
+   design does today — never a trap.
+2. **The lists** (the lane measures each family name as FreeType reports it
+   and corrects a spelling before landing; a list is names, not files):
+   - **Linux**: `.monospaced` — fontconfig's `monospace` (when `fc-match`
+     exists), then DejaVu Sans Mono, Noto Sans Mono, Liberation Mono, Ubuntu
+     Mono, FreeMono; `.serif` — fontconfig's `serif`, then DejaVu Serif, Noto
+     Serif, Liberation Serif, FreeSerif; `.rounded` — none.
+   - **Windows**: `.monospaced` — Cascadia Mono, Consolas, Courier New;
+     `.serif` — Georgia, Times New Roman; `.rounded` — none (Windows ships no
+     rounded UI face).
+   - **macOS** (the portable system on macOS is tests and tools only;
+     production uses CoreText, whose SF Mono/New York/SF Rounded answer is
+     TE-C's): `.monospaced` — SF Mono, Menlo, Courier New; `.serif` — New York,
+     Times New Roman, Times; `.rounded` — SF Pro Rounded, Arial Rounded MT Bold.
+3. **`.rounded` off Apple resolves to the default face** (no family to name);
+   documented on `designFamilies`. An app that has a rounded face installs it
+   and calls `register(design: .rounded, family:)` itself, as before.
+4. **fontconfig**: `fontconfigSansSerif()` generalises to one query per
+   generic family (`sans-serif`, `monospace`, `serif`), its answer leading the
+   list, behind an injectable query so the ordering is tested on every
+   platform (CI's images have no `fc-match`).
+
+**Evidence.** The CI images' fonts (above); `SystemFonts.swift` registers no
+design today; `PortableFontResolver.register(design:family:)` and its
+"unregistered design is the default face" rule.
+
+**Cost if wrong.** A wrong list entry resolves to the next one or to the
+default face (never a trap); a family name FreeType spells differently is
+caught by the platform test on that platform.
+
+**Measured (lane 1, 2026-10-09, macOS 27, FreeType's family names over
+`SystemFonts.directories`).** The system's own SF Mono and New York are the
+**hidden** families `.SF NS Mono` (`SFNSMono.ttf`, Light only) and `.New York`
+(`NewYork.ttf`), not "SF Mono"/"New York"; those two names resolve only where
+Apple's downloadable fonts are installed in `/Library/Fonts`. The lists are
+kept (a dot-prefixed family is private to CoreText and is not named): on a
+stock Mac `.monospaced` resolves **Menlo** (`Menlo-Regular`) and `.serif`
+**Times New Roman** (`TimesNewRomanPSMT`); `.rounded` resolved SF Pro Rounded
+on the measuring Mac (Apple's download installed) and is Arial Rounded MT Bold
+on a stock one. Test 1.6's macOS arm computes the first installed name of
+each list from the scan and asserts it exactly (Menlo/Times New Roman where the
+downloads are absent). **Laziness, stated precisely**: registering a design
+reads nothing; resolving one reads the design's face **and the cascade's
+default face** (`resolve` loads the cascade, SF-C) — test 1.5 pins the exact
+set after the first resolve.
+
+## SG-D — The cross-platform manifest names the portable-text products on every platform
+
+**Ruling.** MG-26 is a SwiftPM defect: a product reached conditionally through
+the executable target (filtered out on macOS) and unconditionally by the test
+target is dropped from the test target's module-map flags, so
+`swift build --build-tests` on macOS fails with
+`error: unable to resolve module dependency: 'CFreeType'` (and `CHarfBuzz`,
+`CSheenBidi`, `CUnibreak`). The configurator measured both ways at `70ed000`;
+**lane 1 re-measures at this branch, on both build systems, in a scratch
+package depending on this checkout by path**, and records the verbatim lines.
+
+1. `metalui new --cross-platform` and `docs/getting-started.md` name
+   **`MetalUIPortableText` and `MetalUISystemFonts` unconditionally**;
+   `MetalUISDL` keeps `condition: .when(platforms: [.linux, .windows])` and
+   the traits. The generated `main.swift` is unchanged: its
+   `#if canImport(MetalUISDL)` still compiles the SDL path only off macOS.
+   Both targets are portable (`PC-A`), so they build on macOS; the cost is
+   linking FreeType/HarfBuzz/libunibreak into a macOS app that never calls
+   them — the lane measures the release binary's size with and without and
+   records it.
+2. `docs/getting-started.md` says why in two sentences, naming the defect, so
+   a consumer who re-adds the condition knows what breaks.
+3. The scaffold's env-gated build test gains a test target in a copy of the
+   generated package (the generated package itself still has none), so this
+   cannot regress unseen.
+4. **If the defect does not reproduce at this branch** on either build system,
+   items 1–2 are withdrawn (the condition stays — it saves the macOS link),
+   item 3 stays as the tripwire, and the record says what was measured.
+5. The upstream SwiftPM report text goes in the record (the lane writes it;
+   nobody files it from an agent).
+
+**Cost if wrong.** A macOS app links code it never runs (size measured).
+
+**Measured (lane 1, 2026-10-09, at `c98c0cb` plus the fix; Xcode-beta's
+toolchain, a scratch `metalui new Smoke --cross-platform --local <checkout>`
+plus a `SmokeTests` target naming both products and constructing a
+`PortableTextSystem`).** Item 4 does not apply — the defect reproduces:
+
+| build | conditional products | unconditional |
+| --- | --- | --- |
+| default build system, `swift build --build-tests` | **fails**: `error: unable to resolve module dependency: 'CFreeType'`, and the same for `'CHarfBuzz'`, `'CSheenBidi'`, `'CUnibreak'` (`clang dependency scanning failure` in `SwiftDriver SmokeTests`) | builds, no `warning:` |
+| native build system | builds | builds |
+| `swift build -c release --product Smoke` (no test target in play) | 8 554 184 bytes | 10 706 552 bytes (+2 152 368, 2.15 MB) |
+
+So the dropped module maps are the products' **C** modules, not the Swift
+modules; `docs/getting-started.md`, the scaffold's comment and test 1.9's doc
+quote the measured line.
+
+## SG-E — Swift 6.4.0's asserts compiler on a `Component` whose content is a `switch`
+
+**Ruling (frame; lane 3 completes it with its measurements).** MG-27 and
+`LK-X` are one family: SILGen's `verifyLexicalLowering` assertion while
+emitting a `Component`'s `ElementGroup` witness thunk (`prepaintGroup`), on
+compilers built with assertions (Windows' 6.4.0+Asserts; the Mac snapshot
+`swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a`). macOS's and Linux's release
+compilers never fire, so **no CI job except Windows can see it**.
+
+1. **Reduce first**, with the asserts snapshot on the Mac (and the UTM VM's
+   6.4.0+Asserts ARM64 at `-c release` when `ssh metalui-win` answers): a
+   one-file fixture against MetalUI reproducing MG-27's shape (a `Component`
+   whose `content` is a builder `switch` over several cases, one a nested
+   `Component` holding a loop, at `-c release`) and `LK-X`'s, each reduced by
+   one-edit steps into a table like `LK-X`'s. Then a standalone file with no
+   MetalUI import, if one exists, for the upstream report.
+2. **One MetalUI-side candidate, measured, adopted only if it holds**: give
+   `Component`'s `GroupPrepaint` the same heap box `PE-J` gave its layout
+   (`ComponentLayout`) — a final-class box, so an outer aggregate holding a
+   `Component`'s prepaint lowers a class reference, not the inner content's
+   eager-move `Array` leaf. Adopted only if (a) both fixtures compile under
+   the asserts snapshot in debug and release, (b) the full suite is green
+   with the count moved only by new tests, (c) 0 px in all fourteen images,
+   (d) every work/allocation/stack-budget pin it moves is named and justified
+   (one allocation per `Component` per frame is the expected cost). Other
+   candidates the reduction suggests may be tried under the same four gates.
+3. **Otherwise no source change**: the workaround (the looping branch, or the
+   nested looping `Component`, becomes a `@MainActor` function returning
+   `some Element`/`some ElementGroup` — `LK-X`'s rule, extended to `switch`
+   branches) is documented prominently in `docs/packaging.md` (the Windows
+   release build) and, in the Record phase, as a CLAUDE.md CI hazard.
+4. **A guard either way**: an env-gated test
+   (`METALUI_RUN_ASSERTS_COMPILER_TEST=1`, the toolchain path from
+   `METALUI_ASSERTS_TOOLCHAIN`, default the snapshot's) that builds a scratch
+   package holding the fixtures against this checkout. With a fix: the trigger
+   shape compiles. Without: the workaround shape compiles **and** the trigger
+   shape still fails with the assertion — a tripwire that reddens when a
+   toolchain fixes it, so the workaround note can go. It counts while skipped
+   (fifteen env-gated tests with spec test 1.9 — amended by `SG-H` item 7).
+5. The upstream bug text (title, the reduced file, the exact assertion and
+   frames, toolchain versions) goes in the record.
+
+**Cost if wrong.** A box that does not cure the crash costs an allocation per
+`Component` per frame for nothing — gate (a) prevents it landing.
+
+**Lane 3's measurements (2026-10-10; amends items 1–5, the next-unused line
+does not move).**
+
+6. **Reproduced, both shapes, debug and release.** The toolchain is selected
+   by bundle identifier: `TOOLCHAINS=org.swift.64202605271a swift build`
+   (read from the `.xctoolchain`'s `Info.plist`; `xcrun --toolchain
+   org.swift.64202605271a swiftc` for a single file). Swift 6.5-dev (LLVM
+   8f81a64f6a8bcf6, Swift 4d0c97fa5b05711). A scratch package depending on
+   this checkout by path, one target per shape: `LK-X`'s minimal row
+   (`Column { Text("a"); Inner() }` in a `Component`, `Inner` a `Component`
+   whose content is a bare `ForEach`) and MG-27's (a `Component` whose content
+   is a `switch` over four cases: a `Text`, a nested `Component` holding
+   `Column { ForEach }`, an `AnyElement(Box { … })`, a `Column`) both assert
+   at `1dec007` in **debug and release** — `Assertion failed:
+   (hasNoNontrivialLexicalLeaf && "Found non-trivial lexical leaf in
+   non-trivial non-lexical type?!"), function verifyLexicalLowering, file
+   TypeLowering.cpp, line 3390`, "While generating protocol witness thunk …
+   `prepaintGroup(layout:pass:)`" of the outer conformance. (MG-27 saw it at
+   `-c release` only on Windows' 6.4.0+Asserts; the Mac snapshot fires in
+   both — the debug/release difference is not reproduced here.) The function
+   workaround compiles in both. **The UTM VM did not answer** (`ssh
+   metalui-win`: port 22 timed out; `utmctl list` reads the VM `stopped`); it
+   was not started — the Windows ARM64 run is human check SG6.
+7. **MG-27's reduction against MetalUI** (debug; each row one edit from the
+   shape as written):
+
+   | edit | asserts |
+   | --- | --- |
+   | the shape as written | yes |
+   | case `.b` a `Text` (no nested `Component`) | no |
+   | `Rows`' `ForEach` replaced by one `Text` (no loop) | no |
+   | case `.c` a `Text` (no `AnyElement`) | yes |
+   | `Rows`' content a bare `ForEach` (no `Column`) | yes |
+   | two cases and a `default` | yes |
+   | `if mode == .b { Rows } else { Text }` (no `switch`) | yes |
+   | `if mode == .b { Rows }` (no `else`: an `Optional`) | no |
+   | `Rows` alone (no `switch`) | no |
+   | the loop inline in case `.b` (no nested `Component`) | no |
+   | case `.b` a function returning `some ElementGroup` (the workaround) | no |
+
+   So MG-27 is `LK-X`'s trigger: a nested `Component` whose content holds a
+   loop, inside an **aggregate** record of the enclosing `Component` — a
+   `Pair` (beside other content) or an `EitherGroup` (an `if`/`else` or a
+   `switch` branch) — but not alone and not under an `Optional`.
+8. **A reduction with no MetalUI import** (`AssertsCompilerTests.swift`'s
+   `standaloneFixture`, 25 lines): a protocol `Group { associatedtype
+   Prepaint; func prepaint() -> Prepaint }`, a leaf whose `Prepaint` is
+   `String`, a generic `Pair` whose `Prepaint` is a struct of both halves', a
+   `Component: Group` with `var content: Content` and an extension witness
+   `func prepaint() -> Content.Prepaint`, `Inner { var content: some Group {
+   Text() } }` and `Outer { var content: some Group { Pair(a: Text(), b:
+   Inner()) } }`. One edit each (`xcrun --toolchain … swiftc -parse-as-library
+   -emit-library`):
+
+   | edit | asserts |
+   | --- | --- |
+   | as written | yes |
+   | `-O`; `-swift-version 6`; `-Xfrontend -enable-lexical-lifetimes=false` | yes |
+   | `-Xllvm -sil-verify-none` (the verifier off) | no |
+   | the leaf's `Prepaint` `[Int]`, `Set<Int>`, `[Int: Int]`, `Substring`, `[String]` | yes |
+   | the leaf's `Prepaint` `Int`, `Int?`, a class, a struct holding a class, an enum with a class payload | no |
+   | `Outer`'s content `Inner()` alone | no |
+   | `Outer`'s content `Pair(a: Inner(), b: Inner())` | yes |
+   | `Outer`'s content spelled `Pair<Text, Inner>` (concrete) | yes |
+   | `Inner`'s content spelled `Text` (concrete) | no |
+   | `Pair.Prepaint` a tuple instead of a struct | no |
+   | `Pair.Prepaint` a struct of `b` alone | yes |
+   | `Outer` declares its own `prepaint()` (no default witness) | yes |
+   | the extension witness returns a **final class** holding `Content.Prepaint` | no |
+   | … a struct holding a final class (`ComponentPrepaint`'s shape) | no |
+   | … a plain generic struct holding `Content.Prepaint` | yes |
+
+   The trigger: an inner conformer's **opaque** content whose associated
+   record is an eager-move standard-library type (`String`, `Array`, `Set`,
+   `Dictionary`, `Substring`), stored as a field of a struct in the outer
+   conformer's record. A compiler bug; MetalUI's sources carry no
+   `@_eagerMove`/`@_noEagerMove`.
+9. **Adopted: `ComponentPrepaint`** (`Component.swift`, beside
+   `ComponentLayout`): `Component`'s `GroupPrepaint` is a public struct over a
+   `final class` holding `Content.GroupPrepaint`, made in `prepaintGroup`,
+   mutated in place by `paintGroup` through `withPrepaint(_:)`;
+   `StyledComponent` forwards `C.GroupPrepaint` unchanged. The five gates:
+   (a) both shapes compile under the snapshot in debug and release (the guard,
+   green), and the snapshot builds `MetalUIDemoContent`, `MetalUIDemo`,
+   `MetalUICLI` and the six Windows-portable test targets (`MetalUICoreTests`,
+   `MetalUILayoutTests`, `MetalUISystemFontsTests`, `MetalUIPathTests`,
+   `MetalUICrossPlatformTests`, `MetalUIScaffoldTests`) with no assertion;
+   (b) the native suite after `swift package clean`: 2915 tests in 3 suites
+   passed (2913 + 3.2 + 3.3); (c) the fourteen images (`docs/probes/demo-pixels/compare.sh <scratch> 0b400b4 1dec007
+   1972662`): 0 differing pixels, every scene identical, at both steps; controls
+   1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 / 491221 / 529 / 0;
+   (d) pins moved: none — no test reddened; the figures, unboxed (M3.2) → boxed:
+   `aShellOverTwelveComponentPanesUsesTheStackOfOnePane`'s `STACK-METER` pane
+   1 027 776 → 1 027 792 bytes, shell 2 1 029 312 and shell 12 1 032 288
+   both unmoved; `theStackMeterSeesTheContentGettersFrame` unmoved (getter
+   4 313 632, inline 2 1 322 800, inline 12 4 370 784); the env-gated
+   `measureComponentBoxAllocations` (`METALUI_COMPONENT_ALLOC_MEASURE=1`):
+   one `Component` per settled frame **2.00 → 3.00 allocations** (152 → 168
+   bytes) — exactly the one box the ruling expected; (e) the census gains `struct ComponentPrepaint` (claimed by
+   `Component.swift`'s `M` row, family `component`, which now names `SG-E`),
+   doc-commented. **Mutations** (full unfiltered native suite each, after
+   `swift package clean`): **M3.2**, un-box (`Component`'s witnesses back to
+   `Content.GroupPrepaint`, the type left in place) — the suite stays green
+   (2915 passed: no macOS test can see it) and the env-gated guard reddens
+   with exactly four issues, `LKX` and `MG27` asserting in debug and release
+   (`Workaround` compiles, the reduction asserts); **M3.3**, `withPrepaint`
+   runs `body` on a copy — reddens `aComponentsPrepaintIsHeldOnceAndMutatedInPlace`
+   alone (its second arm). **No migration note**: `GroupPrepaint` is an associated type
+   no conformer names (`Component`'s witnesses are defaults), and
+   `ComponentPrepaint`'s initialiser and accessor are internal.
+10. **Workaround, where the box does not reach** (code with its own protocols
+    of item 8's shape, or a MetalUI before the box): the looping member as a
+    `@MainActor` function returning `some Element`/`some ElementGroup`
+    (`LK-X`'s rule, which covers `switch` and `if`/`else` branches too);
+    `-enable-lexical-lifetimes=false` does not help; `-Xllvm
+    -sil-verify-none` avoids it on the reduction (macOS only, unmeasured on
+    Windows). `docs/packaging.md` §"Windows" item 4.
+11. **The upstream report** (for swiftlang/swift; not filed from here):
+
+    > **Title:** SILGen `verifyLexicalLowering` assertion ("Found non-trivial
+    > lexical leaf in non-trivial non-lexical type?!") on a protocol witness
+    > returning an associated type of an opaque result whose underlying type
+    > is an eager-move stdlib type nested in a generic struct
+    >
+    > **Toolchains:** asserts — swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a (6.5-dev,
+    > arm64-apple-macosx) and Windows 6.4.0+Asserts (aarch64 and x86_64 MSVC,
+    > `-c release`). Release-built compilers (6.4.0 on macOS and Linux) compile
+    > it.
+    >
+    > **Reproduction:** `swiftc -parse-as-library -emit-library -o /dev/null
+    > repro.swift`, with `repro.swift` the 25-line file in item 8.
+    >
+    > **Result:** `Assertion failed: (hasNoNontrivialLexicalLeaf && "Found
+    > non-trivial lexical leaf in non-trivial non-lexical type?!"), function
+    > verifyLexicalLowering, file TypeLowering.cpp, line 3390.` Stack dump:
+    > `3. While evaluating request ASTLoweringRequest(Lowering AST to SIL for
+    > file "repro.swift")`, `4. While silgen visitDecl 'Outer'`, `5. While
+    > generating SIL witness table protocol conformance Outer: Group`, `6.
+    > While generating protocol witness thunk SIL function
+    > "@$s4null5OuterVAA5GroupA2aDP8prepaint8PrepaintQzyFTW" for
+    > 'prepaint()'`.
+    >
+    > **Narrowing:** passes when the leaf's type is `Int`, a class or a
+    > struct holding a class; when `Inner.content` is concrete; when the outer
+    > record is a tuple; when `Outer.content` is `Inner()` alone. Fails with
+    > `Array`, `Set`, `Dictionary`, `String`, `Substring`; with `-O`; with
+    > `-enable-lexical-lifetimes=false`. Wrapping the witness's result in a
+    > final class avoids it; a plain generic struct does not.
+
+## SG-F — `Window.drawnChromeHeight`, and explicit size limits are measured below the drawn chrome
+
+**Ruling.**
+
+1. **`public var drawnChromeHeight: Pixels { get }`** on `Window`: the height
+   MetalUI draws above the root in this window — the drawn menu bar (`SG-A`,
+   25) plus the drawn toolbar strip (`MD-K`, 39) — as the last adopted frame
+   laid them out; **0** where the platform shows its own (AppKit) and before
+   the first frame. Read-only (guarded). MetalUI-only (inventory **M**).
+2. **An explicit `minSize`/`maxSize` is a size of the content below the
+   drawn chrome**: where chrome is drawn, the limits sent to
+   `setContentSizeLimits` add `drawnChromeHeight` to the height axis (an
+   infinite maximum stays infinite). AppKit's limits are `contentMinSize`/
+   `contentMaxSize`, which exclude its toolbar, so a portable app's
+   `minSize` now means the same rect on both platforms. The content-measured
+   limits (`.contentMinSize`/`.contentSize`) already add the strip
+   (`Frame.computeRootLayout`); they add the whole chrome now.
+3. Re-sent when the chrome changes (a toolbar appearing, the bar's first
+   build), through the existing `reconcileContentSizeLimits` after every
+   built frame — no new call site. (Lane 1: the call in `Window.adopt` moved out of the
+   `windowResizability != .automatic` branch, so it runs under `.automatic`
+   too — there `contentLimits` stays empty and only the explicit limits plus
+   the chrome reach the platform; an unchanged pair sends nothing. Mutation,
+   on `58fe672`, `Window.adopt`'s spelling: the call moved back inside the
+   `if` — the full unfiltered native suite reddens
+   `anExplicitMinimumIsMeasuredBelowTheDrawnChrome` (2.20) at
+   `WindowSizingTests.swift:414` and `:423`, nothing else beyond the five
+   screen-lock `AppKitPresentationTests`; restored, `git status` clean.)
+4. `ToolbarStrip.height` stays internal; the strip's and bar's heights are
+   documented on `drawnChromeHeight`.
+
+**Migration** (`docs/migration.md`): an SDL app that added the strip's 39 to
+its `minSize` removes it.
+
+**Cost if wrong.** An app relying on `minSize` including the strip on SDL gets
+a window 39 (or 64) points taller at minimum — visible, never clipped.
+
+## SG-G — Scope, lanes and the parallel branches
+
+1. *(Superseded by `SG-H` item 5: lane 1 takes `SG-B` item 5 and `SG-F`'s strip term; lane 3 may run concurrently in a sibling worktree.)* **Three lanes, run one after another** in this worktree (spec §4): lane 1
+   `SG-B`'s modifier and defaults, `SG-C`, `SG-D`; lane 2 `SG-A`, `SG-F` and
+   `SG-B`'s menu adoption and labels; lane 3 `SG-E`. Source files are
+   disjoint; the generated census (`closeout-public-api.tsv`) and the
+   inventory map take rows from lanes 1 and 2 in that order.
+   `docs/migration.md`, `docs/divergences.md` and
+   `docs/verification/human-checks.md` are lane 2's alone (lane 1's and lane
+   3's text is given in the spec).
+2. **Parallel branches.** `feat/app-shell` (C8) adds members to every
+   `Platform`/`PlatformWindow` conformer, including the compile-guard
+   conformers `SG-A` item 1 edits — conflicts are textual and additive (keep
+   both). `feat/key-focus` (C9) touches `KeyboardShortcut.swift` (line 22,
+   `Hashable`) and `Keymap.swift`'s documentation only; `SG-B` edits line 79's
+   default and nothing in `Keymap.swift`. `feat/controls-looks` (C10) and
+   `fix/clip-nested-flattening` (C19) are in PR: merge master when it moves.
+3. **Not moved**: identity and retention (the seven slots; `$menubar` is a
+   name), hit testing's one ranking, accessibility bridges, animation, focus,
+   `List`, `Deferred`, text input. The fourteen offscreen images read 0 px
+   (no window there has an `App`, so no bar; no default shortcut is drawn).
+
+## SG-H — Critic review of the design (2026-10-09): six corrections, one rejection, the parallel plan
+
+**Ruling.** A review of `a7b38fc` against the source at `0b400b4` and master
+`9ad2254`. The probe was re-run (default build and the `PRIMARY`/`PLATFORM`
+arms): stdout and both refusals byte-identical to its header. Corrections,
+each made in place in `SG-A`/`SG-E`/`SG-G` and the spec:
+
+1. **The drawn Edit items are enabled only while a text field is focused.**
+   `SG-A` item 4 cited `AppKitMenus.deliverEditKey` as "exactly this" but let
+   the drawn items run "with nothing focused … where any key goes". AppKit's
+   `MetalHostView.validateMenuItem` disables the seven Edit selectors unless a
+   caret is set (`MN-K`). Without the same rule a drawn Select All with
+   nothing focused would be delivered as `.primary`+A and run a `Button`
+   shortcut or an app command bound to that key — a menu row running an
+   unrelated action, which AppKit never does. Pinned by spec 2.11's new arm.
+2. **Delete is `\u{7f}`**, not `\u{f728}`: `MetalHostView.delete(_:)`
+   delivers `"\u{7f}"` with no modifiers; one path means one key.
+3. **A `CommandGroup(replacing: .undoRedo/.pasteboard)` replaces the drawn
+   Edit items** as it replaces AppKit's — `SG-A` item 3 said "standard items
+   kept" unconditionally. Spec 2.6 gains the arm.
+4. **A title opens on the click, not the press.** The title is an `onClick`
+   (`SG-A` item 7, chosen so no new handler site is owed), which fires on
+   release; `SG-A` item 8 said "press". Native Windows/GTK bars open on the
+   press and allow press-drag-release onto a row; the drawn bar does not.
+   Recorded in divergence 195's text by lane 2 (no new label). Cost if wrong:
+   a press-drag-release user gets nothing until release, then the menu.
+5. **Lanes rebalanced; lane 3 parallel.** Lane 2 held ~20 tests and every
+   menu-bar file while lane 1 was small. `SG-B` item 5 (labels,
+   `MenuPanel.shortcutText`, test 2.2) and `SG-F` over the **toolbar strip**
+   (which exists at the base, so 2.19's strip arms, 2.20 and guard 2.21b
+   separate without the bar) move to lane 1; lane 2 adds the bar's 25 and its
+   arms. Lane 3 (`SG-E`) shares no file with lanes 1–2 and needs nothing they
+   add, so it **may run concurrently** in a sibling worktree
+   (`smk-gaps-asserts`, branch `fix/smk-port-gaps-asserts` from this HEAD),
+   merged after lane 2 and verified on the merge. Lanes 1 → 2 stay
+   sequential: lane 2 spells `.primary`, the labels and `drawnChromeHeight`.
+   Splitting lane 2 itself was considered and **rejected**: its files
+   (`Window`, `Frame`, `MenuSession`, `Commands`) are one feature's, and a
+   split would put two agents on `Window.swift`'s key dispatch. Generated
+   files are re-generated after a merge, never hand-merged.
+6. **Baseline moved.** Master moved to `9ad2254` (GX-Y, `Frame.swift`/
+   `RenderEffects.swift` only, no file of this design); merged at `57e02a4`.
+   Counts are re-taken there by lane 1 before its first commit and the pixel
+   comparison's base is `57e02a4`.
+7. **Two counting/gate omissions.** Env-gated tests are fifteen after 1.9 and
+   3.2, not fourteen (`SG-E` item 4). `SG-E` item 2's box changes
+   `Component`'s public `GroupPrepaint` witness type: a fifth gate — doc
+   comment, inventory row, re-recorded census — if it lands.
+
+**Rejected: spelling `SG-F` as a safe-area inset.** SwiftUI's macOS toolbar
+is outside the content view (the content is laid out below it, not under it
+with an inset), MetalUI lays the root out below the drawn chrome the same way
+(`MD-K`), and safe areas are outside the product boundary (`PB-A`). A
+read-only height is the honest spelling; `drawnChromeHeight` stands.
+
+**Checked and standing** (no change): every `Platform` conformer is in the
+spec's list (`AppKitPlatform`, `SDLPlatform`, the `SDLLifecycleTests`
+wrapper, `Fakes`, `AppIconCompileGuards`, `CommandsCompileGuards`; the
+trait-off `SDLPlatform` is an unavailable stub, not a conformer); the nine
+`CommandGroupPlacement`s are all placed by `SG-A` item 3, so no command
+becomes unreachable in the drawn style; the fourteen images are rendered over
+`FakePlatformWindow` with no `App` and none shows the menus demo; the SDL
+bridge's modifier constants are already converted with `UInt32(...)`;
+`mui_push_event` round-trips through `SDL_KMOD_*`, so 1.4's bridge mutation
+reaches; key-focus (C9) changes `dispatchAction`/adds `dispatchKeyPress` in
+`Window.swift` but not the unclaimed-key stage F10 joins, and its `KF-X`
+reads `commandShortcuts`, which `SG-A` leaves unchanged.
+
+## SG-I — Lane 2, as built: the bar's naming arm, the title's spelling, the demo's modifier, the fakes
+
+**Found (lane 2, implementing `SG-A`).**
+
+1. Spec test 2.13 names mutation M2.13, "drop the `noteNamed`". `$menubar` is
+   one fixed name at its own position `(nil, 2)`; `noteNamed` departs a name
+   only when a **different** name is minted at the same position, so the
+   root's note can depart nothing and no arm can see it — exactly `MD-Z`
+   item 1's finding for `$toolbar`. The titles carry no state either (a
+   `Text` in an `onClick` frame), so no "starts fresh" reading exists for them.
+2. Legacy `Text.padding` takes one uniform `Pixels`, not `Edges`: spec §3.4
+   item 9's `Text(title).padding(h 8)` does not compile on the legacy `Text`.
+3. Spec §3.4 item 11 moves the demo's commands "verbatim", but they bind Say
+   Hello to `[.command, .shift]` — the Super key off Apple — while human check
+   SG2 (and the demo's new "⇧ + primary + H" line) expects Ctrl+Shift+H there.
+4. `FakePlatform.openWindow` made 64-point windows and left each window's
+   `toolbarIsNative` at its default; `App.openWindow` draws the first frame at
+   once, so a test could not choose a 400-point window or a declined toolbar
+   before that frame.
+5. Lane 1's verifier flagged lane 1's uncommitted edit of `Commands.swift`
+   (spec §4 gives it to lane 2); lane 1's committed fix left it out.
+
+**Ruling.**
+
+1. The root's `noteNamed` stays (every site minting a named id notes it,
+   `ID-R`; it marks `$menubar` produced). 2.13's arm in
+   `everyNamingSiteStartsAReturningNameFresh` pins the **titles' keying**: a
+   menu titled a, a, b, a gives the ids under `$menubar` a, a, b, a's sets —
+   the returning title has the id it left with, the replaced one another —
+   and the constant control one set. Its mutation is **M2.13b**, titles keyed
+   by index alone; M2.13 is run and recorded, expected green (an instrument
+   with nothing to see, not a finding).
+2. A title is `Text(title)` in `.frame(width: textWidth + 16, height: 24)` —
+   the text centred, so 8 a side, the same geometry — then `.background`
+   (`.accent` when open, `Color.clear` otherwise), `.onClick`,
+   `.accessibilityLabel`, `.accessibilityAddTraits(.isButton)`. The widths are
+   measured once per build (`MenuBarStrip.titleFrames`, the control font
+   through `Frame.textSystem`, rounded up) and are the rects the window keeps
+   for the anchor and hover switching.
+3. `installMenusDemoCommands(_:)` (in `MetalUIDemoContent`) binds Say Hello to
+   `[.primary, .shift]`; on macOS that is the old `[.command, .shift]`, so the
+   AppKit demo is unchanged; New Note keeps `.keyboardShortcut("n")`, now
+   `.primary` by `SG-B`. Reset Status is added, with no shortcut.
+4. `FakePlatform` gains `windowSize` (default 64) and `windowsShowToolbars`
+   (default `true`), applied in `openWindow`, beside `menuBarIsNative`
+   (default `true`); no existing test sees a change.
+5. `MenuBarModel.standard`'s default and Redo's modifiers become `.primary`
+   in lane 2's commit (both styles; value-identical on macOS), as spec §4 and
+   `SG-B` item 3 assign.
+6. `App.commands(content:)` marks every window dirty when the bar is drawn,
+   so a `commands` call after `openWindow` shows on the next frame; on AppKit
+   (the answer `true`) nothing changes.
+7. At an open, the drawn Edit items' `isEnabled` is overridden by the focused
+   text field rule (`SG-H` item 1) and their actions run
+   `Window.deliverStandardEditKey` through `PlatformWindow.onInput`, as
+   `AppKitMenus.deliverEditKey` does; command items run
+   `DrawnMenuBarSource.perform` — `App.drawnMenuBarActions`, the drawn
+   evaluation's own table, apart from AppKit's `menuBarActions` so an
+   AppKit-style `content()` never renumbers it. Both run under
+   `StateDispatch.dispatching(to: $menubar)` (`runMenuAction`).
+
+**Cost if wrong.** Item 1: a future title with state would need a real
+"starts fresh" arm. Item 2: a title wider than its share of the window is
+compressed by the `HStack` and its recorded rect is then wider than drawn —
+hover switching and the anchor use the recorded rect (clicks use the real
+hitboxes); a window narrower than its titles is outside the configurator's
+use.
+
+
+## SG-J — `Text.font(_:)` takes no closure: the menus demo's monospaced line trapped the 1 MB build
+
+**Found (lane 2's full suite).** With `SG-A`'s demo line
+(`Text("Shortcut: ⇧ + primary + H").font(.system(size: 12, design: .monospaced))`,
+spec §3.4 item 11) in `menusDemoContent()`,
+`everyProductionTreeBuildsOnAOneMegabyteThread` failed on macOS arm64 (the
+native unfiltered run, 2910 tests, its one issue) and in `swift:6.4-noble`
+aarch64 alike: `expected exit status ".success", but ".signal(SIGTRAP)"`.
+Not the stack: moving the menus demo into its own `@inline(never)` frame (the
+`CI-AI` remedy) still trapped, and `menusDemoContent()` built on the main
+thread passed. Run on a 1 MB secondary thread outside an exit test, the
+backtrace reads `closure #1 in Text.font(_:)` (`TextModifiers.swift:104`) ←
+`menusShortcutLine()` ← `menusDemoContent()`: the `font.map { .explicit($0) }`
+closure inherits the main actor and checks its executor, and the harness
+builds the trees on a secondary thread with the isolation cast away. The
+menus line is the first `Text.font(Font)` call in any production tree (the
+others use the legacy `.font(size:)`), so no earlier tree reached it.
+
+**Ruling.** The four `font(_ font: Font?)` bodies in `TextModifiers.swift`
+(`Text`'s, `ProposalText`'s, `TextField`'s and `TextEditor`'s) assign through `if let`/`else` — the same
+values, no closure. No public signature, no behaviour on the main thread
+moves; the demo line stays (human check SG4 needs it). The 1 MB test's
+harness is unchanged.
+
+**Cost if wrong.** None on a real app (trees build on the main actor). A
+future production tree that reaches another isolated closure in a modifier
+traps the same test with the same signal; the backtrace above is how to find
+it.
+
+**Lane 2's measurements (at `b1b7918`, not a ruling).** Guard 2.21a mutated
+red once: a protocol-extension default `func setMenuBar(_:) -> Bool { true }`
+in `Platform.swift` (full unfiltered native suite) reddened
+`aPlatformWhoseSetMenuBarReturnsNothingDoesNotConform` (void and answering
+both `succeeded=true`) and `aPlatformWithoutSetMenuBarDoesNotCompile`, and
+nothing else beside `CI-AF`'s five locked-screen `AppKitPresentationTests`
+sheet issues; restored. Fourteen offscreen images `57e02a4` → `b1b7918`:
+0 px, every scene identical, controls as recorded. The spec's other lane-2
+mutations (M2.3a…M2.19) are left to the lane's verifier.
+
+## SG-K — Lane 2's verifier: five instruments that could not fail, and the documents still saying SDL draws no bar
+
+**Found (lane 2's verifier, mutating `fa5ff84`, full unfiltered native suite,
+2910 passed under each).**
+
+1. M2.15 (drop the title's `.accessibilityAddTraits(.isButton)`) stays green
+   and is **equivalent**: `AccessibilityTreeBuilder.resolveText` gives any
+   clickable record the `.button` role, so the title's role comes from its
+   `.onClick`. Spec 2.15, the test's doc comment and `SG-I` item 2's spelling
+   claimed the trait was what 2.15 pinned.
+2. M2.11b (deliver Copy as primary + X) stayed green: after Select All both
+   Copy and Cut put "abc" on the clipboard and the later Paste of "Z" leaves
+   "Z" either way.
+3. M2.11d (Delete as U+0008) and M2.11e (Undo as primary + shift + Z) stayed
+   green: only Select All, Copy and Paste were exercised.
+4. M2.10c (no `key.modifiers.isEmpty` in `dispatchMenuBarKey`) stayed green;
+   M2.16b (titles evaluated outside `withObservationTracking`) and M2.16c
+   (`App.commands`' redraw removed) stayed green — 2.16 writes from input,
+   which dirties the window on its own.
+5. `docs/api-overview.md`, `docs/migration.md` and the `menu-bar` family row
+   of `closeout-inventory-map.tsv` still said SDL draws no bar.
+
+**Ruling.**
+
+1. The trait stays (it is harmless and says what the element is); 2.15 is
+   documented as pinning the role from `.onClick`; M2.15 is recorded as
+   equivalent. (Its "separating mutation M2.15b (drop `.onClick`)" was wrong
+   too: `SG-L`.)
+2. 2.11 expects `model.text == "abc"` right after Copy (Cut would empty it).
+3. New test 2.11b `everyDrawnEditRowDeliversItsKey`: a field focused, each of
+   the seven rows chosen in turn, the keys reaching the fake window's
+   `onInput` (wrapped) are exactly Undo primary+Z, Redo primary+shift+Z,
+   Cut primary+X, Copy primary+C, Paste primary+V, Delete U+007F with no
+   modifier, Select All primary+A.
+4. 2.10 gains an arm: Shift, Control and Option + F10 in a window with no
+   context menu open no bar menu. New tests 2.16b
+   `aCommandsObservableWriteOutsideInputRedrawsTheBar` and 2.16c
+   `commandsDeclaredAfterOpenWindowDrawTheBarOnTheNextFrame`.
+5. The three documents describe the drawn bar (divergence 195, `SG-A`).
+
+**Cost if wrong.** None in behaviour: no source line moves, only tests and
+documents.
+
+## SG-L — M2.15b is equivalent as well: the title's role has two sources
+
+**Found (the second verifier, mutating `1dec007`, full unfiltered native
+suite).** `SG-K` item 1 replaced one refuted claim with another: it said
+dropping the title's `.onClick` (M2.15b) reddens 2.15
+`aMenuBarTitleIsAnAccessibleButton`. It does not — 2913 tests, 11 issues
+(`aDrawnEditItemReachesTheFocusedField`,
+`clickingATitleOpensItsMenuBelowItAndAChoiceRunsTheCommand`,
+`everyDrawnEditRowDeliversItsKey`,
+`hoveringAnotherTitleWhileOpenSwitchesAndArrowsWrap`,
+`thePressedOpenTitleAndEscapeCloseTheMenu`), 2.15 green: the
+`.accessibilityAddTraits(.isButton)` trait still gives the `.button` role.
+
+**Ruling.** The role has **two sources**, the trait and the clickable record;
+M2.15 (drop the trait) and M2.15b (drop `.onClick`) are each equivalent for
+2.15, and it reddens only when both go (**M2.15c**: 2.15 plus the five click
+tests, 13 issues). Both spellings stay in the title (harmless, and the click is
+the feature). Corrected in the test's doc comment, spec §5 2.15 and `SG-K`
+item 1. 2.15 is recorded as a one-source-loss-tolerant pin; it is not widened
+(a press-action assertion would only re-pin the click tests).
+
+**Also found (lane 3's verifier, minors, fixed here).** The asserts-compiler
+guard launched `/usr/bin/env` on every platform and shared one scratch
+directory across checkouts: the doc comment now says it runs on macOS and
+Linux only (Windows stays human check `SG6`), and the directory carries a hash
+of the checkout path so two worktrees never race on its `Package.swift`.
+
+## SG-M — File ▸ Close and Quit/Exit in the drawn bar (item 11a, done)
+
+**Context.** `SG-A` item 11(a) deferred them to "whichever of C8 and C12
+merges second". C8 (`feat/app-shell`, `AS-`, record §87) merged first, so
+`PlatformWindow.close()`, `Window.performClose()`, `Platform.terminate()` and
+`App.terminate()` exist and the work is this branch's.
+
+**Ruling.**
+1. The drawn File menu is `.newItem` additions, `.appVisibility` additions,
+   **Close**, then the `.appTermination` group whose standard item is **Quit**
+   (labelled **Exit** on Windows, `SG-B`'s convention for the platform; "Quit"
+   on Linux), then the additions. Close sits in no replaceable placement, as in
+   the AppKit arrangement; Quit is replaceable by
+   `CommandGroup(replacing: .appTermination)` exactly as AppKit's. File is no
+   longer ever empty, so the bar's first title is always File.
+2. They are `StandardMenuAction.close`/`.quit` items, handled by
+   `Window.openMenuBarMenu`, not delivered as keys: Close runs
+   `Window.performClose()` (asks `onCloseRequest`, `AS-B`; never `close()`),
+   Quit runs `App.terminate()` (the terminate-request walk, `AS-C`) through a
+   new `DrawnMenuBarSource.terminate` closure (internal). Close is disabled once
+   the window is closed; Quit is always enabled.
+3. **No shortcut is shown or bound** on either (`SG-A` item 10: the drawn bar
+   adds no shortcut path, and a shown shortcut that does nothing would lie).
+   ⌘W/⌘Q-style keys stay the app's own business off Apple.
+4. No new public declaration; divergence 195's text drops the "absent" clause.
+
+**Cost if wrong.** An app that wanted a bare File menu gets two items it can
+hide with `CommandGroup(replacing: .appTermination) {}` (Quit only; Close
+stays, as on AppKit). Evidence: record §89 §14.
+

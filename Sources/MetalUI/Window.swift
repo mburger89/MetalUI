@@ -555,10 +555,13 @@ public final class Window {
     /// could never stick at all. See the read-back for the mechanism, and
     /// `focusingFromInsideAFrameSurvivesThatFrame` for the pin.
     ///
-    /// **Nothing here focuses anything on its own.** Focus-by-click is a policy
-    /// decision this framework has not made: a `mouseDown` on an element with
-    /// an `onClick` moves `active` and does *not* move focus. A caller who
-    /// wants that behaviour writes it in a handler.
+    /// **Nothing here focuses anything on its own.** A `mouseDown` on an
+    /// element with an `onClick` moves `active` and does *not* move focus. The
+    /// press-time focus changes are opt-ins with stages of their own: a
+    /// `TextField`/`TextEditor` and a selectable `List` focus themselves, a
+    /// `focusable(_:interactions:)` `.edit` element takes focus and a press in
+    /// a `hoverKeyRegion()` clears it (`focusOnPress`, rulings `KF-F`, `KF-E`
+    /// item 5).
     ///
     /// Marks the window dirty, because focus is visible.
     public func focus(_ id: GlobalElementID?) {
@@ -663,6 +666,11 @@ public final class Window {
     /// with the content's own minimum under `.contentMinSize`/`.contentSize`
     /// (the larger wins). A negative axis counts as 0; NaN traps. Applied at
     /// once: a window smaller than it is resized to it.
+    ///
+    /// Where MetalUI draws chrome above the root (``drawnChromeHeight``, the
+    /// SDL toolbar strip) the minimum is the content's below it — the
+    /// platform receives the height plus the chrome — as AppKit's
+    /// `contentMinSize` excludes its toolbar (ruling `SG-F` item 2).
     public var minSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(minSize, "minSize")
@@ -674,7 +682,8 @@ public final class Window {
     /// points; `nil`, the default, sets none (ruling `SV-L`). An infinite axis
     /// is no limit on that axis; one below the minimum is raised to it; NaN
     /// traps. Combined with the content's maximum under `.contentSize` (the
-    /// smaller wins).
+    /// smaller wins). Measured below drawn chrome as ``minSize`` is (an
+    /// infinite height stays unbounded; `SG-F` item 2).
     public var maxSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(maxSize, "maxSize")
@@ -730,6 +739,19 @@ public final class Window {
     /// (`MD-K` item 5).
     private var lastBuildDrewToolbarStrip = false
 
+    /// The height MetalUI draws above the root in this window, in window
+    /// points (ruling `SG-F` item 1): the drawn menu bar (`SG-A`, 25 — on a
+    /// platform whose `setMenuBar` declines, SDL, in an app that declared
+    /// `commands`) plus the drawn toolbar strip below it (`MD-K`, 39 — where
+    /// `setToolbar` declines) as the last adopted frame laid them out: 0, 25,
+    /// 39 or 64. **0** where the platform shows its own bar and toolbar
+    /// (AppKit), with neither, and before the first frame. The root is laid
+    /// out in the rect below it, and an explicit ``minSize``/``maxSize`` is a
+    /// size of that rect. Read-only; MetalUI-only.
+    public var drawnChromeHeight: Pixels { Pixels(drawnChromeHeightValue) }
+    /// `drawnChromeHeight`'s value, set when a frame is adopted.
+    private var drawnChromeHeightValue: Float = 0
+
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
     /// resized into, `SV-AG` item 3) still owes the next frame after a
@@ -749,12 +771,24 @@ public final class Window {
     /// that never change reach the platform once — and none, never.
     private func reconcileContentSizeLimits() {
         guard !isApplyingSizing else { return }
-        let effective = ContentSizeLimits.effective(minimum: minSize, maximum: maxSize,
+        // An explicit limit is the content's below the drawn chrome (SG-F
+        // item 2); the content's own limits already include it
+        // (`Frame.computeRootLayout`).
+        let effective = ContentSizeLimits.effective(minimum: belowDrawnChrome(minSize),
+                                                    maximum: belowDrawnChrome(maxSize),
                                                     contentMinimum: contentLimits.minimum,
                                                     contentMaximum: contentLimits.maximum)
         guard effective != appliedContentSizeLimits else { return }
         appliedContentSizeLimits = effective
         platformWindow.setContentSizeLimits(minimum: effective.minimum, maximum: effective.maximum)
+    }
+
+    /// `size` with ``drawnChromeHeight`` added to a finite, non-negative
+    /// height (a negative one counts as 0, as `ContentSizeLimits` clamps it);
+    /// unchanged with no drawn chrome.
+    private func belowDrawnChrome(_ size: Size<Pixels>?) -> Size<Pixels>? {
+        guard let size, drawnChromeHeightValue > 0, size.height.value.isFinite else { return size }
+        return Size(width: size.width, height: Pixels(max(size.height.value, 0) + drawnChromeHeightValue))
     }
 
     init<Root: Element>(platformWindow: any PlatformWindow,
@@ -963,6 +997,23 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // Focus on a primary press (rulings `KF-F`, `KF-E` item 5): a
+            // click-focusable element takes focus, a press in a key region
+            // clears it. Claims nothing — the press goes on to the text stage,
+            // the arena and click dispatch (FC6) — and runs before the text
+            // stage, so a field inside either takes focus last (inner wins).
+            // Pinned by `aPressFocusesAnEditInteractionFocusable` and
+            // `aPressFocusesAndStillTaps`.
+            self.focusOnPress(event)
+            // A typed character on a focused field is offered to `onKeyPress`
+            // first (ruling `KF-Q`, divergence 187): the input context hands
+            // it over as `.textInput`, never `.keyDown`, so this is its only
+            // offer. `.handled` drops it. Pinned by
+            // `aHandledKeyPressSwallowsATypedCharacterInAFocusedField`.
+            if self.dispatchTypedKeyPress(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // Text fields (ruling TI-B): a press on one focuses it and places
             // the caret, a drag from it selects, and committed or marked text
             // goes to the focused one. Ahead of click dispatch — a field has
@@ -1003,7 +1054,30 @@ public final class Window {
             // keymap. Swapping these two lines makes every raw handler shadow
             // every binding on the same keystroke; pinned by
             // `aBoundActionRunsBeforeARawOnKeyHandler`.
-            if self.dispatchAction(event) {
+            //
+            // The key chain (ruling `KF-D`, `KF-U`): the focus chain, or with
+            // nothing focused the hovered key region's — found once per key
+            // event, for the keymap's contexts, its action dispatch and
+            // `onKeyPress`; the raw `onKey` bubble keeps the focus chain.
+            let keyChain: [GlobalElementID]
+            switch event {
+            case .keyDown, .keyUp: keyChain = self.keyChain
+            default: keyChain = []
+            }
+            if self.dispatchAction(event, along: keyChain) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // SwiftUI's `onKeyPress` (rulings `KF-B`, `KF-C`): after the
+            // keymap — MetalUI's window-level command layer — and before a
+            // focused field's editing keys, so a handled ↑ never moves the
+            // caret and a handled Return never submits (K4c, K4g); before a
+            // `Button`'s shortcut, plain or ⌘-modified (K10, KX1). A keystroke
+            // an app command binds is declined and runs the command instead
+            // (ruling `KF-X`, KX2/KX3). Outermost first. Pinned by
+            // `onKeyPressOnAFocusedTextFieldClaimsUpArrowAheadOfTheField` and
+            // `aBoundKeymapActionRunsBeforeOnKeyPress`.
+            if self.dispatchKeyPress(event, along: keyChain) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1037,6 +1111,13 @@ public final class Window {
             // before Tab traversal. **Migration**: a key a command binds no
             // longer reaches Tab traversal or the window's own `onInput`.
             if self.dispatchCommandShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // F10 opens the drawn menu bar's first menu (ruling `SG-A` item
+            // 8): an unclaimed-key stage after the commands, beside Tab
+            // traversal — every earlier stage sees the key first.
+            if self.dispatchMenuBarKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1645,12 +1726,20 @@ public final class Window {
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
         frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
+        if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
+            frame.menuBarOpenIndex = session.barIndex
+        }
+        frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
             // phases is tracked too, which is what makes an `@Observable`
             // model a dependency with no opt-in.
             _ = redrawSentinel.tick
+            // The drawn menu bar's titles, evaluated for every build (`SG-A`
+            // item 9) and inside the tracking, so a command's `@Observable`
+            // read redraws the window as the tree's does. Writes nothing.
+            frame.menuBarTitles = drawnMenuBarSource?.titles()
             renderRoot(frame)
         } onChange: { [weak self] in
             self?.markDirtyFromObservation()
@@ -1660,12 +1749,18 @@ public final class Window {
         lastHitboxes = frame.hitboxes
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
+        lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
+        lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
         adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
+        drawnChromeHeightValue = (frame.drewToolbarStrip ? ToolbarStrip.height : 0)
+            + (frame.drewMenuBar ? MenuBarStrip.height : 0)   // SG-F item 1
+        lastMenuBarTitles = frame.drewMenuBar ? frame.menuBarTitles ?? [] : []   // SG-A
+        lastMenuBarTitleFrames = frame.drewMenuBar ? frame.menuBarTitleFrames : []
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -1747,8 +1842,10 @@ public final class Window {
         // `onResize` and dirties the window for the next frame.
         if windowResizability != .automatic {
             contentLimits = ContentSizeLimits(minimum: frame.contentMinimum, maximum: frame.contentMaximum)
-            reconcileContentSizeLimits()
         }
+        // Also when only the drawn chrome changed (SG-F item 3); a pair equal
+        // to the last one sent sends nothing.
+        reconcileContentSizeLimits()
         onFrameAdopted?(frame)
         return (frame, scene)
     }
@@ -2142,6 +2239,12 @@ public final class Window {
     /// none and nothing hovered, a pointer event or frame does no hover work.
     var lastHoverRegionCount = 0
 
+    /// How many key regions and click-focusable press regions the last
+    /// adopted frame registered (`KF-E` item 4, `KF-F` item 3): with neither,
+    /// a key event and a press do no lookup.
+    var lastKeyRegionCount = 0
+    var lastFocusOnPressCount = 0
+
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
     var lastMenuRowsPainted = 0
@@ -2152,6 +2255,12 @@ public final class Window {
     /// Hitboxes the hover recomputes visited, ever — test observability for
     /// `SV-U`'s counted work (one per hitbox per recompute, after the ranking).
     var hoverVisits = 0
+
+    /// Hovered-key-region lookups made, ever — test observability for
+    /// `KF-E` item 4's counted work: one per key event or primary press that
+    /// needs the hovered region, none per pointer move, none in a window whose
+    /// last frame registered no key region (spec test A24).
+    var keyRegionLookups = 0
 
     /// The pointer style last sent to the platform, or `nil` when unknown —
     /// before the first pointer event, and after the pointer left the window
@@ -2165,6 +2274,40 @@ public final class Window {
     /// Hitboxes the pointer-style recomputes visited, ever — test observability
     /// for the counted work (test 3.25).
     var pointerStyleVisits = 0
+
+    /// What this window draws its menu bar from (ruling `SG-A` item 2): set
+    /// by `App.openWindow`; `nil` for a window built without an `App`, whose
+    /// source's titles are `nil` while the platform shows the bar or no
+    /// commands are declared.
+    var drawnMenuBarSource: DrawnMenuBarSource?
+
+    /// The drawn bar's titles and their rects as the last adopted frame laid
+    /// them out — empty with no bar (`SG-A` items 5, 8).
+    var lastMenuBarTitles: [String] = []
+    var lastMenuBarTitleFrames: [Bounds<Pixels>] = []
+
+    /// Delivers a drawn standard Edit item as its own key through this
+    /// window's key pipeline, from input (`SG-A` item 4, `SG-H` item 2) —
+    /// the seven keys `AppKitMenus.deliverEditKey` delivers on AppKit:
+    /// primary + Z, primary + ⇧Z, primary + X/C/V/A, and Delete as `\u{7f}`
+    /// with no modifiers — so a focused field handles both bars' Edit items
+    /// through one path.
+    func deliverStandardEditKey(_ action: StandardMenuAction) {
+        let key: String
+        let modifiers: Modifiers
+        switch action {
+        case .undo: (key, modifiers) = ("z", .primary)
+        case .redo: (key, modifiers) = ("z", [.primary, .shift])
+        case .cut: (key, modifiers) = ("x", .primary)
+        case .copy: (key, modifiers) = ("c", .primary)
+        case .paste: (key, modifiers) = ("v", .primary)
+        case .selectAll: (key, modifiers) = ("a", .primary)
+        case .delete: (key, modifiers) = ("\u{7f}", [])
+        default: return
+        }
+        _ = platformWindow.onInput?(.keyDown(KeyEvent(charactersIgnoringModifiers: key, characters: key,
+                                                      modifiers: modifiers, timestamp: lastTick)))
+    }
 
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the
@@ -2679,9 +2822,12 @@ public final class Window {
     /// **Against `lastFocusRegistry`**, exactly as `dispatchKey` and
     /// `dispatchClick` resolve against the last frame's records: there is no
     /// frame in flight when an input event arrives.
-    private func dispatchAction(_ event: InputEvent) -> Bool {
+    ///
+    /// **Along the key chain** (ruling `KF-D`): the focus chain, or with
+    /// nothing focused the hovered key region's, so a region's key context
+    /// scopes bindings while the pointer rests on it.
+    private func dispatchAction(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
         guard case .keyDown(let key) = event else { return false }
-        let chain = focusChain
         let contexts = chain.map { lastFocusRegistry.context(for: $0) }
         switch matchKeymap(key, in: keymap, contextsByLevel: contexts,
                            pending: &pendingStroke) {
@@ -2867,6 +3013,47 @@ public final class Window {
             setEditState(next, state)
         }
         return true
+    }
+
+    /// SwiftUI's `onKeyPress` for a key event (rulings `KF-B`, `KF-C`): a
+    /// `keyDown` is `.repeat` when `isRepeat`, else `.down`; a `keyUp` is
+    /// `.up`. The key is the first character of `charactersIgnoringModifiers`
+    /// (an event with none is not offered). Walks `chain` outermost first.
+    private func dispatchKeyPress(_ event: InputEvent, along chain: [GlobalElementID]) -> Bool {
+        let key: KeyEvent
+        let phase: KeyPress.Phases
+        switch event {
+        case .keyDown(let down): key = down; phase = down.isRepeat ? .repeat : .down
+        case .keyUp(let up): key = up; phase = .up
+        default: return false
+        }
+        guard let first = key.charactersIgnoringModifiers.first else { return false }
+        // Commands first (ruling `KF-X`, KX2/KX3): a keystroke an enabled
+        // command binds is never offered to `onKeyPress` — the command runs in
+        // its own stage below. One lookup against the command stage's table.
+        // A `Button`'s ⌘-key shortcut is not declined (KX1). Pinned by
+        // `aCommandsKeystrokeRunsTheCommandNotOnKeyPress`.
+        if case .keyDown = event, lastFocusRegistry.keyPressCount > 0,
+           let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
+        let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
+                             modifiers: key.modifiers)
+        return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry)
+    }
+
+    /// A typed character on a focused field, offered to `onKeyPress` before
+    /// the field types it (ruling `KF-Q`): only while a text field holds focus
+    /// with no composition in progress, and only a one-grapheme commit — an
+    /// input method's compositions and multi-grapheme commits are its own.
+    /// `KeyPress(phase: .down, key: the character, characters: text,
+    /// modifiers: [])` (divergence 187). With no handler anywhere, the event
+    /// reaches `dispatchTextInput` byte for byte as before.
+    private func dispatchTypedKeyPress(_ event: InputEvent) -> Bool {
+        guard case .textInput(let text) = event, lastFocusRegistry.keyPressCount > 0,
+              let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil,
+              text.count == 1, let character = text.first,
+              editState(id).composition.text.isEmpty else { return false }
+        let press = KeyPress(phase: .down, key: KeyEquivalent(character), characters: text, modifiers: [])
+        return MetalUI.dispatchKeyPress(press, along: focusChain, in: lastFocusRegistry)
     }
 
     /// The focused field's editing keys (TI-D's table).

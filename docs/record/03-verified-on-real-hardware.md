@@ -2136,3 +2136,42 @@ cannot)**: AS1 the close button with unsaved changes (the alert sheet, Don't Sav
 document's proxy icon; AS6 the hidden title bar against the traffic lights; AS7 the band drag;
 AS8 full screen; AS9 open-document events from a packaged app; AS10 SDL on Linux, Windows and
 macOS (the drawn alert, the window manager's close, a file dropped on the app).
+
+## 2026-10-10: key and focus scoping (record §88) — looks owed
+
+The key and focus demo (`METALUI_KEY_FOCUS_DEMO=1`, in `MetalUIDemo` and `MetalUISDLDemo`) is a
+section behind its own switch; none of the fourteen offscreen images renders it, so their zero
+cannot see it. The SwiftUI probe `swiftui-key-focus.swift` was taken with the screen unlocked
+(lane A, runs 10 and 11 and the gated KX arms); lanes B and C ran with the screen locked, and no
+real-window capture was taken. **Owed, new here — `docs/verification/human-checks.md` group KF
+(provisional letter), none performed (an agent cannot)**: KF-1 order and the palette with a real
+keyboard; KF-2 hover routing; KF-3 clicks and focus (a press elsewhere keeps a field focused);
+KF-4 the viewport size in the first frame and during live resize; KF-5 the orbit label and the
+display link stopping; KF-6 native menu items under a catch-all `onKeyPress` (divergence 188);
+KF-7 the digit filter and an input method's composition (divergence 187).
+
+## 2026-10-10: shadow cache (record §90) — looks owed
+
+`LooksDemo` gains a `compositingGroup()` pair (per-leaf shadows beside one shadow of the union),
+in its own function; the fourteen offscreen images are unchanged (0 differing pixels against
+`2155f1e`, lane 1 and the Record phase; the new pair sits in a section none of the fourteen
+renders, so the zero cannot see it). `docs/probes/swiftui-shadow-cache.swift` ran in
+`ImageRenderer` only; no real-window capture was taken at any lane (the lock probe read the
+screen locked at lane 1). **Owed, new here — `docs/verification/human-checks.md` group PF, none
+performed (an agent cannot)**: PF1 a trackpad drag of a shadowed node at 2x (how many frames hit,
+sub-pixel positions missing by design, `PF-D`); PF2 the `compositingGroup()` pair beside
+SwiftUI's reading.
+
+## 2026-10-10: SMK port gaps (record §89) — looks owed
+
+The drawn menu bar, the primary modifier's labels, the design families and the chrome height are
+seen by nothing headless: the fourteen offscreen images read 0 differing pixels in every step (no
+window there has an `App`, so none draws a bar) and no real-window capture was taken. The SwiftUI
+probe `swiftui-shortcut-modifiers.swift` is a compile probe (no window). The asserts guard ran on
+macOS with the 2026-05-27-a snapshot; the UTM Windows VM did not answer (`ssh metalui-win` timed out).
+**Owed, new here — `docs/verification/human-checks.md` group SG, none performed (an agent cannot)**:
+SG1 the bar on Linux and Windows (titles open on a click, hover switches, Left/Right, F10, Escape);
+SG2 Ctrl+Shift+H and the honest "Ctrl+Shift+H" label; SG3 the Edit items on a focused field and greyed
+without one; SG4 the monospaced face on screen; SG5 the bar and a toolbar strip together and the
+minimum size; SG6 a Windows ARM64/x64 release build of the SMK configurator (or the `SG-E` fixture).
+

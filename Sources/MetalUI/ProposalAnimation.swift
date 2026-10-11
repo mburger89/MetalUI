@@ -214,7 +214,8 @@ extension LayoutModifier {
             // The radius (`LK-K` item 6, the shadow-radius precedent).
             let v = numbers("blur", [raw(radius)], size)
             self = .blur(radius: px(v[0])!)
-        case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting:
+        case .fixedSize, .aspectRatio, .layoutPriority, .background, .clipShape, .allowsHitTesting,
+             .compositingGroup:
             break
         }
     }

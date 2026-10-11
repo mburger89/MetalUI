@@ -1061,6 +1061,50 @@ the native window's appearance, focus and a screen reader.
   Windows app's "Launch the packaged app" CI step passes (`WS-F` item 4).
   **Observed:**
 
+## KF. Key and focus scoping — `onKeyPress`, key regions, focus on press, `onGeometryChange`, `TimelineView` (item C9, user request 2026-10-02, not a plan task)
+
+SwiftUI's `onKeyPress` family on both vocabularies, MetalUI's hover key
+regions, focus on a press for `.focusable(interactions: .edit)`, a proposal
+`KeyboardModifier` layer, `onGeometryChange` and `TimelineView` (rulings
+`KF-A`…`KF-Z`, record §88). Run `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo`,
+and the SDL demo from `Backends/SDL` with the same variable (`swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo`). The status
+line shows the last key and its walk (`root › …`). Pinned headless: the
+pipeline order, the key chain, the press stage, the geometry and timeline
+events (`KeyPressTests`, `HoverKeyRegionTests`, `FocusOnPressTests`,
+`KeyboardModifierTests`, `GeometryChangeTests`, `TimelineViewTests`,
+`KeyFocusDemoTests`). What nothing headless sees: a real keyboard, a real
+pointer, an input method, the display link and the menu bar.
+
+- [ ] **KF-1. Order and the palette.** With a real keyboard (AppKit, and SDL on
+  Linux/Windows), hover the canvas with nothing focused and press Tab: the
+  palette opens and the walk reads `root › canvas` — the ancestor first. In
+  the palette's focused search field ↑/↓ move the highlight (the caret does
+  not move) and Return picks ("picked …") without inserting anything; Escape
+  closes it (`KF-B`, `KF-C`). **Observed:**
+- [ ] **KF-2. Hover routing.** With nothing focused, Tab over the canvas opens
+  the palette and Tab elsewhere does not; with the Name field focused, Tab
+  moves focus to Depth wherever the pointer rests (`KF-D`). **Observed:**
+- [ ] **KF-3. Clicks and focus.** With a field focused, a click on the header
+  text leaves it focused (RS1, `KF-G`); a click on the canvas clears it
+  (`KF-E` item 5); a click on the viewport focuses it and a key then reads
+  `root › viewport` with the viewport's key count going up (`KF-F`, `KF-H`).
+  **Observed:**
+- [ ] **KF-4. The viewport's size.** On launch the status line's viewport size
+  reads 240 × 200 in the first frame; resizing the window does not change it
+  (the viewport has a fixed frame) and nothing lags (`KF-J`). **Observed:**
+- [ ] **KF-5. The timeline.** The "orbit" label circles the viewport smoothly,
+  one turn about every six seconds; closing the demo's other animations, the
+  display link runs only while the label is on screen (`KF-K`). **Observed:**
+- [ ] **KF-6. Native menu items.** With the viewport focused (its catch-all
+  `onKeyPress` answers `.handled`), ⌘Q and ⌘H are swallowed (divergence 188);
+  with the viewport not focused they quit and hide as usual. (An app
+  command's ⌘-key running the command is pinned headless, A43, `KF-X`.)
+  **Observed:**
+- [ ] **KF-7. The digit filter.** Typing into the Depth field: letters never
+  appear, digits do; an input method's composition (AppKit Japanese IME; SDL
+  on Linux with IBus) is unaffected (`KF-Q`, divergence 187). **Observed:**
+
 ## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
 
 *Source: record §87 `87-app-shell.md`, rulings `AS-A`…
@@ -1188,6 +1232,65 @@ window's materials, VoiceOver (**an agent cannot run it**, `IX-AE`).
 - [ ] **CL11. VoiceOver.** The well announces its colour; the panel's sliders
   adjust; a determinate progress view announces its fraction; a spinner
   announces busy (`LK-G`; the voiceover script's controls step is unchanged).
+  **Observed:**
+
+## PF. Shadow cache — translation-free rasters, `compositingGroup()` (item C13, user request 2026-10-02, not a plan task)
+
+Shadow, blur, path and full-gradient rasters are keyed relative to a floored
+device anchor, so a whole-device-pixel move or pan reuses the cached texture;
+`compositingGroup()` makes a container one leaf to an enclosing shadow or blur;
+`BoxBlur` is faster with byte-identical output (rulings `PF-A`…`PF-N`, record
+§90). Pinned headless: work counters (`RasterCache.lastBlurredPixels`,
+`lastRasterizedPixels`, `lastTexturesMade`) and texture identity under drags
+(`RasterAnchorTests`), the composite's images (`CompositingGroupTests`), the
+blur against its 2155f1e copy (L2.1). What nothing headless sees: a real
+pointer's sub-pixel positions and the look beside SwiftUI.
+
+- [ ] **PF1. A trackpad drag.** In a MetalCreator-style graph, drag a node with
+  `.shadow(radius: 10)` by trackpad at 2×: it moves smoothly; logging the three
+  counters per frame shows how many frames hit (a sub-pixel position misses by
+  design, `PF-D`). **Observed:**
+- [ ] **PF2. `compositingGroup()` beside SwiftUI.** LooksDemo
+  (`METALUI_LOOKS_DEMO=1`), "Gradients, blur, materials": the per-leaf pair
+  shows the red square's shadow on the blue; the `compositingGroup()` pair one
+  shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
+
+## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `AS` and `KF`)
+
+Rulings `SG-A`…`SG-I`, record §89. On Linux and Windows an app declaring
+`commands` draws its menu bar in every window (divergence 195); a shortcut
+written without modifiers is Ctrl there; `SystemFonts.resolver()` registers
+the platform's monospaced and serif families. Run the SDL demo from
+`Backends/SDL`: `METALUI_MENUS_DEMO=1 METALUI_SYSTEM_FONTS=1 swift run
+$(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo`. Pinned
+headless: the bar's layout, titles, opening, switching, F10, Edit delivery and
+the chrome height over a fake platform (`MenuBarStripTests`, 2.3–2.16), a real
+SDL window's click path (`anSDLWindowDrawsTheCommandsAndAClickRunsOne`, 2.18).
+What nothing headless sees: the bar's look, real pointer and keyboard on a
+desktop, the monospaced face on screen, a Windows release build.
+
+- [ ] **SG1. Linux and Windows, the menus demo.** A menu bar shows File (New
+  Note), Edit and Demo; clicking a title opens its menu under it; moving the
+  pointer across titles switches menus; Left/Right switch; F10 opens Edit;
+  Escape closes; Demo ▸ Reset Status (no shortcut) sets the status line.
+  **Observed:**
+- [ ] **SG2.** Ctrl+Shift+H runs Say Hello; Super/Win+Shift+H does not; the
+  Demo menu shows "Ctrl+Shift+H". **Observed:**
+- [ ] **SG3.** In the popover's focused text field, Edit ▸ Copy, Paste and
+  Select All work; with no field focused the Edit items are greyed out.
+  **Observed:**
+- [ ] **SG4.** The "Shortcut:" line draws in DejaVu Sans Mono (Linux) /
+  Cascadia Mono or Consolas (Windows) — monospaced, not the UI face.
+  **Observed:**
+- [ ] **SG5.** The bar and a toolbar together (the services demo with
+  commands, or an app with both): bar on top, strip below, content below both;
+  resizing to the minimum keeps the content's minimum visible. **Observed:**
+- [ ] **SG6. Windows ARM64 and x64.** `swift build -c release` of the SMK
+  configurator (or the `SG-E` fixture) builds, or fails exactly as `SG-E`
+  documents. **Observed:**
+- [ ] **SG7.** On SDL (Linux, Windows), File ▸ Close closes the window (a
+  window with an `onCloseRequest` that cancels stays open) and File ▸ Quit
+  ("Exit" on Windows) ends the app; with two windows open Close closes one.
   **Observed:**
 
 ## Sign-off

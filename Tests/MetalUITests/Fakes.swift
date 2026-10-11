@@ -556,8 +556,16 @@ final class FakePlatform: Platform {
         self.device = device
     }
 
+    /// The side of every window `openWindow` makes, in points; 64 — the
+    /// fake window's default — unless a test sets it.
+    var windowSize = 64
+    /// Every window's `toolbarIsNative` (`MD-J` item 5), set before the first
+    /// frame `App.openWindow` draws; `true` by default.
+    var windowsShowToolbars = true
+
     func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
-        let window = try FakePlatformWindow(device: device)
+        let window = try FakePlatformWindow(device: device, size: windowSize)
+        window.toolbarIsNative = windowsShowToolbars
         window.title = title
         openedWindows.append(window)
         return window
@@ -571,9 +579,15 @@ final class FakePlatform: Platform {
 
     /// Every `setMenuBar` argument, in call order (ruling `MN-I` item 3).
     private(set) var menuBars: [PlatformMenuBar] = []
+    /// What `setMenuBar` answers (ruling `SG-A` item 1); `true`, a platform
+    /// that shows the bar itself (AppKit), by default — so no existing window
+    /// draws one. `false` stands for SDL: every window of an app declaring
+    /// `commands` draws the bar. Set before `App.init`, which installs it.
+    var menuBarIsNative = true
 
-    func setMenuBar(_ menuBar: PlatformMenuBar) {
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool {
         menuBars.append(menuBar)
+        return menuBarIsNative
     }
 
     // MARK: App shell (ruling `AS-H` item 4)

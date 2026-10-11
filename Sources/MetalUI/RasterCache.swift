@@ -133,12 +133,23 @@ final class RasterCache {
     private var touchedTables: Set<[UInt64]> = []
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
+    private var texturesMadeThisFrame = 0
 
     /// Device pixels the last completed frame rasterized (coverage misses) — a
     /// work counter, never time.
     private(set) var lastRasterizedPixels = 0
     /// Device pixels the last completed frame blurred (shadow misses).
     private(set) var lastBlurredPixels = 0
+    /// `ImageTexture`s the last completed frame created (`PF-G`): tint misses
+    /// plus colour-image misses that made one — the headless stand-in for
+    /// "textures uploaded", since the renderers upload once per new identity
+    /// (`TE-AF`). A work counter, never time.
+    private(set) var lastTexturesMade = 0
+
+    /// A test probe (`PF-C`, test L1.5): every raster `Frame` asks for, as the
+    /// scope carried it, before any key is made. `nil` (the default) costs
+    /// one test per raster.
+    var onRaster: ((CapturedPrimitive.Kind, PrimitiveTransform?) -> Void)?
 
     /// Tinted textures held now.
     var textureCount: Int { tinted.count + images.count }
@@ -146,6 +157,7 @@ final class RasterCache {
     func beginFrame() {
         rasterizedThisFrame = 0
         blurredThisFrame = 0
+        texturesMadeThisFrame = 0
     }
 
     func endFrame() {
@@ -159,6 +171,7 @@ final class RasterCache {
         touchedTables.removeAll(keepingCapacity: true)
         lastRasterizedPixels = rasterizedThisFrame
         lastBlurredPixels = blurredThisFrame
+        lastTexturesMade = texturesMadeThisFrame
     }
 
     func noteRasterized(_ pixels: Int) { rasterizedThisFrame += pixels }
@@ -182,6 +195,7 @@ final class RasterCache {
         touchedImages.insert(key)
         if let hit = images[key] { return hit.entry }
         let entry = make()
+        if entry != nil { texturesMadeThisFrame += 1 }
         images[key] = Image(entry: entry, retained: retaining)
         return entry
     }
@@ -203,22 +217,30 @@ final class RasterCache {
         touchedTint.insert(tint)
         if let hit = tinted[tint] { return hit }
         let texture = RasterCache.tint(mask, color: color)
+        texturesMadeThisFrame += 1
         tinted[tint] = texture
         return texture
     }
 
-    /// Premultiplied RGBA8 of `color` times each coverage byte, in integers.
+    /// Premultiplied RGBA8 of `color` times each coverage byte, in integers —
+    /// one unchecked pass (`PF-F` item 2), byte for byte 2155f1e's loop
+    /// (`RasterMathReferenceTests`).
     static func tint(_ mask: AlphaMask, color: Hsla) -> ImageTexture {
         let rgb = color.toRgba()
         func byte(_ v: Float) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
         let r = byte(rgb.r), g = byte(rgb.g), b = byte(rgb.b), a = byte(color.a)
-        var pixels = [UInt8](repeating: 0, count: mask.alpha.count * 4)
-        for i in 0..<mask.alpha.count {
-            let alpha = (Int(mask.alpha[i]) * a + 127) / 255
-            pixels[i * 4] = UInt8((r * alpha + 127) / 255)
-            pixels[i * 4 + 1] = UInt8((g * alpha + 127) / 255)
-            pixels[i * 4 + 2] = UInt8((b * alpha + 127) / 255)
-            pixels[i * 4 + 3] = UInt8(alpha)
+        let count = mask.alpha.count
+        let pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for i in 0..<count {
+                    let alpha = (Int(source[i]) * a + 127) / 255
+                    out[i &* 4] = UInt8(truncatingIfNeeded: (r * alpha + 127) / 255)
+                    out[i &* 4 &+ 1] = UInt8(truncatingIfNeeded: (g * alpha + 127) / 255)
+                    out[i &* 4 &+ 2] = UInt8(truncatingIfNeeded: (b * alpha + 127) / 255)
+                    out[i &* 4 &+ 3] = UInt8(truncatingIfNeeded: alpha)
+                }
+            }
+            initialized = count * 4
         }
         return ImageTexture(width: mask.rect.width, height: mask.rect.height, premultipliedRGBA: pixels)
     }
@@ -238,35 +260,57 @@ enum RasterMath {
     }
 
     /// `a` multiplied by `b` per pixel, over the two rectangles' overlap
-    /// (outside `b` the product is 0, so the result is trimmed to it).
+    /// (outside `b` the product is 0, so the result is trimmed to it). Row by
+    /// row over unchecked buffers (`PF-F` item 2), byte for byte 2155f1e's loop.
     static func multiply(_ a: AlphaMask, _ b: AlphaMask) -> AlphaMask {
         let r = a.rect.intersection(b.rect)
         guard !r.isEmpty else { return AlphaMask(rect: RasterRect(x: a.rect.x, y: a.rect.y, width: 0, height: 0), alpha: []) }
-        var out = [UInt8](repeating: 0, count: r.area)
-        for y in 0..<r.height {
-            for x in 0..<r.width {
-                let p = Int(a.value(atX: r.x + x, y: r.y + y)), q = Int(b.value(atX: r.x + x, y: r.y + y))
-                out[y * r.width + x] = UInt8((p * q + 127) / 255)
+        let out = [UInt8](unsafeUninitializedCapacity: r.area) { out, initialized in
+            a.alpha.withUnsafeBufferPointer { pa in
+                b.alpha.withUnsafeBufferPointer { pb in
+                    for y in 0..<r.height {
+                        let rowA = (r.y - a.rect.y + y) * a.rect.width + (r.x - a.rect.x)
+                        let rowB = (r.y - b.rect.y + y) * b.rect.width + (r.x - b.rect.x)
+                        let rowOut = y * r.width
+                        for x in 0..<r.width {
+                            let p = Int(pa[rowA &+ x]), q = Int(pb[rowB &+ x])
+                            out[rowOut &+ x] = UInt8(truncatingIfNeeded: (p * q + 127) / 255)
+                        }
+                    }
+                }
             }
+            initialized = r.area
         }
         return AlphaMask(rect: r, alpha: out)
     }
 
-    /// `mask` scaled by `factor` (0…1).
+    /// `mask` scaled by `factor` (0…1), one unchecked pass (`PF-F` item 2).
     static func scale(_ mask: AlphaMask, by factor: Float) -> AlphaMask {
         guard factor < 1 else { return mask }
         let f = Int((max(factor, 0) * 255).rounded())
-        return AlphaMask(rect: mask.rect, alpha: mask.alpha.map { UInt8((Int($0) * f + 127) / 255) })
+        let count = mask.alpha.count
+        let out = [UInt8](unsafeUninitializedCapacity: count) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for i in 0..<count { out[i] = UInt8(truncatingIfNeeded: (Int(source[i]) * f + 127) / 255) }
+            }
+            initialized = count
+        }
+        return AlphaMask(rect: mask.rect, alpha: out)
     }
 
-    /// `mask` restricted to `rect`.
+    /// `mask` restricted to `rect`, copied row by row (`PF-F` item 2).
     static func crop(_ mask: AlphaMask, to rect: RasterRect) -> AlphaMask {
         let r = mask.rect.intersection(rect)
         guard !r.isEmpty else { return AlphaMask(rect: RasterRect(x: rect.x, y: rect.y, width: 0, height: 0), alpha: []) }
         if r == mask.rect { return mask }
-        var out = [UInt8](repeating: 0, count: r.area)
-        for y in 0..<r.height {
-            for x in 0..<r.width { out[y * r.width + x] = mask.value(atX: r.x + x, y: r.y + y) }
+        let out = [UInt8](unsafeUninitializedCapacity: r.area) { out, initialized in
+            mask.alpha.withUnsafeBufferPointer { source in
+                for y in 0..<r.height {
+                    let row = (r.y - mask.rect.y + y) * mask.rect.width + (r.x - mask.rect.x)
+                    for x in 0..<r.width { out[y &* r.width &+ x] = source[row &+ x] }
+                }
+            }
+            initialized = r.area
         }
         return AlphaMask(rect: r, alpha: out)
     }
@@ -359,14 +403,25 @@ extension Frame {
 
     /// A path's image (`GX-B`): rasterized in device pixels under its composed
     /// transform (`transform ∘ local`), inside the visible rectangle only, the
-    /// colour multiplied in; `nil` when nothing is visible.
+    /// colour multiplied in; `nil` when nothing is visible. Made and keyed in
+    /// canonical coordinates (`PF-A`): the outline translated by its anchor
+    /// floored to the device grid, placed at the integer device anchor, the
+    /// clip keyed only when it cuts (`PF-B`).
     func pathImage(_ paint: PathPaint, transform: PrimitiveTransform?) -> (MUIImage, ImageTexture)? {
+        animationStore.rasters.onRaster?(.path(paint), transform)
         let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
                                         transform: transform, target: rasterTarget)
         guard !placement.clip.isEmpty, paint.color.a > 0 else { return nil }
-        let full = (transform?.affine ?? .identity).concatenating(paint.local)
+        let outer = transform?.affine ?? .identity
+        let full = outer.concatenating(paint.local)
+        let (rx, ry) = RasterAnchor.outlineAnchor(paint.geometry, map: full) ?? (0, 0)
+        var box = ExtentBox()
+        box.add(outer.boundingBox(of: paint.bounds))
+        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: box.rect(grownBy: 1), placement: placement)
+        let geometry = anchor.isCanonical ? paint.geometry.translated(dx: -rx, dy: -ry) : paint.geometry
+        let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
-        key.paths.append(paint.geometry)
+        key.paths.append(geometry)
         switch paint.mode {
         case let .fill(rule, antialiased):
             key.add(0); key.add(rule == .evenOdd ? 1 : 0); key.add(antialiased ? 1 : 0)
@@ -376,24 +431,24 @@ extension Frame {
             key.add(style.join == .miter ? 0 : style.join == .round ? 1 : 2)
             for d in style.dash { key.add(d) }
         }
-        key.add(full)
-        placement.keyed(&key)
+        anchor.keyed(&key, clip: clip, placement: placement)
         let cache = animationStore.rasters
+        let map = anchor.map.pathAffine
         let mask = cache.coverage(for: key) {
             var rasterizer = CoverageRasterizer()
             let coverage: AlphaMask
             switch paint.mode {
             case let .fill(rule, antialiased):
-                coverage = PathRaster.fill(paint.geometry, rule: rule, transform: full.pathAffine,
-                                           clip: placement.clip, antialiased: antialiased, rasterizer: &rasterizer)
+                coverage = PathRaster.fill(geometry, rule: rule, transform: map, clip: clip,
+                                           antialiased: antialiased, rasterizer: &rasterizer)
             case let .stroke(style):
-                coverage = PathRaster.stroke(paint.geometry, style: style, transform: full.pathAffine,
-                                             clip: placement.clip, rasterizer: &rasterizer)
+                coverage = PathRaster.stroke(geometry, style: style, transform: map, clip: clip,
+                                             rasterizer: &rasterizer)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return placement.applyingLocalMask(coverage, cache: cache)
         }
         guard !mask.rect.isEmpty else { return nil }
-        return (placement.quad(over: mask), cache.texture(for: key, color: paint.color, mask: mask))
+        return (placement.quad(over: anchor.placed(mask.rect)), cache.texture(for: key, color: paint.color, mask: mask))
     }
 }

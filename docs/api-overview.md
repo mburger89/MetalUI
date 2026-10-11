@@ -38,6 +38,11 @@ the minimum, following the content), `.contentSize` (adds its answer at an
 infinite proposal as the maximum). `.automatic` asks the content nothing
 (divergence 126). The platform receives the effective limits through
 `PlatformWindow.setContentSizeLimits(minimum:maximum:)` only when they change.
+`Window.drawnChromeHeight` (M, read-only, `SG-F`) is the height MetalUI draws above
+the root — the menu bar's 25 plus the toolbar strip's 39 — and 0 where the platform
+shows its own; an explicit `minSize`/`maxSize` is the content's size **below** it
+(AppKit's `contentMinSize` excludes its toolbar too), so the platform receives the
+height plus the chrome.
 
 ## Elements — M
 
@@ -69,6 +74,16 @@ the window's top layer — a portal for modals, popovers and tooltips
   layout-transparent, so `HStack { Text("Name"); TextField("Name", text: $name) }`
   composes as SwiftUI's does (`PE-B`, `PE-C`). A legacy item field there
   (`.flexGrow`, `.margin`, …) is reported by name.
+- **A `for` loop over a helper returning `some …`** (`for t in texts {
+  label(t) }` with `func label(_:) -> some ProposalElementGroup`) does not
+  compile in either builder: "underlying type for opaque result type … could
+  not be inferred" — a Swift 6.4 result-builder defect no `buildArray` can
+  reach (`KF-M`; probe `probes/swift-builder-for-opaque.sh`; guard
+  `aForLoopOverAnOpaqueHelperIsAToolchainLimitation`, which turns red when a
+  toolchain fixes it). Write `ForEach(texts, id: \.self) { label($0) }`
+  (SwiftUI's spelling — its `ViewBuilder` has no `for` at all), a helper
+  returning a concrete type (`-> ProposalText`, or a `Component`), or the
+  chain inline.
 - **Identity** — structural by position; `.id(_:)` on any element group
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
@@ -166,7 +181,10 @@ text styles, custom families), `Font.Weight`, `Font.Design`, `Font.TextStyle`,
 `.multilineTextAlignment` (60, 86, 87). Text is measured and drawn through
 one `TextSystem` chosen per app: CoreText on Apple (`MetalUIText`), the
 portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
-`MetalUISystemFonts`) — M.
+`MetalUISystemFonts`) — M. `SystemFonts.designFamilies` (M, `SG-C`) names the
+platform's monospaced and serif families per `FontDesign`, and `SystemFonts.resolver()`
+registers the first installed one of each lazily (a name; no face is read until a
+request resolves); `.rounded` off Apple resolves to the default face.
 
 **Rich text** (rulings `RT-A`…, record §83): styled runs inside one `Text`
 on both text systems. A string literal parses SwiftUI's inline Markdown
@@ -225,8 +243,15 @@ default colour `ColorToken.shadow` (black at 0.33 in both themes; `Theme`'s
 initialiser takes it as a trailing defaulted `shadow:`). Per leaf — a text draw
 is one leaf, a `Box`'s background and border one, a surface its quad (104); a
 triple box blur of sigma = radius (105); render only: no layout, hit region or
-accessibility change. Colour, radius and offset animate. Not offered:
-`compositingGroup`, `drawingGroup`, inner shadows.
+accessibility change. Colour, radius and offset animate. **One shadow per
+container** is SwiftUI's own spelling, `compositingGroup()` (`PF-E`, both
+vocabularies; a `LayoutModifier.compositingGroup` layer, on a `StyledElement`
+it returns `Self`): an enclosing `.shadow` or `.blur` sees the group as one
+leaf — one shadow of the union drawn below the whole group, one blur of the
+composite. Alone it changes nothing; render only; an opacity outside it is not
+composited (205). Shadow, blur, path and gradient rasters are cached
+translation-free, so a whole-device-pixel move or pan reuses them (`PF-A`).
+Not offered: `drawingGroup`, inner shadows.
 
 ## Colour — A / D / M
 
@@ -293,7 +318,10 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `Gesture`, `TapGesture`, `LongPressGesture`, `DragGesture`,
 `.exclusively(before:)`, `.simultaneously(with:)`, `.gesture`,
 `.simultaneousGesture`, `.highPriorityGesture`, `.onTapGesture`,
-`.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A);
+`.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A) — their default
+modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
+elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
+no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
@@ -322,6 +350,41 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
+
+**Key and focus scoping** (`KF-`, record §88;
+[`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
+probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
+key:action:)`, `(_:phases:action:)`, `(keys:phases:action:)`,
+`(characters:phases:action:)`, `(phases:action:)` — with `KeyPress`
+(`.key`, `.characters`, `.modifiers`, `.phase`; made by MetalUI only),
+`KeyPress.Phases`, `KeyPress.Result` (A), on a `StyledElement` (returning
+`Self`) and on proposal content (returning `KeyboardModifier<Self>`, M). Keys
+need focus and walk the chain **outermost first**, after the window's
+`Keymap` and before a focused field's editing keys, `onKey`, a `Button`'s
+shortcut and Tab; `.handled` stops the walk; a keystroke an app command binds
+runs the command and never reaches `onKeyPress` (`KF-B`, `KF-C`, `KF-X`). A
+typed character on a focused field is offered as `.down` (D 187); a native-only
+menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
+`focusable()`, which still resolves) and `focusable(_:interactions:)` with
+`FocusInteractions` (A): `.edit` focuses on a primary press (SwiftUI's FC3),
+`.activate`/`.automatic` do not (D 94, narrowed); nothing is focused when a
+window shows (D 186). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
+focused, keys (and the `Keymap`'s contexts) go to the key region under the
+pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press
+elsewhere never resigns focus (`KF-G`, SwiftUI's answer). On proposal content
+— a `MetalView`, a `GPUSurface` — the keyboard modifiers (`onKeyPress`,
+`focusable`, `keyContext`, `focused`, `hoverKeyRegion`) wrap once in a
+**`KeyboardModifier`** and every later one joins that layer, so focus, the
+binding, the context and the handlers sit on one id: `MetalView { … }
+.focusable(interactions: .edit).keyContext("Viewport").onKeyPress("f") { … }`
+(`KF-H`); on one layer `onKeyPress` and `.focusable()` are order-free (D 185).
+**A `TextEditor`'s commit key**: `.onKeyPress(keys: [.return]) { press in
+press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
+`commitModifier` is `.command` on macOS and `.control` on Linux and Windows
+(an app's own `#if os(macOS)`; MetalUI exposes no constant) — ⌘↩ (⌃↩ off
+macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
+the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
+`METALUI_KEY_FOCUS_DEMO=1`.
 
 ## Drag and drop — A / D
 
@@ -466,8 +529,9 @@ below itself, published as a menu button.
 with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
 Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
-`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL draws no bar;
-command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
+`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL's `setMenuBar` answers
+`false`, so every window draws the bar itself: a 25-point strip across its top, above a drawn
+toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
 
 **Popovers (A / D 111, 112, 115).** `.popover(isPresented:arrowEdge:content:)` and
 `.popover(item:arrowEdge:content:)`: anchored to the declaring element, placed on
@@ -624,6 +688,22 @@ none. Priority defaults to `.userInitiated`, the name to `"View.task @
 <file>:<line>"`. On macOS 14–25 the body starts on the next main-queue turn
 (137). Under `SDLPlatform` a task progresses through the loop's main-queue
 drain (`SV-H`).
+
+**Geometry and time** (`KF-J`, `KF-K`, `KF-L`, `KF-S`, `KF-T`, record §88).
+`.onGeometryChange(for:of:action:)` in both action forms (`{ new in }`, `{
+old, new in }`) with `GeometryProxy` (`.size`, `.frame(in: .local / .global)`)
+(A; wider than SwiftUI on concurrency — no `@Sendable`, no `Sendable` `T`,
+`KF-S`): a transparent `GeometryChangeScope` (M) whose value is computed in
+prepaint and whose action runs in the lifecycle drain, before the build's
+lifecycle events — the initial value is in the first presented frame, a live
+resize reports every frame; a legacy decoration after it does not compile (D
+120). `TimelineView(_:content:)` with `TimelineSchedule`,
+`TimelineScheduleMode`, `.animation`, `.animation(minimumInterval:paused:)`,
+`.periodic(from:by:)`, `.everyMinute`, `.explicit(_:)`,
+`TimelineViewDefaultContext` (`.date`, `.cadence`, always `.live`) and its
+`Context` typealias (A): identity- and layout-transparent; `.animation` keeps
+the display link running exactly while it is built, other schedules rebuild
+through one wake at their next date.
 
 ## Animation and transitions — A
 

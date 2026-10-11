@@ -42,7 +42,8 @@ func runDemo() throws {
     // a chip cannot leave the window (divergence 101).
     // `METALUI_TEXT_INPUT_DEMO=1`: roadmap item 14's two text fields (TI-F).
     // `METALUI_MENUS_DEMO=1`: menus, popovers and tooltips (human check R2) —
-    // the context menu is drawn in the window (`MN-F`); SDL has no menu bar.
+    // the context menu is drawn in the window (`MN-F`), and so is the menu
+    // bar of the demo's commands (`SG-A`, human checks SG1–SG5).
     // `METALUI_METALVIEW_DEMO=1`: MetalView's demo (ruling MV-J, human checks
     // section O) — the large surface clears to a colour cycling with
     // `ctx.time` through the SDL renderer's draw context; the counter and the
@@ -75,6 +76,9 @@ func runDemo() throws {
     // and right drags, tap location, SDL's system cursors; **C** toggles the
     // crosshair.
     let canvasDemo = environment["METALUI_CANVAS_DEMO"] == "1"
+    // `METALUI_KEY_FOCUS_DEMO=1`: key and focus scoping (human checks KF-1…KF-7;
+    // spec `2026-10-08-key-focus-design.md` §6) — a key-region canvas, an
+    // inspector, a palette, a click-focusable viewport.
     // `METALUI_APP_SHELL_DEMO=1`: the app shell (human check AS10, spec
     // `2026-10-08-app-shell-design.md` §6) — the WM close, Alt-F4 and Ctrl-C ask
     // before an edited document goes; the system title bar stays (`AS-E` item 6),
@@ -83,6 +87,9 @@ func runDemo() throws {
     let window = environment["METALUI_APP_SHELL_DEMO"] == "1"
         ? try openAppShellDemoWindow(app, title: "MetalUI — SDL3 app shell",
                                      launchArguments: Array(CommandLine.arguments.dropFirst()))
+        : environment["METALUI_KEY_FOCUS_DEMO"] == "1"
+        ? try app.openWindow(title: "MetalUI — SDL3 key and focus",
+                             size: Size(width: Pixels(1000), height: Pixels(620)), content: keyFocusDemoContent)
         : canvasDemo
         ? try app.openWindow(title: "MetalUI — SDL3 canvas", size: Size(width: Pixels(920), height: Pixels(620)),
                              content: canvasDemoContent)
@@ -103,7 +110,7 @@ func runDemo() throws {
         : environment["METALUI_DND_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 drag and drop", size: size, content: dragAndDropDemoContent)
         : environment["METALUI_MENUS_DEMO"] == "1"
-        ? try app.openWindow(title: "MetalUI — SDL3 menus", size: size, content: menusDemoContent)
+        ? try openMenusDemoWindow(app, size: size)
         : environment["METALUI_TEXT_INPUT_DEMO"] == "1"
         ? try app.openWindow(title: "MetalUI — SDL3 text input", size: size, content: textInputDemoContent)
         : try app.openWindow(title: "MetalUI — SDL3", size: size, content: demoContent)
@@ -135,6 +142,14 @@ func runDemo() throws {
     }
     demoWindow = window
     app.run()
+}
+
+/// The menus demo's window, its commands installed first (`SG-A`): SDL draws
+/// their menu bar inside the window.
+@MainActor
+private func openMenusDemoWindow(_ app: App, size: Size<Pixels>) throws -> Window {
+    installMenusDemoCommands(app)
+    return try app.openWindow(title: "MetalUI — SDL3 menus", size: size, content: menusDemoContent)
 }
 
 do { try MainActor.assumeIsolated { try runDemo() } } catch {

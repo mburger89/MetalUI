@@ -384,6 +384,13 @@ public final class Frame {
     /// with none (`SV-U`'s shape).
     private(set) var pointerStyleRegionCount = 0
 
+    /// How many key regions (`hoverKeyRegion`) and click-focusable press
+    /// regions (`focusable(_:interactions:)` with `.edit`) this frame
+    /// registered (rulings `KF-E` item 4, `KF-F` item 3): with neither, a key
+    /// event and a press do no lookup.
+    private(set) var keyRegionCount = 0
+    private(set) var focusOnPressCount = 0
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0
@@ -408,6 +415,22 @@ public final class Frame {
     /// one item) — read back by `Window`, whose one extra build runs when the
     /// strip's presence must change (`MD-K` item 5).
     private(set) var drewToolbarStrip = false
+
+    /// The drawn menu bar's titles for this build (ruling `SG-A`), or `nil` —
+    /// today's path — when the window draws no bar. Set by `Window` before the
+    /// build.
+    var menuBarTitles: [String]?
+    /// The bar menu open in the window, highlighted on its title.
+    var menuBarOpenIndex: Int?
+    /// What a title's click runs: the window's open (`SG-A` item 8), holding
+    /// the window weakly.
+    var menuBarOpen: (@MainActor (Int) -> Void)?
+    /// Whether this build laid the bar out, read back by `Window`
+    /// (`drawnChromeHeight`).
+    private(set) var drewMenuBar = false
+    /// Each title's rect in window points, as this build laid the bar out —
+    /// the window's anchor and hover-switching table (`SG-A` item 8).
+    var menuBarTitleFrames: [Bounds<Pixels>] = []
 
     func withPresentationScope<R>(_ body: () -> R) -> R {
         presentationDepth += 1
@@ -1554,6 +1577,8 @@ public final class Frame {
         // Nor the wheel handler and pointer style (`CI-I` item 3, `CI-H` item
         // 3): the pointer region below carries them, once per element.
         pointerHandlers.pointer = nil
+        // Nor the keyboard box (`KF-I`): the key/press region below carries it.
+        pointerHandlers.keyboard = nil
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -1642,6 +1667,24 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
             if pointer.style != nil { pointerStyleRegionCount += 1 }
+        }
+        // A key region and a click-focusable press region (rulings `KF-E` item
+        // 2, `KF-F` item 3): ONE non-opaque region carrying only the keyboard
+        // box (and focusability, which `focusesOnPress` reads), at the
+        // element's hit region, inside the disabled, `allowsHitTesting` and
+        // `hidden()` gates exactly as the hover region. No other stage reads
+        // these fields, so every existing ranking is unchanged (spec test
+        // A32). A frame with neither registers nothing here.
+        if let keyboard = handlers.keyboard, keyboard.isKeyRegion || handlers.focusesOnPress,
+           enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
+            var only = Handlers()
+            only.keyboard = keyboard
+            only.isFocusable = handlers.isFocusable
+            let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
+            _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
+                             shape: handlers.contentShape?.geometry(in: region))
+            if keyboard.isKeyRegion { keyRegionCount += 1 }
+            if handlers.focusesOnPress { focusOnPressCount += 1 }
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
@@ -2563,12 +2606,16 @@ public final class Frame {
     /// `.contentSize` also at an infinite one — measure-only runs, before every
     /// real run, so `lastNativeLayoutWork` still reads the root's own. Under
     /// `.automatic` nothing is measured.
-    func computeRootLayout(root: LayoutNodeID, toolbarStrip strip: LayoutNodeID? = nil) {
+    func computeRootLayout(root: LayoutNodeID, toolbarStrip strip: LayoutNodeID? = nil,
+                           menuBar bar: LayoutNodeID? = nil) {
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
-        // A drawn toolbar strip takes the window's top (`MD-K` item 2): the
-        // root is offered, and centred in, the rect below it, and the window's
-        // content limits include it. Without one, `top` is 0 — today's values.
-        let top = strip == nil ? 0 : Double(ToolbarStrip.height)
+        // A drawn toolbar strip takes the window's top (`MD-K` item 2), and a
+        // drawn menu bar the top above it (`SG-A` item 5): the root is offered,
+        // and centred in, the rect below both, and the window's content limits
+        // include them. Without either, `top` is 0 — today's values.
+        let barHeight = bar == nil ? 0 : Double(MenuBarStrip.height)
+        let stripHeight = strip == nil ? 0 : Double(ToolbarStrip.height)
+        let top = barHeight + stripHeight
         let rootHeight = max(0, height - top)
         if contentSizeLimitsMode != .automatic {
             contentMinimum = Self.size(of: tree.measureNativeLayout(root: root, proposal: .zero), plus: top)
@@ -2581,13 +2628,20 @@ public final class Frame {
                                      proposal: ProposedSize(width: width, height: height),
                                      in: LayoutRect(x: 0, y: 0, width: width, height: height))
         }
-        // The strip's own run (`MD-K` item 4), before the root's so the
-        // root's run stays the tree's last (`lastNativeLayoutWork`, the
-        // deepest level) — the runs are independent (`MD-Z` item 2).
+        // The bar's and the strip's own runs (`MD-K` item 4, `SG-A` item 5),
+        // before the root's so the root's run stays the tree's last
+        // (`lastNativeLayoutWork`, the deepest level) — the runs are
+        // independent (`MD-Z` item 2). The bar on top, the strip below it.
+        if let bar {
+            _ = tree.computeNativeLayout(root: bar,
+                                         proposal: ProposedSize(width: width, height: barHeight),
+                                         centredIn: LayoutRect(x: 0, y: 0, width: width, height: barHeight))
+        }
         if let strip {
             _ = tree.computeNativeLayout(root: strip,
-                                         proposal: ProposedSize(width: width, height: top),
-                                         centredIn: LayoutRect(x: 0, y: 0, width: width, height: top))
+                                         proposal: ProposedSize(width: width, height: stripHeight),
+                                         centredIn: LayoutRect(x: 0, y: barHeight, width: width,
+                                                               height: stripHeight))
         }
         _ = tree.computeNativeLayout(root: root,
                                      proposal: ProposedSize(width: width, height: rootHeight),
@@ -2907,6 +2961,10 @@ public final class Frame {
     /// `rotationEffect`, `scaleEffect` or `offset`.
     var effectScopesPushed = 0
 
+    /// Composite scopes pushed this frame (`PF-E`, test L2.5): 0 for a tree
+    /// whose `compositingGroup()`s have no shadow or blur outside them.
+    var compositeScopesPushed = 0
+
     /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
@@ -3014,8 +3072,16 @@ public final class Frame {
     /// a drag preview) and applies its map; a shadow scope puts the leaf's
     /// shadow before it, itself a leaf to every scope further out (`GX-J`;
     /// SH5, SH11). What survives reaches the scene in order.
-    private func insertThroughScopes(leaf: [CapturedPrimitive]) {
-        var leaves: [[CapturedPrimitive]] = [leaf]
+    ///
+    /// A composite scope (`PF-E`) collects what reaches it, with each
+    /// primitive's emission clip depth, and stops it there; when it closes,
+    /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
+    /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
+    /// means every primitive was emitted at the current depth).
+    func insertThroughScopes(leaf: [CapturedPrimitive], depths: [Int]? = nil) {
+        // Each group carries its primitives' emission depths, `nil` for "all
+        // at `depth`" (no array on the ordinary path).
+        var leaves: [([CapturedPrimitive], [Int]?)] = [(leaf, depths)]
         let depth = clipStack.count
         var pastBarrier = false
         for scope in paintScopes.reversed() {
@@ -3023,47 +3089,66 @@ public final class Frame {
             case .barrier:
                 pastBarrier = true
                 continue
-            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier:
-                continue   // a `Deferred`'s content is not transformed, shadowed or blurred (`GX-G`, `LK-K`)
+            case .effect where pastBarrier, .shadow where pastBarrier, .blur where pastBarrier,
+                 .composite where pastBarrier:
+                continue   // a `Deferred`'s content is not transformed, shadowed, blurred or composited (`GX-G`, `LK-K`, `PF-E`)
+            case .composite:
+                for (group, emitted) in leaves {
+                    scope.captures.append(contentsOf: group)
+                    scope.captureDepths.append(contentsOf: emitted ?? Array(repeating: depth, count: group.count))
+                }
+                return
             default:
                 break
             }
-            var next: [[CapturedPrimitive]] = []
-            for var group in leaves {
+            var next: [([CapturedPrimitive], [Int]?)] = []
+            for (var group, var emitted) in leaves {
                 for i in group.indices {
-                    group[i].innerMask = group[i].maskDepth(emittedAt: depth) > scope.entryClipDepth
+                    group[i].innerMask = group[i].maskDepth(emittedAt: emitted?[i] ?? depth) > scope.entryClipDepth
                     group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
-                    next.append([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)])
-                    next.append(group)
+                    next.append(([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)], nil))
+                    next.append((group, emitted))
                     continue
                 }
                 if let blur = scope.blur {
                     // A GPU surface's pixels are on the GPU: it is drawn
                     // unblurred (`LK-K` item 5, divergence 167).
                     if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
-                        next.append(group)
+                        next.append((group, emitted))
                     } else {
-                        next.append([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)])
+                        next.append(([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)], nil))
                     }
                     continue
                 }
                 if !scope.effect.isIdentity {
-                    group = group.compactMap {
-                        scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                    if let d = emitted {
+                        var mapped: [CapturedPrimitive] = [], kept: [Int] = []
+                        for i in group.indices {
+                            guard let p = scope.effect.apply(to: group[i], flattens: scope.flattens, outer: scope.outer)
+                            else { continue }
+                            mapped.append(p)
+                            kept.append(d[i])
+                        }
+                        group = mapped
+                        emitted = kept
+                    } else {
+                        group = group.compactMap {
+                            scope.effect.apply(to: $0, flattens: scope.flattens, outer: scope.outer)
+                        }
                     }
                     if group.isEmpty { continue }
                 }
                 if scope.kind == .effect, scope.flattens, let entry = scope.outer {
                     for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
                 }
-                next.append(group)
+                next.append((group, emitted))
             }
             leaves = next
         }
-        for group in leaves {
+        for (group, _) in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
     }
@@ -3278,13 +3363,20 @@ public final class Frame {
         var strip = requestToolbarStrip(pass: &layoutPass)
         if let strip { reportUnconsumedLoweredItems(root: strip.node) }
         drewToolbarStrip = strip != nil
+        // The drawn menu bar (`SG-A` items 5–6): after the strip; `nil` — no
+        // node — without one.
+        var bar = requestMenuBarStrip(pass: &layoutPass)
+        if let bar { reportUnconsumedLoweredItems(root: bar.node) }
+        drewMenuBar = bar != nil
 
-        computeRootLayout(root: root, toolbarStrip: strip?.node)
+        computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node)
         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
         let rootBounds = bounds(of: root)
         recordElementBounds(rootID, rootBounds)
         let stripBounds = strip.map { bounds(of: $0.node) }
         if let stripBounds { recordElementBounds(ToolbarStrip.rootID, stripBounds) }
+        let barBounds = bar.map { bounds(of: $0.node) }
+        if let barBounds { recordElementBounds(MenuBarStrip.rootID, barBounds) }
 
         var prepaintPass = PrepaintPass(frame: self)
         // The root's `prepaint` is called here, not through `prepaintGroup`, so
@@ -3309,6 +3401,11 @@ public final class Frame {
         // both), its focus stops follow the root's, its records come after.
         if let stripBounds {
             strip?.element.prepaint(ToolbarStrip.rootID, bounds: stripBounds, pass: &prepaintPass)
+        }
+        // The bar after the strip (`SG-A` item 6, spec §3.4 item 3): its
+        // hitboxes rank above both, below the hoisted presentation roots.
+        if let barBounds {
+            bar?.element.prepaint(MenuBarStrip.rootID, bounds: barBounds, pass: &prepaintPass)
         }
 
         // Hover resolves HERE — after `prepaint` has returned, so every
@@ -3346,6 +3443,9 @@ public final class Frame {
         animationStore.transitions.paintGhosts(&paintPass)
         if let stripBounds {   // above the root's content and its ghosts, below presentations (`MD-K` item 4)
             strip?.element.paint(ToolbarStrip.rootID, bounds: stripBounds, pass: &paintPass)
+        }
+        if let barBounds {   // above the strip, below presentations, the preview, the menu and the tooltip
+            bar?.element.paint(MenuBarStrip.rootID, bounds: barBounds, pass: &paintPass)
         }
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)

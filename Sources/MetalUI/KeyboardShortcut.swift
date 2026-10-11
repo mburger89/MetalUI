@@ -19,7 +19,7 @@ public typealias EventModifiers = Modifiers
 /// The named keys are AppKit's characters (which SDL's keys are translated to,
 /// `SP-C`): Return `\r`, Escape `\u{1b}`, Delete `\u{7f}`, and the function-key
 /// range for the arrows, Home, End, Page Up/Down, Clear and forward delete.
-public struct KeyEquivalent: Equatable, Sendable, ExpressibleByExtendedGraphemeClusterLiteral {
+public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeClusterLiteral {
     /// The character the key produces.
     public let character: Character
 
@@ -75,8 +75,10 @@ public struct KeyboardShortcut: Equatable, Sendable {
     /// The modifiers that must be held, matched exactly (`IX-F` item 2).
     public let modifiers: EventModifiers
 
-    /// A shortcut of `key` with `modifiers` (⌘ by default, as SwiftUI's).
-    public init(_ key: KeyEquivalent, modifiers: EventModifiers = .command) {
+    /// A shortcut of `key` with `modifiers` — by default `.primary`: ⌘ on
+    /// macOS, as SwiftUI's `.command`, and Ctrl on Linux and Windows (ruling
+    /// `SG-B` item 3).
+    public init(_ key: KeyEquivalent, modifiers: EventModifiers = .primary) {
         self.key = key
         self.modifiers = modifiers
     }

@@ -293,6 +293,40 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         return (disabled ? base.allowsHitTesting(false) : base)
             .padding(Edges(all: .pixels(px(0))))
     }
+
+    // Key and focus scoping (ruling `KF-H`, spec test C6): the proposal
+    // `KeyboardModifier` is its own handler-registering site. Its one region —
+    // the non-opaque press region of `.focusable(interactions: .edit)` — is
+    // inside the `allowsHitTesting` gate: the control's press focuses it and a
+    // key reaches its `onKeyPress`; under `.allowsHitTesting(false)` no region
+    // is registered, the press focuses nothing and nobody hears the key. The
+    // arm's "click" is that key. Mutation: `KeyboardModifier` registers its
+    // region past the gate (the scoped arm focuses and hears).
+    for blocked in [false, true] {
+        let counter = ClickCounter()
+        let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200) {
+            HStack {
+                Rectangle(width: px(40), height: px(40))
+                    .focusable(interactions: .edit)
+                    .onKeyPress { _ in counter.bump(); return .handled }
+                    .allowsHitTesting(!blocked)
+            }
+        }
+        window.drawFrameIfNeeded()
+        let regions = window.lastHitboxes.count
+        click(platform, at: pt(100, 100))
+        window.drawFrameIfNeeded()
+        platform.simulateInput(keyDown("x"))
+        if blocked {
+            #expect(regions == 0 && counter.count == 0,
+                    why("KeyboardModifier: under .allowsHitTesting(false) no press region and no focus — "
+                        + "regions \(regions), keys heard \(counter.count)"))
+        } else {
+            try #require(regions == 1 && counter.count == 1,
+                         why("KeyboardModifier: the control registers its press region, a press focuses it "
+                             + "and the key is heard — regions \(regions), keys heard \(counter.count)"))
+        }
+    }
 }
 
 /// **Every site still publishes its accessibility payload while the scope is
@@ -342,6 +376,28 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
           Box().cssWidth(px(31)).cssHeight(px(13)).padding(Edges(all: .pixels(px(4))))
             .id("subject").onClick { }.allowsHitTesting(false),
           declaring: AXNode(role: .button, label: "layer-label"))
+
+    // Key and focus scoping (ruling `KF-H`, spec test C6): the proposal
+    // `KeyboardModifier` declares no `AXNode` (it registers with
+    // `synthesizesAccessibility: false`); its payload is the keyboard half —
+    // focusability and the key context — which reaches the registry, and so
+    // the accessibility tree's `isFocusable`, while the scope withdraws its
+    // press region. Mutation: `KeyboardModifier` registers nothing while hit
+    // testing is disabled (focusability and the context vanish).
+    let (keyboardFrame, _) = collect(HStack {
+        Rectangle(width: px(40), height: px(40))
+            .focusable(interactions: .edit)
+            .keyContext("Viewport")
+            .allowsHitTesting(false)
+    })
+    #expect(keyboardFrame.hitboxes.isEmpty,
+            why("KeyboardModifier: set up — the scope must be open, so no press region; got "
+                + "\(keyboardFrame.hitboxes.count)"))
+    let keyboardOrder = keyboardFrame.focusRegistry.tabOrder
+    #expect(keyboardOrder.count == 1
+                && keyboardFrame.focusRegistry.context(for: keyboardOrder[0])?.name == "Viewport",
+            why("KeyboardModifier: focusability and the context survive .allowsHitTesting(false): "
+                + "\(keyboardOrder)"))
 
     // The `Text` arm the ruling is actually about: the STRING, which only an
     // accessibility client's record carries and which the helper could have

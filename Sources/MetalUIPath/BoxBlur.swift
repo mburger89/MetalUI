@@ -29,6 +29,16 @@ package enum BoxBlur {
 
     /// `mask` blurred, over its rectangle grown by ``padding(sigma:)``. A
     /// non-positive sigma returns the mask unchanged.
+    ///
+    /// **Fast and byte-identical** (ruling `PF-F` item 1): one pair of `Int32`
+    /// buffers behind unchecked buffer pointers; the horizontal passes run per
+    /// row, the vertical passes row-major with one running sum per column (the
+    /// cache-friendly order); each pass rounds `(sum + half) / width` with zero
+    /// padding exactly as the 2155f1e loop did, and the narrowing runs in the
+    /// same unchecked style. Pinned against that loop, copied verbatim, by
+    /// `theFastBoxBlurEqualsTheReferenceByteForByte` (L2.1). Integer sums are
+    /// exact, so the order of the additions cannot move a byte; an `Int32` sum
+    /// holds `width × 255` for any width below eight million.
     package static func blur(_ mask: AlphaMask, sigma: Double) -> AlphaMask {
         let widths = boxWidths(sigma: sigma)
         guard !widths.isEmpty, !mask.rect.isEmpty else { return mask }
@@ -36,33 +46,85 @@ package enum BoxBlur {
         let rect = RasterRect(x: mask.rect.x - pad, y: mask.rect.y - pad,
                               width: mask.rect.width + 2 * pad, height: mask.rect.height + 2 * pad)
         let w = rect.width, h = rect.height
-        var a = [Int](repeating: 0, count: w * h)
-        for y in 0..<mask.rect.height {
-            for x in 0..<mask.rect.width {
-                a[(y + pad) * w + x + pad] = Int(mask.alpha[y * mask.rect.width + x])
+        let mw = mask.rect.width, mh = mask.rect.height
+        var a = [Int32](repeating: 0, count: w * h)
+        var b = [Int32](repeating: 0, count: w * h)
+        var columnSums = [Int32](repeating: 0, count: w)
+        var out = [UInt8](repeating: 0, count: w * h)
+        mask.alpha.withUnsafeBufferPointer { src in
+            a.withUnsafeMutableBufferPointer { pa in
+                b.withUnsafeMutableBufferPointer { pb in
+                    columnSums.withUnsafeMutableBufferPointer { sums in
+                        out.withUnsafeMutableBufferPointer { dst in
+                            var x0 = pa.baseAddress!, x1 = pb.baseAddress!
+                            let s = src.baseAddress!
+                            for y in 0..<mh {
+                                let row = x0 + (y + pad) * w + pad, from = s + y * mw
+                                for x in 0..<mw { row[x] = Int32(from[x]) }
+                            }
+                            for width in widths {
+                                horizontalPass(x0, into: x1, w: w, h: h, width: Int32(width))
+                                swap(&x0, &x1)
+                            }
+                            for width in widths {
+                                verticalPass(x0, into: x1, sums: sums.baseAddress!, w: w, h: h, width: Int32(width))
+                                swap(&x0, &x1)
+                            }
+                            let d = dst.baseAddress!
+                            for i in 0..<(w * h) {
+                                let v = x0[i]
+                                d[i] = v >= 255 ? 255 : (v <= 0 ? 0 : UInt8(truncatingIfNeeded: v))
+                            }
+                        }
+                    }
+                }
             }
         }
-        var b = [Int](repeating: 0, count: w * h)
-        for width in widths { boxPass(a, into: &b, count: w, lines: h, step: 1, lineStep: w, width: width); swap(&a, &b) }
-        for width in widths { boxPass(a, into: &b, count: h, lines: w, step: w, lineStep: 1, width: width); swap(&a, &b) }
-        return AlphaMask(rect: rect, alpha: a.map { UInt8(min(255, max(0, $0))) })
+        return AlphaMask(rect: rect, alpha: out)
     }
 
-    /// One moving-sum box of odd `width` along every line, zero outside,
+    /// One moving-sum box of odd `width` along every row, zero outside,
     /// rounded to nearest.
-    private static func boxPass(_ source: [Int], into out: inout [Int], count: Int, lines: Int,
-                                step: Int, lineStep: Int, width: Int) {
-        let r = (width - 1) / 2
+    private static func horizontalPass(_ source: UnsafeMutablePointer<Int32>, into out: UnsafeMutablePointer<Int32>,
+                                       w: Int, h: Int, width: Int32) {
+        let r = Int((width - 1) / 2)
         let half = width / 2
-        for line in 0..<lines {
-            let base = line * lineStep
-            var sum = 0
-            for k in 0...min(r, count - 1) { sum += source[base + k * step] }
-            for i in 0..<count {
-                out[base + i * step] = (sum + half) / width
+        for line in 0..<h {
+            let src = source + line * w, dst = out + line * w
+            var sum: Int32 = 0
+            for k in 0...min(r, w - 1) { sum &+= src[k] }
+            for i in 0..<w {
+                dst[i] = (sum &+ half) / width
                 let entering = i + r + 1, leaving = i - r
-                if entering < count { sum += source[base + entering * step] }
-                if leaving >= 0 { sum -= source[base + leaving * step] }
+                if entering < w { sum &+= src[entering] }
+                if leaving >= 0 { sum &-= src[leaving] }
+            }
+        }
+    }
+
+    /// One moving-sum box of odd `width` down every column, zero outside,
+    /// rounded to nearest — walked row by row with `sums` holding each
+    /// column's running sum, so every read and write is sequential.
+    private static func verticalPass(_ source: UnsafeMutablePointer<Int32>, into out: UnsafeMutablePointer<Int32>,
+                                     sums: UnsafeMutablePointer<Int32>, w: Int, h: Int, width: Int32) {
+        let r = Int((width - 1) / 2)
+        let half = width / 2
+        for x in 0..<w { sums[x] = 0 }
+        for k in 0...min(r, h - 1) {
+            let src = source + k * w
+            for x in 0..<w { sums[x] &+= src[x] }
+        }
+        for i in 0..<h {
+            let dst = out + i * w
+            for x in 0..<w { dst[x] = (sums[x] &+ half) / width }
+            let entering = i + r + 1, leaving = i - r
+            if entering < h {
+                let src = source + entering * w
+                for x in 0..<w { sums[x] &+= src[x] }
+            }
+            if leaving >= 0 {
+                let src = source + leaving * w
+                for x in 0..<w { sums[x] &-= src[x] }
             }
         }
     }
@@ -76,15 +138,42 @@ package enum AlphaCompositor {
     package enum Filter: Hashable, Sendable { case nearest, bilinear }
 
     /// `a + b − ab` per pixel, over the union of the two rectangles.
+    /// Unchecked row loops (ruling `PF-F` item 2), byte-identical to the
+    /// 2155f1e per-pixel lookup: each operand's row is copied into a union-wide
+    /// row of zeros, then combined — pinned by
+    /// `theFastUnionEqualsTheReferenceByteForByte` (L2.2).
     package static func union(_ a: AlphaMask, _ b: AlphaMask) -> AlphaMask {
         if a.rect.isEmpty { return b }
         if b.rect.isEmpty { return a }
         let rect = a.rect.union(b.rect)
+        let w = rect.width
         var out = [UInt8](repeating: 0, count: rect.area)
-        for y in rect.y..<rect.maxY {
-            for x in rect.x..<rect.maxX {
-                let p = Int(a.value(atX: x, y: y)), q = Int(b.value(atX: x, y: y))
-                out[(y - rect.y) * rect.width + (x - rect.x)] = UInt8(p + q - (p * q + 127) / 255)
+        var rowA = [UInt8](repeating: 0, count: w), rowB = [UInt8](repeating: 0, count: w)
+        a.alpha.withUnsafeBufferPointer { pa in
+            b.alpha.withUnsafeBufferPointer { pb in
+                rowA.withUnsafeMutableBufferPointer { ra in
+                    rowB.withUnsafeMutableBufferPointer { rb in
+                        out.withUnsafeMutableBufferPointer { po in
+                            func fill(_ row: UnsafeMutablePointer<UInt8>, _ m: AlphaMask,
+                                      _ p: UnsafePointer<UInt8>, _ y: Int) {
+                                for x in 0..<w { row[x] = 0 }
+                                guard y >= m.rect.y, y < m.rect.maxY else { return }
+                                let src = p + (y - m.rect.y) * m.rect.width, dst = row + (m.rect.x - rect.x)
+                                for x in 0..<m.rect.width { dst[x] = src[x] }
+                            }
+                            let ra = ra.baseAddress!, rb = rb.baseAddress!, o = po.baseAddress!
+                            for y in rect.y..<rect.maxY {
+                                fill(ra, a, pa.baseAddress!, y)
+                                fill(rb, b, pb.baseAddress!, y)
+                                let row = o + (y - rect.y) * w
+                                for x in 0..<w {
+                                    let p = Int(ra[x]), q = Int(rb[x])
+                                    row[x] = UInt8(truncatingIfNeeded: p + q - (p * q + 127) / 255)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         return AlphaMask(rect: rect, alpha: out)
