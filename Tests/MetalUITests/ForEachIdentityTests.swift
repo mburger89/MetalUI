@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 import Testing
 import MetalUICore
 @testable import MetalUI
@@ -197,4 +200,24 @@ private func twinRow(_ twins: [Twin], _ reads: ConditionalReads) -> some Element
     var tree = Row { ForEach([Double.nan, Double.nan], id: \.self) { _ in ConditionalCounter("n", ConditionalReads()) } }
     frame.render(&tree)
     #expect(frame.tree.nodeCount == 2, "the Row and one element: \(frame.tree.nodeCount)")
+}
+
+/// **2.12 — the carrier's size is measured, not assumed** (`FI-G`): an
+/// `ElementID` is a `String` (16) plus one reference (8) = 24 bytes, and a
+/// `GlobalElementID` with a keyed component occupies the same malloc bucket as
+/// one with a plain name (Darwin). Mutation: `IdentityKey?` replaced by a bare
+/// `AnyHashable?` (a struct, 32 bytes) reddens the size arm.
+@MainActor
+@Test func theKeyedComponentCostsOneReference() {
+    #expect(MemoryLayout<ElementID>.size == 24, "ElementID: \(MemoryLayout<ElementID>.size)")
+    print("FI-G ElementID size/stride: \(MemoryLayout<ElementID>.size)/\(MemoryLayout<ElementID>.stride), PathComponent size/stride: \(MemoryLayout<PathComponent>.size)/\(MemoryLayout<PathComponent>.stride)")
+    #if canImport(Darwin)
+    let plain = GlobalElementID.child(of: root, at: 0, name: ElementID("twin"))
+    let keyed = GlobalElementID.child(of: root, at: 0,
+                                      name: ElementID(name: "twin", key: IdentityKey(AnyHashable(Twin(u: 1)))))
+    let a = malloc_size(Unmanaged.passUnretained(plain).toOpaque())
+    let b = malloc_size(Unmanaged.passUnretained(keyed).toOpaque())
+    print("FI-G GlobalElementID malloc_size plain/keyed: \(a)/\(b)")
+    #expect(a == b, "the same malloc bucket: \(a) vs \(b)")
+    #endif
 }
