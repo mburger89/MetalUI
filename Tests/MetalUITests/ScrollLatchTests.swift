@@ -211,6 +211,13 @@ private func twoRows(_ log: LLog) -> some Element {
     platform.simulateInput(scroll(atA, .none, .ended))
     platform.simulateControlActiveStateChange(to: .inactive)
     #expect(log.entries == ["A", "A", "A", "A"], "ended normally: \(log.entries)")
+    // A finger stage that ended with no glide leaves nothing in flight.
+    log.entries = []
+    platform.simulateControlActiveStateChange(to: .key)
+    platform.simulateInput(scroll(atA, .began))
+    platform.simulateInput(scroll(atA, .ended))
+    platform.simulateControlActiveStateChange(to: .inactive)
+    #expect(log.entries == ["A", "A"], "ended, no glide: \(log.entries)")
     log.entries = []
     platform.simulateControlActiveStateChange(to: .key)
     platform.simulateInput(scroll(atA, .none))
@@ -239,18 +246,19 @@ private func twoRows(_ log: LLog) -> some Element {
     }
     let region = try #require(window.lastHitboxes.first { $0.scroll != nil }, "the scroller")
     func state() -> (Double, Double) {
-        var value = (0.0, 0.0)
-        window.stateTable.withState(region.id, initial: ScrollState()) { value = ($0.offset, $0.lastScrollTime) }
-        return value
+        let stored = window.stateTable.peek(region.id, as: ScrollState.self)
+        return (stored?.offset ?? 0, stored?.lastScrollTime ?? 0)
     }
     platform.simulateInput(scroll(pt(50, 20), .began, timestamp: 7))
     let before = state()
     #expect(before.0 == 5 && before.1 == 7, "the declined began scrolled: \(before)")
     log.entries = []; log.events = []
+    let writes = window.stateTable.writeCount
     platform.simulateControlActiveStateChange(to: .inactive)
     #expect(log.entries == ["row"], "\(log.entries)")
     let after = state()
     #expect(after.0 == before.0 && after.1 == before.1, "unmoved: \(after) vs \(before)")
+    #expect(window.stateTable.writeCount == writes, "no state write at all: the zero delta and the equal stamp cannot show one")
     withExtendedLifetime(window) {}
 }
 
