@@ -8,9 +8,9 @@ Requested by MetalCreator (`docs/metalui-gaps.md` **M6-e**, **M7-b**, **TH-a**)
 and the SMK configurator port (`2026-10-06-metalui-gaps.md` **MG-17**,
 **MG-12**). Branch `feat/test-harness` from `70e9389`. Rulings:
 [`../2026-10-09-test-harness-decisions.md`](../2026-10-09-test-harness-decisions.md)
-(`HT-A`…`HT-T`). Record: `docs/record/91-test-harness.md`.
+(`HT-A`…`HT-X`). Record: `docs/record/91-test-harness.md`.
 
-**Status: designed, critic-revised (2026-10-09, HT-R); lane 1 measured corrections HT-S, lane 2 HT-T (2026-10-10).**
+**Status: LANDED (record §91). Designed and critic-revised (2026-10-09, HT-R); corrected by the lanes (HT-S, HT-T, HT-U, HT-V, HT-W) and by the merge with master (HT-X, 2026-10-10). The spec text stays as designed except where those rulings say otherwise; the rulings win.**
 
 ## §0 Baseline and constraints
 

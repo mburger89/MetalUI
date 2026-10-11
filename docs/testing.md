@@ -62,8 +62,9 @@ let window = try TestWindow { rootView() }
 ```
 
 A cross-platform test target lists `MetalUIPortableText` and
-`MetalUISystemFonts` with `condition: .when(platforms: [.linux, .windows])`,
-as the generated one does.
+`MetalUISystemFonts` **unconditionally**, as the generated one does (`SG-D`:
+with a platform condition SwiftPM drops their C modules from a test target on
+macOS); `MetalUISDL` keeps its Linux/Windows condition.
 
 Every harness API is `@MainActor`; mark the test (or its suite) so.
 

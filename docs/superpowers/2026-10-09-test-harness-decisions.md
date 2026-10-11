@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-X`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-Y`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -681,3 +681,28 @@ test (3141 tests per run):
 **Cost if wrong.** None to the code; the spec's 3.1 row now names the
 companion edit, so a re-run of the mutation measures the guard and does not
 stop at a build failure.
+
+
+## HT-X — The merge with master `f2fe54a` (2026-10-10)
+
+**Ruling.** Master published §88–§90 while this branch was open; merging it
+made three things true, each pinned.
+1. **`Platform.setMenuBar(_:) -> Bool` (`SG-A`) is a new defaultless
+   requirement** and `HeadlessPlatform` implemented the old `Void` spelling
+   (the root package stopped compiling at the merge). The honest answer is a
+   public option, **`HeadlessPlatform.showsMenuBarNatively`**, default `true`
+   (AppKit's answer: nothing is drawn, `TestApp.menuBar` reads the seam); off
+   (SDL's answer) the window draws the 25-point bar strip under `$menubar` and
+   a test drives it through the tree like any drawn menu. Pinned by 2.31
+   `aMenuBarThePlatformDeclinesIsDrawnAndDrivenThroughTheTree`, mutation
+   `setMenuBar` answers `true` regardless of the option. `HT-Q` item 7 ("an
+   in-window menu bar — SDL draws none") is **discharged**: C12 built it.
+2. **`Scaffold.swift` conflicted**: master's `SG-D` makes
+   `MetalUIPortableText`/`MetalUISystemFonts` unconditional because a test
+   target naming them conditionally fails on macOS; the generated test target
+   (`HT-O`) had copied the condition. The merge lists them unconditionally on
+   the executable and the test target; `docs/testing.md` says so.
+3. **Count debt**: every count in `CLAUDE.md` is the merge's (record §91 §12).
+
+**Cost if wrong.** A third platform answer for `setMenuBar` adds nothing: the
+option is one Boolean.

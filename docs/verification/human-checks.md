@@ -1293,6 +1293,23 @@ desktop, the monospaced face on screen, a Windows release build.
   ("Exit" on Windows) ends the app; with two windows open Close closes one.
   **Observed:**
 
+## HT. Test harness — a generated test target on Windows, the portable arm with fonts (item 8, user request 2026-10-02, not a plan task; record §91)
+
+*Nothing here is a look: the harness paints nothing. Two measurements the
+agent runs could not take (`HT-V` items 4 and 5).*
+
+- [ ] **HT1. Windows, ARM64 and x64.** `metalui new --cross-platform Probe`
+  (any source), then `swift build --build-tests` and `swift test` of the
+  generated package on Windows (the UTM VM, or a CI consumer job): the test
+  target imports the executable `@testable` and the generated test passes. If
+  it does not, `HT-O`'s fallback applies: the manifest declares the test target
+  off Windows only. **Observed:**
+- [ ] **HT2. Linux with fonts installed.** The same generated cross-platform
+  package, `swift test`: the Linux arm (`SystemFonts.resolver()` plus
+  `PortableTextSystem`) opens its window and the generated test passes. The
+  CI image installs no font package, so this needs a host that has some.
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

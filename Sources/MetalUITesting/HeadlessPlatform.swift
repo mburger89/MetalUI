@@ -56,8 +56,19 @@ public final class HeadlessPlatform: Platform {
     /// Records the icon list.
     public func setApplicationIcon(_ images: [ImageTexture]) { applicationIcons.append(images) }
 
-    /// Keeps the menu bar, which ``TestApp/menuBar`` evaluates.
-    public func setMenuBar(_ menuBar: PlatformMenuBar) { self.menuBar = menuBar }
+    /// Whether ``setMenuBar(_:)`` answers that the platform shows the bar
+    /// (`true`, AppKit's answer and the default: nothing is drawn, the bar is
+    /// read through ``TestApp/menuBar``) or not (`false`, SDL's: the window
+    /// draws the bar strip under the root, and a test drives it through the
+    /// accessibility tree).
+    public var showsMenuBarNatively = true
+
+    /// Keeps the menu bar, which ``TestApp/menuBar`` evaluates, and answers
+    /// ``showsMenuBarNatively`` (`SG-A`).
+    public func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool {
+        self.menuBar = menuBar
+        return showsMenuBarNatively
+    }
 
     /// Installed by the app; asked by ``simulateTerminateRequest()``.
     public var onTerminateRequest: (() -> CloseRequestReply)?

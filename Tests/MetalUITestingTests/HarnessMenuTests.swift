@@ -223,3 +223,32 @@ import Testing
     #expect(copy.standardAction != nil)
     #expect(throws: TestHarnessError.noMenuItem(["Edit", "Copy"])) { try app.performMenuBarItem("Edit", "Copy") }
 }
+
+/// 2.31 (`HT-X` 1) — with `showsMenuBarNatively` off (SDL's answer to `SG-A`'s
+/// `setMenuBar`) the window draws the bar: each title is a button node in the
+/// tree, a click opens its menu (in the window, with `presentsMenusNatively` off) as `.menuItem` nodes, and a click on an item
+/// runs the command; `app.menuBar` still lists the bar. On (the default,
+/// AppKit's) nothing is drawn. Mutation: `setMenuBar` answers `true`
+/// regardless of the option.
+@Test @MainActor func aMenuBarThePlatformDeclinesIsDrawnAndDrivenThroughTheTree() throws {
+    let m = MenuModel()
+    let app = try TestApp(textSystem: harnessTextSystem)
+    app.platform.showsMenuBarNatively = false
+    app.platform.nextWindowOptions = .init(presentsMenusNatively: false)   // the title opens an in-window menu
+    app.app.commands {
+        CommandMenu("Theme") {
+            Toggle("Dark", isOn: m.darkBinding)
+        }
+    }
+    let window = try app.openWindow(size: sz(400, 300)) { Text(m.dark ? "dark" : "light") }
+    #expect(app.menuBar.map(\.title).contains("Theme"), "the seam still records the bar")
+    try window.click(window.element(label: "Theme"))
+    #expect(window.presentedMenu == nil, "a drawn bar opens the window's own menu")
+    let dark = try window.element(label: "Dark")
+    #expect(dark.role == .menuItemCheckBox || dark.role == .menuItem)
+    try window.click(dark)
+    #expect(m.dark)
+
+    let native = try themedApp(MenuModel()).1
+    #expect(throws: TestHarnessError.self) { try native.element(label: "Theme") }
+}

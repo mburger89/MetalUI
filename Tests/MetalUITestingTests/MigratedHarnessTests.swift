@@ -37,7 +37,7 @@ import Testing
 /// topmost, passes a bare "did it run" assertion and fails this one. The root
 /// declares both axes, so it is centred at its own 40 × 40 answer (`CN-J`):
 /// (100 − 40) / 2 = 30, the box at 30…70 on both axes. Mutation (record §91):
-/// the `onClick` gate runs on a press as well as on its release.
+/// `Window.dispatchClick` calls `runClick` twice (measured, `HT-W` item 3).
 @Test @MainActor func aClickInsideTheBoundsRunsTheHandler() throws {
     let log = HarnessLog()
     let window = try harnessWindow(size: sz(100, 100)) {
