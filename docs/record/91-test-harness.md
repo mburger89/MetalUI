@@ -137,6 +137,41 @@ only. The fix round (`HT-U`): red `d978e2b` (2.27 red alone on macOS), fix
 (2.28–2.30). Verified at `cafc337`: noble `67 + 6 + 35 + 18 + 199 + 67 + 22`
 all passed, 0 `warning:`; the native run 3136 tests.
 
+**The named mutations of 2.1–2.26** (spec §4.2's column), measured by lane 2's
+verifier on `c366644`, each alone on a full native unfiltered run of 3132 tests,
+restored from a copy (the logs were in the session scratchpad; this table was
+missing from the record until the branch checker, §13, added it):
+
+| # | Mutation as spelled | Reddened |
+|---|---|---|
+| 2.1 | `accessibilityClientActive` defaults to `false` | 24 tests: every query-reading lane 2 test plus `anAccessibilityClientActiveAtOpenHasTheTreeInTheFirstFrame`, `elementByIdentifierReturnsItsFrame` among them |
+| 2.2 | the label match reads `identifier` | 20 tests, `elementByLabelFindsAStaticText` among them |
+| 2.3 | `elements(where:)` in dictionary order (`nodes.keys`) | `elementsByRoleAreInTreeOrder`, `aDrawnMenuIsDrivenThroughTheTree` |
+| 2.4 | `found.count >= 1` (ambiguous returns first) | exactly `aMissingAndAnAmbiguousElementThrowNamingTheQuery` |
+| 2.5 | aim at `frame` | `clickOnAnElementAimsAtItsVisibleFrame`, `aZeroAreaElementIsNotHittable` |
+| 2.6 | no zero-area check | exactly `aZeroAreaElementIsNotHittable` |
+| 2.7 | `.press` sent as `.increment` | exactly `anAccessibilityPressRunsAButton` |
+| 2.8 | `isFocused` from `isFocusable` | exactly `tabMovesFocusAndFocusedElementFollows` |
+| 2.9 | alert token + 1 | exactly `anAlertIsReadAndAnsweredByButtonTitle` |
+| 2.10 | `presentAlert` answers `true` regardless | exactly `aDeclinedAlertIsDrawnAndPressedThroughTheTree` |
+| 2.11 | file dialog answered `.cancelled` | exactly `aFileImporterIsAnsweredWithPaths` |
+| 2.12 | — (the control for 2.11) | — |
+| 2.13 | `item: nil` | `aContextMenuIsReadAndAnItemChosenByTitle`, `aPullDownMenuIsReadTheSameWay`, `aSubmenuItemIsChosenByPath` |
+| 2.14 | the path walk stops at depth 1 | exactly `aSubmenuItemIsChosenByPath` |
+| 2.15 | `presentMenu` answers `true` regardless | exactly `aDrawnMenuIsDrivenThroughTheTree` |
+| 2.16 | no enabled check | `aDisabledMenuItemThrows`, `menuEvaluationReadsContentOutsideAnyWindow` |
+| 2.17 | an answered menu token still counts as unanswered | `aPullDownMenuIsReadTheSameWay`, `aContextMenuIsReadAndAnItemChosenByTitle` |
+| 2.18 | `perform(item.id + 1)` | `theMenuBarListsCommandsAndPerformsOne`, `theMenuBarIsReEvaluatedAtEachRead` |
+| 2.19 | the menu bar cached at first read | exactly `theMenuBarIsReEvaluatedAtEachRead` |
+| 2.20 | `isEnabled: false` passed | exactly `menuEvaluationReadsContentOutsideAnyWindow` |
+| 2.21 | toolbar action with a wrong item id | exactly `theToolbarIsReadAndAnItemTriggered` |
+| 2.22 | `setToolbar` answers `true` regardless | exactly `aDeclinedToolbarIsDrawnAndItsButtonClickable` |
+| 2.24 | `pointerStyle` reads the first style | exactly `pointerStyleFollowsHover` |
+| 2.25 | `writeClipboard` drops the write | exactly `copyInAFieldReachesTheWindowsClipboard` |
+| 2.26 | `click` sends only `.mouseDown` | 14 tests, `aClickByElementReRunsLane1sClickTestThroughTheTree` and lane 1's click tests among them |
+
+2.23's rows are below (its first spelling was green for 2.23 itself, `HT-U` 3).
+
 Mutations, each on the full native unfiltered suite with `git status --short`
 clean after each restore:
 
@@ -274,3 +309,41 @@ Merge `2bc6c12` (master `f2fe54a` into the branch), then `HT-X`'s fixes; the hea
 - **`Backends/SDL`** is untouched by the branch (its sources arrive only through master's merge); not
   re-run. The Linux/Windows CI confirm on push.
 
+
+## §13 Branch checker (2026-10-10, head `57d71f7`)
+
+- **macOS**: `swift package clean`, native build (0 `error:`, the only `warning:` SwiftPM's deprecation
+  notice), unfiltered `--no-parallel`: **"Test run with 3310 tests in 3 suites passed after 230.302
+  seconds."**, XCTest "Executed 1 test, with 0 failures", the `FR-J no-argument frame: succeeded=true`
+  line present; guards 3.1–3.3 ran and passed (not skipped). Default build system on a `git archive`
+  copy of HEAD: 0 `warning:`, build complete. `cmp CLAUDE.md AGENTS.md` equal.
+- **`swift:6.4-noble`, root package**, a fresh scratch path: 0 `warning:`, 0 `error:`;
+  `72 + 9 + 40 + 21 + 199 + 78 + 22` passed.
+- **`Backends/SDL`** (untouched by the branch; run because the merge brought master's §89): macOS
+  `24 + 111`, the Linux image `24 + 108`, both all passed — master's §89 numbers. Both builds print
+  master's existing `AccessKitControlsParityTests.swift:83` unnecessary-`try` warning (and on macOS
+  the Homebrew SDL `ld` version notes); neither is this branch's.
+- **Fourteen images**, `compare.sh <scratch> 70e9389 57d71f7`: all `differing=0`, scene identical;
+  controls as recorded (light vs dark 1048576, default vs modal 1031003, f0 vs f3 0, chrome 0).
+- `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Every `HT-` id cited in
+  the changed docs is a heading (`HT-A`…`HT-X`; `HT-Y` only as "next unused"); every long test name
+  cited resolves in `Sources/`/`Tests/` except §03's pre-existing
+  `theRunCounterIgnoresCallsMadeOffTheMainThread` (stale since before this branch, record §79).
+- **Unmoved**: `Window.swift`, `Backends/`, `Tests/MetalUICrossPlatformTests` are unchanged against
+  master `f2fe54a`; the only `MetalUILayout` edit widens `lastNativeLayoutWork`'s getter and
+  `NativeLayoutWork` to `package` (`HT-C` 2). `theSevenRetentionSlotsAreMutuallyDistinct`,
+  `everyNamingSiteStartsAReturningNameFresh`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour` and `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`
+  ran green; the four moved tests (§5, 3.5–3.8) exist once each, in `MigratedHarnessTests`.
+- **Two mutations of the checker's own**, each alone on the full native unfiltered suite, restored
+  from a copy, `git status --short` empty after each:
+  - **X1** `TestWindow.deliverKey` drops its `⌘`/`⌃` exclusion (a shortcut key in a focused field
+    arrives as `.textInput`): 3310 tests, 1 issue — exactly `copyInAFieldReachesTheWindowsClipboard`.
+  - **X2** `TestWindow.advanceFrames(_:)` ticks without moving the clock (`now += 1/60` deleted):
+    **green**, 3310 passed. `advanceFrames`' 1/60 s pacing (`docs/testing.md`, its doc comment) is
+    unpinned: its one caller, `aWarmDragLoopCountsLayoutWorkPerFrame`, reads layout work, which the
+    clock does not decide. Owed: a test that reads the time between frames (an animation's progress
+    after `advanceFrames(n)`, or a `TimelineView(.animation)` date).
+- The lane 2 table above (§4) was missing from the record; the checker added it from the verifier's
+  logs.
