@@ -29,12 +29,17 @@ import MetalUILayout
 /// element keeps `TB-AH`'s retention for its rows (which are not the loop's
 /// children).
 ///
-/// **Duplicate ids: only the first element is produced** (F7, `DD-B` item 5) —
-/// and "duplicate" means equal in **value or in description** (`DD-L`): ids
-/// `AnyHashable(1)` and `AnyHashable("1")` would mint one name, so the second
-/// is not produced, where SwiftUI produces both (probe S6; **divergence 79**,
-/// pinned wrong on purpose by `aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst`).
-/// A `List`'s rows carry the same description collision (its type doc).
+/// **Duplicate ids: only the first element is produced** (F7, `DD-B` item 5),
+/// where "duplicate" means equal in **value** (`FI-A`, SwiftUI's rule: probe
+/// `swiftui-foreach-hashable-identity.swift` H1–H3). Ids that print alike and
+/// differ in value are two elements with separate `@State`: for an id type whose
+/// `String(describing:)` is not injective (a custom struct, an enum, an
+/// `AnyHashable`) each element's scope also carries the id's value
+/// (`IdentityKey`, `FI-B`); `Int`, `String`, `UUID` and the other
+/// `DescriptionInjectiveID` types mint today's description-only names. A
+/// floating-point id keeps a name dedupe so a NaN is produced once (`FI-K`).
+/// **Divergence 79 is retired** (record §95). A `List`'s rows still carry the
+/// description collision (its type doc; divergence 255, `FI-I`).
 ///
 /// **The content closure runs during layout, once per produced element per
 /// frame**, and what it built is threaded to prepaint and paint in the group
@@ -79,7 +84,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
     }
 
     /// The production both entries share: the slot, the per-frame dedupe (by
-    /// value and by minted name, `DD-L`), each element's named scope and its
+    /// value; by name only for a floating-point id, `FI-K`), each element's named scope and its
     /// `noteNamed`, and the content closure — with `register` laying out one
     /// element's content under its scope. Returns the slot and the extent for
     /// the caller's own `noteLoop`.
@@ -90,6 +95,11 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         var seenIDs = Set<ID>()
+        // `FI-B`: an id type whose description is not injective carries its
+        // value in the component; `FI-K`: a floating-point id keeps the name
+        // dedupe, since a NaN is unequal to itself. One metatype test each, per build.
+        let needsKey = !(ID.self is DescriptionInjectiveID.Type)
+        let dedupesNames = ID.self is any BinaryFloatingPoint.Type
         var seenNames = Set<String>()
         var offset = 0
         var nodes: [Node] = []
@@ -101,10 +111,15 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         for element in data {
             let key = element[keyPath: idKeyPath]
             let name = String(describing: key)
-            // `DD-B` item 5 (F7) and `DD-L` (S6): a later element whose id — by
-            // value, or by the name it would mint — already appeared is not produced.
-            guard seenIDs.insert(key).inserted, seenNames.insert(name).inserted else { continue }
-            let scope = GlobalElementID.child(of: slot, at: offset, name: ElementID(name))
+            // `DD-B` item 5 (F7): a later element whose id, by value, already
+            // appeared is not produced. Equal descriptions of unequal values are
+            // both produced (`FI-A`, divergence 79 retired); only a
+            // floating-point id also dedupes by name (`FI-K`).
+            guard seenIDs.insert(key).inserted else { continue }
+            if dedupesNames, !seenNames.insert(name).inserted { continue }
+            let scope = GlobalElementID.child(
+                of: slot, at: offset,
+                name: ElementID(name: name, key: needsKey ? IdentityKey(AnyHashable(key)) : nil))
             pass.frame.stateTable.noteNamed(scope, at: offset)  // `ID-R`, the scope's own copy
             pass.frame.animationStore.transitions.noteLoopElement(scope, of: slot)  // `AN-AE`
             if notesKeys { pass.frame.noteScrollKey(scope, AnyHashable(key)) }
@@ -114,6 +129,8 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             nodes.append(contentsOf: childNodes)
             members.append(Member(content: built, layout: childLayout))
         }
+        pass.frame.forEachIdentityWork.elements += offset  // `FI-B`, counted per element
+        if needsKey { pass.frame.forEachIdentityWork.keyed += offset }
         return (slot, offset, nodes, Layout(members: members))
     }
 
