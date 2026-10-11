@@ -52,7 +52,7 @@ if MetalUI can carry a value in a path component.
 
 **3.1 A discriminator in `ElementID`.** `ElementID` gains one internal stored
 property `key: IdentityKey?` (nil = today), where
-`struct IdentityKey: Hashable, @unchecked Sendable { let value: AnyHashable }`
+`final class IdentityKey: Hashable, @unchecked Sendable { let value: AnyHashable }` (a class so `ElementID` grows by exactly one reference and `==` can short-circuit on identity; `==`/`hash` forward to `value`, FI-J)
 (`@unchecked`: an id's value is a main-actor value in practice; the existing
 `GlobalElementID` is already a class that crosses no actor). Synthesized
 `==`/`hash` therefore compare **name and key**: the path component of an
@@ -65,7 +65,7 @@ inventory has no new public row (a plain-import typecheck guard pins it).
 **3.2 `ForEach` mints keys only where its description is not injective.**
 A static `DescriptionInjectiveID` marker (internal protocol, empty) is adopted
 by `Int`, `Int8…Int64`, `UInt…UInt64`, `String`, `Substring`, `Character`,
-`Bool`, `UUID`, `Double`, `Float`. Once per `ForEach` build
+`Bool`, `UUID`, `Double`, `Float` (FI-K: floating-point ids keep the `Set<String>` name dedupe, so a NaN id, never equal to itself, is still produced once as today). Once per `ForEach` build
 `needsKey = !(ID.self is DescriptionInjectiveID.Type)`. Then per element:
 `name = String(describing: key)` as today; `ElementID(name:key:)` with
 `key = needsKey ? IdentityKey(AnyHashable(id)) : nil`. A homogeneous
@@ -77,7 +77,7 @@ Everything else — a custom id struct (`NodeID`), an enum, a tuple, an
 the *other* elements happen to be (a design where only colliding classes were
 keyed would reset the first twin's state when a second appeared: FI-B).
 
-**3.3 Dedupe.** The name half of the dedupe (`seenNames`) is **removed**; the
+**3.3 Dedupe.** The name half of the dedupe (`seenNames`) is **removed** except for `BinaryFloatingPoint` ids (FI-K, one metatype test per build); the
 value half (`Set<ID>`, F7) stays: equal values are one element, as SwiftUI
 (H3). Equal descriptions of unequal values are now both produced.
 
@@ -146,6 +146,7 @@ New file unless stated; all `@MainActor @Test`, no sleeps.
 | 2.8 | `anElementIDWithAKeyIsNotEqualToAPlainOneOrToAnotherKey` (+ `GlobalElementID` paths differing only in a key are unequal and hash apart) | compile-red | **M8** synthesized `==` replaced by name-only → red; this does **not** touch `GlobalElementID.==` (FI-C) |
 | 2.9 | `aForEachInATestWindowShowsBothTwins` (MetalUITesting `TestWindow`: two `Text`s found) | yes | M1 |
 | G1 | typecheck guard `theKeyedElementIDInitialiserIsNotPublic` (`typecheckFile`, plain import: `ElementID(name:key:)` and `.key` do not compile; `ElementID("x")` does) | n/a | **M9** make the init `public` → guard red (run natively; the guard skips otherwise, `CX-J`) |
+| 2.11 | `aNaNIDIsStillProducedOnce` (`ForEach([Double.nan, .nan])` → 1 element, as today) | green (regression pin) | **M10** the floating-point name dedupe removed → red |
 | 2.10 | `aListRowsCollisionIsStillDivergence255` (pins the deferred residue: `AnyHashable(1)`/`("1")` rows share one entry) | green | the List fix would redden it — it is the pin for §7 |
 
 Existing tests that must stay green unedited: every `ForEachTests`,

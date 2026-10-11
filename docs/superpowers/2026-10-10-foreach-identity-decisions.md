@@ -5,7 +5,7 @@ Item C20 of the gpui-gap list (MetalCreator gap M7-a). Spec:
 `docs/record/95-foreach-identity.md`. Branch `fix/foreach-identity` from
 `280d706`. Reserved divergence labels: 255–264.
 
-**Next unused id: `FI-J`.** (Read the last `## FI-` heading, not this line, if
+**Next unused id: `FI-L`.** (Read the last `## FI-` heading, not this line, if
 they disagree.)
 
 ## FI-A — a `ForEach` element is identified by its id's Hashable value; divergence 79 is retired for `ForEach`
@@ -66,7 +66,7 @@ fallback warning was for the unequal-same-description case, which is gone.
 
 ## FI-G — `ElementID` grows 16 → 24 bytes; measured, not assumed
 
-**Ruling.** An internal optional `IdentityKey` (one reference) is the carrier.
+**Ruling.** An internal optional `IdentityKey` (a final class, so exactly one reference; see FI-J) is the carrier.
 The lane records `MemoryLayout<ElementID>`/`<PathComponent>` and the
 `GlobalElementID` instance size (`malloc_size`) in the record; a bucket change
 is a finding to report, not a reason to change the design silently.
@@ -89,3 +89,26 @@ this branch because `List` windowing, TB-AH and `RowExtentIndex` are on the
 must-not-move list.
 **Cost if wrong.** MetalCreator's `List` users with description-colliding ids
 still alias (unchanged from today); its `ForEach` canvas is fixed.
+
+## FI-J — `IdentityKey` is a final class, not a struct around `AnyHashable`
+
+**Ruling.** A struct holding an `AnyHashable` can be wider than a word, which
+would make FI-G's 16 → 24 claim false by construction. A final class forwards
+`==`/`hash` to its `AnyHashable` and short-circuits on identity.
+**Rejected.** Struct carrier (size unmeasured, unbounded by design).
+
+## FI-K — floating-point ids keep the name dedupe
+
+**Ruling.** `Double`/`Float` stay on the no-key fast path (description is
+injective on non-NaN values), but a NaN id is unequal to itself, so `Set<ID>`
+never dedupes it and, with the name set gone, every NaN would mint the same
+path. A `BinaryFloatingPoint` id type keeps the `Set<String>` insert (test 2.11,
+mutation M10); other fast-path types pay nothing.
+**Rejected.** Keying floats (a keyed NaN is unequal to its own path: state lost
+every frame).
+
+## FI-L-reserved — critic review rejections
+
+The critic re-ran probe arms H1-H3 byte-for-shape (tokens random, shape equal)
+and rejected, with reason: moving the `List` fix into this branch (FI-I stands:
+must-not-move list); a per-window interning table (FI-B).
