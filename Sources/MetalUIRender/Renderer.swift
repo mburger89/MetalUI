@@ -293,6 +293,11 @@ public final class Renderer {
                 try encodeImages(quads, texture: texture,
                                  into: encoder, viewport: &viewport, projection: &projection,
                                  transforms: transformBuffer)
+            case .backdrop:
+                // Interim (lane 1): the flat tint, BB-I's fallback; lane 2 blurs.
+                try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].map(flatTintRect),
+                                into: encoder, viewport: &viewport, projection: &projection,
+                                transforms: transformBuffer)
             }
         }
     }
@@ -606,4 +611,15 @@ public final class Renderer {
         }
         return pixels
     }
+}
+
+/// The record's flat tint as a rect: `c * o * T` -- the fallback every renderer
+/// draws for a backdrop it cannot blur (ruling BB-I), which is today's
+/// `LK-L` flat tint pixel for pixel.
+private func flatTintRect(_ b: MUIBackdrop) -> MUIRect {
+    var tint = b.tint
+    tint.a *= b.opacity
+    return MUIRect(bounds: b.bounds, contentMask: b.contentMask, maskCornerRadii: b.maskCornerRadii,
+                   background: tint, borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0), cornerRadii: b.cornerRadii,
+                   borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: b.order, shape: b.shape)
 }

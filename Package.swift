@@ -242,7 +242,7 @@ var targets: [Target] = [
                 cSettings: [.define("METALUI_SDL", .when(traits: ["SDL"]))],
                 linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
         .target(name: "MetalUISDL",
-                dependencies: ["SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIScene",
+                dependencies: ["SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIScene", "MetalUIShaderTypes",
                                .target(name: "CAccessKit", condition: .when(traits: ["AccessKit"]))],
                 path: "Backends/SDL/Sources/MetalUISDL",
                 // What AccessKit's Rust static library needs, per platform

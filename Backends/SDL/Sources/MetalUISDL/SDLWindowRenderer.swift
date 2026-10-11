@@ -4,6 +4,7 @@ import Foundation
 import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
+import MetalUIShaderTypes
 import SDLBridge
 
 public struct SDLRendererError: Error, CustomStringConvertible {
@@ -303,13 +304,18 @@ public final class SDLWindowRenderer: WindowRenderer {
                 let target = Int(scene.surfaces[run.start].texture)
                 guard surfaceHandles[target] != nil else { return nil }
                 return ReplayRun(kind: 2, start: UInt32(scene.images.count + run.start), count: UInt32(run.count))
+            case .backdrop:
+                // Interim (lane 1): the flat tint as rects after the scene's own (BB-I); lane 3 blurs.
+                return ReplayRun(kind: 0, start: UInt32(scene.rects.count + run.start), count: UInt32(run.count))
             }
         }
         // Device-pixel coordinates, as the Metal renderer's surfaces use.
         let identity: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
         let dirty = atlas.dirtyRect != nil
         let optionalHandles: [UnsafeMutableRawPointer?] = handles + surfaceHandles
-        let ok = scene.rects.withUnsafeBytes { rects in
+        var allRects = scene.rects
+        allRects.append(contentsOf: scene.backdrops.map(flatTintRect))
+        let ok = allRects.withUnsafeBytes { rects in
             scene.glyphs.withUnsafeBytes { glyphs in
                 images.withUnsafeBytes { images in
                   scene.transforms.withUnsafeBytes { transforms in
@@ -349,5 +355,16 @@ public final class SDLWindowRenderer: WindowRenderer {
         guard mui_renderer_read_offscreen(renderer, &pixels) else { throw SDLRendererError("readback") }
         return pixels
     }
+}
+
+/// The record's flat tint as a rect: `c * o * T` -- the fallback every renderer
+/// draws for a backdrop it cannot blur (ruling BB-I), which is today's
+/// `LK-L` flat tint pixel for pixel.
+private func flatTintRect(_ b: MUIBackdrop) -> MUIRect {
+    var tint = b.tint
+    tint.a *= b.opacity
+    return MUIRect(bounds: b.bounds, contentMask: b.contentMask, maskCornerRadii: b.maskCornerRadii,
+                   background: tint, borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0), cornerRadii: b.cornerRadii,
+                   borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: b.order, shape: b.shape)
 }
 #endif

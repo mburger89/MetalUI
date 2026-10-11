@@ -6,7 +6,12 @@ import MetalUIShaderTypes
 /// an `MUIImage` record drawn by the image pipeline with the surface's render
 /// target bound as its texture. **Public break** (`MV-C` item 3): an
 /// exhaustive `switch` outside the package adds a `.surface` arm.
-public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image, surface }
+///
+/// `.backdrop` (a material's blurred backdrop plus its tint, ruling `BB-A`) is
+/// one `MUIBackdrop` record per material. **Public break** (`BB-L`, as `MV-C`
+/// item 3): an exhaustive `switch` outside the package adds a `.backdrop` arm
+/// (`docs/migration.md`).
+public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image, surface, backdrop }
 
 /// One instanced draw: `count` primitives of `kind`, starting at `start` in
 /// that kind's own array.
@@ -56,6 +61,12 @@ public struct Scene: Sendable {
     /// every renderer resolves to its own texture (`MV-E`).
     public private(set) var surfaceTargets: [SurfaceTarget] = []
 
+    /// Materials' backdrop records (ruling `BB-A`): each blurs what is drawn
+    /// before it in scene order, clamped to ``backdropRegion(_:target:)``, and
+    /// composites its tint over the result. A renderer that cannot blur one
+    /// draws its flat tint (`BB-I`).
+    public private(set) var backdrops: [MUIBackdrop] = []
+
     /// Per-instance affines (ruling GX-F), in first-use order; a primitive
     /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``):
     /// `MUIRect.shape` and `MUIImage.filter` bits 8…31, `MUIGlyph.transform`.
@@ -97,6 +108,7 @@ public struct Scene: Sendable {
     private var glyphSequence: [Int] = []
     private var imageSequence: [Int] = []
     private var surfaceSequence: [Int] = []
+    private var backdropSequence: [Int] = []
     private var nextSequence = 0
 
     /// Layer per primitive, parallel to `rectSequence`/`glyphSequence`.
@@ -109,6 +121,7 @@ public struct Scene: Sendable {
     private var glyphLayer: [Int] = []
     private var imageLayer: [Int] = []
     private var surfaceLayer: [Int] = []
+    private var backdropLayer: [Int] = []
 
     /// An empty scene.
     public init() {}
@@ -121,7 +134,10 @@ public struct Scene: Sendable {
     /// anywhere. Pinned by `aSceneHoldingOnlyAGlyphIsNotEmpty` and
     /// `aSceneHoldingOnlyAnImageIsNotEmpty` (ruling TE-AF item 4) and
     /// `aSceneHoldingOnlyASurfaceIsNotEmpty` (`MV-C` item 2).
-    public var isEmpty: Bool { rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty }
+    /// `aSceneHoldingOnlyABackdropIsNotEmpty` (`BB-A`) pins the backdrop array.
+    public var isEmpty: Bool {
+        rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty && backdrops.isEmpty
+    }
 
     /// Adds a rectangle on `layer`, under `transform` when given (ruling
     /// GX-F): its `bounds` and `contentMask` are then local, mapped by the
@@ -200,11 +216,71 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// Appends a material's `backdrop` on `layer`, under `transform` when given
+    /// (see the rect overload: `shape` bits 8…31 are always written).
+    public mutating func insert(_ backdrop: MUIBackdrop, layer: Int = 0, transform: MUITransform? = nil) {
+        var backdrop = backdrop
+        let index = transformIndex(transform)
+        backdrop.shape = (backdrop.shape & 0xFF) | index << 8
+        backdrops.append(backdrop)
+        backdropSequence.append(nextSequence)
+        backdropLayer.append(layer)
+        nextSequence += 1
+    }
+
+    /// A pixel rectangle in a render target.
+    public struct BackdropRegion: Sendable, Equatable {
+        /// The left edge, in device pixels.
+        public var x: Int
+        /// The top edge, in device pixels.
+        public var y: Int
+        /// The width, in device pixels.
+        public var width: Int
+        /// The height, in device pixels.
+        public var height: Int
+    }
+
+    /// The device-pixel box (floor/ceil) of backdrop `index`'s bounds mapped
+    /// by its transform's bounding box, **unclamped**.
+    private func backdropBox(_ index: Int) -> (minX: Int, minY: Int, maxX: Int, maxY: Int) {
+        let record = backdrops[index]
+        let b = record.bounds
+        var xs: [Float] = [b.origin.x, b.origin.x + b.size.width]
+        var ys: [Float] = [b.origin.y, b.origin.y + b.size.height]
+        let t = Int(record.shape >> 8)
+        if t > 0 {
+            let m = transforms[t - 1]
+            var mx: [Float] = [], my: [Float] = []
+            for x in xs { for y in ys {
+                mx.append(m.a * x + m.c * y + m.tx)
+                my.append(m.b * x + m.d * y + m.ty)
+            } }
+            xs = mx
+            ys = my
+        }
+        return (Int((xs.min() ?? 0).rounded(.down)), Int((ys.min() ?? 0).rounded(.down)),
+                Int((xs.max() ?? 0).rounded(.up)), Int((ys.max() ?? 0).rounded(.up)))
+    }
+
+    /// **The one region function both renderers call** (ruling `BB-D` 3): backdrop
+    /// `index`'s bounds mapped by its transform's bounding box, floored and
+    /// ceiled to integer device pixels, intersected with a `target` of
+    /// `width × height`; `nil` when nothing is left. The blurred texture covers
+    /// exactly this rectangle, edge-clamped. The clip does not shrink it
+    /// (`BB-D` 5).
+    public func backdropRegion(_ index: Int, target: (width: Int, height: Int)) -> BackdropRegion? {
+        let box = backdropBox(index)
+        let x0 = max(box.minX, 0), y0 = max(box.minY, 0)
+        let x1 = min(box.maxX, target.width), y1 = min(box.maxY, target.height)
+        guard x1 > x0, y1 > y0 else { return nil }
+        return BackdropRegion(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+    }
+
     /// The highest layer any primitive was inserted on, or `nil` for an empty
     /// scene — what a drag preview rises above (ruling `DN-J`). Computed, so
     /// a frame that never asks pays nothing.
     public var highestLayer: Int? {
-        [rectLayer.max(), glyphLayer.max(), imageLayer.max(), surfaceLayer.max()].compactMap { $0 }.max()
+        [rectLayer.max(), glyphLayer.max(), imageLayer.max(), surfaceLayer.max(), backdropLayer.max()].compactMap { $0 }.max()
     }
 
     /// The layer of the `index`th primitive of `kind` — in emission order
@@ -216,6 +292,7 @@ public struct Scene: Sendable {
         case .glyph: glyphLayer[index]
         case .image: imageLayer[index]
         case .surface: surfaceLayer[index]
+        case .backdrop: backdropLayer[index]
         }
     }
 
@@ -226,6 +303,7 @@ public struct Scene: Sendable {
         images.removeAll(keepingCapacity: true)
         textures.removeAll(keepingCapacity: true)
         surfaces.removeAll(keepingCapacity: true)
+        backdrops.removeAll(keepingCapacity: true)
         surfaceTargets.removeAll(keepingCapacity: true)
         transforms.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
@@ -233,10 +311,12 @@ public struct Scene: Sendable {
         glyphSequence.removeAll(keepingCapacity: true)
         imageSequence.removeAll(keepingCapacity: true)
         surfaceSequence.removeAll(keepingCapacity: true)
+        backdropSequence.removeAll(keepingCapacity: true)
         rectLayer.removeAll(keepingCapacity: true)
         glyphLayer.removeAll(keepingCapacity: true)
         imageLayer.removeAll(keepingCapacity: true)
         surfaceLayer.removeAll(keepingCapacity: true)
+        backdropLayer.removeAll(keepingCapacity: true)
         nextSequence = 0
     }
 
@@ -298,15 +378,19 @@ public struct Scene: Sendable {
     /// which is never reordered. Pinned by `imageRunsBreakWhereTheTextureChanges`.
     /// **A surface run breaks where its target changes**, for the same reason
     /// (ruling `MV-C` item 2); pinned by `surfaceRunsBreakWhereTheTargetChanges`.
+    /// **A backdrop run breaks where a record's device box intersects an earlier
+    /// record's in the run** (ruling `BB-E`): a later material must see an
+    /// earlier one. Pinned by `backdropRunsBreakWhereRegionsOverlapAndWhereAnotherKindInterleaves`.
     public mutating func finalize() {
         let rectCount = rects.count
         let glyphCount = glyphs.count
         let imageCount = images.count
         let surfaceCount = surfaces.count
+        let backdropCount = backdrops.count
 
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
-        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount)
+        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount)
         for i in 0..<rectCount {
             merged.append((rectLayer[i], rects[i].order, rectSequence[i], .rect, i))
         }
@@ -318,6 +402,9 @@ public struct Scene: Sendable {
         }
         for i in 0..<surfaceCount {
             merged.append((surfaceLayer[i], surfaces[i].order, surfaceSequence[i], .surface, i))
+        }
+        for i in 0..<backdropCount {
+            merged.append((backdropLayer[i], backdrops[i].order, backdropSequence[i], .backdrop, i))
         }
         merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
 
@@ -337,7 +424,16 @@ public struct Scene: Sendable {
         var sortedSurfaces: [MUIImage] = []
         var sortedSurfaceSequence: [Int] = []
         var sortedSurfaceLayer: [Int] = []
+        var sortedBackdrops: [MUIBackdrop] = []
+        var sortedBackdropSequence: [Int] = []
+        var sortedBackdropLayer: [Int] = []
+        // Device boxes of the backdrops in the run being built (ruling BB-E),
+        // computed against the pre-permutation array.
+        var runBoxes: [(minX: Int, minY: Int, maxX: Int, maxY: Int)] = []
         var runs: [DrawRun] = []
+        sortedBackdrops.reserveCapacity(backdropCount)
+        sortedBackdropSequence.reserveCapacity(backdropCount)
+        sortedBackdropLayer.reserveCapacity(backdropCount)
         sortedRects.reserveCapacity(rectCount)
         sortedRectSequence.reserveCapacity(rectCount)
         sortedRectLayer.reserveCapacity(rectCount)
@@ -388,6 +484,18 @@ public struct Scene: Sendable {
                 sortedSurfaces.append(quad)
                 sortedSurfaceSequence.append(entry.2)
                 sortedSurfaceLayer.append(entry.0)
+            case .backdrop:
+                start = sortedBackdrops.count
+                let box = backdropBox(entry.4)
+                if let last = runs.last, last.kind == .backdrop,
+                   runBoxes.contains(where: { $0.minX < box.maxX && box.minX < $0.maxX
+                                              && $0.minY < box.maxY && box.minY < $0.maxY }) {
+                    sameTexture = false
+                }
+                if sameTexture, runs.last?.kind == .backdrop { runBoxes.append(box) } else { runBoxes = [box] }
+                sortedBackdrops.append(backdrops[entry.4])
+                sortedBackdropSequence.append(entry.2)
+                sortedBackdropLayer.append(entry.0)
             }
             if let last = runs.last, last.kind == kind, sameTexture {
                 runs[runs.count - 1] =
@@ -409,6 +517,9 @@ public struct Scene: Sendable {
         surfaces = sortedSurfaces
         surfaceSequence = sortedSurfaceSequence
         surfaceLayer = sortedSurfaceLayer
+        backdrops = sortedBackdrops
+        backdropSequence = sortedBackdropSequence
+        backdropLayer = sortedBackdropLayer
         drawList = runs
     }
 }
