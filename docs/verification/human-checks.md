@@ -1255,7 +1255,7 @@ pointer's sub-pixel positions and the look beside SwiftUI.
   shows the red square's shadow on the blue; the `compositingGroup()` pair one
   shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
 
-## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, settled at the merge)
+## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `AS` and `KF`)
 
 Rulings `SG-A`…`SG-I`, record §89. On Linux and Windows an app declaring
 `commands` draws its menu bar in every window (divergence 195); a shortcut

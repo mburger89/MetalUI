@@ -10,6 +10,11 @@ Record `docs/record/89-smk-gaps.md` (Record phase). Source of the gaps: the
 configurator's `docs/superpowers/2026-10-06-metalui-gaps.md`, `## MG-23`…
 `## MG-28` (read only).
 
+**Status: LANDED (2026-10-10; record §89).** All six gaps are built and verified `ok` in three lanes
+(rulings `SG-A`…`SG-L`); the looks and the Windows release build are owed to a human (human-checks
+group SG). One clause is open: File ▸ Close/Quit in the drawn bar (§8), which C8's merge made this
+branch's to add.
+
 ## 1. Scope
 
 | gap | what lands | ruling | lane |

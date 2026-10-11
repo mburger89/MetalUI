@@ -55,7 +55,9 @@ summary.
   `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
   `2026-10-08-app-shell-decisions.md`, next `AS-R`), `KF-` (key and focus:
   `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
-  `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), …; the full
+  `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
+  `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
+  `2026-10-09-smk-gaps-decisions.md`, next `SG-M`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -68,9 +70,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **133 live, next label 206** (195–204 and 215–224 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **134 live, next label 206** (196–204 unused by C12, 215–224 reserved by an open branch, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF and PF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF and SG, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -90,7 +92,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-10, `perf/shadow-cache` merged with master `0a9eb36` (key-focus, §88): 3204 tests, 0 goldens, 203 typecheck guards (3173 + the branch's 31 tests, 202 + 1 guard; all passed unlocked; census 3134; divergences 133 live, next label 206)** (record §90 §7). Before it, the branch alone, (2026-10-10) `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
+- **Counts (2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`: 3235 tests,
+  0 goldens, 205 typecheck guards** (master's 3204 + 31 tests, 203 + 2 guards; native run on an
+  unlocked screen, all passed; census 3139 (3134 + 5); `Backends/SDL` 24 + 111 on macOS, 24 + 108
+  in the Linux image; root in `swift:6.4-noble` 9 + 38 + 21 + 199 + 78 + 22; the fourteen images 0 px against
+  `ebcf3c7`; divergence 195 added, 134 live, next label 206; the merge's pins were two typecheck
+  fixtures and four SDL `Platform` wrappers; record §89 §10, §11). Before it, **(2026-10-10, `perf/shadow-cache` merged with master `0a9eb36` (key-focus, §88): 3204 tests, 0 goldens, 203 typecheck guards (3173 + the branch's 31 tests, 202 + 1 guard; all passed unlocked; census 3134; divergences 133 live, next label 206)** (record §90 §7). Before it, the branch alone, (2026-10-10) `perf/shadow-cache` from `2155f1e`, merged with master `70e9389`:
   3100 tests, 0 goldens, 196 typecheck guards (master's 3069 + 31 tests (3099 at the checker, + its owed C1 pin L2.13, record §90 §6), 195 + 1 guard; native
   run on an unlocked screen, all passed; census 3023 (3021 + the two `compositingGroup()`
   functions); divergence 205 added beside master's 175, 176, the header's count and next label
@@ -175,7 +182,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §90.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -269,7 +276,7 @@ these violations show.
   `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
   default so a conformer that forgets one fails to compile. Both conformers
   and every test fake implement all of them. **`Platform` (not a window) has
-  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:)`** (`MN-I`) **and the app shell's
+  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:) -> Bool`** (`MN-I`, `SG-A`: `true` when the platform shows the bar) **and the app shell's
   `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
@@ -912,6 +919,22 @@ wrote (`KF-J`, divergence 120). `TimelineView(.animation)` calls `noteActiveAnim
 builder is a Swift 6.4 defect, not fixable in the builder** (`KF-M`, guard C1): use `ForEach` or a
 concrete helper.
 
+**SMK port gaps (`SG-`, record §89).** `Platform.setMenuBar(_:) -> Bool` (defaultless;
+`true` AppKit, `false` SDL): where it answers `false` and the app declared `commands`, **every
+window draws the bar** — a 25-point strip above the toolbar strip under the named root `$menubar`
+at cursor index 2 (a name, not a slot; `noteNamed`), titles are `Text`+`onClick` (opens on the
+click; divergence 195), a `MenuSession` remembering the bar index (hover switches, Left/Right
+wrap), **F10** an unclaimed-key stage after `onKeyPress` and the command stage
+(`MenuBarStrip.swift`); the model's drawn style has no application menu, and its Edit items are
+delivered as AppKit's seven keys (Delete `\u{7f}`) and enabled only while a text field is
+focused. **`EventModifiers.primary`** (`.command` on Apple, `.control` elsewhere) is the default
+of every shortcut, so macOS is value-identical and `.command` stays Super off Apple (`SG-B`);
+`SystemFonts.designFamilies` registers monospaced/serif lazily (`SG-C`); the cross-platform
+manifest names the two portable-text products unconditionally (a SwiftPM defect, `SG-D`);
+**`Window.drawnChromeHeight`** is the bar plus the strip, and an explicit `minSize`/`maxSize` is
+measured below it (`SG-F`). A `Component`'s prepaint record is one heap box (`ComponentPrepaint`,
+`SG-E`).
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -1024,7 +1047,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (133 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (134 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
@@ -1040,8 +1063,11 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
   - **Windows CI's compiler is 6.4.0+Asserts; macOS's is not.** A `Component`
     whose content is a loop, nested in a container inside another
     `Component`'s content, crashes SILGen there (`verifyLexicalLowering`,
-    `LK-X`) — make the inner one a function; reproduce with the asserts dev
-    snapshot in `~/Library/Developer/Toolchains`.
+    `LK-X`, MG-27) — fixed for a `Component` by its prepaint record being one
+    heap box (`ComponentPrepaint`, `SG-E`); code with its own protocols of that
+    shape still needs the inner one as a function. Reproduce with the asserts
+    dev snapshot in `~/Library/Developer/Toolchains`
+    (`METALUI_RUN_ASSERTS_COMPILER_TEST=1`, macOS and Linux only).
   - **Windows threads have 1 MB stacks.** A new demo section goes in its own
     function passed to a generic composer, not inline
     (`everyProductionTreeBuildsOnAOneMegabyteThread`); that test builds each

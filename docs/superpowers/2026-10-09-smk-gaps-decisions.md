@@ -4,7 +4,7 @@ Rulings for the six gaps the SMK configurator's Linux/Windows port (C4b)
 reported against MetalUI `70ed000` (user request 2026-10-02, item C12 of the
 gpui-gap priority list; **not a plan task**). Prefix `SG-`. Spec:
 [`specs/2026-10-09-smk-gaps-design.md`](specs/2026-10-09-smk-gaps-design.md).
-Record: `../record/89-smk-gaps.md` (written in the Record phase). Branch
+Record: `../record/89-smk-gaps.md`. Branch
 `fix/smk-port-gaps` from `0b400b4`. The gap list is the configurator's
 `docs/superpowers/2026-10-06-metalui-gaps.md` (headings `MG-23`…`MG-28`, read
 only; never edited from here).
