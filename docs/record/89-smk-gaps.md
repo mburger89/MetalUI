@@ -378,3 +378,53 @@ the merge's owed tests.
 **Swift (MG-27, `LK-X`; for swiftlang/swift; not filed from here).** The full text — title, toolchains,
 the 25-line reproduction, the assertion and frames, the narrowing — is `SG-E` item 11 in
 `docs/superpowers/2026-10-09-smk-gaps-decisions.md`.
+
+## §13 Branch checker (2026-10-10, `54dda21`)
+
+Adversarial check of `0b400b4..54dda21`, the branch's own change read as `ebcf3c7..54dda21`.
+
+- **Lane 2's verifier issues are resolved by `1dec007`.** M2.11b is caught by 2.11's added `model.text
+  == "abc"` expectation. The seven Edit keys are pinned by 2.11b `everyDrawnEditRowDeliversItsKey`.
+  F10 with a modifier is pinned by 2.10's added Shift, Control and Option arm. The observed titles
+  and late commands are pinned by 2.16b `aCommandsObservableWriteOutsideInputRedrawsTheBar` and 2.16c
+  `commandsDeclaredAfterOpenWindowDrawTheBarOnTheNextFrame`. M2.15 is recorded as equivalent
+  (`SG-K`, `SG-L`). The api-overview, migration and inventory-map rows describe the drawn bar.
+  `MenuBarStrip.swift`'s F10 guard reads `key.modifiers.isEmpty`; the stray mutation is gone.
+- **Suite.** After `swift package clean`, the native build has 0 `error:`, and its one `warning:` is
+  SwiftPM's deprecation notice. The unfiltered native `--no-parallel` run read "Test run with 3235
+  tests in 3 suites passed after 256.065 seconds", with `FR-J no-argument frame: succeeded=true`,
+  `SG-A setMenuBar answers: void succeeded=false` and `SG-F drawnChromeHeight write:
+  succeeded=false`. The default build system's `swift build --build-tests` has 0 warnings. There are
+  207 `canTypecheck(module:` occurrences against master's 205, and 0 goldens. `cmp CLAUDE.md
+  AGENTS.md` matches. The inventory and undocumented checks print nothing. Every `SG-` id cited in a
+  changed file resolves (`SG-A`…`SG-L`, next `SG-M`). Every test name cited in an added doc line
+  resolves, except `sdlRecordsTheMenuBarAndDrawsNothing`, which is cited as the test `SG-A` replaced.
+- **Unchanged.** `theSevenRetentionSlotsAreMutuallyDistinct`, `everyNamingSiteStartsAReturningNameFresh`,
+  `theLegacyEngineSymbolsAreAbsentFromTheTestProcess`,
+  `everyRegisteringSiteAnimatesItsLoweredRectUnderTheProposalAuthority`,
+  `everyBackgroundPaintingSiteAnimatesItsColour`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+  and `everyProductionTreeBuildsOnAOneMegabyteThread` all pass. The branch edits no hit-testing,
+  accessibility-builder, animation or focus source. No existing test assertion was removed except
+  the ones the rulings moved (`SG-A`'s S2.1 rewrite, `SG-D`'s manifest expectations, the `Void`
+  `setMenuBar` fixtures). `MetalUILayout` imports only `MetalUICore`, and `MetalUIScene` imports only
+  `MetalUIShaderTypes`.
+- **Pixels.** `compare.sh <scratch> ebcf3c7 HEAD` gives 0 differing pixels and an identical scene in
+  all fourteen images. The controls read 1048576 / 1031003 / 454895 / 0 / 1048576 / 0 / 544 / 216 /
+  491221 / 529 / 0.
+- **SDL and Linux.** `Backends/SDL` on macOS passes 24 + 111. The `metalui-portable` Linux image passes
+  24 + 108. Root in `swift:6.4-noble` passes 9 + 38 + 21 + 199 + 78 + 22; that build was incremental on
+  the slug volume.
+- **The checker's mutations** (full unfiltered native suite each, restored from a copy, `git status`
+  clean after each):
+  - **MX1** set `MenuBarStrip.rootIndex` from 2 to 0, the window root's own position. The suite
+    stayed green, 3235 passed. Like M2.13, this is equivalent under `noteNamed`. `$menubar` is
+    produced every frame it is noted, so a position it shares with another name departs nothing that
+    is not produced elsewhere. `SG-I` item 1's "(nil, 2)" is a convention and no test can see it.
+  - **MX2** made `SystemFonts.resolver` pick a design's *last* installed family
+    (`families.reversed()`). It reddened `aDesignResolvesToItsFirstInstalledFamilyAndReadsNothingUntilAsked`
+    and `thePlatformsOwnDesignFamiliesResolve` (6 issues).
+- **Doc defect fixed.** `Package.swift`'s comment on `MetalUISystemFonts` listed its imports without
+  `MetalUITextSystem`, which `SG-C` added for `FontDesign`. It is a comment only.
+- **Still owed before the PR** (§9): File ▸ Close and Quit in the drawn bar (`SG-A` item 11a). C8
+  merged first, so this branch owns it.
+- **Not run.** The Windows VM and real-window capture. The looks are human-checks group SG.

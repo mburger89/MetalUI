@@ -163,8 +163,8 @@ var targets: [Target] = [
 
         // Installed fonts, discovered and registered lazily (rulings SF-A…SF-D).
         // The one portable text target with a file system: imports Foundation
-        // (swift-corelibs-foundation off Apple), MetalUIFreeType and
-        // MetalUIPortableText.
+        // (swift-corelibs-foundation off Apple), MetalUIFreeType,
+        // MetalUIPortableText and MetalUITextSystem (`FontDesign`, SG-C).
         .target(name: "MetalUISystemFonts", dependencies: ["MetalUIPortableText", "MetalUIFreeType", "MetalUITextSystem"]),
         .testTarget(name: "MetalUISystemFontsTests", dependencies: ["MetalUISystemFonts", "MetalUITextSystem"]),
 
