@@ -2175,3 +2175,12 @@ SG2 Ctrl+Shift+H and the honest "Ctrl+Shift+H" label; SG3 the Edit items on a fo
 without one; SG4 the monospaced face on screen; SG5 the bar and a toolbar strip together and the
 minimum size; SG6 a Windows ARM64/x64 release build of the SMK configurator (or the `SG-E` fixture).
 
+## 2026-10-10: test harness (record §91) — measurements owed
+
+`MetalUITesting` paints nothing, so no look is owed; the fourteen offscreen images read 0 differing
+pixels against `70e9389` at lanes 1 and 3. Two measurements the agent could not take: whether a
+generated package's test target (an executable imported `@testable`) builds and passes on Windows
+(the UTM VM did not answer, `HT-V` item 4), and whether the cross-platform generated test's Linux
+arm runs where system fonts are installed (the CI image has none, `HT-V` item 5).
+**Owed, new here — `docs/verification/human-checks.md` group HT, none performed**: HT1 Windows,
+HT2 Linux with fonts.

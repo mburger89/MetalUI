@@ -153,12 +153,15 @@ struct NativeMeasurementKey: Hashable {
 ///
 /// `cacheMisses >= measureCalls` always; the difference is built-in node
 /// bodies, which run no user code.
-struct NativeLayoutWork: Equatable {
+///
+/// **`package`** since the test harness (ruling `HT-C` item 2): `MetalUI`'s
+/// `TestingHooks.swift` reads it for `MetalUITesting`'s `FrameWork`.
+package struct NativeLayoutWork: Equatable {
     /// Leaf-closure and custom `sizeThatFits` invocations: user code, where a
     /// text leaf shapes.
-    var measureCalls = 0
+    package var measureCalls = 0
     /// Lookups that found their `(node, proposal)` key.
-    var cacheHits = 0
+    package var cacheHits = 0
     /// Measurement bodies run, every node kind.
-    var cacheMisses = 0
+    package var cacheMisses = 0
 }
