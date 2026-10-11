@@ -444,6 +444,10 @@ would" (`XP-C`).
    (`anAncestorsGestureResolvesItsNamedSpaceWhenAChildIsPressed`, MetalCreator's
    tile inside a `.named("canvas")` pan) and A20
    (`aDegenerateInnermostSpaceReadsGlobalAndNeverFallsThrough`). The rules stand.
+   Measured on `d709a34`, full unfiltered native suite (3229 tests, clean 270.0 s):
+   X1 reddens exactly A19 (3 issues, 272.0 s); X3 exactly A20 (1 issue, 213.1 s);
+   dropping `renderFrame`'s stamp exactly A21 (2 issues, 235.6 s). For the record
+   (§92, Record phase).
 2. **The arena takes no snapshot for the draggable above the target.** A
    non-opaque draggable region is registered only for an element that is not a
    pointer target (`Frame.registerHandlers`, `!handlers.isPointerTarget`), so
