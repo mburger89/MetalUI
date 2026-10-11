@@ -10,7 +10,7 @@ Record: `../record/94-backdrop-blur.md` (Record phase). Branch `feat/backdrop-bl
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 
-**Next unused id: `BB-P`.** (Moves in the commit that appends a ruling; read the
+**Next unused id: `BB-S`.** (Moves in the commit that appends a ruling; read the
 last `## BB-` heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-backdrop-blur.swift`](../probes/swiftui-backdrop-blur.swift)
@@ -338,3 +338,81 @@ probe's 1.26 rise ratio, which tint compression distorts.
 
 **Cost if wrong.** None to the design; a mutation that still does not redden is
 reported by the lane that applies it.
+
+## BB-P — The proposal `.background(material)` is a new `LayoutModifier` case
+
+**Ruling.** `NativeModifiedContent`'s `.background(_ material:)` cannot carry a
+material in `LayoutModifier.background(Color)` (a `Color` is a 24-byte value
+with no room for a material), so `LayoutModifier` gains
+`.backgroundMaterial(Material)`: one layer, one identity level, exactly
+`.background(Color)`'s (`_paint` emits one backdrop record, then the content;
+`nativeWrapperNode` answers the child; `animated` leaves it, a change snaps).
+Public break: an exhaustive `switch` over `LayoutModifier` outside the package
+gains an arm (`docs/migration.md`; the `.blur`/`.compositingGroup` precedent,
+`LK-R` item 3, `PF-E`). The legacy `Box.background(material)` stores the material
+in `DecorationExtras.Fields.backgroundMaterial` (`LK-W` item 10), cleared by a
+later colour or gradient background and clearing both itself, painted where the
+gradient is (`paintDecorationBody`), escaping an opacity like the plain fill.
+`Shape.fill(material)` and `ShapeView.fill(material)` become the
+`ShapeView.Layer.materialFill` layer.
+
+**Reasoning.** Spec §1 listed the scene vocabulary as the only public additions;
+the layer is the smallest honest carrier. The alternative, a `Color` case
+smuggling a material, would make `Color.==` and the animation tracks lie.
+
+**Cost if wrong.** One more case in the migration table; the layer count
+(identity) is the same as before for every existing tree because the old
+`.background(material)` was one `.background` layer too.
+
+## BB-Q — Lane 1's interim renderer arms, `BackdropRegion`, `flatTintRect`
+
+**Ruling.** (1) Until lanes 2 and 3 land, `Renderer.encode` and
+`SDLWindowRenderer.finishFrame` draw a `.backdrop` run through the flat tint rect
+(`c · o · T`, BB-I's fallback, `MUIBackdrop.flatTintRect`'s arithmetic) so every
+branch compiles and draws today's pixels; `FixtureRun(scene:)` traps on
+`.backdrop` until fixture version 4 (BB-J). `MetalUISDL` gains a dependency on
+`MetalUIShaderTypes` in the root manifest for the record's type name. (2)
+`Scene.backdropRegion(_:target:)` returns `Scene.BackdropRegion`, a public
+struct with a public initialiser, not the spec's tuple (a tuple cannot be a
+`Hashable`/`Equatable` value in a test or a counter log); `finalize()` breaks a
+run on the **unclamped** device boxes (a superset of the clamped intersection,
+so never fewer breaks than correctness needs). (3) A fading or scaling
+flattening scales the sigma with the layer (`sigma *= sx`), because the sigma is
+in device pixels of the layer being blurred; a non-flattening effect keeps it.
+(4) `CapturedPrimitive.Kind.flatteningBackdrop` is the belt to
+`insertThroughScopes`' braces: the CPU leaf rasterizers read a backdrop as its
+flat tint rect and the unreachable arm traps naming `BB-H`.
+
+**Reasoning.** Each is a seam the spec left open that a compiler or a test
+forced; none moves a pixel or a contract lanes 2 and 3 read.
+
+**Cost if wrong.** Lanes 2/3 replace the interim arms (their files); the region
+struct could become a tuple alias without touching a test but the initialiser.
+
+## BB-R — The upsample coordinate is `(p + ½)/2^L − ½`, not `uv × size`; the 1.12 strip is wide
+
+**Ruling.** Level `j` of the pyramid covers source pixels `[j·2^L, (j+1)·2^L)`, so
+a region pixel `p` reads the level-`L` texture at texel coordinate
+`(p + ½)/2^L − ½`, i.e. normalized `uv = (devicePosition − origin) / (levelSize ·
+2^L)` — **not** `/ regionSize` (spec §3.3 and §3.4 step 3 amended). A region
+whose side is not a multiple of `2^L` has a level texture of `⌈side/2^L⌉`
+texels (the last repeating its source's edge), so `uv × size` scales the blur
+by `levelSize·2^L/side`. `BackdropBlurReference` implements this; lanes 2 and 3
+implement the same in the quad's fragment stage (a `uvScale` constant per
+record). Test 1.12a uses a 1536-wide strip (σ = 104 needs the step 6σ from the
+clamped edges) and the same bound the spec states: within 2 levels of the
+`erf` step.
+
+**Evidence** (`/tmp` simulation of the algorithm in 1-D, recorded in the test's
+printed line): with `uv × size` the reference was 3.9 levels off an erf step at
+σ = 52 on a 300-wide strip and 10.9 at σ = 104; with the exact coordinate a
+2000-wide strip reads 1.09 levels for σ = 16, 52 and 104 at threshold 4
+(0.5 at σ = 16), 0.2 at threshold 8, and 4.4–4.6 at threshold 2. The threshold
+stays 4 (`BB-D` 2).
+
+**Reasoning.** A shader that follows spec §3.4 as first written would pass a
+test against a reference that shares the same misreading (BB-K's named risk);
+the `erf` step is what caught it.
+
+**Cost if wrong.** None to the record; the coordinate is a per-record
+constant in each fragment shader.

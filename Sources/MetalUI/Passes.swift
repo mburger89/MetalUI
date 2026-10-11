@@ -645,6 +645,14 @@ public struct PaintPass {
                    borderColor: borderColor, borderWidths: borderWidths, shape: shape)
     }
 
+    /// Emits a material's backdrop record over `bounds` (`BB-A`): `fill`'s
+    /// translation, clip and layer, the tint already resolved.
+    func fillBackdrop(_ bounds: Bounds<Pixels>, tint: Hsla,
+                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+                      shape: PrimitiveShape = .roundedRectangle) {
+        frame.fillBackdrop(bounds, tint: tint, cornerRadii: cornerRadii, shape: shape)
+    }
+
     /// Draws the whole of `texture` stretched over `bounds` (ruling TE-AF),
     /// translated, clipped and faded by the active clip, offset and opacity
     /// scopes exactly as ``fill(_:color:cornerRadii:borderColor:borderWidths:shape:)``

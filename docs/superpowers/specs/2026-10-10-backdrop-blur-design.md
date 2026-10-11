@@ -135,7 +135,7 @@ is.
 is **the one function both renderers call**: the record's bounds mapped by its
 transform's bounding box, floor/ceil to integer device pixels, intersected with
 the target, `nil` when empty. The blurred texture covers exactly this region;
-the quad samples it at `uv = (devicePosition − origin) / size`, clamped to the
+the quad samples the level-`L` texture (a region of `w × h` is `⌈w/2^L⌉ × ⌈h/2^L⌉` there) at `uv = (devicePosition − origin) / (levelSize · 2^L)` (**amended by `BB-R`**: dividing by the region size instead is a `levelSize·2^L / size` scale error, up to 8 levels of a step at σ = 104), clamped to the
 edge, so only the backdrop inside the region contributes (probe `E`). The
 clip (`contentMask`) masks the quad but does not shrink the region
 (`BB-D` item 5: cost accepted, named).
@@ -152,7 +152,7 @@ shader languages:
 2. A separable **Gaussian** at level `L`, `sigma_L = sigma_dev / 2^L`, taps
    `-⌈3σ⌉…+⌈3σ⌉` computed in the shader from σ (weights normalized in-shader,
    clamped edge), horizontal then vertical.
-3. The quad's bilinear read of the level-`L` texture is the upsample.
+3. The quad's bilinear read of the level-`L` texture is the upsample, at texel coordinate `(p + ½)/2^L − ½` for the region pixel `p` (`BB-R`).
 
 Scratch textures (two per level-size, `bgra8Unorm`, render + sample) come from
 a per-window-renderer pool keyed by size and are reused across frames.

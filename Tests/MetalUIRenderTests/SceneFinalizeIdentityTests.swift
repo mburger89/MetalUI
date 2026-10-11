@@ -51,6 +51,7 @@ private func emit(_ script: [Emission], into scene: inout Scene) {
         case .glyph: scene.insert(glyph(id: e.id, order: e.order), layer: e.layer)
         case .image: preconditionFailure("these scripts emit rects and glyphs only")
         case .surface: preconditionFailure("these scripts emit rects and glyphs only")
+        case .backdrop: preconditionFailure("these scripts emit rects and glyphs only")
         }
     }
 }

@@ -466,8 +466,10 @@ extension PaintPass {
         let radii = Corners(all: decoration.cornerRadius)
 
         let gradient = decoration.backgroundGradient
+        let material = decoration.backgroundMaterial
         guard decoration.opacity < 1 else {
-            paintDecorationBody(bounds, radii: radii, gradient: gradient, background: background?.color,
+            paintDecorationBody(bounds, radii: radii, gradient: gradient, material: material,
+                                background: background?.color,
                                 border: border, clip: decoration.clipRegion(in: bounds), content: content)
             return
         }
@@ -479,13 +481,16 @@ extension PaintPass {
         let borderEscapes = resolved.map { escapes.contains($0.slot.border) } ?? false
         // A gradient is the plain fill slot (`LK-J` item 8).
         let gradientEscapes = gradient != nil && escapes.contains(.plainFill)
-        if fillEscapes || gradientEscapes {
+        let materialEscapes = material != nil && escapes.contains(.plainFill)
+        if fillEscapes || gradientEscapes || materialEscapes {
             paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? gradient : nil,
+                                material: materialEscapes ? material : nil,
                                 background: fillEscapes ? background?.color : nil, border: nil,
                                 clip: nil) {}
         }
         opacity(decoration.opacity) {
             paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? nil : gradient,
+                                material: materialEscapes ? nil : material,
                                 background: fillEscapes ? nil : background?.color,
                                 border: borderEscapes ? nil : border,
                                 clip: decoration.clipRegion(in: bounds), content: content)
@@ -499,6 +504,7 @@ extension PaintPass {
     /// Steps 2–4 of `paintDecoration`, so the opacity scope can wrap them.
     private func paintDecorationBody(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>,
                                      gradient: GradientFill? = nil,
+                                     material: Material? = nil,
                                      background: Hsla?,
                                      border: (color: Hsla, widths: Edges<Pixels>)?,
                                      clip: (bounds: Bounds<Pixels>, radii: Corners<Pixels>)?,
@@ -508,6 +514,11 @@ extension PaintPass {
             // radius, before a pointer-state colour and the border. Snaps.
             paintGradientFill(gradient, .roundedRectangle(bounds, cornerRadii: radii, style: .circular),
                               style: nil, pass: self)
+        }
+        if let material {
+            // A legacy material background (`BB-A`): one backdrop record, under
+            // the corner radius, before a pointer-state colour and the border.
+            fillBackdrop(bounds, tint: resolve(material.color), cornerRadii: radii)
         }
         if let background {
             fill(bounds, color: background, cornerRadii: radii)

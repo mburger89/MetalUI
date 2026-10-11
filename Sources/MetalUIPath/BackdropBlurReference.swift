@@ -10,7 +10,10 @@
 ///    when a size is odd); level 0 is the region itself.
 /// 2. A separable Gaussian at level `L`, `sigma / 2^L`, taps `±⌈3σ⌉`, the
 ///    weights computed from σ and normalized (the clamped edge repeats).
-/// 3. The upsample: a bilinear read at the output pixel's centre.
+/// 3. The upsample: a bilinear read at texel coordinate `(p + ½)/2^L − ½` for
+///    the output pixel `p` (`BB-R`: level texel `j` covers source pixels
+///    `[j·2^L, (j+1)·2^L)`; scaling by the level size over the region size
+///    instead is wrong whenever the region is not a multiple of `2^L`).
 ///
 /// Pixels are premultiplied, four `Float` channels per pixel, row-major.
 package enum BackdropBlurReference {
@@ -123,12 +126,12 @@ package enum BackdropBlurReference {
         if level == 0 { return current }
         var out = [Float](repeating: 0, count: pixels.count)
         for py in 0..<height {
-            let fy = (Float(py) + 0.5) / Float(height) * Float(h) - 0.5
+            let fy = (Float(py) + 0.5) / Float(1 << level) - 0.5
             let y0f = fy.rounded(.down)
             let ty = fy - y0f
             let y0 = min(max(Int(y0f), 0), h - 1), y1 = min(max(Int(y0f) + 1, 0), h - 1)
             for px in 0..<width {
-                let fx = (Float(px) + 0.5) / Float(width) * Float(w) - 0.5
+                let fx = (Float(px) + 0.5) / Float(1 << level) - 0.5
                 let x0f = fx.rounded(.down)
                 let tx = fx - x0f
                 let x0 = min(max(Int(x0f), 0), w - 1), x1 = min(max(Int(x0f) + 1, 0), w - 1)

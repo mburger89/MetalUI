@@ -49,10 +49,15 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
                     "\(scheme) \(name): over white \(white) vs \(want.white), over black \(black) vs \(want.black)")
         }
     }
-    // The fill site draws the colour site's rect with that colour (`LK-L` item 3).
+    // The fill site's record carries that colour (`LK-L` item 3, re-pinned on the
+    // backdrop record by `BB-A`/`BB-M`: no tint rect, one backdrop; the flat
+    // rect a renderer falls back to is `flatTintRect`, `c · o · T`).
     let scene = lkScene(Rectangle().fill(.thickMaterial).frame(width: px(20), height: px(20)), side: 100)
-    try #require(scene.rects.count == 1, "one rect, no new primitive: \(scene.rects.count)")
-    let drawn = rgba(scene.rects[0].background)
+    try #require(scene.rects.isEmpty && scene.backdrops.count == 1,
+                 "one backdrop record, no tint rect: \(scene.rects.count) rects, \(scene.backdrops.count) records")
+    let drawn = rgba(scene.backdrops[0].tint)
+    let flat = rgba(scene.backdrops[0].flatTintRect.background)
+    #expect(abs(flat.a - drawn.a) < 1e-6, "the flat fallback is the tint at opacity 1: \(flat.a) vs \(drawn.a)")
     #expect(abs(over(drawn.r, drawn.a, 255) - 235) <= 1 && abs(over(drawn.r, drawn.a, 0) - 191) <= 1,
             "thick over white 235, black 191: \(drawn)")
 }
@@ -73,13 +78,13 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
     }
     func whites(_ scheme: ColorScheme) -> [Int] {
         let scene = lkScene(Column { tree().environment(\.colorScheme, scheme) }, side: 100)
-        return scene.rects.filter { $0.background.a > 0 }.map {
-            let c = rgba($0.background)
+        return scene.backdrops.map {
+            let c = rgba($0.tint)
             return over(c.r, c.a, 255)
         }
     }
     let light = whites(.light), dark = whites(.dark)
-    try #require(light.count == 3 && dark.count == 3, "three tinted rects each: \(light) \(dark)")
+    try #require(light.count == 3 && dark.count == 3, "three backdrop records each: \(light) \(dark)")
     #expect(light.allSatisfy { abs($0 - 239) <= 1 }, "light regular over white 239: \(light)")
     #expect(dark.allSatisfy { abs($0 - 115) <= 1 }, "dark regular over white 115: \(dark)")
 }

@@ -238,6 +238,11 @@ public struct Scene: Sendable {
         public var width: Int
         /// The height, in device pixels.
         public var height: Int
+
+        /// A region at `(x, y)` of `width × height` device pixels.
+        public init(x: Int, y: Int, width: Int, height: Int) {
+            self.x = x; self.y = y; self.width = width; self.height = height
+        }
     }
 
     /// The device-pixel box (floor/ceil) of backdrop `index`'s bounds mapped
