@@ -10,7 +10,7 @@ Record: `../record/94-backdrop-blur.md` (Record phase). Branch `feat/backdrop-bl
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 
-**Next unused id: `BB-O`.** (Moves in the commit that appends a ruling; read the
+**Next unused id: `BB-P`.** (Moves in the commit that appends a ruling; read the
 last `## BB-` heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-backdrop-blur.swift`](../probes/swiftui-backdrop-blur.swift)
@@ -313,3 +313,28 @@ spinner's colour follows the control accent today (`LK-F`); owner none.
 semantics is its own item, not a by-product of this one.
 
 **Cost if wrong.** MetalCreator keeps its current spinner colour.
+
+## BB-O — Critic review of the committed design: what was changed, what was rejected
+
+**Ruling.** The critic re-ran probe arms `P1`, `P3`, `S light regular`, `N1`, `O1`
+byte for byte against the header (all equal); the SwiftUI claims rest on them.
+Changes: (1) none to the primitive, pass structure or lanes: attacked and held
+(F cleared transparent equals the old pass's clear, `Renderer.swift:199`, so segment 0
+is the old pixels; no platform requirement, so no default or fake owed; the
+renderer counters are concrete-type reads). (2) Test 1.7's mutation named
+"delete the arm" cannot compile; the mutation is the arm returning the record
+unchanged. (3) Test 1.12's mutation named one test; each of its two tests now
+has its own mutation. (4) Test 2.3 compared to an unnamed "pre-change" scene;
+it now compares to the same scene with the backdrop path forced off, and the
+f2fe54a claim belongs to `compare.sh`. (5) Step 0 adds stored properties on a
+public type across a module boundary: `swift package clean` in each lane.
+(6) Reduce Transparency and the `ProgressView` tint hook have **no owner**: they
+are open items for the human (a rejection of scope, not a hidden deferral).
+**Rejected:** a per-material sigma table (BB-D 1: the spread is inside the fit's
+error); nested "blurs twice" is pinned against the reference, not against the
+probe's 1.26 rise ratio, which tint compression distorts.
+
+**Reasoning.** Each change makes a pin able to go red; none moves a pixel.
+
+**Cost if wrong.** None to the design; a mutation that still does not redden is
+reported by the lane that applies it.

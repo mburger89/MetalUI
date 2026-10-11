@@ -43,6 +43,8 @@ only public additions are the scene vocabulary a renderer needs:
   `closeout-inventory-map.tsv` row (class `M`: MetalUI-only); the census is
   re-recorded.
 
+Build note: `MUIBackdrop`, `PrimitiveKind.backdrop` and `Scene`'s new stored arrays cross a module boundary, so every lane runs `swift package clean` after Step 0 lands (`BB-O` 5).
+
 Deferred, named: a per-site blur radius override (owner none; MetalCreator may
 re-request); `ProgressView` tint hook (unrelated to the renderer, not probed;
 owner none); Reduce Transparency (§8, owner a platform-services follow-up).
@@ -239,12 +241,12 @@ count work. "Red before" = fails or does not compile at `f2fe54a`.
 | 1.4 | `aPathFilledWithAMaterialDrawsTheFlatTint` | n/a (passes) pins divergence 248 | emit a backdrop for a path |
 | 1.5 | `opacityMultipliesTheRecordOpacityAndLeavesTheTintAlone` | no field | multiply `tint.a` instead |
 | 1.6 | `aClipAndAnOffsetMapIntoTheRecord` | no record | drop `contentMask` |
-| 1.7 | `aTransitionGhostAndADragPreviewReplayTheRecord` | no arm | delete `.backdrop` from `multiplyAlpha` |
+| 1.7 | `aTransitionGhostAndADragPreviewReplayTheRecord` | no arm | make `multiplyAlpha`'s `.backdrop` arm return the record unchanged (deleting the arm does not compile, so it is not the mutation, `BB-O` 2) |
 | 1.8 | `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint` | n/a | remove the degrade arm |
 | 1.9 | `backdropRunsBreakWhereRegionsOverlapAndWhereAnotherKindInterleaves` | no kind | break on touching instead of intersecting |
 | 1.10 | `aSceneHoldingOnlyABackdropIsNotEmptyAndClearForgetsIt` | no kind | drop `backdrops` from `isEmpty` |
 | 1.11 | `backdropRegionIsTheTransformedBoundingBoxClampedToTheTarget` | no function | skip the clamp |
-| 1.12 | `theReferenceBlurMatchesAnErfStepWithinTwoLevels` and `theLevelCountFollowsSigma` | no reference | change the `≤ 4` rule to `≤ 8` |
+| 1.12 | `theReferenceBlurMatchesAnErfStepWithinTwoLevels` and `theLevelCountFollowsSigma` | no reference | `theLevelCountFollowsSigma` reddens on the `≤ 4` to `≤ 8` change (literal levels for three sigmas); the erf test is mutated separately by dropping the weight normalization (`BB-O` 3) |
 | 1.13 | `anExhaustiveSwitchOverPrimitiveKindNeedsABackdropArm` (typecheck guard; mutate red once by deleting the arm from the fixture) | n/a | the guard's own mutation |
 | 1.14 | existing `theSevenRetentionSlotsAreMutuallyDistinct`, the animation/identity guards | green | unchanged (a regression pin, not new) |
 
@@ -254,7 +256,7 @@ count work. "Red before" = fails or does not compile at `f2fe54a`.
 |---|---|---|
 | 2.1 | `aBackdropOverAStepEqualsTheReferenceWithinTolerance` (≤ 3 levels, 200×40, the three sigmas σ=16, 52 pt at scales 1 and 2) | halve σ in `backdrop_*` / skip the blur pass |
 | 2.2 | `theBackdropBlursAGPUSurfaceBeneathIt` (red/blue stripes surface; backdrop above → purple; same scene with the backdrop below the surface in order leaves stripes sharp) | emit the backdrop run before the surface run |
-| 2.3 | `aSceneWithoutBackdropsTakesTheOldPathByteForByte` (all counters 0, no frame target, pixels equal a pre-change reference scene) | always route through `F` |
+| 2.3 | `aSceneWithoutBackdropsTakesTheOldPathByteForByte` (all counters 0, no frame target made, readback equal to the same scene rendered with the backdrop path forced off by the package test hook; the f2fe54a comparison is `compare.sh`, not this test, `BB-O` 4) | always route through `F` |
 | 2.4 | `splitsCountRunsAndBlursCountRecords` (adjacent non-overlapping: 1 split, 2 blurs; interleaved: 2 splits; overlapping: 2) | count per record |
 | 2.5 | `pixelsOutsideTheShapeAreUntouched` (circle) | ignore the shape SDF |
 | 2.6 | `opacityHalfIsAHalfWeightCompositeOverTheSharpBackdrop` (±3 of the `O` arithmetic) | tint-alpha multiply |
