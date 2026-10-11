@@ -21,7 +21,7 @@ Evidence:
 - gpui is **not read** for this item; where a ruling is MetalUI's own design
   (`IF-F`, `IF-G`, `IF-H`) it says so.
 
-Prefix **`IF-`**, lettered. **Next unused: `IF-K`.** (This line moves in the
+Prefix **`IF-`**, lettered. **Next unused: `IF-L`.** (This line moves in the
 commit that appends a ruling; read the last `## IF-` heading.)
 
 Branch `feat/input-followups` from `f2fe54a`. `docs/divergences.md`: this
@@ -189,7 +189,9 @@ gesture** and resets its `@GestureState` to the initial value (`C2` the gesture
 disabled mid-drag, `C3` its view removed: `updating | changed … ended` absent,
 state back to 0 at the next event). A window resigning key mid-drag is **not** a
 cancellation (`C4`: the release still ends it). A second press without a
-release does not restart the gesture (`C5`). SwiftUI therefore tells its owner
+release does not end the gesture and the one release ends it once (`C5`; its
+`GestureState` reads 0 then 1 across the second press, so "does not restart" is
+not claimed). SwiftUI therefore tells its owner
 only through `@GestureState`, which `IF-A` defers.
 
 **Ruling.** `DragGesture.onCancelled(_ action: @escaping @MainActor () -> Void)`,
@@ -326,3 +328,39 @@ pointing at a struct in the lane's own file.
   the canvas demo section, human checks, the inventory, the Linux image run.
 
 **Cost if wrong.** A merge conflict in `Window.swift`; regions are far apart.
+
+## IF-K — Critic's rulings: lanes rebalanced, demo file, removed/disabled owners
+
+**Re-run.** The probe was re-run by the critic (compiled form, screen unlocked):
+20 lines, byte-identical to the header's recorded arms (`D1`–`D4`, `C1`–`C5`; the
+`M` arms still read "-", so `IF-D` stands as MetalUI's own contract). Two
+overclaims were corrected in `IF-C` and `IF-E` (the 0.33 s equality; `C5`'s
+"does not restart").
+
+**Rulings.**
+
+1. **Lanes rebalanced (supersedes `IF-J`'s split, not its order).** Lane 3 held the
+   scope, the store, two platforms, the SDL tests, the demo and the Linux image;
+   lane 2 held only the wheel. Lane 2 now also takes `IF-I` (the AppKit
+   `didBecomeKey` send, the SDL bridge focus-gained modifiers, tests 4.1–4.3 and the
+   `Backends/SDL` + Linux image runs): it touches no file lane 3 does, and the
+   platform sends an event the window already accepts. Lane 3 keeps `IF-D`, the demo
+   and the human checks.
+2. **The demo section lives in a new file** `Sources/MetalUIDemoContent/
+   InputFollowupsDemo.swift`, in its own function, hooked by one line in
+   `CanvasDemo.swift` (not edited otherwise): `feat/overlays-coords` is likely to
+   edit the canvas demo, and the one-line hook is the whole conflict surface.
+3. **A drag whose gesture is disabled or whose owner is removed mid-drag gets no
+   `onCancelled`** (SwiftUI's `C2`/`C3` reset the `@GestureState`; MetalUI has no
+   such storage and a removed owner has nothing to be told). Considered: cancel when
+   the leaf's id is absent from the next frame. Rejected because `onCancelled`'s
+   closure belongs to the removed element, its `@State` is reset (`ID-C`) and
+   running it would write to dead state. Said in the `onCancelled` doc comment.
+4. **`IF-F` item 3 is gated by the platform's own event kinds**: AppKit and SDL send
+   `.rightMouseDragged`/`.otherMouseDragged` while a button is held (SDL
+   `MUI_EVENT_RIGHT_DRAG`/`OTHER_DRAG`, checked in `SDLPlatform`), so `.mouseMoved`
+   with a live button arena is a lost release by construction. Lane 1 owes a test on
+   each fake sequence (drag events keep the arena; moved cancels).
+5. **`onModifierKeysChanged`'s unprobed behaviours** (empty first report, mask
+   timing) are listed under human check `IF1`; no divergence label is spent on an
+   unmeasured difference. If `IF1` shows one, it takes label 237.

@@ -1,7 +1,7 @@
 # Input follow-ups — design spec
 
 Item C16. Rulings: [`../2026-10-10-input-followups-decisions.md`](../2026-10-10-input-followups-decisions.md)
-(`IF-A`…`IF-J`). Evidence: `docs/probes/swiftui-input-followups.swift` (recorded
+(`IF-A`…`IF-K`; `IF-K` is the critic's: lanes, demo file). Evidence: `docs/probes/swiftui-input-followups.swift` (recorded
 in its header). Baseline `f2fe54a`: **3237 tests in 3 suites**, 0 goldens, the
 `FR-J no-argument frame: succeeded=` line, 0 `error:`, the only `warning:`
 SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings; pixels 0 px
@@ -68,7 +68,9 @@ re-recorded with `docs/probes/closeout-public-api.sh`.
 - `Gesture.swift`'s "Not offered" doc keeps `@GestureState`/`updating`; names
   `onCancelled` as the replacement.
 
-### Lane 2 — wheel latch and terminal phase
+### Lane 2 — wheel latch, terminal phase and the platform sends (`IF-I`, `IF-K` 1)
+
+Also: `AppKitPlatform` sends `.modifiersChanged` on becoming key, `SDLBridge.c` fills `modifiers` for focus-gained, `SDLPlatform` forwards it, tests 4.1–4.3, `Backends/SDL` and Linux image runs (moved from lane 3).
 
 - New `ScrollLatch.swift`: `struct ScrollLatch { var cover: GlobalElementID;
   var layer: Int; var fingerInFlight: Bool; var momentumInFlight: Bool }`; one
@@ -88,10 +90,8 @@ re-recorded with `docs/probes/closeout-public-api.sh`.
   and its `endFrame` event; `Window.currentModifiers`, `hasModifierObservers`,
   `noteModifiers(from:)` at the top of `onInput` (before hover/active tracking,
   never claiming); the key-loss reset (`IF-D` item 4).
-- `AppKitPlatform.refreshControlActiveState` (or its `didBecomeKey` path) sends
-  `.modifiersChanged(modifiers(NSEvent.modifierFlags))`; `SDLBridge.c` fills
-  `modifiers` for `MUI_EVENT_FOCUS_GAINED`; `SDLPlatform` forwards it.
-- Demo: a section in `Sources/MetalUIDemoContent/CanvasDemo.swift`, **in its own
+- (The platform sends moved to lane 2, `IF-K` 1.)
+- Demo: a section in the new `Sources/MetalUIDemoContent/InputFollowupsDemo.swift` (one-line hook in `CanvasDemo.swift`, `IF-K` 2), **in its own
   function** (Windows 1 MB stack, `everyProductionTreeBuildsOnAOneMegabyteThread`),
   reachable only under `METALUI_CANVAS_DEMO=1`: a one-line readout of the held
   modifiers (from `onModifierKeysChanged`), the last tap's modifiers, the last
