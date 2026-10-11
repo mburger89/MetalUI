@@ -457,3 +457,5 @@ restored from a copy after each):
 **Counts**: 3237 tests (3235 + 2), 0 goldens; guard count measured in the final run below. The human check
 is `SG7`.
 
+
+- **The SDL test owed by SG-M.** PR #64's CI failed `anSDLWindowDrawsTheCommandsAndAClickRunsOne` (`Backends/SDL`, test 2.18) on Linux and Windows: it still expected `["Edit", "Demo"]`, but File is never empty now. The SG-M pass had not run `Backends/SDL`. The fix expects `["File", "Edit", "Demo"]` and clicks title 2. `Backends/SDL` on macOS: 24 + 111 passed.
