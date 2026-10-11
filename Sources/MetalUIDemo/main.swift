@@ -68,11 +68,19 @@ func runDemo() throws {
     // edited dot, a close and quit alert, `.onOpenURL` fed from the launch
     // arguments (`AS-G` item 6's recipe).
     let appShellDemo = ProcessInfo.processInfo.environment["METALUI_APP_SHELL_DEMO"] == "1"
+    // Overlays and coordinates' human looks (`docs/verification/human-checks.md`
+    // group OV, spec `2026-10-10-overlays-coords-design.md` §3.2): a named-space
+    // canvas with a hover crosshair and a chrome-less palette at the click.
+    let overlaysDemo = ProcessInfo.processInfo.environment["METALUI_OVERLAYS_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if appShellDemo {
+    if overlaysDemo {
+        window = try app.openWindow(title: "MetalUI — Overlays",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: overlaysDemoContent)
+    } else if appShellDemo {
         window = try openAppShellDemoWindow(app, title: "MetalUI — App Shell",
                                             launchArguments: Array(CommandLine.arguments.dropFirst()))
     } else if keyFocusDemo {

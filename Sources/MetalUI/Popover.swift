@@ -24,13 +24,15 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     var presented: @MainActor () -> (name: String?, content: PopoverContent)?
     /// Writes the binding `false` (or `nil`), from input (`MN-N`).
     var dismiss: @MainActor () -> Void
-    /// The resolved edge (`nil` is `.top`, P7).
-    var edge: Edge
+    /// What is presented and where (`OV-A`, `OV-B`): a popover against its
+    /// attachment anchor, or a chrome-less overlay at a point.
+    var kind: PopoverKind
 
-    init(content: Content, edge: Edge?, presented: @escaping @MainActor () -> (name: String?, content: PopoverContent)?,
+    init(content: Content, kind: PopoverKind,
+         presented: @escaping @MainActor () -> (name: String?, content: PopoverContent)?,
          dismiss: @escaping @MainActor () -> Void) {
         self.content = content
-        self.edge = edge ?? .top
+        self.kind = kind
         self.presented = presented
         self.dismiss = dismiss
     }
@@ -64,6 +66,10 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         var slot = PopoverSlot<PopoverContent>(nil)
         if let (name, body) = presented() {
             if let anchor = frame.previousPresentationAnchors[id] {
+                // STUB (lane B red): the attachment anchor ignored; an overlay is a
+                // bounds popover above its declarer.
+                var edge = Edge.top
+                if case .popover(_, let e) = kind { edge = e }
                 slot = PopoverSlot(AnchoredPresentation(content: Self.chrome(body, name: name), owner: id,
                                                         anchor: anchor, edge: edge, dismiss: dismiss))
             } else {
@@ -143,14 +149,24 @@ enum PopoverChrome {
     static let shadowY: Float = 2
 }
 
+/// What a `PopoverModifier` presents and where (rulings `OV-A`, `OV-B`).
+enum PopoverKind {
+    /// `.popover`: the chrome against the attachment anchor, on the edge's
+    /// side (`nil` is `.top`, P7).
+    case popover(PopoverAttachmentAnchor, Edge)
+    /// `anchoredOverlay`: no chrome, the content's `anchor` unit point at
+    /// `point` in `space`.
+    case overlay(point: Point<Pixels>, space: CoordinateSpace, anchor: UnitPoint)
+}
+
 /// `isPresented:`'s presentation: the content while the binding is `true`.
-private func presenting<P>(_ isPresented: Binding<Bool>, _ content: @escaping @MainActor () -> P)
+func presenting<P>(_ isPresented: Binding<Bool>, _ content: @escaping @MainActor () -> P)
     -> @MainActor () -> (name: String?, content: P)? {
     { isPresented.wrappedValue ? (nil, content()) : nil }
 }
 
 /// `item:`'s presentation: the item's content, named by its id (`ID-R`).
-private func presenting<Item: Identifiable, P>(_ item: Binding<Item?>, _ content: @escaping @MainActor (Item) -> P)
+func presenting<Item: Identifiable, P>(_ item: Binding<Item?>, _ content: @escaping @MainActor (Item) -> P)
     -> @MainActor () -> (name: String?, content: P)? {
     { item.wrappedValue.map { ("\($0.id)", content($0)) } }
 }
@@ -183,41 +199,49 @@ extension StyledElement {
     /// at each presentation (`ID-C`). One identity level, for its caller only
     /// (`PopoverModifier`). It appears on the frame after this element was
     /// first laid out, and follows it within one frame when it moves.
-    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge? = nil,
+    public func popover<P: ElementGroup>(isPresented: Binding<Bool>,
+                                         attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                         arrowEdge: Edge? = nil,
                                          @ElementBuilder content: @escaping @MainActor () -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(isPresented, content),
-                        dismiss: { isPresented.wrappedValue = false })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(isPresented, content), dismiss: { isPresented.wrappedValue = false })
     }
 
     /// Presents a popover built from `item` while it is non-`nil` — SwiftUI's
     /// `popover(item:arrowEdge:content:)` (`MN-L` item 1; probe arm P6). A
     /// different item's id starts its content fresh (`ID-R`); dismissal writes
     /// `nil`. Everything else is `popover(isPresented:arrowEdge:content:)`'s.
-    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge? = nil,
+    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>,
+                                                             attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                                             arrowEdge: Edge? = nil,
                                                              @ElementBuilder content: @escaping @MainActor (Item) -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(item, content),
-                        dismiss: { item.wrappedValue = nil })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(item, content), dismiss: { item.wrappedValue = nil })
     }
 }
 
 extension ProposalElementGroup {
     /// `StyledElement.popover(isPresented:arrowEdge:content:)` on the proposal
     /// path: the same wrapper, one identity level (`MN-L` item 2).
-    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge? = nil,
+    public func popover<P: ElementGroup>(isPresented: Binding<Bool>,
+                                         attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                         arrowEdge: Edge? = nil,
                                          @ElementBuilder content: @escaping @MainActor () -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(isPresented, content),
-                        dismiss: { isPresented.wrappedValue = false })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(isPresented, content), dismiss: { isPresented.wrappedValue = false })
     }
 
     /// `StyledElement.popover(item:arrowEdge:content:)` on the proposal path.
-    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge? = nil,
+    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>,
+                                                             attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                                             arrowEdge: Edge? = nil,
                                                              @ElementBuilder content: @escaping @MainActor (Item) -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(item, content),
-                        dismiss: { item.wrappedValue = nil })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(item, content), dismiss: { item.wrappedValue = nil })
     }
 }
 
