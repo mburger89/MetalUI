@@ -2610,3 +2610,21 @@ primary press, as SwiftUI does (`FC3`, `KF-F`; pins
 `aPressFocusesAnEditInteractionFocusable`,
 `aPressDoesNotFocusPlainOrActivateFocusables`); **120** extended to
 `.onGeometryChange` (`GeometryChangeScope`, `KF-J`). **Retired:** none.
+
+## 2026-10-10: 195 added (SMK port gaps)
+
+- **195** — the commands' menu bar where the platform has none. SwiftUI ships only on Apple
+  platforms, where `.commands` fills the system's menu bar (`NSApp.mainMenu`; probe
+  `swiftui-commands.swift`) and there is no answer off Apple. Where
+  `Platform.setMenuBar(_:)` answers `false` (SDL) every window of an app declaring `commands` draws
+  the bar: a 25-point strip across its top, above a drawn toolbar strip, the root laid out below both;
+  the desktop arrangement (no application menu; File only with additions; Edit with its items
+  delivered to the focused field as AppKit's seven keys and enabled only while a text field is
+  focused; the `CommandMenu`s; Window only with additions; Help); a title opens on the click's
+  release, not the press (`SG-H` item 4); F10 opens the first menu; no Alt mnemonics; File ▸
+  Close/Quit absent until the follow-up of record §89 §9. Pins
+  `aDeclinedMenuBarIsDrawnAboveTheRootInEveryWindow`, `theDrawnBarFollowsTheDesktopArrangement`,
+  `clickingATitleOpensItsMenuBelowItAndAChoiceRunsTheCommand`.
+
+**Amended:** none. **Retired:** none. 134 live, next label 206 (196–204 of C12's range unused).
+

@@ -166,6 +166,11 @@ struct MenuSession {
     /// The press that opened the menu, until its release: where it was and
     /// whether the pointer has moved since (`MN-F` item 3's press-drag-release).
     var openingPress: (point: Point<Pixels>, moved: Bool)?
+    /// Which of the drawn menu bar's menus this is, or `nil` for any other
+    /// menu (ruling `SG-A` item 8): the pointer moving onto another title,
+    /// and ← and → on a level with nothing to enter or leave, switch to that
+    /// menu.
+    var barIndex: Int?
 
     /// The numbered items of `nodes` (`MN-C`): ids depth-first from `next`,
     /// every item disabled when `enabled` is false (C9), each action recorded
@@ -432,6 +437,13 @@ extension Window {
         case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
              .otherMouseDragged(let mouse):
             session.openingPress?.moved = true
+            // A drawn bar's menu switches to the title under the pointer
+            // (`SG-A` item 8), with no flicker frame: one redraw.
+            if let bar = session.barIndex,
+               let title = lastMenuBarTitleFrames.firstIndex(where: { $0.contains(mouse.position) }), title != bar {
+                openMenuBarMenu(index: title, highlightFirst: false)
+                return true
+            }
             hoverMenu(&session, at: mouse.position)
             menuSession = session
             return true
@@ -563,9 +575,17 @@ extension Window {
         case "\u{f703}":
             if let row = level.highlighted, case .submenu = level.items[row].kind {
                 openSubmenu(&session, level: deepest, row: row, highlightFirst: true)
+            } else if let bar = session.barIndex {   // the next bar menu, wrapping (`SG-A` item 8)
+                switchMenuBarMenu(from: bar, by: 1)
+                return
             }
         case "\u{f702}":
-            if deepest > 0 { closeMenuLevels(&session, deeperThan: deepest - 1) }
+            if deepest > 0 {
+                closeMenuLevels(&session, deeperThan: deepest - 1)
+            } else if let bar = session.barIndex {   // the previous bar menu, wrapping
+                switchMenuBarMenu(from: bar, by: -1)
+                return
+            }
         case "\r", "\u{3}", " ":
             activateMenuRow(&session, level: deepest, row: level.highlighted)
             return

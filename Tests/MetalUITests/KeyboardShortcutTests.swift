@@ -249,3 +249,31 @@ private struct ShortcutCounter: Component {
     platform.simulateInput(controlKey("\r"))
     #expect(model.keys == ["submit", "ok"], "unfocused, Return runs the default button")
 }
+
+// MARK: - SG-B 1.2 the primary default
+
+/// **1.2** (`SG-B` item 3; SMK port gaps spec §5 test 1.2). A
+/// `.keyboardShortcut("s")` written without modifiers records `.primary` —
+/// ⌘ on macOS, so ⌘S still runs it once here and plain S and ⌃S do not. On
+/// macOS `.primary == .command`; the separating run is test 1.3's Linux arm.
+/// Red before: does not compile (no `.primary`). Mutation **M1.2**: the
+/// default `.option` — reddens.
+@Test @MainActor func aShortcutWithNoModifiersDefaultsToThePrimaryOne() throws {
+    let button = Button("S") {}.keyboardShortcut("s")
+    #expect(button.shortcut?.modifiers == .primary, "the recorded shortcut's modifiers are the primary one")
+    #expect(button.shortcut?.key == KeyEquivalent("s"))
+    let model = ControlModel()
+    let (window, platform) = try shortcutWindow {
+        controlRoot { Button("S") { model.keys.append("s") }.keyboardShortcut("s") }
+    }
+    platform.simulateInput(controlKey("s", .primary))
+    #expect(model.keys == ["s"], "the primary modifier with S runs it once")
+    platform.simulateInput(controlKey("s"))
+    platform.simulateInput(controlKey("s", .option))
+    #expect(model.keys == ["s"], "plain S and ⌥S do not")
+    #if canImport(Darwin)
+    platform.simulateInput(controlKey("s", .command))
+    #expect(model.keys == ["s", "s"], "on macOS ⌘S is the primary shortcut, unchanged")
+    #endif
+    withExtendedLifetime(window) {}
+}

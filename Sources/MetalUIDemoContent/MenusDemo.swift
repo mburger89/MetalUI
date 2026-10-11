@@ -24,7 +24,28 @@ import Foundation
 @MainActor
 public func menusDemoContent() -> some Element {
     menusRoot(header: menusHeader(), card: menusCard(), popover: menusPopover(), help: menusHelp(),
-              pullDown: menusPullDown())
+              pullDown: menusPullDown(), shortcut: menusShortcutLine())
+}
+
+/// The menus demo's commands (ruling `SG-A`, spec
+/// `2026-10-09-smk-gaps-design.md` §3.4 item 11): a Demo menu (Say Hello on
+/// ⇧ + primary + H, the Pinned toggle, and Reset Status with no shortcut, so a
+/// drawn bar has a menu-only action) and New Note after the new-item group.
+/// `MetalUIDemo` and `MetalUISDLDemo` call it under `METALUI_MENUS_DEMO=1`:
+/// AppKit shows them in its menu bar, SDL draws the bar in the window.
+@MainActor
+public func installMenusDemoCommands(_ app: App) {
+    app.commands {
+        CommandMenu("Demo") {
+            Button("Say Hello") { menusDemoModel.status = "Hello from the menu bar" }
+                .keyboardShortcut("h", modifiers: [.primary, .shift])
+            Toggle("Pinned", isOn: menusDemoPinned())
+            Button("Reset Status") { menusDemoModel.status = "Status reset from the menu bar" }
+        }
+        CommandGroup(after: .newItem) {
+            Button("New Note") { menusDemoModel.status = "New Note from the menu bar" }.keyboardShortcut("n")
+        }
+    }
 }
 
 /// The demo's state: the last choice, the toggle, the popover and its field.
@@ -56,7 +77,7 @@ public func menusDemoPinned() -> Binding<Bool> {
 /// The root: the header, then the sections in a column.
 @MainActor
 private func menusRoot(header: some Element, card: some Element, popover: some Element, help: some Element,
-                       pullDown: some Element) -> some Element {
+                       pullDown: some Element, shortcut: some Element) -> some Element {
     Column(gap: Pixels(20)) {
         header
         Row(gap: Pixels(32)) {
@@ -69,6 +90,7 @@ private func menusRoot(header: some Element, card: some Element, popover: some E
         }
         .alignItems(.flexStart)
         help
+        shortcut
         Text(menusDemoModel.status)
     }
     .alignItems(.flexStart)
@@ -135,6 +157,14 @@ private func menusHelp() -> some Element {
         Text("And me").help("Hidden by a click, a key or the wheel")
         Text("Me too").help("A longer explanation that wraps once it passes three hundred points across, as tooltips do")
     }
+}
+
+/// The Say Hello command's shortcut in the monospaced design — the platform's
+/// monospaced family off Apple under `METALUI_SYSTEM_FONTS=1` (`SG-C`, human
+/// check SG4).
+@MainActor
+private func menusShortcutLine() -> some Element {
+    Text("Shortcut: ⇧ + primary + H").font(.system(size: 12, design: .monospaced))
 }
 
 /// A `Menu` pull-down.

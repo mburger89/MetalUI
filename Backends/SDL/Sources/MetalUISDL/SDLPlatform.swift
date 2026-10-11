@@ -192,13 +192,15 @@ public final class SDLPlatform: Platform {
     /// test.
     private(set) var menuBar: PlatformMenuBar?
 
-    /// Records the menu bar and draws nothing (ruling `MN-I` item 3): SDL3 has
-    /// no menu-bar API, and Linux and Windows SDL windows show none. A
-    /// command's keyboard shortcut still works — `Window`'s command stage
-    /// (`MN-J`) needs no platform menu. An in-window menu bar is deferred,
-    /// owner none.
-    public func setMenuBar(_ menuBar: PlatformMenuBar) {
+    /// Records the menu bar and answers `false` (rulings `MN-I` item 3,
+    /// `SG-A` item 1): SDL3 has no menu-bar API, so MetalUI draws the bar
+    /// inside every window of an app that declared `commands` — the desktop
+    /// arrangement, above the toolbar strip (divergence 195). The bar is never
+    /// asked for its content here. A command's keyboard shortcut works either
+    /// way — `Window`'s command stage (`MN-J`) needs no platform menu.
+    public func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool {
         self.menuBar = menuBar
+        return false
     }
 
     /// Builds one surface for the stored icon, sets it on `targets` and

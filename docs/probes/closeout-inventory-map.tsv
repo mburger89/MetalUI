@@ -34,7 +34,7 @@ F	pixels-infinity	A	swiftui-controls-in-stacks.swift	FL21	pixelsInfinityIsSwiftU
 F	any-element	A	swiftui-composition-identity.swift	S2	stateInsideAnAnyElementPersistsAcrossFrames	-	ID-E	AnyView: @State/@Environment bind inside an AnyElement
 F	explicit-identity	A	swiftui-composition-identity.swift	X9	anIDThatReturnsToAnEarlierNameStartsFresh	72	ID-G ID-R	.id(_:) on every element group; a changed name resets, a departed name starts fresh on return; two same-named siblings share one identity (72)
 F	global-id	M	-	-	-	-	MC-C MC-P C-3	GlobalElementID/PathComponent: the structural identity path value (positional/named components, -1 for an overlay)
-F	component	M	-	-	-	56 73	OM-D LR-BG ID-I ID-K	Component/StyledComponent: layout-transparent, identity-opaque composition; .width/.height frame each member; .frame is one layer over a row of per-member frames, the members aligned by the frame's own alignment where SwiftUI's Group uses the parent's (56)
+F	component	M	-	-	-	56 73	OM-D LR-BG ID-I ID-K SG-E	Component/StyledComponent: layout-transparent, identity-opaque composition; .width/.height frame each member; .frame is one layer over a row of per-member frames, the members aligned by the frame's own alignment where SwiftUI's Group uses the parent's (56)
 F	deferred	M	-	-	-	9 10 46	LR-CH AP-I OM-AA	Deferred: a portal hoisting to the root layer; absolute content is a presentation root against the window
 F	handlers	M	-	-	-	-	OM-AI IX-N	Handlers/HitboxID/KeyHandler: handler storage and hitbox ids
 F	state	A	swiftui-closeout.swift	O1	anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite	71	ID-F CX-F DD-D	@State per occurrence, dispatch-resolved; an optional with a non-nil default reads it before its first write (85 retired); a write from outside dispatch reaches the last-bound occurrence (71)
@@ -144,7 +144,7 @@ F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importabl
 F	transferable	A	swiftui-drag-and-drop.swift	T5	aStringExportsAndImportsUTF8PlainTextOnly	-	DN-B DN-S	Transferable/ContentType: MetalUI's own synchronous Data-based protocol with CoreTransferable's call-site spellings; String/URL/Data conform; transferRepresentation is not offered
 F	drag-and-drop	A	swiftui-drag-and-drop.swift	P14	isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction	100 101 102	DN-A DN-D DN-F DN-G DN-H DN-J DN-K DN-M	draggable(_:)/draggable(_:preview:)/dropDestination(for:action:isTargeted:) and their modifiers: a drag begins on the first move, outranks tap/long press/click, the one hit ranking finds the destination, isTargeted false before the next true
 F	context-menus	A	swiftui-menus-popovers.swift	C1	aRightPressOverAContextMenuPresentsItsItemsToThePlatform	110 114	MN-B MN-C MN-D MN-E MN-F MN-U MN-V MN-AE	.contextMenu on both vocabularies (ContextualModifier) and the closed MenuContent vocabulary (Button/Toggle/Menu/Divider/Text items, MenuContentBuilder, MenuItems, Menu's declaration): a native NSMenu or a drawn in-window menu, evaluated at each open; a secondary press only opens menus (110); a painted cover does not block (114)
-F	menu-bar	A	swiftui-commands.swift	PLAIN	theDefaultMenuBarHasTheStandardMenus	-	MN-I MN-J MN-K MN-X MN-AA MN-AF	App.commands(content:) with CommandMenu/CommandGroup/CommandGroupPlacement/CommandsBuilder/CommandItems and Platform.setMenuBar/PlatformMenuBar: the standard menus as NSApp.mainMenu on AppKit (Edit items reach the focused field as its keys), recorded and undrawn on SDL; a command's shortcut fires after the window's own stages, once
+F	menu-bar	A	swiftui-commands.swift	PLAIN	theDefaultMenuBarHasTheStandardMenus	-	MN-I MN-J MN-K MN-X MN-AA MN-AF	App.commands(content:) with CommandMenu/CommandGroup/CommandGroupPlacement/CommandsBuilder/CommandItems and Platform.setMenuBar/PlatformMenuBar: the standard menus as NSApp.mainMenu on AppKit (Edit items reach the focused field as its keys), on SDL setMenuBar answers false and every window draws a 25-point bar above the toolbar strip (divergence 195, SG-A); a command's shortcut fires after the window's own stages, once
 F	pull-down-menu	A	swiftui-menus-popovers.swift	M1	aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself	-	MN-H MN-AD MN-AF	Menu("Title") { } as a view: Button's chrome and keys opening its items at its bottom-leading corner (native on AppKit, the drawn panel elsewhere), published as a menu button
 F	popovers	A	swiftui-menus-popovers.swift	P1	thePopoverSitsOnItsArrowEdgeOfTheAnchor	111 112	MN-L MN-M MN-N MN-O MN-X MN-Y MN-Z MN-AG	.popover(isPresented:arrowEdge:content:) and .popover(item:arrowEdge:content:) on both vocabularies (PopoverModifier, one identity level): anchored to the wrapped element, on arrowEdge's side (nil is .top, P7), flipped and clamped inside the window (111), no arrow (112); an outside press dismisses and passes on, the anchor's is consumed, Escape before the keymap; a non-modal .popover node
 F	help	A	swiftui-menus-popovers.swift	H1	helpPublishesTheSameTreeAsAccessibilityHint	113	MN-P MN-U MN-V MN-AG	.help(_:) on both vocabularies: accessibilityHint's declaration (H1-H5) plus a tooltip drawn by the window after 1.0 s of display-link time (113)
@@ -158,6 +158,9 @@ F	shadows	A	swiftui-paths-shadows-transforms.swift	SH5	aShadowIsDrawnBelowEachLe
 F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
 F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsAnswerAtAZeroProposal	126	SV-L	WindowResizability (.automatic, .contentMinSize, .contentSize): SwiftUI's cases as window state; .contentMinSize's minimum is the root's answer at a zero proposal (W1), .contentSize adds its answer at an infinite proposal (W2); .automatic asks the content nothing, and the limits carry no title-bar inset (126)
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
+F	primary-modifier	M	-	-	-	-	SG-B	Modifiers.primary (EventModifiers.primary): the platform's shortcut modifier, ⌘ (.command) on macOS and Ctrl (.control) on Linux/Windows, the default of KeyboardShortcut(_:modifiers:) and .keyboardShortcut(_:modifiers:); SwiftUI has no such member (probe swiftui-shortcut-modifiers.swift refuses it) and ships only where its default .command is the primary key
+F	design-families	M	-	-	-	-	SG-C SF-B	SystemFonts.designFamilies and resolver(designFamilies:): each system-font design (.monospaced/.serif/.rounded) registered lazily as the first installed family of its per-platform list on the portable text system
+F	drawn-chrome-height	M	-	-	-	-	SG-F MD-K	Window.drawnChromeHeight: the height MetalUI draws above the root (the SDL toolbar strip), 0 where the platform shows its own; an explicit minSize/maxSize is measured below it
 F	platform-services-seam	M	-	-	-	-	SV-B SV-E SV-G SV-S	PlatformWindow.presentFileDialog/presentAlert/dismissPresentation/setContentSizeLimits (defaultless), PlatformFileType/PlatformFileDialog/FileDialogResultEvent/PlatformAlert/PlatformAlertButton/AlertResultEvent, InputEvent.pointerExited/.fileDialogResult/.alertResult, AccessibilityRole.popUpButton/.alert: a native dialog or alert, or "draw it yourself", answered as queued input
 F	input-apis-seam	M	-	-	-	-	CI-E CI-I CI-J CI-V	InputPhase, MouseEvent.buttonNumber, ScrollEvent.phase/momentumPhase/isPrecise/location and its full initialiser, MagnifyEvent/RotateEvent, InputEvent.rightMouseDragged/.otherMouseDown/.otherMouseDragged/.otherMouseUp/.magnify/.rotate, PlatformPointerStyle/PlatformResizeEdge, PlatformWindow.setPointerStyle (defaultless): the platform seam for other buttons, trackpad gestures, scroll phases and the pointer style
 F	app-shell-seam	M	-	-	-	-	AS-B AS-C AS-E AS-G AS-H AS-J AS-O	CloseRequestReply, PlatformTitleBarStyle, AppKitPlatform.onTerminateRequest/replyToTerminateRequest/terminate/onOpenURLs, and the seven PlatformWindow and four Platform requirements (defaultless): the platform seam for the close veto, the terminate hook, the edited marker and represented file, the hidden title bar and its band drag, and open-document events (MetalUI-only: SwiftUI has no such seam)
@@ -213,6 +216,7 @@ M	MetalUI	Frame.swift	.*	.*	.*	host
 M	MetalUI	RenderFrame.swift	.*	.*	.*	host
 M	MetalUI	Window.swift	Window	(colorScheme|preferredColorScheme|lightTheme|darkTheme)	.*	window-color-scheme
 M	MetalUI	Window.swift	Window	(minSize|maxSize|windowResizability)	.*	window-sizing
+M	MetalUI	Window.swift	Window	drawnChromeHeight	.*	drawn-chrome-height
 M	MetalUI	WindowSizing.swift	.*	.*	.*	window-resizability
 M	MetalUI	WindowShell.swift	Window	(title|isDocumentEdited|representedURL|windowStyle|onCloseRequest|isCloseRequestPending|replyToCloseRequest|close|performClose)	.*	window-shell
 M	MetalUI	WindowShell.swift	(-|WindowStyle)	.*	.*	window-shell
@@ -461,6 +465,7 @@ M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|lo
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
 M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
+M	MetalUIPlatform	InputEvent.swift	Modifiers	primary	.*	primary-modifier
 M	MetalUIPlatform	AppShell.swift	.*	.*	.*	app-shell-seam
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
@@ -475,6 +480,7 @@ M	MetalUITextSystem	.*	.*	.*	.*	text-system
 M	MetalUIFreeType	.*	.*	.*	.*	portable-text
 M	MetalUIHarfBuzz	.*	.*	.*	.*	portable-text
 M	MetalUIPortableText	.*	.*	.*	.*	portable-text
+M	MetalUISystemFonts	SystemFonts.swift	SystemFonts	designFamilies	.*	design-families
 M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
 M	MetalUIDemoContent	DemoIcon.swift	.*	.*	.*	app-icon
 M	MetalUIDemoContent	.*	.*	.*	.*	demo-content

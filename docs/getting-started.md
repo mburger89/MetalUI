@@ -105,9 +105,19 @@ let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
 // the app target's dependencies:
 .product(name: "MetalUI", package: "MetalUI"),
 .product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
-.product(name: "MetalUIPortableText", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
-.product(name: "MetalUISystemFonts", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
+.product(name: "MetalUIPortableText", package: "MetalUI"),
+.product(name: "MetalUISystemFonts", package: "MetalUI"),
 ```
+
+`MetalUIPortableText` and `MetalUISystemFonts` are named on every platform,
+not only Linux and Windows (ruling `SG-D`): with the condition, SwiftPM's
+default build system on macOS drops their C modules' module maps from a test
+target that names them too, and `swift build --build-tests` fails with
+`error: unable to resolve module dependency: 'CFreeType'` (and `CHarfBuzz`,
+`CSheenBidi`, `CUnibreak`; the native build system builds it). Both are
+portable, so they build on macOS; a macOS app links them unused (2.15 MB of a
+release binary, measured: 10 706 552 bytes against 8 554 184 with the
+condition).
 
 Forgetting `traits:` leaves `MetalUISDL` an empty module whose `SDLPlatform`
 is unavailable with the remedy as its message ("'SDLPlatform' is unavailable:

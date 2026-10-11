@@ -420,6 +420,14 @@ AppKit menu bar, `.popover(isPresented:/item:arrowEdge:content:)` and `.help` on
 vocabularies — a secondary press never presses a `Button` (divergence 110). The real
 looks are `docs/verification/human-checks.md` group R, unrun.
 `METALUI_MENUS_DEMO=1 swift run MetalUIDemo` is its demo.
+**On Linux and Windows an app that declares `commands` draws its menu bar** inside every
+window (user request 2026-10-02, not a plan task; record §89, divergence 195):
+`Platform.setMenuBar(_:)` answers whether the platform shows one, and where it does not a
+25-point bar above the toolbar strip opens the same menus on a click or F10.
+`EventModifiers.primary` (⌘ on Apple, Ctrl elsewhere) is the default shortcut modifier,
+`Window.drawnChromeHeight` reads the chrome MetalUI draws, and `SystemFonts.resolver()` registers
+the platform's monospaced and serif families. The real looks are
+`docs/verification/human-checks.md` group SG, unrun.
 **Colour and colour scheme** (user request 2026-10-02, not a plan task; record §75):
 `Color` is SwiftUI's value — `Color(red:green:blue:)`, `Color(white:)`, the named
 statics, `.opacity(_:)`, `Color(light:dark:)` and an app palette in the theme
