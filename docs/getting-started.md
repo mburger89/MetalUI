@@ -21,10 +21,23 @@ MyApp/
   Package.swift                  depends on MetalUI (git URL, pinned to one commit)
   Sources/MyApp/main.swift       App(), one window, app.run()
   Sources/MyApp/ContentView.swift  a Component with @State and a Button
+  Tests/MyAppTests/MyAppTests.swift  presses the Button headless (`swift test`)
   Packaging/macOS/Info.plist     identifier com.example.MyApp (--bundle-id)
   scripts/bundle-macos.sh        → build/MyApp.app
   README.md, .gitignore
 ```
+
+## Testing the interface
+
+`swift test` runs `Tests/MyAppTests`: it opens `rootView()` in a headless
+window through MetalUI's test harness (`MetalUITesting`, ruling `HT-O`),
+clicks the button by its accessibility label and reads the text it changes —
+no screen and no real window, so it runs in CI. A cross-platform package's
+test passes the portable text system over the installed fonts on Linux and
+Windows, as `main.swift` does. [`testing.md`](testing.md) covers the rest:
+input, queries, alerts, menus, the clock and counting a frame's work. Because
+of the test target, `Testing` is a refused name (`HT-V`), beside
+`MetalUITesting` (refused by the `MetalUI` prefix).
 
 ## Which MetalUI the app gets
 
@@ -105,9 +118,19 @@ let metalUITraits: Set<Package.Dependency.Trait> = [.defaults]
 // the app target's dependencies:
 .product(name: "MetalUI", package: "MetalUI"),
 .product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
-.product(name: "MetalUIPortableText", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
-.product(name: "MetalUISystemFonts", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),
+.product(name: "MetalUIPortableText", package: "MetalUI"),
+.product(name: "MetalUISystemFonts", package: "MetalUI"),
 ```
+
+`MetalUIPortableText` and `MetalUISystemFonts` are named on every platform,
+not only Linux and Windows (ruling `SG-D`): with the condition, SwiftPM's
+default build system on macOS drops their C modules' module maps from a test
+target that names them too, and `swift build --build-tests` fails with
+`error: unable to resolve module dependency: 'CFreeType'` (and `CHarfBuzz`,
+`CSheenBidi`, `CUnibreak`; the native build system builds it). Both are
+portable, so they build on macOS; a macOS app links them unused (2.15 MB of a
+release binary, measured: 10 706 552 bytes against 8 554 184 with the
+condition).
 
 Forgetting `traits:` leaves `MetalUISDL` an empty module whose `SDLPlatform`
 is unavailable with the remedy as its message ("'SDLPlatform' is unavailable:

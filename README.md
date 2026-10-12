@@ -158,6 +158,8 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
   vocabulary, and every breaking change since 2026-09-12.
 - [`docs/verification/human-checks.md`](docs/verification/human-checks.md) —
   the looks only a person can check (not yet run).
+- [`docs/testing.md`](docs/testing.md) — testing an app's interface headlessly
+  with `MetalUITesting`.
 - [`docs/packaging.md`](docs/packaging.md) — shipping an application with its
   icon (macOS `.app`, Linux `.desktop`, Windows `.ico`); build-side, not
   framework API.
@@ -420,6 +422,14 @@ AppKit menu bar, `.popover(isPresented:/item:arrowEdge:content:)` and `.help` on
 vocabularies — a secondary press never presses a `Button` (divergence 110). The real
 looks are `docs/verification/human-checks.md` group R, unrun.
 `METALUI_MENUS_DEMO=1 swift run MetalUIDemo` is its demo.
+**On Linux and Windows an app that declares `commands` draws its menu bar** inside every
+window (user request 2026-10-02, not a plan task; record §89, divergence 195):
+`Platform.setMenuBar(_:)` answers whether the platform shows one, and where it does not a
+25-point bar above the toolbar strip opens the same menus on a click or F10.
+`EventModifiers.primary` (⌘ on Apple, Ctrl elsewhere) is the default shortcut modifier,
+`Window.drawnChromeHeight` reads the chrome MetalUI draws, and `SystemFonts.resolver()` registers
+the platform's monospaced and serif families. The real looks are
+`docs/verification/human-checks.md` group SG, unrun.
 **Colour and colour scheme** (user request 2026-10-02, not a plan task; record §75):
 `Color` is SwiftUI's value — `Color(red:green:blue:)`, `Color(white:)`, the named
 statics, `.opacity(_:)`, `Color(light:dark:)` and an app palette in the theme
@@ -487,6 +497,15 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Test harness** (user request 2026-10-02, item 8 of the gpui-gap list, MetalCreator's M6-e, M7-b and
+TH-a, not a plan task; record §91): the portable library product `MetalUITesting` opens an app's real
+root in a real `Window` over a headless platform (`TestApp`, `TestWindow`), with XCUITest's input names
+(`click`, `typeText`, `scroll`, `drag`), a simulated clock and `runUntilIdle()`, accessibility and
+laid-out-frame queries, alerts, menus, the toolbar and the menu bar answered at the platform seam, and
+per-frame work counters for benchmarks that count work. It runs on macOS, Linux and Windows from
+swift-testing or XCTest; `metalui new` generates a test target over it. SwiftUI tests out of process,
+so it is MetalUI-only; it paints no pixels. Guide: [`docs/testing.md`](docs/testing.md). Human checks:
+group HT (two platform measurements), unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

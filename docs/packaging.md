@@ -323,6 +323,56 @@ compiled shaders as `MetalUISDLShaders`, copied from
 (section 4 above, ruling `PX-P`). AccessKit is a static library and ships
 inside the executable. No command here was run on Windows (human check X4).
 
+### 4. Release builds and the asserts compiler — verified on macOS with an asserts snapshot
+
+Windows CI installs Swift **6.4.0+Asserts**: a compiler built with assertions,
+which runs SIL verifiers that the macOS and Linux release compilers skip. One of
+them, `verifyLexicalLowering` in `TypeLowering.cpp` ("Found non-trivial lexical
+leaf in non-trivial non-lexical type?!"), crashed a release build of the SMK
+configurator on Windows ARM64 (gap MG-27) and MetalUI's own looks demo in CI
+(`LK-X`), while emitting a `Component`'s `prepaintGroup` witness. The shape: a
+`Component` whose content holds — beside other content, or as one branch of an
+`if`/`else` or a `switch` — a nested `Component` whose own content is a loop
+(`ForEach` or `for`). Nothing on macOS or Linux reports it.
+
+**Fixed in MetalUI** (ruling `SG-E`): a `Component`'s prepaint record is one
+heap box (`ComponentPrepaint`), so an enclosing record no longer holds the
+loop's `Array` through an opaque type. With the box, both shapes compile under
+the asserts snapshot in debug and release; MetalUI's own demo content and the
+Windows-portable targets build under it too. Nothing to change in an app.
+
+**The compiler bug remains** for code with its own protocols of the same shape
+(a protocol extension's witness returning an associated type of an opaque
+`some P` content, whose underlying record holds an `Array`, `String`, `Set`,
+`Dictionary` or `Substring`) — the reduction and the upstream report are in
+`SG-E`. On a MetalUI checkout *before* the box, or for such code, the
+workaround is `LK-X`'s: make the looping member a `@MainActor` function
+returning `some Element`/`some ElementGroup` instead of a nested `Component`
+(it gives up the member's own identity level and `@State`).
+`-Xswiftc -Xfrontend -Xswiftc -enable-lexical-lifetimes=false` does **not**
+avoid it (MG-27, and measured on the reduction); `-Xswiftc -Xllvm -Xswiftc
+-sil-verify-none` does on the reduction (it disables the verifier; measured on
+macOS only, not on Windows).
+
+**Checking with an asserts toolchain on macOS.** Install a swift.org
+development snapshot (its compiler is built with assertions) and select it by
+bundle identifier:
+
+```sh
+TOOLCHAINS=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" \
+  ~/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a.xctoolchain/Info.plist) \
+  swift build -c release --scratch-path .build-asserts
+```
+
+(A separate `--scratch-path` keeps the everyday build directory.) MetalUI's
+guard does this against a scratch package:
+`METALUI_RUN_ASSERTS_COMPILER_TEST=1 swift test --filter
+theComponentSwitchShapeAgainstAnAssertsCompiler` (toolchain path in
+`METALUI_ASSERTS_TOOLCHAIN`). **Verified** on macOS 27 with that snapshot
+(Swift 6.5-dev). **Unverified** on Windows: the guard finds `swift.exe` on `PATH` there and
+launches it directly (it compiles, but has never run), and the UTM VM did not
+answer on 2026-10-10 (human check SG6).
+
 ## Documents and URLs an application opens (app shell)
 
 **Build-side too** (ruling `AS-G` items 5–6, `AS-M`,

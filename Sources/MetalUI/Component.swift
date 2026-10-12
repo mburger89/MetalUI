@@ -143,6 +143,41 @@ public struct ComponentLayout<C: Component> {
     }
 }
 
+/// What a `Component`'s `prepaintGroup` hands to `paintGroup`: its content's
+/// prepaint record, in **one heap box** (ruling `SG-E`, MG-27, `LK-X`).
+///
+/// Held inline (the content's own `GroupPrepaint`), an enclosing record — a
+/// `Column`'s, a builder `switch`'s — held the inner content's type through
+/// its opaque `some ElementGroup`, and when that content was a loop (an
+/// `Array`, which the standard library marks eager-move) Swift's SIL
+/// type-lowering verifier (`verifyLexicalLowering`, "Found non-trivial
+/// lexical leaf in non-trivial non-lexical type?!") crashed every compiler
+/// built with assertions — Windows CI's 6.4.0+Asserts and the development
+/// snapshots — while emitting the enclosing `Component`'s `prepaintGroup`
+/// witness. Boxed, the enclosing record holds a class reference. A plain
+/// struct wrapper does not cure it (measured, `SG-E`). The cost is one
+/// allocation per `Component` per painted frame, as `ComponentLayout`'s box
+/// (`PE-J`). A prepaint record is made fresh each frame and owned by that
+/// frame, so the box is never shared by two independent copies.
+public struct ComponentPrepaint<C: Component> {
+    /// The heap box, mutated in place by `withPrepaint(_:)`.
+    final class Storage {
+        var prepaint: C.Content.GroupPrepaint
+        init(_ prepaint: C.Content.GroupPrepaint) { self.prepaint = prepaint }
+    }
+
+    let storage: Storage
+
+    init(_ prepaint: C.Content.GroupPrepaint) {
+        storage = Storage(prepaint)
+    }
+
+    /// Runs `body` on the boxed record in place — `paintGroup` writes into it.
+    func withPrepaint<R>(_ body: (inout C.Content.GroupPrepaint) -> R) -> R {
+        body(&storage.prepaint)
+    }
+}
+
 extension Component {
     public var elementID: ElementID? { nil }
 
@@ -301,15 +336,17 @@ extension Component {
 
     public mutating func prepaintGroup(layout: inout ComponentLayout<Self>,
                                        pass: inout PrepaintPass)
-        -> Content.GroupPrepaint {
-        layout.withPayload { $0.content.prepaintGroup(layout: &$0.contentLayout, pass: &pass) }
+        -> ComponentPrepaint<Self> {
+        ComponentPrepaint(layout.withPayload { $0.content.prepaintGroup(layout: &$0.contentLayout, pass: &pass) })
     }
 
     public mutating func paintGroup(layout: inout ComponentLayout<Self>,
-                                    prepaint: inout Content.GroupPrepaint,
+                                    prepaint: inout ComponentPrepaint<Self>,
                                     pass: inout PaintPass) {
-        layout.withPayload { $0.content.paintGroup(layout: &$0.contentLayout,
-                                                   prepaint: &prepaint, pass: &pass) }
+        layout.withPayload { payload in
+            prepaint.withPrepaint { payload.content.paintGroup(layout: &payload.contentLayout,
+                                                               prepaint: &$0, pass: &pass) }
+        }
     }
 }
 

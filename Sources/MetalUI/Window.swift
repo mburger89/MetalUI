@@ -675,6 +675,11 @@ public final class Window {
     /// with the content's own minimum under `.contentMinSize`/`.contentSize`
     /// (the larger wins). A negative axis counts as 0; NaN traps. Applied at
     /// once: a window smaller than it is resized to it.
+    ///
+    /// Where MetalUI draws chrome above the root (``drawnChromeHeight``, the
+    /// SDL toolbar strip) the minimum is the content's below it — the
+    /// platform receives the height plus the chrome — as AppKit's
+    /// `contentMinSize` excludes its toolbar (ruling `SG-F` item 2).
     public var minSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(minSize, "minSize")
@@ -686,7 +691,8 @@ public final class Window {
     /// points; `nil`, the default, sets none (ruling `SV-L`). An infinite axis
     /// is no limit on that axis; one below the minimum is raised to it; NaN
     /// traps. Combined with the content's maximum under `.contentSize` (the
-    /// smaller wins).
+    /// smaller wins). Measured below drawn chrome as ``minSize`` is (an
+    /// infinite height stays unbounded; `SG-F` item 2).
     public var maxSize: Size<Pixels>? {
         didSet {
             ContentSizeLimits.requireNotNaN(maxSize, "maxSize")
@@ -742,6 +748,19 @@ public final class Window {
     /// (`MD-K` item 5).
     private var lastBuildDrewToolbarStrip = false
 
+    /// The height MetalUI draws above the root in this window, in window
+    /// points (ruling `SG-F` item 1): the drawn menu bar (`SG-A`, 25 — on a
+    /// platform whose `setMenuBar` declines, SDL, in an app that declared
+    /// `commands`) plus the drawn toolbar strip below it (`MD-K`, 39 — where
+    /// `setToolbar` declines) as the last adopted frame laid them out: 0, 25,
+    /// 39 or 64. **0** where the platform shows its own bar and toolbar
+    /// (AppKit), with neither, and before the first frame. The root is laid
+    /// out in the rect below it, and an explicit ``minSize``/``maxSize`` is a
+    /// size of that rect. Read-only; MetalUI-only.
+    public var drawnChromeHeight: Pixels { Pixels(drawnChromeHeightValue) }
+    /// `drawnChromeHeight`'s value, set when a frame is adopted.
+    private var drawnChromeHeightValue: Float = 0
+
     /// Every `onResize` the platform delivered — read by `drawFrameIfNeeded`
     /// so a resize arriving inside its builds (a content limit the platform
     /// resized into, `SV-AG` item 3) still owes the next frame after a
@@ -761,12 +780,24 @@ public final class Window {
     /// that never change reach the platform once — and none, never.
     private func reconcileContentSizeLimits() {
         guard !isApplyingSizing else { return }
-        let effective = ContentSizeLimits.effective(minimum: minSize, maximum: maxSize,
+        // An explicit limit is the content's below the drawn chrome (SG-F
+        // item 2); the content's own limits already include it
+        // (`Frame.computeRootLayout`).
+        let effective = ContentSizeLimits.effective(minimum: belowDrawnChrome(minSize),
+                                                    maximum: belowDrawnChrome(maxSize),
                                                     contentMinimum: contentLimits.minimum,
                                                     contentMaximum: contentLimits.maximum)
         guard effective != appliedContentSizeLimits else { return }
         appliedContentSizeLimits = effective
         platformWindow.setContentSizeLimits(minimum: effective.minimum, maximum: effective.maximum)
+    }
+
+    /// `size` with ``drawnChromeHeight`` added to a finite, non-negative
+    /// height (a negative one counts as 0, as `ContentSizeLimits` clamps it);
+    /// unchanged with no drawn chrome.
+    private func belowDrawnChrome(_ size: Size<Pixels>?) -> Size<Pixels>? {
+        guard let size, drawnChromeHeightValue > 0, size.height.value.isFinite else { return size }
+        return Size(width: size.width, height: Pixels(max(size.height.value, 0) + drawnChromeHeightValue))
     }
 
     init<Root: Element>(platformWindow: any PlatformWindow,
@@ -1089,6 +1120,13 @@ public final class Window {
             // before Tab traversal. **Migration**: a key a command binds no
             // longer reaches Tab traversal or the window's own `onInput`.
             if self.dispatchCommandShortcut(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // F10 opens the drawn menu bar's first menu (ruling `SG-A` item
+            // 8): an unclaimed-key stage after the commands, beside Tab
+            // traversal — every earlier stage sees the key first.
+            if self.dispatchMenuBarKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1699,12 +1737,20 @@ public final class Window {
         frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
         frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
         frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
+        if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
+            frame.menuBarOpenIndex = session.barIndex
+        }
+        frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
             // phases is tracked too, which is what makes an `@Observable`
             // model a dependency with no opt-in.
             _ = redrawSentinel.tick
+            // The drawn menu bar's titles, evaluated for every build (`SG-A`
+            // item 9) and inside the tracking, so a command's `@Observable`
+            // read redraws the window as the tree's does. Writes nothing.
+            frame.menuBarTitles = drawnMenuBarSource?.titles()
             renderRoot(frame)
         } onChange: { [weak self] in
             self?.markDirtyFromObservation()
@@ -1724,6 +1770,10 @@ public final class Window {
         adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
         assembledToolbar = AssembledToolbar(records: frame.toolbarRecords)   // MD-I item 5, MD-J item 4
         lastBuildDrewToolbarStrip = frame.drewToolbarStrip   // MD-K item 5
+        drawnChromeHeightValue = (frame.drewToolbarStrip ? ToolbarStrip.height : 0)
+            + (frame.drewMenuBar ? MenuBarStrip.height : 0)   // SG-F item 1
+        lastMenuBarTitles = frame.drewMenuBar ? frame.menuBarTitles ?? [] : []   // SG-A
+        lastMenuBarTitleFrames = frame.drewMenuBar ? frame.menuBarTitleFrames : []
         lastElementBounds = frame.elementBounds
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
@@ -1806,8 +1856,10 @@ public final class Window {
         // `onResize` and dirties the window for the next frame.
         if windowResizability != .automatic {
             contentLimits = ContentSizeLimits(minimum: frame.contentMinimum, maximum: frame.contentMaximum)
-            reconcileContentSizeLimits()
         }
+        // Also when only the drawn chrome changed (SG-F item 3); a pair equal
+        // to the last one sent sends nothing.
+        reconcileContentSizeLimits()
         onFrameAdopted?(frame)
         return (frame, scene)
     }
@@ -2236,6 +2288,40 @@ public final class Window {
     /// Hitboxes the pointer-style recomputes visited, ever — test observability
     /// for the counted work (test 3.25).
     var pointerStyleVisits = 0
+
+    /// What this window draws its menu bar from (ruling `SG-A` item 2): set
+    /// by `App.openWindow`; `nil` for a window built without an `App`, whose
+    /// source's titles are `nil` while the platform shows the bar or no
+    /// commands are declared.
+    var drawnMenuBarSource: DrawnMenuBarSource?
+
+    /// The drawn bar's titles and their rects as the last adopted frame laid
+    /// them out — empty with no bar (`SG-A` items 5, 8).
+    var lastMenuBarTitles: [String] = []
+    var lastMenuBarTitleFrames: [Bounds<Pixels>] = []
+
+    /// Delivers a drawn standard Edit item as its own key through this
+    /// window's key pipeline, from input (`SG-A` item 4, `SG-H` item 2) —
+    /// the seven keys `AppKitMenus.deliverEditKey` delivers on AppKit:
+    /// primary + Z, primary + ⇧Z, primary + X/C/V/A, and Delete as `\u{7f}`
+    /// with no modifiers — so a focused field handles both bars' Edit items
+    /// through one path.
+    func deliverStandardEditKey(_ action: StandardMenuAction) {
+        let key: String
+        let modifiers: Modifiers
+        switch action {
+        case .undo: (key, modifiers) = ("z", .primary)
+        case .redo: (key, modifiers) = ("z", [.primary, .shift])
+        case .cut: (key, modifiers) = ("x", .primary)
+        case .copy: (key, modifiers) = ("c", .primary)
+        case .paste: (key, modifiers) = ("v", .primary)
+        case .selectAll: (key, modifiers) = ("a", .primary)
+        case .delete: (key, modifiers) = ("\u{7f}", [])
+        default: return
+        }
+        _ = platformWindow.onInput?(.keyDown(KeyEvent(charactersIgnoringModifiers: key, characters: key,
+                                                      modifiers: modifiers, timestamp: lastTick)))
+    }
 
     /// The app's enabled command shortcuts, in menu order (ruling `MN-J`):
     /// set by `App.openWindow`, re-evaluated at each keystroke reaching the

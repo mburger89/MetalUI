@@ -38,6 +38,11 @@ the minimum, following the content), `.contentSize` (adds its answer at an
 infinite proposal as the maximum). `.automatic` asks the content nothing
 (divergence 126). The platform receives the effective limits through
 `PlatformWindow.setContentSizeLimits(minimum:maximum:)` only when they change.
+`Window.drawnChromeHeight` (M, read-only, `SG-F`) is the height MetalUI draws above
+the root — the menu bar's 25 plus the toolbar strip's 39 — and 0 where the platform
+shows its own; an explicit `minSize`/`maxSize` is the content's size **below** it
+(AppKit's `contentMinSize` excludes its toolbar too), so the platform receives the
+height plus the chrome.
 
 ## Elements — M
 
@@ -176,7 +181,10 @@ text styles, custom families), `Font.Weight`, `Font.Design`, `Font.TextStyle`,
 `.multilineTextAlignment` (60, 86, 87). Text is measured and drawn through
 one `TextSystem` chosen per app: CoreText on Apple (`MetalUIText`), the
 portable FreeType/HarfBuzz pipeline elsewhere (`MetalUIPortableText`,
-`MetalUISystemFonts`) — M.
+`MetalUISystemFonts`) — M. `SystemFonts.designFamilies` (M, `SG-C`) names the
+platform's monospaced and serif families per `FontDesign`, and `SystemFonts.resolver()`
+registers the first installed one of each lazily (a name; no face is read until a
+request resolves); `.rounded` off Apple resolves to the default face.
 
 **Rich text** (rulings `RT-A`…, record §83): styled runs inside one `Text`
 on both text systems. A string literal parses SwiftUI's inline Markdown
@@ -310,7 +318,10 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `Gesture`, `TapGesture`, `LongPressGesture`, `DragGesture`,
 `.exclusively(before:)`, `.simultaneously(with:)`, `.gesture`,
 `.simultaneousGesture`, `.highPriorityGesture`, `.onTapGesture`,
-`.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A);
+`.onLongPressGesture` (A); `KeyEquivalent`, `KeyboardShortcut` (A) — their default
+modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
+elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
+no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
@@ -518,8 +529,9 @@ below itself, published as a menu button.
 with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
 Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
-`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL draws no bar;
-command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
+`Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL's `setMenuBar` answers
+`false`, so every window draws the bar itself: a 25-point strip across its top, above a drawn
+toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcuts fire through the same window shortcut pipeline as a `Button`'s.
 
 **Popovers (A / D 111, 112, 115).** `.popover(isPresented:arrowEdge:content:)` and
 `.popover(item:arrowEdge:content:)`: anchored to the declaring element, placed on
@@ -733,6 +745,22 @@ backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient
 `Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
 `phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
 deferral (`LK-A`).
+
+## Testing — M
+
+`MetalUITesting` (a library product for test targets, portable; rulings
+`HT-A`…, [`superpowers/2026-10-09-test-harness-decisions.md`](superpowers/2026-10-09-test-harness-decisions.md)):
+`TestApp` and `TestWindow` run the real `App` and `Window` over
+`HeadlessPlatform`/`HeadlessPlatformWindow`/`HeadlessWindowRenderer`, with a
+simulated clock (`tick`, `advance(by:)`, `advanceFrames`, `runUntilIdle`),
+input by point and by element in XCUITest's names (`click`, `typeText`,
+`scroll`, `drag`, …), accessibility queries (`element(label:)`,
+`element(identifier:)`, `elements(role:)`, `TestElement`), laid-out frames
+(`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
+`chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
+`MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
+that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
+How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M
 

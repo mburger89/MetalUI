@@ -101,7 +101,7 @@ func aNameOnlyBackendsSDLDeclaresGenerates(_ name: String) throws {
 /// SC-H: module lookup is case-sensitive even on case-insensitive APFS — each
 /// of these built (record §72 §6.3) — and a keyword is a valid module name.
 @Test(arguments: ["foundation", "appkit", "metal", "swift", "SWIFT", "coretext", "observation", "cfreetype",
-                  "MetalKit", "SwiftUI", "XCTest", "Testing", "Cocoa", "Accelerate", "class", "func", "Self",
+                  "MetalKit", "SwiftUI", "XCTest", "Cocoa", "Accelerate", "class", "func", "Self",
                   "ReplayFixtureTests", "Distributed", "RegexBuilder"])
 func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     try validateName(name)
@@ -147,7 +147,7 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
 @Test func theDefaultPackageIsMacOSOnlyAndDependsOnTheRepositoryByGitURL() throws {
     let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp"))
     #expect(files.map(\.path) == ["Package.swift", "Sources/MyApp/main.swift", "Sources/MyApp/ContentView.swift",
-                                  ".gitignore", "README.md", "Packaging/macOS/Info.plist",
+                                  "Tests/MyAppTests/MyAppTests.swift", ".gitignore", "README.md", "Packaging/macOS/Info.plist",
                                   "scripts/bundle-macos.sh"])
     let manifest = try file("Package.swift", in: files).contents
     #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", branch: "master"),"#))
@@ -158,6 +158,66 @@ func aLookAlikeOfARefusedNameIsAccepted(_ name: String) throws {
     #expect(main.contains("let app = try App()"))
     #expect(main.contains(#"title: "MyApp""#))
     #expect(!main.contains("SDL"))
+}
+
+/// 3.9 (ruling `HT-O`): every generated package has a test target over the
+/// public harness — `Tests/<Name>Tests`, depending on the app's executable
+/// target and `MetalUITesting`, with one swift-testing test that clicks the
+/// starter's button by its label and reads the label it changes. A
+/// cross-platform package's test passes the portable text system over the
+/// installed fonts off Apple, as its `main.swift` does. Mutation: drop the
+/// test file from `scaffoldFiles`.
+@Test func aGeneratedPackageHasATestTargetOverTheHarness() throws {
+    for crossPlatform in [false, true] {
+        let files = try scaffoldFiles(ScaffoldOptions(name: "MyApp", crossPlatform: crossPlatform))
+        let manifest = try file("Package.swift", in: files).contents
+        #expect(manifest.contains(".testTarget(\n"), "\(manifest)")
+        #expect(manifest.contains(#"name: "MyAppTests","#), "\(manifest)")
+        #expect(manifest.contains(#"                "MyApp","#), "the app's executable target:\n\(manifest)")
+        #expect(manifest.contains(#".product(name: "MetalUITesting", package: "MetalUI"),"#), "\(manifest)")
+        let test = try file("Tests/MyAppTests/MyAppTests.swift", in: files).contents
+        #expect(test.contains("import Testing\n"))
+        #expect(test.contains("import MetalUITesting\n"))
+        #expect(test.contains("@testable import MyApp\n"))
+        #expect(test.contains(#"try window.click(window.element(label: "Press me"))"#))
+        #expect(test.contains(#"window.element(label: "pressed 1 times")"#))
+        #expect(test.contains("PortableTextSystem") == crossPlatform, "\(test)")
+        let readme = try file("README.md", in: files).contents
+        #expect(readme.contains("## Test the interface\n"), "\(readme)")
+    }
+    // A keyword is imported in backticks (`HT-V`: measured, `class`, `func`
+    // and `Self` fail unescaped). Mutation: never escape.
+    for keyword in ["class", "func", "Self"] {
+        let test = try file("Tests/\(keyword)Tests/\(keyword)Tests.swift",
+                            in: try scaffoldFiles(ScaffoldOptions(name: keyword))).contents
+        #expect(test.contains("@testable import `\(keyword)`\n"), "\(test)")
+    }
+}
+
+/// 3.10 (ruling `HT-O`, `SC-H`), measured 2026-10-10 on macOS by generating
+/// a `--local` package and renaming it by hand (record §91): a package named
+/// `MetalUITesting` fails at graph load —
+///
+///     error: multiple packages ('probe', 'test-harness') declare targets with
+///     a conflicting name: 'MetalUITesting'; target names need to be unique
+///     across the package graph
+///
+/// — and is refused by the `MetalUI` prefix. Since the generated test target,
+/// a package named `Testing` passes `swift build` and fails
+/// `swift build --build-tests` in a fresh build directory (`unknown attribute
+/// 'Test'`: the test file's `import Testing` reaches the app's own module), so
+/// it left the look-alike list for the refusal set (`HT-V`; `XCTest` built and
+/// its test passed, and stays accepted). Mutations: drop the `MetalUI` prefix
+/// refusal; drop the `Testing` entry.
+@Test func metalUITestingIsARefusedName() {
+    #expect(throws: ScaffoldError.invalidName(
+        "MetalUITesting", reason: "names starting with MetalUI collide with the framework's modules")) {
+        try validateName("MetalUITesting")
+    }
+    #expect(throws: ScaffoldError.invalidName(
+        "Testing", reason: "the generated test target imports Testing, and an app module of that name shadows it")) {
+        try validateName("Testing")
+    }
 }
 
 @Test func aLocalCheckoutIsAPathDependencyNamedByItsDirectory() throws {
@@ -193,8 +253,8 @@ private let traitsBlock = """
     #expect(manifest.contains(#".package(url: "https://github.com/mburger89/MetalUI.git", branch: "master", traits: metalUITraits),"#))
     let portable = "condition: .when(platforms: [.linux, .windows])"
     #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable + ")"))
-    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable + ")"))
-    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable + ")"))
+    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI"),"#), "unconditional (SG-D)")
+    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI"),"#), "unconditional (SG-D)")
     #expect(manifest.components(separatedBy: ".package(").count == 2, "one dependency:\n\(manifest)")
     // A pinned revision carries the traits too.
     let pinnedManifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
@@ -219,8 +279,8 @@ private let traitsBlock = """
     #expect(!manifest.contains("Backends/SDL"))
     let portable = "condition: .when(platforms: [.linux, .windows])"
     #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", "# + portable))
-    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI", "# + portable))
-    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI", "# + portable))
+    #expect(manifest.contains(#".product(name: "MetalUIPortableText", package: "MetalUI"),"#), "unconditional (SG-D)")
+    #expect(manifest.contains(#".product(name: "MetalUISystemFonts", package: "MetalUI"),"#), "unconditional (SG-D)")
     let main = try file("Sources/MyApp/main.swift", in: files).contents
     #expect(main.contains("#if canImport(MetalUISDL)"))
     #expect(main.contains("App(platform: try SDLPlatform(), textSystem: { PortableTextSystem(resolver: resolver) })"))
@@ -554,25 +614,113 @@ private func noLookup(_ url: String) -> PinLookup {
     #expect(FileManager.default.fileExists(atPath: destination + "/Sources/MyApp/main.swift"))
 }
 
+// MARK: - SMK port gaps, lane 1: the portable-text products (ruling `SG-D`)
+
+/// **1.8** (`SG-D` item 1). The cross-platform manifest names
+/// `MetalUIPortableText` and `MetalUISystemFonts` on every platform — no
+/// `condition:` — so a test target naming them builds on macOS under the
+/// default build system (SwiftPM drops the C modules of a product an
+/// executable reaches conditionally from the test target's module maps:
+/// `unable to resolve module dependency: 'CFreeType'`); `MetalUISDL` keeps its Linux/Windows condition. Red
+/// before: the two products carry the condition. Mutation: restore it —
+/// reddens.
+@Test func theCrossPlatformManifestNamesThePortableTextProductsOnEveryPlatform() throws {
+    for source in [MetalUISource.local(path: "/src/MetalUI"), .remote(url: "https://github.com/mburger89/MetalUI.git",
+                                                                     reference: .revision(pinned))] {
+        let manifest = try file("Package.swift", in: try scaffoldFiles(ScaffoldOptions(
+            name: "MyApp", source: source, crossPlatform: true))).contents
+        #expect(manifest.contains(#"                .product(name: "MetalUIPortableText", package: "MetalUI"),\#n"#))
+        #expect(manifest.contains(#"                .product(name: "MetalUISystemFonts", package: "MetalUI"),\#n"#))
+        #expect(manifest.contains(#".product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows])),"#))
+        #expect(manifest.components(separatedBy: "condition:").count == 2, "one conditional product:\n\(manifest)")
+        #expect(manifest.contains("SG-D"), "the manifest says why, naming the ruling")
+    }
+}
+
+/// **1.9** (`SG-D` item 3; env-gated `METALUI_RUN_SCAFFOLD_BUILD_TEST=1`, a
+/// full second build of MetalUI; counts while skipped). A copy of a
+/// `--cross-platform --local` package gains a test target naming both
+/// portable-text products and constructing a `PortableTextSystem`; on macOS
+/// `swift build --build-tests` (the default build system) exits 0 and prints
+/// no `warning:` line. Red before: with the condition it fails with
+/// `error: unable to resolve module dependency: 'CFreeType'` (and `CHarfBuzz`,
+/// `CSheenBidi`, `CUnibreak`; measured 2026-10-09, record §89).
+/// Mutation: restore the condition — reddens under the env run.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_SCAFFOLD_BUILD_TEST"] == "1"))
+func aCrossPlatformPackagesTestTargetBuildsOnMacOS() throws {
+    #if os(macOS)
+    let root = try scratchDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = try scaffoldFiles(ScaffoldOptions(name: "Smoke", source: .local(path: checkout.path), crossPlatform: true))
+    let destination = root.appendingPathComponent("Smoke")
+    try writeScaffold(files, to: destination)
+    let manifestURL = destination.appendingPathComponent("Package.swift")
+    var manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+    let package = checkout.lastPathComponent
+    let anchor = "        ),\n    ],\n    swiftLanguageModes"
+    try #require(manifest.contains(anchor), "the generated targets list ends as expected:\n\(manifest)")
+    manifest = manifest.replacingOccurrences(of: anchor, with: """
+                ),
+                .testTarget(
+                    name: "SmokeTests",
+                    dependencies: [
+                        "Smoke",
+                        .product(name: "MetalUIPortableText", package: "\(package)"),
+                        .product(name: "MetalUISystemFonts", package: "\(package)"),
+                    ]
+                ),
+            ],
+            swiftLanguageModes
+        """)
+    try manifest.write(to: manifestURL, atomically: true, encoding: .utf8)
+    let tests = destination.appendingPathComponent("Tests/SmokeTests")
+    try FileManager.default.createDirectory(at: tests, withIntermediateDirectories: true)
+    try """
+        import Testing
+        import MetalUIPortableText
+        import MetalUISystemFonts
+
+        @Test @MainActor func aPortableTextSystemBuilds() throws {
+            _ = PortableTextSystem(resolver: try SystemFonts.resolver())
+        }
+
+        """.write(to: tests.appendingPathComponent("SmokeTests.swift"), atomically: true, encoding: .utf8)
+    let (status, output) = try run("swift", ["build", "--build-tests"], in: destination)
+    print("1.9 test-target build: status=\(status)\n\(output.suffix(2000))")
+    #expect(status == 0, "\(output)")
+    let warnings = output.split(separator: "\n").filter { $0.contains("warning:") }
+    #expect(warnings.isEmpty, "\(warnings)")
+    #endif
+}
+
 // MARK: - End to end (env-gated: builds MetalUI a second time)
 
-/// A generated package resolves against this checkout and compiles. Off by
-/// default — it is a full second build of MetalUI, minutes long. Counts
-/// while skipped.
+/// 3.11 (ruling `HT-O`, extended from SC-A's): a generated package resolves
+/// against this checkout, compiles, builds its tests and **runs** them — the
+/// generated test clicks the starter's button through `MetalUITesting` — with
+/// and without `--cross-platform` (on macOS the cross-platform package takes
+/// its CoreText arm). Off by default — each package is a full second build of
+/// MetalUI, minutes long. Counts while skipped.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_SCAFFOLD_BUILD_TEST"] == "1"))
 func aGeneratedPackageBuildsAgainstThisCheckout() throws {
     #if os(macOS) || os(Linux)
     let root = try scratchDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    let files = try scaffoldFiles(ScaffoldOptions(name: "Smoke", source: .local(path: checkout.path)))
-    let destination = root.appendingPathComponent("Smoke")
-    try writeScaffold(files, to: destination)
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["swift", "build", "--package-path", destination.path]
-    try process.run()
-    process.waitUntilExit()
-    #expect(process.terminationStatus == 0)
+    for (name, crossPlatform) in [("Smoke", false), ("SmokeXP", true)] {
+        let files = try scaffoldFiles(ScaffoldOptions(name: name, source: .local(path: checkout.path),
+                                                      crossPlatform: crossPlatform))
+        let destination = root.appendingPathComponent(name)
+        try writeScaffold(files, to: destination)
+        for arguments in [["build"], ["build", "--build-tests"], ["test", "--skip-build"]] {
+            let (status, output) = try run("swift", arguments, in: destination)
+            print("3.11 \(name) swift \(arguments.joined(separator: " ")): status=\(status)\n\(output.suffix(1500))")
+            #expect(status == 0, "\(name) swift \(arguments): \(output)")
+            if arguments.first == "test" {
+                #expect(output.contains("Test pressingTheButtonCountsThePress() passed"), "\(output)")
+                #expect(output.contains("Test run with 1 test"), "\(output)")
+            }
+        }
+    }
     #endif
 }
 

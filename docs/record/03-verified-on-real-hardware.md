@@ -2161,3 +2161,26 @@ screen locked at lane 1). **Owed, new here — `docs/verification/human-checks.m
 performed (an agent cannot)**: PF1 a trackpad drag of a shadowed node at 2x (how many frames hit,
 sub-pixel positions missing by design, `PF-D`); PF2 the `compositingGroup()` pair beside
 SwiftUI's reading.
+
+## 2026-10-10: SMK port gaps (record §89) — looks owed
+
+The drawn menu bar, the primary modifier's labels, the design families and the chrome height are
+seen by nothing headless: the fourteen offscreen images read 0 differing pixels in every step (no
+window there has an `App`, so none draws a bar) and no real-window capture was taken. The SwiftUI
+probe `swiftui-shortcut-modifiers.swift` is a compile probe (no window). The asserts guard ran on
+macOS with the 2026-05-27-a snapshot; the UTM Windows VM did not answer (`ssh metalui-win` timed out).
+**Owed, new here — `docs/verification/human-checks.md` group SG, none performed (an agent cannot)**:
+SG1 the bar on Linux and Windows (titles open on a click, hover switches, Left/Right, F10, Escape);
+SG2 Ctrl+Shift+H and the honest "Ctrl+Shift+H" label; SG3 the Edit items on a focused field and greyed
+without one; SG4 the monospaced face on screen; SG5 the bar and a toolbar strip together and the
+minimum size; SG6 a Windows ARM64/x64 release build of the SMK configurator (or the `SG-E` fixture).
+
+## 2026-10-10: test harness (record §91) — measurements owed
+
+`MetalUITesting` paints nothing, so no look is owed; the fourteen offscreen images read 0 differing
+pixels against `70e9389` at lanes 1 and 3. Two measurements the agent could not take: whether a
+generated package's test target (an executable imported `@testable`) builds and passes on Windows
+(the UTM VM did not answer, `HT-V` item 4), and whether the cross-platform generated test's Linux
+arm runs where system fonts are installed (the CI image has none, `HT-V` item 5).
+**Owed, new here — `docs/verification/human-checks.md` group HT, none performed**: HT1 Windows,
+HT2 Linux with fonts.

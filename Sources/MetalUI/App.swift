@@ -45,6 +45,12 @@ public final class App {
     /// The command items' actions from the bar's last evaluation, by item id —
     /// what `PlatformMenuBar.perform` runs (spec §3.6).
     var menuBarActions: [Int: @MainActor () -> Void] = [:]
+    /// Whether the platform declined the menu bar at its last install, so the
+    /// app's windows draw it while it declares commands (ruling `SG-A` item 2).
+    var menuBarIsDrawn = false
+    /// The drawn bar's command actions from its last evaluation at an open,
+    /// by item id (`SG-A` item 8).
+    var drawnMenuBarActions: [Int: @MainActor () -> Void] = [:]
 
     #if canImport(MetalUIAppKit)
     /// The Metal device the AppKit platform draws with; `nil` for an app on
@@ -139,6 +145,9 @@ public final class App {
         // A command's shortcut reaches this window's command stage (ruling
         // `MN-J`), evaluated afresh at each keystroke that gets that far.
         window.commandShortcuts = { [weak self] in self?.enabledCommandShortcuts() ?? [] }
+        // The drawn menu bar (ruling `SG-A` item 2): every window, open and
+        // later, draws it where the platform declined it and commands exist.
+        window.drawnMenuBarSource = drawnMenuBarSource()
         // The platform's close runs every present `onDisappear` once (ruling
         // `LC-J`), retires the window and — for the last one, unless a quit is
         // being decided — ends the app through `Platform.terminate()` (rulings

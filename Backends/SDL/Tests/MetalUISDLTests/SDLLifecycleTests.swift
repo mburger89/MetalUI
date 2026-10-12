@@ -35,7 +35,7 @@ private final class RecordingSDLPlatform: Platform {
     }
     func run() { base.run() }
     func setApplicationIcon(_ images: [ImageTexture]) { base.setApplicationIcon(images) }
-    func setMenuBar(_ menuBar: PlatformMenuBar) { base.setMenuBar(menuBar) }
+    func setMenuBar(_ menuBar: PlatformMenuBar) -> Bool { base.setMenuBar(menuBar) }
     // The app-shell requirements (ruling `AS-H` item 4), forwarded unchanged.
     var onTerminateRequest: (() -> CloseRequestReply)? {
         get { base.onTerminateRequest }
