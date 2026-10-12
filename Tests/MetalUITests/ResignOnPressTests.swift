@@ -69,7 +69,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// A 200-square region (optionally resigning) holding one plain focusable
 /// square in its top-left corner; focus is given to the square.
 @MainActor private func focusedRegionWindow(resigns: Bool = true) throws
-    -> (Window, FakePlatformWindow, GlobalElementID, Hitbox) {
+    -> (Window, FakePlatformWindow, GlobalElementID, Bounds<Pixels>) {
     let (window, platform) = try rpWindow {
         Box { square(20).focusable() }
             .frame(width: px(200), height: px(200))
@@ -79,9 +79,9 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     window.focus(id)
     window.drawFrameIfNeeded()
     try #require(window.focusedElement == id, "set up: focused")
-    let region = try #require(resignRegions(window).first { $0.bounds.size.width.value == 200 }
-                              ?? (resigns ? nil : window.lastHitboxes.first { $0.id != id }),
-                              "set up: the region registered")
+    // The root is centred in the 200-point window, so the region is the whole of it.
+    let region = Bounds(origin: pt(0, 0), size: Size(width: px(200), height: px(200)))
+    if resigns { try #require(resignRegions(window).count == 1, "set up: the region registered") }
     return (window, platform, id, region)
 }
 
@@ -93,11 +93,11 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 @MainActor
 @Test func aPressOnInertChromeResignsAFocusedField() throws {
     let (window, platform, _, region) = try focusedRegionWindow()
-    click(platform, farCorner(region.bounds))
+    click(platform, farCorner(region))
     #expect(window.focusedElement == nil, "the press on the region's blank corner resigned")
 
     let (plain, plainPlatform, id, plainRegion) = try focusedRegionWindow(resigns: false)
-    click(plainPlatform, farCorner(plainRegion.bounds))
+    click(plainPlatform, farCorner(plainRegion))
     #expect(plain.focusedElement == id, "control: without the modifier a press elsewhere resigns nothing (KF-G)")
 }
 
@@ -159,7 +159,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 @MainActor
 @Test func aPressFromOneFieldToAnotherMovesFocusDirectly() throws {
     let m = RPLog()
-    let (window, platform) = try rpWindow { RPTwoFields(m: m) }
+    let (window, platform) = try rpWindow { Row { RPTwoFields(m: m) } }
     let fields = window.lastHitboxes.filter { $0.handlers.textInput != nil }
     try #require(fields.count == 2, "set up: two fields")
     click(platform, centreOf(fields[0].bounds))
@@ -208,7 +208,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 @MainActor
 @Test func aSecondaryAndOtherPressResignNothing() throws {
     let (window, platform, id, region) = try focusedRegionWindow()
-    let p = farCorner(region.bounds)
+    let p = farCorner(region)
     platform.simulateInput(.rightMouseDown(MouseEvent(position: p)))
     platform.simulateInput(.rightMouseUp(MouseEvent(position: p)))
     platform.simulateInput(.otherMouseDown(MouseEvent(position: p)))
@@ -416,7 +416,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 @MainActor
 @Test func aResignIsOneFocusStateWriteAndNothingWhenNothingIsFocused() throws {
     let m = RPLog()
-    let (window, platform) = try rpWindow { RPBoolFocus(m: m, region: true) }
+    let (window, platform) = try rpWindow { Row { RPBoolFocus(m: m, region: true) } }
     let id = try #require(window.lastFocusRegistry.tabOrder.first)
     window.focus(id)
     for _ in 0..<3 { window.drawFrameIfNeeded() }
@@ -433,7 +433,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     // Nothing focused: the same press builds exactly what it builds without the region.
     func builds(region: Bool) throws -> Int {
         let m = RPLog()
-        let (window, platform) = try rpWindow { RPBoolFocus(m: m, region: region) }
+        let (window, platform) = try rpWindow { Row { RPBoolFocus(m: m, region: region) } }
         for _ in 0..<3 { window.drawFrameIfNeeded() }
         let start = m.flags.count
         click(platform, pt(190, 190))
@@ -566,7 +566,7 @@ extension StyledElement {
 @MainActor
 @Test func togglingIsEnabledKeepsTheWrappedState() throws {
     let m = RPLog()
-    let (window, platform) = try rpWindow { RPToggled(m: m) }
+    let (window, platform) = try rpWindow { Row { RPToggled(m: m) } }
     click(platform, pt(100, 100))
     for _ in 0..<2 { window.drawFrameIfNeeded() }
     try #require(m.log.last == "taps 1", "set up: one tap counted: \(m.log)")
@@ -592,7 +592,7 @@ private struct RPGlobal: Action {}
     let (window, platform, _, region) = try focusedRegionWindow()
     window.keymap = Keymap([KeyBinding("g", RPGlobal())])
     window.onAction = { action in m.log.append(String(describing: type(of: action))); return true }
-    click(platform, farCorner(region.bounds))
+    click(platform, farCorner(region))
     try #require(window.focusedElement == nil, "set up: resigned")
     platform.simulateInput(kd("g"))
     #expect(m.log == ["RPGlobal"], "the global binding fired: \(m.log)")

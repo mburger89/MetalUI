@@ -97,6 +97,13 @@ extension ProposalElementGroup {
     public func hoverKeyRegion(_ isEnabled: Bool = true) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.hoverKeyRegion(isEnabled)
     }
+
+    /// `StyledElement.resignsFocusOnPress(_:)` on the proposal path: wraps once
+    /// in a `KeyboardModifier` that resigns focus on a primary press and routes
+    /// no key by hover (MetalUI-only, `RF-B`).
+    public func resignsFocusOnPress(_ isEnabled: Bool = true) -> KeyboardModifier<Self> {
+        keyboardLayer { _ in }.resignsFocusOnPress(isEnabled)
+    }
 }
 
 /// A proposal wrapper carrying keyboard modifiers — what the proposal
@@ -217,6 +224,12 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
     /// rules (MetalUI-only, `KF-E`).
     public func hoverKeyRegion(_ isEnabled: Bool = true) -> Self {
         handling { $0.keyboard = KeyboardAttachment.keyRegion(isEnabled, over: $0.keyboard) }
+    }
+
+    /// Makes this layer a resign region (or not) — `StyledElement.resignsFocusOnPress(_:)`'s
+    /// rules (MetalUI-only, `RF-B`).
+    public func resignsFocusOnPress(_ isEnabled: Bool = true) -> Self {
+        handling { $0.keyboard = KeyboardAttachment.resigning(isEnabled, over: $0.keyboard) }
     }
 
     /// The content's layout.
