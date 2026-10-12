@@ -565,6 +565,18 @@ final class ArenaLeaf {
         return false
     }
 
+    /// Whether this leaf is a `WindowDragGesture` (ruling `WD-C`).
+    var isWindowDrag: Bool {
+        if case .gesture(let leaf) = recognizer, case .windowDrag = leaf.kind { return true }
+        return false
+    }
+
+    /// Whether this leaf hands the press to the platform when it acts — a
+    /// draggable's session or a window drag — and so passes the members a
+    /// draggable passes (`DN-D` item 2, `WD-C`). Not `isDraggable`: a window
+    /// drag is a pointer target, never a `.draggable` region (`WD-B`).
+    var startsHandoff: Bool { isDraggable || isWindowDrag }
+
     var tapCount: Int? {
         if case .gesture(let leaf) = recognizer, case .tap(let count, _) = leaf.kind { return count }
         return nil
@@ -833,7 +845,9 @@ struct GestureArena {
                 // `P17`/`P17z`): no slop, unlike a tap's.
                 if distance > 0 { leaf.ready = true }
             case .windowDrag:
-                break
+                // One threshold for a press (`WD-C`): under `tapSlop` it can
+                // still be a tap or a click, from it on a window drag.
+                if distance >= tapSlop { leaf.ready = true }
             case .magnify, .rotate:
                 break
             }
@@ -1152,7 +1166,16 @@ struct GestureArena {
                 }
                 for other in leaves where other !== leaf && other.status == .possible { fail(other) }
             case .windowDrag:
-                fail(leaf)
+                // The platform's move begins (`WD-C`, `WD-D`): the draggable's
+                // arm, line for line. Every other member fails without an end;
+                // one that had reported is cancelled first (`IF-F` item 1),
+                // ahead of the request.
+                leaf.status = .ended
+                for other in leaves where other !== leaf && other.status == .possible {
+                    if let callback = cancelCallback(other) { callbacks.append(callback) }
+                }
+                callbacks.append(.beginWindowDrag(owner: leaf.owner))
+                for other in leaves where other !== leaf && other.status == .possible { fail(other) }
             case .magnify, .rotate:
                 // A pinch that never reported a change ends with no callback
                 // (`CI-C` item 4).
@@ -1199,7 +1222,7 @@ struct GestureArena {
         // its duration before the move keeps the drag from beginning (`DN-U`
         // item 1, MetalUI's choice) — and so does anything else undecided: a
         // `DragGesture` that outranks it wins (`DN-D` item 3).
-        if leaf.isDraggable {
+        if leaf.startsHandoff {
             return ahead.contains { $0.status == .ended
                                     || ($0.status == .possible && !Self.yieldsToDraggable($0)) }
         }
