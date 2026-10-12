@@ -120,7 +120,7 @@ private func dragged(_ platform: FakePlatformWindow, _ window: Window, _ x: Floa
 
 // MARK: - 1.2–1.5: the arena
 
-/// **1.2** (`WD-C`, `WD-D`). A handle over the viewport: a 20-point drag moves
+/// **1.2** (`WD-C`, `WD-D`; probe `W2`, separating arm `W9`). A handle over the viewport: a 20-point drag moves
 /// the window once, the viewport sees nothing, the arena is gone.
 /// Mutation: the leaf is never ready; or `act` does not fail the others.
 @MainActor
