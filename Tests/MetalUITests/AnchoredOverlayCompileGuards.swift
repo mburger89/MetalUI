@@ -21,7 +21,8 @@ private let skipReason: Comment =
 /// not compile (SwiftUI's argument order).
 ///
 /// Mutation **MG-B1**: drop `attachmentAnchor:` from the proposal `item:`
-/// overload (the spellings refuse).
+/// overload (the spellings refuse). Measured red on the full native suite:
+/// this test alone ('extra argument attachmentAnchor in call').
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func thePopoverAttachmentAnchorSpellingsCompile() throws {
     let spellings = try typecheckFile("""
@@ -64,6 +65,9 @@ func thePopoverAttachmentAnchorSpellingsCompile() throws {
 /// `PopoverModifier`. **Separating arm**: `at:` is required.
 ///
 /// Mutation **MG-B2**: drop `in:`'s default (the point-alone spellings refuse).
+/// Measured red on the full native suite on the legacy `item:` overload
+/// (dropping it on `isPresented:` breaks the unit tests' own compile): this
+/// test alone ('missing argument for parameter in').
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theAnchoredOverlaySpellingsCompile() throws {
     let spellings = try typecheckFile("""
