@@ -88,7 +88,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
 - **`@State`**, **`Binding`** (SwiftUI's surface, `@MainActor` — 78),
-  **`ForEach`** (keyed identity, 79), **`@Environment`**/`EnvironmentValues`/
+  **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
