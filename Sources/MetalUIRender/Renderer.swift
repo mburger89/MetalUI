@@ -1,5 +1,7 @@
 import Metal
 import MetalUICore
+import MetalUIPath
+import MetalUIScene
 // The MetalUICore → shader-struct conversions moved to MetalUIPrimitives (ruling
 // XP-A); re-exported so every importer of MetalUIRender still sees them.
 @_exported import MetalUIPrimitives
@@ -48,6 +50,37 @@ public final class Renderer {
     private let glyphPipeline: any MTLRenderPipelineState
     private let imagePipeline: any MTLRenderPipelineState
     private let unitVertexBuffer: any MTLBuffer
+    /// The compiled shader library, kept so the backdrop pipelines can be
+    /// built on first use (a renderer that never draws a material never
+    /// pays for them).
+    private let library: any MTLLibrary
+    private var backdropPipelinesCache: BackdropPipelines?
+
+    /// The frame target and blur textures a ``encode(_:view:in:surfaces:)``
+    /// without a window's own state uses (`renderOffscreen`); a
+    /// ``MetalWindowRenderer`` passes its own, so windows never share a
+    /// frame target (spec 3.2).
+    let defaultBackdropState = BackdropFrameState()
+
+    // The backdrop counters of the last encode (rulings BB-E, BB-S): plain
+    // integers, 0 on every scene without a backdrop. Pins count these, never
+    // time.
+    /// Backdrop runs of the last frame (each ends a segment of the frame target's pass).
+    private(set) var lastBackdropSplits = 0
+    /// Backdrop records the last frame blurred.
+    private(set) var lastBackdropBlurs = 0
+    /// Render passes the blurs took: `L + 2` per record (`BB-S`).
+    private(set) var lastBackdropPasses = 0
+    /// 1 when the last frame copied the frame target to its drawable, else 0.
+    private(set) var lastFrameTargetCopies = 0
+    /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
+    private(set) var lastBackdropTexturesMade = 0
+    /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
+    var backdropPoolFailsAllocation = false
+    /// Test hook (test 2.3): route every scene, backdrop or not, through the frame target.
+    var routesEveryFrameThroughTheFrameTarget = false
+    /// Whether the default state holds a frame target (test 2.3).
+    var hasBackdropFrameTarget: Bool { defaultBackdropState.hasFrameTarget }
     /// The one zero `MUITransform` record bound for a scene with no
     /// transforms (every production frame until an effect draws), allocated
     /// once per renderer rather than per frame (ruling GX-S item 12).
@@ -114,6 +147,7 @@ public final class Renderer {
         self.commandQueue = queue
 
         let library = try ShaderLibrary.make(device: device)
+        self.library = library
 
         /// Both pipelines are premultiplied source-over into the same
         /// gamma-encoded target, and they must stay identical in that respect:
@@ -186,6 +220,34 @@ public final class Renderer {
                        view: SurfaceView,
                        in commandBuffer: any MTLCommandBuffer,
                        surfaces: [SurfaceID: any MTLTexture]) throws {
+        try encode(scene, view: view, in: commandBuffer, surfaces: surfaces, backdropState: nil)
+    }
+
+    /// ``encode(_:view:in:surfaces:)`` with the window's own backdrop state
+    /// (`nil`: the renderer's default). **A scene with no backdrop record is
+    /// encoded by the old single pass into `view`, byte for byte** (`BB-C`);
+    /// one with backdrops renders into the state's frame target in segments
+    /// and copies it to `view` (``encodeWithBackdrops``).
+    func encode(_ scene: Scene,
+                view: SurfaceView,
+                in commandBuffer: any MTLCommandBuffer,
+                surfaces: [SurfaceID: any MTLTexture],
+                backdropState: BackdropFrameState?) throws {
+        lastBackdropSplits = 0; lastBackdropBlurs = 0; lastBackdropPasses = 0
+        lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
+        let state = backdropState ?? defaultBackdropState
+        let wantsBackdrops = !scene.isEmpty
+            && (!scene.backdrops.isEmpty || routesEveryFrameThroughTheFrameTarget)
+        // A projection, a rasterization rate map or a drawable of another
+        // format cannot be copied texel for texel: the flat tint (`BB-I`).
+        let copyable = view.rasterizationRateMap == nil
+            && simd_equal(view.projection, matrix_identity_float4x4)
+            && view.colorTexture.pixelFormat == Self.pixelFormat
+        if wantsBackdrops, copyable,
+           try encodeWithBackdrops(scene, view: view, in: commandBuffer, surfaces: surfaces, state: state) {
+            return
+        }
+        if !wantsBackdrops { state.releaseAll() }
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = view.colorTexture
         // RESTRICTION: clearing per view means `encode` cannot be called twice
@@ -229,22 +291,7 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
-        // The scene's transform table (ruling GX-F), bound beside every
-        // pipeline's records for vertex and fragment. An empty table binds
-        // one zero record, which index 0 — the only index a scene with no
-        // transforms holds — never reads.
-        let transformBuffer: any MTLBuffer
-        if scene.transforms.isEmpty {
-            transformBuffer = zeroTransformBuffer
-        } else {
-            guard let table = device.makeBuffer(bytes: scene.transforms,
-                                                length: MemoryLayout<MUITransform>.stride * scene.transforms.count,
-                                                options: .storageModeShared) else {
-                throw RendererError.bufferAllocationFailed
-            }
-            transformBuffer = table
-        }
-        lastBoundTransformBuffer = transformBuffer
+        let transformBuffer = try transformTable(for: scene)
 
         // **One draw per run, pipeline bound only when the kind changes.** This
         // is what makes a rect able to occlude text: before the draw list,
@@ -269,37 +316,247 @@ public final class Renderer {
         // with a per-instance kind tag) with its own design, not a comment's
         // worth of change.
         for run in scene.drawList {
-            switch run.kind {
-            case .rect:
-                try encodeRects(Array(scene.rects[run.start..<(run.start + run.count)]),
-                                into: encoder, viewport: &viewport, projection: &projection,
-                                transforms: transformBuffer)
-            case .glyph:
-                try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
-                                 into: encoder, viewport: &viewport, projection: &projection,
-                                 transforms: transformBuffer)
-            case .image:
-                let images = Array(scene.images[run.start..<(run.start + run.count)])
-                // One texture per run: `Scene.finalize` breaks a run where it changes.
-                try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
-                                 into: encoder, viewport: &viewport, projection: &projection,
-                                 transforms: transformBuffer)
-            case .surface:
-                let quads = Array(scene.surfaces[run.start..<(run.start + run.count)])
-                // One target per run: `Scene.finalize` breaks a run where it
-                // changes; each quad's `texture` indexes `surfaceTargets`.
-                let target = scene.surfaceTargets[Int(quads[0].texture)]
-                guard let texture = surfaces[target.id] else { continue }
-                try encodeImages(quads, texture: texture,
-                                 into: encoder, viewport: &viewport, projection: &projection,
-                                 transforms: transformBuffer)
-            case .backdrop:
-                // Interim (lane 1): the flat tint, BB-I's fallback; lane 2 blurs.
-                try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].map(flatTintRect),
-                                into: encoder, viewport: &viewport, projection: &projection,
-                                transforms: transformBuffer)
+            try encodeRun(run, of: scene, into: encoder, imageTextures: imageTextures, surfaces: surfaces,
+                          viewport: &viewport, projection: &projection, transforms: transformBuffer)
+        }
+    }
+
+    /// The scene's transform table bound beside every pipeline's records
+    /// (ruling GX-F): an empty table binds one zero record, which index 0 —
+    /// the only index a scene with no transforms holds — never reads.
+    private func transformTable(for scene: Scene) throws -> any MTLBuffer {
+        let transformBuffer: any MTLBuffer
+        if scene.transforms.isEmpty {
+            transformBuffer = zeroTransformBuffer
+        } else {
+            guard let table = device.makeBuffer(bytes: scene.transforms,
+                                                length: MemoryLayout<MUITransform>.stride * scene.transforms.count,
+                                                options: .storageModeShared) else {
+                throw RendererError.bufferAllocationFailed
+            }
+            transformBuffer = table
+        }
+        lastBoundTransformBuffer = transformBuffer
+        return transformBuffer
+    }
+
+    /// One run of the draw list. A `.backdrop` run reaching here (the old
+    /// path: no frame target) draws the flat tint (`BB-I`).
+    private func encodeRun(_ run: DrawRun, of scene: Scene,
+                           into encoder: any MTLRenderCommandEncoder,
+                           imageTextures: [any MTLTexture],
+                           surfaces: [SurfaceID: any MTLTexture],
+                           viewport: inout MUISize, projection: inout simd_float4x4,
+                           transforms transformBuffer: any MTLBuffer) throws {
+        switch run.kind {
+        case .rect:
+            try encodeRects(Array(scene.rects[run.start..<(run.start + run.count)]),
+                            into: encoder, viewport: &viewport, projection: &projection,
+                            transforms: transformBuffer)
+        case .glyph:
+            try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
+                             into: encoder, viewport: &viewport, projection: &projection,
+                             transforms: transformBuffer)
+        case .image:
+            let images = Array(scene.images[run.start..<(run.start + run.count)])
+            // One texture per run: `Scene.finalize` breaks a run where it changes.
+            try encodeImages(images, texture: imageTextures[Int(images[0].texture)],
+                             into: encoder, viewport: &viewport, projection: &projection,
+                             transforms: transformBuffer)
+        case .surface:
+            let quads = Array(scene.surfaces[run.start..<(run.start + run.count)])
+            // One target per run: `Scene.finalize` breaks a run where it
+            // changes; each quad's `texture` indexes `surfaceTargets`.
+            let target = scene.surfaceTargets[Int(quads[0].texture)]
+            guard let texture = surfaces[target.id] else { return }
+            try encodeImages(quads, texture: texture,
+                             into: encoder, viewport: &viewport, projection: &projection,
+                             transforms: transformBuffer)
+        case .backdrop:
+            try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].map(flatTintRect),
+                            into: encoder, viewport: &viewport, projection: &projection,
+                            transforms: transformBuffer)
+        }
+    }
+
+    private func backdropPipelines() throws -> BackdropPipelines {
+        if let backdropPipelinesCache { return backdropPipelinesCache }
+        let made = try BackdropPipelines(device: device, library: library)
+        backdropPipelinesCache = made
+        return made
+    }
+
+    /// The scene rendered into `state`'s frame target in segments, then copied
+    /// to `view` (`BB-C`). Segment 0 clears transparent and draws up to the
+    /// first backdrop run; at each `.backdrop` run the pass ends, every record
+    /// of the run is blurred from the frame target (`BB-D`), and a new segment
+    /// (`loadAction .load`) draws the run's quads and what follows. Returns
+    /// `false`, having encoded nothing, when the frame target cannot be made
+    /// (the caller draws the old path with flat tints, `BB-I`).
+    private func encodeWithBackdrops(_ scene: Scene, view: SurfaceView,
+                                     in commandBuffer: any MTLCommandBuffer,
+                                     surfaces: [SurfaceID: any MTLTexture],
+                                     state: BackdropFrameState) throws -> Bool {
+        precondition(!scene.drawList.isEmpty,
+                     "Renderer.encode: the scene holds primitives but its draw list is empty — call Scene.finalize() (or use Frame.finalizedScene()) before encoding, or this frame draws nothing at all.")
+        let pipelines = try backdropPipelines()
+        let imageTextures = try prepareImageTextures(for: scene)
+        let width = view.colorTexture.width, height = view.colorTexture.height
+        state.beginFrame()
+        guard let frame = state.frameTarget(device: device, width: width, height: height) else {
+            lastBackdropTexturesMade = state.texturesMade
+            return false
+        }
+        func segment(load: MTLLoadAction) throws -> any MTLRenderCommandEncoder {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = frame
+            pass.colorAttachments[0].loadAction = load
+            pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            encoder.setViewport(view.viewport)
+            return encoder
+        }
+        var viewport = MUISize(width: Float(view.viewport.width), height: Float(view.viewport.height))
+        var projection = view.projection
+        let transformBuffer = try transformTable(for: scene)
+
+        var encoder = try segment(load: .clear)
+        for run in scene.drawList {
+            guard run.kind == .backdrop else {
+                try encodeRun(run, of: scene, into: encoder, imageTextures: imageTextures, surfaces: surfaces,
+                              viewport: &viewport, projection: &projection, transforms: transformBuffer)
+                continue
+            }
+            encoder.endEncoding()
+            lastBackdropSplits += 1
+            // Every record of the run reads the frame as it stands at the split
+            // (a run holds no two overlapping records, `BB-E`).
+            var blurred: [(texture: (any MTLTexture)?, draw: SIMD4<Float>)] = []
+            for index in run.start..<(run.start + run.count) {
+                blurred.append(try blur(record: index, of: scene, from: frame, width: width, height: height,
+                                        commandBuffer: commandBuffer, pipelines: pipelines, state: state))
+            }
+            encoder = try segment(load: .load)
+            for (k, index) in (run.start..<(run.start + run.count)).enumerated() {
+                encodeBackdrop(scene.backdrops[index], blurred: blurred[k].texture, draw: blurred[k].draw,
+                               into: encoder, viewport: &viewport, projection: &projection,
+                               transforms: transformBuffer, pipelines: pipelines)
+                if let texture = blurred[k].texture { state.release(texture) }
             }
         }
+        encoder.endEncoding()
+
+        // The copy draw: `view` is never sampled and stays framebuffer-only.
+        let copy = MTLRenderPassDescriptor()
+        copy.colorAttachments[0].texture = view.colorTexture
+        copy.colorAttachments[0].loadAction = .dontCare
+        copy.colorAttachments[0].storeAction = .store
+        guard let copyEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: copy) else {
+            throw RendererError.encoderUnavailable
+        }
+        copyEncoder.setRenderPipelineState(pipelines.copy)
+        copyEncoder.setFragmentTexture(frame, index: 0)
+        copyEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        copyEncoder.endEncoding()
+        lastFrameTargetCopies = 1
+
+        state.endFrame()
+        lastBackdropTexturesMade = state.texturesMade
+        return true
+    }
+
+    /// Blurs backdrop `index`'s region of `frame` into a pool texture
+    /// (`BB-D`): `L` downsamples, then a horizontal and a vertical Gaussian at
+    /// level `L`. The texture and the quad's `(origin, uvScale)` constant
+    /// (`BB-R`), or `nil` and a zero constant when the region is empty or a
+    /// texture cannot be allocated (the quad then draws its flat tint).
+    private func blur(record index: Int, of scene: Scene, from frame: any MTLTexture, width: Int, height: Int,
+                      commandBuffer: any MTLCommandBuffer, pipelines: BackdropPipelines,
+                      state: BackdropFrameState) throws -> (texture: (any MTLTexture)?, draw: SIMD4<Float>) {
+        let none: (texture: (any MTLTexture)?, draw: SIMD4<Float>) = (nil, .zero)
+        guard let region = scene.backdropRegion(index, target: (width, height)) else { return none }
+        let sigma = scene.backdrops[index].sigma
+        let levels = BackdropBlurReference.levels(sigma: sigma, maxLevel: Int(MUIBackdropBlurMaxLevel))
+
+        var held: [any MTLTexture] = []
+        func give(back all: [any MTLTexture]) { for texture in all { state.release(texture) } }
+        func run(_ pipeline: any MTLRenderPipelineState, source: any MTLTexture, sourceOrigin: (Int, Int),
+                 sourceSize: (Int, Int), target: any MTLTexture, sigma: Float, horizontal: Bool) throws {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = target
+            pass.colorAttachments[0].loadAction = .dontCare
+            pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            var constants = BackdropBlurPass(
+                src: SIMD4(Int32(sourceOrigin.0), Int32(sourceOrigin.1), Int32(sourceSize.0), Int32(sourceSize.1)),
+                sigma: sigma, horizontal: horizontal ? 1 : 0)
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setFragmentBytes(&constants, length: MemoryLayout<BackdropBlurPass>.stride, index: 0)
+            encoder.setFragmentTexture(source, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            encoder.endEncoding()
+            lastBackdropPasses += 1
+        }
+
+        var source = frame
+        var origin = (region.x, region.y)
+        var (w, h) = (region.width, region.height)
+        for _ in 0..<levels {
+            let (nw, nh) = ((w + 1) / 2, (h + 1) / 2)
+            guard let level = state.acquire(device: device, width: nw, height: nh, failing: backdropPoolFailsAllocation) else {
+                give(back: held); return none
+            }
+            held.append(level)
+            try run(pipelines.downsample, source: source, sourceOrigin: origin, sourceSize: (w, h),
+                    target: level, sigma: 0, horizontal: false)
+            source = level; origin = (0, 0); (w, h) = (nw, nh)
+        }
+        guard let scratch = state.acquire(device: device, width: w, height: h, failing: backdropPoolFailsAllocation) else {
+            give(back: held); return none
+        }
+        held.append(scratch)
+        guard let result = state.acquire(device: device, width: w, height: h, failing: backdropPoolFailsAllocation) else {
+            give(back: held); return none
+        }
+        let levelSigma = sigma / Float(1 << levels)
+        try run(pipelines.gaussian, source: source, sourceOrigin: origin, sourceSize: (w, h),
+                target: scratch, sigma: levelSigma, horizontal: true)
+        try run(pipelines.gaussian, source: scratch, sourceOrigin: (0, 0), sourceSize: (w, h),
+                target: result, sigma: levelSigma, horizontal: false)
+        give(back: held)
+        lastBackdropBlurs += 1
+        let scale = Float(1 << levels)
+        return (result, SIMD4(Float(region.x), Float(region.y), 1 / (Float(w) * scale), 1 / (Float(h) * scale)))
+    }
+
+    /// One backdrop quad: the blurred pipeline with its texture and
+    /// constants, or the flat one when `blurred` is `nil`. The record travels
+    /// by `setVertexBytes`/`setFragmentBytes` (96 bytes), so no alignment of a
+    /// shared buffer's offset is assumed.
+    private func encodeBackdrop(_ record: MUIBackdrop, blurred: (any MTLTexture)?, draw: SIMD4<Float>,
+                                into encoder: any MTLRenderCommandEncoder,
+                                viewport: inout MUISize, projection: inout simd_float4x4,
+                                transforms: any MTLBuffer, pipelines: BackdropPipelines) {
+        var record = record
+        var draw = draw
+        encoder.setRenderPipelineState(blurred == nil ? pipelines.flat : pipelines.blurred)
+        encoder.setVertexBuffer(unitVertexBuffer, offset: 0, index: Int(MUIRectBufferVertices.rawValue))
+        encoder.setVertexBytes(&record, length: MemoryLayout<MUIBackdrop>.stride, index: Int(MUIRectBufferRects.rawValue))
+        encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride, index: Int(MUIRectBufferViewport.rawValue))
+        encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride, index: Int(MUIRectBufferProjection.rawValue))
+        encoder.setFragmentBytes(&record, length: MemoryLayout<MUIBackdrop>.stride, index: Int(MUIRectBufferRects.rawValue))
+        encoder.setVertexBuffer(transforms, offset: 0, index: Int(MUIRectBufferTransforms.rawValue))
+        encoder.setFragmentBuffer(transforms, offset: 0, index: Int(MUIRectBufferTransforms.rawValue))
+        if let blurred {
+            encoder.setFragmentBytes(&draw, length: MemoryLayout<SIMD4<Float>>.stride, index: BackdropPipelines.drawConstantsIndex)
+            encoder.setFragmentTexture(blurred, index: 0)
+        }
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: 1)
     }
 
     private func encodeRects(_ rects: [MUIRect],

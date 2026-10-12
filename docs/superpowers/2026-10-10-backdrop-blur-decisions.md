@@ -10,7 +10,7 @@ Record: `../record/94-backdrop-blur.md` (Record phase). Branch `feat/backdrop-bl
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 
-**Next unused id: `BB-S`.** (Moves in the commit that appends a ruling; read the
+**Next unused id: `BB-T`.** (Moves in the commit that appends a ruling; read the
 last `## BB-` heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-backdrop-blur.swift`](../probes/swiftui-backdrop-blur.swift)
@@ -416,3 +416,46 @@ the `erf` step is what caught it.
 
 **Cost if wrong.** None to the record; the coordinate is a per-record
 constant in each fragment shader.
+
+## BB-S — Lane 2 (Metal): the pass count is `L + 2`, the pool, the fallbacks, the hooks
+
+**Ruling.**
+
+1. **`lastBackdropPasses` counts the render passes the blurs actually encode:
+   `L + 2` per record** (L downsamples and the horizontal and vertical Gaussian). Spec §3.5 and
+   `BB-D` 2 wrote `2L + 2`; the upsample is the quad's bilinear read (`BB-R`), not a pass, so
+   there is nothing to count for it. Lane 3 counts the same.
+2. **Downsample and Gaussian read texels with `read`, clamped to the REGION** (not the source
+   texture), so the first downsample, which reads the frame target, never sees a pixel outside
+   the region (an odd region repeats its last texel, as `BackdropBlurReference.downsample`
+   does). The Gaussian's weights are `exp(-i²/2σ²)` computed and normalized per fragment.
+3. **The quad** is `backdrop_vertex` (the rect vertex stage over `MUIBackdrop`) and
+   `backdrop_fragment`/`backdrop_flat_fragment`; coverage is `rect_shade` of a white borderless
+   rect of the record's bounds and shape times the rect's clip, so a material's edge is a
+   rect's. One draw per record, the record carried by `setVertexBytes`/`setFragmentBytes`
+   (96 bytes: no buffer-offset alignment is assumed), the `(origin, uvScale)` constant at
+   fragment buffer 5 (`BackdropPipelines.drawConstantsIndex`; MSL-only, lane 3 mirrors it).
+4. **State** is per window (`BackdropFrameState`, held by `MetalWindowRenderer`; the renderer's
+   own for `renderOffscreen`): the frame target (replaced on a size change) and a free list of
+   blur textures by size. Free lists of sizes a frame did not acquire are dropped at its end,
+   and **a frame with no backdrop drops the frame target and the pool** (a panel that comes and
+   goes re-allocates; a steady frame with a panel makes none, test 2.10).
+5. **Fallbacks to the flat tint** (the interim `flatTintRect`, still the `.backdrop` arm of the
+   single pass): a drawable that is not `bgra8Unorm`, a non-identity projection or a
+   rasterization rate map (the copy is texel for texel), and a frame target that cannot be made.
+   A region that is empty or whose blur textures cannot be made draws through
+   `backdrop_flat_fragment` inside the frame-target path.
+6. **Test hooks** (internal, `@testable`): `backdropPoolFailsAllocation` (2.7),
+   `routesEveryFrameThroughTheFrameTarget` (2.3: with no backdrop the forced path equals the
+   single pass byte for byte, so the counters, not the pixels, tell the paths apart),
+   `hasBackdropFrameTarget`. Tests 2.x live in `Tests/MetalUIRenderTests/BackdropRenderTests.swift`
+   (where the other `renderOffscreen` tests are), not `Tests/MetalUITests/` as spec §4 said;
+   `MetalUIRender` and its test target gain a `MetalUIPath` dependency for
+   `BackdropBlurReference.levels`.
+
+**Reasoning.** Items 1 and 5 are the places the spec's text and the code disagree or are silent;
+each is pinned (2.4, 2.7, 2.3). Dropping the pool on a backdrop-free frame bounds memory at the
+price of one allocation round on a panel's first frame.
+
+**Cost if wrong.** Item 4's drop: a UI that flickers a panel every other frame pays the frame
+target each time; the follow-up is a frame-count grace period.

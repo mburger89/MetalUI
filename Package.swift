@@ -283,7 +283,7 @@ targets += [
         .target(
             name: "MetalUIRender",
             dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText",
-                           "MetalUIPlatform", "MetalUIPrimitives"],
+                           "MetalUIPlatform", "MetalUIPrimitives", "MetalUIPath"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
