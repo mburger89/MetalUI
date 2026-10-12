@@ -201,9 +201,43 @@ public final class SDLWindowRenderer: WindowRenderer {
     /// The SDL GPU driver in use (`metal`, `vulkan`, `direct3d12`).
     public var driver: String { String(cString: mui_renderer_driver(renderer)) }
 
+    /// The device-pixel size of the target `beginFrame()` acquired: what a
+    /// backdrop's region is clamped to (`Scene.backdropRegion`, ruling `BB-D` 3).
+    private var targetSize: (width: Int, height: Int) = (0, 0)
+
+    // The backdrop blur's work in the last frame and its test hooks (rulings
+    // BB-E, BB-K, BB-S): the Metal renderer's counters under the same names,
+    // kept in the bridge, 0 for a frame without a backdrop run.
+    private func backdropCounter(_ index: Int) -> Int {
+        var counters: [UInt32] = [0, 0, 0, 0, 0]
+        mui_renderer_backdrop_counters(renderer, &counters)
+        return Int(counters[index])
+    }
+    /// Backdrop runs of the last frame (each ends a segment of the frame target's pass).
+    package var lastBackdropSplits: Int { backdropCounter(0) }
+    /// Backdrop records the last frame blurred.
+    package var lastBackdropBlurs: Int { backdropCounter(1) }
+    /// Render passes the blurs took: `L + 2` per record (`BB-S`).
+    package var lastBackdropPasses: Int { backdropCounter(2) }
+    /// 1 when the last frame blitted the frame target to its target, else 0.
+    package var lastFrameTargetCopies: Int { backdropCounter(3) }
+    /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
+    package var lastBackdropTexturesMade: Int { backdropCounter(4) }
+    /// Whether the renderer holds a frame target.
+    package var hasBackdropFrameTarget: Bool { mui_renderer_has_frame_target(renderer) }
+    /// Test hook (`BB-K`, test 3.3d): every pool allocation fails, so each record draws its flat tint.
+    package var backdropPoolFailsAllocation = false {
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+    }
+    /// Test hook (test 3.3b): route every frame, backdrop or not, through the frame target.
+    package var routesEveryFrameThroughTheFrameTarget = false {
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+    }
+
     public func beginFrame() -> Float? {
         var width: UInt32 = 0, height: UInt32 = 0
         guard mui_renderer_begin(renderer, &width, &height) == 1 else { return nil }
+        targetSize = (Int(width), Int(height))
         if let window { return mui_window_pixel_density(UnsafeMutableRawPointer(window)) }
         return offscreenScaleFactor
     }
@@ -305,20 +339,30 @@ public final class SDLWindowRenderer: WindowRenderer {
                 guard surfaceHandles[target] != nil else { return nil }
                 return ReplayRun(kind: 2, start: UInt32(scene.images.count + run.start), count: UInt32(run.count))
             case .backdrop:
-                // Interim (lane 1): the flat tint as rects after the scene's own (BB-I); lane 3 blurs.
-                return ReplayRun(kind: 0, start: UInt32(scene.rects.count + run.start), count: UInt32(run.count))
+                // A segment break: the bridge blurs each record from the frame as it
+                // stands and draws its quad (rulings BB-C, BB-D).
+                return ReplayRun(kind: 3, start: UInt32(run.start), count: UInt32(run.count))
             }
         }
         // Device-pixel coordinates, as the Metal renderer's surfaces use.
         let identity: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
         let dirty = atlas.dirtyRect != nil
         let optionalHandles: [UnsafeMutableRawPointer?] = handles + surfaceHandles
-        var allRects = scene.rects
-        allRects.append(contentsOf: scene.backdrops.map(flatTintRect))
-        let ok = allRects.withUnsafeBytes { rects in
+        // Each record's blurred region: `Scene.backdropRegion`, the one function
+        // both renderers call (`BB-D` 3); `width` 0 is "none" (a flat tint).
+        let regions: [ReplayRegion] = (0..<scene.backdrops.count).map { index in
+            guard let region = scene.backdropRegion(index, target: targetSize) else {
+                return ReplayRegion(x: 0, y: 0, width: 0, height: 0)
+            }
+            return ReplayRegion(x: Int32(region.x), y: Int32(region.y),
+                                width: Int32(region.width), height: Int32(region.height))
+        }
+        let ok = scene.rects.withUnsafeBytes { rects in
             scene.glyphs.withUnsafeBytes { glyphs in
                 images.withUnsafeBytes { images in
                   scene.transforms.withUnsafeBytes { transforms in
+                   scene.backdrops.withUnsafeBytes { backdrops in
+                    regions.withUnsafeBufferPointer { regionBuffer in
                     optionalHandles.withUnsafeBufferPointer { textureBuffer in
                         runs.withUnsafeBufferPointer { runBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
@@ -328,6 +372,8 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         glyphs.baseAddress, UInt32(glyphs.count),
                                                         images.baseAddress, UInt32(images.count),
                                                         transforms.baseAddress, UInt32(transforms.count),
+                                                        backdrops.baseAddress, UInt32(backdrops.count),
+                                                        regionBuffer.baseAddress, UInt32(regionBuffer.count),
                                                         textureBuffer.baseAddress, UInt32(optionalHandles.count),
                                                         runBuffer.baseAddress, UInt32(runs.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
@@ -336,6 +382,8 @@ public final class SDLWindowRenderer: WindowRenderer {
                             }
                         }
                     }
+                    }
+                   }
                   }
                 }
             }
@@ -357,14 +405,4 @@ public final class SDLWindowRenderer: WindowRenderer {
     }
 }
 
-/// The record's flat tint as a rect: `c * o * T` -- the fallback every renderer
-/// draws for a backdrop it cannot blur (ruling BB-I), which is today's
-/// `LK-L` flat tint pixel for pixel.
-private func flatTintRect(_ b: MUIBackdrop) -> MUIRect {
-    var tint = b.tint
-    tint.a *= b.opacity
-    return MUIRect(bounds: b.bounds, contentMask: b.contentMask, maskCornerRadii: b.maskCornerRadii,
-                   background: tint, borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0), cornerRadii: b.cornerRadii,
-                   borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: b.order, shape: b.shape)
-}
 #endif

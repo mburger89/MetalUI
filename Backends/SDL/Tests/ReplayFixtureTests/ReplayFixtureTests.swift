@@ -226,8 +226,8 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
         projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
         reference: (0..<24).map { UInt8($0) })
     let bytes = fixture.encoded()
-    // Version 3 since GX-F (the transform table after the textures).
-    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0], "version 3")
+    // Version 3 since GX-F (the transform table after the textures), 4 since BB-J.
+    #expect(Array(bytes[8..<12]) == [UInt8(ReplayFixture.version), 0, 0, 0], "the current version")
     let decoded = try ReplayFixture(decoding: bytes)
     #expect(decoded == fixture)
     #expect(decoded.imageCount == 2)
@@ -392,7 +392,7 @@ private func backdropFixture() throws -> ReplayFixture {
     let v4 = fixture.encoded()
     // v3: drop the backdrop stride (offset 36) and the empty backdrop table
     // (a u32 0 after the transform table).
-    let transformTableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4
+    let transformTableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4
     var v3 = v4
     try #require(Array(v3[transformTableOffset..<transformTableOffset + 8]) == [0, 0, 0, 0, 0, 0, 0, 0],
                  "an empty transform table, then an empty backdrop table")
@@ -446,4 +446,54 @@ private func backdropFixture() throws -> ReplayFixture {
     var bytes = try backdropFixture().encoded()
     bytes[36] = 128
     #expect(throws: FixtureError.self) { try ReplayFixture(decoding: bytes) }
+}
+
+/// **3.4c** (ruling `BB-D` 3). The region a replay blurs is the one the window
+/// renderer's `Scene.backdropRegion` names: the fixture restates that function
+/// over the records it holds, and the two agree for a plain record, one under
+/// a quarter turn about its centre, one hanging off the target and one wholly
+/// outside it (`nil`). Mutation: skip the clamp in `backdropRegions`.
+@Test func aFixtureRestatesTheScenesBackdropRegion() throws {
+    var scene = Scene()
+    let mask = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 64, height: 48))
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    func record(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> MUIBackdrop {
+        MUIBackdrop(bounds: MUIBounds(origin: MUIPoint(x: x, y: y), size: MUISize(width: w, height: h)),
+                    contentMask: mask, maskCornerRadii: none, cornerRadii: none,
+                    tint: MUIHsla(h: 0, s: 0, l: 0.5, a: 0.3), order: 0, shape: 0, sigma: 16, opacity: 1)
+    }
+    scene.insert(record(4.5, 6.25, 20, 10))
+    scene.insert(record(50, 40, 40, 30))                      // hangs off the right and bottom
+    scene.insert(record(100, 100, 10, 10))                    // wholly outside
+    let quarterTurn = MUITransform(a: 0, b: 1, c: -1, d: 0, tx: 40, ty: 4, pixelScale: 1, _reserved: 0,
+                                   outerMask: mask, outerMaskRadii: none)
+    scene.insert(record(2, 3, 12, 20), transform: quarterTurn)
+    scene.finalize()
+    let fixture = try ReplayFixture(scene: scene, atlas: GlyphAtlas(width: 1, height: 1), width: 64, height: 48,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 64 * 48 * 4))
+    let expected = (0..<scene.backdrops.count).map { scene.backdropRegion($0, target: (64, 48)) }
+    try #require(expected.count == 4)
+    #expect(expected.contains { $0 == nil }, "one record is wholly outside")
+    #expect(fixture.backdropRegions == expected)
+}
+
+/// **3.2b** (ruling `BB-J`). A backdrop quad is judged at three levels (the
+/// measured parity of the blur on Mesa lavapipe is 2, on Metal 0), a sprite at
+/// eight, anything else at one: a delta of 3 inside a backdrop quad passes, 4
+/// fails, and 2 outside every quad fails. Mutation: judge a backdrop at the
+/// sprite tolerance (put it in `spriteMask()`).
+@Test func aBackdropQuadIsJudgedAtThreeLevels() throws {
+    let fixture = try backdropFixture()          // bounds (1, 2, 6, 4) on an 8 × 8 target
+    func pixels(delta: UInt8, at x: Int, _ y: Int) -> [UInt8] {
+        var out = fixture.reference
+        out[(y * 8 + x) * 4] = delta
+        return out
+    }
+    #expect(ParityTolerance.insideBackdrops == 3)
+    #expect(fixture.parity(of: pixels(delta: 3, at: 3, 3)).passes)
+    #expect(fixture.parity(of: pixels(delta: 3, at: 3, 3)).backdrop.maxDelta == 3)
+    #expect(!fixture.parity(of: pixels(delta: 4, at: 3, 3)).passes)
+    #expect(!fixture.parity(of: pixels(delta: 2, at: 7, 0)).passes, "outside every quad: one level")
+    #expect(fixture.parity(of: fixture.reference).passes)
 }

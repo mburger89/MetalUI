@@ -4,15 +4,18 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 3 (ruling GX-F: transforms;
-// version 2, TE-AF, added images):
+// Layout (little-endian, no padding), version 4 (ruling BB-J: backdrops;
+// version 3, GX-F, added transforms; version 2, TE-AF, images — versions 2
+// and 3 still load, as the same frame without what they lack):
 //   "MUIRPLY\0"  u32 version
-//   u32 width, height, rectStride, glyphStride, imageStride, transformStride
+//   u32 width, height, rectStride, glyphStride, imageStride, transformStride,
+//       backdropStride                              (the last two: version 3, 4)
 //   u32 rectByteCount,  rect bytes
 //   u32 glyphByteCount, glyph bytes
 //   u32 imageByteCount, image bytes
 //   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
-//   u32 transformByteCount, transform bytes (MUITransform records)
+//   u32 transformByteCount, transform bytes (MUITransform records)   (version 3, 4)
+//   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4)
 //   u32 runCount, runCount × (u32 kind, start, count)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
@@ -22,7 +25,7 @@ import MetalUIScene
 import MetalUIShaderTypes
 
 public struct FixtureRun: Equatable, Sendable {
-    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1, image = 2 }
+    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1, image = 2, backdrop = 3 }
     public var kind: Kind
     public var start: UInt32
     public var count: UInt32
@@ -43,8 +46,8 @@ public struct FixtureRun: Equatable, Sendable {
             // (MetalView, ruling `MV-C` item 4).
             preconditionFailure("a replay fixture cannot record a surface: its content is app-defined GPU work (MV-C)")
         case .backdrop:
-            // Fixture version 4 records it (lane 3, BB-J).
-            preconditionFailure("a replay fixture does not record a backdrop yet (BB-J, lane 3)")
+            // Fixture version 4 records it (BB-J).
+            kind = .backdrop
         }
         self.init(kind: kind, start: UInt32(run.start), count: UInt32(run.count))
     }
@@ -61,7 +64,10 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 3
+    public static let version: UInt32 = 4
+    /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
+    /// version 1 had no images and is re-recorded, never read.
+    public static let oldestReadableVersion: UInt32 = 2
     /// The primitive ABI, read off the real structs. `replay.hlsl` hard-codes
     /// the layout these imply (rect 8 lanes, glyph 6, after the bridge pads
     /// 120 → 128 and 88 → 96), so a changed struct must fail loudly:
@@ -70,6 +76,9 @@ public struct ReplayFixture: Equatable, Sendable {
     public static let glyphStride = UInt32(MemoryLayout<MUIGlyph>.stride)
     public static let imageStride = UInt32(MemoryLayout<MUIImage>.stride)
     public static let transformStride = UInt32(MemoryLayout<MUITransform>.stride)
+    /// The backdrop record's stride (version 4, ruling `BB-B`): six `float4` lanes,
+    /// read by `replay.hlsl` as they are.
+    public static let backdropStride = UInt32(MemoryLayout<MUIBackdrop>.stride)
     public static let maxDimension: UInt32 = 4096
 
     public var width: UInt32
@@ -80,6 +89,8 @@ public struct ReplayFixture: Equatable, Sendable {
     public var textures: [FixtureTexture]
     /// The scene's `MUITransform` table (version 3, ruling GX-F).
     public var transforms: [UInt8] = []
+    /// The scene's `MUIBackdrop` records (version 4, ruling `BB-J`).
+    public var backdrops: [UInt8] = []
     public var runs: [FixtureRun]
     public var atlasWidth: UInt32
     public var atlasHeight: UInt32
@@ -91,6 +102,7 @@ public struct ReplayFixture: Equatable, Sendable {
     public var glyphCount: Int { glyphs.count / Int(Self.glyphStride) }
     public var imageCount: Int { images.count / Int(Self.imageStride) }
     public var transformCount: Int { transforms.count / Int(Self.transformStride) }
+    public var backdropCount: Int { backdrops.count / Int(Self.backdropStride) }
 
     /// The transform records as the struct the shaders read.
     public var transformRecords: [MUITransform] {
@@ -98,6 +110,41 @@ public struct ReplayFixture: Equatable, Sendable {
             (0..<transformCount).map {
                 raw.loadUnaligned(fromByteOffset: $0 * Int(Self.transformStride), as: MUITransform.self)
             }
+        }
+    }
+
+    /// The backdrop records as the struct the renderer draws.
+    public var backdropRecords: [MUIBackdrop] {
+        backdrops.withUnsafeBytes { raw in
+            (0..<backdropCount).map { raw.loadUnaligned(fromByteOffset: $0 * Int(Self.backdropStride), as: MUIBackdrop.self) }
+        }
+    }
+
+    /// Each backdrop record's blurred region on the fixture's target, or `nil`
+    /// where nothing is left: the record's bounds mapped by its transform's
+    /// bounding box, floored and ceiled to device pixels, clamped to the target —
+    /// `Scene.backdropRegion(_:target:)`, restated over the records a fixture
+    /// holds (a test pins the two together, ruling `BB-D` 3).
+    public var backdropRegions: [Scene.BackdropRegion?] {
+        let transforms = transformRecords
+        return backdropRecords.map { record in
+            let b = record.bounds
+            var xs: [Float] = [b.origin.x, b.origin.x + b.size.width]
+            var ys: [Float] = [b.origin.y, b.origin.y + b.size.height]
+            let index = Int(record.shape >> 8)
+            if index > 0, index <= transforms.count {
+                let m = transforms[index - 1]
+                var mx: [Float] = [], my: [Float] = []
+                for x in xs { for y in ys {
+                    mx.append(m.a * x + m.c * y + m.tx)
+                    my.append(m.b * x + m.d * y + m.ty)
+                } }
+                xs = mx; ys = my
+            }
+            let x0 = max(Int((xs.min() ?? 0).rounded(.down)), 0), y0 = max(Int((ys.min() ?? 0).rounded(.down)), 0)
+            let x1 = min(Int((xs.max() ?? 0).rounded(.up)), Int(width)), y1 = min(Int((ys.max() ?? 0).rounded(.up)), Int(height))
+            guard x1 > x0, y1 > y0 else { return nil }
+            return Scene.BackdropRegion(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
         }
     }
 
@@ -110,12 +157,13 @@ public struct ReplayFixture: Equatable, Sendable {
 
     public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8],
                 images: [UInt8] = [], textures: [FixtureTexture] = [], transforms: [UInt8] = [],
-                runs: [FixtureRun],
+                backdrops: [UInt8] = [], runs: [FixtureRun],
                 atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
                 projection: [Float], reference: [UInt8]) throws(FixtureError) {
         self.width = width; self.height = height
         self.rects = rects; self.glyphs = glyphs; self.images = images; self.textures = textures
         self.transforms = transforms
+        self.backdrops = backdrops
         self.runs = runs
         self.atlasWidth = atlasWidth; self.atlasHeight = atlasHeight; self.atlas = atlas
         self.projection = projection; self.reference = reference
@@ -134,6 +182,7 @@ public struct ReplayFixture: Equatable, Sendable {
                 FixtureTexture(width: UInt32($0.width), height: UInt32($0.height), pixels: $0.pixels)
             },
             transforms: scene.transforms.withUnsafeBytes { Array($0) },
+            backdrops: scene.backdrops.withUnsafeBytes { Array($0) },
             runs: scene.drawList.map { FixtureRun(scene: $0) },
             atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height), atlas: atlas.pixels,
             projection: projection, reference: reference)
@@ -153,6 +202,9 @@ public struct ReplayFixture: Equatable, Sendable {
         guard transforms.count % Int(Self.transformStride) == 0 else {
             throw .invalid("transform bytes \(transforms.count) not a multiple of \(Self.transformStride)")
         }
+        guard backdrops.count % Int(Self.backdropStride) == 0 else {
+            throw .invalid("backdrop bytes \(backdrops.count) not a multiple of \(Self.backdropStride)")
+        }
         for (index, texture) in textures.enumerated() {
             try dimension(texture.width, "texture \(index) width"); try dimension(texture.height, "texture \(index) height")
             guard texture.pixels.count == Int(texture.width) * Int(texture.height) * 4 else {
@@ -169,7 +221,12 @@ public struct ReplayFixture: Equatable, Sendable {
         guard projection.count == 16, projection.allSatisfy(\.isFinite) else { throw .invalid("projection must be 16 finite floats") }
         guard reference.count == Int(width) * Int(height) * 4 else { throw .invalid("reference bytes \(reference.count) ≠ \(width)×\(height)×4") }
         for (index, run) in runs.enumerated() {
-            let records = run.kind == .rect ? rectCount : run.kind == .glyph ? glyphCount : imageCount
+            let records = switch run.kind {
+            case .rect: rectCount
+            case .glyph: glyphCount
+            case .image: imageCount
+            case .backdrop: backdropCount
+            }
             guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
             }
@@ -200,7 +257,7 @@ public enum FixtureError: Error, Equatable, CustomStringConvertible {
         switch self {
         case let .truncated(at, needed): "fixture truncated: need \(needed) bytes at offset \(at)"
         case .badMagic: "not a MetalUI replay fixture"
-        case let .unsupportedVersion(v): "fixture version \(v), reader supports \(ReplayFixture.version)"
+        case let .unsupportedVersion(v): "fixture version \(v), reader supports \(ReplayFixture.oldestReadableVersion)...\(ReplayFixture.version)"
         case let .strideMismatch(r, g, i): "primitive ABI changed: rect \(r)/glyph \(g)/image \(i), shaders expect \(ReplayFixture.rectStride)/\(ReplayFixture.glyphStride)/\(ReplayFixture.imageStride)"
         case let .badRunKind(k): "unknown run kind \(k)"
         case let .trailingBytes(n): "\(n) trailing bytes after fixture"
@@ -218,11 +275,11 @@ extension ReplayFixture {
         func bytes(_ b: [UInt8]) { u32(UInt32(b.count)); out += b }
         u32(Self.version)
         u32(width); u32(height); u32(Self.rectStride); u32(Self.glyphStride); u32(Self.imageStride)
-        u32(Self.transformStride)
+        u32(Self.transformStride); u32(Self.backdropStride)
         bytes(rects); bytes(glyphs); bytes(images)
         u32(UInt32(textures.count))
         for texture in textures { u32(texture.width); u32(texture.height); out += texture.pixels }
-        bytes(transforms)
+        bytes(transforms); bytes(backdrops)
         u32(UInt32(runs.count))
         for run in runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
         u32(atlasWidth); u32(atlasHeight); out += atlas
@@ -245,12 +302,18 @@ extension ReplayFixture {
 
         guard Array(try take(magic.count)) == magic else { throw .badMagic }
         let version = try u32()
-        guard version == Self.version else { throw .unsupportedVersion(version) }
+        guard (Self.oldestReadableVersion...Self.version).contains(version) else { throw .unsupportedVersion(version) }
         let width = try u32(), height = try u32()
-        let rectStride = try u32(), glyphStride = try u32(), imageStride = try u32(), transformStride = try u32()
+        let rectStride = try u32(), glyphStride = try u32(), imageStride = try u32()
+        // Version 2 has no transform table, version 2 and 3 no backdrop table (BB-J).
+        let transformStride = version >= 3 ? try u32() : Self.transformStride
+        let backdropStride = version >= 4 ? try u32() : Self.backdropStride
         guard rectStride == Self.rectStride, glyphStride == Self.glyphStride, imageStride == Self.imageStride,
               transformStride == Self.transformStride else {
             throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: imageStride)
+        }
+        guard backdropStride == Self.backdropStride else {
+            throw .invalid("backdrop ABI changed: stride \(backdropStride), shaders expect \(Self.backdropStride)")
         }
         let rects = try bytes(Int(try u32()))
         let glyphs = try bytes(Int(try u32()))
@@ -266,7 +329,8 @@ extension ReplayFixture {
             textures.append(FixtureTexture(width: textureWidth, height: textureHeight,
                                            pixels: try bytes(Int(textureWidth) * Int(textureHeight) * 4)))
         }
-        let transforms = try bytes(Int(try u32()))
+        let transforms = version >= 3 ? try bytes(Int(try u32())) : []
+        let backdrops = version >= 4 ? try bytes(Int(try u32())) : []
         let runCount = Int(try u32())
         var runs: [FixtureRun] = []
         for _ in 0..<runCount {
@@ -286,7 +350,7 @@ extension ReplayFixture {
         let reference = try bytes(Int(width) * Int(height) * 4)
         guard offset == data.count else { throw .trailingBytes(data.count - offset) }
         try self.init(width: width, height: height, rects: rects, glyphs: glyphs,
-                      images: images, textures: textures, transforms: transforms, runs: runs,
+                      images: images, textures: textures, transforms: transforms, backdrops: backdrops, runs: runs,
                       atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
                       projection: projection, reference: reference)
     }
@@ -323,16 +387,25 @@ public func pixelDifference(_ a: [UInt8], _ b: [UInt8], above threshold: Int = 0
 public enum ParityTolerance {
     public static let outsideGlyphs = 1
     public static let insideGlyphs = 8
+    /// Inside a backdrop quad (version 4, ruling BB-J): the blurred level
+    /// texture is read bilinearly at `(p + ½)/2^L − ½` (the same filter-weight
+    /// precision as a sprite, but a smooth signal, so far less of it shows) and
+    /// a Gaussian's `exp` is the shader language's own. Measured: 0 on Metal,
+    /// 2 on Mesa lavapipe (frames 9-11).
+    public static let insideBackdrops = 3
 }
 
 public struct Parity: Equatable, Sendable {
     public var outside: (pixels: Int, maxDelta: Int)
     public var inside: (pixels: Int, maxDelta: Int)
+    /// The pixels of a backdrop quad no sprite quad covers (version 4).
+    public var backdrop: (pixels: Int, maxDelta: Int) = (0, 0)
     public var passes: Bool {
         outside.maxDelta <= ParityTolerance.outsideGlyphs && inside.maxDelta <= ParityTolerance.insideGlyphs
+            && backdrop.maxDelta <= ParityTolerance.insideBackdrops
     }
     public static func == (a: Parity, b: Parity) -> Bool {
-        a.outside == b.outside && a.inside == b.inside
+        a.outside == b.outside && a.inside == b.inside && a.backdrop == b.backdrop
     }
 }
 
@@ -387,11 +460,21 @@ extension ReplayFixture {
     /// for anti-aliased coverage at its edge.
     public func glyphMask() -> [Bool] { mask(covering: glyphBounds) }
 
+    /// Backdrop bounds (`MUIBackdrop.bounds`) on the target before the
+    /// projection, placed as ``glyphBounds`` places a glyph's (version 4).
+    public var backdropBounds: [(x: Float, y: Float, width: Float, height: Float)] {
+        backdropRecords.map { placed($0.bounds, transform: $0.shape >> 8) }
+    }
+
     /// Pixels judged at the sprite tolerance: every glyph quad and, since
     /// version 2, every image quad (ruling TE-AF item 6) — an image is
     /// sampled wherever the projection puts a pixel centre, off texel centres,
     /// for the same filter-weight-precision reason as the atlas.
     public func spriteMask() -> [Bool] { mask(covering: glyphBounds + imageBounds) }
+
+    /// Pixels a backdrop quad may touch (version 4, ruling BB-J), judged at
+    /// ``ParityTolerance/insideBackdrops`` unless a sprite quad covers them too.
+    public func backdropMask() -> [Bool] { mask(covering: backdropBounds) }
 
     private func mask(covering quads: [(x: Float, y: Float, width: Float, height: Float)]) -> [Bool] {
         let w = Int(width), h = Int(height)
@@ -416,15 +499,16 @@ extension ReplayFixture {
 
     public func parity(of pixels: [UInt8]) -> Parity {
         precondition(pixels.count == reference.count, "output size differs from reference")
-        let mask = spriteMask()
-        var inside = (pixels: 0, maxDelta: 0), outside = (pixels: 0, maxDelta: 0)
+        let mask = spriteMask(), backdropMask = backdropMask()
+        var inside = (pixels: 0, maxDelta: 0), outside = (pixels: 0, maxDelta: 0), backdrop = (pixels: 0, maxDelta: 0)
         for p in 0..<mask.count {
             var delta = 0
             for c in 0..<4 { delta = max(delta, abs(Int(reference[p * 4 + c]) - Int(pixels[p * 4 + c]))) }
             guard delta > 0 else { continue }
             if mask[p] { inside.pixels += 1; inside.maxDelta = max(inside.maxDelta, delta) }
+            else if backdropMask[p] { backdrop.pixels += 1; backdrop.maxDelta = max(backdrop.maxDelta, delta) }
             else { outside.pixels += 1; outside.maxDelta = max(outside.maxDelta, delta) }
         }
-        return Parity(outside: outside, inside: inside)
+        return Parity(outside: outside, inside: inside, backdrop: backdrop)
     }
 }

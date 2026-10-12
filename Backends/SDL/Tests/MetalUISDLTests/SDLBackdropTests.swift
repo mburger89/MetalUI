@@ -7,6 +7,7 @@ import MetalUIShaderTypes
 @testable import MetalUISDL
 import SDLReplay
 import ReplayFixture
+import SDLBridge
 
 // Backdrop blur on the SDL GPU renderer (rulings BB-A, BB-C, BB-D, BB-E, BB-I,
 // BB-J, BB-R, BB-S; spec `2026-10-10-backdrop-blur-design.md` §3, §5, tests
@@ -389,4 +390,16 @@ func sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal(sigma: Float) thr
     let sharp = try draw(renderer, below, width: w, height: h, surfaces: [surfaceRequest(target, source: source)])
     #expect(px(sharp, 20, 10, width: w) == [255, 0, 0, 255], "a surface drawn after the backdrop stays sharp")
     #expect(px(sharp, 40, 30, width: w) == [255, 255, 255, 255])
+}
+
+/// **3.3g** (`BB-D`). The bridge derives the level count from a record's own
+/// sigma (`mui_backdrop_levels`), so it is `BackdropBlurReference.levels`
+/// restated in C and must agree with it at every threshold: the smallest `L`
+/// with `σ / 2^L ≤ 4`, at most `MUIBackdropBlurMaxLevel`. Mutation: change the
+/// `≤ 4` to `< 4` or the cap.
+@Test func theBridgeLevelsAreTheReferencesLevels() {
+    #expect(Int(MUIBackdropBlurMaxLevel) == 6)
+    for sigma: Float in [0, 1, 4, 4.01, 8, 8.5, 16, 52, 104, 128, 255.9, 256, 256.1, 512, 10_000] {
+        #expect(Int(mui_backdrop_levels(sigma)) == levels(sigma: sigma), "σ \(sigma)")
+    }
 }
