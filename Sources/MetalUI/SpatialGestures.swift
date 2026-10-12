@@ -8,24 +8,54 @@ import MetalUILayout
 // of the one arena (`IX-D`): a spatial tap is a tap that also records a
 // point; a magnify or rotate is live only in a pinch arena (`CI-D`).
 
-/// The space a gesture reports its points in — SwiftUI's `CoordinateSpace`,
-/// narrowed to the two cases MetalUI offers (`CI-B` item 3).
+/// The space a point or frame is reported in — SwiftUI's `CoordinateSpace`,
+/// its three cases exactly (`CI-B` item 3; `OV-D`, probe
+/// `swiftui-overlays-coords-typecheck.sh` T9/T10).
 ///
-/// - `.local`: the gesture element's own space, top-leading origin, with its
-///   render effects undone (`Hitbox.localPoint`) — SwiftUI's default.
+/// - `.local`: the element's own space, top-leading origin, with its render
+///   effects undone (`Hitbox.localPoint`) — SwiftUI's default.
 /// - `.global`: **the window's content space** — the point a `MouseEvent`
 ///   carries. SwiftUI's `.global` in a titled window read 32 points lower than
 ///   the content view's point (probe `T2`; divergence 139).
+/// - `.named(_:)`: the space of the **nearest ancestor** that declared
+///   `.coordinateSpace(.named(name))`, moving with that ancestor's scroll
+///   offsets and render effects (`OV-E`, probe arms G1–G7); a name no ancestor
+///   declares — or a sibling's — falls back to `.global`.
 ///
-/// `.named(_:)` and `.coordinateSpace(_:)` are not offered (`CI-A`). **Adding
-/// `.named(_:)` adds an enum case** (`CI-AC`): MetalUI is built without library
-/// evolution, so an outside exhaustive `switch` over `CoordinateSpace` then owes
-/// a case or `default:` — a migration note in the change that adds it.
-public enum CoordinateSpace: Sendable, Hashable {
-    /// The gesture element's own space.
+/// **Migration** (`CI-AC`, `OV-D`): `.named(_:)` is a case added after
+/// `.local`/`.global`, and MetalUI is built without library evolution, so an
+/// outside exhaustive `switch` over `CoordinateSpace` owes a `.named` case or
+/// `default:` (`docs/migration.md`).
+///
+/// **`@unchecked Sendable`** (`OV-L`): the name is SwiftUI's `AnyHashable`,
+/// which is not `Sendable`; MetalUI resolves every name on the main actor (in
+/// prepaint or input dispatch). The hole: a reference-typed, non-`Sendable`
+/// name moved across actors by app code is not checked.
+public enum CoordinateSpace: @unchecked Sendable, Hashable {
+    /// The element's own space.
     case local
     /// The window's content space (divergence 139).
     case global
+    /// The space the nearest ancestor declared with
+    /// `.coordinateSpace(.named(name))`; `.global` when none did (`OV-E`).
+    case named(AnyHashable)
+}
+
+/// A named coordinate space to declare — SwiftUI's `NamedCoordinateSpace`,
+/// what `coordinateSpace(_:)` takes (`OV-D`): only `.named(_:)` can be
+/// spelled, so `.coordinateSpace(.global)` does not compile.
+///
+/// **`@unchecked Sendable`** for `CoordinateSpace`'s reason (`OV-L`): the name
+/// is an `AnyHashable`, read only on the main actor; a non-`Sendable`
+/// reference-typed name moved across actors by app code is not checked.
+public struct NamedCoordinateSpace: @unchecked Sendable, Hashable {
+    let name: AnyHashable
+
+    /// A space named `name` — SwiftUI's `NamedCoordinateSpace.named(_:)`
+    /// exactly (no `Sendable` constraint, `OV-L`).
+    public static func named(_ name: some Hashable) -> NamedCoordinateSpace {
+        NamedCoordinateSpace(name: AnyHashable(name))
+    }
 }
 
 /// A mouse button, by AppKit's `buttonNumber` (`CI-F` item 2): 0 the primary,

@@ -15,6 +15,8 @@ import MetalUITextSystem
 /// `ImageRenderer` analogue of probe `swiftui-environment-control-state.swift`
 /// S1 and V0 (rulings EV-AA, EV-AB). Its `accessibilityReduceMotion` is
 /// `false`, stamped (ruling `AN-AD`): a headless frame has no platform to ask.
+/// Its `windowSize` is `size`, stamped as a window stamps its `contentSize`
+/// (ruling `OV-R`).
 ///
 /// **An app-owned surface (`GPUSurface`, `MetalView`) appears as its quad and
 /// its `SurfaceTarget` only** (MetalView, `MV-H` item 5): a scene is data, so the
@@ -29,6 +31,7 @@ public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>
                       glyphAtlas: atlas, theme: theme)
     var environment = frame.rootEnvironment
     environment.accessibilityReduceMotion = false
+    environment.windowSize = size  // OV-R: a window of `size` stamps its contentSize
     frame.rootEnvironment = environment
     var root = content()
     frame.render(&root)

@@ -444,11 +444,16 @@ final class ArenaLeaf {
     var pinchAnchor = UnitPoint.zero
     var pendingPinch = false
 
-    init(_ recognizer: Recognizer, owner: GlobalElementID, region: Hitbox) {
+    /// The named spaces in force at the region's registration, taken at the
+    /// arena's formation (`OV-H`).
+    let namedSpaces: [NamedSpace]
+
+    init(_ recognizer: Recognizer, owner: GlobalElementID, region: Hitbox, namedSpaces: [NamedSpace] = []) {
         self.recognizer = recognizer
         self.owner = owner
         self.origin = region.origin
         self.region = region
+        self.namedSpaces = namedSpaces
     }
 
     /// The two pinch kinds, which never block each other (`CI-D` item 3).
@@ -495,9 +500,15 @@ final class ArenaLeaf {
     }
 
     /// `point` (a window point) in `space`: local to the owning element, its
-    /// render effects undone, or the window point itself.
+    /// render effects undone; the window point itself; or the point in the
+    /// nearest ancestor space so named, `.global` when none is (`OV-H`) — an
+    /// exhaustive switch, so a new case cannot fall into another's arm.
     func point(_ point: Point<Pixels>, in space: CoordinateSpace) -> Point<Pixels> {
-        space == .local ? local(point) : point
+        switch space {
+        case .local: local(point)
+        case .global: point
+        case .named(let name): NamedSpace.resolve(name, in: namedSpaces)?.toSpace?.apply(point) ?? point
+        }
     }
 
     /// The anchor of a local point: its fraction of the registered hit
@@ -621,8 +632,11 @@ struct GestureArena {
     /// to any of them is live in `mode`: a press's dispatch is then exactly
     /// `Window.dispatchClick` (`IX-D` item 2), and a secondary, other or pinch
     /// event forms nothing.
+    ///
+    /// `namedSpaces`: each member's named-space snapshot by owner (`OV-H`),
+    /// empty when no `coordinateSpace(_:)` was in force.
     init?(target: Hitbox, ancestors: [(hitbox: Hitbox, depth: Int)], draggableAbove: Hitbox? = nil,
-          mode: ArenaMode = .press) {
+          mode: ArenaMode = .press, namedSpaces: [GlobalElementID: [NamedSpace]] = [:]) {
         struct Member { let node: ArenaNode; let priority: GestureAttachment.Priority; let depth: Int; let index: Int }
         var members: [Member] = []
         // A non-opaque draggable region ranking above the target joins as the
@@ -630,7 +644,8 @@ struct GestureArena {
         let above = draggableAbove.map { [($0, -1)] } ?? []
         for (hitbox, depth) in above + [(target, 0)] + ancestors.map({ ($0.hitbox, $0.depth) }) {
             for (index, attachment) in hitbox.handlers.gestures.enumerated() {
-                members.append(Member(node: Self.build(attachment.node, owner: hitbox.id, region: hitbox),
+                members.append(Member(node: Self.build(attachment.node, owner: hitbox.id, region: hitbox,
+                                                       namedSpaces: namedSpaces[hitbox.id] ?? []),
                                       priority: attachment.priority, depth: depth, index: index))
             }
         }
@@ -655,14 +670,19 @@ struct GestureArena {
         guard liveGesture else { return nil }
     }
 
-    private static func build(_ node: GestureNode, owner: GlobalElementID, region: Hitbox) -> ArenaNode {
+    private static func build(_ node: GestureNode, owner: GlobalElementID, region: Hitbox,
+                              namedSpaces: [NamedSpace]) -> ArenaNode {
         switch node {
         case .leaf(let leaf):
-            return ArenaNode(.leaf(ArenaLeaf(.gesture(leaf), owner: owner, region: region)))
+            return ArenaNode(.leaf(ArenaLeaf(.gesture(leaf), owner: owner, region: region, namedSpaces: namedSpaces)))
         case .exclusive(let children):
-            return ArenaNode(.exclusive(children.map { build($0, owner: owner, region: region) }))
+            return ArenaNode(.exclusive(children.map {
+                build($0, owner: owner, region: region, namedSpaces: namedSpaces)
+            }))
         case .simultaneous(let children):
-            return ArenaNode(.simultaneous(children.map { build($0, owner: owner, region: region) }))
+            return ArenaNode(.simultaneous(children.map {
+                build($0, owner: owner, region: region, namedSpaces: namedSpaces)
+            }))
         }
     }
 
