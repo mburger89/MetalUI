@@ -242,7 +242,7 @@ handle inert and the base receiving the press. MetalUI gates no hitbox on
 opacity, for any gesture, and `WD-G` wrongly called that an existing divergence:
 no row covers it. **Divergence 277** (label from this branch's range): a
 `.opacity(0)` handle still captures the press and drags. Pinned wrong on
-purpose by a fourth arm of test 1.11 (`anOpacityZeroHandleStillCapturesTheWayEveryGestureDoes`);
+purpose by a fourth arm of test 1.11 (`allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle`);
 `.hidden()` is the way to remove it. Not fixed here: gating on opacity would
 move hit testing for every gesture (MUST NOT MOVE).
 
