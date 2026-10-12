@@ -420,7 +420,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
 }
 
 /// 4.23 — text and selection written in one handler apply against the new text.
-/// A button replaces a two-Character title with a nineteen-Character one and
+/// A button replaces a three-Character title (after one typed edit) with a nineteen-Character one and
 /// selects all of it; typing replaces the whole new text. Mutation: convert
 /// against the previous frame's text.
 @available(macOS 15, *)
@@ -437,6 +437,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
     }
     model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
     try focusField(window)
+    window.typeText("!")                  // an edit, so the field remembers the text it last made
     try window.click(window.element(label: "Rename"))
     window.typeText("Z")
     #expect(model.text == "Z")
