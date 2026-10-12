@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-M`.**
+**Next unused id: `SL-N`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -133,3 +133,15 @@ would not compile against SwiftUI code); gating `TextEditState`/`TextInputTarget
 (availability spreads through every file that names them). **Cost if wrong**: an app on macOS 14
 cannot bind a selection (SwiftUI cannot either); Linux and Windows have no gate. Tests that name the
 type are `@available(macOS 15, *)`.
+
+## SL-M — `TextInputTarget` carries its two closures in class boxes: `Handlers` stays 488 bytes
+
+The first build added `selectionSink` (an optional closure, 16 bytes) to `TextInputTarget`, which
+`Handlers.textInput` holds inline: `Handlers` grew 488 to 504 and two existing pins reddened
+(`theNewDeclarationsCostHandlersAtMostOnePointer`, `handlersGainsOneReferenceMember`, measured in the
+full run). The design (§3) said the field is "internal and gains one optional field" and did not
+count bytes. **Ruling**: `onSubmit` and the sink are each one class box (`TextTargetHook`, one
+pointer), exposed through computed `onSubmit`/`selectionSink`, behind an explicit initialiser with
+the memberwise labels — net zero, `Handlers` back to 488, no pin edited. **Alternative rejected**:
+one box for both (480; the exact-488 pin would move and owe a migration note). **Cost**: one
+allocation per bound or submitting field per frame.
