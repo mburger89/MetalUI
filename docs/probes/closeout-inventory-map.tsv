@@ -173,6 +173,9 @@ F	named-coordinate-space	A	swiftui-overlays-coords.swift	G6	aRotatedNamedSpaceRe
 F	window-size	M	-	-	-	-	OV-G OV-O	EnvironmentValues.windowSize: the window's content size stamped by Window at each build (drawn chrome included), get-only outside the module (MetalUI-only: SwiftUI has no window-size environment key, probe arms W0/W1, T5-T8)
 F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them)
 F	input-apis-drag-modifiers	D	-	-	-	140	CI-G	DragGesture.Value.modifiers: the modifier keys held at the event that produced the value; SwiftUI's Value has none (census, 140)
+F	input-followups-values	D	-	-	-	235	IF-B IF-C	SpatialTapGesture.Value.modifiers and init, DragGesture.Value.clickCount and its init: the last press's modifiers on a spatial tap, the press's platform click count on a drag value; SwiftUI's values have neither (235)
+F	input-followups-cancel	D	-	-	-	236	IF-E IF-F	onCancelled(_:) on DragGesture, MagnifyGesture and RotateGesture: runs once when a leaf that had reported is dropped without onEnded; SwiftUI has no callback and resets @GestureState instead (236)
+F	input-followups-modkeys	M	-	-	-	-	IF-D	onModifierKeysChanged(mask:initial:_:) and ModifierKeysScope: SwiftUI's signature and defaults, MetalUI's own contract (the window owns the modifiers, a transparent scope noted in prepaint, the action in the lifecycle drain); SwiftUI's timing is unprobed (human check IF1)
 F	input-apis-pointer-style	A	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	-	CI-H CI-S CI-AH	PointerStyle (.default/.horizontalText/.verticalText/.rectSelection/.grabIdle/.grabActive/.link/.zoomIn/.zoomOut/.columnResize/.rowResize/frameResize(position:directions:)), FrameResizePosition, FrameResizeDirection(.Set): SwiftUI's spellings and its innermost-wins (P11/P11c), nil defers (P12), an opaque target above covers (P13); a non-opaque style region per element through the one ranking, sent to the platform on a change
 F	input-apis-pointer-style-modifier	D	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	141	CI-H CI-AH	pointerStyle(_:) on both vocabularies: a non-opaque style region per element through the one ranking, innermost wins (P11), nil defers (P12), an opaque target above covers (P13); a view that only paints does not cover it (P14, 141)
 F	input-apis-wheel	M	-	-	-	-	CI-I CI-Q CI-AH	onScrollWheel(perform:) on both vocabularies, ScrollWheelModifier, PointerStyleModifier: a per-element wheel handler (SwiftUI has no per-view wheel hook on macOS) returning whether it claimed, offered innermost first on the one ranking's chain before each scroller (DD-Y), and the two proposal wrappers' types
@@ -315,6 +318,11 @@ M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
 M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|init)	.*	input-followups-values
+M	MetalUI	SpatialGestures.swift	(MagnifyGesture|RotateGesture)	onCancelled	.*	input-followups-cancel
+M	MetalUI	Gesture.swift	DragGesture	onCancelled	.*	input-followups-cancel
+M	MetalUI	Gesture.swift	DragGesture.Value	(clickCount|init)	.*clickCount.*	input-followups-values
+M	MetalUI	Gesture.swift	DragGesture.Value	clickCount	.*	input-followups-values
 M	MetalUI	SpatialGestures.swift	(-|MouseButton)	(MouseButton|buttonNumber|primary|secondary|middle|other)	.*	input-apis-gestures-metalui
 M	MetalUI	SpatialGestures.swift	-	CoordinateSpace	.*	input-apis-global-space
 M	MetalUI	SpatialGestures.swift	(-|NamedCoordinateSpace)	(NamedCoordinateSpace|named)	.*	named-coordinate-space
@@ -523,3 +531,4 @@ M	MetalUI	PointerStyle.swift	.*	.*	.*	input-apis-pointer-style
 M	MetalUI	ScrollWheel.swift	.*	.*	.*	input-apis-wheel
 M	MetalUITesting	(TestHarnessError|HeadlessPlatform|HeadlessPlatformWindow|HeadlessWindowRenderer|TestApp|TestWindow|TestWindowInput|FrameWork)\.swift	.*	.*	.*	test-harness-host
 M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindowPresentations|TestAppMenuBar|MenuEvaluation)\.swift	.*	.*	.*	test-harness-inspection
+M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys

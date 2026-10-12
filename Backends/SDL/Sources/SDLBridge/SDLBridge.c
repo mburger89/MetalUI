@@ -825,7 +825,9 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
     case SDL_EVENT_WINDOW_EXPOSED:
         out->kind = MUI_EVENT_EXPOSED; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
-        out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID; return true;
+        out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID;
+        out->modifiers = mods(SDL_GetModState());   // the modifiers held now (IF-I)
+        return true;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_MOUSE_LEAVE:   // the pointer left the window (SV-N item 7)
@@ -969,7 +971,14 @@ bool mui_push_event(const MUIEvent *in) {
     case MUI_EVENT_THEME: e.type = SDL_EVENT_SYSTEM_THEME_CHANGED; break;
     case MUI_EVENT_FOCUS_GAINED: case MUI_EVENT_FOCUS_LOST:
         e.type = in->kind == MUI_EVENT_FOCUS_GAINED ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_WINDOW_FOCUS_LOST;
-        e.window.windowID = in->window_id; break;
+        e.window.windowID = in->window_id;
+        // A window event carries no modifiers: a test's held keys are SDL's
+        // tracked state, set as a held key would (IF-I).
+        SDL_SetModState((in->modifiers & MUI_MOD_SHIFT ? SDL_KMOD_LSHIFT : 0)
+                      | (in->modifiers & MUI_MOD_CONTROL ? SDL_KMOD_LCTRL : 0)
+                      | (in->modifiers & MUI_MOD_OPTION ? SDL_KMOD_LALT : 0)
+                      | (in->modifiers & MUI_MOD_COMMAND ? SDL_KMOD_LGUI : 0));
+        break;
     default: return SDL_SetError("unsupported synthetic event");
     }
     e.common.timestamp = SDL_GetTicksNS();

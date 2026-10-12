@@ -59,7 +59,8 @@ summary.
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
-  `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), …; the full
+  `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
+  `2026-10-10-input-followups-decisions.md`, next `IF-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -72,9 +73,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **135 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 235–264 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 245–274 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT and OV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -94,6 +95,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`, merged with master `0abce86` (§91 harness, §92 overlays): 3402 tests, 0 goldens, 215 typecheck guards** (master's 3363 + 39 tests = 18 + 11 + 10 by lane, 213 + 2 guards, both lane 1's; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3405 (3392 + 13); `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image at the lane runs, not re-taken after the merge; divergences 235, 236, the header's count and next label the merge's; record §93 §4). Before it,
 - **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
   (master's 3312 + 51 tests, 208 + 5 guards; the native run after `swift package clean` read exactly the five
   `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and nothing else; census 3392 (3356 + 36);
@@ -676,6 +678,23 @@ by a `Deferred` barrier; alone it changes nothing, and it does **not** composite
 (divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
 its reference copy, still importing nothing (`PF-F`).
 
+**Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
+press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only
+values (divergence 235); `onCancelled` on drag, magnify and rotate runs **once, only for a
+leaf that had reported**, from a dropped primary arena, a replaced stale button or pinch arena,
+a `.mouseMoved` while a button arena is live (a lost release), key loss and window close —
+never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; no
+`@GestureState`). A wheel scroll **latches** to the cover of its `.began` through its momentum
+(`ScrollLatch`, `IF-G`) and ends with a synthesized `.cancelled` to the latched handlers on key
+loss or close (`IF-H`); the platforms send `.modifiersChanged` on becoming key (`IF-I`).
+`onModifierKeysChanged(mask:initial:_:)` is one transparent `ModifierKeysScope` (the shape of
+`GeometryChangeScope`; `$modkeys<depth>` a `LifecycleStore` key, never a `StateTable` slot):
+`Window.currentModifiers` comes from every key, pointer and scroll event and the flags report,
+drops to `[]` on leaving key, dirties the window **only when the last build held a scope**, and
+the action runs in the lifecycle drain after the build; SwiftUI's timing is **unprobed**
+(human check IF1, `IF-D`). A `.modifiersChanged` event returns before the hook's blanket
+`setNeedsRedraw()` unless the app's `onInput` claims it (`IF-N` item 3).
+
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
 `.contextMenu { }` (both vocabularies, a closed `MenuContent` evaluated at each
@@ -1094,7 +1113,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (135 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (137 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
