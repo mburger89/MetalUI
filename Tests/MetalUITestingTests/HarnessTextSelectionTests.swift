@@ -32,8 +32,10 @@ func span(_ lower: Int, _ upper: Int, in text: String) -> TextSelection {
 @available(macOS 15, *)
 func offsets(_ selection: TextSelection?, in text: String) -> Range<Int>? {
     guard case .selection(let range)? = selection?.indices else { return nil }
-    return text.distance(from: text.startIndex, to: range.lowerBound)
-        ..< text.distance(from: text.startIndex, to: range.upperBound)
+    func offset(_ index: String.Index) -> Int {   // a stale index must read, not trap
+        index >= text.endIndex ? text.count : text.distance(from: text.startIndex, to: index)
+    }
+    return offset(range.lowerBound)..<offset(range.upperBound)
 }
 
 /// The caller's side of a field: the text, the selection binding's value and a
