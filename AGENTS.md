@@ -58,7 +58,8 @@ summary.
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
-  `2026-10-09-test-harness-decisions.md`, next `HT-Y`), …; the full
+  `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `FI-` (`ForEach` identity:
+  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -93,7 +94,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3312 tests, 0 goldens, 208 typecheck guards (3310 + the two §14 pins, record §91 §14)**
+- **Counts (2026-10-12, `fix/foreach-identity` from `280d706`: 3325 tests, 0 goldens, 209 typecheck guards**
+  (master's 3312 + 13 tests, 208 + 1 guard `G1`; native run on a locked screen read exactly the five
+  `AppKitPresentationTests` sheet issues and nothing else; census 3361 unchanged in count; divergence 79 retired, 255
+  added, 134 live; the fourteen images 0 px against `280d706`; record §95 §2). Before it,
+  **(2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3312 tests, 0 goldens, 208 typecheck guards (3310 + the two §14 pins, record §91 §14)**
   (master's 3237 + 73 tests, 205 + 3 guards: lane 1's 37, lane 2's 30, lane 3's 5, the merge's 2.31; native
   `--build-system native` run all passed after `swift package clean`, the default build system 0 `warning:`; census 3356 (3134 +
   the product's 222); root in `swift:6.4-noble` 9 + 40 + 21 + 199 + 78 + 22 plus `MetalUITestingTests` 72; `Backends/SDL` untouched
@@ -960,6 +965,17 @@ never time). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swi
 `TestingMenuHooks.swift` (plain-import guards 3.1–3.3 pin them unreachable); no pixels, no GPU
 surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name
 (`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process.
+
+**`ForEach` identity (`FI-`, record §95).** A `ForEach` element is identified by its id's **Hashable
+value**, as SwiftUI: ids that print alike and differ in value are two elements with separate `@State`
+(divergence 79 is retired). For an id type that is not a `DescriptionInjectiveID` (Int family, String,
+UUID, Bool, Character, Double, Float) every element's `ElementID` also carries an internal
+`IdentityKey` (`ElementID(name:key:)`, never public, plain-import guard G1); injective types mint
+today's description-only names, byte for byte (`FI-B`). `GlobalElementID.==`/`cachedHash` are
+untouched (`FI-C`); a floating-point id keeps the name dedupe because a NaN is unequal to itself
+(`FI-K`). `ElementID` is 24 bytes, a `GlobalElementID` the same 64-byte malloc bucket (`FI-G`).
+**`List` rows still name by description** (divergence 255, `FI-I`): a fix reuses
+`ElementID(name:key:)` and owns the 100k work re-take.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
