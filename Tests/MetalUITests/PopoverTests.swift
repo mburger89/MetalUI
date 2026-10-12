@@ -699,3 +699,112 @@ func theAnchorPressesReleaseIsConsumedToo(secondary: Bool) throws {
     #expect(raw == ["down", "up"], "control: an unclaimed press and release reach onInput")
     withExtendedLifetime(window) {}
 }
+
+// MARK: - B1–B5: the attachment anchor (C15, rulings `OV-B`; spec
+// `docs/superpowers/specs/2026-10-10-overlays-coords-design.md` §4.2)
+//
+// SwiftUI's side: `docs/probes/swiftui-overlays-coords.swift`, arms A0–A7 (a
+// point anchor is a zero-size rect at the unit point of the anchor's bounds;
+// `.rect(.rect(r))` is `r` in the anchor's own space). Red before: these do
+// not compile at `ebcf3c7` (no `attachmentAnchor:`); against the lane-B stub
+// (the argument ignored) each is recorded in the red commit.
+
+/// Each edge and the chrome's origin for a `.point(.topLeading)` anchor on the
+/// centred 40 × 20 anchor at (180, 190): a zero-size rect at (180, 190).
+private let pointEdgeOrigins: [(Edge, [Float])] = [(.top, [118, 108]), (.bottom, [118, 198]), (.leading, [48, 153]),
+                                                    (.trailing, [188, 153])]
+
+/// **B1** (A1, A4–A6). A point anchor centres the popover on the point across
+/// its arrow edge and sits 8 pt from it on that side: the chrome's centre line
+/// passes through (180, 190), not the anchor's centre (200, 200). Mutation:
+/// `.point` resolved as the whole bounds.
+@MainActor
+@Test(arguments: pointEdgeOrigins)
+func aPointAnchorCentresThePopoverOnThePoint(edge: Edge, origin: [Float]) throws {
+    let log = PLog()
+    let (window, _) = try popoverWindow {
+        at(top: 190, left: 180, Box().frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), attachmentAnchor: .point(.topLeading), arrowEdge: edge) {
+                content100x50()
+            })
+    }
+    #expect(xywh(try chrome(window)) == origin + [124, 74], "\(edge)")
+    withExtendedLifetime(window) {}
+}
+
+/// **B2** (A7). `.rect(.rect(r))` is `r` in the anchor's own space: (10, 10,
+/// 20 × 10) on the anchor at (180, 190) is the window's (190, 200), so the
+/// chrome sits at (138, 118). Read as a window rect it would be clamped and
+/// flipped to (8, 28). Mutation: the source rect used as a window rect.
+@MainActor
+@Test func aRectSourceIsInTheAnchorsOwnSpace() throws {
+    let log = PLog()
+    let source = Bounds(origin: pt(10, 10), size: Size(width: px(20), height: px(10)))
+    let (window, _) = try popoverWindow {
+        at(top: 190, left: 180, Box().frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), attachmentAnchor: .rect(.rect(source))) { content100x50() })
+    }
+    #expect(xywh(try chrome(window)) == [138, 118, 124, 74])
+    withExtendedLifetime(window) {}
+}
+
+/// **B3** (`MN-M` item 3, divergence 111). A point-anchored popover flips and
+/// clamps like a bounds-anchored one: `.point(.topLeading)` on an anchor at
+/// (20, 40) with `.top` would sit at y −42, so it flips below the point (48)
+/// and is clamped to the 8-pt margin on x (−42 → 8). Mutation: the flip
+/// skipped for a zero-size anchor.
+@MainActor
+@Test func aPointAnchoredPopoverFlipsAndClamps() throws {
+    let log = PLog()
+    let (window, _) = try popoverWindow {
+        at(top: 40, left: 20, Box().frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), attachmentAnchor: .point(.topLeading), arrowEdge: .top) {
+                content100x50()
+            })
+    }
+    #expect(xywh(try chrome(window)) == [8, 48, 124, 74])
+    withExtendedLifetime(window) {}
+}
+
+/// **B4** (`MN-Y` item 2, `OV-B`). A press anywhere on a point-anchored
+/// popover's declarer — here (185, 195), away from the `.point(.center)`
+/// point — still dismisses and is consumed with its release, so a toggling
+/// anchor closes. Mutation: `consumesAnchorPress` false for popovers.
+@MainActor
+@Test func aPressOnAPointAnchoredPopoversDeclarerIsStillConsumed() throws {
+    let log = PLog()
+    let (window, platform) = try popoverWindow {
+        at(top: 190, left: 180, Button("Toggle") { log.shown.toggle(); log.entries.append("toggle") }
+            .frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), attachmentAnchor: .point(.center)) { content100x50() })
+    }
+    _ = try chrome(window)
+    platform.simulateInput(ldown(185, 195))
+    platform.simulateInput(lup(185, 195))
+    #expect(log.entries == ["shown=false"], "dismissed, and the button did not run")
+    redraw(window)
+    #expect(!log.shown && window.lastOpenPopovers.isEmpty)
+    withExtendedLifetime(window) {}
+}
+
+/// **B5** (`OV-B`). The default attachment anchor is the bounds: an omitted
+/// argument and an explicit `.rect(.bounds)` both put a `.bottom` popover at
+/// (138, 218). Mutation: default `.point(.center)` (also reddens
+/// `theDefaultArrowEdgeIsTop`).
+@MainActor
+@Test func theDefaultAttachmentAnchorIsTheBounds() throws {
+    let log = PLog()
+    let (omitted, _) = try popoverWindow {
+        at(top: 190, left: 180, Box().frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), arrowEdge: .bottom) { content100x50() })
+    }
+    let (explicit, _) = try popoverWindow {
+        at(top: 190, left: 180, Box().frame(width: px(40), height: px(20))
+            .popover(isPresented: shownBinding(log), attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+                content100x50()
+            })
+    }
+    #expect(xywh(try chrome(omitted)) == [138, 218, 124, 74], "omitted")
+    #expect(xywh(try chrome(explicit)) == [138, 218, 124, 74], ".rect(.bounds)")
+    withExtendedLifetime((omitted, explicit)) {}
+}

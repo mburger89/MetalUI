@@ -41,9 +41,15 @@ extension StyledElement {
     /// on a `TextEditor` leaves the editor scrolling itself (`CI-AL` item 1).
     ///
     /// `action` runs from input, on the main actor, dispatched to this
-    /// element, so `@State` and `Binding` writes are legal. Each event is
-    /// dispatched by the pointer at that event — a gliding scroll is not
-    /// latched to the element it began over (`CI-AD`).
+    /// element, so `@State` and `Binding` writes are legal. **A trackpad
+    /// scroll is latched** (`IF-G`): the events after its `.began` — the
+    /// glide included — go to the element it began over, wherever the pointer
+    /// is (`location` may lie outside the element), until the momentum ends; a
+    /// wheel mouse, and SDL, which has no phases, dispatch each event by the
+    /// pointer. **A scroll that loses its end** (the window leaves key, or
+    /// closes) gets one synthesized event with a zero `delta` and
+    /// `.cancelled` in the stage under way (`IF-H`), offered to the handlers
+    /// only; its answer is ignored.
     ///
     /// Returns `Self` — no identity level, no `StateTable` entry; a later
     /// `.onScrollWheel` replaces this one.

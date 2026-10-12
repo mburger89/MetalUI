@@ -457,6 +457,11 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
+**Input follow-ups** (user request 2026-10-02, item C16, not a plan task; record §93):
+`SpatialTapGesture.Value.modifiers` and `DragGesture.Value.clickCount`, `onCancelled(_:)` on the
+drag, magnify and rotate gestures, `.onModifierKeysChanged(mask:initial:_:)` for a still pointer,
+a wheel latch (a scroll's events follow its `.began`) and a synthesized `.cancelled` when a scroll
+loses its end. The canvas demo gains a readout pad. Human checks: group IF, unrun.
 **Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
 `Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
 drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,
@@ -497,6 +502,14 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
+plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
+chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside
+press of any button and by Escape, keys still reaching a field inside it; `.popover` takes SwiftUI's
+`attachmentAnchor:` (divergence 225); `CoordinateSpace.named`, `.coordinateSpace(_:)`,
+`onContinuousHover(coordinateSpace:)` and named `onGeometryChange`/gesture locations; and
+`@Environment(\.windowSize)` (MetalUI-only). `METALUI_OVERLAYS_DEMO=1 swift run MetalUIDemo` shows
+it. Human checks: group OV, unrun.
 **Test harness** (user request 2026-10-02, item 8 of the gpui-gap list, MetalCreator's M6-e, M7-b and
 TH-a, not a plan task; record §91): the portable library product `MetalUITesting` opens an app's real
 root in a real `Window` over a headless platform (`TestApp`, `TestWindow`), with XCUITest's input names

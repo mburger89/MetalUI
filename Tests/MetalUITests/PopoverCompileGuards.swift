@@ -70,31 +70,36 @@ func thePopoverAndHelpSpellingsCompileFromAPlainImport() throws {
             "refused for the Text argument:\n\(helpText.output)")
 }
 
-/// **G3.2** (`MN-L` item 3). `.popover` takes no `attachmentAnchor:` — the
-/// anchor is always the wrapped element's bounds. **Positive control**: the
-/// same call without it compiles.
+/// **G3.2** (`MN-L` item 3, **re-spelled by `OV-B`/`OV-T`**: `.popover` now
+/// takes SwiftUI's `attachmentAnchor:`). The argument takes only a
+/// `PopoverAttachmentAnchor` — an `Int` is refused, naming the type — and
+/// SwiftUI's spellings compile. **Positive control**: `.point(.center)` and
+/// `.rect(.bounds)`.
 ///
 /// Mutation **MG3.2**: an overload taking `attachmentAnchor: Int = 0` (the
 /// negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
-func aPopoverHasNoAttachmentAnchorParameter() throws {
+func aPopoversAttachmentAnchorTakesOnlyAPopoverAttachmentAnchor() throws {
     let with = try typecheckFile("""
         @MainActor func view(shown: Binding<Bool>) -> some ElementGroup {
             Box().popover(isPresented: shown, attachmentAnchor: 0) { Text("A") }
         }
         """, importing: "MetalUI")
-    let without = try typecheckFile("""
+    let control = try typecheckFile("""
         @MainActor func view(shown: Binding<Bool>) -> some ElementGroup {
-            Box().popover(isPresented: shown) { Text("A") }
+            Box().popover(isPresented: shown, attachmentAnchor: .point(.center)) { Text("A") }
+        }
+        @MainActor func bounds(shown: Binding<Bool>) -> some ElementGroup {
+            Box().popover(isPresented: shown, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) { Text("A") }
         }
         """, importing: "MetalUI")
     print("""
-        MN-X popover attachmentAnchor: with succeeded=\(with.succeeded) messages=[\(with.messages)]; \
-        without succeeded=\(without.succeeded) messages=[\(without.messages)]
+        MN-X popover attachmentAnchor: Int succeeded=\(with.succeeded) messages=[\(with.messages)]; \
+        control succeeded=\(control.succeeded) messages=[\(control.messages)]
         """)
-    try #require(without.succeeded && !with.succeeded,
-                 "the control must compile and attachmentAnchor must not:\n\(without.output)\n\(with.output)")
-    #expect(with.messages.contains("attachmentAnchor"), "refused FOR attachmentAnchor:\n\(with.output)")
+    try #require(control.succeeded && !with.succeeded,
+                 "the control must compile and an Int anchor must not:\n\(control.output)\n\(with.output)")
+    #expect(with.messages.contains("PopoverAttachmentAnchor"), "refused FOR the type:\n\(with.output)")
 }
 
 /// **G3.3** (divergence 115, `MN-AH` item 5). On the legacy vocabulary a

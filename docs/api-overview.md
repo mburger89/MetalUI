@@ -351,6 +351,20 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Input follow-ups** (`IF-`, record §93;
+[`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
+probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
+values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifiers` (the
+last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
+`onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
+leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
+no `onEnded`; `@GestureState` and `updating` are not built, `IF-A`).
+`.onModifierKeysChanged(mask:initial:_:)` (M; SwiftUI's macOS 15 spelling, a transparent
+scope whose action runs after the build) reports the held keys with a still pointer; a window
+that loses key reports them released. A scroll's events, momentum included, go to the
+element under its `.began`, and a scroll whose end never arrives (the window resigned key,
+or closed) gets a synthesized `.cancelled`.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
@@ -385,6 +399,31 @@ press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
 macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
+
+**Overlays and coordinates** (`OV-`, record §92;
+[`superpowers/2026-10-10-overlays-coords-decisions.md`](superpowers/2026-10-10-overlays-coords-decisions.md);
+probe `probes/swiftui-overlays-coords.swift`). **Coordinates** (A): `CoordinateSpace` gains
+`.named(AnyHashable)` and `NamedCoordinateSpace.named(_:)` (SwiftUI's, `@unchecked Sendable`,
+`OV-L`); `.coordinateSpace(_:)` on both vocabularies is a transparent scope (no node, no identity
+level) whose content resolves `.named` against the **nearest ancestor so named**, moving with
+scrolls and effects, a rotated space reporting the unrotated frame, a name nobody declares
+reading `.global` (`OV-E`, `OV-M`); `GeometryProxy.frame(in:)`, `DragGesture(coordinateSpace:)`,
+`SpatialTapGesture(coordinateSpace:)` and `onTapGesture(coordinateSpace:)` accept it, and
+`onContinuousHover(coordinateSpace:perform:)` (default `.local`) reports in it (`OV-F`, `OV-H`).
+**MetalUI-only**: `EnvironmentValues.windowSize` — the window's content size, drawn chrome
+included, read-only (`OV-G`, `OV-O`; SwiftUI has none). **Presentation**: `.popover` takes
+SwiftUI's `attachmentAnchor: PopoverAttachmentAnchor` (`.rect(.bounds)` default, `.rect(.rect(r))`,
+`.point(_:)`; a zero-size rect at the unit point, the popover centred across `arrowEdge`, D 225,
+`OV-B`); **`anchoredOverlay(isPresented:at:in:anchor:content:)`** and `(item:…)` on both
+vocabularies (M, `OV-A`) put the content's `anchor` corner (default top-leading) at a point in
+`.local`, `.global` or a named space — **no panel, border, shadow or padding**, flipped per axis
+when it would leave the window then clamped, replaced on a window resize, and dismissed by an
+outside press of **any** button (the press still lands on what is beneath, a context menu
+included; a press on the declarer dismisses and reaches the declarer) and by Escape; a press or
+wheel on the overlay never reaches beneath, keys still reach a field inside it. The point
+resolves at layout, so a `.local`/`.named` overlay waits one frame for its declarer's space
+(`OV-K`, `OV-S`). `presentationBackground(_:)` is not built (`OV-C`). The demo:
+`METALUI_OVERLAYS_DEMO=1`.
 
 ## Drag and drop — A / D
 

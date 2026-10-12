@@ -188,6 +188,18 @@ public struct EnvironmentValues {
     /// `accessibilityReduceMotion`; get-only outside the module.
     public internal(set) var titleBarInsets: Edges<Pixels> = Edges(all: Pixels(0))
 
+    /// The window's content size in points (ruling `OV-G`, MetalUI-only —
+    /// SwiftUI has no such key, probe arms W0/W1 and T5–T8; its idiom is a
+    /// `GeometryReader` on a greedy root). **Everything drawn inside the
+    /// content is included** (`OV-O`): the `.hiddenTitleBar` band
+    /// (divergence 175) and SDL's drawn toolbar strip; subtract
+    /// `titleBarInsets` for the area below a hidden bar. Zero in a bare value;
+    /// a `Window` stamps the size each build is laid out at into the root
+    /// (never through `Window.environment`), so a live resize is in the frame
+    /// presenting it; the headless `renderFrame` stamps its `size` (`OV-R`).
+    /// Get-only outside the module.
+    public internal(set) var windowSize: Size<Pixels> = Size(width: Pixels(0), height: Pixels(0))
+
     /// The window's open and save dialogs as async calls (ruling `SV-D`) —
     /// MetalUI-only. A bare value's has no window, so a call throws
     /// `FileDialogError.noWindow`; a `Window` stamps its own into the root at

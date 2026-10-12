@@ -301,6 +301,82 @@ final class LifecycleStore {
         return events.map(\.event)
     }
 
+    // MARK: Modifier keys (`onModifierKeysChanged`, ruling `IF-D`)
+
+    /// One modifier-keys scope's masked value this build, and what to run when
+    /// it differs from the last completed build's (or is new, `initial`).
+    struct ModifierEntry {
+        let order: Int
+        let owner: GlobalElementID
+        let value: EventModifiers
+        let watch: ModifierKeysWatch
+    }
+
+    private var modifierCurrent: [Key: ModifierEntry] = [:]
+    private var modifierPrevious: [Key: ModifierEntry] = [:]
+    private var modifierOccurrences: [GlobalElementID: Int] = [:]
+    private var nextModifierOrder = 0
+
+    /// The modifier keys the window holds, set by `Window` (`IF-D` item 2) and
+    /// read by a scope in prepaint.
+    var currentModifiers: EventModifiers = []
+
+    /// Whether the last completed build held a modifier-keys scope — the one
+    /// condition under which a modifier change dirties the window (`IF-D`
+    /// item 2).
+    var hasModifierObservers: Bool { !modifierPrevious.isEmpty }
+
+    /// How many modifier-keys scopes enclose the one being laid out.
+    private(set) var modifierDepth = 0
+
+    /// Runs `body` one modifier-keys scope deeper.
+    func withModifierKeysScope<R>(_ body: () -> R) -> R {
+        modifierDepth += 1
+        defer { modifierDepth -= 1 }
+        return body()
+    }
+
+    /// A modifier-keys scope's masked value (prepaint).
+    func noteModifierKeys(watch: ModifierKeysWatch, key scope: GlobalElementID, owner: GlobalElementID) {
+        let occurrence = modifierOccurrences[scope, default: 0]
+        modifierOccurrences[scope] = occurrence + 1
+        modifierCurrent[Key(scope: scope, occurrence: occurrence)] =
+            ModifierEntry(order: nextModifierOrder, owner: owner,
+                          value: currentModifiers.intersection(watch.mask), watch: watch)
+        nextModifierOrder += 1
+        workThisFrame += 1
+    }
+
+    /// Closes a build's modifier scopes into events (`IF-D` item 3): a held key
+    /// whose masked value differs reports `(old, new)`; a new key reports
+    /// `([], value)` when `initial` and the value is not empty, and stores it
+    /// silently otherwise; an equal value reports nothing. Reverse note order.
+    private func closeModifierKeys() -> [LifecycleEvent] {
+        defer {
+            modifierOccurrences.removeAll(keepingCapacity: true)
+            nextModifierOrder = 0
+            swap(&modifierCurrent, &modifierPrevious)
+            modifierCurrent.removeAll(keepingCapacity: true)
+        }
+        guard !modifierCurrent.isEmpty else { return [] }
+        var events: [(order: Int, event: LifecycleEvent)] = []
+        for (key, entry) in modifierCurrent {
+            workThisFrame += 1
+            let new = entry.value
+            let action = entry.watch.action
+            if let old = modifierPrevious[key]?.value {
+                guard old != new else { continue }
+                events.append((entry.order, LifecycleEvent(owner: entry.owner, action: { action(old, new) },
+                                                           departed: nil)))
+            } else if entry.watch.initial, !new.isEmpty {
+                events.append((entry.order, LifecycleEvent(owner: entry.owner, action: { action([], new) },
+                                                           departed: nil)))
+            }
+        }
+        events.sort { $0.order > $1.order }
+        return events.map(\.event)
+    }
+
     /// The next registration order in the build being laid out.
     func reserveOrder() -> Int {
         defer { nextOrder += 1 }
@@ -349,6 +425,7 @@ final class LifecycleStore {
         // This build's geometry events run ahead of its lifecycle events
         // (G1: the initial value before `onAppear`; `KF-J` item 3).
         pending.append(contentsOf: closeGeometry())
+        pending.append(contentsOf: closeModifierKeys())   // `IF-D`
         guard !current.isEmpty || !previous.isEmpty || !parked.isEmpty else {
             lastFrameWork = workThisFrame
             workThisFrame = 0
@@ -519,6 +596,8 @@ final class LifecycleStore {
         parked.removeAll()
         geometryCurrent.removeAll()
         geometryPrevious.removeAll()
+        modifierCurrent.removeAll()
+        modifierPrevious.removeAll()
         hasDisappearActions = false
         currentHasDisappearActions = false
         pending.removeAll()
