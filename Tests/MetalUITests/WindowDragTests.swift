@@ -267,6 +267,62 @@ private func dragged(_ platform: FakePlatformWindow, _ window: Window, _ x: Floa
     #expect(platform.windowDrags == 0)
 }
 
+/// **1.4b** (`WD-C`). Pure, in the arena: a window drag leaf is ready at the
+/// slop and acts **once** (it ends itself; `Window` then drops the arena, so
+/// only a direct arena test sees the status): further moves and the release
+/// add no `beginWindowDrag`. Mutation: the leaf is not ended after acting
+/// (`ready = false` instead of `status = .ended`).
+@MainActor
+@Test func aWindowDragLeafActsOnceInTheArenaAndEndsItself() throws {
+    var handlers = Handlers()
+    handlers.gestures = [GestureAttachment(WindowDragGesture(), priority: .normal)]
+    let target = Hitbox(bounds: Bounds(origin: pt(0, 0), size: Size(width: px(100), height: px(100))),
+                        id: GlobalElementID(component: .positional(0), parent: nil), layer: 0,
+                        opaque: true, scroll: nil, handlers: handlers, origin: pt(0, 0), shape: nil,
+                        transform: nil)
+    var arena = try #require(GestureArena(target: target, ancestors: []))
+    var began = 0
+    func count(_ callbacks: [GestureCallback]) {
+        for callback in callbacks { if case .beginWindowDrag = callback { began += 1 } }
+    }
+    count(arena.press(at: pt(10, 10), clickCount: 1, continuing: false))
+    count(arena.move(to: pt(14, 10)))
+    #expect(began == 0, "4 points is under the slop")
+    count(arena.move(to: pt(15, 10)))
+    #expect(began == 1, "5 points begins it")
+    for x in [20, 30, 40] as [Float] { count(arena.move(to: pt(x, 10))) }
+    count(arena.release(at: pt(40, 10), clickCount: 1, click: nil))
+    #expect(began == 1, "never a second")
+}
+
+/// **1.8b** (`WD-C`, `DN-D` item 2). A drag that starts on a `Button` or under
+/// a long press in the handle still moves the window: an undecided click or
+/// long press ahead does not hold the window drag off. Mutation: drop
+/// `.windowDrag` from `startsHandoff`.
+@MainActor
+@Test func aDragStartingOnAButtonOrUnderALongPressInTheHandleStillMovesTheWindow() throws {
+    let log = DLog()
+    let (window, platform) = try dragWindow {
+        ZStack(alignment: .top) {
+            viewport(DLog())
+            HStack {
+                Button("B") { log.entries.append("button") }.frame(width: px(60), height: px(32))
+                Rectangle().frame(width: px(100), height: px(32))
+                    .onLongPressGesture { log.entries.append("long") }
+                Spacer()
+            }
+            .frame(width: px(300), height: px(32))
+            .contentShape(Rectangle())
+            .gesture(WindowDragGesture())
+        }
+    }
+    dragged(platform, window, 30, 16)
+    #expect(platform.windowDrags == 1, "from the button")
+    dragged(platform, window, 100, 16)
+    #expect(platform.windowDrags == 2, "from under the long press")
+    #expect(log.entries.isEmpty, "\(log.entries)")
+}
+
 // MARK: - 1.9–1.11: the hit region
 
 /// **1.9** (probes `W2`, `W9`). A sibling viewport beneath the handle never
