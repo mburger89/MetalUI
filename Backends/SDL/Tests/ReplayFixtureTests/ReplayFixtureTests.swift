@@ -29,10 +29,11 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0])       // version (3 since GX-F)
+    #expect(Array(bytes[8..<12]) == [4, 0, 0, 0])       // version (4 since BB-J)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
+    #expect(Array(bytes[36..<40]) == [96, 0, 0, 0])     // backdrop stride (BB-J)
 }
 
 @Test func everyTruncationIsRejected() throws {
@@ -78,18 +79,18 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func anUnknownRunKindIsRejected() throws {
     let fixture = try sample()
     var bytes = fixture.encoded()
-    // Version 3: a fifth stride (the transform's), the (empty) image bytes
-    // and textures, then the (empty) transform table.
-    let runsOffset = 8 + 4 + 24 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4 + 4
+    // Version 4: a sixth stride (the backdrop's), the (empty) image bytes
+    // and textures, then the (empty) transform and backdrop tables.
+    let runsOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4 + 4 + 4
     try #require(bytes[runsOffset] == 0)  // first run is a rect
-    bytes[runsOffset] = 3                 // 2 is an image run since version 2
-    #expect(throws: FixtureError.badRunKind(3)) { try ReplayFixture(decoding: bytes) }
+    bytes[runsOffset] = 4                 // 2 is an image run since version 2, 3 a backdrop since version 4
+    #expect(throws: FixtureError.badRunKind(4)) { try ReplayFixture(decoding: bytes) }
 }
 
 @Test func anOverstatedRunCountIsRejected() throws {
     let fixture = try sample()
     var bytes = fixture.encoded()
-    let countOffset = 8 + 4 + 20 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4
+    let countOffset = 8 + 4 + 24 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4
     bytes.replaceSubrange(countOffset..<countOffset + 4, with: [0xFF, 0xFF, 0xFF, 0x7F])
     #expect(throws: FixtureError.self) { try ReplayFixture(decoding: bytes) }
 }
@@ -306,7 +307,7 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     #expect(stderr.contains("cannot record a surface"), "aborted, but not at the fixture's check:\n\(stderr)")
 }
 
-/// S1.1 (ruling GX-F) — version 3 carries the scene's `MUITransform` table
+/// S1.1 (ruling GX-F) — version 3 (and every later one) carries the scene's `MUITransform` table
 /// (64 bytes a record) after the textures, and a fixture made from a scene
 /// carries its table; a table that is not whole records is rejected.
 @Test func aVersionThreeFixtureRoundTripsTransforms() throws {
@@ -324,11 +325,125 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
                                     reference: [UInt8](repeating: 0, count: 64))
     #expect(fixture.transforms == withUnsafeBytes(of: t) { Array($0) })
     let bytes = fixture.encoded()
-    #expect(Array(bytes[8..<12]) == [3, 0, 0, 0], "version 3")
+    #expect(Array(bytes[8..<12]) == [UInt8(ReplayFixture.version), 0, 0, 0], "the current version carries the table")
     let decoded = try ReplayFixture(decoding: bytes)
     #expect(decoded == fixture)
     #expect(decoded.transforms.count == 64)
     var bad = fixture
     bad.transforms = [1, 2, 3]
     #expect(throws: FixtureError.self) { try bad.validate() }
+}
+
+// MARK: - Backdrops (ruling BB-J, version 4)
+
+private func backdropRecord(order: UInt32 = 0, sigma: Float = 52) -> MUIBackdrop {
+    let box = MUIBounds(origin: MUIPoint(x: 1, y: 2), size: MUISize(width: 6, height: 4))
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    return MUIBackdrop(bounds: box, contentMask: box, maskCornerRadii: none, cornerRadii: none,
+                       tint: MUIHsla(h: 0.1, s: 0.2, l: 0.3, a: 0.4), order: order, shape: 0, sigma: sigma, opacity: 0.5)
+}
+
+private func backdropScene() -> Scene {
+    var scene = Scene()
+    var rect = MUIRect()
+    rect.bounds = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 8, height: 8))
+    scene.insert(rect)
+    scene.insert(backdropRecord())
+    scene.finalize()
+    return scene
+}
+
+private func backdropFixture() throws -> ReplayFixture {
+    try ReplayFixture(scene: backdropScene(), atlas: GlyphAtlas(width: 1, height: 1), width: 8, height: 8,
+                      projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                      reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+}
+
+/// **3.1** (ruling `BB-B`, `BB-J`). The backdrop record is 96 bytes of six
+/// `float4` lanes, and `replay.hlsl` reads each field from the lane
+/// `BB-B`'s table names: bounds 0, mask 16, mask radii 32, radii 48, tint 64,
+/// then order 80, shape 84, sigma 88, opacity 92. A re-ordered or padded
+/// struct fails here, not as a silently shifted blur. Mutation: pad the struct
+/// (`MUIBackdrop` gains a field).
+@Test func theBackdropABIIsTheOneTheShadersRead() {
+    #expect(MemoryLayout<MUIBackdrop>.stride == 96)
+    #expect(MemoryLayout<MUIBackdrop>.size == 96)
+    #expect(ReplayFixture.backdropStride == 96)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.bounds) == 0)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.contentMask) == 16)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.maskCornerRadii) == 32)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.cornerRadii) == 48)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.tint) == 64)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.order) == 80)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.shape) == 84)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.sigma) == 88)
+    #expect(MemoryLayout<MUIBackdrop>.offset(of: \.opacity) == 92)
+}
+
+/// **3.6** (ruling `BB-J`). The version is 4; a fixture written before it —
+/// version 3 (no backdrop stride, no backdrop table) and version 2 (no
+/// transform stride or table either) — still loads, to the same fixture;
+/// version 1 stays refused. The old files are built from the new encoding by
+/// removing exactly the fields the old layouts lack. Mutation: bump
+/// `version` without the reader's older arms.
+@Test func theFixtureVersionIsFourAndOldVersionsStillLoad() throws {
+    #expect(ReplayFixture.version == 4)
+    let fixture = try sample()
+    let v4 = fixture.encoded()
+    // v3: drop the backdrop stride (offset 36) and the empty backdrop table
+    // (a u32 0 after the transform table).
+    let transformTableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4
+    var v3 = v4
+    try #require(Array(v3[transformTableOffset..<transformTableOffset + 8]) == [0, 0, 0, 0, 0, 0, 0, 0],
+                 "an empty transform table, then an empty backdrop table")
+    v3.removeSubrange(transformTableOffset + 4..<transformTableOffset + 8)
+    v3.removeSubrange(36..<40)
+    v3[8] = 3
+    let decoded3 = try ReplayFixture(decoding: v3)
+    #expect(decoded3 == fixture)
+    // v2: drop the transform stride (offset 32) and its table as well.
+    var v2 = v3
+    v2.removeSubrange(transformTableOffset - 4..<transformTableOffset)   // v3 is 4 shorter before the table
+    v2.removeSubrange(32..<36)
+    v2[8] = 2
+    #expect(try ReplayFixture(decoding: v2) == fixture)
+    var v1 = v4
+    v1[8] = 1
+    #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: v1) }
+    var v5 = v4
+    v5[8] = 5
+    #expect(throws: FixtureError.unsupportedVersion(5)) { try ReplayFixture(decoding: v5) }
+}
+
+/// **3.4** (ruling `BB-J`, `MV-C` item 4). A scene's backdrop run is recorded
+/// as a `.backdrop` run (no longer a trap), the fixture carries the 96-byte
+/// records and round-trips, and a surface run still traps (the surface test
+/// above). Mutation: restore the trap for `.backdrop` in `FixtureRun(scene:)`.
+@Test func aFixtureRunRecordsABackdropAndStillTrapsOnASurface() throws {
+    let scene = backdropScene()
+    let kinds = scene.drawList.map { FixtureRun(scene: $0).kind }
+    #expect(kinds == [.rect, .backdrop])
+    let fixture = try backdropFixture()
+    #expect(fixture.backdropCount == 1)
+    #expect(fixture.backdrops == withUnsafeBytes(of: backdropRecord()) { Array($0) })
+    #expect(fixture.backdropRecords.first?.sigma == 52)
+    #expect(fixture.runs.last == FixtureRun(kind: .backdrop, start: 0, count: 1))
+    #expect(try ReplayFixture(decoding: fixture.encoded()) == fixture)
+}
+
+/// **3.4b** — a backdrop run past its records, a backdrop table that is not
+/// whole 96-byte records and a changed backdrop stride are each refused (the C
+/// bridge indexes the table with these runs).
+@Test func aBackdropRunPastItsRecordsOrAnOddTableIsRejected() throws {
+    var fixture = try backdropFixture()
+    fixture.runs = [FixtureRun(kind: .backdrop, start: 0, count: 2)]
+    #expect(throws: FixtureError.self) { try fixture.validate() }
+    fixture.runs = [FixtureRun(kind: .backdrop, start: 1, count: 1)]
+    #expect(throws: FixtureError.self) { try fixture.validate() }
+    fixture = try backdropFixture()
+    fixture.backdrops.removeLast()
+    #expect(throws: FixtureError.self) { try fixture.validate() }
+    var bytes = try backdropFixture().encoded()
+    bytes[36] = 128
+    #expect(throws: FixtureError.self) { try ReplayFixture(decoding: bytes) }
 }
