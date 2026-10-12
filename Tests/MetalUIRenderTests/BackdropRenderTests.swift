@@ -384,3 +384,47 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
     #expect(px(pixels, 70, 20, width: w) == [255, 0, 0, 255], "where the unrotated bar was: the sharp backdrop: \(px(pixels, 70, 20, width: w))")
     #expect(px(pixels, 100, 38, width: w) == [255, 255, 255, 255], "the bar reaches the bottom edge: x 90..110, y -20..60 clamped")
 }
+
+/// **2.12b** (`BB-H`, `GX-F`). The transform's outer mask cuts a backdrop in the
+/// fragment, in screen space: the same 90-degree turn as 2.12 with an outer mask
+/// of x 0..100 only (the frame is 200 wide). Derived before the run: the turned
+/// bar covers x 90..110, y 0..40 (clamped), so x 95 is inside both (tint white,
+/// alpha 1 -> white) and x 105 is inside the bar but outside the outer mask (the
+/// sharp backdrop, blue right of the edge at 100). Mutation: force
+/// `transformIndex = 0` at the first `b.shape >> 8` in `backdrop_coverage`.
+@Test @MainActor func aTransformsOuterMaskSmallerThanTheFrameCutsABackdrop() throws {
+    let renderer = try makeRenderer()
+    let (w, h) = (200, 40)
+    var scene = stepScene(width: w, height: h, edge: 100)
+    let turn = MUITransform(a: 0, b: 1, c: -1, d: 0, tx: 120, ty: -80, pixelScale: 1, _reserved: 0,
+                            outerMask: mb(0, 0, 100, 40), outerMaskRadii: square)
+    scene.insert(backdrop(mb(60, 10, 80, 20), tint: white, sigma: 16, mask: mb(0, 0, 300, 300)), transform: turn)
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: size(w, h))
+    #expect(px(pixels, 95, 5, width: w) == [255, 255, 255, 255], "inside bar and outer mask: \(px(pixels, 95, 5, width: w))")
+    #expect(px(pixels, 105, 5, width: w) == [0, 0, 255, 255],
+            "inside the bar, outside the outer mask: the sharp backdrop: \(px(pixels, 105, 5, width: w))")
+}
+
+/// **2.12c** (`BB-H`, `GX-F`). A backdrop under a 2x scale antialiases its edge
+/// at the screen pixel, not the local one: local rect (10, 5, 40, 10) under
+/// `x' = 2x, y' = 2y` (`pixelScale` 2) covers screen x 20..100, y 10..30 on whole
+/// pixels. Derived before the run: a pixel centre is 0.5 screen px from the edge,
+/// coverage `saturate(0.5 - d)` with `d` in screen px is exactly 1 inside and 0
+/// outside, so (20, 20) and (30, 10) are white and (19, 20) and (30, 9) are the
+/// sharp red backdrop; at scale 1 they would read 0.75 and 0.25. Mutation:
+/// force `transformIndex = 0` at the first `b.shape >> 8` in `backdrop_coverage`.
+@Test @MainActor func aScaledBackdropAntialiasesAtTheScreenPixel() throws {
+    let renderer = try makeRenderer()
+    let (w, h) = (200, 40)
+    var scene = stepScene(width: w, height: h, edge: 150)
+    let twice = MUITransform(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0, pixelScale: 2, _reserved: 0,
+                             outerMask: mb(0, 0, 200, 40), outerMaskRadii: square)
+    scene.insert(backdrop(mb(10, 5, 40, 10), tint: white, sigma: 16, mask: mb(0, 0, 300, 300)), transform: twice)
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: size(w, h))
+    #expect(px(pixels, 20, 20, width: w) == [255, 255, 255, 255], "first pixel inside the left edge: \(px(pixels, 20, 20, width: w))")
+    #expect(px(pixels, 19, 20, width: w) == [255, 0, 0, 255], "last pixel outside it: \(px(pixels, 19, 20, width: w))")
+    #expect(px(pixels, 30, 10, width: w) == [255, 255, 255, 255], "first row inside the top edge: \(px(pixels, 30, 10, width: w))")
+    #expect(px(pixels, 30, 9, width: w) == [255, 0, 0, 255], "last row outside it: \(px(pixels, 30, 9, width: w))")
+}
