@@ -260,26 +260,30 @@ private func pxl(_ v: Float) -> Pixels { Pixels(v) }
         }
     }
     mkSettle(window)
+    send(platform, [.shift])
+    mkSettle(window)
+    #expect(log.entries == [".>s"], "\(log.entries)")
     model.shown = false
     mkSettle(window)
-    send(platform, [.shift])
+    send(platform, [.shift, .command])
     #expect(!window.needsRedraw, "the last frame had no scope")
     mkSettle(window)
-    #expect(log.entries.isEmpty, "\(log.entries)")
-    // Two more builds with the scope gone and ⇧ held: a store entry that
-    // outlived its scope would come back as a new key and report (`IF-N`).
+    #expect(log.entries == [".>s"], "no report while it is gone: \(log.entries)")
+    // Two more builds with the scope gone and ⇧ still held: a store entry that
+    // outlived its scope would come back as a new key and report its stale value.
     model.tick += 1
     mkSettle(window)
     model.tick += 1
     mkSettle(window)
-    #expect(log.entries.isEmpty, "a removed scope's entry did not leak: \(log.entries)")
+    #expect(log.entries == [".>s"], "a removed scope's entry did not leak: \(log.entries)")
     model.shown = true
     mkSettle(window)
-    #expect(log.entries == [".>s"], "a return reports its initial value again: \(log.entries)")
+    #expect(log.entries == [".>s", ".>sk"], "a return reports its initial value again: \(log.entries)")
 }
 
 /// **3.7b** (`IF-D` item 1). Two scopes stacked on one element both report,
-/// each with its own entry. Mutation: share a key.
+/// each with its own entry. Mutation: skip the drain (M1); sharing the key's name
+/// is an equivalent mutant, the store key also holds an occurrence number.
 @MainActor
 @Test func twoStackedScopesBothReport() throws {
     let log = MKLog()

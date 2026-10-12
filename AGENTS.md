@@ -57,7 +57,8 @@ summary.
   `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
-  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), …; the full
+  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `IF-` (input follow-ups:
+  `2026-10-10-input-followups-decisions.md`, next `IF-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -72,7 +73,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **134 live, next label 206** (196–204 unused by C12, 215–224 reserved by an open branch, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF and SG, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -662,6 +663,23 @@ collecting leaves with their clip depths (`captureDepths`) and re-emitting them 
 by a `Deferred` barrier; alone it changes nothing, and it does **not** composite an opacity
 (divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
 its reference copy, still importing nothing (`PF-F`).
+
+**Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
+press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only
+values (divergence 235); `onCancelled` on drag, magnify and rotate runs **once, only for a
+leaf that had reported**, from a dropped primary arena, a replaced stale button or pinch arena,
+a `.mouseMoved` while a button arena is live (a lost release), key loss and window close —
+never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; no
+`@GestureState`). A wheel scroll **latches** to the cover of its `.began` through its momentum
+(`ScrollLatch`, `IF-G`) and ends with a synthesized `.cancelled` to the latched handlers on key
+loss or close (`IF-H`); the platforms send `.modifiersChanged` on becoming key (`IF-I`).
+`onModifierKeysChanged(mask:initial:_:)` is one transparent `ModifierKeysScope` (the shape of
+`GeometryChangeScope`; `$modkeys<depth>` a `LifecycleStore` key, never a `StateTable` slot):
+`Window.currentModifiers` comes from every key, pointer and scroll event and the flags report,
+drops to `[]` on leaving key, dirties the window **only when the last build held a scope**, and
+the action runs in the lifecycle drain after the build; SwiftUI's timing is **unprobed**
+(human check IF1, `IF-D`). A `.modifiersChanged` event returns before the hook's blanket
+`setNeedsRedraw()` unless the app's `onInput` claims it (`IF-N` item 3).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
