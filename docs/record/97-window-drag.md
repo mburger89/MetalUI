@@ -175,10 +175,38 @@ Root target, by file (counted by name; the suite total is §4):
   images**, scene identical; no shader changed on either renderer (`TE-AD` not engaged).
   `DemoFrameDeterminismTests`' `Expected.swift` unedited.
 
-## §6 The merged tree (record phase)
+## §6 The merged tree (record phase, 2026-10-12)
 
-See the lines the Record phase appended below (suite line, guards, pixel comparison, SDL and
-Linux image) — filled in at the end of this phase.
+- **Merge** with master `5f35df6` (C20): one conflict, `docs/divergences.md`'s table (255 and
+  275–277 both kept); the header's live count 137 → 140.
+- **Suite.** `swift package clean`, `swift build --build-system native --build-tests` (0 `error:`,
+  the only `warning:` SwiftPM's deprecation notice), `swift test --build-system native --no-parallel`
+  unfiltered: **`Test run with 3440 tests in 3 suites failed after 523.002 seconds with 5 issues`**
+  (master's 3415 + 25), the five issues exactly `AppKitPresentationTests`' sheet tests
+  (`appKitCancelledDialogArrivesAsQueuedInput`, `appKitDismissPresentationEndsTheSheetAndAnswersNothing`,
+  `appKitOpenDialogIsASheetWithTheDeclaredTypes`, `appKitSaveDialogCarriesTheNameTypesAndExportPrompt`,
+  `appKitSecondDialogWhileASheetIsUpAnswersFalse`) on a locked screen (`CI-AF`); the
+  run stalled for minutes inside `NSOpenPanel.init` (the open-and-save panel service) before those
+  issues, then finished. `FR-J no-argument frame: succeeded=true` present.
+- **Guards: 217** (master's 216 + guard 3.2; 3.1 is a row of an existing guard's table). Counted by
+  `typecheck(`/`typecheckFile(` call sites, 388 on master and 391 here (guard 3.2 has three).
+  **Guard 3.2 mutated red once**, committed first, restored from a copy, filtered to the one test
+  (the guard run is filtered; the unmutated tree had just passed unfiltered): a `public init()` on
+  `WindowDragGesture.Value` and a public `onChanged` extension reddened
+  `aPlainImporterCanAttachWindowDragGestureButCannotGiveItCallbacks` on both negative arms
+  (`!callbacks.succeeded`, `!value.succeeded`), 2 issues; `git status --short` empty after.
+- **Census** 3415 (master's 3405 + 10); the tsv re-recorded after the merge, since lane 2's
+  AppKit edit shifted line numbers. `closeout-inventory-check.sh` and `closeout-undocumented.sh`
+  print nothing.
+- **Pixels.** `docs/probes/demo-pixels/compare.sh <scratch> a720fba HEAD` on the merged tree:
+  **0 differing pixels in all fourteen images, scene identical** (the controls moved from their
+  recorded values as on master's own runs; `f0 vs f3` and `chrome legacy vs proposal` read 0).
+- **`Backends/SDL`** on the merged tree, macOS (`python3 scripts/fetch-accesskit.py`, then `swift test
+  $(python3 scripts/fetch-accesskit.py --print-flags)`): **24 + 114 passed** (113 at `a720fba`
+  + `sdlPerformWindowDragRecordsAndAnswersFalse`).
+- **Not re-taken at the merge**: the `swift:6.4-noble` Linux image run (the merge touched no SDL
+  file; lane 2's run before it is as its report gave it, not re-measured here, and
+  `PortableFakeWindow`'s one-line conformance rides it), a real-window capture (screen locked).
 
 ## §7 Hazards, deferrals, owners
 
