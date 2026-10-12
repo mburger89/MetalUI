@@ -290,7 +290,7 @@ targets += [
         // again so the glyph tests may build a real `GlyphAtlas` and read its
         // `pixels` back as the oracle for what the GPU should have sampled.
         .testTarget(name: "MetalUIRenderTests",
-                    dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText"]),
+                    dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText", "MetalUIPath"]),
 
         // AppKit: the macOS `Platform` and `PlatformWindow`, drawing through
         // `MetalWindowRenderer` (ruling RS-C).
