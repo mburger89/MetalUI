@@ -72,7 +72,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **134 live, next label 206** (196–204 unused by C12, 215–224 reserved by an open branch, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **135 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 235–264 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT and OV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -1094,7 +1094,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (134 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (135 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
