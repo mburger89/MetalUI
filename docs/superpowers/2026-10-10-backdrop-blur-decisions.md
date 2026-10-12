@@ -547,3 +547,34 @@ moves. Item 3's `SampleLevel` reads as a sampler fetch: a driver that filters a 
 a texel centre would show in every test. Item 4's lazy pipelines mean a failing shader load on a
 machine's first material silently draws flat tints; the error is `SDL_GetError()` of that frame
 and no test sees it, so a consumer's first material frame is the place to look.
+
+**BB-T mutation record** (each applied to the committed source, the full `Backends/SDL` suite run
+unfiltered, restored, `git status --short` clean after each; the replay arm is
+`PortableReplay` over the unmutated Metal-recorded fixtures with the recompiled stages). The
+spelling is the mutation's; "survived" means the first suite did not redden, and a fixing test was
+added in the next row.
+
+| # | mutation (file) | reddened |
+|---|---|---|
+| M1 | one Gaussian tap weight (`exp(-i²/(2σ²·1.5))`, `replay.hlsl`) | `sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal` (3 cases), `opacityHalfIsAHalfWeightCompositeOverTheSharpBackdrop`, `sdlBackdropBlursAGPUSurfaceUnderIt`; replay frame 10 parity |
+| M2 | downsample averages only the top row of each 2 × 2 block (`replay.hlsl`) | **survived** the suite (the step is vertically uniform); replay frame 10 parity red; then `aBackdropOverA2DFieldEqualsTheReferenceOfItsRegion` (M2b) |
+| M3 | `FixtureRun(scene:)` traps on `.backdrop` again | `aFixtureRunRecordsABackdropAndStillTrapsOnASurface` (the process aborts: `Fatal error`) |
+| M4b | backdrop runs moved ahead of every other run (`SDLWindowRenderer`) | `sdlBackdropBlursAGPUSurfaceUnderIt` and 3.3, 3.3d, 3.3e, 3.3f, 3.3h |
+| M5 | `oldestReadableVersion = 4` | `theFixtureVersionIsFourAndOldVersionsStillLoad` |
+| M6 | every scene routed through the frame target (`encode_frame`) | `aSceneWithoutBackdropsTakesTheOldPath` |
+| M7 | `splits += run->count` | `splitsCountRunsAndBlursCountRecords` |
+| M8 | an unblurred record draws nothing (no flat rect) | `aFailedBlurTextureDrawsTheFlatTint` |
+| M9 / M9b | the ellipse branch of `backdropCoverage` removed | M9 **survived** (a corner pixel far from the step's edge reads the same blurred or not); M9b with 3.3e over a 2D field: `pixelsOutsideTheShapeAndTheClipAreUntouched` |
+| M10 / M10b | the clip factor dropped from `backdrop.fragment` | as M9 / M9b |
+| M11 | opacity multiplies the tint instead of the result | `opacityHalfIsAHalfWeightCompositeOverTheSharpBackdrop` |
+| M12 | `mui_backdrop_levels` with `>= 4` | `theBridgeLevelsAreTheReferencesLevels`, 3.3 (3 cases), 3.3c, 3.3h, 3.5 |
+| M13 | the uv scale is `1/region size` (`BB-R` undone) | 3.3 and 3.3h |
+| M14 | the frame target re-made every frame | 3.3 (the steady frame's `lastBackdropTexturesMade == 0`) |
+| M15 | `ReplayFixture.backdropRegions` without the clamp | `aFixtureRestatesTheScenesBackdropRegion` |
+| M16 | backdrop bounds added to `spriteMask()` | `aBackdropQuadIsJudgedAtThreeLevels` |
+| M17 | the pass counter not incremented | 3.3 and `splitsCountRunsAndBlursCountRecords` |
+| M18 | `MUIBackdrop` padded / two fields swapped (`MetalUIShaderTypes.h`) | does not compile (every site names every field); M18c, `backdropStride = 100`: six `ReplayFixtureTests` incl. `theBackdropABIIsTheOneTheShadersRead` |
+| M20 | `copies = 0` | 3.3 and `aSceneWithoutBackdropsTakesTheOldPath` |
+| M22 | the Gaussian always horizontal | 3.3, 3.3h, 3.3f, 3.5 |
+| M23 | the Gaussian's weights not normalized | 3.3, 3.3h, 3.3f, 3.5 |
+| M24 / M24b | the transform index read as 0 in `backdrop.vertex` | M24 **survived** the suite (only replay frame 10 saw it); M24b with 3.3i: `aTurnedBackdropIsTheBackdropOfItsTurnedBounds` |
