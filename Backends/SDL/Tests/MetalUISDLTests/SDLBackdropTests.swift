@@ -386,6 +386,38 @@ func sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal(sigma: Float) thr
     #expect(worstRight == 0, "right of the clip: the scene's own pixels, \(worstRight) levels off")
 }
 
+/// **3.3i** (`BB-H`, `GX-F`). A backdrop under a transform: a record whose
+/// local bounds (20, 10, 100, 40) are turned a quarter about the origin and
+/// moved — x' = 100 − y, y' = x − 10 — lands on the screen rectangle
+/// (50, 10, 40, 100), so it blurs, tints and covers exactly what an untransformed
+/// backdrop of that rectangle does (the region is the transformed bounding box,
+/// the quad samples the screen-space blur, `GX-F`'s local SDF in the turned
+/// frame). Mutation: read the transform index as 0 in `backdrop.vertex`.
+@Test @MainActor func aTurnedBackdropIsTheBackdropOfItsTurnedBounds() throws {
+    let (w, h) = (130, 120)
+    let renderer = try offscreenRenderer(w, h)
+    let tint = MUIHsla(h: 0, s: 0, l: 0.5, a: 0.3)
+    var (turned, _) = cellField(width: w, height: h)
+    let everything = mb(0, 0, Float(w), Float(h))
+    let quarter = MUITransform(a: 0, b: 1, c: -1, d: 0, tx: 100, ty: -10, pixelScale: 1, _reserved: 0,
+                               outerMask: everything, outerMaskRadii: square)
+    turned.insert(backdrop(mb(20, 10, 100, 40), tint: tint, sigma: 16, mask: everything), transform: quarter)
+    turned.finalize()
+    let region = try #require(turned.backdropRegion(0, target: (w, h)))
+    #expect(region == Scene.BackdropRegion(x: 50, y: 10, width: 40, height: 100), "the turned bounds")
+    let drawn = try draw(renderer, turned, width: w, height: h)
+    var (flat, _) = cellField(width: w, height: h)
+    flat.insert(backdrop(mb(50, 10, 40, 100), tint: tint, sigma: 16, mask: everything))
+    flat.finalize()
+    let expected = try draw(renderer, flat, width: w, height: h)
+    var worst = 0
+    for i in 0..<drawn.count { worst = max(worst, abs(Int(drawn[i]) - Int(expected[i]))) }
+    #expect(worst <= 1, "the turned backdrop is the untransformed one of its turned bounds: \(worst) levels apart")
+    var (bare, _) = cellField(width: w, height: h)
+    bare.finalize()
+    #expect(drawn != (try draw(renderer, bare, width: w, height: h)), "and it is not the bare field")
+}
+
 /// **3.3f** (`BB-G`). `opacity` 0.5 is a half-weight composite of the blurred
 /// layer over the SHARP backdrop (probe `O`), not a half-alpha tint.
 /// Mutation: multiply the tint's alpha instead.
