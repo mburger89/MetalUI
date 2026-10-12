@@ -8,6 +8,8 @@ Decisions: [`../2026-10-12-text-selection-decisions.md`](../2026-10-12-text-sele
 Record: `../../record/96-text-selection.md`. Branch `feat/text-selection` from `0abce86`.
 Divergence labels reserved for this branch: 265–274 (used: 265, 266).
 
+**Amendment (lane 1, `SL-L`):** `TextSelection` and its four initialisers are `@available(macOS 15, *)` (`RangeSet`); the internal state holds the value type-erased (`ErasedSelection`, `AnyHashable`), `reconcile` takes `AnyHashable?` and `publication` returns `Range<Int>?`; `TextInputTarget.selectionSink` returns `AnyHashable`.
+
 **Status: design, nothing built.** Lane 1 builds the library, lane 2 the tests, demo and mutations.
 
 ## 1. SwiftUI's answers (probe `docs/probes/swiftui-text-selection.swift`, recorded 2026-10-12)

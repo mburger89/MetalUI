@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-L`.**
+**Next unused id: `SL-M`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -115,3 +115,21 @@ stdlib-only. Rejected: splitting lane 1 further (one file set, `Window.swift` ed
 sites; C16 also edits `Window.swift` input regions, so lane 1 rebases onto a fresh master before
 its Window edit and keeps it minimal). Lane 2 owns every test, so no test is written by the author of
 the code it pins except 4.1-4.9, which are pure and mutated by lane 2.
+
+## SL-L — `TextSelection` is `@available(macOS 15, *)`; the field's state holds it type-erased
+
+`RangeSet` (the `.multiSelection` payload, SwiftUI's shape) is the standard library's from macOS 15
+(measured: `'RangeSet' is only available in macOS 15.0 or newer` at the package's macOS 14
+deployment target). The design (§2) did not see it. **Ruling**: `TextSelection` and the four
+initialisers that name it (`TextField`/`TextEditor` `selection:` Binding and controlled spellings)
+carry `@available(macOS 15, *)` — SwiftUI's own availability for the type — and nothing else in the
+package is gated: `TextEditState.seenBinding` holds the value as `ErasedSelection` (an
+`AnyHashable` box, `@unchecked Sendable`: only ever built from a `TextSelection`), the field stores
+`selection: AnyHashable?` and a `selectionWriter` closure built inside the available initialiser,
+and `TextEditing.reconcile(binding: AnyHashable?, …)` casts under `#available`. The platform floor
+(`.macOS(.v14)`) does not move. **Alternatives rejected**: raising the floor (every app and the
+must-not-move set); an own `RangeSet` lookalike (not SwiftUI's type, and `.multiSelection(RangeSet)`
+would not compile against SwiftUI code); gating `TextEditState`/`TextInputTarget`/`Handlers`
+(availability spreads through every file that names them). **Cost if wrong**: an app on macOS 14
+cannot bind a selection (SwiftUI cannot either); Linux and Windows have no gate. Tests that name the
+type are `@available(macOS 15, *)`.

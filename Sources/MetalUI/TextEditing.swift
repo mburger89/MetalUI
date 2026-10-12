@@ -1,5 +1,11 @@
 import MetalUIPlatform
 
+/// A `TextSelection` held type-erased (`SL-L`: the type is macOS 15, the state
+/// is not). Only ever built from a `TextSelection`, a `Sendable` value type.
+struct ErasedSelection: Hashable, @unchecked Sendable {
+    var value: AnyHashable
+}
+
 /// A text field's editing state (ruling TI-B): kept in the window's
 /// `StateTable` under the field's id and written from input only. Offsets are
 /// Character (grapheme) offsets into the field's text.
@@ -28,6 +34,12 @@ struct TextEditState: Equatable, Sendable {
     /// clear by the mouse wheel so a wheel scroll is not snapped back.
     var scrollY = 0.0
     var revealsCaret = true
+    /// The last binding value the field applied or published (`SL-B`): a binding
+    /// equal to it is not an instruction. `nil` until a bound field sees one.
+    var seenBinding: ErasedSelection?
+    /// The selection range last applied from, or published to, the binding
+    /// (`SL-B`); a differing selection is what an input publishes.
+    var reported: Range<Int>?
 
     var selection: Range<Int> { min(anchor, head)..<max(anchor, head) }
 
@@ -280,6 +292,44 @@ enum TextEditing {
         }
     }
 
+    // MARK: Selection binding (rulings SL-B…SL-J)
+
+    /// Applies `binding` to `state` when it holds a value the field did not itself
+    /// publish; `true` when it was seen as new. `nil` is never an instruction and
+    /// forgets the seen value (`SL-E`); composition holds a write back (`SL-H`); the
+    /// undo stacks and `lastText` are untouched, only the typing group ends (`SL-I`).
+    @discardableResult
+    static func reconcile(binding: AnyHashable?, text: String, state: inout TextEditState) -> Bool {
+        guard let binding else {
+            state.seenBinding = nil
+            return false
+        }
+        guard state.composition.text.isEmpty else { return false }
+        guard ErasedSelection(value: binding) != state.seenBinding else { return false }
+        guard #available(macOS 15, *), let value = binding.base as? TextSelection else { return false }
+        state.seenBinding = ErasedSelection(value: binding)
+        guard let converted = TextSelection.offsets(of: value, in: text) else { return false }
+        let count = text.count
+        let r = min(converted.lowerBound, count)..<min(converted.upperBound, count)
+        if r != state.clamped(to: count).selection {
+            state.anchor = r.lowerBound
+            state.head = r.upperBound
+            state.history.openGroup = nil
+            state.goalX = nil
+            state.revealsCaret = true
+        }
+        state.reported = r
+        return true
+    }
+
+    /// The range an input should publish: `nil` while composing or when the
+    /// selection is what was last reported (the echo-free rule, `SL-B`).
+    static func publication(state: TextEditState, text: String) -> Range<Int>? {
+        guard state.composition.text.isEmpty else { return nil }
+        let selection = state.clamped(to: text.count).selection
+        return selection == state.reported ? nil : selection
+    }
+
     // MARK: Text
 
     /// Committed text replaces the selection and ends any composition.
@@ -512,6 +562,12 @@ enum TextEditing {
 /// What `Window` needs to edit a `TextField` from input (ruling TI-B), built
 /// by the field in `prepaint` and carried on its `Handlers`. Geometry is the
 /// frame's: window points, scroll-view offsets applied.
+/// A closure in a class box (`SL-M`): one pointer where a closure is two.
+final class TextTargetHook<Closure> {
+    let call: Closure
+    init(call: Closure) { self.call = call }
+}
+
 struct TextInputTarget {
     /// The text the field was given (a controlled field: the caller owns it).
     var text: String
@@ -522,7 +578,17 @@ struct TextInputTarget {
     /// Where the caret was drawn, for the input method's candidate window.
     var caretRect: Bounds<Pixels>
     var onChange: @MainActor (String) -> Void
-    var onSubmit: (@MainActor () -> Void)?
+    /// Return's handler and the selection sink are class boxes, one pointer each,
+    /// so this target costs `Handlers` nothing it did not (`SL-M`: the 488-byte
+    /// pin of `handlersGainsOneReferenceMember`).
+    private var submitBox: TextTargetHook<@MainActor () -> Void>?
+    private var sinkBox: TextTargetHook<@MainActor (Range<Int>, String) -> AnyHashable>?
+
+    var onSubmit: (@MainActor () -> Void)? { submitBox?.call }
+
+    /// A bound field's way to write its selection (`SL-B`): receives the range
+    /// and the text it is in, writes the binding, returns the value written.
+    var selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? { sinkBox?.call }
 
     // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
     var lines: TextLineModel? = nil
@@ -531,6 +597,23 @@ struct TextInputTarget {
     var lineHeight = 0.0
     /// How far the content can scroll: its height past the field's.
     var maxScrollY = 0.0
+
+    init(text: String, caretOffsets: [Double], originX: Double, caretRect: Bounds<Pixels>,
+         onChange: @escaping @MainActor (String) -> Void, onSubmit: (@MainActor () -> Void)?,
+         selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? = nil,
+         lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0) {
+        self.text = text
+        self.caretOffsets = caretOffsets
+        self.originX = originX
+        self.caretRect = caretRect
+        self.onChange = onChange
+        self.submitBox = onSubmit.map { TextTargetHook(call: $0) }
+        self.sinkBox = selectionSink.map { TextTargetHook(call: $0) }
+        self.lines = lines
+        self.originY = originY
+        self.lineHeight = lineHeight
+        self.maxScrollY = maxScrollY
+    }
 
     /// The grapheme boundary under a window point: on the line under `y`
     /// (clamped to the first and last), nearest `x`.

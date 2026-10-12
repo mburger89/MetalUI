@@ -6,12 +6,15 @@ import MetalUIPlatform
 // selection (spec 4.1–4.9). The end-to-end arms live in
 // `MetalUITestingTests/HarnessTextSelectionTests.swift`.
 
+@available(macOS 15, *)
 private func whole(_ text: String) -> TextSelection { TextSelection(range: text.startIndex..<text.endIndex) }
 
+@available(macOS 15, *)
 private func at(_ offset: Int, in text: String) -> TextSelection {
     TextSelection(insertionPoint: text.index(text.startIndex, offsetBy: offset))
 }
 
+@available(macOS 15, *)
 private func range(_ lower: Int, _ upper: Int, in text: String) -> TextSelection {
     TextSelection(range: text.index(text.startIndex, offsetBy: lower)..<text.index(text.startIndex, offsetBy: upper))
 }
@@ -23,7 +26,10 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     return s
 }
 
+@available(macOS 15, *)
 @Test func aTextSelectionHasSwiftUIsThreeShapes() throws {
+    // Probe swiftui-text-selection.swift, arm W1 (and S3): the three shapes the
+    // binding is written with; the field acts on a multi-selection's first range.
     let text = "hello"
     let r = text.index(text.startIndex, offsetBy: 1)..<text.index(text.startIndex, offsetBy: 3)
     let ranged = TextSelection(range: r)
@@ -42,6 +48,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(Set([ranged, ranged, point]).count == 2)
 }
 
+@available(macOS 15, *)
 @Test func offsetsClampAndRoundDownToACharacterBoundary() throws {
     let text = "ab"
     let longer = "abcdefgh"
@@ -58,6 +65,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(TextSelection.offsets(of: far, in: "") == 0..<0)
 }
 
+@available(macOS 15, *)
 @Test func aMultiSelectionActsOnItsFirstRange() throws {
     let text = "abcdef"
     var set = RangeSet<String.Index>()
@@ -67,6 +75,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(TextSelection.offsets(of: TextSelection(ranges: RangeSet<String.Index>()), in: text) == nil)
 }
 
+@available(macOS 15, *)
 @Test func aRangeBecomesAnInsertionPointWhenEmptyAndASelectionOtherwise() {
     let text = "hello"
     let point = TextSelection(offsets: 2..<2, in: text)
@@ -79,6 +88,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(TextSelection(offsets: 3..<99, in: text) == range(3, 5, in: text))
 }
 
+@available(macOS 15, *)
 @Test func reconcileAppliesAValueTheFieldDidNotPublish() {
     let text = "hello"
     var s = state(0, 0)
@@ -89,7 +99,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(TextEditing.reconcile(binding: value, text: text, state: &s))
     #expect(s.anchor == 1 && s.head == 4)
     #expect(s.reported == 1..<4)
-    #expect(s.seenBinding == value)
+    #expect(s.seenBinding == ErasedSelection(value: value))
     #expect(s.history.openGroup == nil)
     #expect(s.goalX == nil)
     #expect(s.revealsCaret)
@@ -102,6 +112,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(s.anchor == 5 && s.head == 5)
 }
 
+@available(macOS 15, *)
 @Test func reconcileIgnoresNilAndForgetsTheSeenValue() {
     let text = "hello"
     var s = state(0, 0)
@@ -116,6 +127,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(s.anchor == 1 && s.head == 3)
 }
 
+@available(macOS 15, *)
 @Test func reconcileIsHeldBackWhileComposing() {
     let text = "hello"
     var s = state(2, 2)
@@ -130,6 +142,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(s.anchor == 0 && s.head == 5)
 }
 
+@available(macOS 15, *)
 @Test func reconcileNeverTouchesTheUndoStacks() {
     let text = "hello"
     var s = state(5, 5)
@@ -145,6 +158,7 @@ private func state(_ anchor: Int, _ head: Int) -> TextEditState {
     #expect(s.history.openGroup == nil)
 }
 
+@available(macOS 15, *)
 @Test func publicationIsNilWhenNothingChangedOrWhileComposing() {
     let text = "hello"
     var s = state(1, 3)
