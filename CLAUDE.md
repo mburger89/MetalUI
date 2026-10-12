@@ -93,6 +93,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`: 3276 tests, 0 goldens**, typecheck guards lane 1's two beyond master's (3237 + 18 + 11 + 10; native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues; census 3152 lines; `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image; divergences 235, 236, header count and next label the merge's; record §93).
 - **Counts (2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`, then `SG-M` (File ▸ Close and Quit, +2): 3237 tests,
   0 goldens, 205 typecheck guards** (master's 3204 + 33 tests, 203 + 2 guards; 3237 re-measured clean by the orchestrator on `e1937ea`, record §89 §14; native run on an
   unlocked screen, all passed; census 3139 (3134 + 5); `Backends/SDL` 24 + 111 on macOS, 24 + 108

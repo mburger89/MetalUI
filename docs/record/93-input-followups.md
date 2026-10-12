@@ -99,14 +99,18 @@ three `ColorSchemeTests` together (`ColorSchemeTests` unedited).
 | M5 | remove the key-loss reset, `Window.swift` | `leavingKeyReportsTheModifiersAsReleasedAndBecomingKeyTheCurrentOnes` |
 | M6 | always dirty on a modifier change, `Window.swift` | `aWindowWithNoScopeIsNotDirtiedByAModifierChange`, `aRemovedScopeStopsReporting` |
 | M7a | share one key name, `ElementID("$modkeys0")` | **none — green, and correct**: the store key also holds an *occurrence* number, so two scopes at one position still get distinct keys; the depth in the name is belt and braces, not the separator. `twoStackedScopesBothReport` is therefore pinned by M1 only. |
-| M7b | leak the store entry (do not clear `modifierCurrent` after the swap) | **green against the first 3.7**: the leak shows only on a third build with the scope gone. 3.7 now builds twice more with ⇧ held (`aRemovedScopeStopsReporting`); M7c below. |
+| M7b | leak the store entry (do not clear `modifierCurrent` after the swap) | **green against the first 3.7**: the leak shows only on a third build with the scope gone. 3.7 now builds twice more with ⇧ held (`aRemovedScopeStopsReporting`); M7c, §3.4. |
 | 3.9 | — | `aHeadlessRenderRunsNoModifierAction` is an invariance pin: `renderFrame` has no window and no drain and an empty held set reports nothing under `initial: true`, so no one-line mutation reddens it (`IF-N` item 5). |
-
-M7c (M7b's spelling against the sharpened 3.7): see §3.4.
 
 ### 3.4 M7c
 
-*Filled below from the run.*
+M7c is M7b's spelling against the sharpened test. 3.7 now holds ⇧ across the removal
+(the stale value of a leaked entry is the *masked value it last held*, which was empty in the
+first draft, so the leak reported nothing), builds twice more with the scope gone, and expects
+the return to report ⇧⌘. The mutated suite ran to a summary line: **3276 tests, 9 issues** =
+the five locked-screen sheet issues plus four in `aRemovedScopeStopsReporting`
+(`!window.needsRedraw` at 269, the three `log.entries` arms at 271, 278, 281). Unmutated, the
+same test passes (10 `ModifierKeysTests` in a filtered run, and in the full run below).
 
 ## 4. Record phase
 
@@ -135,17 +139,23 @@ nothing else. The first lane-3 run read 13 issues (the five plus the 3.6–3.8 a
 
 ### 4.3 Pixels
 
-*Filled below from the run.*
+`docs/probes/demo-pixels/compare.sh <scratch> f2fe54a HEAD` (HEAD `fb2b81f`): **all fourteen
+images `differing=0`, scene identical**; controls at `f2fe54a` as recorded (1048576, 1031003,
+454895, 0, 1048576, 0, distinct 544 and 216, prod 491221, distinct 529, indicator rects 0).
+The pad paints text from an `@Observable` model with initial values, but it is only in the
+canvas demo (`METALUI_CANVAS_DEMO=1`), not in the fourteen. `swift build --build-tests`
+(default build system): 0 `warning:` lines; native: SwiftPM's deprecation notice only. No
+real-window capture (screen locked).
 
 ## 5. Deferrals and hazards
 
 - `@GestureState`/`updating(_:body:)` not built (`IF-A`); a drag per button, lost-release
   detection for the primary arena, `modifiers` on other taps, a probe of AppKit's wheel
-  latching and of `onModifierKeysChanged`'s timing: no owner (`IF-A`, `IF-O` not written).
+  latching and of `onModifierKeysChanged`'s timing: no owner (`IF-A`, no ruling).
 - The merge-time checker should re-take lane 1's twelve un-re-run mutations and
   `Backends/SDL` (macOS and the `metalui-portable` image) after the lane 2 test edits; lane 3
   touches no `Backends/SDL` file.
 - The mutation M1 run ended without a summary line (see §3.3): re-take it on the checker's
-  machine unlocked.
+  machine unlocked. M7a is an equivalent mutant (the occurrence number separates keys).
 - A `.modifiersChanged` poke into `window.onInput` is how three `ColorSchemeTests` reach
   their handler; anything changing that event's dirt reddens them (`IF-N` item 3).
