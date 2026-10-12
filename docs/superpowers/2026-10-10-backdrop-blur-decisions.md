@@ -6,7 +6,7 @@ task**). Requested by MetalCreator (`/Users/maxburger/Developer/MetalCreator/doc
 C10-a, M5-c). Supersedes `LK-L` item 4's deferral (record §85,
 [`2026-10-08-controls-looks-decisions.md`](2026-10-08-controls-looks-decisions.md)).
 Spec: [`specs/2026-10-10-backdrop-blur-design.md`](specs/2026-10-10-backdrop-blur-design.md).
-Record: `../record/94-backdrop-blur.md` (Record phase). Branch `feat/backdrop-blur`
+Record: [`../record/94-backdrop-blur.md`](../record/94-backdrop-blur.md) (landed 2026-10-12). Branch `feat/backdrop-blur`
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 

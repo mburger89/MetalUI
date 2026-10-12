@@ -223,9 +223,9 @@ survived lane 2's. Test the shader with a field that varies on both axes (§9 ga
   `appKitSecondDialogWhileASheetIsUpAnswersFalse`) that a locked screen fails (`CI-AF`; the lock probe read
   `CGSSessionScreenIsLocked = 1`); `FR-J no-argument frame: succeeded=true`; 0 `error:`; the only `warning:`
   is SwiftPM's `--build-system native` deprecation notice. The default build system's
-  `swift build --build-tests` is {DEFAULTWARN}.
+  `swift build --build-tests` is 0 `warning:` (Build complete, 142 s).
 - **Fourteen demo images 0 px against `f2fe54a`** (`docs/probes/demo-pixels/compare.sh <scratch>
-  f2fe54a HEAD`, scene identical): {DEMO}. The only `Material` in a demo is `LooksDemo`'s section,
+  f2fe54a HEAD`, scene identical): 0 px in all fourteen, scene identical, re-taken after the merge against master `5f35df6` (the lane checker's reading against `f2fe54a` before it was the same); the harness controls read their recorded values. The only `Material` in a demo is `LooksDemo`'s section,
   outside `demoContent()` and the chrome pair (`BB-M`); `DemoFrameDeterminismTests` `Expected.swift`
   unedited.
 - Inventory: `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing; census

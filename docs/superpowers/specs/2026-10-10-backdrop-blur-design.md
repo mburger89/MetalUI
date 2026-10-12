@@ -10,6 +10,13 @@ task. Branch `feat/backdrop-blur` from `f2fe54a`; rulings `BB-A`… in
 divergence labels reserved for this branch **245–254**; record §94 (written in
 the Record phase).
 
+**Status: LANDED (2026-10-12), record [§94](../../record/94-backdrop-blur.md).** All three lanes
+built and verified `ok`; deviations from this text are rulings `BB-P`…`BB-T` (the
+`.backgroundMaterial` layer, interim arms and `BackdropRegion`, the upsample coordinate, the pass
+count `L + 2`, eleven SDL stages and fixture v4). Open: human checks group BB, Windows D3D12 (CI),
+Reduce Transparency, saturation lift, the `ProgressView` tint hook (divergences 246, 249; `BB-N`).
+Divergences 245–249 are in `docs/divergences.md`; 250–254 unused.
+
 Evidence: [`docs/probes/swiftui-backdrop-blur.swift`](../../probes/swiftui-backdrop-blur.swift)
 (recorded output in its header, two byte-identical runs) and the unchanged
 `swiftui-controls-looks.swift` arms `M1`/`M5`. Code inventory at `f2fe54a` below.
