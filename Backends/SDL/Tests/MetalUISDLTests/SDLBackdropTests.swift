@@ -403,3 +403,51 @@ func sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal(sigma: Float) thr
         #expect(Int(mui_backdrop_levels(sigma)) == levels(sigma: sigma), "σ \(sigma)")
     }
 }
+
+/// **3.3h** (`BB-D`, `BB-R`). A backdrop over a field with structure on BOTH
+/// axes — 6-point cells of red, blue, white and black in a pattern that is
+/// neither row- nor column-uniform — over a region that is odd in both sizes
+/// and starts off the origin (so the downsample repeats an edge texel and the
+/// level textures are not a multiple of the region; whole-pixel bounds, so
+/// the quad's own edge is not antialiased), equals the
+/// reference of that region within three levels, and the pixels outside the
+/// region are the scene's own. A vertically uniform scene (the step) cannot
+/// see an axis a pass drops: mutations of the downsample's rows or the
+/// Gaussian's axis redden this and not 3.3. Mutations: average only the top
+/// row of each 2 × 2 block in `downsample.fragment`; blur one axis twice.
+@Test(arguments: [Float(16), 52]) @MainActor
+func aBackdropOverA2DFieldEqualsTheReferenceOfItsRegion(sigma: Float) throws {
+    let (w, h) = (121, 91)
+    let renderer = try offscreenRenderer(w, h)
+    let palette: [(MUIHsla, [Float])] = [(red, [1, 0, 0]), (blue, [0, 0, 1]),
+                                         (MUIHsla(h: 0, s: 0, l: 1, a: 1), [1, 1, 1]), (black, [0, 0, 0])]
+    var scene = Scene()
+    var field = [Float](repeating: 0, count: w * h * 4)
+    let cell = 6
+    for gy in 0..<((h + cell - 1) / cell) { for gx in 0..<((w + cell - 1) / cell) {
+        let pick = (gx * 3 + gy * 5 + (gx * gy) % 3) % 4
+        scene.insert(solid(mb(Float(gx * cell), Float(gy * cell), Float(cell), Float(cell)), palette[pick].0))
+        for y in (gy * cell)..<min((gy + 1) * cell, h) { for x in (gx * cell)..<min((gx + 1) * cell, w) {
+            let i = (y * w + x) * 4
+            field[i] = palette[pick].1[0]; field[i + 1] = palette[pick].1[1]; field[i + 2] = palette[pick].1[2]; field[i + 3] = 1
+        } }
+    } }
+    scene.insert(backdrop(mb(3, 5, 101, 69), tint: MUIHsla(h: 0, s: 0, l: 0.5, a: 0.3), sigma: sigma))
+    scene.finalize()
+    let region = try #require(scene.backdropRegion(0, target: (w, h)))
+    #expect(region.width % 2 == 1 || region.height % 2 == 1, "an odd region repeats its last texel")
+    let pixels = try draw(renderer, scene, width: w, height: h)
+    // The region's pixels, blurred alone (the blur is clamped to the region), then composited.
+    var crop = [Float](repeating: 0, count: region.width * region.height * 4)
+    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
+        crop[(y * region.width + x) * 4 + c] = field[((region.y + y) * w + region.x + x) * 4 + c]
+    } } }
+    let blurredCrop = blurred(crop, width: region.width, height: region.height, sigma: sigma)
+    let composited = composite(blurred: blurredCrop, destination: crop, grayTint: 0.5, alpha: 0.3, opacity: 1)
+    var expected = field
+    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
+        expected[((region.y + y) * w + region.x + x) * 4 + c] = composited[(y * region.width + x) * 4 + c]
+    } } }
+    let off = maxLevelsOff(pixels, width: w, expected: expected)
+    #expect(off <= 3, "σ \(sigma): worst channel \(off) levels off the reference of the region \(region)")
+}
