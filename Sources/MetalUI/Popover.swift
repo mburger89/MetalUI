@@ -8,8 +8,9 @@ import MetalUIPlatform
 // §3.8). SwiftUI's side is `docs/probes/swiftui-menus-popovers.swift`, arms
 // P1–P7.
 
-/// An anchored popover — what `.popover(isPresented:arrowEdge:content:)` and
-/// `.popover(item:arrowEdge:content:)` return (ruling `MN-L`).
+/// An anchored popover — what `.popover(isPresented:attachmentAnchor:arrowEdge:content:)`,
+/// `.popover(item:attachmentAnchor:arrowEdge:content:)` and the MetalUI-only
+/// `anchoredOverlay(…)` return (rulings `MN-L`, `OV-A`).
 ///
 /// **A wrapper on both vocabularies, one identity level**
 /// (`DraggablePreviewModifier`'s recipe, `DN-J` item 3): `content` numbers
@@ -24,13 +25,15 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     var presented: @MainActor () -> (name: String?, content: PopoverContent)?
     /// Writes the binding `false` (or `nil`), from input (`MN-N`).
     var dismiss: @MainActor () -> Void
-    /// The resolved edge (`nil` is `.top`, P7).
-    var edge: Edge
+    /// What is presented and where (`OV-A`, `OV-B`): a popover against its
+    /// attachment anchor, or a chrome-less overlay at a point.
+    var kind: PopoverKind
 
-    init(content: Content, edge: Edge?, presented: @escaping @MainActor () -> (name: String?, content: PopoverContent)?,
+    init(content: Content, kind: PopoverKind,
+         presented: @escaping @MainActor () -> (name: String?, content: PopoverContent)?,
          dismiss: @escaping @MainActor () -> Void) {
         self.content = content
-        self.edge = edge ?? .top
+        self.kind = kind
         self.presented = presented
         self.dismiss = dismiss
     }
@@ -54,35 +57,74 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     }
 
     /// The popover's slot at `cursor` (1): an evaluated optional produced only
-    /// while presented **and** the last frame recorded this wrapper's anchor
-    /// (`MN-M` item 2) — a presentation with no anchor yet asks for one more
-    /// frame and appears on it. Its placeholder joins no parent: this wrapper
-    /// hands its parent the anchor's node alone (`DN-Y` item 2's footing).
+    /// while presented **and** placeable. A popover needs the anchor the last
+    /// frame recorded for this wrapper (`MN-M` item 2), resolved through its
+    /// attachment anchor (`OV-B`); an overlay needs its point in the window
+    /// (`overlayPoint`, `OV-K`). One with neither yet asks for one more frame
+    /// and appears on it. Its placeholder joins no parent: this wrapper hands
+    /// its parent the anchor's node alone (`DN-Y` item 2's footing).
     func layOutPopover(_ id: GlobalElementID, at cursor: inout Int,
                        pass: inout LayoutPass) -> (PopoverSlot<PopoverContent>, PopoverSlot<PopoverContent>.GroupLayout) {
         let frame = pass.frame
         var slot = PopoverSlot<PopoverContent>(nil)
         if let (name, body) = presented() {
-            if let anchor = frame.previousPresentationAnchors[id] {
-                slot = PopoverSlot(AnchoredPresentation(content: Self.chrome(body, name: name), owner: id,
-                                                        anchor: anchor, edge: edge, dismiss: dismiss))
-            } else {
-                frame.requestAnotherFrame()
+            let previous = frame.previousPresentationAnchors[id]
+            switch kind {
+            case .popover(let attachment, let edge):
+                if let previous {
+                    slot = PopoverSlot(AnchoredPresentation(
+                        content: Self.chrome(body, name: name, padding: PopoverChrome.padding), owner: id,
+                        anchor: previous, placement: .popover(anchor: attachment.resolve(in: previous), edge: edge),
+                        chrome: true, consumesAnchorPress: true, dismiss: dismiss))
+                } else {
+                    frame.requestAnotherFrame()
+                }
+            case .overlay(let point, let space, let anchor):
+                if let windowPoint = Self.overlayPoint(point, in: space, for: id, frame: frame) {
+                    let declarer = previous ?? Bounds(origin: windowPoint, size: Size(width: Pixels(0), height: Pixels(0)))
+                    slot = PopoverSlot(AnchoredPresentation(
+                        content: Self.chrome(body, name: name, padding: 0), owner: id, anchor: declarer,
+                        placement: .overlay(point: windowPoint, anchor: anchor),
+                        chrome: false, consumesAnchorPress: false, dismiss: dismiss))
+                } else {
+                    frame.requestAnotherFrame()
+                }
             }
         }
         let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         return (slot, layout)
     }
 
-    /// The chrome's box (`MN-M` item 5): the content padded by 12, named by
-    /// `item:`'s id (`ID-R`), published as a `.popover` node (`MN-O`). Its
-    /// panel — a `.surface` rounded rectangle (radius 10) with a 1-pt
-    /// `.separator` border and the default shadow — is painted by
-    /// `AnchoredPresentation` as one bordered rect (a legacy `Box` would paint
-    /// its fill and border as two primitives, each with its own shadow).
-    static func chrome(_ body: PopoverContent, name: String?) -> Box<PopoverContent> {
+    /// An overlay's point in the window (`OV-K`, `OV-N`, `OV-S`), or `nil`
+    /// while it cannot be placed yet. The point is this layout's (read fresh);
+    /// only its space's map comes from the last frame: `.global` is the point
+    /// itself; `.local` and `.named` map through the space the declarer
+    /// recorded in its last prepaint (`previousPresentationSpaces`), `.global`
+    /// when it recorded none (a name no ancestor declares) or a degenerate one
+    /// — and `nil`, one more frame, when the declarer was not laid out in the
+    /// last frame at all (`OV-S`).
+    static func overlayPoint(_ point: Point<Pixels>, in space: CoordinateSpace, for id: GlobalElementID,
+                             frame: Frame) -> Point<Pixels>? {
+        switch space {
+        case .global:
+            return point
+        case .local, .named:
+            guard frame.previousPresentationAnchors[id] != nil else { return nil }
+            guard let recorded = frame.previousPresentationSpaces[id], recorded.toSpace != nil else { return point }
+            return recorded.toWindow.apply(point)
+        }
+    }
+
+    /// The chrome's box (`MN-M` item 5): the content padded by `padding` (12
+    /// for a popover, 0 for an overlay, `OV-A` item 1), named by `item:`'s id
+    /// (`ID-R`), published as a `.popover` node (`MN-O`). A popover's panel —
+    /// a `.surface` rounded rectangle (radius 10) with a 1-pt `.separator`
+    /// border and the default shadow — is painted by `AnchoredPresentation` as
+    /// one bordered rect (a legacy `Box` would paint its fill and border as two
+    /// primitives, each with its own shadow).
+    static func chrome(_ body: PopoverContent, name: String?, padding: Float) -> Box<PopoverContent> {
         var box = Box(content: body)
-        box.style.padding = Edges(all: .pixels(Pixels(PopoverChrome.padding)))
+        box.style.padding = Edges(all: .pixels(Pixels(padding)))
         box.elementID = name.map { ElementID($0) }
         box.handlers.axNode.popoverHint = true
         return box
@@ -99,6 +141,24 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         frame.recordPresentationAnchor(id, bounds: bounds)
         if layout.slot.wrapped != nil, let previous, frame.presentationAnchors[id] != previous {
             frame.requestAnotherFrame()
+        }
+        // An overlay's space (`OV-K`, `OV-N`): recorded whether or not it is
+        // presented, so a point written with its binding places in the frame
+        // presenting the write. `.local` is this element's own space, effects
+        // included; `.named` the innermost space so named (nothing when none
+        // is, or it is degenerate: placed as `.global`). A presented overlay
+        // whose space moved asks for one more frame, as a moved anchor does.
+        if case .overlay(_, let space, _) = kind {
+            switch space {
+            case .global: break
+            case .local: frame.recordPresentationSpace(frame.localSpace(of: bounds), for: id)
+            case .named(let name):
+                if let named = frame.namedSpace(name) { frame.recordPresentationSpace(named, for: id) }
+            }
+            if layout.slot.wrapped != nil, previous != nil,
+               frame.presentationSpaces[id] != frame.previousPresentationSpaces[id] {
+                frame.requestAnotherFrame()
+            }
         }
         var slot = layout.slot
         var slotLayout = layout.slotLayout
@@ -143,24 +203,41 @@ enum PopoverChrome {
     static let shadowY: Float = 2
 }
 
+/// What a `PopoverModifier` presents and where (rulings `OV-A`, `OV-B`).
+enum PopoverKind {
+    /// `.popover`: the chrome against the attachment anchor, on the edge's
+    /// side (`nil` is `.top`, P7).
+    case popover(PopoverAttachmentAnchor, Edge)
+    /// `anchoredOverlay`: no chrome, the content's `anchor` unit point at
+    /// `point` in `space`.
+    case overlay(point: Point<Pixels>, space: CoordinateSpace, anchor: UnitPoint)
+}
+
 /// `isPresented:`'s presentation: the content while the binding is `true`.
-private func presenting<P>(_ isPresented: Binding<Bool>, _ content: @escaping @MainActor () -> P)
+func presenting<P>(_ isPresented: Binding<Bool>, _ content: @escaping @MainActor () -> P)
     -> @MainActor () -> (name: String?, content: P)? {
     { isPresented.wrappedValue ? (nil, content()) : nil }
 }
 
 /// `item:`'s presentation: the item's content, named by its id (`ID-R`).
-private func presenting<Item: Identifiable, P>(_ item: Binding<Item?>, _ content: @escaping @MainActor (Item) -> P)
+func presenting<Item: Identifiable, P>(_ item: Binding<Item?>, _ content: @escaping @MainActor (Item) -> P)
     -> @MainActor () -> (name: String?, content: P)? {
     { item.wrappedValue.map { ("\($0.id)", content($0)) } }
 }
 
 extension StyledElement {
     /// Presents `content` in a popover anchored to this element while
-    /// `isPresented` is `true` — SwiftUI's `popover(isPresented:arrowEdge:content:)`
-    /// (rulings `MN-L`, `MN-X`; probe arms P1, P7).
+    /// `isPresented` is `true` — SwiftUI's
+    /// `popover(isPresented:attachmentAnchor:arrowEdge:content:)` (rulings
+    /// `MN-L`, `MN-X`, `OV-B`; probe arms P1, P7, A1–A7).
     ///
-    /// **Placement** (`MN-M`): on `arrowEdge`'s side of this element, 8 pt
+    /// **Attachment** (`OV-B`): `attachmentAnchor` names the rect the popover
+    /// points at — `.rect(.bounds)`, the default, this element's bounds;
+    /// `.rect(.rect(r))` a rect in this element's own space; `.point(p)` a
+    /// zero-size rect at a unit point of its bounds (divergence 225: the rect
+    /// source is a `Bounds<Pixels>`, not an `Anchor<CGRect>.Source`).
+    ///
+    /// **Placement** (`MN-M`): on `arrowEdge`'s side of the attachment rect, 8 pt
     /// away, centred along the other axis; `nil` is `.top`, SwiftUI's default
     /// on macOS (P7). It flips to the opposite edge when it does not fit
     /// inside the window and does there, and is then clamped inside the
@@ -172,7 +249,8 @@ extension StyledElement {
     ///
     /// **Dismissal** (`MN-N`, `MN-Y`): a press outside every open popover
     /// writes `isPresented` `false` from input and then reaches what it lands
-    /// on (P4a); a press on this element itself dismisses and is consumed, so
+    /// on (P4a); a press anywhere on this element itself — whatever the
+    /// attachment anchor — dismisses and is consumed, so
     /// a toggling `Button` closes the popover; Escape dismisses the topmost
     /// popover before the keymap sees it. A press, wheel or drop on the
     /// popover never reaches what lies beneath it (`MN-Z`).
@@ -183,41 +261,50 @@ extension StyledElement {
     /// at each presentation (`ID-C`). One identity level, for its caller only
     /// (`PopoverModifier`). It appears on the frame after this element was
     /// first laid out, and follows it within one frame when it moves.
-    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge? = nil,
+    public func popover<P: ElementGroup>(isPresented: Binding<Bool>,
+                                         attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                         arrowEdge: Edge? = nil,
                                          @ElementBuilder content: @escaping @MainActor () -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(isPresented, content),
-                        dismiss: { isPresented.wrappedValue = false })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(isPresented, content), dismiss: { isPresented.wrappedValue = false })
     }
 
     /// Presents a popover built from `item` while it is non-`nil` — SwiftUI's
-    /// `popover(item:arrowEdge:content:)` (`MN-L` item 1; probe arm P6). A
-    /// different item's id starts its content fresh (`ID-R`); dismissal writes
-    /// `nil`. Everything else is `popover(isPresented:arrowEdge:content:)`'s.
-    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge? = nil,
+    /// `popover(item:attachmentAnchor:arrowEdge:content:)` (`MN-L` item 1,
+    /// `OV-B`; probe arms P6, T12). A different item's id starts its content
+    /// fresh (`ID-R`); dismissal writes `nil`. Everything else is
+    /// `popover(isPresented:attachmentAnchor:arrowEdge:content:)`'s.
+    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>,
+                                                             attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                                             arrowEdge: Edge? = nil,
                                                              @ElementBuilder content: @escaping @MainActor (Item) -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(item, content),
-                        dismiss: { item.wrappedValue = nil })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(item, content), dismiss: { item.wrappedValue = nil })
     }
 }
 
 extension ProposalElementGroup {
-    /// `StyledElement.popover(isPresented:arrowEdge:content:)` on the proposal
+    /// `StyledElement.popover(isPresented:attachmentAnchor:arrowEdge:content:)` on the proposal
     /// path: the same wrapper, one identity level (`MN-L` item 2).
-    public func popover<P: ElementGroup>(isPresented: Binding<Bool>, arrowEdge: Edge? = nil,
+    public func popover<P: ElementGroup>(isPresented: Binding<Bool>,
+                                         attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                         arrowEdge: Edge? = nil,
                                          @ElementBuilder content: @escaping @MainActor () -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(isPresented, content),
-                        dismiss: { isPresented.wrappedValue = false })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(isPresented, content), dismiss: { isPresented.wrappedValue = false })
     }
 
-    /// `StyledElement.popover(item:arrowEdge:content:)` on the proposal path.
-    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>, arrowEdge: Edge? = nil,
+    /// `StyledElement.popover(item:attachmentAnchor:arrowEdge:content:)` on the proposal path.
+    public func popover<Item: Identifiable, P: ElementGroup>(item: Binding<Item?>,
+                                                             attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+                                                             arrowEdge: Edge? = nil,
                                                              @ElementBuilder content: @escaping @MainActor (Item) -> P)
         -> PopoverModifier<Self, P> {
-        PopoverModifier(content: self, edge: arrowEdge, presented: presenting(item, content),
-                        dismiss: { item.wrappedValue = nil })
+        PopoverModifier(content: self, kind: .popover(attachmentAnchor, arrowEdge ?? .top),
+                        presented: presenting(item, content), dismiss: { item.wrappedValue = nil })
     }
 }
 
@@ -232,7 +319,9 @@ extension Window {
     ///   binding written from input under its declarer's dispatch (`ID-F`) —
     ///   then **passes on** to the rest of dispatch (P4a, `MN-Y` item 1),
     ///   unless it landed on a dismissed popover's own anchor: that press is
-    ///   consumed with its release, so a toggling anchor closes (`MN-Y` item 2);
+    ///   consumed with its release, so a toggling anchor closes (`MN-Y` item 2)
+    ///   — never an overlay's declarer, which hears the press (`OV-A` item 3);
+    ///   overlays share this stack and these rules otherwise;
     /// - Escape with no modifiers dismisses the topmost popover, before the
     ///   keymap (`MN-N` item 2).
     func dispatchPopovers(_ event: InputEvent) -> Bool {
@@ -245,7 +334,7 @@ extension Window {
             while let top = lastOpenPopovers.last, !top.bounds.contains(mouse.position) {
                 lastOpenPopovers.removeLast()
                 StateDispatch.dispatching(to: top.id) { top.dismiss() }
-                if top.anchor.contains(mouse.position) { onAnchor = true }
+                if top.consumesAnchorPress && top.anchor.contains(mouse.position) { onAnchor = true }
             }
             guard onAnchor else { return false }
             releasePressForMenu()   // never drawn pressed, never a click on release

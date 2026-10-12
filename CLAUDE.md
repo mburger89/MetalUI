@@ -57,7 +57,9 @@ summary.
   `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
-  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `IF-` (input follow-ups:
+  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
+  `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
+  `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -71,9 +73,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **134 live, next label 206** (196–204 unused by C12, 215–224 reserved by an open branch, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **135 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 235–264 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -94,7 +96,16 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 ```
 
 - **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`: 3276 tests, 0 goldens**, typecheck guards lane 1's two beyond master's (3237 + 18 + 11 + 10; native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues; census 3152 lines; `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image; divergences 235, 236, header count and next label the merge's; record §93).
-- **Counts (2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`, then `SG-M` (File ▸ Close and Quit, +2): 3237 tests,
+- **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
+  (master's 3312 + 51 tests, 208 + 5 guards; the native run after `swift package clean` read exactly the five
+  `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and nothing else; census 3392 (3356 + 36);
+  the fourteen images 0 px against `ebcf3c7`; divergence 225 added, the header's count and next label the merge's;
+  `Backends/SDL` untouched; record §92 §2). Before it, **(2026-10-10, `feat/test-harness` from `70e9389`, merged with master `f2fe54a` (`SG-M`): 3312 tests, 0 goldens, 208 typecheck guards (3310 + the two §14 pins, record §91 §14)**
+  (master's 3237 + 73 tests, 205 + 3 guards: lane 1's 37, lane 2's 30, lane 3's 5, the merge's 2.31; native
+  `--build-system native` run all passed after `swift package clean`, the default build system 0 `warning:`; census 3356 (3134 +
+  the product's 222); root in `swift:6.4-noble` 9 + 40 + 21 + 199 + 78 + 22 plus `MetalUITestingTests` 72; `Backends/SDL` untouched
+  by this branch; the fourteen images 0 px against `70e9389` at lanes 1 and 3; record §91 §12). Before it,
+  **(2026-10-10, `fix/smk-port-gaps` from `0b400b4`, merged with master `ebcf3c7`, then `SG-M` (File ▸ Close and Quit, +2): 3237 tests,
   0 goldens, 205 typecheck guards** (master's 3204 + 33 tests, 203 + 2 guards; 3237 re-measured clean by the orchestrator on `e1937ea`, record §89 §14; native run on an
   unlocked screen, all passed; census 3139 (3134 + 5); `Backends/SDL` 24 + 111 on macOS, 24 + 108
   in the Linux image; root in `swift:6.4-noble` 9 + 38 + 21 + 199 + 78 + 22; the fourteen images 0 px against
@@ -184,7 +195,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -246,8 +257,9 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty-three one-way-dependent targets (`MetalUIPath`, `GX-B`, and the last two
-`MetalUIScaffold` and `MetalUICLI`, `SC-A`) plus `Tests/MetalUITestSupport`;
+Twenty-four one-way-dependent targets (`MetalUIPath`, `GX-B`, the last two
+`MetalUIScaffold` and `MetalUICLI`, `SC-A`, and portable `MetalUITesting`, which imports
+only `MetalUI` and `MetalUIScene`, `HT-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
 Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
@@ -276,8 +288,9 @@ these violations show.
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
   `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
-  default so a conformer that forgets one fails to compile. Both conformers
-  and every test fake implement all of them. **`Platform` (not a window) has
+  default so a conformer that forgets one fails to compile. Both conformers,
+  the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
+  answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
   six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:) -> Bool`** (`MN-I`, `SG-A`: `true` when the platform shows the bar) **and the app shell's
   `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
@@ -796,8 +809,8 @@ wins, a press holds the pressed chain's style, sent only on a change, forgotten
 on exit) through the defaultless `PlatformWindow.setPointerStyle(_:)`; SDL has
 no hand or zoom cursor (`MOVE`/arrow, `CI-H` item 8), no rotate, no pinch on
 Windows and no wheel phase. Both new regions sit inside the disabled,
-`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` and an image
-cursor would each add an enum case (`CI-AC`).
+`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` is built (`OV-D`, below); an image
+cursor would still add an enum case (`CI-AC`).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
@@ -954,6 +967,40 @@ manifest names the two portable-text products unconditionally (a SwiftPM defect,
 measured below it (`SG-F`). A `Component`'s prepaint record is one heap box (`ComponentPrepaint`,
 `SG-E`).
 
+**Test harness (`HT-`, record §91, `docs/testing.md`).** `MetalUITesting` is a portable library
+product for test targets only (`MetalUI` never links it): `TestApp`/`TestWindow` run the **real**
+`App.openWindow` and `Window` over `HeadlessPlatform`/`HeadlessPlatformWindow`/
+`HeadlessWindowRenderer`, which implement every platform requirement honestly (options default to
+AppKit's answers). Input is XCUITest's names with AppKit's key routing; a **simulated clock**
+(`tick`, `advance(by:)`, `runUntilIdle()` — four quiet yields, bounded at 64 rounds); **an action
+draws one frame, `tick` draws the next**, and a test's model is a plain class plus
+`setNeedsRedraw()` or `@Observable` with `runUntilIdle()` (the observation hop is asynchronous off
+macOS); queries read the accessibility tree (`element(label:)` also matches a static text's string)
+and `frame(ofID:)` is the laid-out rect before scroll and effects; presentations are read and
+answered at the seam, or driven through the tree where the option makes the window draw them
+(`presentsAlertsNatively`, `presentsMenusNatively`, `showsToolbarNatively`,
+`HeadlessPlatform.showsMenuBarNatively`); `FrameWork` counts a frame's work (benchmarks count work,
+never time). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swift` and
+`TestingMenuHooks.swift` (plain-import guards 3.1–3.3 pin them unreachable); no pixels, no GPU
+surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name
+(`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process.
+
+**Overlays and coordinates (`OV-`, record §92).** `CoordinateSpace.named` and `.coordinateSpace(_:)` (a
+transparent `CoordinateSpaceScope`: no node, no id level) resolve against the **nearest ancestor so
+named**, moving with scrolls and effects; a missing or degenerate space reads `.global`, never an
+outer one of the same name; a frame composes the maps **before** boxing (`OV-M`); hitboxes snapshot
+the named stack only while a scope is open, and a gesture arena takes the snapshot of each member
+and joining ancestor (`OV-H`, `OV-Q`). `onContinuousHover(coordinateSpace:)`, named
+`onGeometryChange`/`DragGesture`/`SpatialTapGesture` and the MetalUI-only
+`EnvironmentValues.windowSize` (the frame's `contentSize`, chrome included; `renderFrame` stamps it
+too) belong to it. **`anchoredOverlay(at:in:anchor:)`** (MetalUI-only, both vocabularies) is a
+`PopoverModifier` of kind `.overlay`: no panel, border, shadow or padding; the point is resolved
+**at layout**, a `.local`/`.named` one through the declarer's recorded space one frame later
+(`OV-K`, `OV-S`); flipped per axis then clamped; dismissed by an outside press of any button that
+**still lands** (the popover stage runs before the menu, text-input and value-track stages) and by
+Escape, never claiming a key; a press on the declarer dismisses and reaches it. `.popover` takes
+SwiftUI's `attachmentAnchor:` (divergence 225). `presentationBackground(_:)` is not built (`OV-C`).
+
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
 scopes. One root transaction per build (divergence 99). Legacy fields animate
@@ -1066,7 +1113,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (134 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (135 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

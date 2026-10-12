@@ -28,6 +28,10 @@ var products: [Product] = [
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
         .library(name: "MetalUIDemoContent", targets: ["MetalUIDemoContent"]),
+        // The public test harness (ruling HT-A): a headless window over a
+        // headless platform, input injection, inspection and warm frames, for
+        // an app's TEST target only — production targets never depend on it.
+        .library(name: "MetalUITesting", targets: ["MetalUITesting"]),
         // `metalui new <Name>`: a new application package (ruling SC-A).
         .executable(name: "metalui", targets: ["MetalUICLI"]),
         // The SDL3 backend for Linux and Windows (rulings RS-D, PX-H): compiled
@@ -207,6 +211,13 @@ var targets: [Target] = [
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S) and `Backends/SDL`'s demo can draw it.
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
+        // The test harness (ruling HT-A): imports `MetalUI` and `MetalUIScene`
+        // only — no AppKit, Metal, CoreText or Foundation — so the Linux and
+        // Windows root jobs build and run it. Its tests read Noto Sans from
+        // Tests/Fonts by #filePath (HT-J) and run on all three platforms.
+        .target(name: "MetalUITesting", dependencies: ["MetalUI", "MetalUIScene"]),
+        .testTarget(name: "MetalUITestingTests",
+                    dependencies: ["MetalUITesting", "MetalUI", "MetalUIScene", "MetalUIPortableText"]),
         // The whole framework's frame, pinned byte-for-byte across platforms
         // (ruling XP-C): runs on macOS, Linux and Windows.
         // CStbImage for test 2.8b (stb alone, called directly; PX-O item 3);
@@ -311,7 +322,10 @@ targets += [
         .testTarget(
             name: "MetalUITests",
             dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
-                           "MetalUIPortableText", "MetalUIAppKit"]
+                           "MetalUIPortableText", "MetalUIAppKit",
+                           // The harness's plain-import guards (ruling HT-M):
+                           // its module is built where `#filePath` expects.
+                           "MetalUITesting"]
         ),
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes
