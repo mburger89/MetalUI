@@ -2924,6 +2924,9 @@ public final class Window {
                 StateDispatch.dispatching(to: owner) { run() }
             case .beginDrag(let owner, let source, let point):
                 beginDragSession(from: owner, source: source, pressedAt: point)
+            case .beginWindowDrag:
+                _ = platformWindow.performWindowDrag()
+                endPressForDrag()
             }
         }
     }

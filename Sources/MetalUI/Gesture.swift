@@ -69,6 +69,9 @@ struct GestureLeaf {
         /// A `.draggable` (ruling `DN-D`): ready on the first move of more
         /// than zero points, failed at the release.
         case draggable
+        /// A `WindowDragGesture` (ruling `WD-C`): live in a press arena only,
+        /// ready on the first move of at least `tapSlop` from the press.
+        case windowDrag
         /// Live only in a pinch arena (`CI-D` item 1).
         case magnify(minimumScaleDelta: Double)
         /// Live only in a pinch arena; the minimum in degrees.
@@ -416,6 +419,9 @@ enum GestureCallback {
     /// A draggable won the arena (ruling `DN-D` item 7): `Window` opens a drag
     /// session from `owner` with `source`'s payload, pressed at `at`.
     case beginDrag(owner: GlobalElementID, source: DragSource, at: Point<Pixels>)
+    /// A `WindowDragGesture` won the arena (ruling `WD-D`): `Window` asks the
+    /// platform to move the window and ends the press.
+    case beginWindowDrag(owner: GlobalElementID)
 }
 
 /// **The tap's slop** (`IX-C` item 1, probe `G2g`/`G2b`): a tap fails once the
@@ -520,7 +526,7 @@ final class ArenaLeaf {
             return mode == .press
         case .gesture(let leaf):
             switch leaf.kind {
-            case .tap, .longPress, .draggable:
+            case .tap, .longPress, .draggable, .windowDrag:
                 return mode == .press
             case .drag(_, _, let button):
                 switch mode {
@@ -740,7 +746,7 @@ struct GestureArena {
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
-            case .drag, .draggable, .magnify, .rotate: return false
+            case .drag, .draggable, .windowDrag, .magnify, .rotate: return false
             }
         }
     }
@@ -789,7 +795,7 @@ struct GestureArena {
                                                                location: leaf.point(point, in: space),
                                                                modifiers: modifiers, clickCount: clickCount)
                     }
-                case .draggable:
+                case .draggable, .windowDrag:
                     leaf.pressPoint = point
                 case .magnify, .rotate:
                     break
@@ -826,6 +832,8 @@ struct GestureArena {
                 // The first move of more than zero points (`DN-D` item 1,
                 // `P17`/`P17z`): no slop, unlike a tap's.
                 if distance > 0 { leaf.ready = true }
+            case .windowDrag:
+                break
             case .magnify, .rotate:
                 break
             }
@@ -887,7 +895,7 @@ struct GestureArena {
                                                           modifiers: modifiers, clickCount: leaf.pressClickCount)
                         leaf.ready = true
                     }
-                case .draggable:
+                case .draggable, .windowDrag:
                     fail(leaf)
                 case .magnify, .rotate:
                     break
@@ -972,7 +980,7 @@ struct GestureArena {
                 if time - stamp >= tapSequenceDeferral { fail(leaf) }
             case .longPress(let duration, _):
                 if !leaf.ready && time - stamp >= duration { leaf.ready = true }
-            case .drag, .draggable, .magnify, .rotate:
+            case .drag, .draggable, .windowDrag, .magnify, .rotate:
                 break
             }
         }
@@ -1143,6 +1151,8 @@ struct GestureArena {
                     callbacks.append(.beginDrag(owner: leaf.owner, source: source, at: leaf.pressPoint))
                 }
                 for other in leaves where other !== leaf && other.status == .possible { fail(other) }
+            case .windowDrag:
+                fail(leaf)
             case .magnify, .rotate:
                 // A pinch that never reported a change ends with no callback
                 // (`CI-C` item 4).
@@ -1224,7 +1234,7 @@ struct GestureArena {
             case .gesture(let g):
                 switch g.kind {
                 case .tap, .longPress: return true
-                case .drag, .draggable, .magnify, .rotate: return false
+                case .drag, .draggable, .windowDrag, .magnify, .rotate: return false
                 }
             }
         }

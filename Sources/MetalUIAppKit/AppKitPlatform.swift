@@ -621,7 +621,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// Drags the window with the mouse-down being dispatched —
     /// `NSWindow.performDrag(with:)` in production; a test injects a recorder
     /// (ruling `AS-J` item 2).
-    lazy var performWindowDrag: @MainActor (NSEvent) -> Void = { [weak self] event in
+    lazy var performTitleBarDrag: @MainActor (NSEvent) -> Void = { [weak self] event in
         self?.window.performDrag(with: event)
     }
 
@@ -644,12 +644,15 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     func performTitleBarPress(clickCount: Int) -> Bool {
         guard let event = hostView.currentMouseDown else { return false }
         switch clickCount {
-        case 1: performWindowDrag(event)
+        case 1: performTitleBarDrag(event)
         case 2: performTitleBarDoubleClick()
         default: return false
         }
         return true
     }
+
+    /// Lane 2 replaces this stub (`WD-E`): AppKit's real answer.
+    func performWindowDrag() -> Bool { false }
 
     // MARK: Control active state (ruling EV-AB, amended by EV-AF)
 

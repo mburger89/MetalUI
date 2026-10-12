@@ -214,7 +214,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     let (_, appKit, nsWindow) = try shellWindow("1.7b")
     var drags: [NSEvent] = []
     var doubleClicks = 0
-    appKit.performWindowDrag = { drags.append($0) }
+    appKit.performTitleBarDrag = { drags.append($0) }
     appKit.performTitleBarDoubleClick = { doubleClicks += 1 }
     var answers: [Bool] = []
     appKit.onInput = { event in
