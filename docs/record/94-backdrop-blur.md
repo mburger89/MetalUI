@@ -150,7 +150,7 @@ Mesa lavapipe (Vulkan) 2 levels, tolerance `insideBackdrops = 3`.
   (master's 3415 + 28 tests, 216 + 1 guard): lane 1's 16 (`BackdropRecordTests` 8, `BackdropSceneTests` 3,
   `BackdropBlurReferenceTests` 4, `BackdropCompileGuards` 1) and lane 2's 12 (`BackdropRenderTests`); the
   `MaterialTests` re-pins add none. Lane 3's tests are in `Backends/SDL` and outside the root count:
-  **`Backends/SDL` 30 + 121 on macOS** (the checker's reading; baseline 24 + 108). Public census **3414**
+  **`Backends/SDL` 30 + 123 on macOS, 30 + 120 in the Linux image** (the branch checker's readings after the merge; baseline 24 + 108). Public census **3414**
   (3405 + 9: `Scene.backdrops`, `Scene.insert(_:layer:)` for a record, `Scene.BackdropRegion` with its
   four fields and initialiser, `Scene.backdropRegion`).
 - Before the merge, the checkers read **3253 tests** (lane 1, native after `swift package clean`) and
@@ -230,8 +230,8 @@ survived lane 2's. Test the shader with a field that varies on both axes (§9 ga
   unedited.
 - Inventory: `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing; census
   re-recorded: 3414 declarations, `docs/probes/closeout-public-api.tsv` regenerated.
-- `Backends/SDL` on macOS builds and passes (the checker: 30 + 121); the Linux image and the
-  replay-parity harness were run by the implementer, not re-run by the checker or the Record phase;
+- `Backends/SDL` on macOS builds and passes (the branch checker, after the merge: 30 + 123; the Linux image 30 + 120;
+  `Replay --portable --record` frames 9–11 0 px on SDL Metal and `PortableReplay --expect 12` PASS, 0 px in every frame);
   **Windows D3D12 is unmeasured** (`ssh metalui-win` timed out): the five DXIL stages are compiled and
   reflected, CI's `--expect 12` on frames 9–11 is the measurement.
 
@@ -289,3 +289,21 @@ Hazards for the next reader:
   (`PrimitiveKind` `.backdrop`, `LayoutModifier` `.backgroundMaterial`) and a note that a renderer
   outside the package must draw `.backdrop` or fall back to `flatTintRect`, and that `ReplayFixture`
   v4 and `SDLBridge`'s new parameters are package-internal.
+
+## §10 Branch checker (adversarial, after the merge, HEAD `8f0b36e`)
+
+Clean build and the unfiltered native suite: `Test run with 3443 tests in 3 suites failed after 517.778
+seconds with 5 issues` (the five locked-screen `AppKitPresentationTests` sheets; lock probe
+`CGSSessionScreenIsLocked = 1`), `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice. The probe `swiftui-backdrop-blur.swift` re-run reproduced
+groups P, S, E and O to the digit. Fourteen images against `f2fe54a`: 0 px, scene identical.
+`Replay --portable --record` frames 9–11 0 px, `PortableReplay --expect 12` PASS (SDL Metal).
+
+Two mutations of the checker's own design, each run to completion unfiltered (3443 tests, summary read):
+
+| # | Mutation | Reddened |
+|---|---|---|
+| C1 | `backdrop_fragment` in `shaders.metal`: `tint + (1 - tint.a) * backdrop` to `tint + backdrop` | `aBackdropOverAStepEqualsTheReferenceWithinTolerance(sigma:)` (16, 52, 104), `opacityHalfIsAHalfWeightCompositeOverTheSharpBackdrop` (2 issues) |
+| C2 | `Frame.fillBackdrop`: `sigma` without `* scaleFactor` | `theBackdropShapeIsTheFilledRoundedRectOrEllipse` only (one test pins the scale; thin) |
+
+Both restored; `git status` clean. No code defect found; merge verdict in the checker's report.

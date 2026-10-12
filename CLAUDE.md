@@ -100,8 +100,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 - **Counts (2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity): 3443 tests, 0 goldens, 217 typecheck guards**
   (master's 3415 + 28 tests, 216 + 1 guard: lane 1's 16 (8 record, 3 scene, 4 reference, 1 guard), lane 2's 12; `swift package clean`,
   native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, the
-  default build system 0 `warning:`; census 3414 (3405 + 9); `Backends/SDL` 30 + 121 on macOS (lane 3's 10 `SDLBackdropTests` and
-  the `ReplayFixtureTests` growth), the Linux image and replay parity run by the lane 3 implementer and not re-taken after the merge,
+  default build system 0 `warning:`; census 3414 (3405 + 9); `Backends/SDL` 30 + 123 on macOS (30 + 120 in the Linux image, branch checker; lane 3's 10 `SDLBackdropTests` and
+  the `ReplayFixtureTests` growth), replay parity re-taken by the branch checker after the merge: 12 fixtures, SDL Metal 0 px,
   Windows D3D12 unmeasured (CI); divergences 245–249 added, 166 amended, 142 live; the fourteen images 0 px; record §94 §5, §7). Before it,
 - **Counts (2026-10-12, `fix/foreach-identity` from `280d706`, merged with master `a720fba` (§92 overlays, §93 input follow-ups): 3415 tests, 0 goldens, 216 typecheck guards**
   (master's 3402 + 13 tests, 215 + 1 guard `G1`; native run after `swift package clean` on a locked screen read exactly the five
