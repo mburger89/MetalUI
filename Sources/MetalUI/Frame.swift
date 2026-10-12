@@ -113,6 +113,10 @@ public final class Frame {
     /// element keyed `"10"` or an `.id("10")`.
     private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
 
+    /// `ForEach` identity work this frame (`FI-B`, a work counter, never time):
+    /// elements produced, and how many of them minted an `IdentityKey`.
+    var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
+
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
 

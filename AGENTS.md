@@ -60,7 +60,8 @@ summary.
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
-  `2026-10-10-input-followups-decisions.md`, next `IF-O`), …; the full
+  `2026-10-10-input-followups-decisions.md`, next `IF-O`), `FI-` (`ForEach` identity:
+  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -73,7 +74,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 245–274 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 245–254 and 265–284 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -95,6 +96,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-12, `fix/foreach-identity` from `280d706`, merged with master `a720fba` (§92 overlays, §93 input follow-ups): 3415 tests, 0 goldens, 216 typecheck guards**
+  (master's 3402 + 13 tests, 215 + 1 guard `G1`; native run after `swift package clean` on a locked screen read exactly the five
+  `AppKitPresentationTests` sheet issues and nothing else; census 3361 + master's growth, count unchanged by this branch; divergence 79 retired, 255
+  added, header's count 137 live; the fourteen images 0 px against `280d706` before the merge; record §95 §2). Before it,
 - **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`, merged with master `0abce86` (§91 harness, §92 overlays): 3402 tests, 0 goldens, 215 typecheck guards** (master's 3363 + 39 tests = 18 + 11 + 10 by lane, 213 + 2 guards, both lane 1's; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3405 (3392 + 13); `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image at the lane runs, not re-taken after the merge; divergences 235, 236, the header's count and next label the merge's; record §93 §4). Before it,
 - **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
   (master's 3312 + 51 tests, 208 + 5 guards; the native run after `swift package clean` read exactly the five
@@ -1000,6 +1005,17 @@ too) belong to it. **`anchoredOverlay(at:in:anchor:)`** (MetalUI-only, both voca
 **still lands** (the popover stage runs before the menu, text-input and value-track stages) and by
 Escape, never claiming a key; a press on the declarer dismisses and reaches it. `.popover` takes
 SwiftUI's `attachmentAnchor:` (divergence 225). `presentationBackground(_:)` is not built (`OV-C`).
+
+**`ForEach` identity (`FI-`, record §95).** A `ForEach` element is identified by its id's **Hashable
+value**, as SwiftUI: ids that print alike and differ in value are two elements with separate `@State`
+(divergence 79 is retired). For an id type that is not a `DescriptionInjectiveID` (Int family, String,
+UUID, Bool, Character, Double, Float) every element's `ElementID` also carries an internal
+`IdentityKey` (`ElementID(name:key:)`, never public, plain-import guard G1); injective types mint
+today's description-only names, byte for byte (`FI-B`). `GlobalElementID.==`/`cachedHash` are
+untouched (`FI-C`); a floating-point id keeps the name dedupe because a NaN is unequal to itself
+(`FI-K`). `ElementID` is 24 bytes, a `GlobalElementID` the same 64-byte malloc bucket (`FI-G`).
+**`List` rows still name by description** (divergence 255, `FI-I`): a fix reuses
+`ElementID(name:key:)` and owns the 100k work re-take.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent
