@@ -900,9 +900,14 @@ public final class Window {
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
             self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
-            // A flags report carries nothing else: it dirties the window only
-            // through `currentModifiers`' own guard (`IF-D` item 2).
-            if case .modifiersChanged = event { return self.onInput?(event) ?? false }
+            // A flags report carries nothing else: it dirties the window through
+            // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
+            // the app's `onInput` claims it (`IF-N` item 3).
+            if case .modifiersChanged = event {
+                let handled = self.onInput?(event) ?? false
+                if handled { self.setNeedsRedraw() }
+                return handled
+            }
             // Hover and active tracking run first and unconditionally, and
             // never claim the event: they are side-channel state a later
             // frame's `paint` reads back (§3.3, §3.4), not a form of dispatch.

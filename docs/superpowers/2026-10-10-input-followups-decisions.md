@@ -21,7 +21,7 @@ Evidence:
 - gpui is **not read** for this item; where a ruling is MetalUI's own design
   (`IF-F`, `IF-G`, `IF-H`) it says so.
 
-Prefix **`IF-`**, lettered. **Next unused: `IF-N`.** (This line moves in the
+Prefix **`IF-`**, lettered. **Next unused: `IF-O`.** (This line moves in the
 commit that appends a ruling; read the last `## IF-` heading.)
 
 Branch `feat/input-followups` from `f2fe54a`. `docs/divergences.md`: this
@@ -443,3 +443,42 @@ began without being told each move).
 **Cost if wrong.** A `.began` over a non-scrolling, non-handling cover latches it:
 the glide then reaches that cover's chain, whose answer is the pointer path's for
 that cover (the opaque target swallows it).
+
+## IF-N — Lane 3 as built: the scope, the flags report, the demo pad
+
+**Ruling (as built; `IF-D` and `IF-K` 2 stand).**
+
+1. `ModifierKeysChange.swift`: `ModifierKeysScope` copies `GeometryChangeScope`'s
+   overload set (`ElementGroup` and `ProposalElementGroup` entries); the store key is
+   `.named("$modkeys<depth>")` under the position (`LifecycleStore.modifierDepth`),
+   never a `StateTable` slot. `LifecycleStore` holds `currentModifiers`,
+   `modifierCurrent`/`modifierPrevious`, `hasModifierObservers` (the last completed
+   build held a scope) and `closeModifierKeys()`, whose events join the pending list
+   **after** the geometry events and before the lifecycle ones, in reverse note order.
+   A new key with `initial: true` and an empty masked value reports nothing and is
+   stored; `initial: false` stores silently.
+2. `Window.currentModifiers` is set by `noteModifiers(from:)` as the **first line** of
+   the platform input hook, from `.modifiersChanged` and the `modifiers` of key, pointer,
+   scroll, magnify and rotate events; it never claims. Leaving `.key` resets it to `[]`.
+3. **A `.modifiersChanged` event now returns early** (`self.onInput?(event)`, dirty
+   only when the app's `onInput` claims it — `ColorSchemeTests`' `flip(platform)` sends
+   one as its poke and needs that; a first draft that never dirtied reddened three
+   of them): the hook's final `setNeedsRedraw()` dirtied the window on every
+   event, so "a window with no scope pays nothing" (`IF-D` item 2) was false until the
+   flags report was cut out of it (test 3.6 was red on exactly that). No other stage
+   handled `.modifiersChanged` (grep: none), so nothing else moves; a change dirties
+   only through `currentModifiers`' guard when `hasModifierObservers`.
+4. The demo pad (`InputFollowupsDemo.swift`, `inputFollowupsPad()`, one function, hooked
+   by one line in `CanvasDemo.swift`'s root column) shows `held`/`tap`/`drag`/`scroll`/
+   `cancelled` from an `@Observable` model written only from input and paints the same
+   text before any input; the fourteen offscreen images are compared at the Record phase.
+5. **3.9 (`aHeadlessRenderRunsNoModifierAction`) is an invariance pin, not a mutation
+   target**: `renderFrame` has no window and no drain, and an empty held set reports
+   nothing under `initial: true` anyway, so no one-line mutation reddens it. Stated
+   rather than hidden; it would redden if a drain were added to `renderFrame` *and* a
+   modifier were held, neither of which exists.
+
+**Cost if wrong.** Item 3 changes `.modifiersChanged`'s old effect (a redraw nobody
+needed): an app that read held modifiers inside `paint` through some other route would
+no longer repaint on a bare flags change; none exists in the tree (the platforms send
+the flags only to this event).
