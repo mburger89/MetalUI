@@ -161,19 +161,8 @@ private struct LCRow: Identifiable { let id: String }
 
 // MARK: - Presence and identity (1.1–1.12)
 
-/// **1.1** (`A1`, `LC-C` item 1). An `if` that inserts content runs its
-/// `onAppear` once, however many frames follow. Mutation: `endFrame` treats
-/// every `current` key as appearing.
-@MainActor
-@Test func anIfThatInsertsContentRunsItsOnAppearOnce() throws {
-    let m = LCModel(), log = LCLog()
-    let (window, _) = try lcWindow { Column { if m.shown { lcLeaf().onAppear { log.add("appear") } } } }
-    window.drawFrameIfNeeded()
-    try #require(log.entries.isEmpty, "set up: nothing present")
-    m.shown = true
-    for _ in 0..<3 { window.setNeedsRedraw(); window.drawFrameIfNeeded() }
-    #expect(log.entries == ["appear"], "\(log.entries)")
-}
+// **1.1** `anIfThatInsertsContentRunsItsOnAppearOnce` moved to the public harness:
+// `Tests/MetalUITestingTests/MigratedHarnessTests.swift` (ruling `HT-N`, test 3.6).
 
 /// **1.2** (`E1`). An `if` that removes content runs its `onDisappear` once,
 /// and nothing after. Mutation: delete the disappearance loop.

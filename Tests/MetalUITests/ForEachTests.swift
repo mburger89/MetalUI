@@ -523,17 +523,17 @@ private final class PlacedBounds {
     #expect(table.lastResetScanWork == 0, "scan work: \(table.lastResetScanWork)")
 }
 
-// MARK: - Divergence 79 (`DD-L`): 1.16
+// MARK: - Divergence 79 (`DD-L`), retired by `FI-A`: 1.16
 
-/// **1.16 — divergence 79's pin: ids that collide in DESCRIPTION produce only
-/// the first** (`DD-L`, pinned wrong on purpose). Ids `AnyHashable(1)` and
-/// `AnyHashable("1")` differ in value and both describe as `"1"`: one node, the
-/// first element's content. SwiftUI produces both (probe S6).
+/// **1.16 — ids that collide in DESCRIPTION produce both** (`FI-A`; flips the
+/// divergence-79 pin, which was wrong on purpose). Ids `AnyHashable(1)` and
+/// `AnyHashable("1")` differ in value and both describe as `"1"`: two elements,
+/// as SwiftUI (probe S6, H1). Red before: "string" never read, two nodes.
 ///
-/// Mutation **M1l** (the dedupe's name half removed) produces both at one id —
-/// three nodes and "string" recorded; 1.8 stays green on the value half.
+/// Mutation **M1** (`needsKey` forced false, plain names) reddens this arm;
+/// 1.8 stays green on the value half.
 @MainActor
-@Test func aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst() {
+@Test func aForEachWhoseIDsCollideInDescriptionProducesBoth() {
     struct Keyed { let key: AnyHashable; let label: String }
     let reads = ConditionalReads()
     let frame = Frame(contentSize: size, scaleFactor: 1)
@@ -542,7 +542,6 @@ private final class PlacedBounds {
                 id: \.key) { keyed in ConditionalCounter(keyed.label, reads) }
     }
     frame.render(&tree)
-    #expect(reads.values["int"] == 1, "\(reads.values)")
-    #expect(reads.values["string"] == nil, "divergence 79: the description-colliding id is not produced: \(reads.values)")
-    #expect(frame.tree.nodeCount == 2, "the Row and one element: \(frame.tree.nodeCount)")
+    #expect(reads.values["int"] == 1 && reads.values["string"] == 1, "\(reads.values)")
+    #expect(frame.tree.nodeCount == 3, "the Row and two elements: \(frame.tree.nodeCount)")
 }

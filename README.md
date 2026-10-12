@@ -158,6 +158,8 @@ see [`CLAUDE.md`](CLAUDE.md). **Production has run the proposal
   vocabulary, and every breaking change since 2026-09-12.
 - [`docs/verification/human-checks.md`](docs/verification/human-checks.md) —
   the looks only a person can check (not yet run).
+- [`docs/testing.md`](docs/testing.md) — testing an app's interface headlessly
+  with `MetalUITesting`.
 - [`docs/packaging.md`](docs/packaging.md) — shipping an application with its
   icon (macOS `.app`, Linux `.desktop`, Windows `.ico`); build-side, not
   framework API.
@@ -455,6 +457,11 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
+**Input follow-ups** (user request 2026-10-02, item C16, not a plan task; record §93):
+`SpatialTapGesture.Value.modifiers` and `DragGesture.Value.clickCount`, `onCancelled(_:)` on the
+drag, magnify and rotate gestures, `.onModifierKeysChanged(mask:initial:_:)` for a still pointer,
+a wheel latch (a scroll's events follow its `.began`) and a synthesized `.cancelled` when a scroll
+loses its end. The canvas demo gains a readout pad. Human checks: group IF, unrun.
 **Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
 `Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
 drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,
@@ -495,6 +502,23 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
+plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
+chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside
+press of any button and by Escape, keys still reaching a field inside it; `.popover` takes SwiftUI's
+`attachmentAnchor:` (divergence 225); `CoordinateSpace.named`, `.coordinateSpace(_:)`,
+`onContinuousHover(coordinateSpace:)` and named `onGeometryChange`/gesture locations; and
+`@Environment(\.windowSize)` (MetalUI-only). `METALUI_OVERLAYS_DEMO=1 swift run MetalUIDemo` shows
+it. Human checks: group OV, unrun.
+**Test harness** (user request 2026-10-02, item 8 of the gpui-gap list, MetalCreator's M6-e, M7-b and
+TH-a, not a plan task; record §91): the portable library product `MetalUITesting` opens an app's real
+root in a real `Window` over a headless platform (`TestApp`, `TestWindow`), with XCUITest's input names
+(`click`, `typeText`, `scroll`, `drag`), a simulated clock and `runUntilIdle()`, accessibility and
+laid-out-frame queries, alerts, menus, the toolbar and the menu bar answered at the platform seam, and
+per-frame work counters for benchmarks that count work. It runs on macOS, Linux and Windows from
+swift-testing or XCTest; `metalui new` generates a test target over it. SwiftUI tests out of process,
+so it is MetalUI-only; it paints no pixels. Guide: [`docs/testing.md`](docs/testing.md). Human checks:
+group HT (two platform measurements), unrun.
 **Task 14 is closed** (ruling `PB-A`, record §65): macOS, Linux and Windows
 are the supported platforms; iOS/iPadOS/tvOS/watchOS/visionOS are a declared
 product boundary, not an unmet target. Open: inside task 12 itself, **the

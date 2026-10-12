@@ -1255,6 +1255,34 @@ pointer's sub-pixel positions and the look beside SwiftUI.
   shows the red square's shadow on the blue; the `compositingGroup()` pair one
   shadow under both — as SwiftUI's `P1`/`P2` (`PF-E`). **Observed:**
 
+## OV. Overlays and coordinates — `anchoredOverlay`, point anchors, named spaces, `windowSize` (item C15, user request 2026-10-02, not a plan task)
+
+A chrome-less overlay with its corner at a point, dismissed by any outside
+press and Escape; `.popover(attachmentAnchor:)`; named coordinate spaces on
+`onGeometryChange`, hover and gestures; `@Environment(\.windowSize)` (rulings
+`OV-A`…`OV-T`, record §92). Pinned headless through a fake window
+(`AnchoredOverlayTests` B6–B24, `PopoverTests` B1–B5, `CoordinateSpaceTests`
+A1–A21). What nothing headless sees: a real pointer, a live resize, the native
+context menu over the dismissal. Demo: `METALUI_OVERLAYS_DEMO=1 swift run
+MetalUIDemo`. **Not run — an agent cannot.**
+
+- [ ] **OV1. The palette at the pointer.** Click the canvas: the palette opens
+  with its top-left corner exactly at the pointer; near the window's right or
+  bottom edge it flips to the other side of the pointer on that axis only.
+  **Observed:**
+- [ ] **OV2. One right-click outside.** With the palette open, right-click the
+  "Right-click me" card: the palette closes and the context menu opens on that
+  same press; a middle click outside closes it too. **Observed:**
+- [ ] **OV3. Keys and Escape.** Click the palette's search field and type: the
+  text appears; press Escape with the field focused: the palette closes.
+  **Observed:**
+- [ ] **OV4. The crosshair.** Move over the canvas: the crosshair from
+  `onContinuousHover(coordinateSpace: .named("canvas"))` stays under the
+  pointer. **Observed:**
+- [ ] **OV5. `windowSize` and a live resize.** Resize the window: the readout's
+  window size follows it; an open palette near the edge re-flips in the same
+  frame. **Observed:**
+
 ## SG. SMK port gaps — the drawn menu bar, the primary modifier, design families, drawn chrome (item C12, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `AS` and `KF`)
 
 Rulings `SG-A`…`SG-I`, record §89. On Linux and Windows an app declaring
@@ -1292,6 +1320,48 @@ desktop, the monospaced face on screen, a Windows release build.
   window with an `onCloseRequest` that cancels stays open) and File ▸ Quit
   ("Exit" on Windows) ends the app; with two windows open Close closes one.
   **Observed:**
+
+## HT. Test harness — a generated test target on Windows, the portable arm with fonts (item 8, user request 2026-10-02, not a plan task; record §91)
+
+*Nothing here is a look: the harness paints nothing. Two measurements the
+agent runs could not take (`HT-V` items 4 and 5).*
+
+- [ ] **HT1. Windows, ARM64 and x64.** `metalui new --cross-platform Probe`
+  (any source), then `swift build --build-tests` and `swift test` of the
+  generated package on Windows (the UTM VM, or a CI consumer job): the test
+  target imports the executable `@testable` and the generated test passes. If
+  it does not, `HT-O`'s fallback applies: the manifest declares the test target
+  off Windows only. **Observed:**
+- [ ] **HT2. Linux with fonts installed.** The same generated cross-platform
+  package, `swift test`: the Linux arm (`SystemFonts.resolver()` plus
+  `PortableTextSystem`) opens its window and the generated test passes. The
+  CI image installs no font package, so this needs a host that has some.
+  **Observed:**
+
+## IF. Input follow-ups — modifiers on a tap and a still hover, click count, wheel latch, cancellation (item C16, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `KF` and `SG`)
+
+Run the canvas demo (`METALUI_CANVAS_DEMO=1 swift run MetalUIDemo`): the pad under
+the canvas reads `held … · tap … · drag … · scroll … · cancelled …`. **An agent
+cannot post these events.** Ruling `IF-D`, record 93.
+
+- [ ] **IF1.** `onModifierKeysChanged`: the `held` readout follows Shift, Command,
+  Option and Control held with the pointer still; compare old/new and `initial`
+  with a SwiftUI sample app (the probe's `M` arms did not run, `IF-D`); Command-Tab
+  away with Command held and back (reads none, then the keys held on return).
+  **Observed:**
+- [ ] **IF2.** Shift-click the pad's box: `tap` reports Shift, also when Shift is
+  released before the button. **Observed:**
+- [ ] **IF3.** Double-click the box: `drag` reads `x2` at the speed set in System
+  Settings > Mouse (slow it, then speed it). **Observed:**
+- [ ] **IF4.** Flick the canvas to glide, move the pointer onto the style strip: the
+  glide stays on the canvas. **Observed:**
+- [ ] **IF5.** Hold the middle button on the box, open Mission Control or a native
+  menu, release there, return: `cancelled` counts one on the first plain move.
+  **Observed:**
+- [ ] **IF6.** Command-Tab mid-trackpad-scroll over the box: `scroll` shows a
+  cancelled phase once. **Observed:**
+- [ ] **IF7.** Pinch, Command-Tab, pinch again at the same spot: the first gesture
+  reads cancelled, the second starts from 1. **Observed:**
 
 ## Sign-off
 

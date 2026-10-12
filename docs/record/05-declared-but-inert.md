@@ -836,8 +836,8 @@ that writes neither traps, `GX-D`). Nothing declared is unread.
 Record §74. `Menu`, `CommandMenu`, `CommandGroup`, `.popover` and `.help` are
 all read: `PlatformMenuItem.shortcut` and `.isOn` by the AppKit builder and the
 drawn menu, `.popover`'s `arrowEdge` by `MN-M`'s placement. `.popover(attachmentAnchor:)`
-is **not declared** (a test pins its absence, `aPopoverHasNoAttachmentAnchorParameter`),
-so it is not an inert property. Nothing declared is unread.
+was **not declared** here (a test pinned its absence, `aPopoverHasNoAttachmentAnchorParameter`;
+built since by `OV-B`, record §92, and the guard re-spelled by `OV-T`), so it was not an inert property. Nothing declared is unread.
 
 ## 2026-10-08: one inert attribute added (rich text)
 

@@ -113,6 +113,10 @@ public final class Frame {
     /// element keyed `"10"` or an `.id("10")`.
     private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
 
+    /// `ForEach` identity work this frame (`FI-B`, a work counter, never time):
+    /// elements produced, and how many of them minted an `IdentityKey`.
+    var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
+
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
 
@@ -1365,6 +1369,7 @@ public final class Frame {
                                transform: prepaintEffects.last.map {
                                    HitboxTransform(inverse: $0.inverse, outerClip: $0.outerClip)
                                }))
+        snapshotNamedSpaces(forHitbox: hitboxes.count - 1)   // OV-E item 3
         // A proposal wrapper's own registration, noted for an effect at the same
         // rect to transform (`GX-P` item 1).
         if !shareCollecting.isEmpty {
@@ -1892,6 +1897,45 @@ public final class Frame {
     /// bounds, since presentations are laid out before the root. Empty for a
     /// frame rendered without a window.
     var previousPresentationAnchors: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    // MARK: Named coordinate spaces (`OV-E`, `OV-N`, `OV-P`)
+
+    /// The named spaces open in prepaint, innermost last (`OV-E` item 2):
+    /// pushed by a `CoordinateSpaceScope` around its content's prepaint. A
+    /// `Deferred` presentation keeps the stack (`OV-M` item 2).
+    var namedSpaces: [NamedSpace] = []
+
+    /// The named-space stack in force at each hitbox's registration, by
+    /// hitbox index (`OV-E` item 3) — filled only while `namedSpaces` is
+    /// non-empty, so a tree with no scope stores nothing. `Window` keeps it as
+    /// `lastHitboxNamedSpaces`; hit testing never reads it.
+    private(set) var hitboxNamedSpaces: [Int: [NamedSpace]] = [:]
+
+    /// How many snapshots `hitboxNamedSpaces` took this frame (`OV-E` item 3's
+    /// work counter, test A7).
+    private(set) var namedSpaceSnapshots = 0
+
+    /// The spaces presentation declarers recorded this frame, by declarer
+    /// (`OV-N`, `OV-P`): `Window.lastPresentationSpaces` after the frame.
+    /// Frame-scoped, never `StateTable`.
+    private(set) var presentationSpaces: [GlobalElementID: NamedSpace] = [:]
+
+    /// The spaces the LAST frame recorded, handed in by `Window` (`OV-K`,
+    /// `OV-N`): an overlay maps its point through its declarer's space of the
+    /// last completed frame. Empty for a frame rendered without a window.
+    var previousPresentationSpaces: [GlobalElementID: NamedSpace] = [:]
+
+    /// Records `space` as `id`'s presentation space (`OV-N`, `OV-P`).
+    func recordPresentationSpace(_ space: NamedSpace, for id: GlobalElementID) {
+        presentationSpaces[id] = space
+    }
+
+    /// Notes the named-space stack for the hitbox at `index` (`insertHitbox`).
+    private func snapshotNamedSpaces(forHitbox index: Int) {
+        guard !namedSpaces.isEmpty else { return }
+        hitboxNamedSpaces[index] = namedSpaces
+        namedSpaceSnapshots += 1
+    }
 
     /// The popovers this frame presented, in registration order — so the
     /// topmost last (spec §3.7): `Window.lastOpenPopovers` after the frame.

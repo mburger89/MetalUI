@@ -236,6 +236,7 @@ private func canvasRoot(header: some Element, canvas: some Element, strip: some 
         canvas
         strip
         status
+        inputFollowupsPad()   // `IF-K` 2: the input follow-ups' pad
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))

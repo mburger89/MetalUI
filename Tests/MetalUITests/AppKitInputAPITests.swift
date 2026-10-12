@@ -357,3 +357,32 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
     #expect(seen[0].location == Point(x: px(30), y: px(40)))
     #expect(seen[0].position == Point(x: px(30), y: px(40)))
 }
+
+/// **4.3** (`IF-I`). A window that becomes key sends `.modifiersChanged` with
+/// the modifiers held then (a key pressed while another window was key never
+/// produced a `flagsChanged` for this one); resigning key sends none. The
+/// modifier source is read through `currentModifierFlags`, the test's stand-in
+/// for `NSEvent.modifierFlags`. Mutation: remove the send.
+@MainActor
+@Test func becomingKeySendsTheCurrentModifiers() throws {
+    let (_, window, nsWindow, log) = try hostWindow()
+    defer { nsWindow.close() }
+    let center = NotificationCenter()
+    window.notificationCenter = center
+    var status: (isKeyWindow: Bool, isApplicationActive: Bool) = (false, false)
+    window.keyStatus = { status }
+    window.currentModifierFlags = { [.command, .shift] }
+    window.refreshControlActiveState()   // settle the starting point
+    log.events = []
+
+    status = (true, true)
+    center.post(name: NSWindow.didBecomeKeyNotification, object: nsWindow)
+    var sent: [Modifiers] = []
+    for case .modifiersChanged(let modifiers) in log.events { sent.append(modifiers) }
+    #expect(sent == [[.command, .shift]], "\(log.events.count) events")
+
+    log.events = []
+    status = (false, true)
+    center.post(name: NSWindow.didResignKeyNotification, object: nsWindow)
+    #expect(log.events.isEmpty, "resigning sends no modifiers")
+}

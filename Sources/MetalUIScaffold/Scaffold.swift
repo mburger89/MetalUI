@@ -147,6 +147,12 @@ let clashingModuleNames: [String: String] = {
     for target in ["CSDL", "SDLBridge", "CAccessKit"] {
         names[target] = "MetalUI's SDL backend has a target of that name, and \(unique)"
     }
+    // The generated test target (HT-O, HT-V): `swift build` of a package
+    // named `Testing` passed and `swift build --build-tests` failed on macOS
+    // in a fresh build directory (2026-10-10, record §91) — the test file's
+    // `import Testing` resolves to the app's own module, and `@Test` is
+    // unknown. (`XCTest` built and its test passed.)
+    names["Testing"] = "the generated test target imports Testing, and an app module of that name shadows it"
     return names
 }()
 
@@ -186,6 +192,7 @@ package func scaffoldFiles(_ options: ScaffoldOptions) throws -> [ScaffoldFile] 
         ScaffoldFile(path: "Package.swift", contents: manifest(options)),
         ScaffoldFile(path: "Sources/\(name)/main.swift", contents: mainSource(options)),
         ScaffoldFile(path: "Sources/\(name)/ContentView.swift", contents: contentViewSource(options)),
+        ScaffoldFile(path: "Tests/\(name)Tests/\(name)Tests.swift", contents: testSource(options)),
         ScaffoldFile(path: ".gitignore", contents: gitignore),
         ScaffoldFile(path: "README.md", contents: readme(options)),
         ScaffoldFile(path: "Packaging/macOS/Info.plist", contents: infoPlist(options)),
@@ -230,6 +237,10 @@ func manifest(_ options: ScaffoldOptions) -> String {
         metalUIPackage = packageIdentity(ofPath: path)
     }
     var products = "                .product(name: \"MetalUI\", package: \(swiftString(metalUIPackage))),\n"
+    // The test target (HT-O): the app's executable target, imported
+    // `@testable`, and MetalUI's headless harness.
+    var testDependencies = "                \(swiftString(name)),\n"
+        + "                .product(name: \"MetalUITesting\", package: \(swiftString(metalUIPackage))),\n"
     var toolsVersion = "6.0"
     var traitsBlock = ""
     if options.crossPlatform {
@@ -258,6 +269,8 @@ func manifest(_ options: ScaffoldOptions) -> String {
             + "                // when they are conditional here (\"unable to resolve module dependency: 'CFreeType'\").\n"
             + "                .product(name: \"MetalUIPortableText\", package: \(package)),\n"
             + "                .product(name: \"MetalUISystemFonts\", package: \(package)),\n"
+        testDependencies += "                .product(name: \"MetalUIPortableText\", package: \(package)),\n"
+            + "                .product(name: \"MetalUISystemFonts\", package: \(package)),\n"
     }
     return """
         // swift-tools-version: \(toolsVersion)
@@ -276,6 +289,11 @@ func manifest(_ options: ScaffoldOptions) -> String {
                     name: \(swiftString(name)),
                     dependencies: [
         \(products)            ]
+                ),
+                .testTarget(
+                    name: \(swiftString(name + "Tests")),
+                    dependencies: [
+        \(testDependencies)            ]
                 ),
             ],
             swiftLanguageModes: [.v6]
@@ -359,6 +377,81 @@ func contentViewSource(_ options: ScaffoldOptions) -> String {
     """#
 }
 
+/// Swift's keywords and contextual words reserved in an import declaration's
+/// path; a module named after one is imported in backticks.
+let swiftKeywords: Set<String> = [
+    "associatedtype", "borrowing", "class", "consuming", "deinit", "enum", "extension", "fileprivate", "func",
+    "import", "init", "inout", "internal", "let", "nonisolated", "open", "operator", "package", "precedencegroup",
+    "private", "protocol", "public", "rethrows", "static", "struct", "subscript", "typealias", "var",
+    "break", "case", "catch", "continue", "default", "defer", "do", "else", "fallthrough", "for", "guard", "if",
+    "in", "repeat", "return", "throw", "switch", "where", "while",
+    "Any", "as", "await", "false", "is", "nil", "self", "Self", "super", "throws", "true", "try",
+]
+
+/// The generated test (HT-O): the starter's button pressed through MetalUI's
+/// headless harness, found by its accessibility label.
+func testSource(_ options: ScaffoldOptions) -> String {
+    // A keyword is a valid module name but not an import identifier: `class`,
+    // `func` and `Self` failed `swift build --build-tests` unescaped and
+    // passed in backticks (HT-V, record §91).
+    let name = swiftKeywords.contains(options.name) ? "`\(options.name)`" : options.name
+    let header = #"""
+        import MetalUI
+        import MetalUITesting
+        import Testing
+
+        """#
+    guard options.crossPlatform else {
+        return header + #"""
+            @testable import \#(name)
+
+            // The window runs headless through MetalUI's test harness: no screen and
+            // no real window, so `swift test` runs anywhere (MetalUI's docs/testing.md).
+
+            @MainActor
+            @Test func pressingTheButtonCountsThePress() throws {
+                let window = try TestWindow(size: Size(width: Pixels(640), height: Pixels(400)), content: rootView)
+                #expect(try window.element(label: "pressed 0 times").role == .staticText)
+                try window.click(window.element(label: "Press me"))
+                #expect(try window.element(label: "pressed 1 times").role == .staticText)
+            }
+
+            """#
+    }
+    return header + #"""
+        #if os(Linux) || os(Windows)
+        import MetalUIPortableText
+        import MetalUISystemFonts
+        #endif
+        @testable import \#(name)
+
+        // The window runs headless through MetalUI's test harness: no screen and
+        // no real window, so `swift test` runs anywhere (MetalUI's docs/testing.md).
+        // Text goes through CoreText on macOS and, as in `main.swift`, the portable
+        // text system over the installed fonts on Linux and Windows.
+
+        @MainActor
+        func makeWindow() throws -> TestWindow {
+            let size = Size(width: Pixels(640), height: Pixels(400))
+            #if os(Linux) || os(Windows)
+            let resolver = try SystemFonts.resolver()
+            return try TestWindow(size: size, textSystem: { PortableTextSystem(resolver: resolver) }, content: rootView)
+            #else
+            return try TestWindow(size: size, content: rootView)
+            #endif
+        }
+
+        @MainActor
+        @Test func pressingTheButtonCountsThePress() throws {
+            let window = try makeWindow()
+            #expect(try window.element(label: "pressed 0 times").role == .staticText)
+            try window.click(window.element(label: "Press me"))
+            #expect(try window.element(label: "pressed 1 times").role == .staticText)
+        }
+
+        """#
+}
+
 let gitignore = """
     .DS_Store
     /.build
@@ -392,6 +485,20 @@ func readme(_ options: ScaffoldOptions) -> String {
         (`MetalUI_MetalUIRender.bundle`) in `Contents/Resources`. The identifier is
         `\(options.bundleIdentifier)` (`Packaging/macOS/Info.plist`). Background:
         MetalUI's `docs/packaging.md`.
+
+        """
+    text += """
+        ## Test the interface
+
+        ```sh
+        swift test
+        ```
+
+        `Tests/\(name)Tests` opens `rootView()` in a headless window through MetalUI's
+        test harness (`MetalUITesting`): no screen and no real window, so it runs in
+        CI. It clicks the button by its accessibility label and reads the text it
+        changes. MetalUI's `docs/testing.md` covers input, queries, alerts, menus, the
+        clock and counting a frame's work.
 
         """
     text += updatingSection(options.source)

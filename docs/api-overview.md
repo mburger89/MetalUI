@@ -88,7 +88,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
 - **`@State`**, **`Binding`** (SwiftUI's surface, `@MainActor` — 78),
-  **`ForEach`** (keyed identity, 79), **`@Environment`**/`EnvironmentValues`/
+  **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
@@ -351,6 +351,20 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Input follow-ups** (`IF-`, record §93;
+[`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
+probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
+values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifiers` (the
+last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
+`onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
+leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
+no `onEnded`; `@GestureState` and `updating` are not built, `IF-A`).
+`.onModifierKeysChanged(mask:initial:_:)` (M; SwiftUI's macOS 15 spelling, a transparent
+scope whose action runs after the build) reports the held keys with a still pointer; a window
+that loses key reports them released. A scroll's events, momentum included, go to the
+element under its `.began`, and a scroll whose end never arrives (the window resigned key,
+or closed) gets a synthesized `.cancelled`.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
@@ -385,6 +399,31 @@ press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
 macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
+
+**Overlays and coordinates** (`OV-`, record §92;
+[`superpowers/2026-10-10-overlays-coords-decisions.md`](superpowers/2026-10-10-overlays-coords-decisions.md);
+probe `probes/swiftui-overlays-coords.swift`). **Coordinates** (A): `CoordinateSpace` gains
+`.named(AnyHashable)` and `NamedCoordinateSpace.named(_:)` (SwiftUI's, `@unchecked Sendable`,
+`OV-L`); `.coordinateSpace(_:)` on both vocabularies is a transparent scope (no node, no identity
+level) whose content resolves `.named` against the **nearest ancestor so named**, moving with
+scrolls and effects, a rotated space reporting the unrotated frame, a name nobody declares
+reading `.global` (`OV-E`, `OV-M`); `GeometryProxy.frame(in:)`, `DragGesture(coordinateSpace:)`,
+`SpatialTapGesture(coordinateSpace:)` and `onTapGesture(coordinateSpace:)` accept it, and
+`onContinuousHover(coordinateSpace:perform:)` (default `.local`) reports in it (`OV-F`, `OV-H`).
+**MetalUI-only**: `EnvironmentValues.windowSize` — the window's content size, drawn chrome
+included, read-only (`OV-G`, `OV-O`; SwiftUI has none). **Presentation**: `.popover` takes
+SwiftUI's `attachmentAnchor: PopoverAttachmentAnchor` (`.rect(.bounds)` default, `.rect(.rect(r))`,
+`.point(_:)`; a zero-size rect at the unit point, the popover centred across `arrowEdge`, D 225,
+`OV-B`); **`anchoredOverlay(isPresented:at:in:anchor:content:)`** and `(item:…)` on both
+vocabularies (M, `OV-A`) put the content's `anchor` corner (default top-leading) at a point in
+`.local`, `.global` or a named space — **no panel, border, shadow or padding**, flipped per axis
+when it would leave the window then clamped, replaced on a window resize, and dismissed by an
+outside press of **any** button (the press still lands on what is beneath, a context menu
+included; a press on the declarer dismisses and reaches the declarer) and by Escape; a press or
+wheel on the overlay never reaches beneath, keys still reach a field inside it. The point
+resolves at layout, so a `.local`/`.named` overlay waits one frame for its declarer's space
+(`OV-K`, `OV-S`). `presentationBackground(_:)` is not built (`OV-C`). The demo:
+`METALUI_OVERLAYS_DEMO=1`.
 
 ## Drag and drop — A / D
 
@@ -745,6 +784,22 @@ backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient
 `Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
 `phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
 deferral (`LK-A`).
+
+## Testing — M
+
+`MetalUITesting` (a library product for test targets, portable; rulings
+`HT-A`…, [`superpowers/2026-10-09-test-harness-decisions.md`](superpowers/2026-10-09-test-harness-decisions.md)):
+`TestApp` and `TestWindow` run the real `App` and `Window` over
+`HeadlessPlatform`/`HeadlessPlatformWindow`/`HeadlessWindowRenderer`, with a
+simulated clock (`tick`, `advance(by:)`, `advanceFrames`, `runUntilIdle`),
+input by point and by element in XCUITest's names (`click`, `typeText`,
+`scroll`, `drag`, …), accessibility queries (`element(label:)`,
+`element(identifier:)`, `elements(role:)`, `TestElement`), laid-out frames
+(`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
+`chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
+`MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
+that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
+How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M
 

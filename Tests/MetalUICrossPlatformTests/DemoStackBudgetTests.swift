@@ -39,6 +39,15 @@ private func buildEveryProductionTree() {
     buildTheVariableListDemo()   // variable-height List (VL-K, spec test 3.1)
     buildTheKeyFocusDemo()   // key and focus scoping (KF, spec test C2)
     buildTheAppShellDemo()   // app shell (AS-, spec test 3.5)
+    buildTheOverlaysDemo()   // overlays and coordinates (OV-, spec §4.2)
+}
+
+/// The overlays demo's tree and its readout (a `Component` built at layout),
+/// in its own frame as `buildTheServicesDemo()`'s note says.
+@MainActor @inline(never)
+private func buildTheOverlaysDemo() {
+    _ = overlaysDemoContent()
+    _ = OverlaysReadout().content
 }
 
 /// The key-and-focus demo's tree, in its own frame as the services demo's is
