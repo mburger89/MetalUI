@@ -256,6 +256,7 @@ private func pxl(_ v: Float) -> Pixels { Pixels(v) }
             if model.shown {
                 mkTile(width: 20).onModifierKeysChanged { o, n in log.entries.append("\(mk(o))>\(mk(n))") }
             }
+            Text("\(model.tick)")
         }
     }
     mkSettle(window)
@@ -265,6 +266,13 @@ private func pxl(_ v: Float) -> Pixels { Pixels(v) }
     #expect(!window.needsRedraw, "the last frame had no scope")
     mkSettle(window)
     #expect(log.entries.isEmpty, "\(log.entries)")
+    // Two more builds with the scope gone and ⇧ held: a store entry that
+    // outlived its scope would come back as a new key and report (`IF-N`).
+    model.tick += 1
+    mkSettle(window)
+    model.tick += 1
+    mkSettle(window)
+    #expect(log.entries.isEmpty, "a removed scope's entry did not leak: \(log.entries)")
     model.shown = true
     mkSettle(window)
     #expect(log.entries == [".>s"], "a return reports its initial value again: \(log.entries)")
