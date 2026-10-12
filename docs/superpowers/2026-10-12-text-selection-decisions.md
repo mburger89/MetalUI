@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-K`.**
+**Next unused id: `SL-L`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -104,3 +104,14 @@ text did not change). Undo restores its snapshot's selection and publishes it. *
 that changed the selection (publish); caret x positions still come only from
 `TextSystem.caretOffsets` (`TI-E`). `TextSelection.conversionCount` (internal) is the work counter
 test 4.19 reads: zero conversions in a steady frame. Performance claims count work, never time.
+
+## SL-K — Critic review of the design: no defect found, two arms re-run
+
+The design was attacked for unprobed SwiftUI claims, public spellings, Apple types in portable
+surfaces, one-renderer primitives, defaulted requirements, pixels, C enums and lane overlap. Arms C0
+and P1s were re-run (2026-10-12) and read byte-identical to the header. No platform requirement,
+primitive, enum or Backends/SDL file is touched, so those attacks have no object; `TextSelection` is
+stdlib-only. Rejected: splitting lane 1 further (one file set, `Window.swift` edits are two small
+sites; C16 also edits `Window.swift` input regions, so lane 1 rebases onto a fresh master before
+its Window edit and keeps it minimal). Lane 2 owns every test, so no test is written by the author of
+the code it pins except 4.1-4.9, which are pure and mutated by lane 2.
