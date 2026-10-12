@@ -191,7 +191,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
 /// click the word, ⇧← twice the extended range, ⌘A `0..<n`, delete `ins@n`.
 /// Mutation: delete the `defer` in `onInput` (every arm red).
 @available(macOS 15, *)
-@Test(arguments: SelectionArm.allCases) @MainActor func theFieldPublishesAfterEachInput(arm: SelectionArm) throws {
+@Test(arguments: SelectionArm.allCases) @MainActor func theFieldPublishesAfterTypingClickDoubleClickShiftArrowSelectAllAndDelete(arm: SelectionArm) throws {
     let model = SelModel("hello world")
     let window = try fieldWindow(model)
     let field = try window.frame(ofID: "field")

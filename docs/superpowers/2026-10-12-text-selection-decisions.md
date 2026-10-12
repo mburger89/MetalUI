@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-N`.**
+**Next unused id: `SL-O`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -145,3 +145,15 @@ pointer), exposed through computed `onSubmit`/`selectionSink`, behind an explici
 the memberwise labels — net zero, `Handlers` back to 488, no pin edited. **Alternative rejected**:
 one box for both (480; the exact-488 pin would move and owe a migration note). **Cost**: one
 allocation per bound or submitting field per frame.
+
+## SL-N — The demo is a root of its own, `METALUI_SELECTION_DEMO=1`, not a section of the text-input demo
+
+The design (§4 "Demo") put a "Selection" section in `METALUI_TEXT_INPUT_DEMO`. **Measured**:
+`textInputDemoContent()` is pinned by `theTextInputDemoRendersAndTypes` (`fields.count == 3`) and
+by the accessibility audit's `textinput` trees, so a fourth field would move two existing suites.
+**Ruling**: `selectionDemoContent()` (`SelectionDemo.swift`, macOS 15 like `TextSelection`) is its
+own root behind `METALUI_SELECTION_DEMO=1`, built by `everyProductionTreeBuildsOnAOneMegabyteThread`
+(`buildTheSelectionDemo`) and driven by `theSelectionDemoRenamesWithTheWholeTitleSelectedAndOpensANoteAtItsEnd`.
+Nothing is in the default demo: the fourteen images are unmoved. **Cost**: one more env var in the
+list. Test 4.15 also gained a work arm (the frame after a publish converts nothing): with the equal-range
+guard in `reconcile`, a missing `seenBinding` store is otherwise invisible in write counts.

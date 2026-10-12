@@ -1338,6 +1338,27 @@ agent runs could not take (`HT-V` items 4 and 5).*
   CI image installs no font package, so this needs a host that has some.
   **Observed:**
 
+## SL. Text selection — the binding in a real window (item C25, user request 2026-10-02, MetalCreator CT-b, not a plan task; record §96)
+
+*Run with `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` (macOS 15). An
+agent cannot: these are looks, an input method and other platforms.*
+
+- [ ] **SL1.** Double click the title: it becomes a field with the whole
+  title highlighted in the accent wash; typing replaces it; Return or Escape
+  ends the rename. **Observed:**
+- [ ] **SL2.** "Open note": the editor takes focus with the caret at the end
+  of the text and the end in view; typing appends. **Observed:**
+- [ ] **SL3.** With a Japanese input method, compose in the title field and
+  press "Caret to start" in the note block's neighbour (or write the binding
+  from a timer): the marked text stays where it is and the commit lands where
+  the composition began (`SL-H`). **Observed:**
+- [ ] **SL4.** Click, arrows and Shift-arrows in either field update the
+  `selection a..<b` readout. **Observed:**
+- [ ] **SL5.** The same demo section on Linux (SDL) and Windows. **Observed:**
+- [ ] **SL6.** Type in the note, press "Caret to start", type again, then
+  undo: the undo removes the typing, not the caret move (`SL-I`).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

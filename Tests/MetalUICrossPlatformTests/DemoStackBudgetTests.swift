@@ -40,6 +40,16 @@ private func buildEveryProductionTree() {
     buildTheKeyFocusDemo()   // key and focus scoping (KF, spec test C2)
     buildTheAppShellDemo()   // app shell (AS-, spec test 3.5)
     buildTheOverlaysDemo()   // overlays and coordinates (OV-, spec §4.2)
+    buildTheSelectionDemo()   // text selection (SL-N)
+}
+
+/// The text-selection demo's tree and its two components (macOS 15, `SL-N`).
+@MainActor
+private func buildTheSelectionDemo() {
+    if #available(macOS 15, *) {
+        _ = selectionDemoContent()
+        _ = SelectionDemoModel.readout(nil, in: "")
+    }
 }
 
 /// The overlays demo's tree and its readout (a `Component` built at layout),
