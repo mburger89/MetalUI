@@ -9,6 +9,9 @@ collapsed into one identity and the second was dropped silently (divergence 79,
 `fix/foreach-identity` from `280d706`. Parallel branches, off limits:
 C15 (`OV-`, §92), C16 (`IF-`, §93), C21 (`BB-`, §94).
 
+**Status: LANDED** (record §95; `ElementID.key`/`IdentityKey`, divergence 79 retired,
+255 for the `List` residue).
+
 ## 1. Evidence (SwiftUI; gpui has no analogue)
 
 gpui keys elements by `ElementId` values the caller supplies (a typed

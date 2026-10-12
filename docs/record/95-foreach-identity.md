@@ -34,7 +34,7 @@ must-not-move list).
 ## §2 Counts
 
 * Baseline `280d706`: 3312 tests, 0 goldens, 208 typecheck guards.
-* This branch: **3325 tests in 3 suites** (3312 + 13 new tests, among them the
+* This branch: **3325 tests (3415 after the merge with master a720fba, 216 guards) in 3 suites** (3312 + 13 new tests, among them the
   typecheck guard G1; 1.16 is flipped in place and the twin arm lives inside the
   existing `everyNamingSiteStartsAReturningNameFresh`). The native
   `--build-system native` run read `FR-J no-argument frame: succeeded=true`, 0
