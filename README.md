@@ -462,6 +462,11 @@ group Y, unrun.
 drag, magnify and rotate gestures, `.onModifierKeysChanged(mask:initial:_:)` for a still pointer,
 a wheel latch (a scroll's events follow its `.began`) and a synthesized `.cancelled` when a scroll
 loses its end. The canvas demo gains a readout pad. Human checks: group IF, unrun.
+**Window drag** (user request 2026-10-02, item C22, MetalCreator's C8-a, not a plan task; record
+§97): `WindowDragGesture` (SwiftUI's spelling) on a handle moves a hidden-title-bar window even
+over a viewport full of gestures; it ends and cuts the other gestures of the press (divergence
+275) and moves the window on AppKit only (divergence 276). The app-shell demo gains a handle.
+Human checks: group WD, unrun.
 **Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
 `Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
 drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,

@@ -61,7 +61,8 @@ summary.
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-O`), `FI-` (`ForEach` identity:
-  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), …; the full
+  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `WD-` (window drag:
+  `2026-10-12-window-drag-decisions.md`, next `WD-L`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -74,9 +75,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 245–254 and 265–284 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **140 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 245–254 and 265–274 reserved by open branches, 278–284 unused by C22, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF and WD, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -292,7 +293,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`) — have no
   default so a conformer that forgets one fails to compile. Both conformers,
   the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
   answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
@@ -699,6 +700,19 @@ drops to `[]` on leaving key, dirties the window **only when the last build held
 the action runs in the lifecycle drain after the build; SwiftUI's timing is **unprobed**
 (human check IF1, `IF-D`). A `.modifiersChanged` event returns before the hook's blanket
 `setNeedsRedraw()` unless the app's `onInput` claims it (`IF-N` item 3).
+
+**Window drag (`WD-`, record §97).** `WindowDragGesture` is SwiftUI's spelling (no
+`.windowDragArea()`): one arena leaf, live in a **press** arena only, an opaque pointer target on
+its element's hitbox, **ready at a `tapSlop` move** and blocked as a draggable is (a tap, long
+press or click ahead yields, an undecided `DragGesture` ahead wins). When it acts it ends,
+runs the `onCancelled` of members that had reported, fails the rest (divergence 275) and
+`Window` calls the defaultless `PlatformWindow.performWindowDrag() -> Bool` then
+`endPressForDrag()` **whatever the answer**. AppKit answers `true` only while dispatching the
+mouse-dragged of a held primary press (`performDrag(with:)` with its mouse-down, the unproven
+call, check WD1); SDL records and answers `false` (divergence 276, no hit-test region list:
+`WD-F`). `AS-J`'s band drag is unchanged (unclaimed presses only); the three gates are the
+gesture rule and `.opacity(0)` does not disable it (divergence 277). Not built:
+`windowBackgroundDragBehavior` (a Scene modifier), a double-click zoom in a handle.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
@@ -1129,7 +1143,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (137 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (140 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

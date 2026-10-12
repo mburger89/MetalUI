@@ -8,7 +8,7 @@ SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings; pixels 0 p
 in the fourteen offscreen images (`docs/probes/demo-pixels/compare.sh <scratch>
 a720fba HEAD`); `DemoFrameDeterminismTests` `Expected.swift` unedited.
 
-**Status: designed (2026-10-12), not built.**
+**Status: LANDED (2026-10-12) — every agent-doable clause is built; the looks (group `WD`) are owed to a human.** Record `docs/record/97-window-drag.md`; rulings `WD-A`…`WD-K`. The build differs from this spec in `WD-K` (the `performTitleBarDrag` rename, tests over `FakePlatformWindow`, test 1.5's `changed >= 1`) and by two tests the mutations asked for (1.4b, 1.8b).
 
 ## 0. The report, reproduced, and what the probe says
 
