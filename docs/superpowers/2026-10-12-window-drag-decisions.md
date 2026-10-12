@@ -20,7 +20,7 @@ Evidence:
   measured (human check `WD-1`).
 - gpui is **not read** for this item; SwiftUI has the answer (`WindowDragGesture`).
 
-Prefix **`WD-`**, lettered. **Next unused: `WD-J`.** (This line moves in the
+Prefix **`WD-`**, lettered. **Next unused: `WD-K`.** (This line moves in the
 commit that appends a ruling; read the last `## WD-` heading.)
 
 Branch `feat/window-drag` from `a720fba`. `docs/divergences.md`: this branch's
@@ -211,7 +211,8 @@ press reaches what is beneath, as probe `W8a`/`W8d`; `.disabled` registers none
 either (divergence 23), where SwiftUI's disabled region still swallows the press
 without dragging (`W8b`) — the existing divergence, not a new one. `.opacity(0)`
 does not gate a hitbox in MetalUI (as for every gesture), where SwiftUI's is
-inert (`W8c`): existing, noted in the test's comment. A frame with no
+inert (`W8c`): **not an existing divergence row** (checked by grep of
+`docs/divergences.md`, critic pass) — it is divergence 277 (`WD-J`). A frame with no
 `WindowDragGesture` registers exactly the hitboxes it does today.
 
 **Cost if wrong.** A gate that must differ (a disabled handle still blocking
@@ -231,3 +232,24 @@ is now answered by a handle, or by nothing if the app declares none.
 See the spec (§§4–6): two lanes, disjoint files, lane 1 (core, seam, headless,
 tests, demo) then lane 2 (AppKit, SDL, Linux image, human checks); every test
 named with its red-before and mutation.
+
+## WD-J — Critic pass: an invisible handle still captures (divergence 277)
+
+**Ruling.** Probe `W8c` (re-run byte for byte by the critic, md5
+`2cbb77aa2cfe92ee3ec16b5463de18c4`, 58 stdout lines as recorded; `W8f` is the
+positive control, `W8c`/`W8d` the separating arms) shows an `.opacity(0)`
+handle inert and the base receiving the press. MetalUI gates no hitbox on
+opacity, for any gesture, and `WD-G` wrongly called that an existing divergence:
+no row covers it. **Divergence 277** (label from this branch's range): a
+`.opacity(0)` handle still captures the press and drags. Pinned wrong on
+purpose by a fourth arm of test 1.11 (`anOpacityZeroHandleStillCapturesTheWayEveryGestureDoes`);
+`.hidden()` is the way to remove it. Not fixed here: gating on opacity would
+move hit testing for every gesture (MUST NOT MOVE).
+
+**Also recorded (rejections).** (1) The critic re-checked that `Value` is
+`Equatable, Sendable` where the census lists `Equatable` only: `Sendable` is
+implied for an empty struct and a divergence row would be noise. (2) The lanes
+overlap on the SDL and AppKit stub lines by design (lane 1 adds the stub so the
+tree builds, lane 2 replaces it); they run one after the other, and lane 2 owns
+the Linux image run for both. (3) Folding the seam into `performTitleBarPress`
+stays rejected (`WD-E`).

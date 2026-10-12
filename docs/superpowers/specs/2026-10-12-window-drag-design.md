@@ -1,7 +1,7 @@
 # Window drag — design spec
 
 Item C22. Rulings: [`../2026-10-12-window-drag-decisions.md`](../2026-10-12-window-drag-decisions.md)
-(`WD-A`…`WD-I`). Evidence: `docs/probes/swiftui-window-drag.swift` (recorded in its
+(`WD-A`…`WD-J`). Evidence: `docs/probes/swiftui-window-drag.swift` (recorded in its
 header). Baseline `a720fba`: **3402 tests in 3 suites**, 0 goldens, the
 `FR-J no-argument frame: succeeded=` line, 0 `error:`, the only `warning:`
 SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings; pixels 0 px
@@ -81,7 +81,7 @@ func performWindowDrag() -> Bool
 - Public-API inventory: map rows for `WindowDragGesture`, `Value`, `init()`, its
   `Gesture` members (class A), `performWindowDrag`, `windowDrags`,
   `performsWindowDrag` (class M); doc comments; census re-recorded;
-  `docs/divergences.md` 275, 276.
+  `docs/divergences.md` 275, 276, 277 (`WD-J`).
 - Record phase: `docs/api-overview.md`, `docs/migration.md`, `docs/divergences.md`,
   `docs/testing.md`, `docs/verification/human-checks.md` (group `WD`), record 97,
   CLAUDE.md/AGENTS.md rule (one or two sentences), `docs/record/README.md`.
@@ -133,7 +133,7 @@ strip above it unless stated):
 | 1.8 | `aTapOnTheHandlesElementStillFiresAndDragsNothing` | `.onTapGesture` + `WindowDragGesture` on one element: press/release fires the tap, no drag | S | drop `.windowDrag` from the yield rule → red |
 | 1.9 | `aSiblingViewportBeneathTheHandleNeverJoinsTheArena` | probe W2/W9: press in the handle, the viewport sees nothing; the same press outside, the viewport's | S | register the handle non-opaque → red |
 | 1.10 | `aSecondaryOrOtherPressInTheHandleDragsNothing` | `rightClick`/`otherClick` + drag: `windowDrags == 0`; the `MN-B` context menu still opens | S | `isLive` true in a button arena → red |
-| 1.11 | `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` (3 arms) | each: the press reaches the viewport, `windowDrags == 0`; a frame without a handle has its old hitbox count | S | remove `hitTestingDisabledDepth == 0` from the opaque site → arms 1–2; remove `enabled` → arm 3 |
+| 1.11 | `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` (3 arms, plus a fourth pinning divergence 277: an `.opacity(0)` handle still captures, `WD-J`) | each: the press reaches the viewport, `windowDrags == 0`; a frame without a handle has its old hitbox count | S | remove `hitTestingDisabledDepth == 0` from the opaque site → arms 1–2; remove `enabled` → arm 3 |
 | 1.12 | `aPlatformAnsweringFalseStillEndsThePress` | `performsWindowDrag = false`: members still cut; `active == nil`; the release is no click; the next press forms a fresh arena | S | skip `endPressForDrag()` on `false` → red |
 | 1.13 | `aPressAfterAWindowDragFormsAFreshArena` | second press-drag: `windowDrags == 2` | S | `endPressForDrag` omitted → the `CI-AB` stale path reddens |
 | 1.14 | `aHandleWorksInAStandardTitleBarWindowAndAnywhereInTheWindow` | no `hiddenTitleBar`, handle mid-window: drags | S | gate the callback on `windowStyle` → red |
