@@ -279,6 +279,8 @@ count work. "Red before" = fails or does not compile at `f2fe54a`.
 | 3.6 | `theFixtureVersionIsFourAndOldVersionsStillLoad` | bump without the reader |
 | 3.7 | Linux image build + tests, Windows via CI (and `metalui-win` if it answers) | — |
 
+*Lane 3 as built* (`BB-T`): the tests are in `SDLBackdropTests.swift` and `ReplayFixtureTests.swift`, 3.3 is split a–i, 3.2b pins the tolerance arithmetic, 3.5 needs no driver gate (it draws into the offscreen renderer), the parity fixtures are frames 9–11 of `Replay` (`--expect 12`), and the compiled stages number eleven.
+
 ## 6. Gates
 
 `swift build --build-system native --build-tests` 0 `error:`, 0 `warning:`

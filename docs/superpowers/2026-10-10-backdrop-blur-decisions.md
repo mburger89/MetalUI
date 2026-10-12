@@ -10,7 +10,7 @@ Record: `../record/94-backdrop-blur.md` (Record phase). Branch `feat/backdrop-bl
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 
-**Next unused id: `BB-T`.** (Moves in the commit that appends a ruling; read the
+**Next unused id: `BB-U`.** (Moves in the commit that appends a ruling; read the
 last `## BB-` heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-backdrop-blur.swift`](../probes/swiftui-backdrop-blur.swift)
@@ -459,3 +459,91 @@ price of one allocation round on a panel's first frame.
 
 **Cost if wrong.** Item 4's drop: a UI that flickers a panel every other frame pays the frame
 target each time; the follow-up is a frame-count grace period.
+
+## BB-T — Lane 3 (SDL, replay, Linux): the same structure, eleven shader stages, fixture version 4
+
+**Ruling.**
+
+1. **Structure is Metal's, statement for statement** (`SDLBridge.c`, `encode_frame`): a frame with
+   no backdrop run takes the single pass into the target, byte for byte (the counters 0, the pool
+   and frame target dropped); one with backdrops renders into a per-`MUIRenderer` frame target
+   (`B8G8R8A8_UNORM`, colour target + sampler, replaced on a size change) in segments split at each
+   backdrop run, blurs every record of the run from the frame as it stands, loads a new segment for
+   the run's quads, and ends with `SDL_BlitGPUTexture` (nearest, 1:1) onto the target `begin`
+   acquired — the swapchain is never sampled. The pool (`BackdropState`) is `BackdropFrameState`
+   restated: free list by size, a size no frame acquired dropped at the frame's end, everything
+   dropped by a frame with no backdrop. Counters are `splits`, `blurs`, `passes` (`L + 2` a record,
+   `BB-S` 1), `copies`, `made`, read through `SDLWindowRenderer.lastBackdropSplits/Blurs/Passes`,
+   `lastFrameTargetCopies`, `lastBackdropTexturesMade` (the Metal names), with the same two hooks
+   (`backdropPoolFailsAllocation`, `routesEveryFrameThroughTheFrameTarget`, `hasBackdropFrameTarget`).
+   The replay path (`replay_render`) runs the same `encode_frame`, so a fixture and a window frame
+   cannot drift; it refuses (strictly) a backdrop frame without the portable shaders.
+2. **Eleven compiled stages**, not six (`compile-shaders.py`, `SOURCE.sha256` over the one
+   `replay.hlsl`): `backdrop.{vertex,fragment}` (`BACKDROP_STAGE`: `backdrop_vertex` and
+   `backdrop_fragment`, including the rect shader's coverage of a white borderless rect through
+   `ellipseSDF`/`rectSDF`/`maskCoverage[Scaled]`), `pass.vertex` (`PASS_STAGE`, the full-target
+   triangle) and `downsample.fragment`/`gaussian.fragment` (`DOWNSAMPLE_STAGE`/`GAUSSIAN_STAGE`).
+   The six old stages recompile byte-identical (SPIR-V, MSL, DXIL, JSON: `cmp` over the directory).
+   Shadercross 3.0.0, a scratchpad copy, reproducibility checked first on the unchanged source.
+3. **A texel is fetched with a point sampler at the texel centre** (`SampleLevel`, nearest, clamp)
+   where the Metal shader `read`s: bit-exact (the centre of a texel of an at-most-8192 target is
+   far from any boundary in `float`), and the stage's one texture is then the combined image
+   sampler SDL's SPIR-V convention expects (a `Load`-only stage would reflect a bare sampled
+   image). The blur's constants are the 32-byte `PassConstants` in fragment uniform slot 0; the
+   quad's `(origin, uvScale)` is a 16-byte fragment uniform (`BB-S` 3's MSL-only buffer 5, here
+   `register(b0, space3)`).
+4. **The flat tint is not an HLSL stage.** `pack_records` appends, after the scene's rects, one
+   rect per backdrop record — the record's bounds, clip, radii, order and shape with `tint.a ×
+   opacity` — which the rect pipeline draws as exactly `c·o·T` (`BB-I`); a record with an empty
+   region, a failed pool, or a frame whose frame target or backdrop pipelines cannot be made
+   (the three pipelines load their five stages on the first backdrop frame, `ensure_backdrop_pipelines`)
+   or whose projection is not the identity draws that rect. Equal to `backdrop_flat_fragment` by
+   construction; test 3.3d pins the pixels.
+5. **The level count is derived in C** from the record's own `sigma` (`mui_backdrop_levels`,
+   `BackdropBlurReference.levels` restated; a test pins the two at every threshold and the cap);
+   **the region is Swift's**: `Scene.backdropRegion` for a scene, and for a fixture
+   `ReplayFixture.backdropRegions` — the same function over the records a fixture holds, pinned
+   equal to the scene's by test 3.4c (a plain record, a turned one, one hanging off the target, one
+   wholly outside).
+6. **`ReplayFixture` is version 4** (`BB-J`): a seventh stride (`backdropStride` 96) in the
+   header and a backdrop byte table after the transform table; `FixtureRun.Kind.backdrop = 3`;
+   `FixtureRun(scene:)` records a backdrop and still traps on a surface. **Versions 2 and 3
+   still load** (to the same frame without what they lack); version 1 stays refused. Parity gains
+   a third region: `ParityTolerance.insideBackdrops = 3`, applied to the pixels of a backdrop
+   quad that no sprite quad covers (`Parity.backdrop`). Measured on frames 9–11: Metal (SDL's
+   Metal backend against the Metal renderer) 0, Mesa lavapipe (Vulkan) **2**; Direct3D 12 WARP
+   not measured here (CI).
+7. **Three parity fixtures**, recorded by `swift run Replay --portable --record` (frames 9–11, 320 ×
+   200 over a 16-point cell field; skipped without `--portable`, since the adapted MSL has no
+   backdrop stage): 9, two materials side by side at σ = 52 and 16 (one run, two records); 10, a
+   rounded material under a rounded clip at 0.7 opacity, an ellipse material and a material turned
+   30°; 11, two nested materials (two runs). CI's `--expect` is 12 on Linux and Windows, and the
+   workflow now also triggers on `Sources/MetalUIShaderTypes/**` and `Sources/MetalUIPath/**`.
+8. **Tests** (`SDLBackdropTests.swift`, `ReplayFixtureTests.swift`): 3.1 the ABI (stride 96 and the
+   nine field offsets `replay.hlsl` reads); 3.2 the harness (frames 9–11) and 3.2b the tolerance
+   arithmetic; 3.3 a step at σ = 16, 52, 104 against a reference restated in the test (the
+   root's is `package`), with the counters and a steady frame; 3.3b the old path; 3.3c splits
+   and blurs; 3.3d the flat fallback; 3.3e shape and clip over a **2D field**; 3.3f opacity; 3.3g
+   the C level count; 3.3h a 2D field over an odd region; 3.3i a turned backdrop; 3.4 the fixture
+   run (+ 3.4b, 3.4c); 3.5 a GPU surface under a backdrop; 3.6 the version. **3.5 needs no
+   `.enabled(if:)`**: it composites into the offscreen renderer (the `SDLSurfaceTests` pattern),
+   which presents nothing, so the Linux image's offscreen video driver changes nothing; every
+   helper still arms `armMainRunLoopExitCheck()`.
+9. **Windows**: `ssh metalui-win` did not answer (connect timed out), so the DXIL stages are
+   compiled and reflected (`uniform_buffers 1`, `samplers 1`) but **not run locally**; Direct3D 12
+   is CI's, through frames 9–11 with `--expect 12`.
+
+**Reasoning.** Items 1 and 4 are the design's "same frame target, segments and blit as Metal" with
+the one place SDL differs (no HLSL flat stage; the rect shader draws it). Item 3 was a design
+choice made to keep the stage's reflection ordinary; item 5 keeps the C bridge the only place the
+level count lives for SDL while the region stays the single Swift function. The mutation
+campaign (record: below) found the step scene blind to anything vertical or far from its edge
+(M2 downsample rows, M9 shape, M10 clip survived), so 3.3e and 3.3h use a field with structure on
+both axes, and 3.3i exists because only replay frame 10 saw a transform mutation (M24).
+
+**Cost if wrong.** Item 6's tolerance of 3 is two levels above the lavapipe measurement; if WARP
+exceeds it, the weights move to the CPU into a side buffer (`BB-J` cost) before the tolerance
+moves. Item 3's `SampleLevel` reads as a sampler fetch: a driver that filters a nearest fetch at
+a texel centre would show in every test. Item 4's lazy pipelines mean a failing shader load on a
+machine's first material silently draws flat tints; the error is `SDL_GetError()` of that frame
+and no test sees it, so a consumer's first material frame is the place to look.
