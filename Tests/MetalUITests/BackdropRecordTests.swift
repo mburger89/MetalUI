@@ -221,3 +221,34 @@ private func tinted(_ scene: Scene) -> [MUIRect] { scene.rects.filter { $0.backg
         .shadow(radius: px(3)), side: 100)
     #expect(legacy.backdrops.isEmpty, "legacy inside a shadow: flat")
 }
+
+// MARK: - 1.8b
+
+/// **1.8b** (`BB-I`, `BB-H`). The degraded flat tint carries the record's
+/// opacity: `flatTintRect` is `c · o · T`. Hand-derived before the run: the
+/// light `regular` row is alpha 0.7137 (the table of 1.2), so the same panel
+/// under `.opacity(0.5)` inside a shadow, and inside a compositing group under
+/// a shadow, leaves a tint rect of alpha 0.7137 × 0.5 = 0.35685; at opacity 1
+/// the rect reads 0.7137. Mutation: remove `color.a *= opacity` in
+/// `MUIBackdrop.flatTintRect`.
+@Test @MainActor func aDegradedMaterialUnderOpacityDrawsTheTintTimesTheOpacity() throws {
+    func panel() -> some ProposalElementGroup {
+        Color.clear.frame(width: px(40), height: px(20)).background(.regularMaterial)
+    }
+    func tintAlphas(_ scene: Scene) -> [Float] {
+        // The shadow's own rasters are images; the flat tint is the one rect that draws.
+        tinted(scene).map { $0.background.a }
+    }
+    let full = lkScene(panel().shadow(radius: px(3), x: px(2), y: px(2)), side: 100)
+    let fullAlphas = tintAlphas(full)
+    try #require(full.backdrops.isEmpty && fullAlphas.count == 1, "opacity 1: one flat tint rect: \(fullAlphas)")
+    #expect(abs(fullAlphas[0] - 0.7137) < 1e-3, "opacity 1 reads the table's 0.7137: \(fullAlphas[0])")
+    let half = lkScene(panel().opacity(0.5).shadow(radius: px(3), x: px(2), y: px(2)), side: 100)
+    let halfAlphas = tintAlphas(half)
+    try #require(half.backdrops.isEmpty && halfAlphas.count == 1, "opacity 0.5 in a shadow: one flat tint rect: \(halfAlphas)")
+    #expect(abs(halfAlphas[0] - 0.35685) < 1e-3, "0.7137 x 0.5 = 0.35685: \(halfAlphas[0])")
+    let grouped = lkScene(panel().opacity(0.5).compositingGroup().shadow(radius: px(3), x: px(2), y: px(2)), side: 100)
+    let groupedAlphas = tintAlphas(grouped)
+    try #require(grouped.backdrops.isEmpty && groupedAlphas.count == 1, "in a compositing group under a shadow: \(groupedAlphas)")
+    #expect(abs(groupedAlphas[0] - 0.35685) < 1e-3, "0.7137 x 0.5 = 0.35685: \(groupedAlphas[0])")
+}
