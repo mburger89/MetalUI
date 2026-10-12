@@ -8,6 +8,8 @@ SwiftPM's deprecation notice; `swift build --build-tests` 0 warnings; pixels 0 p
 in the fourteen offscreen images (`docs/probes/demo-pixels/compare.sh <scratch>
 f2fe54a HEAD`); `DemoFrameDeterminismTests` `Expected.swift` unedited.
 
+**Status: built (2026-10-12), record §93.** Three lanes landed and verified; the merge with master `0abce86` is in §93 §4.4.
+
 ## 1. Public API
 
 SwiftUI spelling wherever SwiftUI has one; **MetalUI-only** marked.

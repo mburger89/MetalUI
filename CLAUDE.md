@@ -95,7 +95,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`: 3276 tests, 0 goldens**, typecheck guards lane 1's two beyond master's (3237 + 18 + 11 + 10; native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues; census 3152 lines; `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image; divergences 235, 236, header count and next label the merge's; record §93).
+- **Counts (2026-10-12, `feat/input-followups` from `f2fe54a`, merged with master `0abce86` (§91 harness, §92 overlays): 3402 tests, 0 goldens, 215 typecheck guards** (master's 3363 + 39 tests = 18 + 11 + 10 by lane, 213 + 2 guards, both lane 1's; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3405 (3392 + 13); `Backends/SDL` 24 + 113 on macOS, 24 + 110 in the Linux image at the lane runs, not re-taken after the merge; divergences 235, 236, the header's count and next label the merge's; record §93 §4). Before it,
 - **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
   (master's 3312 + 51 tests, 208 + 5 guards; the native run after `swift package clean` read exactly the five
   `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and nothing else; census 3392 (3356 + 36);

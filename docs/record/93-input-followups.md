@@ -1,8 +1,8 @@
 # 93 — Input follow-ups: modifiers on a tap and a still hover, click count, wheel latch, gesture cancellation, a terminal scroll phase (item C16)
 
-Branch `feat/input-followups` from `f2fe54a` (master at the time; master is now
-`280d706`, item 8's `MetalUITesting` harness, §91, which the merge settles: this branch
-touches none of its files). **Not a plan task**: item C16 of the gpui-gap priority list
+Branch `feat/input-followups` from `f2fe54a` (master at the time), **merged with master
+`0abce86`** (item 8's `MetalUITesting` harness, §91, and C15's overlays, §92; §4.4). No
+renumbering: 93 was free. **Not a plan task**: item C16 of the gpui-gap priority list
 (user request 2026-10-02), reported by MetalCreator (`docs/metalui-gaps.md` there:
 **GI-a, GI-b, S5-a, S5-b, VI-a**; read, never edited). Spec
 `docs/superpowers/specs/2026-10-10-input-followups-design.md`; rulings `IF-A`…`IF-N` in
@@ -125,7 +125,7 @@ nothing else. The first lane-3 run read 13 issues (the five plus the 3.6–3.8 a
 
 ### 4.2 Counts, census, docs
 
-- Public-API census re-recorded: `docs/probes/closeout-public-api.tsv` 3152 lines;
+- Public-API census re-recorded: `docs/probes/closeout-public-api.tsv` 3152 lines before the merge (3405 after, §4.4);
   `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Inventory
   rows: families `input-followups-values` (D, 235), `input-followups-cancel` (D, 236),
   `input-followups-modkeys` (M); `ModifierKeysChange.swift` mapped.
@@ -146,6 +146,24 @@ The pad paints text from an `@Observable` model with initial values, but it is o
 canvas demo (`METALUI_CANVAS_DEMO=1`), not in the fourteen. `swift build --build-tests`
 (default build system): 0 `warning:` lines; native: SwiftPM's deprecation notice only. No
 real-window capture (screen locked).
+
+### 4.4 The merge with master `0abce86`
+
+Master moved to `0abce86` (item 8's harness, §91, `HT-`; C15's overlays, §92, `OV-`).
+Conflicts were documentation only: `CLAUDE.md`/`AGENTS.md` (the prefix list gained `IF-`
+beside `HT-` and `OV-`, the human-check groups read "SG, HT, OV and IF", the counts
+bullet is this branch's and master's follows), `docs/divergences.md` (225 beside 235, 236),
+`docs/record/README.md` (rows 91, 92, 93), `docs/verification/human-checks.md` (IF after HT)
+and both census files (the inventory map keeps both blocks; the census was regenerated, **3405
+lines** = 3392 + 13). `Gesture.swift`, `SpatialGestures.swift` and `Window.swift` merged
+without a conflict. After `swift package clean`: native build 0 `error:`, only SwiftPM's
+deprecation `warning:`; `swift test --build-system native --no-parallel` unfiltered: **3402
+tests in 3 suites** (master's 3363 + 39), 5 issues, exactly the five locked-screen
+`AppKitPresentationTests` sheet issues; `FR-J no-argument frame: succeeded=true` present;
+guards 215 (213 + lane 1's two). Not re-taken after the merge: `Backends/SDL` and the Linux
+image (this branch's SDL files are `SDLBridge.c`, `SDLPlatform.swift` and one test; master
+touched none), the fourteen images (master's `OverlaysDemo` is not among them; re-take at the
+checker), lane 1's un-re-run mutations.
 
 ## 5. Deferrals and hazards
 

@@ -351,6 +351,20 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Input follow-ups** (`IF-`, record §93;
+[`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
+probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
+values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifiers` (the
+last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
+`onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
+leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
+no `onEnded`; `@GestureState` and `updating` are not built, `IF-A`).
+`.onModifierKeysChanged(mask:initial:_:)` (M; SwiftUI's macOS 15 spelling, a transparent
+scope whose action runs after the build) reports the held keys with a still pointer; a window
+that loses key reports them released. A scroll's events, momentum included, go to the
+element under its `.began`, and a scroll whose end never arrives (the window resigned key,
+or closed) gets a synthesized `.cancelled`.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
