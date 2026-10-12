@@ -8,7 +8,7 @@ Probe: `docs/probes/swiftui-resign-on-press.swift` (arms `RP0`–`RP12`, output 
 its header). Record: `../record/98-resign-on-press.md`. Branch
 `feat/resign-on-press` from `5f35df6`.
 
-**Next unused id: `RF-G`.**
+**Next unused id: `RF-H`.**
 
 ## Carried
 
@@ -123,7 +123,7 @@ press still goes on to the text stage, arena and click dispatch, so the
 
 **Cost if wrong.** An app wanting a button not to resign nests nothing: it
 moves the modifier off the root onto the chrome. A per-subtree opt-out is
-deferred (spec §8).
+not built (spec §7).
 
 ## RF-F — Composition with `hoverKeyRegion`, `focusable`, `onKeyPress`
 
@@ -139,6 +139,23 @@ or a key region).
 
 **Cost if wrong.** If apps want "resign off" to override a key region, the
 flag becomes a tri-state; nobody has asked.
+
+## RF-G — Critic review: probe re-taken, one mutation re-aimed, rejections
+
+**Ruling.** (1) The probe's `RP0`, `RP1`, `RP5`, `RP8` were re-run byte for
+byte by the critic (screen still locked; same four lines as the header).
+(2) Test 3's stated mutation (delete the text-field early return) may not
+redden: if a text field is itself `focusesOnPress`, the ladder still focuses it
+and A to B stays direct. Test 3 therefore carries two mutations, both run: the
+early-return deletion, and, if that stays green, "ladder step 3 before step 2"
+(`else if region` tested before `focusable`); record which reddened and on
+which spelling, and record a mutation that reddens nothing as such.
+(3) Rejected: a per-subtree opt-out and a window option (spec section 7),
+`hoverKeyRegion(routesKeys:)` (RF-B). (4) A resign-only region never joins
+`hoveredKeyRegion` (that lookup is untouched); the guard is test 2.
+
+**Cost if wrong.** A green mutant hides an untested exemption; the second
+mutation bounds it.
 
 ## What does not move (RF-A…F's frame)
 

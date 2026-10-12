@@ -2,7 +2,7 @@
 
 **Status: DESIGNED 2026-10-12** from `5f35df6` (branch `feat/resign-on-press`).
 Rulings: [`../2026-10-12-resign-on-press-decisions.md`](../2026-10-12-resign-on-press-decisions.md)
-(`RF-A`…`RF-F`, next `RF-G`). Probe: `docs/probes/swiftui-resign-on-press.swift`.
+(`RF-A`…`RF-G`, next `RF-H`). Probe: `docs/probes/swiftui-resign-on-press.swift`.
 Requested by MetalCreator (CT-a): a press on inert chrome (glass padding, header
 gaps, an empty inspector) must end in-place editing without taking over key
 routing. Today a press outside every key region resigns nothing (`KF-G`), and
@@ -78,8 +78,8 @@ All in `ResignOnPressTests.swift` over a `Window` (`simulateInput`) unless noted
    separating arm). *Mutation:* count a resign region in `keyRegionCount` /
    admit it in `coversKeys(withPressRegions: false)`.
 3. `aPressFromOneFieldToAnotherMovesFocusDirectly` — a `@FocusState<Field?>`
-   observer logs `[a, b]`, never `nil` between. *Mutation:* delete the
-   text-field early return in `focusOnPress`.
+   observer logs `[a, b]`, never `nil` between. *Mutations (RF-G 2):* delete the
+   text-field early return in `focusOnPress`; if green, swap ladder steps 2 and 3.
 4. `aPressOnAClickFocusableInsideFocusesItNotNil` — `.focusable(interactions:
    .edit)` inside: focus moves to it (one change). *Mutation:* swap the ladder
    (`else if region != nil` tested before `focusable`).
