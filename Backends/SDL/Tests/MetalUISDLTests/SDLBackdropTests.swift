@@ -161,6 +161,47 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
     return out
 }
 
+
+/// A scene of 6-point cells of red, blue, white and black in a pattern that is
+/// neither row- nor column-uniform, and the same pixels as premultiplied
+/// floats: structure on both axes at every scale, so a blur of it differs
+/// from the field wherever it is applied (a step is vertically uniform, and a
+/// pixel far from its edge reads the same blurred or not).
+private func cellField(width w: Int, height h: Int) -> (scene: Scene, pixels: [Float]) {
+    let palette: [(MUIHsla, [Float])] = [(red, [1, 0, 0]), (blue, [0, 0, 1]),
+                                         (MUIHsla(h: 0, s: 0, l: 1, a: 1), [1, 1, 1]), (black, [0, 0, 0])]
+    var scene = Scene()
+    var field = [Float](repeating: 0, count: w * h * 4)
+    let cell = 6
+    for gy in 0..<((h + cell - 1) / cell) { for gx in 0..<((w + cell - 1) / cell) {
+        let pick = (gx * 3 + gy * 5 + (gx * gy) % 3) % 4
+        scene.insert(solid(mb(Float(gx * cell), Float(gy * cell), Float(cell), Float(cell)), palette[pick].0))
+        for y in (gy * cell)..<min((gy + 1) * cell, h) { for x in (gx * cell)..<min((gx + 1) * cell, w) {
+            let i = (y * w + x) * 4
+            field[i] = palette[pick].1[0]; field[i + 1] = palette[pick].1[1]; field[i + 2] = palette[pick].1[2]; field[i + 3] = 1
+        } }
+    } }
+    return (scene, field)
+}
+
+/// The field with the pixels of `region` replaced by the blur of that region
+/// alone (the blur is clamped to it) composited under a gray tint `l`, alpha
+/// `a` — what one backdrop record over the region leaves.
+private func fieldWithBackdrop(_ field: [Float], width w: Int, region: Scene.BackdropRegion, sigma: Float,
+                               grayTint l: Float, alpha a: Float, opacity o: Float = 1) -> [Float] {
+    var crop = [Float](repeating: 0, count: region.width * region.height * 4)
+    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
+        crop[(y * region.width + x) * 4 + c] = field[((region.y + y) * w + region.x + x) * 4 + c]
+    } } }
+    let composited = composite(blurred: blurred(crop, width: region.width, height: region.height, sigma: sigma),
+                               destination: crop, grayTint: l, alpha: a, opacity: o)
+    var out = field
+    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
+        out[((region.y + y) * w + region.x + x) * 4 + c] = composited[(y * region.width + x) * 4 + c]
+    } } }
+    return out
+}
+
 private func maxLevelsOff(_ pixels: [UInt8], width: Int, expected: [Float]) -> Float {
     var worst: Float = 0
     for p in 0..<(expected.count / 4) {
@@ -296,26 +337,53 @@ func sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal(sigma: Float) thr
     #expect(renderer.lastBackdropBlurs == 1)
 }
 
-/// **3.3e** (`BB-A`). The shape and clip: pixels outside an ellipse backdrop's
-/// shape are the sharp backdrop, and a clip narrower than the bounds cuts the
-/// quad. Mutations: ignore the shape bits; ignore `contentMask`.
+/// **3.3e** (`BB-A`). The shape and clip, over a field with structure on both
+/// axes: deep inside an ellipse backdrop the pixels are the reference blur
+/// (composited under the tint), deep outside it — the corners of its bounds —
+/// they are the scene's own, sharp; and a clip narrower than the bounds cuts
+/// the quad the same way (blurred left of it, the scene's own right of it).
+/// Mutations: ignore the shape bits; ignore `contentMask`.
 @Test @MainActor func pixelsOutsideTheShapeAndTheClipAreUntouched() throws {
     let (w, h) = (200, 80)
     let renderer = try offscreenRenderer(w, h)
-    var scene = stepScene(width: w, height: h, edge: 100)
-    scene.insert(backdrop(mb(40, 0, 120, 80), sigma: 16, shape: UInt32(MUIShapeEllipse.rawValue)))
+    let tint = MUIHsla(h: 0, s: 0, l: 0.5, a: 0.3)
+    var (scene, field) = cellField(width: w, height: h)
+    scene.insert(backdrop(mb(40, 0, 120, 80), tint: tint, sigma: 16, shape: UInt32(MUIShapeEllipse.rawValue)))
     scene.finalize()
+    let region = try #require(scene.backdropRegion(0, target: (w, h)))
     let pixels = try draw(renderer, scene, width: w, height: h)
-    // The bounds' corner is outside the ellipse: the step's own red, sharp.
-    #expect(px(pixels, 42, 2, width: w) == [255, 0, 0, 255])
-    #expect(px(pixels, 99, 40, width: w)[2] > 0, "inside the ellipse the step is blurred: blue leaks left of the edge")
+    let blurredField = fieldWithBackdrop(field, width: w, region: region, sigma: 16, grayTint: 0.5, alpha: 0.3)
+    var inside = 0, outside = 0, worstInside: Float = 0, worstOutside: Float = 0
+    for y in 0..<h { for x in 0..<w {
+        let nx = (Float(x) + 0.5 - 100) / 60, ny = (Float(y) + 0.5 - 40) / 40
+        let r = nx * nx + ny * ny
+        guard r < 0.8 || r > 1.25 else { continue }     // not the antialiased rim
+        let expected = r < 0.8 ? blurredField : field
+        for c in 0..<4 {
+            let off = abs(Float(px(pixels, x, y, width: w)[c]) - expected[(y * w + x) * 4 + c] * 255)
+            if r < 0.8 { worstInside = max(worstInside, off) } else if x >= 40 && x < 160 { worstOutside = max(worstOutside, off) }
+        }
+        if r < 0.8 { inside += 1 } else if x >= 40 && x < 160 { outside += 1 }
+    } }
+    try #require(inside > 1000 && outside > 100)
+    #expect(worstInside <= 3, "deep inside the ellipse: the reference blur, \(worstInside) levels off")
+    #expect(worstOutside == 0, "the bounds' corners are the scene's own pixels, \(worstOutside) levels off")
 
-    var clipped = stepScene(width: w, height: h, edge: 100)
-    clipped.insert(backdrop(mb(0, 0, 200, 80), sigma: 16, mask: mb(0, 0, 100, 80)))
+    var (clipped, field2) = cellField(width: w, height: h)
+    clipped.insert(backdrop(mb(0, 0, 200, 80), tint: tint, sigma: 16, mask: mb(0, 0, 100, 80)))
     clipped.finalize()
+    let region2 = try #require(clipped.backdropRegion(0, target: (w, h)))
     let cut = try draw(renderer, clipped, width: w, height: h)
-    #expect(px(cut, 150, 40, width: w) == [0, 0, 255, 255], "right of the clip the step is sharp")
-    #expect(px(cut, 99, 40, width: w)[2] > 0, "left of it, blurred")
+    let expected2 = fieldWithBackdrop(field2, width: w, region: region2, sigma: 16, grayTint: 0.5, alpha: 0.3)
+    var worstLeft: Float = 0, worstRight: Float = 0
+    for y in 0..<h { for x in 0..<w where x < 99 || x > 101 {
+        for c in 0..<4 {
+            let off = abs(Float(px(cut, x, y, width: w)[c]) - (x < 99 ? expected2 : field2)[(y * w + x) * 4 + c] * 255)
+            if x < 99 { worstLeft = max(worstLeft, off) } else { worstRight = max(worstRight, off) }
+        }
+    } }
+    #expect(worstLeft <= 3, "left of the clip: the reference blur, \(worstLeft) levels off")
+    #expect(worstRight == 0, "right of the clip: the scene's own pixels, \(worstRight) levels off")
 }
 
 /// **3.3f** (`BB-G`). `opacity` 0.5 is a half-weight composite of the blurred
@@ -419,35 +487,13 @@ func sdlOffscreenBackdropEqualsTheReferenceAndCountsMatchMetal(sigma: Float) thr
 func aBackdropOverA2DFieldEqualsTheReferenceOfItsRegion(sigma: Float) throws {
     let (w, h) = (121, 91)
     let renderer = try offscreenRenderer(w, h)
-    let palette: [(MUIHsla, [Float])] = [(red, [1, 0, 0]), (blue, [0, 0, 1]),
-                                         (MUIHsla(h: 0, s: 0, l: 1, a: 1), [1, 1, 1]), (black, [0, 0, 0])]
-    var scene = Scene()
-    var field = [Float](repeating: 0, count: w * h * 4)
-    let cell = 6
-    for gy in 0..<((h + cell - 1) / cell) { for gx in 0..<((w + cell - 1) / cell) {
-        let pick = (gx * 3 + gy * 5 + (gx * gy) % 3) % 4
-        scene.insert(solid(mb(Float(gx * cell), Float(gy * cell), Float(cell), Float(cell)), palette[pick].0))
-        for y in (gy * cell)..<min((gy + 1) * cell, h) { for x in (gx * cell)..<min((gx + 1) * cell, w) {
-            let i = (y * w + x) * 4
-            field[i] = palette[pick].1[0]; field[i + 1] = palette[pick].1[1]; field[i + 2] = palette[pick].1[2]; field[i + 3] = 1
-        } }
-    } }
+    var (scene, field) = cellField(width: w, height: h)
     scene.insert(backdrop(mb(3, 5, 101, 69), tint: MUIHsla(h: 0, s: 0, l: 0.5, a: 0.3), sigma: sigma))
     scene.finalize()
     let region = try #require(scene.backdropRegion(0, target: (w, h)))
     #expect(region.width % 2 == 1 || region.height % 2 == 1, "an odd region repeats its last texel")
     let pixels = try draw(renderer, scene, width: w, height: h)
-    // The region's pixels, blurred alone (the blur is clamped to the region), then composited.
-    var crop = [Float](repeating: 0, count: region.width * region.height * 4)
-    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
-        crop[(y * region.width + x) * 4 + c] = field[((region.y + y) * w + region.x + x) * 4 + c]
-    } } }
-    let blurredCrop = blurred(crop, width: region.width, height: region.height, sigma: sigma)
-    let composited = composite(blurred: blurredCrop, destination: crop, grayTint: 0.5, alpha: 0.3, opacity: 1)
-    var expected = field
-    for y in 0..<region.height { for x in 0..<region.width { for c in 0..<4 {
-        expected[((region.y + y) * w + region.x + x) * 4 + c] = composited[(y * region.width + x) * 4 + c]
-    } } }
+    let expected = fieldWithBackdrop(field, width: w, region: region, sigma: sigma, grayTint: 0.5, alpha: 0.3)
     let off = maxLevelsOff(pixels, width: w, expected: expected)
     #expect(off <= 3, "σ \(sigma): worst channel \(off) levels off the reference of the region \(region)")
 }
