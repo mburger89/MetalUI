@@ -20,7 +20,7 @@ Evidence:
   measured (human check `WD-1`).
 - gpui is **not read** for this item; SwiftUI has the answer (`WindowDragGesture`).
 
-Prefix **`WD-`**, lettered. **Next unused: `WD-K`.** (This line moves in the
+Prefix **`WD-`**, lettered. **Next unused: `WD-L`.** (This line moves in the
 commit that appends a ruling; read the last `## WD-` heading.)
 
 Branch `feat/window-drag` from `a720fba`. `docs/divergences.md`: this branch's
@@ -253,3 +253,27 @@ overlap on the SDL and AppKit stub lines by design (lane 1 adds the stub so the
 tree builds, lane 2 replaces it); they run one after the other, and lane 2 owns
 the Linux image run for both. (3) Folding the seam into `performTitleBarPress`
 stays rejected (`WD-E`).
+
+## WD-K — Lane 1 build: what the implementation changed against the spec
+
+**Rulings.** (1) `AppKitWindow` already had a stored injectable closure named
+`performWindowDrag` (the `AS-J` band drag's `NSWindow.performDrag(with:)`
+recorder), which cannot share a base name with the new requirement
+`performWindowDrag()`. The closure is renamed `performTitleBarDrag` (one source
+site, one line of `appKitTitleBarPressDragsOnlyDuringAMouseDown`'s injection);
+nothing else of `AS-J` moved. Lane 2's AppKit answer injects its own
+`performDrag(with:)` closure under another name. (2) Tests 1.1–1.17 run over
+`FakePlatformWindow` in `MetalUITests` (it gains `windowDrags` and
+`performsWindowDrag`), not `TestApp`: `MetalUITests` does not depend on
+`MetalUITesting`, and the fake records `titleBarPresses` beside `windowDrags`,
+which 1.1 needs. `MetalUITesting`'s own two tests (2.1, 2.2) drive `TestWindow`.
+(3) Test 1.5: the viewport drag is a `simultaneousGesture` of minimum distance 0
+and reports at the press **and** at the slop move before the handle acts, so
+the assertion is `changed >= 1`, `cancelled == 1`, `ended == 0` (the spec said
+"once"). (4) Test 1.11's `.hidden()` arm uses the legacy `Box`: the proposal
+vocabulary has no `.hidden()`. (5) Demo: the handle is a legacy `Box` strip
+inside a `Column` carrying a simultaneous `DragGesture` canvas (the 1.5 shape),
+in `appShellDragHandleSectionBody()`; the model counts finished and cut-off
+canvas drags. (6) Guard 3.1 is a row of `AppShellSeamCompileGuards`' window
+table; 3.2 is `WindowDragCompileGuards.swift`.
+
