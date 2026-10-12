@@ -1293,6 +1293,31 @@ desktop, the monospaced face on screen, a Windows release build.
   ("Exit" on Windows) ends the app; with two windows open Close closes one.
   **Observed:**
 
+## IF. Input follow-ups — modifiers on a tap and a still hover, click count, wheel latch, cancellation (item C16, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `KF` and `SG`)
+
+Run the canvas demo (`METALUI_CANVAS_DEMO=1 swift run MetalUIDemo`): the pad under
+the canvas reads `held … · tap … · drag … · scroll … · cancelled …`. **An agent
+cannot post these events.** Ruling `IF-D`, record 93.
+
+- [ ] **IF1.** `onModifierKeysChanged`: the `held` readout follows Shift, Command,
+  Option and Control held with the pointer still; compare old/new and `initial`
+  with a SwiftUI sample app (the probe's `M` arms did not run, `IF-D`); Command-Tab
+  away with Command held and back (reads none, then the keys held on return).
+  **Observed:**
+- [ ] **IF2.** Shift-click the pad's box: `tap` reports Shift, also when Shift is
+  released before the button. **Observed:**
+- [ ] **IF3.** Double-click the box: `drag` reads `x2` at the speed set in System
+  Settings > Mouse (slow it, then speed it). **Observed:**
+- [ ] **IF4.** Flick the canvas to glide, move the pointer onto the style strip: the
+  glide stays on the canvas. **Observed:**
+- [ ] **IF5.** Hold the middle button on the box, open Mission Control or a native
+  menu, release there, return: `cancelled` counts one on the first plain move.
+  **Observed:**
+- [ ] **IF6.** Command-Tab mid-trackpad-scroll over the box: `scroll` shows a
+  cancelled phase once. **Observed:**
+- [ ] **IF7.** Pinch, Command-Tab, pinch again at the same spot: the first gesture
+  reads cancelled, the second starts from 1. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

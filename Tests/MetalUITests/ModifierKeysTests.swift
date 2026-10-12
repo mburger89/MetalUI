@@ -5,6 +5,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIPlatform
 @testable import MetalUI
+@testable import MetalUIText
 
 // `onModifierKeysChanged(mask:initial:_:)` — input follow-ups, lane 3 (ruling
 // `IF-D`; spec `docs/superpowers/specs/2026-10-10-input-followups-design.md`
@@ -305,7 +306,8 @@ private func pxl(_ v: Float) -> Pixels { Pixels(v) }
         }
     }
     mkSettle(window)
-    _ = platform.onInput?(.mouseMoved(MouseEvent(position: Point(x: pxl(5), y: pxl(3)))))
+    let tile = try #require(window.lastScene.rects.first { $0.bounds.size.height == 7 }?.bounds)
+    _ = platform.onInput?(.mouseMoved(MouseEvent(position: Point(x: pxl(tile.origin.x + 5), y: pxl(tile.origin.y + 3)))))
     mkSettle(window)
     #expect(model.hoverActive)
     #expect(mkRectWidth(window) == 20)

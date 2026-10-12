@@ -155,6 +155,36 @@ public final class Window {
         didSet { setNeedsRedraw() }
     }
 
+    /// The modifier keys held (ruling `IF-D` item 2): set from
+    /// `.modifiersChanged` and from the modifiers of every key, pointer and
+    /// scroll event, and reset on leaving key. Handed to the lifecycle store
+    /// that `onModifierKeysChanged` scopes read; a change dirties the window
+    /// only when the last build held such a scope, so an app with none pays
+    /// nothing. Not an `environment` write (it would dirty every draw).
+    var currentModifiers: EventModifiers = [] {
+        didSet {
+            guard currentModifiers != oldValue else { return }
+            animationStore.lifecycle.currentModifiers = currentModifiers
+            if animationStore.lifecycle.hasModifierObservers { setNeedsRedraw() }
+        }
+    }
+
+    /// Takes the modifiers `event` carries (`IF-D` item 2). Never claims.
+    private func noteModifiers(from event: InputEvent) {
+        switch event {
+        case .modifiersChanged(let m): currentModifiers = m
+        case .keyDown(let e), .keyUp(let e): currentModifiers = e.modifiers
+        case .mouseDown(let e), .mouseUp(let e), .mouseMoved(let e), .mouseDragged(let e),
+             .rightMouseDown(let e), .rightMouseUp(let e), .rightMouseDragged(let e),
+             .otherMouseDown(let e), .otherMouseUp(let e), .otherMouseDragged(let e):
+            currentModifiers = e.modifiers
+        case .scrollWheel(let e): currentModifiers = e.modifiers
+        case .magnify(let e): currentModifiers = e.modifiers
+        case .rotate(let e): currentModifiers = e.modifiers
+        default: break
+        }
+    }
+
     /// The platform window's key state (ruling EV-AB), the root source of
     /// every frame's `controlActiveState`: read from
     /// `PlatformWindow.controlActiveState` at construction and updated through
@@ -855,6 +885,7 @@ public final class Window {
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
             if state != .key {
+                self?.currentModifiers = []   // a window does not see flags while not key (`IF-D` item 4)
                 self?.dismissInWindowMenu()   // `MN-F` item 3
                 self?.hideTooltip()   // `MN-P` item 2
                 self?.cancelPinchArena()   // its end is lost for certain (`IF-F` item 4)
@@ -868,6 +899,10 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
+            // A flags report carries nothing else: it dirties the window only
+            // through `currentModifiers`' own guard (`IF-D` item 2).
+            if case .modifiersChanged = event { return self.onInput?(event) ?? false }
             // Hover and active tracking run first and unconditionally, and
             // never claim the event: they are side-channel state a later
             // frame's `paint` reads back (§3.3, §3.4), not a form of dispatch.
