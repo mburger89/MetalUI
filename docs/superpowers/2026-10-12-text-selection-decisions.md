@@ -84,7 +84,7 @@ the clamp comes first.
 
 While `state.composition` is non-empty `reconcile` applies nothing and leaves `seenBinding`
 unchanged, and nothing is published (the state's selection is then the replaced range). The probe
-cannot compose, so there is **no SwiftUI evidence**; this is MetalUI's rule from `TI-F`'s invariant
+cannot compose, so there is **no SwiftUI evidence**; this is MetalUI's own rule, from `geometry(bounds:state:…)` splicing the marked text at the selection's start
 (marked text lives at the selection's start). After the commit the input's publish overwrites the
 held write (the user's composition is the later instruction). **Cost if wrong**: an app write
 raced with composition is lost; applying it would move the marked text and break the IME. Human
