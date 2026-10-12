@@ -2184,3 +2184,13 @@ generated package's test target (an executable imported `@testable`) builds and 
 arm runs where system fonts are installed (the CI image has none, `HT-V` item 5).
 **Owed, new here — `docs/verification/human-checks.md` group HT, none performed**: HT1 Windows,
 HT2 Linux with fonts.
+
+## 2026-10-12: overlays and coordinates (record §92) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `ebcf3c7`; the screen was locked, so no
+real-window capture was taken. Owed, what no headless test sees: a real pointer, a live resize, the
+native context menu over the dismissal. **Owed, new here — `docs/verification/human-checks.md` group OV,
+none performed (an agent cannot)**: OV1 the palette's corner at the pointer and its per-axis flip;
+OV2 a right or middle click outside closes it and the context menu opens on the same press; OV3 typing
+and Escape with the field focused; OV4 the crosshair under the pointer in a named space; OV5
+`windowSize` through a live resize.

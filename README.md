@@ -497,6 +497,14 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
+plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
+chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside
+press of any button and by Escape, keys still reaching a field inside it; `.popover` takes SwiftUI's
+`attachmentAnchor:` (divergence 225); `CoordinateSpace.named`, `.coordinateSpace(_:)`,
+`onContinuousHover(coordinateSpace:)` and named `onGeometryChange`/gesture locations; and
+`@Environment(\.windowSize)` (MetalUI-only). `METALUI_OVERLAYS_DEMO=1 swift run MetalUIDemo` shows
+it. Human checks: group OV, unrun.
 **Test harness** (user request 2026-10-02, item 8 of the gpui-gap list, MetalCreator's M6-e, M7-b and
 TH-a, not a plan task; record §91): the portable library product `MetalUITesting` opens an app's real
 root in a real `Window` over a headless platform (`TestApp`, `TestWindow`), with XCUITest's input names

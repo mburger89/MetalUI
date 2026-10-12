@@ -9,6 +9,10 @@ Branch `feat/overlays-coords` from `ebcf3c7` (3204 tests in 3 suites). Rulings
 `OV-A`…`OV-P` in `../2026-10-10-overlays-coords-decisions.md`; record §92;
 divergence labels 225–234 (this branch's range; only **225** is used).
 
+**Status: LANDED** (record §92, 2026-10-12): both lanes built red first and verified `ok`; rulings `OV-A`…`OV-T`
+(the spec's §2–§3 spell what the draft intended; where a ruling after `OV-K` amends it — `OV-L`…`OV-T` — the
+ruling and the source win). The looks are owed to a human (human-checks group OV).
+
 Builds on C9 (record §88: `onGeometryChange`, `KF-J`/`KF-S`, `.global` frames
 already built — OV-I) and on menus/popovers (record §74: `.popover` as an
 anchored presentation root, `MN-M`/`MN-N`/`MN-Y`/`MN-Z`). `.help` needs nothing.
