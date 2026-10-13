@@ -58,10 +58,20 @@ extension PortableText {
                            wrappingAt width: Double?, options: TextLayoutOptions,
                            scaleFactor: Float) throws
         -> (lines: [LaidOutLine], placements: [GlyphPlacement]) {
+        let laidOut = try layOut(text, font: font, wrappingAt: width, options: options)
+        return (laidOut, placements(of: laidOut, font: font, origin: origin, wrappingAt: width,
+                                    options: options, scaleFactor: scaleFactor))
+    }
+
+    /// ``placements(_:font:origin:wrappingAt:options:scaleFactor:)`` over lines
+    /// already laid out: the lines are origin-free (ruling GT-E), so a caller
+    /// that caches them places a moved label without shaping it again.
+    static func placements(of laidOut: [LaidOutLine], font: PortableFont, origin: (x: Double, y: Double),
+                           wrappingAt width: Double?, options: TextLayoutOptions,
+                           scaleFactor: Float) -> [GlyphPlacement] {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let scale = Double(scaleFactor)
         let metrics = font.metrics
-        let laidOut = try layOut(text, font: font, wrappingAt: width, options: options)
         let factor: Double = switch options.alignment {
         case .leading: 0
         case .center: 0.5
@@ -84,7 +94,7 @@ extension PortableText {
                     baselineY: baselineY - Int((placed.glyph.yOffset * scale).rounded())))
             }
         }
-        return (laidOut, result)
+        return result
     }
 
     /// `slack × factor` on a 1/256 pt grid — `Shaper.alignmentOffset`'s
