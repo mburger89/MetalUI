@@ -87,6 +87,44 @@ struct Own: View {
         Text("own \(n)")
     }
 }
+/// E: a closure input that differs every evaluation, `==` ignoring it.
+struct Eq: View, Equatable {
+    let tag: String
+    let n: Int
+    let f: () -> Void
+    nonisolated static func == (l: Eq, r: Eq) -> Bool { l.n == r.n }
+    var body: some View { let _ = log.lines.append("Eq-\(tag)"); Text("eq \(n)") }
+}
+/// E2: a fresh class instance input each evaluation, `==` ignoring it.
+struct EqRef: View, Equatable {
+    let n: Int
+    let r: Ref
+    nonisolated static func == (l: EqRef, r: EqRef) -> Bool { l.n == r.n }
+    var body: some View { let _ = log.lines.append("EqRef"); Text("eqr \(n)") }
+}
+/// E3: plain-value input only, `==` always true.
+struct EqPod: View, Equatable {
+    let n: Int
+    nonisolated static func == (l: EqPod, r: EqPod) -> Bool { true }
+    var body: some View { let _ = log.lines.append("EqPod"); Text("eqp \(n)") }
+}
+/// O: `==` always true, but the body reads an observed property.
+struct EqReads: View, Equatable {
+    let model: Model
+    nonisolated static func == (l: EqReads, r: EqReads) -> Bool { true }
+    var body: some View { let _ = log.lines.append("EqReads"); Text("er \(model.a)") }
+}
+/// ES: `==` always true, but the view has its own @State.
+struct EqState: View, Equatable {
+    @State var n = 0
+    static var poke: (() -> Void)?
+    nonisolated static func == (l: EqState, r: EqState) -> Bool { true }
+    var body: some View {
+        let _ = log.lines.append("EqState")
+        let _ = { EqState.poke = { n += 1 } }()
+        Text("es \(n)")
+    }
+}
 struct Top: View {
     let model: Model
     let ref: Ref
@@ -104,6 +142,12 @@ struct Top: View {
             WithClosure(n: 1, f: {})
             WithCapture(f: { _ = tick })
             PlainTick(n: tick)
+            Eq(tag: "plain", n: 1, f: { _ = tick })
+            Eq(tag: "equatable()", n: 2, f: { _ = tick }).equatable()
+            EqRef(n: 2, r: Ref()).equatable()
+            EqPod(n: 2).equatable()
+            EqReads(model: model).equatable()
+            EqState().equatable()
             WithRef(ref: fresh ? Ref() : ref)
             Own()
         }
@@ -160,6 +204,8 @@ struct Rows: View {
     model.b += 1; report("R  (model.b)")
     Top.bump?(); report("S  (Top @State)")
     Own.poke?(); report("T  (Own @State)")
+    model.a += 1; report("O  (model.a; EqReads is .equatable() with == always true)")
+    EqState.poke?(); report("ES (EqState's own @State; == always true)")
     ref.n += 1; Top.bump?(); report("U  (Top @State; ref mutated, same instance)")
     w1.close()
     let w3 = host(Top(model: model, ref: ref, fresh: true))
@@ -178,18 +224,29 @@ struct Rows: View {
 MainActor.assumeIsolated { _ = NSApplication.shared; run() }
 
 // RECORDED (macOS 27 arm64, 2026-10-13, hosted NSHostingView, `xcrun swiftc
-// -swift-version 6`; each arm's log delta after a 0.4 s run-loop drain):
+// -swift-version 6`; each arm's log delta after a 0.4 s run-loop drain; a body
+// that ran is listed, one that did not is absent):
 //
-//   R0 first render: Top, ReadA, ReadB, Plain, WithClosure, WithCapture,
-//      PlainTick, WithRef, Own — each x1                         (positive control)
+//   R0 first render: every body once                          (positive control)
 //   R-unread (property nobody reads):                  (nothing evaluated)
-//   R  (model.a): ReadA x1                    R  (model.b): ReadB x1
-//   S  (Top @State, read by Top): Top, WithCapture, PlainTick x1 each
-//        -- Plain(n: 1), WithClosure(n: 1, f: {}), ReadA/ReadB (same model
-//        instance), WithRef (same Ref instance) and Own did NOT re-run
-//   T  (Own @State): Own x1 only                (Top did not re-run)
-//   U  (Top @State; a Ref's field mutated, same instance): as S
-//   V  (WithRef given a NEW Ref instance each evaluation): WithRef re-ran
+//   R  (model.a): ReadA, EqReads                  (the two readers of a)
+//   R  (model.b): ReadB
+//   S  (Top @State, which Top's body reads): Top, WithCapture, PlainTick,
+//        Eq-plain, Eq-equatable(), EqRef                      <- ran
+//        Plain(n: 1), WithClosure(n: 1, f: {}), ReadA/ReadB, WithRef (same
+//        instance), Own, EqPod, EqReads, EqState did NOT run
+//   T  (Own @State): Own only
+//   U  (Top @State; the shared Ref mutated, same instance): Top, WithCapture,
+//        PlainTick ran; the two Eq views, which ran in S, did not (an
+//        unexplained difference from S, stable over three runs; no ruling
+//        rests on it)
+//   V  (WithRef given a NEW Ref instance each evaluation): WithRef ran
+//   O  (model.a; EqReads is .equatable(), == always true): EqReads ran
+//   ES (EqState's own @State; == always true): EqState ran
+//   (S above: a view with a capturing-closure input or a fresh class instance
+//    input re-ran under `.equatable()` although its custom `==` ignored that
+//    input and said equal (Eq-equatable(), EqRef); a view whose inputs are
+//    plain values (EqPod) was skipped.)
 //   L0 first layout: each Counting layout fit x8..12, place x9..10
 //   L-unread: nothing
 //   L-colour (row 2: geometry unchanged): every row's wrapper re-measured and
@@ -198,17 +255,18 @@ MainActor.assumeIsolated { _ = NSApplication.shared; run() }
 //   L-width (row 3 wider): fit x12 per row, place x9..10: L0's counts
 //
 // READING. (1) A change re-evaluates exactly the bodies that READ the changed
-// observed property: R, T, and an unread property or an unread @State (the
-// first run of S, before `tick` was read, ran nothing at all) evaluates
-// nothing. (2) A parent's re-evaluation skips a child whose stored inputs
-// compare equal (plain values, class references by identity, a non-capturing
-// closure) and re-runs one whose input changed (PlainTick: Int differs; V: a
-// new reference; WithCapture: a capturing closure is never equal): SwiftUI
-// compares a child's inputs reflectively (S, U, V). (3) Layout is NOT
-// incremental at this granularity for a custom `Layout`: a colour change that
-// moves nothing still re-measured every sibling wrapper (L-colour, half the
-// first layout's passes), and a width change re-measured them at the full
-// count. So "re-measure only dirty paths" is the goal of the item, not what
-// SwiftUI does for a custom Layout; MetalUI's cache work is its own design
-// (IV-D), not a parity claim. Not probed: built-in stacks' internal caching
-// (opaque to a counter), which is why L uses custom Layouts.
+// observed property (R, T, O, ES), and an unread property or an unread @State
+// evaluates nothing. (2) A parent's re-evaluation skips a child whose stored
+// inputs are plain equal values or class references that are the same instance
+// and re-runs one whose input changed (S, U, V). (3) `.equatable()` with a
+// custom `==` skipped the plain-value view but did NOT skip a view holding a
+// closure or a freshly allocated class instance, whatever `==` said: SwiftUI's
+// skip is not "`==` decides" for such inputs; MetalUI's `.equatable()` is
+// defined as "`==` decides" (IV-B, divergence 345), a deliberate difference.
+// An observed read and the view's own @State beat an equal `==` in SwiftUI
+// (O, ES), and MetalUI's rule matches. (4) Layout is NOT incremental at this
+// granularity for a custom `Layout`: a colour change that moves nothing still
+// re-measured every sibling wrapper (L-colour), so "re-measure only dirty
+// paths" is the item's goal, not something SwiftUI does for a custom Layout;
+// MetalUI's layout memo is its own design (IV-E), not a parity claim. Not
+// probed: built-in stacks' internal caching (opaque to a counter).
