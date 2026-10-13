@@ -3,13 +3,14 @@
 Branch `perf/incremental-invalidation` from `f6f865c1`. Not a plan task: item C14
 of the gpui-gap priority list (user request 2026-10-02), requested by MetalCreator
 (gap PERF-b). Spec `docs/superpowers/specs/2026-10-13-incremental-invalidation-design.md`;
-rulings `IV-A`…`IV-O` (`IV-L`, `IV-M` are the critic's; `IV-N`, `IV-O` are lane 1's) in `docs/superpowers/2026-10-13-incremental-invalidation-decisions.md`
-(next unused `IV-P`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
+rulings `IV-A`…`IV-Q` (`IV-L`, `IV-M` are the critic's; `IV-N`, `IV-O` are lane 1's; `IV-P`, `IV-Q` lane 2's) in `docs/superpowers/2026-10-13-incremental-invalidation-decisions.md`
+(next unused `IV-R`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
 `docs/probes/swift-observation-nested-scopes.swift`, `docs/probes/incremental-invalidation/`.
 Divergence labels reserved: 345–354 (346 planned; 345 refuted and unused, `IV-L`).
 
-**Status: LANE 1 (layout memo) BUILT; lane 2 (`.equatable()`) not yet.** Two lanes follow, sequential: lane 1 the layout memo, lane 2 the
-`.equatable()` content memo (spec §6). The Record phase appends §3 onward.
+**Status: SLICE 1 BUILT (both lanes verified `ok`, record phase written).** Lane 1 the layout memo (§4), lane 2 the
+`.equatable()` content memo (§5), sequential; §6 is the merge and the close-out counts, §7 what is carried.
+Merged with master `d279f34d` (records 101, 103, 105, 106, 107 are parallel branches; 104 was free and is kept).
 
 ## §1 The measurement (design phase, `f6f865c1`)
 
@@ -234,4 +235,82 @@ mutated red once (L, M).
 `@Environment`/`@FocusState` components stay refused; per-row `List`/`ForEach` scopes (C14-d); the
 memo's cost (the `==` comparison and the pristine copy) is not timed; the demo's real window and
 human checks IV1-IV4 (spec §10) are not run (screen locked; an agent cannot).
+
+## §6 The merge and the close-out (record phase)
+
+**Merge.** `origin/master` had moved to `d279f34d` (52 commits: §101 material follow-ups, §103 guides, §105
+performance baselines, §106 `runUntilIdle()` on Linux, §107 guides follow-up). The merge was clean (no
+conflict); records 101, 103 and 105-107 are parallel branches and **104 was free, so it keeps its number**.
+Divergence 346 stands (master took 315, 325, 326). The census file was re-recorded after the merge for master's line shifts and growth: **3492** declarations
+(the branch's 3476 + the nine `MetalUIDemoContent` declarations of the invalidation demo, which lane 2's recording
+had not yet included, + master's seven: `Material.tint`, `accessibilityReduceTransparency` and the harness's
+four reduce-transparency members); `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+**Counts** (`swift package clean`, `swift build --build-system native --build-tests`, then
+`swift test --build-system native --no-parallel --skip-build`): **3591 tests in 3 suites passed**,
+`FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+`swift build --build-tests` (default build system) 0 warnings. **Not an unfiltered run**: the machine's
+screen was locked and the display asleep, and `NSOpenPanel.init()` in the seven `AppKitPresentationTests`
+tests that present a sheet hangs there (sampled twice: `AppKitWindow.presentFileDialog` -> `NSOpenPanel
+__allocating_init`, 0 % CPU), so those seven were `--skip`ped by name (the earlier locked-screen runs
+read them as the five `CI-AF` issues; a `caffeinate -d` woke the display and did not cure it). 3591 run + 7 skipped = 3598 in a screen-unlocked run (lane 1's 3583 + the window file's 12 functions, 2.1 counted by its three cases, +2 guards, +1 demo test, within 2 of that sum; the difference was not chased). Typecheck guards: two new (2.11a, 2.11b), each
+mutated red once (L, M).
+
+**GT-F.** Unchanged by this lane (`IV-O`): `theOverlayCostIsLinearAndCounted` passes in the full run;
+`drawText` stays deferred and is re-taken at C14-b's close-out.
+
+**Carried.** C14-b (retained subtrees, `IV-H`); C14-c (an environment epoch, divergence 346);
+`@Environment`/`@FocusState` components stay refused; per-row `List`/`ForEach` scopes (C14-d); the
+memo's cost (the `==` comparison and the pristine copy) is not timed; the demo's real window and
+human checks IV1-IV4 (spec §10) are not run (screen locked; an agent cannot).
+
+## §6 The merge and the close-out (record phase)
+
+**Merge.** `origin/master` had moved to `d279f34d` (52 commits: §101 material follow-ups, §103 guides, §105
+performance baselines, §106 `runUntilIdle()` on Linux, §107 guides follow-up). The merge was clean (no
+conflict); records 101, 103 and 105-107 are parallel branches and **104 was free, so it keeps its number**.
+Divergence 346 stands (master took 315, 325, 326). The census file was re-recorded after the merge for master's
+line shifts and growth: **3492** declarations (master's 3476 at the merge base's line plus the branch's 16:
+the four layout-memo and three content-memo `FrameWork` fields are covered by the harness regex and moved no
+row; the rest is master's), `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+**Counts** (`swift package clean`, `swift build --build-system native --build-tests`, then
+`swift test --build-system native --no-parallel --skip-build --skip AppKitPresentationTests`): **3654 tests in 3
+suites passed** (211 s), `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's
+deprecation notice; 0 recorded issues. **Not an unfiltered run, and why:** the screen was locked
+(`CGSSessionScreenIsLocked = 1`), and the unfiltered run hung with the process at 0 % CPU after
+`aMenuBarThePlatformDeclinesIsDrawnAndDrivenThroughTheTree`; `sample` read `AppKitWindow.presentFileDialog` ->
+`NSOpenPanel.init()`, the same hang lane 2 found (§5), so that run was killed by its PID and the suite re-run with
+`AppKitPresentationTests` (9 `@Test`s) skipped. The expected unfiltered count is **3663** (3654 + the suite's 9 `@Test`s; cross-check: master's 3631 is
++65 over the 3566 base and the branch alone was 3598, +32); re-take it on an unlocked screen. Typecheck guards **232** by derivation (master's 229 + lane 1's 1.13 + lane 2's 2.11a and
+2.11b; the log carries no guard total), each new one mutated red once (§5 L, M; lane 1's by the lane verdict).
+`swift build --build-tests` (default build system) at this commit: `Build complete`, 0 `warning:`.
+
+**Not re-taken at the merge:** the fourteen images (the branch's last 0 px reading is §5, against `f6f865c1`,
+before master's material work, which legitimately moves the material images' own history and is §101's to
+compare); `Backends/SDL` and the Linux image (both lanes ran them; the merge touched no `Backends/SDL` or
+portable target); the verify-mode run over the merged suite (§4's reading was at the lane commit).
+
+**Verdict findings carried from the lane checks (minor, all documented, none changes behaviour):**
+(1) `PlacementKey.bounds.height` is redundant under `computeNativeLayout(centredIn:)` (the only caller that
+attaches a memo), so forcing it to 0 reddens nothing; the public `in:` variant would need it; owner: a kernel arm
+with equal proposals and different bounds, if a second caller ever attaches a memo. (2) `TextLeafKey.alignment`
+reddens nothing when dropped: the measured size is probably independent of alignment, so the field is
+over-conservative, not missing; owner: a test measuring with two alignments, then drop the field. (3) lane 1's own
+weak spots stand (`aWarmDragLoopCountsLayoutWorkPerFrame` does not separate (P) from (M); the release timing of the
+integer-tag signature is not re-taken).
+
+## §7 Carried, with owners
+
+| item | why | owner |
+|---|---|---|
+| retained subtrees: skip the build recursion, prepaint and paint of an unchanged subtree | the numbers: build 51 %, prepaint 10 %, paint 14 % of a frame stay whole (§1); needs a per-scope observation token and the sweep rules of `IV-H` | C14-b |
+| an environment epoch, so `@Environment` readers can skip (divergence 346) | `EnvironmentValues` cannot compare old and new | C14-c |
+| per-row scopes for `List`/`ForEach`; the list-row leaves carry no key | `List` windowing and TB-AH stay untouched | C14-d |
+| keys for rich text, images, `Canvas`-like and controls' leaves | one line plus a covering test each | follow-up of C14 |
+| a subtree placement memo (a moved subtree's rects) | spec §4.1 | C14-b |
+| `MetalDrawContext.drawText` and its SDL twin | GT-F re-taken: the overlay cost is still 1 measure + 2 seam + 1 `placeGlyphs` a label (`IV-O`); re-take at C14-b | C14-b close-out |
+| release timing of the signature pass and of the content memo's `==` and pristine copy | a release build costs 15 minutes on the shared machine; the win is claimed as counted only | C14-b |
+| the real-window demo and human checks IV1-IV4 | the screen was locked for the branch; an agent cannot | a human, `docs/verification/human-checks.md` group IV |
+| the unfiltered suite count and the fourteen images on the merged tree | locked screen (NSOpenPanel hang); material work merged beneath | the merge checker |
 

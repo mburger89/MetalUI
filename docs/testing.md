@@ -331,7 +331,7 @@ A `TestWindow` is one `Window` for its life, so every frame after the first is
 **warm**: state, shaping, rasters and textures persist, as in the app.
 `lastFrameWork` counts what the last frame did — builds, layout measure calls,
 cache hits and misses, rasterized and blurred pixels, atlas uploads, new
-textures, rects, glyphs and images — and `frameWork` keeps the history until
+textures, rects, glyphs and images, the layout memo's hits and misses and the content memo's evaluations, skips and refusals — and `frameWork` keeps the history until
 `resetFrameWork()`. A performance test **counts work, never time**: open the
 window with `recordsLayout: false` (so it does only production work), drive
 the interaction, and assert the counters — for example that a drag frame

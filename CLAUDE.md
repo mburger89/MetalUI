@@ -72,7 +72,8 @@ summary.
   driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `DG-` (developer guides:
   `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-W`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
-  `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), …; the full
+  `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
+  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -85,9 +86,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **151 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **152 live, next label 206** (345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM and GD, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD and IV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -103,10 +104,11 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107): 3654 tests run + 9 skipped (3663 expected unfiltered), 0 goldens, 232 typecheck guards** (master's 3631 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; `swift package clean`, native run on a **locked screen with `AppKitPresentationTests` skipped** because its `NSOpenPanel.init()` hangs there, 0 recorded issues, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; census 3492 re-recorded after the merge; inventory and undocumented scripts print nothing; divergence 346 added, 152 live; the fourteen images 0 px against `f6f865c1` at the lanes, not re-taken after the merge; record §104 §6). Before it,
 - **Counts (2026-10-13, `docs/guides-followup` from `b17aee19`, merged with master `8e7c78e3` (§105 performance baselines, §106 `runUntilIdle()` on Linux): 3631 tests, 0 goldens, 229 typecheck guards** (master's 3626 + 5 tests, no guard; 3629 before the merge; `swift build --build-system native --build-tests` then the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no `Sources/` or `Backends/SDL` change, no public declaration, no divergence label taken; record §107). Before it,
   **(2026-10-13, `fix/rununtilidle-linux` from `848ee029`, merged with master `b17aee19` (§103 guides): 3626 tests, 0 goldens, 229 typecheck guards** (master's 3624 + 2 tests, no guard; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `848ee029`; no divergence label taken; the two mutations were run in the Linux image, the macOS `set(nil)` one on a filtered set; record §106 §5). Before it,
 - **Counts (2026-10-13, `docs/guides` from `ff8a1ea4`, merged with master `848ee029` (§98, §99, §100, §101, §102): 3624 tests, 0 goldens, 229 typecheck guards** (master's 3582 + 42 tests, no guard: the doc-check's 9, lane 1's 17, lane 2's 16; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, census unmoved; no `Sources/` or `Backends/SDL` change, the fourteen images 0 px; no divergence label taken; the Linux image ran the 26 lane-1 tests, the full suite not re-taken there; record §103 §5). Before it,
@@ -228,7 +230,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §106.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -800,6 +802,25 @@ values; SDL answers `false` and never fires, `MT-E`; `HeadlessPlatform.Options` 
 grey at alpha 1) with no backdrop record, so no split, no blur pass, no copy, and a change snaps.
 SwiftUI's own fallback is unmeasured (the probe cannot move it), so the grey is a ruling (divergence
 315; 249 retired).
+
+**Incremental invalidation (`IV-`, record §104).** Slice 1 of C14, two parts, both leaving every phase
+and channel running on an equal value. **The layout memo** is automatic: `LayoutMemo` (`AnimationStore`'s,
+`MetalUILayout`, `package`) keys a measurement and a root placement by a 128-bit **structural signature**
+(`LayoutTree.nodeSignature`, one pre-order pass at the start of every `computeNativeLayout`/
+`measureNativeLayout`; no node id enters, grid tokens are normalised); only plain `Text`/`ProposalText`,
+`Divider`, the built-in shapes, the gradient leaf and `GPUSurface` carry a key (`LayoutLeafKeys.swift`) and any other
+leaf, or a non-`Hashable` custom layout, taints exactly its ancestors. **A new registrar parameter owes a
+line in the signature** (`everyRegistrarParameterIsInItsSignature`); a new keyed leaf owes a key that covers
+its closure and a covering test; `METALUI_VERIFY_LAYOUT_MEMO=1` recomputes every hit and traps (`IV-J`).
+**`Component.equatable()`** (`where Self: Equatable`; `EquatableComponent`, opt-in, no identity level or cursor
+index) skips the `content` getter while the value is `==`, its own `@State` unwritten (`StateTable.entryVersion`)
+and its observed reads unchanged (one observation session per memo over the getter only, `ContentMemoStore` on
+`StateTable`, swept last); `==` decides; `@Environment`/`@FocusState` components are refused, evaluated every
+frame and counted (divergence 346). Build recursion, prepaint and paint stay whole, so the win is **counted, not
+timed** (`FrameWork` memo and content counters; pins count work). Carried: retained subtrees (C14-b, `IV-H`),
+an environment epoch (C14-c), per-row `List` scopes (C14-d). GT-F stands: `drawText` is deferred (`IV-O`).
+A main-actor test off macOS does not idle after a tracked frame (the observation hop), so a session-count pin
+is Darwin-only (`IV-Q`). The demo is `METALUI_INVALIDATION_DEMO=1`.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);

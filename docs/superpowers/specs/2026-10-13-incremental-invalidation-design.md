@@ -4,8 +4,11 @@ Item C14 of the gpui-gap priority list (user request 2026-10-02; **not a plan
 task**), requested by MetalCreator (gap PERF-b in its `docs/metalui-gaps.md`).
 Branch `perf/incremental-invalidation` from `f6f865c1`. Prefix `IV-`; rulings in
 [`../2026-10-13-incremental-invalidation-decisions.md`](../2026-10-13-incremental-invalidation-decisions.md)
-(next unused `IV-N`); record `docs/record/104-incremental-invalidation.md`.
-Divergence labels reserved for this branch: 345–354. Probes:
+(next unused `IV-R`); record `docs/record/104-incremental-invalidation.md`.
+Divergence labels reserved for this branch: 345–354 (346 used; 345 refuted and unused, `IV-L`).
+
+**Status: slice 1 (layout memo + `.equatable()` content memo) BUILT and verified, 2026-10-13
+(record §104 §4–§6); retained subtrees (C14-b) and the rest are carried, §7 there.** Probes:
 `docs/probes/swiftui-incremental-invalidation.swift`,
 `docs/probes/swift-observation-nested-scopes.swift`,
 `docs/probes/incremental-invalidation/` (phase-timing instrument and readings).
