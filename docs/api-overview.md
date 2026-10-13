@@ -798,7 +798,9 @@ backdrop blur** of what is already drawn beneath it, GPU surfaces included, on b
 renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
 transform, opacity and transitions; the flat tint of `LK-L` remains for a path
 fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
-a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`); `Material.tint(in:)`
+reads a material's tint as a `Color` (MetalUI-only, class M; C27, `MT-B`; a material takes
+no colour, `MT-C`). Not built:
 `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
 `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
 `NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
