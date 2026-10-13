@@ -172,6 +172,77 @@ While a field is focused, printable keys arrive as text input, so a plain-letter
 is silent. [`testing.md`](../testing.md) has a recipe that types into a field and commits on a
 shortcut Return.
 
+## How do I end editing when the user clicks empty chrome?
+
+A click does not resign a focused field, as in SwiftUI. An app that wants "click anywhere else to
+finish editing" says so on a container: `.resignsFocusOnPress()` makes a primary press inside it
+resign the focused field. It is opt-in, MetalUI-only (SwiftUI has no such modifier), and it routes
+no key by hover (pin: `aResignRegionRoutesNoKeysByHover`). A secondary or other-button press never
+resigns (pin: `aSecondaryAndOtherPressResignNothing`). Without the modifier a press elsewhere leaves a
+focused field alone (pin: `aPressElsewhereDoesNotResignAFocusedField`). The headless test types "Ada",
+clicks the panel, and reads that nothing is focused while the typed text stays (pin:
+`theInputGuideAClickOnInertChromeEndsEditing`, `aPressOnInertChromeResignsAFocusedField`).
+
+```swift
+/// A field and an inert panel: a click on the panel ends editing.
+struct InputCommit: Component {
+    @State var name = ""
+
+    var content: some ElementGroup {
+        TextField("Name", text: $name)
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+        Box().frame(width: Pixels(200), height: Pixels(80)).background(.surface).id("panel")
+        Text("Hello \(name)")
+    }
+}
+
+@MainActor
+func inputResignRoot() -> some Element {
+    VStack(alignment: .leading) { InputCommit() }
+        .resignsFocusOnPress()
+}
+```
+
+## How do I test a field with an input method?
+
+An input method (Chinese pinyin, Japanese kana) marks text in the field before it commits a
+candidate. `TestWindow` drives that with four verbs that send the platforms' own events through the
+real window: `setMarkedText(_:selectedRange:)`, `commitMarkedText()` (AppKit's `unmarkText`),
+`commitMarkedText(_:)` (`insertText`, a candidate replaces the marked text) and `cancelMarkedText()`.
+Each answers `false` and sends nothing when no text field holds the caret (pin:
+`anInputMethodCannotBeDrivenWithoutAFocusedField`). While text is marked the field shows it and the
+model has heard nothing (pin: `aMarkedTextIsInTheFieldNotInTheBinding`); a commit writes once (pin:
+`commitMarkedTextCommitsTheMarkedTextOnce`, `commitMarkedTextWithACandidateReplacesTheMarkedText`);
+a cancel restores the field and writes nothing (pin: `cancelMarkedTextRestoresTheFieldAndWritesNothing`).
+The recipe is in [`testing.md`](../testing.md#recipe-driving-an-input-method); the test below runs this
+block (pin: `theInputGuideAnInputMethodComposesCommitsAndCancels`, `theInputMethodRecipeRuns`).
+
+```swift
+/// What a field's model heard, in order.
+@MainActor
+final class InputComposeModel {
+    var text = "hello"
+    var writes: [String] = []
+}
+
+/// A field over a plain class, so a test sees every write.
+@MainActor
+func inputComposeRoot(_ model: InputComposeModel) -> some Element {
+    VStack(alignment: .leading) {
+        TextField("Name", text: model.text) { model.writes.append($0); model.text = $0 }
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+    }
+}
+```
+
+Two divergences follow from MetalUI's field. The accessibility value of a composing field is the
+committed text, not the marked text (divergence 325; pin:
+`theFieldsAccessibilityValueIsTheCommittedTextWhileComposing`), and a selection binding written while
+composing is held back until the commit, whose publish supersedes it (divergence 326; pin:
+`aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit`).
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -187,5 +258,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 275: a window drag cuts its neighbours in the press.
 - divergence 276: a window drag moves the window on AppKit only.
 - divergence 277: an `.opacity(0)` window-drag handle still captures.
+- divergence 325: a composing field's accessibility value is the committed text.
+- divergence 326: a selection written while composing waits for the commit.
 
 Back to [layout](layout.md) and [state and identity](state-and-identity.md).
