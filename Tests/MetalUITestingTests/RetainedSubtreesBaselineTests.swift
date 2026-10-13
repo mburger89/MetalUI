@@ -57,11 +57,14 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     let f = w[w.count / 2]   // a drag frame
     // The build recursion, layout and the scene: the same in every arm (the arm changes who evaluates).
     #expect(f.builds == 1)
-    #expect(f.layoutMeasureCalls == 81)
-    #expect(f.layoutCacheHits == 805)
-    #expect(f.layoutCacheMisses == 527)
-    #expect(f.layoutMemoHits == 1106)
-    #expect(f.layoutMemoMisses == 30)
+    // Counted at e85cb07a: 81 / 805 / 527 / 1106 / 30. Lane 2 (`SB-AD`) keyed two more leaves for the
+    // layout memo (a `Color` as a view, an empty legacy container), so a subtree holding one now has a
+    // signature and the same frame measures less: re-counted here, retention off.
+    #expect(f.layoutMeasureCalls == 52)
+    #expect(f.layoutCacheHits == 366)
+    #expect(f.layoutCacheMisses == 217)
+    #expect(f.layoutMemoHits == 1258)
+    #expect(f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
     #expect(f.layoutSignatureNodes == 844)
     #expect(f.rects == 182)

@@ -611,7 +611,7 @@ extension Color: Element {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
-        let node = pass.requestNativeLeaf { Self.measurement(for: $0) }
+        let node = pass.requestNativeLeaf(key: ColorLeafKey()) { Self.measurement(for: $0) }
         return (node, Layout(node: node.layoutNodeID))
     }
 

@@ -13,8 +13,11 @@ import Testing
 /// Prediction recorded before the first run (spec §10): of the 32 `.equatable()` occurrences on
 /// the fixture's drag frame, only the dragged node and the two wires whose end it carries move or
 /// resize; every other marked root stands where it stood with an equal proposal, so most of the
-/// 29 unmoved ones restore. At least 15 restores, and the layout lookups drop under the baseline's
-/// 1106 memo hits and 805 cache hits (`theBracketNodeDragRebuildsTheWholeWindow`).
+/// 29 unmoved ones restore: "at least 15". **The first run read 11 and the prediction was wrong**: 11
+/// of the 20 nodes are on screen (the canvas cull), ten of them unmoved, and the library `List`
+/// (`WindowedRowsLayout`, not `Hashable`), the inspector (`Slider`, an unkeyed leaf) and the top bar
+/// have no signature. The count is now a literal, with the layout lookups it removes (1258 memo
+/// hits -> 362 and 366 cache hits -> 331 against `theBracketNodeDragRebuildsTheWholeWindow`).
 @Test(arguments: [BracketArm.value, BracketArm.panels]) @MainActor
 func aDragFrameRestoresTheUnmovedOccurrencesPlacement(arm: BracketArm) throws {
     let on = try bracketDragFrames(arm: arm, steps: 20, retained: true).frames
@@ -22,9 +25,10 @@ func aDragFrameRestoresTheUnmovedOccurrencesPlacement(arm: BracketArm) throws {
     try #require(on.count == 21 && off.count == 21)
     let f = on[on.count / 2], g = off[off.count / 2]
     #expect(g.layoutSubtreeHits == 0, "no marks, no restores")
-    #expect(f.layoutSubtreeHits >= 15)
-    #expect(f.layoutMemoHits < g.layoutMemoHits)
-    #expect(f.layoutCacheHits < g.layoutCacheHits)
+    #expect(f.layoutSubtreeHits == 11)
+    #expect(f.layoutMemoHits == 362 && g.layoutMemoHits == 1258)
+    #expect(f.layoutCacheHits == 331 && g.layoutCacheHits == 366)
+    #expect(f.layoutMeasureCalls == 52 && f.layoutCacheMisses == 217 && f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
 }
 

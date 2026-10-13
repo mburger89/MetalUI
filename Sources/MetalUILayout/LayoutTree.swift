@@ -959,6 +959,21 @@ public final class LayoutTree {
                         && bounds.width.isFinite && bounds.height.isFinite,
                      "native layout would store a non-finite rect \(bounds) at node \(id) (SA-J)")
         setLayout(id, bounds)
+        // `SB-AD`: a marked root in the place and at the proposal of an earlier placement is
+        // restored from it; otherwise it is placed below and stored on the way out.
+        var recording: LayoutMemo.PlacementKey?
+        if !placementRoots.isEmpty, placementRoots.contains(id.index) {
+            switch subtreePlacement(id, proposal: proposal, bounds: bounds, run: run) {
+            case .restored: return
+            case .record(let key): recording = key
+            case .none: break
+            }
+        }
+        defer {
+            if let recording, let memo = run.memo {
+                memo.storePlacement(recording, preorder(id).map { layouts[$0] })
+            }
+        }
         switch nativeNode(id) {
         case .leaf, .spacer:
             return
@@ -2261,6 +2276,42 @@ extension LayoutTree {
             }
         }
         return true
+    }
+
+    enum SubtreePlacement {
+        case restored
+        case record(LayoutMemo.PlacementKey)
+        case none
+    }
+
+    /// (S), `SB-AD`: asks the memo for a marked root's whole subtree placement. A hit writes the
+    /// subtree's rects, bit for bit the earlier placement's, and places nothing under `id`; a miss
+    /// hands back the key to store under when the placement below is done. A subtree with no
+    /// signature (an unkeyed leaf under it), a leaf, or a suspended memo does neither.
+    fileprivate func subtreePlacement(_ id: LayoutNodeID, proposal: ProposedSize, bounds: LayoutRect,
+                                      run: NativeLayoutRun) -> SubtreePlacement {
+        guard let memo = run.memo, run.memoSuspended == 0, !childLists[id.index].isEmpty,
+              let signature = memo.signatures[id.index] else { return .none }
+        let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
+        let order = preorder(id)
+        guard let rects = memo.lookupPlacement(key), rects.count == order.count else { return .record(key) }
+        run.work.memoSubtreeHits += 1
+        for (offset, index) in order.enumerated() { layouts[index] = rects[offset] }
+        if memo.verifies {
+            let savedCache = run.cache, savedWork = run.work
+            run.cache = [:]
+            run.memoSuspended += 1
+            for index in order { layouts[index] = LayoutRect(x: 0, y: 0, width: 0, height: 0) }
+            placeNative(id, in: bounds, proposal: proposal, run: run)
+            run.memoSuspended -= 1
+            run.cache = savedCache
+            run.work = savedWork
+            for (offset, index) in order.enumerated() {
+                precondition(layouts[index] == rects[offset],
+                             "subtree placement memo differs from a fresh placement at node \(index): memo \(rects[offset]), fresh \(layouts[index]) (IV-J, SB-AD)")
+            }
+        }
+        return .restored
     }
 
     /// Stores the just-placed, not yet rounded rects of a keyed root.

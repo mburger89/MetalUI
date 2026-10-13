@@ -77,19 +77,21 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     #expect(rects(second) == rects(fresh), "a restored placement is a fresh placement, bit for bit")
 }
 
-/// 2.2 — a restore places nothing under the node: the second run's depth and descents shrink.
-/// **Red before:** the deepest level equals the fresh run's. **Mutation:** as 2.1.
+/// 2.2 — a restore places nothing under the node: the second run asks for fewer measurements than
+/// a memo-free run of the same tree, because A's children are not asked about while A is placed. **Red before:** the two runs ask equally often. **Mutation:** as 2.1.
 @Test @MainActor func aRestoredSubtreeIsNotDescended() throws {
+    func requests(_ work: NativeLayoutWork) -> Int { work.cacheHits + work.cacheMisses + work.memoHits + work.memoMisses }
     let memo = LayoutMemo()
     let first = tower(generation: 1, bWidth: 30, memo: memo)
     first.tree.computeNativeLayout(root: first.root, proposal: big, in: bounds)
     memo.endFrame()
     let second = tower(generation: 2, bWidth: 45, memo: memo)
     second.tree.computeNativeLayout(root: second.root, proposal: big, in: bounds)
-    let fresh = tower(generation: 3, bWidth: 45, mark: false, memo: memo)
+    let fresh = tower(generation: 3, bWidth: 45, mark: false, memo: nil)
     fresh.tree.computeNativeLayout(root: fresh.root, proposal: big, in: bounds)
-    #expect(second.tree.lastNativeLayoutDeepestLevel < fresh.tree.lastNativeLayoutDeepestLevel,
-            "A's leaves are not entered when A is restored")
+    #expect(second.tree.lastNativeLayoutWork.memoSubtreeHits == 1)
+    #expect(requests(second.tree.lastNativeLayoutWork) < requests(fresh.tree.lastNativeLayoutWork),
+            "A's leaves are not asked about when A is restored")
 }
 
 /// 2.3 — **no translation**: a marked subtree whose bounds moved is placed fresh. B before A
