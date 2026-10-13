@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **149 live divergences**, each measured (a probe
+place it knowingly does not: **151 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -177,6 +177,8 @@ scheduled).
 | 276 | a window drag moves a window on AppKit only | SwiftUI's gesture moves the window on macOS (macOS 15 and later); it does not exist elsewhere | `PlatformWindow.performWindowDrag()` is AppKit's `performDrag(with:)`; SDL records the request and answers `false` (the system title bar drags itself; no hit-test region list, client-side decorations are deferred, `AS-E` item 6); the gesture still ends and cuts its neighbours on every platform | `WD-F` | `aPlatformAnsweringFalseStillEndsThePress` | none |
 | 277 | an `.opacity(0)` handle still captures | SwiftUI's `.opacity(0)` region is inert and the view beneath receives the press (probe `swiftui-window-drag.swift` `W8c`, positive control `W8f`) | MetalUI gates no hitbox on opacity for any gesture, so an `.opacity(0)` handle still captures and drags; `.hidden()` is the way to remove it | `WD-J` | `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` (fourth arm) | none |
 | 315 | a material under Reduce Transparency | not measured: SwiftUI's own `@Environment(\.accessibilityReduceTransparency)` still reads `false` while the swizzled `NSWorkspace` getter reads `true`, and a hosted material's pixels do not move (probe `swiftui-material-followups.swift` `T0`, `T1`; two probes in a row, `BB-I`'s `T` the first) | with `accessibilityReduceTransparency` true every material draws the scheme's fitted tint grey at alpha 1 as an ordinary rect, never a backdrop record (light ultraThin 0.925 … bar 1.0; dark 0.2248 … 0.1779): no split, no blur pass, no frame-target copy (`MT-F`); SDL answers `false` and never fires (`MT-E`); the grey is a ruling, not a copy | `MT-F`, `MT-E` | `everyMaterialSiteDrawsAnOpaqueRectUnderReduceTransparency`, `reduceTransparencyCostsNoBlurWork`, `aWindowWithoutReduceTransparencyDrawsTheSameSceneAsBefore` | human check MT-1 compares the grey against a real SwiftUI window with the system setting on; an SDL OS query (none scheduled) |
+| 325 | the accessibility value while an input method composes | AppKit's field editor answers with the marked text included (probe `swiftui-ime-composition.swift` A, Ae `editorAX`); the SwiftUI element's own AX value is unprobed (`ax=[]`), so no claim about it | `AXNode.value` is the committed text; marked text is not in the accessibility tree (human check IM-1) | `IM-E` | `theFieldsAccessibilityValueIsTheCommittedTextWhileComposing` | none |
+| 326 | a selection binding while an input method composes | SwiftUI publishes the selection during composition in the field editor's coordinates (`OUT-OF-RANGE` once the marked text outgrows the string) and applies a write at once (probe A, B, W, WU) | the write is held back and nothing is published until the commit, whose publish supersedes it (`SL-H`) | `IM-G` | `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit` | none |
 
 ## Retired
 

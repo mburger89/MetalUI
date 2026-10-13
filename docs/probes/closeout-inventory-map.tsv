@@ -542,7 +542,7 @@ M	MetalUI	PointerStyle.swift	-	PointerStyleModifier	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	.*	.*	.*	input-apis-pointer-style
 M	MetalUI	ScrollWheel.swift	.*	.*	.*	input-apis-wheel
 M	MetalUITesting	(TestHarnessError|HeadlessPlatform|HeadlessPlatformWindow|HeadlessWindowRenderer|TestApp|TestWindow|TestWindowInput|FrameWork)\.swift	.*	.*	.*	test-harness-host
-M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindowPresentations|TestAppMenuBar|MenuEvaluation)\.swift	.*	.*	.*	test-harness-inspection
+M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindowPresentations|TestAppMenuBar|MenuEvaluation|TestWindowInputMethod)\.swift	.*	.*	.*	test-harness-inspection
 M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
 M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag

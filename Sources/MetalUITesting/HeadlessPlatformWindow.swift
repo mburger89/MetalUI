@@ -220,7 +220,17 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     }
 
     /// Records the caret rect (`nil`: text input stopped).
-    public func setTextInputArea(_ caret: Bounds<Pixels>?) { textInputAreas.append(caret) }
+    /// A `nil` caret discards the input method's marked text with no event to
+    /// `Window`, as `MetalHostView.textInputCaret.didSet` does (ruling `IM-C`).
+    public func setTextInputArea(_ caret: Bounds<Pixels>?) {
+        textInputAreas.append(caret)
+        if caret == nil { markedText = "" }
+    }
+
+    /// The input method's current marked text, as `MetalHostView.markedText`
+    /// holds it: set by a delivered `.textComposition`, cleared by a delivered
+    /// `.textInput` and when the caret goes (ruling `IM-C`).
+    public private(set) var markedText: String = ""
 
     /// Reads ``clipboard``.
     public func readClipboard() -> String? { clipboard }
@@ -325,6 +335,11 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             if scroll.timestamp == 0 { scroll.timestamp = currentTime }
             scroll.location = scroll.position
             return onInput?(.scrollWheel(scroll)) ?? false
+        }
+        switch event {
+        case .textComposition(let composition): markedText = composition.text
+        case .textInput: markedText = ""
+        default: break
         }
         return onInput?(event) ?? false
     }
