@@ -177,6 +177,17 @@ public struct EnvironmentValues {
     /// becomes an opacity cross-fade on the same animation.
     public internal(set) var accessibilityReduceMotion: Bool = false
 
+    /// Whether the user asked the system to reduce transparency (SwiftUI's
+    /// `accessibilityReduceTransparency`, `MT-D`). `false` in a bare value and in
+    /// `renderFrame`; the window stamps its platform window's value over its root
+    /// environment at every draw, beside `accessibilityReduceMotion`. When `true`
+    /// every `Material` draws an opaque grey instead of a blur (`MT-F`, divergence
+    /// 315).
+    ///
+    /// **Get-only outside the module**, as SwiftUI's key path is: a scope cannot
+    /// write it (`aScopeCannotWriteReduceTransparency`).
+    public internal(set) var accessibilityReduceTransparency: Bool = false
+
     /// How far a hidden title bar overlaps the content (ruling `AS-E` item 4,
     /// MetalUI-only — SwiftUI keeps the content in a safe area instead,
     /// divergence 175): `top` is the bar's height (32 points on macOS, more

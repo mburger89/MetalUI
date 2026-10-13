@@ -2252,6 +2252,16 @@ on the blank padding ends editing in the Name field (`METALUI_KEY_FOCUS_DEMO=1`)
 is one move with no flicker; RF-3 a right-click on the padding resigns nothing and hovering it with
 nothing focused routes no Tab.
 
+## 2026-10-13: material follow-ups (record §101) — looks owed
+
+The fourteen offscreen images are compared against `930db4a` in record §101 §6; no window was driven and
+the system's Reduce Transparency setting was never touched (probe `swiftui-material-followups.swift` `T0`
+shows the swizzle cannot move SwiftUI). **Owed, new here — `docs/verification/human-checks.md` group MT,
+none performed (an agent cannot)**: MT-1 the system setting on and off turns every material to a flat grey
+and back with no relaunch, and the grey is compared with a SwiftUI material (divergence 315); MT-2 no
+backdrop blur passes while it is on; MT-3 MetalCreator's glass panel at the solved `Material.tint(in:)`
+hides the role's share of the backdrop.
+
 ## 2026-10-12: input-method driver (record §102) — looks owed
 
 No window was driven and no real input method was run; the fourteen offscreen images are compared in §102 §5.
@@ -2259,3 +2269,5 @@ No window was driven and no real input method was run; the fourteen offscreen im
 VoiceOver on a field while a candidate is marked (`IM-E`); IM2 a real input method on macOS and SDL: underline at
 the caret, one write per commit, Escape keeps a selected word, the candidate window at the caret; IM3 cancel over a
 selection on AppKit's `NSTextField` for comparison.
+
+**Owed, new here — `docs/verification/human-checks.md` group GD, none performed (an agent cannot)** (record §103): GD1 a person new to the framework reads each of the six guides against the running demo and marks every surprising step; the compile check cannot see whether a guide teaches.

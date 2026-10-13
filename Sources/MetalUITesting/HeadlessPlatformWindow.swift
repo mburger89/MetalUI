@@ -46,13 +46,18 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// What `performWindowDrag` answers: `true` (AppKit, during a drag) or
         /// `false` (SDL).
         public var performsWindowDrag: Bool
+        /// Whether Reduce Transparency is on when the window opens (`false`,
+        /// AppKit's answer with the setting off); ``HeadlessPlatformWindow/simulateReduceTransparencyChange(to:)``
+        /// changes it later.
+        public var accessibilityReduceTransparency: Bool
 
         /// Options with every field given, each defaulting to AppKit's answer.
         public init(appearance: Appearance = .light, scaleFactor: Float = 1,
                     presentsMenusNatively: Bool = true, presentsAlertsNatively: Bool = true,
                     presentsFileDialogs: Bool = true, showsToolbarNatively: Bool = true,
                     appliesTitleBarStyle: Bool = true, externalDragResult: Bool = false,
-                    accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true) {
+                    accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true,
+                    accessibilityReduceTransparency: Bool = false) {
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -63,6 +68,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             self.externalDragResult = externalDragResult
             self.accessibilityClientActive = accessibilityClientActive
             self.performsWindowDrag = performsWindowDrag
+            self.accessibilityReduceTransparency = accessibilityReduceTransparency
         }
     }
 
@@ -78,6 +84,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         self.contentSize = size
         self.scaleFactor = options.scaleFactor
         self.appearance = options.appearance
+        self.accessibilityReduceTransparency = options.accessibilityReduceTransparency
         self.headlessRenderer = HeadlessWindowRenderer(scaleFactor: options.scaleFactor)
         self.title = title
         self.titleWrites = []
@@ -104,6 +111,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var controlActiveState: ControlActiveState = .key
     /// Reduce Motion; `false` until ``simulateReduceMotionChange(to:)``.
     public private(set) var accessibilityReduceMotion = false
+    /// Reduce Transparency; ``Options/accessibilityReduceTransparency`` until
+    /// ``simulateReduceTransparencyChange(to:)``.
+    public private(set) var accessibilityReduceTransparency: Bool
 
     // MARK: Callbacks the window installs
 
@@ -117,6 +127,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public var onControlActiveStateChange: ((ControlActiveState) -> Void)?
     /// Installed by `Window`; ``simulateReduceMotionChange(to:)`` calls it.
     public var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+    /// Installed by `Window`; ``simulateReduceTransparencyChange(to:)`` calls it.
+    public var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
     /// Installed by the app; fires once when the window closes.
     public var onClose: (() -> Void)?
     /// Installed by `Window`; asked by ``simulateCloseRequest()``.
@@ -369,6 +381,13 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public func simulateReduceMotionChange(to value: Bool) {
         accessibilityReduceMotion = value
         onAccessibilityReduceMotionChange?(value)
+    }
+
+    /// The user turned Reduce Transparency on or off: records the value and tells
+    /// the window.
+    public func simulateReduceTransparencyChange(to value: Bool) {
+        accessibilityReduceTransparency = value
+        onAccessibilityReduceTransparencyChange?(value)
     }
 
     /// A user's close request (the close button, ⌘W, Alt-F4): ``onCloseRequest``

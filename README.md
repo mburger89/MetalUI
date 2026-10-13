@@ -111,6 +111,11 @@ script that bundles a signed `.app` — see
 swift run --package-path MetalUI metalui new MyApp   # from beside a clone
 ```
 
+Task-led guides for an app author coming from SwiftUI (layout, state and
+identity, input, presentations and the app shell, drawing and the GPU,
+cross-platform) are in [`docs/guides/`](docs/guides/README.md); every code
+block in them is compiled by the test suite.
+
 Demo keys: **M** modal, **Space** theme, **F**/**Escape** focus, **=**/**-**
 count, **A** animation, **Q** quit.
 
@@ -476,7 +481,7 @@ spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframe
 (divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
 167); `.ultraThinMaterial` … `.bar` blur what is drawn beneath them (a GPU surface
-included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–249). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
+included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–248), `Material.tint(in:)` reads a material's tint, and `\.accessibilityReduceTransparency` swaps the blur for an opaque grey (item C27, record §101; divergence 315). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
 **App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
 `Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
 `replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same

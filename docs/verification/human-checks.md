@@ -1490,6 +1490,23 @@ headless by `ResignOnPressTests` and `ResignOnPressHarnessTests`.
   nothing focused and pressing Tab opens nothing (no key routing by hover).
   **Observed:**
 
+## MT. Material follow-ups — Reduce Transparency and the tint read (item C27, user request 2026-10-02, not a plan task; record §101; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*Run `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` (the material section). **An agent cannot toggle the
+system's Reduce Transparency setting** (it changes the user's own settings; probe
+`swiftui-material-followups.swift` `T0`/`T1` could not move SwiftUI either).* Rulings `MT-A`…`MT-K`;
+pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` and `HarnessReduceTransparencyTests`.
+
+- [ ] **MT-1.** AppKit: with the looks demo open, turn System Settings ▸ Accessibility ▸ Display ▸ Reduce
+  transparency on and off; every material goes to its flat grey and back with no relaunch and no
+  flicker. Compare the grey against a SwiftUI app's `.regularMaterial` panel with the setting on
+  (divergence 315, `MT-F`): note the difference per scheme. **Observed:**
+- [ ] **MT-2.** AppKit: while the setting is on, Instruments (Metal System Trace) or Activity Monitor's
+  GPU history shows no backdrop blur passes in the looks demo. **Observed:**
+- [ ] **MT-3.** MetalCreator adoption (`Material.tint(in:)`): a glass panel at the solved tint
+  `t = 1 − (1 − g)/(1 − m)` over a grey backdrop hides `g` of it (compare the panel's pixel with
+  `1 − g` of the backdrop). **Observed:**
+
 ## IM. Input-method driver — what only a real input method shows (item C28, user request 2026-10-02, MetalCreator CT-d, not a plan task; record §102)
 
 *An agent cannot: these need a real input method (Pinyin, Kana, IBus/fcitx, Windows IME) and VoiceOver.*
@@ -1501,6 +1518,15 @@ headless by `ResignOnPressTests` and `ResignOnPressHarnessTests`.
   candidate window sits at the caret (the harness sends the platforms' own events, `IM-B`, but cannot see this).
   **Observed:**
 - [ ] **IM3.** Cancel over a selection on AppKit's own `NSTextField`, for comparison with `IM-F`. **Observed:**
+
+## GD. Developer guides — a reader's pass (item 10b, user request 2026-10-02, not a plan task; record §103)
+
+*An agent cannot: it needs a person who does not already know the framework.*
+
+- [ ] **GD1.** A person coming from SwiftUI reads each of the six guides in `docs/guides/` once with the demo
+  running (`swift run MetalUIDemo`) and marks every step that surprises them or every sentence that did not match
+  what they saw (`DG-A`, `DG-B`). The compile check proves the blocks build and the pinned claims hold in a
+  headless window (`DG-C`); it cannot see whether a guide teaches. **Observed:**
 
 ## Sign-off
 

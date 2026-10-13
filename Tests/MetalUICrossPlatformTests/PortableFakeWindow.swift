@@ -42,6 +42,8 @@ final class PortableFakeWindow: PlatformWindow {
     var onControlActiveStateChange: ((ControlActiveState) -> Void)?
     var accessibilityReduceMotion = false
     var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+    var accessibilityReduceTransparency = false
+    var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
     var onClose: (() -> Void)?
     var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
     private var tick: ((Double) -> Void)?
