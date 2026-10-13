@@ -46,7 +46,7 @@ rule (`CLAUDE.md`, `@State`) is that a write made during a phase is silently sta
 
 ## How do I share a model across the tree?
 
-Make the model an `@Observable` class, provide it once with `.environment(_:)`, and read it
+Make the model an `@Observable` class, provide it once with `.environment(_:)` on a subtree, and read it
 with `@Environment(Type.self)`. The object is found by its static type, the nearest provider
 wins, and a missing one traps with a message naming the type (divergence 134). `@Bindable` and
 `ObservableObject` are not offered.
@@ -83,11 +83,12 @@ struct StateTodoList: Component {
     }
 }
 
-/// The store is provided once, at the root.
+/// The store is provided once, around the component that reads it.
 @MainActor
 func stateTodoRoot(_ store: StateTodoStore) -> some Element {
-    VStack(alignment: .leading) { StateTodoList() }
-        .environment(store)
+    VStack(alignment: .leading) {
+        StateTodoList().environment(store)
+    }
 }
 ```
 

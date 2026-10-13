@@ -14,7 +14,9 @@ The pixel unit is `Pixels` (window points): write `Pixels(8)`, or a bare literal
 ## How do I build a card with stacks and frames?
 
 A card is a `VStack` of a title and an `HStack` whose `Spacer` pushes the two labels apart.
-`.padding`, `.frame` and `.background` wrap it, outermost last.
+`.padding`, `.frame` and `.background` wrap it, outermost last. On SwiftUI-vocabulary content
+`.padding` takes `Edges`, so an equal inset is `Edges(all: Pixels(16))`; a legacy `Box` or `Row` takes a
+bare `Pixels`.
 
 ```swift
 import MetalUI
@@ -30,7 +32,7 @@ func layoutProfileCard() -> some Element {
             Text("1815")
         }
     }
-    .padding(Pixels(16))
+    .padding(Edges(all: Pixels(16)))
     .frame(width: Pixels(240))
     .background(.surface)
 }
@@ -88,20 +90,28 @@ test reads both fills back by their ids: 40 points wide in the first, 20 in the 
 `theLayoutGuideBackgroundFollowsTheModifierOrder`).
 
 ```swift
+/// A fill that takes whatever it is proposed; a `Box` is the leaf the harness reads by id.
+@MainActor
+func layoutFill(_ name: String) -> some ProposalElementGroup {
+    HStack {
+        Box().frame(maxWidth: .infinity, maxHeight: .infinity).id(name)
+    }
+}
+
 /// The fill sits outside the padding: it measures 40 × 40.
 @MainActor
 func layoutPaddingThenBackground() -> some Element {
-    Color.clear.frame(width: Pixels(20), height: Pixels(20))
-        .padding(Pixels(10))
-        .background { Color.gray.id("fill-outside") }
+    Rectangle().frame(width: Pixels(20), height: Pixels(20))
+        .padding(Edges(all: Pixels(10)))
+        .background(alignment: .center) { layoutFill("fill-outside") }
 }
 
 /// The fill sits inside the padding: it measures 20 × 20.
 @MainActor
 func layoutBackgroundThenPadding() -> some Element {
-    Color.clear.frame(width: Pixels(20), height: Pixels(20))
-        .background { Color.gray.id("fill-inside") }
-        .padding(Pixels(10))
+    Rectangle().frame(width: Pixels(20), height: Pixels(20))
+        .background(alignment: .center) { layoutFill("fill-inside") }
+        .padding(Edges(all: Pixels(10)))
 }
 ```
 
@@ -116,9 +126,11 @@ relies on it.
 /// `.id` last: the name belongs to the padded element, 40 × 40.
 @MainActor
 func layoutNamedWhole() -> some Element {
-    Color.clear.frame(width: Pixels(20), height: Pixels(20))
-        .padding(Pixels(10))
-        .id("whole")
+    HStack {
+        Box().frame(width: Pixels(20), height: Pixels(20))
+            .padding(Pixels(10))
+            .id("whole")
+    }
 }
 ```
 

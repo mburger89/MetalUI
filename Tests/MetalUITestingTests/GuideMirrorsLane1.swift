@@ -13,6 +13,307 @@ import Testing
 // Mutations: delete the modifier a test names (the second `.padding`, the `.id(...)`, the
 // `.onCancelled`, `.hoverKeyRegion()`).
 
+// guide: layout #1
+import MetalUI
+
+/// A profile card: a title over a row whose spacer pushes two labels apart.
+@MainActor
+func layoutProfileCard() -> some Element {
+    VStack(alignment: .leading, spacing: Pixels(8)) {
+        Text("Ada Lovelace").font(size: 20)
+        HStack {
+            Text("Mathematician")
+            Spacer()
+            Text("1815")
+        }
+    }
+    .padding(Edges(all: Pixels(16)))
+    .frame(width: Pixels(240))
+    .background(.surface)
+}
+// end guide
+
+// guide: layout #2
+/// Two 20-point boxes in a legacy `Row`: no gap.
+@MainActor
+func layoutLegacyRow() -> some Element {
+    Row {
+        Box().frame(width: Pixels(20), height: Pixels(20)).id("legacy-a")
+        Box().frame(width: Pixels(20), height: Pixels(20)).id("legacy-b")
+    }
+}
+
+/// The same boxes in an `HStack`: the default spacing of 8.
+@MainActor
+func layoutStackRow() -> some Element {
+    HStack {
+        Box().frame(width: Pixels(20), height: Pixels(20)).id("stack-a")
+        Box().frame(width: Pixels(20), height: Pixels(20)).id("stack-b")
+    }
+}
+// end guide
+
+// guide: layout #3
+/// A fill that takes whatever it is proposed; a `Box` is the leaf the harness reads by id.
+@MainActor
+func layoutFill(_ name: String) -> some ProposalElementGroup {
+    HStack {
+        Box().frame(maxWidth: .infinity, maxHeight: .infinity).id(name)
+    }
+}
+
+/// The fill sits outside the padding: it measures 40 × 40.
+@MainActor
+func layoutPaddingThenBackground() -> some Element {
+    Rectangle().frame(width: Pixels(20), height: Pixels(20))
+        .padding(Edges(all: Pixels(10)))
+        .background(alignment: .center) { layoutFill("fill-outside") }
+}
+
+/// The fill sits inside the padding: it measures 20 × 20.
+@MainActor
+func layoutBackgroundThenPadding() -> some Element {
+    Rectangle().frame(width: Pixels(20), height: Pixels(20))
+        .background(alignment: .center) { layoutFill("fill-inside") }
+        .padding(Edges(all: Pixels(10)))
+}
+// end guide
+
+// guide: layout #4
+/// `.id` last: the name belongs to the padded element, 40 × 40.
+@MainActor
+func layoutNamedWhole() -> some Element {
+    HStack {
+        Box().frame(width: Pixels(20), height: Pixels(20))
+            .padding(Pixels(10))
+            .id("whole")
+    }
+}
+// end guide
+
+// guide: layout #5
+/// Two rows of two cells: column one is 60 wide, column two starts after it.
+@MainActor
+func layoutGrid() -> some Element {
+    Grid(alignment: .topLeading, horizontalSpacing: Pixels(8), verticalSpacing: Pixels(4)) {
+        GridRow {
+            Box().frame(width: Pixels(40), height: Pixels(10)).id("cell-a1")
+            Box().frame(width: Pixels(80), height: Pixels(10)).id("cell-a2")
+        }
+        GridRow {
+            Box().frame(width: Pixels(60), height: Pixels(10)).id("cell-b1")
+            Box().frame(width: Pixels(20), height: Pixels(10)).id("cell-b2")
+        }
+    }
+}
+// end guide
+
+// guide: state-and-identity #1
+import MetalUI
+
+/// `@State` lives as long as the component keeps its place in the tree;
+/// `$name` is a `Binding` to it.
+struct StateGreeting: Component {
+    @State var name = "Ada"
+    @State var greetings = 0
+
+    var content: some ElementGroup {
+        TextField("Name", text: $name)
+        Button("Greet") { greetings += 1 }
+        Text("Hello \(name), greeted \(greetings) times")
+    }
+}
+
+/// The window's root: any container takes the component.
+@MainActor
+func stateGreetingRoot() -> some Element {
+    VStack(alignment: .leading) { StateGreeting() }
+}
+// end guide
+
+// guide: state-and-identity #2
+import Observation
+
+/// A shared model: an `@Observable` class, provided once and read by type.
+@Observable @MainActor
+final class StateTodoStore {
+    var items = ["Write", "Test", "Ship"]
+
+    func reverse() { items.reverse() }
+}
+
+/// A row's `@State` follows its value: the `ForEach` below uses the item as the id.
+struct StateTodoRow: Component {
+    let title: String
+    @State var taps = 0
+
+    var content: some ElementGroup {
+        Button("\(title): \(taps)") { taps += 1 }
+    }
+}
+
+struct StateTodoList: Component {
+    @Environment(StateTodoStore.self) var store
+
+    var content: some ElementGroup {
+        Button("Reverse") { store.reverse() }
+        ForEach(store.items, id: \.self) { item in
+            StateTodoRow(title: item)
+        }
+    }
+}
+
+/// The store is provided once, around the component that reads it.
+@MainActor
+func stateTodoRoot(_ store: StateTodoStore) -> some Element {
+    VStack(alignment: .leading) {
+        StateTodoList().environment(store)
+    }
+}
+// end guide
+
+// guide: state-and-identity #3
+struct StateTaps: Component {
+    @State var taps = 0
+
+    var content: some ElementGroup {
+        Button("Taps: \(taps)") { taps += 1 }
+    }
+}
+
+/// "Toggle" hides and shows the counter; "New id" gives it another name.
+struct StateLosses: Component {
+    @State var shown = true
+    @State var generation = 0
+
+    var content: some ElementGroup {
+        Button("Toggle") { shown.toggle() }
+        Button("New id") { generation += 1 }
+        if shown {
+            StateTaps().id("taps-\(generation)")
+        }
+    }
+}
+// end guide
+
+// guide: state-and-identity #4
+struct StateRowItem: Identifiable {
+    let id: Int
+    var title: String { "Row \(id)" }
+}
+
+struct StateRowPicker: Component {
+    @State var picked: Set<Int> = []
+    let items = (0..<200).map { StateRowItem(id: $0) }
+
+    var content: some ElementGroup {
+        Text("Selected: \(picked.count)")
+        ScrollView {
+            List(items, selection: $picked) { item in
+                Text(item.title).padding(Pixels(6))
+            }
+        }
+        .frame(height: Pixels(200))
+    }
+}
+// end guide
+
+// guide: input #1
+import MetalUI
+
+/// A button and a toggle over `@State`.
+struct InputControls: Component {
+    @State var count = 0
+    @State var notifications = true
+
+    var content: some ElementGroup {
+        Button("Add") { count += 1 }
+        Toggle("Notifications", isOn: $notifications)
+        Text("Count \(count)")
+    }
+}
+
+@MainActor
+func inputControlsRoot() -> some Element {
+    VStack(alignment: .leading) { InputControls() }
+}
+// end guide
+
+// guide: input #2
+/// What a gesture saw, in order.
+@MainActor
+final class InputGestureLog {
+    var entries: [String] = []
+}
+
+/// A drag pad that logs `changed`, `ended` and `cancelled`.
+@MainActor
+func inputDragPad(_ log: InputGestureLog) -> some Element {
+    Rectangle()
+        .frame(width: Pixels(200), height: Pixels(100))
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in log.entries.append("changed") }
+                .onEnded { _ in log.entries.append("ended") }
+                .onCancelled { log.entries.append("cancelled") }
+        )
+}
+// end guide
+
+// guide: input #3
+/// A full-window viewport with a 32-point drag handle on top of it.
+@MainActor
+func inputWindowDragHandle() -> some Element {
+    ZStack(alignment: .top) {
+        Rectangle().frame(width: Pixels(300), height: Pixels(300))
+        Rectangle().frame(width: Pixels(300), height: Pixels(32)).gesture(WindowDragGesture())
+    }
+}
+// end guide
+
+// guide: input #4
+/// What a key handler saw.
+@MainActor
+final class InputKeyLog {
+    var entries: [String] = []
+}
+
+/// A canvas stand-in that is a key region and handles Space.
+@MainActor
+func inputKeyRegion(_ log: InputKeyLog) -> some Element {
+    Rectangle()
+        .frame(width: Pixels(120), height: Pixels(80))
+        .hoverKeyRegion()
+        .onKeyPress(keys: [.space]) { _ in
+            log.entries.append("space")
+            return .handled
+        }
+}
+// end guide
+
+// guide: input #5
+/// A field whose selection the app can read and write.
+@available(macOS 15, *)
+struct InputRename: Component {
+    @State var title = "Quarterly plan"
+    @State var selection: TextSelection?
+
+    var content: some ElementGroup {
+        TextField("Title", text: $title, selection: $selection)
+        Button("Select all") {
+            selection = TextSelection(range: title.startIndex..<title.endIndex)
+        }
+        Text(selection == nil ? "no selection" : "selection set")
+    }
+}
+
+@available(macOS 15, *)
+@MainActor
+func inputRenameRoot() -> some Element {
+    VStack(alignment: .leading) { InputRename() }
+}
+// end guide
+
 
 // MARK: - Tests
 
@@ -144,6 +445,7 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
 /// Mutation: `List` to a `ForEach` in a `Column` (every row is built).
 @Test @MainActor func theStateGuideAListBuildsOnlyItsWindowAndSelectsOnClick() throws {
     let window = try harnessWindow { VStack { StateRowPicker() } }
+    window.tick()   // a List asks for one more frame when its window would grow
     _ = try window.element(label: "Selected: 0")
     _ = try window.element(label: "Row 0")
     #expect(stateLabelIsAbsent(window, "Row 150"), "a row out of the window is not in the tree")
