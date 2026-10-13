@@ -873,6 +873,9 @@ public final class Window {
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+        // `IV-C`: a memo session reports through the observation entry point
+        // (the `isFlushing` guard and `observationDirtyings` included).
+        stateTable.contentMemos.markDirty = { [weak self] in self?.markDirtyFromObservation() }
         scrollRequests.onEnqueue = { [weak self] in self?.setNeedsRedraw() }
 
         // Also the backing-scale path (ruling EV-AA): both platforms report a

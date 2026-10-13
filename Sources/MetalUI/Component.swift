@@ -185,6 +185,19 @@ extension Component {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ComponentLayout<Self>) {
+        let id = enterComponent(under: parent, at: &cursor, pass: &pass)
+        var materialized = content
+        return finishComponent(&materialized, id: id, pass: &pass)
+    }
+
+    /// The first half of `requestGroupLayout`: the component's identity level,
+    /// its `@State` bind and its one cursor index. Split out so
+    /// `EquatableComponent` (`IV-B`) can replace only the `content` evaluation
+    /// between the halves; the bare path above is these two calls around
+    /// `var materialized = content`, nothing else.
+    func enterComponent(under parent: GlobalElementID?,
+                        at cursor: inout Int,
+                        pass: inout LayoutPass) -> GlobalElementID {
         StackMeter.sample(component: Self.self)   // `PE-L` item 2
         // The component's own identity level. `child(of:at:name:)` decides
         // whether that is a `.named` component or a `.positional` one — the
@@ -280,7 +293,15 @@ extension Component {
         // and `addingAModifierDoesNotResetAComponentsState` both stay green
         // under this mutation. Recorded as re-checked, not left unremarked.
         cursor += 1
-        var materialized = content
+        return id
+    }
+
+    /// The second half of `requestGroupLayout`: lays out the materialized
+    /// content under the component's id with a fresh cursor and returns its
+    /// nodes unchanged. `materialized` is mutated (it receives its layout).
+    func finishComponent(_ materialized: inout Content,
+                         id: GlobalElementID,
+                         pass: inout LayoutPass) -> ([LayoutNodeID], ComponentLayout<Self>) {
         var innerCursor = 0
         // `requestGroupLayout`, never `requestLayout` — this is what reaches
         // `StateBinder.bind` for every element inside `content`. Calling

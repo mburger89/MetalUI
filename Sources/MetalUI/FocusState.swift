@@ -135,7 +135,7 @@ public struct FocusState<Value: Hashable> {
     }
 }
 
-extension FocusState: BindableState {
+extension FocusState: BindableFocusState {
     func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
         box.table = table
         let slotID = GlobalElementID.child(of: id, at: slot, name: ElementID("$state\(slot)"))

@@ -150,7 +150,22 @@ final class StateTable {
         var value: Any
         var lastSeenGeneration: UInt64
         var isLive: Bool
+        /// Unique per write (`StateTable.nextVersion`); 0 is "no entry". The
+        /// content memo compares it (`IV-D`), so a removed and re-created entry
+        /// never repeats a number.
+        var version: UInt64 = 0
     }
+
+    /// The last version handed out; every `withState` and `write` takes the next.
+    private var versionCounter: UInt64 = 0
+
+    /// The window's content memos (`IV-B`), hosted here because `Frame` already
+    /// receives this table; swept with it, at the end of `sweep()`.
+    let contentMemos = ContentMemoStore()
+
+    /// The version of the entry at `id`, 0 when absent: changes on every
+    /// `write` and `withState`, never repeats (`IV-D` item 1).
+    func entryVersion(_ id: GlobalElementID) -> UInt64 { storage[id]?.version ?? 0 }
 
     private var storage: [GlobalElementID: Entry] = [:]
     private var marked: Set<GlobalElementID> = []
@@ -701,7 +716,9 @@ final class StateTable {
             value = initial()
         }
         body(&value)
-        storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
+        versionCounter &+= 1
+        storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true,
+                            version: versionCounter)
         writeCount += 1
     }
 
@@ -789,7 +806,9 @@ final class StateTable {
             departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
         }
-        storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
+        versionCounter &+= 1
+        storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true,
+                            version: versionCounter)
         isDirty = true
         onWrite?()
     }
@@ -955,6 +974,7 @@ final class StateTable {
                 storage.removeValue(forKey: id)
             }
         }
+        contentMemos.endFrame()   // `IV-B`: untouched memos go, their sessions are spent
     }
 }
 

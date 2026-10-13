@@ -27,6 +27,14 @@ public struct FrameWork: Sendable, Equatable {
     public var rasterizedPixels: Int
     /// Device pixels blurred on the CPU (shadow and blur misses).
     public var blurredPixels: Int
+    /// `content` getters evaluated by `.equatable()` components (`IV-B`).
+    public var contentEvaluations: Int
+    /// Getters an `.equatable()` component skipped (value, `@State` and
+    /// observed reads unchanged).
+    public var contentSkips: Int
+    /// `.equatable()` components refused for an `@Environment` or `@FocusState`
+    /// and evaluated anyway (divergence 346).
+    public var contentRefusals: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -45,7 +53,8 @@ public struct FrameWork: Sendable, Equatable {
                 layoutCacheMisses: Int = 0, layoutMemoHits: Int = 0, layoutMemoMisses: Int = 0,
                 layoutMemoRootHits: Int = 0, layoutSignatureNodes: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
                 atlasUploadPixels: Int = 0, newTextures: Int = 0, newTexturePixels: Int = 0,
-                rects: Int = 0, glyphs: Int = 0, images: Int = 0) {
+                rects: Int = 0, glyphs: Int = 0, images: Int = 0,
+                contentEvaluations: Int = 0, contentSkips: Int = 0, contentRefusals: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -62,6 +71,9 @@ public struct FrameWork: Sendable, Equatable {
         self.rects = rects
         self.glyphs = glyphs
         self.images = images
+        self.contentEvaluations = contentEvaluations
+        self.contentSkips = contentSkips
+        self.contentRefusals = contentRefusals
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -79,6 +91,9 @@ public struct FrameWork: Sendable, Equatable {
                   atlasUploadPixels: l.atlasUploadPixels + r.atlasUploadPixels,
                   newTextures: l.newTextures + r.newTextures,
                   newTexturePixels: l.newTexturePixels + r.newTexturePixels,
-                  rects: l.rects + r.rects, glyphs: l.glyphs + r.glyphs, images: l.images + r.images)
+                  rects: l.rects + r.rects, glyphs: l.glyphs + r.glyphs, images: l.images + r.images,
+                  contentEvaluations: l.contentEvaluations + r.contentEvaluations,
+                  contentSkips: l.contentSkips + r.contentSkips,
+                  contentRefusals: l.contentRefusals + r.contentRefusals)
     }
 }
