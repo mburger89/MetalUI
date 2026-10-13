@@ -93,7 +93,7 @@ func stateTodoRoot(_ store: StateTodoStore) -> some Element {
 ```
 
 The frame build is observed, so a write to `store.items` reaches the window (`RX-K`). A test that
-writes a model outside input calls `setNeedsRedraw()` and then `tick()` to draw it on every platform
+writes a model outside input calls `try await window.runUntilIdle()` to draw it on every platform
 ([`testing.md`](../testing.md#the-clock-and-rununtilidle)). Write from input in the app.
 
 ## What keeps a row's state, and what loses it?

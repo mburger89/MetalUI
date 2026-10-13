@@ -269,7 +269,9 @@ client does.
 the rect an element named with `.id("name")` was laid out at, in window
 points, **before** any scroll offset or render effect (the visible rect is the
 accessibility element's `visibleFrame`); `frames(ofID:)` lists every element
-of that name. **Adding `.id` changes identity** — it is the outermost
+of that name. An `.id` on a group (a `Rectangle`, a `ZStack`, a `Component`'s
+content) answers the union of the rects of the nodes the group hands its
+parent: its outermost layer's rect when it is one modified element. **Adding `.id` changes identity** — it is the outermost
 modifier and names a new element, resetting its `@State` — so name what the
 test reads, not everything. A window opened with `recordsLayout: false` (a
 benchmark's) throws `.notRecorded`.
@@ -310,8 +312,9 @@ starts at 0 and moves only by `advance(by:)` (one tick there: a long press
 matures, an animation advances) and `advanceFrames(_:)` (ticks 1/60 s apart);
 `tick()` fires one display-link tick without moving it. A model written
 outside input — from a test, a timer, a `Task` — reaches the window through
-observation; call `window.window.setNeedsRedraw()` then `tick()` to draw its
-frame on every platform (the observation hop is asynchronous off macOS).
+observation; call `try await runUntilIdle()` to draw its frame on every
+platform (the observation hop is asynchronous off macOS). `setNeedsRedraw()`
+then `tick()` draws exactly one frame, deliberately.
 
 `try await runUntilIdle()` lets main-actor work run — a `.task`'s
 continuation, an observation hop — drawing whenever the window is dirty,

@@ -4,6 +4,11 @@ import MetalUILayout
 /// What an `IdentifiedGroup` carries between phases: its content's layout.
 public struct IdentifiedGroupLayout<ContentLayout> {
     var content: ContentLayout
+    /// The group's own id and the nodes its content handed the parent, **kept only when
+    /// the frame records element bounds** (empty otherwise, so a production frame
+    /// allocates nothing): the row `frame(ofID:)` reads (`TW-A`, `TW-B`).
+    var id: GlobalElementID?
+    var nodes: [LayoutNodeID] = []
 }
 
 /// A group named among its siblings: `.id(_:)` on any `ElementGroup` (plan task
@@ -69,12 +74,16 @@ public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
         let id = slot(under: parent, at: &cursor, table: pass.frame.stateTable)
         var inner = 0
         let (nodes, layout) = content.requestGroupLayout(under: id, at: &inner, pass: &pass)
-        return (nodes, IdentifiedGroupLayout(content: layout))
+        return (nodes, IdentifiedGroupLayout(content: layout, id: id,
+                                             nodes: pass.frame.recordsElementBounds ? nodes : []))
     }
 
     public mutating func prepaintGroup(layout: inout IdentifiedGroupLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        if let id = layout.id, !layout.nodes.isEmpty {
+            pass.frame.recordIdentifiedBounds(id, nodes: layout.nodes)
+        }
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paintGroup(layout: inout IdentifiedGroupLayout<Content.GroupLayout>,
@@ -96,7 +105,8 @@ extension IdentifiedGroup: ProposalElementGroup where Content: ProposalElementGr
         let id = slot(under: parent, at: &cursor, table: pass.frame.stateTable)
         var inner = 0
         let (nodes, layout) = content.requestProposalGroupLayout(under: id, at: &inner, pass: &pass)
-        return (nodes, IdentifiedGroupLayout(content: layout))
+        return (nodes, IdentifiedGroupLayout(content: layout, id: id,
+                                             nodes: pass.frame.recordsElementBounds ? nodes.map(\.layoutNodeID) : []))
     }
 }
 
