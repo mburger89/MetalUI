@@ -28,6 +28,8 @@ package struct BuildWork: Sendable, Equatable {
     package var memoMisses = 0
     /// Root runs whose whole placement the memo restored.
     package var memoRootHits = 0
+    /// Marked subtrees whose placement the memo restored (`SB-AD`).
+    package var memoSubtreeHits = 0
     /// Nodes the run's signature pass hashed (`IV-M`).
     package var signatureNodesHashed = 0
     /// `content` getters the build's memoized components evaluated (`IV-B`).
@@ -72,6 +74,7 @@ extension Window {
                                blurredPixels: rasters?.lastBlurredPixels ?? 0,
                                memoHits: work.memoHits, memoMisses: work.memoMisses,
                                memoRootHits: work.memoRootHits,
+                               memoSubtreeHits: work.memoSubtreeHits,
                                signatureNodesHashed: work.signatureNodesHashed,
                                contentEvaluations: memos?.lastEvaluations ?? 0,
                                contentSkips: memos?.lastSkips ?? 0,

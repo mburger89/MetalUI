@@ -164,6 +164,7 @@ final class FrameWorkRecorder {
         pending.layoutMemoHits += work.memoHits
         pending.layoutMemoMisses += work.memoMisses
         pending.layoutMemoRootHits += work.memoRootHits
+        pending.layoutSubtreeHits += work.memoSubtreeHits
         pending.layoutSignatureNodes += work.signatureNodesHashed
         pending.contentEvaluations += work.contentEvaluations
         pending.contentSkips += work.contentSkips

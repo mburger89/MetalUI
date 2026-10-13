@@ -20,6 +20,9 @@ public struct FrameWork: Sendable, Equatable {
     public var layoutMemoMisses: Int
     /// Root layout runs whose whole placement the memo restored.
     public var layoutMemoRootHits: Int
+    /// Marked subtrees (retained `.equatable()` occurrences) whose placement the
+    /// memo restored where they stood (`SB-AD`).
+    public var layoutSubtreeHits: Int
     /// Nodes the layout runs' signature passes hashed (`IV-M`).
     public var layoutSignatureNodes: Int
     /// Device pixels rasterized on the CPU (paths, shadow and blur coverage,
@@ -77,7 +80,7 @@ public struct FrameWork: Sendable, Equatable {
     /// A record with every count given; all zero by default.
     public init(builds: Int = 0, layoutMeasureCalls: Int = 0, layoutCacheHits: Int = 0,
                 layoutCacheMisses: Int = 0, layoutMemoHits: Int = 0, layoutMemoMisses: Int = 0,
-                layoutMemoRootHits: Int = 0, layoutSignatureNodes: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
+                layoutMemoRootHits: Int = 0, layoutSubtreeHits: Int = 0, layoutSignatureNodes: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
                 atlasUploadPixels: Int = 0, newTextures: Int = 0, newTexturePixels: Int = 0,
                 rects: Int = 0, glyphs: Int = 0, images: Int = 0,
                 contentEvaluations: Int = 0, contentSkips: Int = 0, contentRefusals: Int = 0,
@@ -92,6 +95,7 @@ public struct FrameWork: Sendable, Equatable {
         self.layoutMemoHits = layoutMemoHits
         self.layoutMemoMisses = layoutMemoMisses
         self.layoutMemoRootHits = layoutMemoRootHits
+        self.layoutSubtreeHits = layoutSubtreeHits
         self.layoutSignatureNodes = layoutSignatureNodes
         self.rasterizedPixels = rasterizedPixels
         self.blurredPixels = blurredPixels
@@ -125,6 +129,7 @@ public struct FrameWork: Sendable, Equatable {
                   layoutMemoHits: l.layoutMemoHits + r.layoutMemoHits,
                   layoutMemoMisses: l.layoutMemoMisses + r.layoutMemoMisses,
                   layoutMemoRootHits: l.layoutMemoRootHits + r.layoutMemoRootHits,
+                  layoutSubtreeHits: l.layoutSubtreeHits + r.layoutSubtreeHits,
                   layoutSignatureNodes: l.layoutSignatureNodes + r.layoutSignatureNodes,
                   rasterizedPixels: l.rasterizedPixels + r.rasterizedPixels,
                   blurredPixels: l.blurredPixels + r.blurredPixels,

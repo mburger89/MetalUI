@@ -183,6 +183,8 @@ package struct NativeLayoutWork: Equatable {
     package var memoMisses = 0
     /// Root runs whose whole placement the memo restored (`IV-E` (P)).
     package var memoRootHits = 0
+    /// Marked subtrees whose whole placement the memo restored in place (`SB-AD`).
+    package var memoSubtreeHits = 0
     /// Nodes the run's signature pass hashed (`IV-M`): the reachable node count
     /// when a memo is attached, else 0.
     package var signatureNodesHashed = 0

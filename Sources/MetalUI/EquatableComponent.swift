@@ -66,6 +66,8 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // A descendant whose content ran this frame may have changed what the record holds, though this
         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
         if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
+        // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
+        for node in result.0 { frame.tree.markPlacementRoot(node) }
         result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
         return result
     }

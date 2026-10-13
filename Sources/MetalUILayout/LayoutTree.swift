@@ -66,6 +66,15 @@ public final class LayoutTree {
     /// **`package`**: unreachable from a plain import (guard 1.13).
     package var memo: LayoutMemo?
 
+    /// Nodes whose subtree placement the memo may restore in place (`SB-AD`): the roots of
+    /// retained `.equatable()` occurrences. Indices of this tree; a fresh tree starts empty.
+    private var placementRoots: Set<Int> = []
+
+    /// Marks `id` as a subtree-placement root (`SB-AD`). Harmless without a memo.
+    package func markPlacementRoot(_ id: LayoutNodeID) {
+        placementRoots.insert(slot(id))
+    }
+
     /// The axis of the linear stack that marked each spacer, by node index
     /// (ruling CN-C). A marked spacer answers 0 on that stack's CROSS axis.
     /// Written at registration by `newNativeLinearStack`'s walk
@@ -744,6 +753,7 @@ public final class LayoutTree {
         gridCellAnchors.removeAll(keepingCapacity: true)
         gridCellColumnAlignments.removeAll(keepingCapacity: true)
         gridCellUnsizedAxes.removeAll(keepingCapacity: true)
+        placementRoots.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
