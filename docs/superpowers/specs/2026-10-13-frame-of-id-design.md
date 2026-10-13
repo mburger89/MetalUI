@@ -1,8 +1,8 @@
 # Item C30 — `frame(ofID:)` sees proposal `.id`; retired labels in guides; DG-P dropped
 
 Rulings: [`../2026-10-13-frame-of-id-decisions.md`](../2026-10-13-frame-of-id-decisions.md) (`TW-A`…) and
-`DG-W` in `../2026-10-13-guides-followup-decisions.md`. Record: `docs/record/108-frame-of-id.md` (owed at the
-Record phase). Branch `fix/frame-of-id` from `d279f34d`. One lane (implementer), files below. SwiftUI claims:
+`DG-W` in `../2026-10-13-guides-followup-decisions.md`. Record: `docs/record/108-frame-of-id.md` (written,
+§108). **Status: LANDED.** Branch `fix/frame-of-id` from `d279f34d`. One lane (implementer), files below. SwiftUI claims:
 none. `TestWindow.frame(ofID:)` is MetalUI-only (class `M`); the authority is gpui's `debug_bounds` (an element's
 laid-out bounds by its id), named in `TestWindow`'s own doc comment. No probe is owed; none is run.
 

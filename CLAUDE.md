@@ -71,7 +71,7 @@ summary.
   `2026-10-12-material-followups-decisions.md`, next `MT-L`), `TW-` (`frame(ofID:)` on proposal `.id`:
   `2026-10-13-frame-of-id-decisions.md`, next `TW-G`), `IM-` (input-method
   driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `DG-` (developer guides:
-  `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-W`), `BL-` (performance baselines:
+  `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-X`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), …; the full
   prefix → document → record table is in record §69 "Where things are").
