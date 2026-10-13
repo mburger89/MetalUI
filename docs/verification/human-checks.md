@@ -1453,6 +1453,17 @@ agent cannot: these are looks, an input method and other platforms.*
   undo: the undo removes the typing, not the caret move (`SL-I`).
   **Observed:**
 
+## GT. Text over a GPU surface — measured labels (item C23, user request 2026-10-02, MetalCreator S5-c, not a plan task; record §99)
+
+*No demo changed and the fourteen images read 0 px; the measure and the portable layout cache
+are counted headless. This look is shared with MetalCreator's own check S5c-6. An agent
+cannot: a camera moving over a real viewport is a look.*
+
+- [ ] **GT1.** In a 20-label sketch (MetalCreator's viewport), labels sized with
+  `@Environment(\.textMeasurer)` get chips that hug their text (no 7-points-a-character
+  slack); moving the camera shows no label hitching on a Mac and on the SDL backend; labels
+  placed from a `MetalView` viewport's pose stay on their anchors during a pan. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

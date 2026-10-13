@@ -2226,3 +2226,11 @@ the title opens its field with the whole title selected and typing replaces it; 
 caret at the end; SL3 a Japanese input method composing in the title field while the binding is written
 (`SL-H`); SL4 click, arrows and Shift-arrows publish to the binding; SL5 the same on Linux (SDL) and
 Windows; SL6 undo after "Caret to start" removes the typing, not the caret move (`SL-I`).
+
+## 2026-10-12: text over a GPU surface (record §99) — one look owed
+
+The fourteen offscreen images read 0 differing pixels against `d6a815c`; no demo changed and no
+real-window capture was taken. **Owed, new here — `docs/verification/human-checks.md` group GT,
+none performed (an agent cannot)**: GT1 measured chips hug a 20-label viewport's text, no hitching
+under camera motion on a Mac and on SDL, labels stay on their anchors during a pan (shared with
+MetalCreator's S5c-6).

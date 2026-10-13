@@ -8,6 +8,8 @@ design phase as a printing measurement; the lane-1 agent turns it into test
 1.10 below in the same file; table in the decisions doc and record §99). Branch
 `feat/surface-text` from `d6a815c`. Divergence labels 295–304.
 
+**Status: LANDED** (record §99, 2026-10-12): both lanes built and verified; `GT-A`…`GT-I`; the one look (GT1) is owed to a human.
+
 ## 1. What is built, what is not
 
 | | | ruling |
