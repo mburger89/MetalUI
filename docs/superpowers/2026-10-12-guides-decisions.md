@@ -1,0 +1,99 @@
+# Developer guides — decisions
+
+Rulings for item 10b: task-oriented guides whose every code block compiles (user request
+2026-10-02; not a plan task). Spec:
+[`specs/2026-10-12-guides-design.md`](specs/2026-10-12-guides-design.md). Record:
+`../record/103-guides.md` (written at the Record phase).
+
+Evidence: an inventory of `docs/` and `Sources/` at `ff8a1ea4` (spec §1); `docs/testing.md` and
+`TestingRecipeTests.swift` as the prior art. No SwiftUI probe was run: the item makes no new
+SwiftUI claim (`DG-F`); gpui has no analogue (documentation).
+
+Prefix **`DG-`**, lettered. **Next unused: `DG-K`.** (Moves in the commit that appends a ruling.)
+Branch `docs/guides` from `ff8a1ea4`. Reserved divergence labels 335–344: none used.
+
+**Carried items.** `HT-` (`MetalUITesting`, the harness the mirrors run in); `SA-P` (plain import);
+the practice `verifying-tests-can-fail.md`; the test-count rule (counts are read, never inferred).
+
+## DG-A — Six guides, no more
+
+**Ruling.** Six guides: layout; state and identity; input; presentations and the app shell;
+drawing and GPU; cross-platform. **Reasoning.** `api-overview.md` is organised by area and is a
+reference; the questions an app author coming from SwiftUI actually trips on are the ones the
+CLAUDE.md rules spend the most words on — modifier order and `.id()` (layout), what resets state and
+`List` windowing (state), the one arena and focus rules (input), the shell (presentations), the
+renderer constraints (drawing) and SDL (cross-platform). **Evidence.** Spec §2's table maps each to
+divergence rows. **Cost if wrong.** A missing seventh topic is a later guide; the doc-check is
+per-file, so adding one costs a mirror and a manifest line.
+
+## DG-B — Form of a guide
+
+**Ruling.** Task-led (`How do I…`), 3–6 tasks, short, links to `api-overview.md`,
+`divergences.md` and `testing.md` rather than repeating them, closing with the divergences the
+reader will hit, **each by number**. A block is a complete file-scope fragment. **Reasoning.** A
+fragment of statements cannot be mirrored without wrapping, and a wrap is not byte-for-byte.
+**Cost if wrong.** A reader copies a block that needs a `main.swift`: the guide's first task shows
+the root function once and later blocks add to it by name.
+
+## DG-C — Compile by mirroring in a test target, not by `typecheckFile`
+
+**Ruling.** Each block is mirrored verbatim in a `MetalUITestingTests` source file and compiled by
+the ordinary build. **Reasoning.** `typecheckFile` skips silently outside the native build system
+(CLAUDE.md: guards), so a skipped guard would let a block rot green; a mirror file is compiled by
+**every** build system and by the Linux and Windows CI that already build the target. It also lets a
+block *run* in a `TestWindow` (spec T8–T13). **Evidence.** The target already runs portably (72 tests
+in `swift:6.4-noble`). **Cost if wrong.** Duplicated text; bounded by DG-D's byte check.
+
+## DG-D — The doc-check compares bytes, and a generator is refused
+
+**Ruling.** `// guide: <file> #<n>` … `// end guide` regions in the mirror must equal the guide's
+swift fences in order, byte for byte; a hand-copied mirror, never generated. **Reasoning.** A
+generator that writes the mirror from the guide makes the check compare a file with itself. The
+check is itself a mutation site: spec T1 and T7 list the five mutations that must redden it before
+a guide is trusted. **Cost if wrong.** Copying is manual; a drift is a red test, never a silent one.
+
+## DG-E — Citations are checked
+
+**Ruling.** A behaviour is claimed only as `(pin: \`testName\`)`; the doc-check proves the test
+exists (`func testName` under `Tests/`), every `divergence N` has a row, every relative link
+resolves, and a sentence with a behaviour word (resets, cancels, retains, focuses, dismisses)
+carries a pin. **Reasoning.** CLAUDE.md warns that record citations "were not all re-checked after
+later refactors"; a guide is read by strangers. **Cost if wrong.** A renamed test reddens a doc
+check, whose fix is one line — cheaper than a stale claim. Existence is checked, not that the test
+asserts the claim; the lane reads each pinned test once.
+
+## DG-F — Guides state no unmeasured SwiftUI fact and name no unmerged API
+
+**Ruling.** A SwiftUI statement may only restate `api-overview.md` or a `divergences.md` row; a new
+one requires a probe in `docs/probes/guides-*.swift` (positive control and separating arm).
+`.resignsFocusOnPress`, `TextMeasurer`, the Material follow-ups and the IME driver are not
+documented until merged (the denylist test). **Reasoning.** The user's rule: do not document
+unmerged API; parallel branches C23/C24/C27/C28 are live. **Cost if wrong.** A guide short of a
+feature until its branch's Record phase adds a section.
+
+## DG-G — Two lanes, in order, disjoint files; the helper is lane 1's
+
+**Ruling.** Lane 1 (guides 1–3) owns `GuideDocCheck.swift`; lane 2 (4–6) uses it and owns its own
+mirror and the completeness test. `docs/guides/README.md` is lane 1's, with lane 2's three rows
+filled as a one-line edit. **Reasoning.** The two guide sets share nothing else; a helper in a third
+file would need a third lane. **Cost if wrong.** Lane 2 waits for lane 1; sequential anyway.
+
+## DG-H — Platform-only API appears inside `#if` in the block
+
+**Ruling.** A block using `MetalView` or any AppKit-only declaration wraps it in
+`#if os(macOS)` inside the block, and the guide says so. **Reasoning.** The mirrors build on Linux
+and Windows, where an unconditional use would fail the build. **Cost if wrong.** A reader copies
+the `#if` they did not need; harmless.
+
+## DG-I — Where the guides are linked
+
+**Ruling.** `README.md` and `docs/getting-started.md` link `docs/guides/README.md` at the Record
+phase; `docs/testing.md`, `docs/api-overview.md` and the migration doc are not edited (C28 edits
+testing.md). **Cost if wrong.** A reader of `testing.md` does not see the guides until C28 merges.
+
+## DG-J — A bug a guide reveals is a finding, not a fix
+
+**Ruling.** No source change outside `Tests/`. If writing or running a block shows behaviour that
+contradicts a doc or a pin, the lane records it under "Findings" in its report and the guide leaves
+the claim out. **Reasoning.** Scope: docs only, pixels and the suite unchanged. **Cost if wrong.**
+A known bug is not fixed here; the orchestrator schedules it.
