@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-Q`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-S`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -332,3 +332,29 @@ could become hits.
 
 **Cost if wrong.** An app drawing thousands of world-anchored labels pays the build, one measure
 and one `placeGlyphs` per label per frame (spec §11, `IV-O`'s table).
+
+## SB-Q — A print is not a pin: the baseline tests become literals in lane 1's step 1
+
+**Question.** The design phase committed `theBracketNodeDragRebuildsTheWholeWindow` and
+`bracketDebugLocations`, which only print. Do they satisfy "red-on-arrival pins"?
+
+**Ruling.** No. A test that asserts nothing cannot be red (`verifying-tests-can-fail.md`). Step 1 of lane 1
+turns the spec §1 table into `#expect` literals (evaluations, skips, refusals, scene counts, pixels,
+text-system calls), deletes `bracketDebugLocations`, and mutates one literal red per arm. The
+conservation identity is `hits + misses + ineligible == contentEvaluations + contentSkips`; a refused
+occurrence (`contentRefusals`) has no memo entry, so no record (the earlier draft subtracted refusals,
+which is wrong: they are not in the other two counters). Rejected: keeping the prints as the record.
+
+**Cost if wrong.** A fixture that drifts silently; the literals fail on any change to it.
+
+## SB-R — Lane 2's redo is window-wide with backoff, and its tests are specified before it starts
+
+**Question.** A graft happens before geometry is known, so a changed geometry key is found only after
+layout. Per-entry redo (`SB-N`) would redo the frame on every window resize or scheme-driven re-layout.
+
+**Ruling.** One redo disables grafting window-wide for 8 frames; ambient key parts are checked before the
+graft. Lane 2's tests are written with red-before and mutation in a table before any code, as lane 1's are
+(spec §9 item 5 was "named, not specified"). Rejected: per-entry backoff alone (N entries can each
+redo once, N frames of doubled cost).
+
+**Cost if wrong.** A resize drag pays one redo then plain builds for 8 frames; no worse than lane 1.

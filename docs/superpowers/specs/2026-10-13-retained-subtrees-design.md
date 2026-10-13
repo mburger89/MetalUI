@@ -422,7 +422,7 @@ each hit-count and conservation assertion fails on arrival with the literal show
 
 | # | test (file `RetainedSubtreeWindowTests` unless noted) | red before | mutation that must redden it |
 |---|---|---|---|
-| 1.1 | `theBracketNodeDragReplaysEveryUnchangedSubtree(arm:)` (value, environment, panels): per drag frame `retainedHits + retainedMisses + retainedIneligible == contentEvaluations + contentSkips - contentRefusals`; hits == 29 / 19 → 0 (refused) / 32 (panels, minus the panel's own ineligible: 31); `elementPaints + retainedSkippedPaints == elementPaints(memo off)`; same for prepaints; scene counts 182 / 550 / 6 unmoved; `rasterizedPixels` unmoved | hits 0, skipped 0 | `hit = false` in `prepaintGroup`; `retainedSkippedPaints` not added |
+| 1.1 | `theBracketNodeDragReplaysEveryUnchangedSubtree(arm:)` (value, environment, panels): per drag frame `retainedHits + retainedMisses + retainedIneligible == contentEvaluations + contentSkips` (a refused occurrence, counted in `contentRefusals` only, has no memo entry and so no record; the sum with refusals is 32 in all three arms, §1); hits == 29 / 19 (the 11 refused never record) / up to 32 (panels, minus the occurrences that register a scroll region, tooltip or similar, e.g. the graph panel's `List`: predicted 31, fixed before the run); `elementPaints + retainedSkippedPaints == elementPaints(memo off)`; same for prepaints; scene counts 182 / 550 / 6 unmoved; `rasterizedPixels` unmoved | hits 0, skipped 0 | `hit = false` in `prepaintGroup`; `retainedSkippedPaints` not added |
 | 1.2 | `aRetainedFrameEqualsAFreshFrameOverAScript` (differential, §7), three arms | green by construction against the stub, red once replay is on and any key component is missing | drop any one key component (1.3 names them) |
 | 1.3 | `everyKeyComponentSeparates(component:)`: one arm per §4.2 item and per §4.1 item changes exactly that input between two frames and expects a miss (`retainedMisses == 1`) and an unchanged scene vs fresh | arms compile, hits wrongly 1 | omit that component from `ReplayKey.==` (one run per component) |
 | 1.4 | `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays` | hits 0 | `pointerInside` forced false; or forced true |
@@ -436,11 +436,13 @@ each hit-count and conservation assertion fails on arrival with the literal show
 | 1.12 | the whole suite under `METALUI_VERIFY_RETAINED=1`: 0 verification traps (a record, not a test) | n/a | a deliberately wrong replay (hitbox order reversed) traps it |
 | 1.13 | `aReplayTouchesItsRastersSoTheyAreNotDropped` (the same `ImageTexture` identity two frames on, `newTextures == 0`) | green | raster touches not replayed |
 | 1.14 | `aBackdropInsideAReplayedSubtreeIsByteIdentical`, `aReplayInsideAnOuterShadowIsCapturedByIt` (the `.panels` inspector; an outer `.shadow`) | green | `emit` bypassed with `scene.insert` in replay |
-| 1.15 | `replayedPrimitivesKeepTheirDrawOrderAmongSiblings`, `aReplayedHitboxKeepsTheRankingAtAnOverlap` (the fixture's overlapping nodes, `.help` hitboxes) | green | replay appends at the end of the frame |
+| 1.15 | `replayedPrimitivesKeepTheirDrawOrderAmongSiblings`, `aReplayedHitboxKeepsTheRankingAtAnOverlap` (the fixture's overlapping nodes Fillet and Chamfer; a `.help` tooltip registration is ineligible, `SB-J`, so it is not the ranking's witness) | green | replay appends at the end of the frame |
 | 1.16 | `aMissCostsTheOldWorkPlusFourSnapshots` (`retainedLedgerSnapshots == 4` per recorded occurrence: before and after each of prepaint and paint; elements' work equal to memo off) | counter absent | snapshot taken per element |
 | 1.17 | `theRecordIsUnreachableFromAPlainImport`, `thePlainImportCannotTurnReplayOff` (typecheck guards, each mutated red once: make a member `public`) | n/a | `public` |
 | 1.18 | `theOverlayCostIsLinearAndCounted` re-taken (GT-F) plus `aStaticLabelOverlayReplaysAndAMovingOneDoesNot` (§11) | passes unchanged | n/a |
 | 1.19 | `theGlyphAtlasHasNoEvictionCaller` (greps `Sources/` and `Backends/` for `evictUnusedSince(` outside its definition; the only callers today are `AtlasEvictionTests`) | n/a | add a caller |
+
+Step 1 also **converts the design phase's print-only fixture tests into `#expect` literals** (the counted baseline table of §1 becomes `theBracketNodeDragRebuildsTheWholeWindow`'s pins, red-on-arrival once replay lands) and deletes the debugging test `bracketDebugLocations`; a print is not a pin (`SB-Q`).
 
 Predictions for 1.1 are fixed before the run and recorded in the record with the observed values.
 
@@ -478,7 +480,8 @@ and the readings recorded; the placement memo (§10) is judged on the same readi
    subtree's rects *relative to its root*; the kernel places a grafted segment by translation when
    its root proposal and bounds equal the recorded, bit-exactly (the arithmetic is the recorded
    one, not a re-derivation, which is what §4.1 said a moved subtree's rects need).
-5. **Tests owed if built** (named, not specified further here): `aGraftedSubtreeEqualsAFreshBuild`
+5. **Redo policy** (`SB-R`): a redo is window-wide, not per entry; any redo suspends grafting for the whole window for 8 frames (so a resize or scheme drag, where every geometry key misses, costs one redo then plain builds), and the ambient part of the key (§4.2) is checked before the graft. Pins: `aResizeDragRedoesAtMostOncePerEightFrames` (red before: counter absent; mutation: backoff removed).
+6. **Tests owed if built**, each with red-before and its mutation written in the lane's own table before code (a lane-2 test without both is not accepted, `SB-R`): `aGraftedSubtreeEqualsAFreshBuild`
    (a node-by-node differential of `LayoutTree`), `aRedoIsCountedAndBacksOff`,
    `aGraftedFrameKeepsTheStateTableSweepsExact`, `theBuildRecursionIsSkippedForAnUnchangedSubtree`
    (`elementRequests` conservation), `aSubtreePlacementHitEqualsAFreshRun` with the `IV-N`-style
