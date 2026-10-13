@@ -308,6 +308,10 @@ private struct RSInspector: Component, @MainActor Equatable {
     _ = window.send(.mouseDown(MouseEvent(position: c)))
     f = rsFrame(window)
     #expect(f.retainedMisses == 1 && f.retainedHits == 3, "a press is on card C")
+    // The pointer leaves while the button is held: the press alone keeps card C re-painting.
+    _ = window.send(.mouseDragged(MouseEvent(position: pt(4, 110))))
+    f = rsFrame(window)
+    #expect(f.retainedMisses == 1 && f.retainedHits == 3, "the press holds card C with the pointer away: \(f.retainedHits)/\(f.retainedMisses)")
     _ = window.send(.mouseUp(MouseEvent(position: c)))
     window.exitPointer()
     _ = rsFrame(window)
