@@ -65,8 +65,9 @@ private struct RSHolder: Component, @MainActor Equatable {
 private struct RSObservedChild: Component {
     let model: RSModel
     var content: some ElementGroup {
+        // Text only: a colour that changes with `n` would write the element's `$anim-color` slot and
+        // invalidate the record through the bind journal, hiding the observation window under test.
         Text("n\(model.n)").frame(width: Pixels(60), height: Pixels(14))
-            .background(model.n % 2 == 0 ? Color.accent : Color.red)
     }
 }
 
@@ -350,6 +351,45 @@ private struct RSInspector: Component, @MainActor Equatable {
     #expect(window.lastFrameWork.retainedMisses == 1, "the frame the pointer leaves in records the new frame")
     #expect(rsFrame(window).retainedHits == 1, "and the next quiet frame replays it")
     _ = try window.element(label: "count 1")
+}
+
+/// A non-equatable child whose `@State` shows only in a label (no colour, so no `$anim-color` write) and
+/// changes from a keyboard shortcut: no pointer, press or focus is inside the holder.
+private struct RSShortcutCounter: Component {
+    @State var count = 0
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            Text("tally \(count)").frame(width: Pixels(70), height: Pixels(14))
+            Button("bump") { count += 1 }.keyboardShortcut("j").frame(width: Pixels(40), height: Pixels(14))
+        }
+    }
+}
+
+private struct RSShortcutHolder: Component, @MainActor Equatable {
+    var content: some ElementGroup { VStack(spacing: 0) { RSShortcutCounter() } }
+    static func == (l: RSShortcutHolder, r: RSShortcutHolder) -> Bool { true }
+}
+
+/// 1.6b — the bind journal's versions alone (`SB-K`): a descendant's `@State` changes from a shortcut while
+/// the pointer, a press and focus are elsewhere, nothing is observed and no state is written in paint, so
+/// the only thing that moved is the version of a slot bound under the holder. Mutation: the versions
+/// compare in `retainedPaintDecision` made `true` — the old label is replayed.
+@Test @MainActor func aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion() throws {
+    func make(_ on: Bool) throws -> TestWindow {
+        let w = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+            VStack(spacing: 0) { RSShortcutHolder().equatable() }
+        }
+        w.window.testingRetainedSubtrees = on
+        for _ in 0..<4 { w.window.setNeedsRedraw(); w.tick() }
+        return w
+    }
+    let on = try make(true), off = try make(false)
+    func glyphs(_ w: TestWindow) -> Data { w.scene.glyphs.withUnsafeBytes { Data($0) } }
+    try #require(rsFrame(on).retainedHits == 1)
+    for w in [on, off] { w.typeKey("j", modifierFlags: [.command]) }
+    _ = try on.element(label: "tally 1")
+    #expect(on.lastFrameWork.retainedHits == 0, "the shortcut's frame replays nothing")
+    #expect(glyphs(on) == glyphs(off), "and draws the new label")
 }
 
 // MARK: 1.8 — a child's observed read beats its parent's record
