@@ -116,6 +116,7 @@ extension Frame {
                                   maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
         let primitive = CapturedPrimitive(kind: .gradient(paint), layer: activeLayer, innerMask: false)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(primitive, depth: clipDepth)
             insertIntoScene(primitive)
         } else {
             insertThroughScopes(primitive)

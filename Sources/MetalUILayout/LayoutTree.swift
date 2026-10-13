@@ -641,6 +641,24 @@ public final class LayoutTree {
     public func children(_ id: LayoutNodeID) -> [LayoutNodeID] { childLists[slot(id)] }
     /// The node's root-absolute rect from the last layout run.
     public func layout(_ id: LayoutNodeID) -> LayoutRect { layouts[slot(id)] }
+
+    /// A hash of the root-absolute rect and the unrounded measured width of every node at or
+    /// under `roots`, and how many nodes that is (retained subtrees, `SB-F`): what a replayed
+    /// prepaint and paint read of the tree besides the roots' own rects. **`package`**: not API.
+    package func subtreeSignature(of roots: [LayoutNodeID]) -> (hash: Int, count: Int) {
+        var hasher = Hasher()
+        var stack = roots.map { slot($0) }
+        var count = 0
+        while let index = stack.popLast() {
+            let rect = layouts[index]
+            hasher.combine(rect.x); hasher.combine(rect.y)
+            hasher.combine(rect.width); hasher.combine(rect.height)
+            hasher.combine(measuredWidths[index])
+            count += 1
+            for child in childLists[index] { stack.append(child.index) }
+        }
+        return (hasher.finalize(), count)
+    }
     /// Stores a node's root-absolute rect.
     ///
     /// Traps while a native measurement body is running (ruling SA-H clause 4):

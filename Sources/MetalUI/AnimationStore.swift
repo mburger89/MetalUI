@@ -85,6 +85,7 @@ final class AnimationStore {
 
     /// The value stored at `id`, marking it touched this frame.
     func value(at id: GlobalElementID) -> Any? {
+        retainLog?.touches.append(.touch(id))
         touched.insert(id)
         return entries[id]
     }
@@ -96,12 +97,37 @@ final class AnimationStore {
 
     /// Stores `value` at `id`, marking it touched this frame.
     func set(_ value: Any, at id: GlobalElementID) {
+        retainLog?.touches.append(.set(id, value))
         entries[id] = value
         touched.insert(id)
     }
 
     /// Counts one interpolation in the frame being built.
-    func noteInterpolation() { interpolationsThisFrame += 1 }
+    func noteInterpolation() {
+        interpolationsThisFrame += 1
+        retainLog?.taint("interpolation")
+    }
+
+    /// Interpolations counted so far in the frame being built (`SB-`): a retained
+    /// subtree's build window reads the difference.
+    var interpolationsSoFar: Int { interpolationsThisFrame }
+
+    /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
+    var retainLog: RetainLog?
+
+    /// Replays a recorded touch: the entry stays alive; a recorded first sighting is stored
+    /// again only if the entry was dropped meanwhile.
+    func replay(_ touch: RetainLog.Touch) {
+        switch touch {
+        case .touch(let id):
+            retainLog?.touches.append(touch)
+            touched.insert(id)
+        case .set(let id, let value):
+            retainLog?.touches.append(touch)
+            if entries[id] == nil { entries[id] = value }
+            touched.insert(id)
+        }
+    }
 
     /// Called by `Frame.render` before layout.
     func beginFrame() { interpolationsThisFrame = 0 }

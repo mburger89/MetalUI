@@ -1542,6 +1542,28 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **IV4.** VoiceOver reads a memoized subtree as the unmemoized one (the tree equality is pinned by test 2.9; the
   reading is a person's, `IX-AE`). **Observed:**
 
+## SB. Retained subtrees — what only a real window shows (item C14b, user request 2026-10-02, not a plan task; record §109)
+
+*An agent cannot: these need a real window, a pointer, a display of each scale, a screen reader and an eye.*
+
+- [ ] **SB1.** A real-window drag of a retained node looks identical with replay on and off:
+  `METALUI_RETAINED_DEMO=1 swift run MetalUIDemo`, drag Fillet around, tick and untick "Replay" mid-drag: no
+  flicker, no node left behind, no stale wire; the strip reads 12 hits with replay on and 0 with it off
+  (`SB-B`, `SB-F`). **Observed:**
+- [ ] **SB2.** Hover and focus rings on a retained node appear and clear the frame the pointer or focus arrives and
+  leaves (the key holds "pointer, press and focus are inside", `SB-F` item 4): move the pointer over a node's
+  status badge and off again, Tab through the nodes. **Observed:**
+- [ ] **SB3.** VoiceOver walks a retained subtree as a fresh one (the accessibility tree equality is pinned by the
+  differential, test 1.2; the reading is a person's, `IX-AE`). **Observed:**
+- [ ] **SB4.** A light/dark switch, a window resize and a move between a 1x and a 2x display repaint every retained
+  subtree (the key holds the theme, the scale, the content size and the whole environment, `SB-F`, `SB-G`).
+  **Observed:**
+- [ ] **SB5.** An animation inside a retained region plays (an `.animation(value:)` flip, a keyframe shake): the
+  occurrence is time-varying while it runs and never replays, and replays again once it settles (`SB-J`).
+  **Observed:**
+- [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
+  C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

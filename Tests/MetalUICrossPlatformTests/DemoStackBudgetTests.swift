@@ -42,6 +42,15 @@ private func buildEveryProductionTree() {
     buildTheOverlaysDemo()   // overlays and coordinates (OV-, spec §4.2)
     buildTheSelectionDemo()   // text selection (SL-N)
     buildTheInvalidationDemo()   // content memo (IV-B, spec §9)
+    buildTheRetainedSubtreeDemo()   // retained subtrees (SB-, spec §13)
+}
+
+/// The retained-subtree demo's tree and its canvas and strip (components built at layout), in its own frame.
+@MainActor @inline(never)
+private func buildTheRetainedSubtreeDemo() {
+    _ = retainedSubtreeDemoContent()
+    _ = RetainedDemoCanvas().content
+    _ = RetainedDemoStrip().content
 }
 
 /// The content-memo demo's tree and its readout, in its own frame.

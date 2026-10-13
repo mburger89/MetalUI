@@ -352,3 +352,64 @@ public enum DynamicTypeSize: Sendable, Hashable, CaseIterable, Comparable {
 public enum ControlSize: Sendable, Hashable, CaseIterable {
     case mini, small, regular, large, extraLarge
 }
+
+// MARK: - The retained-subtree fingerprint (`SB-G`)
+
+/// Every built-in field of ``EnvironmentValues`` that prepaint or paint can read, as one
+/// `Equatable` value, for a retained subtree's replay key (`SB-G`). The objects provided by
+/// `.environment(_:)` compare by identity. **A stored property added to `EnvironmentValues` owes a field here or a row in
+/// `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant`** (a `Mirror` guard).
+struct EnvironmentFingerprint: Equatable {
+    var isEnabled: Bool
+    var layoutDirection: LayoutDirection
+    var locale: Locale
+    var dynamicTypeSize: DynamicTypeSize
+    var displayScale: Double
+    var controlActiveState: ControlActiveState
+    var accessibilityReduceMotion: Bool
+    var accessibilityReduceTransparency: Bool
+    var titleBarInsets: Edges<Pixels>
+    var windowSize: Size<Pixels>
+    var colorScheme: ColorScheme
+    var controlSize: ControlSize
+    var font: Font?
+    var lineLimit: Int?
+    var truncationMode: Text.TruncationMode
+    var multilineTextAlignment: TextAlignment
+    var foregroundStyle: Color?
+    var fontWeight: Font.Weight?
+    var italic: Bool
+    var textLineLimit: TextLineLimit
+    var fieldStyle: TextFieldStyle
+    var editorStyle: TextEditorStyle
+    var theme: Theme
+    /// Whether a text system is stamped: the box is new each frame and the system behind it is
+    /// the window's, constant for its life.
+    var hasTextSystem: Bool
+    var objects: [ObjectIdentifier]
+    var customKeyCount: Int
+}
+
+extension EnvironmentValues {
+    /// How many custom (app-defined) keys carry a value: no equality for them, so a
+    /// non-zero count makes a retained subtree ineligible (`SB-G`).
+    var customKeyCount: Int { custom.count }
+
+    /// The fingerprint of the built-in fields.
+    var retainedFingerprint: EnvironmentFingerprint {
+        EnvironmentFingerprint(
+            isEnabled: isEnabled, layoutDirection: layoutDirection, locale: locale,
+            dynamicTypeSize: dynamicTypeSize, displayScale: displayScale,
+            controlActiveState: controlActiveState,
+            accessibilityReduceMotion: accessibilityReduceMotion,
+            accessibilityReduceTransparency: accessibilityReduceTransparency,
+            titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
+            controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
+            multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle,
+            fontWeight: fontWeight, italic: italic, textLineLimit: textLineLimit,
+            fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
+            hasTextSystem: textSystemBox != nil,
+            objects: objects.keys.sorted { $0.hashValue < $1.hashValue },
+            customKeyCount: custom.count)
+    }
+}

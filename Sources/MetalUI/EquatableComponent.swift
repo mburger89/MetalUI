@@ -20,10 +20,15 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ComponentLayout<C>) {
-        let id = component.enterComponent(under: parent, at: &cursor, pass: &pass)
-        let table = pass.frame.stateTable
+        let frame = pass.frame
+        let table = frame.stateTable
         let store = table.contentMemos
+        // The build window opens before the component binds its own `@State` (`SB-K`).
+        let window = store.retainsSubtrees ? RetainedBuildWindow(frame: frame) : nil
+        let id = component.enterComponent(under: parent, at: &cursor, pass: &pass)
         var materialized: C.Content
+        var entry: ContentMemoStore.Entry?
+        let key = ContentMemoStore.Key(id: id, type: ObjectIdentifier(C.self))
         if let shape = StateBinder.memoShape(of: C.self), !shape.refused {
             let stateIDs = shape.stateOrdinals.map {
                 GlobalElementID.child(of: id, at: $0, name: ElementID("$state\($0)"))
@@ -31,22 +36,67 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             materialized = store.materialize(component, id: id, stateIDs: stateIDs, table: table) {
                 component.content
             }
+            entry = store.entry(for: key)
         } else {
             store.noteRefusal()
             materialized = component.content
         }
-        return component.finishComponent(&materialized, id: id, pass: &pass)
+        guard let window, let entry else {
+            return component.finishComponent(&materialized, id: id, pass: &pass)
+        }
+        // The build recursion runs in an observation window of its own (`SB-D`): a descendant
+        // getter that reads an `@Observable` invalidates this occurrence's record.
+        let result = entry.buildSession.run(entry: entry, store: store) {
+            component.finishComponent(&materialized, id: id, pass: &pass)
+        }
+        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0)
+        return result
     }
 
     public mutating func prepaintGroup(layout: inout ComponentLayout<C>,
                                        pass: inout PrepaintPass) -> ComponentPrepaint<C> {
-        component.prepaintGroup(layout: &layout, pass: &pass)
+        guard let build = layout.storage.retained,
+              let phase = pass.frame.retainedPrepaintDecision(build: build) else {
+            return component.prepaintGroup(layout: &layout, pass: &pass)
+        }
+        switch phase.mode {
+        case .hit(let record):
+            pass.frame.replayPrepaint(record)
+            return ComponentPrepaint(replayed: phase)
+        case .plain:
+            return component.prepaintGroup(layout: &layout, pass: &pass)
+        case .record:
+            let frame = pass.frame
+            frame.openRecorderWindow(phase.recorder!, recordsScene: false)
+            let result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
+                component.prepaintGroup(layout: &layout, pass: &pass)
+            }
+            frame.finishRetainedPrepaint(phase)
+            result.storage.retained = phase
+            return result
+        }
     }
 
     public mutating func paintGroup(layout: inout ComponentLayout<C>,
                                     prepaint: inout ComponentPrepaint<C>,
                                     pass: inout PaintPass) {
-        component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+        guard let phase = prepaint.storage.retained else {
+            component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+            return
+        }
+        switch phase.mode {
+        case .hit(let record):
+            pass.frame.replayPaint(record)
+        case .plain:
+            component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+        case .record:
+            let frame = pass.frame
+            frame.beginRetainedPaint(phase)
+            phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
+                component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+            }
+            frame.finishRetainedPaint(phase)
+        }
     }
 }
 

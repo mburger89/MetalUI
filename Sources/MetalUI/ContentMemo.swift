@@ -67,6 +67,14 @@ package final class ContentMemoStore {
         var serial = 0
         var stale = false
         var touched = true
+        // Retained subtrees (`SB-`): the occurrence's record, the observation windows over its
+        // build recursion, prepaint and paint, and whether any observed property changed since
+        // the record was made.
+        var record: RetainedRecord?
+        var observedChange = false
+        let buildSession = RetainedSession()
+        let prepaintSession = RetainedSession()
+        let paintSession = RetainedSession()
         init(previous: Any, pristine: Any, versions: [UInt64]) {
             self.previous = previous
             self.pristine = pristine
@@ -106,6 +114,9 @@ package final class ContentMemoStore {
     var markDirty: (@MainActor () -> Void)?
 
     func noteRefusal() { refusals += 1 }
+
+    /// The memo entry of an occurrence, or `nil` (retained subtrees, `SB-`).
+    func entry(for key: Key) -> Entry? { entries[key] }
 
     /// The content of `component` for this build: the pristine copy of the last
     /// evaluation when nothing it depends on changed, else the getter's result,

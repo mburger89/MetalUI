@@ -124,6 +124,8 @@ public struct ComponentLayout<C: Component> {
     /// The heap box, mutated in place by `withPayload(_:)`.
     final class Storage {
         var payload: Payload
+        /// An `.equatable()` occurrence's build window (`SB-K`); `nil` for every other component.
+        var retained: RetainedBuild?
         init(_ payload: Payload) { self.payload = payload }
     }
 
@@ -162,8 +164,12 @@ public struct ComponentLayout<C: Component> {
 public struct ComponentPrepaint<C: Component> {
     /// The heap box, mutated in place by `withPrepaint(_:)`.
     final class Storage {
-        var prepaint: C.Content.GroupPrepaint
-        init(_ prepaint: C.Content.GroupPrepaint) { self.prepaint = prepaint }
+        /// `nil` only for a retained occurrence whose prepaint was replayed (`SB-`): its paint
+        /// is replayed too and never reads it.
+        var prepaint: C.Content.GroupPrepaint?
+        /// An `.equatable()` occurrence's decision (`SB-`); `nil` for every other component.
+        var retained: RetainedPhase?
+        init(_ prepaint: C.Content.GroupPrepaint?) { self.prepaint = prepaint }
     }
 
     let storage: Storage
@@ -172,9 +178,15 @@ public struct ComponentPrepaint<C: Component> {
         storage = Storage(prepaint)
     }
 
+    /// A replayed prepaint: no content record, the phase object only.
+    init(replayed phase: RetainedPhase) {
+        storage = Storage(nil)
+        storage.retained = phase
+    }
+
     /// Runs `body` on the boxed record in place — `paintGroup` writes into it.
     func withPrepaint<R>(_ body: (inout C.Content.GroupPrepaint) -> R) -> R {
-        body(&storage.prepaint)
+        body(&storage.prepaint!)
     }
 }
 
