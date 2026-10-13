@@ -9,7 +9,7 @@ Evidence: an inventory of `docs/` and `Sources/` at `ff8a1ea4` (spec §1); `docs
 `TestingRecipeTests.swift` as the prior art. No SwiftUI probe was run: the item makes no new
 SwiftUI claim (`DG-F`); gpui has no analogue (documentation).
 
-Prefix **`DG-`**, lettered. **Next unused: `DG-N`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**, lettered. **Next unused: `DG-P`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides` from `ff8a1ea4`. Reserved divergence labels 335–344: none used.
 
 **Carried items.** `HT-` (`MetalUITesting`, the harness the mirrors run in); `SA-P` (plain import);
@@ -124,3 +124,24 @@ spell alike). The branch adds tests (T1–T14 and the mirrors' runnable claims):
 the new total as measured, not "unchanged" — "suite unchanged" in the brief means no existing test
 or pixel moves. Behaviour words inside a fenced code block are not claims. **Cost if wrong.** A
 miscounted CLAUDE.md figure; the Record phase re-measures.
+
+## DG-N — A tilde fence is found and refused; citations are read from wrapped blocks
+
+**Ruling.** The extractor recognises ```` ``` ```` and `~~~` fences at any indent (so one nested in
+a list is found; its own indent is removed from its lines) and reports the marker; spec T2
+(`aSwiftFenceCarriesNoInfoStringAndOtherFencesAreNamed`) fails any tilde fence. This supersedes the
+spec's "ignores tildes" for T7: an extractor that skipped a `~~~swift` fence would let a block that
+looks compiled escape the mirror. Pins, divergence labels and links are read from a paragraph with
+its wrapped lines joined (a list item, a table row and a heading each start one), because a
+`(pin:` broken across two lines is otherwise never seen — T3 would pass having checked nothing.
+**Evidence.** Lane 1's T7 builds each case synthetically, including a pin broken across a line.
+**Cost if wrong.** A guide author cannot use a tilde fence; the message names the line.
+
+## DG-O — The behaviour-word list is the verbs and their forms, outside inline code
+
+**Ruling.** `aBehaviourWordHasAPinOnItsLine` flags a sentence (split at `. `, `? `, `! ` within a
+paragraph) containing, outside inline code, one of: reset(s), cancel(s), cancelled, retain(s),
+retained, focuses, dismiss(es), dismissed (case-insensitive, whole words), unless the same sentence
+cites a pin. This extends DG-E's five verbs by the forms a claim takes ("is reset", "was dismissed").
+The noun "focus" is not a verb of the list. **Cost if wrong.** A false positive is reworded or
+pinned; a false negative is a claim the lane's reading must catch.
