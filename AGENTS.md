@@ -64,7 +64,8 @@ summary.
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
   `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
-  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GC-` (continuing press cancel:
+  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GT-` (text over a GPU surface:
+  `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:
   `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -78,9 +79,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **147 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–304 and 315–324 reserved by open branches, 305–314 unused by C26, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **149 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 reserved by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315–324 reserved by C27, 325–334 reserved by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD and SL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL and GT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -100,7 +101,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
+- **Counts (2026-10-12, `feat/surface-text` from `d6a815c`, merged with master `3fce05f` (§96 text selection, §97 window drag), then `ff8a1ea4` (§100 continuing press cancel): 3529 tests, 0 goldens, 222 typecheck guards** (master's 3513 + 16 tests (3520 at `3fce05f`'s merge), 221 + 1 guard 1.11: lane 1's 11, lane 2's 5; `swift package clean`, native run on an unlocked screen, all passed, 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; census 3452 (3446 + 6); divergences 295, 296 added, 149 live; the fourteen images scene-identical, 0 px against `d6a815c` at both lanes; `Backends/SDL` untouched; record §99 §7).
+  Before it:
+  **(2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
 - **Counts (2026-10-12, `feat/text-selection` from `0abce86`, merged with master `930db4a` (§93–§95, §97): 3504 tests, 0 goldens, 221 typecheck guards** (master's 3472 + 32 tests, 218 + 3 guards G1–G3; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`; census 3446 (master's 3424 + 22); divergences 265, 266 added, 147 live; the merge's one source edit `Window.onInput` keeps both the selection `defer` and master's modifier report; record §96 §5). Before it:
 - **Counts (2026-10-12, `feat/window-drag` from `a720fba`, merged with master `5f35df6` (§95 `ForEach` identity), then master `d6a815c` (§94 backdrop blur): 3472 tests, 0 goldens, 218 typecheck guards** (master's 3446 + 26 tests, 217 + 1 guard 3.2; at `5f35df6`'s merge 3441 / 217; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3415 (3405 + 10: `WindowDragGesture` and its members, `performWindowDrag`, `windowDrags`, `performsWindowDrag`; the tsv re-recorded after the merge for AppKit's line shifts); divergences 275–277 added, 145 live after §94, next label 206; `Backends/SDL` 24 + 114 on macOS (113 + 1), the Linux image not re-taken after the merge; the fourteen images 0 px against `a720fba` on the merged tree; record §97 §4, §6). Before it,
   **(2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity), then record 94 §11's three pins: 3446 tests, 0 goldens, 217 typecheck guards**
@@ -736,6 +739,18 @@ call, check WD1); SDL records and answers `false` (divergence 276, no hit-test r
 gesture rule and `.opacity(0)` does not disable it (divergence 277). Not built:
 `windowBackgroundDragBehavior` (a Scene modifier), a double-click zoom in a handle.
 
+**Text over a GPU surface (`GT-`, record §99).** A `Text` overlay over a `GPUSurface` costs
+1 leaf measure, 2 seam measures and 1 `placeGlyphs` per label per frame, linear in N, no raster or
+upload (`GT-A`; re-take with `theOverlayCostIsLinearAndCounted`), so **`MetalDrawContext.drawText`
+and its SDL twin are deferred** (`GT-F`, owner C14's close-out). `@Environment(\.textMeasurer)` is a
+get-only `TextMeasurer` (no public initialiser; SwiftUI's `resolve(_:)` + `ResolvedText.measure(in:)`
+carried by the environment, divergence 296) that calls the one layout measure through
+`resolveTextStyle` and `Frame.textSystem`: the **unrounded** leaf answer, a laid-out frame being
+it rounded; an empty `Text` is one line tall (divergence 295, `GT-I`); the frame stamps its system
+box and a `\.self` reset keeps it (`GT-D`). `PortableTextSystem` caches an **origin-free**
+`[LaidOutLine]` per `MeasureKey` (two-frame lifetime) so a moving plain label shapes once; rich text
+still shapes per frame there (`GT-E`, `GT-H`).
+
 **Continuing press cancel (`GC-`, record §100).** A reported leaf owes `onCancelled` whatever
 ends it. `GestureArena.press(… continuing: true)` takes `cancelCallback(leaf)` before it fails an
 undecided drag (`GC-B`), and `Window`'s `.mouseDown` treats a press that finds the arena **still
@@ -1191,7 +1206,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (147 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (149 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
