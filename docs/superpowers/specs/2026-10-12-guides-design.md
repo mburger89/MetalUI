@@ -57,7 +57,7 @@ no top-level statements) and is copied byte-for-byte into a mirror test file bet
 The mirror files are ordinary members of `MetalUITestingTests` (portable: macOS, the
 `swift:6.4-noble` image, Windows), so **every build system compiles them and nothing skips**. A
 macOS-only API is wrapped `#if os(macOS)` *inside the block*, which the guide shows. Block-level
-names are unique within a lane (convention: the guide's topic as prefix, `LayoutFixtureRoot`).
+names are unique across both lanes (`DG-K`) (convention: the guide's topic as prefix, `LayoutFixtureRoot`).
 The ```` ```swift ```` fence is only for compiled code; illustrative or deliberately non-compiling
 text uses ```` ```text ````; any other info string on a swift fence (`swift no-compile`) is refused.
 
@@ -115,5 +115,6 @@ pin. (Where the word is not a claim, the lane rewords.)
   guides 3, 5 and 3 respectively, with its mirror); a seventh guide (testing is `docs/testing.md`);
   extracting code from the doc into the mirror automatically (a generator) — not built, because a
   generator that writes the mirror makes the byte check vacuous (`DG-D`).
+- **Platform notes:** CRLF is normalised before the byte compare, SDL snippets are never swift fences (`DG-K`, `DG-L`); new tests move the count (`DG-M`).
 - **Cost if the mirror drifts on a platform:** a Linux/Windows compile failure at push (CI), which is
   the point.

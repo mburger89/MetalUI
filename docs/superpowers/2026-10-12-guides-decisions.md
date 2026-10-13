@@ -9,7 +9,7 @@ Evidence: an inventory of `docs/` and `Sources/` at `ff8a1ea4` (spec §1); `docs
 `TestingRecipeTests.swift` as the prior art. No SwiftUI probe was run: the item makes no new
 SwiftUI claim (`DG-F`); gpui has no analogue (documentation).
 
-Prefix **`DG-`**, lettered. **Next unused: `DG-K`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**, lettered. **Next unused: `DG-N`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides` from `ff8a1ea4`. Reserved divergence labels 335–344: none used.
 
 **Carried items.** `HT-` (`MetalUITesting`, the harness the mirrors run in); `SA-P` (plain import);
@@ -97,3 +97,30 @@ testing.md). **Cost if wrong.** A reader of `testing.md` does not see the guides
 contradicts a doc or a pin, the lane records it under "Findings" in its report and the guide leaves
 the claim out. **Reasoning.** Scope: docs only, pixels and the suite unchanged. **Cost if wrong.**
 A known bug is not fixed here; the orchestrator schedules it.
+
+## DG-K — Line endings are normalised on both sides; names are unique across the module
+
+**Ruling.** The doc-check converts CRLF to LF in the guide and the mirror before comparing (a
+Windows checkout with `core.autocrlf` would otherwise fail every block); nothing else is
+normalised (trailing whitespace still differs). Block-level names carry the guide's topic as
+prefix and are unique across **both** lanes' mirror files (one module, `MetalUITestingTests`; the
+spec's "within a lane" was wrong). **Reasoning.** Windows CI is a stated target; a duplicate
+top-level name breaks the module build only after lane 2 lands. **Cost if wrong.** A mutation
+(CRLF in a guide) must stay green and one changed byte red; T7 pins both.
+
+## DG-L — Blocks import only what `MetalUITestingTests` depends on
+
+**Ruling.** Blocks use `MetalUI`, `MetalUIScene`, `MetalUITesting` (and `MetalUIPortableText`).
+`SDLPlatform`/`MetalUISDL` snippets in guide 6 are ```` ```text ```` or ```` ```sh ````, never
+```` ```swift ````, and the guide says they are not compiled by this check (their package is built
+by `Backends/SDL` and the Linux image). **Reasoning.** Adding a dependency edits `Package.swift`,
+outside `Tests/` (scope), and would pull an SDL trait into every test build. **Cost if wrong.** An
+SDL snippet can rot; the guide points at the starter that `metalui new --cross-platform` builds.
+
+## DG-M — The pin check accepts `func name` and `@Test func name`; counts move
+
+**Ruling.** A cited pin exists when `func <name>` occurs under `Tests/` (XCTest and Swift Testing
+spell alike). The branch adds tests (T1–T14 and the mirrors' runnable claims): the record reports
+the new total as measured, not "unchanged" — "suite unchanged" in the brief means no existing test
+or pixel moves. Behaviour words inside a fenced code block are not claims. **Cost if wrong.** A
+miscounted CLAUDE.md figure; the Record phase re-measures.
