@@ -1,0 +1,104 @@
+diff --git a/Sources/MetalUI/Component.swift b/Sources/MetalUI/Component.swift
+index b9eef445..28162f01 100644
+--- a/Sources/MetalUI/Component.swift
++++ b/Sources/MetalUI/Component.swift
+@@ -280,7 +280,9 @@ extension Component {
+         // and `addingAModifierDoesNotResetAComponentsState` both stay green
+         // under this mutation. Recorded as re-checked, not left unremarked.
+         cursor += 1
++        let ivG = ivNow()
+         var materialized = content
++        ivPhase[7] += ivNow() - ivG
+         var innerCursor = 0
+         // `requestGroupLayout`, never `requestLayout` — this is what reaches
+         // `StateBinder.bind` for every element inside `content`. Calling
+diff --git a/Sources/MetalUI/Frame.swift b/Sources/MetalUI/Frame.swift
+index 28f290c9..4aa97d5a 100644
+--- a/Sources/MetalUI/Frame.swift
++++ b/Sources/MetalUI/Frame.swift
+@@ -3439,6 +3439,7 @@ public final class Frame {
+     }
+ 
+     private func renderOutsideDispatch<E: Element>(_ element: inout E) {
++        let ivT0 = ivNow()
+         isRendering = true
+         beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
+         // The root is the only id with no parent, and the only one this file
+@@ -3467,7 +3468,9 @@ public final class Frame {
+         animationStore.rasters.beginFrame()
+ 
+         var layoutPass = LayoutPass(frame: self)
++        var ivT = ivNow()
+         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
++        ivPhase[0] += ivNow() - ivT; ivT = ivNow()
+         var state = layoutState
+         reportUnconsumedLoweredItems(root: root)
+         // The drawn toolbar strip (`MD-K`): requested after the root, whose
+@@ -3481,7 +3484,9 @@ public final class Frame {
+         if let bar { reportUnconsumedLoweredItems(root: bar.node) }
+         drewMenuBar = bar != nil
+ 
++        ivPhase[1] += ivNow() - ivT; ivT = ivNow()
+         computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node)
++        ivPhase[2] += ivNow() - ivT; ivT = ivNow()
+         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
+         let rootBounds = bounds(of: root)
+         recordElementBounds(rootID, rootBounds)
+@@ -3546,6 +3551,7 @@ public final class Frame {
+         // against a case that cannot occur, and would additionally hold the
+         // bracket open across `stateTable.sweep()` below, which is not scene
+         // construction.
++        ivPhase[3] += ivNow() - ivT; ivT = ivNow()
+         glyphAtlas.beginFrame()
+         var paintPass = PaintPass(frame: self)
+         if !hiddenNodes.contains(root) {
+@@ -3563,6 +3569,7 @@ public final class Frame {
+         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
+         paintTooltip()  // a tooltip, above everything (MN-P item 2)
+         paintAlertPanel()  // the drawn alert, above the menu and the tooltip (SV-J item 2)
++        ivPhase[4] += ivNow() - ivT; ivT = ivNow()
+         glyphAtlas.endFrame()
+         textSystem.endFrame()
+         applyScrollResolutions()
+@@ -3625,9 +3632,18 @@ public final class Frame {
+         animationStore.lifecycle.endFrame(liveGhosts: animationStore.transitions.liveGhosts,
+                                           departed: stateTable.takeDepartedState())
+         isRendering = false
++        ivPhase[5] += ivNow() - ivT
++        ivPhase[6] += ivNow() - ivT0
+     }
+ }
+ 
++/// C14 lane-0 instrument (docs/probes/incremental-invalidation): seconds per phase,
++/// [0] element build + node registration (requestLayout), [1] strips + lowering checks,
++/// [2] computeRootLayout (measure + place), [3] prepaint + hover + focus, [4] paint,
++/// [5] end-of-frame sweeps, [6] whole render, [7] Component content getters.
++nonisolated(unsafe) public var ivPhase = [Double](repeating: 0, count: 8)
++func ivNow() -> Double { Double(DispatchTime.now().uptimeNanoseconds) / 1e9 }
++
+ extension Size where Unit == Pixels {
+     func scaled(by factor: Float) -> Size<ScaledPixels> {
+         Size<ScaledPixels>(width: width.scaled(by: factor), height: height.scaled(by: factor))
+diff --git a/Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift b/Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift
+index 96f80e7c..1ca85941 100644
+--- a/Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift
++++ b/Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift
+@@ -86,3 +86,18 @@ private func pow3(_ n: Int) -> Double { var r = 1.0; for _ in 0..<n { r *= 3 };
+     #expect(IVStats.leaves == frames * leaves)
+     #expect(IVStats.branches == frames * (branches))
+ }
++
++// ---- phase-timing instrument (docs/probes/incremental-invalidation/phase-timing.patch) ----
++import Foundation
++@Test(arguments: [2, 3, 4]) @MainActor func ivPhaseTiming(levels: Int) throws {
++    let counting = CountingTextSystem(harnessTextSystem())
++    let (window, cells) = try ivWindow(levels: levels, counting: counting)
++    for i in 0..<20 { cells[0].value += 1 + i; window.tick() }
++    for i in 0..<8 { ivPhase[i] = 0 }
++    let frames = Int(ProcessInfo.processInfo.environment["IV_FRAMES"] ?? "") ?? 200
++    let t0 = DispatchTime.now().uptimeNanoseconds
++    for i in 0..<frames { cells[cells.count - 1].value += 1 + i; window.tick() }
++    let total = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e9
++    let ms = ivPhase.map { String(format: "%.3f", $0 / Double(frames) * 1000) }
++    print("IV timing L=\(levels) nodes≈\(cells.count * 2 + (cells.count - 1) / 2) per frame ms: build=\(ms[0]) lowering=\(ms[1]) layout=\(ms[2]) prepaint=\(ms[3]) paint=\(ms[4]) sweeps=\(ms[5]) render=\(ms[6]) getters=\(ms[7]) tick=\(String(format: "%.3f", total / Double(frames) * 1000))")
++}
