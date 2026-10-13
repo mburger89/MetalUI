@@ -92,6 +92,14 @@ private func same(_ a: [Glyph], _ b: [Glyph]) -> Bool {
     system.beginFrame()
     _ = glyphs(system, font, at: (x: 0, y: 0))
     system.endFrame()
+    #expect(system.layOutCount == 1, "unused for one frame, the entry is still there")
+    system.beginFrame()
+    system.endFrame()
+    system.beginFrame()
+    system.endFrame()
+    system.beginFrame()
+    _ = glyphs(system, font, at: (x: 0, y: 0))
+    system.endFrame()
     #expect(system.layOutCount == 2, "unused for two frames, the next use shapes again")
 
     // Used every frame, it survives.

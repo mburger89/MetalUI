@@ -30,6 +30,10 @@ public final class PortableTextSystem: TextSystem {
         var generation: Int
     }
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
+    /// The origin-free lines of a plain text (ruling GT-E), same key and same
+    /// two-frame lifetime: a label that only moves places cached lines. Styled
+    /// text is not cached here (ruling GT-H).
+    private var layouts: [MeasureKey: Entry<[LaidOutLine]>] = [:]
     /// A styled text's measurement key (ruling RT-F item 5): the whole value,
     /// so two run splits of one string are two entries.
     private struct StyledKey: Hashable {
@@ -173,15 +177,22 @@ public final class PortableTextSystem: TextSystem {
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
+        layouts = layouts.filter { generation - $0.value.generation <= 1 }
         styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
     }
 
     /// The origin-free lines of `key`'s string.
     private func laidOut(_ key: MeasureKey, _ portable: PortableFont) -> [LaidOutLine] {
+        if let hit = layouts[key] {
+            layouts[key]?.generation = generation
+            return hit.value
+        }
         layOutCount += 1
-        return trapping {
+        let lines = trapping {
             try PortableText.layOut(key.string, font: portable, wrappingAt: key.width, options: key.options)
         }
+        layouts[key] = Entry(value: lines, generation: generation)
+        return lines
     }
 
     private func registered(_ key: FontKey) -> PortableFont {
