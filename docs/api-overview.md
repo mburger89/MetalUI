@@ -204,6 +204,19 @@ also `inlinePresentationIntent`. Links are styled in the accent and inert
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
 
+**Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
+(no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
+environment of the element reading it, and `ResolvedText.measure(in:)` answers
+the size layout gives that text under a proposal — a finite width wraps it, a
+finite height caps its lines, an infinite axis is unbounded — through
+`resolveTextStyle` and the frame's text system, with no layout, no node and no
+state. The answer is the unrounded leaf answer (a laid-out frame is that rounded
+to whole points), and an empty `Text` is one line tall (295). SwiftUI spells it
+`GraphicsContext.resolve(_:)` + `ResolvedText.measure(in:)` in a `Canvas`; the
+environment is the carrier here because MetalUI has no `Canvas` context (296) —
+M / D. Use it to place a label or a chip over a `GPUSurface` before the labels
+exist as elements (rulings `GT-B`…`GT-D`, `GT-I`).
+
 ## Shapes and images — A
 
 `Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's

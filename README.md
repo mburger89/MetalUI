@@ -512,6 +512,13 @@ SwiftUI's `TextSelection` and `TextField(_:text:selection:)` / `TextEditor(_:tex
 the binding carries a whole-title selection or a caret at the end of a note from code, and reads back
 after typing, clicks, arrows and undo. `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` shows it.
 
+**Measuring text** (user request 2026-10-02, item C23, MetalCreator's S5-c, not a plan task; record §99):
+`@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, with no layout, for placing
+labels or chips over a `GPUSurface` before they exist as elements (SwiftUI's `resolve(_:)` +
+`ResolvedText.measure(in:)`, carried by the environment; divergences 295, 296). A drawn-in-the-surface
+`drawText` was measured and deferred; the portable text system now caches a layout so a moving label
+shapes once.
+
 **Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
 plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
 chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside
