@@ -1464,6 +1464,17 @@ cannot: a camera moving over a real viewport is a look.*
   slack); moving the camera shows no label hitching on a Mac and on the SDL backend; labels
   placed from a `MetalView` viewport's pose stay on their anchors during a pan. **Observed:**
 
+## GC. Continuing press cancel — a lost release (item C26, user request 2026-10-02, MetalCreator VI-b, not a plan task; record §100)
+
+*Run `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` (a drag with `onCancelled` in the readout pad) or an app with a
+reporting `DragGesture`. An agent cannot: these need a real lost release.*
+
+- [ ] **GC1.** Start a drag, then take the release away (Mission Control, or open a native menu mid-drag), come back
+  and press again on the same element: the interrupted drag reports one `onCancelled` (no `onEnded`) and the new
+  press starts a drag. **Observed:**
+- [ ] **GC2.** A real double-click on an element with `SpatialTapGesture(count: 2)` still fires the count-2 tap once
+  and nothing spurious. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

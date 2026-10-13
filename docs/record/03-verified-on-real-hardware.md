@@ -2234,3 +2234,10 @@ real-window capture was taken. **Owed, new here — `docs/verification/human-che
 none performed (an agent cannot)**: GT1 measured chips hug a 20-label viewport's text, no hitching
 under camera motion on a Mac and on SDL, labels stay on their anchors during a pan (shared with
 MetalCreator's S5c-6).
+
+## 2026-10-12: continuing press cancel (record §100) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `930db4a`; no window was driven. **Owed, new
+here — `docs/verification/human-checks.md` group GC, none performed (an agent cannot)**: GC1 a real orbit or
+drag interrupted by Mission Control or a native menu, then pressed again, gives one `onCancelled` and a new
+drag; GC2 a real double-click still fires a `count: 2` tap once.

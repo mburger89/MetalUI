@@ -2605,7 +2605,11 @@ public final class Window {
             if var arena = gestureArena, arena.isAlive {
                 // The no-target arena keys on its draggable region (`DN-U`
                 // item 5), so a continuing press compares against the same.
-                if let key, lastHitboxes[key.target].id == arena.targetID {
+                // A press that finds the arena still pressing has no release
+                // between it and the last: that release was lost, so this is
+                // not a tap sequence's second press — the arena is abandoned
+                // (cancelling what reported) and a fresh one forms (`GC-C`).
+                if !arena.isPressing, let key, lastHitboxes[key.target].id == arena.targetID {
                     callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true,
                                             modifiers: mouse.modifiers)
                     gestureArena = arena
