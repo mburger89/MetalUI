@@ -241,34 +241,6 @@ human checks IV1-IV4 (spec §10) are not run (screen locked; an agent cannot).
 **Merge.** `origin/master` had moved to `d279f34d` (52 commits: §101 material follow-ups, §103 guides, §105
 performance baselines, §106 `runUntilIdle()` on Linux, §107 guides follow-up). The merge was clean (no
 conflict); records 101, 103 and 105-107 are parallel branches and **104 was free, so it keeps its number**.
-Divergence 346 stands (master took 315, 325, 326). The census file was re-recorded after the merge for master's line shifts and growth: **3492** declarations
-(the branch's 3476 + the nine `MetalUIDemoContent` declarations of the invalidation demo, which lane 2's recording
-had not yet included, + master's seven: `Material.tint`, `accessibilityReduceTransparency` and the harness's
-four reduce-transparency members); `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
-
-**Counts** (`swift package clean`, `swift build --build-system native --build-tests`, then
-`swift test --build-system native --no-parallel --skip-build`): **3591 tests in 3 suites passed**,
-`FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
-`swift build --build-tests` (default build system) 0 warnings. **Not an unfiltered run**: the machine's
-screen was locked and the display asleep, and `NSOpenPanel.init()` in the seven `AppKitPresentationTests`
-tests that present a sheet hangs there (sampled twice: `AppKitWindow.presentFileDialog` -> `NSOpenPanel
-__allocating_init`, 0 % CPU), so those seven were `--skip`ped by name (the earlier locked-screen runs
-read them as the five `CI-AF` issues; a `caffeinate -d` woke the display and did not cure it). 3591 run + 7 skipped = 3598 in a screen-unlocked run (lane 1's 3583 + the window file's 12 functions, 2.1 counted by its three cases, +2 guards, +1 demo test, within 2 of that sum; the difference was not chased). Typecheck guards: two new (2.11a, 2.11b), each
-mutated red once (L, M).
-
-**GT-F.** Unchanged by this lane (`IV-O`): `theOverlayCostIsLinearAndCounted` passes in the full run;
-`drawText` stays deferred and is re-taken at C14-b's close-out.
-
-**Carried.** C14-b (retained subtrees, `IV-H`); C14-c (an environment epoch, divergence 346);
-`@Environment`/`@FocusState` components stay refused; per-row `List`/`ForEach` scopes (C14-d); the
-memo's cost (the `==` comparison and the pristine copy) is not timed; the demo's real window and
-human checks IV1-IV4 (spec §10) are not run (screen locked; an agent cannot).
-
-## §6 The merge and the close-out (record phase)
-
-**Merge.** `origin/master` had moved to `d279f34d` (52 commits: §101 material follow-ups, §103 guides, §105
-performance baselines, §106 `runUntilIdle()` on Linux, §107 guides follow-up). The merge was clean (no
-conflict); records 101, 103 and 105-107 are parallel branches and **104 was free, so it keeps its number**.
 Divergence 346 stands (master took 315, 325, 326). The census file was re-recorded after the merge for master's
 line shifts and growth: **3492** declarations (master's 3476 at the merge base's line plus the branch's 16:
 the four layout-memo and three content-memo `FrameWork` fields are covered by the harness regex and moved no
