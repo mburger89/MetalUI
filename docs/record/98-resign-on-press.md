@@ -117,3 +117,7 @@ re-applied ones (`RF-I` 1). Hangs: none.
   reading, owner `RF-3`.
 * This change adds no divergence (`KF-G`'s default is unchanged); the reserved range
   285-294 stays unused.
+
+## Adversarial check (post-merge, `df6c83f6`)
+
+Independent re-take after `swift package clean`: `Test run with 3533 tests in 3 suites passed after 432.934 seconds.`, `FR-J no-argument frame: succeeded=true` present, 0 `error:`, one `warning:` (SwiftPM's deprecation). Fourteen images 0 px against merged master `ff8a1ea4` (`compare.sh`; against `5f35df6` the merged-in C21/C22/C25 legitimately differ, so that baseline is not meaningful on the merge). Inventory and undocumented checks print nothing; `cmp CLAUDE.md AGENTS.md` identical; cited test names resolve. Two central mutations in `HoverKeyRegion.focusOnPress`, each full suite, restored, `git status` clean: (A) dropping the `resignsOnPress` arm of the region predicate reddened 11 tests (`aPressOnInertChromeResignsAFocusedField`, `aResignRegionClearsFocusOnEveryPlatform`, `aSecondaryAndOtherPressResignNothing`, `disabledHiddenAndAllowsHitTestingWithdrawTheResignRegion` and seven more); (B) `else if region != nil` to `else` (resign everywhere, undoing `KF-G`) reddened 4 (`aDeferredPresentationPressDoesNotResignThroughARegionBelow`, `aPressOnAKeyRegionsOwnPopoverChangesNoFocus`, `aPressOnAnOpaqueSiblingAboveAKeyRegionChangesNoFocus`, `aPressOnAnOpaqueSiblingAboveTheRegionChangesNoFocus`). Not re-run: Backends/SDL and the Linux image (this branch touches neither).
