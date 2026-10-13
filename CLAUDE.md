@@ -97,7 +97,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity): 3443 tests, 0 goldens, 217 typecheck guards**
+- **Counts (2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity), then record 94 §11's three pins: 3446 tests, 0 goldens, 217 typecheck guards**
   (master's 3415 + 28 tests, 216 + 1 guard: lane 1's 16 (8 record, 3 scene, 4 reference, 1 guard), lane 2's 12; `swift package clean`,
   native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, the
   default build system 0 `warning:`; census 3414 (3405 + 9); `Backends/SDL` 30 + 123 on macOS (30 + 120 in the Linux image, branch checker; lane 3's 10 `SDLBackdropTests` and

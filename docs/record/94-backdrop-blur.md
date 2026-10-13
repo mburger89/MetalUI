@@ -263,13 +263,7 @@ Deferrals with owners:
 
 Open gaps the checkers reported (minor, unfixed in the Record phase, which changes no source):
 
-1. `MUIBackdrop.flatTintRect`'s `color.a *= opacity` is unpinned (mutation 1.14 reddens nothing):
-   `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint` checks the degraded rect at
-   opacity 1 only. Required: a case under `.opacity(0.5)` expecting `tint.a * 0.5`.
-2. Test 2.12 does not pin the fragment-side transform handling in `backdrop_coverage` (`pixelScale`
-   and the transform's `outerMask`): its outer mask is the whole frame and `pixelScale` is 1.
-   Required: an outer mask smaller than the frame and a scale other than 1.
-3. A failed lazy pipeline load on SDL (`ensure_backdrop_pipelines`, first material frame) draws flat
+1. (Gaps 1 and 2 of the checkers' list are closed: §11.) A failed lazy pipeline load on SDL (`ensure_backdrop_pipelines`, first material frame) draws flat
    tints silently; no test sees it (`BB-T` cost-if-wrong).
 
 Hazards for the next reader:
@@ -307,3 +301,21 @@ Two mutations of the checker's own design, each run to completion unfiltered (34
 | C2 | `Frame.fillBackdrop`: `sigma` without `* scaleFactor` | `theBackdropShapeIsTheFilledRoundedRectOrEllipse` only (one test pins the scale; thin) |
 
 Both restored; `git status` clean. No code defect found; merge verdict in the checker's report.
+
+## §11 The two unpinned mutations, pinned (3446 tests)
+
+Both gaps of §9 closed by tests, each mutation run to completion unfiltered (`swift test
+--build-system native --no-parallel`, 3446 tests, summary read; the five locked-screen
+`AppKitPresentationTests` sheet issues are environmental and excluded). Literals were derived by hand
+before the first run.
+
+| # | Test (new) | Mutation | Reddened |
+|---|---|---|---|
+| 1.14 | `aDegradedMaterialUnderOpacityDrawsTheTintTimesTheOpacity` (1.8b): light `regular` alpha 0.7137; under `.opacity(0.5)` in a shadow and in a compositing group under a shadow the flat rect reads 0.7137 x 0.5 = 0.35685, at opacity 1 it reads 0.7137 | `MUIBackdrop.flatTintRect`: delete `color.a *= opacity` | the new test only (2 issues: the shadow and the group arms) |
+| 2.12 | `aTransformsOuterMaskSmallerThanTheFrameCutsABackdrop` (2.12b): the 2.12 turn with outer mask x 0..100; x 95 white, x 105 the sharp blue backdrop | `backdrop_coverage`: `uint transformIndex = 0;` at the first `b.shape >> 8` | 2.12b (1 issue) and 2.12c |
+| 2.12 | `aScaledBackdropAntialiasesAtTheScreenPixel` (2.12c): local (10, 5, 40, 10) under 2x, `pixelScale` 2, covers screen x 20..100, y 10..30; the first pixel inside each left/top edge is white, the last outside is the sharp red (0.75 / 0.25 coverage at scale 1) | same | 2.12c (4 issues) and 2.12b |
+
+The original `aClippedTransformedBackdropStaysInsideItsClip` (2.12) stays green under mutation 2.12:
+its outer mask is the whole frame and `pixelScale` is 1, so it cannot see the fragment-side terms; 2.12b and
+2.12c are its siblings for them. Restored from a copy; `git status` clean. `shaders.metal` and `replay.hlsl`
+are untouched (the HLSL twin was not mutated; the new tests run on Metal only).
