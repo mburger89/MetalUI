@@ -378,37 +378,56 @@ private struct RSInspector: Component, @MainActor Equatable {
 
 // MARK: 1.8b — a skipped descendant's later change beats the ancestor's record
 
-/// An equatable leaf that reads `model.n` and is always `==`, inside an equatable parent that is always `==`.
+/// An equatable leaf that reads one of the model's counters and is always `==`, inside an equatable
+/// parent that is always `==`.
 private struct RSMemoLeaf: Component, @MainActor Equatable {
     let model: RSModel
-    var content: some ElementGroup { Text("m\(model.n)").frame(width: Pixels(60), height: Pixels(14)) }
+    let second: Bool
+    var content: some ElementGroup {
+        Text(second ? "t\(model.tint)" : "m\(model.n)").frame(width: Pixels(60), height: Pixels(14))
+    }
     static func == (l: RSMemoLeaf, r: RSMemoLeaf) -> Bool { true }
 }
 
 private struct RSMemoParent: Component, @MainActor Equatable {
     let model: RSModel
-    var content: some ElementGroup { VStack(spacing: 0) { RSMemoLeaf(model: model).equatable() } }
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            RSMemoLeaf(model: model, second: false).equatable()
+            RSMemoLeaf(model: model, second: true).equatable()
+        }
+    }
     static func == (l: RSMemoParent, r: RSMemoParent) -> Bool { true }
 }
 
-/// 1.8b (`SB-AC`) — the parent's record was made in a frame where the leaf's content was skipped by the
-/// content memo, so the parent's windows never subscribed to the leaf's read. The leaf changes: its own
-/// memo re-evaluates it, and the parent must not replay the old text. Found by `METALUI_VERIFY_RETAINED=1`
-/// over `anEqualComponentSkipsItsContent`. Mutation: the `evaluationsSoFar` comparison in
-/// `EquatableComponent.requestGroupLayout` removed — the stale text is drawn.
+/// 1.8b (`SB-AC`) — the first leaf changes, so the parent records again in a frame where the second leaf's
+/// content is skipped by the content memo: the parent's windows never subscribed to the second leaf's read.
+/// The second leaf then changes: its own memo re-evaluates it, and the parent must not replay the old text.
+/// Found by `METALUI_VERIFY_RETAINED=1` over `anEqualComponentSkipsItsContent`. Mutation: the
+/// `evaluationsSoFar` comparison in `EquatableComponent.requestGroupLayout` removed — the stale text is drawn.
 @Test @MainActor func aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord() async throws {
-    let model = RSModel()
-    let window = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
-        VStack(spacing: 0) { RSMemoParent(model: model).equatable() }
+    let onModel = RSModel(), offModel = RSModel()
+    let on = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSMemoParent(model: onModel).equatable() }
     }
-    for _ in 0..<5 { window.window.setNeedsRedraw(); window.tick() }
-    #expect(rsFrame(window).retainedHits == 1, "the parent replays, its leaf inside it")
-    _ = try window.element(label: "m0")
-    model.n = 3
+    let off = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSMemoParent(model: offModel).equatable() }
+    }
+    off.window.testingRetainedSubtrees = false
+    func draw(_ times: Int) {
+        for _ in 0..<times { for w in [on, off] { w.window.setNeedsRedraw(); w.tick() } }
+    }
+    func glyphs(_ w: TestWindow) -> Data { w.scene.glyphs.withUnsafeBytes { Data($0) } }
+    draw(4)
+    onModel.n = 3; offModel.n = 3
     await rsSettle()
-    window.window.setNeedsRedraw(); window.tick()
-    _ = try window.element(label: "m3")
-    #expect(window.lastFrameWork.retainedHits == 0, "the write's frame replays neither")
+    draw(4)
+    #expect(glyphs(on) == glyphs(off))
+    #expect(on.lastFrameWork.retainedHits == 1, "the parent replays again; the second leaf was skipped when it was recorded")
+    onModel.tint = 7; offModel.tint = 7
+    await rsSettle()
+    draw(1)
+    #expect(glyphs(on) == glyphs(off), "the second leaf's new text is drawn, not the recorded one")
 }
 
 // MARK: 1.5 — a channel outside the replayable set makes the subtree ineligible

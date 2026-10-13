@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AC`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AD`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -543,11 +543,32 @@ node.
 **every outer scope is a plain `.effect`** (a pure map of the leaf by parameters the key holds: transform, flattening
 flag, outer mask) the record keeps them as `finalScene`; a shadow, blur, composite, capture or barrier outside means
 the leaves must be handed to that scope and `finalScene` is `nil`. `replayPaint` inserts the final primitives straight
-when **no recorder is open** (`retainLog == nil`); with one open (the occurrence sits in another's recording) it
-replays the boundary stream so the outer recorder sees the leaves pass its own boundary. Verify mode compares both
+when **no live recorder wants the leaves** (`RetainLog.needsLeaves`: none open, or every open one already tainted);
+with a live one open (the occurrence sits in another's recording) it replays the boundary stream so the outer recorder
+sees the leaves pass its own boundary. A `withState` taints the recorder at once (the separate `withStates` list went). Verify mode compares both
 streams. Release, `.value`: 6.900 → 6.569 ms per drag frame.
 
 **Cost if wrong.** A scope kind that is not a pure map of parameters in the key (a future `.effect` that reads state)
 would replay stale final primitives; the key's scope vector and `everyKeyComponentSeparates` (shadow, blur, rotation,
 offset arms) are the instruments.
 
+## SB-AC — A descendant whose content ran this frame kills its ancestor's record
+
+**Question.** `METALUI_VERIFY_RETAINED=1` over the unfiltered suite trapped in `anEqualComponentSkipsItsContent`: a
+parent replayed a leaf's old text. Which hole is that?
+
+**Evidence.** The parent's build window opens only when it has no complete record (`SB-V`). A parent that records
+in a frame where an equatable descendant's content is skipped by the content memo never reads that descendant's
+`@Observable` properties inside its window, so its sessions are not subscribed to them. The descendant changes later: its own memo
+re-evaluates it, the parent's armed sessions stay silent, the parent's key, serial and versions are unchanged, and
+the parent replays a stale picture. Test 1.8b reproduces it with two leaves (the first changes so the parent records
+while the second is skipped, then the second changes); the verify run found it, no hand-written test had.
+
+**Ruling.** `EquatableComponent.requestGroupLayout` reads `ContentMemoStore.evaluationsSoFar` after its own
+materialize and after its build recursion; a difference sets `entry.observedChange`, so the occurrence misses and
+records again. Two integers a frame per occurrence, no tracking. Mutation: the comparison replaced by `_ = ...`
+reddens 1.8b at its last glyph comparison and nothing else (the 1.8 test covers the getter-read hole it was named for).
+
+**Cost if wrong.** A descendant that changes its picture without a memo evaluation (a plain component reading an
+`@Observable` it also read when the record was made is subscribed by the armed window; one first read in a skipped frame is the hole this closes)
+would still be stale; the verify-mode run over the whole suite is the instrument.
