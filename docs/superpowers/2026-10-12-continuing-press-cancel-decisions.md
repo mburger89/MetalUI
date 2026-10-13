@@ -8,7 +8,7 @@ planning C16's adoption; not blocking — stopgaps in `ViewportModel`/`EditorMod
 Spec: [`specs/2026-10-12-continuing-press-cancel-design.md`](specs/2026-10-12-continuing-press-cancel-design.md).
 Record: `../record/100-continuing-press-cancel.md` (written at the Record phase).
 
-Prefix **`GC-`**, lettered. **Next unused: `GC-F`.** (This line moves in the
+Prefix **`GC-`**, lettered. **Next unused: `GC-G`.** (This line moves in the
 commit that appends a ruling; read the last `## GC-` heading.)
 
 Branch `fix/continuing-press-cancel` from `930db4a`. `docs/divergences.md`: this
@@ -128,3 +128,36 @@ MetalUI-only (`IF-E`).
 
 One lane (`Gesture.swift` arm, `Window.swift` condition, one new test file, probe
 and docs). See the spec §§3–5.
+
+---
+
+## GC-F — Critic's rulings: the audit's tests, the mutation of 1.6, and what was rejected
+
+**Audit tests per reachable row** (`GC-D`). Each reachable row has a pin; the
+implementer names it in the record rather than writing a duplicate:
+`abandon()` is `aDroppedPrimaryDragReportsCancelledOnceAndNotEnded` (and new 1.9);
+`cancel()` on a stale button/pinch arena is `aStaleButtonArenaReportsCancelledWhenTheSameButtonPressesAgain`,
+`aStalePinchArenaReportsCancelledBeforeASameCentrePinchBegins`; a window close is
+`aWindowCloseCancelsLiveArenasBeforeOnDisappear`; a draggable winning is
+`aDragStartedByADraggablesPreviewIsCancelled`; a window-drag handle winning is
+`WindowDragTests.aHandleOverAGestureViewportDragsTheWindowAndCancelsTheViewport`;
+unreported leaves are `aDragThatNeverBeganIsNotCancelled`/`aReleasedDragIsNotCancelledByTheNextPress`.
+The continuing-press row is new 1.4 (arena) and 1.1 (window). Line numbers in
+`GC-D` are the baseline's; re-grep.
+
+**Test 1.8 is already pinned** by `aPrimaryArenaIsNotCancelledByAMoveWithoutAButton`
+(`GestureFollowupTests`); 1.8 is kept only as the lost-release shape (a reported
+drag, then `mouseMoved`) and may be folded into that test's neighbour.
+
+**Mutation of 1.6/1.7** is: make the continuing branch unreachable (always
+`abandon()` and a fresh arena, ignoring `isPressing`'s release), which must redden
+1.6 (`count: 2` never completes) and 1.7 (`clickCount` 1).
+
+**Rejected.** (i) A SwiftUI double-click-beside-drag claim: none is made (spec §0).
+(ii) Adding a `.mouseMoved` cancel for the primary arena (`GC-C`; the existing
+pin above would redden). (iii) A second lane: the change is two small edits and
+one test file. (iv) Dropping `GC-B` as dead code after `GC-C`: it keeps the
+arena honest when driven directly (1.4), and costs one line.
+
+**Probe re-run (critic, 2026-10-12, screen state as at the original run).** Arms
+`L0`..`L3` reproduced byte for byte against the header.
