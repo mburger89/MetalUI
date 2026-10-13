@@ -3424,6 +3424,12 @@ MetalUITesting	Sources/MetalUITesting/TestWindowInput.swift:158	TestWindow	func	
 MetalUITesting	Sources/MetalUITesting/TestWindowInput.swift:171	TestWindow	func	typeText
 MetalUITesting	Sources/MetalUITesting/TestWindowInput.swift:182	TestWindow	func	typeKey
 MetalUITesting	Sources/MetalUITesting/TestWindowInput.swift:192	TestWindow	func	pressModifiers
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:18	TestWindow	func	setMarkedText
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:33	TestWindow	func	commitMarkedText
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:44	TestWindow	func	commitMarkedText
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:55	TestWindow	func	cancelMarkedText
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:64	TestWindow	var	markedText
+MetalUITesting	Sources/MetalUITesting/TestWindowInputMethod.swift:67	TestWindow	var	markedSelection
 MetalUITesting	Sources/MetalUITesting/TestWindowPresentations.swift:21	TestWindow	var	presentedAlert
 MetalUITesting	Sources/MetalUITesting/TestWindowPresentations.swift:30	TestWindow	var	presentedFileDialog
 MetalUITesting	Sources/MetalUITesting/TestWindowPresentations.swift:40	TestWindow	var	presentedMenu
