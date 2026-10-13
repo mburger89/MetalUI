@@ -11,6 +11,128 @@ import Testing
 // Change a guide and its mirror together. Every top-level name carries its guide's topic
 // as prefix (`DG-K`: one module, both lanes). Mutations: delete the modifier a test names.
 
+// guide: presentations-and-app-shell #1
+import MetalUI
+
+/// A button whose popover opens beside it.
+struct ShellPopoverDemo: Component {
+    @State var shown = false
+
+    var content: some ElementGroup {
+        Button("Info") { shown.toggle() }
+            .popover(isPresented: $shown) {
+                Text("Details").frame(width: Pixels(120), height: Pixels(40))
+            }
+    }
+}
+
+@MainActor
+func shellPopoverRoot() -> some Element {
+    VStack { ShellPopoverDemo() }
+}
+// end guide
+
+// guide: presentations-and-app-shell #2
+/// A destructive action behind a confirmation.
+struct ShellDeleteConfirmation: Component {
+    @State var asking = false
+    @State var deleted = 0
+
+    var content: some ElementGroup {
+        Button("Remove") { asking = true }
+            .alert("Delete the file?", isPresented: $asking) {
+                Button("Delete", role: .destructive) { deleted += 1 }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This cannot be undone.")
+            }
+        Text("Deleted \(deleted)")
+    }
+}
+
+@MainActor
+func shellDeleteRoot() -> some Element {
+    VStack { ShellDeleteConfirmation() }
+}
+// end guide
+
+// guide: presentations-and-app-shell #3
+/// The path a file dialog chose, logged.
+@MainActor
+final class ShellLog {
+    var entries: [String] = []
+}
+
+/// A button that asks for one JSON file.
+struct ShellImporter: Component {
+    @State var asking = false
+    let log: ShellLog
+
+    var content: some ElementGroup {
+        Button("Import") { asking = true }
+            .fileImporter(isPresented: $asking, allowedContentTypes: [.json]) { result in
+                if case .success(let url) = result { log.entries.append("chose \(url.path)") }
+            }
+    }
+}
+
+@MainActor
+func shellImportRoot(_ log: ShellLog) -> some Element {
+    VStack { ShellImporter(log: log) }
+}
+// end guide
+
+// guide: presentations-and-app-shell #4
+/// A command menu: the title opens on a click off Apple, in the system bar on Apple.
+@MainActor
+func shellInstallCommands(_ app: App, log: ShellLog) {
+    app.commands {
+        CommandMenu("Tools") {
+            Button("Run") { log.entries.append("run") }.keyboardShortcut("r")
+        }
+    }
+}
+
+/// A target with a one-item context menu.
+@MainActor
+func shellContextMenuRoot(_ log: ShellLog) -> some Element {
+    VStack {
+        Button("Target") {}
+            .contextMenu {
+                Button("Copy") { log.entries.append("copy") }
+            }
+    }
+}
+// end guide
+
+// guide: presentations-and-app-shell #5
+/// A titled root with one toolbar button.
+@MainActor
+func shellToolbarRoot(_ log: ShellLog) -> some Element {
+    VStack {
+        Text("Notes")
+            .frame(width: Pixels(100), height: Pixels(50))
+            .navigationTitle("Notes")
+            .toolbar {
+                ToolbarItem(id: "add") { Button("Add") { log.entries.append("add") } }
+            }
+    }
+}
+// end guide
+
+// guide: presentations-and-app-shell #6
+/// A document whose window refuses to close while it has unsaved changes.
+@MainActor
+final class ShellDocument {
+    var hasUnsavedChanges = false
+}
+
+@MainActor
+func shellGuardClose(_ window: Window, document: ShellDocument) {
+    window.onCloseRequest = { document.hasUnsavedChanges ? .cancel : .now }
+}
+// end guide
+
 // MARK: Presentations and the app shell (T11)
 
 /// **T11** — the shell guide's roots build. Mutation: rename `shellPopoverRoot`.
@@ -37,7 +159,7 @@ import Testing
 /// Mutation: delete `deleted += 1`.
 @Test @MainActor func theShellGuideAnAlertsButtonRunsItsActionAndClosesIt() throws {
     let window = try harnessWindow { shellDeleteRoot() }
-    try window.click(window.element(label: "Delete"))
+    try window.click(window.element(label: "Remove"))
     let alert = try #require(window.presentedAlert)
     #expect(alert.title == "Delete the file?")
     #expect(alert.buttons.map(\.title) == ["Delete", "Cancel"])
@@ -50,10 +172,11 @@ import Testing
 /// Mutation: delete the `role: .destructive` button.
 @Test @MainActor func theShellGuideADrawnAlertIsPressedThroughTheTree() throws {
     let window = try harnessWindow(options: .init(presentsAlertsNatively: false)) { shellDeleteRoot() }
-    try window.click(window.element(label: "Delete"))
+    try window.click(window.element(label: "Remove"))
     #expect(window.presentedAlert == nil)
     let delete = try #require(try window.elements { $0.role == .button && $0.label == "Delete" }.first)
     try window.click(delete)
+    window.tick()
     _ = try window.element(label: "Deleted 1")
 }
 
@@ -116,6 +239,107 @@ import Testing
     #expect(window.platformWindow.isClosed)
 }
 
+// guide: drawing-and-gpu #1
+import MetalUI
+
+/// A diamond: four lines and a close.
+struct DrawingDiamond: Shape {
+    func path(in rect: Bounds<Pixels>) -> Path {
+        Path { path in
+            let width = rect.size.width.value, height = rect.size.height.value
+            path.move(to: Point(x: Pixels(width / 2), y: Pixels(0)))
+            path.addLine(to: Point(x: Pixels(width), y: Pixels(height / 2)))
+            path.addLine(to: Point(x: Pixels(width / 2), y: Pixels(height)))
+            path.addLine(to: Point(x: Pixels(0), y: Pixels(height / 2)))
+            path.closeSubpath()
+        }
+    }
+}
+
+/// A gradient-filled diamond with a shadow below it.
+@MainActor
+func drawingBadgeRoot() -> some Element {
+    VStack {
+        DrawingDiamond()
+            .fill(LinearGradient(colors: [.red, .blue], startPoint: .top, endPoint: .bottom))
+            .frame(width: Pixels(60), height: Pixels(60))
+            .shadow(color: .shadow, radius: Pixels(4), x: Pixels(0), y: Pixels(2))
+    }
+}
+// end guide
+
+// guide: drawing-and-gpu #2
+/// Two squares that cast one shadow between them, not two.
+@MainActor
+func drawingGroupedRoot() -> some Element {
+    VStack {
+        HStack(spacing: Pixels(0)) {
+            Rectangle().fill(Color.red).frame(width: Pixels(30), height: Pixels(30))
+            Rectangle().fill(Color.blue).frame(width: Pixels(30), height: Pixels(30))
+        }
+        .compositingGroup()
+        .shadow(radius: Pixels(4), x: Pixels(2), y: Pixels(2))
+    }
+}
+// end guide
+
+// guide: drawing-and-gpu #3
+/// A gradient with a material panel over it.
+@MainActor
+func drawingMaterialRoot() -> some Element {
+    VStack {
+        ZStack {
+            Rectangle().fill(LinearGradient(colors: [.red, .blue], startPoint: .leading, endPoint: .trailing))
+            Color.clear.frame(width: Pixels(120), height: Pixels(40)).background(.regularMaterial)
+        }
+        .frame(width: Pixels(200), height: Pixels(120))
+    }
+}
+
+/// The same panel under a shadow: the material degrades to its flat tint.
+@MainActor
+func drawingFlatMaterialRoot() -> some Element {
+    VStack {
+        Color.clear.frame(width: Pixels(120), height: Pixels(40))
+            .background(.regularMaterial)
+            .shadow(radius: Pixels(3), x: Pixels(2), y: Pixels(2))
+    }
+}
+// end guide
+
+// guide: drawing-and-gpu #4
+/// A surface that redraws when `version` changes.
+@MainActor
+func drawingSurfaceRoot(version: Int) -> some Element {
+    VStack {
+        GPUSurface(redraw: .onDemand, value: version) { context in
+            context.clear(red: 0.1, green: 0.2, blue: 0.4, alpha: 1)
+        }
+        .frame(width: Pixels(200), height: Pixels(120))
+    }
+}
+// end guide
+
+// guide: drawing-and-gpu #5
+#if os(macOS)
+import Metal
+
+/// An app-owned Metal pass: clear the target, never commit.
+@MainActor
+func drawingMetalViewRoot() -> some Element {
+    VStack {
+        MetalView(redraw: .onDemand) { context in
+            let pass = context.renderPassDescriptor(loadAction: .clear,
+                                                    clearColor: MTLClearColor(red: 0, green: 0.4, blue: 0.2, alpha: 1))
+            guard let encoder = context.commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
+            encoder.endEncoding()
+        }
+        .frame(width: Pixels(200), height: Pixels(120))
+    }
+}
+#endif
+// end guide
+
 // MARK: Drawing and GPU (T12)
 
 /// **T12** — the drawing guide's roots build. Mutation: rename `drawingBadgeRoot`.
@@ -123,6 +347,7 @@ import Testing
     _ = try harnessWindow { drawingBadgeRoot() }
     _ = try harnessWindow { drawingMaterialRoot() }
     _ = try harnessWindow { drawingFlatMaterialRoot() }
+    _ = try harnessWindow { drawingGroupedRoot() }
     _ = try harnessWindow { drawingSurfaceRoot(version: 1) }
     #if os(macOS)
     _ = try harnessWindow { drawingMetalViewRoot() }
@@ -144,6 +369,38 @@ import Testing
     #expect(flat.scene.backdrops.isEmpty, "read \(flat.scene.backdrops.count)")
 }
 
+// guide: cross-platform #1
+import MetalUI
+
+/// A document type the file dialogs can filter by extension off Apple.
+let crossAcceptedTypes: [ContentType] = [
+    ContentType("com.example.notes", conformingTo: [.json], filenameExtensions: ["notes", "json"])
+]
+
+/// A button whose shortcut is the platform's primary modifier: Command on Apple, Control elsewhere.
+@MainActor
+func crossSaveRoot(_ log: ShellLog) -> some Element {
+    VStack {
+        Button("Save") { log.entries.append("save") }.keyboardShortcut("s")
+    }
+}
+// end guide
+
+// guide: cross-platform #2
+/// A bitmap built from bytes is the same on every platform; a file may be missing.
+@MainActor
+func crossImageRoot() -> some Element {
+    let bitmap = ImageBitmap(width: 4, height: 4, rgba: [UInt8](repeating: 255, count: 64))
+    return VStack { Image(bitmap, scale: 1, label: Text("Logo")) }
+}
+
+/// A file path that is not there answers `nil`.
+@MainActor
+func crossLogo(path: String) -> ImageBitmap? {
+    ImageBitmap(contentsOfFile: path)
+}
+// end guide
+
 // MARK: Cross-platform (T13)
 
 /// **T13** — the cross-platform guide's roots build. Mutation: rename `crossImageRoot`.
@@ -152,6 +409,11 @@ import Testing
     _ = try window.element(label: "Logo")
     _ = try harnessWindow { crossSaveRoot(ShellLog()) }
     #expect(crossAcceptedTypes.count == 1)
+}
+
+/// A path that is not there answers `nil`, never a trap. Mutation: make `crossLogo` return a bitmap.
+@Test @MainActor func theCrossPlatformGuideAMissingFileIsNil() throws {
+    #expect(crossLogo(path: "/nonexistent/guide-logo.png") == nil)
 }
 
 /// The primary modifier fires the shortcut on every platform: ⌘ on Apple, ⌃ elsewhere.
