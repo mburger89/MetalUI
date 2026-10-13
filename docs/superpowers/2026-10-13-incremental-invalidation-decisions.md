@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-P`.**
+**Next unused id: `IV-Q`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -452,3 +452,44 @@ C14-b's retained-subtree territory and is re-taken there with the same test.
 
 **Cost if wrong.** An app drawing thousands of world-anchored labels per frame pays
 the build recursion for each; the counted figure is above, per label.
+
+## IV-P — Lane 2 as built: six amendments to IV-B…IV-D
+
+**Question.** Building the content memo met six places where the spec's wording was
+wrong or under-specified.
+
+**Ruling.** (1) **`Component` is split, not duplicated.** `requestGroupLayout` is now
+`enterComponent` (id, `noteNamed`, `StateBinder.bind`, the one cursor index) +
+`var materialized = content` + `finishComponent` (the content's own
+`requestGroupLayout` under the component's id); the bare path is those three lines and
+the two mutation notes stay beside the code they name. `EquatableComponent` calls the
+same two halves around the memo, so a hit still runs `noteNamed` and the bind. (2) **The
+end-of-frame call is in `StateTable.sweep()`, not `Frame.swift`**: the table already
+hosts the store (`StateTable.contentMemos`), one line at the end of `sweep()` snapshots
+the counters (`lastEvaluations`/`lastSkips`/`lastRefusals`, read per build by the
+harness's `BuildWork`) and drops the entries no component touched this build, spending
+their sessions. (3) **Entry versions are one monotonic counter** (`versionCounter`,
+`&+= 1` per `write` and `withState`), 0 for no entry, so a removed and re-created entry
+never repeats a number; the memo records the versions of the `@State` ordinals of the
+type's cached `StateBinder.Shape` (`stateOrdinals`) and a `@FocusState` is told from a
+`@State` by a marker protocol (`BindableFocusState`). Versions are read *before* the
+getter, so a getter that writes its own `@State` re-evaluates next frame (the
+conservative reading). (4) **A component writes `@MainActor Equatable`**: `Component`
+is main-actor isolated, so a plain `Equatable` conformance is a Swift 6 isolation
+error; the isolated spelling is what `equatable()` accepts and what the typecheck
+guards and the doc comment use. (5) **`EquatableComponent` is an `ElementGroup`, not a
+`ProposalElementGroup`**: in a `VStack`/`HStack` it is adopted as `LegacyContent`, as a
+bare `Component` is (every test tree is in one); a proposal-modifier chain after it is
+therefore not offered, as after a bare `Component`. (6) **Divergence 346 is narrowed to
+`@Environment`**: the probe gained arms `E0`, `E-env`, `E-env2` and the separating
+`EnvQuiet` (SwiftUI re-runs an equatable view that reads `@Environment` when the
+environment changes and skips one that reads none), so the claim "MetalUI evaluates every
+frame, SwiftUI only on a change" rests on a run; the `@FocusState` refusal is MetalUI's
+own ruling with no SwiftUI claim. The hit path stores the pristine content as the
+getter's result (a value copy before `finishComponent` mutates the caller's copy);
+class-boxed state inside it is shared by reference and re-bound each frame, which is
+why test 2.9's differential is the instrument.
+
+**Cost if wrong.** (3)'s before-the-getter reading costs one re-evaluation for a
+component that writes its own state in `content` (already a smell, `Counter` in
+`ComponentTests` aside). (5) costs nothing the bare component had.

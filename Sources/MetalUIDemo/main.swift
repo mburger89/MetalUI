@@ -77,10 +77,19 @@ func runDemo() throws {
     // it selected, a note opened with its caret at the end (macOS 15).
     let selectionDemo = ProcessInfo.processInfo.environment["METALUI_SELECTION_DEMO"] == "1"
 
+    // Incremental invalidation's content memo (`IV-B`, spec
+    // `2026-10-13-incremental-invalidation-design.md` §9): two copies of one tree,
+    // `.equatable()` against not, and the getters each bump evaluates.
+    let invalidationDemo = ProcessInfo.processInfo.environment["METALUI_INVALIDATION_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if #available(macOS 15, *), selectionDemo {
+    if invalidationDemo {
+        window = try app.openWindow(title: "MetalUI — Content Memo",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: invalidationDemoContent)
+    } else if #available(macOS 15, *), selectionDemo {
         window = try app.openWindow(title: "MetalUI — Selection",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: selectionDemoContent)

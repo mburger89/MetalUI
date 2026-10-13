@@ -188,7 +188,7 @@ private struct AlwaysEqualCounter: Component, @MainActor Equatable {
 }
 
 /// 2.3 — `==` always true, a button writes the component's own `@State`: the content
-/// re-evaluates and the text updates (`IV-D` item 1). **2.3b** (`IV-L` item 4): the
+/// re-evaluates and the text updates (SwiftUI probe ES, `IV-D` item 1). **2.3b** (`IV-L` item 4): the
 /// button's closure was built in the evaluation of frame 1 and is invoked after five
 /// skipped frames; it still writes. Mutation: the entry's recorded versions not
 /// compared — the text stays `n=0`.

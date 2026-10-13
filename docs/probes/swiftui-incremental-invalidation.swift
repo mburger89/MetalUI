@@ -125,6 +125,38 @@ struct EqState: View, Equatable {
         Text("es \(n)")
     }
 }
+// E-env (lane 2, IV-D / divergence 346): a custom environment value that changes under
+// a parent while the child's inputs are equal. EnvEq: `.equatable()`, `==` always true,
+// body reads @Environment; EnvPlain: the same body without `.equatable()` (positive
+// control: an environment read re-runs a plain view); EnvQuiet: `.equatable()`, `==`
+// always true, reads NO environment (separating arm: only the reader re-runs).
+struct IVKey: EnvironmentKey { static let defaultValue = 0 }
+extension EnvironmentValues { var ivKey: Int { get { self[IVKey.self] } set { self[IVKey.self] = newValue } } }
+struct EnvEq: View, Equatable {
+    @Environment(\.ivKey) var v
+    nonisolated static func == (l: EnvEq, r: EnvEq) -> Bool { true }
+    var body: some View { let _ = log.lines.append("EnvEq"); Text("ee \(v)") }
+}
+struct EnvPlain: View {
+    @Environment(\.ivKey) var v
+    var body: some View { let _ = log.lines.append("EnvPlain"); Text("ep \(v)") }
+}
+struct EnvQuiet: View, Equatable {
+    nonisolated static func == (l: EnvQuiet, r: EnvQuiet) -> Bool { true }
+    var body: some View { let _ = log.lines.append("EnvQuiet"); Text("eq") }
+}
+struct EnvTop: View {
+    @State var flag = 0
+    static var bump: (() -> Void)?
+    var body: some View {
+        let _ = { EnvTop.bump = { flag += 1 } }()
+        VStack {
+            EnvEq().equatable()
+            EnvPlain()
+            EnvQuiet().equatable()
+        }.environment(\.ivKey, flag)
+    }
+}
 struct Top: View {
     let model: Model
     let ref: Ref
@@ -217,6 +249,12 @@ struct Rows: View {
     Top.bump?(); report("V  (Top @State; WithRef input is a new instance each time)")
     w3.close()
 
+    let w4 = host(EnvTop())
+    report("E0 first render")
+    EnvTop.bump?(); report("E-env (the environment value changes; EnvEq is .equatable() with == always true)")
+    EnvTop.bump?(); report("E-env2 (second change)")
+    w4.close()
+
     let m2 = Model()
     let w2 = host(Rows(model: m2))
     report("L0 first layout")
@@ -252,6 +290,15 @@ MainActor.assumeIsolated { _ = NSApplication.shared; run() }
 //        of S are a FIRST-BUMP artefact (U, which the earlier text called
 //        unexplained, is the same thing): SwiftUI honours a custom `==`.
 //   (Reading (3) below was refuted by S2/S3 and is retired.)
+//   E0 first render (lane 2): EnvEq, EnvPlain, EnvQuiet once each     (positive control)
+//   E-env, E-env2 (a custom environment value changes under all three; EnvEq is
+//        .equatable() with == always true and reads @Environment, EnvPlain reads it
+//        without .equatable(), EnvQuiet is .equatable() and reads none, both runs
+//        identical): EnvEq, EnvPlain ran; EnvQuiet did NOT. An environment read
+//        beats an equal `==` in SwiftUI, as an observed read and own @State do
+//        (O, ES): the separating arm is EnvQuiet. MetalUI refuses such a component
+//        and evaluates it on EVERY frame (divergence 346, IV-D). @FocusState is not
+//        probed: its refusal is MetalUI's own ruling with no SwiftUI claim.
 //   L0 first layout: each Counting layout fit x8..12, place x9..10
 //   L-unread: nothing
 //   L-colour (row 2: geometry unchanged): every row's wrapper re-measured and

@@ -210,6 +210,7 @@ F	test-harness-inspection	M	-	-	-	-	HT-B HT-G HT-H HT-R HT-T	MetalUITesting (lan
 F	text-measurer	M	-	-	-	295 296	GT-B GT-C GT-D GT-I	TextMeasurer/TextMeasurer.ResolvedText/EnvironmentValues.textMeasurer: SwiftUI's GraphicsContext.resolve(_:) + ResolvedText.measure(in:) with the environment as carrier (probe swiftui-surface-text.swift A0-G); the unrounded size layout gives a Text/ProposalText under a proposal through resolveTextStyle and the frame's text system, no layout, no state; an empty Text is one line tall (295); get-only, no public initialiser, traps with no stamped system
 
 # ---------------------------------------------------------------- MetalUI
+F	equatable-component	A	swiftui-incremental-invalidation.swift	ES	anOwnStateWriteBeatsAnEqualValue	346	IV-B IV-C IV-D IV-L	Component.equatable() (where Self: Equatable) -> EquatableComponent: the content getter is not re-run while the value is == to its last evaluation, its own @State is unwritten and the @Observable properties it read are unchanged (SwiftUI skips an equal view the same way, probes S2/S3, EqPod; an observed read O and own @State ES beat an equal ==); a component declaring @Environment or @FocusState is evaluated every frame and counted in FrameWork.contentRefusals, where SwiftUI re-runs an environment reader only when the environment changes (probe E-env, 346); opt-in only, no automatic skipping
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
 M	MetalUI	AccessibilityModifiers.swift	.*	.*	.*	accessibility-modifiers
 M	MetalUI	AccessibilityTraits.swift	.*	.*	.*	accessibility-modifiers
@@ -546,3 +547,4 @@ M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindo
 M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
 M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag
+M	MetalUI	EquatableComponent.swift	.*	.*	.*	equatable-component
