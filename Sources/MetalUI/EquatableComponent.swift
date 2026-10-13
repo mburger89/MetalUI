@@ -54,6 +54,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
         // getter that reads an `@Observable` invalidates this occurrence's record.
         let observed = entry.needsObservation
+        let evaluationsBefore = store.evaluationsSoFar
         let result: ([LayoutNodeID], ComponentLayout<C>)
         if observed {
             result = entry.buildSession.run(entry: entry, store: store) {
@@ -62,6 +63,9 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         } else {
             result = component.finishComponent(&materialized, id: id, pass: &pass)
         }
+        // A descendant whose content ran this frame may have changed what the record holds, though this
+        // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
+        if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
         result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
         return result
     }

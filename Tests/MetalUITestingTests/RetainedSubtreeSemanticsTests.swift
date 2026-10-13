@@ -376,6 +376,41 @@ private struct RSInspector: Component, @MainActor Equatable {
     #expect(hit, "and the new frame is recorded and replays")
 }
 
+// MARK: 1.8b — a skipped descendant's later change beats the ancestor's record
+
+/// An equatable leaf that reads `model.n` and is always `==`, inside an equatable parent that is always `==`.
+private struct RSMemoLeaf: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup { Text("m\(model.n)").frame(width: Pixels(60), height: Pixels(14)) }
+    static func == (l: RSMemoLeaf, r: RSMemoLeaf) -> Bool { true }
+}
+
+private struct RSMemoParent: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup { VStack(spacing: 0) { RSMemoLeaf(model: model).equatable() } }
+    static func == (l: RSMemoParent, r: RSMemoParent) -> Bool { true }
+}
+
+/// 1.8b (`SB-AC`) — the parent's record was made in a frame where the leaf's content was skipped by the
+/// content memo, so the parent's windows never subscribed to the leaf's read. The leaf changes: its own
+/// memo re-evaluates it, and the parent must not replay the old text. Found by `METALUI_VERIFY_RETAINED=1`
+/// over `anEqualComponentSkipsItsContent`. Mutation: the `evaluationsSoFar` comparison in
+/// `EquatableComponent.requestGroupLayout` removed — the stale text is drawn.
+@Test @MainActor func aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord() async throws {
+    let model = RSModel()
+    let window = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSMemoParent(model: model).equatable() }
+    }
+    for _ in 0..<5 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(rsFrame(window).retainedHits == 1, "the parent replays, its leaf inside it")
+    _ = try window.element(label: "m0")
+    model.n = 3
+    await rsSettle()
+    window.window.setNeedsRedraw(); window.tick()
+    _ = try window.element(label: "m3")
+    #expect(window.lastFrameWork.retainedHits == 0, "the write's frame replays neither")
+}
+
 // MARK: 1.5 — a channel outside the replayable set makes the subtree ineligible
 
 private enum RSChannelKey: EnvironmentKey { static let defaultValue = 0 }

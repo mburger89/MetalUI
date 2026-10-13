@@ -103,6 +103,11 @@ package final class ContentMemoStore {
 
     // Counters of the build in progress, snapshotted by `endFrame()`.
     private var evaluations = 0
+
+    /// Content evaluations so far this build: a retained subtree reads it around its build recursion
+    /// to learn that a descendant's content ran, which its own observation did not subscribe to when
+    /// that descendant was skipped in the frame the record was made (`SB-AC`).
+    var evaluationsSoFar: Int { evaluations }
     private var skips = 0
     private var refusals = 0
     package private(set) var lastEvaluations = 0

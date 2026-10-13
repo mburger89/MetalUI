@@ -119,7 +119,50 @@ the final primitives too and replays them straight when every outer scope is a p
 
 ## §7 Timing (dated measurements; the Mac is shared; no pin reads a time)
 
-@@TIMING@@
+**Machine.** MacBookPro18,2 / Apple M1 Max / macOS 27.0.1 / Swift 6.4, 2026-10-13. **Shared with other workflows** (load average
+2 during the release runs below, 20-30 during the builds before them): read ranges and ratios, never a single figure. Wall clock is
+an instrument; no pin reads it.
+
+**Release, the node drag, public API** (`zsh docs/probes/perf-baselines.sh release bracket`; 30 drags of 20 events per arm, per-frame
+total including the harness's input and tick; three whole-process runs, the median of each; the "before" is the same script and
+fixture against a `git archive` of `e85cb07a`):
+
+| arm | before, ms (3 runs) | after, ms (3 runs) | change |
+|---|---|---|---|
+| `.value` | 7.448, 7.422, 7.403 (median 7.422) | 6.546, 6.534, 6.524 (6.534) | **-0.89 ms, -12.0 %** |
+| `.environment` (nodes refused, divergence 346) | 7.622, 7.596, 7.579 (7.596) | 7.605, 7.608, 7.597 (7.605) | +0.01 ms: the refusal gets nothing, and costs nothing |
+| `.panels` | 7.459, 7.453, 7.417 (7.453) | 6.520, 6.511, 6.519 (6.519) | **-0.93 ms, -12.5 %** |
+
+**Debug**, same script (two runs; the first is `--quick`): `.value` 54.79, 54.57, 54.59 -> 50.13, 48.76, 48.82 (-10.5 %); `.environment` 55.32,
+55.09, 55.41 -> 55.42, 54.21, 54.08; `.panels` 54.03, 54.27, 54.65 -> 48.75, 48.22, 48.25 (-10.7 %). Debug paint is 61 % of a render
+(spec §1), but the window's unretained parts (the top bar, the library `List`, the inspector in the `.value` arm; the graph panel in the
+`.panels` arm) are most of it, so the replay's win is a smaller share there than the 29-of-32 hit count suggests.
+
+**Phase shares, release** (the patched copy of this branch, `SB_RETAIN=1|0`, 30 drags x 22 frames, two whole-process runs each, ms per frame):
+
+| arm | replay | build | layout kernel | prepaint | paint | sweeps | render | tick |
+|---|---|---|---|---|---|---|---|---|
+| `.value` | off | 2.127, 2.153 | 1.183, 1.190 | 0.798, 0.807 | **1.974, 1.985** | 0.19 | 6.285, 6.342 | 7.485, 7.537 |
+| `.value` | on | 2.034, 2.136 | 1.153, 1.179 | 0.779, 0.813 | **1.158, 1.208** | 0.18 | 5.313, 5.536 | 6.461, 6.724 |
+| `.environment` | off | 2.298, 2.279 | 1.200, 1.193 | 0.818, 0.813 | 2.001, 1.997 | 0.20 | 6.526, 6.492 | 7.746, 7.708 |
+| `.environment` | on | 2.143, 2.261 | 1.151, 1.180 | 0.773, 0.814 | 1.907, 1.971 | 0.18 | 6.166, 6.431 | 7.321, 7.645 |
+| `.panels` | off | 2.087, 2.122 | 1.176, 1.181 | 0.786, 0.798 | 1.960, 1.984 | 0.19 | 6.211, 6.291 | 7.383, 7.479 |
+| `.panels` | on (before `SB-AB`'s tainted-recorder fast path) | 2.088, 2.227 | 1.165, 1.212 | 0.810, 0.852 | 1.443, 1.526 | 0.18 | 5.698, 6.022 | 6.875, 7.260 |
+
+The replay removes **0.78 ms of 1.97 ms of paint** in `.value` (40 %), not the 80 % the element count suggests (1084 -> 178 element paints):
+the rest of paint is the unretained window parts, the three occurrences that missed (the two wires rasterize 78 312 pixels on the CPU,
+`GX-B`, every frame) and the replay itself (a `sample` of the `.value` arm put `replayPaint` at 3.3 % of frame time and the decision and key at
+1.4 %). Build, layout kernel and prepaint did not move, as designed (the first build's sessions raised build by 0.12 and prepaint by 0.15 ms
+before `SB-V`'s fix).
+
+## §10 The lane 2 gate (`SB-C`)
+
+Fixed before the reading: build plus layout kernel at or above 35 % of `render` in the `.panels` arm, release, after lane 1. **Reads
+57 % in `.panels` (build 2.158 + layout 1.190 over render 5.698; `.value` 59.9 %: 2.085 + 1.166 over 5.425)**: the gate opens with a margin
+of 22 points, and prepaint (0.8 ms, 14 %) joins the work lane 2 removes. Lane 2 (graft, journal, counted redo, prepaint replay, the subtree
+placement memo) is designed in spec §9 and `SB-N`, `SB-O`, `SB-R` and is **not built in this lane**; `SB-AA` adds the paint-ambient problem
+to its list.
+
 
 ## §8 GT-F, re-taken (`SB-P`)
 

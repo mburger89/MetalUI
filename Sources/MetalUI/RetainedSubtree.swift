@@ -533,7 +533,7 @@ extension Frame {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
             }
             if let difference = old.differences(from: record) {
-                preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run: \(difference)")
+                preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
             phase.entry.record = record
             return
