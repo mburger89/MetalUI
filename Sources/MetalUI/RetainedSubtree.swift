@@ -535,7 +535,7 @@ extension Frame {
             if let difference = old.differences(from: record) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
-            phase.entry.record = record
+            // The old record stays: it is equal, and it covers the build and prepaint this frame did not observe.
             return
         }
         if let reason = recorder.taint {
@@ -595,7 +595,19 @@ extension RetainedRecord {
             for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }
         if marks != other.marks { return "marks" }
-        if touches.count != other.touches.count { return "touches.count" }
+        // A first sighting touches and stores (two touches), a later frame only touches: the same entry kept
+        // alive, so the comparison is of the ids, not of the touch count.
+        func ids(_ touches: [RetainLog.Touch]) -> Set<GlobalElementID> {
+            var out = Set<GlobalElementID>()
+            for touch in touches {
+                switch touch {
+                case .touch(let id): out.insert(id)
+                case .set(let id, _): out.insert(id)
+                }
+            }
+            return out
+        }
+        if ids(touches) != ids(other.touches) { return "touched entries" }
         if paintWork != other.paintWork { return "paintWork \(paintWork) vs \(other.paintWork)" }
         return nil
     }
