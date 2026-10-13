@@ -194,7 +194,12 @@ private struct StatefulPair: Component {
     })
     #expect(identified.nodes == plain.nodes, "nodes \(identified.nodes) vs \(plain.nodes)")
     #expect(identified.rects == plain.rects, "rects \(identified.rects) vs \(plain.rects)")
-    #expect(identified.bounds == plain.bounds, "bounds \(identified.bounds) vs \(plain.bounds)")
+    // The group's own row (`TW-A`, C30) is the one added: a copy of its `HStack` node's rect (78 × 50),
+    // so removing one such row leaves the plain tree's list.
+    var withoutGroupRow = identified.bounds
+    if let extra = withoutGroupRow.firstIndex(where: { $0[2] == 78 && $0[3] == 50 }) { withoutGroupRow.remove(at: extra) }
+    #expect(identified.bounds.count == plain.bounds.count + 1, "bounds \(identified.bounds) vs \(plain.bounds)")
+    #expect(withoutGroupRow == plain.bounds, "bounds \(identified.bounds) vs \(plain.bounds)")
     #expect(identified.rects.count == 2, "both rectangles paint: \(identified.rects)")
 }
 
