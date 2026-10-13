@@ -353,6 +353,7 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
         // is the element's, which `paintGroup` checks before calling `paint`).
         let depthCount = prefix.count + inner.count
         if depth < depthCount, pass.frame.hiddenNodes.contains(layout.inner[depth].node) { return }
+        pass.frame.elementPaints += 1
         func inside() {
             guard depth > 0 else {
                 content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)

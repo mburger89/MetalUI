@@ -35,6 +35,27 @@ public struct FrameWork: Sendable, Equatable {
     /// `.equatable()` components refused for an `@Environment` or `@FocusState`
     /// and evaluated anyway (divergence 346).
     public var contentRefusals: Int
+    /// Group members the build entered (`SB-`): the build recursion's work, which a retained
+    /// subtree still pays in full (lane 1).
+    public var elementRequests: Int
+    /// Elements prepainted: one per element and per modifier layer, replayed ones excluded.
+    public var elementPrepaints: Int
+    /// Elements painted: the same count for the paint phase.
+    public var elementPaints: Int
+    /// `.equatable()` occurrences whose prepaint and paint were replayed from a record.
+    public var retainedHits: Int
+    /// Occurrences that ran and left a record.
+    public var retainedMisses: Int
+    /// Occurrences that ran and could not be recorded (an ineligible channel moved).
+    public var retainedIneligible: Int
+    /// Element prepaints a retained hit stood for.
+    public var retainedSkippedPrepaints: Int
+    /// Element paints a retained hit stood for.
+    public var retainedSkippedPaints: Int
+    /// Ledger snapshots taken to record occurrences (four per recorded occurrence).
+    public var retainedLedgerSnapshots: Int
+    /// Recorded operations replayed.
+    public var retainedReplayedOps: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -54,7 +75,11 @@ public struct FrameWork: Sendable, Equatable {
                 layoutMemoRootHits: Int = 0, layoutSignatureNodes: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
                 atlasUploadPixels: Int = 0, newTextures: Int = 0, newTexturePixels: Int = 0,
                 rects: Int = 0, glyphs: Int = 0, images: Int = 0,
-                contentEvaluations: Int = 0, contentSkips: Int = 0, contentRefusals: Int = 0) {
+                contentEvaluations: Int = 0, contentSkips: Int = 0, contentRefusals: Int = 0,
+                elementRequests: Int = 0, elementPrepaints: Int = 0, elementPaints: Int = 0,
+                retainedHits: Int = 0, retainedMisses: Int = 0, retainedIneligible: Int = 0,
+                retainedSkippedPrepaints: Int = 0, retainedSkippedPaints: Int = 0,
+                retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -74,6 +99,16 @@ public struct FrameWork: Sendable, Equatable {
         self.contentEvaluations = contentEvaluations
         self.contentSkips = contentSkips
         self.contentRefusals = contentRefusals
+        self.elementRequests = elementRequests
+        self.elementPrepaints = elementPrepaints
+        self.elementPaints = elementPaints
+        self.retainedHits = retainedHits
+        self.retainedMisses = retainedMisses
+        self.retainedIneligible = retainedIneligible
+        self.retainedSkippedPrepaints = retainedSkippedPrepaints
+        self.retainedSkippedPaints = retainedSkippedPaints
+        self.retainedLedgerSnapshots = retainedLedgerSnapshots
+        self.retainedReplayedOps = retainedReplayedOps
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -94,6 +129,16 @@ public struct FrameWork: Sendable, Equatable {
                   rects: l.rects + r.rects, glyphs: l.glyphs + r.glyphs, images: l.images + r.images,
                   contentEvaluations: l.contentEvaluations + r.contentEvaluations,
                   contentSkips: l.contentSkips + r.contentSkips,
-                  contentRefusals: l.contentRefusals + r.contentRefusals)
+                  contentRefusals: l.contentRefusals + r.contentRefusals,
+                  elementRequests: l.elementRequests + r.elementRequests,
+                  elementPrepaints: l.elementPrepaints + r.elementPrepaints,
+                  elementPaints: l.elementPaints + r.elementPaints,
+                  retainedHits: l.retainedHits + r.retainedHits,
+                  retainedMisses: l.retainedMisses + r.retainedMisses,
+                  retainedIneligible: l.retainedIneligible + r.retainedIneligible,
+                  retainedSkippedPrepaints: l.retainedSkippedPrepaints + r.retainedSkippedPrepaints,
+                  retainedSkippedPaints: l.retainedSkippedPaints + r.retainedSkippedPaints,
+                  retainedLedgerSnapshots: l.retainedLedgerSnapshots + r.retainedLedgerSnapshots,
+                  retainedReplayedOps: l.retainedReplayedOps + r.retainedReplayedOps)
     }
 }

@@ -183,6 +183,7 @@ extension Element {
         // the legacy path kept painting a `display: none` subtree as before (1.6);
         // that path is deleted (`LR-FC`), so every hidden node is in `hiddenNodes`.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
+        pass.frame.elementPaints += 1
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
         StateBinder.bind(self, in: pass.frame, id: layout.id)
@@ -716,6 +717,7 @@ extension AnyElement: ElementGroup {
                                     prepaint: inout Void, pass: inout PaintPass) {
         // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
+        pass.frame.elementPaints += 1
         paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 }

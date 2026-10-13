@@ -21,10 +21,11 @@ import Testing
 /// starts 288 pt below the window's top: 36 top bar + 32 header + 220 library).
 let bracketFilletPress = Point(x: Pixels(20), y: Pixels(400))
 
-@MainActor func bracketDragFrames(arm: BracketArm, steps: Int) throws
+@MainActor func bracketDragFrames(arm: BracketArm, steps: Int, retained: Bool = true) throws
     -> (frames: [FrameWork], counting: CountingTextSystem, window: TestWindow, model: BracketModel) {
     let counting = CountingTextSystem(harnessTextSystem())
     let (window, model) = try bracketWindow(arm: arm, textSystem: { counting })
+    window.window.testingRetainedSubtrees = retained
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }   // warm
     window.resetFrameWork(); counting.reset(); BracketStats.reset()
     window.drag(from: bracketFilletPress,
@@ -32,25 +33,63 @@ let bracketFilletPress = Point(x: Pixels(20), y: Pixels(400))
     return (window.frameWork, counting, window, model)
 }
 
+/// What one arm of the node drag costs with no retained subtree, literal (`SB-Q`: a print is
+/// not a pin). Counted at e85cb07a by the design phase, re-counted at lane 1's step 1 with the
+/// element counters; with `testingRetainedSubtrees = false` these hold on every later commit.
+private struct BaselineArm {
+    let arm: BracketArm
+    let evaluations: Int, skips: Int, refusals: Int
+    let nodeBodies: Int
+}
+private let baselineArms = [
+    BaselineArm(arm: .value, evaluations: 3, skips: 29, refusals: 0, nodeBodies: 20),
+    BaselineArm(arm: .environment, evaluations: 2, skips: 19, refusals: 11, nodeBodies: 231),
+    BaselineArm(arm: .panels, evaluations: 3, skips: 32, refusals: 0, nodeBodies: 20),
+]
+
 @Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
 func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
+    let expected = try #require(baselineArms.first { $0.arm == arm })
     let steps = 20
-    let r = try bracketDragFrames(arm: arm, steps: steps)
+    let r = try bracketDragFrames(arm: arm, steps: steps, retained: false)
     let w = r.frames
-    let sum = w.dropFirst().reduce(w[0], +)
-    print("SB baseline \(arm) frames=\(w.count) nodeBodies=\(BracketStats.nodeBodies) wireBodies=\(BracketStats.wireBodies) measures=\(r.counting.measures) places=\(r.counting.places) layouts=\(r.counting.layouts) rasters=\(r.counting.rasters) \(sum)")
-    print("SB baseline \(arm) one drag frame: \(w[w.count / 2])")
-    print("SB fillet x=\(r.model.nodes[BracketModel.filletIndex].x) visible=\(r.model.visibleNodes.count)")
+    try #require(w.count == 21)
+    let f = w[w.count / 2]   // a drag frame
+    // The build recursion, layout and the scene: the same in every arm (the arm changes who evaluates).
+    #expect(f.builds == 1)
+    #expect(f.layoutMeasureCalls == 81)
+    #expect(f.layoutCacheHits == 805)
+    #expect(f.layoutCacheMisses == 527)
+    #expect(f.layoutMemoHits == 1106)
+    #expect(f.layoutMemoMisses == 30)
+    #expect(f.layoutMemoRootHits == 0)
+    #expect(f.layoutSignatureNodes == 844)
+    #expect(f.rects == 182)
+    #expect(f.glyphs == 550)
+    #expect(f.images == 6)
+    // The two changed wires: rasterized on the CPU every frame whatever retention does (`GX-B`).
+    #expect(f.rasterizedPixels == 78312)
+    #expect(f.newTextures == 2)
+    // Who evaluates: the arm.
+    #expect(f.contentEvaluations == expected.evaluations)
+    #expect(f.contentSkips == expected.skips)
+    #expect(f.contentRefusals == expected.refusals)
+    // The element work of a whole-window rebuild.
+    #expect(f.elementRequests == 798)
+    #expect(f.elementPrepaints == 886)
+    #expect(f.elementPaints == 1084)
+    // Nothing retained.
+    #expect(f.retainedHits == 0)
+    #expect(f.retainedMisses == 0)
+    #expect(f.retainedIneligible == 0)
+    #expect(f.retainedSkippedPrepaints == 0)
+    #expect(f.retainedSkippedPaints == 0)
+    // Over the 21 frames: the user-level body counts and the text system's calls.
+    #expect(BracketStats.nodeBodies == expected.nodeBodies)
+    #expect(BracketStats.wireBodies == 40)
+    #expect(r.counting.measures == 2898)
+    #expect(r.counting.places == 2814)
+    #expect(r.model.nodes[BracketModel.filletIndex].x == 720)
+    #expect(r.model.visibleNodes.count == 11)
 }
 
-@Test @MainActor func bracketDebugLocations() throws {
-    let counting = CountingTextSystem(harnessTextSystem())
-    let (window, _) = try bracketWindow(arm: .value, textSystem: { counting })
-    window.window.setNeedsRedraw(); window.tick()
-    for e in try window.elements(where: { _ in true }) {
-        let t = e.label ?? e.value ?? ""
-        if ["Fillet", "Chamfer", "Plane", "Output", "Bracket", "Project > Bracket", "Node library", "Section 0", "Edge Filter", "Boolean"].contains(t) {
-            print("SB loc \(t) x=\(e.frame.origin.x.value) y=\(e.frame.origin.y.value) w=\(e.frame.size.width.value) h=\(e.frame.size.height.value)")
-        }
-    }
-}

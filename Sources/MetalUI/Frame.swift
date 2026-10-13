@@ -117,6 +117,16 @@ public final class Frame {
     /// elements produced, and how many of them minted an `IdentityKey`.
     var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
 
+    /// Element work of this frame's phases (`SB-`, work counters, never time): group
+    /// members entered in the build (`GlobalElementID.enteringGroupMember`), elements
+    /// prepainted (each `recordElementBounds` site, one per element and per modifier
+    /// layer) and painted (`Element`/`AnyElement` `paintGroup` and each modifier
+    /// layer's paint). A replayed subtree adds none: the conservation law of the
+    /// retained-subtree tests is `elementPaints + skipped == the memo-off figure`.
+    var elementRequests = 0
+    var elementPrepaints = 0
+    var elementPaints = 0
+
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
 
@@ -2512,6 +2522,7 @@ public final class Frame {
     /// item 3), whether or not the frame records bounds: one flag read per
     /// element while no request is pending.
     func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        elementPrepaints += 1
         if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds

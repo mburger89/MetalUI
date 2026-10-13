@@ -80,6 +80,15 @@ package final class ContentMemoStore {
     /// retaining anything (the lane-0 baseline).
     package var isEnabled = true
 
+    /// Test switch (`SB-B`): off, an `.equatable()` occurrence's prepaint and paint run
+    /// every frame and no record is made; the memo-off arm of the retained-subtree tests'
+    /// differentials. Independent of ``isEnabled`` (the getter memo).
+    package var retainsSubtrees = true
+
+    /// The retained-subtree counters of the build in progress, snapshotted by `endFrame()`.
+    var retained = RetainedCounters()
+    package private(set) var lastRetained = RetainedCounters()
+
     // Counters of the build in progress, snapshotted by `endFrame()`.
     private var evaluations = 0
     private var skips = 0
@@ -156,6 +165,7 @@ package final class ContentMemoStore {
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
         lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
+        lastRetained = retained; retained = RetainedCounters()
         evaluations = 0; skips = 0; refusals = 0
         guard !entries.isEmpty else { return }
         var gone: [Key] = []
