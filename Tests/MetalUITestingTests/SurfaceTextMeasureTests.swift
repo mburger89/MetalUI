@@ -224,9 +224,12 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
     #expect(size.width == outside.sizes.first?.width)
 }
 
-/// 1.9 — a measurer no frame stamped traps naming itself. Mutation: return zero.
+/// 1.9 — a measurer no frame stamped traps naming itself. Mutation: the message
+/// drops the name (a silent zero cannot be written: there is no system to ask).
 @Test @MainActor func aMeasurerWithNoFrameTrapsNamingItself() async {
-    await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run { _ = EnvironmentValues().textMeasurer.resolve(Text("x")) }
     }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("textMeasurer"), "the trap names the measurer: \(stderr)")
 }
