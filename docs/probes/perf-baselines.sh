@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Re-takes record 105's timed figures (BL-A). Usage:
 #   zsh docs/probes/perf-baselines.sh [release|debug] [--quick] [scenario]
-# scenario: all (default), tree, demo, list, drag (the layout-only shapes run with every call).
+# scenario: all (default), tree, demo, list, drag, bracket (C14b's node drag, three arms; the layout-only shapes run with every call).
 # Builds the public-API harness docs/probes/perf-harness against this checkout
 # (through a symlink named MetalUI so the package identity resolves) in a scratch
 # directory (kept between runs for the build cache; METALUI_PERF_SCRATCH overrides), runs it, and prints the machine line plus TSV measurements. Wall
@@ -15,6 +15,8 @@ ln -sfn "$root" "$scratch/MetalUI"
 rm -rf "$scratch/perf-harness/Sources" "$scratch/perf-harness/Package.swift"
 mkdir -p "$scratch/perf-harness"
 cp -R "$root/docs/probes/perf-harness/Sources" "$root/docs/probes/perf-harness/Package.swift" "$scratch/perf-harness/"
+# C14b: the bracket window fixture is a test-target file (no Testing import); the harness compiles a copy.
+cp "$root/Tests/MetalUITestingTests/BracketFixture.swift" "$scratch/perf-harness/Sources/PerfBaselines/BracketFixture.swift"
 echo "date\t$(date -u +%FT%TZ)"
 echo "commit\t$(git -C "$root" rev-parse --short HEAD)"
 echo "machine\t$(sysctl -n hw.model) / $(sysctl -n machdep.cpu.brand_string) / macOS $(sw_vers -productVersion) / $(swift --version 2>&1 | head -1)"

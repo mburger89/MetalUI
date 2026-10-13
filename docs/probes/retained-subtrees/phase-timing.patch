@@ -1,0 +1,229 @@
+diff --git a/Sources/MetalUI/ContentMemo.swift b/Sources/MetalUI/ContentMemo.swift
+index da9d9423..c2812df7 100644
+--- a/Sources/MetalUI/ContentMemo.swift
++++ b/Sources/MetalUI/ContentMemo.swift
+@@ -115,9 +115,11 @@ package final class ContentMemoStore {
+ 
+         if let entry = entries[key] {
+             entry.touched = true
+-            if !entry.stale, entry.versions == versions,
+-               let previous = entry.previous as? C, previous == component,
+-               let pristine = entry.pristine as? C.Content {
++            let sbT = ivNow()
++            let hit = !entry.stale && entry.versions == versions
++                && ((entry.previous as? C).map { $0 == component } ?? false)
++            ivPhase[7] += ivNow() - sbT
++            if hit, let pristine = entry.pristine as? C.Content {
+                 skips += 1
+                 return pristine
+             }
+diff --git a/Sources/MetalUI/ElementGroup.swift b/Sources/MetalUI/ElementGroup.swift
+index e3c15a87..728f4d1a 100644
+--- a/Sources/MetalUI/ElementGroup.swift
++++ b/Sources/MetalUI/ElementGroup.swift
+@@ -131,12 +131,14 @@ extension Element {
+         -> ([LayoutNodeID], SingleElementLayout<Self>) {
+         let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
+                                                      at: &cursor, pass: &pass)
++        sbCounts[0] += 1
+         let (node, state) = requestLayout(id, pass: &pass)
+         return ([node], SingleElementLayout(id: id, node: node, state: state))
+     }
+ 
+     public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
+                                        pass: inout PrepaintPass) -> PrepaintState {
++        sbCounts[1] += 1
+         // **Re-bind, because `State.Box` is a class and one element VALUE can
+         // be placed twice.** `Row { sep; sep }` copies the struct, and a copy
+         // shares the box by reference, so the second occurrence's `bind` in
+@@ -178,6 +180,7 @@ extension Element {
+     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
+                                     prepaint: inout PrepaintState,
+                                     pass: inout PaintPass) {
++        sbCounts[2] += 1
+         // A lowered `hidden()` paints nothing, and nothing inside it paints (stage 6b,
+         // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: until stage 9
+         // the legacy path kept painting a `display: none` subtree as before (1.6);
+@@ -719,3 +722,6 @@ extension AnyElement: ElementGroup {
+         paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+     }
+ }
++
++/// C14b instrument (docs/probes/retained-subtrees): [0] element requestLayout, [1] prepaint, [2] paint calls.
++nonisolated(unsafe) public var sbCounts = [Int](repeating: 0, count: 3)
+diff --git a/Sources/MetalUI/Frame.swift b/Sources/MetalUI/Frame.swift
+index 3fb3dc90..58e3a830 100644
+--- a/Sources/MetalUI/Frame.swift
++++ b/Sources/MetalUI/Frame.swift
+@@ -3454,6 +3454,7 @@ public final class Frame {
+     }
+ 
+     private func renderOutsideDispatch<E: Element>(_ element: inout E) {
++        let ivT0 = ivNow()
+         isRendering = true
+         beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
+         // The root is the only id with no parent, and the only one this file
+@@ -3482,7 +3483,9 @@ public final class Frame {
+         animationStore.rasters.beginFrame()
+ 
+         var layoutPass = LayoutPass(frame: self)
++        var ivT = ivNow()
+         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
++        ivPhase[0] += ivNow() - ivT; ivT = ivNow()
+         var state = layoutState
+         reportUnconsumedLoweredItems(root: root)
+         // The drawn toolbar strip (`MD-K`): requested after the root, whose
+@@ -3496,7 +3499,9 @@ public final class Frame {
+         if let bar { reportUnconsumedLoweredItems(root: bar.node) }
+         drewMenuBar = bar != nil
+ 
++        ivPhase[1] += ivNow() - ivT; ivT = ivNow()
+         computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node)
++        ivPhase[2] += ivNow() - ivT; ivT = ivNow()
+         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
+         let rootBounds = bounds(of: root)
+         recordElementBounds(rootID, rootBounds)
+@@ -3561,6 +3566,7 @@ public final class Frame {
+         // against a case that cannot occur, and would additionally hold the
+         // bracket open across `stateTable.sweep()` below, which is not scene
+         // construction.
++        ivPhase[3] += ivNow() - ivT; ivT = ivNow()
+         glyphAtlas.beginFrame()
+         var paintPass = PaintPass(frame: self)
+         if !hiddenNodes.contains(root) {
+@@ -3578,6 +3584,7 @@ public final class Frame {
+         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
+         paintTooltip()  // a tooltip, above everything (MN-P item 2)
+         paintAlertPanel()  // the drawn alert, above the menu and the tooltip (SV-J item 2)
++        ivPhase[4] += ivNow() - ivT; ivT = ivNow()
+         glyphAtlas.endFrame()
+         textSystem.endFrame()
+         applyScrollResolutions()
+@@ -3641,9 +3648,18 @@ public final class Frame {
+         animationStore.lifecycle.endFrame(liveGhosts: animationStore.transitions.liveGhosts,
+                                           departed: stateTable.takeDepartedState())
+         isRendering = false
++        ivPhase[5] += ivNow() - ivT
++        ivPhase[6] += ivNow() - ivT0
+     }
+ }
+ 
++/// C14 lane-0 instrument (docs/probes/incremental-invalidation): seconds per phase,
++/// [0] element build + node registration (requestLayout), [1] strips + lowering checks,
++/// [2] computeRootLayout (measure + place), [3] prepaint + hover + focus, [4] paint,
++/// [5] end-of-frame sweeps, [6] whole render, [7] Component content getters.
++nonisolated(unsafe) public var ivPhase = [Double](repeating: 0, count: 8)
++func ivNow() -> Double { Double(DispatchTime.now().uptimeNanoseconds) / 1e9 }
++
+ extension Size where Unit == Pixels {
+     func scaled(by factor: Float) -> Size<ScaledPixels> {
+         Size<ScaledPixels>(width: width.scaled(by: factor), height: height.scaled(by: factor))
+diff --git a/Sources/MetalUILayout/LayoutTree.swift b/Sources/MetalUILayout/LayoutTree.swift
+index 98a413a2..75857026 100644
+--- a/Sources/MetalUILayout/LayoutTree.swift
++++ b/Sources/MetalUILayout/LayoutTree.swift
+@@ -1,5 +1,9 @@
++import Dispatch
+ import MetalUICore
+ 
++/// C14b instrument (docs/probes/retained-subtrees): seconds spent in the signature pass.
++nonisolated(unsafe) public var sbSignatureSeconds = 0.0
++
+ /// A handle to one node in one `LayoutTree`.
+ ///
+ /// **The `generation` is what makes it a handle rather than a bare index**
+@@ -2051,8 +2055,10 @@ extension LayoutTree {
+     /// plan's row membership (normalised to row indices, GR-A) and parents.
+     fileprivate func prepareMemo(run: NativeLayoutRun, root: LayoutNodeID) {
+         guard let memo, memo.isEnabled else { return }
++        let sbT = DispatchTime.now().uptimeNanoseconds
+         run.order = preorder(root)
+         computeSignatures(order: run.order, into: memo)
++        sbSignatureSeconds += Double(DispatchTime.now().uptimeNanoseconds - sbT) / 1e9
+         run.memo = memo
+         run.work.signatureNodesHashed = run.order.count
+     }
+diff --git a/Tests/MetalUITestingTests/BracketPhaseTiming.swift b/Tests/MetalUITestingTests/BracketPhaseTiming.swift
+new file mode 100644
+index 00000000..d86171d9
+--- /dev/null
++++ b/Tests/MetalUITestingTests/BracketPhaseTiming.swift
+@@ -0,0 +1,78 @@
++import Foundation
++import MetalUI
++import MetalUITesting
++import Testing
++
++// C14b phase-timing instrument (docs/probes/retained-subtrees/phase-timing.patch): wall clock as an
++// instrument only. Needs the Frame.swift hunk of that patch applied.
++@Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
++func bracketPhaseTiming(arm: BracketArm) throws {
++    let counting = CountingTextSystem(harnessTextSystem())
++    let (window, _) = try bracketWindow(arm: arm, textSystem: { counting })
++    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
++    let reps = Int(ProcessInfo.processInfo.environment["SB_REPS"] ?? "") ?? 10
++    let steps = 20
++    var per = [Double](repeating: 0, count: 8)
++    var total = 0.0
++    var frames = 0
++    var xs: [Double] = []
++    for rep in 0..<reps {
++        for i in 0..<8 { ivPhase[i] = 0 }
++        let t0 = DispatchTime.now().uptimeNanoseconds
++        let x0 = Float(20) , y0 = Float(400)
++        // alternate the drag direction so the node does not walk off the canvas
++        let sign: Float = rep % 2 == 0 ? 1 : -1
++        let start = rep % 2 == 0 ? Point(x: Pixels(x0), y: Pixels(y0)) : Point(x: Pixels(x0 + 2 * Float(steps)), y: Pixels(y0))
++        window.drag(from: start, to: Point(x: Pixels(start.x.value + sign * 2 * Float(steps)), y: Pixels(y0)), steps: steps)
++        let dt = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e9
++        total += dt; frames += steps + 2
++        for i in 0..<8 { per[i] += ivPhase[i] }
++        xs.append(dt / Double(steps + 2) * 1000)
++    }
++    xs.sort()
++    let ms = per.map { String(format: "%.3f", $0 / Double(frames) * 1000) }
++    print("SB timing \(arm) per frame ms: build=\(ms[0]) lowering=\(ms[1]) layout=\(ms[2]) prepaint=\(ms[3]) paint=\(ms[4]) sweeps=\(ms[5]) render=\(ms[6]) tick(mean)=\(String(format: "%.3f", total / Double(frames) * 1000)) rep-median=\(String(format: "%.3f", xs[xs.count / 2]))")
++}
++
++import MetalUILayout
++
++/// Slice 1's costs in release (the C14b close-out owes them): the signature pass and the content memo's
++/// `==`, isolated by accumulators, and the net effect of each memo by switching it off.
++@Test(arguments: [(true, true), (true, false), (false, true), (false, false)]) @MainActor
++func bracketSlice1Costs(layoutMemo: Bool, contentMemo: Bool) throws {
++    let counting = CountingTextSystem(harnessTextSystem())
++    let (window, _) = try bracketWindow(arm: .value, textSystem: { counting })
++    window.window.testingLayoutMemo.isEnabled = layoutMemo
++    window.window.testingContentMemos.isEnabled = contentMemo
++    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
++    let reps = Int(ProcessInfo.processInfo.environment["SB_REPS"] ?? "") ?? 10
++    let steps = 20
++    var per = [Double](repeating: 0, count: 8)
++    var frames = 0
++    sbSignatureSeconds = 0
++    for rep in 0..<reps {
++        for i in 0..<8 { ivPhase[i] = 0 }
++        let sign: Float = rep % 2 == 0 ? 1 : -1
++        let startX: Float = rep % 2 == 0 ? 20 : 20 + 2 * Float(steps)
++        window.drag(from: Point(x: Pixels(startX), y: Pixels(400)),
++                    to: Point(x: Pixels(startX + sign * 2 * Float(steps)), y: Pixels(400)), steps: steps)
++        frames += steps + 2
++        for i in 0..<8 { per[i] += ivPhase[i] }
++    }
++    let ms = per.map { String(format: "%.3f", $0 / Double(frames) * 1000) }
++    print("SB slice1 layoutMemo=\(layoutMemo) contentMemo=\(contentMemo) per frame ms: build=\(ms[0]) layout=\(ms[2]) render=\(ms[6]) signaturePass=\(String(format: "%.3f", sbSignatureSeconds / Double(frames) * 1000)) contentEq=\(ms[7])")
++}
++
++
++/// Element-level work per drag frame (the "before" literals for lane 1's conservation pins).
++@Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
++func bracketElementWork(arm: BracketArm) throws {
++    let counting = CountingTextSystem(harnessTextSystem())
++    let (window, _) = try bracketWindow(arm: arm, textSystem: { counting })
++    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
++    window.resetFrameWork()
++    for i in 0..<3 { sbCounts[i] = 0 }
++    window.drag(from: Point(x: Pixels(20), y: Pixels(400)), to: Point(x: Pixels(60), y: Pixels(400)), steps: 20)
++    let n = Double(window.frameWork.count)
++    print("SB elements \(arm) per frame over \(window.frameWork.count) frames: requestLayout=\(Double(sbCounts[0]) / n) prepaint=\(Double(sbCounts[1]) / n) paint=\(Double(sbCounts[2]) / n)")
++}
