@@ -51,5 +51,5 @@ Debug: `.value` 54.6-54.8 -> 48.8-50.1 ms, `.panels` 54.0-54.7 -> 48.2-48.8 ms. 
 `SB_RETAIN=0`): paint 1.97 -> 1.16-1.21 ms, build 2.1, layout 1.18, prepaint 0.8 unmoved (record §109 §7, §10).
 
 Verify mode over the whole suite (3701 tests) completes with no trap after the two findings it made (`SB-AC`, and the touched-ids
-comparison); the 73 tests that read paint-skipped counts are red under it by design (a verified hit paints), listed in record §6.
+comparison); the four tests that read paint-skipped or nested hit counts are switched off under it (`rsVerifying`: a verified hit paints), listed in record §6.
 

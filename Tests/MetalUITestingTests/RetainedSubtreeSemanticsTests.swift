@@ -16,6 +16,10 @@ import Testing
     var tint = 0
 }
 
+/// Whether the run is under `METALUI_VERIFY_RETAINED=1`: a hit is painted as a miss (nested occurrences included), so a
+/// test that reads replayed or skipped counts is switched off there; the differentials keep running (record §109 §6).
+let rsVerifying = ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] == "1"
+
 /// Lets the observation hop of a platform without a synchronous `onChange` land before the next explicit
 /// draw (`HT-I`; on Linux a main-actor test does not run on the main thread, so every change takes one hop).
 @MainActor func rsSettle() async {
@@ -450,7 +454,7 @@ private struct RSMemoParent: Component, @MainActor Equatable {
 /// The second leaf then changes: its own memo re-evaluates it, and the parent must not replay the old text.
 /// Found by `METALUI_VERIFY_RETAINED=1` over `anEqualComponentSkipsItsContent`. Mutation: the
 /// `evaluationsSoFar` comparison in `EquatableComponent.requestGroupLayout` removed — the stale text is drawn.
-@Test @MainActor func aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read")) @MainActor func aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord() async throws {
     let onModel = RSModel(), offModel = RSModel()
     let on = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
         VStack(spacing: 0) { RSMemoParent(model: onModel).equatable() }
@@ -872,7 +876,7 @@ private struct RSLogCard: Component, @MainActor Equatable {
 /// 1.16 — a miss pays the old work plus two ledger snapshots (before and after its paint) and nothing else a
 /// counter sees; a hit takes none. Mutation: a snapshot taken per element — the count reads far above 2
 /// per occurrence.
-@Test @MainActor func aMissCostsTheOldWorkPlusTwoSnapshots() throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read")) @MainActor func aMissCostsTheOldWorkPlusTwoSnapshots() throws {
     func make(retained: Bool) throws -> TestWindow {
         let w = try TestWindow(size: sz(420, 120), textSystem: harnessTextSystem, content: {
             HStack(spacing: 6) {

@@ -29,7 +29,7 @@ private let predictions = [
     Prediction(arm: .panels, hits: 31, misses: 3, ineligible: 1, retainsNodes: true),
 ]
 
-@Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
 func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
     let predicted = try #require(predictions.first { $0.arm == arm })
     let on = try bracketDragFrames(arm: arm, steps: 20, retained: true)

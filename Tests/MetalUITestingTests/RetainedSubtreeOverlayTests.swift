@@ -34,7 +34,7 @@ private struct OverlayLabel: Component, @MainActor Equatable {
 /// them and cost the unchanged 1 measure and 1 `placeGlyphs` each. Mutation: `hit = false` in the
 /// decision reddens the static arm; the scope signature dropped from the key reddens the moving arm
 /// (the labels replay at their old places).
-@Test(arguments: [20, 100], [false, true]) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read"), arguments: [20, 100], [false, true]) @MainActor
 func aStaticLabelOverlayReplaysAndAMovingOneDoesNot(labels n: Int, moving: Bool) throws {
     let model = CameraModel()
     let counting = CountingTextSystem(harnessTextSystem())
