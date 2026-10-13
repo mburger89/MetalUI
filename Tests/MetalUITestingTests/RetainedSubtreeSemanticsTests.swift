@@ -486,7 +486,7 @@ extension EnvironmentValues {
 }
 
 enum RSChannel: String, CaseIterable, CustomTestStringConvertible {
-    case scrollRegion, surface, activeAnimation, customEnvironmentKey, stateWrite, popover
+    case scrollRegion, surface, activeAnimation, spinner, customEnvironmentKey, stateWrite, popover
     var testDescription: String { rawValue }
 }
 
@@ -507,6 +507,9 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
             Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
                 .opacity(flag.on ? 1 : 0.2)
                 .animation(.linear(duration: 1), value: flag.on)
+        case .spinner:
+            // An indeterminate spinner notes a live animation from paint, not from the build.
+            ProgressView().frame(width: Pixels(24), height: Pixels(24))
         case .customEnvironmentKey:
             Text("custom").frame(width: Pixels(60), height: Pixels(14))
         case .stateWrite:
@@ -656,18 +659,14 @@ enum RSKeyArm: String, CaseIterable, CustomTestStringConvertible {
     case colorScheme, scaleFactor, contentSize
     var testDescription: String { rawValue }
     /// Arms that move the control's context too (the whole window, or a padding that shifts its neighbour).
-    var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect || self == .flexRect }
+    var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect }
     /// Arms whose action draws the frame that shows the reaction (the window's own events).
     var actsOnTheWindow: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .scroll }
 }
 
-/// A component whose top-level node fills its proposal, around an interior child that does not move with it.
+/// A component of one painting node that takes its proposal: its top rect moves alone, there is no interior.
 private struct RSFlex: Component, @MainActor Equatable {
-    var content: some ElementGroup {
-        Text("flex").frame(width: Pixels(30), height: Pixels(14))
-            .frame(maxWidth: Pixels(.infinity), alignment: .leading)
-            .background(.accent)
-    }
+    var content: some ElementGroup { Box().background(.accent) }
 }
 
 /// The probe card under one arm's modifier, `flip` toggling the one input the arm changes.
@@ -677,8 +676,8 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     case .topRect:
         ZStack { RSCard(title: "P", shade: 1).equatable() }.padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(flip ? 6 : 0)))
     case .flexRect:
-        // The top-level node's width follows the proposal; the text inside keeps its place: only the top rect moves.
-        RSFlex().equatable().frame(width: Pixels(flip ? 120 : 100))
+        // The single node takes the proposal's width: its rect moves, nothing else in the subtree does.
+        RSFlex().equatable().frame(width: Pixels(flip ? 120 : 100), height: Pixels(20))
     case .clip:
         ZStack { RSCard(title: "P", shade: 1).equatable() }.clipShape(RoundedRectangle(cornerRadius: Pixels(flip ? 3 : 9)))
     case .opacity:
