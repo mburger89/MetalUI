@@ -118,40 +118,52 @@ final class KeyboardAttachment {
     let keyPresses: [KeyPressHandler]
     let focusInteractions: FocusInteractions?
     let isKeyRegion: Bool
+    /// Whether `.resignsFocusOnPress()` made this a resign region (ruling
+    /// `RF-C` item 1): a primary press inside it clears focus, and no key is
+    /// routed by hover.
+    let resignsOnPress: Bool
 
     init(keyPresses: [KeyPressHandler] = [], focusInteractions: FocusInteractions? = nil,
-         isKeyRegion: Bool = false) {
+         isKeyRegion: Bool = false, resignsOnPress: Bool = false) {
         self.keyPresses = keyPresses
         self.focusInteractions = focusInteractions
         self.isKeyRegion = isKeyRegion
+        self.resignsOnPress = resignsOnPress
     }
 
     /// The box with these fields, or `nil` when every one is the default —
     /// so an element no keyboard modifier configures keeps `keyboard == nil`.
     static func make(keyPresses: [KeyPressHandler], focusInteractions: FocusInteractions?,
-                     isKeyRegion: Bool) -> KeyboardAttachment? {
-        if keyPresses.isEmpty && focusInteractions == nil && !isKeyRegion { return nil }
+                     isKeyRegion: Bool, resignsOnPress: Bool) -> KeyboardAttachment? {
+        if keyPresses.isEmpty && focusInteractions == nil && !isKeyRegion && !resignsOnPress { return nil }
         return KeyboardAttachment(keyPresses: keyPresses, focusInteractions: focusInteractions,
-                                  isKeyRegion: isKeyRegion)
+                                  isKeyRegion: isKeyRegion, resignsOnPress: resignsOnPress)
     }
 
     /// `existing` with `handler` appended.
     static func adding(_ handler: KeyPressHandler, to existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: (existing?.keyPresses ?? []) + [handler],
-             focusInteractions: existing?.focusInteractions, isKeyRegion: existing?.isKeyRegion ?? false)
+             focusInteractions: existing?.focusInteractions, isKeyRegion: existing?.isKeyRegion ?? false,
+             resignsOnPress: existing?.resignsOnPress ?? false)
     }
 
     /// `existing` with its focus interactions replaced.
     static func interactions(_ interactions: FocusInteractions?,
                              over existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: existing?.keyPresses ?? [], focusInteractions: interactions,
-             isKeyRegion: existing?.isKeyRegion ?? false)
+             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: existing?.resignsOnPress ?? false)
     }
 
     /// `existing` with its key-region flag replaced.
     static func keyRegion(_ isKeyRegion: Bool, over existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: existing?.keyPresses ?? [], focusInteractions: existing?.focusInteractions,
-             isKeyRegion: isKeyRegion)
+             isKeyRegion: isKeyRegion, resignsOnPress: existing?.resignsOnPress ?? false)
+    }
+
+    /// `existing` with its resign-on-press flag replaced (`RF-C` item 1).
+    static func resigning(_ resignsOnPress: Bool, over existing: KeyboardAttachment?) -> KeyboardAttachment? {
+        make(keyPresses: existing?.keyPresses ?? [], focusInteractions: existing?.focusInteractions,
+             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: resignsOnPress)
     }
 }
 

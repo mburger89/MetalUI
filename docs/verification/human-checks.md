@@ -1475,6 +1475,21 @@ reporting `DragGesture`. An agent cannot: these need a real lost release.*
 - [ ] **GC2.** A real double-click on an element with `SpatialTapGesture(count: 2)` still fires the count-2 tap once
   and nothing spurious. **Observed:**
 
+## RF. Resign on press — `.resignsFocusOnPress()` (item C24, user request 2026-10-02, not a plan task; record 98)
+
+Run `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` (the root column carries the
+modifier). **An agent cannot post these events.** Rulings `RF-A`…`RF-H`; pinned
+headless by `ResignOnPressTests` and `ResignOnPressHarnessTests`.
+
+- [ ] **RF-1.** With a real mouse, click the Name field, then the blank padding
+  or a gap at the window's edge: the caret goes, typing goes nowhere. **Observed:**
+- [ ] **RF-2.** Click Name, then the Depth field: focus moves in one step, the
+  caret never flickers to nothing between. **Observed:**
+- [ ] **RF-3.** Focus a field, right-click the padding: any context menu opens
+  and the field stays focused (`MN-B`). Also check hovering the padding with
+  nothing focused and pressing Tab opens nothing (no key routing by hover).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

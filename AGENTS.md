@@ -66,7 +66,8 @@ summary.
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
   `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GT-` (text over a GPU surface:
   `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:
-  `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), …; the full
+  `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), `RF-` (resign on press:
+  `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -79,9 +80,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **149 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 reserved by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315–324 reserved by C27, 325–334 reserved by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **149 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315–324 reserved by C27, 325–334 reserved by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL and GT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GT and RF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -101,7 +102,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `feat/surface-text` from `d6a815c`, merged with master `3fce05f` (§96 text selection, §97 window drag), then `ff8a1ea4` (§100 continuing press cancel): 3529 tests, 0 goldens, 222 typecheck guards** (master's 3513 + 16 tests (3520 at `3fce05f`'s merge), 221 + 1 guard 1.11: lane 1's 11, lane 2's 5; `swift package clean`, native run on an unlocked screen, all passed, 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; census 3452 (3446 + 6); divergences 295, 296 added, 149 live; the fourteen images scene-identical, 0 px against `d6a815c` at both lanes; `Backends/SDL` untouched; record §99 §7).
+- **Counts (2026-10-12, `feat/resign-on-press` from `5f35df6`, merged with master `ff8a1ea4` (§94 backdrop blur, §96 text selection, §97 window drag, §100 continuing press cancel), then `7f891629` (§99 text over a GPU surface): 3549 tests, 0 goldens, 224 typecheck guards** (master's 3529 + 20 tests, 222 + 2 guards; 3533 / 223 at `ff8a1ea4`'s merge; `swift package clean`, native build and run 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`, no issue recorded; inventory and undocumented scripts print nothing, one public family; the fourteen images 0 px against `5f35df6`; divergence labels 285–294 unused, no divergence; record §98 §2). Before it:
+  **(2026-10-12, `feat/surface-text` from `d6a815c`, merged with master `3fce05f` (§96 text selection, §97 window drag), then `ff8a1ea4` (§100 continuing press cancel): 3529 tests, 0 goldens, 222 typecheck guards** (master's 3513 + 16 tests (3520 at `3fce05f`'s merge), 221 + 1 guard 1.11: lane 1's 11, lane 2's 5; `swift package clean`, native run on an unlocked screen, all passed, 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; census 3452 (3446 + 6); divergences 295, 296 added, 149 live; the fourteen images scene-identical, 0 px against `d6a815c` at both lanes; `Backends/SDL` untouched; record §99 §7).
   Before it:
   **(2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
 - **Counts (2026-10-12, `feat/text-selection` from `0abce86`, merged with master `930db4a` (§93–§95, §97): 3504 tests, 0 goldens, 221 typecheck guards** (master's 3472 + 32 tests, 218 + 3 guards G1–G3; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`; census 3446 (master's 3424 + 22); divergences 265, 266 added, 147 live; the merge's one source edit `Window.onInput` keeps both the selection `defer` and master's modifier report; record §96 §5). Before it:
@@ -216,7 +218,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -758,6 +760,21 @@ pressing** as a lost release, not a tap sequence's second press: `abandon()` and
 form, as for a press on another element (`GC-C`; SwiftUI agrees, probe `swiftui-lost-release.swift`).
 A real double-click (arena released) still continues. A bare `.mouseMoved` does not cancel the
 primary arena (rejected, `GC-C`). No public API, no divergence.
+
+**Resign on press (`RF-`, record §98).** `.resignsFocusOnPress(_ isEnabled: Bool = true)`
+(`StyledElement` returns `Self`; proposal content merges into the one `KeyboardModifier` layer,
+`KF-H`) is an opt-in container modifier: a primary press inside it resigns a focused field and
+**routes no key by hover**. It is `KeyboardAttachment.resignsOnPress` (every factory carries all four
+fields; `Handlers` keeps nineteen members) registered by the same non-opaque region and gates as a
+key region and counted apart (`resignRegionCount`, never `keyRegionCount`: `hoveredKeyRegion`,
+`keyChain`, `coversKeys(withPressRegions: false)` and `onKeyPress` routing are untouched, `KF-U`,
+test 2b); it widens only `focusOnPress`'s region predicate, so `KF-E` item 5's ladder holds (a text
+field or click-focusable inside focuses directly, one change and no `nil` between) and the one
+ranking is the only lookup. A secondary or other press never resigns (`MN-B`), a `Deferred`
+presentation's press does not reach a region below (`IX-Q`), a `Button` inside fires **and**
+resigns. MetalUI-only (class `M`, no divergence): SwiftUI has no such modifier (probe
+`swiftui-resign-on-press.swift`); `KF-G`'s default stands. Rejected: `hoverKeyRegion(routesKeys:)`
+(`RF-B`); not built: a per-subtree opt-out, a window option.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
