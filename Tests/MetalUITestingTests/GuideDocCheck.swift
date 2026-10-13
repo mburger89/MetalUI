@@ -338,6 +338,21 @@ enum GuideDocs {
         return rows
     }()
 
+    /// The labels whose row sits at or after the `## Retired` heading of
+    /// `docs/divergences.md` (`TW-D`): the retired table and the rows appended below it.
+    static let retiredDivergenceRows: Set<Int> = {
+        let url = root.appendingPathComponent("docs/divergences.md")
+        guard let source = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        var rows: Set<Int> = []
+        var retired = false
+        for line in lines(of: source) {
+            if line.hasPrefix("## Retired") { retired = true }
+            guard retired else { continue }
+            if let match = captures(#"^\|\s*(\d+)\s*\|"#, in: line).first, let number = Int(match[0]) { rows.insert(number) }
+        }
+        return rows
+    }()
+
     /// Every guide plus the README, for the checks that read prose only.
     static func everyDocument() throws -> [Guide] {
         try guides() + [readme()]
@@ -425,6 +440,29 @@ enum GuideDocs {
         }
     }
     try #require(cited > 0, "no guide cites a divergence")
+}
+
+/// **T4b (`TW-D`).** No guide cites a retired divergence label (DG-U: a retired label
+/// keeps its row, so T4 cannot see it). Mutation: cite `divergence 249` in a guide.
+@Test func noGuideCitesARetiredDivergence() throws {
+    let documents = try GuideDocs.everyDocument()
+    try #require(GuideDocs.retiredDivergenceRows.count > 10, "the retired rows were not read")
+    for document in documents {
+        for (line, text) in GuideDocs.blocks(of: document.parsed.prose) {
+            for label in GuideDocs.divergenceLabels(in: text) {
+                #expect(!GuideDocs.retiredDivergenceRows.contains(label),
+                        "\(document.name):\(line): divergence \(label) is retired")
+            }
+        }
+    }
+}
+
+/// **T4c (`TW-D`).** The retired-row parser reads the retired table and the rows appended
+/// below it. Mutation: start the parser at `## Live` (reddens this: 1 is read).
+@Test func theRetiredDivergenceRowsAreRead() throws {
+    let rows = GuideDocs.retiredDivergenceRows
+    #expect(rows.isSuperset(of: [2, 79, 85, 249]), "\(rows.sorted())")
+    #expect(rows.isDisjoint(with: [1, 325]), "\(rows.sorted())")
 }
 
 // MARK: - T5

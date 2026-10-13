@@ -47,3 +47,111 @@ import Testing
     }
     #expect(throws: TestHarnessError.notRecorded("layout")) { try window.frame(ofID: "a") }
 }
+
+// C30 (`TW-A`…`TW-C`, record §108): `frame(ofID:)` finds an `.id` written on proposal
+// content — a `Rectangle`, a `GPUSurface` frame, a `ZStack` in a `Component` — which is an
+// `IdentifiedGroup` (layout-transparent: an identity level and no node, `ID-G`). Rows are
+// the union of the nodes the content hands its parent (`TW-B`). Literals derived by hand in
+// the 400 × 300 window: a lone child of a `VStack` is centred at its own answer (`CN-J`).
+
+/// A two-node component under one `.id`: 40 × 20 over 60 × 10 in a zero-spacing stack.
+struct IdentifiedPair: Component {
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(40), height: Pixels(20))
+        Rectangle().frame(width: Pixels(60), height: Pixels(10))
+    }
+}
+
+/// A component whose content is empty.
+struct IdentifiedNothing: Component {
+    let show: Bool
+    var content: some ElementGroup {
+        if show { Rectangle().frame(width: Pixels(40), height: Pixels(20)) }
+    }
+}
+
+/// The DG-T shape: a `ZStack` named inside a `Component`.
+struct IdentifiedPanel: Component {
+    var content: some ElementGroup {
+        ZStack { Rectangle().frame(width: Pixels(40), height: Pixels(20)) }.id("stack")
+    }
+}
+
+/// 1.30 — `Rectangle().frame(40 × 20).id("r")` alone in a `VStack`: (180, 140, 40, 20).
+/// Red on d279f34d: `noElement(id "r")`. Mutation: delete the `recordIdentifiedBounds` call.
+@Test @MainActor func frameOfIDFindsAnIDOnARectangle() throws {
+    let window = try harnessWindow {
+        VStack { Rectangle().frame(width: Pixels(40), height: Pixels(20)).id("r") }
+    }
+    #expect(try window.frame(ofID: "r") == rect(180, 140, 40, 20))
+}
+
+/// 1.31 — a `GPUSurface` with a frame, then `.id`: (150, 130, 100, 40). Same mutation.
+@Test @MainActor func frameOfIDFindsAnIDOnAGPUSurface() throws {
+    let window = try harnessWindow {
+        VStack {
+            GPUSurface(redraw: .onDemand, value: 0) { _ in }
+                .frame(width: Pixels(100), height: Pixels(40)).id("surface")
+        }
+    }
+    #expect(try window.frame(ofID: "surface") == rect(150, 130, 100, 40))
+}
+
+/// 1.32 — a `ZStack` named inside a `Component` (DG-T): (180, 140, 40, 20). Same mutation.
+@Test @MainActor func frameOfIDFindsAnIDOnAZStackInsideAComponent() throws {
+    let window = try harnessWindow { VStack { IdentifiedPanel() } }
+    #expect(try window.frame(ofID: "stack") == rect(180, 140, 40, 20))
+}
+
+/// 1.33 — a modifier chain answers its outermost layer: 40 × 20 padded by 5 is 50 × 30 at
+/// (175, 135). Mutation: record the innermost node's rect (reads 40 × 20).
+@Test @MainActor func frameOfIDAnswersTheOutermostLayerOfAModifiedChain() throws {
+    let window = try harnessWindow {
+        VStack {
+            Rectangle().frame(width: Pixels(40), height: Pixels(20)).padding(Pixels(5))
+                .background(Color.red).id("p")
+        }
+    }
+    #expect(try window.frame(ofID: "p") == rect(175, 135, 50, 30))
+}
+
+/// 1.34 — two nodes under one `.id` answer their union: 40 × 20 over 60 × 10, centred in a
+/// 60 × 30 stack at (170, 135): union (170, 135, 60, 30). Mutation: first node only
+/// (reads 180, 135, 40, 20).
+@Test @MainActor func frameOfIDAnswersTheUnionOfAGroupsNodes() throws {
+    let window = try harnessWindow { VStack(spacing: 0) { IdentifiedPair().id("pair") } }
+    #expect(try window.frame(ofID: "pair") == rect(170, 135, 60, 30))
+}
+
+/// 1.35 — `Text` and `Box` ids are still found beside a `Rectangle` id, each once.
+/// Mutation: record the identified row under a wrong key (reddens 1.30–1.34 only).
+@Test @MainActor func frameOfIDStillFindsTextAndBoxIDs() throws {
+    let window = try harnessWindow {
+        HStack(spacing: 0) {
+            Box().frame(width: Pixels(30), height: Pixels(20)).id("box")
+            Rectangle().frame(width: Pixels(40), height: Pixels(20)).id("rect")
+            Text("hi").id("text")
+        }
+    }
+    #expect(try window.frame(ofID: "box").size == sz(30, 20))
+    #expect(try window.frame(ofID: "rect").size == sz(40, 20))
+    #expect(try window.frame(ofID: "text").size.height > 0)
+}
+
+/// 1.36 — an `.id` on a group with no nodes is `noElement`, not a trap and not a zero rect.
+/// Mutation: record `Bounds.zero` for an empty list.
+@Test @MainActor func frameOfIDOnAnEmptyIdentifiedGroupIsNoElement() throws {
+    let window = try harnessWindow { VStack { IdentifiedNothing(show: false).id("e") } }
+    #expect(throws: TestHarnessError.noElement("id \"e\"")) { try window.frame(ofID: "e") }
+}
+
+/// 1.37 — the same `Rectangle().id` adopted whole by a legacy `Column` (through
+/// `LegacyContent`, `PE-C`) is found too: the untyped entry sets the nodes as the typed one
+/// does. A lone child of a centring `Column` is centred at its answer: (180, 140, 40, 20).
+/// Mutation: skip the untyped entry's `nodes` assignment.
+@Test @MainActor func anIDInALegacyParentIsFoundToo() throws {
+    let window = try harnessWindow {
+        Column { Rectangle().frame(width: Pixels(40), height: Pixels(20)).id("r") }
+    }
+    #expect(try window.frame(ofID: "r").size == sz(40, 20))
+}

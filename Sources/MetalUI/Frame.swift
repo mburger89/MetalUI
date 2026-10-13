@@ -2516,6 +2516,14 @@ public final class Frame {
         elementBounds[id] = bounds
     }
 
+    /// Records an `IdentifiedGroup`'s row: the union of the rects of the nodes its content
+    /// handed its parent (`TW-A`, `TW-B`). Writes `elementBounds` **only** and never
+    /// matches a `scrollTo` request (`TW-C`, `DD-G`): the content's own rows still do.
+    func recordIdentifiedBounds(_ id: GlobalElementID, nodes: [LayoutNodeID]) {
+        guard recordsElementBounds, !nodes.isEmpty else { return }
+        elementBounds[id] = union(of: nodes)
+    }
+
     /// A legacy site met a field (or is a site) with no proposal lowering.
     /// **Traps** with `field.trapMessage` unless this frame reports; reporting,
     /// records the entry and returns. The site is always the caller's own
