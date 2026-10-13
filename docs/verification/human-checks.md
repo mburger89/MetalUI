@@ -1519,6 +1519,15 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
   **Observed:**
 - [ ] **IM3.** Cancel over a selection on AppKit's own `NSTextField`, for comparison with `IM-F`. **Observed:**
 
+## GD. Developer guides — a reader's pass (item 10b, user request 2026-10-02, not a plan task; record §103)
+
+*An agent cannot: it needs a person who does not already know the framework.*
+
+- [ ] **GD1.** A person coming from SwiftUI reads each of the six guides in `docs/guides/` once with the demo
+  running (`swift run MetalUIDemo`) and marks every step that surprises them or every sentence that did not match
+  what they saw (`DG-A`, `DG-B`). The compile check proves the blocks build and the pinned claims hold in a
+  headless window (`DG-C`); it cannot see whether a guide teaches. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

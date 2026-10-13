@@ -8,6 +8,10 @@ outside `Tests/`, no pixel change, no divergence added** (the branch's reserved 
 unused unless a guide's verification finds a real difference, in which case it is a *finding* for
 the orchestrator, `DG-J`).
 
+**Status: LANDED** (record §103; two lanes verified `ok`). Where the build departed from this text, the
+ruling wins: `DG-N` (tilde fences refused, not ignored), `DG-P` (no `runUntilIdle()` after a click),
+`DG-Q` (no `Canvas` task: MetalUI has no public `Canvas`).
+
 ## 1 Inventory (what exists at `ff8a1ea4`)
 
 `docs/` holds `getting-started.md` (scaffold), `api-overview.md` (57 KB reference by area),

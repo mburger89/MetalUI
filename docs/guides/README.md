@@ -28,7 +28,7 @@ window ([`testing.md`](../testing.md)) to prove the claims the guide makes.
 aside), when a swift block is not copied, when a fence carries any info string but `swift`,
 `text` or `sh`, when a cited pin (a test name after the word pin and a colon) names no test, when a
 `divergence N` has no row, when a relative link is dead, when a guide names an API that is not
-yet on `master`, and when a sentence names a behaviour (its verb list is in `DG-E`) and cites no pin. Rulings: [`DG-A`…`DG-M`](../superpowers/2026-10-12-guides-decisions.md).
+yet on `master`, and when a sentence names a behaviour (its verb list is in `DG-E`) and cites no pin. Rulings: [`DG-A`…`DG-Q`](../superpowers/2026-10-12-guides-decisions.md).
 
 Not every block is a `swift` block. A snippet that cannot build in that target (an SDL platform,
 which lives in a package behind a trait) is a `text` or `sh` fence, and says so.
