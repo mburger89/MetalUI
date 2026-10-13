@@ -2233,3 +2233,13 @@ The fourteen offscreen images read 0 differing pixels against `930db4a`; no wind
 here — `docs/verification/human-checks.md` group GC, none performed (an agent cannot)**: GC1 a real orbit or
 drag interrupted by Mission Control or a native menu, then pressed again, gives one `onCancelled` and a new
 drag; GC2 a real double-click still fires a `count: 2` tap once.
+
+## 2026-10-12: resign on press (record §98) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `5f35df6`; the probe
+`swiftui-resign-on-press.swift` was taken with the screen locked (its controls reproduce the
+unlocked key-focus arms); no real mouse was used. **Owed, new here —
+`docs/verification/human-checks.md` group RF, none performed (an agent cannot)**: RF-1 a real click
+on the blank padding ends editing in the Name field (`METALUI_KEY_FOCUS_DEMO=1`); RF-2 Name to Depth
+is one move with no flicker; RF-3 a right-click on the padding resigns nothing and hovering it with
+nothing focused routes no Tab.

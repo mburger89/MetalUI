@@ -494,6 +494,7 @@ pointer while nothing is focused; `.focusable(interactions: .edit)` focuses on a
 94, narrowed); a proposal `KeyboardModifier` carries all of it onto `MetalView`/`GPUSurface`;
 `.onGeometryChange` reports a size or frame in the first presented frame and during a resize;
 `TimelineView` runs `.animation`, `.periodic`, `.everyMinute`, `.explicit` and custom schedules.
+**Resign on press** (user request 2026-10-02, item C24, not a plan task; record §98): `.resignsFocusOnPress()` (MetalUI-only) makes a primary press inside it end a focused field's editing without routing keys by hover; a press on another field moves focus directly. `METALUI_KEY_FOCUS_DEMO=1` shows it. Human checks: group RF, unrun.
 A `for` over an opaque-returning helper in a builder is a Swift 6.4 defect (use `ForEach`), pinned
 by a guard. Divergences 185–188. `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` shows it. Human
 checks: group KF, unrun.

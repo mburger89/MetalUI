@@ -179,7 +179,7 @@ already excludes every hidden case (the existing hover gate has the same shape).
 **Cost if wrong.** A future change that separates the two depths makes M6c
 non-equivalent; the hidden-gate test would then redden.
 
-## RF-I — Lane 2 mutation re-take: two scripted mutations hit the wrong site; one gate stays green
+## RF-I — Lane 2 mutation re-take: two scripted mutations hit the wrong site; M6b corrected
 
 **Ruling.** The lane 2 re-take (record 98 section 4) found: (1) the first scripted
 M7 and M8 replaced the **first** occurrence of their line, which is in
@@ -189,21 +189,20 @@ last occurrence (`focusOnPress`), M7 reddens
 `aDeferredPresentationPressDoesNotResignThroughARegionBelow` and M8
 `aPressOnAnOpaqueSiblingAboveTheRegionChangesNoFocus`, as the spec says.
 (2) **M6b (drop `hitTestingDisabledDepth == 0` from the registration condition)
-stays green** on both the legacy `Box.allowsHitTesting(false)` arm and a new
-proposal-content arm (`allowsHitTestingProposal`, `Rectangle`): the region is
-withdrawn although that clause is gone. The cause is not established (an
-instrumented attempt printed nothing even for the control, so it proves
-nothing). No pin of that clause is claimed; the observable behaviour (a press
-on an `allowsHitTesting(false)` region resigns nothing) is pinned by test 6's
-arms. (3) The spec's M11 (unconditional `focus(nil)` write) was not run:
+is pinned.** The lane's first reading was green, from a filtered run; the full
+unfiltered suite reddens `disabledHiddenAndAllowsHitTestingWithdrawTheResignRegion`
+(test 6, both its `Box` and its proposal-content `allowsHitTesting` arms),
+`disabledHiddenAndAllowsHitTestingWithdrawThePressAndKeyRegions`,
+`everyHandlerRegisteringSiteHonoursAllowsHitTesting` and
+`everyHandlerRegisteringSiteStillPublishesItsAccessibilityPayload`. The record
+phase corrected this: mutations are taken unfiltered. (3) The spec's M11 (unconditional `focus(nil)` write) was not run:
 `Window.focus` guards a no-change, `RF-H` 3 already claims no mutation for it.
 (4) The guards were mutated additively (R1: an extra `enabled:` overload makes
 the negative compile; R2 has no additive mutation, any change to its return
 type breaks the test target's compile, so it is unmutated).
 
-**Cost if wrong.** A change that drops the depth clause AND the unknown earlier
-withdrawal would resign on a press aimed at an `allowsHitTesting(false)`
-region; test 6 would then redden, which is the pin that matters.
+**Cost if wrong.** None known: the clause is pinned by test 6 and three existing
+guards.
 
 ## What does not move (RF-A…F's frame)
 

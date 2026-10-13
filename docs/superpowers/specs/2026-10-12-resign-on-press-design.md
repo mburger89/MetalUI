@@ -1,8 +1,8 @@
 # Resign on press — design (C24)
 
-**Status: DESIGNED 2026-10-12** from `5f35df6` (branch `feat/resign-on-press`).
+**Status: IMPLEMENTED 2026-10-12** on `feat/resign-on-press` from `5f35df6` (designed the same day; record 98; the mutation table is record 98 section 4, which supersedes this spec's per-test mutation list where they differ).
 Rulings: [`../2026-10-12-resign-on-press-decisions.md`](../2026-10-12-resign-on-press-decisions.md)
-(`RF-A`…`RF-G`, next `RF-H`). Probe: `docs/probes/swiftui-resign-on-press.swift`.
+(`RF-A`…`RF-I`, next `RF-J`). Probe: `docs/probes/swiftui-resign-on-press.swift`.
 Requested by MetalCreator (CT-a): a press on inert chrome (glass padding, header
 gaps, an empty inspector) must end in-place editing without taking over key
 routing. Today a press outside every key region resigns nothing (`KF-G`), and
