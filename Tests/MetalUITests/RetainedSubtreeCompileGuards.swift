@@ -38,9 +38,10 @@ func theRecordIsUnreachableFromAPlainImport() throws {
     #expect(!counters.succeeded, "the memo store's counters are package API:\n\(counters.output)")
 
     let record = try typecheckFile("""
-        public func make() -> Int { RetainedCounters().hits }
+        public func take(_ counters: RetainedCounters) {}
         """, importing: "MetalUI")
     #expect(!record.succeeded, "RetainedCounters is package API:\n\(record.output)")
+    #expect(record.messages.contains("RetainedCounters"), "rejected, but not for the type:\n\(record.output)")
 }
 
 /// **1.17b** — a plain import cannot turn replay off: `Window.testingRetainedSubtrees` is `package`
