@@ -568,14 +568,14 @@ enum RSKeyArm: String, CaseIterable, CustomTestStringConvertible {
     // Geometry (spec §4.1).
     case topRect
     // Ambient context at paint (spec §4.2, `SB-AA`).
-    case clip, opacity, shadow, blur, rotation, offsetEffect, foreground, font, disabled
+    case clip, opacity, shadow, blur, rotation, offsetEffect, scroll, foreground, font, disabled
     // The whole window.
     case colorScheme, scaleFactor, contentSize
     var testDescription: String { rawValue }
     /// Arms that move the control's context too (the whole window, or a padding that shifts its neighbour).
     var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect }
     /// Arms whose action draws the frame that shows the reaction (the window's own events).
-    var actsOnTheWindow: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize }
+    var actsOnTheWindow: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .scroll }
 }
 
 /// The probe card under one arm's modifier, `flip` toggling the one input the arm changes.
@@ -596,6 +596,14 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
         ZStack { RSCard(title: "P", shade: 1).equatable() }.rotationEffect(.degrees(flip ? 3 : 5))
     case .offsetEffect:
         ZStack { RSCard(title: "P", shade: 1).equatable() }.offset(x: Pixels(flip ? 1 : 2))
+    case .scroll:
+        // The card keeps its rect in the content; scrolling moves only the paint offset (`activeOffset`).
+        ScrollView(.vertical) {
+            VStack(spacing: 0) {
+                RSCard(title: "P", shade: 1).equatable()
+                Box().frame(width: Pixels(60), height: Pixels(400))
+            }
+        }.frame(width: Pixels(120), height: Pixels(100))
     case .foreground:
         RSCard(title: "P", shade: 1).equatable().foregroundColor(flip ? Color.red : Color.blue)
     case .font:
@@ -624,6 +632,7 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
 /// makes the control miss too) while the retained scene, hitbox list and accessibility tree equal an
 /// unretained window's. Mutation: that component made constant in `retainedAmbientKey()` / `retainedKey`
 /// — the probe replays the old frame, and the scene (or the miss count) differs. Recorded per arm in §109.
+/// The `scroll` arm is the paint offset's: the card keeps its rect in the content, only `activeOffset` moves.
 @Test(arguments: RSKeyArm.allCases) @MainActor func everyKeyComponentSeparates(arm: RSKeyArm) async throws {
     let onModel = RSModel(), offModel = RSModel()
     let on = try rsKeyWindow(arm: arm, model: onModel, retained: true)
@@ -633,6 +642,10 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
         case .colorScheme: on.setAppearance(.dark); off.setAppearance(.dark)
         case .scaleFactor: on.setScaleFactor(2); off.setScaleFactor(2)
         case .contentSize: on.resize(to: sz(280, 150)); off.resize(to: sz(280, 150))
+        case .scroll:
+            // Below the card, on the filler: the pointer is not in the probe.
+            let at = pt(230, 125)
+            on.scroll(at: at, byDeltaX: 0, deltaY: -12); off.scroll(at: at, byDeltaX: 0, deltaY: -12)
         default: onModel.n += 1; offModel.n += 1
         }
     }
