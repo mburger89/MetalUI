@@ -5,7 +5,7 @@ Record: `../record/108-frame-of-id.md`. Evidence: reading of `ExplicitIdentity.s
 and its four call sites, `TestWindow.frames(ofID:)`, and record §107's `DG-T` measurement; red tests owed to the
 implementer. No SwiftUI probe: `frame(ofID:)` is MetalUI-only and gpui's `debug_bounds` is the authority.
 
-Prefix **`TW-`**. **Next unused: `TW-F`.** (Moves in the commit that appends a ruling.)
+Prefix **`TW-`**. **Next unused: `TW-G`.** (Moves in the commit that appends a ruling.)
 Branch `fix/frame-of-id` from `d279f34d`. Reserved divergence labels 385–394: none used.
 
 ## TW-A — The fix is `IdentifiedGroup` recording its own row, not a wider lookup in the harness
@@ -48,3 +48,16 @@ Fixed: the test count (+12, not +9) and the Linux proof (root package in `swift:
 the `Backends/SDL` command, since `MetalUITestingTests` lives in the root). **Rejected:** recording the row in
 `Frame` for every `.id` unconditionally (no `recordsElementBounds` gate on `nodes`): it would allocate in production
 frames. **Cost if wrong.** None; the gate is test 10.
+
+## TW-F — Implementation findings: three spec literals corrected by measurement
+
+**Ruling.** (1) A modifier chain (`Rectangle().frame(…).padding(5).background(…).id("p")`) was **already found**
+before the fix: `.id` on a `ModifiedContent` names its outermost layer (`MC-A`) and records through
+`prepaintLayer`. Test 1.33 therefore pins the outermost-layer answer (50 × 30) but is green on `d279f34d` and is
+not reddened by deleting the new call; the broken shapes are those whose last modifier is not a `ModifiedContent`
+(`ProposalFrame` result, `GPUSurface`, `ZStack`, a `Component`). (2) The scroll pin (test 9) needs a **recording**
+window (`recordsElementBounds = true`): in a non-recording frame the group keeps no nodes and records nothing, so a
+`matchScrollRequests` call in `recordIdentifiedBounds` is invisible; with recording on it reddens (`.bottom` offset
+140 instead of 110). (3) `ExplicitIdentityTests.anIDOnAGroupIsLayoutTransparent` (E3.5) compared the **whole**
+recorded-bounds list of an identified and a plain tree; the group's own row is now one more entry (a copy of its
+`HStack` node's 78 × 50 rect), so the test accounts for exactly that row. **Cost if wrong.** None.
