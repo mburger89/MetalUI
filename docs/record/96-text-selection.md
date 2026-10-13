@@ -98,6 +98,16 @@ named; "reddened" lists the tests (the five sheet issues are in every run and om
   `swift build --build-tests` (default build system): 0 `warning:`.
 - **`swift:6.4-noble`, root package** (`metalui-portable`, volume `metalui-root-build-text-selection`):
   0 `warning:`, 0 `error:`; `MetalUITestingTests` 93 (72 + 21) + 9 + 40 + 21 + 199 + 78 + 22, all passed.
+- **After the merge with master `930db4a`** (§93 input follow-ups, §94 backdrop blur, §95 `ForEach`
+  identity, §97 window drag; record 96 stays free, 95 and 97 are master's): the one source conflict was
+  `Window.onInput`, resolved by keeping the `defer { publishFocusedSelection() }` first and master's
+  `noteModifiers(from:)` and flags-report early return after it (the `defer` runs on that return too and
+  is a no-op there). `swift package clean`, native build 0 `error:`, unfiltered `--no-parallel` run:
+  **3504 tests in 3 suites** (master's 3472 + 32), exactly the five `AppKitPresentationTests` sheet issues
+  of a locked screen, `FR-J no-argument frame: succeeded=true`; guards 218 + 3 = 221; census 3446
+  (3424 + 22), regenerated; `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+  Divergences 265, 266 added beside master's 275–277, header 147 live. A stray `Window.swift-e` (a `sed -i`
+  slip, an unhandled-resource warning) was committed by the merge and removed in the next commit.
 - **Fourteen images**, `compare.sh <scratch> 0abce86 HEAD`: see §6. `Expected.swift` unedited.
 - **`Backends/SDL`** untouched; not re-run. `closeout-inventory-check.sh` and
   `closeout-undocumented.sh` print nothing.

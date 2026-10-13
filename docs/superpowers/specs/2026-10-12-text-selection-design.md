@@ -10,7 +10,7 @@ Divergence labels reserved for this branch: 265–274 (used: 265, 266).
 
 **Amendment (lane 1, `SL-L`):** `TextSelection` and its four initialisers are `@available(macOS 15, *)` (`RangeSet`); the internal state holds the value type-erased (`ErasedSelection`, `AnyHashable`), `reconcile` takes `AnyHashable?` and `publication` returns `Range<Int>?`; `TextInputTarget.selectionSink` returns `AnyHashable`.
 
-**Status: design, nothing built.** Lane 1 builds the library, lane 2 the tests, demo and mutations.
+**Status: LANDED 2026-10-12** (record §96): lane 1 built the library, lane 2 the tests, demo and mutations; the looks (group SL) are owed to a human.
 
 ## 1. SwiftUI's answers (probe `docs/probes/swiftui-text-selection.swift`, recorded 2026-10-12)
 
