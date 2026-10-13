@@ -13,7 +13,7 @@ Starting a project is [`getting-started.md`](../getting-started.md); moving a le
 | [State and identity](state-and-identity.md) | `@State`, `Binding`, `@Observable`, `@Environment`, `ForEach` identity, what loses state, `List` windowing and selection |
 | [Input](input.md) | buttons and what a click does to focus, gestures and the one arena, `onCancelled`, `WindowDragGesture`, `onKeyPress` and key regions, text fields and `TextSelection` |
 | [Presentations and the app shell](presentations-and-app-shell.md) | popovers, menus and commands, alerts and file dialogs, the toolbar, windows, close and terminate |
-| [Drawing and GPU](drawing-and-gpu.md) | shapes, paths, gradients, shadows, materials, `Canvas`, `GPUSurface` and `MetalView` |
+| [Drawing and GPU](drawing-and-gpu.md) | shapes, paths, gradients, shadows, materials, `GPUSurface` and `MetalView` |
 | [Cross-platform](cross-platform.md) | what differs on Linux and Windows, images, fonts, packaging |
 
 ## How the code blocks are checked
