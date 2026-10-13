@@ -103,10 +103,10 @@ All in `MetalUITestingTests` unless noted, written red first against `d279f34d` 
 8. `anIDInALegacyParentIsFoundToo` — the same `Rectangle().id` as a child of a legacy `Column` (adopted whole through
    `LegacyContent` if it compiles; otherwise the test records the compile boundary as the finding). Mutation: skip the
    untyped entry's `nodes` assignment.
-9. `anIdentifiedRectangleDoesNotChangeAScrollToTarget` — a `ScrollViewReader` scroll to a `Rectangle().id("t")` row
+9. `anIdentifiedGroupIsNotAScrollToTarget` — a `ScrollViewReader` scroll to a `Rectangle().id("t")` row
    produces the same offset before and after the change (measured on `d279f34d` first, literal hand-derived).
    Mutation: call `matchScrollRequests` from `recordIdentifiedBounds` (the test must redden, else it is not a pin).
-10. `aWindowThatRecordsNoLayoutStillThrowsNotRecorded` — existing 1.27 unchanged; the allocation gate is covered by
+10. `aWindowNotRecordingLayoutThrowsNotRecorded` — existing 1.27 unchanged; the allocation gate is covered by
     `nodes` being empty when `recordsElementBounds` is false (read through an `@testable` frame test in `MetalUITests`:
     `anIdentifiedGroupKeepsNoNodesWhenTheFrameDoesNotRecord`). Mutation: remove the gate.
 11. Fix 2: `noGuideCitesARetiredDivergence`, `theRetiredDivergenceRowsAreRead`. Mutations: cite `divergence 249` in a
