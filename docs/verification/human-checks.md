@@ -1432,6 +1432,49 @@ mouse-dragged dispatch is the unproven call (`WD-D`).**
 - [ ] **WD7.** Linux/Windows (SDL): the handle claims the press and moves nothing;
   the system title bar drags the window (divergence 276). **Observed:**
 
+## SL. Text selection — the binding in a real window (item C25, user request 2026-10-02, MetalCreator CT-b, not a plan task; record §96)
+
+*Run with `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` (macOS 15). An
+agent cannot: these are looks, an input method and other platforms.*
+
+- [ ] **SL1.** Double click the title: it becomes a field with the whole
+  title highlighted in the accent wash; typing replaces it; Return or Escape
+  ends the rename. **Observed:**
+- [ ] **SL2.** "Open note": the editor takes focus with the caret at the end
+  of the text and the end in view; typing appends. **Observed:**
+- [ ] **SL3.** With a Japanese input method, compose in the title field and
+  press "Caret to start" in the note block's neighbour (or write the binding
+  from a timer): the marked text stays where it is and the commit lands where
+  the composition began (`SL-H`). **Observed:**
+- [ ] **SL4.** Click, arrows and Shift-arrows in either field update the
+  `selection a..<b` readout. **Observed:**
+- [ ] **SL5.** The same demo section on Linux (SDL) and Windows. **Observed:**
+- [ ] **SL6.** Type in the note, press "Caret to start", type again, then
+  undo: the undo removes the typing, not the caret move (`SL-I`).
+  **Observed:**
+
+## GT. Text over a GPU surface — measured labels (item C23, user request 2026-10-02, MetalCreator S5-c, not a plan task; record §99)
+
+*No demo changed and the fourteen images read 0 px; the measure and the portable layout cache
+are counted headless. This look is shared with MetalCreator's own check S5c-6. An agent
+cannot: a camera moving over a real viewport is a look.*
+
+- [ ] **GT1.** In a 20-label sketch (MetalCreator's viewport), labels sized with
+  `@Environment(\.textMeasurer)` get chips that hug their text (no 7-points-a-character
+  slack); moving the camera shows no label hitching on a Mac and on the SDL backend; labels
+  placed from a `MetalView` viewport's pose stay on their anchors during a pan. **Observed:**
+
+## GC. Continuing press cancel — a lost release (item C26, user request 2026-10-02, MetalCreator VI-b, not a plan task; record §100)
+
+*Run `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` (a drag with `onCancelled` in the readout pad) or an app with a
+reporting `DragGesture`. An agent cannot: these need a real lost release.*
+
+- [ ] **GC1.** Start a drag, then take the release away (Mission Control, or open a native menu mid-drag), come back
+  and press again on the same element: the interrupted drag reports one `onCancelled` (no `onEnded`) and the new
+  press starts a drag. **Observed:**
+- [ ] **GC2.** A real double-click on an element with `SpatialTapGesture(count: 2)` still fires the count-2 tap once
+  and nothing spurious. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

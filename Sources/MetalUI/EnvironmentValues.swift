@@ -288,6 +288,10 @@ public struct EnvironmentValues {
     /// `.theme(_:)` (ruling EV-G).
     var theme: Theme = .light
 
+    /// The frame's text system, for ``textMeasurer`` (ruling GT-D). Internal;
+    /// stamped by the root and restored after a `\.self` reset like `theme`.
+    var textSystemBox: TextSystemBox?
+
     /// The field styles a `TextField`/`TextEditor` below draws in when it names
     /// none (rulings `MD-B` item 2, `MD-F`; `TextFieldStyle.swift`). Internal.
     var fieldStyles = FieldStyles()

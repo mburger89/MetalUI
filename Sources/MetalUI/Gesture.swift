@@ -772,13 +772,16 @@ struct GestureArena {
     }
 
     /// A press. `continuing` is the second press of a tap sequence on the same
-    /// target: taps re-arm, anything else still undecided is cancelled.
+    /// target: taps re-arm, anything else still undecided fails — and a drag
+    /// that had reported a change first runs its `onCancelled`, ahead of
+    /// whatever the resolution then produces, as `abandon()` does (`GC-B`).
     /// `modifiers` are the press's, for a `minimumDistance: 0` drag's first
     /// change (`CI-G`).
     mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool,
                         modifiers: Modifiers) -> [GestureCallback] {
         isPressing = true
         if !continuing { baseClickCount = clickCount }
+        var cancels: [GestureCallback] = []
         for leaf in leaves where leaf.status == .possible {
             leaf.pressModifiers = modifiers
             leaf.pressClickCount = clickCount
@@ -799,7 +802,13 @@ struct GestureArena {
                     leaf.awaitingStamp = true
                     leaf.owesPressing = true
                 case .drag(let minimum, let space, _):
-                    if continuing { fail(leaf); continue }
+                    if continuing {
+                        // A leaf that reported owes `onCancelled` whatever
+                        // ends it (`GC-B`).
+                        if let callback = cancelCallback(leaf) { cancels.append(callback) }
+                        fail(leaf)
+                        continue
+                    }
                     leaf.pressPoint = point
                     if minimum <= 0 {
                         leaf.started = true
@@ -814,7 +823,7 @@ struct GestureArena {
                 }
             }
         }
-        return resolve()
+        return cancels + resolve()
     }
 
     /// `move(to:modifiers:)` with no modifiers.

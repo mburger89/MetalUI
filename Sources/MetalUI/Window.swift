@@ -928,6 +928,9 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // A bound text selection is published after every input that moved it
+            // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
+            defer { self.publishFocusedSelection() }
             self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
             // A flags report carries nothing else: it dirties the window through
             // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
@@ -2623,7 +2626,11 @@ public final class Window {
             if var arena = gestureArena, arena.isAlive {
                 // The no-target arena keys on its draggable region (`DN-U`
                 // item 5), so a continuing press compares against the same.
-                if let key, lastHitboxes[key.target].id == arena.targetID {
+                // A press that finds the arena still pressing has no release
+                // between it and the last: that release was lost, so this is
+                // not a tap sequence's second press — the arena is abandoned
+                // (cancelling what reported) and a fresh one forms (`GC-C`).
+                if !arena.isPressing, let key, lastHitboxes[key.target].id == arena.targetID {
                     callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true,
                                             modifiers: mouse.modifiers)
                     gestureArena = arena
@@ -3109,6 +3116,20 @@ public final class Window {
 
     private func setEditState(_ id: GlobalElementID, _ state: TextEditState) {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
+    }
+
+    /// Writes the focused bound field's selection to its binding when an input
+    /// changed it (`SL-B`): against the edited text, under `StateDispatch`, and
+    /// remembering the value so the next frame does not apply it back.
+    private func publishFocusedSelection() {
+        guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id),
+              let sink = target.selectionSink else { return }
+        let text = currentText(id, target)
+        var state = editState(id)
+        guard let range = TextEditing.publication(state: state, text: text) else { return }
+        state.reported = range
+        state.seenBinding = ErasedSelection(value: StateDispatch.dispatching(to: id) { sink(range, text) })   // ID-F: input, never a phase
+        setEditState(id, state)
     }
 
     /// The pressed slider's open edit and its `onEditingChanged` (ruling

@@ -204,6 +204,19 @@ also `inlinePresentationIntent`. Links are styled in the accent and inert
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
 
+**Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
+(no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
+environment of the element reading it, and `ResolvedText.measure(in:)` answers
+the size layout gives that text under a proposal — a finite width wraps it, a
+finite height caps its lines, an infinite axis is unbounded — through
+`resolveTextStyle` and the frame's text system, with no layout, no node and no
+state. The answer is the unrounded leaf answer (a laid-out frame is that rounded
+to whole points), and an empty `Text` is one line tall (295). SwiftUI spells it
+`GraphicsContext.resolve(_:)` + `ResolvedText.measure(in:)` in a `Canvas`; the
+environment is the carrier here because MetalUI has no `Canvas` context (296) —
+M / D. Use it to place a label or a chip over a `GPUSurface` before the labels
+exist as elements (rulings `GT-B`…`GT-D`, `GT-I`).
+
 ## Shapes and images — A
 
 `Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's
@@ -365,6 +378,11 @@ that loses key reports them released. A scroll's events, momentum included, go t
 element under its `.began`, and a scroll whose end never arrives (the window resigned key,
 or closed) gets a synthesized `.cancelled`.
 
+**Continuing press cancel** (`GC-`, record §100; no new API, no divergence). A leaf that
+reported owes `onCancelled` whatever ends it: a primary press on the element whose press is
+still down (a release the app never saw) cancels a reported `DragGesture` and starts a fresh
+arena, instead of dropping the drag silently. A real double-click is unchanged.
+
 **Window drag** (`WD-`, record §97;
 [`superpowers/2026-10-12-window-drag-decisions.md`](superpowers/2026-10-12-window-drag-decisions.md);
 probe `probes/swiftui-window-drag.swift`). `WindowDragGesture` (A; SwiftUI's macOS 15 spelling,
@@ -413,6 +431,16 @@ press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
 macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
+
+**Text selection** (`SL-`, record §96;
+[`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);
+probe `probes/swiftui-text-selection.swift`). `TextSelection` (A, macOS 15: `indices`, `isInsertion`,
+`init(range:)`, `init(insertionPoint:)`, `init(ranges:)`) and `TextField(_:text:selection:)` /
+`TextEditor(_:text:selection:)` over `Binding<TextSelection?>` (A), plus the controlled spellings with
+`selection:` and `onSelectionChange:` (M). The field writes the binding after each input that moved the
+selection and applies a value it did not write on the next frame; nil is never an instruction.
+Divergences 265 (a field focused from code keeps its caret) and 266 (nothing is written at focus or
+resign). The demo: `METALUI_SELECTION_DEMO=1`.
 
 **Overlays and coordinates** (`OV-`, record §92;
 [`superpowers/2026-10-10-overlays-coords-decisions.md`](superpowers/2026-10-10-overlays-coords-decisions.md);

@@ -72,11 +72,19 @@ func runDemo() throws {
     // group OV, spec `2026-10-10-overlays-coords-design.md` §3.2): a named-space
     // canvas with a hover crosshair and a chrome-less palette at the click.
     let overlaysDemo = ProcessInfo.processInfo.environment["METALUI_OVERLAYS_DEMO"] == "1"
+    // Text selection's human looks (`docs/verification/human-checks.md` group SL,
+    // spec `2026-10-12-text-selection-design.md` §4): a title renamed with all of
+    // it selected, a note opened with its caret at the end (macOS 15).
+    let selectionDemo = ProcessInfo.processInfo.environment["METALUI_SELECTION_DEMO"] == "1"
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if overlaysDemo {
+    if #available(macOS 15, *), selectionDemo {
+        window = try app.openWindow(title: "MetalUI — Selection",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: selectionDemoContent)
+    } else if overlaysDemo {
         window = try app.openWindow(title: "MetalUI — Overlays",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: overlaysDemoContent)
