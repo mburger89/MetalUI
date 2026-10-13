@@ -325,6 +325,17 @@ memo, as it hosts `rasters`), `ProposalText.swift`, `Text.swift`, `DividerView.s
 | 1.12 | whole-suite run with `LayoutMemo.verifies` forced on (`METALUI_VERIFY_LAYOUT_MEMO=1`, read once at launch) | 0 traps over 3566+ tests | — | — |
 | 1.13 | `thePlainImportCannotReachTheMemo` (typecheck guard) | `LayoutMemo`, `LayoutTree.memo` are `package` | — | make `memo` public |
 
+**Amended by `IV-N` (lane 1 as built).** Test 1.9 reads "a scale change does not
+miss" (text measurement takes no scale); test 1.10's mutation is "skip the rounding
+walk after a hit" (measured widths are recorded by that walk); `GPUSurface` and
+`Rectangle` are keyed leaves; test 1.1's seam prediction is paint's one measure per
+label (`IV-N` 4); tests 1.14 (`aRootPlacementHitEqualsAFreshRun`), 1.15
+(`verifyModeDoesNotChangeTheCounters`) and 1.16 (`aVerifiedHitThatDiffersFromAFreshMeasurementTraps`,
+an exit test) were added. Pins that moved: `aWarmDragLoopCountsLayoutWorkPerFrame`,
+`theOverlayCostIsLinearAndCounted`, `aListsWorkIsTheSameFor160RowsAsFor40` and
+`aVariableListsWorkIsTheSameFor160RowsAsFor40` (two new fields, old counts
+unmoved), `theDemoDoesTheSameTextWorkAsBefore` (warm lookups 110 -> 58).
+
 Existing pins that move, by name, with the new literals recorded in the record:
 `SurfaceTextOverlayCostTests.theOverlayCostIsLinearAndCounted` (its doc says it
 moves: the layout counts and `measures` go to 0), and any window-level multi-frame

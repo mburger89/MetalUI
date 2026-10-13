@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-O`.**
+**Next unused id: `IV-P`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -430,3 +430,25 @@ Two pins moved by name: that one and `theOverlayCostIsLinearAndCounted`.
 
 **Cost if wrong.** A leaf key that omits an input is a stale measurement; defences
 are test 1.5, per-key tests, `LayoutMemo.verifies` over the whole suite (`IV-J`).
+
+## IV-O — GT-F re-taken: `drawText` stays deferred
+
+**Question.** Record §99 owes C14's close-out a decision: after the change, are
+`MetalDrawContext.drawText` and its SDL twin still deferred?
+
+**Evidence.** `theOverlayCostIsLinearAndCounted` re-taken after lane 1, N = 20 and 100
+labels, 5 camera frames: layout measure calls, cache hits and cache misses **0 / 0 /
+0** (were 5(N+1), 5(N+1), 5(N+2)); one memo root hit per frame; seam measures 5N (were
+10N: paint's one remains); `placeGlyphs` 5N (unchanged); atlas upload, raster and new
+textures 0. Per label per frame what is left is the build recursion's element
+construction, one accessibility record in prepaint, one seam measure and one
+`placeGlyphs` in paint: linear in N, no layout, no raster, no upload. Prediction
+recorded before the run said seam measures 0; it was wrong (`IV-N` 4).
+
+**Ruling.** `drawText` **stays deferred** (`GT-F`, `IV-I`). Layout was the part of a
+label's cost a `drawText` could not remove and the memo has now removed it; what a
+`drawText` would still save (the element, its AX record, paint's measure) is exactly
+C14-b's retained-subtree territory and is re-taken there with the same test.
+
+**Cost if wrong.** An app drawing thousands of world-anchored labels per frame pays
+the build recursion for each; the counted figure is above, per label.
