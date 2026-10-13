@@ -91,8 +91,8 @@ extension Window {
     /// The window's content memos (`IV-B`), for the harness and the memo's tests.
     package var testingContentMemos: ContentMemoStore { stateTable.contentMemos }
 
-    /// Whether `.equatable()` occurrences retain and replay their prepaint and paint
-    /// (`SB-B`); off is the memo-off arm of the differentials.
+    /// Whether `.equatable()` occurrences retain and replay their paint (`SB-B`); off is
+    /// the memo-off arm of the differentials.
     package var testingRetainedSubtrees: Bool {
         get { stateTable.contentMemos.retainsSubtrees }
         set { stateTable.contentMemos.retainsSubtrees = newValue }

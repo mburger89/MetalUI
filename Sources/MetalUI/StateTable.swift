@@ -171,7 +171,7 @@ final class StateTable {
 
     /// Every `mark` of the frame in order (`SB-K`): the bind journal. A retained subtree
     /// reads the range its build covers to learn which `@State` slots were bound under it,
-    /// and replays a recorded phase's marks (`SB-`). Emptied by `sweep()`.
+    /// and the marks a replayed paint repeats go through ``mark(_:)`` too (`SB-`). Emptied by `sweep()`.
     var markJournal: [GlobalElementID] = []
 
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
@@ -709,7 +709,7 @@ final class StateTable {
     func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
-        retainLog?.withStates.append(id)
+        retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
         marked.insert(id)
         // An absent entry takes `initial()` whatever `S` is (plan task 15's
         // lane-1 fix round, `CX-F`'s rule applied here too): the old

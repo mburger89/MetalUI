@@ -67,9 +67,9 @@ package final class ContentMemoStore {
         var serial = 0
         var stale = false
         var touched = true
-        // Retained subtrees (`SB-`): the occurrence's record, the observation windows over its
-        // build recursion, prepaint and paint, and whether any observed property changed since
-        // the record was made.
+        // Retained subtrees (`SB-`): the occurrence's record (its paint, `SB-AA`), the observation
+        // windows over its build recursion, prepaint and paint, and whether any observed property
+        // changed since the record was made.
         var record: RetainedRecord?
         var observedChange = false
         /// Whether this occurrence's build and prepaint must open an observation window this frame
@@ -92,8 +92,8 @@ package final class ContentMemoStore {
     /// retaining anything (the lane-0 baseline).
     package var isEnabled = true
 
-    /// Test switch (`SB-B`): off, an `.equatable()` occurrence's prepaint and paint run
-    /// every frame and no record is made; the memo-off arm of the retained-subtree tests'
+    /// Test switch (`SB-B`): off, an `.equatable()` occurrence's paint runs every frame and
+    /// no record is made; the memo-off arm of the retained-subtree tests'
     /// differentials. Independent of ``isEnabled`` (the getter memo).
     package var retainsSubtrees = true
 

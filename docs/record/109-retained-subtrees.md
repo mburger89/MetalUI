@@ -66,5 +66,103 @@ as it was but for a phase field. The first build's code is the record of what la
   (`SIGTRAP`: a closure formed in a `@MainActor` initialiser checks its executor when the tree is built off the main
   thread); it uses loops.
 
-@@TESTS@@
+## §3 The pins, their predictions and what the run read
 
+Counts, never time. Every test below is in `Tests/MetalUITestingTests` (`RetainedSubtreeWindowTests`,
+`RetainedSubtreeSemanticsTests`, `RetainedSubtreeOverlayTests`, `RetainedSubtreesBaselineTests`), `Tests/MetalUITests`
+(`RetainedSubtreeInternalTests`, `RetainedSubtreeCompileGuards`, `RetainedSubtreeDemoTests`) or `Tests/MetalUILayoutTests`
+(`SubtreeSignatureTests`); the mutation that must redden each is in §5.
+
+| # | test | pins |
+|---|---|---|
+| step 1 | `theBracketNodeDragRebuildsTheWholeWindow(arm:)` | the design phase's prints as `#expect` literals with replay off (`SB-Q`): 3 / 29 / 0, 2 / 19 / 11 and 3 / 32 / 0 evaluations / skips / refusals, 886 prepaints, 1084 paints, scene 182 / 550 / 6, 78 312 px, 2898 / 2814 text-system calls |
+| 1.1 | `theBracketNodeDragReplaysEveryUnchangedSubtree(arm:)` | every drag frame, three arms: hits / misses / ineligible 29 / 3 / 0, 19 / 2 / 0, 31 / 3 / 1; `hits + misses + ineligible == evaluations + skips`; `elementPaints + retainedSkippedPaints == the unretained frame's` frame by frame; prepaints, requests, measures, scene and rasters equal the unretained frame's |
+| 1.2 | `aRetainedFrameEqualsAFreshFrameOverAScript` | cards under an offset, a shadow and a rotation, a stateful holder, an observed reader, an inspector with a material, a hover card and a scroll view; 24 script steps (hover, press, Tab, clicks, scroll, model writes, resize, appearance, scale): scene bytes, accessibility tree, hitbox list, Tab order, element bounds and hover events equal an unretained window's after every frame |
+| 1.3 | `everyKeyComponentSeparates(arm:)` | 13 arms, one per component: top rect, clip, opacity, shadow, blur, rotation, offset effect, foreground, font, disabled, colour scheme, scale, content size; the probe re-records (the control too for the window's own events) and the scene equals the unretained one; `SubtreeSignatureTests` is the interior hash's arm at the kernel |
+| 1.4 | `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays` | the hovered, pressed or focused element under a card makes it miss, once the pointer leaves it records once and replays |
+| 1.5 | `everyLedgerChannelMakesTheSubtreeIneligible(channel:)` | scroll view, `GPUSurface`, animation, custom environment key, `TextField`, popover: each occurrence ineligible, its plain neighbour still replays |
+| 1.6 / 1.8 | `aDescendantStateChangeInvalidatesTheRecord`, `aChildGetterReadInvalidatesItsEquatableParentsRecord` | a non-equatable child's `@State`, and its getter's `@Observable` read, beat an always-equal parent's record |
+| 1.7 / 1.7b | `anObservedReadInPaintInvalidatesTheRecord`, `anObservedReadInPrepaintInvalidatesTheRecord` | a custom element's paint read, and its prepaint read carried to paint in a `PrepaintState` |
+| 1.9 | `aReplayedFrameKeepsItsAnimatedColourSlotsAlive` | a legacy box's `$anim-color` slot stays live over replayed frames (the marks are replayed) |
+| 1.10 | `aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes` | an `.animation(value:)` flip: the opacity moves every frame and nothing replays; the idle keyframe animator replays; both replay once settled |
+| 1.11 | `everyFrameChannelIsClassified`, `everyStateTableAndAnimationStoreChannelIsClassified`, `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant` | `Mirror` guards: a stored property of `Frame`, `StateTable`, `AnimationStore` or `EnvironmentValues` with no row fails with its name |
+| 1.13 | `aReplayTouchesItsRastersSoTheyAreNotDropped` | a replayed stroke keeps its `ImageTexture`: no pixel rasterized and no texture made in six frames |
+| 1.14 | `aBackdropInsideAReplayedSubtreeIsByteIdentical` | a material's backdrop and a card under an outer shadow replay byte for byte |
+| 1.15 | `aReplayedHitboxKeepsTheRankingAtAnOverlap` | two overlapping equatable cards: hitbox list and the click's recipient equal the unretained window's |
+| 1.16 | `aMissCostsTheOldWorkPlusTwoSnapshots` | 2 ledger snapshots per recorded occurrence, 0 on a hit |
+| 1.17 | `theRecordIsUnreachableFromAPlainImport`, `thePlainImportCannotTurnReplayOff` | plain-import guards: the counters type and the switch are `package` |
+| 1.18 | `aStaticLabelOverlayReplaysAndAMovingOneDoesNot(labels:moving:)` | GT-F, §8 |
+| 1.19 | `theGlyphAtlasHasNoEvictionCaller` | greps `Sources/` and `Backends/SDL/Sources` for an `evictUnusedSince(` caller |
+| demo | `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` | 15 occurrences, 12 hits, 3 misses; replay off draws the same rects |
+
+**Predictions fixed before the first run** (test 1.1): `.value` 29 / 3 / 0, `.environment` 19 / 2 / 0, `.panels` 30 / 3 / 2.
+The run of the first design (prepaint and paint replayed, decided at prepaint) read 28 / 4 / 0 in the first nine drag frames
+and 29 / 3 / 0 from the tenth, 19 / 2 / 0 throughout, and 29 / 4 / 2 then 30 / 3 / 2: the extra miss was the pointer over node
+14's status badge, whose `.help` hitbox the conservative "pointer inside an owned hitbox" rule counts (`SB-X`). The paint-only
+build reads 29 / 3 / 0, 19 / 2 / 0 and **31 / 3 / 1**: the one prediction that did not hold is the top bar (a menu `Picker`,
+buttons, a `Menu`), predicted ineligible: its paint writes nothing a record cannot replay, so it replays.
+
+**Findings the instruments made, in order** (each a fix or a ruling): (1) test 1.3's opacity, shadow and blur arms red on the
+prepaint design (`SB-AA`); (2) the demo's model initialiser trapped the 1 MB thread test with `SIGTRAP`, a closure formed in a
+`@MainActor` initialiser (fixed with loops); (3) the first release reading showed **no gain** (7.466 ms against 7.475):
+two `withObservationTracking` windows per occurrence per frame (64 a frame) cost what the replay saved, so the build and
+prepaint windows now open only for an occurrence with no record or a record that covers only its paint, and a hit opens
+none (`SB-V`; 6.900 ms); (4) replay through the outer scopes cost about as much as the paint it replaced, so a record keeps
+the final primitives too and replays them straight when every outer scope is a plain effect and no other recorder is open
+(`SB-AB`; 6.569 ms); (5) on Linux the observation hop is asynchronous, three of the new tests wanted `rsSettle()`.
+
+@@MUTATIONS@@
+
+## §6 Counts
+
+@@COUNTS@@
+
+## §7 Timing (dated measurements; the Mac is shared; no pin reads a time)
+
+@@TIMING@@
+
+## §8 GT-F, re-taken (`SB-P`)
+
+`theOverlayCostIsLinearAndCounted` passes unchanged at every commit of the branch (N = 20 and 100: layout 0, one seam
+measure and one `placeGlyphs` per label per frame, no raster or upload). The pair `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`
+(N = 20 and 100, five camera frames, every label an `.equatable()` component under an `.offset`): **static labels** are all
+hits after warm-up and cost **0 `placeGlyphs` and 0 seam measures**; **moving labels** (the overlay case GT-F is about) all
+miss on the offset's paint scope and cost the unchanged `frames * n` of each. **`MetalDrawContext.drawText` and its SDL twin
+stay deferred** (`SB-P`): retained subtrees remove the cost of a label that does not move and none of one that does, which
+is what a world-anchored label is; translated replay (`SB-H`, carried to lane 2) is the owner, and `drawText` is re-taken there.
+
+## §9 Slice 1's costs in release (owed by record §104 §4)
+
+Measured in the design phase (spec §12; the instrument is `docs/probes/retained-subtrees/phase-timing.patch`,
+`bracketSlice1Costs`) on the fixture's `.value` arm, release, per drag frame, three whole-process runs, shared Mac: the
+signature pass (844 nodes hashed) costs **0.14-0.20 ms** (0.16-0.23 us per node, 2.1-2.5 % of a 6.2-7.9 ms render, 11-13 % of
+the memo-on layout phase); the layout memo's net saving is **0.19 ms** per frame (3 % of render; gross 0.32-0.38 ms, the pass
+paid 42-51 % of it); the content memo's `==` costs **0.008-0.009 ms** per frame (32 comparisons, 0.25-0.3 us each) and the
+content memos save 0.06-0.11 ms net (29 skipped getters at 2-4 us). Neither is a reason to change slice 1; this item
+exists because their combined win on the node drag is 4 % of a frame.
+
+## §11 Carried, with owner and reason
+
+| item | reason | owner |
+|---|---|---|
+| prepaint replay (hitboxes, focus, accessibility, tallies) | the decision cannot be taken at prepaint: paint-only ambient (`SB-AA`); the first build's code and the tests that found it are the branch's commit `0683d847` | lane 2 / C14b-2 |
+| the build skip, the graft, the placement memo | gated on the release reading (§10) | C14b-2 |
+| translated replay (a moved subtree without a miss) | float association, `SB-H` | C14b-2 |
+| read-only `withState` so a `TextField`, `ScrollView` and `List` can replay | the table cannot tell a read from a rewrite | C14b-3 |
+| popovers, presentations, `GPUSurface` inside a retained subtree | per-frame requests, `SB-J` | C14b-3 |
+| custom environment keys | no equality | C14-c |
+| finer scopes (modifier, `List` row, `ForEach` element) | no equality | C14-d |
+| `drawText` | `SB-P` | C14b-2 |
+| divergences | none taken; labels 395-404 unused | - |
+
+## §12 Instruments, demo, human checks
+
+* `METALUI_VERIFY_RETAINED=1` (`SB-W`): run the whole suite under it once (§6); a trap names the first difference between the
+  record a replay would have used and a fresh one. `METALUI_TRACE_RETAINED=1`: why a record missed, why an occurrence was ineligible
+  and which session fired. `zsh docs/probes/perf-baselines.sh release bracket` (three runs, the median): the public-API harness
+  prints the retained counters on the last frame; the before column is the same script against a `git archive` of `e85cb07a`
+  with `BracketFixture.swift` and the harness copied in. `docs/probes/retained-subtrees/phase-timing.patch` (README there) gives
+  the phase shares; the patched copy of this branch toggles replay with `SB_RETAIN=0`.
+* Demo: `METALUI_RETAINED_DEMO=1 swift run MetalUIDemo`: drag a node, read hits / misses / ineligible of the last frame; untick
+  "Replay" and the same drag reads 0 hits.
+* Human checks `docs/verification/human-checks.md` group **SB** (SB1-SB6), not run: an agent cannot.

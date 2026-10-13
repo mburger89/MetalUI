@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AB`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AC`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -435,16 +435,21 @@ the verify mode.
 
 **Question.** `SB-D` item 4 wrote three sessions over `finishComponent`, prepaint and paint.
 
-**Ruling.** Each memo entry owns a `RetainedSession` per window. The **build** and **prepaint** windows open
-every frame (a `withObservationTracking` each per `.equatable()` occurrence per frame, the previous session
-retired by the serial and the token write exactly as `IV-L` item 5), because whether the occurrence will hit is
-not known until paint; the **paint** window opens only when the occurrence records. A session that fires sets
-`entry.observedChange`; a record is replayed only while that is false, and the flag is cleared when a new record
-is made. Prepaint is observed because its states feed paint (`anObservedReadInPrepaintInvalidatesTheRecord`).
-The window's own sentinel still dirties the window (the reads inside a nested window merge upward), so the
-sessions need only invalidate. The getter memo's session is unchanged and separate: a child's observed read
-re-evaluates the child and kills the parent's record, not the parent's getter memo
-(`aChildGetterReadInvalidatesItsEquatableParentsRecord`). Cost measured in release at the close-out.
+**Ruling.** Each memo entry owns a `RetainedSession` per window. The **paint** window opens whenever the
+occurrence records. The **build** and **prepaint** windows open only when the occurrence **needs observing**
+(`Entry.needsObservation`): it has no record, or its record covers only its paint. A record made while all three
+windows were observed (`coverageComplete`) keeps their sessions armed, so a steady hit opens none, and while none has
+fired every later frame's reads are the reads those sessions saw (the key, the content serial and the `@State`
+versions assert every other input equal). A record made on a frame that skipped the build and prepaint windows (a
+valid record missed on a key, a version or an observed read) covers only its paint, is not replayed, and makes the
+next frame observe all three: **a miss costs one extra recording frame before hits resume**. The first build opened
+every window every frame (64 `withObservationTracking` a frame on the fixture) and read no gain in release (7.466 ms
+against 7.475): the sessions cost what the replay saved. A session that fires sets `entry.observedChange`; a record is
+replayed only while that is false, and the flag is cleared when a new record is made. Prepaint is observed because its
+states feed paint (`anObservedReadInPrepaintInvalidatesTheRecord`). The window's own sentinel still dirties the window
+(the reads inside a nested window merge upward), so the sessions need only invalidate. The getter memo's session is
+unchanged and separate: a child's observed read re-evaluates the child and kills the parent's record, not the parent's
+getter memo (`aChildGetterReadInvalidatesItsEquatableParentsRecord`).
 
 ## SB-W — The verify mode compares records, not frames
 
@@ -524,4 +529,25 @@ prepaint at all); a mirror stack of paint-only ambient pushed in prepaint (a cou
 pushes an opacity or a scope, one omission being a stale picture).
 
 **Cost if wrong.** Lane 2 inherits the prepaint replay with the paint-ambient problem written down.
+
+## SB-AB — A record keeps the final primitives too, and replays them when nothing else wants the leaves
+
+**Question.** Replaying through `processScopes` runs the outer scopes' per-leaf logic again. What does that cost?
+
+**Evidence.** After `SB-V`'s fix a perf `sample` of the fixture's `.value` arm put `replayPaint` at 123 of 3681
+frame samples (3.3 %), with the fresh path's per-leaf scope work (`apply`, `cutToEntryClip`, the group copies of
+`CapturedPrimitive`) the cost; a 736-leaf frame replays 736 leaves through the fixture's one outer `.offset` scope per
+node.
+
+**Ruling.** The recorder collects the leaves at boundary 0 (the scene itself) beside those at its own boundary. When
+**every outer scope is a plain `.effect`** (a pure map of the leaf by parameters the key holds: transform, flattening
+flag, outer mask) the record keeps them as `finalScene`; a shadow, blur, composite, capture or barrier outside means
+the leaves must be handed to that scope and `finalScene` is `nil`. `replayPaint` inserts the final primitives straight
+when **no recorder is open** (`retainLog == nil`); with one open (the occurrence sits in another's recording) it
+replays the boundary stream so the outer recorder sees the leaves pass its own boundary. Verify mode compares both
+streams. Release, `.value`: 6.900 → 6.569 ms per drag frame.
+
+**Cost if wrong.** A scope kind that is not a pure map of parameters in the key (a future `.effect` that reads state)
+would replay stale final primitives; the key's scope vector and `everyKeyComponentSeparates` (shadow, blur, rotation,
+offset arms) are the instruments.
 

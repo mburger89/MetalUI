@@ -66,18 +66,21 @@ final class RetainLog {
     }
 
     struct Marks: Equatable {
-        var scene = 0, marks = 0, touches = 0, withStates = 0
+        var scene = 0, marks = 0, touches = 0
     }
 
     var recorders: [SubtreeRecorder] = []
     var scene: [SceneOp] = []
     var marks: [GlobalElementID] = []
     var touches: [Touch] = []
-    var withStates: [GlobalElementID] = []
 
     var current: Marks {
-        Marks(scene: scene.count, marks: marks.count, touches: touches.count, withStates: withStates.count)
+        Marks(scene: scene.count, marks: marks.count, touches: touches.count)
     }
+
+    /// Whether any open recorder can still leave a record: one that is already tainted wants nothing
+    /// from a nested replay, which may then skip the scopes (`SB-AB`).
+    var needsLeaves: Bool { recorders.contains { $0.taint == nil } }
 
     /// Marks every open recorder (or, with `scopeIndex`, every one whose own scopes include that index)
     /// as unable to leave a record, naming the first reason.
@@ -421,8 +424,8 @@ extension Frame {
     // MARK: Replay
 
     func replayPaint(_ r: RetainedRecord) {
-        if retainLog == nil, let final = r.finalScene {
-            // No other recorder wants the leaves where an outer scope would pass them: straight in.
+        if retainLog?.needsLeaves != true, let final = r.finalScene {
+            // No other live recorder wants the leaves where an outer scope would pass them: straight in.
             for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
         } else {
             for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
@@ -522,8 +525,6 @@ extension Frame {
         record.marks = Array(log.marks[from.marks..<to.marks])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
-        // Paint may touch the state table only to keep a slot alive (`mark`); a `withState` is a write.
-        if !log.withStates[from.withStates..<to.withStates].isEmpty, recorder.taint == nil { recorder.taint = "stateWrite" }
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
         if let old {
