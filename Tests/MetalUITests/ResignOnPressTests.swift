@@ -548,21 +548,27 @@ extension StyledElement {
 
 // MARK: - 14: toggling keeps state
 
-@MainActor private struct RPToggled: Component {
+@MainActor private struct RPInner: Component {
     @State var taps = 0
     let m: RPLog
     var content: some ElementGroup {
-        let _ = m.flags.append(m.enabled)
         let _ = m.log.append("taps \(taps)")
-        Box().frame(width: px(100), height: px(100))
-            .onClick { taps += 1 }
-            .resignsFocusOnPress(m.enabled)
+        Box().frame(width: px(100), height: px(100)).onClick { taps += 1 }
+    }
+}
+
+@MainActor private struct RPToggled: Component {
+    let m: RPLog
+    var content: some ElementGroup {
+        Box { RPInner(m: m) }.resignsFocusOnPress(m.enabled)
     }
 }
 
 /// **14** (`RF-F`, `MC-A`). Toggling `isEnabled` changes a value, never a layer
-/// count: the wrapped element's `@State` survives `true` to `false`.
-/// Mutation: wrap the element in a conditional layer.
+/// count or an identity: the `@State` of the wrapped element's content survives
+/// `true` to `false`. Mutation: `.id(isEnabled ? "on" : "off")` on the legacy
+/// spelling (the first version kept its state in the outer component and
+/// could not see it, M14 green).
 @MainActor
 @Test func togglingIsEnabledKeepsTheWrappedState() throws {
     let m = RPLog()
