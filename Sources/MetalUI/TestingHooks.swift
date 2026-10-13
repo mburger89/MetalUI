@@ -22,6 +22,20 @@ package struct BuildWork: Sendable, Equatable {
     package var rasterizedPixels: Int
     /// Device pixels the build blurred (`RasterCache.lastBlurredPixels`).
     package var blurredPixels: Int
+    /// Keyed memo lookups the root's layout run answered (`IV-E`).
+    package var memoHits = 0
+    /// Keyed memo lookups it could not answer.
+    package var memoMisses = 0
+    /// Root runs whose whole placement the memo restored.
+    package var memoRootHits = 0
+    /// Nodes the run's signature pass hashed (`IV-M`).
+    package var signatureNodesHashed = 0
+    /// `content` getters the build's memoized components evaluated (`IV-B`).
+    package var contentEvaluations = 0
+    /// Getters a memo skipped.
+    package var contentSkips = 0
+    /// Memoized components refused (`@Environment`/`@FocusState`) and evaluated.
+    package var contentRefusals = 0
 }
 
 extension Window {
@@ -45,12 +59,27 @@ extension Window {
         onFrameAdopted = { [weak self] frame in
             let work = frame.tree.lastNativeLayoutWork
             let rasters = self?.animationStore.rasters
+            let memos = self?.stateTable.contentMemos
             observer(BuildWork(measureCalls: work.measureCalls, cacheHits: work.cacheHits,
                                cacheMisses: work.cacheMisses,
                                rasterizedPixels: rasters?.lastRasterizedPixels ?? 0,
-                               blurredPixels: rasters?.lastBlurredPixels ?? 0))
+                               blurredPixels: rasters?.lastBlurredPixels ?? 0,
+                               memoHits: work.memoHits, memoMisses: work.memoMisses,
+                               memoRootHits: work.memoRootHits,
+                               signatureNodesHashed: work.signatureNodesHashed,
+                               contentEvaluations: memos?.lastEvaluations ?? 0,
+                               contentSkips: memos?.lastSkips ?? 0,
+                               contentRefusals: memos?.lastRefusals ?? 0))
         }
     }
+}
+
+extension Window {
+    /// The window's layout memo (`IV-E`), for the harness and the memo's tests.
+    package var testingLayoutMemo: LayoutMemo { animationStore.layoutMemo }
+
+    /// The window's content memos (`IV-B`), for the harness and the memo's tests.
+    package var testingContentMemos: ContentMemoStore { stateTable.contentMemos }
 }
 
 extension Window {
@@ -82,4 +111,16 @@ extension App {
         false
         #endif
     }
+}
+
+extension Window {
+    /// The last build's hitbox list in registration order (`IV-J`): the owning
+    /// identity, its window-space bounds after offsets and clips, its layer and
+    /// whether it is opaque. Read-only; for the differential tests.
+    package var testingHitboxes: [(id: GlobalElementID, bounds: Bounds<Pixels>, layer: Int, opaque: Bool)] {
+        lastHitboxes.map { ($0.id, $0.bounds, $0.layer, $0.opaque) }
+    }
+
+    /// The last build's Tab order (`IV-J`).
+    package var testingTabOrder: [GlobalElementID] { lastFocusRegistry.tabOrder }
 }

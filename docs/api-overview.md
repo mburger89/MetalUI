@@ -104,6 +104,14 @@ the window's top layer — a portal for modals, popovers and tooltips
   provided with `.environment(model)` and read with `@Environment(Model.self)`
   (or `… var model: Model?`), keyed by its static type; a missing one traps
   (134, `MD-H`). `@Bindable` and `ObservableObject` are not offered.
+- **`Component.equatable()`** (`where Self: Equatable`, returns `EquatableComponent<Self>`; A, item C14,
+  record §104, `IV-B`) — SwiftUI's `View.equatable()`: the component's `content` getter is not run again
+  while its value is `==` to the last evaluation's, its own `@State` is unwritten and the `@Observable`
+  properties the last getter read are unchanged. No identity level, cursor index or initialiser is added;
+  build recursion, layout, prepaint and paint run as for the bare component, so only the getter's work is
+  saved (`FrameWork.contentEvaluations`/`contentSkips`/`contentRefusals`, M). A component that declares
+  `@Environment` or `@FocusState` is evaluated every frame (divergence 346, `IV-D`). The layout memo behind
+  it is automatic and has no API (`IV-E`). `METALUI_INVALIDATION_DEMO=1` shows it; human checks: group IV, unrun.
 
 ## Layout, SwiftUI vocabulary — A
 

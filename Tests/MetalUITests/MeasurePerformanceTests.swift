@@ -106,7 +106,15 @@ struct MeasurePerformanceTests {
     /// (Until stage 9 a `.legacy` arm read zero here, as a control that the
     /// numbers were the frame's own native run; each frame below is fresh, which
     /// is what that control established.)
-    static let demoLikeRowsWarmWork = NativeLayoutWork(measureCalls: 17, cacheHits: 103, cacheMisses: 120)
+    ///
+    /// **C14 lane 1 (`IV-E`, `IV-N`) added two fields to this literal, nothing else
+    /// moved**: each frame here is a fresh `Frame` with a fresh memo (cold), so the
+    /// three old counts are unchanged; `signatureNodesHashed` 120 is the reachable
+    /// node count and `memoMisses` 112 the keyed lookups, both measured (the
+    /// 120 − 112 = 8 bodies are nodes whose subtree holds an unkeyed leaf). Both are
+    /// `O(window)` like the rest, equal at 40 and 160 rows.
+    static let demoLikeRowsWarmWork = NativeLayoutWork(measureCalls: 17, cacheHits: 103, cacheMisses: 120,
+                                                        memoMisses: 112, signatureNodesHashed: 120)
 
     /// Font resolution is memoized on the window's `ShapingCache`, so a warm
     /// frame over the same `Text`s reaches the uncached
@@ -582,7 +590,10 @@ struct MeasurePerformanceTests {
     /// — exactly `2r + 1`, `5r + 6` and `5r + 7`. Evaluated at the warm window's
     /// r = 16 (`variableLikeRows`' doc) the model predicts **33 / 86 / 87**, the
     /// same at every logical count: `O(window)`.
-    static let variableLikeRowsWarmWork = NativeLayoutWork(measureCalls: 33, cacheHits: 86, cacheMisses: 87)
+    /// (C14 lane 1: `signatureNodesHashed` 71 is the reachable window, `memoMisses` 0
+    /// measured (the window's leaves are unkeyed); the three old counts unchanged.)
+    static let variableLikeRowsWarmWork = NativeLayoutWork(measureCalls: 33, cacheHits: 86, cacheMisses: 87,
+                                                            memoMisses: 0, signatureNodesHashed: 71)
 
     /// The `RowExtentIndex` nodes one warm `variableLikeRows(n)` frame visits,
     /// derived from `List`'s variable branch at offset 0 over a 370pt viewport

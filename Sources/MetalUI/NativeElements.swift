@@ -569,7 +569,8 @@ public struct Rectangle: Shape, Hashable {
         let width = Double(width.value)
         let height = Double(height.value)
         let respondsToProposal = respondsToProposal
-        let node = pass.requestNativeLeaf { proposal in
+        let node = pass.requestNativeLeaf(key: RectangleLeafKey(width: width, height: height,
+                                                                respondsToProposal: respondsToProposal)) { proposal in
             Self.measurement(for: proposal, width: width, height: height,
                              respondsToProposal: respondsToProposal)
         }

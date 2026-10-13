@@ -225,7 +225,9 @@ extension Shape {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, ShapeLayout) {
         let shape = self
-        let node = pass.requestNativeLeaf { LayoutMeasurement(size: shape.sizeThatFits($0)) }
+        let measure: ProposalMeasureFunction = { LayoutMeasurement(size: shape.sizeThatFits($0)) }
+        let node = builtInShapeLeafKey(shape).map { pass.requestNativeLeaf(key: $0, measure: measure) }
+            ?? pass.requestNativeLeaf(measure: measure)
         return (node, ShapeLayout(node: node.layoutNodeID))
     }
 

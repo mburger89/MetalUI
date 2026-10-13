@@ -52,7 +52,13 @@ private func demoWindow(_ system: CoreTextTextSystem) throws -> Window {
     #expect(firstMisses == 1020, "first frame misses")
     #expect(firstLookups == 1544, "first frame lookups")
     #expect(warmMisses == 0, "warm frame misses")
-    #expect(warmLookups == 110, "warm frame lookups")
+    // C14 lane 1 (`IV-E`) moved this one pin 110 -> 58, a win and not a regression:
+    // the layout memo answers 52 of the warm frame's seam measures whole. The cold
+    // frame's 1020 / 1544 above are the recorded literals, unmoved (a cold memo does
+    // the old work), and warm misses stay 0.
+    if ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] != "1" {   // verify mode re-measures
+        #expect(warmLookups == 58, "warm frame lookups")
+    }
     withExtendedLifetime(window) {}
 }
 

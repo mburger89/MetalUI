@@ -414,6 +414,20 @@ None: additive. `TextSelection` and the `selection:` initialisers are `@availabl
 `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no conformer
 changes. A field with no `selection:` runs no new code beyond one `nil` check.
 
+### Incremental invalidation (`IV-`, record §104)
+
+None for the API: additive (`Component.equatable()`, `EquatableComponent`, the `FrameWork` counters
+`layoutMemoHits`, `layoutMemoMisses`, `layoutMemoRootHits`, `layoutSignatureNodes`, `contentEvaluations`,
+`contentSkips`, `contentRefusals`); no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem`
+requirement is added, so no conformer changes. **Behaviour, compiles and answers differently:** the layout memo
+is automatic, so a keyed leaf's measure closure (plain `Text`, `Divider`, a built-in shape, the gradient leaf,
+`GPUSurface`) is not called again on a frame that repeats its structure and proposal; a test that counted those
+calls (`requestNativeLeaf` closures, `NativeLayoutWork`'s measure counts) reads fewer, and `NativeLayoutWork`'s
+`==` gained the memo's four fields. A custom `ProposalLayout` that is not `Hashable` is unkeyed and is measured
+as before. `METALUI_VERIFY_LAYOUT_MEMO=1` recomputes every hit and traps on a difference (`IV-J`). A component
+adopting `.equatable()` owes an honest `==`: the content must be a function of the value, its own `@State`
+and the `@Observable` properties it reads (`IV-B`).
+
 ### Input-method driver (`IM-`, record §102)
 
 None for the API: additive (`TestWindow.setMarkedText`, `commitMarkedText`, `cancelMarkedText`, `markedText`,

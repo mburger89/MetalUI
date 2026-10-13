@@ -500,6 +500,7 @@ pointer while nothing is focused; `.focusable(interactions: .edit)` focuses on a
 `.onGeometryChange` reports a size or frame in the first presented frame and during a resize;
 `TimelineView` runs `.animation`, `.periodic`, `.everyMinute`, `.explicit` and custom schedules.
 **Resign on press** (user request 2026-10-02, item C24, not a plan task; record §98): `.resignsFocusOnPress()` (MetalUI-only) makes a primary press inside it end a focused field's editing without routing keys by hover; a press on another field moves focus directly. `METALUI_KEY_FOCUS_DEMO=1` shows it. Human checks: group RF, unrun.
+**Incremental invalidation** (user request 2026-10-02, item C14, MetalCreator's PERF-b, not a plan task; record §104): `Component.equatable()` skips a component's `content` getter while its value, its own `@State` and the `@Observable` properties it read are unchanged (81 leaves, one written per frame: 1 getter run instead of 121), and an automatic layout memo skips measuring and placing a subtree whose structure and proposal repeat (1 measure call instead of 81); build, prepaint and paint stay whole, and the win is counted, not timed. Divergence 346. `METALUI_INVALIDATION_DEMO=1 swift run MetalUIDemo` shows it. Human checks: group IV, unrun.
 A `for` over an opaque-returning helper in a builder is a Swift 6.4 defect (use `ForEach`), pinned
 by a guard. Divergences 185–188. `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` shows it. Human
 checks: group KF, unrun.

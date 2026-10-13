@@ -2448,6 +2448,7 @@ public final class Frame {
         self.snapsEveryChange = snapsEveryChange
         self.transactionTop = rootTransaction
         self.animationStore = animationStore
+        self.tree.memo = animationStore.layoutMemo   // the window's layout memo (IV-E)
         self.surfaceRegistry = surfaceRegistry
         self.collectsAccessibility = collectsAccessibility
         self.reportsUnlowerableFields = reportsUnlowerableFields
@@ -2575,6 +2576,12 @@ public final class Frame {
     func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         StackMeter.sample()   // a tree's deepest layout point (`PE-L` item 2)
         return tree.newNativeLeaf(measure: measure)
+    }
+
+    /// A keyed leaf (`IV-E`); see ``LayoutPass/requestNativeLeaf(key:measure:)``.
+    func requestNativeLeaf(key: AnyHashable, measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
+        StackMeter.sample()
+        return tree.newNativeLeaf(key: key, measure: measure)
     }
 
     func requestNativeOverlay(children: [LayoutNodeID],
@@ -3577,6 +3584,7 @@ public final class Frame {
         animationStore.transitions.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
         animationStore.rasters.endFrame()  // drops every raster this frame did not draw (GX-K)
+        animationStore.layoutMemo.endFrame()  // drops every layout answer unused for two frames (IV-E)
         surfaceRegistry.endFrame()  // drops every surface this frame did not paint (MV-E)
 
         // After the frame, not before — but **not for the reason it is tempting

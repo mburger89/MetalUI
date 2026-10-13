@@ -1528,6 +1528,20 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
   what they saw (`DG-A`, `DG-B`). The compile check proves the blocks build and the pinned claims hold in a
   headless window (`DG-C`); it cannot see whether a guide teaches. **Observed:**
 
+## IV. Incremental invalidation — what only a real window shows (item C14, user request 2026-10-02, MetalCreator PERF-b, not a plan task; record §104)
+
+*An agent cannot: these need a real window, two displays and VoiceOver.*
+
+- [ ] **IV1.** Drag feel: `METALUI_INVALIDATION_DEMO=1 swift run MetalUIDemo` (and MetalCreator after adoption), bump
+  cells and drag a node: no stale frame, no flicker, no node left behind; the left counter reads 1, the right 121.
+  **Observed:**
+- [ ] **IV2.** Type in a `TextField` placed in a memoized cell while other cells are bumped: caret, selection, focus and
+  IME composition behave as in the unmemoized copy (`IV-B`, `IV-C`). **Observed:**
+- [ ] **IV3.** Drag the window between a 1x and a 2x display and switch light/dark: text is crisp and correctly sized
+  (the layout memo's key holds the scale factor and the text system; theme is paint-only, `IV-E`). **Observed:**
+- [ ] **IV4.** VoiceOver reads a memoized subtree as the unmemoized one (the tree equality is pinned by test 2.9; the
+  reading is a person's, `IX-AE`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

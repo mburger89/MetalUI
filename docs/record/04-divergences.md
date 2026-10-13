@@ -2670,3 +2670,17 @@ only in 248's cases and where a renderer cannot blur. **Retired:** none. Labels 
   `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` arm 4.
 
 **Amended:** none. **Retired:** none. 145 live (after §94's 245–249); labels 278–284 of this branch's range unused.
+
+## 2026-10-13: 346 added (incremental invalidation, record §104)
+
+- **346** — a `.equatable()` component that reads `@Environment`. SwiftUI re-runs an equatable view
+  that reads `@Environment` only when the environment changes and skips it on an equal `==` otherwise
+  (probe `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, separating arm `EnvQuiet`).
+  MetalUI evaluates a component declaring `@Environment` (or `@FocusState`, a ruling with no SwiftUI
+  claim) on every frame and counts it in `FrameWork.contentRefusals`, because `EnvironmentValues`
+  cannot compare an old value with a new one (`IV-D`). Pin
+  `aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates`; owner C14-c, an environment epoch.
+
+**Amended:** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
+honours a custom `==` for closure and class inputs too); labels 347–354 of this branch's range unused.
+

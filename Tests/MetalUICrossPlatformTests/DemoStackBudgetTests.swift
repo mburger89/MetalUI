@@ -41,6 +41,14 @@ private func buildEveryProductionTree() {
     buildTheAppShellDemo()   // app shell (AS-, spec test 3.5)
     buildTheOverlaysDemo()   // overlays and coordinates (OV-, spec §4.2)
     buildTheSelectionDemo()   // text selection (SL-N)
+    buildTheInvalidationDemo()   // content memo (IV-B, spec §9)
+}
+
+/// The content-memo demo's tree and its readout, in its own frame.
+@MainActor @inline(never)
+private func buildTheInvalidationDemo() {
+    _ = invalidationDemoContent()
+    _ = InvalidationReadout().content
 }
 
 /// The text-selection demo's tree and its two components (macOS 15, `SL-N`).

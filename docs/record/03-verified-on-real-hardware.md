@@ -2271,3 +2271,12 @@ the caret, one write per commit, Escape keeps a selected word, the candidate win
 selection on AppKit's `NSTextField` for comparison.
 
 **Owed, new here — `docs/verification/human-checks.md` group GD, none performed (an agent cannot)** (record §103): GD1 a person new to the framework reads each of the six guides against the running demo and marks every surprising step; the compile check cannot see whether a guide teaches.
+
+## 2026-10-13: incremental invalidation (record §104) — looks owed
+
+No window was driven (the screen was locked and the display asleep for the whole branch; the lock probe is in §104 §6); the
+fourteen offscreen images are compared against `f6f865c1` in §104 §4–§6, 0 px. **Owed, new here —
+`docs/verification/human-checks.md` group IV, none performed (an agent cannot)**: IV1 drag feel in the invalidation
+demo (no stale frame, no flicker, counters 1 and 121); IV2 typing in a memoized cell keeps caret, selection, focus and
+IME; IV3 a 1x/2x display move and a light/dark switch redraw text crisply (the layout memo's keys); IV4 VoiceOver reads a
+memoized subtree as the unmemoized one.

@@ -22,6 +22,11 @@ protocol BindableState {
     func bind(to table: StateTable, id: GlobalElementID, slot: Int)
 }
 
+/// A `BindableState` that is a `@FocusState`: the content memo refuses a
+/// component that declares one (`IV-D` item 2).
+@MainActor
+protocol BindableFocusState: BindableState {}
+
 extension State: BindableState {}
 
 /// Seeds every `@State` an element declares with this frame's `StateTable`
@@ -75,6 +80,19 @@ enum StateBinder {
     private struct Shape {
         var ordinals: [Int] = []
         var hasEnvironment = false
+        /// The ordinals of the `@State` children alone (the content memo reads
+        /// their versions, `IV-D`), and whether a `@FocusState` is declared.
+        var stateOrdinals: [Int] = []
+        var hasFocusState = false
+    }
+
+    /// What the content memo needs of a type's cached shape (`IV-D`): the
+    /// ordinals of its `@State` slots, and whether it declares an
+    /// `@Environment` or `@FocusState` (refused). `nil` before the type has been
+    /// bound once — callers bind first.
+    static func memoShape(of type: Any.Type) -> (stateOrdinals: [Int], refused: Bool)? {
+        guard let shape = shapes[ObjectIdentifier(type)] else { return nil }
+        return (shape.stateOrdinals, shape.hasEnvironment || shape.hasFocusState)
     }
 
     private static var shapes: [ObjectIdentifier: Shape] = [:]
@@ -119,6 +137,11 @@ enum StateBinder {
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             if let bindable = child.value as? BindableState {
                 shape.ordinals.append(index)
+                if child.value is BindableFocusState {
+                    shape.hasFocusState = true
+                } else {
+                    shape.stateOrdinals.append(index)
+                }
                 bindable.bind(to: frame.stateTable, id: id, slot: index)
             } else if let bindable = child.value as? BindableEnvironment {
                 shape.ordinals.append(index)

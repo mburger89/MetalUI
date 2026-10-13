@@ -55,6 +55,17 @@ public final class LayoutTree {
     private var measuredWidths: [Double] = []
     private var nativeNodes: [Int: NativeNode] = [:]
 
+    /// Each keyed leaf's memo key, by node index (`IV-E`): everything its measure
+    /// closure reads besides the proposal. An unkeyed leaf has no entry. Cleared by
+    /// `reset(generation:)`. A stored property on a public class read across a
+    /// module boundary: `swift package clean` after changing it (CN-R).
+    private var leafKeys: [Int: AnyHashable] = [:]
+
+    /// The window's layout memo, attached by `Frame` only (a tree built by a
+    /// `LayoutTree`-level test has none and lays out exactly as before, `IV-F`).
+    /// **`package`**: unreachable from a plain import (guard 1.13).
+    package var memo: LayoutMemo?
+
     /// The axis of the linear stack that marked each spacer, by node index
     /// (ruling CN-C). A marked spacer answers 0 on that stack's CROSS axis.
     /// Written at registration by `newNativeLinearStack`'s walk
@@ -185,6 +196,16 @@ public final class LayoutTree {
     public func newNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         let id = appendNode(children: [])
         nativeNodes[id.index] = .leaf(measure)
+        return id
+    }
+
+    /// A native leaf whose answer is a pure function of `key` and the proposal
+    /// (`IV-E`): the layout memo may reuse it across frames. **`key` must cover
+    /// every input the closure reads**; a leaf that cannot promise that uses
+    /// `newNativeLeaf(measure:)` and makes its ancestors unmatchable instead.
+    package func newNativeLeaf(key: AnyHashable?, measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
+        let id = newNativeLeaf(measure: measure)
+        if let key { leafKeys[id.index] = key }
         return id
     }
 
@@ -574,8 +595,15 @@ public final class LayoutTree {
             lastNativeLayoutWork = run.work
             lastNativeLayoutDeepestLevel = run.deepestLevel
         }
+        prepareMemo(run: run, root: root)
         let result = measureNative(root, proposal: proposal, run: run)
-        placeNative(root, in: placement(result), proposal: proposal, run: run)
+        let bounds = placement(result)
+        if placeFromMemo(root, proposal: proposal, bounds: bounds, run: run) {
+            roundNativeStoredRects(root)
+            return result
+        }
+        placeNative(root, in: bounds, proposal: proposal, run: run)
+        recordPlacement(root, proposal: proposal, bounds: bounds, run: run)
         roundNativeStoredRects(root)
         return result
     }
@@ -605,6 +633,7 @@ public final class LayoutTree {
             lastNativeLayoutWork = run.work
             lastNativeLayoutDeepestLevel = run.deepestLevel
         }
+        prepareMemo(run: run, root: root)
         return measureNative(root, proposal: proposal, run: run)
     }
 
@@ -688,6 +717,7 @@ public final class LayoutTree {
         layouts.removeAll(keepingCapacity: true)
         measuredWidths.removeAll(keepingCapacity: true)
         nativeNodes.removeAll(keepingCapacity: true)
+        leafKeys.removeAll(keepingCapacity: true)
         spacerAxes.removeAll(keepingCapacity: true)
         nativeParents.removeAll(keepingCapacity: true)
         gridRowTokens.removeAll(keepingCapacity: true)
@@ -765,8 +795,35 @@ public final class LayoutTree {
             run.work.cacheHits += 1
             return cached
         }
+        // The layout memo (`IV-E` (M)): a keyed subtree equal to one measured
+        // before answers without descending. A hit is not a cache miss.
+        var memoSignature: LayoutSignature?
+        if let memo = run.memo, run.memoSuspended == 0, let signature = memo.signatures[id.index] {
+            if let hit = memo.lookup(signature, proposal) {
+                run.work.memoHits += 1
+                if memo.verifies { verifyMemoHit(id, proposal: proposal, expected: hit, run: run) }
+                run.cache[key] = hit
+                return hit
+            }
+            run.work.memoMisses += 1
+            memoSignature = signature
+        }
         run.work.cacheMisses += 1
 
+        let result = measureBody(id, proposal: proposal, run: run)
+        precondition(!result.size.width.isNaN && !result.size.height.isNaN
+                        && !(result.firstBaseline?.isNaN ?? false)
+                        && !(result.lastBaseline?.isNaN ?? false),
+                     "native layout produced a NaN measurement \(result) at node \(id) (SA-J)")
+        run.cache[key] = result
+        if let memoSignature { run.memo?.store(memoSignature, proposal, result) }
+        return result
+    }
+
+    /// Runs one node's measurement body (every node kind), with `measureDepth`
+    /// raised around it. The run cache and the memo are the caller's.
+    private func measureBody(_ id: LayoutNodeID, proposal: ProposedSize,
+                             run: NativeLayoutRun) -> LayoutMeasurement {
         run.measureDepth += 1
         let result: LayoutMeasurement
         switch nativeNode(id) {
@@ -854,11 +911,6 @@ public final class LayoutTree {
             result = measureGrid(id, proposal: proposal, run: run)
         }
         run.measureDepth -= 1
-        precondition(!result.size.width.isNaN && !result.size.height.isNaN
-                        && !(result.firstBaseline?.isNaN ?? false)
-                        && !(result.lastBaseline?.isNaN ?? false),
-                     "native layout produced a NaN measurement \(result) at node \(id) (SA-J)")
-        run.cache[key] = result
         return result
     }
 
@@ -1973,6 +2025,240 @@ extension LayoutTree {
         let placements = nativeGridCellRects(plan, solution: solution, x: bounds.x, y: bounds.y, measure: measure)
         for (cell, placement) in zip(plan.cells, placements) {
             placeNative(cell.node, in: placement.rect, proposal: placement.proposal, run: run)
+        }
+    }
+}
+
+// MARK: - The layout memo (C14 lane 1, rulings `IV-E`, `IV-N`)
+
+extension LayoutTree {
+    /// The nodes reachable from `root`, in pre-order by the stored child lists. An
+    /// explicit stack, so a tree deeper than the depth guard still reaches the
+    /// guard's own trap rather than overflowing here.
+    fileprivate func preorder(_ root: LayoutNodeID) -> [Int] {
+        var order: [Int] = []
+        var stack = [slot(root)]
+        while let index = stack.popLast() {
+            order.append(index)
+            for child in childLists[index].reversed() { stack.append(child.index) }
+        }
+        return order
+    }
+
+    /// Attaches the memo to `run` and hashes the run's subtree **at the start of
+    /// the run**, because three kinds of context are written after a node
+    /// registers: a stack's mark on its spacers (`spacerAxes`, CN-C), the grid
+    /// plan's row membership (normalised to row indices, GR-A) and parents.
+    fileprivate func prepareMemo(run: NativeLayoutRun, root: LayoutNodeID) {
+        guard let memo, memo.isEnabled else { return }
+        run.order = preorder(root)
+        computeSignatures(order: run.order, into: memo)
+        run.memo = memo
+        run.work.signatureNodesHashed = run.order.count
+    }
+
+    private func computeSignatures(order: [Int], into memo: LayoutMemo) {
+        if memo.signatures.count < childLists.count {
+            memo.signatures.append(contentsOf: repeatElement(nil, count: childLists.count - memo.signatures.count))
+        }
+        // Reverse pre-order: every node after all of its descendants.
+        for index in order.reversed() {
+            memo.signatures[index] = nodeSignature(index, memo.signatures)
+        }
+    }
+
+    /// `root`'s structural signature, `nil` when the subtree holds an unkeyed leaf.
+    /// A test observable (`everyRegistrarParameterIsInItsSignature`).
+    package func structuralSignature(of root: LayoutNodeID) -> LayoutSignature? {
+        let scratch = memo ?? LayoutMemo()
+        computeSignatures(order: preorder(root), into: scratch)
+        return scratch.signatures[root.index]
+    }
+
+    private func mixChildren(_ builder: inout SignatureBuilder, _ children: [LayoutNodeID],
+                             _ signatures: [LayoutSignature?]) -> Bool {
+        builder.mix(children.count)
+        for child in children {
+            guard let signature = signatures[child.index] else { return false }
+            builder.mix(signature)
+        }
+        return true
+    }
+
+    /// One node's signature: its case's tag and **every parameter**, its
+    /// contextual marks and its children's signatures in order. `nil` (unmatchable)
+    /// for an unkeyed leaf, a non-`Hashable` custom layout, or any node with such
+    /// a child. A node id never enters.
+    private func nodeSignature(_ index: Int, _ signatures: [LayoutSignature?]) -> LayoutSignature? {
+        var h = SignatureBuilder()
+        let children = childLists[index]
+        guard let node = nativeNodes[index] else { return nil }
+        switch node {
+        case .leaf:
+            guard let key = leafKeys[index] else { return nil }
+            h.mix(1)
+            h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base)))))
+            h.mixHashable(key)
+        case .overlay(let alignment):
+            h.mix(2); h.mix(alignment.signatureTag)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .overlayAttachment(let alignment):
+            h.mix(3); h.mix(alignment.signatureTag)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth,
+                    let minHeight, let idealHeight, let maxHeight, let alignment):
+            h.mix(4)
+            h.mix(width); h.mix(height); h.mix(minWidth); h.mix(idealWidth); h.mix(maxWidth)
+            h.mix(minHeight); h.mix(idealHeight); h.mix(maxHeight)
+            h.mix(alignment.signatureTag)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .padding(let insets):
+            h.mix(5)
+            h.mix(insets.top); h.mix(insets.right); h.mix(insets.bottom); h.mix(insets.left)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .fixedSize(let horizontal, let vertical):
+            h.mix(6); h.mix(horizontal); h.mix(vertical)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .aspectRatio(let ratio, let contentMode):
+            h.mix(7); h.mix(ratio); h.mix(contentMode == .fit ? 0 : 1)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .layoutPriority(let priority):
+            h.mix(8); h.mix(priority)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .spacer(let minLength):
+            h.mix(9); h.mix(minLength)
+            // CN-C: the axis of the stack that marked it.
+            switch spacerAxes[index] {
+            case nil: h.mix(0)
+            case .horizontal?: h.mix(1)
+            case .vertical?: h.mix(2)
+            }
+        case .scrollViewport(let axis):
+            h.mix(10); h.mix(axis == .horizontal ? 0 : 1)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .linearStack(let axis, let spacing, let alignment, let baseline):
+            h.mix(11); h.mix(axis == .horizontal ? 0 : 1); h.mix(spacing); h.mix(alignment.signatureTag)
+            switch baseline {
+            case nil: h.mix(0)
+            case .first?: h.mix(1)
+            case .last?: h.mix(2)
+            }
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .custom(let layout):
+            guard let hashable = layout as? any Hashable else { return nil }
+            h.mix(12)
+            h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: layout)))))
+            h.mixHashable(hashable)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        case .grid(let plan):
+            h.mix(13)
+            mixGridPlan(&h, plan, children: children)
+            guard mixChildren(&h, children, signatures) else { return nil }
+        }
+        return h.signature
+    }
+
+    /// A grid's plan without a node id or a row token: cells by their position
+    /// among the grid's children, rows by index (GR-A).
+    private func mixGridPlan(_ h: inout SignatureBuilder, _ plan: NativeGridPlan, children: [LayoutNodeID]) {
+        func optional<T: Hashable>(_ value: T?) {
+            if let value { h.mix(1); h.mixHashable(value) } else { h.mix(0) }
+        }
+        var position: [Int: Int] = [:]
+        for (offset, child) in children.enumerated() { position[child.index] = offset }
+        h.mix(plan.alignment.signatureTag)
+        h.mix(plan.columnCount); h.mix(plan.rowCount)
+        h.mix(plan.rowAlignments.count)
+        for alignment in plan.rowAlignments { optional(alignment) }
+        h.mix(plan.columnAlignments.count)
+        for alignment in plan.columnAlignments { optional(alignment) }
+        h.mix(plan.rowCells.count)
+        for row in plan.rowCells { h.mix(row.count); for cell in row { h.mix(cell) } }
+        h.mix(plan.columnSingleCells.count)
+        for column in plan.columnSingleCells { h.mix(column.count); for cell in column { h.mix(cell) } }
+        h.mix(plan.hgap.count); for gap in plan.hgap { h.mix(gap) }
+        h.mix(plan.vgap.count); for gap in plan.vgap { h.mix(gap) }
+        h.mix(plan.cells.count)
+        for cell in plan.cells {
+            h.mix(position[cell.node.index] ?? -1)
+            h.mix(cell.row); h.mix(cell.column); h.mix(cell.span); h.mix(cell.isRowCell)
+            optional(cell.anchor)
+            optional(cell.columnAlignment)
+            h.mix(UInt64(cell.unsizedAxes.rawValue))
+            h.mix(cell.priority)
+            h.mix(cell.horizontalEdges.leading); h.mix(cell.horizontalEdges.trailing)
+            h.mix(cell.verticalEdges.leading); h.mix(cell.verticalEdges.trailing)
+        }
+    }
+
+    /// Recomputes a memo hit from nothing and traps on a difference
+    /// (`LayoutMemo.verifies`, `IV-J`). The run's cache and work are set aside so
+    /// the recomputation is fresh and the counters read the unverified run's.
+    fileprivate func verifyMemoHit(_ id: LayoutNodeID, proposal: ProposedSize,
+                                   expected: LayoutMeasurement, run: NativeLayoutRun) {
+        let savedCache = run.cache, savedWork = run.work
+        run.cache = [:]
+        run.memoSuspended += 1
+        let fresh = measureBody(id, proposal: proposal, run: run)
+        run.memoSuspended -= 1
+        run.cache = savedCache
+        run.work = savedWork
+        precondition(fresh == expected,
+                     "layout memo hit differs from a fresh measurement at node \(id) at \(proposal): memo \(expected), fresh \(fresh) (IV-J)")
+    }
+
+    /// (P): restores a whole earlier placement of an equal tree at an equal proposal
+    /// and bounds. The rounding walk that follows is the unchanged one, and it is
+    /// also what records the measured widths (`IV-N`).
+    fileprivate func placeFromMemo(_ root: LayoutNodeID, proposal: ProposedSize, bounds: LayoutRect,
+                                   run: NativeLayoutRun) -> Bool {
+        guard let memo = run.memo, run.memoSuspended == 0, let signature = memo.signatures[root.index] else {
+            return false
+        }
+        let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
+        guard let rects = memo.lookupPlacement(key), rects.count == run.order.count else { return false }
+        run.work.memoRootHits += 1
+        for (offset, index) in run.order.enumerated() { layouts[index] = rects[offset] }
+        if memo.verifies {
+            let savedCache = run.cache, savedWork = run.work
+            run.cache = [:]
+            run.memoSuspended += 1
+            placeNative(root, in: bounds, proposal: proposal, run: run)
+            run.memoSuspended -= 1
+            run.cache = savedCache
+            run.work = savedWork
+            for (offset, index) in run.order.enumerated() {
+                precondition(layouts[index] == rects[offset],
+                             "layout memo placement differs from a fresh placement at node \(index): memo \(rects[offset]), fresh \(layouts[index]) (IV-J)")
+            }
+        }
+        return true
+    }
+
+    /// Stores the just-placed, not yet rounded rects of a keyed root.
+    fileprivate func recordPlacement(_ root: LayoutNodeID, proposal: ProposedSize, bounds: LayoutRect,
+                                     run: NativeLayoutRun) {
+        guard let memo = run.memo, run.memoSuspended == 0, let signature = memo.signatures[root.index] else {
+            return
+        }
+        memo.storePlacement(LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds),
+                            run.order.map { layouts[$0] })
+    }
+}
+
+extension ProposalAlignment {
+    /// A stable small integer for the signature stream (cheaper than a `Hasher`).
+    fileprivate var signatureTag: Int {
+        switch self {
+        case .topLeading: 0
+        case .top: 1
+        case .topTrailing: 2
+        case .leading: 3
+        case .center: 4
+        case .trailing: 5
+        case .bottomLeading: 6
+        case .bottom: 7
+        case .bottomTrailing: 8
         }
     }
 }

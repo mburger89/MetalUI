@@ -67,7 +67,7 @@ public struct GPUSurface: ProposalElement {
     /// One native leaf answering the proposal, 10 on a nil axis (`MV-B`).
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        let node = pass.requestNativeLeaf { proposal in
+        let node = pass.requestNativeLeaf(key: GPUSurfaceLeafKey()) { proposal in
             LayoutMeasurement(size: SizeD(width: proposal.width ?? 10, height: proposal.height ?? 10))
         }
         return (node, ())

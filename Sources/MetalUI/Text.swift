@@ -221,7 +221,7 @@ public struct Text: Element, StyledElement {
         let string = plain.string
 
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
-            pass.frame.requestNativeLeaf { proposal in
+            pass.frame.requestNativeLeaf(key: TextLeafKey(string, font: key, style: textStyle, system: system)) { proposal in
                 MainActor.assumeIsolated {
                     proposalTextMeasurement(string, font: key, system: system, proposal: proposal,
                                             style: textStyle)
