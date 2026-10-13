@@ -2251,3 +2251,11 @@ unlocked key-focus arms); no real mouse was used. **Owed, new here —
 on the blank padding ends editing in the Name field (`METALUI_KEY_FOCUS_DEMO=1`); RF-2 Name to Depth
 is one move with no flicker; RF-3 a right-click on the padding resigns nothing and hovering it with
 nothing focused routes no Tab.
+
+## 2026-10-12: input-method driver (record §102) — looks owed
+
+No window was driven and no real input method was run; the fourteen offscreen images are compared in §102 §5.
+**Owed, new here — `docs/verification/human-checks.md` group IM, none performed (an agent cannot)**: IM1
+VoiceOver on a field while a candidate is marked (`IM-E`); IM2 a real input method on macOS and SDL: underline at
+the caret, one write per commit, Escape keeps a selected word, the candidate window at the caret; IM3 cancel over a
+selection on AppKit's `NSTextField` for comparison.
