@@ -123,10 +123,12 @@ private struct MemoBranch<Child: Component>: Component {
         let (window, cells) = try memoTree(levels: levels, counting: counting)
         window.window.testingLayoutMemo.isEnabled = memoOn
         let leaves = cells.count
-        for _ in 0..<2 { cells[0].value += 1; window.tick() }
+        for _ in 0..<2 { cells[0].value += 1; window.window.setNeedsRedraw(); window.tick() }
         counting.reset(); window.resetFrameWork()
         let frames = 4
-        for f in 0..<frames { cells[leaves - 1].value += 1 + f; window.tick() }
+        // `setNeedsRedraw()`: off macOS the observation hop is asynchronous (HT-I), so the
+        // write alone does not draw within this tick; the build reads the new value either way.
+        for f in 0..<frames { cells[leaves - 1].value += 1 + f; window.window.setNeedsRedraw(); window.tick() }
         let w = window.frameWork
         try #require(w.count == frames)
         let sum = w.dropFirst().reduce(w[0], +)

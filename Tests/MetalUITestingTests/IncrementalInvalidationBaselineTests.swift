@@ -74,10 +74,10 @@ private func pow3(_ n: Int) -> Double { var r = 1.0; for _ in 0..<n { r *= 3 }; 
     let (window, cells) = try ivWindow(levels: levels, counting: counting)
     let leaves = cells.count
     let branches = (leaves - 1) / 2   // 3-ary tree: internal nodes above the leaf parents
-    for _ in 0..<2 { cells[0].value += 1; window.tick() }   // warm
+    for _ in 0..<2 { cells[0].value += 1; window.window.setNeedsRedraw(); window.tick() }   // warm
     counting.reset(); IVStats.reset(); window.resetFrameWork()
     let frames = 4
-    for f in 0..<frames { cells[leaves - 1].value += 1 + f; window.tick() }
+    for f in 0..<frames { cells[leaves - 1].value += 1 + f; window.window.setNeedsRedraw(); window.tick() }   // off macOS the observation hop is asynchronous: draw explicitly
     let w = window.frameWork
     try #require(w.count == frames)
     let sum = w.dropFirst().reduce(w[0], +)
