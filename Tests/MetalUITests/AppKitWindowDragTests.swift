@@ -132,3 +132,28 @@ import MetalUIRender
     appKit.hostView.mouseDragged(with: try event(.leftMouseDragged, in: nsWindow))
     #expect(drags.count == 2 && drags.last === third, "a secondary down does not replace the held primary")
 }
+
+/// **4.4** (`WD-E`). The window's will-close clears the held press, so a drag
+/// dispatched afterwards finds none. The close is delivered through the
+/// delegate method (`AS-O` item 7: a test never calls a real `performClose(_:)`).
+///
+/// Mutation: remove `hostView.forgetHeldPress()` from `windowWillClose` -> red.
+@MainActor
+@Test func appKitWindowWillCloseForgetsTheHeldPress() throws {
+    let (appKit, nsWindow) = try dragWindow("4.4")
+    defer { nsWindow.close() }
+    var drags: [NSEvent] = []
+    appKit.windowDragPerformer = { drags.append($0) }
+    var answers: [Bool] = []
+    appKit.onInput = { event in
+        if case .mouseDragged = event { answers.append(appKit.performWindowDrag()) }
+        return false
+    }
+
+    appKit.hostView.mouseDown(with: try event(.leftMouseDown, in: nsWindow))
+    #expect(appKit.hostView.heldPress != nil, "a press is held before the close")
+    appKit.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: nsWindow))
+    #expect(appKit.hostView.heldPress == nil, "no held press survives the close")
+    appKit.hostView.mouseDragged(with: try event(.leftMouseDragged, in: nsWindow))
+    #expect(answers == [false] && drags.isEmpty, "a drag after the close finds no press")
+}
