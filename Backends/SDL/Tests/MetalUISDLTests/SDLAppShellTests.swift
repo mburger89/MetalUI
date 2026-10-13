@@ -208,3 +208,15 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     #expect(window.performTitleBarPress(clickCount: 1) == false)
     #expect(window.titleBarPresses == [1])
 }
+
+/// **4.4** (`WD-F`, divergence 276). SDL's `performWindowDrag()` records the
+/// request and answers `false`: the system title bar drags the window itself.
+/// Needs no presented frame. Mutation: answer `true` -> red.
+@MainActor
+@Test func sdlPerformWindowDragRecordsAndAnswersFalse() throws {
+    let (_, window) = try shellPlatform()
+    #expect(window.windowDragRequests == 0)
+    #expect(window.performWindowDrag() == false)
+    #expect(window.performWindowDrag() == false)
+    #expect(window.windowDragRequests == 2)
+}

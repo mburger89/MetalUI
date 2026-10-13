@@ -11,10 +11,15 @@
 struct ReplayGPU {
     SDL_GPUDevice *device;
     SDL_GPUGraphicsPipeline *rect, *glyph, *image;
+    /* The backdrop blur's pipelines (ruling BB-D), made on the first frame that
+       holds a backdrop (ensure_backdrop_pipelines): a renderer that never draws
+       a material never loads their five shader stages. */
+    SDL_GPUGraphicsPipeline *backdrop, *downsample, *gaussian;
     SDL_GPUSampler *sampler;
+    SDL_GPUSampler *point;          /* nearest, clamped: the blur passes' texel fetch */
     SDL_GPUTexture *target;
     uint32_t width, height;
-    const char *shader_dir;
+    char *shader_dir;               /* owned; the portable stages' directory */
     SDL_GPUShaderFormat format;
     bool portable;
 };
@@ -22,7 +27,7 @@ struct ReplayGPU {
 const char *replay_error(void) { return SDL_GetError(); }
 const char *replay_driver(ReplayGPU *g) { return SDL_GetGPUDeviceDriver(g->device); }
 
-enum { KIND_RECT = 0, KIND_GLYPH = 1, KIND_IMAGE = 2 };
+enum { KIND_RECT = 0, KIND_GLYPH = 1, KIND_IMAGE = 2, KIND_BACKDROP = 3 };
 static const char *const kind_names[] = {"rect", "glyph", "image"};
 
 /* An image record is 64 bytes, four float4 lanes (MUIImage): bounds,
@@ -36,20 +41,27 @@ static const uint8_t empty_transform[TRANSFORM_STRIDE] = {0};
    image `filter` (offset 56) bits 8…31, glyph `transform` (offset 84). */
 enum { RECT_STRIDE = 120, GLYPH_STRIDE = 88, RECT_SHAPE_OFFSET = 116, GLYPH_TRANSFORM_OFFSET = 84,
        IMAGE_FILTER_OFFSET = 56 };
+/* A backdrop record is 96 bytes, six float4 lanes (MUIBackdrop, ruling BB-B):
+   bounds, contentMask, maskCornerRadii, cornerRadii, tint, then order, shape,
+   sigma, opacity. Its `shape` keeps the transform index in bits 8…31. Uploaded
+   as recorded (already whole lanes). */
+enum { BACKDROP_STRIDE = 96, BACKDROP_SHAPE_OFFSET = 84, BACKDROP_SIGMA_OFFSET = 88, BACKDROP_MAX_LEVEL = 6 };
 
 /* Every record a run draws names a transform the table holds (the shaders
    read record i − 1 for index i, ruling GX-F), checked once, as images_valid
    checks textures. A scene, or a recorded fixture, can never name one past
    the table; anything else is refused rather than read out of bounds. */
 static bool transforms_valid(const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
-                             const void *images, uint32_t ib, uint32_t tb,
+                             const void *images, uint32_t ib, const void *backdrops, uint32_t bb, uint32_t tb,
                              const ReplayRun *runs, uint32_t count) {
     uint32_t table = tb / TRANSFORM_STRIDE;
     for (uint32_t i = 0; i < count; i++) {
         const uint8_t *base; uint32_t stride, offset, shift, bytes;
         if (runs[i].kind == KIND_RECT) { base = rects; stride = RECT_STRIDE; offset = RECT_SHAPE_OFFSET; shift = 8; bytes = rb; }
         else if (runs[i].kind == KIND_GLYPH) { base = glyphs; stride = GLYPH_STRIDE; offset = GLYPH_TRANSFORM_OFFSET; shift = 0; bytes = gb; }
-        else { base = images; stride = IMAGE_STRIDE; offset = IMAGE_FILTER_OFFSET; shift = 8; bytes = ib; }
+        else if (runs[i].kind == KIND_BACKDROP) { base = backdrops; stride = BACKDROP_STRIDE; offset = BACKDROP_SHAPE_OFFSET; shift = 8; bytes = bb; }
+        else if (runs[i].kind == KIND_IMAGE) { base = images; stride = IMAGE_STRIDE; offset = IMAGE_FILTER_OFFSET; shift = 8; bytes = ib; }
+        else return SDL_SetError("unknown run kind");
         if ((uint64_t)runs[i].start + runs[i].count > bytes / stride) return SDL_SetError("run past its records");
         for (uint32_t j = runs[i].start; j < runs[i].start + runs[i].count; j++) {
             uint32_t word;
@@ -65,8 +77,11 @@ static uint32_t image_texture(const void *images, uint32_t index) {
     return texture;
 }
 
-static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry,
-                            bool fragment, int kind) {
+/* One compiled stage, `<name>.<vertex|fragment>.<msl|spv|dxil>` in the shader
+   directory (portable), or `entry` in the MSL `source` (the adapted MetalUI
+   source the Replay executable's native arm uses). */
+static SDL_GPUShader *stage(ReplayGPU *g, const char *source, const char *entry, const char *name,
+                            bool fragment, uint32_t samplers, uint32_t storage, uint32_t uniforms) {
     void *loaded = NULL;
     size_t size = source ? strlen(source) : 0;
     if (g->portable) {
@@ -74,7 +89,7 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
             g->format == SDL_GPU_SHADERFORMAT_SPIRV ? "spv" : "dxil";
         char path[4096];
         int length = snprintf(path, sizeof(path), "%s/%s.%s.%s", g->shader_dir,
-            kind_names[kind], fragment ? "fragment" : "vertex", extension);
+            name, fragment ? "fragment" : "vertex", extension);
         if (length < 0 || (size_t)length >= sizeof(path)) {
             SDL_SetError("shader path too long"); return NULL;
         }
@@ -87,25 +102,29 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
         .code = (const Uint8 *)source, .code_size = size,
         .entrypoint = entry, .format = g->format,
         .stage = fragment ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX,
-        /* Records, then the transform table (ruling GX-F); the vertex stage
-           also reads the unit quad first. */
-        .num_storage_buffers = fragment ? 2 : 3,
-        .num_uniform_buffers = fragment ? 0 : 2,
-        .num_samplers = fragment && kind != KIND_RECT ? 1 : 0
+        .num_storage_buffers = storage, .num_uniform_buffers = uniforms, .num_samplers = samplers
     };
     SDL_GPUShader *result = SDL_CreateGPUShader(g->device, &info);
     SDL_free(loaded);
     return result;
 }
 
-static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int kind) {
-    char vertex[32], fragment[32];
-    SDL_snprintf(vertex, sizeof(vertex), "%s_vertex", kind_names[kind]);
-    SDL_snprintf(fragment, sizeof(fragment), "%s_fragment", kind_names[kind]);
-    SDL_GPUShader *v = shader(g, source, vertex, false, kind);
-    if (!v) return NULL;
-    SDL_GPUShader *f = shader(g, source, fragment, true, kind);
-    if (!f) { SDL_ReleaseGPUShader(g->device, v); return NULL; }
+static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry,
+                            bool fragment, int kind) {
+    /* Records, then the transform table (ruling GX-F); the vertex stage also
+       reads the unit quad first. */
+    return stage(g, source, entry, kind_names[kind], fragment, fragment && kind != KIND_RECT ? 1 : 0,
+                 fragment ? 2 : 3, fragment ? 0 : 2);
+}
+
+/* A graphics pipeline over two stages into B8G8R8A8: premultiplied source-over
+   when `blend` (the primitives), a plain write when not (the blur passes). */
+static SDL_GPUGraphicsPipeline *make_pipeline(ReplayGPU *g, SDL_GPUShader *v, SDL_GPUShader *f, bool blend) {
+    if (!v || !f) {
+        if (v) SDL_ReleaseGPUShader(g->device, v);
+        if (f) SDL_ReleaseGPUShader(g->device, f);
+        return NULL;
+    }
     SDL_GPUColorTargetDescription target = {
         .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
         .blend_state = {
@@ -115,7 +134,7 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int k
             .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
             .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
             .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-            .enable_blend = true
+            .enable_blend = blend
         }
     };
     SDL_GPUGraphicsPipelineCreateInfo info = {
@@ -129,6 +148,49 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int k
     return result;
 }
 
+static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int kind) {
+    char vertex[32], fragment[32];
+    SDL_snprintf(vertex, sizeof(vertex), "%s_vertex", kind_names[kind]);
+    SDL_snprintf(fragment, sizeof(fragment), "%s_fragment", kind_names[kind]);
+    SDL_GPUShader *v = shader(g, source, vertex, false, kind);
+    if (!v) return NULL;
+    SDL_GPUShader *f = shader(g, source, fragment, true, kind);
+    if (!f) { SDL_ReleaseGPUShader(g->device, v); return NULL; }
+    return make_pipeline(g, v, f, true);
+}
+
+/* The backdrop blur's three pipelines (ruling BB-D, replay.hlsl's BACKDROP_STAGE
+   and PASS_STAGE): the material's quad (3 vertex storage buffers and 2 uniform
+   buffers like a rect; fragment: the blurred texture, 2 storage buffers and the
+   draw constants) and the downsample and Gaussian passes over the shared
+   full-target triangle (one sampler and the pass constants). Portable shaders
+   only; made once, on first use. */
+static bool ensure_backdrop_pipelines(ReplayGPU *g) {
+    if (g->backdrop && g->downsample && g->gaussian) return true;
+    if (!g->portable || !g->shader_dir)
+        return SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)");
+    SDL_GPUShader *quad_v = stage(g, NULL, NULL, "backdrop", false, 0, 3, 2);
+    SDL_GPUShader *quad_f = quad_v ? stage(g, NULL, NULL, "backdrop", true, 1, 2, 1) : NULL;
+    SDL_GPUGraphicsPipeline *backdrop = make_pipeline(g, quad_v, quad_f, true);
+    if (!backdrop) return false;
+    SDL_GPUGraphicsPipeline *passes[2] = {NULL, NULL};
+    const char *names[2] = {"downsample", "gaussian"};
+    for (int i = 0; i < 2; i++) {
+        SDL_GPUShader *v = stage(g, NULL, NULL, "pass", false, 0, 0, 0);
+        SDL_GPUShader *f = v ? stage(g, NULL, NULL, names[i], true, 1, 0, 1) : NULL;
+        passes[i] = make_pipeline(g, v, f, false);
+        if (!passes[i]) {
+            char error[1024]; SDL_strlcpy(error, SDL_GetError(), sizeof(error));
+            SDL_ReleaseGPUGraphicsPipeline(g->device, backdrop);
+            if (passes[0]) SDL_ReleaseGPUGraphicsPipeline(g->device, passes[0]);
+            SDL_SetError("%s", error);
+            return false;
+        }
+    }
+    g->backdrop = backdrop; g->downsample = passes[0]; g->gaussian = passes[1];
+    return true;
+}
+
 /* Each device holds one reference on SDL's video subsystem, released by
    replay_destroy. **Not SDL_Init/SDL_Quit**: SDL_Quit tears down every
    subsystem whoever else is using it, and on Linux that unloads the Vulkan
@@ -139,7 +201,10 @@ static ReplayGPU *create(const char *source, const char *directory, const char *
     ReplayGPU *g = calloc(1, sizeof(*g));
     if (!g) { SDL_SetError("allocation failed"); SDL_QuitSubSystem(SDL_INIT_VIDEO); return NULL; }
     g->portable = directory != NULL;
-    g->shader_dir = directory; // borrowed only while this function builds pipelines
+    if (directory) {
+        g->shader_dir = SDL_strdup(directory); // kept: the backdrop pipelines load their stages on first use
+        if (!g->shader_dir) { SDL_SetError("allocation failed"); goto fail; }
+    }
     if (!strcmp(driver, "metal")) g->format = SDL_GPU_SHADERFORMAT_MSL;
     else if (!strcmp(driver, "vulkan")) g->format = SDL_GPU_SHADERFORMAT_SPIRV;
     else if (!strcmp(driver, "direct3d12")) g->format = SDL_GPU_SHADERFORMAT_DXIL;
@@ -160,7 +225,15 @@ static ReplayGPU *create(const char *source, const char *directory, const char *
     };
     g->sampler = SDL_CreateGPUSampler(g->device, &sampler);
     if (!g->sampler) goto fail;
-    g->shader_dir = NULL;
+    SDL_GPUSamplerCreateInfo point = {
+        .min_filter = SDL_GPU_FILTER_NEAREST, .mag_filter = SDL_GPU_FILTER_NEAREST,
+        .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE
+    };
+    g->point = SDL_CreateGPUSampler(g->device, &point);
+    if (!g->point) goto fail;
     return g;
 fail: {
     char error[1024]; SDL_strlcpy(error, SDL_GetError(), sizeof(error));
@@ -194,11 +267,16 @@ void replay_destroy(ReplayGPU *g) {
         SDL_WaitForGPUIdle(g->device);
         if (g->target) SDL_ReleaseGPUTexture(g->device, g->target);
         if (g->sampler) SDL_ReleaseGPUSampler(g->device, g->sampler);
+        if (g->point) SDL_ReleaseGPUSampler(g->device, g->point);
+        if (g->backdrop) SDL_ReleaseGPUGraphicsPipeline(g->device, g->backdrop);
+        if (g->downsample) SDL_ReleaseGPUGraphicsPipeline(g->device, g->downsample);
+        if (g->gaussian) SDL_ReleaseGPUGraphicsPipeline(g->device, g->gaussian);
         if (g->rect) SDL_ReleaseGPUGraphicsPipeline(g->device, g->rect);
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
         if (g->image) SDL_ReleaseGPUGraphicsPipeline(g->device, g->image);
         SDL_DestroyGPUDevice(g->device);
     }
+    SDL_free(g->shader_dir);
     free(g); SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
@@ -244,9 +322,380 @@ static bool images_valid(const void *images, uint32_t ib, uint32_t texture_count
     return true;
 }
 
+/* ---- The backdrop blur (rulings BB-A, BB-C, BB-D, BB-E, BB-R, BB-S) ------ */
+
+uint32_t mui_backdrop_levels(float sigma) {
+    uint32_t level = 0;
+    float s = sigma;
+    while (s > 4.0f && level < BACKDROP_MAX_LEVEL) { s *= 0.5f; level += 1; }
+    return level;
+}
+
+/* One blur texture of the pool, or its size (BackdropFrameState in
+   Sources/MetalUIRender/BackdropBlurPipeline.swift, restated). The pool is a
+   free list by size: acquire hands out a free texture of the size or makes
+   one; release marks it free; a size no frame acquired is dropped at the
+   frame's end, and a frame with no backdrop drops everything. */
+typedef struct { SDL_GPUTexture *texture; uint32_t width, height; bool free; } PoolSlot;
+typedef struct { uint32_t width, height; } PoolSize;
+typedef struct {
+    SDL_GPUTexture *frame;
+    uint32_t frame_width, frame_height;
+    PoolSlot *slots; uint32_t slot_count, slot_capacity;
+    PoolSize *used; uint32_t used_count, used_capacity;
+    /* The last frame's work (ruling BB-S). */
+    uint32_t splits, blurs, passes, copies, made;
+    bool pool_fails, route_every_frame;
+} BackdropState;
+
+static void backdrop_begin_frame(BackdropState *b) {
+    b->splits = b->blurs = b->passes = b->copies = b->made = 0;
+    b->used_count = 0;
+}
+
+static void backdrop_release_all(ReplayGPU *g, BackdropState *b) {
+    if (b->frame) SDL_ReleaseGPUTexture(g->device, b->frame);
+    b->frame = NULL; b->frame_width = b->frame_height = 0;
+    for (uint32_t i = 0; i < b->slot_count; i++) SDL_ReleaseGPUTexture(g->device, b->slots[i].texture);
+    b->slot_count = 0;
+}
+
+static void backdrop_destroy(ReplayGPU *g, BackdropState *b) {
+    backdrop_release_all(g, b);
+    free(b->slots); free(b->used);
+    memset(b, 0, sizeof(*b));
+}
+
+/* The frame target at w × h, replaced on a size change; NULL when it cannot be made. */
+static SDL_GPUTexture *backdrop_frame_target(ReplayGPU *g, BackdropState *b, uint32_t w, uint32_t h) {
+    if (b->frame && b->frame_width == w && b->frame_height == h) return b->frame;
+    if (b->frame) SDL_ReleaseGPUTexture(g->device, b->frame);
+    b->frame = NULL;
+    SDL_GPUTexture *made = texture(g, w, h, true);
+    if (!made) return NULL;
+    b->made += 1;
+    b->frame = made; b->frame_width = w; b->frame_height = h;
+    return made;
+}
+
+/* A pool slot of w × h (its index), or -1 when none can be made (or the test hook fails it). */
+static int backdrop_acquire(ReplayGPU *g, BackdropState *b, uint32_t w, uint32_t h) {
+    if (b->pool_fails) return -1;
+    if (b->used_count == b->used_capacity) {
+        uint32_t capacity = b->used_capacity ? b->used_capacity * 2 : 16;
+        PoolSize *grown = realloc(b->used, capacity * sizeof(*grown));
+        if (!grown) return -1;
+        b->used = grown; b->used_capacity = capacity;
+    }
+    b->used[b->used_count++] = (PoolSize){w, h};
+    for (uint32_t i = 0; i < b->slot_count; i++)
+        if (b->slots[i].free && b->slots[i].width == w && b->slots[i].height == h) { b->slots[i].free = false; return (int)i; }
+    if (b->slot_count == b->slot_capacity) {
+        uint32_t capacity = b->slot_capacity ? b->slot_capacity * 2 : 16;
+        PoolSlot *grown = realloc(b->slots, capacity * sizeof(*grown));
+        if (!grown) return -1;
+        b->slots = grown; b->slot_capacity = capacity;
+    }
+    SDL_GPUTexture *made = texture(g, w, h, true);
+    if (!made) return -1;
+    b->made += 1;
+    b->slots[b->slot_count] = (PoolSlot){made, w, h, false};
+    return (int)b->slot_count++;
+}
+
+static void backdrop_release(BackdropState *b, int slot) {
+    if (slot >= 0) b->slots[slot].free = true;
+}
+
+/* Drops the free textures of every size this frame did not acquire. */
+static void backdrop_end_frame(ReplayGPU *g, BackdropState *b) {
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < b->slot_count; i++) {
+        bool drop = false;
+        if (b->slots[i].free) {
+            drop = true;
+            for (uint32_t u = 0; u < b->used_count; u++)
+                if (b->used[u].width == b->slots[i].width && b->used[u].height == b->slots[i].height) { drop = false; break; }
+        }
+        if (drop) SDL_ReleaseGPUTexture(g->device, b->slots[i].texture);
+        else b->slots[kept++] = b->slots[i];
+    }
+    b->slot_count = kept;
+}
+
+/* shaders' BackdropBlurPass / replay.hlsl's `Pass` cbuffer: the source rectangle
+   in the source texture, the Gaussian's sigma at this level and its axis,
+   padded to 32 bytes (the Metal struct's stride). */
+typedef struct { int32_t src[4]; float sigma; int32_t horizontal; int32_t padding[2]; } PassConstants;
+
+/* One blur pass: a full-target triangle writing `target` (no blend) from the
+   texels of `source` inside (ox, oy, sw, sh). */
+static bool blur_pass(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUGraphicsPipeline *pipeline,
+                      SDL_GPUTexture *source, SDL_GPUTexture *target,
+                      int32_t ox, int32_t oy, int32_t sw, int32_t sh, float sigma, bool horizontal) {
+    SDL_GPUColorTargetInfo info = { .texture = target, .load_op = SDL_GPU_LOADOP_DONT_CARE, .store_op = SDL_GPU_STOREOP_STORE };
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &info, 1, NULL);
+    if (!pass) return false;
+    PassConstants constants = { .src = {ox, oy, sw, sh}, .sigma = sigma, .horizontal = horizontal ? 1 : 0 };
+    SDL_BindGPUGraphicsPipeline(pass, pipeline);
+    SDL_GPUTextureSamplerBinding binding = { source, g->point };
+    SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+    SDL_PushGPUFragmentUniformData(cmd, 0, &constants, sizeof(constants));
+    SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+    SDL_EndGPURenderPass(pass);
+    b->passes += 1;
+    return true;
+}
+
+/* A record's blurred region (Renderer.blur(record:…) in Metal): L downsamples
+   then a horizontal and a vertical Gaussian at level L. `slot` is the blurred
+   texture's pool slot, -1 with a zero `draw` when the region is empty or a
+   texture cannot be made (the record then draws its flat tint, ruling BB-I).
+   `draw` is (region origin x, y, uv scale x, y): the texel coordinate
+   `(p + ½)/2^L − ½` of ruling BB-R, not `uv × size`. A false return is a
+   failed pass (an SDL error), not a fallback. */
+typedef struct { int slot; float draw[4]; } BlurResult;
+
+static bool blur_record(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *frame,
+                        uint32_t target_width, uint32_t target_height,
+                        const ReplayRegion *region, float sigma, BlurResult *out) {
+    out->slot = -1;
+    memset(out->draw, 0, sizeof(out->draw));
+    if (region->width <= 0 || region->height <= 0 || region->x < 0 || region->y < 0
+        || (uint64_t)region->x + (uint64_t)region->width > target_width
+        || (uint64_t)region->y + (uint64_t)region->height > target_height) return true;
+    uint32_t levels = mui_backdrop_levels(sigma);
+    int held[BACKDROP_MAX_LEVEL + 1];
+    uint32_t held_count = 0;
+#define GIVE_BACK() do { for (uint32_t k = 0; k < held_count; k++) backdrop_release(b, held[k]); } while (0)
+    SDL_GPUTexture *source = frame;
+    int32_t ox = region->x, oy = region->y, w = region->width, h = region->height;
+    for (uint32_t level = 0; level < levels; level++) {
+        int32_t nw = (w + 1) / 2, nh = (h + 1) / 2;
+        int slot = backdrop_acquire(g, b, (uint32_t)nw, (uint32_t)nh);
+        if (slot < 0) { GIVE_BACK(); return true; }
+        held[held_count++] = slot;
+        if (!blur_pass(g, b, cmd, g->downsample, source, b->slots[slot].texture, ox, oy, w, h, 0, false)) return false;
+        source = b->slots[slot].texture; ox = oy = 0; w = nw; h = nh;
+    }
+    int scratch = backdrop_acquire(g, b, (uint32_t)w, (uint32_t)h);
+    if (scratch < 0) { GIVE_BACK(); return true; }
+    held[held_count++] = scratch;
+    int result = backdrop_acquire(g, b, (uint32_t)w, (uint32_t)h);
+    if (result < 0) { GIVE_BACK(); return true; }
+    float level_sigma = sigma / (float)(1u << levels);
+    if (!blur_pass(g, b, cmd, g->gaussian, source, b->slots[scratch].texture, ox, oy, w, h, level_sigma, true)) return false;
+    if (!blur_pass(g, b, cmd, g->gaussian, b->slots[scratch].texture, b->slots[result].texture, 0, 0, w, h, level_sigma, false)) return false;
+    GIVE_BACK();
+#undef GIVE_BACK
+    b->blurs += 1;
+    float scale = (float)(1u << levels);
+    out->slot = result;
+    out->draw[0] = (float)region->x; out->draw[1] = (float)region->y;
+    out->draw[2] = 1.0f / ((float)w * scale); out->draw[3] = 1.0f / ((float)h * scale);
+    return true;
+}
+
+/* Where each primitive buffer sits in a frame's list. */
+enum { BUF_QUAD = 0, BUF_RECT = 1, BUF_GLYPH = 2, BUF_IMAGE = 3, BUF_TRANSFORM = 4, BUF_BACKDROP = 5, BUF_COUNT = 6 };
+
+/* The scalar-packed CPU ABI (120/88 bytes) widened to the SDL storage buffers'
+   16-byte lanes (128/96); an image (64) and a backdrop (96) are whole lanes. The
+   rect slots hold the scene's rects, then one FLAT-TINT rect per backdrop record
+   — what a record draws when it cannot be blurred (ruling BB-I): the record's
+   bounds, clip, radii, order and shape with its tint's alpha times its opacity,
+   `c·o·T`, which the rect shader draws exactly. Returns false (with an error)
+   when a size is not whole records; `*rect_records` is the scene's own count. */
+static void flat_tint_rect(uint8_t *rect, const uint8_t *backdrop) {
+    float tint[4], opacity;
+    memcpy(rect, backdrop, 48);                       /* bounds, contentMask, maskCornerRadii */
+    memcpy(tint, backdrop + 64, sizeof(tint));
+    memcpy(&opacity, backdrop + 92, sizeof(opacity));
+    tint[3] *= opacity;
+    memcpy(rect + 48, tint, sizeof(tint));            /* background; borderColor and widths stay 0 */
+    memcpy(rect + 80, backdrop + 48, 16);             /* cornerRadii */
+    memcpy(rect + 112, backdrop + 80, 4);             /* order */
+    memcpy(rect + 116, backdrop + 84, 4);             /* shape, the transform index with it */
+}
+
+static bool pack_records(const void *rects, uint32_t rb, const void *glyphs, uint32_t gb, const void *backdrops, uint32_t kb,
+                         void *packed[2], const void *data[BUF_COUNT], uint32_t sizes[BUF_COUNT], uint32_t *rect_records) {
+    const uint32_t old_stride[] = {RECT_STRIDE, GLYPH_STRIDE}, new_stride[] = {128, 96};
+    if (rb % RECT_STRIDE || gb % GLYPH_STRIDE) return SDL_SetError("unexpected MetalUI primitive ABI");
+    if (kb % BACKDROP_STRIDE) return SDL_SetError("unexpected MetalUI backdrop ABI");
+    uint32_t records[2] = {rb / RECT_STRIDE, gb / GLYPH_STRIDE};
+    uint32_t flats = kb / BACKDROP_STRIDE;
+    *rect_records = records[0];
+    const void *source[2] = {rects, glyphs};
+    for (int i = 0; i < 2; i++) {
+        uint32_t count = records[i] + (i == 0 ? flats : 0);
+        if (!count) continue;
+        packed[i] = calloc(count, new_stride[i]);
+        if (!packed[i]) return SDL_SetError("packing allocation failed");
+        for (uint32_t j = 0; j < records[i]; j++)
+            memcpy((uint8_t *)packed[i] + (size_t)j * new_stride[i], (const uint8_t *)source[i] + (size_t)j * old_stride[i], old_stride[i]);
+        if (i == 0)
+            for (uint32_t j = 0; j < flats; j++)
+                flat_tint_rect((uint8_t *)packed[0] + (size_t)(records[0] + j) * new_stride[0],
+                               (const uint8_t *)backdrops + (size_t)j * BACKDROP_STRIDE);
+        data[BUF_RECT + i] = packed[i]; sizes[BUF_RECT + i] = count * new_stride[i];
+    }
+    return true;
+}
+
+/* A frame's inputs, shared by the replay and window renderers' draw loops. */
+typedef struct {
+    ReplayGPU *g;
+    SDL_GPUCommandBuffer *cmd;
+    SDL_GPUBuffer *buffers[BUF_COUNT];
+    SDL_GPUTexture *atlas;
+    SDL_GPUTexture *const *image_textures;   /* by an image record's `texture` */
+    const void *images;
+    const void *backdrops;                   /* the CPU records (sigma) */
+    const ReplayRegion *regions;
+    uint32_t rect_records;                   /* the scene's; the flat rects follow */
+    const ReplayRun *runs; uint32_t run_count;
+    uint32_t width, height;
+    const float *projection;
+    struct { float width, height; uint32_t first_instance, padding; } viewport;
+} FrameDraw;
+
+/* One instanced draw of `count` records of a rect, glyph or image run (the
+   binding every pipeline shares); a backdrop run that cannot be blurred is
+   drawn as the rects its flat tint became. */
+static void draw_primitives(FrameDraw *f, SDL_GPURenderPass *pass, uint32_t kind, uint32_t start, uint32_t count) {
+    ReplayGPU *g = f->g;
+    SDL_GPUBuffer *primitives = f->buffers[kind == KIND_GLYPH ? BUF_GLYPH : kind == KIND_IMAGE ? BUF_IMAGE : BUF_RECT];
+    if (!primitives) return;
+    SDL_GPUBuffer *vertex_buffers[] = {f->buffers[BUF_QUAD], primitives, f->buffers[BUF_TRANSFORM]};
+    SDL_GPUBuffer *fragment_buffers[] = {primitives, f->buffers[BUF_TRANSFORM]};
+    SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect);
+    SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
+    SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
+    if (kind == KIND_GLYPH) {
+        SDL_GPUTextureSamplerBinding binding = {f->atlas, g->sampler};
+        SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+    } else if (kind == KIND_IMAGE) {
+        SDL_GPUTextureSamplerBinding binding = {f->image_textures[image_texture(f->images, start)], g->sampler};
+        SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+    }
+    /* SDL explicitly warns built-in instance IDs differ across APIs when
+       first_instance is nonzero. Supply the base through a uniform instead. */
+    f->viewport.first_instance = start;
+    SDL_PushGPUVertexUniformData(f->cmd, 0, &f->viewport, sizeof(f->viewport));
+    SDL_DrawGPUPrimitives(pass, 4, count, 0, 0);
+}
+
+static void draw_run(FrameDraw *f, SDL_GPURenderPass *pass, const ReplayRun *run) {
+    if (run->kind == KIND_BACKDROP) draw_primitives(f, pass, KIND_RECT, f->rect_records + run->start, run->count);
+    else draw_primitives(f, pass, run->kind, run->start, run->count);
+}
+
+static SDL_GPURenderPass *begin_segment(FrameDraw *f, SDL_GPUTexture *texture, SDL_GPULoadOp load) {
+    SDL_GPUColorTargetInfo info = { .texture = texture, .load_op = load, .store_op = SDL_GPU_STOREOP_STORE };
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(f->cmd, &info, 1, NULL);
+    /* The projection is a vertex uniform of the command buffer; pushed again at
+       each pass so no backend need carry it across the blur passes between. */
+    if (pass) SDL_PushGPUVertexUniformData(f->cmd, 1, f->projection, sizeof(float) * 16);
+    return pass;
+}
+
+static bool projection_is_identity(const float *m) {
+    static const float identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    return memcmp(m, identity, sizeof(identity)) == 0;
+}
+
+/* Draws the frame into `target` (ruling BB-C). **A frame with no backdrop run
+   takes the single pass into the target, byte for byte**; one with backdrops
+   renders into the frame target in segments — segment 0 clears transparent and
+   draws up to the first backdrop run; at each backdrop run the segment ends,
+   every record of the run is blurred from the frame as it stands, and a new
+   segment (load) draws the run's quads and what follows — then blits the frame
+   target to `target`, 1:1. Where the frame target or the pipelines cannot be
+   made, or the projection is not the identity (the blit is texel for texel),
+   each record draws its flat tint (ruling BB-I) in the single pass. `strict`
+   (the diagnostic replay) reports missing pipelines instead. */
+static bool encode_frame(FrameDraw *f, BackdropState *b, SDL_GPUTexture *target, bool strict) {
+    ReplayGPU *g = f->g;
+    bool has_backdrops = false;
+    for (uint32_t i = 0; i < f->run_count; i++) if (f->runs[i].kind == KIND_BACKDROP) has_backdrops = true;
+    backdrop_begin_frame(b);
+    bool wants = has_backdrops || (b->route_every_frame && f->run_count > 0);
+    SDL_GPUTexture *frame = NULL;
+    if (wants && projection_is_identity(f->projection)) {
+        bool ready = !has_backdrops || ensure_backdrop_pipelines(g);
+        if (!ready && strict) return false;
+        if (ready) frame = backdrop_frame_target(g, b, f->width, f->height);
+    }
+    if (!frame) {
+        if (!wants) backdrop_release_all(g, b);
+        SDL_GPURenderPass *pass = begin_segment(f, target, SDL_GPU_LOADOP_CLEAR);
+        if (!pass) return false;
+        for (uint32_t i = 0; i < f->run_count; i++) draw_run(f, pass, &f->runs[i]);
+        SDL_EndGPURenderPass(pass);
+        return true;
+    }
+    bool ok = false;
+    BlurResult *results = NULL;
+    SDL_GPURenderPass *pass = begin_segment(f, frame, SDL_GPU_LOADOP_CLEAR);
+    if (!pass) goto done;
+    for (uint32_t i = 0; i < f->run_count; i++) {
+        const ReplayRun *run = &f->runs[i];
+        if (run->kind != KIND_BACKDROP) { draw_run(f, pass, run); continue; }
+        SDL_EndGPURenderPass(pass);
+        pass = NULL;
+        b->splits += 1;
+        /* Every record of the run reads the frame as it stands at the split
+           (a run holds no two overlapping records, ruling BB-E). */
+        free(results);
+        results = calloc(run->count, sizeof(*results));
+        if (!results) { SDL_SetError("allocation failed"); goto done; }
+        for (uint32_t k = 0; k < run->count; k++) {
+            float sigma;
+            memcpy(&sigma, (const uint8_t *)f->backdrops + (size_t)(run->start + k) * BACKDROP_STRIDE + BACKDROP_SIGMA_OFFSET, sizeof(sigma));
+            if (!blur_record(g, b, f->cmd, frame, f->width, f->height, &f->regions[run->start + k], sigma, &results[k])) goto done;
+        }
+        pass = begin_segment(f, frame, SDL_GPU_LOADOP_LOAD);
+        if (!pass) goto done;
+        for (uint32_t k = 0; k < run->count; k++) {
+            uint32_t record = run->start + k;
+            if (results[k].slot < 0) { draw_primitives(f, pass, KIND_RECT, f->rect_records + record, 1); continue; }
+            SDL_GPUBuffer *vertex_buffers[] = {f->buffers[BUF_QUAD], f->buffers[BUF_BACKDROP], f->buffers[BUF_TRANSFORM]};
+            SDL_GPUBuffer *fragment_buffers[] = {f->buffers[BUF_BACKDROP], f->buffers[BUF_TRANSFORM]};
+            SDL_BindGPUGraphicsPipeline(pass, g->backdrop);
+            SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
+            SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
+            SDL_GPUTextureSamplerBinding binding = {b->slots[results[k].slot].texture, g->sampler};
+            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+            f->viewport.first_instance = record;
+            SDL_PushGPUVertexUniformData(f->cmd, 0, &f->viewport, sizeof(f->viewport));
+            SDL_PushGPUFragmentUniformData(f->cmd, 0, results[k].draw, sizeof(results[k].draw));
+            SDL_DrawGPUPrimitives(pass, 4, 1, 0, 0);
+            backdrop_release(b, results[k].slot);
+        }
+    }
+    SDL_EndGPURenderPass(pass);
+    pass = NULL;
+    /* The copy: the frame target onto the target, texel for texel. */
+    SDL_GPUBlitInfo blit = {
+        .source = { .texture = frame, .w = f->width, .h = f->height },
+        .destination = { .texture = target, .w = f->width, .h = f->height },
+        .load_op = SDL_GPU_LOADOP_DONT_CARE, .filter = SDL_GPU_FILTER_NEAREST
+    };
+    SDL_BlitGPUTexture(f->cmd, &blit);
+    b->copies = 1;
+    backdrop_end_frame(g, b);
+    ok = true;
+done:
+    if (pass) SDL_EndGPURenderPass(pass);
+    free(results);
+    return ok;
+}
+
 bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
     const void *images, uint32_t ib, const void *transforms, uint32_t tb,
+    const void *backdrops, uint32_t kb, const ReplayRegion *regions, uint32_t region_count,
     const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
@@ -256,17 +705,19 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
         return SDL_SetError("invalid fixture dimensions");
     if (!images_valid(images, ib, texture_count, runs, count)) return false;
     if (tb % TRANSFORM_STRIDE) return SDL_SetError("unexpected MetalUI transform ABI");
-    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, tb, runs, count)) return false;
+    if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) return SDL_SetError("unexpected MetalUI backdrop ABI");
+    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) return false;
     for (uint32_t t = 0; t < texture_count; t++)
         if (!textures[t].width || !textures[t].height || textures[t].width > 4096 || textures[t].height > 4096)
             return SDL_SetError("invalid image texture dimensions");
-    SDL_GPUBuffer *buffers[5] = {0};
-    SDL_GPUTransferBuffer *uploads[6] = {0}, *download = NULL;
+    SDL_GPUBuffer *buffers[BUF_COUNT] = {0};
+    SDL_GPUTransferBuffer *uploads[BUF_COUNT + 1] = {0}, *download = NULL;
     SDL_GPUTexture *atlas_texture = NULL;
     SDL_GPUTexture **image_textures = NULL;
     SDL_GPUTransferBuffer **image_uploads = NULL;
     SDL_GPUCommandBuffer *cmd = NULL;
     SDL_GPUFence *fence = NULL;
+    BackdropState backdrop = {0};
     bool ok = false;
     void *packed[2] = {0};
     if (texture_count) {
@@ -286,27 +737,17 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     }
     const float quad[] = {0,0, 1,0, 0,1, 1,1};
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {quad, rects, glyphs, images, tb ? transforms : empty_transform};
-    uint32_t sizes[] = {sizeof(quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE};
+    const void *data[BUF_COUNT] = {quad, rects, glyphs, images, tb ? transforms : empty_transform, backdrops};
+    uint32_t sizes[BUF_COUNT] = {sizeof(quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE, kb};
+    uint32_t rect_records = 0;
     if (g->portable) {
         // The existing CPU ABI is scalar-packed (120/88 bytes). SDL storage
         // uses 16-byte lanes, so round each record up, never reinterpret it.
-        // Images (64 bytes) are already four whole lanes.
-        const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
-        data[0] = aligned_quad; sizes[0] = sizeof(aligned_quad);
-        for (int i = 0; i < 2; i++) {
-            if (sizes[i + 1] % old_stride[i]) { SDL_SetError("unexpected MetalUI primitive ABI"); goto cleanup; }
-            uint32_t records = sizes[i + 1] / old_stride[i];
-            if (!records) continue;
-            packed[i] = calloc(records, new_stride[i]);
-            if (!packed[i]) { SDL_SetError("packing allocation failed"); goto cleanup; }
-            for (uint32_t j = 0; j < records; j++)
-                memcpy((uint8_t *)packed[i] + j * new_stride[i],
-                       (const uint8_t *)data[i + 1] + j * old_stride[i], old_stride[i]);
-            data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
-        }
+        // Images (64 bytes) and backdrops (96) are already whole lanes.
+        data[BUF_QUAD] = aligned_quad; sizes[BUF_QUAD] = sizeof(aligned_quad);
+        if (!pack_records(rects, rb, glyphs, gb, backdrops, kb, packed, data, sizes, &rect_records)) goto cleanup;
     }
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < BUF_COUNT; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = {
             .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i]
@@ -315,21 +756,21 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
         uploads[i] = transfer(g, sizes[i], false, data[i]);
         if (!buffers[i] || !uploads[i]) goto cleanup;
     }
-    uploads[5] = transfer(g, aw * ah, false, atlas);
+    uploads[BUF_COUNT] = transfer(g, aw * ah, false, atlas);
     // 256-byte pitch also works for a future D3D readback path.
     uint32_t pitch = (w * 4 + 255) & ~255u;
     download = transfer(g, pitch * h, true, NULL);
-    if (!uploads[5] || !download) goto cleanup;
+    if (!uploads[BUF_COUNT] || !download) goto cleanup;
     cmd = SDL_AcquireGPUCommandBuffer(g->device);
     if (!cmd) goto cleanup;
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 5; i++) if (sizes[i]) {
+    for (int i = 0; i < BUF_COUNT; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[5] };
+    SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[BUF_COUNT] };
     SDL_GPUTextureRegion atlas_dst = { .texture = atlas_texture, .w = aw, .h = ah, .d = 1 };
     SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
     for (uint32_t t = 0; t < texture_count; t++) {
@@ -338,35 +779,15 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
         SDL_UploadToGPUTexture(copy, &image_src, &image_dst, false);
     }
     SDL_EndGPUCopyPass(copy);
-    struct { float width, height; uint32_t first_instance, padding; } viewport = {(float)w, (float)h, 0, 0};
-    SDL_PushGPUVertexUniformData(cmd, 1, projection, sizeof(float) * 16);
-    SDL_GPUColorTargetInfo target = {
-        .texture = g->target, .load_op = SDL_GPU_LOADOP_CLEAR, .store_op = SDL_GPU_STOREOP_STORE
+    FrameDraw frame = {
+        .g = g, .cmd = cmd, .atlas = atlas_texture, .image_textures = image_textures, .images = images,
+        .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
+        .runs = runs, .run_count = count, .width = w, .height = h, .projection = projection,
+        .viewport = {(float)w, (float)h, 0, 0}
     };
-    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
-    if (!pass) goto cleanup;
-    for (uint32_t i = 0; i < count; i++) {
-        uint32_t kind = runs[i].kind;
-        SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
-        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives, buffers[4]};
-        SDL_GPUBuffer *fragment_buffers[] = {primitives, buffers[4]};
-        SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect);
-        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
-        SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
-        if (kind == KIND_GLYPH) {
-            SDL_GPUTextureSamplerBinding binding = {atlas_texture, g->sampler};
-            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
-        } else if (kind == KIND_IMAGE) {
-            SDL_GPUTextureSamplerBinding binding = {image_textures[image_texture(images, runs[i].start)], g->sampler};
-            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
-        }
-        // SDL explicitly warns built-in instance IDs differ across APIs when
-        // first_instance is nonzero. Supply the base through a uniform instead.
-        viewport.first_instance = runs[i].start;
-        SDL_PushGPUVertexUniformData(cmd, 0, &viewport, sizeof(viewport));
-        SDL_DrawGPUPrimitives(pass, 4, runs[i].count, 0, 0);
-    }
-    SDL_EndGPURenderPass(pass);
+    memcpy(frame.buffers, buffers, sizeof(buffers));
+    if (!g->portable && kb) { SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)"); goto cleanup; }
+    if (!encode_frame(&frame, &backdrop, g->target, true)) goto cleanup;
     copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
     SDL_GPUTextureRegion src = { .texture = g->target, .w = w, .h = h, .d = 1 };
@@ -384,8 +805,8 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     if (fence) SDL_ReleaseGPUFence(g->device, fence);
-    for (int i = 0; i < 5; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
-    for (int i = 0; i < 6; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
+    for (int i = 0; i < BUF_COUNT; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(g->device, buffers[i]);
+    for (int i = 0; i < BUF_COUNT + 1; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(g->device, uploads[i]);
     for (uint32_t t = 0; t < texture_count && image_textures; t++) {
         if (image_textures[t]) SDL_ReleaseGPUTexture(g->device, image_textures[t]);
         if (image_uploads && image_uploads[t]) SDL_ReleaseGPUTransferBuffer(g->device, image_uploads[t]);
@@ -393,6 +814,7 @@ cleanup:
     SDL_free(image_textures); SDL_free(image_uploads);
     if (download) SDL_ReleaseGPUTransferBuffer(g->device, download);
     if (atlas_texture) SDL_ReleaseGPUTexture(g->device, atlas_texture);
+    backdrop_destroy(g, &backdrop);
     free(packed[0]); free(packed[1]);
     return ok;
 }
@@ -445,6 +867,7 @@ struct MUIRenderer {
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
     uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
+    BackdropState backdrop;         /* the frame target, the blur pool, the counters (BB-S) */
 };
 
 /* Releases the last offscreen frame's fence, counting a release made while
@@ -494,6 +917,7 @@ void mui_renderer_destroy(MUIRenderer *r) {
     release_fence(r); /* signalled: the device is idle */
     if (r->offscreen) SDL_ReleaseGPUTexture(d, r->offscreen);
     if (r->atlas) SDL_ReleaseGPUTexture(d, r->atlas);
+    backdrop_destroy(r->gpu, &r->backdrop);
     if (r->window) SDL_ReleaseWindowFromGPUDevice(d, r->window);
     replay_destroy(r->gpu);
     free(r);
@@ -616,6 +1040,7 @@ bool mui_gpu_blit_texture(void *cmd, void *source, uint32_t sw, uint32_t sh,
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rb, const void *glyphs, uint32_t gb,
     const void *images, uint32_t ib, const void *transforms, uint32_t tb,
+    const void *backdrops, uint32_t kb, const ReplayRegion *regions, uint32_t region_count,
     void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah, bool atlas_dirty,
@@ -624,33 +1049,24 @@ bool mui_renderer_finish(MUIRenderer *r,
     SDL_GPUDevice *d = r->gpu->device;
     SDL_GPUCommandBuffer *cmd = r->cmd;
     r->cmd = NULL;
-    SDL_GPUBuffer *buffers[5] = {0};
-    SDL_GPUTransferBuffer *uploads[6] = {0};
+    SDL_GPUBuffer *buffers[BUF_COUNT] = {0};
+    SDL_GPUTransferBuffer *uploads[BUF_COUNT + 1] = {0};
     void *packed[2] = {0};
     bool ok = false;
     if (!images_valid(images, ib, texture_count, runs, count)) goto cleanup;
     if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
-    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, tb, runs, count)) goto cleanup;
+    if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) { SDL_SetError("unexpected MetalUI backdrop ABI"); goto cleanup; }
+    if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) goto cleanup;
 
     /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
        16-byte lanes, so each record is copied into a 128/96-byte slot. An
-       image (64 bytes) is already four whole lanes. */
+       image (64 bytes) and a backdrop (96) are already whole lanes. */
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
-    const void *data[] = {aligned_quad, rects, glyphs, images, tb ? transforms : empty_transform};
-    uint32_t sizes[] = {sizeof(aligned_quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE};
-    const uint32_t old_stride[] = {120, 88}, new_stride[] = {128, 96};
-    for (int i = 0; i < 2; i++) {
-        if (sizes[i + 1] % old_stride[i]) { SDL_SetError("unexpected MetalUI primitive ABI"); goto cleanup; }
-        uint32_t records = sizes[i + 1] / old_stride[i];
-        if (!records) continue;
-        packed[i] = calloc(records, new_stride[i]);
-        if (!packed[i]) { SDL_SetError("packing allocation failed"); goto cleanup; }
-        for (uint32_t j = 0; j < records; j++)
-            memcpy((uint8_t *)packed[i] + j * new_stride[i],
-                   (const uint8_t *)data[i + 1] + j * old_stride[i], old_stride[i]);
-        data[i + 1] = packed[i]; sizes[i + 1] = records * new_stride[i];
-    }
-    for (int i = 0; i < 5; i++) {
+    const void *data[BUF_COUNT] = {aligned_quad, rects, glyphs, images, tb ? transforms : empty_transform, backdrops};
+    uint32_t sizes[BUF_COUNT] = {sizeof(aligned_quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE, kb};
+    uint32_t rect_records = 0;
+    if (!pack_records(rects, rb, glyphs, gb, backdrops, kb, packed, data, sizes, &rect_records)) goto cleanup;
+    for (int i = 0; i < BUF_COUNT; i++) {
         if (!sizes[i]) continue;
         SDL_GPUBufferCreateInfo info = { .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, .size = sizes[i] };
         buffers[i] = SDL_CreateGPUBuffer(d, &info);
@@ -665,51 +1081,31 @@ bool mui_renderer_finish(MUIRenderer *r,
         if (!r->atlas) goto cleanup;
     }
     if (atlas_new || atlas_dirty) {
-        uploads[5] = transfer(r->gpu, aw * ah, false, atlas);
-        if (!uploads[5]) goto cleanup;
+        uploads[BUF_COUNT] = transfer(r->gpu, aw * ah, false, atlas);
+        if (!uploads[BUF_COUNT]) goto cleanup;
     }
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
-    for (int i = 0; i < 5; i++) if (sizes[i]) {
+    for (int i = 0; i < BUF_COUNT; i++) if (sizes[i]) {
         SDL_GPUTransferBufferLocation src = { .transfer_buffer = uploads[i] };
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    if (uploads[5]) {
-        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[5] };
+    if (uploads[BUF_COUNT]) {
+        SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[BUF_COUNT] };
         SDL_GPUTextureRegion atlas_dst = { .texture = r->atlas, .w = aw, .h = ah, .d = 1 };
         SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
     }
     SDL_EndGPUCopyPass(copy);
 
-    struct { float width, height; uint32_t first_instance, padding; } viewport = {(float)r->width, (float)r->height, 0, 0};
-    SDL_PushGPUVertexUniformData(cmd, 1, projection, sizeof(float) * 16);
-    SDL_GPUColorTargetInfo target = {
-        .texture = r->target, .load_op = SDL_GPU_LOADOP_CLEAR, .store_op = SDL_GPU_STOREOP_STORE
+    FrameDraw frame = {
+        .g = r->gpu, .cmd = cmd, .atlas = r->atlas, .image_textures = (SDL_GPUTexture *const *)textures,
+        .images = images, .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
+        .runs = runs, .run_count = count, .width = r->width, .height = r->height, .projection = projection,
+        .viewport = {(float)r->width, (float)r->height, 0, 0}
     };
-    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &target, 1, NULL);
-    if (!pass) goto cleanup;
-    for (uint32_t i = 0; i < count; i++) {
-        uint32_t kind = runs[i].kind;
-        SDL_GPUBuffer *primitives = buffers[kind == KIND_GLYPH ? 2 : kind == KIND_IMAGE ? 3 : 1];
-        if (!primitives) continue;
-        SDL_GPUBuffer *vertex_buffers[] = {buffers[0], primitives, buffers[4]};
-        SDL_GPUBuffer *fragment_buffers[] = {primitives, buffers[4]};
-        SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? r->gpu->glyph : kind == KIND_IMAGE ? r->gpu->image : r->gpu->rect);
-        SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
-        SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
-        if (kind == KIND_GLYPH) {
-            SDL_GPUTextureSamplerBinding binding = {r->atlas, r->gpu->sampler};
-            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
-        } else if (kind == KIND_IMAGE) {
-            SDL_GPUTextureSamplerBinding binding = {(SDL_GPUTexture *)textures[image_texture(images, runs[i].start)], r->gpu->sampler};
-            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
-        }
-        viewport.first_instance = runs[i].start;
-        SDL_PushGPUVertexUniformData(cmd, 0, &viewport, sizeof(viewport));
-        SDL_DrawGPUPrimitives(pass, 4, runs[i].count, 0, 0);
-    }
-    SDL_EndGPURenderPass(pass);
+    memcpy(frame.buffers, buffers, sizeof(buffers));
+    if (!encode_frame(&frame, &r->backdrop, r->target, false)) goto cleanup;
     r->submissions += 1;
     if (r->window) {
         ok = SDL_SubmitGPUCommandBuffer(cmd);
@@ -722,10 +1118,22 @@ bool mui_renderer_finish(MUIRenderer *r,
 cleanup:
     if (cmd) SDL_CancelGPUCommandBuffer(cmd);
     /* SDL releases these once the GPU no longer uses them. */
-    for (int i = 0; i < 5; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
-    for (int i = 0; i < 6; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
+    for (int i = 0; i < BUF_COUNT; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
+    for (int i = 0; i < BUF_COUNT + 1; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
     free(packed[0]); free(packed[1]);
     return ok;
+}
+
+void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]) {
+    out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;
+    out[3] = r->backdrop.copies; out[4] = r->backdrop.made;
+}
+
+bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
+
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame) {
+    r->backdrop.pool_fails = pool_fails;
+    r->backdrop.route_every_frame = route_every_frame;
 }
 
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *out) {
@@ -825,7 +1233,9 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
     case SDL_EVENT_WINDOW_EXPOSED:
         out->kind = MUI_EVENT_EXPOSED; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
-        out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID; return true;
+        out->kind = MUI_EVENT_FOCUS_GAINED; out->window_id = e->window.windowID;
+        out->modifiers = mods(SDL_GetModState());   // the modifiers held now (IF-I)
+        return true;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         out->kind = MUI_EVENT_FOCUS_LOST; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_MOUSE_LEAVE:   // the pointer left the window (SV-N item 7)
@@ -969,7 +1379,14 @@ bool mui_push_event(const MUIEvent *in) {
     case MUI_EVENT_THEME: e.type = SDL_EVENT_SYSTEM_THEME_CHANGED; break;
     case MUI_EVENT_FOCUS_GAINED: case MUI_EVENT_FOCUS_LOST:
         e.type = in->kind == MUI_EVENT_FOCUS_GAINED ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_WINDOW_FOCUS_LOST;
-        e.window.windowID = in->window_id; break;
+        e.window.windowID = in->window_id;
+        // A window event carries no modifiers: a test's held keys are SDL's
+        // tracked state, set as a held key would (IF-I).
+        SDL_SetModState((in->modifiers & MUI_MOD_SHIFT ? SDL_KMOD_LSHIFT : 0)
+                      | (in->modifiers & MUI_MOD_CONTROL ? SDL_KMOD_LCTRL : 0)
+                      | (in->modifiers & MUI_MOD_OPTION ? SDL_KMOD_LALT : 0)
+                      | (in->modifiers & MUI_MOD_COMMAND ? SDL_KMOD_LGUI : 0));
+        break;
     default: return SDL_SetError("unsupported synthetic event");
     }
     e.common.timestamp = SDL_GetTicksNS();

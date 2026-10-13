@@ -16,7 +16,7 @@ import MetalUITestSupport
 private let platformSkipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUIPlatform not found — guard skipped"
 
-/// The seven `PlatformWindow` requirements (`AS-H` item 1, `AS-J` item 2),
+/// The seven `PlatformWindow` requirements (`AS-H` item 1, `AS-J` item 2) and `WD-E`'s `performWindowDrag` (guard 3.1),
 /// each in the migration note's minimal honest spelling, keyed by the name a
 /// refusal must mention.
 private let windowMembers: [(name: String, spelling: String)] = [
@@ -27,6 +27,7 @@ private let windowMembers: [(name: String, spelling: String)] = [
     ("setTitleBarStyle", "func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool { false }"),
     ("titleBarInsets", "var titleBarInsets: Edges<Pixels> { Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(0)) }"),
     ("performTitleBarPress", "func performTitleBarPress(clickCount: Int) -> Bool { false }"),
+    ("performWindowDrag", "func performWindowDrag() -> Bool { false }"),
 ]
 
 /// The four `Platform` requirements (`AS-H` item 2), in the migration note's

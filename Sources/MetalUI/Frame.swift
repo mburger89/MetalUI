@@ -113,6 +113,10 @@ public final class Frame {
     /// element keyed `"10"` or an `.id("10")`.
     private(set) var scrollKeys: [GlobalElementID: AnyHashable] = [:]
 
+    /// `ForEach` identity work this frame (`FI-B`, a work counter, never time):
+    /// elements produced, and how many of them minted an `IdentityKey`.
+    var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
+
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
 
@@ -2762,6 +2766,38 @@ public final class Frame {
         }
     }
 
+    /// Emits one material's backdrop record (rulings `BB-A`, `BB-B`): `fill`'s
+    /// arithmetic line for line, with `tint` (a straight-alpha colour the
+    /// material table resolved) in place of the background and the blur's
+    /// sigma (`MUIBackdropSigmaPoints` points, in device pixels) and
+    /// `activeOpacity` in the record -- **the tint's alpha is never multiplied
+    /// by the opacity** (`BB-A`): a renderer composites `c·o·(T + (1 − T.a)·B)`.
+    /// It goes through the paint scopes like a rect, and inside a shadow, blur
+    /// or compositing scope it is drawn as its flat tint rect instead
+    /// (`BB-H`, divergence 248).
+    func fillBackdrop(_ bounds: Bounds<Pixels>, tint: Hsla,
+                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+                      shape: PrimitiveShape = .roundedRectangle) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        let record = MUIBackdrop(
+            bounds: MUIBounds(translated.scaled(by: scaleFactor)),
+            contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
+            maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
+            cornerRadii: MUICorners(cornerRadii.scaled(by: scaleFactor)),
+            tint: MUIHsla(tint),
+            order: 0, shape: shape.rawValue,
+            sigma: Float(MUIBackdropSigmaPoints) * scaleFactor,
+            opacity: activeOpacity)
+        if paintScopes.isEmpty {
+            scene.insert(record, layer: activeLayer)
+        } else {
+            insertThroughScopes(.backdrop(record, layer: activeLayer, innerMask: false))
+        }
+    }
+
     /// Emits one image quad sampling the whole of `texture` over `bounds`
     /// (ruling TE-AF) — `fill`'s arithmetic exactly: `bounds` in points,
     /// translated by `activeOffset` then scaled, the mask `activeClip` with
@@ -3118,7 +3154,15 @@ public final class Frame {
     /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
     /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
     /// means every primitive was emitted at the current depth).
-    func insertThroughScopes(leaf: [CapturedPrimitive], depths: [Int]? = nil) {
+    func insertThroughScopes(leaf originalLeaf: [CapturedPrimitive], depths: [Int]? = nil) {
+        var leaf = originalLeaf
+        // A shadow, blur or composite scope rasterizes its leaves on the CPU,
+        // which cannot read a GPU backdrop: a backdrop leaf inside one is its
+        // flat tint rect (`BB-H`, divergence 248; the surface-leaf precedent).
+        if leaf.contains(where: { if case .backdrop = $0.kind { true } else { false } }),
+           backdropDegrades {
+            for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
+        }
         // Each group carries its primitives' emission depths, `nil` for "all
         // at `depth`" (no array on the ordinary path).
         var leaves: [([CapturedPrimitive], [Int]?)] = [(leaf, depths)]
@@ -3247,6 +3291,9 @@ public final class Frame {
         case .blur(var blur):
             (blur.contentMask, blur.maskCornerRadii) = cut(blur.contentMask, blur.maskCornerRadii)
             p.kind = .blur(blur)
+        case .backdrop(var record):
+            (record.contentMask, record.maskCornerRadii) = cut(record.contentMask, record.maskCornerRadii)
+            p.kind = .backdrop(record)
         }
         return p
     }
@@ -3285,7 +3332,23 @@ public final class Frame {
         case .blur(let paint):
             guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
             scene.insert(quad, texture: texture, layer: primitive.layer)
+        case .backdrop(let record):
+            scene.insert(record, layer: primitive.layer, transform: transform)
         }
+    }
+
+    /// Whether a backdrop leaf emitted now would reach a shadow, blur or
+    /// composite scope (outside the nearest `Deferred` barrier, which stops
+    /// them): it then draws its flat tint (`BB-H`).
+    private var backdropDegrades: Bool {
+        for scope in paintScopes.reversed() {
+            switch scope.kind {
+            case .barrier: return false
+            case .shadow, .blur, .composite: return true
+            default: continue
+            }
+        }
+        return false
     }
 
     /// The glyphs of the text draw in progress, while a paint scope is open —

@@ -91,6 +91,9 @@ to AppKit's: menus, alerts and file dialogs present natively, the toolbar is
 native, an accessibility client is active from the start. Turn
 `presentsMenusNatively`/`presentsAlertsNatively`/`showsToolbarNatively` off to
 test the window's own drawn menu, alert panel and toolbar strip, as on SDL.
+`performsWindowDrag` (default `true`, AppKit's answer during a drag) is what the window's
+`performWindowDrag()` answers; `TestWindow.windowDrags` counts the requests a
+`WindowDragGesture` made (`WD-E`).
 
 ## Input
 

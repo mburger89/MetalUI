@@ -69,6 +69,11 @@ public final class AppShellDemoModel {
     public var confirmingClose = false
     /// Every URL `.onOpenURL` received, in order, as absolute strings.
     public var openedURLs: [String] = []
+    /// How many drags the handle section's canvas finished (`onEnded`).
+    public var canvasDrags = 0
+    /// How many drags of the canvas the drag handle cut off (`onCancelled`,
+    /// ruling `WD-C`).
+    public var canvasCancels = 0
     /// The demo's window, held weakly (the window owns the content).
     @ObservationIgnored public weak var window: Window?
 
@@ -81,6 +86,8 @@ public final class AppShellDemoModel {
         isEdited = false
         confirmingClose = false
         openedURLs = []
+        canvasDrags = 0
+        canvasCancels = 0
         window = nil
     }
 
@@ -123,6 +130,7 @@ func appShellRoot(topBar: some ElementGroup, document: some ElementGroup, opened
         topBar
         Column(gap: Pixels(20)) {
             document
+            appShellDragHandleSection()
             opened
         }
         .alignItems(.flexStart)
@@ -208,4 +216,31 @@ struct AppShellOpenedList: Component {
         }
         .alignItems(.flexStart)
     }
+}
+
+/// The window-drag handle (ruling `WD-B`, item C22), in its own function (the
+/// 1 MB-stack rule): a canvas whose `DragGesture` counts the drags it finishes
+/// and the ones the handle cut off, with a 40-point `WindowDragGesture` strip
+/// along its top. Press-drag on the strip moves the window and the finished
+/// count stays; press-drag below it counts one. On SDL the strip claims the
+/// press and moves nothing (divergence 276). Human check `WD-1`.
+@MainActor
+func appShellDragHandleSection() -> some ElementGroup { AppShellPart { appShellDragHandleSectionBody() } }
+
+@MainActor
+func appShellDragHandleSectionBody() -> some Element {
+    Column(gap: Pixels(0)) {
+        Box()
+            .frame(maxWidth: Pixels(.infinity), minHeight: Pixels(40), alignment: .leading)
+            .background(.surfaceSecondary)
+            .gesture(WindowDragGesture())
+        Text("Drag handle above; canvas drags: \(appShellDemoModel.canvasDrags), cut off: \(appShellDemoModel.canvasCancels)")
+            .padding(Pixels(12))
+    }
+    .alignItems(.flexStart)
+    .frame(width: Pixels(420), height: Pixels(120))
+    .background(.surface)
+    .simultaneousGesture(DragGesture(minimumDistance: 0)
+        .onEnded { _ in appShellDemoModel.canvasDrags += 1 }
+        .onCancelled { appShellDemoModel.canvasCancels += 1 })
 }

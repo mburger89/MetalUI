@@ -43,13 +43,16 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// `Window` installs its request handler, so the tree is in the first
         /// frame (ruling `HT-D` item 4).
         public var accessibilityClientActive: Bool
+        /// What `performWindowDrag` answers: `true` (AppKit, during a drag) or
+        /// `false` (SDL).
+        public var performsWindowDrag: Bool
 
         /// Options with every field given, each defaulting to AppKit's answer.
         public init(appearance: Appearance = .light, scaleFactor: Float = 1,
                     presentsMenusNatively: Bool = true, presentsAlertsNatively: Bool = true,
                     presentsFileDialogs: Bool = true, showsToolbarNatively: Bool = true,
                     appliesTitleBarStyle: Bool = true, externalDragResult: Bool = false,
-                    accessibilityClientActive: Bool = true) {
+                    accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true) {
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -59,6 +62,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             self.appliesTitleBarStyle = appliesTitleBarStyle
             self.externalDragResult = externalDragResult
             self.accessibilityClientActive = accessibilityClientActive
+            self.performsWindowDrag = performsWindowDrag
         }
     }
 
@@ -149,6 +153,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var titleBarStyles: [PlatformTitleBarStyle] = []
     /// Every `performTitleBarPress` click count, in order.
     public private(set) var titleBarPresses: [Int] = []
+    /// How many times `Window` asked the platform to move the window for a
+    /// `WindowDragGesture` (`performWindowDrag()`, ruling `WD-E`).
+    public private(set) var windowDrags = 0
     /// Every `beginExternalDrag` call, in order.
     public private(set) var externalDrags: [([DragRepresentation], Point<Pixels>)] = []
     /// Every `presentMenu` call, in order.
@@ -287,6 +294,12 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public func performTitleBarPress(clickCount: Int) -> Bool {
         titleBarPresses.append(clickCount)
         return false
+    }
+
+    /// Records the request and answers `Options.performsWindowDrag`.
+    public func performWindowDrag() -> Bool {
+        windowDrags += 1
+        return options.performsWindowDrag
     }
 
     // MARK: Simulated platform events

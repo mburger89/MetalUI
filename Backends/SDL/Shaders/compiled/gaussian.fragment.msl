@@ -1,0 +1,53 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct type_Pass
+{
+    int4 passSource;
+    float passSigma;
+    int passHorizontal;
+};
+
+struct main0_out
+{
+    float4 out_var_SV_Target0 [[color(0)]];
+};
+
+fragment main0_out main0(constant type_Pass& Pass [[buffer(0)]], texture2d<float> source [[texture(0)]], sampler sourceSampler [[sampler(0)]], float4 gl_FragCoord [[position]])
+{
+    main0_out out = {};
+    int2 _48 = int2(gl_FragCoord.xy);
+    int2 _53 = Pass.passSource.zw - int2(1);
+    int _63;
+    if (Pass.passSigma > 0.0)
+    {
+        _63 = int(ceil(3.0 * Pass.passSigma));
+    }
+    else
+    {
+        _63 = 0;
+    }
+    int2 _68 = select(int2(0, 1), int2(1, 0), bool2(Pass.passHorizontal != 0));
+    float _70 = (2.0 * Pass.passSigma) * Pass.passSigma;
+    uint2 _74 = uint2(source.get_width(), source.get_height());
+    float _88;
+    float4 _91;
+    _88 = 1.0;
+    _91 = source.sample(sourceSampler, ((float2(Pass.passSource.xy + min(_48, _53)) + float2(0.5)) / float2(float(_74.x), float(_74.y))), level(0.0));
+    for (int _93 = 1; _93 <= _63; )
+    {
+        float _101 = exp((-float(_93 * _93)) / _70);
+        int2 _104 = _68 * int2(_93);
+        uint2 _111 = uint2(source.get_width(), source.get_height());
+        uint2 _126 = uint2(source.get_width(), source.get_height());
+        _88 += (2.0 * _101);
+        _91 += ((source.sample(sourceSampler, ((float2(Pass.passSource.xy + clamp(_48 - _104, int2(0), _53)) + float2(0.5)) / float2(float(_111.x), float(_111.y))), level(0.0)) + source.sample(sourceSampler, ((float2(Pass.passSource.xy + clamp(_48 + _104, int2(0), _53)) + float2(0.5)) / float2(float(_126.x), float(_126.y))), level(0.0))) * _101);
+        _93++;
+        continue;
+    }
+    out.out_var_SV_Target0 = _91 / float4(_88);
+    return out;
+}
+

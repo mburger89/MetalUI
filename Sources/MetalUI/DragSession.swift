@@ -316,6 +316,9 @@ extension CapturedPrimitive {
         case .blur(var blur):
             blur.contentMask = mask; blur.maskCornerRadii = square
             p.kind = .blur(blur)
+        case .backdrop(var record):
+            record.contentMask = mask; record.maskCornerRadii = square
+            p.kind = .backdrop(record)
         }
         return p
     }

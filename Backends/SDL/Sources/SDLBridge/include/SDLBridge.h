@@ -3,13 +3,25 @@
 #include <stdbool.h>
 
 typedef struct ReplayGPU ReplayGPU;
-// kind: 0 rect, 1 glyph, 2 image (ruling TE-AF). An image run samples one
-// texture: the one its first record's `texture` field names.
+// kind: 0 rect, 1 glyph, 2 image (ruling TE-AF), 3 backdrop (ruling BB-J). An
+// image run samples one texture: the one its first record's `texture` field
+// names. A backdrop run's `start`/`count` index the backdrop records (96 bytes
+// each, `MUIBackdrop`); the run is a segment break (ruling BB-C).
 typedef struct { uint32_t kind, start, count; } ReplayRun;
+// The device-pixel rectangle one backdrop record blurs: `Scene.backdropRegion`'s
+// answer (ruling BB-D 3), clamped to the target; `width` 0 means none (the
+// record then draws its flat tint, ruling BB-I). The blur's level count is
+// derived from the record's own `sigma` (`mui_backdrop_levels`).
+typedef struct { int32_t x, y, width, height; } ReplayRegion;
+// The number of 2x downsample levels a sigma (device pixels) takes before its
+// Gaussian: the smallest L >= 0 with sigma / 2^L <= 4, at most 6
+// (`MUIBackdropBlurMaxLevel`). `BackdropBlurReference.levels`, restated; a
+// test pins the two together.
+uint32_t mui_backdrop_levels(float sigma);
 // A texture an image record samples: premultiplied RGBA8, row-major, borrowed.
 typedef struct { const uint8_t *rgba; uint32_t width, height; } ReplayTexture;
 ReplayGPU *replay_create(const char *msl);
-// shader_dir contains six compiled stages; driver: metal, vulkan, direct3d12.
+// shader_dir contains the eleven compiled stages (six drawing, five backdrop blur); driver: metal, vulkan, direct3d12.
 ReplayGPU *replay_create_portable(const char *shader_dir, const char *driver);
 const char *replay_error(void);
 const char *replay_driver(ReplayGPU *gpu);
@@ -20,9 +32,14 @@ bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
 // `transforms` is the scene's MUITransform table (64 bytes a record, ruling
 // GX-F); 0 bytes binds one zero record, which index 0 never reads.
+// `backdrops` is the scene's MUIBackdrop table (96 bytes a record, ruling BB-B)
+// with one `regions` entry per record; a frame holding a backdrop run renders
+// into a frame target in segments and blits it to the result (ruling BB-C),
+// and needs the portable shaders (replay_create_portable).
 bool replay_render(ReplayGPU *gpu, uint32_t width, uint32_t height,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
     const void *images, uint32_t image_bytes, const void *transforms, uint32_t transform_bytes,
+    const void *backdrops, uint32_t backdrop_bytes, const ReplayRegion *regions, uint32_t region_count,
     const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
@@ -55,14 +72,29 @@ void mui_renderer_release_texture(MUIRenderer *r, void *texture);
 // Draws into the target `begin` acquired and submits. The atlas is uploaded
 // whole when `atlas_dirty` is set or its size changed. `textures[i]` is the
 // texture an image record's `texture` field `i` names (from create_texture).
-// `transforms`: the scene's MUITransform table, as for replay_render.
+// `transforms`: the scene's MUITransform table, as for replay_render;
+// `backdrops` and `regions`, likewise (ruling BB-C: a frame with a backdrop run
+// renders into this renderer's frame target in segments and blits it to the
+// target `begin` acquired; one without takes the single pass, byte for byte).
 bool mui_renderer_finish(MUIRenderer *r,
     const void *rects, uint32_t rect_bytes, const void *glyphs, uint32_t glyph_bytes,
     const void *images, uint32_t image_bytes, const void *transforms, uint32_t transform_bytes,
+    const void *backdrops, uint32_t backdrop_bytes, const ReplayRegion *regions, uint32_t region_count,
     void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height, bool atlas_dirty,
     const float *projection);
+// The last frame's backdrop work (ruling BB-S): `out` = splits (backdrop runs),
+// blurs (records), passes (L + 2 a record), frame-target copies (1 for a
+// backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
+// frame). All 0 on a frame without a backdrop run.
+void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]);
+// Whether the renderer holds a frame target.
+bool mui_renderer_has_frame_target(MUIRenderer *r);
+// Test hooks (ruling BB-K): every pool allocation fails (the records draw their
+// flat tint, test 3.3d); every frame, backdrop or not, goes through the frame
+// target (test 3.3b).
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame);
 // The last offscreen frame as BGRA rows (waits for it).
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
 // How many times the renderer has released an offscreen frame's fence before

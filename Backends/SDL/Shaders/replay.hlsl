@@ -1,11 +1,75 @@
 // Portable replay shaders. Compile six times: VERTEX_STAGE or not, times
-// no kind define (rects), GLYPH_STAGE or IMAGE_STAGE.
+// no kind define (rects), GLYPH_STAGE or IMAGE_STAGE; and, since the backdrop
+// blur (rulings BB-A, BB-D, BB-J), five more: BACKDROP_STAGE in both stages
+// (a material's blurred quad, shaders.metal's `backdrop_vertex` and
+// `backdrop_fragment`), and PASS_STAGE (a full-target triangle; with
+// DOWNSAMPLE_STAGE or GAUSSIAN_STAGE its fragment is one blur pass,
+// shaders.metal's `backdrop_pass_vertex`, `backdrop_downsample_fragment`,
+// `backdrop_gaussian_fragment`, statement for statement, TE-AD).
 // Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96),
 // image 4 (64, uploaded as recorded), transform 4 (64, `MUITransform`, ruling
 // GX-F). Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing
-// boundary. A primitive's transform index (rect lane 7 .y and image lane 3 .z
+// boundary. A backdrop record (MUIBackdrop, 96 bytes) is 6 lanes, uploaded as
+// recorded. A primitive's transform index (rect lane 7 .y and image lane 3 .z
 // bits 8…31, glyph lane 5 .y) is 0 for today's code; i > 0 reads transform
 // record i − 1 — shaders.metal's transformed branches, statement for statement.
+#ifdef PASS_STAGE
+// ---------------------------------------------------------------------------
+// The blur passes (ruling BB-D, BB-S). `PassConstants` is shaders.metal's
+// `BackdropBlurPass`: the source rectangle (origin x, y, size w, h) in the
+// source texture, the Gaussian's sigma at this level and its axis. Texels are
+// FETCHED, never filtered: a point sampler at the texel centre returns the
+// texel exactly (the Metal shader `read`s; a sampler is bound so the stage's
+// resource is the combined image sampler SDL's SPIR-V convention expects).
+// ---------------------------------------------------------------------------
+struct PassVertexOut {
+    float4 position : SV_Position;
+};
+#ifdef VERTEX_STAGE
+PassVertexOut main(uint vertexID : SV_VertexID) {
+    float2 p = float2(float((vertexID << 1) & 2), float(vertexID & 2));
+    PassVertexOut result;
+    result.position = float4(p * 2.0 - 1.0, 0.0, 1.0);
+    return result;
+}
+#else
+Texture2D<float4> source : register(t0, space2);
+SamplerState sourceSampler : register(s0, space2);
+cbuffer Pass : register(b0, space3) { int4 passSource; float passSigma; int passHorizontal; };
+float4 fetch(int2 texel) {
+    uint width, height;
+    source.GetDimensions(width, height);
+    return source.SampleLevel(sourceSampler, (float2(texel) + 0.5) / float2(width, height), 0);
+}
+float4 main(PassVertexOut input) : SV_Target0 {
+    int2 p = int2(input.position.xy);
+    int2 origin = passSource.xy;
+    int2 last = passSource.zw - 1;
+#ifdef DOWNSAMPLE_STAGE
+    int2 lo = min(2 * p, last);
+    int2 hi = min(2 * p + 1, last);
+    float4 a = fetch(origin + int2(lo.x, lo.y)) + fetch(origin + int2(hi.x, lo.y));
+    float4 b = fetch(origin + int2(lo.x, hi.y)) + fetch(origin + int2(hi.x, hi.y));
+    return (a + b) * 0.25;
+#else
+    float sigma = passSigma;
+    int radius = sigma > 0.0 ? int(ceil(3.0 * sigma)) : 0;
+    int2 axis = passHorizontal != 0 ? int2(1, 0) : int2(0, 1);
+    float twoSigmaSquared = 2.0 * sigma * sigma;
+    float total = 1.0;
+    float4 sum = fetch(origin + min(p, last));
+    for (int i = 1; i <= radius; i++) {
+        float w = exp(-float(i * i) / twoSigmaSquared);
+        total += 2.0 * w;
+        int2 l = clamp(p - axis * i, int2(0, 0), last);
+        int2 r = clamp(p + axis * i, int2(0, 0), last);
+        sum += w * (fetch(origin + l) + fetch(origin + r));
+    }
+    return sum / total;
+#endif
+}
+#endif
+#else
 #if defined(GLYPH_STAGE) || defined(IMAGE_STAGE)
 #define SPRITE_STAGE
 #endif
@@ -26,6 +90,14 @@ Texture2D<float4> image : register(t0, space2);
 SamplerState imageSampler : register(s0, space2);
 StructuredBuffer<float4> primitives : register(t1, space2);
 StructuredBuffer<float4> transforms : register(t2, space2);
+#elif defined(BACKDROP_STAGE)
+// The blurred level-L texture; `drawConstants` is (region origin x, y, uv scale
+// x, y), shaders.metal's `draw` (BB-R).
+Texture2D<float4> blurred : register(t0, space2);
+SamplerState blurredSampler : register(s0, space2);
+StructuredBuffer<float4> primitives : register(t1, space2);
+StructuredBuffer<float4> transforms : register(t2, space2);
+cbuffer Draw : register(b0, space3) { float4 drawConstants; };
 #else
 StructuredBuffer<float4> primitives : register(t0, space2);
 StructuredBuffer<float4> transforms : register(t1, space2);
@@ -55,6 +127,8 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
     uint base = id * 6;
 #elif defined(IMAGE_STAGE)
     uint base = id * 4;
+#elif defined(BACKDROP_STAGE)
+    uint base = id * 6;
 #else
     uint base = id * 8;
 #endif
@@ -64,6 +138,8 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
     uint transformIndex = asuint(primitives[base + 5].y);
 #elif defined(IMAGE_STAGE)
     uint transformIndex = asuint(primitives[base + 3].z) >> 8;
+#elif defined(BACKDROP_STAGE)
+    uint transformIndex = asuint(primitives[base + 5].y) >> 8;
 #else
     uint transformIndex = asuint(primitives[base + 7].y) >> 8;
 #endif
@@ -214,8 +290,45 @@ float4 rectShade(uint base, float2 pixelPosition, float s) {
 }
 #endif
 #endif
+#ifdef BACKDROP_STAGE
+// shaders.metal's `backdrop_coverage`: the rect shader's outer coverage of a
+// white borderless rect of the record's bounds and shape (the record's lanes:
+// bounds 0, mask 1, mask radii 2, corner radii 3, tint 4, (order, shape, sigma,
+// opacity) 5), every distance scaled by `s`.
+float backdropCoverage(uint base, float2 pixelPosition, float s) {
+    float4 bounds = primitives[base];
+    float2 halfSize = bounds.zw * 0.5;
+    float2 p = pixelPosition - (bounds.xy + halfSize);
+    if ((asuint(primitives[base + 5].y) & 0xFF) == 1) {
+        return saturate(0.5 - ellipseSDF(p, halfSize) * s);
+    }
+    float radius = cornerRadius(p, primitives[base + 3]);
+    return saturate(0.5 - rectSDF(p, halfSize, radius) * s);
+}
+#endif
 float4 main(VertexOut input) : SV_Target0 {
-#ifdef GLYPH_STAGE
+#ifdef BACKDROP_STAGE
+    // `c * o * (T + (1 - T.a) * B)`, premultiplied (shaders.metal's `backdrop_fragment`).
+    uint base = input.primitiveID * 6;
+    uint transformIndex = asuint(primitives[base + 5].y) >> 8;
+    float s = 1.0;
+    float clip;
+    if (transformIndex == 0) {
+        clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
+    } else {
+        uint record = (transformIndex - 1) * 4;
+        s = transforms[record + 1].z;
+        clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
+             * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
+    }
+    float c = backdropCoverage(base, input.pixelPosition, s) * clip;
+    float4 tc = hslaToRGBA(primitives[base + 4]);
+    float4 tint = float4(tc.rgb * tc.a, tc.a);
+    float opacity = primitives[base + 5].w;
+    float2 uv = (input.screenPosition - drawConstants.xy) * drawConstants.zw;
+    float4 behind = blurred.SampleLevel(blurredSampler, uv, 0);
+    return c * opacity * (tint + (1.0 - tint.a) * behind);
+#elif defined(GLYPH_STAGE)
     uint base = input.primitiveID * 6;
     uint width, height;
     atlas.GetDimensions(width, height);
@@ -288,4 +401,5 @@ float4 main(VertexOut input) : SV_Target0 {
     return rectShade(base, input.pixelPosition, s) * clip;
 #endif
 }
+#endif
 #endif

@@ -88,7 +88,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   overrides it (`ID-G`); a departed name starts fresh (`ID-R`). Two siblings
   with one id share an identity (72).
 - **`@State`**, **`Binding`** (SwiftUI's surface, `@MainActor` — 78),
-  **`ForEach`** (keyed identity, 79), **`@Environment`**/`EnvironmentValues`/
+  **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
@@ -350,6 +350,34 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
+
+**Input follow-ups** (`IF-`, record §93;
+[`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
+probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
+values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifiers` (the
+last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
+`onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
+leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
+no `onEnded`; `@GestureState` and `updating` are not built, `IF-A`).
+`.onModifierKeysChanged(mask:initial:_:)` (M; SwiftUI's macOS 15 spelling, a transparent
+scope whose action runs after the build) reports the held keys with a still pointer; a window
+that loses key reports them released. A scroll's events, momentum included, go to the
+element under its `.began`, and a scroll whose end never arrives (the window resigned key,
+or closed) gets a synthesized `.cancelled`.
+
+**Window drag** (`WD-`, record §97;
+[`superpowers/2026-10-12-window-drag-decisions.md`](superpowers/2026-10-12-window-drag-decisions.md);
+probe `probes/swiftui-window-drag.swift`). `WindowDragGesture` (A; SwiftUI's macOS 15 spelling,
+`Value` and `init()`, offered on every platform) attached with `.gesture`/`.highPriorityGesture`/
+`.simultaneousGesture` makes its element an opaque pointer target that, after a 5-point move,
+asks the platform to move the window and ends, cutting the other members of the press (D 275;
+`onCancelled` runs for one that had reported). It wins over gestures on a sibling beneath it
+(MetalCreator's full-window viewport under a hidden-title-bar handle) and loses to a `DragGesture`
+ahead of it. AppKit only moves the window (D 276); `.opacity(0)` does not disable it (D 277). Not
+built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click zoom. At the seam
+(M): the defaultless `PlatformWindow.performWindowDrag() -> Bool`; `MetalUITesting` gains
+`HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
+Human checks: group WD, unrun.
 
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
@@ -775,11 +803,16 @@ and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
 through the image path with a one-texel strip fast path, no shader change —
 `LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
 a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
-… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **fitted flat tint, no
-backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient`,
-`Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
-`phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
-deferral (`LK-A`).
+… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **tint over a real
+backdrop blur** of what is already drawn beneath it, GPU surfaces included, on both
+renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
+transform, opacity and transitions; the flat tint of `LK-L` remains for a path
+fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
+a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+`AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
+`.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
+`NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
+named deferral (`LK-A`, `BB-I`).
 
 ## Testing — M
 

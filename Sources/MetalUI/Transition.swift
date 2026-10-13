@@ -366,6 +366,19 @@ struct RenderEffect: Equatable {
                 }
                 blur.alpha *= alpha
                 p.kind = .blur(blur)
+            case .backdrop(var record):
+                // The blur scales with the layer it blurs for (the sigma is in
+                // device pixels); the fade multiplies the record's opacity,
+                // never its tint (`BB-G`).
+                record.bounds = map(record.bounds)
+                if p.innerMask {
+                    record.contentMask = map(record.contentMask)
+                    record.maskCornerRadii = map(record.maskCornerRadii)
+                }
+                record.cornerRadii = map(record.cornerRadii)
+                record.sigma *= sx
+                record.opacity *= alpha
+                p.kind = .backdrop(record)
             }
             return p
         }
@@ -456,6 +469,18 @@ struct CapturedPrimitive {
         /// One leaf blurred (`LK-K`): rasterized in colour at
         /// `insertIntoScene`, in its leaf's place.
         case blur(BlurPaint)
+        /// A material's backdrop record (`BB-A`, `BB-G`): a ghost or a drag
+        /// preview replays it and blurs the live backdrop at its place.
+        case backdrop(MUIBackdrop)
+
+        /// The kind with a backdrop read as its flat tint rect: what the CPU
+        /// leaf rasterizers (shadow, blur, the raster keys) see (`BB-H`).
+        /// `insertThroughScopes` already degrades a backdrop that reaches a
+        /// shadow, blur or composite scope, so this is the belt to its braces.
+        var flatteningBackdrop: Kind {
+            if case let .backdrop(record) = self { return .rect(record.flatTintRect) }
+            return self
+        }
     }
 
     var kind: Kind
@@ -480,6 +505,18 @@ struct CapturedPrimitive {
         CapturedPrimitive(kind: .surface(q, target: target), layer: layer, innerMask: innerMask)
     }
 
+    static func backdrop(_ b: MUIBackdrop, layer: Int, innerMask: Bool) -> CapturedPrimitive {
+        CapturedPrimitive(kind: .backdrop(b), layer: layer, innerMask: innerMask)
+    }
+
+    /// A backdrop becomes its flat tint rect (`BB-H`, divergence 248): what a
+    /// CPU-rasterized leaf scope (`.shadow`, `.blur`, `.compositingGroup()`)
+    /// can hold. Any other kind is left alone.
+    mutating func degradeBackdropToFlatTint() {
+        guard case let .backdrop(record) = kind else { return }
+        kind = .rect(record.flatTintRect)
+    }
+
     /// The primitive's own bounds, in (local) device pixels.
     var bounds: MUIBounds {
         switch kind {
@@ -491,6 +528,7 @@ struct CapturedPrimitive {
         case .shadow(let shadow): shadow.bounds
         case .gradient(let gradient): gradient.bounds
         case .blur(let blur): blur.bounds
+        case .backdrop(let record): record.bounds
         }
     }
 
@@ -537,6 +575,10 @@ struct CapturedPrimitive {
         case .blur(var blur):
             blur.alpha *= alpha
             kind = .blur(blur)
+        case .backdrop(var record):
+            // The record's opacity, never the tint's alpha (`BB-A`, probe `O`).
+            record.opacity *= alpha
+            kind = .backdrop(record)
         }
     }
 }
@@ -550,5 +592,20 @@ extension MUIBounds {
         let maxY = min(origin.y + size.height, other.origin.y + other.size.height)
         return MUIBounds(origin: MUIPoint(x: minX, y: minY),
                          size: MUISize(width: max(maxX - minX, 0), height: max(maxY - minY, 0)))
+    }
+}
+
+extension MUIBackdrop {
+    /// The record's flat tint as a rect: `c · o · T`, the tint's alpha times
+    /// the record's opacity over the sharp backdrop -- today's `LK-L` flat
+    /// tint pixel for pixel (`BB-I`).
+    var flatTintRect: MUIRect {
+        var color = tint
+        color.a *= opacity
+        return MUIRect(bounds: bounds, contentMask: contentMask, maskCornerRadii: maskCornerRadii,
+                       background: color, borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                       cornerRadii: cornerRadii,
+                       borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+                       order: order, shape: shape)
     }
 }

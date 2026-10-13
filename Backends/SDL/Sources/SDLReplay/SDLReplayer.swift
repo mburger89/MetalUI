@@ -46,36 +46,49 @@ public final class SDLReplayer {
     /// Draws a recorded frame; `runs` overrides its draw list (the
     /// painter-order control).
     public func render(_ fixture: ReplayFixture, runs: [FixtureRun]? = nil) throws -> [UInt8] {
-        try fixture.rects.withUnsafeBytes { rects in
+        let regions = fixture.backdropRegions.map(Self.region)
+        return try fixture.rects.withUnsafeBytes { rects in
             try fixture.glyphs.withUnsafeBytes { glyphs in
                 try fixture.images.withUnsafeBytes { images in
                   try fixture.transforms.withUnsafeBytes { transforms in
+                   try fixture.backdrops.withUnsafeBytes { backdrops in
                     try draw(width: fixture.width, height: fixture.height, rects: rects, glyphs: glyphs,
-                             images: images, transforms: transforms,
+                             images: images, transforms: transforms, backdrops: backdrops, regions: regions,
                              textures: fixture.textures.map { ($0.width, $0.height, $0.pixels) },
                              runs: runs ?? fixture.runs, atlas: fixture.atlas,
                              atlasWidth: fixture.atlasWidth, atlasHeight: fixture.atlasHeight,
                              projection: fixture.projection)
+                   }
                   }
                 }
             }
         }
     }
 
+    /// A region as the bridge reads it: `width` 0 where nothing is left (the
+    /// record then draws its flat tint, ruling `BB-I`).
+    private static func region(_ region: Scene.BackdropRegion?) -> ReplayRegion {
+        guard let region else { return ReplayRegion(x: 0, y: 0, width: 0, height: 0) }
+        return ReplayRegion(x: Int32(region.x), y: Int32(region.y), width: Int32(region.width), height: Int32(region.height))
+    }
+
     /// Draws a finalized scene straight from its arrays, no copy.
     public func render(_ scene: Scene, atlas: GlyphAtlas, width: Int, height: Int,
                        projection: [Float], runs: [FixtureRun]? = nil) throws -> [UInt8] {
         let sceneRuns = runs ?? scene.drawList.map { FixtureRun(scene: $0) }
+        let regions = (0..<scene.backdrops.count).map { Self.region(scene.backdropRegion($0, target: (width, height))) }
         return try scene.rects.withUnsafeBytes { rects in
             try scene.glyphs.withUnsafeBytes { glyphs in
                 try scene.images.withUnsafeBytes { images in
                   try scene.transforms.withUnsafeBytes { transforms in
+                   try scene.backdrops.withUnsafeBytes { backdrops in
                     try draw(width: UInt32(width), height: UInt32(height), rects: rects, glyphs: glyphs,
-                             images: images, transforms: transforms,
+                             images: images, transforms: transforms, backdrops: backdrops, regions: regions,
                              textures: scene.textures.map { (UInt32($0.width), UInt32($0.height), $0.pixels) },
                              runs: sceneRuns, atlas: atlas.pixels,
                              atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height),
                              projection: projection)
+                   }
                   }
                 }
             }
@@ -89,6 +102,7 @@ public final class SDLReplayer {
 
     private func draw(width: UInt32, height: UInt32, rects: UnsafeRawBufferPointer, glyphs: UnsafeRawBufferPointer,
                       images: UnsafeRawBufferPointer, transforms: UnsafeRawBufferPointer,
+                      backdrops: UnsafeRawBufferPointer, regions: [ReplayRegion],
                       textures: [(UInt32, UInt32, [UInt8])],
                       runs: [FixtureRun], atlas: [UInt8], atlasWidth: UInt32, atlasHeight: UInt32,
                       projection: [Float]) throws -> [UInt8] {
@@ -109,14 +123,18 @@ public final class SDLReplayer {
                 atlas.withUnsafeBufferPointer { atlasBuffer in
                     projection.withUnsafeBufferPointer { matrix in
                         cTextures.withUnsafeBufferPointer { textureBuffer in
+                          regions.withUnsafeBufferPointer { regionBuffer in
                             replay_render(gpu, width, height,
                                 rects.baseAddress, UInt32(rects.count), glyphs.baseAddress, UInt32(glyphs.count),
                                 images.baseAddress, UInt32(images.count),
                                 transforms.baseAddress, UInt32(transforms.count),
+                                backdrops.baseAddress, UInt32(backdrops.count),
+                                regionBuffer.baseAddress, UInt32(regionBuffer.count),
                                 textureBuffer.baseAddress, UInt32(cTextures.count),
                                 runBuffer.baseAddress, UInt32(cRuns.count),
                                 atlasBuffer.baseAddress, atlasWidth, atlasHeight,
                                 matrix.baseAddress, &output)
+                          }
                         }
                     }
                 }

@@ -1,0 +1,32 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct type_Pass
+{
+    int4 passSource;
+    float passSigma;
+    int passHorizontal;
+};
+
+struct main0_out
+{
+    float4 out_var_SV_Target0 [[color(0)]];
+};
+
+fragment main0_out main0(constant type_Pass& Pass [[buffer(0)]], texture2d<float> source [[texture(0)]], sampler sourceSampler [[sampler(0)]], float4 gl_FragCoord [[position]])
+{
+    main0_out out = {};
+    int2 _45 = Pass.passSource.zw - int2(1);
+    int2 _46 = int2(2) * int2(gl_FragCoord.xy);
+    int2 _47 = min(_46, _45);
+    int2 _49 = min((_46 + int2(1)), _45);
+    uint2 _54 = uint2(source.get_width(), source.get_height());
+    uint2 _71 = uint2(source.get_width(), source.get_height());
+    uint2 _89 = uint2(source.get_width(), source.get_height());
+    uint2 _104 = uint2(source.get_width(), source.get_height());
+    out.out_var_SV_Target0 = ((source.sample(sourceSampler, ((float2(Pass.passSource.xy + _47) + float2(0.5)) / float2(float(_54.x), float(_54.y))), level(0.0)) + source.sample(sourceSampler, ((float2(Pass.passSource.xy + int2(_49.x, _47.y)) + float2(0.5)) / float2(float(_71.x), float(_71.y))), level(0.0))) + (source.sample(sourceSampler, ((float2(Pass.passSource.xy + int2(_47.x, _49.y)) + float2(0.5)) / float2(float(_89.x), float(_89.y))), level(0.0)) + source.sample(sourceSampler, ((float2(Pass.passSource.xy + _49) + float2(0.5)) / float2(float(_104.x), float(_104.y))), level(0.0)))) * 0.25;
+    return out;
+}
+

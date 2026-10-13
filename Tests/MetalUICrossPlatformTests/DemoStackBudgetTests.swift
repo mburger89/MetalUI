@@ -73,6 +73,7 @@ private func buildTheKeyFocusDemo() {
 private func buildTheAppShellDemo() {
     _ = appShellDemoContent()
     _ = appShellDocumentSectionBody()
+    _ = appShellDragHandleSectionBody()
 }
 
 /// The input-APIs canvas demo's tree, **in its own frame** for

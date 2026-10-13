@@ -368,6 +368,8 @@ private struct Named: Identifiable, Hashable {
                 Issue.record("\(name): no site here paints a path or a shadow")
             case .gradient, .blur:
                 Issue.record("\(name): no site here paints a gradient or a blur")
+            case .backdrop:
+                Issue.record("\(name): no site here paints a material")
             }
         }
         platform.simulateInput(up(moved(p, 50)))

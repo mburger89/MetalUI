@@ -354,6 +354,9 @@ public final class SDLPlatform: Platform {
             // A window this platform does not own is not ours to focus.
             guard windows[event.window_id] != nil else { return }
             focusedID = event.window_id
+            // The modifiers held at the moment (`IF-I`): SDL sends no key event
+            // for a key pressed while another window had focus.
+            windows[event.window_id]?.handle(event)
         case Int(MUI_EVENT_FOCUS_LOST):
             if focusedID == event.window_id { focusedID = nil }
         case Int(MUI_EVENT_ACCESSIBILITY):
@@ -960,6 +963,16 @@ public final class SDLWindow: PlatformWindow {
         return false
     }
 
+    /// Every `performWindowDrag()` call, in order (ruling `WD-F`).
+    public private(set) var windowDragRequests = 0
+
+    /// Records the request and answers `false`: the system title bar drags the
+    /// window itself (ruling `WD-F`, divergence 276).
+    public func performWindowDrag() -> Bool {
+        windowDragRequests += 1
+        return false
+    }
+
     /// The last pointer position a motion, button or wheel event delivered —
     /// where a pinch, which has none in SDL, is placed (ruling `CI-K` item 2).
     private var lastPointerPosition = Point(x: Pixels(0), y: Pixels(0))
@@ -1058,6 +1071,8 @@ public final class SDLWindow: PlatformWindow {
                                                   delta: SDLKeys.scrollDelta(x: event.dx, y: event.dy),
                                                   modifiers: modifiers, phase: .none, momentumPhase: .none,
                                                   isPrecise: false, timestamp: event.timestamp)))
+        case Int(MUI_EVENT_FOCUS_GAINED):
+            _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
             if textInputCaret != nil, Self.producesText(keycode: event.keycode, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)

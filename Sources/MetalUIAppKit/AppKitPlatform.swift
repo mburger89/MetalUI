@@ -72,6 +72,20 @@ final class MetalHostView: NSView {
     /// `performTitleBarPress` drags with. `nil` otherwise.
     private(set) var currentMouseDown: NSEvent?
 
+    /// The primary mouse-down of the press in progress, kept from its dispatch
+    /// until the matching mouse-up, a resign-key, a close, or the next primary
+    /// down replaces it (ruling `WD-E`) — what `performWindowDrag` drags with.
+    /// A secondary or control-press is never stored. `nil` otherwise.
+    private(set) var heldPress: NSEvent?
+
+    /// `true` only for the duration of `mouseDragged`'s `onInput` call: the one
+    /// time `performWindowDrag` may act (ruling `WD-E`).
+    private(set) var isDispatchingDrag = false
+
+    /// Forgets the held press (the mouse-up, resign key, close, or after the
+    /// drag acted: `performDrag(with:)` consumes the mouse-up itself).
+    func forgetHeldPress() { heldPress = nil }
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         onGeometryChange?()
@@ -194,6 +208,7 @@ final class MetalHostView: NSView {
             return
         }
         currentMouseDown = event
+        heldPress = event
         defer { currentMouseDown = nil }
         _ = onInput?(.mouseDown(mouseEvent(event)))
     }
@@ -204,6 +219,7 @@ final class MetalHostView: NSView {
             _ = onInput?(.rightMouseUp(mouseEvent(event, button: 1)))
             return
         }
+        heldPress = nil
         _ = onInput?(.mouseUp(mouseEvent(event)))
     }
 
@@ -357,6 +373,8 @@ final class MetalHostView: NSView {
             return
         }
         lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
+        isDispatchingDrag = true
+        defer { isDispatchingDrag = false }
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
                                               modifiers: modifiers(event))))
     }
@@ -621,7 +639,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// Drags the window with the mouse-down being dispatched —
     /// `NSWindow.performDrag(with:)` in production; a test injects a recorder
     /// (ruling `AS-J` item 2).
-    lazy var performWindowDrag: @MainActor (NSEvent) -> Void = { [weak self] event in
+    lazy var performTitleBarDrag: @MainActor (NSEvent) -> Void = { [weak self] event in
         self?.window.performDrag(with: event)
     }
 
@@ -644,10 +662,28 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     func performTitleBarPress(clickCount: Int) -> Bool {
         guard let event = hostView.currentMouseDown else { return false }
         switch clickCount {
-        case 1: performWindowDrag(event)
+        case 1: performTitleBarDrag(event)
         case 2: performTitleBarDoubleClick()
         default: return false
         }
+        return true
+    }
+
+    /// Drags the window with the held press's mouse-down —
+    /// `NSWindow.performDrag(with:)` in production; a test injects a recorder
+    /// (ruling `WD-E`, the injection style of `performTitleBarDrag`).
+    lazy var windowDragPerformer: @MainActor (NSEvent) -> Void = { [weak self] event in
+        self?.window.performDrag(with: event)
+    }
+
+    /// Ruling `WD-E`: acts only while the host view is dispatching a
+    /// mouse-dragged and holds the press's mouse-down; drags with that event
+    /// and answers `true`, then forgets the press (`performDrag` consumes the
+    /// mouse-up). Else `false`, running nothing.
+    func performWindowDrag() -> Bool {
+        guard hostView.isDispatchingDrag, let event = hostView.heldPress else { return false }
+        hostView.forgetHeldPress()
+        windowDragPerformer(event)
         return true
     }
 
@@ -704,6 +740,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     @objc private func controlActiveStateNotification(_ notification: Notification) {
+        if notification.name == NSWindow.didResignKeyNotification { hostView.forgetHeldPress() }
         refreshControlActiveState()
     }
 
@@ -713,6 +750,24 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         guard state != lastControlActiveState else { return }
         lastControlActiveState = state
         onControlActiveStateChange?(state)
+        // A window that becomes key learns the modifiers held now (`IF-I`): a
+        // key pressed while another window was key sent this one no
+        // `flagsChanged`.
+        if state == .key { _ = onInput?(.modifiersChanged(Self.modifiers(currentModifierFlags()))) }
+    }
+
+    /// The modifier keys held now: `NSEvent.modifierFlags` in production, a
+    /// test's stand-in otherwise.
+    var currentModifierFlags: @MainActor () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }
+
+    /// `flags` as MetalUI's modifiers.
+    static func modifiers(_ flags: NSEvent.ModifierFlags) -> Modifiers {
+        var m: Modifiers = []
+        if flags.contains(.shift) { m.insert(.shift) }
+        if flags.contains(.control) { m.insert(.control) }
+        if flags.contains(.option) { m.insert(.option) }
+        if flags.contains(.command) { m.insert(.command) }
+        return m
     }
 
     // MARK: Reduce Motion (plan task 13, ruling AN-AD)
@@ -1066,6 +1121,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        hostView.forgetHeldPress()
         displayLink?.invalidate()
         displayLink = nil
         onClose?()

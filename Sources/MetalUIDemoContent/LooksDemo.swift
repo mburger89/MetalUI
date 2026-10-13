@@ -675,8 +675,48 @@ func gradientsBlurMaterialsSection() -> some Element {
         looksCompositingGroupRow()
         looksMaterialsRow(scheme: .light)
         looksMaterialsRow(scheme: .dark)
+        backdropBlurSection()
     }
     .alignItems(.flexStart)
+}
+
+/// A real backdrop blur (C21, rulings `BB-A`, `BB-D`; human checks BB1-BB6): the
+/// six materials as panels over wide red and blue stripes and a yellow disc,
+/// so the 52-point blur is visible as the stripes melt into purple behind each
+/// panel and stay sharp outside it. **Its own function** (Windows' 1 MB stack,
+/// `LK-X`: no `Component` over a loop), reached only with
+/// `METALUI_LOOKS_DEMO=1`, so the fourteen offscreen images do not move.
+@MainActor
+func backdropBlurSection() -> some Element {
+    ZStack {
+        backdropStripes()
+        Circle().fill(Color.yellow).frame(width: Pixels(70), height: Pixels(70)).offset(x: Pixels(120), y: Pixels(-6))
+        backdropPanels()
+    }
+    .frame(width: Pixels(520), height: Pixels(110))
+}
+
+/// Twenty-six alternating stripes, 20 points wide.
+@MainActor
+private func backdropStripes() -> some Element {
+    HStack(spacing: Pixels(0)) {
+        ForEach(0..<26, id: \.self) { k in
+            (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(20), height: Pixels(110))
+        }
+    }
+}
+
+/// The six materials as panels, side by side.
+@MainActor
+private func backdropPanels() -> some Element {
+    HStack(spacing: Pixels(8)) {
+        ForEach(0..<looksMaterials.count, id: \.self) { i in
+            Text(looksMaterials[i].0).font(size: 10)
+                .frame(width: Pixels(76), height: Pixels(60))
+                .background(looksMaterials[i].1)
+                .clipShape(RoundedRectangle(cornerRadius: Pixels(10)))
+        }
+    }
 }
 
 /// A vertical (strip), a diagonal and a radial gradient.

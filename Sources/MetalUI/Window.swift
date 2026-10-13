@@ -155,6 +155,36 @@ public final class Window {
         didSet { setNeedsRedraw() }
     }
 
+    /// The modifier keys held (ruling `IF-D` item 2): set from
+    /// `.modifiersChanged` and from the modifiers of every key, pointer and
+    /// scroll event, and reset on leaving key. Handed to the lifecycle store
+    /// that `onModifierKeysChanged` scopes read; a change dirties the window
+    /// only when the last build held such a scope, so an app with none pays
+    /// nothing. Not an `environment` write (it would dirty every draw).
+    var currentModifiers: EventModifiers = [] {
+        didSet {
+            guard currentModifiers != oldValue else { return }
+            animationStore.lifecycle.currentModifiers = currentModifiers
+            if animationStore.lifecycle.hasModifierObservers { setNeedsRedraw() }
+        }
+    }
+
+    /// Takes the modifiers `event` carries (`IF-D` item 2). Never claims.
+    private func noteModifiers(from event: InputEvent) {
+        switch event {
+        case .modifiersChanged(let m): currentModifiers = m
+        case .keyDown(let e), .keyUp(let e): currentModifiers = e.modifiers
+        case .mouseDown(let e), .mouseUp(let e), .mouseMoved(let e), .mouseDragged(let e),
+             .rightMouseDown(let e), .rightMouseUp(let e), .rightMouseDragged(let e),
+             .otherMouseDown(let e), .otherMouseUp(let e), .otherMouseDragged(let e):
+            currentModifiers = e.modifiers
+        case .scrollWheel(let e): currentModifiers = e.modifiers
+        case .magnify(let e): currentModifiers = e.modifiers
+        case .rotate(let e): currentModifiers = e.modifiers
+        default: break
+        }
+    }
+
     /// The platform window's key state (ruling EV-AB), the root source of
     /// every frame's `controlActiveState`: read from
     /// `PlatformWindow.controlActiveState` at construction and updated through
@@ -864,8 +894,11 @@ public final class Window {
             // is what marks the window dirty (ruling EV-AB).
             self?.controlActiveState = state
             if state != .key {
+                self?.currentModifiers = []   // a window does not see flags while not key (`IF-D` item 4)
                 self?.dismissInWindowMenu()   // `MN-F` item 3
                 self?.hideTooltip()   // `MN-P` item 2
+                self?.cancelPinchArena()   // its end is lost for certain (`IF-F` item 4)
+                self?.synthesizeTerminalScroll()   // `IF-H`
             }
         }
         platformWindow.onAccessibilityReduceMotionChange = { [weak self] reduceMotion in
@@ -878,6 +911,15 @@ public final class Window {
             // A bound text selection is published after every input that moved it
             // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
             defer { self.publishFocusedSelection() }
+            self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
+            // A flags report carries nothing else: it dirties the window through
+            // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
+            // the app's `onInput` claims it (`IF-N` item 3).
+            if case .modifiersChanged = event {
+                let handled = self.onInput?(event) ?? false
+                if handled { self.setNeedsRedraw() }
+                return handled
+            }
             // Hover and active tracking run first and unconditionally, and
             // never claim the event: they are side-channel state a later
             // frame's `paint` reads back (§3.3, §3.4), not a form of dispatch.
@@ -1640,6 +1682,8 @@ public final class Window {
     /// such an action makes dirties a window that will not draw again
     /// (`LC-P` item 6).
     func runDisappearancesForClose() {
+        cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
+        synthesizeTerminalScroll()   // `IF-H`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
@@ -2027,13 +2071,53 @@ public final class Window {
     /// a `ScrollView` sees nothing over it (`CI-AH` item 1, narrowed by `CI-AL`
     /// item 3: a custom `StyledElement` that calls the public
     /// `registerScrollRegion` under its own id and takes `.onScrollWheel` does
-    /// share it, and its handler runs first — unpinned). Each event is
-    /// dispatched at its own position — no latching (`CI-AD`).
+    /// share it, and its handler runs first — unpinned). **A trackpad scroll is
+    /// latched** (`IF-G`, `ScrollLatch`): `.began` records the cover, and the
+    /// scroll's later events and its momentum go to that cover's chain wherever
+    /// the pointer is; every other event is dispatched at its own position.
     private func applyScroll(_ event: ScrollEvent) -> Bool {
+        // A wheel mouse (and every SDL event) has no phase: never latched, and
+        // it ends a latch (`IF-G` item 3).
+        if event.phase == .none, event.momentumPhase == .none { scrollLatch = nil }
+        // A trackpad scroll that began somewhere goes on there (`IF-G` items
+        // 1, 2): the latched cover's chain, no `contains` test. An element
+        // that left the frame falls back to the pointer, for good.
+        if ScrollLatch.isGestureEvent(event), var latch = scrollLatch {
+            if let cover = latchedScrollCover(latch) {
+                let claimed = dispatchScrollChain(event, cover: cover, candidates: lastHitboxes.indices.filter {
+                    let region = lastHitboxes[$0]
+                    return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
+                        && region.layer == cover.layer
+                })
+                scrollLatch = latch.advance(with: event) ? latch : nil
+                return claimed
+            }
+            scrollLatch = nil
+        }
+        let (claimed, cover) = applyScrollAtPointer(event)
+        if event.phase == .began {
+            scrollLatch = cover.map { ScrollLatch(cover: $0, event: event) }   // replaces any latch
+        }
+        return claimed
+    }
+
+    /// The latched cover's hitbox in the last frame: its opaque hitbox on the
+    /// latched layer, else any region of that id and layer; `nil` when the
+    /// element left the frame.
+    private func latchedScrollCover(_ latch: ScrollLatch) -> Hitbox? {
+        let here = lastHitboxes.filter { $0.id == latch.cover && $0.layer == latch.layer }
+        return here.last(where: { $0.opaque }) ?? here.last
+    }
+
+    /// The pointer path of `applyScroll` (`DD-Y`, `CI-AH`, `CI-AL`): the cover
+    /// of the one ranking at the event's position, and whether the chain
+    /// claimed. The cover is returned (`nil` when nothing was under the
+    /// pointer) for the latch.
+    private func applyScrollAtPointer(_ event: ScrollEvent) -> (claimed: Bool, cover: Hitbox?) {
         let point = event.position
         guard let topIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.pointer?.scrollWheel != nil
-        }) else { return false }
+        }) else { return (false, nil) }
         var cover = lastHitboxes[topIndex]
         // A legacy `.onScrollWheel` registers its non-opaque wheel region under
         // the element's own id after the element's opaque hitbox, so it ranks
@@ -2052,6 +2136,15 @@ public final class Window {
             return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
                 && region.layer == cover.layer && region.contains(point)
         }
+        return (dispatchScrollChain(event, cover: cover, candidates: candidates), cover)
+    }
+
+    /// Walks the cover's chain over `candidates` (the regions on the cover's
+    /// layer — those containing the pointer on the pointer path, all of them
+    /// on the latched one): at each id, the wheel handlers innermost first,
+    /// the multi-line editor at the cover, then the id's scroller.
+    private func dispatchScrollChain(_ event: ScrollEvent, cover: Hitbox, candidates: [Int]) -> Bool {
+        let point = event.position
         var cursor: GlobalElementID? = cover.id
         while let id = cursor {
             let here = candidates.filter { lastHitboxes[$0].id == id }
@@ -2081,6 +2174,32 @@ public final class Window {
             cursor = id.parent
         }
         return cover.opaque
+    }
+
+    /// Ends a scroll that lost its terminal phase (`IF-H`): on leaving key and
+    /// on a close, a scroll still in flight gets one synthesized terminal
+    /// event — delta zero, `.cancelled` in the stage under way — offered to
+    /// the latched cover's wheel handlers, innermost first, up to the first
+    /// scroller or the first handler that answers `true`. It moves nothing, and
+    /// the latch is over.
+    func synthesizeTerminalScroll() {
+        guard let latch = scrollLatch else { return }
+        scrollLatch = nil
+        guard let event = latch.terminalEvent, let cover = latchedScrollCover(latch) else { return }
+        var cursor: GlobalElementID? = cover.id
+        while let id = cursor {
+            let here = lastHitboxes.filter { $0.id == id && $0.layer == latch.layer }
+            for region in here.reversed() {
+                guard let handler = region.handlers.pointer?.scrollWheel else { continue }
+                var local = event
+                let p = region.localPoint(event.position)
+                local.location = Point(x: Pixels(p.x.value - region.origin.x.value),
+                                       y: Pixels(p.y.value - region.origin.y.value))
+                if StateDispatch.dispatching(to: region.id, { handler(local) }) { return }
+            }
+            if here.contains(where: { $0.scroll != nil }) { return }
+            cursor = id.parent
+        }
     }
 
     /// Moves `region`'s stored offset by the wheel's component on its axis.
@@ -2592,6 +2711,9 @@ public final class Window {
     /// first event, alive while a begun magnify or rotate has not ended.
     private var pinchArena: GestureArena?
 
+    /// Where the trackpad scroll under way is latched (`IF-G`), or `nil`.
+    private var scrollLatch: ScrollLatch?
+
     /// The secondary or other button's arena (`CI-F` item 3) and its button
     /// number, or `nil`: formed at that button's press, ended by its release.
     /// Apart from `gestureArena`, so a middle drag during a pending primary
@@ -2648,9 +2770,14 @@ public final class Window {
         default: return false
         }
         // A `.began` of a kind the arena already holds active means that
-        // kind's end was lost: the stale arena is dropped silently and the
-        // event forms a new one at its own position (ruling `CI-AB` item 2).
-        if phase == .began, let arena = pinchArena, arena.holdsActivePinch(of: event) { pinchArena = nil }
+        // kind's end was lost: the stale arena is dropped — its owners told
+        // by `onCancelled`, ahead of the new pinch's callbacks (`IF-F` item 2)
+        // — and the event forms a new one at its own position (ruling `CI-AB`
+        // item 2).
+        if phase == .began, var arena = pinchArena, arena.holdsActivePinch(of: event) {
+            pinchArena = nil
+            runGestureCallbacks(arena.cancel())
+        }
         if pinchArena == nil {
             guard phase != .ended, phase != .cancelled,
                   let arena = makeArena(at: position, mode: .pinch) else { return false }
@@ -2683,8 +2810,39 @@ public final class Window {
         case .otherMouseDragged(let mouse): return buttonMove(mouse, button: mouse.buttonNumber)
         case .rightMouseUp(let mouse): return buttonRelease(mouse, button: MouseButton.secondary.buttonNumber)
         case .otherMouseUp(let mouse): return buttonRelease(mouse, button: mouse.buttonNumber)
+        case .mouseMoved:
+            // AppKit and SDL send a move with no button only when none is down
+            // (`rightMouseDragged`/`otherMouseDragged` while one is held), so
+            // a live button arena here lost its release — a modal panel or a
+            // native menu took it (`IF-F` item 3). Never claims the move.
+            guard var arena = buttonArena else { return false }
+            buttonArena = nil
+            pendingContextMenu = nil
+            runGestureCallbacks(arena.cancel())
+            return false
         default: return false
         }
+    }
+
+    /// Cancels the pinch arena, if any (`IF-F` item 4): a window that leaves
+    /// key never receives the pinch's end.
+    func cancelPinchArena() {
+        guard var arena = pinchArena else { return }
+        pinchArena = nil
+        runGestureCallbacks(arena.cancel())
+    }
+
+    /// Cancels every live arena — the pinch's, the button's and the primary's
+    /// — for a closing window (`IF-F` item 5).
+    func cancelLiveArenas() {
+        var callbacks: [GestureCallback] = []
+        if var arena = gestureArena { callbacks += arena.cancel() }
+        if var arena = buttonArena { callbacks += arena.cancel() }
+        if var arena = pinchArena { callbacks += arena.cancel() }
+        gestureArena = nil
+        buttonArena = nil
+        pinchArena = nil
+        runGestureCallbacks(callbacks)
     }
 
     private func buttonPress(_ mouse: MouseEvent, button: Int) -> Bool {
@@ -2692,7 +2850,10 @@ public final class Window {
         // the stale arena is dropped silently, as a primary press's
         // re-formation drops one (ruling `CI-AB` item 1). Another button's
         // press while an arena is alive is ignored (`CI-AA` item 4).
-        if buttonArena != nil, buttonArenaButton == button { buttonArena = nil }
+        if var stale = buttonArena, buttonArenaButton == button {
+            buttonArena = nil
+            runGestureCallbacks(stale.cancel())   // `IF-F` item 2
+        }
         guard buttonArena == nil, var arena = makeArena(at: mouse.position, mode: .button(button)) else {
             return false
         }
@@ -2766,6 +2927,9 @@ public final class Window {
                 StateDispatch.dispatching(to: owner) { run() }
             case .beginDrag(let owner, let source, let point):
                 beginDragSession(from: owner, source: source, pressedAt: point)
+            case .beginWindowDrag:
+                _ = platformWindow.performWindowDrag()
+                endPressForDrag()
             }
         }
     }
