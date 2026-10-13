@@ -401,6 +401,33 @@ private struct SwitchHolder: Component {
     #expect(memos.entryCount == 0 && memos.armedSessions == 0)
 }
 
+private struct NeverEqual: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        let _ = IVStats.leaves += 1
+        Text("never").frame(width: Pixels(60), height: Pixels(14))
+    }
+    static func == (l: NeverEqual, r: NeverEqual) -> Bool { false }
+}
+
+/// 2.7b (`IV-L` item 5) — a component that re-evaluates every frame lets the window go
+/// idle: the token write before each re-evaluation retires the previous session
+/// without dirtying the window. The unequal-value arm of 2.7 changes its input only on
+/// frames the test draws, so it cannot see this; here nothing but the frame itself
+/// causes the re-evaluation. Mutation: the serial check dropped in the memo's
+/// `onChange` — every miss's token write fires the previous session as a real change,
+/// the window is dirtied from inside its own build and `runUntilIdle()` throws.
+@Test @MainActor func aComponentThatReEvaluatesEveryFrameLetsTheWindowIdle() async throws {
+    let window = try harnessWindow { VStack(spacing: 0) { NeverEqual().equatable() } }
+    for _ in 0..<5 { redraw(window) }
+    IVStats.reset()
+    try await window.runUntilIdle()
+    let frames = window.framesDrawn
+    redraw(window); redraw(window)
+    #expect(IVStats.leaves == 2, "it did re-evaluate on both forced frames")
+    try await window.runUntilIdle()
+    #expect(window.framesDrawn == frames + 2, "and nothing but the two forced frames was drawn")
+}
+
 /// 2.8 — a skipped component survives 50 forced redraws (the per-frame sentinel
 /// flush of the window's own session) without re-evaluating. Mutation: the memo
 /// session reading `redrawSentinel.tick` — every forced redraw fires it.
@@ -575,7 +602,7 @@ private struct LifeHolder: Component {
 /// with skipping off, frame by frame (scene bytes, accessibility tree) and in the
 /// logs. Mutation: the entry keyed by the component's type alone, ignoring its id —
 /// the two `LifeItem` siblings share one entry, so a tap on one shows in both and
-/// the differential reddens (`IV-M`).
+/// the differential stays equal but the quiet frames evaluate the siblings against each other's entry and `contentEvaluations` reads above 0 (`IV-M`, `IV-P`).
 @Test @MainActor func lifecycleAnimationAndListInsideAMemoizedComponent() async throws {
     func make(memo: Bool) throws -> (TestWindow, IVParam, LifeLog) {
         let param = IVParam(), log = LifeLog()
@@ -603,7 +630,13 @@ private struct LifeHolder: Component {
     for w in [wa, wb] { w.scroll(at: pt(50, 220), byDeltaX: 0, deltaY: -60) }
     for w in [wa, wb] { redraw(w) }
     try compare("a list scroll")
-    #expect(wa.lastFrameWork.contentSkips > 0 || wa.frameWork.contains { $0.contentSkips > 0 })
+    // Quiet frames after the taps: the two same-typed siblings (separate `@State`, one
+    // tapped) each keep their own entry, so nothing is evaluated (IV-P: a type-only key
+    // cannot go stale, it thrashes — this count is what sees it).
+    for w in [wa] { w.resetFrameWork() }
+    for _ in 0..<3 { redraw(wa) }
+    let quiet = wa.frameWork.dropFirst().reduce(wa.frameWork[0], +)
+    #expect(quiet.contentEvaluations == 0 && quiet.contentSkips > 0, "evaluations \(quiet.contentEvaluations) skips \(quiet.contentSkips)")
 }
 
 // MARK: 2.13 — an off-main write
