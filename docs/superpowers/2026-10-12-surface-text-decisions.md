@@ -15,7 +15,7 @@ SwiftUI has nothing: `WindowTextSystem::layout_line`/`shape_line` (a `ShapedLine
 carries its `width`), which is how a gpui editor measures a string outside any
 element.
 
-**Next unused id: `GT-I`.**
+**Next unused id: `GT-J`.**
 
 ## GT-A — Measure first; the overlay is linear, cache-served and rebuild-bound, so `drawText` is deferred
 
@@ -120,8 +120,11 @@ Canvas measure is not always the layout answer.
 laid out at under the same proposal and environment**, by construction and by a
 differential test. It lays nothing out, places no node, records no state,
 shapes only through the text system's own caches, and an infinite or `nil` axis
-is unbounded. **Empty string: (0, 0)** — the layout's answer, not the Canvas's
-(0, 14): divergence 295. Baselines (`firstBaseline(in:)`, probe G: 13 for a
+is unbounded. **Empty string: (0, one line)** — `Text("")` lays out 0 wide and
+one line tall (measured at implementation: frame (0, 18) in Noto Sans 13), so
+the measure says the same; SwiftUI's *view* is (0, 0) (probe E2) and its Canvas
+measure (0, 14) (probe E), which MetalUI's layout matches in kind: divergence
+295, corrected by `GT-I`. Baselines (`firstBaseline(in:)`, probe G: 13 for a
 13 pt text) are **not built** (GT-G).
 
 **Cost if wrong.** A measure that disagreed with layout would place a chip a
@@ -235,3 +238,33 @@ for moving rich labels on SDL, after C14's re-take.
 
 **Cost if wrong.** A moving Markdown label on SDL shapes once per frame, as
 today; no regression.
+
+## GT-I — The measure is the leaf's unrounded answer; a laid-out frame is that answer rounded; an empty `Text` is one line tall (implementation, lane 1)
+
+**Question.** GT-C says a measured size "equals the frame a `Text` is laid
+out at". Does it, to the bit?
+
+**Evidence** (`SurfaceTextMeasureTests` 1.1, run red on the first build): a
+`Text("12.5 mm")` measures (53.482, 18) and its frame reads (54, 18).
+`LayoutTree.roundNativeStoredRects` applies `roundLayout` (cumulative edges,
+`Rounding.swift`) to every stored rect after positioning, so a frame is the
+leaf's answer rounded to whole points by its edges (difference < 1 point); the
+kernel records the unrounded width for paint (`measuredWidth(of:)`). And
+`Text("")` lays out (0, 18), not (0, 0): `proposalTextMeasurement` pads
+nothing and the empty string's `totalHeight` is one line (existing behaviour,
+undocumented until now; SwiftUI's view answers (0, 0), probe E2).
+
+**Ruling.** (1) `measure(in:)` returns the **unrounded** leaf answer — the
+number layout's measure function returns, which paint wraps at — and the
+differential tests compare a laid-out frame **within one point** (and a frame's
+height exactly when width is fixed). An app placing a chip rounds up itself
+(`.rounded(.up)`); rounding to the device grid is the kernel's, not the
+measurer's. (2) The empty string measures as it lays out: width 0, height one
+line. Divergence 295 is therefore "an empty `Text` is one line tall where
+SwiftUI's view is zero tall", pinned by test 1.7; it is a fact about layout
+that the measurer inherits, not new behaviour. The spec's 1.7 name
+`anEmptyStringMeasuresZeroByZero` becomes `anEmptyStringMeasuresAsItLaysOut`.
+
+**Cost if wrong.** A caller wanting SwiftUI's empty-is-zero writes
+`string.isEmpty ? .zero : …` themselves; changing layout's empty answer is a
+separate, visible change to every empty `Text` (not this branch's).

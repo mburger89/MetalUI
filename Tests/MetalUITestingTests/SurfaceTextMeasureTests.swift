@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUIScene
 import MetalUITesting
@@ -43,8 +44,11 @@ private struct MeasuringProposal: Component {
     }
 }
 
+/// A measure against the frame a text was laid out at. The kernel rounds every
+/// stored rect to whole points by cumulative edges (`roundLayout`), so the frame
+/// is the measure to within less than one point (ruling GT-I).
 private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
-    a.width == b.size.width && a.height == b.size.height
+    abs(a.width.value - b.size.width.value) < 1 && abs(a.height.value - b.size.height.value) < 1
 }
 
 /// 1.1 — a measured text is the frame a laid-out text gets (probe A0), by default
@@ -102,23 +106,27 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
     let lineHeight = try #require(line.sizes.first).height
     let n = try #require(narrow.sizes.first), c = try #require(capped.sizes.first)
     #expect(n.width <= Pixels(60))
-    #expect(n.height >= lineHeight * Pixels(2), "wrapped to several lines")
+    #expect(n.height >= Pixels(lineHeight.value * 2), "wrapped to several lines")
     #expect(c.height == lineHeight, "a height below one line keeps one line")
     #expect(c.height < n.height)
-    #expect(same(n, try window.frame(ofID: "wrapped")))
+    // The frame is 60 wide whatever the widest line is; the height is the measure's.
+    let laid = try window.frame(ofID: "wrapped")
+    #expect(laid.size.width == Pixels(60))
+    #expect(abs(laid.size.height.value - n.height.value) < 1)
 }
 
 /// 1.4 — measuring lays nothing out and builds nothing: 50 measures add no
-/// layout measure call, no build and no placement. Mutation: `resolve`
+/// layout measure call, no build, no placement and no layout over one measure
+/// (and 0 over none), and one text-system measure each. Mutation: `resolve`
 /// registers a native leaf.
 @Test @MainActor func measuringLaysNothingOutAndBuildsNothing() throws {
-    func run(count: Int, measuring: Bool) throws -> (FrameWork, CountingTextSystem) {
+    func run(count: Int) throws -> (FrameWork, CountingTextSystem) {
         let box = MeasureBox()
         let counting = CountingTextSystem(harnessTextSystem())
         let window = try TestWindow(size: sz(400, 300), textSystem: { counting }) {
             VStack(spacing: 0) {
                 Text("fixed")
-                if measuring { Measuring(box: box, text: Text("12.5 mm"), proposal: unbounded, count: count) }
+                Measuring(box: box, text: Text("12.5 mm"), proposal: unbounded, count: count)
             }
         }
         window.tick()
@@ -127,17 +135,16 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
         let w = window.frameWork
         return (w.dropFirst().reduce(w[0], +), counting)
     }
-    let (base, baseCounting) = try run(count: 0, measuring: false)
-    let (one, oneCounting) = try run(count: 1, measuring: true)
-    let (fifty, fiftyCounting) = try run(count: 50, measuring: true)
-    #expect(one.builds == base.builds && fifty.builds == base.builds)
-    #expect(fifty.layoutMeasureCalls == one.layoutMeasureCalls)
-    #expect(fifty.layoutMeasureCalls == base.layoutMeasureCalls)
-    #expect(fiftyCounting.places == baseCounting.places && oneCounting.places == baseCounting.places)
-    let perMeasure = oneCounting.measures - baseCounting.measures
-    try #require(perMeasure > 0)
-    #expect(fiftyCounting.measures - baseCounting.measures == 50 * perMeasure)
+    let (none, noneCounting) = try run(count: 0)
+    let (one, oneCounting) = try run(count: 1)
+    let (fifty, fiftyCounting) = try run(count: 50)
+    #expect(one.builds == none.builds && fifty.builds == none.builds)
+    #expect(one.layoutMeasureCalls == none.layoutMeasureCalls && fifty.layoutMeasureCalls == none.layoutMeasureCalls)
+    #expect(fifty.layoutCacheMisses == none.layoutCacheMisses && fifty.layoutCacheHits == none.layoutCacheHits)
+    #expect(oneCounting.places == noneCounting.places && fiftyCounting.places == noneCounting.places)
     #expect(fiftyCounting.layouts == 0)
+    try #require(oneCounting.measures > noneCounting.measures)
+    #expect(fiftyCounting.measures - oneCounting.measures == 49 * (oneCounting.measures - noneCounting.measures))
 }
 
 /// 1.5 — a rich text and a Markdown literal measure as they lay out (`RT-F`).
@@ -163,29 +170,41 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
     #expect(markdown.sizes[0].width != plain.sizes[0].width, "the literal is parsed, the verbatim one is not")
 }
 
-/// 1.6 — the `ProposalText` overload. Mutation: it measures a `Text`'s default.
+/// 1.6 — the `ProposalText` overload answers as the `Text` one and as the laid-out
+/// text. Mutation: it measures a `Text`'s default font.
 @Test @MainActor func aProposalTextMeasuresAsItLaysOut() throws {
-    let box = MeasureBox()
+    let proposal = MeasureBox(), text = MeasureBox()
     let window = try harnessWindow {
         VStack(spacing: 0) {
-            MeasuringProposal(box: box, text: ProposalText("12.5 mm").font(size: 20))
-            ProposalText("12.5 mm").font(size: 20).id("p")
+            VStack(spacing: 0) {
+                MeasuringProposal(box: proposal, text: ProposalText("12.5 mm"))
+                Measuring(box: text, text: Text("12.5 mm"), proposal: unbounded)
+                Text("12.5 mm").id("t")
+            }.font(.system(size: 20))
         }
     }
-    let size = try #require(box.sizes.first)
-    #expect(same(size, try window.frame(ofID: "p")))
-    #expect(size.height > 16)
+    let size = try #require(proposal.sizes.first)
+    #expect(size == text.sizes.first)
+    #expect(same(size, try window.frame(ofID: "t")))
+    #expect(size.height > 18, "20 pt, not the 13 pt default")
 }
 
-/// 1.7 — the empty string is (0, 0), the layout's answer (divergence 295).
-/// Mutation: a lower bound applied.
-@Test @MainActor func anEmptyStringMeasuresZeroByZero() throws {
-    let box = MeasureBox()
-    _ = try harnessWindow {
-        VStack(spacing: 0) { Measuring(box: box, text: Text(""), proposal: unbounded) }
+/// 1.7 — the empty string is `Text("")`'s layout answer: no width and one line
+/// of height (divergence 295; SwiftUI's view is 0 by 0, probe E2). Mutation: a
+/// zero height forced.
+@Test @MainActor func anEmptyStringMeasuresAsItLaysOut() throws {
+    let empty = MeasureBox(), line = MeasureBox()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Measuring(box: empty, text: Text(""), proposal: unbounded)
+            Measuring(box: line, text: Text("x"), proposal: unbounded)
+            Text("").id("e")
+        }
     }
-    let size = try #require(box.sizes.first)
-    #expect(size.width == 0 && size.height == 0)
+    let size = try #require(empty.sizes.first)
+    #expect(size.width == 0)
+    #expect(size.height == line.sizes.first?.height)
+    #expect(same(size, try window.frame(ofID: "e")))
 }
 
 /// 1.8 — a `\.self` reset keeps the measurer. Mutation: `scopedValues` stops
@@ -208,6 +227,6 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
 /// 1.9 — a measurer no frame stamped traps naming itself. Mutation: return zero.
 @Test @MainActor func aMeasurerWithNoFrameTrapsNamingItself() async {
     await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        _ = await MainActor.run { EnvironmentValues().textMeasurer.resolve(Text("x")) }
+        await MainActor.run { _ = EnvironmentValues().textMeasurer.resolve(Text("x")) }
     }
 }

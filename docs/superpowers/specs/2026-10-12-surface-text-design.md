@@ -41,7 +41,8 @@ Semantics (GT-C): exactly `proposalTextMeasurement` / `richTextMeasurement`
 (layout's functions) over `resolveTextStyle(request, in: environment)` and the
 frame's text system; the environment is the one at the reading element; the
 resolved value captures the style, key and system, not the `Text`. Empty string
-(0, 0) (divergence 295). Delivery (GT-D): get-only computed property over an
+as `Text("")` lays out: 0 wide, one line tall (divergence 295, `GT-I`); the answer is
+the unrounded leaf answer, a frame is that rounded to whole points (`GT-I`). Delivery (GT-D): get-only computed property over an
 internal stamped system box; trap (named) with none.
 
 Files, lane 1: new `Sources/MetalUI/TextMeasurer.swift`; edits to
@@ -51,8 +52,7 @@ Files, lane 1: new `Sources/MetalUI/TextMeasurer.swift`; edits to
 `TextMeasurer.ResolvedText`, the two `resolve`, `measure(in:)`,
 `textMeasurer` — class `M`, divergence column 296), re-recorded census
 (`closeout-public-api.sh`), doc comments, `docs/api-overview.md` (a "Measuring
-text" paragraph), `docs/divergences.md` rows 295 (empty string measures (0, 0),
-probe E vs E2) and 296 (carrier is the environment, no `GraphicsContext`),
+text" paragraph), `docs/divergences.md` rows 295 (an empty `Text` is one line tall, probe E2) and 296 (carrier is the environment, no `GraphicsContext`),
 `docs/testing.md` (a recipe: measure in a `Component`, assert in a
 `TestWindow`), `docs/migration.md` none. Tests in
 `Tests/MetalUITestingTests/SurfaceTextMeasureTests.swift` (portable, plain
@@ -99,8 +99,8 @@ metrics read through the same system):
   Markdown literal: measure == laid-out frame (RT-F). Mutation: rich takes the
   plain path.
 - **1.6 `aProposalTextMeasuresAsItLaysOut`**: `ProposalText` overload.
-- **1.7 `anEmptyStringMeasuresZeroByZero`**: (0, 0) (divergence 295 pin). Mutation:
-  lower bound applied.
+- **1.7 `anEmptyStringMeasuresAsItLaysOut`**: width 0, height one line, equal to
+  the frame (divergence 295 pin, `GT-I`). Mutation: a zero height forced.
 - **1.8 `anEnvironmentResetKeepsTheMeasurer`**: `.environment(\.self,
   EnvironmentValues())` below a Component; it still measures. Mutation:
   `scopedValues` stops restoring the box.
