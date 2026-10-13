@@ -394,6 +394,10 @@ public final class Frame {
     /// event and a press do no lookup.
     private(set) var keyRegionCount = 0
     private(set) var focusOnPressCount = 0
+    /// The resign-only regions (`resignsFocusOnPress`, ruling `RF-C` item 2)
+    /// this frame registered: not key regions, so `keyRegionCount` and the
+    /// hover lookup never see them; a press does a lookup for them.
+    private(set) var resignRegionCount = 0
 
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
@@ -1682,7 +1686,8 @@ public final class Frame {
         // `hidden()` gates exactly as the hover region. No other stage reads
         // these fields, so every existing ranking is unchanged (spec test
         // A32). A frame with neither registers nothing here.
-        if let keyboard = handlers.keyboard, keyboard.isKeyRegion || handlers.focusesOnPress,
+        if let keyboard = handlers.keyboard,
+           keyboard.isKeyRegion || keyboard.resignsOnPress || handlers.focusesOnPress,
            enabled, hitTestingDisabledDepth == 0, keyboardHiddenDepth == 0 {
             var only = Handlers()
             only.keyboard = keyboard
@@ -1691,6 +1696,7 @@ public final class Frame {
             _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
             if keyboard.isKeyRegion { keyRegionCount += 1 }
+            if keyboard.resignsOnPress && !keyboard.isKeyRegion { resignRegionCount += 1 }
             if handlers.focusesOnPress { focusOnPressCount += 1 }
         }
         // **Accessibility rides here too, and it was not always here.** The

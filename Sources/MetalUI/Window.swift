@@ -1820,6 +1820,7 @@ public final class Window {
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
         lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
         lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
+        lastResignRegionCount = frame.resignRegionCount   // RF-C item 2
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -2389,6 +2390,7 @@ public final class Window {
     /// a key event and a press do no lookup.
     var lastKeyRegionCount = 0
     var lastFocusOnPressCount = 0
+    var lastResignRegionCount = 0
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
