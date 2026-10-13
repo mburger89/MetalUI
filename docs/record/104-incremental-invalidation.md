@@ -272,6 +272,18 @@ over-conservative, not missing; owner: a test measuring with two alignments, the
 weak spots stand (`aWarmDragLoopCountsLayoutWorkPerFrame` does not separate (P) from (M); the release timing of the
 integer-tag signature is not re-taken).
 
+**Branch checker's re-take at `af8761d8` (screen locked; `AppKitPresentationTests` skipped, 9 `@Test`s).**
+Clean build and `--skip` run: **3654 tests in 3 suites passed** (214 s), `FR-J ... succeeded=true`, 0 `error:`,
+the only `warning:` SwiftPM's deprecation notice. The fourteen images are scene-identical, 0 px, `d279f34d` -> `HEAD` and
+`HEAD` -> `f6f865c1`, with the script's controls at their recorded values. `Backends/SDL` on macOS 125 Swift Testing
+tests passed; the Linux image build and test passed (122). Two own mutations: (1) `ContentMemo.materialize` without
+its `previous == component` test reddened `anEqualComponentSkipsItsContent`, `anUnequalValueReEvaluates`,
+`aSkippedSubtreeKeepsItsStateAndItsIdentity`, `aMemoizedSubtreeDrawsTheSceneOfAnUnmemoizedOne`,
+`aComponentThatReEvaluatesEveryFrameLetsTheWindowIdle` and the demo test; (2) dropping `spacing` from the stack's layout
+signature reddened `everyRegistrarParameterIsInItsSignature` and, in verify mode, trapped
+`aMemoHitEqualsAFreshLayoutBitForBit` (a precondition, so the run ends there; re-run with that test skipped it completed
+3653, 1 issue). Finding fixed: this record carried section 6 twice (a stale first copy, 3591 tests); the duplicate is removed.
+
 ## §7 Carried, with owners
 
 | item | why | owner |
