@@ -207,3 +207,46 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     }
     #expect(restored == 3, "generations 2...4 restore A")
 }
+
+private final class Drift: @unchecked Sendable { var value = 0.0 }
+
+/// A custom layout whose placement is impure (it moves its child one point further each time it is
+/// asked) under one signature: the stand-in for a key that omitted an input.
+private struct Drifting: ProposalLayout, Hashable {
+    let drift: Drift
+    static func == (l: Drifting, r: Drifting) -> Bool { true }
+    func hash(into hasher: inout Hasher) {}
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: SizeD(width: 50, height: 20))
+    }
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        drift.value += 1
+        subviews[0].place(at: Point(x: bounds.x + drift.value, y: bounds.y), anchor: .topLeading,
+                          proposal: ProposedSize(width: 10, height: 10))
+    }
+}
+
+/// 2.8 — verify mode traps when a restore differs from a fresh placement (`IV-J`, `SB-AD` 4). The
+/// impure layout above is restored on its second sight and compared with a fresh placement that moves
+/// the child again. **Mutation:** the `precondition` in `subtreePlacement` removed (or `memo.verifies`
+/// not consulted) lets the process exit normally -> red. Run as written; the aborted text names `SB-AD`.
+@Test func aVerifiedRestoreThatDiffersFromAFreshPlacementTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let memo = LayoutMemo(verifies: true)
+        let drift = Drift()
+        for generation in 1...3 as ClosedRange<UInt64> {
+            let tree = LayoutTree(generation: generation)
+            tree.memo = memo
+            let leaf = tree.newNativeLeaf(key: "k") { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            let custom = tree.newNativeLayout(Drifting(drift: drift), children: [leaf])
+            tree.markPlacementRoot(custom)
+            let other = tree.newNativeLeaf(key: "o\(generation)") { _ in LayoutMeasurement(size: SizeD(width: 4, height: 4)) }
+            let root = tree.newNativeLinearStack(children: [custom, other], axis: .vertical, alignment: .topLeading)
+            tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
+                                     in: LayoutRect(x: 0, y: 0, width: 100, height: 100))
+            memo.endFrame()
+        }
+    }
+    let text = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(text.contains("SB-AD"), "aborted, but not at the subtree placement's verification:\n\(text)")
+}
