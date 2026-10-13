@@ -1399,6 +1399,60 @@ case is pinned headless only, `BackdropRenderTests` 2.2, `SDLBackdropTests` 3.5)
   cross-fades with the live backdrop (the ghost blurs what is there now,
   `BB-G`). **Observed:**
 
+## WD. Window drag — `WindowDragGesture` (item C22, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*Source: record 97 `97-window-drag.md`, rulings `WD-A`...
+(`docs/superpowers/2026-10-12-window-drag-decisions.md`), spec section 6
+(`docs/superpowers/specs/2026-10-12-window-drag-design.md`).* Run
+`METALUI_APP_SHELL_DEMO=1 swift run MetalUIDemo` (AppKit; the hidden-title-bar
+section's 40-point handle over a canvas whose `DragGesture` counts its drags and
+cancellations; WD1-WD6) and, from `Backends/SDL`, `METALUI_APP_SHELL_DEMO=1 swift
+run $(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (WD7).
+Pinned headless: the arena (`WindowDragTests`), the headless seam
+(`WindowDragHeadlessTests`), AppKit's held press and dispatch-only drag
+(`AppKitWindowDragTests` 4.1-4.3), SDL's record-and-`false` (`SDLAppShellTests` 4.4).
+**An agent cannot press and drag a real window; `NSWindow.performDrag(with:)` from a
+mouse-dragged dispatch is the unproven call (`WD-D`).**
+
+- [ ] **WD1.** Press-drag on the handle **moves the window**, the canvas count does not
+  move (`cut off` does not either unless the press began a canvas drag), and the
+  window follows to the release. Compare with SwiftUI's own `WindowDragGesture` in a
+  scratch app for what the neighbouring gesture reports (divergence 275; the probe's
+  delivery was synthetic). **Observed:**
+- [ ] **WD2.** A click on a `Button` placed in the handle clicks it; a 3-point wobble
+  does not drag; a 6-point move does, with no jump of the window. **Observed:**
+- [ ] **WD3.** After a drag, hover, the pointer style and the next press work, also
+  after the window moved under a stationary pointer. **Observed:**
+- [ ] **WD4.** A secondary press on the handle opens the context menu and drags
+  nothing. **Observed:**
+- [ ] **WD5.** A double click on the handle: no zoom (`WD-A`); record what real
+  SwiftUI does in the scratch app. **Observed:**
+- [ ] **WD6.** Full screen and Stage Manager: dragging the handle does nothing
+  harmful (full screen: the window does not move). **Observed:**
+- [ ] **WD7.** Linux/Windows (SDL): the handle claims the press and moves nothing;
+  the system title bar drags the window (divergence 276). **Observed:**
+
+## SL. Text selection — the binding in a real window (item C25, user request 2026-10-02, MetalCreator CT-b, not a plan task; record §96)
+
+*Run with `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` (macOS 15). An
+agent cannot: these are looks, an input method and other platforms.*
+
+- [ ] **SL1.** Double click the title: it becomes a field with the whole
+  title highlighted in the accent wash; typing replaces it; Return or Escape
+  ends the rename. **Observed:**
+- [ ] **SL2.** "Open note": the editor takes focus with the caret at the end
+  of the text and the end in view; typing appends. **Observed:**
+- [ ] **SL3.** With a Japanese input method, compose in the title field and
+  press "Caret to start" in the note block's neighbour (or write the binding
+  from a timer): the marked text stays where it is and the commit lands where
+  the composition began (`SL-H`). **Observed:**
+- [ ] **SL4.** Click, arrows and Shift-arrows in either field update the
+  `selection a..<b` readout. **Observed:**
+- [ ] **SL5.** The same demo section on Linux (SDL) and Windows. **Observed:**
+- [ ] **SL6.** Type in the note, press "Caret to start", type again, then
+  undo: the undo removes the typing, not the caret move (`SL-I`).
+  **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

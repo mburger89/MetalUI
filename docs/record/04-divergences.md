@@ -2650,3 +2650,23 @@ primary press, as SwiftUI does (`FC3`, `KF-F`; pins
 
 **Amended:** **166** — the flat grey tint is now drawn over the real backdrop blur; it remains alone
 only in 248's cases and where a renderer cannot blur. **Retired:** none. Labels 250–254 unused.
+
+## 2026-10-12: 275–277 added (window drag)
+
+- **275** — a window drag cuts its neighbours. SwiftUI runs `WindowDragGesture` alongside a
+  `DragGesture` on its own view or parent and fires both gestures' callbacks (probe
+  `swiftui-window-drag.swift` `W3b`, `W4`, `W4b`, `W11`; a plain child `DragGesture` excludes its
+  parent, `W11d`); a `DragGesture` ahead of it wins (`W3`, `W11b`). MetalUI's leaf is ready at a
+  5-point move (`tapSlop`), ends, runs the `onCancelled` of members that had reported and fails the
+  rest, because in a live session the system's tracking loop consumes the rest of the press (`WD-C`).
+  Measured only in a synthetic delivery; human check WD1 decides. Pin
+  `aHandleInsideTheViewportCutsTheViewportsDragThatHadReported`.
+- **276** — a window drag moves a window on AppKit only. SwiftUI's gesture moves the window on
+  macOS 15 and later; `PlatformWindow.performWindowDrag()` is `performDrag(with:)` on AppKit and a
+  recorded `false` on SDL, whose system title bar drags itself (`WD-F`). Pin
+  `aPlatformAnsweringFalseStillEndsThePress`, `sdlPerformWindowDragRecordsAndAnswersFalse`.
+- **277** — an `.opacity(0)` handle still captures. SwiftUI's is inert (`W8c`, positive control
+  `W8f`); MetalUI gates no hitbox on opacity for any gesture (`WD-J`). Pin
+  `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` arm 4.
+
+**Amended:** none. **Retired:** none. 145 live (after §94's 245–249); labels 278–284 of this branch's range unused.

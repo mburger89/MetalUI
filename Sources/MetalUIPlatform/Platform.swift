@@ -312,6 +312,20 @@ public protocol PlatformWindow: AnyObject {
     /// `false`; any other `clickCount` answers `false`. SDL records it and
     /// answers `false` (its system title bar drags itself).
     func performTitleBarPress(clickCount: Int) -> Bool
+
+    // **Migration** (`WD-E`, `docs/migration.md`): a conformer outside this
+    // repository adds `func performWindowDrag() -> Bool { false }`.
+
+    /// Moves the window with the pointer for the press now in progress; `true`
+    /// when the platform did (ruling `WD-E`). `Window` calls it only from
+    /// inside its `onInput` handling of the mouse-dragged whose press formed an
+    /// arena in which a `WindowDragGesture` won, and ends the press whatever
+    /// the answer (`WD-D`). AppKit acts only while its host view is dispatching
+    /// that press's mouse-dragged, with the press's mouse-down event, else
+    /// answers `false`. SDL records it and answers `false` (its system title
+    /// bar drags itself, `WD-F`); the headless window records it and answers
+    /// its option.
+    func performWindowDrag() -> Bool
 }
 
 /// A windowing platform: opens windows and runs the event loop. Conformers:

@@ -908,6 +908,9 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // A bound text selection is published after every input that moved it
+            // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
+            defer { self.publishFocusedSelection() }
             self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
             // A flags report carries nothing else: it dirties the window through
             // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
@@ -2924,6 +2927,9 @@ public final class Window {
                 StateDispatch.dispatching(to: owner) { run() }
             case .beginDrag(let owner, let source, let point):
                 beginDragSession(from: owner, source: source, pressedAt: point)
+            case .beginWindowDrag:
+                _ = platformWindow.performWindowDrag()
+                endPressForDrag()
             }
         }
     }
@@ -3085,6 +3091,20 @@ public final class Window {
 
     private func setEditState(_ id: GlobalElementID, _ state: TextEditState) {
         stateTable.withState(id, initial: TextEditState()) { $0 = state }
+    }
+
+    /// Writes the focused bound field's selection to its binding when an input
+    /// changed it (`SL-B`): against the edited text, under `StateDispatch`, and
+    /// remembering the value so the next frame does not apply it back.
+    private func publishFocusedSelection() {
+        guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id),
+              let sink = target.selectionSink else { return }
+        let text = currentText(id, target)
+        var state = editState(id)
+        guard let range = TextEditing.publication(state: state, text: text) else { return }
+        state.reported = range
+        state.seenBinding = ErasedSelection(value: StateDispatch.dispatching(to: id) { sink(range, text) })   // ID-F: input, never a phase
+        setEditState(id, state)
     }
 
     /// The pressed slider's open edit and its `onEditingChanged` (ruling

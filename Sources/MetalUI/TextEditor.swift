@@ -52,6 +52,13 @@ public struct TextEditor: Element, StyledElement {
     public var text: String
     /// Called with the edited text after each edit.
     public var onChange: @MainActor (String) -> Void
+    /// The selection the caller wants applied (`SL-B`); `nil` is the field's own.
+    var selection: AnyHashable?
+    /// Writes the field's selection, given as a range and its text, to the caller
+    /// after each input that moved it and returns the value written (`SL-B`); `nil`
+    /// when the field has no selection binding. Type-erased: `TextSelection` is
+    /// macOS 15 (`SL-L`).
+    var selectionWriter: (@MainActor (Range<Int>, String) -> AnyHashable)?
     /// The text's own colour; `nil` inherits the foreground style.
     public var foregroundColor: Color?
     /// The field's own font request (ruling TE-F item 2): inherit the
@@ -94,6 +101,34 @@ public struct TextEditor: Element, StyledElement {
     /// ```
     public init(_ placeholder: String = "", text: Binding<String>) {
         self.init(placeholder, text: text.wrappedValue, onChange: { text.wrappedValue = $0 })
+    }
+
+    /// Bound to `text` and to a `TextSelection` (SwiftUI's
+    /// `TextEditor(_:text:selection:)`, rulings `SL-A`, `SL-B`): the field writes the
+    /// selection to `selection` after each input that moved it, and applies a value
+    /// written there on the next frame. A `nil` binding is the field's own
+    /// selection. Both writes happen in input, never in a phase.
+    @available(macOS 15, *)
+    public init(_ placeholder: String = "", text: Binding<String>, selection: Binding<TextSelection?>) {
+        self.init(placeholder, text: text.wrappedValue, selection: selection.wrappedValue,
+                  onChange: { text.wrappedValue = $0 },
+                  onSelectionChange: { selection.wrappedValue = $0 })
+    }
+
+    /// The controlled spelling of the selection binding (`SL-A`): shows `text` and
+    /// `selection` and reports each edit to `onChange` and each selection the
+    /// field makes to `onSelectionChange`.
+    @available(macOS 15, *)
+    public init(_ placeholder: String, text: String, selection: TextSelection?,
+                onChange: @escaping @MainActor (String) -> Void,
+                onSelectionChange: @escaping @MainActor (TextSelection) -> Void) {
+        self.init(placeholder, text: text, onChange: onChange)
+        self.selection = selection.map { AnyHashable($0) }
+        self.selectionWriter = { range, text in
+            let written = TextSelection(offsets: range, in: text)
+            onSelectionChange(written)
+            return AnyHashable(written)
+        }
     }
 
     /// Sets the editor's own font by family and size; `nil` family is the
@@ -267,6 +302,17 @@ public struct TextEditor: Element, StyledElement {
         let system = pass.frame.textSystem
         var state = TextEditState()
         pass.withState(id, initial: TextEditState()) { state = $0 }
+        // A bound selection (`SL-B`, `SL-D`): a value the field did not publish is
+        // applied before the geometry reads the state; the baseline lets the first
+        // input publish only a real change. Same phase-time write as the scroll's.
+        if selectionWriter != nil {
+            let selection = self.selection, text = self.text
+            pass.withState(id, initial: TextEditState()) { stored in
+                TextEditing.reconcile(binding: selection, text: text, state: &stored)
+                if stored.reported == nil { stored.reported = stored.clamped(to: text.count).selection }
+                state = stored
+            }
+        }
         let g = geometry(bounds: bounds, state: state, system: system,
                                 font: resolvedFont(in: pass.environment, system: system))
         // The caret reveal and the clamp are written back in the phase, as
@@ -294,7 +340,7 @@ public struct TextEditor: Element, StyledElement {
         textLines.visibleHeight = Double(bounds.size.height.value)
         handlers.textInput = TextInputTarget(
             text: text, caretOffsets: [], originX: originX, caretRect: caretArea,
-            onChange: onChange, onSubmit: nil, lines: textLines, originY: originY,
+            onChange: onChange, onSubmit: nil, selectionSink: selectionWriter, lines: textLines, originY: originY,
             lineHeight: g.lineHeight, maxScrollY: g.maxScrollY)
         if handlers.axNode.isEmpty {
             handlers.axNode = AXNode(role: .textArea, label: placeholder.isEmpty ? nil : placeholder, value: text)

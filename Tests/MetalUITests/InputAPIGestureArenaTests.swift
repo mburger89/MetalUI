@@ -59,6 +59,7 @@ private func run(_ callbacks: [GestureCallback], _ log: ALog) {
         case .gesture(_, let run): run()
         case .click(_, let handler, _): handler()
         case .beginDrag: log.entries.append("beginDrag")
+        case .beginWindowDrag: log.entries.append("beginWindowDrag")
         }
     }
 }

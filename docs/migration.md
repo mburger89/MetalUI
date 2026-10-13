@@ -270,6 +270,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package (input APIs) | implement `func setPointerStyle(_ style: PlatformPointerStyle) {}` — an empty body is honest where the platform cannot change the pointer; no default | `CI-J` item 2 |
 | a `PlatformWindow` conformer outside the package (app shell) | implement the seven new requirements — `var onCloseRequest: (() -> Bool)?` (ask it before a user's close; `nil` or `true` closes), `func close()` (close without asking, then fire `onClose` exactly once), `func setDocumentEdited(_: Bool) {}`, `func setRepresentedFilePath(_: String?) {}`, `func setTitleBarStyle(_: PlatformTitleBarStyle) -> Bool { false }`, `var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }` and `func performTitleBarPress(clickCount: Int) -> Bool { false }` — the empty bodies and `false` answers are honest where the platform has no edited marker, represented file, hidden title bar or title-bar drag; no defaults | `AS-H`, `AS-J` |
 | a `Platform` conformer outside the package (app shell) | implement the four new requirements — `var onTerminateRequest: (() -> CloseRequestReply)?` (ask it before ending the application on the platform's own quit; `nil` answers `.now`), `func replyToTerminateRequest(_: Bool)` (end on `true` if a `.later` is pending, else nothing), `func terminate()` (end, asking nobody) and `var onOpenURLs: (([String]) -> Void)?` (call it with the absolute URL strings the system asks to open, parking them until it is set) — no defaults | `AS-H` |
+| a `PlatformWindow` conformer outside the package (window drag) | implement `func performWindowDrag() -> Bool { false }` — honest where the platform cannot move the window from a press (SDL: its system title bar drags itself); AppKit answers `true` only while dispatching the mouse-dragged of a held press; no default | `WD-E` |
 | an exhaustive `switch` over `AccessibilityRole` (platform services) | add `.popUpButton` and `.alert` arms (or `default:`) | `SV-S` |
 | an exhaustive `switch` over `AccessibilityRole` (controls and looks) | add `.progressIndicator`, `.busyIndicator` and `.colorWell` arms (or `default:`); a bridge outside the package maps them (AppKit `.progressIndicator`/`.colorWell`, AccessKit `PROGRESS_INDICATOR` — a busy one without a numeric value — and `COLOR_WELL`) | `LK-G` |
 | an exhaustive `switch` over `LayoutModifier` (controls and looks) | add a `.blur(radius:)` arm (or `default:`) | `LK-R` item 3 |
@@ -403,6 +404,12 @@ spelling. MetalUI measures the stack a frame uses internally (`PE-L`, a
 debug-only meter), but **does not warn yet**: four of the repository's own
 demos measure above the 512 KiB threshold the design chose, so the warning
 waits for a threshold chosen against them (`PE-T`).
+
+### Text selection (`SL-`, record §96)
+
+None: additive. `TextSelection` and the `selection:` initialisers are `@available(macOS 15, *)`; no
+`PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no conformer
+changes. A field with no `selection:` runs no new code beyond one `nil` check.
 
 ## See also
 
