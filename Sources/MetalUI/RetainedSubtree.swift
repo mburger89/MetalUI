@@ -135,7 +135,8 @@ struct LedgerSnapshot {
 // MARK: - The replay key
 
 /// Everything paint reads that is not in the subtree (`SB-F`, spec §4.2), as flat `Equatable` parts.
-/// **Every part has a separating arm in `everyKeyComponentSeparates`.**
+/// **Every part has a separating arm in `everyKeyComponentSeparates` or is covered twice** (the scale factor and the window
+/// size by the environment fingerprint, the rects and the interior by each other; record 109 §5).
 struct AmbientKey: Equatable {
     var clip: [Float]
     var offset: [Float]

@@ -2,11 +2,11 @@
 
 Branch `perf/retained-subtrees` from `e85cb07a`. Not a plan task: item C14b of the gpui-gap priority list (user
 request 2026-10-02), the second half of C14 (record §104), requested by MetalCreator (gap PERF-b). Spec
-`docs/superpowers/specs/2026-10-13-retained-subtrees-design.md` (design phase; amended by `SB-S`…`SB-AA`), fixture spec
-`docs/superpowers/specs/2026-10-13-retained-subtrees-fixture.md`; rulings `SB-A`…`SB-AA` (`SB-A`…`SB-R` the design
-phase's, `SB-S`…`SB-AA` lane 1's) in `docs/superpowers/2026-10-13-retained-subtrees-decisions.md` (next unused `SB-AB`);
-probes `docs/probes/retained-subtrees/`. Divergence labels reserved 395–404: **none taken** (no public API, no
-SwiftUI-visible behaviour).
+`docs/superpowers/specs/2026-10-13-retained-subtrees-design.md` (design phase; amended by `SB-S`…`SB-AC`), fixture spec
+`docs/superpowers/specs/2026-10-13-retained-subtrees-fixture.md`; rulings `SB-A`…`SB-AC` (`SB-A`…`SB-R` the design
+phase's, `SB-S`…`SB-AC` lane 1's) in `docs/superpowers/2026-10-13-retained-subtrees-decisions.md` (next unused `SB-AD`);
+probes `docs/probes/retained-subtrees/`. Divergence labels reserved 395–404: **none taken** (no SwiftUI-visible
+behaviour; the new public declarations are `FrameWork`'s ten counters and the demo's content, census 3492 -> 3510).
 
 **Status: LANE 1 BUILT — as paint replay, not prepaint-and-paint replay (`SB-AA`).** @@STATUS@@
 
@@ -111,7 +111,108 @@ none (`SB-V`; 6.900 ms); (4) replay through the outer scopes cost about as much 
 the final primitives too and replays them straight when every outer scope is a plain effect and no other recorder is open
 (`SB-AB`; 6.569 ms); (5) on Linux the observation hop is asynchronous, three of the new tests wanted `rsSettle()`.
 
-@@MUTATIONS@@
+## §5 Mutations (every pin mutated; spellings and reddened tests named)
+
+Run in a `git clone` of the branch (`/tmp/sb-mut-clone`), one source edit at a time, `swift build --build-system native --build-tests`
+then the 37 retained-subtree tests, the edit restored from a copy and `git status --short` read clean after each (the driver is
+scratch; the table is its output). Two batches: the first found nine tests missing or too weak, which were fixed and the mutation
+re-run (marked in the text after the table); the table is the final reading of each mutation on the commit it names.
+
+| mutation | spelling | result | reddened |
+|---|---|---|---|
+| `key-clip` | `clip:` of the ambient key made `[]` | RED | `everyKeyComponentSeparates` |
+| `key-offset` | `offset:` made `[]` | RED | `everyKeyComponentSeparates` |
+| `key-opacity` | opacity constant 1 in `layerOpacityScale` | RED | `everyKeyComponentSeparates` |
+| `key-scale` | the scale factor constant 1 in `layerOpacityScale` | GREEN | - |
+| `key-contentsize` | `contentSize` zeroed in `layerOpacityScale` | GREEN | - |
+| `key-depths` | `depths:` made `[]` | GREEN | - |
+| `key-scopes` | `scopes:` made `[]` | RED | `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`, `everyKeyComponentSeparates` |
+| `key-environment` | `environment:` an empty `EnvironmentValues` | RED | `aRetainedFrameEqualsAFreshFrameOverAScript`, `everyKeyComponentSeparates` |
+| `key-rects` | `rects:` made `[]` | GREEN | - |
+| `key-interior` | `interior:` made 0 | GREEN | - |
+| `skipped-paints-not-added` | `skippedPaints += 0` in `replayPaint` | RED | `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| `hover-false` | the hover test `&& false` | RED | `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays` |
+| `press-false` | the press test `&& false` | RED | `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays` |
+| `focus-false` | the focus test `&& false` | RED | `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays`, `aRetainedFrameEqualsAFreshFrameOverAScript` |
+| `pointer-true` | the pointer/press/focus test always `true` | RED | `aBackdropInsideAReplayedSubtreeIsByteIdentical`, `aChildGetterReadInvalidatesItsEquatableParentsRecord`, `aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion`, `aDescendantStateChangeInvalidatesTheRecord`, `aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`, `aMissCostsTheOldWorkPlusTwoSnapshots`, `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays`, `aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates`, `aReplayTouchesItsRastersSoTheyAreNotDropped`, `aReplayedFrameKeepsItsAnimatedColourSlotsAlive`, `aReplayedHitboxKeepsTheRankingAtAnOverlap`, `aRetainedFrameEqualsAFreshFrameOverAScript`, `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord`, `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`, `anObservedReadInPaintInvalidatesTheRecord`, `anObservedReadInPrepaintInvalidatesTheRecord`, `everyKeyComponentSeparates`, `everyLedgerChannelMakesTheSubtreeIneligible`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| `versions-skipped` | the bind-journal version compare made `true` | RED | `aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion` |
+| `session-paint-dropped` | `RetainedSession.run` runs the paint body outside an observation window | RED | `anObservedReadInPaintInvalidatesTheRecord` |
+| `session-build-dropped` | same, the build session | RED | `aChildGetterReadInvalidatesItsEquatableParentsRecord`, `aRetainedFrameEqualsAFreshFrameOverAScript` |
+| `session-prepaint-dropped` | same, the prepaint session | RED | `anObservedReadInPrepaintInvalidatesTheRecord` |
+| `timevarying-build-ignored` | `build.timeVarying` ignored in `retainedEntryRefusal` | RED | `aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`, `everyLedgerChannelMakesTheSubtreeIneligible` |
+| `taint-activeanimation` | `Frame.noteActiveAnimation` no longer taints the log | GREEN | - |
+| `channel-customenv` | the custom-environment-key refusal removed | RED | `everyLedgerChannelMakesTheSubtreeIneligible` |
+| `channel-surface-taint` | `drawSurface` no longer taints | GREEN | - |
+| `channel-surface-ledger` | the `surfaceRequests` ledger channel removed | GREEN | - |
+| `channel-portal` | `pushLayer` no longer taints | RED | `everyLedgerChannelMakesTheSubtreeIneligible` |
+| `channel-statewrite` | `StateTable` write/`withState` no longer taints | RED | `aReplayedFrameKeepsItsAnimatedColourSlotsAlive`, `everyLedgerChannelMakesTheSubtreeIneligible`, `theBracketNodeDragReplaysEveryUnchangedSubtree` |
+| `descendant-eval-ignored` | the `evaluationsSoFar` comparison in `EquatableComponent.requestGroupLayout` removed (`SB-AC`) | RED | `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord` |
+| `channel-capturing-scope` | the capturing-scope taint in `processScopes` removed | RED | `aSubtreeHoldingATransitionIsIneligibleInFlightAndSettled` |
+| `scene-replay-dropped` | the recorded scene ops not replayed | RED | `aBackdropInsideAReplayedSubtreeIsByteIdentical`, `aRetainedFrameEqualsAFreshFrameOverAScript`, `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord` |
+| `marks-dropped` | the recorded `mark`s not replayed | RED | `aReplayedFrameKeepsItsAnimatedColourSlotsAlive` |
+| `snapshot-per-element` | a ledger snapshot per element prepaint | RED | `aMissCostsTheOldWorkPlusTwoSnapshots` |
+| `plain-switch-public` | `testingRetainedSubtrees` made `public` | RED | `thePlainImportCannotTurnReplayOff` |
+| `plain-counters-public` | `RetainedCounters` made `public` | RED | `theRecordIsUnreachableFromAPlainImport` |
+| `eviction-caller` | a caller of `GlyphAtlas.evictUnusedSince` added | RED | `theGlyphAtlasHasNoEvictionCaller` |
+| `frame-stored-property` | a stored property added to `Frame` | RED | `everyFrameChannelIsClassified` |
+| `environment-stored-property` | a stored field added to `EnvironmentValues` | RED | `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant` |
+| `touches-dropped` | the recorded animation-store touches not replayed | RED | `aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates` |
+| `noteboundary-height` | `|| boundary == 0` removed from `RetainLog.noteBoundary` (no final stream) | RED | `aReplayedHitboxKeepsTheRankingAtAnOverlap`, `aRetainedFrameEqualsAFreshFrameOverAScript`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| `finalscene-always` | `finalScene` kept whatever the outer scopes are | RED | `aRetainedFrameEqualsAFreshFrameOverAScript` |
+| `needsleaves-ignored` | `needsLeaves` ignored: the final stream replayed even into a live outer recorder | RED | `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord` |
+| `pair-rects-interior` | `rects:` and `interior:` both constant | RED | `everyKeyComponentSeparates` |
+| `pair-scale-displayscale` | the scale factor in the ambient key and `displayScale` in the environment fingerprint both constant | RED | `aRetainedFrameEqualsAFreshFrameOverAScript`, `everyKeyComponentSeparates` |
+| `pair-contentsize-windowsize` | `contentSize` in the ambient key and `windowSize` in the environment fingerprint both constant | GREEN | - |
+| `pair-surface-taint-ledger` | both the `drawSurface` taint and the `surfaceRequests` channel removed | RED | `everyLedgerChannelMakesTheSubtreeIneligible` |
+| `pair-activeanimation-taint-ledger` | both the `noteActiveAnimation` taint and the `timeNotes` channel removed | RED | `everyLedgerChannelMakesTheSubtreeIneligible` |
+| `hit-false` | the hit test `&& Int.random(in: 0...0) == 1` (never a hit) | RED | `aBackdropInsideAReplayedSubtreeIsByteIdentical`, `aChildGetterReadInvalidatesItsEquatableParentsRecord`, `aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion`, `aDescendantStateChangeInvalidatesTheRecord`, `aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`, `aMissCostsTheOldWorkPlusTwoSnapshots`, `aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays`, `aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates`, `aReplayTouchesItsRastersSoTheyAreNotDropped`, `aReplayedFrameKeepsItsAnimatedColourSlotsAlive`, `aReplayedHitboxKeepsTheRankingAtAnOverlap`, `aRetainedFrameEqualsAFreshFrameOverAScript`, `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord`, `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`, `aSubtreeHoldingATransitionIsIneligibleInFlightAndSettled`, `anObservedReadInPaintInvalidatesTheRecord`, `anObservedReadInPrepaintInvalidatesTheRecord`, `everyKeyComponentSeparates`, `everyLedgerChannelMakesTheSubtreeIneligible`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| `coverage-ignored` | `old.coverageComplete` left out of the hit test | RED | `aFrameRightAfterAMissObservesAgainSoASecondWriteIsSeen` |
+| `serial-ignored` | `old.contentSerial == entry.serial` left out | RED | `aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates`, `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord` |
+| `observedchange-ignored` | `!entry.observedChange` left out | RED | `aChildGetterReadInvalidatesItsEquatableParentsRecord`, `aRetainedFrameEqualsAFreshFrameOverAScript`, `aSkippedDescendantsLaterChangeInvalidatesItsAncestorsRecord`, `anObservedReadInPaintInvalidatesTheRecord`, `anObservedReadInPrepaintInvalidatesTheRecord` |
+| `key-ignored` | `old.key == key` left out | RED | `aRetainedFrameEqualsAFreshFrameOverAScript`, `aStaticLabelOverlayReplaysAndAMovingOneDoesNot`, `everyKeyComponentSeparates` |
+
+**Green mutants, each explained** (a green mutation is a broken instrument or the finding):
+
+* `key-scale`, `key-contentsize`: the scale factor and the window size are also in `EnvironmentFingerprint` (`displayScale`,
+  `windowSize`), so each is covered twice. `pair-scale-displayscale` reddens `everyKeyComponentSeparates` and the
+  differential: the ambient part is redundant, not unpinned. **`pair-contentsize-windowsize` is green: no arm can separate the
+  window's size**, because no scene byte of a retained subtree depends on it (the backdrop's region is computed by the renderer
+  from the scene, not stored in it). Both parts stay, as the conservative key; the finding is carried to lane 2.
+* `key-depths`: the clip depth, the clip base and the scope count are functions of the tree above the occurrence, which its
+  identity fixes: no input moves one for one identity (a structural change is a new identity and a first record). An equivalent
+  mutant by construction; kept as the cheap guard if a lane-2 graft ever moves a subtree.
+* `key-rects`, `key-interior`: each is redundant with the other (the signature of the interior covers the top nodes too, and a
+  single painting node has no interior, which the `flexRect` arm tries). `pair-rects-interior` is red (`everyKeyComponentSeparates`,
+  arm `topRect`). **No arm separates the interior alone**: every input that moves an interior rect with the top rect fixed
+  also moves a key part already held (a proposal, the environment, a `@State` version, an observation). Kept for lane 2's graft,
+  where the top may not be laid out again; the claim "every part has a separating arm" in `AmbientKey`'s doc is weakened to "or is covered twice" for
+  the parts named here.
+* `taint-activeanimation`, `channel-surface-taint`, `channel-surface-ledger`: a taint hook and a ledger channel watch the same
+  event (the snapshot compares the counters the hook raises); each alone is redundant, `pair-activeanimation-taint-ledger` and
+  `pair-surface-taint-ledger` redden `everyLedgerChannelMakesTheSubtreeIneligible` (arms `spinner` and `surface`).
+
+**What the first batch found, and the fix** (the first batch's greens that are now red): `key-offset` (arm `scroll`
+added: the paint offset moves with no rect); `press-false` (the press test, shadowed by the hover test, now pinned with the
+pointer dragged away while held); `versions-skipped` (the bind-journal version compare, shadowed by a pointer and a colour write,
+now pinned by `aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion`: a shortcut changes a descendant's `@State`
+with the pointer, press and focus elsewhere); `session-build-dropped` (test 1.8's child set a colour, whose `$anim-color` slot
+version hid the observation window: the child is text only now); `channel-capturing-scope` (arm: a `.transition` element keeps a
+capturing scope open, so the occurrence is ineligible **settled too**, `aSubtreeHoldingATransitionIsIneligibleInFlightAndSettled`);
+`touches-dropped` (a legacy border's `$anim-border` track is the one animation-store touch paint makes: pinned by
+`aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates`); `plain-counters-public` (the guard now names the type, not a
+member); `finalscene-always` (a `.compositingGroup().shadow` card joined the differential); `coverage-ignored` (1.8c: the frame
+after a miss observes again). Two mutations of the first draft's list were skipped for a changed spelling and re-spelled.
+
+**Verify mode as an instrument** (`SB-W`): run over the whole suite it trapped twice in the first reading, and both were findings.
+(1) `SB-AC`: a parent that records in a frame where an equatable descendant's content is skipped by the content memo never
+subscribes to that descendant's reads, and replayed a stale label when the descendant later changed (`anEqualComponentSkipsItsContent`
+trapped; test 1.8b reproduces it with two leaves, and the mutation `descendant-eval-ignored` reddens it). (2) A verified hit
+compared touch *counts* where a first sighting touches twice and a later frame once, and replaced the record with one whose
+coverage was incomplete: now ids are compared and the old record stays. Run again: **3701 tests, 0 traps**; four tests that read
+paint-skipped or nested hit counts are switched off under it (`rsVerifying`: a verified hit paints). A demonstration that it
+catches what the key misses: with `key-opacity` mutated, `METALUI_VERIFY_RETAINED=1 swift test --filter everyKeyComponentSeparates`
+traps in `finishRetainedPaint` with "replay differs from a fresh run at <path>: scene op ... rect(...)".
+
 
 ## §6 Counts
 
