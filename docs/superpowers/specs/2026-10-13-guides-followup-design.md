@@ -1,5 +1,7 @@
 # Developer guides follow-up — design
 
+**Status:** implemented on `docs/guides-followup`; record §107, rulings `DG-R`…`DG-V`.
+
 Item 10c, a follow-up to 10b (record §103, rulings `DG-A`…`DG-Q`). While 10b was on its branch
 four items merged: C23 (text over a GPU surface, §99), C24 (resign on press, §98), C27 (material
 follow-ups, §101) and C28 (the input-method driver, §102). The guides omitted their APIs, two of
