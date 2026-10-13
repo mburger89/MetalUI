@@ -425,6 +425,34 @@ private struct RSShortcutHolder: Component, @MainActor Equatable {
     var hit = false
     for _ in 0..<3 { hit = hit || rsFrame(window).retainedHits == 1 }
     #expect(hit, "and the new frame is recorded and replays")
+    // A second change is seen too: the record made on the write's frame covered only its paint (`SB-V`), so the
+    // frame after it observes the build again before anything replays. Mutation: `coverageComplete` left out of
+    // the hit test — the quiet frame replays with no session armed on the child's read and `n9` is never drawn.
+    model.n = 9
+    await rsSettle()
+    window.window.setNeedsRedraw(); window.tick()
+    _ = try window.element(label: "n9")
+    #expect(window.lastFrameWork.retainedHits == 0, "the second write's frame replays nothing")
+}
+
+/// 1.8c — the frame right after a miss is not a hit (`SB-V`): a record made without the build and prepaint
+/// windows open is only a paint record. The write is followed at once by a second one on the next frame.
+@Test @MainActor func aFrameRightAfterAMissObservesAgainSoASecondWriteIsSeen() async throws {
+    let model = RSModel()
+    let window = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSObservedParent(model: model).equatable() }
+    }
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    model.n = 5
+    await rsSettle()
+    window.window.setNeedsRedraw(); window.tick()      // the miss: records a paint-only record
+    window.window.setNeedsRedraw(); window.tick()      // observes again (no hit yet)
+    #expect(window.lastFrameWork.retainedHits == 0, "the frame after a miss is not a hit")
+    model.n = 9
+    await rsSettle()
+    window.window.setNeedsRedraw(); window.tick()
+    _ = try window.element(label: "n9")
+    #expect(window.lastFrameWork.retainedHits == 0)
 }
 
 // MARK: 1.8b — a skipped descendant's later change beats the ancestor's record
