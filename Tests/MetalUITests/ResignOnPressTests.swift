@@ -112,8 +112,9 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// **2** (`RF-C` item 3, `KF-U`). Nothing focused, the pointer over a resign
 /// region: the key chain is empty, an `onKeyPress` on it hears nothing. The same
 /// tree with `hoverKeyRegion()` hears the key (the separating arm).
-/// Mutation: count a resign region in `keyRegionCount` / admit it in
-/// `coversKeys(withPressRegions: false)`.
+/// Mutation: count a resign region in `keyRegionCount` (reddens this test; the
+/// lone region's cover is unchanged by the other spelling). Admitting it in
+/// `coversKeys(withPressRegions: false)` is pinned by the next test, not this one.
 @MainActor
 @Test func aResignRegionRoutesNoKeysByHover() throws {
     for key in [true, false] {
@@ -130,6 +131,24 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
                     "it is a resign region, not a key region")
         }
     }
+}
+
+/// **2b** (`RF-C` item 3, `RF-G` 4). A key region with a non-descendant resign
+/// region laid over it keeps its hover routing: the resign region must not
+/// become the cover of `hoveredKeyRegion()`. Mutation: admit a resign region in
+/// `coversKeys(withPressRegions: false)` (the cover becomes the resign region,
+/// which the key region is not an ancestor of, so the lookup returns `nil`).
+@MainActor
+@Test func aResignRegionOverAKeyRegionLeavesTheKeyRegionRouted() throws {
+    let (window, platform) = try rpWindow {
+        ZStack {
+            Box().frame(width: px(200), height: px(200)).onKeyPress { _ in .handled }.hoverKeyRegion()
+            Box().frame(width: px(200), height: px(200)).resignsFocusOnPress()
+        }
+    }
+    platform.simulateInput(.mouseMoved(MouseEvent(position: pt(100, 100))))
+    try #require(window.lastKeyRegionCount == 1 && window.lastResignRegionCount == 1, "set up: one of each")
+    #expect(window.hoveredKeyRegion() != nil, "the key region is still the hovered one under a resign overlay")
 }
 
 // MARK: - 3: field to field
@@ -411,8 +430,9 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// **11** (`RF-C`). A resign is one `@FocusState` write when something is
 /// focused (`true` then `false`, once) and none when nothing is: a press with
 /// nothing focused costs the frames a press without the region costs.
-/// Mutation: an unconditional `focusState` write on the press (instrument may
-/// be equivalent, `focus(_:)` is guarded; recorded).
+/// The `Window.focus` no-change guard is NOT pinned here (a click already
+/// redraws in both arms, so a redundant redraw is invisible); only an existing
+/// test sees its removal (`RF-H`).
 @MainActor
 @Test func aResignIsOneFocusStateWriteAndNothingWhenNothingIsFocused() throws {
     let m = RPLog()

@@ -8,7 +8,7 @@ Probe: `docs/probes/swiftui-resign-on-press.swift` (arms `RP0`–`RP12`, output 
 its header). Record: `../record/98-resign-on-press.md`. Branch
 `feat/resign-on-press` from `5f35df6`.
 
-**Next unused id: `RF-H`.**
+**Next unused id: `RF-I`.**
 
 ## Carried
 
@@ -156,6 +156,28 @@ which spelling, and record a mutation that reddens nothing as such.
 
 **Cost if wrong.** A green mutant hides an untested exemption; the second
 mutation bounds it.
+
+## RF-H — Lane 1 review: accepted equivalences and the overlay pin
+
+**Ruling.** (1) Mutation M2b (admit a resign region in `coversKeys(withPressRegions:
+false)`) is **not** equivalent: with a non-descendant resign region over a key
+region the cover becomes the resign region and `hoveredKeyRegion()` returns `nil`.
+Test 2 (lone region) cannot see it; test 2b
+`aResignRegionOverAKeyRegionLeavesTheKeyRegionRouted` pins it (assert on
+`hoveredKeyRegion()`, since a key does not reach `onKeyPress` through a `ZStack`
+overlay even unmutated). (2) Test 3 is green under both M3a (early-return
+deletion) and M3b (ladder reorder); "no nil between" is pinned only by end state
+(`Window.focus` exposes no intra-event hook, `KX`) and **test 4 is the ladder
+pin** (reddens under M3b). No stronger claim is made. (3) Test 11 does not pin
+`Window.focus`'s no-change guard: a click redraws in both arms, so a redundant
+`setNeedsRedraw` is invisible; only an existing test sees the guard's removal.
+No mutation is claimed for it. (4) M6c (drop `keyboardHiddenDepth == 0`) is
+**equivalent**: `Frame.disablingHitTestingIfHidden` raises `keyboardHiddenDepth`
+and `hitTestingDisabledDepth` in the same step, so `hitTestingDisabledDepth == 0`
+already excludes every hidden case (the existing hover gate has the same shape).
+
+**Cost if wrong.** A future change that separates the two depths makes M6c
+non-equivalent; the hidden-gate test would then redden.
 
 ## What does not move (RF-A…F's frame)
 
