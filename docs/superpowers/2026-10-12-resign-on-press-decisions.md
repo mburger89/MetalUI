@@ -163,7 +163,7 @@ mutation bounds it.
 false)`) is **not** equivalent: with a non-descendant resign region over a key
 region the cover becomes the resign region and `hoveredKeyRegion()` returns `nil`.
 Test 2 (lone region) cannot see it; test 2b
-`aResignRegionOverAKeyRegionLeavesTheKeyRegionRouted` pins it (assert on
+`aResignRegionOverAKeyRegionLeavesTheKeyRegionRouted` pins it (re-run on the committed test: M2b reddened exactly `aResignRegionOverAKeyRegionLeavesTheKeyRegionRouted`, 1 issue, unmutated 3435 pass; assert on
 `hoveredKeyRegion()`, since a key does not reach `onKeyPress` through a `ZStack`
 overlay even unmutated). (2) Test 3 is green under both M3a (early-return
 deletion) and M3b (ladder reorder); "no nil between" is pinned only by end state
