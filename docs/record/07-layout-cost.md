@@ -1,5 +1,11 @@
 ## Layout cost — measured, and content sizing multiplied it by ~4.9x
 
+> **Re-measured 2026-10-13 at `848ee029`: record §105 (`105-perf-baselines.md`).** The tables below were taken on
+> the CSS engine (`computeLayout`), deleted at stage 9; their per-node figures, the 2026-08-29 and 2026-09-10 demo
+> rows, and the 100k cold frame's 16.84 s release / 41.86 s debug are **historical and stale**. §105 rebuilds the same
+> node counts on the native kernel (a different instrument), re-takes the demo, `List` and 100k figures with date,
+> commit, machine and command, and marks what it could not re-measure. `docs/probes/perf-baselines.sh` re-takes them.
+
 `computeLayout` costs **~40 us per node in debug and ~5 us in release**, flat
 from 8 k to 88 k nodes. The same trees cost ~8 us and ~1.2 us per node before
 content sizing, so **the complexity is unchanged and the constant factor is
@@ -294,6 +300,8 @@ only counts. **That test is env-gated** and its command is in the Build section
 — it alone costs ~42 s debug / ~17 s release, which is ruling `TB-L`.
 
 ### Identity path construction — measured 2026-08-27, and it is ~0.4% of a frame
+
+**Stale (2026-10-13, §105 §7): the array form it was timed against no longer exists; not re-measurable, not carried.**
 
 **Measured 2026-08-27 on the structural-identity branch, debug unless a column
 says release**, with a throwaway spike deleted in the same task. Re-measure
