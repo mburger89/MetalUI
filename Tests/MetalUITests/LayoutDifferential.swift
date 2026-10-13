@@ -136,15 +136,21 @@ enum LayoutDifferential {
     static func render<Content: ElementGroup>(width: Float, height: Float, scaleFactor: Float = 1,
                                               stateTable: StateTable? = nil,
                                               frames: Int = 1,
+                                              layoutMemo: Bool = true,
                                               @ElementBuilder _ make: @MainActor () -> Content) -> Frame {
         precondition(frames >= 1, "a tree renders at least one frame")
         let table = stateTable ?? StateTable()
+        // `layoutMemo: false` for a test whose literals were derived without the memo (`SB-AD`: keying two more
+        // leaves gave identical subtrees memo hits, which a hand derivation of the run's own cache never counted).
+        let store = AnimationStore()
+        store.layoutMemo.isEnabled = layoutMemo
         var last: Frame?
         for _ in 0..<frames {
             var root = DifferentialRoot(width: width, height: height, content: make)
             let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)),
                               scaleFactor: scaleFactor,
                               stateTable: table,
+                              animationStore: store,
                               collectsAccessibility: true,
                               reportsUnlowerableFields: true,
                               recordsElementBounds: true)

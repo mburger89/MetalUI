@@ -79,3 +79,25 @@ func aRestoredDragEqualsAFreshOneAtEveryStep(arm: BracketArm) throws {
     }
     #expect(restores > 0)
 }
+
+// MARK: Keyed leaves the placement memo needs
+
+@MainActor private func steadyFrames(_ makeRoot: @escaping @MainActor () -> some Element) throws -> FrameWork {
+    let window = try TestWindow(size: sz(300, 200), textSystem: harnessTextSystem) { makeRoot() }
+    for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
+    window.resetFrameWork()
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    return window.frameWork.dropFirst().reduce(window.frameWork[0], +)
+}
+
+/// `Color` used as a view and an empty legacy container are keyed leaves (`SB-AD`: the fixture's nodes
+/// hold both, and one unkeyed leaf makes every ancestor unmatchable). A steady frame of a tree holding
+/// one restores the whole placement from the root memo (three frames, three root hits).
+/// **Red before:** 0 root hits. **Mutation:** `ColorLeafKey` removed from `Color`'s registration
+/// reddens the first arm, `EmptyContainerLeafKey` removed from the empty-container lowering the second.
+@Test @MainActor func aColorAndAnEmptyContainerKeepTheirAncestorsMatchable() throws {
+    let color = try steadyFrames { VStack { Color.clear.frame(width: Pixels(50), height: Pixels(20)); Text("a") } }
+    #expect(color.layoutMemoRootHits == 3)
+    let empty = try steadyFrames { VStack { Column {}; Text("a") } }
+    #expect(empty.layoutMemoRootHits == 3)
+}

@@ -641,7 +641,7 @@ private struct AtOrigin: ProposalLayout {
 /// child (20 nodes; every figure moves).
 @MainActor
 @Test func aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork() throws {
-    let frame = LayoutDifferential.render(width: 200, height: 100) {
+    let frame = LayoutDifferential.render(width: 200, height: 100, layoutMemo: false) {
         Column {
             Row { Box().cssHeight(px(10)); Box().cssHeight(px(20)) }
             Row { Box().cssHeight(px(10)); Box().cssHeight(px(30)) }

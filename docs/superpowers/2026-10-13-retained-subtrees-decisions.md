@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AD`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AF`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -572,3 +572,52 @@ reddens 1.8b at its last glyph comparison and nothing else (the 1.8 test covers 
 **Cost if wrong.** A descendant that changes its picture without a memo evaluation (a plain component reading an
 `@Observable` it also read when the record was made is subscribed by the armed window; one first read in a skipped frame is the hole this closes)
 would still be stale; the verify-mode run over the whole suite is the instrument.
+
+## SB-AD — Lane 2 lands the placement memo alone: marked subtree roots restore their placement in place
+
+**Question.** The gate (`SB-C`) read 57 % and opened lane 2: a graft, a journal, a counted redo, prepaint replay and
+the subtree placement memo (`SB-N`, `SB-O`, `SB-R`). Which of these lands behind unchanged semantics with a measured win?
+
+**Evidence.** The placement memo is the one piece with no dependency on the others. `LayoutTree` stores root-absolute
+rects, placement of a subtree is a pure function of its structural signature (`IV-E`), the proposal it is placed at and
+the bounds it is placed in, and slice 1 already restores a *root* placement on those three (`placeFromMemo`). A marked
+node can use the same key anywhere in the tree. On the fixture the root never hits (the wires change size every drag
+frame, `layoutMemoRootHits: 0`), the 32 occurrences are the `.equatable()` components, and a drag frame did 1258 measure-memo
+lookups and 366 cache hits (counted after the key change below) of which the placement of 10 unmoved nodes was most.
+
+**Ruling.**
+1. `LayoutTree.markPlacementRoot(_:)` (`package`) marks a node; `EquatableComponent` marks each top-level node of
+   an occurrence **while retention is on** (`retainsSubtrees`, so `testingRetainedSubtrees = false` is the unmarked arm).
+   A fresh tree has no marks.
+2. In `placeNative`, after the node's rect is stored, a marked node with a signature and at least one child asks the memo
+   for `PlacementKey(signature, proposal, bounds)` — **all four bounds fields bit for bit, origin included**. A hit writes the
+   subtree's recorded unrounded rects in pre-order and returns: nothing under the node is measured or placed. A miss places
+   as before and stores the subtree's rects on the way out. The memo's two-frame lifetime, the rounding walk and the
+   measured-width recording are untouched (the rounding walk runs over the whole tree after placement, as for a root hit).
+3. **No translation.** `SB-O` and spec §9 item 4 said "by translation". Rects are root-absolute and a fresh placement
+   computes `parent.origin + offset` along the chain: translating a recorded rect by a delta is a different association of
+   the same additions, and the output must be byte-identical (`SB-H`'s float-association finding, re-used here without
+   a new probe). A moved subtree is placed fresh; translation is carried with `SB-H`.
+4. `METALUI_VERIFY_LAYOUT_MEMO=1` / `LayoutMemo(verifies: true)` recomputes every subtree hit from zeroed rects with the memo
+   suspended and traps on a difference (`IV-J`).
+5. Counter `NativeLayoutWork.memoSubtreeHits` (`BuildWork`, `FrameWork.layoutSubtreeHits`): work, never time.
+6. **Two more leaves are keyed** (`IV-E`'s rule: a key covering everything the closure reads): a `Color` used as a view
+   (`ColorLeafKey`: its measure is the proposal, 10 on a nil axis) and an empty legacy container's 0 x 0 leaf
+   (`EmptyContainerLeafKey`: constant). The fixture's nodes hold both, and one unkeyed leaf makes every ancestor unmatchable
+   — without them no node had a signature and the memo restored nothing (debug counts: 0 hits). This moves slice 1's
+   counts for any tree holding either leaf (more memo hits, fewer measures): `theBracketNodeDragRebuildsTheWholeWindow`'s
+   layout literals are re-counted (81/805/527/1106/30 at `e85cb07a` -> 52/366/217/1258/55) and the suite's other pins
+   that moved are named in record 109 §11.
+
+**Not built, and why (carried to C14b-2, evidence in record 109 §11).** The build skip needs prepaint replay: with the
+build recursion skipped no element exists to prepaint, so hitboxes, focus, accessibility, scroll regions and tallies must
+be replayed, and `SB-AA` found that the decision to replay prepaint cannot be taken there (a paint-only ambient — an
+ancestor's opacity, shadow or blur scope — is not on the frame until the ancestors paint). The design's answer is a
+frame redo on a paint-time mismatch (`SB-R`), whose correctness rests on restoring `StateTable`, `LifecycleStore`,
+`AnimationStore` and `Frame` channels that a first build has already mutated: a journal of nine channels each with its
+own funnel, none of which this lane had a verify-mode instrument for. Landing the placement memo first costs nothing:
+a graft would reuse its keys.
+
+**Cost if wrong.** A key that does not cover its closure restores a stale rect: the verify mode over the whole suite
+(record 109 §11) and the differential `aRestoredDragEqualsAFreshOneAtEveryStep` are the instruments. A tree with
+nothing marked (retention off, or no `.equatable()`) is byte-for-byte slice 1.
