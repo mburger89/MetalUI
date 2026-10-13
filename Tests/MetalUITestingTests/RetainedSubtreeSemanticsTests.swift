@@ -120,6 +120,8 @@ private struct RSInspector: Component, @MainActor Equatable {
             ZStack { RSCard(title: "B", shade: 1).equatable() }.offset(x: Pixels(3))
             ZStack { RSCard(title: "C", shade: 2).equatable() }.shadow(radius: Pixels(4))
             ZStack { RSCard(title: "D", shade: 0).equatable() }.rotationEffect(.degrees(4))
+            // A composite scope outside holds the card's leaves until the group closes: no final-primitive shortcut (`SB-AB`).
+            ZStack { RSCard(title: "H", shade: 1).equatable() }.compositingGroup().shadow(radius: Pixels(3))
             ScrollView(.vertical) {
                 VStack(spacing: 2) {
                     RSCard(title: "E", shade: 2).equatable()
