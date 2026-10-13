@@ -9,7 +9,7 @@ Evidence: an inventory of `docs/` and `Sources/` at `ff8a1ea4` (spec §1); `docs
 `TestingRecipeTests.swift` as the prior art. No SwiftUI probe was run: the item makes no new
 SwiftUI claim (`DG-F`); gpui has no analogue (documentation).
 
-Prefix **`DG-`**, lettered. **Next unused: `DG-Q`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**, lettered. **Next unused: `DG-R`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides` from `ff8a1ea4`. Reserved divergence labels 335–344: none used.
 
 **Carried items.** `HT-` (`MetalUITesting`, the harness the mirrors run in); `SA-P` (plain import);
@@ -157,3 +157,14 @@ return idle on macOS. A window with no click (an initial draw, or a direct `@Obs
 both. The first Linux run of the guide tests failed on this alone. Cause not isolated; it is a **finding**
 for the orchestrator (`DG-J`), not fixed here. **Cost if wrong.** None for the guides: a test that
 needs the observation hop calls the two methods; a guide never promises `runUntilIdle` after a click.
+
+## DG-Q — Guide 5 has no `Canvas` task; a button label may not repeat an alert's
+
+**Ruling.** MetalUI has no public `Canvas` at `ff8a1ea4` (`grep -rn Canvas Sources/MetalUI` finds only doc
+comments saying `GPUSurface` is "sized like `Canvas`" and divergence 103 comparing it with SwiftUI's), so the
+drawing guide's task is shapes, paths, gradients, shadows, materials and `GPUSurface`/`MetalView`, and says
+there is no `Canvas`. A guide fixture whose root button shares its title with an alert's button is ambiguous
+to `elements { … }.first` in a drawn alert, so the root button is "Remove" and the alert's is "Delete".
+**Evidence.** Lane 2's first run of `theShellGuideADrawnAlertIsPressedThroughTheTree` found no "Deleted 1".
+**Cost if wrong.** If a `Canvas` lands, the guide gains a task and a mirror. The spec's mention of `Canvas`
+(§2 row 5, T11–T13) was inaccurate; this ruling supersedes it.
