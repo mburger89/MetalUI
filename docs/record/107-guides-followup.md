@@ -1,7 +1,7 @@
 # 107 — Guides follow-up: C23, C24, C27 and C28 in the guides
 
 Branch `docs/guides-followup` from `b17aee19`. **Not a plan task**: item 10c, a follow-up to 10b
-(record §103). Spec `docs/superpowers/specs/2026-10-13-guides-followup-design.md`; rulings `DG-R`…`DG-U`
+(record §103). Spec `docs/superpowers/specs/2026-10-13-guides-followup-design.md`; rulings `DG-R`…`DG-V`
 in `docs/superpowers/2026-10-13-guides-followup-decisions.md` (next unused `DG-W`). **No public API, no
 `Sources/` or `Backends/SDL` change, no probe (no new SwiftUI claim), no divergence taken (the branch's
 reserved labels 375–384 are unused).**
