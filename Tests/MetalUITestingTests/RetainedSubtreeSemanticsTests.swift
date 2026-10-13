@@ -310,6 +310,7 @@ private struct RSInspector: Component, @MainActor Equatable {
     #expect(f.retainedMisses == 1 && f.retainedHits == 3, "a press is on card C")
     // The pointer leaves while the button is held: the press alone keeps card C re-painting.
     _ = window.send(.mouseDragged(MouseEvent(position: pt(4, 110))))
+    _ = rsFrame(window)   // a miss records an incomplete record (`SB-V`): one more frame before a hit could happen
     f = rsFrame(window)
     #expect(f.retainedMisses == 1 && f.retainedHits == 3, "the press holds card C with the pointer away: \(f.retainedHits)/\(f.retainedMisses)")
     _ = window.send(.mouseUp(MouseEvent(position: c)))
@@ -604,6 +605,16 @@ private struct RSIdleKeyframes: Component, @MainActor Equatable {
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     f = rsFrame(window)
     #expect(f.retainedHits == 2, "settled: both replay again: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
+    // The settled animation's entries were kept alive by the replays (`SB-I`, the recorded touches): the
+    // next flip animates from where it was instead of snapping to its target.
+    for _ in 0..<6 { window.window.setNeedsRedraw(); window.tick() }
+    flag.on = false
+    await rsSettle()
+    window.window.setNeedsRedraw(); window.tick()
+    window.advance(by: 0.3)
+    window.window.setNeedsRedraw(); window.tick()
+    let mid = window.scene.rects.last?.background.a ?? 0
+    #expect(mid > 0.3 && mid < 0.95, "the flip back is mid-animation after 0.3 s, not snapped: \(mid)")
 }
 
 // MARK: 1.3 — every key component separates
