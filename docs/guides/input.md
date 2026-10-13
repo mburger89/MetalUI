@@ -58,7 +58,7 @@ target's ancestors in its own layer. Three consequences you will meet:
   dropped without `onEnded`. The case you will hit is a lost release: a new primary press on the
   same element while the old press is still down ends the old one with `onCancelled`, then
   starts a fresh drag. The headless test below sends exactly those events and reads
-  `changed, changed, cancelled, changed, ended` (pins: `theInputGuideALostReleaseRunsOnCancelledOnce`, `aPrimaryPressOnTheSameElementAfterALostReleaseCancelsTheReportedDrag`).
+  `changed, changed, cancelled, changed, ended` (pin: `theInputGuideALostReleaseRunsOnCancelledOnce`, `aPrimaryPressOnTheSameElementAfterALostReleaseCancelsTheReportedDrag`).
 
 ```swift
 /// What a gesture saw, in order.
