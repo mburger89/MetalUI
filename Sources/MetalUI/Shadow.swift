@@ -160,7 +160,7 @@ extension Frame {
             } else {
                 key.add(-1)
             }
-            switch q.kind {
+            switch q.kind.flatteningBackdrop {
             case let .rect(r):
                 key.add(10); key.add(r.bounds); mask(r.contentMask, r.maskCornerRadii)
                 key.add(r.cornerRadii); key.add(r.borderWidths); key.add(r.background.a); key.add(r.borderColor.a)
@@ -174,6 +174,8 @@ extension Frame {
                 key.add(12); key.add(i.bounds); mask(i.contentMask, i.maskCornerRadii)
                 key.add(i.opacity); key.add(i.filterKind)
                 key.objects.append(ObjectIdentifier(texture)); retained.append(texture)
+            case .backdrop:
+                preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
             case let .surface(q, _):
                 key.add(13); key.add(q.bounds); mask(q.contentMask, q.maskCornerRadii); key.add(q.opacity)
             case let .path(p):
@@ -246,7 +248,7 @@ extension Frame {
         }
         var mask: AlphaMask
         let contentMask: (MUIBounds, MUICorners)
-        switch q.kind {
+        switch q.kind.flatteningBackdrop {
         case let .rect(r):
             contentMask = (r.contentMask, r.maskCornerRadii)
             let ellipse = r.shapeKind == PrimitiveShape.ellipse.rawValue
@@ -297,6 +299,8 @@ extension Frame {
                                             into: resampleRect(i.bounds),
                                             filter: i.filterKind == ImageFilter.nearest.rawValue ? .nearest : .bilinear)
             mask = RasterMath.scale(mask, by: i.opacity)
+        case .backdrop:
+            preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
         case let .surface(s, _):
             // A surface's pixels live on the GPU: its silhouette is its quad
             // (divergence 104).

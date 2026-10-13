@@ -425,7 +425,16 @@ public struct Decoration: Sendable, Hashable {
         set { setExtra { $0.backgroundGradient = newValue } }
     }
 
-    /// The rarely-set paint fields `clipShape` and `backgroundGradient`, in
+    /// A legacy material background (`BB-A`): painted where `background` is,
+    /// as one backdrop record through `paintDecoration` (`DN-X`). The last
+    /// background written wins, as a gradient's does. Not animated. Internal,
+    /// in `extras` (`LK-W` item 10).
+    var backgroundMaterial: Material? {
+        get { extras?.fields.backgroundMaterial }
+        set { setExtra { $0.backgroundMaterial = newValue } }
+    }
+
+    /// The rarely-set paint fields `clipShape`, `backgroundGradient` and `backgroundMaterial`, in
     /// one heap box (`LK-W` item 10): stored inline they grow every legacy
     /// element, and a production tree is built on a 1 MB thread on Windows
     /// (`everyProductionTreeBuildsOnAOneMegabyteThread`). `nil` when neither
@@ -916,7 +925,10 @@ extension StyledElement {
     /// token. A `Color(light:dark:)` or palette colour is the spelling that
     /// follows the scheme.
     public func background(_ color: Color) -> Self {
-        decorating { $0.background = color; $0.backgroundGradient = nil; $0.noteWrite(.plainFill) }
+        decorating {
+            $0.background = color; $0.backgroundGradient = nil; $0.backgroundMaterial = nil
+            $0.noteWrite(.plainFill)
+        }
     }
 
     /// ``background(_:)`` with a `ColorToken` — the token spelling, kept (`CR-E`
@@ -931,18 +943,31 @@ extension StyledElement {
     /// written before it; a colour written after it replaces it. Not animated:
     /// a change snaps (`LK-J` item 7).
     public func background(_ gradient: LinearGradient) -> Self {
-        decorating { $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+        decorating {
+            $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.backgroundMaterial = nil
+            $0.noteWrite(.plainFill)
+        }
     }
 
     /// Fills this element's border box with `gradient` (`LK-J` item 8).
     public func background(_ gradient: RadialGradient) -> Self {
-        decorating { $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.noteWrite(.plainFill) }
+        decorating {
+            $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.backgroundMaterial = nil
+            $0.noteWrite(.plainFill)
+        }
     }
 
-    /// Fills this element's border box with `material`'s flat tint — exactly
-    /// ``background(_:)`` with the material's colour (`LK-L`, divergence 166).
+    /// Fills this element's border box with `material`: the backdrop already
+    /// drawn beneath it, blurred, with the material's tint over it (`BB-A`).
+    /// Painted where a colour background is, under the corner radius; it
+    /// replaces a colour or gradient background written before it, and a
+    /// colour or gradient written after replaces it. Not animated: a change
+    /// snaps.
     public func background(_ material: Material) -> Self {
-        background(material.color)
+        decorating {
+            $0.backgroundMaterial = material; $0.background = nil; $0.backgroundGradient = nil
+            $0.noteWrite(.plainFill)
+        }
     }
 
     /// Fills with `token` instead of `background(_:)` while the pointer is over
@@ -1748,6 +1773,7 @@ indirect enum DecorationExtras: Sendable, Hashable {
     struct Fields: Sendable, Hashable {
         var clipShape: ClipShapeBox?
         var backgroundGradient: GradientFill?
+        var backgroundMaterial: Material?
     }
 
     case box(Fields)

@@ -144,15 +144,17 @@ extension Shape {
         ShapeView(shape: self, layers: [.gradientFill(.radial(gradient), style)])
     }
 
-    /// Fills the shape with `material`'s flat tint (`LK-L`, divergence 166):
-    /// exactly ``fill(_:)`` with the material's colour.
+    /// Fills the shape with `material`: the backdrop already drawn beneath it,
+    /// blurred, with the material's tint over it (`BB-A`; a flat tint where the
+    /// shape is a path or sits inside a shadow, blur or compositing group,
+    /// divergence 248).
     public func fill(_ material: Material) -> ShapeView<Self> {
-        fill(material.color)
+        ShapeView(shape: self, layers: [.materialFill(material, nil)])
     }
 
-    /// Fills the shape with `material`'s flat tint under `style` (`LK-R`).
+    /// Fills the shape with `material` under `style` (`LK-R`).
     public func fill(_ material: Material, style: FillStyle) -> ShapeView<Self> {
-        fill(material.color, style: style)
+        ShapeView(shape: self, layers: [.materialFill(material, style)])
     }
 
     /// Strokes the shape's outline with `gradient`, centred on its edge
@@ -189,6 +191,8 @@ public struct ShapeView<S: Shape>: Element {
     enum Layer: Sendable, Equatable {
         /// A fill; `nil` style means the geometry's own (a path's) or nonzero.
         case fill(Color?, FillStyle?)
+        /// A material fill (`BB-A`): the blurred backdrop and the tint.
+        case materialFill(Material, FillStyle?)
         case stroke(Color, StrokeStyle)
         case strokeBorder(Color, StrokeStyle)
         /// A gradient fill (`LK-J`); `nil` style as `.fill`'s.
@@ -250,14 +254,14 @@ public struct ShapeView<S: Shape>: Element {
         ShapeView(shape: shape, layers: layers + [.gradientFill(.radial(gradient), style)])
     }
 
-    /// Adds a material's flat tint over the layers so far (`LK-L`).
+    /// Adds a material's backdrop and tint over the layers so far (`BB-A`).
     public func fill(_ material: Material) -> ShapeView<S> {
-        fill(material.color)
+        ShapeView(shape: shape, layers: layers + [.materialFill(material, nil)])
     }
 
-    /// Adds a material's flat tint under `style` over the layers so far.
+    /// Adds a material's backdrop and tint under `style` over the layers so far.
     public func fill(_ material: Material, style: FillStyle) -> ShapeView<S> {
-        fill(material.color, style: style)
+        ShapeView(shape: shape, layers: layers + [.materialFill(material, style)])
     }
 
     /// Adds a centred stroke over the layers so far.
@@ -328,6 +332,8 @@ public struct ShapeView<S: Shape>: Element {
             switch layer {
             case let .fill(color, style):
                 paintShapeFill(geometry, color: color, style: style, pass: pass)
+            case let .materialFill(material, style):
+                paintShapeMaterial(geometry, material: material, style: style, pass: pass)
             case let .stroke(color, style):
                 paintStyledStroke(shape, geometry, bounds: bounds, color: color, style: style, outset: true,
                                   pass: pass)

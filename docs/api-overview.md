@@ -779,11 +779,16 @@ and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
 through the image path with a one-texel strip fast path, no shader change —
 `LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
 a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
-… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **fitted flat tint, no
-backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient`,
-`Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
-`phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
-deferral (`LK-A`).
+… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **tint over a real
+backdrop blur** of what is already drawn beneath it, GPU surfaces included, on both
+renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
+transform, opacity and transitions; the flat tint of `LK-L` remains for a path
+fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
+a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+`AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
+`.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
+`NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
+named deferral (`LK-A`, `BB-I`).
 
 ## Testing — M
 

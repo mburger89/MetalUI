@@ -61,7 +61,8 @@ summary.
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-O`), `FI-` (`ForEach` identity:
-  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), …; the full
+  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
+  `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -74,9 +75,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 245–254 and 265–284 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **142 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 265–284 reserved by open branches, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF and BB, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -96,6 +97,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity), then record 94 §11's three pins: 3446 tests, 0 goldens, 217 typecheck guards**
+  (master's 3415 + 28 tests, 216 + 1 guard: lane 1's 16 (8 record, 3 scene, 4 reference, 1 guard), lane 2's 12; `swift package clean`,
+  native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, the
+  default build system 0 `warning:`; census 3414 (3405 + 9); `Backends/SDL` 30 + 123 on macOS (30 + 120 in the Linux image, branch checker; lane 3's 10 `SDLBackdropTests` and
+  the `ReplayFixtureTests` growth), replay parity re-taken by the branch checker after the merge: 12 fixtures, SDL Metal 0 px,
+  Windows D3D12 unmeasured (CI); divergences 245–249 added, 166 amended, 142 live; the fourteen images 0 px; record §94 §5, §7). Before it,
 - **Counts (2026-10-12, `fix/foreach-identity` from `280d706`, merged with master `a720fba` (§92 overlays, §93 input follow-ups): 3415 tests, 0 goldens, 216 typecheck guards**
   (master's 3402 + 13 tests, 215 + 1 guard `G1`; native run after `swift package clean` on a locked screen read exactly the five
   `AppKitPresentationTests` sheet issues and nothing else; census 3361 + master's growth, count unchanged by this branch; divergence 79 retired, 255
@@ -200,7 +207,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -899,8 +906,8 @@ image path** (Oklab table; a one-texel strip when linear along one axis, else a
 full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
 leaf with sigma = radius, the shadow pipeline in colour keyed by
 `Frame.keyLeaf(…colours:)` (a GPU surface leaf draws unblurred, divergence 167;
-`LK-K`); a `Material` is a fitted flat tint on the colour sites, **no backdrop
-blur** (divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
+`LK-K`); a `Material` is a tint over a **real backdrop blur** (`BB-`, below;
+divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
 `DecorationExtras`** (the 1 MB thread, `LK-W` item 10); a new
 `CapturedPrimitive` or `LayoutModifier` kind owes its arm in both fade
 flattenings (`multiplyAlpha`, `RenderEffect.apply`).
@@ -1005,6 +1012,24 @@ too) belong to it. **`anchoredOverlay(at:in:anchor:)`** (MetalUI-only, both voca
 **still lands** (the popover stage runs before the menu, text-input and value-track stages) and by
 Escape, never claiming a key; a press on the declarer dismisses and reaches it. `.popover` takes
 SwiftUI's `attachmentAnchor:` (divergence 225). `presentationBackground(_:)` is not built (`OV-C`).
+
+**Backdrop blur (`BB-`, record §94).** A `Material` is one scene primitive, `PrimitiveKind.backdrop`
+(`MUIBackdrop`, 96 bytes, `Scene.backdrops`): the blurred backdrop and the tint together,
+`c · o · (T + (1 − T.a) · B)`, so an opacity is a half-weight composite over the **sharp** backdrop
+(`BB-A`, `BB-B`); the proposal `.background(material)` is the `LayoutModifier.backgroundMaterial`
+case, the legacy `Box`'s lives in `DecorationExtras` (`BB-P`). **A scene with no backdrop takes the old
+single pass byte for byte** (every counter 0); one with backdrops renders in segments, split at each
+backdrop run, into a per-window frame target and copies it to the drawable, which stays
+`framebufferOnly` (`BB-C`). The blur is sigma 52 pt in device pixels: `L` bilinear 2× downsamples until
+`sigma_dev / 2^L ≤ 4`, a separable Gaussian, then the quad's read at `(p + ½)/2^L − ½` over the
+transformed bounding box clamped to the target — `Scene.backdropRegion` is the one region function,
+`BackdropBlurReference` (`MetalUIPath`) the one reference (`BB-D`, `BB-R`). **`shaders.metal` and
+`replay.hlsl` hold the same arithmetic** (`TE-AD`; `ReplayFixture` v4, parity frames 9–11); counters
+count `L + 2` passes a record, never time (`BB-E`, `BB-S` 1). **It degrades to the flat tint rect
+`c · o · T` (`MUIBackdrop.flatTintRect`) by name**: a `Path` fill and a leaf inside a CPU-rasterized
+`.shadow`/`.blur`/`.compositingGroup()` (divergence 248), and wherever a renderer cannot blur
+(`BB-I`); Reduce Transparency is not honoured (249). **A shader test needs a field that varies on both
+axes**: a vertical step let four mutations survive (§94 §6).
 
 **`ForEach` identity (`FI-`, record §95).** A `ForEach` element is identified by its id's **Hashable
 value**, as SwiftUI: ids that print alike and differ in value are two elements with separate `@State`
@@ -1129,7 +1154,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (137 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (142 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

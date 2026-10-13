@@ -43,6 +43,10 @@ on:
       # Every frame's reference is drawn by the Metal renderer; frame 6 is its
       # ellipse kind and image primitive (rulings TE-AE, TE-AF).
       - "Sources/MetalUIRender/**"
+      # Frames 9-11 are the backdrop blur (ruling BB-J): its record, its CPU
+      # reference and the level count both renderers share.
+      - "Sources/MetalUIShaderTypes/**"
+      - "Sources/MetalUIPath/**"
       - "Tests/Fonts/**"
   pull_request:
     paths:
@@ -74,6 +78,10 @@ on:
       # Every frame's reference is drawn by the Metal renderer; frame 6 is its
       # ellipse kind and image primitive (rulings TE-AE, TE-AF).
       - "Sources/MetalUIRender/**"
+      # Frames 9-11 are the backdrop blur (ruling BB-J): its record, its CPU
+      # reference and the level count both renderers share.
+      - "Sources/MetalUIShaderTypes/**"
+      - "Sources/MetalUIPath/**"
       - "Tests/Fonts/**"
   workflow_dispatch:
 
@@ -143,7 +151,7 @@ jobs:
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
-            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 9
+            $(swift build --scratch-path /tmp/build --show-bin-path)/PortableReplay ../../Experiments/SDLGPU/fixtures --driver vulkan --dump ../../Experiments/SDLGPU/linux-dump --expect 12
             # The demo built HERE, checked against the macOS frame 5 (ruling DC-B; no apostrophes in this single-quoted script).
             $(swift build --scratch-path /tmp/build --show-bin-path)/DemoCapture ../../Experiments/SDLGPU/fixtures --driver vulkan
           '
@@ -213,7 +221,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force ..\..\Experiments\SDLGPU\windows-dump | Out-Null
           $bin = (swift build @flags --show-bin-path)
-          & "$bin\PortableReplay.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12 --dump ..\..\Experiments\SDLGPU\windows-dump --expect 9
+          & "$bin\PortableReplay.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12 --dump ..\..\Experiments\SDLGPU\windows-dump --expect 12
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           # The demo built HERE, checked against macOS's frame 5 (ruling DC-B).
           & "$bin\DemoCapture.exe" ..\..\Experiments\SDLGPU\fixtures --driver direct3d12

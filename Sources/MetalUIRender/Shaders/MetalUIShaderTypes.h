@@ -55,6 +55,36 @@ typedef enum {
     MUIShapeEllipse     = 1
 } MUIShape;
 
+// A material's backdrop (ruling BB-A, BB-B): the blurred pixels already drawn
+// beneath `bounds`, with `tint` composited over them, shape-masked, with an
+// opacity -- ONE primitive, `c * o * (T + (1 - T.a) * B)` (premultiplied), so a
+// fade reproduces SwiftUI's half-weight composite of the whole layer. 96 bytes:
+// six `float4` lanes, so the SDL bridge uploads the records as they are.
+//
+// `bounds`, `contentMask`, `maskCornerRadii`, `cornerRadii` and `shape` mean
+// exactly what they mean on `MUIRect` (`shape`: `MUIShape` in bits 0...7, the
+// transform index, 1 + an index into `Scene.transforms`, in bits 8...31, ruling
+// GX-F). `tint` is straight alpha, like a rect's `background`. `sigma` is the
+// blur's standard deviation in DEVICE pixels (`MUIBackdropSigmaPoints` x the
+// display scale); `opacity` multiplies the whole result.
+typedef struct {
+    MUIBounds bounds;
+    MUIBounds contentMask;
+    MUICorners maskCornerRadii;
+    MUICorners cornerRadii;
+    MUIHsla tint;
+    MUIUInt order;
+    MUIUInt shape;
+    float sigma;
+    float opacity;
+} MUIBackdrop;
+
+// The blur's standard deviation in points, one constant for all six materials
+// (ruling BB-D 1, probe swiftui-backdrop-blur.swift), and the most 2x
+// downsample levels the pyramid uses before its Gaussian.
+#define MUIBackdropSigmaPoints 52.0
+#define MUIBackdropBlurMaxLevel 6
+
 // An affine per instance (ruling GX-F): 64 bytes, four `float4` lanes, so the
 // SDL bridge uploads the table as it is. A primitive names one by
 // 1 + its index in `Scene.transforms`: `MUIRect.shape` bits 8…31,

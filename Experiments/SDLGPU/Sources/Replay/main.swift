@@ -444,6 +444,60 @@ func demoFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
                        scaleFactor: 1, textSystem: system, atlas: atlas)
 }
 
+
+/// A field of 16-point cells in a hue ramp at alternating lightness: contrast
+/// at every scale, so a blur of it is visible and its errors are not hidden by
+/// flat areas. The backdrop frames' (9–11) content.
+func backdropField(_ scene: inout Scene, width: Int, height: Int) {
+    let full = bounds(0, 0, Float(width), Float(height))
+    let cell = 16
+    for gy in 0..<((height + cell - 1) / cell) {
+        for gx in 0..<((width + cell - 1) / cell) {
+            scene.insert(MUIRect(bounds: bounds(Float(gx * cell), Float(gy * cell), Float(cell), Float(cell)),
+                contentMask: full, maskCornerRadii: corners(0),
+                background: color(Float((gx * 7 + gy * 3) % 12) / 12, 0.8, (gx + gy) % 2 == 0 ? 0.35 : 0.65),
+                borderColor: color(0, 0, 0, 0), cornerRadii: corners(0),
+                borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0, shape: 0))
+        }
+    }
+}
+
+/// One material: the blurred backdrop of `box` with a gray tint over it (ruling BB-A).
+func material(_ box: MUIBounds, tint: MUIHsla = color(0, 0, 0.5, 0.3), sigma: Float = 52, opacity: Float = 1,
+              clip: MUIBounds, clipRadius: Float = 0, radius: Float = 0, ellipse: Bool = false) -> MUIBackdrop {
+    MUIBackdrop(bounds: box, contentMask: clip, maskCornerRadii: corners(clipRadius), cornerRadii: corners(radius),
+                tint: tint, order: 0, shape: ellipse ? UInt32(MUIShapeEllipse.rawValue) : 0, sigma: sigma, opacity: opacity)
+}
+
+/// Frames 9–11 (ruling BB-J): the backdrop blur on both renderers.
+/// 9: a step under a material — two panels over the cell field, side by side
+/// (one run, two records) at σ = 52 and 16 device pixels.
+/// 10: a rounded-rect material under a rounded clip at 0.7 opacity, an ellipse
+/// material, and a material turned 30° (the transformed bounding box).
+/// 11: two nested materials (the second blurs the first: two runs).
+func backdropFrame(index: Int, width: Int, height: Int) -> Scene {
+    var scene = Scene()
+    let full = bounds(0, 0, Float(width), Float(height))
+    backdropField(&scene, width: width, height: height)
+    switch index {
+    case 9:
+        scene.insert(material(bounds(20, 20, 140, 160), clip: full))
+        scene.insert(material(bounds(170, 20, 130, 160), tint: color(0.6, 0.5, 0.5, 0.2), sigma: 16, clip: full))
+    case 10:
+        scene.insert(material(bounds(16.5, 12.25, 150, 100), opacity: 0.7, clip: bounds(24, 20, 130, 84),
+                              clipRadius: 14, radius: 20))
+        scene.insert(material(bounds(180, 10, 120, 100), sigma: 24, clip: full, ellipse: true))
+        let turn = transformRecord(degrees: 30, about: 80, 150, outer: full)
+        scene.insert(material(bounds(30, 130, 100, 50), tint: color(0.1, 0.6, 0.6, 0.25), sigma: 20, clip: full, radius: 12),
+                     transform: turn)
+    default:
+        scene.insert(material(bounds(20, 20, 200, 120), clip: full, radius: 16))
+        scene.insert(material(bounds(100, 70, 200, 110), tint: color(0.3, 0.6, 0.4, 0.3), sigma: 24, clip: full, radius: 16))
+    }
+    scene.finalize()
+    return scene
+}
+
 @MainActor
 func metalPixels(_ scene: Scene, atlas: GlyphAtlas, renderer: Renderer,
                  width: Int, height: Int, projection: simd_float4x4) throws -> [UInt8] {
@@ -517,16 +571,23 @@ func run() throws {
     let transformsAtlas = GlyphAtlas(width: 512, height: 512)
     // Frame 8's blurred text is PortableText's, into its own atlas (`LK-S`).
     let looksAtlas = GlyphAtlas(width: 512, height: 512)
-    for (index, dimensions) in [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                                (640, 380), (640, 380)].enumerated() {
+    // Frames 9–11 (ruling BB-J) need the portable shaders: the adapted MSL has no backdrop stages.
+    let portableShaders = portable
+    let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200)]
+    for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
+        let backdrops = index >= 9
+        if backdrops && !portableShaders { print("frame \(index) (backdrop blur): skipped, needs --portable"); continue }
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = looks
+        let frameAtlas = backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = backdrops
+            ? backdropFrame(index: index, width: width, height: height)
+            : looks
             ? try looksFrame(width: width, height: height, atlas: looksAtlas)
             : transforms
             ? try transformsFrame(width: width, height: height, atlas: transformsAtlas)
@@ -545,7 +606,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
@@ -554,7 +615,9 @@ func run() throws {
         // 6): ≤ 8 inside an image quad, ≤ 1 outside; frame 7's transformed
         // sprites likewise (ruling GX-F), its quads placed by the records.
         // Frame 8's CPU-made images likewise (`LK-S`).
-        try require(shapes || transforms || looks ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
+        // Frames 9–11 (ruling BB-J): the blurred quad is judged at the sprite tolerance
+        // (`ReplayFixture.spriteMask()` covers backdrop bounds), every other pixel to one step.
+        try require(shapes || transforms || looks || backdrops ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
             try Data(frameFixture.encoded()).write(to: path)
