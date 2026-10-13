@@ -2269,3 +2269,5 @@ No window was driven and no real input method was run; the fourteen offscreen im
 VoiceOver on a field while a candidate is marked (`IM-E`); IM2 a real input method on macOS and SDL: underline at
 the caret, one write per commit, Escape keeps a selected word, the candidate window at the caret; IM3 cancel over a
 selection on AppKit's `NSTextField` for comparison.
+
+**Owed, new here — `docs/verification/human-checks.md` group GD, none performed (an agent cannot)** (record §103): GD1 a person new to the framework reads each of the six guides against the running demo and marks every surprising step; the compile check cannot see whether a guide teaches.

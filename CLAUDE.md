@@ -69,7 +69,8 @@ summary.
   `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), `RF-` (resign on press:
   `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), `MT-` (material follow-ups:
   `2026-10-12-material-followups-decisions.md`, next `MT-L`), `IM-` (input-method
-  driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `BL-` (performance baselines:
+  driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `DG-` (developer guides:
+  `2026-10-12-guides-decisions.md`, next `DG-R`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -85,7 +86,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **151 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT and IM, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM and GD, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -105,6 +106,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-13, `docs/guides` from `ff8a1ea4`, merged with master `848ee029` (§98, §99, §100, §101, §102): 3624 tests, 0 goldens, 229 typecheck guards** (master's 3582 + 42 tests, no guard: the doc-check's 9, lane 1's 17, lane 2's 16; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, census unmoved; no `Sources/` or `Backends/SDL` change, the fourteen images 0 px; no divergence label taken; the Linux image ran the 26 lane-1 tests, the full suite not re-taken there; record §103 §5). Before it,
 - **Counts (2026-10-13, `feat/material-followups` from `930db4a`, merged with master `7f891629` (§99, §100), then `0fb2ea6e` (§98), then `f6f865c1` (§102 input-method driver): 3582 tests, 0 goldens, 229 typecheck guards** (master's 3566 + 16 tests, 225 + 4 guards; 3565 / 228 at `0fb2ea6e`'s merge; lane A's 4 tests and 2 guards, lane B's 12 tests and 2 guards; `swift package clean`, native run 0 `Issue`, 0 `error:`, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; the fourteen images scene-identical, 0 px against `930db4a`; divergence 315 added, 249 retired, 151 live after §102; `Backends/SDL` and the Linux image not re-taken; record §101 §6). Before it:
   **(2026-10-12, `feat/ime-driver` from `3fce05f`, merged with master `ff8a1ea` (§100 continuing press cancel), then `7f891629` (§99 text over a GPU surface), then `0fb2ea6e` (§98 resign on press): 3566 tests, 0 goldens, 225 typecheck guards** (master's 3549 + 17 tests, 224 + 1 guard 3.4; 3530 / 222 at `ff8a1ea`'s merge, 3546 / 223 at `7f891629`'s; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`; census 3453 (3446 + 7: the input-method verbs and read-backs); divergences 325, 326 added, 151 live after §99; record §102 §5). Before it:
   **(2026-10-12, `feat/resign-on-press` from `5f35df6`, merged with master `ff8a1ea4` (§94 backdrop blur, §96 text selection, §97 window drag, §100 continuing press cancel), then `7f891629` (§99 text over a GPU surface): 3549 tests, 0 goldens, 224 typecheck guards** (master's 3529 + 20 tests, 222 + 2 guards; 3533 / 223 at `ff8a1ea4`'s merge; `swift package clean`, native build and run 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`, no issue recorded; inventory and undocumented scripts print nothing, one public family; the fourteen images 0 px against `5f35df6`; divergence labels 285–294 unused, no divergence; record §98 §2). Before it:
@@ -223,7 +225,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -1094,6 +1096,17 @@ nothing and answer `false` (`IM-B`, `IM-C`). `HeadlessPlatformWindow.markedText`
 AX value is the **committed** text while composing (divergence 325) and a selection write while composing is held
 back until the commit (`SL-H`, divergence 326). `Window.focusedElement`'s `didSet` drops the composition of a field
 that lost focus (`IM-I`). A selection write ends the open typing group (`SL-O`, measured and pinned).
+
+**Developer guides (`DG-`, record §103, `docs/guides/README.md`).** Six task-led guides (layout, state
+and identity, input, presentations and the app shell, drawing and GPU, cross-platform) for an author
+coming from SwiftUI. **Every `swift` block is compiled**: copied by hand, byte for byte, into a
+`// guide: <file> #<n>` region of `Tests/MetalUITestingTests/GuideMirrors*.swift` (an ordinary
+target, so no build system skips it, `DG-C`), and `GuideDocCheck.swift` fails on a differing byte,
+an unmirrored block, a fence other than `swift`/`text`/`sh`, a dead pin, divergence label or link,
+an unmerged-API name and a behaviour word with no `(pin: \`test\`)`. **A new block is written in the
+guide, then copied by hand** (no generator, `DG-D`); SDL snippets are `text` fences (`DG-L`); a
+mirror test settles with `setNeedsRedraw()` and `tick()`, never `runUntilIdle()` after a click
+(`DG-P`). No public API.
 
 **Overlays and coordinates (`OV-`, record §92).** `CoordinateSpace.named` and `.coordinateSpace(_:)` (a
 transparent `CoordinateSpaceScope`: no node, no id level) resolve against the **nearest ancestor so
