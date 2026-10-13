@@ -290,7 +290,7 @@ M	MetalUI	EnvironmentScope.swift	ElementGroup	controlSize	.*	environment-control
 M	MetalUI	EnvironmentScope.swift	ElementGroup	preferredColorScheme	.*	preferred-color-scheme
 M	MetalUI	EnvironmentScope.swift	ElementGroup	environment	Observable	environment-object
 M	MetalUI	EnvironmentScope.swift	.*	.*	.*	environment
-M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|controlSize)	.*	environment-control
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|accessibilityReduceTransparency|controlSize)	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	-	ControlSize	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	(-|DynamicTypeSize)	(DynamicTypeSize|isAccessibilitySize)	.*	environment-dynamic-type
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	dynamicTypeSize	.*	environment-dynamic-type

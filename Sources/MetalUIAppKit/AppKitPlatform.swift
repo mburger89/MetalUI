@@ -807,6 +807,30 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     @objc private func accessibilityDisplayOptionsNotification(_ notification: Notification) {
         refreshAccessibilityReduceMotion()
+        refreshAccessibilityReduceTransparency()
+    }
+
+    // MARK: Reduce Transparency (`MT-D`)
+
+    /// A live read of `NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency`,
+    /// never a cache -- the source SwiftUI reads.
+    var accessibilityReduceTransparency: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    }
+
+    /// Fired with the new value when a re-read differs from the last one.
+    var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+
+    /// The value the last re-read saw, updated whether or not a callback is set.
+    private var lastAccessibilityReduceTransparency = false
+
+    /// Re-reads the setting and reports it if it changed, on the same
+    /// display-options notification as Reduce Motion.
+    func refreshAccessibilityReduceTransparency() {
+        let reduceTransparency = accessibilityReduceTransparency
+        guard reduceTransparency != lastAccessibilityReduceTransparency else { return }
+        lastAccessibilityReduceTransparency = reduceTransparency
+        onAccessibilityReduceTransparencyChange?(reduceTransparency)
     }
 
     /// Re-reads the setting and reports it if it changed — what SwiftUI does
@@ -893,6 +917,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         lastControlActiveState = controlActiveState
         observeControlActiveState()
         lastAccessibilityReduceMotion = accessibilityReduceMotion
+        lastAccessibilityReduceTransparency = accessibilityReduceTransparency
         observeAccessibilityReduceMotion()
         lastReportedAppearance = appearance
         accessibilityBridge.hostView = hostView

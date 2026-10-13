@@ -70,6 +70,8 @@ private func conformer(pair: String) -> String {
         // every arm here carries it; `TransactionCompileGuards` pins it.
         var accessibilityReduceMotion: Bool { false }
         var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+        var accessibilityReduceTransparency: Bool { false }
+        var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
     \(pair)
     }
     """

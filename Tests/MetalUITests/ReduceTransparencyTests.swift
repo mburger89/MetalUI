@@ -20,9 +20,11 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// `element` under Reduce Transparency `reduce` and `scheme`, as one frame.
 @MainActor private func rtFrame<E: Element>(_ element: E, reduce: Bool, scheme: ColorScheme = .light,
                                             side: Float = 100) -> Frame {
-    effectFrame(Column { element }
-        .environment(\.accessibilityReduceTransparency, reduce)
-        .environment(\.colorScheme, scheme), side: side)
+    effectFrame(Column {
+        Column { element }
+            .environment(\.accessibilityReduceTransparency, reduce)
+            .environment(\.colorScheme, scheme)
+    }, side: side)
 }
 
 @MainActor private func rtScene<E: Element>(_ element: E, reduce: Bool, scheme: ColorScheme = .light) -> Scene {
@@ -190,10 +192,12 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
 @Test @MainActor func togglingReduceTransparencySnapsAMaterial() throws {
     func tree(_ reduce: Bool) -> some Element {
         Column {
-            Color.clear.frame(width: px(40), height: px(20)).background(.regularMaterial)
-            Box().frame(width: px(40), height: px(21)).background(.regularMaterial)
+            Column {
+                Color.clear.frame(width: px(40), height: px(20)).background(.regularMaterial)
+                Box().frame(width: px(40), height: px(21)).background(.regularMaterial)
+            }
+            .environment(\.accessibilityReduceTransparency, reduce)
         }
-        .environment(\.accessibilityReduceTransparency, reduce)
     }
     let h = TransitionHarness()
     let before = h.frame(0, nil, tree(false), side: 100).finalizedScene()
@@ -202,8 +206,10 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
     #expect(toggled.backdrops.isEmpty)
     let later = h.frame(0.6, nil, tree(true), side: 100).finalizedScene()
     for (height, label) in [(Float(20), "proposal"), (21, "legacy")] {
-        let a = try #require(toggled.rects.first { $0.bounds.size.height == height && $0.background.a > 0 }, label)
-        let b = try #require(later.rects.first { $0.bounds.size.height == height && $0.background.a > 0 }, label)
+        let a = try #require(toggled.rects.first { $0.bounds.size.height == height && $0.background.a > 0 },
+                             Comment(rawValue: label))
+        let b = try #require(later.rects.first { $0.bounds.size.height == height && $0.background.a > 0 },
+                             Comment(rawValue: label))
         #expect(String(describing: a.background) == String(describing: b.background)
                 && abs(a.background.a - 1) < 1e-4,
                 "\(label): the toggle frame is already the opaque grey, \(a.background) vs \(b.background)")

@@ -171,6 +171,10 @@ final class FakePlatformWindow: PlatformWindow {
     var accessibilityReduceMotion = false
     var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
 
+    /// Settable, unlike AppKit's live read (`MT-D`); `false` by default.
+    var accessibilityReduceTransparency = false
+    var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+
     /// The accessibility seam (ruling AB-A): every tree `Window` published, in
     /// order, so a test asserts exactly what a platform would have been handed.
     var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
@@ -227,6 +231,11 @@ final class FakePlatformWindow: PlatformWindow {
     /// Change Reduce Motion and notify, the getter already reporting it —
     /// **on every call, a no-op included**, so a test of `Window`'s own change
     /// guard can report the value the window already has.
+    func simulateReduceTransparencyChange(to value: Bool) {
+        accessibilityReduceTransparency = value
+        onAccessibilityReduceTransparencyChange?(value)
+    }
+
     func simulateReduceMotionChange(to value: Bool) {
         accessibilityReduceMotion = value
         onAccessibilityReduceMotionChange?(value)

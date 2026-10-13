@@ -268,15 +268,14 @@ func paintShapeFill(_ geometry: ShapeGeometry, color declared: Color?, style: Fi
 @MainActor
 func paintShapeMaterial(_ geometry: ShapeGeometry, material: Material, style: FillStyle? = nil,
                         pass: PaintPass) {
-    let tint = pass.resolve(material.color)
     if let (path, own) = geometry.pathAndStyle {
-        pass.drawPath(path, fill: style ?? own, color: tint)
+        pass.drawPath(path, fill: style ?? own, color: pass.materialTint(material))
         return
     }
     if let style, !style.isAntialiased {
-        pass.drawPath(Path(geometry), fill: style, color: tint)
+        pass.drawPath(Path(geometry), fill: style, color: pass.materialTint(material))
         return
     }
-    pass.fillBackdrop(geometry.rect, tint: tint, cornerRadii: geometry.cornerRadii,
+    pass.fillMaterial(geometry.rect, material: material, cornerRadii: geometry.cornerRadii,
                       shape: geometry.primitiveShape)
 }
