@@ -8,7 +8,12 @@ phase's, `SB-S`…`SB-AC` lane 1's) in `docs/superpowers/2026-10-13-retained-sub
 probes `docs/probes/retained-subtrees/`. Divergence labels reserved 395–404: **none taken** (no SwiftUI-visible
 behaviour; the new public declarations are `FrameWork`'s ten counters and the demo's content, census 3492 -> 3510).
 
-**Status: LANE 1 BUILT — as paint replay, not prepaint-and-paint replay (`SB-AA`).** @@STATUS@@
+**Status: LANE 1 BUILT — as paint replay, not prepaint-and-paint replay (`SB-AA`).** Built: a retained record per `.equatable()` occurrence replays its paint on a hit; build, layout and prepaint still
+run (lane 2). The node drag's release median per frame is **-10 to -14 %** (`.value` 7.44 -> 6.68 ms, `.panels` 7.62 -> 6.56 ms in the final
+head's reading, 7.42 -> 6.53 and 7.45 -> 6.52 in the quiet one) and its element paints 1084 -> 178; the lane 2 gate reads 57 % and opens (§10).
+Verify mode ran over the whole suite with no trap after finding `SB-AC` (§5). Deferred: prepaint replay, the build skip, the graft and the
+placement memo, translated replay, read-only `withState`, popovers/surfaces inside a subtree, custom environment keys, finer scopes, `drawText`
+(§11).
 
 ## §1 The measurement (design phase, `e85cb07a`)
 
@@ -216,7 +221,29 @@ traps in `finishRetainedPaint` with "replay differs from a fresh run at <path>: 
 
 ## §6 Counts
 
-@@COUNTS@@
+Measured on the final head of lane 1 (`f2a39999`, 2026-10-13), after `swift package clean`:
+
+* **`swift build --build-system native --build-tests`: 0 `error:`, 0 `warning:`** but SwiftPM's deprecation notice; the default build
+  system's `swift build --build-tests` also 0 `error:` and 0 `warning:`.
+* **`swift test --build-system native --no-parallel`, unfiltered: 3705 tests** (baseline 3675 at `e85cb07a`: +30 tests), 0 goldens,
+  **234 typecheck guards** (232 + the two of `RetainedSubtreeCompileGuards.swift`; the `Mirror` classification tests are not typecheck
+  guards). The run read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` (the screen is locked: each takes 61 s) and
+  nothing else; `FR-J no-argument frame: succeeded=true`; 0 `error:` in the log.
+* **`METALUI_VERIFY_RETAINED=1`, the same run: 3705 tests, the same five issues, no trap** (four count-reading tests are off under it,
+  `rsVerifying`).
+* The Linux root package in `swift:6.4-noble` (volume `metalui-root-retained-subtrees`, `swift build --build-tests` then `swift test
+  --skip-build`): **218 + 9 + 40 + 25 + 209 + 79 + 22 tests, 0 failures** (the first number is `MetalUITestingTests`, which runs the
+  retained-subtree tests on Linux with `rsSettle()`; the portable `MetalUILayout` signature tests are in the 209).
+* `Backends/SDL` (macOS): `swift build $(python3 scripts/fetch-accesskit.py --print-flags)` completes; the only warnings are the linker's
+  note that Homebrew's SDL3 was built for a newer macOS. Untouched by this branch; its tests were not re-run.
+* Census **3510** (3492 + 18: `FrameWork`'s ten counters and the demo's eight public declarations); `closeout-inventory-check.sh` and
+  `closeout-undocumented.sh` print nothing; divergences: none taken (152 live, labels 395-404 unused).
+* The fourteen offscreen demo images: **0 px against `e85cb07a`, scenes identical, at `5ae374be` and again at `f2a39999`**
+  (`docs/probes/demo-pixels/compare.sh <scratch> e85cb07a HEAD`; the controls separate as they should: 11 of 11).
+  `DemoFrameDeterminismTests`' `Expected.swift` unedited; `MetalUILayout` imports only `MetalUICore` (3 imports), `MetalUIScene` only
+  `MetalUIShaderTypes`; `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green.
+* The retained-subtree tests are 37 (filtered run: 37 passed). A count is stale the moment a test lands: re-measure.
+
 
 ## §7 Timing (dated measurements; the Mac is shared; no pin reads a time)
 
@@ -233,6 +260,14 @@ fixture against a `git archive` of `e85cb07a`):
 | `.value` | 7.448, 7.422, 7.403 (median 7.422) | 6.546, 6.534, 6.524 (6.534) | **-0.89 ms, -12.0 %** |
 | `.environment` (nodes refused, divergence 346) | 7.622, 7.596, 7.579 (7.596) | 7.605, 7.608, 7.597 (7.605) | +0.01 ms: the refusal gets nothing, and costs nothing |
 | `.panels` | 7.459, 7.453, 7.417 (7.453) | 6.520, 6.511, 6.519 (6.519) | **-0.93 ms, -12.5 %** |
+
+Taken at `d6d4dd22`, load average about 2. **Re-taken at the final head** (`SB-AC` and the verify changes are in; load average 22 from
+another workflow, so everything is slower): `.value` 7.648, 7.444, 7.435 (median 7.444) -> 6.733, 6.655, 6.677 (6.677), **-0.77 ms,
+-10.3 %**; `.environment` 7.814, 7.625, 7.767 -> 7.871, 7.697, 7.783 (no change); `.panels` 7.645, 7.466, 7.620 (7.620) -> 6.555,
+6.554, 6.681 (6.555), **-1.07 ms, -14 %**. The last frame of the final run reads `builds=1`, `elementPaints=178`, `retainedHits=32`,
+`retainedMisses=0`, `retainedIneligible=0` for `.value` (1084 element paints without replay) and `elementPaints=110`, `retainedHits=34`,
+`retainedIneligible=1` for `.panels`. (The `.environment` arm's nodes read `@Environment`, so the content memo refuses them and evaluates every frame, divergence 346:
+21 hits, 1000 element paints.)
 
 **Debug**, same script (two runs; the first is `--quick`): `.value` 54.79, 54.57, 54.59 -> 50.13, 48.76, 48.82 (-10.5 %); `.environment` 55.32,
 55.09, 55.41 -> 55.42, 54.21, 54.08; `.panels` 54.03, 54.27, 54.65 -> 48.75, 48.22, 48.25 (-10.7 %). Debug paint is 61 % of a render
