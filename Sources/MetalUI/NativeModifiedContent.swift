@@ -28,6 +28,11 @@ public enum LayoutModifier: Sendable {
     /// A fill behind the content. **A `Color` since the colour work** (ruling
     /// `CR-W`): a `ColorToken` here was the only colour it could carry.
     case background(Color)
+    /// A material behind the content: the backdrop already drawn beneath it,
+    /// blurred, with the material's tint over it (rulings `BB-A`, `BB-P`).
+    /// **New since the backdrop blur** -- an exhaustive `switch` outside the
+    /// package gains one arm (`docs/migration.md`).
+    case backgroundMaterial(Material)
     case clip(cornerRadius: Pixels = Pixels(0))
     /// SwiftUI's `clipShape(_:)` (plan task 11, part 2, `TE-AJ` item 1): the
     /// shape's geometry in the layer's bounds, pushed as `.clip` pushes its
@@ -132,12 +137,13 @@ extension ProposalElementGroup {
         background(Color(token))
     }
 
-    /// Paints `material`'s flat tint behind this native subtree — SwiftUI's
-    /// `background(_:)` with a `Material` (`LK-L`, `LK-R` item 2): the
-    /// existing `.background(_:)` layer with the material's colour, following
-    /// the scheme. No backdrop blur (divergence 166).
+    /// Paints `material` behind this native subtree — SwiftUI's
+    /// `background(_:)` with a `Material` (`LK-L`, `LK-R` item 2, `BB-A`): the
+    /// backdrop already drawn beneath it, blurred, with the material's tint
+    /// over it, following the scheme. One layer, one identity level, as
+    /// `.background(_:)` is.
     public func background(_ material: Material) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        background(material.color)
+        _wrapLayout(.backgroundMaterial(material))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.

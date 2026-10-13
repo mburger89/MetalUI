@@ -181,10 +181,12 @@ enum RasterExtent {
     static func of(_ q: CapturedPrimitive, map: Affine2D) -> ExtentBox {
         let m = map.concatenating(q.transform?.affine ?? .identity)
         var box = ExtentBox()
-        switch q.kind {
+        switch q.kind.flatteningBackdrop {
         case let .rect(r): box.add(m.boundingBox(of: r.bounds))
         case let .glyph(g): box.add(m.boundingBox(of: g.bounds))
         case let .image(i, _): box.add(m.boundingBox(of: i.bounds))
+        case .backdrop:
+            preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
         case let .surface(s, _): box.add(m.boundingBox(of: s.bounds))
         case let .path(p): box.add(m.boundingBox(of: p.bounds))
         case let .gradient(g): box.add(m.boundingBox(of: g.bounds))
@@ -260,6 +262,9 @@ extension CapturedPrimitive {
             p.kind = .shadow(shadow.movedCanonically(dx, dy))
         case let .blur(blur):
             p.kind = .blur(blur.movedCanonically(dx, dy))
+        case .backdrop(var record):
+            record.bounds = record.bounds.moved(dx, dy); record.contentMask = record.contentMask.moved(dx, dy)
+            p.kind = .backdrop(record)
         }
         return p
     }

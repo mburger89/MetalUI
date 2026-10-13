@@ -451,6 +451,16 @@ final class FakePlatformWindow: PlatformWindow {
         return titleBarPressResult
     }
 
+    /// How many times `Window` asked the platform to move the window for a
+    /// `WindowDragGesture` (`WD-E`).
+    private(set) var windowDrags = 0
+    /// What `performWindowDrag` answers; `true` by default.
+    var performsWindowDrag = true
+    func performWindowDrag() -> Bool {
+        windowDrags += 1
+        return performsWindowDrag
+    }
+
     /// Delivers a drag from outside the window (ruling `DN-C`), as the
     /// platform's drop path would, and answers what the window answered.
     @discardableResult

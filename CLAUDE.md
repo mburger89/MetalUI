@@ -61,7 +61,11 @@ summary.
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-O`), `FI-` (`ForEach` identity:
-  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), …; the full
+  `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
+  `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
+  `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
+  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GC-` (continuing press cancel:
+  `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -74,9 +78,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **137 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 245–254 and 265–284 reserved by open branches, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **147 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–304 and 315–324 reserved by open branches, 305–314 unused by C26, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV and IF, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD and SL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -92,10 +96,19 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
+- **Counts (2026-10-12, `feat/text-selection` from `0abce86`, merged with master `930db4a` (§93–§95, §97): 3504 tests, 0 goldens, 221 typecheck guards** (master's 3472 + 32 tests, 218 + 3 guards G1–G3; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`; census 3446 (master's 3424 + 22); divergences 265, 266 added, 147 live; the merge's one source edit `Window.onInput` keeps both the selection `defer` and master's modifier report; record §96 §5). Before it:
+- **Counts (2026-10-12, `feat/window-drag` from `a720fba`, merged with master `5f35df6` (§95 `ForEach` identity), then master `d6a815c` (§94 backdrop blur): 3472 tests, 0 goldens, 218 typecheck guards** (master's 3446 + 26 tests, 217 + 1 guard 3.2; at `5f35df6`'s merge 3441 / 217; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3415 (3405 + 10: `WindowDragGesture` and its members, `performWindowDrag`, `windowDrags`, `performsWindowDrag`; the tsv re-recorded after the merge for AppKit's line shifts); divergences 275–277 added, 145 live after §94, next label 206; `Backends/SDL` 24 + 114 on macOS (113 + 1), the Linux image not re-taken after the merge; the fourteen images 0 px against `a720fba` on the merged tree; record §97 §4, §6). Before it,
+  **(2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity), then record 94 §11's three pins: 3446 tests, 0 goldens, 217 typecheck guards**
+  (master's 3415 + 28 tests, 216 + 1 guard: lane 1's 16 (8 record, 3 scene, 4 reference, 1 guard), lane 2's 12; `swift package clean`,
+  native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, the
+  default build system 0 `warning:`; census 3414 (3405 + 9); `Backends/SDL` 30 + 123 on macOS (30 + 120 in the Linux image, branch checker; lane 3's 10 `SDLBackdropTests` and
+  the `ReplayFixtureTests` growth), replay parity re-taken by the branch checker after the merge: 12 fixtures, SDL Metal 0 px,
+  Windows D3D12 unmeasured (CI); divergences 245–249 added, 166 amended, 142 live; the fourteen images 0 px; record §94 §5, §7). Before it,
 - **Counts (2026-10-12, `fix/foreach-identity` from `280d706`, merged with master `a720fba` (§92 overlays, §93 input follow-ups): 3415 tests, 0 goldens, 216 typecheck guards**
   (master's 3402 + 13 tests, 215 + 1 guard `G1`; native run after `swift package clean` on a locked screen read exactly the five
   `AppKitPresentationTests` sheet issues and nothing else; census 3361 + master's growth, count unchanged by this branch; divergence 79 retired, 255
@@ -200,7 +213,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -292,7 +305,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`) — have no
+  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`) — have no
   default so a conformer that forgets one fails to compile. Both conformers,
   the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
   answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
@@ -553,6 +566,16 @@ come only from `TextSystem.caretOffsets` (`TI-E`) — never re-derive from
 advances. Undo history (`TI-G`) is valid only for the text its last edit
 produced.
 
+**Text selection (`SL-`, record §96).** `TextField(_:text:selection:)`/`TextEditor(_:text:selection:)`
+over `Binding<TextSelection?>` (macOS 15 like `RangeSet`; the field's state holds it type-erased,
+`SL-L`) are **two-way and echo-free**: one `defer` in `Window`'s `onInput` publishes the focused field's
+selection after an input that changed it (against `currentText`, under `StateDispatch`), and `prepaint`
+applies a binding value that differs from the last one published (`seenBinding`); nil is never an
+instruction, a write is held back while composing, a stale index clamps, and a write ends the typing
+group but touches no undo stack (`SL-B`…`SL-I`). A field focused from code keeps its stored caret and
+focus or resign writes nothing (divergences 265, 266). `TextInputTarget` keeps `Handlers` at 488 bytes
+through class-boxed closures (`SL-M`); the demo is `METALUI_SELECTION_DEMO=1`, a root of its own (`SL-N`).
+
 **Text.** `Text`/`ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`); a new text-drawing element goes through the
 seam too. Fonts, weight, italic and colour resolve through **one** function,
@@ -699,6 +722,27 @@ drops to `[]` on leaving key, dirties the window **only when the last build held
 the action runs in the lifecycle drain after the build; SwiftUI's timing is **unprobed**
 (human check IF1, `IF-D`). A `.modifiersChanged` event returns before the hook's blanket
 `setNeedsRedraw()` unless the app's `onInput` claims it (`IF-N` item 3).
+
+**Window drag (`WD-`, record §97).** `WindowDragGesture` is SwiftUI's spelling (no
+`.windowDragArea()`): one arena leaf, live in a **press** arena only, an opaque pointer target on
+its element's hitbox, **ready at a `tapSlop` move** and blocked as a draggable is (a tap, long
+press or click ahead yields, an undecided `DragGesture` ahead wins). When it acts it ends,
+runs the `onCancelled` of members that had reported, fails the rest (divergence 275) and
+`Window` calls the defaultless `PlatformWindow.performWindowDrag() -> Bool` then
+`endPressForDrag()` **whatever the answer**. AppKit answers `true` only while dispatching the
+mouse-dragged of a held primary press (`performDrag(with:)` with its mouse-down, the unproven
+call, check WD1); SDL records and answers `false` (divergence 276, no hit-test region list:
+`WD-F`). `AS-J`'s band drag is unchanged (unclaimed presses only); the three gates are the
+gesture rule and `.opacity(0)` does not disable it (divergence 277). Not built:
+`windowBackgroundDragBehavior` (a Scene modifier), a double-click zoom in a handle.
+
+**Continuing press cancel (`GC-`, record §100).** A reported leaf owes `onCancelled` whatever
+ends it. `GestureArena.press(… continuing: true)` takes `cancelCallback(leaf)` before it fails an
+undecided drag (`GC-B`), and `Window`'s `.mouseDown` treats a press that finds the arena **still
+pressing** as a lost release, not a tap sequence's second press: `abandon()` and a fresh arena
+form, as for a press on another element (`GC-C`; SwiftUI agrees, probe `swiftui-lost-release.swift`).
+A real double-click (arena released) still continues. A bare `.mouseMoved` does not cancel the
+primary arena (rejected, `GC-C`). No public API, no divergence.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
@@ -899,8 +943,8 @@ image path** (Oklab table; a one-texel strip when linear along one axis, else a
 full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
 leaf with sigma = radius, the shadow pipeline in colour keyed by
 `Frame.keyLeaf(…colours:)` (a GPU surface leaf draws unblurred, divergence 167;
-`LK-K`); a `Material` is a fitted flat tint on the colour sites, **no backdrop
-blur** (divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
+`LK-K`); a `Material` is a tint over a **real backdrop blur** (`BB-`, below;
+divergence 166; `LK-L`). **A new stored property on `Decoration` goes in
 `DecorationExtras`** (the 1 MB thread, `LK-W` item 10); a new
 `CapturedPrimitive` or `LayoutModifier` kind owes its arm in both fade
 flattenings (`multiplyAlpha`, `RenderEffect.apply`).
@@ -1005,6 +1049,24 @@ too) belong to it. **`anchoredOverlay(at:in:anchor:)`** (MetalUI-only, both voca
 **still lands** (the popover stage runs before the menu, text-input and value-track stages) and by
 Escape, never claiming a key; a press on the declarer dismisses and reaches it. `.popover` takes
 SwiftUI's `attachmentAnchor:` (divergence 225). `presentationBackground(_:)` is not built (`OV-C`).
+
+**Backdrop blur (`BB-`, record §94).** A `Material` is one scene primitive, `PrimitiveKind.backdrop`
+(`MUIBackdrop`, 96 bytes, `Scene.backdrops`): the blurred backdrop and the tint together,
+`c · o · (T + (1 − T.a) · B)`, so an opacity is a half-weight composite over the **sharp** backdrop
+(`BB-A`, `BB-B`); the proposal `.background(material)` is the `LayoutModifier.backgroundMaterial`
+case, the legacy `Box`'s lives in `DecorationExtras` (`BB-P`). **A scene with no backdrop takes the old
+single pass byte for byte** (every counter 0); one with backdrops renders in segments, split at each
+backdrop run, into a per-window frame target and copies it to the drawable, which stays
+`framebufferOnly` (`BB-C`). The blur is sigma 52 pt in device pixels: `L` bilinear 2× downsamples until
+`sigma_dev / 2^L ≤ 4`, a separable Gaussian, then the quad's read at `(p + ½)/2^L − ½` over the
+transformed bounding box clamped to the target — `Scene.backdropRegion` is the one region function,
+`BackdropBlurReference` (`MetalUIPath`) the one reference (`BB-D`, `BB-R`). **`shaders.metal` and
+`replay.hlsl` hold the same arithmetic** (`TE-AD`; `ReplayFixture` v4, parity frames 9–11); counters
+count `L + 2` passes a record, never time (`BB-E`, `BB-S` 1). **It degrades to the flat tint rect
+`c · o · T` (`MUIBackdrop.flatTintRect`) by name**: a `Path` fill and a leaf inside a CPU-rasterized
+`.shadow`/`.blur`/`.compositingGroup()` (divergence 248), and wherever a renderer cannot blur
+(`BB-I`); Reduce Transparency is not honoured (249). **A shader test needs a field that varies on both
+axes**: a vertical step let four mutations survive (§94 §6).
 
 **`ForEach` identity (`FI-`, record §95).** A `ForEach` element is identified by its id's **Hashable
 value**, as SwiftUI: ids that print alike and differ in value are two elements with separate `@State`
@@ -1129,7 +1191,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (137 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (147 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

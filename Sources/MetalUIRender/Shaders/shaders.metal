@@ -673,3 +673,188 @@ kernel void transform_abi_probe(
     out[14] = (MUIUInt)(t.outerMaskRadii.topRight * 10.0);
     out[15] = (MUIUInt)(t.outerMaskRadii.bottomLeft * 10.0);
 }
+
+// ---------------------------------------------------------------------------
+// Backdrop pipeline (rulings BB-A, BB-B, BB-D, BB-R, BB-S)
+//
+// A material is one `MUIBackdrop`: `c * o * (T + (1 - T.a) * B)`, premultiplied,
+// with `c` the rect shader's own coverage (shape SDF x clip mask), `o` the
+// record's opacity, `T` the premultiplied tint and `B` the premultiplied
+// BLURRED backdrop. The blur is done before the quad is drawn, by passes over
+// the frame target `F` (the renderer ends the pass at the backdrop run):
+//
+//   1. `backdrop_downsample_fragment`, L times: each output texel is the mean of
+//      its 2x2 source block, an odd edge repeating its last texel (four exact
+//      `read`s clamped to the REGION, not to the texture, so the pixels past
+//      the region's edge never leak in).
+//   2. `backdrop_gaussian_fragment`, twice (horizontal, vertical) at level L:
+//      taps -ceil(3s)...+ceil(3s), weights exp(-i^2 / 2s^2) normalized in the
+//      shader, the edge clamped to the region.
+//   3. `backdrop_fragment` reads the level-L texture bilinearly at
+//      `(devicePosition - regionOrigin) * uvScale`, `uvScale = 1 / (levelSize
+//      * 2^L)` per axis -- the texel coordinate `(p + 1/2) / 2^L - 1/2` of
+//      BB-R, NOT `uv x size`.
+//
+// The same statements, in the same order, as `replay.hlsl` (TE-AD).
+// ---------------------------------------------------------------------------
+
+struct BackdropBlurPass {
+    /// Source rectangle in the source texture: origin x, y, size w, h.
+    int4  src;
+    float sigma;
+    int   horizontal;
+};
+
+struct BlurVertexOut {
+    float4 position [[position]];
+};
+
+/// One oversized triangle covering the target: no buffers.
+vertex BlurVertexOut backdrop_pass_vertex(uint vertexID [[vertex_id]]) {
+    float2 p = float2(float((vertexID << 1) & 2), float(vertexID & 2));
+    BlurVertexOut out;
+    out.position = float4(p * 2.0 - 1.0, 0.0, 1.0);
+    return out;
+}
+
+fragment float4 backdrop_downsample_fragment(
+    BlurVertexOut in [[stage_in]],
+    constant BackdropBlurPass &pass [[buffer(0)]],
+    texture2d<float, access::read> source [[texture(0)]]
+) {
+    int2 p = int2(in.position.xy);
+    int2 origin = pass.src.xy;
+    int2 last = pass.src.zw - 1;
+    int2 lo = min(2 * p, last);
+    int2 hi = min(2 * p + 1, last);
+    float4 a = source.read(uint2(origin + int2(lo.x, lo.y))) + source.read(uint2(origin + int2(hi.x, lo.y)));
+    float4 b = source.read(uint2(origin + int2(lo.x, hi.y))) + source.read(uint2(origin + int2(hi.x, hi.y)));
+    return (a + b) * 0.25;
+}
+
+fragment float4 backdrop_gaussian_fragment(
+    BlurVertexOut in [[stage_in]],
+    constant BackdropBlurPass &pass [[buffer(0)]],
+    texture2d<float, access::read> source [[texture(0)]]
+) {
+    int2 p = int2(in.position.xy);
+    int2 origin = pass.src.xy;
+    int2 last = pass.src.zw - 1;
+    float sigma = pass.sigma;
+    int radius = sigma > 0.0 ? int(ceil(3.0 * sigma)) : 0;
+    int2 axis = pass.horizontal != 0 ? int2(1, 0) : int2(0, 1);
+    float twoSigmaSquared = 2.0 * sigma * sigma;
+
+    float total = 1.0;
+    float4 sum = source.read(uint2(origin + min(p, last)));
+    for (int i = 1; i <= radius; i++) {
+        float w = exp(-float(i * i) / twoSigmaSquared);
+        total += 2.0 * w;
+        int2 l = clamp(p - axis * i, int2(0), last);
+        int2 r = clamp(p + axis * i, int2(0), last);
+        sum += w * (source.read(uint2(origin + l)) + source.read(uint2(origin + r)));
+    }
+    return sum / total;
+}
+
+/// The frame target onto the drawable, texel for texel: no blend, no filter.
+fragment float4 backdrop_copy_fragment(
+    BlurVertexOut in [[stage_in]],
+    texture2d<float, access::read> frame [[texture(0)]]
+) {
+    return frame.read(uint2(in.position.xy));
+}
+
+vertex RectVertexOut backdrop_vertex(
+    uint vertexID   [[vertex_id]],
+    uint instanceID [[instance_id]],
+    constant float2  *unitVertices [[buffer(MUIRectBufferVertices)]],
+    constant MUIBackdrop *records  [[buffer(MUIRectBufferRects)]],
+    constant MUISize &viewport     [[buffer(MUIRectBufferViewport)]],
+    constant float4x4 &projection  [[buffer(MUIRectBufferProjection)]],
+    constant MUITransform *transforms [[buffer(MUIRectBufferTransforms)]]
+) {
+    float2 unit = unitVertices[vertexID];
+    MUIBackdrop r = records[instanceID];
+
+    uint transformIndex = r.shape >> 8;
+    float2 pos;
+    float2 local;
+    if (transformIndex == 0) {
+        pos = float2(r.bounds.origin.x, r.bounds.origin.y)
+            + unit * float2(r.bounds.size.width, r.bounds.size.height);
+        local = pos;
+    } else {
+        MUITransform t = transforms[transformIndex - 1];
+        float fringe = 1.0 / t.pixelScale;
+        local = float2(r.bounds.origin.x, r.bounds.origin.y) - fringe
+              + unit * (float2(r.bounds.size.width, r.bounds.size.height) + 2.0 * fringe);
+        pos = transform_point(t, local);
+    }
+    float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
+               + float2(-1.0, 1.0);
+    RectVertexOut out;
+    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.pixelPosition = local;
+    out.screenPosition = pos;
+    out.rectID = instanceID;
+    return out;
+}
+
+/// The record's coverage `c`: the rect shader's shape SDF (a white, opaque,
+/// borderless rect of the same bounds and shape) times its clip, exactly as
+/// `rect_fragment` evaluates them, so a material's edge antialiases like a
+/// rect's.
+static float backdrop_coverage(MUIBackdrop b, RectVertexOut in,
+                               constant MUITransform *transforms) {
+    MUIRect r;
+    r.bounds = b.bounds;
+    r.contentMask = b.contentMask;
+    r.maskCornerRadii = b.maskCornerRadii;
+    r.background = MUIHsla{0.0, 0.0, 1.0, 1.0};
+    r.borderColor = MUIHsla{0.0, 0.0, 1.0, 1.0};
+    r.cornerRadii = b.cornerRadii;
+    r.borderWidths = MUIEdges{0.0, 0.0, 0.0, 0.0};
+    r.order = b.order;
+    r.shape = b.shape;
+    uint transformIndex = b.shape >> 8;
+    if (transformIndex == 0) {
+        float clip = mask_coverage(in.pixelPosition, b.contentMask, b.maskCornerRadii);
+        return rect_shade(r, in.pixelPosition, 1.0).a * clip;
+    }
+    MUITransform t = transforms[transformIndex - 1];
+    float clip = mask_coverage_scaled(in.pixelPosition, b.contentMask, b.maskCornerRadii, t.pixelScale)
+               * mask_coverage(in.screenPosition, t.outerMask, t.outerMaskRadii);
+    return rect_shade(r, in.pixelPosition, t.pixelScale).a * clip;
+}
+
+/// `c * o * (T + (1 - T.a) * B)`. `draw` is `(regionOriginX, regionOriginY,
+/// uvScaleX, uvScaleY)` (BB-R).
+fragment float4 backdrop_fragment(
+    RectVertexOut in [[stage_in]],
+    constant MUIBackdrop *records [[buffer(MUIRectBufferRects)]],
+    constant MUITransform *transforms [[buffer(MUIRectBufferTransforms)]],
+    constant float4 &draw [[buffer(5)]],
+    texture2d<float> blurred [[texture(0)]]
+) {
+    constexpr sampler linearClamp(coord::normalized, filter::linear, address::clamp_to_edge);
+    MUIBackdrop b = records[in.rectID];
+    float c = backdrop_coverage(b, in, transforms);
+    float4 tc = hsla_to_srgba(b.tint);
+    float4 tint = float4(tc.rgb * tc.a, tc.a);
+    float2 uv = (in.screenPosition - draw.xy) * draw.zw;
+    float4 backdrop = blurred.sample(linearClamp, uv);
+    return c * b.opacity * (tint + (1.0 - tint.a) * backdrop);
+}
+
+/// The fallback (BB-I): `c * o * T`, today's flat tint over the sharp backdrop.
+fragment float4 backdrop_flat_fragment(
+    RectVertexOut in [[stage_in]],
+    constant MUIBackdrop *records [[buffer(MUIRectBufferRects)]],
+    constant MUITransform *transforms [[buffer(MUIRectBufferTransforms)]]
+) {
+    MUIBackdrop b = records[in.rectID];
+    float c = backdrop_coverage(b, in, transforms);
+    float4 tc = hsla_to_srgba(b.tint);
+    return c * b.opacity * float4(tc.rgb * tc.a, tc.a);
+}

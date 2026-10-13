@@ -69,6 +69,9 @@ struct GestureLeaf {
         /// A `.draggable` (ruling `DN-D`): ready on the first move of more
         /// than zero points, failed at the release.
         case draggable
+        /// A `WindowDragGesture` (ruling `WD-C`): live in a press arena only,
+        /// ready on the first move of at least `tapSlop` from the press.
+        case windowDrag
         /// Live only in a pinch arena (`CI-D` item 1).
         case magnify(minimumScaleDelta: Double)
         /// Live only in a pinch arena; the minimum in degrees.
@@ -416,6 +419,9 @@ enum GestureCallback {
     /// A draggable won the arena (ruling `DN-D` item 7): `Window` opens a drag
     /// session from `owner` with `source`'s payload, pressed at `at`.
     case beginDrag(owner: GlobalElementID, source: DragSource, at: Point<Pixels>)
+    /// A `WindowDragGesture` won the arena (ruling `WD-D`): `Window` asks the
+    /// platform to move the window and ends the press.
+    case beginWindowDrag(owner: GlobalElementID)
 }
 
 /// **The tap's slop** (`IX-C` item 1, probe `G2g`/`G2b`): a tap fails once the
@@ -520,7 +526,7 @@ final class ArenaLeaf {
             return mode == .press
         case .gesture(let leaf):
             switch leaf.kind {
-            case .tap, .longPress, .draggable:
+            case .tap, .longPress, .draggable, .windowDrag:
                 return mode == .press
             case .drag(_, _, let button):
                 switch mode {
@@ -558,6 +564,18 @@ final class ArenaLeaf {
         if case .gesture(let leaf) = recognizer, case .draggable = leaf.kind { return true }
         return false
     }
+
+    /// Whether this leaf is a `WindowDragGesture` (ruling `WD-C`).
+    var isWindowDrag: Bool {
+        if case .gesture(let leaf) = recognizer, case .windowDrag = leaf.kind { return true }
+        return false
+    }
+
+    /// Whether this leaf hands the press to the platform when it acts — a
+    /// draggable's session or a window drag — and so passes the members a
+    /// draggable passes (`DN-D` item 2, `WD-C`). Not `isDraggable`: a window
+    /// drag is a pointer target, never a `.draggable` region (`WD-B`).
+    var startsHandoff: Bool { isDraggable || isWindowDrag }
 
     var tapCount: Int? {
         if case .gesture(let leaf) = recognizer, case .tap(let count, _) = leaf.kind { return count }
@@ -740,7 +758,7 @@ struct GestureArena {
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
-            case .drag, .draggable, .magnify, .rotate: return false
+            case .drag, .draggable, .windowDrag, .magnify, .rotate: return false
             }
         }
     }
@@ -754,13 +772,16 @@ struct GestureArena {
     }
 
     /// A press. `continuing` is the second press of a tap sequence on the same
-    /// target: taps re-arm, anything else still undecided is cancelled.
+    /// target: taps re-arm, anything else still undecided fails — and a drag
+    /// that had reported a change first runs its `onCancelled`, ahead of
+    /// whatever the resolution then produces, as `abandon()` does (`GC-B`).
     /// `modifiers` are the press's, for a `minimumDistance: 0` drag's first
     /// change (`CI-G`).
     mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool,
                         modifiers: Modifiers) -> [GestureCallback] {
         isPressing = true
         if !continuing { baseClickCount = clickCount }
+        var cancels: [GestureCallback] = []
         for leaf in leaves where leaf.status == .possible {
             leaf.pressModifiers = modifiers
             leaf.pressClickCount = clickCount
@@ -781,7 +802,13 @@ struct GestureArena {
                     leaf.awaitingStamp = true
                     leaf.owesPressing = true
                 case .drag(let minimum, let space, _):
-                    if continuing { fail(leaf); continue }
+                    if continuing {
+                        // A leaf that reported owes `onCancelled` whatever
+                        // ends it (`GC-B`).
+                        if let callback = cancelCallback(leaf) { cancels.append(callback) }
+                        fail(leaf)
+                        continue
+                    }
                     leaf.pressPoint = point
                     if minimum <= 0 {
                         leaf.started = true
@@ -789,14 +816,14 @@ struct GestureArena {
                                                                location: leaf.point(point, in: space),
                                                                modifiers: modifiers, clickCount: clickCount)
                     }
-                case .draggable:
+                case .draggable, .windowDrag:
                     leaf.pressPoint = point
                 case .magnify, .rotate:
                     break
                 }
             }
         }
-        return resolve()
+        return cancels + resolve()
     }
 
     /// `move(to:modifiers:)` with no modifiers.
@@ -826,6 +853,10 @@ struct GestureArena {
                 // The first move of more than zero points (`DN-D` item 1,
                 // `P17`/`P17z`): no slop, unlike a tap's.
                 if distance > 0 { leaf.ready = true }
+            case .windowDrag:
+                // One threshold for a press (`WD-C`): under `tapSlop` it can
+                // still be a tap or a click, from it on a window drag.
+                if distance >= tapSlop { leaf.ready = true }
             case .magnify, .rotate:
                 break
             }
@@ -887,7 +918,7 @@ struct GestureArena {
                                                           modifiers: modifiers, clickCount: leaf.pressClickCount)
                         leaf.ready = true
                     }
-                case .draggable:
+                case .draggable, .windowDrag:
                     fail(leaf)
                 case .magnify, .rotate:
                     break
@@ -972,7 +1003,7 @@ struct GestureArena {
                 if time - stamp >= tapSequenceDeferral { fail(leaf) }
             case .longPress(let duration, _):
                 if !leaf.ready && time - stamp >= duration { leaf.ready = true }
-            case .drag, .draggable, .magnify, .rotate:
+            case .drag, .draggable, .windowDrag, .magnify, .rotate:
                 break
             }
         }
@@ -1143,6 +1174,17 @@ struct GestureArena {
                     callbacks.append(.beginDrag(owner: leaf.owner, source: source, at: leaf.pressPoint))
                 }
                 for other in leaves where other !== leaf && other.status == .possible { fail(other) }
+            case .windowDrag:
+                // The platform's move begins (`WD-C`, `WD-D`): the draggable's
+                // arm, line for line. Every other member fails without an end;
+                // one that had reported is cancelled first (`IF-F` item 1),
+                // ahead of the request.
+                leaf.status = .ended
+                for other in leaves where other !== leaf && other.status == .possible {
+                    if let callback = cancelCallback(other) { callbacks.append(callback) }
+                }
+                callbacks.append(.beginWindowDrag(owner: leaf.owner))
+                for other in leaves where other !== leaf && other.status == .possible { fail(other) }
             case .magnify, .rotate:
                 // A pinch that never reported a change ends with no callback
                 // (`CI-C` item 4).
@@ -1189,7 +1231,7 @@ struct GestureArena {
         // its duration before the move keeps the drag from beginning (`DN-U`
         // item 1, MetalUI's choice) — and so does anything else undecided: a
         // `DragGesture` that outranks it wins (`DN-D` item 3).
-        if leaf.isDraggable {
+        if leaf.startsHandoff {
             return ahead.contains { $0.status == .ended
                                     || ($0.status == .possible && !Self.yieldsToDraggable($0)) }
         }
@@ -1224,7 +1266,7 @@ struct GestureArena {
             case .gesture(let g):
                 switch g.kind {
                 case .tap, .longPress: return true
-                case .drag, .draggable, .magnify, .rotate: return false
+                case .drag, .draggable, .windowDrag, .magnify, .rotate: return false
                 }
             }
         }

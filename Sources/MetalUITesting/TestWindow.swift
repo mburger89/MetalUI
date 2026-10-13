@@ -88,6 +88,10 @@ public final class TestWindow {
     /// How many frames the window has presented (`Window.framesDrawn`).
     public var framesDrawn: Int { window.framesDrawn }
 
+    /// How many times the window asked the platform to move it for a
+    /// `WindowDragGesture` (`HeadlessPlatformWindow.windowDrags`, ruling `WD-E`).
+    public var windowDrags: Int { platformWindow.windowDrags }
+
     /// The last presented frame's scene, in device pixels.
     public var scene: Scene { platformWindow.headlessRenderer.lastScene }
 

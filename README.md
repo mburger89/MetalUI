@@ -462,6 +462,11 @@ group Y, unrun.
 drag, magnify and rotate gestures, `.onModifierKeysChanged(mask:initial:_:)` for a still pointer,
 a wheel latch (a scroll's events follow its `.began`) and a synthesized `.cancelled` when a scroll
 loses its end. The canvas demo gains a readout pad. Human checks: group IF, unrun.
+**Window drag** (user request 2026-10-02, item C22, MetalCreator's C8-a, not a plan task; record
+§97): `WindowDragGesture` (SwiftUI's spelling) on a handle moves a hidden-title-bar window even
+over a viewport full of gestures; it ends and cuts the other gestures of the press (divergence
+275) and moves the window on AppKit only (divergence 276). The app-shell demo gains a handle.
+Human checks: group WD, unrun.
 **Controls and looks** (user request 2026-10-02, item C10, not a plan task; record §85):
 `Slider(value:in:step:onEditingChanged:)` reports each edit's start and end (one undo step per
 drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn panel (square,
@@ -470,8 +475,8 @@ spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframe
 `KeyframeAnimator` run `LinearKeyframe`/`CubicKeyframe`/`SpringKeyframe`/`MoveKeyframe` tracks
 (divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
-167); `.ultraThinMaterial` … `.bar` are fitted flat tints with no backdrop blur (divergence
-166). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: group CL, unrun.
+167); `.ultraThinMaterial` … `.bar` blur what is drawn beneath them (a GPU surface
+included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–249). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
 **App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
 `Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
 `replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same
@@ -502,6 +507,11 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Text selection** (user request 2026-10-02, item C25, MetalCreator's CT-b, not a plan task; record §96):
+SwiftUI's `TextSelection` and `TextField(_:text:selection:)` / `TextEditor(_:text:selection:)` (macOS 15):
+the binding carries a whole-title selection or a caret at the end of a note from code, and reads back
+after typing, clicks, arrows and undo. `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` shows it.
+
 **Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
 plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
 chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside

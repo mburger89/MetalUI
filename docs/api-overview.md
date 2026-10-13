@@ -365,6 +365,25 @@ that loses key reports them released. A scroll's events, momentum included, go t
 element under its `.began`, and a scroll whose end never arrives (the window resigned key,
 or closed) gets a synthesized `.cancelled`.
 
+**Continuing press cancel** (`GC-`, record §100; no new API, no divergence). A leaf that
+reported owes `onCancelled` whatever ends it: a primary press on the element whose press is
+still down (a release the app never saw) cancels a reported `DragGesture` and starts a fresh
+arena, instead of dropping the drag silently. A real double-click is unchanged.
+
+**Window drag** (`WD-`, record §97;
+[`superpowers/2026-10-12-window-drag-decisions.md`](superpowers/2026-10-12-window-drag-decisions.md);
+probe `probes/swiftui-window-drag.swift`). `WindowDragGesture` (A; SwiftUI's macOS 15 spelling,
+`Value` and `init()`, offered on every platform) attached with `.gesture`/`.highPriorityGesture`/
+`.simultaneousGesture` makes its element an opaque pointer target that, after a 5-point move,
+asks the platform to move the window and ends, cutting the other members of the press (D 275;
+`onCancelled` runs for one that had reported). It wins over gestures on a sibling beneath it
+(MetalCreator's full-window viewport under a hidden-title-bar handle) and loses to a `DragGesture`
+ahead of it. AppKit only moves the window (D 276); `.opacity(0)` does not disable it (D 277). Not
+built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click zoom. At the seam
+(M): the defaultless `PlatformWindow.performWindowDrag() -> Bool`; `MetalUITesting` gains
+`HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
+Human checks: group WD, unrun.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
@@ -405,6 +424,16 @@ press.modifiers.contains(commitModifier) ? commit() : .ignored }`, where
 macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
+
+**Text selection** (`SL-`, record §96;
+[`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);
+probe `probes/swiftui-text-selection.swift`). `TextSelection` (A, macOS 15: `indices`, `isInsertion`,
+`init(range:)`, `init(insertionPoint:)`, `init(ranges:)`) and `TextField(_:text:selection:)` /
+`TextEditor(_:text:selection:)` over `Binding<TextSelection?>` (A), plus the controlled spellings with
+`selection:` and `onSelectionChange:` (M). The field writes the binding after each input that moved the
+selection and applies a value it did not write on the next frame; nil is never an instruction.
+Divergences 265 (a field focused from code keeps its caret) and 266 (nothing is written at focus or
+resign). The demo: `METALUI_SELECTION_DEMO=1`.
 
 **Overlays and coordinates** (`OV-`, record §92;
 [`superpowers/2026-10-10-overlays-coords-decisions.md`](superpowers/2026-10-10-overlays-coords-decisions.md);
@@ -785,11 +814,16 @@ and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
 through the image path with a one-texel strip fast path, no shader change —
 `LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
 a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
-… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **fitted flat tint, no
-backdrop blur** (166; `LK-L`). Not built: `AngularGradient`, `EllipticalGradient`,
-`Gradient.colorSpace(_:)`, `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`,
-`phaseAnimator`, a native `NSColorPanel` route, a backdrop blur — each a named
-deferral (`LK-A`).
+… `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **tint over a real
+backdrop blur** of what is already drawn beneath it, GPU surfaces included, on both
+renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
+transform, opacity and transitions; the flat tint of `LK-L` remains for a path
+fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
+a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+`AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
+`.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
+`NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
+named deferral (`LK-A`, `BB-I`).
 
 ## Testing — M
 

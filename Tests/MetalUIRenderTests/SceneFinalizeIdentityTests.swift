@@ -51,6 +51,7 @@ private func emit(_ script: [Emission], into scene: inout Scene) {
         case .glyph: scene.insert(glyph(id: e.id, order: e.order), layer: e.layer)
         case .image: preconditionFailure("these scripts emit rects and glyphs only")
         case .surface: preconditionFailure("these scripts emit rects and glyphs only")
+        case .backdrop: preconditionFailure("these scripts emit rects and glyphs only")
         }
     }
 }
@@ -188,6 +189,7 @@ private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1
         scene.insert(glyph(id: Float(2 * i + 1), order: 0), layer: i % 3)
         scene.insert(MUIImage(), texture: sideTableTexture, layer: i % 2)
         scene.insert(MUIImage(), surface: sideTableTarget, layer: i % 3)
+        scene.insert(MUIBackdrop(), layer: i % 2)
     }
     scene.finalize()
     scene.clear()
@@ -207,8 +209,8 @@ private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1
         guard type(of: child.value) == [Int].self, let array = child.value as? [Int] else { return nil }
         return (child.label ?? "?", array)
     }
-    try #require(intArrays.count == 8,
-                 "expected eight [Int] side tables, found \(intArrays.map(\.label))")
+    try #require(intArrays.count == 10,
+                 "expected ten [Int] side tables (two per kind, five kinds since `BB-A`), found \(intArrays.map(\.label))")
     for table in intArrays {
         #expect(table.array.isEmpty, "\(table.label) is not empty after clear()")
         #expect(table.array.capacity >= primitivesPerKind,
