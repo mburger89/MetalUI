@@ -37,4 +37,19 @@ theBracketNodeDragRebuildsTheWholeWindow` (prints the `SB baseline` lines).
   against a `git archive` of `e85cb07a` with `BracketFixture.swift` and this harness copied in (the dated
   measurements are in record §109 §6).
 
-@@READINGS@@
+## Readings (2026-10-13, M1 Max, shared Mac; ranges, never pins)
+
+Release, the node drag, per frame, three whole-process runs of `perf-baselines.sh release bracket`:
+
+| arm | `e85cb07a` | lane 1 |
+|---|---|---|
+| `.value` | 7.403-7.448 ms | 6.524-6.546 ms |
+| `.environment` | 7.579-7.622 ms | 7.597-7.608 ms |
+| `.panels` | 7.417-7.459 ms | 6.511-6.520 ms |
+
+Debug: `.value` 54.6-54.8 -> 48.8-50.1 ms, `.panels` 54.0-54.7 -> 48.2-48.8 ms. Phase shares (release, replay on against off,
+`SB_RETAIN=0`): paint 1.97 -> 1.16-1.21 ms, build 2.1, layout 1.18, prepaint 0.8 unmoved (record §109 §7, §10).
+
+Verify mode over the whole suite (3701 tests) completes with no trap after the two findings it made (`SB-AC`, and the touched-ids
+comparison); the 73 tests that read paint-skipped counts are red under it by design (a verified hit paints), listed in record §6.
+
