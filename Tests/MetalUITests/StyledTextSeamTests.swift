@@ -56,7 +56,9 @@ private func demoWindow(_ system: CoreTextTextSystem) throws -> Window {
     // the layout memo answers 52 of the warm frame's seam measures whole. The cold
     // frame's 1020 / 1544 above are the recorded literals, unmoved (a cold memo does
     // the old work), and warm misses stay 0.
-    #expect(warmLookups == 58, "warm frame lookups")
+    if ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] != "1" {   // verify mode re-measures
+        #expect(warmLookups == 58, "warm frame lookups")
+    }
     withExtendedLifetime(window) {}
 }
 

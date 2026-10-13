@@ -292,3 +292,32 @@ private let parameterArms: [ParameterArm] = {
     }
     #expect(run(verifies: true) == run(verifies: false))
 }
+
+private final class Counter: @unchecked Sendable { var value = 0 }
+
+/// 1.16 — `verifies` traps when a hit differs from a fresh measurement: a keyed
+/// leaf whose closure is impure (it answers a growing width under one key) is the
+/// stand-in for a key that omitted an input. Positive control in the same body: the
+/// pure leaf of the same shape does not trap. Mutation: `verifyMemoHit` comparing
+/// nothing (the `precondition` removed) lets the process exit normally → red.
+@Test func aVerifiedHitThatDiffersFromAFreshMeasurementTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let memo = LayoutMemo(verifies: true)
+        let counter = Counter()
+        for generation in 1...3 as ClosedRange<UInt64> {
+            let tree = LayoutTree(generation: generation)
+            tree.memo = memo
+            let stable = tree.newNativeLeaf(key: "stable") { _ in LayoutMeasurement(size: SizeD(width: 4, height: 4)) }
+            let drifting = tree.newNativeLeaf(key: "drifting") { _ in
+                counter.value += 1
+                return LayoutMeasurement(size: SizeD(width: Double(counter.value), height: 4))
+            }
+            let root = tree.newNativeLinearStack(children: [stable, drifting], axis: .vertical)
+            tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
+                                     in: LayoutRect(x: 0, y: 0, width: 100, height: 100))
+            memo.endFrame()
+        }
+    }
+    let text = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(text.contains("IV-J"), "aborted, but not at the memo's verification:\n\(text)")
+}

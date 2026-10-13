@@ -80,7 +80,7 @@ import Testing
     #expect(sum.layoutCacheHits == 0)
     #expect(sum.layoutCacheMisses == 0)
     #expect(sum.layoutMemoRootHits == frames)
-    #expect(counting.measures == frames * n)
+    if !layoutMemoVerifying { #expect(counting.measures == frames * n) }
     #expect(counting.places == frames * n)
     #expect(sum.atlasUploadPixels == 0)
     #expect(sum.rasterizedPixels == 0)

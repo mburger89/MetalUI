@@ -2,12 +2,18 @@ import MetalUI
 import MetalUIScene
 import MetalUITesting
 import MetalUITextSystem
+import Foundation
 import Observation
 import Testing
 
 // C14 lane 1 (`IV-E`, `IV-N`): the layout memo through a real `Window`, counted in
 // `FrameWork` and at the text seam. Kernel-level pins are
 // `MetalUILayoutTests/LayoutMemoTests.swift`. Counts, never time.
+
+/// True when the suite runs with `METALUI_VERIFY_LAYOUT_MEMO=1` (test 1.12): every
+/// memo hit is then recomputed, which measures at the text seam again, so the pins
+/// that COUNT seam measures stand aside (the recomputation is the point of the run).
+let layoutMemoVerifying = ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] == "1"
 
 // MARK: 1.1 — the GT-A overlay, re-taken
 
@@ -51,7 +57,7 @@ import Testing
             #expect(sum.layoutCacheMisses == 0)
             #expect(sum.layoutMemoHits >= frames)
             #expect(sum.layoutMemoRootHits == frames)
-            #expect(counting.measures == frames * n, "paint's own measure only (GT-F)")
+            if !layoutMemoVerifying { #expect(counting.measures == frames * n, "paint's own measure only (GT-F)") }
         } else {
             #expect(sum.layoutMeasureCalls == frames * (n + 1))
             #expect(sum.layoutCacheMisses == frames * (n + 2))
@@ -126,7 +132,7 @@ private struct MemoBranch<Child: Component>: Component {
         let sum = w.dropFirst().reduce(w[0], +)
         if memoOn {
             #expect(sum.layoutMeasureCalls == frames, "levels \(levels)")
-            #expect(counting.measures == frames * (leaves + 1), "paint measures every leaf; layout measures one")
+            if !layoutMemoVerifying { #expect(counting.measures == frames * (leaves + 1), "paint measures every leaf; layout measures one") }
             #expect(sum.layoutCacheMisses <= frames * 2 * (levels + 3), "misses \(sum.layoutCacheMisses)")
             #expect(sum.layoutMemoHits > 0)
         } else {
