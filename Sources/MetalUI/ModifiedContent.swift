@@ -572,6 +572,10 @@ extension LayoutModifier: ModifierLayerKind {
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "background"), pass: pass)
             pass.fill(bounds, color: color, cornerRadii: Corners(all: Pixels(0)))
             inside()
+        case let .backgroundMaterial(material):
+            // One backdrop record (`BB-A`); a change of material snaps.
+            pass.fillBackdrop(bounds, tint: pass.resolve(material.color))
+            inside()
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: Corners(all: cornerRadius), inside)
@@ -649,7 +653,7 @@ extension LayoutModifier: ModifierLayerKind {
             // `MD-G`): the content's item record moves to the layer's node.
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
-        case .background, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
+        case .background, .backgroundMaterial, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
              .rotationEffect, .scaleEffect, .offset, .shadow, .blur, .compositingGroup:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved

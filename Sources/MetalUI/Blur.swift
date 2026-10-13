@@ -179,7 +179,7 @@ extension Frame {
         }
         var layer: RGBALayer
         let contentMask: (MUIBounds, MUICorners)
-        switch q.kind {
+        switch q.kind.flatteningBackdrop {
         case let .rect(r):
             contentMask = (r.contentMask, r.maskCornerRadii)
             let ellipse = r.shapeKind == PrimitiveShape.ellipse.rawValue
@@ -231,6 +231,8 @@ extension Frame {
                                          transform: toDevice.pathAffine, into: rect, filter: filter)
             }
             layer = RGBALayer(channels: channels).scaled(by: i.opacity)
+        case .backdrop:
+            preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
         case let .surface(s, _):
             contentMask = (s.contentMask, s.maskCornerRadii)
             layer = .empty

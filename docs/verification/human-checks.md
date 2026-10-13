@@ -1363,6 +1363,42 @@ cannot post these events.** Ruling `IF-D`, record 93.
 - [ ] **IF7.** Pinch, Command-Tab, pinch again at the same spot: the first gesture
   reads cancelled, the second starts from 1. **Observed:**
 
+## BB. Backdrop blur behind a Material (item C21, user request 2026-10-02, not a plan task; record §94)
+
+`.background(.ultraThinMaterial)` and the other five materials blur what is drawn
+beneath them, GPU surfaces included, on Metal and SDL (rulings `BB-A`…`BB-T`). Pinned
+headless: the records and their runs (`BackdropRecordTests`, `BackdropSceneTests`),
+the readback against a restated reference on a real Metal device and on SDL's
+offscreen renderer (`BackdropRenderTests`, `SDLBackdropTests`), the counters, and
+the parity of the Metal renderer against the SDL replay on fixture frames 9–11.
+What nothing headless sees: a presenting window, a moving viewport, a live resize,
+Direct3D 12, and SwiftUI's own look (it blurs behind the window in a real window,
+divergence 245). Run `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` (the "Gradients, blur, materials" section ends with six materials as panels over
+red/blue stripes and a disc) and, for BB1, a `.background(.regularMaterial)` panel
+you place over the MetalView demo's viewport (the demo has none: the GPU-surface
+case is pinned headless only, `BackdropRenderTests` 2.2, `SDLBackdropTests` 3.5). **An agent cannot.**
+
+- [ ] **BB1. A panel over a viewport.** Over the MetalView demo's viewport
+  (`METALUI_METALVIEW_DEMO=1`, with the panel added), each of
+  the six materials blurs the viewport behind it (the stripes melt into one colour
+  at about a 52-point radius), light and dark; outside the panel the viewport stays
+  sharp. Compare with SwiftUI knowing a real window's material blurs *behind* the
+  window (divergence 245), and compare the tint with a window capture
+  (`docs/probes/window-capture/capture.sh`). **Observed:**
+- [ ] **BB2. A panel dragged over moving content.** No tearing, no ghost of the
+  previous position, no one-frame lag between panel and blur. **Observed:**
+- [ ] **BB3. Nested panels.** A material over a material is blurred twice (the
+  upper one sees the lower's result). **Observed:**
+- [ ] **BB4. Resize with a panel up.** Resize the window, also across a Retina to
+  non-Retina display: no stale or stretched blur, no flash of the unblurred
+  frame. **Observed:**
+- [ ] **BB5. Windows (Direct3D 12) and Linux.** The same panels on an SDL window:
+  the blur matches Metal's by eye (parity frames 9–11 pass in CI; Windows was not
+  run locally, `BB-T` item 9). **Observed:**
+- [ ] **BB6. A fading panel.** A panel inserted or removed with a transition
+  cross-fades with the live backdrop (the ghost blurs what is there now,
+  `BB-G`). **Observed:**
+
 ## WD. Window drag — `WindowDragGesture` (item C22, user request 2026-10-02, not a plan task; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *Source: record 97 `97-window-drag.md`, rulings `WD-A`...

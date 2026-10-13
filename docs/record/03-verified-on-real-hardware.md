@@ -2195,6 +2195,18 @@ OV2 a right or middle click outside closes it and the context menu opens on the 
 and Escape with the field focused; OV4 the crosshair under the pointer in a named space; OV5
 `windowSize` through a live resize.
 
+## 2026-10-12: backdrop blur (record §94) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `f2fe54a` (the only `Material` in a demo
+is `LooksDemo`'s section, outside the images). Direct3D 12 was not run (`ssh metalui-win` timed out;
+the five DXIL stages are compiled and reflected, CI's `--expect 12` is the measurement); the Linux
+image and the replay-parity harness were run by the lane 3 implementer. No real-window capture was
+taken: a real window's tint over a blur is unmeasured (`LK-O` item 2), and SwiftUI's own material
+blurs behind the window (divergence 245). **Owed, new here — `docs/verification/human-checks.md`
+group BB, none performed (an agent cannot)**: BB1 a panel over a viewport, six materials, light and
+dark; BB2 a dragged panel over moving content; BB3 nested panels; BB4 a resize with a panel up; BB5
+Windows and Linux sight; BB6 a fading panel.
+
 ## 2026-10-12: window drag (record §97) — looks owed
 
 The fourteen offscreen images read 0 differing pixels against `a720fba`; the screen was locked, so no

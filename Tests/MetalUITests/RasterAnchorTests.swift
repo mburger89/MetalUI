@@ -297,6 +297,7 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
         case .path: "path"
         case let .shadow(p): "shadow(\(p.leaf.first.map { name($0.kind) } ?? ""))"
         case .gradient: "gradient"
+        case .backdrop: "backdrop"
         case let .blur(p): "blur(\(p.leaf.first.map { name($0.kind) } ?? ""))"
         }
     }

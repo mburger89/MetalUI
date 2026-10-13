@@ -2628,6 +2628,29 @@ primary press, as SwiftUI does (`FC3`, `KF-F`; pins
 
 **Amended:** none. **Retired:** none. 134 live, next label 206 (196–204 of C12's range unused).
 
+
+## 2026-10-12: 245–249 added, 166 amended (backdrop blur, record §94)
+
+- **245** — where a `Material` finds its backdrop. In a real window (`NSHostingView`, opaque or clear)
+  every sampled x of a black|white step reads one value: SwiftUI's material shows the
+  window-behind backdrop; `ImageRenderer` blurs the in-window content (probe `swiftui-backdrop-blur.swift`
+  `W` against `S`–`O`). MetalUI blurs its own window's content, GPU surfaces included (`BB-F`). Pins
+  `aBackdropOverAStepEqualsTheReferenceWithinTolerance`, `theBackdropBlursAGPUSurfaceBeneathIt`.
+- **246** — no saturation lift (`M1`: SwiftUI's green rises where the stripes have none); the blur is a
+  plain Gaussian (`BB-D` 2). Pin `aBackdropOverAStepEqualsTheReferenceWithinTolerance`.
+- **247** — the region is the shape's transformed bounding box, edge-clamped; SwiftUI's is nearly
+  clamped to the shape (`E`, `E2`: 0.06–0.12 bleed at the edge) and a clip never shrinks MetalUI's
+  region (`BB-D` 3, 5). Pins `backdropRegionIsTheTransformedBoundingBoxClampedToTheTarget`,
+  `pixelsOutsideTheShapeAreUntouched`.
+- **248** — a material on a `Path`, or inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()`
+  leaf, draws the flat tint (`BB-H`). Pins `aPathFilledWithAMaterialDrawsTheFlatTint`,
+  `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint`.
+- **249** — Reduce Transparency is not honoured (probe `T` inconclusive; two defaultless platform
+  requirements owed, `BB-I`). Unpinned (an absence).
+
+**Amended:** **166** — the flat grey tint is now drawn over the real backdrop blur; it remains alone
+only in 248's cases and where a renderer cannot blur. **Retired:** none. Labels 250–254 unused.
+
 ## 2026-10-12: 275–277 added (window drag)
 
 - **275** — a window drag cuts its neighbours. SwiftUI runs `WindowDragGesture` alongside a
@@ -2646,4 +2669,4 @@ primary press, as SwiftUI does (`FC3`, `KF-F`; pins
   `W8f`); MetalUI gates no hitbox on opacity for any gesture (`WD-J`). Pin
   `allowsHitTestingFalseHiddenAndDisabledEachRemoveTheHandle` arm 4.
 
-**Amended:** none. **Retired:** none. 140 live; labels 278–284 of this branch's range unused.
+**Amended:** none. **Retired:** none. 145 live (after §94's 245–249); labels 278–284 of this branch's range unused.

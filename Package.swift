@@ -253,7 +253,7 @@ var targets: [Target] = [
                 cSettings: [.define("METALUI_SDL", .when(traits: ["SDL"]))],
                 linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
         .target(name: "MetalUISDL",
-                dependencies: ["SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIScene",
+                dependencies: ["SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIScene", "MetalUIShaderTypes",
                                .target(name: "CAccessKit", condition: .when(traits: ["AccessKit"]))],
                 path: "Backends/SDL/Sources/MetalUISDL",
                 // What AccessKit's Rust static library needs, per platform
@@ -294,14 +294,14 @@ targets += [
         .target(
             name: "MetalUIRender",
             dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIScene", "MetalUIText",
-                           "MetalUIPlatform", "MetalUIPrimitives"],
+                           "MetalUIPlatform", "MetalUIPrimitives", "MetalUIPath"],
             resources: [.copy("Shaders")]
         ),
         // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
         // again so the glyph tests may build a real `GlyphAtlas` and read its
         // `pixels` back as the oracle for what the GPU should have sampled.
         .testTarget(name: "MetalUIRenderTests",
-                    dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText"]),
+                    dependencies: ["MetalUIRender", "MetalUIScene", "MetalUIText", "MetalUIPath"]),
 
         // AppKit: the macOS `Platform` and `PlatformWindow`, drawing through
         // `MetalWindowRenderer` (ruling RS-C).

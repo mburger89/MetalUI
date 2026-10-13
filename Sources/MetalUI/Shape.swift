@@ -261,3 +261,22 @@ func paintShapeFill(_ geometry: ShapeGeometry, color declared: Color?, style: Fi
     pass.fill(geometry.rect, color: color, cornerRadii: geometry.cornerRadii,
               shape: geometry.primitiveShape)
 }
+
+/// A material fill (`BB-A`): one backdrop record over a rounded rectangle or an
+/// ellipse; a path (or a fill style the SDF cannot honour) draws the flat tint
+/// the old way, `paintShapeFill`'s (divergence 248).
+@MainActor
+func paintShapeMaterial(_ geometry: ShapeGeometry, material: Material, style: FillStyle? = nil,
+                        pass: PaintPass) {
+    let tint = pass.resolve(material.color)
+    if let (path, own) = geometry.pathAndStyle {
+        pass.drawPath(path, fill: style ?? own, color: tint)
+        return
+    }
+    if let style, !style.isAntialiased {
+        pass.drawPath(Path(geometry), fill: style, color: tint)
+        return
+    }
+    pass.fillBackdrop(geometry.rect, tint: tint, cornerRadii: geometry.cornerRadii,
+                      shape: geometry.primitiveShape)
+}

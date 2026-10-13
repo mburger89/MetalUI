@@ -60,7 +60,7 @@ func run() throws {
             }
         }
         let parity = fixture.parity(of: pixels)
-        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.imageCount) images, \(fixture.runs.count) runs; outside sprites: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyph and image quads: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs))"
+        let line = "\(name) \(fixture.width)x\(fixture.height): \(fixture.rectCount) rects, \(fixture.glyphCount) glyphs, \(fixture.imageCount) images, \(fixture.backdropCount) backdrops, \(fixture.runs.count) runs; outside sprites: \(parity.outside.pixels) px, max Δ\(parity.outside.maxDelta) (≤\(ParityTolerance.outsideGlyphs)); inside glyph and image quads: \(parity.inside.pixels) px, max Δ\(parity.inside.maxDelta) (≤\(ParityTolerance.insideGlyphs)); inside backdrop quads: \(parity.backdrop.pixels) px, max Δ\(parity.backdrop.maxDelta) (≤\(ParityTolerance.insideBackdrops))"
         print(line)
         if !parity.passes {
             parityFailures += 1

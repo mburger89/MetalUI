@@ -475,8 +475,8 @@ spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframe
 `KeyframeAnimator` run `LinearKeyframe`/`CubicKeyframe`/`SpringKeyframe`/`MoveKeyframe` tracks
 (divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
-167); `.ultraThinMaterial` … `.bar` are fitted flat tints with no backdrop blur (divergence
-166). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: group CL, unrun.
+167); `.ultraThinMaterial` … `.bar` blur what is drawn beneath them (a GPU surface
+included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–249). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
 **App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
 `Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
 `replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same
