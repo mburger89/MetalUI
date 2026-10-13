@@ -355,7 +355,7 @@ func drawingMetalViewRoot() -> some Element {
 }
 
 /// A `Path` shape fills as one raster image; a `Rectangle` of the same fill draws none.
-/// Mutation: replace `DrawingDiamond()` with `Rectangle()` in the first root.
+/// Mutation: replace `DrawingDiamond()` with `Rectangle()` in this test's own first window (the guide's block is not this test's root).
 @Test @MainActor func theDrawingGuideAPathShapeDrawsAsOneImage() throws {
     let size = Size(width: Pixels(100), height: Pixels(100))
     let path = try harnessWindow(size: size) {
