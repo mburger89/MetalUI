@@ -70,7 +70,7 @@ summary.
   `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), `MT-` (material follow-ups:
   `2026-10-12-material-followups-decisions.md`, next `MT-L`), `IM-` (input-method
   driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `DG-` (developer guides:
-  `2026-10-12-guides-decisions.md`, next `DG-R`), `BL-` (performance baselines:
+  `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-W`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), …; the full
   prefix → document → record table is in record §69 "Where things are").
@@ -107,7 +107,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-13, `fix/rununtilidle-linux` from `848ee029`, merged with master `b17aee19` (§103 guides): 3626 tests, 0 goldens, 229 typecheck guards** (master's 3624 + 2 tests, no guard; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `848ee029`; no divergence label taken; the two mutations were run in the Linux image, the macOS `set(nil)` one on a filtered set; record §106 §5). Before it,
+- **Counts (2026-10-13, `docs/guides-followup` from `b17aee19`, merged with master `8e7c78e3` (§105 performance baselines, §106 `runUntilIdle()` on Linux): 3631 tests, 0 goldens, 229 typecheck guards** (master's 3626 + 5 tests, no guard; 3629 before the merge; `swift build --build-system native --build-tests` then the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no `Sources/` or `Backends/SDL` change, no public declaration, no divergence label taken; record §107). Before it,
+  **(2026-10-13, `fix/rununtilidle-linux` from `848ee029`, merged with master `b17aee19` (§103 guides): 3626 tests, 0 goldens, 229 typecheck guards** (master's 3624 + 2 tests, no guard; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `848ee029`; no divergence label taken; the two mutations were run in the Linux image, the macOS `set(nil)` one on a filtered set; record §106 §5). Before it,
 - **Counts (2026-10-13, `docs/guides` from `ff8a1ea4`, merged with master `848ee029` (§98, §99, §100, §101, §102): 3624 tests, 0 goldens, 229 typecheck guards** (master's 3582 + 42 tests, no guard: the doc-check's 9, lane 1's 17, lane 2's 16; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, census unmoved; no `Sources/` or `Backends/SDL` change, the fourteen images 0 px; no divergence label taken; the Linux image ran the 26 lane-1 tests, the full suite not re-taken there; record §103 §5). Before it,
 - **Counts (2026-10-13, `feat/material-followups` from `930db4a`, merged with master `7f891629` (§99, §100), then `0fb2ea6e` (§98), then `f6f865c1` (§102 input-method driver): 3582 tests, 0 goldens, 229 typecheck guards** (master's 3566 + 16 tests, 225 + 4 guards; 3565 / 228 at `0fb2ea6e`'s merge; lane A's 4 tests and 2 guards, lane B's 12 tests and 2 guards; `swift package clean`, native run 0 `Issue`, 0 `error:`, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; the fourteen images scene-identical, 0 px against `930db4a`; divergence 315 added, 249 retired, 151 live after §102; `Backends/SDL` and the Linux image not re-taken; record §101 §6). Before it:
   **(2026-10-12, `feat/ime-driver` from `3fce05f`, merged with master `ff8a1ea` (§100 continuing press cancel), then `7f891629` (§99 text over a GPU surface), then `0fb2ea6e` (§98 resign on press): 3566 tests, 0 goldens, 225 typecheck guards** (master's 3549 + 17 tests, 224 + 1 guard 3.4; 3530 / 222 at `ff8a1ea`'s merge, 3546 / 223 at `7f891629`'s; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`; census 3453 (3446 + 7: the input-method verbs and read-backs); divergences 325, 326 added, 151 live after §99; record §102 §5). Before it:
@@ -1108,7 +1109,8 @@ an unmirrored block, a fence other than `swift`/`text`/`sh`, a dead pin, diverge
 an unmerged-API name and a behaviour word with no `(pin: \`test\`)`. **A new block is written in the
 guide, then copied by hand** (no generator, `DG-D`); SDL snippets are `text` fences (`DG-L`); a
 mirror test settles with `setNeedsRedraw()` and `tick()`, never `runUntilIdle()` after a click
-(`DG-P`). No public API.
+(`DG-P`). The C23/C24/C27/C28 sections are in (record §107): `frame(ofID:)` does not see a proposal
+element's `.id`, so a guide test reads an accessibility frame (`DG-T`). No public API.
 
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel

@@ -109,7 +109,7 @@ The first root draws exactly one backdrop record; the second draws none, because
 inside a CPU-rasterized `.shadow`, `.blur` or `.compositingGroup()` under one is drawn as its flat
 tint, by name (divergence 248; pin: `theDrawingGuideAMaterialIsOneBackdropAndDegradesUnderAShadow`,
 `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint`). A `Path` fill degrades the same
-way. Reduce Transparency is not honoured (divergence 249). A GPU surface drawn under `.blur(radius:)`
+way. With Reduce Transparency on, a material is an opaque grey instead (divergence 315; the last section below). A GPU surface drawn under `.blur(radius:)`
 stays unblurred while its siblings blur (divergence 167).
 
 ## How do I draw into my own GPU surface?
@@ -167,6 +167,96 @@ A headless window builds both roots but draws no GPU surface, because no rendere
 (`testing.md`). Both are checked by building them, not by their pixels; look at the real window
 for those. Text drawn over a surface is an ordinary `Text` overlay in the same `ZStack`.
 
+## How do I put a label over a GPU surface?
+
+Draw the label as an ordinary `Text` in a `ZStack` above the surface; the closure of a `GPUSurface`
+has no text call. To size the surface from the label, ask for its size without laying it out:
+`@Environment(\.textMeasurer)` is a get-only `TextMeasurer` whose `resolve(_:)` takes a `Text` (or a
+`ProposalText`) and whose `ResolvedText.measure(in:)` answers the size the text would be laid out at
+under a proposal. It resolves the font, weight and rich runs from the environment **at the point you
+read it**, so a measure inside a `.font(.system(size: 26))` subtree is the larger text (pin:
+`theMeasureReadsTheEnvironmentAtTheReadingPoint`), and a finite width wraps and a finite height caps
+the lines (pin: `aNarrowProposalWrapsAndAShortHeightCapsTheLines`). The answer is the unrounded size
+layout gives the text, so the frame a `Text` gets is it rounded to whole points, within one point (pin:
+`aMeasuredTextIsTheFrameALaidOutTextGets`; divergence 296). An empty string measures 0 wide and one
+line tall, where SwiftUI's `Text("")` view is 0 by 0 (divergence 295; pin:
+`anEmptyStringMeasuresAsItLaysOut`). MetalUI has no `Canvas` or `GraphicsContext`, which is why the
+measurer is an environment value; it has no public initialiser (pin:
+`theMeasurerHasNoPublicInitialiserAndNoSetter`). Label the surface for accessibility, which also lets a test find it. The test below reads the surface's
+accessibility frame 16 points wider and 8 taller than the label (pin:
+`theDrawingGuideASurfaceIsSizedFromTheMeasuredLabel`).
+
+```swift
+/// A label over a surface, the surface sized from the label's measured width and height.
+struct DrawingLabelled: Component {
+    let title: String
+    @Environment(\.textMeasurer) var measurer
+
+    var content: some ElementGroup {
+        let size = measurer.resolve(Text(title)).measure(in: Size(width: .infinity, height: .infinity))
+        ZStack {
+            GPUSurface(redraw: .onDemand, value: title) { context in
+                context.clear(red: 0.1, green: 0.2, blue: 0.4, alpha: 1)
+            }
+            .frame(width: Pixels(size.width.value + 16), height: Pixels(size.height.value + 8))
+            .accessibilityLabel("Chart")
+            Text(title).id("label")
+        }
+    }
+}
+
+@MainActor
+func drawingLabelledRoot(_ title: String) -> some Element {
+    VStack { DrawingLabelled(title: title) }
+}
+```
+
+## How do I make a material respect Reduce Transparency?
+
+Read `@Environment(\.accessibilityReduceTransparency)`, SwiftUI's key; it is get-only outside the
+module (pin: `aScopeCannotWriteReduceTransparency`). The window stamps it from the platform, and no
+material needs your help: with it true **every** material site draws an opaque rect instead of a
+backdrop, the scheme's tint grey at alpha 1, with no blur work (pin:
+`everyMaterialSiteDrawsAnOpaqueRectUnderReduceTransparency`, `reduceTransparencyCostsNoBlurWork`). A
+change repaints once and a repeat of the same value does not (pin:
+`reduceTransparencyRedrawsOnceAndNotOnARepeat`). SDL answers `false` and never fires. The grey is
+MetalUI's ruling, not a measured copy of SwiftUI's (divergence 315), and the key is read in the
+environment so your own labels can follow it, as below (pin:
+`theDrawingGuideAPanelFollowsReduceTransparency`); a test turns the setting on with
+`TestWindow.setReduceTransparency(_:)` or the `accessibilityReduceTransparency` window option (pin:
+`theWindowStampsReduceTransparencyFromItsPlatformWindow`).
+
+`Material.tint(in:)` (MetalUI-only; SwiftUI exposes no such read) returns the grey-and-opacity a
+material composites over its blur in a scheme, for a role that must hide a given share of the
+backdrop: a panel colour of opacity `t` over a material of opacity `m` hides `1 - (1 - t)(1 - m)`,
+so to hide `g` take `t = 1 - (1 - g) / (1 - m)`, valid for `g >= m` (pin:
+`materialTintMatchesTheFillTableForEveryKindAndScheme`, `theGlassIdentityHoldsForTheSolvedTint`).
+The values are the fitted table, so a retune moves them, not the signature (pin:
+`theDrawingGuideATintOpacityIsTheTable`).
+
+```swift
+/// A panel that follows the system's Reduce Transparency setting.
+struct DrawingPanel: Component {
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
+
+    var content: some ElementGroup {
+        Text(reduceTransparency ? "Opaque panel" : "Glass panel")
+            .padding(Pixels(8))
+            .background(.regularMaterial)
+    }
+}
+
+@MainActor
+func drawingPanelRoot() -> some Element {
+    VStack { DrawingPanel() }
+}
+
+/// The opacity a material's tint draws at in a scheme.
+func drawingTintOpacity(of material: Material, in scheme: ColorScheme) -> Float {
+    material.tint(in: scheme).resolve(in: EnvironmentValues()).opacity
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -183,7 +273,9 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 167: a GPU surface under `.blur(radius:)` is drawn unblurred.
 - divergence 205: an opacity outside `compositingGroup()` is not composited.
 - divergence 248: a material inside a CPU-rasterized shadow, blur or group draws its flat tint.
-- divergence 249: Reduce Transparency is not honoured.
+- divergence 295: an empty `Text` measures one line tall.
+- divergence 296: a text measurer is an environment value; MetalUI has no `Canvas`.
+- divergence 315: a material under Reduce Transparency is the scheme's tint grey at alpha 1.
 
 Next: [cross-platform](cross-platform.md), and [`api-overview.md`](../api-overview.md) for every
 declaration.

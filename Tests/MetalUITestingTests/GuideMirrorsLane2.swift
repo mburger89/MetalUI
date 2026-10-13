@@ -340,6 +340,54 @@ func drawingMetalViewRoot() -> some Element {
 #endif
 // end guide
 
+// guide: drawing-and-gpu #6
+/// A label over a surface, the surface sized from the label's measured width and height.
+struct DrawingLabelled: Component {
+    let title: String
+    @Environment(\.textMeasurer) var measurer
+
+    var content: some ElementGroup {
+        let size = measurer.resolve(Text(title)).measure(in: Size(width: .infinity, height: .infinity))
+        ZStack {
+            GPUSurface(redraw: .onDemand, value: title) { context in
+                context.clear(red: 0.1, green: 0.2, blue: 0.4, alpha: 1)
+            }
+            .frame(width: Pixels(size.width.value + 16), height: Pixels(size.height.value + 8))
+            .accessibilityLabel("Chart")
+            Text(title).id("label")
+        }
+    }
+}
+
+@MainActor
+func drawingLabelledRoot(_ title: String) -> some Element {
+    VStack { DrawingLabelled(title: title) }
+}
+// end guide
+
+// guide: drawing-and-gpu #7
+/// A panel that follows the system's Reduce Transparency setting.
+struct DrawingPanel: Component {
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
+
+    var content: some ElementGroup {
+        Text(reduceTransparency ? "Opaque panel" : "Glass panel")
+            .padding(Pixels(8))
+            .background(.regularMaterial)
+    }
+}
+
+@MainActor
+func drawingPanelRoot() -> some Element {
+    VStack { DrawingPanel() }
+}
+
+/// The opacity a material's tint draws at in a scheme.
+func drawingTintOpacity(of material: Material, in scheme: ColorScheme) -> Float {
+    material.tint(in: scheme).resolve(in: EnvironmentValues()).opacity
+}
+// end guide
+
 // MARK: Drawing and GPU (T12)
 
 /// **T12** — the drawing guide's roots build. Mutation: rename `drawingBadgeRoot`.
@@ -352,6 +400,8 @@ func drawingMetalViewRoot() -> some Element {
     #if os(macOS)
     _ = try harnessWindow { drawingMetalViewRoot() }
     #endif
+    _ = try harnessWindow { drawingLabelledRoot("12.5 mm") }
+    _ = try harnessWindow { drawingPanelRoot() }
 }
 
 /// A `Path` shape fills as one raster image; a `Rectangle` of the same fill draws none.
@@ -375,6 +425,41 @@ func drawingMetalViewRoot() -> some Element {
     #expect(real.scene.backdrops.count == 1, "read \(real.scene.backdrops.count)")
     let flat = try harnessWindow { drawingFlatMaterialRoot() }
     #expect(flat.scene.backdrops.isEmpty, "read \(flat.scene.backdrops.count)")
+}
+
+/// **Followup 10c** (`DG-R`). The surface is the label's measured size plus the guide's margin:
+/// 16 wide, 8 tall, to within the kernel's whole-point rounding. Mutation: change `+ 16` in `DrawingLabelled`.
+@Test @MainActor func theDrawingGuideASurfaceIsSizedFromTheMeasuredLabel() throws {
+    let window = try harnessWindow { drawingLabelledRoot("12.5 mm") }
+    window.tick()
+    let label = try window.frame(ofID: "label"), surface = try window.element(label: "Chart").frame
+    try #require(label.size.width > 0)
+    #expect(abs((surface.size.width.value - label.size.width.value) - 16) < 1.5,
+            "surface \(surface.size.width) label \(label.size.width)")
+    #expect(abs((surface.size.height.value - label.size.height.value) - 8) < 1.5,
+            "surface \(surface.size.height) label \(label.size.height)")
+}
+
+/// The panel is a backdrop and says "Glass panel" while transparency is allowed; opaque, no backdrop and
+/// "Opaque panel" once the platform asks to reduce it. Mutation: delete `.background(.regularMaterial)`.
+@Test @MainActor func theDrawingGuideAPanelFollowsReduceTransparency() throws {
+    let normal = try harnessWindow { drawingPanelRoot() }
+    #expect(normal.scene.backdrops.count == 1, "read \(normal.scene.backdrops.count)")
+    _ = try normal.element(label: "Glass panel")
+    normal.setReduceTransparency(true)
+    normal.tick()
+    #expect(normal.scene.backdrops.isEmpty, "read \(normal.scene.backdrops.count)")
+    _ = try normal.element(label: "Opaque panel")
+    let opened = try harnessWindow(options: .init(accessibilityReduceTransparency: true)) { drawingPanelRoot() }
+    #expect(opened.scene.backdrops.isEmpty)
+    _ = try opened.element(label: "Opaque panel")
+}
+
+/// `tint(in:)` reads the fitted table: regular is 0.7137 in light and 0.6902 in dark.
+/// Mutation: change `.light` to `.dark` in the first expectation's call.
+@Test func theDrawingGuideATintOpacityIsTheTable() {
+    #expect(abs(drawingTintOpacity(of: .regularMaterial, in: .light) - 0.7137) < 1e-4)
+    #expect(abs(drawingTintOpacity(of: .regularMaterial, in: .dark) - 0.6902) < 1e-4)
 }
 
 // guide: cross-platform #1

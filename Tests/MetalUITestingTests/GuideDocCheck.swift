@@ -239,7 +239,7 @@ enum GuideDocs {
         }
     }
 
-    static let deniedNames = ["resignsFocusOnPress", "TextMeasurer", "PhaseAnimator"]
+    static let deniedNames = ["PhaseAnimator"]
 
     private static func captures(_ pattern: String, in text: String) -> [[String]] {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }

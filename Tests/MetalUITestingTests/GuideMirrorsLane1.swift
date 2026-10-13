@@ -315,6 +315,47 @@ func inputRenameRoot() -> some Element {
 // end guide
 
 
+// guide: input #6
+/// A field and an inert panel: a click on the panel ends editing.
+struct InputCommit: Component {
+    @State var name = ""
+
+    var content: some ElementGroup {
+        TextField("Name", text: $name)
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+        Box().frame(width: Pixels(200), height: Pixels(80)).background(.surface).id("panel")
+        Text("Hello \(name)")
+    }
+}
+
+@MainActor
+func inputResignRoot() -> some Element {
+    VStack(alignment: .leading) { InputCommit() }
+        .resignsFocusOnPress()
+}
+// end guide
+
+// guide: input #7
+/// What a field's model heard, in order.
+@MainActor
+final class InputComposeModel {
+    var text = "hello"
+    var writes: [String] = []
+}
+
+/// A field over a plain class, so a test sees every write.
+@MainActor
+func inputComposeRoot(_ model: InputComposeModel) -> some Element {
+    VStack(alignment: .leading) {
+        TextField("Name", text: model.text) { model.writes.append($0); model.text = $0 }
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+    }
+}
+// end guide
+
+
 // MARK: - Tests
 
 private func guideX(_ bounds: Bounds<Pixels>) -> Float { bounds.origin.x.value }
@@ -463,6 +504,8 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
     _ = try harnessWindow { inputWindowDragHandle() }
     _ = try harnessWindow { inputKeyRegion(InputKeyLog()) }
     if #available(macOS 15, *) { _ = try harnessWindow { inputRenameRoot() } }
+    _ = try harnessWindow { inputResignRoot() }
+    _ = try harnessWindow { inputComposeRoot(InputComposeModel()) }
 }
 
 @Test @MainActor func theInputGuideAClickPressesAButtonWithoutFocusingIt() throws {
@@ -515,4 +558,39 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
     _ = try window.element(label: "no selection")
     try window.click(window.element(label: "Select all"))
     _ = try window.element(label: "selection set")
+}
+
+/// **Followup 10c** (`DG-R`). A primary press on the panel inside `.resignsFocusOnPress()` ends editing
+/// and keeps the typed text; a later key changes nothing. Mutation: delete `.resignsFocusOnPress()` from `inputResignRoot`.
+@Test @MainActor func theInputGuideAClickOnInertChromeEndsEditing() throws {
+    let window = try harnessWindow { inputResignRoot() }
+    try window.click(window.element(identifier: "name"))
+    #expect(try window.focusedElement?.identifier == "name")
+    window.typeText("Ada")
+    _ = try window.element(label: "Hello Ada")
+    let panel = try window.frame(ofID: "panel")
+    window.click(at: Point(x: panel.origin.x + Pixels(50), y: panel.origin.y + Pixels(40)))
+    #expect(try window.focusedElement == nil, "the click on the panel ended editing")
+    window.typeText("zzz")
+    _ = try window.element(label: "Hello Ada")
+}
+
+/// The driver's four verbs on the guide's field: marked text is in the field, not the model;
+/// a commit writes once; a cancel writes nothing; with no focused field every verb answers false.
+/// Mutation: delete `model.writes.append($0);` from `inputComposeRoot`.
+@Test @MainActor func theInputGuideAnInputMethodComposesCommitsAndCancels() throws {
+    let model = InputComposeModel()
+    let window = try harnessWindow { inputComposeRoot(model) }
+    #expect(!window.setMarkedText("ni"), "no field holds the caret yet")
+    try window.click(window.element(identifier: "name"))
+    #expect(window.setMarkedText("ni"))
+    #expect(window.markedText == "ni")
+    #expect(model.writes.isEmpty)
+    #expect(try window.focusedElement?.value == "hello", "the AX value is the committed text")
+    #expect(window.commitMarkedText("\u{4F60}"))
+    #expect(model.writes.count == 1, "read \(model.writes)")
+    #expect(window.markedText == "")
+    window.setMarkedText("hao")
+    #expect(window.cancelMarkedText())
+    #expect(model.writes.count == 1)
 }
