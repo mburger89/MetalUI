@@ -26,7 +26,7 @@ macOS, Linux and Windows, and a test in the same target drives the block through
 window ([`testing.md`](../testing.md)) to prove the claims the guide makes.
 `GuideDocCheck.swift` fails when a guide's block and its copy differ by a byte (line endings
 aside), when a swift block is not copied, when a fence carries any info string but `swift`,
-`text` or `sh`, when a cited pin (`pin: ` followed by a test name) names no test, when a
+`text` or `sh`, when a cited pin (a test name after the word pin and a colon) names no test, when a
 `divergence N` has no row, when a relative link is dead, when a guide names an API that is not
 yet on `master`, and when a sentence names a behaviour (its verb list is in `DG-E`) and cites no pin. Rulings: [`DG-A`…`DG-M`](../superpowers/2026-10-12-guides-decisions.md).
 

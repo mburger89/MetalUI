@@ -142,20 +142,24 @@ enum GuideDocs {
         text.replacingOccurrences(of: #"`[^`]*`"#, with: "``", options: .regularExpression)
     }
 
-    /// The pin names a text cites: `(pin: \`a\`, \`b\`)`.
+    /// The pin names a text cites: `pin:` followed by backticked names, wherever it sits
+    /// (`(pin: \`a\`)`, `(divergence 78; pin: \`a\`, \`b\`)`).
     static func pins(in text: String) -> [String] {
         var names: [String] = []
-        for group in captures(#"\(pin:\s*((?:`[^`]+`(?:,\s*)?)+)\)"#, in: text) {
+        for group in captures(pinPattern, in: text) {
             for name in captures(#"`([^`]+)`"#, in: group[0]) { names.append(name[0]) }
         }
         return names
     }
 
-    /// How many `(pin:` openers do not parse as a pin (a `;` before the `)`, a missing
-    /// backtick): such a citation would otherwise be skipped without a word.
+    private static let pinPattern = #"\bpin:\s*((?:`[^`]+`(?:,\s*)?)+)"#
+
+    /// How many `pin:` markers do not parse as a pin (no backticked name after the colon):
+    /// such a citation would otherwise be skipped without a word. The word is therefore
+    /// not written with a colon in prose that is not a citation.
     static func malformedPinCount(in text: String) -> Int {
-        let openers = text.components(separatedBy: "(pin:").count - 1
-        return openers - captures(#"\(pin:\s*((?:`[^`]+`(?:,\s*)?)+)\)"#, in: text).count
+        let markers = captures(#"\bpin:"#, in: text).count
+        return markers - captures(pinPattern, in: text).count
     }
 
     /// Divergence labels a text cites: `divergence 52`, `divergences 145–147`,
@@ -394,7 +398,7 @@ enum GuideDocs {
     var cited = 0
     for document in documents {
         for (line, text) in GuideDocs.blocks(of: document.parsed.prose) {
-            #expect(GuideDocs.malformedPinCount(in: text) == 0, "\(document.name):\(line): a `(pin:` that is not `(pin: \\`name\\`)`")
+            #expect(GuideDocs.malformedPinCount(in: text) == 0, "\(document.name):\(line): a `pin:` that is not followed by a backticked test name")
             for name in GuideDocs.pins(in: text) {
                 cited += 1
                 #expect(GuideDocs.testExists(name), "\(document.name):\(line): the pin `\(name)` names no test")
@@ -515,7 +519,8 @@ enum GuideDocs {
 @Test func theProseChecksReadPinsLabelsLinksAndBehaviourWords() throws {
     #expect(GuideDocs.pins(in: "It holds (pin: `aTest`) and (pin: `b`, `c`).") == ["aTest", "b", "c"])
     #expect(GuideDocs.pins(in: "No pin here (see `aTest`).").isEmpty)
-    #expect(GuideDocs.malformedPinCount(in: "(pin: `a`; and more) (pin: `b`) (pin: c)") == 2, "a pin that does not parse is counted")
+    #expect(GuideDocs.pins(in: "(divergence 110; pin: `aTest`)") == ["aTest"], "a pin after a semicolon is seen")
+    #expect(GuideDocs.malformedPinCount(in: "(pin: `a`; and more) (pin: `b`) (pin: c) and pin: .") == 2, "a pin that does not parse is counted")
     #expect(GuideDocs.malformedPinCount(in: "(pin: `a`, `b`) and (pin: `c`)") == 0)
     #expect(GuideDocs.divergenceLabels(in: "divergence 52, divergences 145–147 and divergences 94, 110 and 139.")
         == [52, 145, 146, 147, 94, 110, 139])
