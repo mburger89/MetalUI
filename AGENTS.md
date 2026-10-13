@@ -69,7 +69,8 @@ summary.
   `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), `RF-` (resign on press:
   `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), `MT-` (material follow-ups:
   `2026-10-12-material-followups-decisions.md`, next `MT-L`), `IM-` (input-method
-  driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), …; the full
+  driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), `BL-` (performance baselines:
+  `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line

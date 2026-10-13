@@ -1,5 +1,7 @@
 # Performance baselines re-measured — design
 
+**Status: done** (2026-10-13, record §105; verified `ok`).
+
 Item 9b of the gpui-gap priority list (user request 2026-10-02; **not a plan
 task**), the agent-doable half of item 9. Branch `perf/baselines` from
 `848ee029`. Rulings: `docs/superpowers/2026-10-13-perf-baselines-decisions.md`
