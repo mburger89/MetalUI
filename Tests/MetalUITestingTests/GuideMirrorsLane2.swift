@@ -354,10 +354,18 @@ func drawingMetalViewRoot() -> some Element {
     #endif
 }
 
-/// A `Path` shape fills as one raster image. Mutation: delete the `.fill(…)`.
+/// A `Path` shape fills as one raster image; a `Rectangle` of the same fill draws none.
+/// Mutation: replace `DrawingDiamond()` with `Rectangle()` in the first root.
 @Test @MainActor func theDrawingGuideAPathShapeDrawsAsOneImage() throws {
-    let window = try harnessWindow(size: Size(width: Pixels(100), height: Pixels(100))) { drawingBadgeRoot() }
-    #expect(window.scene.images.count >= 1, "read \(window.scene.images.count) images")
+    let size = Size(width: Pixels(100), height: Pixels(100))
+    let path = try harnessWindow(size: size) {
+        VStack { DrawingDiamond().fill(Color.red).frame(width: Pixels(60), height: Pixels(60)) }
+    }
+    #expect(path.scene.images.count == 1, "read \(path.scene.images.count) images")
+    let control = try harnessWindow(size: size) {
+        VStack { Rectangle().fill(Color.red).frame(width: Pixels(60), height: Pixels(60)) }
+    }
+    #expect(control.scene.images.isEmpty, "read \(control.scene.images.count) images")
 }
 
 /// A material draws one backdrop record; under a shadow it draws a flat tint and none.
