@@ -92,9 +92,9 @@ func stateTodoRoot(_ store: StateTodoStore) -> some Element {
 }
 ```
 
-The whole frame build is observed, so a change to `store.items` rebuilds the window with no
-`setNeedsRedraw()` (pin: `theStateGuideForEachRowsKeepTheirStateWhenTheDataReorders`). The write must
-come from input, as above.
+The frame build is observed, so a write to `store.items` reaches the window (`RX-K`). A test that
+writes a model outside input calls `setNeedsRedraw()` and then `tick()` to draw it on every platform
+([`testing.md`](../testing.md#the-clock-and-rununtilidle)). Write from input in the app.
 
 ## What keeps a row's state, and what loses it?
 

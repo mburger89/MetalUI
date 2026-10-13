@@ -403,17 +403,18 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
 }
 
 /// Reversing the store reorders the rows and each row keeps its taps (the id is the value).
-/// Mutation: `id: \.self` to an index id (`Array(items.indices)`).
-@Test @MainActor func theStateGuideForEachRowsKeepTheirStateWhenTheDataReorders() async throws {
+/// The write is drawn with `setNeedsRedraw()` then `tick()`, as `docs/testing.md` says for a model
+/// written off the macOS main loop (`DG-P`). Mutation: `id: \.self` to an index id.
+@Test @MainActor func theStateGuideForEachRowsKeepTheirStateWhenTheDataReorders() throws {
     let store = StateTodoStore()
     let window = try harnessWindow { stateTodoRoot(store) }
     try window.click(window.element(label: "Write: 0"))
-    try await window.runUntilIdle()
     let writeBefore = try window.element(label: "Write: 1")
     let shipBefore = try window.element(label: "Ship: 0")
     try #require(writeBefore.frame.origin.y.value < shipBefore.frame.origin.y.value, "set up: Write is above Ship")
     try window.click(window.element(label: "Reverse"))
-    try await window.runUntilIdle()
+    window.window.setNeedsRedraw()
+    window.tick()
     #expect(store.items == ["Ship", "Test", "Write"])
     let write = try window.element(label: "Write: 1")
     let ship = try window.element(label: "Ship: 0")

@@ -9,7 +9,7 @@ Evidence: an inventory of `docs/` and `Sources/` at `ff8a1ea4` (spec §1); `docs
 `TestingRecipeTests.swift` as the prior art. No SwiftUI probe was run: the item makes no new
 SwiftUI claim (`DG-F`); gpui has no analogue (documentation).
 
-Prefix **`DG-`**, lettered. **Next unused: `DG-P`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**, lettered. **Next unused: `DG-Q`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides` from `ff8a1ea4`. Reserved divergence labels 335–344: none used.
 
 **Carried items.** `HT-` (`MetalUITesting`, the harness the mirrors run in); `SA-P` (plain import);
@@ -145,3 +145,15 @@ retained, focuses, dismiss(es), dismissed (case-insensitive, whole words), unles
 cites a pin. This extends DG-E's five verbs by the forms a claim takes ("is reset", "was dismissed").
 The noun "focus" is not a verb of the list. **Cost if wrong.** A false positive is reworded or
 pinned; a false negative is a claim the lane's reading must catch.
+
+## DG-P — A mirror test draws a model write with `setNeedsRedraw()` and `tick()`, never `runUntilIdle()` after a click
+
+**Ruling.** The lane-1 tests settle a window with `window.window.setNeedsRedraw()` then `tick()`
+(`docs/testing.md`'s recipe for a model written off the macOS main loop), not
+`try await runUntilIdle()`. **Evidence (measured, Linux).** In `swift:6.4-noble` on arm64, after a
+click on any `Button` — an empty action, a `@State` write, a plain-class write, an `@Observable` write,
+even after `advanceFrames(30)` — `runUntilIdle()` throws `notIdle` after 64 rounds; the same probes
+return idle on macOS. A window with no click (an initial draw, or a direct `@Observable` write) is idle on
+both. The first Linux run of the guide tests failed on this alone. Cause not isolated; it is a **finding**
+for the orchestrator (`DG-J`), not fixed here. **Cost if wrong.** None for the guides: a test that
+needs the observation hop calls the two methods; a guide never promises `runUntilIdle` after a click.
