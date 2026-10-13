@@ -66,7 +66,11 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
         let scene = rtScene(element, reduce: true, scheme: scheme)
         #expect(scene.backdrops.isEmpty, "\(label): no backdrop record under Reduce Transparency")
         #expect(!scene.drawList.contains { $0.kind == .backdrop }, "\(label): no backdrop run")
-        let rect = try #require(panels(scene).first, "\(label): an opaque panel rect")
+        // Not `#require`: every arm of every site reports, so one mutated site names each of its arms.
+        guard let rect = panels(scene).first else {
+            Issue.record("\(label): an opaque panel rect")
+            return
+        }
         let c = rgba(rect.background)
         #expect(abs(c.r - grey) < 2e-3 && abs(c.g - grey) < 2e-3 && abs(c.b - grey) < 2e-3 && abs(c.a - 1) < 1e-4,
                 "\(label): rect \(c) vs grey \(grey) at alpha 1")
