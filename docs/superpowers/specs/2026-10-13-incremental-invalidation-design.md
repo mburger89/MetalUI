@@ -378,6 +378,13 @@ Existing pins that move: none (opt-in); `theSevenRetentionSlotsAreMutuallyDistin
 handler-registering site) and `everyNamingSiteStartsAReturningNameFresh` (no new
 named-id site) are unchanged.
 
+**Lane 2 as built** (`IV-P`, `IV-Q`): the content-memo store is `ContentMemoStore`
+(`ContentMemo.swift`), the end-of-frame call is the last line of `StateTable.sweep()`, a
+component spells `@MainActor Equatable`, and three of the mutations above are amended in
+`IV-Q` (2.7 gains 2.7b; 2.9's pristine-after-layout mutation reddens 2.10; 2.10's
+type-only key is a counted perf pin). The divergence is 346, narrowed to `@Environment`
+and backed by probe arms `E0`/`E-env`/`E-env2`.
+
 ### Both lanes
 
 * `swift build --build-system native --build-tests` / `swift test --build-system

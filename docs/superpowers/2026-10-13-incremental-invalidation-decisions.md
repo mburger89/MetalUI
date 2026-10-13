@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-Q`.**
+**Next unused id: `IV-R`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -493,3 +493,32 @@ why test 2.9's differential is the instrument.
 **Cost if wrong.** (3)'s before-the-getter reading costs one re-evaluation for a
 component that writes its own state in `content` (already a smell, `Counter` in
 `ComponentTests` aside). (5) costs nothing the bare component had.
+
+## IV-Q — Lane 2 mutations: three pins were not the pins the spec named
+
+**Question.** Which of the spec's named mutations reddened the test it was named for?
+
+**Evidence** (the full unfiltered suite after each, `RECORD §5`). (1) **`IV-M`'s mutation
+for 2.10, "key the entry by the component's type alone", reddens no output test**: the
+entry's `previous == component` and own-`@State` version comparisons are by value, so two
+same-typed siblings sharing one entry evaluate against each other's record and are
+re-evaluated every frame, never wrongly skipped — the failure is perf, not staleness. The
+2.10 pin is therefore a *count*: after a tap on one of two same-typed siblings, three quiet
+frames must read `contentEvaluations == 0` (reddened by the type-only key, 1 issue).
+(2) **The spec's mutation for 2.7 ("drop the serial check") did not redden the 2.7 loop**:
+that loop changes its input only on frames the test draws, so the token write that retires
+the previous session only dirties the window when a frame is built — and the tree is then
+idle anyway. The case `IV-L` item 5 names is a component that re-evaluates *every* frame
+(`==` false) with nothing else dirtying the window: that is test **2.7b**, and it is the
+one the dropped serial check reddens (`runUntilIdle` throws "still drawing after 64
+rounds"). (3) **`pristine` taken after `requestGroupLayout` did not redden 2.9**: the
+differential's tree (text, a state button, an offset/opacity cell) re-draws identically from
+a laid-out copy. It reddens 2.10 (5 issues: the lifecycle/animation/list tree). 2.9 is
+kept as the broad differential; 2.10 is the pin for that mutation.
+
+**Ruling.** The test table's "mutation that must redden it" column is amended to what was
+measured (record §5). Nothing in the source moved. A future change to the pristine copy's
+timing is guarded by 2.10, not 2.9; a change to the serial check by 2.7b.
+
+**Cost if wrong.** None in the product; the table would have promised a pin that was green
+under its mutation.

@@ -7,9 +7,44 @@ import Observation
 import Testing
 
 // C14 lane 2 (`IV-B`…`IV-D`, `IV-L`, `IV-M`): `Component.equatable()` through a real
-// `Window`, counted in `FrameWork` and at user level (`IVStats`, lane 0's). Counts,
+// `Window`, counted in `FrameWork` and at user level (`MemoStats`, lane 0's). Counts,
 // never time. Tests 2.1–2.10 and 2.13 of the design spec; the typecheck guards 2.11
 // are `MetalUITests/ContentMemoCompileGuards.swift`.
+
+/// Body evaluations by kind, reset by the test. This file's own (not lane 0's `IVStats`):
+/// its tests are `async`, so on a parallel run (Linux and Windows CI) they would interleave
+/// with each other and with the baseline test; `MemoGate` serializes them.
+@MainActor enum MemoStats {
+    static var branches = 0
+    static var leaves = 0
+    static func reset() { branches = 0; leaves = 0 }
+}
+
+/// A FIFO gate on the main actor: every test of this file holds it from start to end, so
+/// no two of them interleave at an `await` and corrupt `MemoStats`.
+@MainActor enum MemoGate {
+    private static var held = false
+    private static var waiters: [CheckedContinuation<Void, Never>] = []
+    static func enter() async {
+        if held { await withCheckedContinuation { waiters.append($0) } } else { held = true }
+    }
+    static func leave() {
+        if waiters.isEmpty { held = false } else { waiters.removeFirst().resume() }
+    }
+}
+
+/// Whether `withObservationTracking`'s `onChange` reaches the memo synchronously: on
+/// Apple platforms a test runs on the main thread; elsewhere a main-actor test does not,
+/// so every change takes the one main-actor hop (`HT-I`, measured in the Linux image:
+/// `Thread.isMainThread` is false in a test). The two tests that count sessions and idle
+/// frames are exact only where the hop is synchronous.
+let memoObservationIsSynchronous: Bool = {
+    #if canImport(Darwin)
+    true
+    #else
+    false
+    #endif
+}()
 
 /// Lets the observation hop of a platform without a synchronous `onChange` land
 /// before the next explicit draw (HT-I).
@@ -62,7 +97,7 @@ private struct EqLeaf: Component, @MainActor Equatable {
     let cell: IVCell
     var memo = true
     var content: some ElementGroup {
-        let _ = IVStats.leaves += 1
+        let _ = MemoStats.leaves += 1
         Text("v\(cell.value)").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: EqLeaf, r: EqLeaf) -> Bool { l.memo && r.memo && l.cell === r.cell }
@@ -72,7 +107,7 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
     let children: [Child]
     var memo = true
     var content: some ElementGroup {
-        let _ = IVStats.branches += 1
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             ForEach(Array(children.indices), id: \.self) { children[$0].equatable() }
         }
@@ -112,12 +147,13 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
 /// then sees the new value against itself and the next frame's old value) —
 /// reddens `contentSkips`.
 @Test(arguments: [2, 3, 4]) @MainActor func anEqualComponentSkipsItsContent(levels: Int) async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     for memoOn in [false, true] {
         let counting = CountingTextSystem(harnessTextSystem())
         let (window, cells, components) = try eqWindow(levels: levels, counting: counting, memo: memoOn)
         let leaves = cells.count
         for _ in 0..<2 { cells[0].value += 1; await settle(); redraw(window) }   // warm
-        counting.reset(); IVStats.reset(); window.resetFrameWork()
+        counting.reset(); MemoStats.reset(); window.resetFrameWork()
         let frames = 4
         for f in 0..<frames { cells[leaves - 1].value += 1 + f; await settle(); redraw(window) }
         let w = window.frameWork
@@ -125,14 +161,14 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
         let sum = w.dropFirst().reduce(w[0], +)
         #expect(sum.builds == frames)
         if memoOn {
-            #expect(IVStats.leaves == frames, "levels \(levels)")
-            #expect(IVStats.branches == 0)
+            #expect(MemoStats.leaves == frames, "levels \(levels)")
+            #expect(MemoStats.branches == 0)
             #expect(sum.contentEvaluations == frames)
             #expect(sum.contentSkips == frames * (components - 1))
             #expect(sum.contentRefusals == 0)
         } else {
-            #expect(IVStats.leaves == frames * leaves)
-            #expect(IVStats.branches == frames * ((leaves - 1) / 2))
+            #expect(MemoStats.leaves == frames * leaves)
+            #expect(MemoStats.branches == frames * ((leaves - 1) / 2))
             #expect(sum.contentEvaluations == frames * components)
             #expect(sum.contentSkips == 0)
         }
@@ -144,7 +180,7 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
 private struct AlwaysEqualReader: Component, @MainActor Equatable {
     let cell: IVCell
     var content: some ElementGroup {
-        let _ = IVStats.leaves += 1
+        let _ = MemoStats.leaves += 1
         Text("r\(cell.value)").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: AlwaysEqualReader, r: AlwaysEqualReader) -> Bool { true }
@@ -155,6 +191,7 @@ private struct AlwaysEqualReader: Component, @MainActor Equatable {
 /// probe O, `IV-C`). Mutation: the memo session's `onChange` made empty — stale
 /// text and `leaves == 0`.
 @Test @MainActor func anObservedReadBeatsAnEqualValue() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let cell = IVCell()
     let counting = CountingTextSystem(harnessTextSystem())
     let window = try TestWindow(size: sz(300, 100), textSystem: { counting }) {
@@ -162,23 +199,23 @@ private struct AlwaysEqualReader: Component, @MainActor Equatable {
     }
     _ = try window.element(label: "r0")
     for _ in 0..<3 { redraw(window) }
-    IVStats.reset()
+    MemoStats.reset()
     for _ in 0..<3 { redraw(window) }
-    #expect(IVStats.leaves == 0, "an unchanged equal component is skipped")
+    #expect(MemoStats.leaves == 0, "an unchanged equal component is skipped")
     cell.value = 7
     await settle()
     redraw(window)
-    #expect(IVStats.leaves == 1)
+    #expect(MemoStats.leaves == 1)
     _ = try window.element(label: "r7")
     #expect(throws: (any Error).self) { _ = try window.element(label: "r0") }
     redraw(window)
-    #expect(IVStats.leaves == 1, "and skipped again once current")
+    #expect(MemoStats.leaves == 1, "and skipped again once current")
 }
 
 private struct AlwaysEqualCounter: Component, @MainActor Equatable {
     @State var n = 0
     var content: some ElementGroup {
-        let _ = IVStats.leaves += 1
+        let _ = MemoStats.leaves += 1
         VStack(spacing: 0) {
             Text("n=\(n)").frame(width: Pixels(60), height: Pixels(14))
             Button("inc") { n += 1 }.frame(width: Pixels(60), height: Pixels(20))
@@ -192,20 +229,21 @@ private struct AlwaysEqualCounter: Component, @MainActor Equatable {
 /// button's closure was built in the evaluation of frame 1 and is invoked after five
 /// skipped frames; it still writes. Mutation: the entry's recorded versions not
 /// compared — the text stays `n=0`.
-@Test @MainActor func anOwnStateWriteBeatsAnEqualValue() throws {
+@Test @MainActor func anOwnStateWriteBeatsAnEqualValue() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let window = try harnessWindow { VStack(spacing: 0) { AlwaysEqualCounter().equatable() } }
     _ = try window.element(label: "n=0")
     for _ in 0..<5 { redraw(window) }
-    IVStats.reset()
+    MemoStats.reset()
     for _ in 0..<5 { redraw(window) }
-    #expect(IVStats.leaves == 0, "skipped while nothing changes")
+    #expect(MemoStats.leaves == 0, "skipped while nothing changes")
     try window.click(window.element(label: "inc"))     // 2.3b: frame 1's closure, six frames old
-    #expect(IVStats.leaves == 1)
+    #expect(MemoStats.leaves == 1)
     _ = try window.element(label: "n=1")
     for _ in 0..<3 { redraw(window) }
     try window.click(window.element(label: "inc"))
     _ = try window.element(label: "n=2")
-    #expect(IVStats.leaves == 2)
+    #expect(MemoStats.leaves == 2)
 }
 
 // MARK: 2.4 — an unequal value re-evaluates, the subtree below still skips
@@ -217,7 +255,7 @@ private struct EqMid: Component, @MainActor Equatable {
     let cells: [IVCell]
     static func == (l: EqMid, r: EqMid) -> Bool { l.k == r.k && l.cells.elementsEqual(r.cells, by: ===) }
     var content: some ElementGroup {
-        let _ = IVStats.branches += 1
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             Text("k\(k)").frame(width: Pixels(60), height: Pixels(14))
             ForEach(Array(cells.indices), id: \.self) { EqLeaf(cell: cells[$0]).equatable() }
@@ -237,18 +275,19 @@ private struct ParamHolder: Component {
 /// below it still skip. Mutation: `==` replaced by `true` in the entry check —
 /// reddens `branches == 1` (the changed input is ignored) and the text.
 @Test @MainActor func anUnequalValueReEvaluates() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let param = IVParam()
     let cells = (0..<3).map { _ in IVCell() }
     let window = try harnessWindow { VStack(spacing: 0) { ParamHolder(param: param, cells: cells) } }
     for _ in 0..<2 { redraw(window) }
-    IVStats.reset(); window.resetFrameWork()
+    MemoStats.reset(); window.resetFrameWork()
     redraw(window)
-    #expect(IVStats.branches == 0 && IVStats.leaves == 0)
+    #expect(MemoStats.branches == 0 && MemoStats.leaves == 0)
     param.k = 3
     await settle()
     redraw(window)
-    #expect(IVStats.branches == 1)
-    #expect(IVStats.leaves == 0, "the leaves are equal and skip")
+    #expect(MemoStats.branches == 1)
+    #expect(MemoStats.leaves == 0, "the leaves are equal and skip")
     let w = window.lastFrameWork
     #expect(w.contentEvaluations == 1 && w.contentSkips == 3)
     _ = try window.element(label: "k3")
@@ -276,7 +315,8 @@ private struct FocusReader: Component, @MainActor Equatable {
 /// counted in `contentRefusals` (divergence 346), and its content is correct after
 /// an environment write. Mutation: the shape check dropped (refusals ignored) — the
 /// scheme read goes stale and `contentRefusals == 0`.
-@Test @MainActor func aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates() throws {
+@Test @MainActor func aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let window = try harnessWindow {
         VStack(spacing: 0) { SchemeReader().equatable(); FocusReader().equatable() }
     }
@@ -309,7 +349,7 @@ private struct Panel: Component, @MainActor Equatable {
     let show: Bool
     var elementID: ElementID? { ElementID("panel") }
     var content: some ElementGroup {
-        let _ = IVStats.branches += 1
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             if show { StatefulCounter() }
             Text("panel").frame(width: Pixels(60), height: Pixels(14))
@@ -330,18 +370,19 @@ private struct PanelHolder: Component {
 /// (the memo's hit path not calling `enterComponent`) — the departed-name sweep
 /// resets the counter on a skipped frame.
 @Test @MainActor func aSkippedSubtreeKeepsItsStateAndItsIdentity() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let param = IVParam()
     let window = try harnessWindow { VStack(spacing: 0) { PanelHolder(param: param) } }
     try window.click(window.element(label: "bump"))
     try window.click(window.element(label: "bump"))
     _ = try window.element(label: "c2")
-    IVStats.reset()
+    MemoStats.reset()
     for _ in 0..<6 { redraw(window) }
-    #expect(IVStats.branches == 0, "the panel was skipped throughout")
+    #expect(MemoStats.branches == 0, "the panel was skipped throughout")
     _ = try window.element(label: "c2")
     param.k = 1                      // show = false: re-evaluated, the counter's slot is absent
     await settle(); redraw(window)
-    #expect(IVStats.branches == 1)
+    #expect(MemoStats.branches == 1)
     #expect(throws: (any Error).self) { _ = try window.element(label: "c2") }
     param.k = 2                      // show = true again: the counter returns fresh (ID-C)
     await settle(); redraw(window)
@@ -353,7 +394,7 @@ private struct PanelHolder: Component {
 private struct Ticker: Component, @MainActor Equatable {
     let n: Int
     var content: some ElementGroup {
-        let _ = IVStats.leaves += 1
+        let _ = MemoStats.leaves += 1
         Text("t\(n)").frame(width: Pixels(60), height: Pixels(14))
     }
 }
@@ -380,7 +421,8 @@ private struct SwitchHolder: Component {
 /// token write inside the whole-frame session must not re-dirty it. Mutation:
 /// the serial check dropped in the memo's `onChange` — the flush callbacks dirty
 /// the window every frame and `runUntilIdle()` throws.
-@Test @MainActor func sessionsNeverExceedLiveEntries() async throws {
+@Test(.enabled(if: memoObservationIsSynchronous, "the armed count and the idle window are exact only where onChange is synchronous")) @MainActor func sessionsNeverExceedLiveEntries() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let param = IVParam()
     let on = IVCell()
     let window = try harnessWindow { VStack(spacing: 0) { SwitchHolder(param: param, on: on) } }
@@ -392,9 +434,9 @@ private struct SwitchHolder: Component {
     }
     try await window.runUntilIdle()
     #expect(memos.entryCount == 1 && memos.armedSessions == 1)
-    IVStats.reset()
+    MemoStats.reset()
     for _ in 0..<200 { redraw(window) }
-    #expect(IVStats.leaves == 0)
+    #expect(MemoStats.leaves == 0)
     #expect(memos.armedSessions <= memos.entryCount && memos.entryCount == 1)
     on.value = 1                     // the component leaves the tree
     await settle(); redraw(window)
@@ -403,7 +445,7 @@ private struct SwitchHolder: Component {
 
 private struct NeverEqual: Component, @MainActor Equatable {
     var content: some ElementGroup {
-        let _ = IVStats.leaves += 1
+        let _ = MemoStats.leaves += 1
         Text("never").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: NeverEqual, r: NeverEqual) -> Bool { false }
@@ -416,14 +458,15 @@ private struct NeverEqual: Component, @MainActor Equatable {
 /// causes the re-evaluation. Mutation: the serial check dropped in the memo's
 /// `onChange` — every miss's token write fires the previous session as a real change,
 /// the window is dirtied from inside its own build and `runUntilIdle()` throws.
-@Test @MainActor func aComponentThatReEvaluatesEveryFrameLetsTheWindowIdle() async throws {
+@Test(.enabled(if: memoObservationIsSynchronous, "the idle window is exact only where onChange is synchronous")) @MainActor func aComponentThatReEvaluatesEveryFrameLetsTheWindowIdle() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let window = try harnessWindow { VStack(spacing: 0) { NeverEqual().equatable() } }
     for _ in 0..<5 { redraw(window) }
-    IVStats.reset()
+    MemoStats.reset()
     try await window.runUntilIdle()
     let frames = window.framesDrawn
     redraw(window); redraw(window)
-    #expect(IVStats.leaves == 2, "it did re-evaluate on both forced frames")
+    #expect(MemoStats.leaves == 2, "it did re-evaluate on both forced frames")
     try await window.runUntilIdle()
     #expect(window.framesDrawn == frames + 2, "and nothing but the two forced frames was drawn")
 }
@@ -431,13 +474,14 @@ private struct NeverEqual: Component, @MainActor Equatable {
 /// 2.8 — a skipped component survives 50 forced redraws (the per-frame sentinel
 /// flush of the window's own session) without re-evaluating. Mutation: the memo
 /// session reading `redrawSentinel.tick` — every forced redraw fires it.
-@Test @MainActor func aMemoSessionIsNotFlushedByTheWindowSentinel() throws {
+@Test @MainActor func aMemoSessionIsNotFlushedByTheWindowSentinel() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let param = IVParam()
     let window = try harnessWindow { VStack(spacing: 0) { TickerHolder(param: param) } }
     for _ in 0..<2 { redraw(window) }
-    IVStats.reset()
+    MemoStats.reset()
     for _ in 0..<50 { redraw(window) }
-    #expect(IVStats.leaves == 0)
+    #expect(MemoStats.leaves == 0)
     #expect(window.window.testingContentMemos.entryCount == 1)
 }
 
@@ -509,6 +553,7 @@ private struct DiffRoot {
 /// content copy taken after `requestGroupLayout` instead of before (stale layout
 /// state leaks into the retained value) — reddens an equality.
 @Test @MainActor func aMemoizedSubtreeDrawsTheSceneOfAnUnmemoizedOne() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let a = try diffWindow(memo: true)
     let b = try diffWindow(memo: false)
     var skipped = 0
@@ -604,6 +649,7 @@ private struct LifeHolder: Component {
 /// the two `LifeItem` siblings share one entry, so a tap on one shows in both and
 /// the differential stays equal but the quiet frames evaluate the siblings against each other's entry and `contentEvaluations` reads above 0 (`IV-M`, `IV-P`).
 @Test @MainActor func lifecycleAnimationAndListInsideAMemoizedComponent() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     func make(memo: Bool) throws -> (TestWindow, IVParam, LifeLog) {
         let param = IVParam(), log = LifeLog()
         let window = try harnessWindow(size: sz(300, 300)) { VStack(spacing: 0) { LifeHolder(param: param, log: log, memo: memo) } }
@@ -655,6 +701,7 @@ private struct BackgroundReader: Component, @MainActor Equatable {
 /// most (RX-K's limitation, pinned as it stands, `IV-C` item 5): after the hop and
 /// one redraw the new value is drawn.
 @Test @MainActor func aBackgroundThreadWriteDirtiesAMemoWithinOneFrame() async throws {
+    await MemoGate.enter(); defer { MemoGate.leave() }
     let cell = BackgroundCell()
     let window = try TestWindow(size: sz(300, 100), textSystem: harnessTextSystem) {
         VStack(spacing: 0) { BackgroundReader(cell: cell).equatable() }
