@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-L`.**
+**Next unused id: `IV-N`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -68,9 +68,12 @@ equal. How does a MetalUI `Component` get that, and what compares?
 holding plain values or the same class instance is skipped when the parent
 re-evaluates (Plain, ReadA, WithRef); a child whose input changed re-runs
 (PlainTick, V); `.equatable()` with a custom `==` skipped the plain-value view
-(EqPod) and **did not** skip a view holding a capturing closure (Eq-equatable())
-or a freshly allocated class instance (EqRef) although `==` ignored them; an
-observed read and the view's own `@State` beat an equal `==` (O, ES). SwiftUI skips
+(EqPod); a view holding a capturing closure (Eq-equatable()) or a freshly
+allocated class instance (EqRef) re-ran on the **first** bump after the first
+render (S) although `==` said equal, but **not on the second or third** (S2, S3,
+added by the critic: the S result was a first-bump artefact, which is what U's
+unexplained difference was), so SwiftUI **honours `==`** and the original
+reading was refuted; an observed read and the view's own `@State` beat an equal `==` (O, ES). SwiftUI skips
 **by default**, reflectively; MetalUI today never skips (every `content` is
 evaluated every frame, and `ComponentTests`/`contentIsMaterializedExactlyOncePerFrame`
 and the GT-A test's plain-class model rely on that: a plain class read in `content`
@@ -82,9 +85,8 @@ public initialiser, no identity level or cursor index of its own). No automatic
 skipping (`IV-K`). (2) **`==` decides** for every stored property, closures and
 class references included — the contract is "the content is a function of the
 value, the component's own `@State`, and the `@Observable` properties it reads"
-(divergence 345: SwiftUI's skip did not honour `==` for closure/class inputs;
-the difference is deliberate, it is what makes an author's `==` a promise they
-can keep). (3) An observed read and an own-`@State` write beat an equal `==`, as
+(**no divergence**: S2/S3 show SwiftUI honours `==` too; label 345 is
+unused, see the critic ruling `IV-L`). (3) An observed read and an own-`@State` write beat an equal `==`, as
 in SwiftUI (O, ES; `IV-C`, `IV-D`). (4) A `Binding` input is a value; an author
 who reads `binding.wrappedValue` in `content` includes it in `==` (documented on
 `equatable()`).
@@ -341,3 +343,53 @@ C14-b retained subtrees (`IV-H`); C14-c an environment epoch so `@Environment`
 components can memoize; C14-d per-`ForEach`-row and per-`List`-row scopes; subtree
 placement memo (C14-b); leaf keys for rich text, images, `GPUSurface` and controls
 (lane 1 follow-ups, one site each); MetalCreator adoption (its own plan).
+
+## IV-L — Critic: divergence 345 refuted by a separating arm; `.equatable()` matches SwiftUI
+
+**Question.** `IV-B` and the spec called `==`-decides a divergence (345) on the
+strength of arm S, where a closure-holding and a fresh-class-instance view re-ran
+under `.equatable()` although `==` said equal. U, the same view set bumped again,
+did not re-run them and the header called it "unexplained".
+
+**Evidence.** The probe gained arms S2 and S3 (two more identical bumps after U);
+re-run twice at the critic: S: `Top, WithCapture, PlainTick, Eq-plain,
+Eq-equatable(), EqRef`; U, S2, S3: `Top, WithCapture, PlainTick` only. The extra
+runs in S happen on the first bump after the first render, whatever the cause.
+
+**Ruling.** (1) Divergence 345 is **not taken** (label unused; 346 stays, the
+`@Environment`/`@FocusState` refusal, which SwiftUI does not have). (2) `==`
+decides is SwiftUI's behaviour for steady frames; the contract text stays, the
+word "divergence" goes. (3) A `Component` cannot see the first-bump effect (our
+first frame always evaluates), so nothing is built for it. (4) Lane 2's test 2.3
+gains arm 2.3b: a `Button` whose closure was built in the evaluation of frame 1 is
+invoked after 5 skipped frames and still writes the component's `@State` (a
+pristine content reuses frame 1's closures; they must write through the
+`StateTable`, not a stale box). (5) Lane 2's test 2.7 gains an arm: a component
+that re-evaluates every frame lets the window go idle (the token write inside the
+window's whole-frame session must not re-dirty it).
+
+**Cost if wrong.** If the first-bump effect were real SwiftUI behaviour, MetalUI
+is still a superset of skips; nothing is lost.
+
+## IV-M — Critic: the signature pass is a cost to count, and two pins must be able to be red
+
+**Question.** (1) Lane 1 adds a post-order signature pass to **every** run; the
+spec prices only the savings. (2) Tests 2.10 ("none specific" mutation) and 2.12
+(`theBareComponentPathIsUnchanged`, no red-before, no mutation) cannot be shown
+red, against `docs/practices/verifying-tests-can-fail.md`.
+
+**Ruling.** (1) `NativeLayoutWork` gains `signatureNodesHashed`; test 1.1/1.2 pin
+it equal to the reachable node count (a hand-derived literal), and lane 1 records
+in the record the phase-timing instrument's signature-pass share beside the
+kernel's. If the pass costs more than half of the kernel time it saves on the
+81-leaf tree, the lane reports it as a finding and does not claim the win
+(`IV-G`'s numbers are then restated). (2) Test 2.10 carries the mutation "key the
+entry by the component's type alone, ignoring its id" (two same-type siblings with
+different `@State`, lifecycle counts and a windowed `List` row diverge from the
+unmemoized tree); test 2.12 is **not a test**: it is the re-run of the existing
+`ComponentTests` mutations recorded in `Component.swift`, listed by name in the
+record. (3) A test whose "red before" reads "does not compile" (1.3) is red by its
+stub returning a wrong rect, recorded as such.
+
+**Cost if wrong.** A memo whose signature pass eats its savings ships as a
+no-gain; the counter and the share make that visible instead of assumed.

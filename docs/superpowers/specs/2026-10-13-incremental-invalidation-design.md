@@ -4,7 +4,7 @@ Item C14 of the gpui-gap priority list (user request 2026-10-02; **not a plan
 task**), requested by MetalCreator (gap PERF-b in its `docs/metalui-gaps.md`).
 Branch `perf/incremental-invalidation` from `f6f865c1`. Prefix `IV-`; rulings in
 [`../2026-10-13-incremental-invalidation-decisions.md`](../2026-10-13-incremental-invalidation-decisions.md)
-(next unused `IV-L`); record `docs/record/104-incremental-invalidation.md`.
+(next unused `IV-N`); record `docs/record/104-incremental-invalidation.md`.
 Divergence labels reserved for this branch: 345–354. Probes:
 `docs/probes/swiftui-incremental-invalidation.swift`,
 `docs/probes/swift-observation-nested-scopes.swift`,
@@ -146,10 +146,9 @@ public struct EquatableComponent<Content: Component & Equatable>: ElementGroup {
   index** beyond the wrapped `Component`'s own (the same `GlobalElementID`, the
   same `@State` slots, the same `noteNamed`) — `MC-A`/`MC-C` numbering unmoved.
 * Modifiers after it wrap it as for any `ElementGroup` (`ModifiedContent`).
-* `==` **decides** (divergence 345): MetalUI honours the author's `==` for every
-  stored property, closures and class references included, where SwiftUI's probe
-  (EqRef, Eq-equatable()) re-evaluated a view holding a closure or a fresh class
-  instance whatever `==` said. This is the whole contract: *the content is a
+* `==` **decides** (no divergence: probe arms S2/S3 show SwiftUI honours `==` for
+  closure and class inputs too; the first-bump re-run in arm S was an artefact,
+  `IV-L`): MetalUI honours the author's `==` for every stored property. This is the whole contract: *the content is a
   function of the value, the component's own `@State`, and the `@Observable`
   properties it reads.* A `Binding` input is a value; an author who reads
   `binding.wrappedValue` in `content` includes it in `==`.
@@ -159,7 +158,7 @@ public struct EquatableComponent<Content: Component & Equatable>: ElementGroup {
 * Public additions: `Component.equatable()`, `EquatableComponent` (+ its
   `GroupLayout`/`GroupPrepaint` typealiases are inherited), `FrameWork`'s four
   fields (§5). Each owes a doc comment and a `closeout-inventory-map.tsv` row
-  (class A for `equatable()`; D for the semantics, 345; M for `EquatableComponent`
+  (class A for `equatable()`; D for the refusal, 346; M for `EquatableComponent`
   and the `FrameWork` fields), and `zsh docs/probes/closeout-inventory-check.sh`
   and `closeout-undocumented.sh` print nothing.
 * **No new `PlatformWindow`/`Platform`/`WindowRenderer`/`TextSystem` requirement**,
@@ -281,7 +280,7 @@ accessibility emission, the gesture arena, the hitbox list and its one ranking
 
 ## 5. Counters and the harness
 
-`NativeLayoutWork` (package) gains `memoHits`, `memoMisses`, `memoRootHits`;
+`NativeLayoutWork` (package) gains `memoHits`, `memoMisses`, `memoRootHits`, `signatureNodesHashed` (`IV-M`);
 `FrameWork` (public, MetalUITesting) gains `layoutMemoHits`, `layoutMemoMisses`,
 `contentEvaluations`, `contentSkips`, `contentRefusals`, default 0, added to `init`
 and `+`; `TestingHooks.swift`/`BuildWork` carry them. `docs/testing.md` documents
@@ -351,16 +350,16 @@ closeout map, `docs/probes/closeout-public-api.tsv`.
 |---|---|---|---|---|
 | 2.1 | `anEqualComponentSkipsItsContent` (`ContentMemoWindowTests`) | baseline tree, every `IVBranch`/`IVLeaf` `.equatable()`, L=2,3,4, one leaf written: `IVStats.leaves == frames`, `branches == 0`, `contentSkips == frames * (components - 1)`, builds `== frames` | `ContentMemo.isEnabled = false`: 81 / 40 (the committed baseline) | store `previous` after the compare instead of before |
 | 2.2 | `anObservedReadBeatsAnEqualValue` | `==` always true, content reads `cell.value`, the cell changes: content re-evaluates once, and the drawn text is the new value | — | remove the session (`onChange` empty): stale text, red |
-| 2.3 | `anOwnStateWriteBeatsAnEqualValue` | `==` always true, a button writes the component's `@State`: re-evaluates, text updates | — | compare no versions |
+| 2.3 | `anOwnStateWriteBeatsAnEqualValue` | `==` always true, a button writes the component's `@State`: re-evaluates, text updates; **2.3b** (`IV-L`): a button closure built at frame 1 is invoked after 5 skipped frames and still writes | — | compare no versions |
 | 2.4 | `anUnequalValueReEvaluates` | control: an input differs, content re-evaluates, the subtree below it still skips | — | `==` replaced by `true` in the entry check |
 | 2.5 | `aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates` | `contentRefusals == frames`, content correct after an environment write | — | drop the shape check: a stale environment read |
 | 2.6 | `aSkippedSubtreeKeepsItsStateAndItsIdentity` | descendants' `@State` (counter, text field text, focus) retained over 6 skipped frames; `theSevenRetentionSlotsAreMutuallyDistinct` unmoved; `ID-C` reset when an `if` inside a *re-evaluated* content flips; `.id()` outermost | — | skip `noteNamed` on a hit |
-| 2.7 | `sessionsNeverExceedLiveEntries` | 200 re-evaluating frames then 200 skipped: armed sessions <= live entries (`package` counter); remove the component: its session count returns to 0 after one frame | — | drop the serial check: flush callbacks dirty the window every frame (the window never idles; `runUntilIdle` throws) |
+| 2.7 | `sessionsNeverExceedLiveEntries` | (`IV-L`: a component re-evaluating every frame lets the window idle) 200 re-evaluating frames then 200 skipped: armed sessions <= live entries (`package` counter); remove the component: its session count returns to 0 after one frame | — | drop the serial check: flush callbacks dirty the window every frame (the window never idles; `runUntilIdle` throws) |
 | 2.8 | `aMemoSessionIsNotFlushedByTheWindowSentinel` | a skipped component survives 50 forced redraws without re-evaluating | — | read `redrawSentinel.tick` inside the memo session |
 | 2.9 | `aMemoizedSubtreeDrawsTheSceneOfAnUnmemoizedOne` | **differential**: the same tree with and without `.equatable()`, 12 scripted writes: `Scene` rect/glyph/image arrays, hitboxes (`testingHitboxes`), accessibility tree and focus order equal after every frame | — | pristine copy taken after `requestGroupLayout` (stale layout state leaks) — reddens this |
-| 2.10 | `lifecycleAnimationAndListInsideAMemoizedComponent` | `.onAppear`/`.onDisappear`/`.task` counts, a `keyframeAnimator` trigger, a `List` windowed row's TB-AH retention, a presentation: identical to the unmemoized tree | — | none specific (the differential 2.9 covers) |
+| 2.10 | `lifecycleAnimationAndListInsideAMemoizedComponent` | `.onAppear`/`.onDisappear`/`.task` counts, a `keyframeAnimator` trigger, a `List` windowed row's TB-AH retention, a presentation: identical to the unmemoized tree | — | key the entry by type alone, ignoring the id (`IV-M`) |
 | 2.11 | `aPlainImportCannotConstructAnEquatableComponent` + `equatableIsOfferedOnlyToEquatableComponents` (typecheck guards) | initialiser unreachable; `.equatable()` on a non-`Equatable` component does not compile | — | make the initialiser public |
-| 2.12 | `theBareComponentPathIsUnchanged` | existing `ComponentTests` mutations (the two recorded in `Component.swift`) redden the same tests | — | — |
+| 2.12 | (not a test, `IV-M`) re-run of the existing `ComponentTests` mutations:  existing `ComponentTests` mutations (the two recorded in `Component.swift`) redden the same tests | — | — |
 | 2.13 | `aBackgroundThreadWriteDirtiesAMemoWithinOneFrame` | an off-main write: at most one stale frame (RX-K's limitation, pinned as-is) | — | — |
 
 Existing pins that move: none (opt-in); `theSevenRetentionSlotsAreMutuallyDistinct`,

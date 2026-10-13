@@ -3,10 +3,10 @@
 Branch `perf/incremental-invalidation` from `f6f865c1`. Not a plan task: item C14
 of the gpui-gap priority list (user request 2026-10-02), requested by MetalCreator
 (gap PERF-b). Spec `docs/superpowers/specs/2026-10-13-incremental-invalidation-design.md`;
-rulings `IV-A`…`IV-K` in `docs/superpowers/2026-10-13-incremental-invalidation-decisions.md`
-(next unused `IV-L`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
+rulings `IV-A`…`IV-M` (`IV-L`, `IV-M` are the critic's) in `docs/superpowers/2026-10-13-incremental-invalidation-decisions.md`
+(next unused `IV-N`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
 `docs/probes/swift-observation-nested-scopes.swift`, `docs/probes/incremental-invalidation/`.
-Divergence labels reserved: 345–354 (345 and 346 planned, unused until lane 2 lands).
+Divergence labels reserved: 345–354 (346 planned; 345 refuted and unused, `IV-L`).
 
 **Status: DESIGNED (lane 0). No source change yet beyond the committed counted
 baseline test.** Two lanes follow, sequential: lane 1 the layout memo, lane 2 the
@@ -38,7 +38,7 @@ frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation no
 runs identical except one arm noted unexplained in its header): bodies re-run exactly
 for readers (R, T, O, ES); equal plain-value or same-instance inputs skip (S, U, V);
 `.equatable()` with a custom `==` skipped the plain-value view and not a closure or
-fresh-class-instance view (divergence 345); a custom `Layout` re-measures every
+fresh-class-instance view on the first bump only (S2/S3 refute a divergence, `IV-L`); a custom `Layout` re-measures every
 sibling on a colour change (L-colour). `swift-observation-nested-scopes.swift`
 (Swift 6.4): access lists merge upward; the per-scope token gives one live session.
 

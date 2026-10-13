@@ -207,6 +207,10 @@ struct Rows: View {
     model.a += 1; report("O  (model.a; EqReads is .equatable() with == always true)")
     EqState.poke?(); report("ES (EqState's own @State; == always true)")
     ref.n += 1; Top.bump?(); report("U  (Top @State; ref mutated, same instance)")
+    // S2/S3 (critic): the same bump again, twice. If S's Eq-equatable()/EqRef
+    // runs were a first-bump artefact they stop here (separating arm for IV-B).
+    Top.bump?(); report("S2 (Top @State, second bump)")
+    Top.bump?(); report("S3 (Top @State, third bump)")
     w1.close()
     let w3 = host(Top(model: model, ref: ref, fresh: true))
     report("V0 first render, WithRef gets a NEW Ref instance every evaluation")
@@ -243,10 +247,11 @@ MainActor.assumeIsolated { _ = NSApplication.shared; run() }
 //   V  (WithRef given a NEW Ref instance each evaluation): WithRef ran
 //   O  (model.a; EqReads is .equatable(), == always true): EqReads ran
 //   ES (EqState's own @State; == always true): EqState ran
-//   (S above: a view with a capturing-closure input or a fresh class instance
-//    input re-ran under `.equatable()` although its custom `==` ignored that
-//    input and said equal (Eq-equatable(), EqRef); a view whose inputs are
-//    plain values (EqPod) was skipped.)
+//   S2, S3 (added by the critic, two more bumps; run twice, identical): Top,
+//        WithCapture, PlainTick only. The Eq-plain/Eq-equatable()/EqRef re-runs
+//        of S are a FIRST-BUMP artefact (U, which the earlier text called
+//        unexplained, is the same thing): SwiftUI honours a custom `==`.
+//   (Reading (3) below was refuted by S2/S3 and is retired.)
 //   L0 first layout: each Counting layout fit x8..12, place x9..10
 //   L-unread: nothing
 //   L-colour (row 2: geometry unchanged): every row's wrapper re-measured and
@@ -259,10 +264,8 @@ MainActor.assumeIsolated { _ = NSApplication.shared; run() }
 // evaluates nothing. (2) A parent's re-evaluation skips a child whose stored
 // inputs are plain equal values or class references that are the same instance
 // and re-runs one whose input changed (S, U, V). (3) `.equatable()` with a
-// custom `==` skipped the plain-value view but did NOT skip a view holding a
-// closure or a freshly allocated class instance, whatever `==` said: SwiftUI's
-// skip is not "`==` decides" for such inputs; MetalUI's `.equatable()` is
-// defined as "`==` decides" (IV-B, divergence 345), a deliberate difference.
+// custom `==` is honoured past the first bump (S2, S3), closure and class
+// inputs included (IV-B, IV-L); no divergence.
 // An observed read and the view's own @State beat an equal `==` in SwiftUI
 // (O, ES), and MetalUI's rule matches. (4) Layout is NOT incremental at this
 // granularity for a custom `Layout`: a colour change that moves nothing still
