@@ -23,7 +23,7 @@ element.
 20–100 `Text` overlays "rebuild on every camera change". Is the overlay path
 the cost, in a way a cache cannot remove?
 
-**Evidence** (`SurfaceTextOverlayCostTests.measureTheOverlayCost`, headless,
+**Evidence** (`SurfaceTextOverlayCostTests.theOverlayCostIsLinearAndCounted` (at `d6a815c` the design-phase `measureTheOverlayCost`), headless,
 `PortableTextSystem` over Noto Sans behind a call-counting `TextSystem`, 800 ×
 600, `ZStack(alignment: .topLeading) { GPUSurface(value: phase) { _ in }; ForEach
 labels: Text(…).offset(x:y:) }`; `phase` moves every frame so every label moves;
