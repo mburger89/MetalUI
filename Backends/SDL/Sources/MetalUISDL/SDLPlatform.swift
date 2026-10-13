@@ -963,6 +963,16 @@ public final class SDLWindow: PlatformWindow {
         return false
     }
 
+    /// Every `performWindowDrag()` call, in order (ruling `WD-F`).
+    public private(set) var windowDragRequests = 0
+
+    /// Records the request and answers `false`: the system title bar drags the
+    /// window itself (ruling `WD-F`, divergence 276).
+    public func performWindowDrag() -> Bool {
+        windowDragRequests += 1
+        return false
+    }
+
     /// The last pointer position a motion, button or wheel event delivered —
     /// where a pinch, which has none in SDL, is placed (ruling `CI-K` item 2).
     private var lastPointerPosition = Point(x: Pixels(0), y: Pixels(0))

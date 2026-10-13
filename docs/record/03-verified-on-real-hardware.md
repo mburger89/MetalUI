@@ -2206,3 +2206,13 @@ blurs behind the window (divergence 245). **Owed, new here — `docs/verificatio
 group BB, none performed (an agent cannot)**: BB1 a panel over a viewport, six materials, light and
 dark; BB2 a dragged panel over moving content; BB3 nested panels; BB4 a resize with a panel up; BB5
 Windows and Linux sight; BB6 a fading panel.
+
+## 2026-10-12: window drag (record §97) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `a720fba`; the screen was locked, so no
+real-window capture was taken and **`NSWindow.performDrag(with:)` from a mouse-dragged dispatch has
+never run**. **Owed, new here — `docs/verification/human-checks.md` group WD, none performed (an agent
+cannot)**: WD1 a press-drag on the demo's handle moves the window and what the neighbouring gesture
+reports (divergence 275); WD2 a button in the handle clicks, a 3-point wobble does not drag, 6 points
+do, no jump; WD3 hover and the next press after a drag; WD4 a secondary press opens the menu; WD5 a
+double click (no zoom); WD6 full screen and Stage Manager; WD7 SDL moves nothing (divergence 276).

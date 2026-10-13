@@ -365,6 +365,20 @@ that loses key reports them released. A scroll's events, momentum included, go t
 element under its `.began`, and a scroll whose end never arrives (the window resigned key,
 or closed) gets a synthesized `.cancelled`.
 
+**Window drag** (`WD-`, record §97;
+[`superpowers/2026-10-12-window-drag-decisions.md`](superpowers/2026-10-12-window-drag-decisions.md);
+probe `probes/swiftui-window-drag.swift`). `WindowDragGesture` (A; SwiftUI's macOS 15 spelling,
+`Value` and `init()`, offered on every platform) attached with `.gesture`/`.highPriorityGesture`/
+`.simultaneousGesture` makes its element an opaque pointer target that, after a 5-point move,
+asks the platform to move the window and ends, cutting the other members of the press (D 275;
+`onCancelled` runs for one that had reported). It wins over gestures on a sibling beneath it
+(MetalCreator's full-window viewport under a hidden-title-bar handle) and loses to a `DragGesture`
+ahead of it. AppKit only moves the window (D 276); `.opacity(0)` does not disable it (D 277). Not
+built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click zoom. At the seam
+(M): the defaultless `PlatformWindow.performWindowDrag() -> Bool`; `MetalUITesting` gains
+`HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
+Human checks: group WD, unrun.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
