@@ -70,8 +70,10 @@ commit makes `helloni hao`); the assertion was corrected, the implementation was
 |---|---|
 | `Window.focusedElement` `didSet` (`IM-I`): the composition-clear statement replaced with `_ = old` | `aCompositionDoesNotSurviveItsFieldLosingFocus` |
 | TextField's AX node `value` built from `geometry.display` (marked text spliced) instead of the committed `text` | `theFieldsAccessibilityValueIsTheCommittedTextWhileComposing` (its lines 144 and 146), `theInputMethodRecipeRuns` (line 374) |
+| (branch checker, 3530-test unfiltered runs, restored from a copy) `TextEditing.reconcile`: the `composition.text.isEmpty` guard removed | `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit` (3 issues), `aWriteDuringCompositionIsHeldBackAndTheMarkedTextStays` (2), `reconcileIsHeldBackWhileComposing` (4); 9 issues |
+| (branch checker) `TextEditing.publication`: the `composition.text.isEmpty` guard removed | only `publicationIsNilWhenNothingChangedOrWhileComposing`; 5.6 does **not** redden (the held write leaves the selection equal to the reported one) — its comment was corrected |
 
-Both expected. The lane's own earlier mutations (the `display` splice that replaced the critic's non-mutant
+The lane's two were expected. The lane's own earlier mutations (the `display` splice that replaced the critic's non-mutant
 test, `IM-J` item 1) are in the lane report.
 
 ## §5 Verification

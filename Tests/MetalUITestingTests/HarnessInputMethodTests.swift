@@ -105,8 +105,12 @@ import Testing
 
 /// 5.6 (`IM-G`, divergence 326) — a selection written while composing is held
 /// back and superseded by the commit. Controls: the same write with no
-/// composition applies. Mutations: `reconcile`'s composing guard removed;
-/// `publication`'s composing guard removed.
+/// composition applies. Mutation: `reconcile`'s composing guard removed (red:
+/// this test, `aWriteDuringCompositionIsHeldBackAndTheMarkedTextStays`,
+/// `reconcileIsHeldBackWhileComposing`). `publication`'s composing guard is NOT
+/// reachable end to end (the held write leaves the selection equal to what was
+/// reported, so it answers `nil` anyway); only `publicationIsNilWhenNothingChangedOrWhileComposing`
+/// reddens it (branch checker, 2026-10-12).
 @available(macOS 15, *)
 @Test @MainActor func aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit() throws {
     let control = SelModel("hello")
