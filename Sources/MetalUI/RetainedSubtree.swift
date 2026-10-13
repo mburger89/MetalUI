@@ -88,8 +88,10 @@ final class RetainLog {
         }
     }
 
+    /// Notes the leaves at `boundary` when an open recorder's own scopes end there, and at boundary 0
+    /// (the scene itself) for the final-primitive stream a plain-effect replay uses (`SB-AB`).
     func noteBoundary(_ boundary: Int, _ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int) {
-        for recorder in recorders where recorder.entryHeight == boundary {
+        for recorder in recorders where recorder.entryHeight == boundary || boundary == 0 {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
             return
         }
@@ -159,7 +161,13 @@ final class RetainedRecord {
     var contentSerial = 0
     /// The `@State` slots bound under the component and their versions (`SB-K`).
     var versions: [(GlobalElementID, UInt64)] = []
+    /// The leaves where the occurrence's own paint scopes end, for a replay inside another recording or
+    /// under an outer scope that captures, shadows, blurs or composites.
     var scene: [RetainLog.SceneOp] = []
+    /// The primitives as they reached the scene, for a replay with no other recorder open when every
+    /// outer scope is a plain effect (a pure map the key holds): the scopes are not processed again
+    /// (`SB-AB`). `nil` when an outer scope is not a plain effect.
+    var finalScene: [RetainLog.SceneOp]?
     var marks: [GlobalElementID] = []
     var touches: [RetainLog.Touch] = []
     var paintWork = 0
@@ -413,7 +421,12 @@ extension Frame {
     // MARK: Replay
 
     func replayPaint(_ r: RetainedRecord) {
-        for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
+        if retainLog == nil, let final = r.finalScene {
+            // No other recorder wants the leaves where an outer scope would pass them: straight in.
+            for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
+        } else {
+            for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
+        }
         for id in r.marks { stateTable.mark(id) }
         for touch in r.touches { animationStore.replay(touch) }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
@@ -498,7 +511,14 @@ extension Frame {
         }
         record.coverageComplete = phase.build.observed && phase.prepaintObserved
         record.contentSerial = phase.entry.serial
-        record.scene = log.scene[from.scene..<to.scene].filter { $0.boundary == recorder.entryHeight }
+        let ops = log.scene[from.scene..<to.scene]
+        record.scene = ops.filter { $0.boundary == recorder.entryHeight }
+        // The final stream is valid only when every outer scope is a plain effect: a pure map of the leaf
+        // by parameters the key holds. A shadow, blur, composite, capture or barrier outside needs the
+        // leaves handed to it.
+        if paintScopes.allSatisfy({ $0.kind == .effect }) {
+            record.finalScene = ops.filter { $0.boundary == 0 }
+        }
         record.marks = Array(log.marks[from.marks..<to.marks])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
@@ -567,6 +587,11 @@ extension RetainedRecord {
         }
         for (a, b) in zip(scene, other.scene) where describe(a) != describe(b) {
             return "scene op \(describe(a)) vs \(describe(b))"
+        }
+        if (finalScene == nil) != (other.finalScene == nil) { return "finalScene presence" }
+        if let x = finalScene, let y = other.finalScene {
+            if x.count != y.count { return "finalScene.count \(x.count) vs \(y.count)" }
+            for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }
         if marks != other.marks { return "marks" }
         if touches.count != other.touches.count { return "touches.count" }
