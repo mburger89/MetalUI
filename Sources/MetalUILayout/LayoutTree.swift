@@ -2097,20 +2097,20 @@ extension LayoutTree {
         case .leaf:
             guard let key = leafKeys[index] else { return nil }
             h.mix(1)
-            h.mixHashable(ObjectIdentifier(type(of: key.base)))
+            h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base)))))
             h.mixHashable(key)
         case .overlay(let alignment):
-            h.mix(2); h.mixHashable(alignment)
+            h.mix(2); h.mix(alignment.signatureTag)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .overlayAttachment(let alignment):
-            h.mix(3); h.mixHashable(alignment)
+            h.mix(3); h.mix(alignment.signatureTag)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth,
                     let minHeight, let idealHeight, let maxHeight, let alignment):
             h.mix(4)
             h.mix(width); h.mix(height); h.mix(minWidth); h.mix(idealWidth); h.mix(maxWidth)
             h.mix(minHeight); h.mix(idealHeight); h.mix(maxHeight)
-            h.mixHashable(alignment)
+            h.mix(alignment.signatureTag)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .padding(let insets):
             h.mix(5)
@@ -2120,7 +2120,7 @@ extension LayoutTree {
             h.mix(6); h.mix(horizontal); h.mix(vertical)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .aspectRatio(let ratio, let contentMode):
-            h.mix(7); h.mix(ratio); h.mixHashable(contentMode)
+            h.mix(7); h.mix(ratio); h.mix(contentMode == .fit ? 0 : 1)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .layoutPriority(let priority):
             h.mix(8); h.mix(priority)
@@ -2134,16 +2134,20 @@ extension LayoutTree {
             case .vertical?: h.mix(2)
             }
         case .scrollViewport(let axis):
-            h.mix(10); h.mixHashable(axis)
+            h.mix(10); h.mix(axis == .horizontal ? 0 : 1)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .linearStack(let axis, let spacing, let alignment, let baseline):
-            h.mix(11); h.mixHashable(axis); h.mix(spacing); h.mixHashable(alignment)
-            if let baseline { h.mix(1); h.mixHashable(baseline) } else { h.mix(0) }
+            h.mix(11); h.mix(axis == .horizontal ? 0 : 1); h.mix(spacing); h.mix(alignment.signatureTag)
+            switch baseline {
+            case nil: h.mix(0)
+            case .first?: h.mix(1)
+            case .last?: h.mix(2)
+            }
             guard mixChildren(&h, children, signatures) else { return nil }
         case .custom(let layout):
             guard let hashable = layout as? any Hashable else { return nil }
             h.mix(12)
-            h.mixHashable(ObjectIdentifier(type(of: layout)))
+            h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: layout)))))
             h.mixHashable(hashable)
             guard mixChildren(&h, children, signatures) else { return nil }
         case .grid(let plan):
@@ -2162,7 +2166,7 @@ extension LayoutTree {
         }
         var position: [Int: Int] = [:]
         for (offset, child) in children.enumerated() { position[child.index] = offset }
-        h.mixHashable(plan.alignment)
+        h.mix(plan.alignment.signatureTag)
         h.mix(plan.columnCount); h.mix(plan.rowCount)
         h.mix(plan.rowAlignments.count)
         for alignment in plan.rowAlignments { optional(alignment) }
@@ -2239,5 +2243,22 @@ extension LayoutTree {
         }
         memo.storePlacement(LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds),
                             run.order.map { layouts[$0] })
+    }
+}
+
+extension ProposalAlignment {
+    /// A stable small integer for the signature stream (cheaper than a `Hasher`).
+    fileprivate var signatureTag: Int {
+        switch self {
+        case .topLeading: 0
+        case .top: 1
+        case .topTrailing: 2
+        case .leading: 3
+        case .center: 4
+        case .trailing: 5
+        case .bottomLeading: 6
+        case .bottom: 7
+        case .bottomTrailing: 8
+        }
     }
 }
