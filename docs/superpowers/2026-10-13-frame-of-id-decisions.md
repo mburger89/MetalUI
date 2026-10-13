@@ -5,7 +5,7 @@ Record: `../record/108-frame-of-id.md`. Evidence: reading of `ExplicitIdentity.s
 and its four call sites, `TestWindow.frames(ofID:)`, and record §107's `DG-T` measurement; red tests owed to the
 implementer. No SwiftUI probe: `frame(ofID:)` is MetalUI-only and gpui's `debug_bounds` is the authority.
 
-Prefix **`TW-`**. **Next unused: `TW-E`.** (Moves in the commit that appends a ruling.)
+Prefix **`TW-`**. **Next unused: `TW-F`.** (Moves in the commit that appends a ruling.)
 Branch `fix/frame-of-id` from `d279f34d`. Reserved divergence labels 385–394: none used.
 
 ## TW-A — The fix is `IdentifiedGroup` recording its own row, not a wider lookup in the harness
@@ -39,3 +39,12 @@ heading of `docs/divergences.md` (this includes 79 and 249, rows appended below 
 a guide citing one. **Reasoning.** DG-U: a retired label keeps its row, so `everyCitedDivergenceHasARow` cannot
 see it. Position, not a "retired" column parse, because the appended rows differ in layout.
 **Cost if wrong.** A live row moved below the heading would be refused; the parser pin names the set.
+
+## TW-E — Critic pass: the design stands; two wording defects fixed, one alternative rejected
+
+**Ruling.** Reviewed against the rules (no SwiftUI claim, no public API, no platform requirement, no primitive, no
+pixel path, retired rows 79/249 verified below `## Retired`, the Not-offered table holds no other numeric row).
+Fixed: the test count (+12, not +9) and the Linux proof (root package in `swift:6.4-noble` with its own volume, not
+the `Backends/SDL` command, since `MetalUITestingTests` lives in the root). **Rejected:** recording the row in
+`Frame` for every `.id` unconditionally (no `recordsElementBounds` gate on `nodes`): it would allocate in production
+frames. **Cost if wrong.** None; the gate is test 10.

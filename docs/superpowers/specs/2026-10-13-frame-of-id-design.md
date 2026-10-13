@@ -73,7 +73,7 @@ C29 (record §106) made `runUntilIdle()` return after a click on every platform 
 - Grep the other guides and mirrors for `setNeedsRedraw`/`tick()` workarounds written for the same cause
   (`GuideMirrorsLane2.swift`, guide code blocks); change only a use whose purpose is that workaround. The
   guide doc-check's mirror-byte comparison (existing tests) proves the mirrors stay identical.
-- Proof: the Linux image run (volume `metalui-sdl-build-frame-of-id`) of `MetalUITestingTests`; the macOS run is not
+- Proof: the ROOT package in the `swift:6.4-noble` image (not the `Backends/SDL` package; volume named `metalui-root-build-frame-of-id`, OrbStack left running) running `swift test --filter MetalUITestingTests`, whose summary line is read; the macOS run is not
   evidence (the hop is synchronous there).
 
 ## 5. Files (one lane)
@@ -115,7 +115,7 @@ All in `MetalUITestingTests` unless noted, written red first against `d279f34d` 
     `setNeedsRedraw()`+`tick()` lines changes nothing (both draw) — so the proof is the doc check: re-adding the old
     guide sentence while the mirror holds the new one reddens `everyMirroredBlockMatches…` (name from the run).
 
-Counts: expected +9 tests in `MetalUITestingTests`/`MetalUITests` and 0 guards; re-measure.
+Counts: expected +12 tests (tests 1-10 less the unchanged 10's first half, plus 11's two and 12's edit) and 0 guards; re-measure. Test 12's mutation proof is the doc check: edit the guide sentence back and name the reddened mirror-identity test from the run (`TW-E`).
 
 ## 7. Demo, pixels, human checks
 
