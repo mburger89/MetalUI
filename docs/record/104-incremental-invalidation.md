@@ -284,6 +284,8 @@ signature reddened `everyRegistrarParameterIsInItsSignature` and, in verify mode
 `aMemoHitEqualsAFreshLayoutBitForBit` (a precondition, so the run ends there; re-run with that test skipped it completed
 3653, 1 issue). Finding fixed: this record carried section 6 twice (a stale first copy, 3591 tests); the duplicate is removed.
 
+**Orchestrator's re-take on the merged tree** (`c6d6f48d`, master `aa42fbc8` (§108) merged in): `swift package clean`, native build 0 `error:`, the **unfiltered** `--no-parallel` run read `Test run with 3675 tests in 3 suites` with exactly the five `AppKitPresentationTests` sheet issues of a locked screen and nothing else (no `NSOpenPanel` hang this time), `FR-J no-argument frame: succeeded=true`; the default build system 0 `warning:`; `cmp CLAUDE.md AGENTS.md` clean; both inventory scripts print nothing. 3675 = master's 3643 + the branch's 32. The MetalCreator-shaped drag fixture (developer-c0, 2026-10-13) is carried to C14-b.
+
 ## §7 Carried, with owners
 
 | item | why | owner |
@@ -296,5 +298,5 @@ signature reddened `everyRegistrarParameterIsInItsSignature` and, in verify mode
 | `MetalDrawContext.drawText` and its SDL twin | GT-F re-taken: the overlay cost is still 1 measure + 2 seam + 1 `placeGlyphs` a label (`IV-O`); re-take at C14-b | C14-b close-out |
 | release timing of the signature pass and of the content memo's `==` and pristine copy | a release build costs 15 minutes on the shared machine; the win is claimed as counted only | C14-b |
 | the real-window demo and human checks IV1-IV4 | the screen was locked for the branch; an agent cannot | a human, `docs/verification/human-checks.md` group IV |
-| the unfiltered suite count and the fourteen images on the merged tree | locked screen (NSOpenPanel hang); material work merged beneath | the merge checker |
+| the fourteen images on the merged tree | material work merged beneath (the unfiltered count is re-taken above: 3675) | the merge checker |
 
