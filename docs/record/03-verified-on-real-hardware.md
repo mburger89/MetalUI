@@ -2226,3 +2226,10 @@ the title opens its field with the whole title selected and typing replaces it; 
 caret at the end; SL3 a Japanese input method composing in the title field while the binding is written
 (`SL-H`); SL4 click, arrows and Shift-arrows publish to the binding; SL5 the same on Linux (SDL) and
 Windows; SL6 undo after "Caret to start" removes the typing, not the caret move (`SL-I`).
+
+## 2026-10-12: continuing press cancel (record §100) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `930db4a`; no window was driven. **Owed, new
+here — `docs/verification/human-checks.md` group GC, none performed (an agent cannot)**: GC1 a real orbit or
+drag interrupted by Mission Control or a native menu, then pressed again, gives one `onCancelled` and a new
+drag; GC2 a real double-click still fires a `count: 2` tap once.

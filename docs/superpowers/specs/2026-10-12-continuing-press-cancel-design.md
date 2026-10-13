@@ -1,7 +1,9 @@
 # Continuing press cancel — design spec
 
 Item C26. Rulings: [`../2026-10-12-continuing-press-cancel-decisions.md`](../2026-10-12-continuing-press-cancel-decisions.md)
-(`GC-A`…`GC-E`). Evidence: `docs/probes/swiftui-lost-release.swift` (header).
+(`GC-A`…`GC-G`).
+
+**Status: LANDED** (record §100, `docs/record/100-continuing-press-cancel.md`). Evidence: `docs/probes/swiftui-lost-release.swift` (header).
 Baseline `930db4a`: **3472 tests in 3 suites**, the `FR-J no-argument frame:
 succeeded=` line, 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
 `swift build --build-tests` 0 warnings; pixels 0 px in the fourteen offscreen

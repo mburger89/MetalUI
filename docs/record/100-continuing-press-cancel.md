@@ -4,7 +4,7 @@ Branch `fix/continuing-press-cancel` from `930db4a`. **Not a plan task**: item C
 gpui-gap priority list (user request 2026-10-02), reported by MetalCreator (developer-0a,
 2026-10-12, gap VI-b, found planning C16's adoption; not blocking). Spec
 `docs/superpowers/specs/2026-10-12-continuing-press-cancel-design.md`; rulings `GC-A`…`GC-G` in
-`docs/superpowers/2026-10-12-continuing-press-cancel-decisions.md` (next unused `GC-H`); probe
+`docs/superpowers/2026-10-12-continuing-press-cancel-decisions.md` (next unused `GC-H`); merged with master `3fce05f` (§96 text selection; no conflict, number 100 still free); probe
 `docs/probes/swiftui-lost-release.swift` (arms `L0`…`L3`).
 
 **Status: LANDED.** One lane. No public declaration, no inventory row, no divergence label
@@ -62,6 +62,8 @@ and 1.9; `cancel()` on stale arenas `aStaleButtonArenaReportsCancelledWhenTheSam
 `aDragStartedByADraggablesPreviewIsCancelled`; window-drag winning `WindowDragTests`'
 `aHandleOverAGestureViewportDragsTheWindowAndCancelsTheViewport`; continuing press 1.1/1.4.
 
+After the merge with master `3fce05f` (`swift package clean`, native build, unfiltered `--no-parallel`): **3513 tests in 3 suites passed** (3504 + 9), the `FR-J` line present, 0 `error:`, 0 recorded issues; no guard added (221 unmoved); census 3446 unmoved; the inventory checks print nothing.
+
 ## §4 Pixels
 
 `docs/probes/demo-pixels/compare.sh <scratch> 930db4a HEAD`: all fourteen images `differing=0`,
@@ -72,7 +74,7 @@ scenes identical; controls read their recorded non-zero values. `DemoFrameDeterm
 
 Human checks `GC1` (a real orbit interrupted by Mission Control or a native menu, then pressed
 again: one `onCancelled`, the new orbit starts) and `GC2` (a real double-click still fires a
-`count: 2` tap once); neither can be run by an agent. Not added to
-`docs/verification/human-checks.md` (shared file; the merge adds the group). Deferred: a bare
+`count: 2` tap once); neither can be run by an agent. Added in the Record phase as
+`docs/verification/human-checks.md` group `GC` (`GC1`, `GC2`) and record 03. Deferred: a bare
 `.mouseMoved` cancel for the primary arena (rejected, `GC-C`); a SwiftUI double-click-beside-drag
-measurement. CLAUDE.md's rule line (one or two sentences naming `GC-B`/`GC-C`) is the merge's.
+measurement. CLAUDE.md's rule paragraph, the `GC-` prefix, the counts, `docs/api-overview.md`, `docs/migration.md` (one row) and the record index were written in the Record phase.
