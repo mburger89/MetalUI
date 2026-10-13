@@ -12,7 +12,7 @@ Evidence: [`../probes/swiftui-material-followups.swift`](../probes/swiftui-mater
 header). SwiftUI's answer is the authority; gpui is not read (SwiftUI answers the API question,
 and the platform seam is the reduce-motion pattern).
 
-Prefix **`MT-`**, lettered. **Next unused: `MT-J`.** (This line moves in the commit that
+Prefix **`MT-`**, lettered. **Next unused: `MT-K`.** (This line moves in the commit that
 appends a ruling; read the last `## MT-` heading.)
 
 Branch `feat/material-followups` from `930db4a`. `docs/divergences.md`: this branch's reserved
@@ -151,3 +151,28 @@ own rows, the census re-recorded once after B. Rejected: a probe that forces Red
 (touches the user's system setting; `MT-A`); an SDL OS query (`MT-E`); a coloured material
 (`MT-C`). No other defect found: `Color.resolve(in:)` and the BB counters exist as the spec cites,
 and the `fill(for:)` table matches `MT-F`'s quoted greys.
+
+## MT-J — Lane B as built: the sites, the grey, the headless option, what test 12 can see
+
+**Ruling.** (1) The call sites of `fillBackdrop(` were grepped first (`MT-I`): three
+callers, `ModifiedContent`'s `.backgroundMaterial` arm, `AnimatedColor`'s legacy
+`paintDecorationBody` and `paintShapeMaterial` (which serves `Shape.fill(_:)`,
+`.background(_:in:)` and the `ShapeView` material layers); all now call
+`PaintPass.fillMaterial` (`MaterialTransparency.swift`), and `paintShapeMaterial`'s two
+flat branches (a path, a non-antialiased fill style) resolve `PaintPass.materialTint`,
+which is the opaque grey under the setting. The guard `noMaterialSiteBypassesFillMaterial`
+scans `Sources/MetalUI` for any other `fillBackdrop(` call or `material.color` read.
+(2) `Material.opaqueColor(in:)` is the resolved grey of `fill(for:)` at alpha 1, in
+`MaterialTransparency.swift` (lane A's `Material.swift` is untouched). (3)
+`HeadlessPlatformWindow.Options` gains a trailing `accessibilityReduceTransparency`
+parameter (default `false`). (4) AppKit's one display-options observer refreshes both
+values. (5) Test 9 lives in `MetalUITests`, not `MetalUIRenderTests` (that target does not
+depend on `MetalUI`; `MetalUITests` reaches `Renderer` through `MetalUIAppKit`). (6) Test 12
+pins the snap but **no mutation reddens it**: the animation store keeps a track only from a
+previous value, and the previous frame drew a backdrop record (no colour), so routing the
+opaque colour through the store would also start nowhere. It is a fact pin, not a
+guard; the snap is by construction (`fillMaterial` draws through `fill`, never
+`animatedBackground`).
+
+**Cost if wrong.** A material whose colour is animated between two opaque states (none
+exists) would need a real arm.
