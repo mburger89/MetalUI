@@ -28,6 +28,10 @@ lane 2 the same tree with `.equatable()` is test 2.1. The phase-timing instrumen
 table and the sample's reading): at 81 leaves build 51%, layout kernel 19%, prepaint
 10%, paint 14%, sweeps 6%; content getters 21% of build; no hot spot.
 
+Counts at the design commit: `swift test --build-system native --no-parallel` unfiltered
+reads **3567 tests in 3 suites** (3566 + the baseline test), all passed, `FR-J no-argument
+frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice.
+
 ## §2 The probes
 
 `swiftui-incremental-invalidation.swift` (hosted `NSHostingView`, macOS 27, three
