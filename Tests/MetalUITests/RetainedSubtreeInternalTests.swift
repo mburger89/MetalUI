@@ -242,13 +242,19 @@ private struct PaintHolder: Component, @MainActor Equatable {
     #expect(window.lastFrameWork.retainedHits == 1)
     let before = window.scene.rects.last?.background
     model.tone = 1
-    await Task.yield()
+    for _ in 0..<4 { await Task.yield() }
     window.window.setNeedsRedraw(); window.tick()
     let after = window.scene.rects.last?.background
     #expect(after != nil && before != nil && (after!.h != before!.h), "the new tone was drawn")
     #expect(window.lastFrameWork.retainedMisses == 1)
-    window.window.setNeedsRedraw(); window.tick()
-    #expect(window.lastFrameWork.retainedHits == 1)
+    // The miss frame observed only its paint, so its record is not replayed; the next frame records
+    // with all three windows observed and the one after replays (`SB-V`).
+    var replays = false
+    for _ in 0..<3 {
+        window.window.setNeedsRedraw(); window.tick()
+        replays = replays || window.lastFrameWork.retainedHits == 1
+    }
+    #expect(replays, "and the new frame is recorded and replays")
 }
 
 // MARK: 1.9 — a replayed frame keeps its slots alive
@@ -323,7 +329,7 @@ private struct TonedHolder: Component, @MainActor Equatable {
     #expect(window.lastFrameWork.retainedHits == 1)
     let before = window.scene.rects.last?.background
     model.tone = 1
-    await Task.yield()
+    for _ in 0..<4 { await Task.yield() }
     window.window.setNeedsRedraw(); window.tick()
     let after = window.scene.rects.last?.background
     #expect(after != nil && before != nil && after!.h != before!.h, "the new tone was drawn")

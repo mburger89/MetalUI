@@ -38,23 +38,28 @@ public struct FrameWork: Sendable, Equatable {
     /// Group members the build entered (`SB-`): the build recursion's work, which a retained
     /// subtree still pays in full (lane 1).
     public var elementRequests: Int
-    /// Elements prepainted: one per element and per modifier layer, replayed ones excluded.
+    /// Elements prepainted: one per element and per modifier layer (a retained subtree prepaints in
+    /// full, lane 1).
     public var elementPrepaints: Int
-    /// Elements painted: the same count for the paint phase.
+    /// Elements painted: one per element and per modifier layer, replayed ones excluded.
     public var elementPaints: Int
-    /// `.equatable()` occurrences whose prepaint and paint were replayed from a record.
+    /// `.equatable()` occurrences whose paint was replayed from a record (`SB-B`).
     public var retainedHits: Int
-    /// Occurrences that ran and left a record.
+    /// Occurrences that painted and left a record, or painted because the pointer, a press or focus is
+    /// inside them.
     public var retainedMisses: Int
-    /// Occurrences that ran and could not be recorded (an ineligible channel moved).
+    /// Occurrences that painted and could not be recorded (a paint wrote state, raised an animation,
+    /// drew a surface or sat in a context the key cannot hold).
     public var retainedIneligible: Int
-    /// Element prepaints a retained hit stood for.
+    /// Element prepaints a retained hit stood for: always 0 while prepaint runs in full (lane 1).
     public var retainedSkippedPrepaints: Int
-    /// Element paints a retained hit stood for.
+    /// Element paints a retained hit stood for: `elementPaints + retainedSkippedPaints` is what the
+    /// same frame costs with no retained subtree.
     public var retainedSkippedPaints: Int
-    /// Ledger snapshots taken to record occurrences (four per recorded occurrence).
+    /// Ledger snapshots taken to record occurrences (two per recorded occurrence: before and after its
+    /// paint).
     public var retainedLedgerSnapshots: Int
-    /// Recorded operations replayed.
+    /// Recorded scene operations replayed.
     public var retainedReplayedOps: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int

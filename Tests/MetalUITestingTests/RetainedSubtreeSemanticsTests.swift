@@ -16,6 +16,12 @@ import Testing
     var tint = 0
 }
 
+/// Lets the observation hop of a platform without a synchronous `onChange` land before the next explicit
+/// draw (`HT-I`; on Linux a main-actor test does not run on the main thread, so every change takes one hop).
+@MainActor func rsSettle() async {
+    for _ in 0..<4 { await Task.yield() }
+}
+
 // MARK: The tree
 
 /// A card: text, a button (a hitbox, a focus stop and an accessibility record) and a bar, in a clipped
@@ -242,7 +248,7 @@ private struct RSInspector: Component, @MainActor Equatable {
     ]
     for (name, step) in script {
         try step()
-        await Task.yield()
+        await rsSettle()
         pair.redraw()
         try pair.compare(name)
     }
@@ -361,7 +367,7 @@ private struct RSInspector: Component, @MainActor Equatable {
     #expect(rsFrame(window).retainedHits == 1)
     _ = try window.element(label: "n0")
     model.n = 5
-    await Task.yield()
+    await rsSettle()
     window.window.setNeedsRedraw(); window.tick()
     _ = try window.element(label: "n5")
     #expect(window.lastFrameWork.retainedHits == 0, "the write's frame replays nothing")
@@ -419,7 +425,7 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
 /// first shows a plain neighbour of the same window replaying, so "ineligible" is not "nothing replays".
 /// Mutation, per arm: the channel removed from the ledger comparison or its taint call — the arm's
 /// occurrence is recorded (`retainedMisses == 1`) and, but for the scene, nothing else notices.
-@Test(arguments: RSChannel.allCases) @MainActor func everyLedgerChannelMakesTheSubtreeIneligible(channel: RSChannel) throws {
+@Test(arguments: RSChannel.allCases) @MainActor func everyLedgerChannelMakesTheSubtreeIneligible(channel: RSChannel) async throws {
     let flag = RSFlag()
     let window = try TestWindow(size: sz(300, 120), textSystem: harnessTextSystem) {
         VStack(spacing: 4) {
@@ -431,7 +437,7 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
             }
         }
     }
-    if channel == .activeAnimation { flag.on = true }
+    if channel == .activeAnimation { flag.on = true; await rsSettle() }
     for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
     let f = rsFrame(window)
     #expect(f.retainedHits == 1, "the plain neighbour replays: \(f.retainedHits)")
@@ -485,6 +491,7 @@ private struct RSIdleKeyframes: Component, @MainActor Equatable {
     var f = rsFrame(window)
     #expect(f.retainedHits == 2, "idle: both replay (the keyframe animator is idle): \(f.retainedHits)")
     flag.on = true
+    await rsSettle()
     window.window.setNeedsRedraw()
     var opacities: [Float] = []
     for _ in 0..<6 {
@@ -578,7 +585,7 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     let quiet = rsFrame(on); _ = rsFrame(off)
     #expect(quiet.retainedHits == 2, "both cards replay while nothing moves: \(quiet.retainedHits)")
     apply()
-    await Task.yield()
+    await rsSettle()
     // A window event draws its own frame (the reaction); a model write waits for the next tick.
     if !arm.actsOnTheWindow { on.window.setNeedsRedraw(); on.tick(); off.window.setNeedsRedraw(); off.tick() }
     let f = on.lastFrameWork

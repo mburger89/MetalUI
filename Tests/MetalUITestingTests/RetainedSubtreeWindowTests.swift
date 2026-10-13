@@ -40,10 +40,12 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
         let f = on.frames[index], base = off.frames[index]
         // The conservation identity (`SB-Q`): every evaluated or skipped occurrence is counted once.
         #expect(f.retainedHits + f.retainedMisses + f.retainedIneligible == f.contentEvaluations + f.contentSkips)
-        // Frame 20 is the release: nothing moved, every retaining occurrence replays.
+        // Frame 20 is the release: nothing moved. The occurrences that changed in frame 19 replay if their
+        // record there was fully observed and record once more if it covered only its paint (a record made on
+        // a frame whose valid record missed does, `SB-V`): so 0...3 misses, never more than a drag frame's.
         if index == 20 {
-            #expect(f.retainedMisses == 0)
-            #expect(f.retainedHits == f.contentEvaluations + f.contentSkips - f.retainedIneligible)
+            #expect(f.retainedHits >= predicted.hits)
+            #expect(f.retainedMisses <= predicted.misses)
         } else {
             #expect(f.retainedHits == predicted.hits)
             #expect(f.retainedMisses == predicted.misses)

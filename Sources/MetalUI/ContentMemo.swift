@@ -72,9 +72,13 @@ package final class ContentMemoStore {
         // the record was made.
         var record: RetainedRecord?
         var observedChange = false
-        let buildSession = RetainedSession()
-        let prepaintSession = RetainedSession()
-        let paintSession = RetainedSession()
+        /// Whether this occurrence's build and prepaint must open an observation window this frame
+        /// (`SB-V`): when it has no record, or its record covers only its paint. A valid, completely
+        /// covered record keeps the sessions of the frame it was made in armed, so a steady hit opens none.
+        @MainActor var needsObservation: Bool { record == nil || record?.coverageComplete == false }
+        let buildSession = RetainedSession("build")
+        let prepaintSession = RetainedSession("prepaint")
+        let paintSession = RetainedSession("paint")
         init(previous: Any, pristine: Any, versions: [UInt64]) {
             self.previous = previous
             self.pristine = pristine

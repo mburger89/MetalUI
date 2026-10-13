@@ -9,7 +9,12 @@ from `e85cb07a`. Fixture spec (from MetalCreator's developer, read-only input):
 C14 slice 1 is record §104 (`IV-A`…`IV-Q`; its `IV-H` ruled this item's design and `IV-C` its
 observation); this document supersedes `IV-H` where it differs and says where (`SB-B`, `SB-N`).
 
-**Status: DESIGN.** Two lanes, sequential. **Lane 1 is built to completion** and lands a
+**Status: LANE 1 BUILT AS PAINT REPLAY (`SB-AA`).** The text below is the design as written; where lane 1's
+build differs it is amended by `SB-S`…`SB-AA` in the decisions document, chiefly: **the decision, the key and the
+recorder are in `paintGroup`, prepaint always runs** (§3, §4.2/§4.3, §5, §6 items 5–9, §8.1 tests 1.5, 1.15 and
+the counter list read with "paint" for "prepaint and paint"), the pointer/press/focus rule is "the hovered,
+pressed or focused element is under the component" (`SB-X`), a time read is not a channel (`SB-S`), and
+prepaint replay moves to lane 2 with the build skip. Original status: Two lanes, sequential. **Lane 1 is built to completion** and lands a
 measured win behind unchanged semantics. **Lane 2 is designed here and gated on lane 1's own
 measurement** (§9). Nothing in this document is built yet except the fixture and its baseline
 test (§1), which are on the branch.

@@ -17,7 +17,7 @@ func report(_ scenario: String, _ metric: String, _ value: String) { print("\(sc
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
 func workLine(_ w: FrameWork) -> String {
-    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images)"
+    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible)"
 }
 
 // MARK: Synthetic branching trees (record 07's shapes: depth 12 branch 2 = 8,191; depth 10 branch 3 = 88,573)

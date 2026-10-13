@@ -53,10 +53,16 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         }
         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
         // getter that reads an `@Observable` invalidates this occurrence's record.
-        let result = entry.buildSession.run(entry: entry, store: store) {
-            component.finishComponent(&materialized, id: id, pass: &pass)
+        let observed = entry.needsObservation
+        let result: ([LayoutNodeID], ComponentLayout<C>)
+        if observed {
+            result = entry.buildSession.run(entry: entry, store: store) {
+                component.finishComponent(&materialized, id: id, pass: &pass)
+            }
+        } else {
+            result = component.finishComponent(&materialized, id: id, pass: &pass)
         }
-        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0)
+        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
         return result
     }
 
@@ -68,8 +74,13 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         }
         // Prepaint always runs (`SB-AA`) — its states feed paint — in an observation window of its own
         // (`SB-V`): an `@Observable` read there that a prepaint state carries into paint kills the record.
-        let result = phase.entry.prepaintSession.run(entry: phase.entry, store: pass.frame.stateTable.contentMemos) {
-            component.prepaintGroup(layout: &layout, pass: &pass)
+        let result: ComponentPrepaint<C>
+        if phase.prepaintObserved {
+            result = phase.entry.prepaintSession.run(entry: phase.entry, store: pass.frame.stateTable.contentMemos) {
+                component.prepaintGroup(layout: &layout, pass: &pass)
+            }
+        } else {
+            result = component.prepaintGroup(layout: &layout, pass: &pass)
         }
         result.storage.retained = phase
         return result

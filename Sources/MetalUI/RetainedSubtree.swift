@@ -163,6 +163,11 @@ final class RetainedRecord {
     var marks: [GlobalElementID] = []
     var touches: [RetainLog.Touch] = []
     var paintWork = 0
+    /// Whether the build, prepaint and paint windows were all observed when the record was made
+    /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
+    /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
+    /// all three and records again.
+    var coverageComplete = true
 
     init(key: ReplayKey) { self.key = key }
 }
@@ -173,6 +178,8 @@ final class RetainedRecord {
 final class RetainedSession {
     let token = ContentMemoToken()
     var serial = 0
+    let label: String
+    init(_ label: String) { self.label = label }
 
     /// Runs `body` inside a fresh session; the previous one is retired first (the serial moves on,
     /// then the token write fires it, and its handler finds a stale serial — `IV-L` item 5).
@@ -213,6 +220,7 @@ private final class RetainedHandle: @unchecked Sendable {
 
     @MainActor private func fireOnMain() {
         guard session.serial == serial else { return }
+        if retainedTraces { print("retained session fired: \(session.label)") }
         entry.observedChange = true
         store.markDirty?()
     }
@@ -226,14 +234,19 @@ private final class RetainedHandle: @unchecked Sendable {
 final class RetainedBuild {
     let key: ContentMemoStore.Key
     let topNodes: [LayoutNodeID]
-    let bindIDs: [GlobalElementID]
+    /// The range of `StateTable.markJournal` the build covered: the slots bound under the component,
+    /// read only when a record is made.
+    let journal: Range<Int>
     let timeVarying: Bool
+    /// Whether the build ran inside an observation window (`SB-V`).
+    let observed: Bool
 
-    init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], bindIDs: [GlobalElementID], timeVarying: Bool) {
+    init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], journal: Range<Int>, timeVarying: Bool, observed: Bool) {
         self.key = key
         self.topNodes = topNodes
-        self.bindIDs = bindIDs
+        self.journal = journal
         self.timeVarying = timeVarying
+        self.observed = observed
     }
 }
 
@@ -248,13 +261,10 @@ struct RetainedBuildWindow {
         notes = frame.timeVaryingNotes &+ frame.animationStore.interpolationsSoFar
     }
 
-    func finish(frame: Frame, key: ContentMemoStore.Key, nodes: [LayoutNodeID]) -> RetainedBuild {
-        let journal = frame.stateTable.markJournal
-        var seen = Set<GlobalElementID>()
-        var ids: [GlobalElementID] = []
-        for id in journal[journalLow...] where seen.insert(id).inserted { ids.append(id) }
+    func finish(frame: Frame, key: ContentMemoStore.Key, nodes: [LayoutNodeID], observed: Bool) -> RetainedBuild {
         let now = frame.timeVaryingNotes &+ frame.animationStore.interpolationsSoFar
-        return RetainedBuild(key: key, topNodes: nodes, bindIDs: ids, timeVarying: now != notes)
+        return RetainedBuild(key: key, topNodes: nodes, journal: journalLow..<frame.stateTable.markJournal.count,
+                             timeVarying: now != notes, observed: observed)
     }
 }
 
@@ -265,10 +275,13 @@ struct RetainedBuildWindow {
 final class RetainedPhase {
     let build: RetainedBuild
     let entry: ContentMemoStore.Entry
+    /// Whether prepaint ran inside an observation window, as the build did.
+    let prepaintObserved: Bool
 
-    init(build: RetainedBuild, entry: ContentMemoStore.Entry) {
+    init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
         self.entry = entry
+        self.prepaintObserved = prepaintObserved
     }
 }
 
@@ -418,7 +431,7 @@ extension Frame {
             entry.record = nil
             return nil
         }
-        return RetainedPhase(build: build, entry: entry)
+        return RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
     }
 
     /// The decision of `EquatableComponent.paintGroup` (spec §3.1, `SB-AA`): replay, record, or run plain.
@@ -434,7 +447,7 @@ extension Frame {
         let key = retainedKey(build: build)
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
-            if !entry.observedChange, old.contentSerial == entry.serial, old.key == key,
+            if !entry.observedChange, old.coverageComplete, old.contentSerial == entry.serial, old.key == key,
                old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer {
                 memos.retained.hits += 1
                 if retainedVerifiesFromEnvironment { return .record(SubtreeRecorder(), key, old: old) }
@@ -479,7 +492,11 @@ extension Frame {
         log.recorders.removeAll { $0 === recorder }
         let from = recorder.from, before = recorder.before
         let record = RetainedRecord(key: key)
-        record.versions = phase.build.bindIDs.map { ($0, stateTable.entryVersion($0)) }
+        var seen = Set<GlobalElementID>()
+        for id in stateTable.markJournal[phase.build.journal] where seen.insert(id).inserted {
+            record.versions.append((id, stateTable.entryVersion(id)))
+        }
+        record.coverageComplete = phase.build.observed && phase.prepaintObserved
         record.contentSerial = phase.entry.serial
         record.scene = log.scene[from.scene..<to.scene].filter { $0.boundary == recorder.entryHeight }
         record.marks = Array(log.marks[from.marks..<to.marks])
