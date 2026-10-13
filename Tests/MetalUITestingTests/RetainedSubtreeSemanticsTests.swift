@@ -614,6 +614,45 @@ private struct RSIdleKeyframes: Component, @MainActor Equatable {
     #expect(f.retainedHits == 2, "settled: both replay again: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
 }
 
+// MARK: 1.10c — a transition in flight inside a subtree
+
+private struct RSTransitioning: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            Text("base").frame(width: Pixels(60), height: Pixels(14))
+            if model.n % 2 == 1 { Text("shown").frame(width: Pixels(60), height: Pixels(14)).transition(.opacity) }
+        }
+    }
+    static func == (l: RSTransitioning, r: RSTransitioning) -> Bool { true }
+}
+
+/// 1.10c — an element with a `.transition` pushes a capturing paint scope inside the occurrence every frame it is
+/// present, running or not: the occurrence is ineligible while the transition runs (time is noted too) **and after it
+/// settles**, when the capturing scope is the only reason (`SB-J`, spec §6 item 3; a conservative refusal, carried to
+/// lane 2 with the finer scopes). Mutation: the capturing-scope taint in `processScopes` removed — the settled frames
+/// are recorded and replay (`hits == 1`).
+@Test @MainActor func aSubtreeHoldingATransitionIsIneligibleInFlightAndSettled() async throws {
+    let model = RSModel()
+    let window = try TestWindow(size: sz(200, 80), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSTransitioning(model: model).equatable() }
+    }
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    try #require(rsFrame(window).retainedHits == 1)
+    withAnimation(.linear(duration: 1)) { model.n = 1 }
+    await rsSettle()
+    for _ in 0..<4 {
+        window.window.setNeedsRedraw(); window.tick()
+        let f = window.lastFrameWork
+        #expect(f.retainedHits == 0 && f.retainedMisses == 0, "no replay and no record while the transition runs")
+        window.advance(by: 0.1)
+    }
+    window.advance(by: 2)
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    let f = rsFrame(window)
+    #expect(f.retainedHits == 0 && f.retainedIneligible == 1, "settled, the transition's own scope still refuses: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
+}
+
 // MARK: 1.10b — a replay keeps the animation store's entries alive
 
 /// A legacy box whose border colour follows `tint` under `.animation(value:)`, always `==`.
