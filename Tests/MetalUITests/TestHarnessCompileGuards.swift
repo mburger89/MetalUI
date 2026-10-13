@@ -109,3 +109,30 @@ func anOutsideFileStillCannotConstructAWindow() throws {
     #expect(!result.succeeded, "Window.init must stay unspellable outside MetalUI:\n\(result.output)")
     #expect(result.messages.contains("initializer"), "rejected, but not for the initialiser:\n\(result.output)")
 }
+
+/// **3.4** (`IM-D`). The composition read-back is `package`: an outside file
+/// cannot reach `Window.testingComposition`, though it reads the same text
+/// through the public `TestWindow.markedText` (the separating control).
+/// Mutation: `testingComposition` made `public` → red.
+@Test(.enabled(if: harnessModulesBuilt, skipReason))
+func theCompositionHookIsUnreachableFromAPlainImport() throws {
+    let control = try typecheckFile("""
+        import MetalUITesting
+
+        @MainActor
+        public func read(_ window: TestWindow) -> String { window.markedText }
+        """, importing: "MetalUI")
+    try #require(control.succeeded, "the control (a public member) must compile:\n\(control.output)")
+
+    let result = try typecheckFile("""
+        import MetalUITesting
+
+        @MainActor
+        public func reach(_ window: TestWindow) {
+            _ = window.window.testingComposition
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded, "a package hook must be unreachable from an outside file:\n\(result.output)")
+    #expect(result.messages.contains("testingComposition"),
+            "rejected, but not for the hook:\n\(result.output)")
+}

@@ -145,7 +145,7 @@ import Testing
     window.setMarkedText("ni hao")
     #expect(try window.focusedElement?.value == "hello")
     window.commitMarkedText()
-    #expect(try window.focusedElement?.value == "helloni")
+    #expect(try window.focusedElement?.value == "helloni hao", "the commit commits the marked text as it stands")
 }
 
 /// 5.8 — keys belong to the input method while it composes. Mutation: the
@@ -346,4 +346,40 @@ import Testing
     #expect(two.text == "a你好")
     double.typeKey("z", modifierFlags: .primary)
     #expect(two.text == "a", "two graphemes are their own step")
+}
+
+// MARK: Recipe — the exact code of `docs/testing.md` "Recipe: driving an input method"
+
+@MainActor final class ComposeRecipeModel {
+    var text = "hello"
+    var writes: [String] = []
+}
+
+/// The worked example in `docs/testing.md`, run for real so the doc cannot rot.
+/// Change this test and the doc together. Mutation: `setMarkedText` sends
+/// `.textInput` (the first `writes` expectation reddens).
+@Test @MainActor func theInputMethodRecipeRuns() throws {
+    let model = ComposeRecipeModel()
+    let window = try harnessWindow {
+        TextField("Name", text: model.text) { model.writes.append($0); model.text = $0 }
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+    }
+    try window.click(try window.element(identifier: "name"))
+
+    // The input method marks text: the field shows it, the model has not heard.
+    #expect(window.setMarkedText("ni"))
+    #expect(window.markedText == "ni")
+    #expect(model.writes.isEmpty)
+    #expect(try window.focusedElement?.value == "hello", "the AX value is the committed text")
+
+    // It commits the candidate it chose: one write, the marked text gone.
+    #expect(window.commitMarkedText("你"))
+    #expect(model.writes.count == 1)
+    #expect(window.markedText == "")
+
+    // A cancelled composition writes nothing.
+    window.setMarkedText("hao")
+    window.cancelMarkedText()
+    #expect(model.writes.count == 1)
 }

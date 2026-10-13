@@ -501,7 +501,16 @@ public final class Window {
     /// answer is applied only while this property is still what the frame was
     /// handed; see `drawFrameIfNeeded` for why that condition is exactly "the
     /// frame's decision is still about the current focus".
-    public private(set) var focusedElement: GlobalElementID?
+    public private(set) var focusedElement: GlobalElementID? {
+        didSet {
+            // A composition does not survive its field losing focus (ruling
+            // `IM-I`): AppKit discards the input context's marked text and
+            // sends nothing, so the stored composition is dropped here.
+            guard let old = oldValue, old != focusedElement,
+                  lastFocusRegistry.textTarget(for: old) != nil else { return }
+            stateTable.withState(old, initial: TextEditState()) { $0.composition = .none }
+        }
+    }
 
     /// The focus registry the most recent frame's prepaint built, captured
     /// alongside `lastHitboxes` and for its reason: the frame that built it is

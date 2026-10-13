@@ -53,6 +53,18 @@ extension Window {
     }
 }
 
+extension Window {
+    /// The focused text field's marked text and its selection within it
+    /// (`TextEditState.composition`), `nil` when nothing is focused, the focus
+    /// is not a text target or nothing is marked (ruling `IM-D`). Read-only.
+    package var testingComposition: TextComposition? {
+        guard let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil else { return nil }
+        var composition = TextComposition.none
+        stateTable.withState(id, initial: TextEditState()) { composition = $0.composition }
+        return composition.text.isEmpty ? nil : composition
+    }
+}
+
 extension App {
     /// The open window whose platform window is `platformWindow`, by identity
     /// — found from the renderer's first `beginFrame()`, since `openWindow`
